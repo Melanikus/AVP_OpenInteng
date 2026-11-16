@@ -1,0 +1,69 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a full ring takes one more widget",
+			"changes": [
+				{
+					"file": "src/ui/focus_ring.cpp",
+					"from": "if (count >= kFocusMostWidgets)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "Tab stops on a widget that can't take focus",
+			"changes": [
+				{
+					"file": "src/ui/focus_ring.cpp",
+					"from": "if (can[place])",
+					"to": "if (true)"
+				}
+			]
+		},
+		{
+			"name": "focus stays on a widget that was hidden",
+			"changes": [
+				{
+					"file": "src/ui/focus_ring.cpp",
+					"from": "if (place == focused && !canTakeFocus)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a widget that can take focus again, when none has it, does not get it",
+			"changes": [
+				{
+					"file": "src/ui/focus_ring.cpp",
+					"from": "else if (focused < 0 && canTakeFocus)",
+					"to": "else if (false)"
+				}
+			]
+		},
+		{
+			"name": "a click gives focus to a widget that can't take it",
+			"changes": [
+				{
+					"file": "src/ui/focus_ring.cpp",
+					"from": "if (!CanTakeFocus(place))",
+					"to": "if (place < 0 || place >= Count())"
+				}
+			]
+		},
+		{
+			"name": "Shift+Tab goes forward",
+			"changes": [
+				{
+					"file": "src/ui/focus_ring.cpp",
+					"from": "Find(focused < 0 ? (int)count - 1 : focused - 1, -1)",
+					"to": "Find(focused < 0 ? 0 : focused + 1, 1)"
+				}
+			]
+		}
+	]
+}

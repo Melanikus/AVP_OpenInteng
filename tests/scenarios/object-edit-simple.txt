@@ -1,0 +1,58 @@
+# OBJECT PLACEMENT, Edit of an ORDINARY object (inteng: FUN_004e3400 -> edobtype.dll edit_simple_object, "Edit object properties"; simple_object_edit.h): the window as the DLL lays it out (combo boxes, radio buttons),
+# what a type shows, the limits, the data written and read back.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+expect-screen Object Placement
+select-row 0
+item 0x18
+expect-dialog Edit object properties
+expect-dialog-kind form
+# a Static object shows its Mass and Integrity (the stock default 50 and 2), the six game mode / difficulty boxes ticked and Explosion None (the first radio button)
+expect-dialog-text Static|50|2
+expect-dialog-checks on,on,on,on,on,on,on,off,off,off
+picture 1
+# the type's combo box opens on its seventeen rows, in the DLL's order (not sorted)
+click-combo 1
+expect-dialog-combo-rows Static,Furniture,Weapon,Ammo,Medikit,Armour,Placed light,Key,Boxed Sentry Gun,IR Goggles,Video Screen,Data Tape,Motion Tracker Upgrade,Pheromone Pod,Special Game Pickup Object,Hit me and I'll destruct base,Predator field charge
+picture 2
+click-combo-row Static
+expect-dialog-text Static|50|2
+# the limits (FUN_10005ae0): a number beyond its own low 16 bits is refused with a box and the window stays
+form-field 1 70000
+click-button OK
+expect-dialog-kind message
+expect-dialog Mass value too big (>65535)
+click-button Ok
+expect-dialog Edit object properties
+form-field 1 100
+form-field 2 -1
+click-button OK
+expect-dialog-kind message
+expect-dialog Integrity value too big (>65535)
+click-button Ok
+expect-dialog Edit object properties
+form-field 2 7
+# the type's pick changes what is shown AT ONCE (CBN_SELCHANGE): a Weapon has its list headed "Enter type" and no Mass / Integrity; the typed numbers stay behind
+click-combo 1
+click-combo-row Weapon
+expect-dialog-text Weapon|Pulse Rifle
+click-combo 2
+expect-dialog-combo-rows Pulse Rifle,Smart Gun,Flame Thrower,Sadar,Grenade Launcher,Minigun,Pistol,Skeeter
+picture 3
+click-combo-row Pistol
+# Medium unticked (the 5th box), Explosion Big (the 9th: the six boxes, then None Small Big Molotov)
+click-check 5
+click-check 9
+expect-dialog-checks on,on,on,on,off,on,off,off,on,off
+click-button OK
+expect-no-dialog
+# opened again it shows what was written
+item 0x18
+expect-dialog Edit object properties
+expect-dialog-text Weapon|Pistol
+expect-dialog-checks on,on,on,on,off,on,off,off,on,off
+picture 4
+click-button Cancel
+expect-no-dialog

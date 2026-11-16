@@ -1,0 +1,174 @@
+# ACCEPTANCE: Light Sourcing on a stock level (Drake, 2026-11-16, from reassess/light-sourcing.md's redo queue and my own traces). This file says what FINISHED is for this screen.
+# Every block names the inteng code it is traced from (dump-all-2.txt FUN_004aa440 start, FUN_004aab60 frame, FUN_004aa910 exit; strings read from inteng.exe's bytes, sha256 c5229456...). A line marked OWED is a read still to do: it says which.
+# Level: Invasion (136 lights, no hierarchies: its bar is the DOORS table). Light 62 is the one nearest the start camera. The hierarchy bar is acceptance-light-sourcing-hierarchy.txt (a level that has OBJCHIER chunks).
+# Where inteng writes the level to disk itself (Exit, Soft, Return) the editor saves a COPY: the owner's safety rule (questions-for-melanikus.md).
+# HOW THE PICTURE LINES READ: a picture is taken before the action (picture N); the action takes its own picture after it; expect-pixels-changed compares that newest picture with the one before. In a hidden run only the "picture" (the 3D view) and "panels" (the editor's overlays and text) pictures exist.
+# Run: AvP-docs\tools\drake\drive-scenario-t6.sh <tree> <this file> lightacc verify_lightkeys
+# EXPECTED TODAY: RED where marked in the commit that fixes it. Finished = every line ok.
+
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+picture 1
+expect-not-empty 0.005
+
+# ---- L0 ENTRY (FUN_004aa440, 0x4aa4d7-0x4aa59b): the level, not the user, chooses the bar: it looks for OBJCHIER chunks (FUN_004316e0 with "OBJCHIER" 0x5ccbe0); none: the table at 0x5e1360 (Mode, Doors, Lights, Select, Edge, Help, Screenshot); some: the table at 0x5e1750 (Hierarchy menu instead of Doors)
+# The mode starts in Select Light (0x46 ticked, 0x48 not: menu +0x2c at 0x4aa5b2-0x4aa5c2); the view shows "View Distance: %d" at (10, 0x22) and below it "Ambience: %d%%" (FUN_004aab60 0x4aaff8, 0x4ab0f0); a headlight object is made at the camera (FUN_00580580(.., 3, 2, 0,0,0,0, 0x10000, 1000, 4000000))
+item 0xca
+expect-screen Light Sourcing (with Doors)
+expect-bar1 Mode
+expect-bar1 Doors
+expect-bar1 Lights
+expect-bar1 Select
+expect-bar1 Edge
+expect-bar1 Help
+expect-bar1 Screenshot
+expect-pixels-changed panels 0 40 300 60 0.01
+# ENTRY LIGHTS THE VIEW (FUN_004aa440 0x4aa5ea FUN_0046e700(0x8253): the shape records are built afresh, lit item types; only Misc > Lighting FUN_004d67f0(0) makes them plain and no Light Sourcing code calls it): the view mode word has no "+unlit" the moment the mode is entered, with no button pressed
+expect-field viewmode polygon
+# OWED (entry, from FUN_004aa440 in order): unless DAT_00d876d8 == 2 the view globals DAT_009310e0 / 00931100 (and 0x931108, 0x9310f0, 0x9310f4) are saved and zeroed and FUN_00498030(DAT_0091c54c, DAT_0091c554) runs; then FUN_0046e700(0x8253) (view flags), FUN_0050c5b0(&DAT_00931140), FUN_004b5340, FUN_0046d9e0, FUN_004fdff0, FUN_004739d0; every module gets its light mode (+0x5c |= 0x60000, &= ~0x80000, +0xfc = 2, +0x20c = 9, +0x5c &= ~0x2000). Their visible effect gets its line when FUN_0046e700 0x8253 is read against ours.
+
+# ---- L1 SELECT LIGHT (0x46; FUN_004ab2c0 on a left click, FUN_00559720(x, y) = the object under the pointer): the light whose marker object IS the one under the pointer is selected; if none is, the light whose marker is NEAREST (FUN_0046ddb0, between 0 and 1,000,000) is; if none qualifies nothing is selected (DAT_00703d24 = 0)
+# the selected light is drawn flat red, steady (traced: see the L3 note; the help text 0x5e1c68 says "Flashing")
+face-light 62
+wait 600
+picture 40
+# THE SELECTED LIGHT'S OWN PART OF THE LIT VIEW IS OFF while it is selected (FUN_004aab60 0x4aaeb0 -> FUN_004fe9d0 takes the light's contribution off every vertex sum) and comes back when it is let go of (FUN_004af660 -> FUN_004feb00, the light being on):
+# Select > Object (0x48) lets go of the light, the same camera now shows the room with light 62 in it; picking light 62 again takes it out again (the same picture as before)
+item 0x48
+expect-pixels-changed picture 0 0 2000 2000 0.003
+wait 600
+picture 41
+expect-pixels-same picture 0 0 2000 2000 0.002
+item 0x46
+face-light 62
+wait 600
+picture 42
+expect-pixels-changed picture 0 0 2000 2000 0.003
+# OWED: the exact distance measure of FUN_0046ddb0 and what a marker looks like (FUN_004b2590 builds the marker object from the shape at 0x5e1c28)
+
+# ---- L2 TOGGLE ON/OFF (0x6f: FUN_004ac240(selected light, its on flag == 0), the light's record and the engine's colour sums FUN_004feb00 on / FUN_004fe9d0 off) and the keys S (slot 0xd87a93: on) and X (0xd87a98: off): the lighting of what the light reaches CHANGES on the screen at once
+picture 11
+item 0x6f
+expect-status is off
+# the light is the SELECTED one, so its part is already off the lit view (above): switching it off changes nothing in the picture (FUN_004ac240 -> FUN_004fe9d0 on a part already off); S puts the part back (FUN_004feb00), X takes it off
+wait 400
+picture 12
+expect-pixels-same picture 0 0 2000 2000 0.002
+key S
+expect-pixels-changed picture 0 0 2000 2000 0.0003
+picture 13
+key X
+expect-pixels-changed picture 0 0 2000 2000 0.0003
+picture 14
+key S
+wait 300
+
+# NOTE L3: the light MARKERS (FUN_004b2590 builds a game object for each light from the descriptor at 0x5e1c28: inteng's shape 2, the five-point pyramid at 0x5e1138) are drawn as filled flat polygons (the avpx hook R_SetEditorWorldTriangles); Hide All / Unhide All show and hide them, the selected one flashes white.
+# ---- L3 LIGHTS MENU: Hide All 0x32 (FUN_004ab5a0: +8 |= 0x20 on every light) and Unhide All 0x34 (FUN_004ab4d0: +8 &= ~0x20 and the marker's +0x5c &= ~4) hide and show the light markers; Switch all on 0x6e (FUN_004ac240(light, 1) for every light)
+# the marker in view (an olive base: the light is not selected) is picked with a click (FUN_004ab2c0: the object under the pointer, else the nearest by screen distance)
+expect-colour picture 270 270 40 40 808000 0.1 8
+click-win 288 290
+wait 300
+picture 15
+# the marker of the light just picked, the SELECTED one: a selected light's block carries the flag 0x40000000 (FUN_004aab60 0x4aaeb0), its polygons are drawn flat RED, 0xff0000, and the red does not change from frame to frame
+expect-colour picture 270 270 40 40 ff0000 0.1 8
+wait 400
+picture 18
+expect-colour picture 270 270 40 40 ff0000 0.1 8
+expect-pixels-same picture 270 270 40 40 0.02
+item 0x32
+wait 400
+picture 17
+# Hide All takes it away: the middle of where it stood is the dark of the room now (the picture right after an item is taken before the frame shows it, so the one after the wait is read)
+expect-colour picture 282 283 10 10 000000 0.9 48
+item 0x34
+wait 400
+picture 16
+# Unhide All brings it back
+expect-colour picture 270 270 40 40 ff0000 0.1 8
+item 0x6e
+
+# ---- L4 DOORS (Close 0x14 = FUN_004a9f40: once (DAT_00703e54 was 0) every module that has a SHPMORPH with a FRMMORPH child has its two shape frames swapped and FUN_004fec30; Open 0x16 = FUN_004aa1b0 swaps them back)
+picture 17
+item 0x14
+wait 300
+expect-pixels-changed picture 0 0 2000 2000 0.0003
+picture 18
+item 0x16
+wait 300
+expect-pixels-changed picture 0 0 2000 2000 0.0003
+
+# ---- L5 VIEW DISTANCE AND AMBIENCE (FUN_004aab60 0x4aac17-0x4aac49 and 0x4ab020-0x4ab0f0): H (slot 0xd87a88) adds 500000 to the view distance each frame it is held, N (0xd87a8e) takes 500000 off down to 0; Shift + '+' adds 0x28f to the ambience (at most 0x10000), Shift + '-' takes it off (at least 0); both are DRAWN as text (the view distance in 500000s, the ambience in percent)
+picture 20
+hold H 300
+expect-pixels-changed panels 0 40 300 60 0.0008
+picture 21
+hold N 300
+expect-pixels-changed panels 0 40 300 60 0.0008
+
+# ---- L6 KEYS BUILT BEFORE (FUN_004aab60 / FUN_004acf30; drake-lighting-facts.md): the selected light's attribute and value are DRAWN (FUN_004acf30), < and > choose the attribute (slots 0xbc / 0xbe), + and - change it, C copies, D drops at the camera (FUN_00580580's headlight numbers), V pastes, R removes, O copies the clipboard over, I toggles visibility, U takes the changed flag out, L flies the light
+face-light 62
+key C
+wait 300
+expect-status Light 62 copied
+key Period
+wait 300
+picture 22
+hold Plus 600
+expect-pixels-changed panels 0 95 420 135 0.003
+# the selected light's numbers are DRAWN as a text block by FUN_004ac430 (FUN_0057b1b0): "Brightness:	%-6.2f%%", "Spread:		%-6.2f deg", "Range:		%-6.2fm", "Shadows:	%s", "Atten:		%s ", "Spread Atten:	%s", "Omni:		%s", "Runtime:	%s", "Red:		%d", "Green:		%d", "Blue:		%d", "No PreLight:	%s", "Specular:	%s", "Light saved - no. %d", "Light Turned Off"; a placed-object light shows "Up colour" / "Down colour" and "Bright:	%-6.2f%%" (not a panel of fields; OWED: where the block is placed, FUN_004acf30)
+# ---- L6b A PLACED-OBJECT LIGHT (object 422 of Invasion has a PLOBJLIT): T toggles the colour being worked on between "Up colour" and "Down colour" (the line FUN_004ac430 draws at 0xb2: 0x5e2218 / 0x5e2224); P opens the "Light properties" DIALOG (FUN_004acf30 calls FUN_004b0470, which builds it, and FUN_004b0c00, which fills and reads it)
+# FUN_004b0470: a window 600 x 420 titled "Light properties" (0x5e2488): the heading "Times in milliseconds :" at (0x76, 0x14); five rows, label at x 0x12 and an edit box at x 0x76 (100 x 18) at y 0x28 "Fade up time", 0x3c "Time up", 0x50 "Fade down time", 0x64 "Time down", 0x78 "Timer start";
+# "On/off type :" (0x12, 0xc8) over three radio choices at y 0xdc "Standard", 0xf0 "Fade", 0x104 "Flicker"; "Light type :" (0x13e, 0xc8) over three radio choices "Standard", "Strobe", "Flicker"; check boxes "Start on" (y 300) and "Use down colour for off" (y 0x154); buttons Ok (200, 0x172) and Cancel (0x15e, 0x172)
+pick-module 422
+picture 29
+key T
+expect-pixels-changed panels 0 200 300 24 0.005
+picture 30
+key P
+expect-dialog Light properties
+expect-dialog-kind form
+# object 422's PLOBJLIT as the file holds it: On/off type Flicker (the third radio), Light type Standard, Start on off, Use down colour for off off
+expect-dialog-checks off,off,on,on,off,off,off,off
+# the dialog's fields start with the record's numbers (FUN_004b0c00); Cancel leaves the light as it was, Ok writes them into the placed light's record (the loader-checked bytes are in light-placed.txt / verify_placedlight)
+click-button Cancel
+expect-no-dialog
+# OWED: the dialog kind name the harness will give a form (expect-dialog-kind form is a guess until Dietrich's set lands) and FUN_004b0c00's read-back limits
+
+
+# ---- L7 HELP > GENERAL (0x64, FUN_004aab60 -> FUN_004aa420): TWO texts one after the other (FUN_004724f0 twice): "Help for Light Sourcing / General keys ..." (0x5e1ea8) then "Help for Light Sourcing / Light states ..." (0x5e1c68); each stays until a key
+picture 23
+item 0x64
+expect-pixels-changed panels 0 40 700 500 0.03
+picture 24
+click-win 300 300
+expect-pixels-changed panels 0 40 700 500 0.01
+picture 25
+click-win 300 300
+expect-pixels-changed panels 0 40 700 500 0.01
+
+# ---- L8 EDGE > SOFT (0x50: FUN_004af810 with the selected OBJECT (Select > Object 0x48) after the typed angle; FUN_004b0270 asks it): a text dialog "Type in the maximum angle for soft edges (flat is 0)." with Ok / Cancel; the shape's vertex normals are made again (FUN_0050f570), the level written (inteng) and lit again (FUN_004ff010)
+item 0x48
+click-view 0.5 0.5
+item 0x50
+expect-dialog-kind text
+expect-dialog Type in the maximum angle for soft edges
+click-button Cancel
+expect-no-dialog
+item 0x46
+
+# ---- L9 SAVE INTENSITIES FOR GAME (0xc, FUN_004aab60 0x4aabb7): the ON-SCREEN message "Saving intensities for game" (0x5e2188, FUN_0057bd40(200,100)) while FUN_004aef90(0) works, then every module with a shape has a new SHPVTINT
+# the message is on the screen only while the work runs (the next frame redraws the text area), so no line looks for it afterwards; the code shows it for the two frames the work waits
+item 0xc
+
+# ---- L10 RETURN (slot 0xd87a46 = VK 0x0d, FUN_0058c010; FUN_004aab60 0x4aaf88): FUN_004ad630 writes the lights back, FUN_004bd8e0, FUN_004719e0 writes the level; and EXIT (0xa, FUN_004aa910): the menu object freed, "Camera position saved", FUN_004ab4d0 (unhide), FUN_004ad630 (the write-back: a new LIGHTSET NORMALLT with LTSETHDR, AMBIENCE, a STDLIGHT per ordinary light, the PLOBJLIT of a placed light, engine flags written with 0x300 taken out), FUN_004bd8e0, FUN_004719e0, the hub (FUN_00447550)
+item 0xa
+expect-screen Construction
+save-copy
+# the copy, read by the game's loader: light 62 (index 61) has the larger spread this run gave it, every other light as it was (verify_lightkeys: 0 lights made)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/lightacc/verify_lightkeys/verify_lightkeys.exe {orig} {copy} 61 0
+
+# ---- L11 SCREENSHOT (0x66: FUN_0057fa60, FUN_00472930): a numbered picture file is written
+# OWED: FUN_0057fa60 (what it prepares) is not read

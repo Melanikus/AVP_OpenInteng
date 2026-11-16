@@ -1,0 +1,39 @@
+# LIGHT SOURCING's main job, in the running editor (hidden run, Invasion): the Light Sourcing screen, Select Light and a click on the view picks a light, Toggle on/off switches it off, Doors > Close,
+# Save Intensities for Game writes every module's SHPVTINT, Save a copy, and the copy is read back with the game's loader and the lighting calculation (verify_light: the lights' chunks are byte for byte as they
+# were, the values are the calculation's with the doors closed and that light off).
+# (a click that finds no light keeps the light picked before it, so a grid of clicks ends on a far light; face-light 62 then makes light 62, the nearest to the start camera, the one switched off, which verify_light is told)
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/light-main-job.txt
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+item 0x46
+click-view 0.2 0.3
+click-view 0.35 0.3
+click-view 0.5 0.3
+click-view 0.65 0.3
+click-view 0.8 0.3
+click-view 0.2 0.5
+click-view 0.35 0.5
+click-view 0.5 0.5
+click-view 0.65 0.5
+click-view 0.8 0.5
+click-view 0.2 0.7
+click-view 0.35 0.7
+click-view 0.5 0.7
+click-view 0.65 0.7
+click-view 0.8 0.7
+# (the harness then selects light 62, the one nearest the start camera, and turns the camera to face it, so the toggle shows in the picture)
+face-light 62
+picture 201
+item 0x6f
+picture 202
+expect-status is off
+item 0x14
+expect-status Doors closed
+item 0xc
+expect-status Intensities saved for the game
+picture 203
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_light/verify_light.exe {orig} {copy} 62

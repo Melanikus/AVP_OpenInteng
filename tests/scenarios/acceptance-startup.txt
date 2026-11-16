@@ -1,0 +1,12 @@
+# ACCEPTANCE: the START-UP, as inteng's (startup-trace.md sections 1-4, 6; FUN_0058c9e0, FUN_00447550, FUN_00470550(10), FUN_004d67f0). A level opened (the hidden run's Level=, standing in for the double-clicked
+# file) comes up on the Construction hub (mode 0), lighting OFF (Gouraud off: "+unlit"), the camera from slot 10: the origin (0 0 0), the identity turn, looking along +z. Every camera slot starts the same.
+# No file at all: tests/scenarios/acceptance-startup-nofile.sh (the editor ends at once with the message "Please load a rif file by double clicking on it").
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-field viewmode polygon+unlit
+expect-field camera 0 0 0 0 0
+expect-no-dialog
+# the picture (look at it: the unlit level, nothing else: no bar, no buttons, no panels)
+picture 400

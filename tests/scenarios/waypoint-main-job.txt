@@ -1,0 +1,37 @@
+# WAYPOINT mode's main job, in the running editor (hidden run, Invasion): pick a module by a click, make it the AI module being worked on, open its alien waypoints, create a waypoint, make it
+# the base, click on waypoint 0 in the top view, link the two, Edit Extents (mode 2: page 4), drag a face of waypoint 0's box in the top view, the minimise and Centre Edit items, Finish Extent Edit, Save a copy, and read the copy back with the library.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/waypoint-main-job.txt
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Waypoint
+click-view 0.5 0.5
+expect-status Picked: module
+item 0x19
+expect-status AI module 54
+item 3
+expect-status alien list of
+item 5
+expect-status made at
+item 7
+click-wp 0 top
+item 8
+picture 501
+item 0x14
+expect-status Edit Extents
+picture 502
+drag-face current top right 12 0
+key M
+expect-status Minimise: on
+key M
+expect-status Minimise: off
+key R
+expect-status Centre Edit: on
+key R
+expect-status Centre Edit: off
+item 0x13
+expect-status Edit Extents finished
+picture 503
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_waypoint/verify_waypoint.exe {orig} {copy} dragged

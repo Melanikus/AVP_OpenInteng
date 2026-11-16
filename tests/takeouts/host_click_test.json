@@ -1,0 +1,40 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "the click is never moved into the picture",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "\tif (from <= 0 || to <= 0)\n",
+					"to": "\tif (true)\n"
+				}
+			]
+		},
+		{
+			"name": "the pixel's corner is stretched, not its middle",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "((2 * (int64_t)place + 1) * to) / (2 * (int64_t)from)",
+					"to": "((int64_t)place * to) / (int64_t)from"
+				}
+			]
+		},
+		{
+			"name": "down is stretched as across",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "*panelsY = Stretched(y, windowHeight, panelsHeight);",
+					"to": "*panelsY = Stretched(y, windowWidth, panelsWidth);"
+				}
+			]
+		}
+	]
+}

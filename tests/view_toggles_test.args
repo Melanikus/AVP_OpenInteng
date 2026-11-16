@@ -1,0 +1,10 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DNDEBUG /D_CRT_SECURE_NO_DEPRECATE
+/Isrc/ui /Isrc/host /Iavpx/3dc /Iavpx/3dc/win95 /Iavpx/3dc/avp/win95/frontend
+tests/view_toggles_test.cpp
+src/host/view_toggles.cpp
+src/host/editor_actions.cpp
+src/ui/menu_bar.cpp
+src/ui/panel_layout.cpp
+src/ui/text_field.cpp
+avpx/3dc/avp/win95/frontend/online_screens.cpp

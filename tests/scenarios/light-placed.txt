@@ -1,0 +1,47 @@
+# LIGHT SOURCING, a PLACED-OBJECT light (hidden run, Invasion): the object 422 has a placed light; it is picked, the + key held makes its brightness larger, T chooses its DOWN colour, the attribute is moved on to Red
+# with > (eight times), + held makes the down colour's red larger, P opens the "Light properties" panel (inteng's nine fields), the Fade up time is typed 5000, Exit does the write-back and saves a copy, and the copy is read back with the game's loader (verify_placedlight).
+# H held makes the view distance larger and N held smaller (the status line says it). Pictures 951 and 952.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/light-placed.txt
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+pick-module 422
+hold Plus 300
+expect-status Brightness
+key T
+expect-status DOWN colour
+key Period
+key Period
+key Period
+key Period
+key Period
+key Period
+key Period
+key Period
+expect-status Down colour: Red
+hold Plus 300
+expect-status Down colour: Red
+picture 951
+hold H 200
+expect-status View Distance
+hold N 200
+expect-status View Distance
+key P
+expect-status Light properties
+picture 952
+click-win 80 58
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+type 5000
+key Enter
+picture 953
+item 0xa
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/lightplaced-1/verify_placedlight/verify_placedlight.exe {orig} {copy} 422

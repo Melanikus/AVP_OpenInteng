@@ -1,0 +1,130 @@
+# TEXTURE MAP selection commands in the running editor (hidden run, Invasion): Select As / Selection menu items by their command numbers (items of the second bar), the way a person uses them:
+# by Object (0xfa) takes the whole object under a click, by Element (0xfe) the polygons joined to the one clicked, Angle (0xff) asks for an angle, Invert (0x101) toggles an object, L deselects all.
+# Run: LANE=T4 LEVEL=Invasion AvP-docs\tools\dietrich\drive-scenario-hier.sh <tree> <this file> <name>
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+picture 400
+key L
+expect-status deselected
+item 0xfa
+expect-status by Object
+click-view 0.50 0.60
+expect-status the object selected
+picture 401
+key L
+item 0xfe
+expect-status by Element
+click-view 0.50 0.60
+expect-status the element selected
+picture 402
+key L
+item 0xff
+expect-dialog-kind text
+type 200
+click-button Ok
+# out of range: inteng's MESSAGE "Angle needs to be from 0 to 180"
+expect-dialog-kind message
+expect-dialog Angle needs to be from 0 to 180
+click-button Ok
+expect-no-dialog
+item 0xff
+expect-dialog-kind text
+type 20
+click-button Ok
+expect-no-dialog
+expect-status degrees of vertical
+picture 403
+key L
+item 0xf9
+click-view 0.50 0.60
+item 0x101
+expect-status Invert selection for which object
+click-view 0.50 0.60
+expect-status selection inverted over the object
+picture 404
+item 0x100
+expect-dialog-kind text
+# the fields hold the steps now (2 and 3 from the arrow scenario's defaults, or 1 and 1): Backspace twice clears either
+key Back
+key Back
+type 4
+key Tab
+key Back
+key Back
+type 6
+click-button Ok
+expect-no-dialog
+expect-status vertical 4, horizontal 6
+item 0x14
+expect-status Add 1 to texture area on
+item 0x14
+expect-status Add 1 to texture area off
+item 0x145
+expect-status Show Imported Shapes on
+item 0x145
+expect-status Show Imported Shapes off
+key L
+item 0xfb
+expect-status selecting Rect (In or On)
+drag-win 300 250 700 550
+expect-status Rect (In or On)
+picture 405
+key L
+item 0xfc
+expect-status selecting Rect (In)
+drag-win 300 250 700 550
+expect-status Rect (In)
+picture 406
+key L
+item 0xf9
+click-view 0.30 0.55
+click-view 0.70 0.55
+item 0x31
+expect-status Get UV coords from which polygon
+click-view 0.50 0.60
+expect-status copied the coordinates
+picture 407
+item 0x27
+picture 408
+key Enter
+item 0x28
+picture 409
+key Enter
+item 0xcd
+expect-status Show Gouraud toggled
+item 0xcd
+item 0x11
+expect-status Polys Shown: Untextured
+picture 410
+item 0x12
+expect-status Polys Shown: Textured
+item 0xb7
+expect-status polygons
+picture 411
+item 0xb9
+expect-status polygon
+picture 412
+key G
+picture 413
+item 0xd4
+expect-status Select on GotoPoly on
+item 0xd4
+expect-status Select on GotoPoly off
+item 0x10f
+expect-prompt 43
+type 2 inf
+key Enter
+expect-status 2Xinfinite
+item 0x10f
+expect-prompt 43
+type 1 1
+key Enter
+expect-status 1X1
+item 0x112
+expect-status Maintain Num Repeats

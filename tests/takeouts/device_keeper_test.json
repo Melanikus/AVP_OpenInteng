@@ -1,0 +1,259 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a side below 0 is kept below 0",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "return side < 0 ? 0 : side > kSurfaceMostSide ? kSurfaceMostSide : side;",
+					"to": "return side > kSurfaceMostSide ? kSurfaceMostSide : side;"
+				}
+			]
+		},
+		{
+			"name": "a side above the most is kept",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "return side < 0 ? 0 : side > kSurfaceMostSide ? kSurfaceMostSide : side;",
+					"to": "return side < 0 ? 0 : side;"
+				}
+			]
+		},
+		{
+			"name": "a minimised parent is asked and reset",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "if (Side(windowWidth) == 0 && Side(windowHeight) == 0)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "minimised is told from the view's size, not the parent's",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "if (Side(windowWidth) == 0 && Side(windowHeight) == 0)",
+					"to": "if (Side(viewWidth) == 0 && Side(viewHeight) == 0)"
+				}
+			]
+		},
+		{
+			"name": "a side of 0 is drawn as 0",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "return kept < 1 ? 1 : kept;",
+					"to": "return kept;"
+				}
+			]
+		},
+		{
+			"name": "a waiting device is asked before its time",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "if (waiting && !TimeHasCome(nowMs, tryAt))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "the clock's wrap is read as a plain number",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "return (int32_t)(nowMs - atMs) >= 0;",
+					"to": "return nowMs >= atMs;"
+				}
+			]
+		},
+		{
+			"name": "a fine device at a new view size isn't reset",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "if (wantedWidth != width || wantedHeight != height)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a device back by itself draws without its resources",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "\t\t\t\tif (!hasResources)\n\t\t\t\t{\n\t\t\t\t\tif (!seam.RemakeResources())",
+					"to": "\t\t\t\tif (false)\n\t\t\t\t{\n\t\t\t\t\tif (!seam.RemakeResources())"
+				}
+			]
+		},
+		{
+			"name": "a new size for the parent alone doesn't make the panels again",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "if (!hasPanels || wantedPanelsWidth != panelsWidth || wantedPanelsHeight != panelsHeight)",
+					"to": "if (!hasPanels)"
+				}
+			]
+		},
+		{
+			"name": "a lost device keeps everything in its default pool",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "\t\t\t\tLetGoOfEverything();\n\t\t\t\tTryAgainAfter(nowMs, kLostAskAgainMs);",
+					"to": "\t\t\t\tTryAgainAfter(nowMs, kLostAskAgainMs);"
+				}
+			]
+		},
+		{
+			"name": "a lost device is asked again at once",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "TryAgainAfter(nowMs, kLostAskAgainMs);",
+					"to": "TryAgainAfter(nowMs, 0);"
+				}
+			]
+		},
+		{
+			"name": "a broken device is drawn again later",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "\t\tif (state == SurfaceState::Broken)\n\t\t{\n\t\t\treturn false;\n\t\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a reset is tried with everything still held",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "\t\tLetGoOfEverything();\n\t\tresetsTried++;",
+					"to": "\t\tresetsTried++;"
+				}
+			]
+		},
+		{
+			"name": "a reset is tried with the panels still held",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "\t\tif (hasPanels)\n\t\t{\n\t\t\tseam.LetGoOfPanels();\n\t\t\thasPanels = false;\n\t\t}\n\n\t\tif (hasResources)",
+					"to": "\t\tif (hasResources)"
+				}
+			]
+		},
+		{
+			"name": "a failed reset is tried again at once",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "\t\t\tresetsFailed++;\n\t\t\tFailed(nowMs);\n\t\t\treturn false;",
+					"to": "\t\t\tresetsFailed++;\n\t\t\treturn false;"
+				}
+			]
+		},
+		{
+			"name": "a reset whose resources weren't made draws anyway",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "\t\tif (!seam.RemakeResources())\n\t\t{\n\t\t\tFailed(nowMs);\n\t\t\treturn false;\n\t\t}\n\n\t\thasResources = true;\n\n\t\t// The panels last",
+					"to": "\t\tseam.RemakeResources();\n\t\thasResources = true;\n\n\t\t// The panels last"
+				}
+			]
+		},
+		{
+			"name": "a reset makes no panels after it",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "\t\tif (!MakePanels(wantedPanelsWidth, wantedPanelsHeight, nowMs))\n\t\t{\n\t\t\treturn false;\n\t\t}\n\n\t\treturn Drawn();",
+					"to": "\t\treturn Drawn();"
+				}
+			]
+		},
+		{
+			"name": "panels that can't be made draw anyway",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "\t\tif (!seam.MakePanels(wantedPanelsWidth, wantedPanelsHeight))\n\t\t{\n\t\t\tFailed(nowMs);\n\t\t\treturn false;\n\t\t}",
+					"to": "\t\tseam.MakePanels(wantedPanelsWidth, wantedPanelsHeight);"
+				}
+			]
+		},
+		{
+			"name": "panels are made again while the old ones are held",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "\t\tif (hasPanels)\n\t\t{\n\t\t\tseam.LetGoOfPanels();\n\t\t\thasPanels = false;\n\t\t}\n\n\t\tif (!seam.MakePanels",
+					"to": "\t\tif (!seam.MakePanels"
+				}
+			]
+		},
+		{
+			"name": "a new window for the panels keeps the old ones",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "void DeviceKeeper::PanelsWindowChanged()\n\t{\n\t\tif (hasPanels)",
+					"to": "void DeviceKeeper::PanelsWindowChanged()\n\t{\n\t\tif (false)"
+				}
+			]
+		},
+		{
+			"name": "the wait after a failure never grows",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "waitMs = waitMs >= kResetLongestWaitMs / 2 ? kResetLongestWaitMs : waitMs * 2;",
+					"to": "waitMs = waitMs;"
+				}
+			]
+		},
+		{
+			"name": "the wait after a failure grows past the longest",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "waitMs = waitMs >= kResetLongestWaitMs / 2 ? kResetLongestWaitMs : waitMs * 2;",
+					"to": "waitMs = waitMs * 2;"
+				}
+			]
+		},
+		{
+			"name": "a frame drawn keeps the long wait",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "\t\twaiting = false;\n\t\twaitMs = kResetFirstWaitMs;\n",
+					"to": "\t\twaiting = false;\n"
+				}
+			]
+		},
+		{
+			"name": "a device made at a size below 1 keeps it",
+			"changes": [
+				{
+					"file": "src/host/device_keeper.cpp",
+					"from": "width(DrawnSide(startWidth))",
+					"to": "width(Side(startWidth))"
+				}
+			]
+		}
+	]
+}

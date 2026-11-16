@@ -1,0 +1,53 @@
+# inteng's MESSAGE, CONFIRM and TEXT dialogs (dialog_box.h) and LIST dialog (list_picker.h) in the running editor (hidden run, Invasion), Adjacent Modules and Module Linking: Recalculate Entry Points ends with the message "Entry points calculated"
+# (FUN_00404a20 0x405479) and an Ok click closes it; Find Not Done opens the list dialog "Modules without adjacent modules" or the message "All modules have adjacent modules"; Module Linking's Exit + All Adjacencies asks the confirm box
+# (Yes / No) and No leaves everything; Set Visibility is a text box with the distance in its field, typed over and answered by Ok. Every button is CLICKED where it is drawn (the state line gives its box).
+screen Adjacent Modules
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Adjacent Modules
+expect-no-dialog
+item 0x68
+expect-dialog-kind list
+expect-dialog Modules without adjacent modules
+picture 700
+key Esc
+expect-no-dialog
+item 0x68
+expect-dialog-kind list
+click-row 1
+expect-no-dialog
+expect-status Current module
+item 0x47
+expect-dialog-kind message
+expect-dialog Entry points calculated
+picture 701
+click-button Ok
+expect-no-dialog
+item 0xa
+expect-screen Construction
+item 0xc8
+expect-screen Module Linking
+item 0x65
+expect-dialog-kind confirm
+expect-dialog regenerate adjacent module data
+picture 702
+click-button No
+expect-no-dialog
+expect-screen Construction
+item 0xc8
+expect-screen Module Linking
+item 0xa4
+expect-dialog-kind text
+expect-dialog Visible distance in metres
+picture 703
+key Back
+key Back
+key Back
+key Back
+key Back
+type 120
+expect-dialog-text 120
+click-button Ok
+expect-no-dialog
+expect-status Visib

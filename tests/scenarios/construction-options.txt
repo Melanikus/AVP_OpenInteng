@@ -1,0 +1,33 @@
+# CONSTRUCTION'S OPTIONS SWITCHES in the running editor (hidden run, Invasion): Options > Select by polygons (0x1f4), Prefer .BMP over .RIM (0x1f5), Use Polygon View Distance (0x1f6). Each item flips its switch, says so on
+# the status line and keeps it in AVP_OpenInteng.ini (read back with findstr); Select by polygons OFF makes a click take the object whose centre is nearest the pointer, ON the object under it.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/construction-options.txt
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+picture 401
+item 0x1f4
+expect-status Select by polygons: off
+verify findstr /C:"SelectByPolygons=0" {exedir}AVP_OpenInteng.ini
+click-view 0.5 0.5
+expect-status Picked
+picture 402
+item 0x1f4
+expect-status Select by polygons: on
+verify findstr /C:"SelectByPolygons=1" {exedir}AVP_OpenInteng.ini
+click-view 0.5 0.5
+expect-status Picked
+item 0x1f5
+expect-status Prefer .BMP over .RIM: on
+verify findstr /C:"PreferBmp=1" {exedir}AVP_OpenInteng.ini
+picture 403
+item 0x1f5
+expect-status Prefer .BMP over .RIM: off
+verify findstr /C:"PreferBmp=0" {exedir}AVP_OpenInteng.ini
+item 0x1f6
+expect-status Use Polygon View Distance: on
+verify findstr /C:"PolygonViewDistance=1" {exedir}AVP_OpenInteng.ini
+item 0x1f6
+expect-status Use Polygon View Distance: off
+verify findstr /C:"PolygonViewDistance=0" {exedir}AVP_OpenInteng.ini
+picture 404

@@ -1,0 +1,2345 @@
+{
+	"what": "inteng.exe drawn menu tables, facts only (words, command numbers, addresses); from menus-2.json and Ghidra map-5",
+	"sha256": "c52294569560217e45eb2bca0efbd3327339a1d1be5628c70eaef6a48d3a22cb",
+	"imageBase": "0x400000",
+	"tables": [
+		{
+			"address": "0x5ced30",
+			"screen": "Construction (the shape screen inteng starts in)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_00447550",
+			"referencedAt": "0x447582",
+			"endMarkerAt": "0x5cf4e0",
+			"records": [
+				{
+					"address": "0x5ced30",
+					"kind": 0,
+					"words": "&File",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5ced60",
+					"kind": 1,
+					"words": "&Quit",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5ced90",
+					"kind": 1,
+					"words": "Write C File",
+					"command": "0xc"
+				},
+				{
+					"address": "0x5cedc0",
+					"kind": 1,
+					"words": "Write Asc File",
+					"command": "0xe"
+				},
+				{
+					"address": "0x5cedf0",
+					"kind": 1,
+					"words": "Write Asc File (Doors closed)",
+					"command": "0x10"
+				},
+				{
+					"address": "0x5cee20",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x14"
+				},
+				{
+					"address": "0x5cee50",
+					"kind": 1,
+					"words": "&Texture Map",
+					"command": "0x46"
+				},
+				{
+					"address": "0x5cee80",
+					"kind": 1,
+					"words": "&Module Linking",
+					"command": "0xc8"
+				},
+				{
+					"address": "0x5ceeb0",
+					"kind": 1,
+					"words": "&Adjacent Modules",
+					"command": "0xc9"
+				},
+				{
+					"address": "0x5ceee0",
+					"kind": 1,
+					"words": "&Light Sourcing",
+					"command": "0xca"
+				},
+				{
+					"address": "0x5cef10",
+					"kind": 1,
+					"words": "&Object Placement",
+					"command": "0xcc"
+				},
+				{
+					"address": "0x5cef40",
+					"kind": 1,
+					"words": "&Waypoint",
+					"command": "0xcd"
+				},
+				{
+					"address": "0x5cef70",
+					"kind": 1,
+					"words": "&Path",
+					"command": "0xce"
+				},
+				{
+					"address": "0x5cefa0",
+					"kind": 1,
+					"words": "&Hierarchy",
+					"command": "0xcf"
+				},
+				{
+					"address": "0x5cefd0",
+					"kind": 1,
+					"words": "&Strategy Data",
+					"command": "0x38"
+				},
+				{
+					"address": "0x5cf000",
+					"kind": 2,
+					"words": "&Normal",
+					"command": "0x39"
+				},
+				{
+					"address": "0x5cf030",
+					"kind": 2,
+					"words": "No &Textures",
+					"command": "0x3a"
+				},
+				{
+					"address": "0x5cf060",
+					"kind": 0,
+					"words": "&Object",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5cf090",
+					"kind": 1,
+					"words": "&Find Object",
+					"command": "0x52"
+				},
+				{
+					"address": "0x5cf0c0",
+					"kind": 1,
+					"words": "&Find Small Modules",
+					"command": "0x2bd"
+				},
+				{
+					"address": "0x5cf0f0",
+					"kind": 1,
+					"words": "Set &Base Module",
+					"command": "0x140"
+				},
+				{
+					"address": "0x5cf120",
+					"kind": 1,
+					"words": "&Change Object Type",
+					"command": "0x12c"
+				},
+				{
+					"address": "0x5cf150",
+					"kind": 2,
+					"words": "&Module",
+					"command": "0x12d"
+				},
+				{
+					"address": "0x5cf180",
+					"kind": 2,
+					"words": "&Placed",
+					"command": "0x12e"
+				},
+				{
+					"address": "0x5cf1b0",
+					"kind": 1,
+					"words": "&Delete Module's Data",
+					"command": "0x50"
+				},
+				{
+					"address": "0x5cf1e0",
+					"kind": 1,
+					"words": "Merge Objects",
+					"command": "0x58"
+				},
+				{
+					"address": "0x5cf210",
+					"kind": 1,
+					"words": "Fix tears between Objects (Selected)",
+					"command": "0x5a"
+				},
+				{
+					"address": "0x5cf240",
+					"kind": 1,
+					"words": "Fix tears between Objects (All)",
+					"command": "0x5b"
+				},
+				{
+					"address": "0x5cf270",
+					"kind": 0,
+					"words": "&Shape",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5cf2a0",
+					"kind": 1,
+					"words": "Recentre Shape",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5cf2d0",
+					"kind": 2,
+					"words": "Move centre to top",
+					"command": "0x14a"
+				},
+				{
+					"address": "0x5cf300",
+					"kind": 2,
+					"words": "Move centre to bottom",
+					"command": "0x14b"
+				},
+				{
+					"address": "0x5cf330",
+					"kind": 0,
+					"words": "Miscel&laneous",
+					"command": "0x8"
+				},
+				{
+					"address": "0x5cf360",
+					"kind": 1,
+					"words": "Keys - Movement",
+					"command": "0x2be"
+				},
+				{
+					"address": "0x5cf390",
+					"kind": 1,
+					"words": "Keys - Mode",
+					"command": "0x2bf"
+				},
+				{
+					"address": "0x5cf3c0",
+					"kind": 1,
+					"words": "&Module Overlaps",
+					"command": "0x56"
+				},
+				{
+					"address": "0x5cf3f0",
+					"kind": 1,
+					"words": "&Recalculate Normals and Extents",
+					"command": "0x25b"
+				},
+				{
+					"address": "0x5cf420",
+					"kind": 0,
+					"words": "Options",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5cf450",
+					"kind": 1,
+					"words": "&Select by polygons",
+					"command": "0x1f4"
+				},
+				{
+					"address": "0x5cf480",
+					"kind": 1,
+					"words": "&Prefer .BMP over .RIM",
+					"command": "0x1f5"
+				},
+				{
+					"address": "0x5cf4b0",
+					"kind": 1,
+					"words": "&Use Polygon View Distance",
+					"command": "0x1f6"
+				}
+			]
+		},
+		{
+			"address": "0x5c3508",
+			"screen": "Adjacent modules",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_00404780",
+			"referencedAt": "0x4047a6",
+			"endMarkerAt": "0x5c3838",
+			"records": [
+				{
+					"address": "0x5c3508",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5c3538",
+					"kind": 1,
+					"words": "&Exit",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5c3568",
+					"kind": 0,
+					"words": "&Link",
+					"command": "0x5"
+				},
+				{
+					"address": "0x5c3598",
+					"kind": 1,
+					"words": "&Add",
+					"command": "0x32"
+				},
+				{
+					"address": "0x5c35c8",
+					"kind": 1,
+					"words": "&Delete",
+					"command": "0x34"
+				},
+				{
+					"address": "0x5c35f8",
+					"kind": 1,
+					"words": "&Copy from VModules",
+					"command": "0x36"
+				},
+				{
+					"address": "0x5c3628",
+					"kind": 0,
+					"words": "Ba&se",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5c3658",
+					"kind": 1,
+					"words": "&Set Current",
+					"command": "0x64"
+				},
+				{
+					"address": "0x5c3688",
+					"kind": 1,
+					"words": "Show &All",
+					"command": "0x66"
+				},
+				{
+					"address": "0x5c36b8",
+					"kind": 1,
+					"words": "&Find Not Done",
+					"command": "0x68"
+				},
+				{
+					"address": "0x5c36e8",
+					"kind": 0,
+					"words": "&View Mode",
+					"command": "0x7"
+				},
+				{
+					"address": "0x5c3718",
+					"kind": 1,
+					"words": "&Polyline",
+					"command": "0xc8"
+				},
+				{
+					"address": "0x5c3748",
+					"kind": 1,
+					"words": "&Filled Polyline",
+					"command": "0xc9"
+				},
+				{
+					"address": "0x5c3778",
+					"kind": 0,
+					"words": "M&isc",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5c37a8",
+					"kind": 1,
+					"words": "&Select by polygons",
+					"command": "0xca"
+				},
+				{
+					"address": "0x5c37d8",
+					"kind": 1,
+					"words": "Toggle &View Distance",
+					"command": "0x46"
+				},
+				{
+					"address": "0x5c3808",
+					"kind": 1,
+					"words": "Recalculate &Entry Points",
+					"command": "0x47"
+				}
+			]
+		},
+		{
+			"address": "0x5e1360",
+			"screen": "Light sourcing (two menus: one with &Doors, one with &Hierarchy)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004aa440",
+			"referencedAt": "0x4aa595",
+			"endMarkerAt": "0x5e1720",
+			"records": [
+				{
+					"address": "0x5e1360",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5e1390",
+					"kind": 1,
+					"words": "&Exit",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5e13c0",
+					"kind": 1,
+					"words": "&Save Intensities for Game",
+					"command": "0xc"
+				},
+				{
+					"address": "0x5e13f0",
+					"kind": 1,
+					"words": "Save Intensities for &Tools",
+					"command": "0xd"
+				},
+				{
+					"address": "0x5e1420",
+					"kind": 0,
+					"words": "&Doors",
+					"command": "0x3"
+				},
+				{
+					"address": "0x5e1450",
+					"kind": 1,
+					"words": "&Close",
+					"command": "0x14"
+				},
+				{
+					"address": "0x5e1480",
+					"kind": 1,
+					"words": "&Open",
+					"command": "0x16"
+				},
+				{
+					"address": "0x5e14b0",
+					"kind": 0,
+					"words": "&Lights",
+					"command": "0x5"
+				},
+				{
+					"address": "0x5e14e0",
+					"kind": 1,
+					"words": "&Hide All",
+					"command": "0x32"
+				},
+				{
+					"address": "0x5e1510",
+					"kind": 1,
+					"words": "&Unhide All",
+					"command": "0x34"
+				},
+				{
+					"address": "0x5e1540",
+					"kind": 1,
+					"words": "&Toggle on/off",
+					"command": "0x6f"
+				},
+				{
+					"address": "0x5e1570",
+					"kind": 1,
+					"words": "&Switch all on",
+					"command": "0x6e"
+				},
+				{
+					"address": "0x5e15a0",
+					"kind": 0,
+					"words": "&Select",
+					"command": "0x7"
+				},
+				{
+					"address": "0x5e15d0",
+					"kind": 1,
+					"words": "&Object",
+					"command": "0x48"
+				},
+				{
+					"address": "0x5e1600",
+					"kind": 1,
+					"words": "&Light",
+					"command": "0x46"
+				},
+				{
+					"address": "0x5e1630",
+					"kind": 0,
+					"words": "&Edge",
+					"command": "0x8"
+				},
+				{
+					"address": "0x5e1660",
+					"kind": 1,
+					"words": "&Soft",
+					"command": "0x50"
+				},
+				{
+					"address": "0x5e1690",
+					"kind": 0,
+					"words": "&Help",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5e16c0",
+					"kind": 1,
+					"words": "&General",
+					"command": "0x64"
+				},
+				{
+					"address": "0x5e16f0",
+					"kind": 0,
+					"words": "S&creenshot",
+					"command": "0x66"
+				}
+			]
+		},
+		{
+			"address": "0x5e1750",
+			"screen": "Light sourcing (two menus: one with &Doors, one with &Hierarchy)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004aa440",
+			"referencedAt": "0x4aa588",
+			"endMarkerAt": "0x5e1b10",
+			"records": [
+				{
+					"address": "0x5e1750",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5e1780",
+					"kind": 1,
+					"words": "&Exit",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5e17b0",
+					"kind": 1,
+					"words": "&Save Intensities for Game",
+					"command": "0xc"
+				},
+				{
+					"address": "0x5e17e0",
+					"kind": 1,
+					"words": "Save Intensities for &Tools",
+					"command": "0xd"
+				},
+				{
+					"address": "0x5e1810",
+					"kind": 0,
+					"words": "&Hierarchy",
+					"command": "0x3"
+				},
+				{
+					"address": "0x5e1840",
+					"kind": 1,
+					"words": "&Hierarchy",
+					"command": "0xc8"
+				},
+				{
+					"address": "0x5e1870",
+					"kind": 1,
+					"words": "&Sequence",
+					"command": "0xc9"
+				},
+				{
+					"address": "0x5e18a0",
+					"kind": 0,
+					"words": "&Lights",
+					"command": "0x5"
+				},
+				{
+					"address": "0x5e18d0",
+					"kind": 1,
+					"words": "&Hide All",
+					"command": "0x32"
+				},
+				{
+					"address": "0x5e1900",
+					"kind": 1,
+					"words": "&Unhide All",
+					"command": "0x34"
+				},
+				{
+					"address": "0x5e1930",
+					"kind": 1,
+					"words": "&Toggle on/off",
+					"command": "0x6f"
+				},
+				{
+					"address": "0x5e1960",
+					"kind": 1,
+					"words": "&Switch all on",
+					"command": "0x6e"
+				},
+				{
+					"address": "0x5e1990",
+					"kind": 0,
+					"words": "&Select",
+					"command": "0x7"
+				},
+				{
+					"address": "0x5e19c0",
+					"kind": 1,
+					"words": "&Object",
+					"command": "0x48"
+				},
+				{
+					"address": "0x5e19f0",
+					"kind": 1,
+					"words": "&Light",
+					"command": "0x46"
+				},
+				{
+					"address": "0x5e1a20",
+					"kind": 0,
+					"words": "&Edge",
+					"command": "0x8"
+				},
+				{
+					"address": "0x5e1a50",
+					"kind": 1,
+					"words": "&Soft",
+					"command": "0x50"
+				},
+				{
+					"address": "0x5e1a80",
+					"kind": 0,
+					"words": "&Help",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5e1ab0",
+					"kind": 1,
+					"words": "&General",
+					"command": "0x64"
+				},
+				{
+					"address": "0x5e1ae0",
+					"kind": 0,
+					"words": "S&creenshot",
+					"command": "0x66"
+				}
+			]
+		},
+		{
+			"address": "0x5e2e38",
+			"screen": "Module linking (its menu bar, and an 8-entry menu of links)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004c3a00",
+			"referencedAt": "0x4c3a42",
+			"endMarkerAt": "0x5e3738",
+			"records": [
+				{
+					"address": "0x5e2e38",
+					"kind": 0,
+					"words": "&AutoLink",
+					"command": "0xa0"
+				},
+				{
+					"address": "0x5e2e68",
+					"kind": 1,
+					"words": "&Module",
+					"command": "0xa1"
+				},
+				{
+					"address": "0x5e2e98",
+					"kind": 1,
+					"words": "&Environment",
+					"command": "0xa2"
+				},
+				{
+					"address": "0x5e2ec8",
+					"kind": 1,
+					"words": "&Set Visiblity",
+					"command": "0xa4"
+				},
+				{
+					"address": "0x5e2ef8",
+					"kind": 1,
+					"words": "&Add Reverse Links",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e2f28",
+					"kind": 2,
+					"words": "&Environment",
+					"command": "0x12d"
+				},
+				{
+					"address": "0x5e2f58",
+					"kind": 2,
+					"words": "&Module",
+					"command": "0x12c"
+				},
+				{
+					"address": "0x5e2f88",
+					"kind": 1,
+					"words": "&Load from file",
+					"command": "0xa3"
+				},
+				{
+					"address": "0x5e2fb8",
+					"kind": 1,
+					"words": "Module (delete old)",
+					"command": "0xa5"
+				},
+				{
+					"address": "0x5e2fe8",
+					"kind": 1,
+					"words": "Environment (delete old)",
+					"command": "0xa6"
+				},
+				{
+					"address": "0x5e3018",
+					"kind": 1,
+					"words": "",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e3048",
+					"kind": 1,
+					"words": "&Delete Links",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e3078",
+					"kind": 2,
+					"words": "&Module",
+					"command": "0xa7"
+				},
+				{
+					"address": "0x5e30a8",
+					"kind": 2,
+					"words": "Environment",
+					"command": "0xa8"
+				},
+				{
+					"address": "0x5e30d8",
+					"kind": 0,
+					"words": "&Link",
+					"command": "0x5"
+				},
+				{
+					"address": "0x5e3108",
+					"kind": 1,
+					"words": "&Normal",
+					"command": "0x32"
+				},
+				{
+					"address": "0x5e3138",
+					"kind": 1,
+					"words": "&Branch",
+					"command": "0x34"
+				},
+				{
+					"address": "0x5e3168",
+					"kind": 1,
+					"words": "&Delete",
+					"command": "0x36"
+				},
+				{
+					"address": "0x5e3198",
+					"kind": 0,
+					"words": "&Branch",
+					"command": "0x6"
+				},
+				{
+					"address": "0x5e31c8",
+					"kind": 1,
+					"words": "&View",
+					"command": "0x3c"
+				},
+				{
+					"address": "0x5e31f8",
+					"kind": 1,
+					"words": "&Hide",
+					"command": "0x3e"
+				},
+				{
+					"address": "0x5e3228",
+					"kind": 1,
+					"words": "&Close Branch",
+					"command": "0x40"
+				},
+				{
+					"address": "0x5e3258",
+					"kind": 1,
+					"words": "&Open Branch",
+					"command": "0x42"
+				},
+				{
+					"address": "0x5e3288",
+					"kind": 0,
+					"words": "&View Mode",
+					"command": "0x7"
+				},
+				{
+					"address": "0x5e32b8",
+					"kind": 1,
+					"words": "&Polyline",
+					"command": "0x46"
+				},
+				{
+					"address": "0x5e32e8",
+					"kind": 1,
+					"words": "&Filled Polyline",
+					"command": "0x47"
+				},
+				{
+					"address": "0x5e3318",
+					"kind": 1,
+					"words": "Filled",
+					"command": "0x48"
+				},
+				{
+					"address": "0x5e3348",
+					"kind": 1,
+					"words": "&Mixed",
+					"command": "0x4a"
+				},
+				{
+					"address": "0x5e3378",
+					"kind": 1,
+					"words": "Toggle &View Distance",
+					"command": "0x49"
+				},
+				{
+					"address": "0x5e33a8",
+					"kind": 1,
+					"words": "Only Draw Linked Modules",
+					"command": "0x4b"
+				},
+				{
+					"address": "0x5e33d8",
+					"kind": 0,
+					"words": "Ba&se",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5e3408",
+					"kind": 1,
+					"words": "&Set Current",
+					"command": "0xc8"
+				},
+				{
+					"address": "0x5e3438",
+					"kind": 1,
+					"words": "Show &All",
+					"command": "0xca"
+				},
+				{
+					"address": "0x5e3468",
+					"kind": 1,
+					"words": "Show &Poly Counts",
+					"command": "0xcc"
+				},
+				{
+					"address": "0x5e3498",
+					"kind": 1,
+					"words": "Select With &Centres",
+					"command": "0xcd"
+				},
+				{
+					"address": "0x5e34c8",
+					"kind": 0,
+					"words": "Object",
+					"command": "0xf"
+				},
+				{
+					"address": "0x5e34f8",
+					"kind": 1,
+					"words": "&Hide",
+					"command": "0x96"
+				},
+				{
+					"address": "0x5e3528",
+					"kind": 1,
+					"words": "Un-hide &last",
+					"command": "0x9a"
+				},
+				{
+					"address": "0x5e3558",
+					"kind": 1,
+					"words": "&Un-hide all",
+					"command": "0x98"
+				},
+				{
+					"address": "0x5e3588",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x14"
+				},
+				{
+					"address": "0x5e35b8",
+					"kind": 1,
+					"words": "&Exit",
+					"command": "0x64"
+				},
+				{
+					"address": "0x5e35e8",
+					"kind": 1,
+					"words": "-----",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e3618",
+					"kind": 1,
+					"words": "Exit + New Adjacencies",
+					"command": "0x66"
+				},
+				{
+					"address": "0x5e3648",
+					"kind": 1,
+					"words": "-----",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e3678",
+					"kind": 1,
+					"words": "Exit + All Adjacencies",
+					"command": "0x65"
+				},
+				{
+					"address": "0x5e36a8",
+					"kind": 0,
+					"words": "&Help",
+					"command": "0xd2"
+				},
+				{
+					"address": "0x5e36d8",
+					"kind": 0,
+					"words": "Misc",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e3708",
+					"kind": 1,
+					"words": "Link with AVP",
+					"command": "0x190"
+				}
+			]
+		},
+		{
+			"address": "0x5e2c88",
+			"screen": "Module linking (its menu bar, and an 8-entry menu of links)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004c3a00",
+			"referencedAt": "0x4c3a53",
+			"endMarkerAt": "0x5e2e08",
+			"records": [
+				{
+					"address": "0x5e2c88",
+					"kind": 0,
+					"words": "&Normal Link",
+					"command": "0x32"
+				},
+				{
+					"address": "0x5e2cb8",
+					"kind": 0,
+					"words": "&Branch Link",
+					"command": "0x34"
+				},
+				{
+					"address": "0x5e2ce8",
+					"kind": 0,
+					"words": "&Delete Link",
+					"command": "0x36"
+				},
+				{
+					"address": "0x5e2d18",
+					"kind": 0,
+					"words": "&Close Branch",
+					"command": "0x40"
+				},
+				{
+					"address": "0x5e2d48",
+					"kind": 0,
+					"words": "&Open Branch",
+					"command": "0x42"
+				},
+				{
+					"address": "0x5e2d78",
+					"kind": 0,
+					"words": "&View Branch",
+					"command": "0x3c"
+				},
+				{
+					"address": "0x5e2da8",
+					"kind": 0,
+					"words": "&Hide Branch",
+					"command": "0x3e"
+				},
+				{
+					"address": "0x5e2dd8",
+					"kind": 0,
+					"words": "&Set Base",
+					"command": "0xc8"
+				}
+			]
+		},
+		{
+			"address": "0x5e51b8",
+			"screen": "Object placement and the screens it switches to (one function chooses among eight menus)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004d68e0",
+			"referencedAt": "0x4d8244",
+			"endMarkerAt": "0x5e5908",
+			"records": [
+				{
+					"address": "0x5e51b8",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5e51e8",
+					"kind": 1,
+					"words": "&Exit",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5e5218",
+					"kind": 1,
+					"words": "&Save",
+					"command": "0xe"
+				},
+				{
+					"address": "0x5e5248",
+					"kind": 1,
+					"words": "&Acoustic Mode",
+					"command": "0x10"
+				},
+				{
+					"address": "0x5e5278",
+					"kind": 0,
+					"words": "&Object",
+					"command": "0x2"
+				},
+				{
+					"address": "0x5e52a8",
+					"kind": 1,
+					"words": "&Find",
+					"command": "0x19"
+				},
+				{
+					"address": "0x5e52d8",
+					"kind": 1,
+					"words": "&Delete",
+					"command": "0x16"
+				},
+				{
+					"address": "0x5e5308",
+					"kind": 1,
+					"words": "&Edit",
+					"command": "0x18"
+				},
+				{
+					"address": "0x5e5338",
+					"kind": 1,
+					"words": "Re&scale",
+					"command": "0x1a"
+				},
+				{
+					"address": "0x5e5368",
+					"kind": 1,
+					"words": "&Move relative",
+					"command": "0x1c"
+				},
+				{
+					"address": "0x5e5398",
+					"kind": 1,
+					"words": "&Replace shape",
+					"command": "0x1d"
+				},
+				{
+					"address": "0x5e53c8",
+					"kind": 1,
+					"words": "Edit &Track",
+					"command": "0x36"
+				},
+				{
+					"address": "0x5e53f8",
+					"kind": 1,
+					"words": "Copy Track",
+					"command": "0x52c"
+				},
+				{
+					"address": "0x5e5428",
+					"kind": 1,
+					"words": "Paste Track Relative",
+					"command": "0x52d"
+				},
+				{
+					"address": "0x5e5458",
+					"kind": 1,
+					"words": "Paste Track Absolute",
+					"command": "0x52e"
+				},
+				{
+					"address": "0x5e5488",
+					"kind": 0,
+					"words": "&Create",
+					"command": "0x5"
+				},
+				{
+					"address": "0x5e54b8",
+					"kind": 1,
+					"words": "&With shape",
+					"command": "0x6"
+				},
+				{
+					"address": "0x5e54e8",
+					"kind": 2,
+					"words": "&Choose",
+					"command": "0x32"
+				},
+				{
+					"address": "0x5e5518",
+					"kind": 2,
+					"words": "&Selected",
+					"command": "0x33"
+				},
+				{
+					"address": "0x5e5548",
+					"kind": 1,
+					"words": "AVP &generator",
+					"command": "0x34"
+				},
+				{
+					"address": "0x5e5578",
+					"kind": 1,
+					"words": "AVP &Bad Guy",
+					"command": "0x35"
+				},
+				{
+					"address": "0x5e55a8",
+					"kind": 1,
+					"words": "Player starting position",
+					"command": "0x3a"
+				},
+				{
+					"address": "0x5e55d8",
+					"kind": 1,
+					"words": "&Sound",
+					"command": "0x37"
+				},
+				{
+					"address": "0x5e5608",
+					"kind": 1,
+					"words": "&Particle Generator",
+					"command": "0x39"
+				},
+				{
+					"address": "0x5e5638",
+					"kind": 0,
+					"words": "&Alt Locations",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e5668",
+					"kind": 1,
+					"words": "&Add new",
+					"command": "0x64"
+				},
+				{
+					"address": "0x5e5698",
+					"kind": 1,
+					"words": "&Delete Current",
+					"command": "0x65"
+				},
+				{
+					"address": "0x5e56c8",
+					"kind": 1,
+					"words": "Assign &Group Number",
+					"command": "0x66"
+				},
+				{
+					"address": "0x5e56f8",
+					"kind": 1,
+					"words": "&Next",
+					"command": "0x67"
+				},
+				{
+					"address": "0x5e5728",
+					"kind": 1,
+					"words": "&Prev",
+					"command": "0x68"
+				},
+				{
+					"address": "0x5e5758",
+					"kind": 1,
+					"words": "&Change shown location (all objects)",
+					"command": "0x69"
+				},
+				{
+					"address": "0x5e5788",
+					"kind": 0,
+					"words": "M&isc",
+					"command": "0x50"
+				},
+				{
+					"address": "0x5e57b8",
+					"kind": 1,
+					"words": "&Keys",
+					"command": "0x53"
+				},
+				{
+					"address": "0x5e57e8",
+					"kind": 1,
+					"words": "&Move rel. to poly",
+					"command": "0x51"
+				},
+				{
+					"address": "0x5e5818",
+					"kind": 1,
+					"words": "Snap To &Vertex",
+					"command": "0x4e2"
+				},
+				{
+					"address": "0x5e5848",
+					"kind": 1,
+					"words": "&Lighting",
+					"command": "0x54"
+				},
+				{
+					"address": "0x5e5878",
+					"kind": 1,
+					"words": "Toggle &Split Screen",
+					"command": "0x52"
+				},
+				{
+					"address": "0x5e58a8",
+					"kind": 1,
+					"words": "Toggle Gravity",
+					"command": "0x58"
+				},
+				{
+					"address": "0x5e58d8",
+					"kind": 1,
+					"words": "Show Polygon Counts",
+					"command": "0x5a"
+				}
+			]
+		},
+		{
+			"address": "0x5e5938",
+			"screen": "Object placement and the screens it switches to (one function chooses among eight menus)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004d68e0",
+			"referencedAt": "0x4d821c",
+			"endMarkerAt": "0x5e5f68",
+			"records": [
+				{
+					"address": "0x5e5938",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5e5968",
+					"kind": 1,
+					"words": "&Exit",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5e5998",
+					"kind": 1,
+					"words": "&Save",
+					"command": "0xe"
+				},
+				{
+					"address": "0x5e59c8",
+					"kind": 1,
+					"words": "&Acoustic Mode",
+					"command": "0x10"
+				},
+				{
+					"address": "0x5e59f8",
+					"kind": 0,
+					"words": "&Object",
+					"command": "0x2"
+				},
+				{
+					"address": "0x5e5a28",
+					"kind": 1,
+					"words": "&Find",
+					"command": "0x19"
+				},
+				{
+					"address": "0x5e5a58",
+					"kind": 1,
+					"words": "&Delete",
+					"command": "0x16"
+				},
+				{
+					"address": "0x5e5a88",
+					"kind": 1,
+					"words": "&Edit",
+					"command": "0x18"
+				},
+				{
+					"address": "0x5e5ab8",
+					"kind": 1,
+					"words": "Re&scale",
+					"command": "0x1a"
+				},
+				{
+					"address": "0x5e5ae8",
+					"kind": 1,
+					"words": "&Move relative",
+					"command": "0x1c"
+				},
+				{
+					"address": "0x5e5b18",
+					"kind": 1,
+					"words": "&Replace shape",
+					"command": "0x1d"
+				},
+				{
+					"address": "0x5e5b48",
+					"kind": 1,
+					"words": "Edit &Track",
+					"command": "0x36"
+				},
+				{
+					"address": "0x5e5b78",
+					"kind": 1,
+					"words": "Copy Track",
+					"command": "0x52c"
+				},
+				{
+					"address": "0x5e5ba8",
+					"kind": 1,
+					"words": "Paste Track Relative",
+					"command": "0x52d"
+				},
+				{
+					"address": "0x5e5bd8",
+					"kind": 1,
+					"words": "Paste Track Absolute",
+					"command": "0x52e"
+				},
+				{
+					"address": "0x5e5c08",
+					"kind": 0,
+					"words": "&Create",
+					"command": "0x5"
+				},
+				{
+					"address": "0x5e5c38",
+					"kind": 1,
+					"words": "&With shape",
+					"command": "0x6"
+				},
+				{
+					"address": "0x5e5c68",
+					"kind": 2,
+					"words": "&Choose",
+					"command": "0x32"
+				},
+				{
+					"address": "0x5e5c98",
+					"kind": 2,
+					"words": "&Selected",
+					"command": "0x33"
+				},
+				{
+					"address": "0x5e5cc8",
+					"kind": 1,
+					"words": "&Generator",
+					"command": "0x34"
+				},
+				{
+					"address": "0x5e5cf8",
+					"kind": 1,
+					"words": "&Bad Guy",
+					"command": "0x35"
+				},
+				{
+					"address": "0x5e5d28",
+					"kind": 1,
+					"words": "Player starting position",
+					"command": "0x3a"
+				},
+				{
+					"address": "0x5e5d58",
+					"kind": 1,
+					"words": "&Sound",
+					"command": "0x37"
+				},
+				{
+					"address": "0x5e5d88",
+					"kind": 1,
+					"words": "Special &Point",
+					"command": "0xfa1"
+				},
+				{
+					"address": "0x5e5db8",
+					"kind": 0,
+					"words": "M&isc",
+					"command": "0x50"
+				},
+				{
+					"address": "0x5e5de8",
+					"kind": 1,
+					"words": "&Keys",
+					"command": "0x53"
+				},
+				{
+					"address": "0x5e5e18",
+					"kind": 1,
+					"words": "&Move rel. to poly",
+					"command": "0x51"
+				},
+				{
+					"address": "0x5e5e48",
+					"kind": 1,
+					"words": "Snap To &Vertex",
+					"command": "0x4e2"
+				},
+				{
+					"address": "0x5e5e78",
+					"kind": 1,
+					"words": "&Lighting",
+					"command": "0x54"
+				},
+				{
+					"address": "0x5e5ea8",
+					"kind": 1,
+					"words": "Toggle &Split Screen",
+					"command": "0x52"
+				},
+				{
+					"address": "0x5e5ed8",
+					"kind": 1,
+					"words": "Toggle Gravity",
+					"command": "0x58"
+				},
+				{
+					"address": "0x5e5f08",
+					"kind": 1,
+					"words": "Show Polygon Counts",
+					"command": "0x5a"
+				},
+				{
+					"address": "0x5e5f38",
+					"kind": 1,
+					"words": "Convert Sound Objects",
+					"command": "0x1f40"
+				}
+			]
+		},
+		{
+			"address": "0x5e5f98",
+			"screen": "Object placement and the screens it switches to (one function chooses among eight menus)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004d68e0",
+			"referencedAt": "0x4d81d7",
+			"endMarkerAt": "0x5e62f8",
+			"records": [
+				{
+					"address": "0x5e5f98",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5e5fc8",
+					"kind": 1,
+					"words": "&Exit",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5e5ff8",
+					"kind": 1,
+					"words": "&Save",
+					"command": "0xe"
+				},
+				{
+					"address": "0x5e6028",
+					"kind": 1,
+					"words": "&Acoustic Mode",
+					"command": "0x10"
+				},
+				{
+					"address": "0x5e6058",
+					"kind": 0,
+					"words": "&Object",
+					"command": "0x2"
+				},
+				{
+					"address": "0x5e6088",
+					"kind": 1,
+					"words": "&Create Sound",
+					"command": "0x37"
+				},
+				{
+					"address": "0x5e60b8",
+					"kind": 1,
+					"words": "&Find",
+					"command": "0x19"
+				},
+				{
+					"address": "0x5e60e8",
+					"kind": 1,
+					"words": "&Delete",
+					"command": "0x16"
+				},
+				{
+					"address": "0x5e6118",
+					"kind": 1,
+					"words": "&Edit",
+					"command": "0x18"
+				},
+				{
+					"address": "0x5e6148",
+					"kind": 0,
+					"words": "&Alt Locations",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e6178",
+					"kind": 1,
+					"words": "&Add new",
+					"command": "0x64"
+				},
+				{
+					"address": "0x5e61a8",
+					"kind": 1,
+					"words": "&Delete Current",
+					"command": "0x65"
+				},
+				{
+					"address": "0x5e61d8",
+					"kind": 1,
+					"words": "Assign &Group Number",
+					"command": "0x66"
+				},
+				{
+					"address": "0x5e6208",
+					"kind": 1,
+					"words": "&Next",
+					"command": "0x67"
+				},
+				{
+					"address": "0x5e6238",
+					"kind": 1,
+					"words": "&Prev",
+					"command": "0x68"
+				},
+				{
+					"address": "0x5e6268",
+					"kind": 1,
+					"words": "&Change shown location (all objects)",
+					"command": "0x69"
+				},
+				{
+					"address": "0x5e6298",
+					"kind": 0,
+					"words": "M&isc",
+					"command": "0x50"
+				},
+				{
+					"address": "0x5e62c8",
+					"kind": 1,
+					"words": "&Keys",
+					"command": "0x53"
+				}
+			]
+		},
+		{
+			"address": "0x5e6328",
+			"screen": "Object placement and the screens it switches to (one function chooses among eight menus)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004d68e0",
+			"referencedAt": "0x4d81e9",
+			"endMarkerAt": "0x5e68f8",
+			"records": [
+				{
+					"address": "0x5e6328",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5e6358",
+					"kind": 1,
+					"words": "&Exit",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5e6388",
+					"kind": 1,
+					"words": "&Save",
+					"command": "0xe"
+				},
+				{
+					"address": "0x5e63b8",
+					"kind": 0,
+					"words": "&Delete",
+					"command": "0x2"
+				},
+				{
+					"address": "0x5e63e8",
+					"kind": 1,
+					"words": "&Object",
+					"command": "0x16"
+				},
+				{
+					"address": "0x5e6418",
+					"kind": 1,
+					"words": "&Track",
+					"command": "0x1393"
+				},
+				{
+					"address": "0x5e6448",
+					"kind": 0,
+					"words": "&Create",
+					"command": "0x5"
+				},
+				{
+					"address": "0x5e6478",
+					"kind": 1,
+					"words": "Camera Track",
+					"command": "0x1388"
+				},
+				{
+					"address": "0x5e64a8",
+					"kind": 1,
+					"words": "Camera Subject",
+					"command": "0x1770"
+				},
+				{
+					"address": "0x5e64d8",
+					"kind": 1,
+					"words": "&Secret Camera",
+					"command": "0x1394"
+				},
+				{
+					"address": "0x5e6508",
+					"kind": 1,
+					"words": "Start &Position",
+					"command": "0x3a"
+				},
+				{
+					"address": "0x5e6538",
+					"kind": 0,
+					"words": "Came&ra",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e6568",
+					"kind": 1,
+					"words": "&Join Tracks",
+					"command": "0x138e"
+				},
+				{
+					"address": "0x5e6598",
+					"kind": 1,
+					"words": "&Make Link Smooth",
+					"command": "0x138c"
+				},
+				{
+					"address": "0x5e65c8",
+					"kind": 1,
+					"words": "Make Link Non-Smooth",
+					"command": "0x138d"
+				},
+				{
+					"address": "0x5e65f8",
+					"kind": 1,
+					"words": "&Split Track",
+					"command": "0x139e"
+				},
+				{
+					"address": "0x5e6628",
+					"kind": 1,
+					"words": "&Remerge track sections",
+					"command": "0x138f"
+				},
+				{
+					"address": "0x5e6658",
+					"kind": 0,
+					"words": "&Grid",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e6688",
+					"kind": 1,
+					"words": "Set Grid &Size",
+					"command": "0x1b58"
+				},
+				{
+					"address": "0x5e66b8",
+					"kind": 1,
+					"words": "&Centre on Selected",
+					"command": "0x1b59"
+				},
+				{
+					"address": "0x5e66e8",
+					"kind": 1,
+					"words": "Centre &Here",
+					"command": "0x1b5a"
+				},
+				{
+					"address": "0x5e6718",
+					"kind": 1,
+					"words": "&Type in Centre",
+					"command": "0x1b5b"
+				},
+				{
+					"address": "0x5e6748",
+					"kind": 0,
+					"words": "&Backup",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e6778",
+					"kind": 1,
+					"words": "&Restore",
+					"command": "0x1391"
+				},
+				{
+					"address": "0x5e67a8",
+					"kind": 1,
+					"words": "&Save",
+					"command": "0x1390"
+				},
+				{
+					"address": "0x5e67d8",
+					"kind": 1,
+					"words": "&Delete",
+					"command": "0x1392"
+				},
+				{
+					"address": "0x5e6808",
+					"kind": 0,
+					"words": "M&isc",
+					"command": "0x50"
+				},
+				{
+					"address": "0x5e6838",
+					"kind": 1,
+					"words": "&Keys",
+					"command": "0x53"
+				},
+				{
+					"address": "0x5e6868",
+					"kind": 1,
+					"words": "&Move rel. to poly",
+					"command": "0x51"
+				},
+				{
+					"address": "0x5e6898",
+					"kind": 1,
+					"words": "&Lighting",
+					"command": "0x54"
+				},
+				{
+					"address": "0x5e68c8",
+					"kind": 1,
+					"words": "Toggle &Split Screen",
+					"command": "0x52"
+				}
+			]
+		},
+		{
+			"address": "0x5e6928",
+			"screen": "Object placement and the screens it switches to (one function chooses among eight menus)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004d68e0",
+			"referencedAt": "0x4d81fb",
+			"endMarkerAt": "0x5e6e68",
+			"records": [
+				{
+					"address": "0x5e6928",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5e6958",
+					"kind": 1,
+					"words": "&Exit",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5e6988",
+					"kind": 1,
+					"words": "&Save",
+					"command": "0xe"
+				},
+				{
+					"address": "0x5e69b8",
+					"kind": 0,
+					"words": "&Delete",
+					"command": "0x2"
+				},
+				{
+					"address": "0x5e69e8",
+					"kind": 1,
+					"words": "&Object",
+					"command": "0x16"
+				},
+				{
+					"address": "0x5e6a18",
+					"kind": 1,
+					"words": "&Track",
+					"command": "0x1393"
+				},
+				{
+					"address": "0x5e6a48",
+					"kind": 1,
+					"words": "Track &User",
+					"command": "0x206d"
+				},
+				{
+					"address": "0x5e6a78",
+					"kind": 0,
+					"words": "&Create",
+					"command": "0x5"
+				},
+				{
+					"address": "0x5e6aa8",
+					"kind": 1,
+					"words": "&Cutscene",
+					"command": "0x1f4a"
+				},
+				{
+					"address": "0x5e6ad8",
+					"kind": 1,
+					"words": "&Track",
+					"command": "0x1f40"
+				},
+				{
+					"address": "0x5e6b08",
+					"kind": 1,
+					"words": "Track &User",
+					"command": "0x206c"
+				},
+				{
+					"address": "0x5e6b38",
+					"kind": 0,
+					"words": "P&roperties",
+					"command": "0x5"
+				},
+				{
+					"address": "0x5e6b68",
+					"kind": 1,
+					"words": "Flag Camera &Target",
+					"command": "0x1fa5"
+				},
+				{
+					"address": "0x5e6b98",
+					"kind": 1,
+					"words": "Choose &Hierarchy",
+					"command": "0x1fa6"
+				},
+				{
+					"address": "0x5e6bc8",
+					"kind": 1,
+					"words": "Track &Order",
+					"command": "0x1fac"
+				},
+				{
+					"address": "0x5e6bf8",
+					"kind": 0,
+					"words": "&Playback",
+					"command": "0x5"
+				},
+				{
+					"address": "0x5e6c28",
+					"kind": 1,
+					"words": "Toggle &Play",
+					"command": "0x2008"
+				},
+				{
+					"address": "0x5e6c58",
+					"kind": 1,
+					"words": "Time &Line",
+					"command": "0x2009"
+				},
+				{
+					"address": "0x5e6c88",
+					"kind": 0,
+					"words": "Came&ra",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e6cb8",
+					"kind": 1,
+					"words": "Toggle &Camera Track",
+					"command": "0x1fa5"
+				},
+				{
+					"address": "0x5e6ce8",
+					"kind": 1,
+					"words": "Toggle Aspect &Ratio",
+					"command": "0x1fad"
+				},
+				{
+					"address": "0x5e6d18",
+					"kind": 1,
+					"words": "Set Aspect Ratio",
+					"command": "0x1fae"
+				},
+				{
+					"address": "0x5e6d48",
+					"kind": 0,
+					"words": "M&isc",
+					"command": "0x50"
+				},
+				{
+					"address": "0x5e6d78",
+					"kind": 1,
+					"words": "Keys",
+					"command": "0x53"
+				},
+				{
+					"address": "0x5e6da8",
+					"kind": 1,
+					"words": "&Move rel. to poly",
+					"command": "0x51"
+				},
+				{
+					"address": "0x5e6dd8",
+					"kind": 1,
+					"words": "&Lighting",
+					"command": "0x54"
+				},
+				{
+					"address": "0x5e6e08",
+					"kind": 1,
+					"words": "Toggle &Split Screen",
+					"command": "0x52"
+				},
+				{
+					"address": "0x5e6e38",
+					"kind": 1,
+					"words": "Show &Dummy Objects",
+					"command": "0x1faa"
+				}
+			]
+		},
+		{
+			"address": "0x5e6e98",
+			"screen": "Object placement and the screens it switches to (one function chooses among eight menus)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004d68e0",
+			"referencedAt": "0x4d8275, 0x4d829c, 0x4d82c0",
+			"endMarkerAt": "0x5e70d8",
+			"records": [
+				{
+					"address": "0x5e6e98",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5e6ec8",
+					"kind": 1,
+					"words": "&Stop Track Edit",
+					"command": "0x51c"
+				},
+				{
+					"address": "0x5e6ef8",
+					"kind": 0,
+					"words": "&Object",
+					"command": "0x2"
+				},
+				{
+					"address": "0x5e6f28",
+					"kind": 1,
+					"words": "&Find",
+					"command": "0x19"
+				},
+				{
+					"address": "0x5e6f58",
+					"kind": 1,
+					"words": "&Move relative",
+					"command": "0x1c"
+				},
+				{
+					"address": "0x5e6f88",
+					"kind": 0,
+					"words": "M&isc",
+					"command": "0x50"
+				},
+				{
+					"address": "0x5e6fb8",
+					"kind": 1,
+					"words": "&Keys",
+					"command": "0x53"
+				},
+				{
+					"address": "0x5e6fe8",
+					"kind": 1,
+					"words": "&Move rel. to poly",
+					"command": "0x51"
+				},
+				{
+					"address": "0x5e7018",
+					"kind": 1,
+					"words": "&Lighting",
+					"command": "0x54"
+				},
+				{
+					"address": "0x5e7048",
+					"kind": 1,
+					"words": "Toggle &Split Screen",
+					"command": "0x52"
+				},
+				{
+					"address": "0x5e7078",
+					"kind": 1,
+					"words": "Toggle Gravity",
+					"command": "0x58"
+				},
+				{
+					"address": "0x5e70a8",
+					"kind": 1,
+					"words": "Show Polygon Counts",
+					"command": "0x5a"
+				}
+			]
+		},
+		{
+			"address": "0x5e7108",
+			"screen": "Object placement and the screens it switches to (one function chooses among eight menus)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004d68e0",
+			"referencedAt": "0x4d8253",
+			"endMarkerAt": "0x5e75e8",
+			"records": [
+				{
+					"address": "0x5e7108",
+					"kind": 0,
+					"words": "Create Weapon",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e7138",
+					"kind": 1,
+					"words": "Pulse Rifle",
+					"command": "0x3e9"
+				},
+				{
+					"address": "0x5e7168",
+					"kind": 1,
+					"words": "Smartgun",
+					"command": "0x3eb"
+				},
+				{
+					"address": "0x5e7198",
+					"kind": 1,
+					"words": "Flame Thrower",
+					"command": "0x3ec"
+				},
+				{
+					"address": "0x5e71c8",
+					"kind": 1,
+					"words": "Sadar",
+					"command": "0x3ed"
+				},
+				{
+					"address": "0x5e71f8",
+					"kind": 1,
+					"words": "Grenade Launcher",
+					"command": "0x3ee"
+				},
+				{
+					"address": "0x5e7228",
+					"kind": 1,
+					"words": "Minigun",
+					"command": "0x3ef"
+				},
+				{
+					"address": "0x5e7258",
+					"kind": 1,
+					"words": "Pistol",
+					"command": "0x3f8"
+				},
+				{
+					"address": "0x5e7288",
+					"kind": 1,
+					"words": "Skeeter",
+					"command": "0x3f9"
+				},
+				{
+					"address": "0x5e72b8",
+					"kind": 0,
+					"words": "Create Ammo",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e72e8",
+					"kind": 1,
+					"words": "Pulse Rifle",
+					"command": "0x44d"
+				},
+				{
+					"address": "0x5e7318",
+					"kind": 1,
+					"words": "Pulse Rifle Grenade",
+					"command": "0x455"
+				},
+				{
+					"address": "0x5e7348",
+					"kind": 1,
+					"words": "Smartgun",
+					"command": "0x44f"
+				},
+				{
+					"address": "0x5e7378",
+					"kind": 1,
+					"words": "Flame Thrower",
+					"command": "0x450"
+				},
+				{
+					"address": "0x5e73a8",
+					"kind": 1,
+					"words": "Sadar",
+					"command": "0x451"
+				},
+				{
+					"address": "0x5e73d8",
+					"kind": 1,
+					"words": "Grenade Launcher",
+					"command": "0x452"
+				},
+				{
+					"address": "0x5e7408",
+					"kind": 1,
+					"words": "Minigun",
+					"command": "0x453"
+				},
+				{
+					"address": "0x5e7438",
+					"kind": 1,
+					"words": "Speargun",
+					"command": "0x456"
+				},
+				{
+					"address": "0x5e7468",
+					"kind": 0,
+					"words": "Create Light",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e7498",
+					"kind": 1,
+					"words": "Bulb",
+					"command": "0x460"
+				},
+				{
+					"address": "0x5e74c8",
+					"kind": 1,
+					"words": "Simple",
+					"command": "0x461"
+				},
+				{
+					"address": "0x5e74f8",
+					"kind": 1,
+					"words": "Mine",
+					"command": "0x462"
+				},
+				{
+					"address": "0x5e7528",
+					"kind": 0,
+					"words": "Create Other",
+					"command": "0x0"
+				},
+				{
+					"address": "0x5e7558",
+					"kind": 1,
+					"words": "Armour (small)",
+					"command": "0x4b1"
+				},
+				{
+					"address": "0x5e7588",
+					"kind": 1,
+					"words": "Stimpack",
+					"command": "0x4b3"
+				},
+				{
+					"address": "0x5e75b8",
+					"kind": 1,
+					"words": "Predator Field Charge",
+					"command": "0x4b4"
+				}
+			]
+		},
+		{
+			"address": "0x5e7618",
+			"screen": "Object placement and the screens it switches to (one function chooses among eight menus)",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004d68e0",
+			"referencedAt": "0x4d8264",
+			"endMarkerAt": "0x5e7888",
+			"records": [
+				{
+					"address": "0x5e7618",
+					"kind": 0,
+					"words": "&Track Edit",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5e7648",
+					"kind": 1,
+					"words": "&Exit",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5e7678",
+					"kind": 0,
+					"words": "&Point",
+					"command": "0x5"
+				},
+				{
+					"address": "0x5e76a8",
+					"kind": 1,
+					"words": "&Create",
+					"command": "0x7"
+				},
+				{
+					"address": "0x5e76d8",
+					"kind": 2,
+					"words": "&Above",
+					"command": "0x46"
+				},
+				{
+					"address": "0x5e7708",
+					"kind": 2,
+					"words": "&Under",
+					"command": "0x47"
+				},
+				{
+					"address": "0x5e7738",
+					"kind": 2,
+					"words": "&In Front",
+					"command": "0x48"
+				},
+				{
+					"address": "0x5e7768",
+					"kind": 2,
+					"words": "&Behind",
+					"command": "0x49"
+				},
+				{
+					"address": "0x5e7798",
+					"kind": 2,
+					"words": "&Left",
+					"command": "0x4a"
+				},
+				{
+					"address": "0x5e77c8",
+					"kind": 2,
+					"words": "&Right",
+					"command": "0x4b"
+				},
+				{
+					"address": "0x5e77f8",
+					"kind": 2,
+					"words": "&On Camera",
+					"command": "0x4c"
+				},
+				{
+					"address": "0x5e7828",
+					"kind": 1,
+					"words": "&Move",
+					"command": "0x32"
+				},
+				{
+					"address": "0x5e7858",
+					"kind": 1,
+					"words": "&Delete",
+					"command": "0x34"
+				}
+			]
+		},
+		{
+			"address": "0x5e3cd0",
+			"screen": "Two screens not identified",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004ca0a0",
+			"referencedAt": "0x4ca0c4",
+			"endMarkerAt": "0x5e3d30",
+			"records": [
+				{
+					"address": "0x5e3cd0",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5e3d00",
+					"kind": 1,
+					"words": "&Exit",
+					"command": "0xa"
+				}
+			]
+		},
+		{
+			"address": "0x5e78c8",
+			"screen": "Two screens not identified",
+			"screenBasis": "inferred from its words, unless the file says otherwise",
+			"usedBy": "FUN_004dd910",
+			"referencedAt": "0x4dd9e1",
+			"endMarkerAt": "0x5e7a18",
+			"records": [
+				{
+					"address": "0x5e78c8",
+					"kind": 0,
+					"words": "&Mode",
+					"command": "0x1"
+				},
+				{
+					"address": "0x5e78f8",
+					"kind": 1,
+					"words": "&Exit without shape",
+					"command": "0xa"
+				},
+				{
+					"address": "0x5e7928",
+					"kind": 1,
+					"words": "Exit &with shape",
+					"command": "0xc"
+				},
+				{
+					"address": "0x5e7958",
+					"kind": 0,
+					"words": "&Show",
+					"command": "0x5"
+				},
+				{
+					"address": "0x5e7988",
+					"kind": 1,
+					"words": "&All Shapes",
+					"command": "0x32"
+				},
+				{
+					"address": "0x5e79b8",
+					"kind": 1,
+					"words": "&Sprites",
+					"command": "0x34"
+				},
+				{
+					"address": "0x5e79e8",
+					"kind": 1,
+					"words": "&Dynamic Objects",
+					"command": "0x36"
+				}
+			]
+		}
+	]
+}

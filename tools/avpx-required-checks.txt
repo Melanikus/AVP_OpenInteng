@@ -1,0 +1,16 @@
+# The checks AvPx's avpx_main requires before anything merges there, one name per line, exactly as GitHub shows them.
+# tools/check-pin.sh refuses a pin unless each of these passed on it. While this list is empty, the pin check fails: it has to be
+# filled in from AvPx's branch protection, never assumed. Whoever changes AvPx's required checks changes this list in the same week.
+#
+# Read from avpx_main's branch protection (strict) by Bishop on 2026-11-14, and checked against the job names in AvPx's workflows at
+# 85704f7a (snyk.yml, tests.yml, game-build.yml). ProVerif's "Proofs" is required on the AVPx Dedicated Server's repository, not on
+# AvP, so it isn't here.
+# 2026-11-14: "Take-outs" is no longer required on avpx_main (the owner's ruling R-BLD-11: take-outs run only by hand, before a release),
+# so it's gone from here too, leaving 7. An avpx_main commit has no take-out run of its own, so asking for one would refuse every pin.
+Snyk Code (SAST)
+Snyk Open Source (SCA)
+Snyk on the vcpkg libraries
+Unit tests
+Build the game
+Release checks on Ubuntu
+Tests under the address sanitizer

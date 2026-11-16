@@ -1,0 +1,23 @@
+# PATH mode's main job, in the running editor (hidden run, Invasion): Create Path with a typed name, pick the module the camera is in by a click and Add Module, move the camera (key A held), pick another by a
+# click and Add Module (the route's modules between come with it), Save a copy, and read the copy back with the library (verify_path).
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/path-main-job.txt
+screen Path
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Path
+item 5
+expect-prompt 24
+type ScenarioPath
+key Enter
+expect-status ScenarioPath
+click-view 0.5 0.5
+expect-status Picked: module
+item 3
+hold A 1500
+hold A 1500
+click-view 0.15 0.3
+expect-status Picked: module
+item 3
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_path/verify_path.exe {orig} {copy} ScenarioPath

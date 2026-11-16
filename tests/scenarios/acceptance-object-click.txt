@@ -1,0 +1,39 @@
+# ACCEPTANCE: Object Placement's CLICK (AvP-docs/engine/inteng/reassess/object-placement.md OP-120, OP-106, OP-82; Bishop checked the rows 11-16).
+# inteng: a left press in Object Placement runs FUN_004d6520 (FUN_004d9af0 0x4da83b-0x4da957): every object of the placement list (the placed shapes AND the special objects) whose block is not
+# hidden is a candidate; FUN_0046ddb0 gives the pixel distance from the pointer to the object's CENTRE projected on the screen; the nearest (0.0 <= d) becomes THE current object (FUN_004d64a0:
+# one object, no Shift set), drawn RED (block +0x64 bit 0x40000000, FUN_004a7cd0 0x4a7eca); Backspace (slot 0xd87a5a) lets go of it. Invasion, opened as by a double click, read-only.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+
+# ---- C1 a generator made where the view is (named genB; the view first 1.5 m to the right of the start, so that genB is not in line with switch3, whose centre is in the middle of the start view:
+# with two centres on the same pixel the first of the list, the placed object, is taken), then the view 3 m back: the generator is straight ahead, its centre in the middle of the view
+camera -26351 -14055 85500 0 0
+wait 300
+click-bar Create > AVP generator
+expect-dialog Name Object
+form-field 1 genB
+click-button OK
+expect-no-dialog
+camera -26351 -14055 82500 0 0
+wait 400
+key Back
+wait 300
+expect-status Deselected
+picture 1
+
+# ---- C2 a click on it: the SPECIAL object is the current one (the click's candidates are the special objects too) and it is drawn red
+click-win 504 364
+wait 300
+expect-status Selected: genB
+expect-colour picture 404 264 200 200 ff0000 0.0003 45
+
+# ---- C3 Backspace lets go of it: the red goes
+key Back
+wait 300
+expect-status Deselected
+expect-pixels-changed picture 404 264 200 200 0.0003

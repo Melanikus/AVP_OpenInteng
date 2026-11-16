@@ -1,0 +1,69 @@
+# ACCEPTANCE: Waypoint mode, the part the re-assessment (AvP-docs\engine\inteng\reassess\waypoint.md) found NOT inteng's: WHAT THE SCREEN DRAWS (Frost, 2026-11-16, Bishop's order). RED FIRST: written before the code.
+# inteng's Waypoint mode draws no status line and no field panel; each frame it draws ONLY these lines (FUN_0057b1b0 at x 0, y = 16 x row, the row counter DAT_0091bed0 starting at 2: set by the frame FUN_00586450):
+#   mode 0 (AI modules, FUN_00583d00 0x58420f-0x584252): row 2 "View Distance :%d" (DAT_005fd678 over 500,000), row 3 "Moving Entry Point" while an entry-point marker is flown (the camera object's +0x1c4 is 0).
+#   mode 1 (waypoints, FUN_00584ee0 0x585562-0x58566f): "Waypoint :%d" (the current waypoint's number, only with one), "Can Crawl" (its flag 1), "Alien Mode" or "Ground Mode", "Highlight Alien Link" (the highlight 4)
+#     or "Highlight Deviation Link" (8); one row each, from row 2.
+#   mode 2 (extents, FUN_00585750 0x5862e8): "Centre Edit" while the centre is edited.
+# Run: AvP-docs\tools\dietrich\drive-scenario-hier.sh <tree> tests/scenarios/acceptance-waypoint.txt <name>
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Waypoint
+# mode 0: the one line inteng draws
+picture 901
+expect-hierarchy-text View Distance :
+expect-hierarchy-count 0 Picked
+# the right-click pop-up of mode 0 offers the second table of the page (FUN_00581650 set 2: Edit Module, Add Module, Remove Module); a click on an entry runs it
+click-win 500 300 right
+expect-popup-rows Edit Module|Add Module|Remove Module
+key Esc
+# Help (0x15) shows the mode's help text screen (FUN_00584e70 through FUN_004724f0: "S Edit selected AI module ..."), not a status sentence; a key takes it away
+picture 910
+item 0x15
+expect-pixels-changed panels 0 40 700 500 0.02
+click-win 300 300
+# a click picks a module; Edit Module; the words of those commands go to no status line (the band where one was is the same)
+click-view 0.5 0.5
+item 0x19
+picture 902
+expect-pixels-same panels 0 690 1008 39 0.0005
+# mode 1: Show Ground Waypoints, Create Waypoint: the lines of FUN_00584ee0
+item 4
+item 5
+picture 903
+expect-hierarchy-text Waypoint :
+expect-hierarchy-text Ground Mode
+expect-hierarchy-count 0 View Distance
+expect-hierarchy-count 0 AI module
+# mode 1 has its own help text (FUN_00584ea0: "C Create waypoint / S Set base waypoint ...")
+picture 911
+item 0x15
+expect-pixels-changed panels 0 40 700 500 0.02
+click-win 300 300
+# Mode > Exit goes back to the AI modules (FUN_00583c10): the mode 0 line again; then Show Alien Waypoints shows "Alien Mode"
+item 2
+expect-screen Waypoint
+expect-hierarchy-text View Distance :
+item 3
+picture 904
+expect-hierarchy-text Alien Mode
+# Highlight link flag > Alien (0xe): the line of the highlight
+item 0xe
+picture 905
+expect-hierarchy-text Highlight Alien Link
+item 0xf
+expect-hierarchy-text Highlight Deviation Link
+# the keys on a REAL press (Drake section 5, the help tables 0x6027f0): Y cycles the highlight (Deviation -> Alien), W toggles Can Crawl, C creates a waypoint
+key Y
+expect-hierarchy-text Highlight Alien Link
+key C
+expect-hierarchy-text Waypoint :
+key W
+expect-hierarchy-text Can Crawl
+key W
+expect-hierarchy-count 0 Can Crawl
+# no status line and no field panel of ours on this screen: the status band stays the same after a command
+item 5
+picture 906
+expect-pixels-same panels 0 690 1008 39 0.0005

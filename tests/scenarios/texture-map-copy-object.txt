@@ -1,0 +1,35 @@
+# COPY TEXTURING > OBJECT (hidden run, Invasion): RndSwitch1 (object row 148) and RndSwitch2 (row 147) have the same 48 polygons with the same corner points. The coordinates of polygons 0 and 5 of RndSwitch2 are shifted by 7 3 (uv_verify: they differ from RndSwitch1's), then Copy Texturing > Object (0xb5)
+# with RndSwitch1 as the object to copy from and RndSwitch2 as the object to copy to, "no" to "copy to another object?", and a saved copy shows polygons 0 and 5 of RndSwitch2 with RndSwitch1's coordinates and picture again. The objects are picked by number (pick-poly).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 147 0
+pick-poly 147 5
+expect-status 2 selected
+item 0x133
+expect-dialog-kind text
+type 7
+key Tab
+type 3
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/uv_verify/uv_verify.exe {copy} 148 147 differ 0 5
+key L
+item 0xb5
+expect-status Select object to copy from
+pick-poly 148 0
+expect-status Select object to copy to
+pick-poly 147 0
+wait 800
+expect-status was copied to the second object
+expect-prompt 43
+type n
+key Enter
+expect-status is done
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/uv_verify/uv_verify.exe {copy} 148 147 same 0 5

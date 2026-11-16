@@ -1,0 +1,409 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a section's time of 64 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "Limit::Loader, 65, IntMost, SectionTimeWhy,",
+					"to": "Limit::Loader, 64, IntMost, SectionTimeWhy,"
+				}
+			]
+		},
+		{
+			"name": "a section's time limit is called a planned one, not the loader's own",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "Limit::Loader, 65,",
+					"to": "Limit::LoaderPlanned, 65,"
+				}
+			]
+		},
+		{
+			"name": "a timer start of 2^24 + 1 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "double const TimerMost = 16777216.0;",
+					"to": "double const TimerMost = 16777217.0;"
+				}
+			]
+		},
+		{
+			"name": "a timer start of -1 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "Limit::Loader, 0, TimerMost,",
+					"to": "Limit::Loader, -1, TimerMost,"
+				}
+			]
+		},
+		{
+			"name": "a place of 2^24 + 1 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "double const PositionMost = 16777216.0;",
+					"to": "double const PositionMost = 16777217.0;"
+				}
+			]
+		},
+		{
+			"name": "a part of a turn of 2.5 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "double const TurnMost = 2.0;",
+					"to": "double const TurnMost = 2.5;"
+				}
+			]
+		},
+		{
+			"name": "a part of a turn is kept as a whole number",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"quat_end_w\", \"\", S, 28, Storage::Float32,",
+					"to": "{ \"quat_end_w\", \"\", S, 28, Storage::Int32,"
+				}
+			]
+		},
+		{
+			"name": "a section's time is looked for 4 bytes early",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"time_for_section\", \"Time for section\", S, 68,",
+					"to": "{ \"time_for_section\", \"Time for section\", S, 64,"
+				}
+			]
+		},
+		{
+			"name": "a section's time is labelled with other words",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "\"Time for section\"",
+					"to": "\"Time\""
+				}
+			]
+		},
+		{
+			"name": "the end pivot is looked for 4 bytes early",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"pivot_end\", \"\", S, 44,",
+					"to": "{ \"pivot_end\", \"\", S, 40,"
+				}
+			]
+		},
+		{
+			"name": "a section is taken as 80 bytes",
+			"changes": [
+				{
+					"file": "src/model/tracks_fields.h",
+					"from": "unsigned const TrackSectionBytes = 76;",
+					"to": "unsigned const TrackSectionBytes = 80;"
+				}
+			]
+		},
+		{
+			"name": "a track needs no flags and timer after its sections",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "ListLayout const TrackLayout = { 0, 0, TrackSectionBytes, 8 };",
+					"to": "ListLayout const TrackLayout = { 0, 0, TrackSectionBytes, 0 };"
+				}
+			]
+		},
+		{
+			"name": "a track with exactly its flags and timer after the sections is refused",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "if (length - listEnd < layout.trailerBytes)",
+					"to": "if (length - listEnd <= layout.trailerBytes)"
+				}
+			]
+		},
+		{
+			"name": "the section after the last is given a place",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "|| item >= count)",
+					"to": "|| item > count)"
+				}
+			]
+		},
+		{
+			"name": "a section's place is counted from the count's start, not its end",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "*place = layout.countAt + 4 + item * layout.itemBytes;",
+					"to": "*place = layout.countAt + item * layout.itemBytes;"
+				}
+			]
+		},
+		{
+			"name": "the flags are looked for from the payload's start",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"flags\", \"\", AfterList, 0,",
+					"to": "{ \"flags\", \"\", S, 0,"
+				}
+			]
+		},
+		{
+			"name": "a field of another table is found at its own offset",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "if (!IsOneOf(table, tableCount, field) || CheckListSize(layout, payload, length, &count) != SizeCheck::Right)",
+					"to": "if (CheckListSize(layout, payload, length, &count) != SizeCheck::Right)"
+				}
+			]
+		},
+		{
+			"name": "bit 31 is made a mapper's choice",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "uint32_t const TrackChoiceBits = 0x1 | 0x2 | 0x4 | 0x8;",
+					"to": "uint32_t const TrackChoiceBits = 0x1 | 0x2 | 0x4 | 0x8 | 0x80000000;"
+				}
+			]
+		},
+		{
+			"name": "the flags stop saying that bit 31 is the game's",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "\"the game sets bit 31 (QuatProblemSorted) itself",
+					"to": "\"the game sets the top bit (QuatProblemSorted) itself"
+				}
+			]
+		},
+		{
+			"name": "the count of sections is no longer a list's count",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"num_sections\", \"\", S, 0, Storage::Int32, Unit::ListCount,",
+					"to": "{ \"num_sections\", \"\", S, 0, Storage::Int32, Unit::Plain,"
+				}
+			]
+		},
+		{
+			"name": "the loop flag is named as the smoothing flag",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"OBJTRAK2\", \"flags\", 0x1, \"Loop Track\" },",
+					"to": "{ \"OBJTRAK2\", \"flags\", 0x1, \"Use Track Smoothing\" },"
+				}
+			]
+		},
+		{
+			"name": "a track's own field is looked for among a section's",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "return FindIn(TrackFields, TrackFieldCount, name);",
+					"to": "return FindIn(TrackSectionFields, TrackSectionFieldCount, name);"
+				}
+			]
+		},
+		{
+			"name": "a location's place of 2^24 + 1 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"position\", \"\", S, 0, Storage::IntTriple, Unit::GameUnits, 0, Limit::Loader,",
+					"to": "{ \"position\", \"\", S, 0, Storage::IntTriple, Unit::GameUnits, 0, Limit::None,"
+				}
+			]
+		},
+		{
+			"name": "a part of a location's turn of 2.5 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"orientation_w\", \"\", S, 24, Storage::Float32, Unit::Plain, 0, Limit::Loader,",
+					"to": "{ \"orientation_w\", \"\", S, 24, Storage::Float32, Unit::Plain, 0, Limit::None,"
+				}
+			]
+		},
+		{
+			"name": "a chunk of alternate locations under 8 bytes is read",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "ListLayout const AlternateLocationsLayout = { 8, 8, AlternateLocationBytes, 0 };",
+					"to": "ListLayout const AlternateLocationsLayout = { 0, 8, AlternateLocationBytes, 0 };"
+				}
+			]
+		},
+		{
+			"name": "the count of locations is looked for at +4",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "ListLayout const AlternateLocationsLayout = { 8, 8, AlternateLocationBytes, 0 };",
+					"to": "ListLayout const AlternateLocationsLayout = { 8, 4, AlternateLocationBytes, 0 };"
+				}
+			]
+		},
+		{
+			"name": "alternate locations need 4 bytes after the last location",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "ListLayout const AlternateLocationsLayout = { 8, 8, AlternateLocationBytes, 0 };",
+					"to": "ListLayout const AlternateLocationsLayout = { 8, 8, AlternateLocationBytes, 4 };"
+				}
+			]
+		},
+		{
+			"name": "a location is taken as 40 bytes",
+			"changes": [
+				{
+					"file": "src/model/tracks_fields.h",
+					"from": "unsigned const AlternateLocationBytes = 36;",
+					"to": "unsigned const AlternateLocationBytes = 40;"
+				}
+			]
+		},
+		{
+			"name": "the group is looked for at +4",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"group\", \"Group number (0 means no group)\", S, 0,",
+					"to": "{ \"group\", \"Group number (0 means no group)\", S, 4,"
+				}
+			]
+		},
+		{
+			"name": "the group is labelled with other words",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "\"Group number (0 means no group)\"",
+					"to": "\"Group\""
+				}
+			]
+		},
+		{
+			"name": "the count of locations is no longer a list's count",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"num_locations\", \"\", S, 8, Storage::Int32, Unit::ListCount,",
+					"to": "{ \"num_locations\", \"\", S, 8, Storage::Int32, Unit::Plain,"
+				}
+			]
+		},
+		{
+			"name": "a location's second spare is looked for 4 bytes early",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"spare2\", \"\", S, 32,",
+					"to": "{ \"spare2\", \"\", S, 28,"
+				}
+			]
+		},
+		{
+			"name": "a location's first spare is given a label",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"spare1\", \"\", S, 28,",
+					"to": "{ \"spare1\", \"Spare\", S, 28,"
+				}
+			]
+		},
+		{
+			"name": "an alternate-location field is looked for among a location's",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "return FindIn(AlternateLocationFields, AlternateLocationFieldCount, name);",
+					"to": "return FindIn(AlternateLocationEntryFields, AlternateLocationEntryFieldCount, name);"
+				}
+			]
+		},
+		{
+			"name": "a track's place limit is called a planned one",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"pivot_start\", \"\", S, 32, Storage::IntTriple, Unit::GameUnits, 0, Limit::Loader,",
+					"to": "{ \"pivot_start\", \"\", S, 32, Storage::IntTriple, Unit::GameUnits, 0, Limit::LoaderPlanned,"
+				}
+			]
+		},
+		{
+			"name": "a track's turn limit is called a planned one",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"quat_start_x\", \"\", S, 0, Storage::Float32, Unit::Plain, 0, Limit::Loader,",
+					"to": "{ \"quat_start_x\", \"\", S, 0, Storage::Float32, Unit::Plain, 0, Limit::LoaderPlanned,"
+				}
+			]
+		},
+		{
+			"name": "a location's place limit is called a planned one",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"position\", \"\", S, 0, Storage::IntTriple, Unit::GameUnits, 0, Limit::Loader,",
+					"to": "{ \"position\", \"\", S, 0, Storage::IntTriple, Unit::GameUnits, 0, Limit::LoaderPlanned,"
+				}
+			]
+		},
+		{
+			"name": "a location's turn limit is called a planned one",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "{ \"orientation_x\", \"\", S, 12, Storage::Float32, Unit::Plain, 0, Limit::Loader,",
+					"to": "{ \"orientation_x\", \"\", S, 12, Storage::Float32, Unit::Plain, 0, Limit::LoaderPlanned,"
+				}
+			]
+		},
+		{
+			"name": "a field of another table is given a place inside a location",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "if (!IsOneOf(table, tableCount, field) || !ItemPlace(layout, payload, length, item, &start))",
+					"to": "if (!ItemPlace(layout, payload, length, item, &start))"
+				}
+			]
+		},
+		{
+			"name": "a track finder reads a name that isn't there",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_tracks.cpp",
+					"from": "if (!name)",
+					"to": "if (false)"
+				}
+			]
+		}
+	]
+}

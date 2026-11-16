@@ -1,0 +1,79 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a count below 0 is taken",
+			"changes": [
+				{
+					"file": "src/ui/scroll_list.cpp",
+					"from": "count = newCount < 0 ? 0 : newCount;",
+					"to": "count = newCount;"
+				}
+			]
+		},
+		{
+			"name": "fewer than one row shown is taken",
+			"changes": [
+				{
+					"file": "src/ui/scroll_list.cpp",
+					"from": "shown = newShown < 1 ? 1 : newShown;",
+					"to": "shown = newShown;"
+				}
+			]
+		},
+		{
+			"name": "a move goes past the last row",
+			"changes": [
+				{
+					"file": "src/ui/scroll_list.cpp",
+					"from": "int64_t const to = row < 0 ? 0 : (row > last ? last : row);",
+					"to": "int64_t const to = row < 0 ? 0 : row;"
+				}
+			]
+		},
+		{
+			"name": "the chosen row moves out of sight",
+			"changes": [
+				{
+					"file": "src/ui/scroll_list.cpp",
+					"from": "\t\telse if (to >= start + shown)\n\t\t{\n\t\t\tstart = to - shown + 1;\n\t\t}",
+					"to": "\t\telse if (false)\n\t\t{\n\t\t}"
+				}
+			]
+		},
+		{
+			"name": "the last screenful has empty rows",
+			"changes": [
+				{
+					"file": "src/ui/scroll_list.cpp",
+					"from": "start = start < 0 ? 0 : (start > latestFirst ? latestFirst : start);",
+					"to": "start = start < 0 ? 0 : start;"
+				}
+			]
+		},
+		{
+			"name": "a click past the end chooses a row",
+			"changes": [
+				{
+					"file": "src/ui/scroll_list.cpp",
+					"from": "if (row < 0 || row >= count)",
+					"to": "if (row < 0)"
+				}
+			]
+		},
+		{
+			"name": "a sum of the largest rows wraps round",
+			"changes": [
+				{
+					"file": "src/ui/scroll_list.cpp",
+					"from": "case Key::PageDown: to = (int64_t)chosen + shown; break;",
+					"to": "case Key::PageDown: to = (int32_t)(chosen + shown); break;"
+				}
+			]
+		}
+	]
+}

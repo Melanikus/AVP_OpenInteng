@@ -1,0 +1,70 @@
+# TEXTURE MAP ANIM MENU main job (hidden run, Invasion): Texture Map, one polygon selected by a click, then through the menu items by their command numbers: Create (0x9e) makes an animation of it, Sequence > Add (0xa8) a second sequence,
+# Frame > Add (0xaf) a second frame, Set Anim Number (0xa4) types 7, then Save a copy and anim_verify opens it with the game's chunk library (one new record, 2 sequences of 1 and 2 frames, anim number 7, every frame the polygon's own picture and
+# coordinates, every other record as it was). Then Sequence > Remove (0xa9, confirmed with y): one sequence of 2 frames left; and Destroy (0x9f, y): no record is left. Each copy is checked against the level as it was opened.
+# Run: LANE=T4 LEVEL=Invasion AvP-docs\tools\dietrich\drive-scenario-hier.sh <tree> <this file> <name>   (the verifier: tests\scenarios\anim_verify.args built by hand into apone-harness-out\anim_verify)
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+# the click-view below lands on one polygon from the camera the editor used to start at (Invasion's start place); inteng starts at the origin now (startup-trace.md), so the scenario puts the camera there
+camera -7764 2852 10527 0
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+picture 500
+item 0x9e
+wait 600
+expect-status Created 1 polygon
+picture 501
+item 0xa8
+wait 600
+expect-status sequence 2 of 2
+item 0xaf
+wait 600
+expect-status frame 2 of 2
+item 0xae
+wait 600
+expect-status frame 1 of 2
+item 0xad
+wait 600
+expect-status frame 2 of 2
+item 0xab
+expect-prompt 43
+type 1 2 1 1 0 1
+key Enter
+wait 600
+expect-status sequence 2 of 2
+item 0xa4
+expect-prompt 43
+type 7
+key Enter
+wait 600
+expect-status anim number 7
+key L
+expect-status deselected
+item 0x9d
+expect-status Click on a polygon in animation
+click-view 0.50 0.60
+expect-status Selected: Anim: animation
+picture 502
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/anim_verify/anim_verify.exe {orig} {copy} 1 2 1,2 7 props 1 32768 8 1
+item 0xa9
+expect-prompt 43
+type y
+key Enter
+wait 600
+expect-status sequence 1 of 1
+picture 503
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/anim_verify/anim_verify.exe {orig} {copy} 1 1 2 7
+item 0x9f
+expect-prompt 43
+type y
+key Enter
+wait 600
+expect-status no animation is current
+picture 504
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/anim_verify/anim_verify.exe {orig} {copy} 0 0 - -

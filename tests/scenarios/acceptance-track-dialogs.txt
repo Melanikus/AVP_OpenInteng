@@ -1,0 +1,49 @@
+# ACCEPTANCE: Track Editing's questions are inteng's dialogs, made by the toolkit (dialogs.h), none a typed prompt (Frost, 2026-11-16, Bishop's order). Hidden run, Invasion, object 5 (a track).
+#   Properties > Section (0x51b): inteng's text dialog "Time for section" (FUN_00474bc0, string 0x5e9340): one edit, Ok / Cancel; Ok sets the time.
+#   Start Sound > Edit (0x528): the sound dialog as a FORM: five edits (file, inner range, outer range, volume, pitch), a Loop box, Ok / Cancel.
+#   Delete > Track (0x520): the Yes / No confirm (FUN_00474a40); No keeps the track.
+# Every control is clicked where it is drawn; the editor's prompt stays 0 while a dialog is open.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Object Placement
+select-row 5
+item 0x36
+expect-screen Track Editing
+expect-no-dialog
+# inteng draws only its own text on this screen (FUN_004d9af0's frame, rows from 2 at x 16): no field panel of ours, no status line of ours (10b)
+picture 819
+expect-hierarchy-text View Distance :
+expect-hierarchy-text Num Objects :
+expect-hierarchy-text Track Edit
+expect-hierarchy-text Section 0/
+expect-hierarchy-count 0 Fly end marker
+# the words of a command (Next Section) go to no status line: the band where it was is the same
+item 0x519
+picture 818
+expect-pixels-same panels 0 690 1008 39 0.0005
+item 0x51b
+expect-dialog-kind text
+expect-prompt 0
+picture 820
+click-button Cancel
+expect-no-dialog
+item 0x51b
+expect-dialog-kind text
+click-button Ok
+expect-no-dialog
+item 0x528
+expect-dialog-kind form
+expect-dialog Start Sound
+expect-prompt 0
+picture 821
+click-button Cancel
+expect-no-dialog
+item 0x520
+expect-dialog-kind confirm
+picture 822
+click-button No
+expect-no-dialog
+item 0x51c
+expect-screen Object Placement

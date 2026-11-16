@@ -1,0 +1,3 @@
+[submodule "avpx"]
+	path = avpx
+	url = https://github.com/Melanikus/AvP.git

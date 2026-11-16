@@ -1,0 +1,16 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DNDEBUG /D_CRT_SECURE_NO_DEPRECATE
+/Isrc/host /Isrc/ui /Iavpx/3dc /Iavpx/3dc/win95 /Iavpx/3dc/avp/win95/frontend
+tests/host_click_two_bars_test.cpp
+src/host/editor_bar.cpp
+src/host/editor_actions.cpp
+src/host/view_toggles.cpp
+src/host/inteng_menus.cpp
+src/host/inteng_menus_lookup.cpp
+src/host/menu_paint.cpp
+src/host/panel_paint.cpp
+src/host/host_frame.cpp
+src/ui/menu_bar.cpp
+src/ui/panel_layout.cpp
+src/ui/text_field.cpp
+avpx/3dc/avp/win95/frontend/online_screens.cpp

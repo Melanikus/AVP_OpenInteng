@@ -1,0 +1,94 @@
+# The first gates of AVP_OpenInteng (Tao 1: security is paramount; a failing check blocks the merge for everyone, admins included).
+#
+# Four jobs, for every pull request into main and every push to it:
+#   - No precompiled code: no library, DLL, executable or object file is committed. The libraries the editor uses are built from
+#     pinned sources, and this keeps it that way.
+#   - No scanner told to look away: nothing in the repository switches off or silences a scanner (the same rule as AvPx).
+#   - The AvPx pin: avpx/ is pinned to a commit on AvPx's avpx_main, every check that ran on that commit passed (the required ones
+#     included, by name), and a pin only moves forward unless the pull request says it's a revert. tools/check-pin.sh says how.
+#   - inteng's menus: src/host/inteng_menus.cpp is exactly what tools/make-inteng-menus.js makes of docs/inteng's two files (the menus
+#     file checked as hostile input first), and every refusal of the tool has its test (tools/make-inteng-menus-test.js). (Added
+#     2026-11-15, A6.)
+# A check that can't run (GitHub's API down, say) fails, and nothing merges. TAKING-OVER.md says what to do if a tool is gone.
+# The build, tests, take-out rows, Snyk, same-flags and coding-standard gates come with the editor's first code (the phase 2 plan, F1-F2).
+# Written 2026-11-14 by Melanikus for AVP_OpenInteng.
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Read only. No job here can change the repository.
+permissions:
+  contents: read
+
+jobs:
+  no-precompiled:
+    name: No precompiled code, no scanner told to look away
+    runs-on: ubuntu-24.04   # pinned, so a runner-image migration never changes the gate
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, the same pin AvPx uses
+        with:
+          persist-credentials: false
+
+      - name: Fail if precompiled code is committed
+        run: |
+          # git lists the submodule as one entry (a commit, not files), so this looks only at this repository's own files.
+          found=$(git ls-files | grep -i -E '\.(lib|dll|exe|obj|o|a|so|dylib|pdb|ilk|exp|pyd|pyc|class|jar|msi)$' || true)
+          if [ -n "$found" ]; then
+            echo "$found"
+            echo "::error::Precompiled code is committed. Build it from pinned sources instead."
+            exit 1
+          fi
+          echo "No precompiled code found."
+
+      - name: Fail if anything tells a scanner to look away
+        run: |
+          # The same words AvPx's gate refuses (its snyk.yml), outside the workflows that name them.
+          found=$(git grep -n -i -E 'deepcode ignore|snyk:ignore|lgtm\[|codeql\[|NOSONAR|nolint' -- . ':!.github' || true)
+          files=$(git ls-files | grep -E '(^|/)\.(snyk|dcignore)$' || true)
+          if [ -n "$found$files" ]; then
+            echo "$found"
+            echo "$files"
+            echo "::error::Something in the repository suppresses a scanner"
+            exit 1
+          fi
+          echo "No scanner suppressions found."
+
+  avpx-pin:
+    name: The AvPx pin
+    runs-on: ubuntu-24.04   # pinned, as above
+    steps:
+      - name: Check out the repository (the submodule itself isn't fetched: only its pinned commit id is read)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the pin
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # The base branch and the pull request's title come in as plain text in the environment, never pasted into the script,
+          # so a title can't become a command.
+          BASE_REF: ${{ github.base_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: bash tools/check-pin.sh
+
+  inteng-menus:
+    name: inteng's menus are what their two files make
+    runs-on: ubuntu-24.04   # pinned, as above
+    steps:
+      - name: Check out the repository (the submodule isn't needed)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The runner's own Node.js: the tool and its test use only its built-in fs, path and crypto, and install nothing
+      - name: The generated menus match their two files, and every refusal of the tool is tested
+        run: |
+          node tools/make-inteng-menus.js --check
+          node tools/make-inteng-menus-test.js

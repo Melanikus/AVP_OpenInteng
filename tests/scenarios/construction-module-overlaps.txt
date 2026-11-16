@@ -1,0 +1,16 @@
+# MODULE OVERLAPS (Construction, Miscellaneous 0x56; hidden run, Invasion): the switch tints the modules whose boxes overlap another's (picture 970), and Module Overlaps again puts the normal view back (picture 971). The unit test
+# host_module_overlaps_test counts 6 of the 310 modules of Invasion overlap another. (Hicks)
+# Run: LANE=T4 LEVEL=Invasion bash AvP-docs\tools\hicks\drive-scenario-poly.sh <tree> <this file> <name>
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+picture 969
+item 0x56
+expect-status Module Overlaps on: 6 of 310 modules overlap another
+wait 800
+picture 970
+item 0x56
+expect-status Module Overlaps off
+wait 800
+picture 971

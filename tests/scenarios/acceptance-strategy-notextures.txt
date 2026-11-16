@@ -1,0 +1,30 @@
+# ACCEPTANCE: Strategy Data > No Textures is a WHITE WIREFRAME, see-through, with the strategy colours on the wires (Bishop's correction 11-16, from the owner: "I went to untextured ... and now I'm seeing white lit polygon").
+# Traced: the hub's Mode > Strategy Data: No Textures (0x3a, FUN_004452b0 0x445bcc-0x445bdb) pushes load flags 0x93 to FUN_00524cc0 -> FUN_00522ab0 -> FUN_0046e700(0x93); Normal (0x39, 0x445bba) pushes 0x13: the only difference is 0x80.
+# - FUN_0046e700 0x46ea68: with 0x80 the BMPNAMES textures are not loaded and the texture table DAT_008f5860 is NULL (0x46ed57), its count DAT_008f5884 0 (0x46ea2b).
+# - FUN_004ff010 (each shape): 0x4ff215 TEST AL,0x80 skips the shape's own bitmap list (BMPLSTST, the decompiler DROPPED that block; listing read 0x4ff215-0x4ff75c); 0x4ffb2a-0x4ffc62: a textured polygon (kinds 5, 6 -> 5, 7,
+#   0x18 -> 7) whose image number is past the table's count or whose entry is -1 becomes kind 0xe (polyline, see-through lines), flags |= 2 (iflag_nolight: its colour as it is, unlit), texture -1.
+# - FUN_00522ab0 0x522b94-0x522bd6: with 0x80 every level shape (from DAT_008f588c on) is painted 0xffffff (true colour; 0xf8 with a palette) by FUN_0046da70.
+# - The strategy colours on the blocks' flags (+0x64: 0x2000000 has a strategy -> GREEN, 0x40000000 the current object -> RED, FUN_004a7cd0 0x4a7eca) colour the lines.
+# Ours: the Module Linking wire look (view_toggles_game.cpp ViewToggles_Apply): every polygon as lines, white, unlit. NAMED DIFFERENCE: the level's few untextured polygons (kind 2 / 3: Invasion 360 of 25008) stay FILLED white in
+# inteng; avpx's wire switch is per category (modules / objects), not per polygon, so ours draws them as lines too (a rendering row for the next batch).
+# His path: the file is opened (start-args, his double click), the bar is clicked, an object is clicked.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: No Textures
+expect-screen Strategy Data
+camera -27851 -14055 85500 0 0
+wait 500
+picture 1
+# SEE-THROUGH: the background shows between the lines, so most of the picture is black (white lit polygons cover it: the old look fails here); the lines are pure white (unlit: no shading greys needed)
+expect-colour picture 0 0 1008 729 000000 0.50 16
+expect-colour picture 0 0 1008 729 ffffff 0.01 16
+# GREEN lines: the objects that have a strategy
+expect-colour picture 0 0 1008 729 00ff00 0.0005 40
+click-win 504 364
+wait 300
+picture 2
+# RED lines: the clicked object is the current one (FUN_00528250)
+expect-colour picture 0 0 1008 729 ff0000 0.0005 40
+expect-colour picture 0 0 1008 729 000000 0.50 16

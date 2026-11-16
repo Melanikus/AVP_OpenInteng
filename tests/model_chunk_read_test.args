@@ -1,0 +1,12 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DNDEBUG
+/Isrc/model /Isrc/common
+tests/model_chunk_read_test.cpp
+src/model/chunk_fields.cpp
+src/model/chunk_rules.cpp
+src/model/chunk_families.cpp
+src/model/chunk_fields_acoustics.cpp
+src/model/chunk_fields_ai.cpp
+src/model/name_kinds.cpp
+src/model/strategy_fields.cpp
+src/model/strategy_rules.cpp

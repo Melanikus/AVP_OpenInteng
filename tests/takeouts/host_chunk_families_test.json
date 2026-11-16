@@ -1,0 +1,240 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "the base family isn't asked for a chunk's kind",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "ChunkKind const *const base = FindChunkKind(id);",
+					"to": "ChunkKind const *const base = 0;"
+				}
+			]
+		},
+		{
+			"name": "the base family's bits aren't given with its kinds",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "names->bits = ChunkBits;",
+					"to": "names->bits = 0;"
+				}
+			]
+		},
+		{
+			"name": "the base family's choices aren't given with its kinds",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "names->choices = ChunkChoices;",
+					"to": "names->choices = 0;"
+				}
+			]
+		},
+		{
+			"name": "the acoustics family isn't asked for a chunk's kind",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "ChunkKind const *const acoustics = FindAcousticsKind(id);",
+					"to": "ChunkKind const *const acoustics = 0;"
+				}
+			]
+		},
+		{
+			"name": "the acoustics choices aren't given with its kinds",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "names->choices = AcousticsChoices;",
+					"to": "names->choices = 0;"
+				}
+			]
+		},
+		{
+			"name": "an acoustics chunk is given the base family's bits",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "names->choices = AcousticsChoices;",
+					"to": "names->bits = ChunkBits;\n\t\t\t\tnames->choices = AcousticsChoices;"
+				}
+			]
+		},
+		{
+			"name": "the base family claims no chunk",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "case ChunkFamily::Base: return FindChunkKind(id) != 0;",
+					"to": "case ChunkFamily::Base: return false;"
+				}
+			]
+		},
+		{
+			"name": "the acoustics family claims no chunk",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "case ChunkFamily::Acoustics: return FindAcousticsKind(id) != 0;",
+					"to": "case ChunkFamily::Acoustics: return false;"
+				}
+			]
+		},
+		{
+			"name": "the tracks family claims no chunk",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "case ChunkFamily::Tracks: return IsName(id, TrackName);",
+					"to": "case ChunkFamily::Tracks: return false;"
+				}
+			]
+		},
+		{
+			"name": "the tracks family claims the alternate locations too",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "case ChunkFamily::Tracks: return IsName(id, TrackName);",
+					"to": "case ChunkFamily::Tracks: return IsName(id, TrackName) || IsName(id, AlternateLocationsName);"
+				}
+			]
+		},
+		{
+			"name": "the alternate locations family claims no chunk",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "case ChunkFamily::AlternateLocations: return IsName(id, AlternateLocationsName);",
+					"to": "case ChunkFamily::AlternateLocations: return false;"
+				}
+			]
+		},
+		{
+			"name": "the alternate locations are named as the track is",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "char const AlternateLocationsName[] = \"ALTLOCAT\";",
+					"to": "char const AlternateLocationsName[] = \"OBJTRAK2\";"
+				}
+			]
+		},
+		{
+			"name": "the AI family claims no chunk",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "case ChunkFamily::Ai: return FindAiChunk(id) != 0;",
+					"to": "case ChunkFamily::Ai: return false;"
+				}
+			]
+		},
+		{
+			"name": "the AI family claims every chunk",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "case ChunkFamily::Ai: return FindAiChunk(id) != 0;",
+					"to": "case ChunkFamily::Ai: return true;"
+				}
+			]
+		},
+		{
+			"name": "a null name is looked up",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "if (!id)\n\t\t{\n\t\t\treturn false;\n\t\t}\n\n\t\tswitch (family)",
+					"to": "switch (family)"
+				}
+			]
+		},
+		{
+			"name": "a name is matched by its first 4 letters only",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "memcmp(id, name, 8) == 0",
+					"to": "memcmp(id, name, 4) == 0"
+				}
+			]
+		},
+		{
+			"name": "a name is matched without its last letter",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "memcmp(id, name, 8) == 0",
+					"to": "memcmp(id, name, 7) == 0"
+				}
+			]
+		},
+		{
+			"name": "no family is asked who holds a chunk",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "if (ChunkFamilyClaims(family, id))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a chunk with items is called unknown",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "hasItems ? ChunkOfItemsWords : UnknownChunkWords",
+					"to": "UnknownChunkWords"
+				}
+			]
+		},
+		{
+			"name": "a chunk no family holds is said to have items",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "bool const hasItems = chunk && model::FindChunkFamily(chunk) != model::ChunkFamily::None;",
+					"to": "bool const hasItems = true;"
+				}
+			]
+		},
+		{
+			"name": "a chunk's record is built with fields that can be edited",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "descriptor.readOnly = true;",
+					"to": "descriptor.readOnly = false;"
+				}
+			]
+		},
+		{
+			"name": "a field the old editor showed no label for is shown in a chunk's record",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (label.empty())\n\t\t\t{\n\t\t\t\treturn true;\n\t\t\t}\n\n\t\t\tif (field.unit == model::Unit::Choice)",
+					"to": "if (field.unit == model::Unit::Choice)"
+				}
+			]
+		},
+		{
+			"name": "a chunk's payload of a size the game refuses is built anyway",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (check != model::SizeCheck::Right)",
+					"to": "if (false)"
+				}
+			]
+		}
+	]
+}

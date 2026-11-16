@@ -1,0 +1,1059 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a light's range of 0 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"range\", \"Range\", S, 60, Storage::Int32, Unit::GameUnits, 0, Limit::Loader, 1, LightRangeMost,",
+					"to": "{ \"range\", \"Range\", S, 60, Storage::Int32, Unit::GameUnits, 0, Limit::Loader, 0, LightRangeMost,"
+				}
+			]
+		},
+		{
+			"name": "a placed light's fade-up time of 32768 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"fade_up_time\", \"Fade up time\", S, 28, Storage::Int32, Unit::Milliseconds, 0, Limit::Loader, 0, 32767,",
+					"to": "{ \"fade_up_time\", \"Fade up time\", S, 28, Storage::Int32, Unit::Milliseconds, 0, Limit::Loader, 0, 32768,"
+				}
+			]
+		},
+		{
+			"name": "a light of 83 bytes is taken as the right size",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"STDLIGHT\", \"light\", \"\", 84, 84,",
+					"to": "{ \"STDLIGHT\", \"light\", \"\", 83, 83,"
+				}
+			]
+		},
+		{
+			"name": "a placed light's count is looked for in the wrong place",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"PLOBJLIT\", \"placed light\", \"\", 60, 64, 60, 4,",
+					"to": "{ \"PLOBJLIT\", \"placed light\", \"\", 60, 64, 56, 4,"
+				}
+			]
+		},
+		{
+			"name": "a light type of 3 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"light_type\", \"Light type\", S, 48, Storage::Int32, Unit::Choice, 0, Limit::GameMeaning, 0, 2,",
+					"to": "{ \"light_type\", \"Light type\", S, 48, Storage::Int32, Unit::Choice, 0, Limit::GameMeaning, 0, 3,"
+				}
+			]
+		},
+		{
+			"name": "every bit of a light's engine flags may be set, the game's own too",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "uint32_t const EngineLightBits = 0x1 | 0x2 | 0x4 | 0x10 | 0x800;",
+					"to": "uint32_t const EngineLightBits = 0xFFFFFFFF;"
+				}
+			]
+		},
+		{
+			"name": "a chunk shorter than its registered size is read",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "if (length < kind.leastBytes)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a list's count isn't checked",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "SizeCheck const check = ReadCount(payload, length, at, kind.listItemBytes, &count);",
+					"to": "SizeCheck const check = SizeCheck::Right;"
+				}
+			]
+		},
+		{
+			"name": "a chunk field is written 4 bytes past its place",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "*place = origin + field.offset;",
+					"to": "*place = origin + field.offset + 4;"
+				}
+			]
+		},
+		{
+			"name": "a field of another kind of chunk is written at its own offset",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "if (&kind.fields[i] == &field)",
+					"to": "if (true)"
+				}
+			]
+		},
+		{
+			"name": "a placed sound's file name after its name isn't checked",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"win95/chunk_sound.cpp:21, :50-76\", 1, 1, -1 },",
+					"to": "\"win95/chunk_sound.cpp:21, :50-76\", 1, 0, -1 },"
+				}
+			]
+		},
+		{
+			"name": "a track sound needs no file name",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"win95/chunk_object.cpp:1067, :1081-1107\", 1, 0, -1 },",
+					"to": "\"win95/chunk_object.cpp:1067, :1081-1107\", 0, 0, -1 },"
+				}
+			]
+		},
+		{
+			"name": "a name the game needs may be missing",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "if (name >= kind.namesRequired && at >= length)",
+					"to": "if (at >= length)"
+				}
+			]
+		},
+		{
+			"name": "a name with no ending zero is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "if (!zero)\n\t\t\t{\n\t\t\t\treturn SizeCheck::NameCutOff;",
+					"to": "if (!zero)\n\t\t\t{\n\t\t\t\treturn SizeCheck::Right;"
+				}
+			]
+		},
+		{
+			"name": "the names are looked for a byte before the fixed part ends",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "size_t at = kind.fixedBytes;",
+					"to": "size_t at = kind.fixedBytes - 1;"
+				}
+			]
+		},
+		{
+			"name": "a placed sound's volume of 128 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"max_volume\", \"Volume\", S, 20, Storage::Int32, Unit::Plain, 0, Limit::GameMeaning, 0, 127,",
+					"to": "{ \"max_volume\", \"Volume\", S, 20, Storage::Int32, Unit::Plain, 0, Limit::GameMeaning, 0, 128,"
+				}
+			]
+		},
+		{
+			"name": "a track sound index of 3 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"index\", \"Which sound\", S, 20, Storage::Int32, Unit::Choice, 0, Limit::Loader, 0, 2,",
+					"to": "{ \"index\", \"Which sound\", S, 20, Storage::Int32, Unit::Choice, 0, Limit::Loader, 0, 3,"
+				}
+			]
+		},
+		{
+			"name": "a weights block isn't measured against the rest of the payload",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "return stored == (int64_t)(length - at) ? SizeCheck::Right : SizeCheck::WrongSize;",
+					"to": "return SizeCheck::Right;"
+				}
+			]
+		},
+		{
+			"name": "the weights block's size is looked for in the wrong place",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"avp/win95/avp_chunk.cpp:256, :262-321\", 0, 0, 20 },",
+					"to": "\"avp/win95/avp_chunk.cpp:256, :262-321\", 0, 0, 16 },"
+				}
+			]
+		},
+		{
+			"name": "a generator weight of 16777217 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "double const WeightMost = 16777216.0;",
+					"to": "double const WeightMost = 16777217.0;"
+				}
+			]
+		},
+		{
+			"name": "a generator kind of 10 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"type\", \"Kind\", S, 16, Storage::Int32, Unit::Choice, 0, Limit::GameMeaning, 0, 9,",
+					"to": "{ \"type\", \"Kind\", S, 16, Storage::Int32, Unit::Choice, 0, Limit::GameMeaning, 0, 10,"
+				}
+			]
+		},
+		{
+			"name": "a generator's always-set bit is offered as a choice",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "uint32_t const GeneratorBits = 0x3800 |",
+					"to": "uint32_t const GeneratorBits = 0x1 | 0x3800 |"
+				}
+			]
+		},
+		{
+			"name": "a particle generator kind of 4 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"type\", \"Type\", S, 0, Storage::Int32, Unit::Choice, 0, Limit::Loader, 0, 3,",
+					"to": "{ \"type\", \"Type\", S, 0, Storage::Int32, Unit::Choice, 0, Limit::Loader, 0, 4,"
+				}
+			]
+		},
+		{
+			"name": "an orientation part of 2.5 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"orientation_x\", \"\", S, 52, Storage::Float32, Unit::Plain, 0, Limit::Loader, -2, 2,",
+					"to": "{ \"orientation_x\", \"\", S, 52, Storage::Float32, Unit::Plain, 0, Limit::Loader, -3, 3,"
+				}
+			]
+		},
+		{
+			"name": "a particle generator must have a name",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"avp/win95/avp_chunk.cpp:795, :810-841\", 0, 1, -1 },",
+					"to": "\"avp/win95/avp_chunk.cpp:795, :810-841\", 1, 0, -1 },"
+				}
+			]
+		},
+		{
+			"name": "a generator is read outside the special objects",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"AVPGENER\", \"generator\", \"SPECLOBJ\",",
+					"to": "{ \"AVPGENER\", \"generator\", \"\","
+				}
+			]
+		},
+		{
+			"name": "a sky colour of 256 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"sky_colour_red\", \"Red\", S, 4, Storage::Int32, Unit::Plain, 0, Limit::Editor, 0, 255,",
+					"to": "\"sky_colour_red\", \"Red\", S, 4, Storage::Int32, Unit::Plain, 0, Limit::Editor, 0, 256,"
+				}
+			]
+		},
+		{
+			"name": "the sky's blue is looked for at +13",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"sky_colour_blue\", \"Blue\", S, 12,",
+					"to": "\"sky_colour_blue\", \"Blue\", S, 13,"
+				}
+			]
+		},
+		{
+			"name": "the kit's spare bits can be chosen",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "uint32_t const KitBits = 0x7f;",
+					"to": "uint32_t const KitBits = 0xff;"
+				}
+			]
+		},
+		{
+			"name": "a kit bit has the wrong word",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"AVPENVIR\", \"kit\", 0x4, \"Disc\" },",
+					"to": "{ \"AVPENVIR\", \"kit\", 0x4, \"Dish\" },"
+				}
+			]
+		},
+		{
+			"name": "environment settings that say they hold more than they do are read",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"avp/win95/avp_chunk.cpp:574, :577-606\", 0, 0, 0 },",
+					"to": "\"avp/win95/avp_chunk.cpp:574, :577-606\", 0, 0, -1 },"
+				}
+			]
+		},
+		{
+			"name": "the spears are looked for at +16",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"predator_num_spears\", \"Spears\", S, 20,",
+					"to": "\"predator_num_spears\", \"Spears\", S, 16,"
+				}
+			]
+		},
+		{
+			"name": "generator settings of 27 bytes are taken as the right size",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"GLOGENDC\", \"generator settings for the level\", \"REBENVDT\", 28, 28,",
+					"to": "{ \"GLOGENDC\", \"generator settings for the level\", \"REBENVDT\", 27, 27,"
+				}
+			]
+		},
+		{
+			"name": "generator settings are read outside the environment data",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"GLOGENDC\", \"generator settings for the level\", \"REBENVDT\",",
+					"to": "{ \"GLOGENDC\", \"generator settings for the level\", \"\","
+				}
+			]
+		},
+		{
+			"name": "an enemy generated of 2 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "Unit::Choice, 0, Limit::Loader, 0, 1, EnemyWhy,",
+					"to": "Unit::Choice, 0, Limit::Loader, 0, 2, EnemyWhy,"
+				}
+			]
+		},
+		{
+			"name": "Marines is named wrongly",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"GLOGENDC\", \"EnemyGenerated\", 1, \"Marines\" },",
+					"to": "{ \"GLOGENDC\", \"EnemyGenerated\", 1, \"Marine\" },"
+				}
+			]
+		},
+		{
+			"name": "the hive's time is not in seconds",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"HiveStateChangeTime\", \"Hive State Change Time (seconds)\", S, 16, Storage::Int32, Unit::Seconds,",
+					"to": "\"HiveStateChangeTime\", \"Hive State Change Time (seconds)\", S, 16, Storage::Int32, Unit::Plain,"
+				}
+			]
+		},
+		{
+			"name": "a scale of 0.4 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "Storage::Float64, Unit::Plain, 0, Limit::Loader, 0.5, 1, ScaleWhy,",
+					"to": "Storage::Float64, Unit::Plain, 0, Limit::Loader, 0.4, 1, ScaleWhy,"
+				}
+			]
+		},
+		{
+			"name": "a scale of 1.5 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "Storage::Float64, Unit::Plain, 0, Limit::Loader, 0.5, 1, ScaleWhy,",
+					"to": "Storage::Float64, Unit::Plain, 0, Limit::Loader, 0.5, 1.5, ScaleWhy,"
+				}
+			]
+		},
+		{
+			"name": "the scale is a planned limit again",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "Storage::Float64, Unit::Plain, 0, Limit::Loader, 0.5, 1, ScaleWhy,",
+					"to": "Storage::Float64, Unit::Plain, 0, Limit::LoaderPlanned, 0.5, 1, ScaleWhy,"
+				}
+			]
+		},
+		{
+			"name": "the scale is stored as a float",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"scale\", \"Scale\", S, 0, Storage::Float64,",
+					"to": "{ \"scale\", \"Scale\", S, 0, Storage::Float32,"
+				}
+			]
+		},
+		{
+			"name": "Airduct is named wrongly",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"MODFLAGS\", \"Flags\", 0x80000000, \"Airduct\" },",
+					"to": "{ \"MODFLAGS\", \"Flags\", 0x80000000, \"Air duct\" },"
+				}
+			]
+		},
+		{
+			"name": "Exclude From Map is no longer a flag a mapper sets",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "0x00020000 | 0x00010000 | 0x00000200;",
+					"to": "0x00020000 | 0x00010000;"
+				}
+			]
+		},
+		{
+			"name": "a message number's bits are one short",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "uint32_t const ModuleMessageBits = 0x0FE00000;",
+					"to": "uint32_t const ModuleMessageBits = 0x07E00000;"
+				}
+			]
+		},
+		{
+			"name": "module flags of 7 bytes are taken as the right size",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"MODFLAGS\", \"module flags\", \"MODULEDT\", 8, 8,",
+					"to": "{ \"MODFLAGS\", \"module flags\", \"MODULEDT\", 7, 7,"
+				}
+			]
+		},
+		{
+			"name": "module flags are read outside the module's data",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"MODFLAGS\", \"module flags\", \"MODULEDT\",",
+					"to": "{ \"MODFLAGS\", \"module flags\", \"\","
+				}
+			]
+		},
+		{
+			"name": "the message is looked for at +4",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"message\", \"Message\", S, 0, Storage::UInt32,",
+					"to": "{ \"message\", \"Message\", S, 4, Storage::UInt32,"
+				}
+			]
+		},
+		{
+			"name": "a flag bit the loader refuses is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "0x00020000 | 0x00010000 | 0x00000200;",
+					"to": "0x00020000 | 0x00010000 | 0x00000200 | 0x00000100;"
+				}
+			]
+		},
+		{
+			"name": "a flag is named for a bit it is not",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"MODFLAGS\", \"Flags\", 0x00000200, \"Exclude From Map\" },",
+					"to": "{ \"MODFLAGS\", \"Flags\", 0x00000100, \"Exclude From Map\" },"
+				}
+			]
+		},
+		{
+			"name": "a message's limit is dropped",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "Limit::Editor, 0, ModuleMessageBits, ModuleMessageWhy,",
+					"to": "Limit::None, 0, 0, ModuleMessageWhy,"
+				}
+			]
+		},
+		{
+			"name": "a light is placed by an editor limit only",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "Limit::Loader, -PositionMost, PositionMost, PositionWhy, false, 0, \"win95/chunk_light.cpp:138;",
+					"to": "Limit::Editor, -PositionMost, PositionMost, PositionWhy, false, 0, \"win95/chunk_light.cpp:138;"
+				}
+			]
+		},
+		{
+			"name": "a sound is placed by an editor limit only",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "Limit::Loader, -PositionMost, PositionMost, PositionWhy, false, 0, \"win95/chunk_sound.cpp:55;",
+					"to": "Limit::Editor, -PositionMost, PositionMost, PositionWhy, false, 0, \"win95/chunk_sound.cpp:55;"
+				}
+			]
+		},
+		{
+			"name": "a generator is placed by an editor limit only",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "Limit::Loader, -PositionMost, PositionMost, PositionWhy, false, 0, \"avp/win95/avp_chunk.cpp:80;",
+					"to": "Limit::Editor, -PositionMost, PositionMost, PositionWhy, false, 0, \"avp/win95/avp_chunk.cpp:80;"
+				}
+			]
+		},
+		{
+			"name": "a particle generator is placed by an editor limit only",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "Limit::Loader, -PositionMost, PositionMost, PositionWhy, false, 0, \"avp/win95/avp_chunk.cpp:837;",
+					"to": "Limit::Editor, -PositionMost, PositionMost, PositionWhy, false, 0, \"avp/win95/avp_chunk.cpp:837;"
+				}
+			]
+		},
+		{
+			"name": "the player start is placed by an editor limit only",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "Limit::Loader, -PositionMost, PositionMost, PositionWhy, false, 0, \"avp/win95/avp_chunk.cpp:455;",
+					"to": "Limit::Editor, -PositionMost, PositionMost, PositionWhy, false, 0, \"avp/win95/avp_chunk.cpp:455;"
+				}
+			]
+		},
+		{
+			"name": "a light's range is a planned limit again",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"range\", \"Range\", S, 60, Storage::Int32, Unit::GameUnits, 0, Limit::Loader, 1, LightRangeMost,",
+					"to": "{ \"range\", \"Range\", S, 60, Storage::Int32, Unit::GameUnits, 0, Limit::LoaderPlanned, 1, LightRangeMost,"
+				}
+			]
+		},
+		{
+			"name": "a placed light's range is a planned limit again",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"range\", \"\", S, 8, Storage::Int32, Unit::GameUnits, 0, Limit::Loader, 1, LightRangeMost,",
+					"to": "{ \"range\", \"\", S, 8, Storage::Int32, Unit::GameUnits, 0, Limit::LoaderPlanned, 1, LightRangeMost,"
+				}
+			]
+		},
+		{
+			"name": "a generator weight is an editor limit only",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"PulseMarine_Wt\", \"Pulse rifle marine\", S, 24, Storage::Int32, Unit::Plain, 0, Limit::Loader,",
+					"to": "{ \"PulseMarine_Wt\", \"Pulse rifle marine\", S, 24, Storage::Int32, Unit::Plain, 0, Limit::Editor,"
+				}
+			]
+		},
+		{
+			"name": "a particle generator kind is a planned limit again",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"type\", \"Type\", S, 0, Storage::Int32, Unit::Choice, 0, Limit::Loader, 0, 3,",
+					"to": "{ \"type\", \"Type\", S, 0, Storage::Int32, Unit::Choice, 0, Limit::LoaderPlanned, 0, 3,"
+				}
+			]
+		},
+		{
+			"name": "a particle generator's turn is an editor limit only",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"orientation_w\", \"\", S, 64, Storage::Float32, Unit::Plain, 0, Limit::Loader, -2, 2,",
+					"to": "{ \"orientation_w\", \"\", S, 64, Storage::Float32, Unit::Plain, 0, Limit::Editor, -2, 2,"
+				}
+			]
+		},
+		{
+			"name": "a name's padding is not stepped over",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "*place = ((size_t)(zero - payload) + 4) & ~(size_t)3;",
+					"to": "*place = (size_t)(zero - payload) + 1;"
+				}
+			]
+		},
+		{
+			"name": "a chunk's numbers after its name are not measured against the chunk",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "if (kind.listCountAt < 0 && (origin > length || length - origin < kind.fixedBytes))",
+					"to": "if (kind.listCountAt < 0 && origin > length)"
+				}
+			]
+		},
+		{
+			"name": "a leading name with no ending zero is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "if (!AfterLeadingName(payload, length, &origin))",
+					"to": "if (false && !AfterLeadingName(payload, length, &origin))"
+				}
+			]
+		},
+		{
+			"name": "a field of another kind has a place",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "if (!IsFieldOf(kind, field) || (field.anchor != Anchor::Start && field.anchor != Anchor::AfterFirstList))",
+					"to": "if (field.anchor != Anchor::Start && field.anchor != Anchor::AfterFirstList)"
+				}
+			]
+		},
+		{
+			"name": "a field is placed past the end of its chunk",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "if (origin > length || field.offset > length - origin || length - origin - field.offset < StorageBytes(field.storage))",
+					"to": "if (origin > length)"
+				}
+			]
+		},
+		{
+			"name": "a quantity of 751 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "double const FragmentPiecesMost = 750.0;",
+					"to": "double const FragmentPiecesMost = 751.0;"
+				}
+			]
+		},
+		{
+			"name": "a shape's location is an editor limit only",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "Limit::Loader, -PositionMost, PositionMost, PositionWhy, false, 0,\n\t\t  FragmentPlaceSource },",
+					"to": "Limit::Editor, -PositionMost, PositionMost, PositionWhy, false, 0,\n\t\t  FragmentPlaceSource },"
+				}
+			]
+		},
+		{
+			"name": "a fragment sound's volume of 128 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "Limit::GameMeaning, 0, 127, VolumeWhy, true, 127,\n\t\t  \"avp/bh_debris.cpp:759; avp/psnd.cpp:407-408",
+					"to": "Limit::GameMeaning, 0, 128, VolumeWhy, true, 127,\n\t\t  \"avp/bh_debris.cpp:759; avp/psnd.cpp:407-408"
+				}
+			]
+		},
+		{
+			"name": "a new fragment sound's inner reach starts at 4000",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "DistanceWhy, true, 5000,",
+					"to": "DistanceWhy, true, 4000,"
+				}
+			]
+		},
+		{
+			"name": "a new fragment sound's outer reach starts at 30000",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "DistanceWhy, true, 40000,",
+					"to": "DistanceWhy, true, 30000,"
+				}
+			]
+		},
+		{
+			"name": "a fragment sound of 16 bytes is taken as long enough",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"FRGSOUND\", \"fragment sound\", \"\", 20, 20, -1, 0,",
+					"to": "{ \"FRGSOUND\", \"fragment sound\", \"\", 16, 20, -1, 0,"
+				}
+			]
+		},
+		{
+			"name": "a fragment sound's wav name is not needed",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"win95/chunk_fragments.cpp:155, :168-186\", 1, 0, -1 },",
+					"to": "\"win95/chunk_fragments.cpp:155, :168-186\", 0, 0, -1 },"
+				}
+			]
+		},
+		{
+			"name": "a fragment shape is not taken as starting with its name",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"win95/chunk_fragments.cpp:88, :100-115\", 0, 0, -1, true },",
+					"to": "\"win95/chunk_fragments.cpp:88, :100-115\", 0, 0, -1, false },"
+				}
+			]
+		},
+		{
+			"name": "a fragment type's numbers are 8 bytes",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"FRGTYPDC\", \"fragment type\", \"FRAGTYPE\", 0, 12, -1, 0,",
+					"to": "{ \"FRGTYPDC\", \"fragment type\", \"FRAGTYPE\", 0, 8, -1, 0,"
+				}
+			]
+		},
+		{
+			"name": "a shape's quantity is looked for at +4",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"num_fragments\", \"Quantity\", S, 0, Storage::Int32,",
+					"to": "{ \"num_fragments\", \"Quantity\", S, 4, Storage::Int32,"
+				}
+			]
+		},
+		{
+			"name": "fragment shapes are read outside their type",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"FRGTYPSC\", \"fragment shape\", \"FRAGTYPE\",",
+					"to": "{ \"FRGTYPSC\", \"fragment shape\", \"\","
+				}
+			]
+		},
+		{
+			"name": "a fragment sound is read only inside a type",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"FRGSOUND\", \"fragment sound\", \"\", 20,",
+					"to": "{ \"FRGSOUND\", \"fragment sound\", \"FRAGTYPE\", 20,"
+				}
+			]
+		},
+		{
+			"name": "a field after a list is counted from the list's start",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "origin += (size_t)kind.listCountAt + 4 + count * kind.listItemBytes;",
+					"to": "origin += (size_t)kind.listCountAt + 4;"
+				}
+			]
+		},
+		{
+			"name": "the numbers after a list are not measured against the chunk",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "return length - (at + 4 + count * kind.listItemBytes) >= kind.trailerBytes ? SizeCheck::Right : SizeCheck::TooShort;",
+					"to": "return SizeCheck::Right;"
+				}
+			]
+		},
+		{
+			"name": "a list's count is looked for before the name's end",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "size_t const at = origin + (size_t)kind.listCountAt;",
+					"to": "size_t const at = (size_t)kind.listCountAt;"
+				}
+			]
+		},
+		{
+			"name": "a field after a list is placed without reading the count",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "if (kind.listCountAt < 0 || ReadCount(payload, length, origin + (size_t)kind.listCountAt, kind.listItemBytes, &count) != SizeCheck::Right)",
+					"to": "if (kind.listCountAt < 0)"
+				}
+			]
+		},
+		{
+			"name": "the random textures' items are 8 bytes each",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"RANTEXID\", \"random textures\", \"REBENVDT\", 0, 4, 0, 4,",
+					"to": "{ \"RANTEXID\", \"random textures\", \"REBENVDT\", 0, 4, 0, 8,"
+				}
+			]
+		},
+		{
+			"name": "the random textures' count is looked for 4 bytes after the name's end",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"RANTEXID\", \"random textures\", \"REBENVDT\", 0, 4, 0, 4,",
+					"to": "{ \"RANTEXID\", \"random textures\", \"REBENVDT\", 0, 8, 4, 4,"
+				}
+			]
+		},
+		{
+			"name": "the random textures have 4 bytes after their list",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"win95/environment_chunk.cpp:265, :276-298\", 0, 0, -1, true, 8 },",
+					"to": "\"win95/environment_chunk.cpp:265, :276-298\", 0, 0, -1, true, 4 },"
+				}
+			]
+		},
+		{
+			"name": "the random textures are not taken as starting with a name",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"win95/environment_chunk.cpp:265, :276-298\", 0, 0, -1, true, 8 },",
+					"to": "\"win95/environment_chunk.cpp:265, :276-298\", 0, 0, -1, false, 8 },"
+				}
+			]
+		},
+		{
+			"name": "the second spare is counted 8 bytes after the list",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"spare2\", \"\", AfterList, 4,",
+					"to": "{ \"spare2\", \"\", AfterList, 8,"
+				}
+			]
+		},
+		{
+			"name": "the random textures are read outside the environment data",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"RANTEXID\", \"random textures\", \"REBENVDT\",",
+					"to": "{ \"RANTEXID\", \"random textures\", \"\","
+				}
+			]
+		},
+		{
+			"name": "the spares are counted from the start of the chunk's numbers",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"spare1\", \"\", AfterList, 0,",
+					"to": "{ \"spare1\", \"\", S, 0,"
+				}
+			]
+		},
+		{
+			"name": "a list of .rif names is read past an empty name",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "while (kind.namesToEmpty && at < length && payload[at] != 0)",
+					"to": "while (kind.namesToEmpty && at < length)"
+				}
+			]
+		},
+		{
+			"name": "a .rif name with no ending zero is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "if (!listZero)\n\t\t\t{\n\t\t\t\treturn SizeCheck::NameCutOff;",
+					"to": "if (!listZero)\n\t\t\t{\n\t\t\t\treturn SizeCheck::Right;"
+				}
+			]
+		},
+		{
+			"name": "the .rif names are not read as a list",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"win95/chunk_palette.cpp:588, :590-627\", 1, 0, -1, false, 0, true },",
+					"to": "\"win95/chunk_palette.cpp:588, :590-627\", 1, 0, -1, false, 0, false },"
+				}
+			]
+		},
+		{
+			"name": "a game mode's name is not needed",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"win95/chunk_palette.cpp:588, :590-627\", 1, 0, -1, false, 0, true },",
+					"to": "\"win95/chunk_palette.cpp:588, :590-627\", 0, 0, -1, false, 0, true },"
+				}
+			]
+		},
+		{
+			"name": "a game mode header of 16 bytes is taken as long enough",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"GMODHEAD\", \"game mode header\", \"GAMEMODE\", 20, 20, -1, 0,",
+					"to": "{ \"GMODHEAD\", \"game mode header\", \"GAMEMODE\", 16, 16, -1, 0,"
+				}
+			]
+		},
+		{
+			"name": "a game mode header is read outside its game mode",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"GMODHEAD\", \"game mode header\", \"GAMEMODE\",",
+					"to": "{ \"GMODHEAD\", \"game mode header\", \"\","
+				}
+			]
+		},
+		{
+			"name": "any game mode flag bit can be chosen",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "uint32_t const GameModeBits = 0x1 | 0x2 | 0x4;",
+					"to": "uint32_t const GameModeBits = 0xff;"
+				}
+			]
+		},
+		{
+			"name": "Editable is named wrongly",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"GMODHEAD\", \"flags\", 0x1, \"Editable\" },",
+					"to": "{ \"GMODHEAD\", \"flags\", 0x1, \"Editing\" },"
+				}
+			]
+		},
+		{
+			"name": "Deleted is named for another bit",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"GMODHEAD\", \"flags\", 0x2, \"Deleted\" },",
+					"to": "{ \"GMODHEAD\", \"flags\", 0x8, \"Deleted\" },"
+				}
+			]
+		},
+		{
+			"name": "the version number is looked for at +12",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"version_num\", \"\", S, 16,",
+					"to": "{ \"version_num\", \"\", S, 12,"
+				}
+			]
+		},
+		{
+			"name": "the game mode's flags are looked for at +4",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"flags\", \"\", S, 0, Storage::UInt32, Unit::Flags, GameModeBits,",
+					"to": "{ \"flags\", \"\", S, 4, Storage::UInt32, Unit::Flags, GameModeBits,"
+				}
+			]
+		},
+		{
+			"name": "the sound folder is read outside the environment data",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"SOUNDDIR\", \"sound folder\", \"REBENVDT\",",
+					"to": "{ \"SOUNDDIR\", \"sound folder\", \"\","
+				}
+			]
+		},
+		{
+			"name": "the sound folder's name is not needed",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"win95/environment_chunk.cpp:232, :241-245\", 1, 0, -1 },",
+					"to": "\"win95/environment_chunk.cpp:232, :241-245\", 0, 0, -1 },"
+				}
+			]
+		},
+		{
+			"name": "the sound folder is taken to start with a name",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "\"win95/environment_chunk.cpp:232, :241-245\", 1, 0, -1 },",
+					"to": "\"win95/environment_chunk.cpp:232, :241-245\", 1, 0, -1, true },"
+				}
+			]
+		},
+		{
+			"name": "the sound folder is taken to hold 4 bytes of numbers",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields.cpp",
+					"from": "{ \"SOUNDDIR\", \"sound folder\", \"REBENVDT\", 0, 0, -1, 0, 0, 0,",
+					"to": "{ \"SOUNDDIR\", \"sound folder\", \"REBENVDT\", 0, 4, -1, 0, 0, 0,"
+				}
+			]
+		},
+		{
+			"name": "a chunk setter goes through a null payload",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "\t\tif (!payload || !ChunkFieldPlace(kind, field, payload, length, &at))\n\t\t{\n\t\t\tat = NoPlace;\n\t\t}\n\n\t\treturn SetFieldAt(field, payload, length, at, value, why);",
+					"to": "\t\tif (!ChunkFieldPlace(kind, field, payload, length, &at))\n\t\t{\n\t\t\tat = NoPlace;\n\t\t}\n\n\t\treturn SetFieldAt(field, payload, length, at, value, why);"
+				}
+			]
+		},
+		{
+			"name": "a chunk axis setter goes through a null payload",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "\t\tif (!payload || !ChunkFieldPlace(kind, field, payload, length, &at))\n\t\t{\n\t\t\tat = NoPlace;\n\t\t}\n\n\t\treturn SetAxisAt(field, payload, length, at, axis, value, why);",
+					"to": "\t\tif (!ChunkFieldPlace(kind, field, payload, length, &at))\n\t\t{\n\t\t\tat = NoPlace;\n\t\t}\n\n\t\treturn SetAxisAt(field, payload, length, at, axis, value, why);"
+				}
+			]
+		}
+	]
+}

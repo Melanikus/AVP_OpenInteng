@@ -1,0 +1,559 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a strategy shorter than the numbers every strategy has is let through",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (length < SmallestStrategy)",
+					"to": "if (length < 12)"
+				}
+			]
+		},
+		{
+			"name": "a negative list count is let through",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (stored < 0)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a list count isn't measured against the bytes left (the tests of a count too big for its payload check that it's refused as too big, so this is noticed in 32- and 64-bit builds alike)",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (stored > most)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a point effect's targets are counted from its pad, not its count",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "check = ReadCount(payload, length, at + 8, 16, &targets);",
+					"to": "check = ReadCount(payload, length, at + 4, 16, &targets);"
+				}
+			]
+		},
+		{
+			"name": "a many-target switch's link count is looked for in the wrong place",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "check = ReadCount(payload, length, 40 + first * 12, 8, &second);",
+					"to": "check = ReadCount(payload, length, 40 + first * 8, 8, &second);"
+				}
+			]
+		},
+		{
+			"name": "a field after a many-target switch's targets is found as if they were 8 bytes each",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "case SizeRule::MultiSwitch: at = 36; item_bytes = 12; break;",
+					"to": "case SizeRule::MultiSwitch: at = 36; item_bytes = 8; break;"
+				}
+			]
+		},
+		{
+			"name": "an old switch's upgrade gives the target at pad1 the wrong request",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "int32_t const request = ((int32_t)i >= firstOn) ? 1 : 0;",
+					"to": "int32_t const request = ((int32_t)i > firstOn) ? 1 : 0;"
+				}
+			]
+		},
+		{
+			"name": "an old placed object's junk flags are kept",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "StoreUInt32(payload + 36, 0);   // flags",
+					"to": "StoreUInt32(payload + 36, LoadUInt32(payload + 36));   // flags"
+				}
+			]
+		},
+		{
+			"name": "a new placed object is saved without its always-set bit",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "bit = SparesHoldValues;",
+					"to": "bit = 0;"
+				}
+			]
+		},
+		{
+			"name": "a value outside a masked field's own bits is let through",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "else if (field.mask && ((uint32_t)value & ~field.mask) != 0)",
+					"to": "else if (false && field.mask)"
+				}
+			]
+		},
+		{
+			"name": "a fraction is let through where the file holds a whole number",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "else if (IsWholeNumberStorage(field.storage) && value != floor(value))",
+					"to": "else if (false)"
+				}
+			]
+		},
+		{
+			"name": "a fan time of 64 is let through",
+			"changes": [
+				{
+					"file": "src/model/strategy_fields.cpp",
+					"from": "Limit::LoaderPlanned, 65, IntMax, \"a fan takes at least 65/65536 of a second to speed up\"",
+					"to": "Limit::LoaderPlanned, 64, IntMax, \"a fan takes at least 65/65536 of a second to speed up\""
+				}
+			]
+		},
+		{
+			"name": "a message number of 451 is let through",
+			"changes": [
+				{
+					"file": "src/model/strategy_fields.cpp",
+					"from": "{ \"message_string\", \"String :%d\", Anchor::Start, 20, Storage::Int32, Unit::TextNumber, 0, Limit::Loader, 0, 450,",
+					"to": "{ \"message_string\", \"String :%d\", Anchor::Start, 20, Storage::Int32, Unit::TextNumber, 0, Limit::Loader, 0, 451,"
+				}
+			]
+		},
+		{
+			"name": "a new door opens at the game's own speed instead of the old editor's 1.0 s",
+			"changes": [
+				{
+					"file": "src/model/strategy_fields.cpp",
+					"from": "0, 0, \"\", true, 10, \"the game's reader; 0 keeps the game's own speed",
+					"to": "0, 0, \"\", true, 0, \"the game's reader; 0 keeps the game's own speed"
+				}
+			]
+		},
+		{
+			"name": "a new Airlock is written under its own number, which the game reads as a plain block",
+			"changes": [
+				{
+					"file": "src/model/strategy_fields.cpp",
+					"from": "{ 57, \"Airlock\", \"Airlock\", SizeRule::AnySize, 20, 0, 0, true, false, 51 },",
+					"to": "{ 57, \"Airlock\", \"Airlock\", SizeRule::AnySize, 20, 0, 0, true, false, 57 },"
+				}
+			]
+		},
+		{
+			"name": "NaN and endless values aren't told apart by their bits",
+			"changes": [
+				{
+					"file": "src/common/real_numbers.h",
+					"from": "return ((bits >> 52) & 0x7FF) == 0x7FF;",
+					"to": "return false;"
+				}
+			]
+		},
+		{
+			"name": "setting one axis of a three-number field writes the first axis",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "StoreInt32(payload + at + 4 * (size_t)axis, value);",
+					"to": "StoreInt32(payload + at, value);"
+				}
+			]
+		},
+		{
+			"name": "an object field's second half is written with its first",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "StoreUInt32(payload + at + 4, second);",
+					"to": "StoreUInt32(payload + at + 4, first);"
+				}
+			]
+		},
+		{
+			"name": "a field that runs past the end of the payload is written anyway",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "return at <= length && length - at >= StorageBytes(field.storage);",
+					"to": "return at <= length;"
+				}
+			]
+		},
+		{
+			"name": "a signed 16-bit field takes one more than it can hold",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "case Storage::Int16: *lowest = SHRT_MIN; *highest = SHRT_MAX; break;",
+					"to": "case Storage::Int16: *lowest = SHRT_MIN; *highest = SHRT_MAX + 1; break;"
+				}
+			]
+		},
+		{
+			"name": "a 32-bit float field takes values only a 64-bit float can hold",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "case Storage::Float32: *lowest = -FLT_MAX; *highest = FLT_MAX; break;",
+					"to": "case Storage::Float32: *lowest = -DBL_MAX; *highest = DBL_MAX; break;"
+				}
+			]
+		},
+		{
+			"name": "one number is let through to set a three-number field or an object",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "\t\t\t\tbreak;\n\n\t\t\tcase Storage::IntMatrix:\n\t\t\tcase Storage::ObjectId:\n\t\t\tcase Storage::IntTriple:\n\t\t\t\treturn false;",
+					"to": "\t\t\t\tbreak;\n\n\t\t\tcase Storage::IntMatrix:\n\t\t\tcase Storage::ObjectId:\n\t\t\tcase Storage::IntTriple:\n\t\t\t\tbreak;"
+				}
+			]
+		},
+		{
+			"name": "a list's count is set from a number, so it no longer matches the items after it",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (field.unit == Unit::ListCount)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a lift's count of linked lifts is a plain number in the table, which a mapper could type in",
+			"changes": [
+				{
+					"file": "src/model/strategy_fields.cpp",
+					"from": "{ \"NumAssocLifts\", \"\", Anchor::Start, 20, Storage::Int32, Unit::ListCount,",
+					"to": "{ \"NumAssocLifts\", \"\", Anchor::Start, 20, Storage::Int32, Unit::Plain,"
+				}
+			]
+		},
+		{
+			"name": "a list's count is refused without its reason",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "*why = ListCountReason;",
+					"to": "*why = 0;"
+				}
+			]
+		},
+		{
+			"name": "SetField writes a field of another kind at that field's own place",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "bool SetField(StrategyKind const &kind, Field const &field, uint8_t *payload, size_t length, double value, char const **why)\n\t{\n\t\tif (!IsFieldOfStrategy(kind, field))",
+					"to": "bool SetField(StrategyKind const &kind, Field const &field, uint8_t *payload, size_t length, double value, char const **why)\n\t{\n\t\tif (false)"
+				}
+			]
+		},
+		{
+			"name": "SetFieldAxis writes a field of another kind at that field's own place",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "\t                  char const **why)\n\t{\n\t\tif (!IsFieldOfStrategy(kind, field))",
+					"to": "\t                  char const **why)\n\t{\n\t\tif (false)"
+				}
+			]
+		},
+		{
+			"name": "SetFieldObject writes a field of another kind at that field's own place",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (!IsFieldOfStrategy(kind, field) || !FieldPlace(kind, field, payload, length, &at))",
+					"to": "if (!FieldPlace(kind, field, payload, length, &at))"
+				}
+			]
+		},
+		{
+			"name": "the kind's own number may be set, like the other fields every strategy has",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "return strcmp(field.name, \"StrategyType\") != 0;",
+					"to": "return true;"
+				}
+			]
+		},
+		{
+			"name": "the fields every strategy has are refused as another kind's",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "return strcmp(field.name, \"StrategyType\") != 0;",
+					"to": "return false;"
+				}
+			]
+		},
+		{
+			"name": "a strategy's own fields are refused as another kind's",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (&kind.fields[i] == &field)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a field of another kind is refused without its reason",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "*why = NotThisKindsReason;",
+					"to": "*why = 0;"
+				}
+			]
+		},
+		{
+			"name": "a choice field takes a value none of its choices name",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (field.unit == Unit::Choice && ValueIsAllowed(field, value, 0) && !ChoiceIsNamed(kind.number, field.name, (int32_t)value))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a choice past its field's limit is refused as unnamed, not with the limit's own reason",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "field.unit == Unit::Choice && ValueIsAllowed(field, value, 0) && !ChoiceIsNamed",
+					"to": "field.unit == Unit::Choice && !ChoiceIsNamed"
+				}
+			]
+		},
+		{
+			"name": "a choice field's value is looked for among another kind's choices",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "!ChoiceIsNamed(kind.number, field.name, (int32_t)value)",
+					"to": "!ChoiceIsNamed(52, field.name, (int32_t)value)"
+				}
+			]
+		},
+		{
+			"name": "an unnamed choice is refused without its reason",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "*why = UnnamedChoiceReason;",
+					"to": "*why = 0;"
+				}
+			]
+		},
+		{
+			"name": "the count reader divides by a list's item size of 0 (the test stops at once: the processor faults on a division by zero)",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (item_bytes == 0)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a list whose items take no bytes is taken as the right size",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (item_bytes == 0)\n\t\t\t{\n\t\t\t\treturn SizeCheck::CountTooBig;",
+					"to": "if (item_bytes == 0)\n\t\t\t{\n\t\t\t\treturn SizeCheck::Right;"
+				}
+			]
+		},
+		{
+			"name": "a name cut off has no words of its own in the strategy check",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "case SizeCheck::NameCutOff: return \"a name in the strategy has no ending zero inside it\";",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a field's lowest allowed value is refused",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "else if (field.limit != Limit::None && (value < field.lowest || value > field.highest))",
+					"to": "else if (field.limit != Limit::None && (value <= field.lowest || value > field.highest))"
+				}
+			]
+		},
+		{
+			"name": "a value one past a field's highest is let through",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "else if (field.limit != Limit::None && (value < field.lowest || value > field.highest))",
+					"to": "else if (field.limit != Limit::None && (value < field.lowest || value > field.highest + 1))"
+				}
+			]
+		},
+		{
+			"name": "an unsigned field's limit isn't checked",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "else if (field.limit != Limit::None && (value < field.lowest || value > field.highest))",
+					"to": "else if (field.limit != Limit::None && field.storage != Storage::UInt32 && (value < field.lowest || value > field.highest))"
+				}
+			]
+		},
+		{
+			"name": "one number is read from a three-number field or an object",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "\t\t\t\treturn true;\n\n\t\t\tcase Storage::IntMatrix:\n\t\t\tcase Storage::ObjectId:\n\t\t\tcase Storage::IntTriple:\n\t\t\t\treturn false;",
+					"to": "\t\t\t\treturn true;\n\n\t\t\tcase Storage::IntMatrix:\n\t\t\tcase Storage::ObjectId:\n\t\t\tcase Storage::IntTriple:\n\t\t\t\treturn true;"
+				}
+			]
+		},
+		{
+			"name": "ReadField reads through a missing payload",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (!payload || !value || !FieldPlace(kind, field, payload, length, &at))",
+					"to": "if (!value || !FieldPlace(kind, field, payload, length, &at))"
+				}
+			]
+		},
+		{
+			"name": "ReadField writes through a missing place for its value",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (!payload || !value || !FieldPlace(kind, field, payload, length, &at))",
+					"to": "if (!payload || !FieldPlace(kind, field, payload, length, &at))"
+				}
+			]
+		},
+		{
+			"name": "ReadFieldAxis reads through a missing payload",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (!payload || !value || field.storage != Storage::IntTriple",
+					"to": "if (!value || field.storage != Storage::IntTriple"
+				}
+			]
+		},
+		{
+			"name": "ReadFieldAxis writes through a missing place for its value",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (!payload || !value || field.storage != Storage::IntTriple",
+					"to": "if (!payload || field.storage != Storage::IntTriple"
+				}
+			]
+		},
+		{
+			"name": "ReadFieldAxis reads a field that isn't three numbers, past the end of a smaller one",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "|| field.storage != Storage::IntTriple || axis < 0 || axis > 2 ||",
+					"to": "|| axis < 0 || axis > 2 ||"
+				}
+			]
+		},
+		{
+			"name": "ReadFieldAxis reads axis -1, before the field",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "axis < 0 || axis > 2 ||",
+					"to": "axis > 2 ||"
+				}
+			]
+		},
+		{
+			"name": "ReadFieldAxis reads axis 3, after the field",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "axis < 0 || axis > 2 ||",
+					"to": "axis < 0 ||"
+				}
+			]
+		},
+		{
+			"name": "ReadFieldObject reads through a missing payload",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (!payload || !first || !second ||",
+					"to": "if (!first || !second ||"
+				}
+			]
+		},
+		{
+			"name": "ReadFieldObject writes through a missing first half",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (!payload || !first || !second ||",
+					"to": "if (!payload || !second ||"
+				}
+			]
+		},
+		{
+			"name": "ReadFieldObject writes through a missing second half",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (!payload || !first || !second ||",
+					"to": "if (!payload || !first ||"
+				}
+			]
+		},
+		{
+			"name": "ReadFieldObject reads a field that isn't an object, past the end of a smaller one",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "!IsFieldOfStrategy(kind, field) || field.storage != Storage::ObjectId ||",
+					"to": "!IsFieldOfStrategy(kind, field) ||"
+				}
+			]
+		},
+		{
+			"name": "a MummySimple strategy of any size is taken",
+			"changes": [
+				{
+					"file": "src/model/strategy_fields.cpp",
+					"from": "{ 2002, \"MummySimple\", \"\", SizeRule::Fixed, 20,",
+					"to": "{ 2002, \"MummySimple\", \"\", SizeRule::AnySize, 20,"
+				}
+			]
+		}
+	]
+}

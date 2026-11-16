@@ -1,0 +1,220 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "Polyline is picked while the game can't show its lines",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "\t\t\tcase ViewToggle::Polyline:\n\t\t\t\tif (can.outlines)",
+					"to": "\t\t\tcase ViewToggle::Polyline:\n\t\t\t\tif (true)"
+				}
+			]
+		},
+		{
+			"name": "Filled polyline is picked while the game can't show its lines",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "\t\t\tcase ViewToggle::FilledPolyline:\n\t\t\t\tif (can.outlines)",
+					"to": "\t\t\tcase ViewToggle::FilledPolyline:\n\t\t\t\tif (true)"
+				}
+			]
+		},
+		{
+			"name": "the textured wireframe can't be picked",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "after.drawMode = DrawMode::WireTextured;",
+					"to": "after.drawMode = now.drawMode;"
+				}
+			]
+		},
+		{
+			"name": "Polygon can't be picked",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "after.drawMode = DrawMode::Polygon;",
+					"to": "after.drawMode = now.drawMode;"
+				}
+			]
+		},
+		{
+			"name": "the Gouraud item only ever turns the switch off",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "after.gouraud = now.gouraud == Gouraud::Off ? Gouraud::On : Gouraud::Off;",
+					"to": "after.gouraud = Gouraud::Off;"
+				}
+			]
+		},
+		{
+			"name": "a mode change puts the Gouraud switch back on",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "after.drawMode = DrawMode::WireTextured;",
+					"to": "after.drawMode = DrawMode::WireTextured;\n\t\t\t\tafter.gouraud = Gouraud::On;"
+				}
+			]
+		},
+		{
+			"name": "the clean start isn't Polygon with the switch on",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "ViewToggles const toggles = { DrawMode::Polygon, Gouraud::On, false, false, kBrightnessAsBuilt };",
+					"to": "ViewToggles const toggles = { DrawMode::Polygon, Gouraud::Off, false, false, kBrightnessAsBuilt };"
+				}
+			]
+		},
+		{
+			"name": "Polyline isn't drawn as lines",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "bool const lines = mode == DrawMode::Polyline || mode == DrawMode::WireTextured;",
+					"to": "bool const lines = mode == DrawMode::WireTextured;"
+				}
+			]
+		},
+		{
+			"name": "the switch off isn't fully lit",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "switches.drawFullBright = unlit ? 1 : 0;",
+					"to": "switches.drawFullBright = 0;"
+				}
+			]
+		},
+		{
+			"name": "Polyline's white lines aren't asked for",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "bool const whiteLines = can.outlines && (mode == DrawMode::Polyline || mode == DrawMode::FilledPolyline);",
+					"to": "bool const whiteLines = can.outlines && (mode == DrawMode::FilledPolyline);"
+				}
+			]
+		},
+		{
+			"name": "white lines are asked of a game that can't show them",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "bool const whiteLines = can.outlines && (mode == DrawMode::Polyline || mode == DrawMode::FilledPolyline);",
+					"to": "bool const whiteLines = (mode == DrawMode::Polyline || mode == DrawMode::FilledPolyline);"
+				}
+			]
+		},
+		{
+			"name": "the lines aren't white",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "switches.outlineColour = kWireWhite;",
+					"to": "switches.outlineColour = 0x00FF00;"
+				}
+			]
+		},
+		{
+			"name": "Polyline's white lines never follow the switch",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "switches.outlinesLit = whiteLines && mode == DrawMode::Polyline && !unlit ? 1 : 0;",
+					"to": "switches.outlinesLit = 0;"
+				}
+			]
+		},
+		{
+			"name": "Filled polyline's lines follow the switch too",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "switches.outlinesLit = whiteLines && mode == DrawMode::Polyline && !unlit ? 1 : 0;",
+					"to": "switches.outlinesLit = whiteLines && !unlit ? 1 : 0;"
+				}
+			]
+		},
+		{
+			"name": "back faces turn on while they can't be shown",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "after.backFaces = can.backFaces && !now.backFaces;",
+					"to": "after.backFaces = !now.backFaces;"
+				}
+			]
+		},
+		{
+			"name": "back faces are asked of a game that can't show them",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "switches.drawBackFaces = can.backFaces && toggles.backFaces ? 1 : 0;",
+					"to": "switches.drawBackFaces = toggles.backFaces ? 1 : 0;"
+				}
+			]
+		},
+		{
+			"name": "a brightness isn't held at all",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "return asked < kBrightnessLeast ? kBrightnessLeast : asked > kBrightnessMost ? kBrightnessMost : (int32_t)asked;",
+					"to": "return (int32_t)asked;"
+				}
+			]
+		},
+		{
+			"name": "the editor says its game can't show the white lines",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "host::GameCanShow const can = { false, true };",
+					"to": "host::GameCanShow const can = { false, false };"
+				}
+			]
+		},
+		{
+			"name": "the editor says back faces can be shown before its game carries them",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "host::GameCanShow const can = { false, true };",
+					"to": "host::GameCanShow const can = { true, true };"
+				}
+			]
+		},
+		{
+			"name": "the menu's Polyline line picks Polygon",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "host->statusWords = ViewToggles_UseNow(host::ViewToggle::Polyline);",
+					"to": "host->statusWords = ViewToggles_UseNow(host::ViewToggle::Polygon);"
+				}
+			]
+		},
+		{
+			"name": "a -viewmode word that only starts like one is taken",
+			"changes": [
+				{
+					"file": "src/host/view_toggles.cpp",
+					"from": "if (wcscmp(word, choice.word) == 0)",
+					"to": "if (wcsncmp(word, choice.word, 4) == 0)"
+				}
+			]
+		}
+	]
+}

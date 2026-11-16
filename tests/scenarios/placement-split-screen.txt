@@ -1,0 +1,18 @@
+# OBJECT PLACEMENT, Toggle Split Screen (0x52): a sound is made (it becomes the current object), the window is cut in four: the main view bottom right and three more perspective renders of the level, each 5 m back
+# from the sound along z, x and y. The pictures are the proof (four different views, none black); it is switched off again and the whole window is the one view.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+expect-screen Object Placement
+item 0x37
+expect-status Sound
+picture 1
+item 0x52
+expect-status Split Screen: on
+wait 800
+picture 2
+item 0x52
+expect-status Split Screen: off
+wait 800
+picture 3

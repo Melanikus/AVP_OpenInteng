@@ -1,0 +1,250 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a text is measured unmade safe, past 255 letters",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "std::string const safe = PanelPaint_SafeText(text);\n\t\tint64_t width = 0;",
+					"to": "std::string const safe = text;\n\t\tint64_t width = 0;"
+				}
+			]
+		},
+		{
+			"name": "a letter less than nothing wide takes room away",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "width += letter > 0 ? letter : 0;",
+					"to": "width += letter;"
+				}
+			]
+		},
+		{
+			"name": "an item is no taller than its line",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "return line + 2 * kPaintMarginDown;",
+					"to": "return line;"
+				}
+			]
+		},
+		{
+			"name": "a title has no margin",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "titleWidths[m] = HeldToMostSide((int64_t)TextWidth(menus[m].title, widthOf) + 2 * kPaintMarginAcross);",
+					"to": "titleWidths[m] = HeldToMostSide((int64_t)TextWidth(menus[m].title, widthOf));"
+				}
+			]
+		},
+		{
+			"name": "a drop-down leaves no room for its keys",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "(widestKeys > 0 ? kMenuKeysGap + widestKeys + 2 * kPaintMarginAcross : 0)",
+					"to": "0"
+				}
+			]
+		},
+		{
+			"name": "a drop-down with no keys still has the gap",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "(widestKeys > 0 ? kMenuKeysGap + widestKeys + 2 * kPaintMarginAcross : 0)",
+					"to": "(kMenuKeysGap + widestKeys + 2 * kPaintMarginAcross)"
+				}
+			]
+		},
+		{
+			"name": "the keys' box has no margin",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "(widestKeys > 0 ? kMenuKeysGap + widestKeys + 2 * kPaintMarginAcross : 0)",
+					"to": "(widestKeys > 0 ? kMenuKeysGap + widestKeys : 0)"
+				}
+			]
+		},
+		{
+			"name": "the widest name is the last one",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "widestName = name > widestName ? name : widestName;",
+					"to": "widestName = name;"
+				}
+			]
+		},
+		{
+			"name": "a line is written past the room",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "if (*lineCount < mostLines && text && PanelPaint_FitText(text, box, widthOf, lineHeight, &lines[*lineCount]))",
+					"to": "if (text && *lineCount < 64 && PanelPaint_FitText(text, box, widthOf, lineHeight, &lines[*lineCount]))"
+				}
+			]
+		},
+		{
+			"name": "a box is written past the room",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "if (*boxCount < mostBoxes && box.width > 0 && box.height > 0)",
+					"to": "if (*boxCount < 64 && box.width > 0 && box.height > 0)"
+				}
+			]
+		},
+		{
+			"name": "an empty box is drawn",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "if (*boxCount < mostBoxes && box.width > 0 && box.height > 0)",
+					"to": "if (*boxCount < mostBoxes)"
+				}
+			]
+		},
+		{
+			"name": "the open title has no band",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "\t\t\tAddBox(bar.TitleBox((size_t)open), kMenuLitColour, boxes, mostBoxes, boxCount);",
+					"to": "\t\t\t;"
+				}
+			]
+		},
+		{
+			"name": "the titles are not shown",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "\t\t\tAddLine(menus[m].title, bar.TitleBox(m), widthOf, lineHeight, lines, mostLines, lineCount);",
+					"to": "\t\t\t;"
+				}
+			]
+		},
+		{
+			"name": "the drop-down has no background",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "\t\tAddBox(drop, kMenuDropColour, boxes, mostBoxes, boxCount);",
+					"to": "\t\t;"
+				}
+			]
+		},
+		{
+			"name": "the lit item has no band",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "\t\t\t\tAddBox(rowBox, kMenuLitColour, boxes, mostBoxes, boxCount);",
+					"to": "\t\t\t\t;"
+				}
+			]
+		},
+		{
+			"name": "every row sits at the top",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "ui::Box const rowBox = { drop.x, (int32_t)((int64_t)drop.y + (int64_t)row * itemHeight), drop.width, itemHeight };",
+					"to": "ui::Box const rowBox = { drop.x, drop.y, drop.width, itemHeight };"
+				}
+			]
+		},
+		{
+			"name": "an item's words are not shown",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "\t\t\tAddLine(entry.name, wordsBox, widthOf, lineHeight, lines, mostLines, lineCount);",
+					"to": "\t\t\t;"
+				}
+			]
+		},
+		{
+			"name": "an item's keys are not shown",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "\t\t\t\tAddLine(entry.keys, keysBox, widthOf, lineHeight, lines, mostLines, lineCount);",
+					"to": "\t\t\t\t;"
+				}
+			]
+		},
+		{
+			"name": "the keys sit at the left",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "ui::Box const keysBox = { (int32_t)((int64_t)drop.x + drop.width - keysRoom), rowBox.y, HeldToMostSide(keysRoom), itemHeight };",
+					"to": "ui::Box const keysBox = { drop.x, rowBox.y, HeldToMostSide(keysRoom), itemHeight };"
+				}
+			]
+		},
+		{
+			"name": "a bar with no menus is planned",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "if (!menus || !lines || !boxes || !bar.Loaded())",
+					"to": "if (!menus || !lines || !boxes)"
+				}
+			]
+		},
+		{
+			"name": "[tag] the tag isn't measured",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": " + TextWidth(menus[m].items[i].tag, widthOf));",
+					"to": ");"
+				}
+			]
+		},
+		{
+			"name": "[tag] the name takes the tag's room",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "\t\t\twordsBox.width = HeldToMostSide((int64_t)nameBox.width - tagWidth);\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "[tag] the tag is drawn at the row's start",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "(int32_t)((int64_t)nameBox.x + drawn)",
+					"to": "nameBox.x"
+				}
+			]
+		},
+		{
+			"name": "[tag] a tag is never drawn",
+			"changes": [
+				{
+					"file": "src/host/menu_paint.cpp",
+					"from": "\t\t\tif (entry.tag)\n",
+					"to": "\t\t\tif (false)\n"
+				}
+			]
+		}
+	]
+}

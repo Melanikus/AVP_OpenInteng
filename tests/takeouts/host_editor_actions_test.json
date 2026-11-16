@@ -1,0 +1,420 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "Open level does nothing",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "\thost->statusWords = kEditorOpenNotYetWords;",
+					"to": "\t;"
+				}
+			]
+		},
+		{
+			"name": "Quit leaves the editor running",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "\thost->running = false;",
+					"to": "\t;"
+				}
+			]
+		},
+		{
+			"name": "Help, Keys says Classic's keys in any layout",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "\thost->statusWords = EditorActions_KeysWords(host->layout);",
+					"to": "\thost->statusWords = EditorActions_KeysWords(KeyLayout::Classic);"
+				}
+			]
+		},
+		{
+			"name": "the Classic item picks Modern",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "\thost->layout = KeyLayout::Classic;",
+					"to": "\thost->layout = KeyLayout::ModernWasd;"
+				}
+			]
+		},
+		{
+			"name": "the Modern item changes nothing",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "\thost->layout = KeyLayout::ModernWasd;",
+					"to": "\t;"
+				}
+			]
+		},
+		{
+			"name": "Ctrl+O is no key in Classic",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "{ 'O', true }, { 'O', true }, 0,        OpenLevel }",
+					"to": "{ 0 },         { 'O', true }, 0,        OpenLevel }"
+				}
+			]
+		},
+		{
+			"name": "Polyline has no key",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "{ '8' },       { '8' },       0,        ViewPolyline }",
+					"to": "{ 0 },         { 0 },         0,        ViewPolyline }"
+				}
+			]
+		},
+		{
+			"name": "Classic's forward is W",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "{ EditorMove::Forward,   \"forward\",    'A',         'W' },",
+					"to": "{ EditorMove::Forward,   \"forward\",    'W',         'W' },"
+				}
+			]
+		},
+		{
+			"name": "the keypad's minus goes down",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "{ EditorMove::Up,        \"up\",         VK_SUBTRACT, 'R' },",
+					"to": "{ EditorMove::Up,        \"up\",         VK_ADD,      'R' },"
+				}
+			]
+		},
+		{
+			"name": "the keypad's numbers are named one too high",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "\"Num %d\", key - VK_NUMPAD0",
+					"to": "\"Num %d\", key - VK_NUMPAD0 + 1"
+				}
+			]
+		},
+		{
+			"name": "plus and minus are named the wrong way round",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "key == VK_ADD ? '+' : '-'",
+					"to": "key == VK_ADD ? '-' : '+'"
+				}
+			]
+		},
+		{
+			"name": "Ctrl is left out of the words",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "key.ctrl ? \"Ctrl+\" : \"\"",
+					"to": "\"\""
+				}
+			]
+		},
+		{
+			"name": "Shift is left out of the words",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "key.shift ? \"Shift+\" : \"\"",
+					"to": "\"\""
+				}
+			]
+		},
+		{
+			"name": "words too long for their room are kept",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "\tif (written <= 0 || (size_t)written >= size)\n\t{\n\t\twords[0] = '\\0';",
+					"to": "\tif (written <= 0)\n\t{\n\t\twords[0] = '\\0';"
+				}
+			]
+		},
+		{
+			"name": "no room is written to",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "\tif (!words || size == 0)\n\t{\n\t\treturn false;\n\t}\n\n\twords[0] = '\\0';",
+					"to": "\tif (!words)\n\t{\n\t\treturn false;\n\t}\n\n\twords[0] = '\\0';"
+				}
+			]
+		},
+		{
+			"name": "an action's key is always the Classic one",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "return layout == KeyLayout::ModernWasd ? action.modern : action.classic;",
+					"to": "return action.classic;"
+				}
+			]
+		},
+		{
+			"name": "two actions may share a key",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (other.virtualKey == key.virtualKey && other.ctrl == key.ctrl && other.shift == key.shift)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "Ctrl and Shift don't make another key",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (other.virtualKey == key.virtualKey && other.ctrl == key.ctrl && other.shift == key.shift)",
+					"to": "if (other.virtualKey == key.virtualKey)"
+				}
+			]
+		},
+		{
+			"name": "an action may take a key the camera holds",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "\t\t\t\tif (MoveKeyIn(moves[m], layout) == key.virtualKey)\n",
+					"to": "\t\t\t\tif (false)\n"
+				}
+			]
+		},
+		{
+			"name": "Ctrl+V may be taken",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (key.virtualKey == 'V' && key.ctrl)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a plain V is refused too",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (key.virtualKey == 'V' && key.ctrl)",
+					"to": "if (key.virtualKey == 'V')"
+				}
+			]
+		},
+		{
+			"name": "Windows' keys and a key of its own",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "\t\t\tif (action.windowsKeys)\n",
+					"to": "\t\t\tif (false)\n"
+				}
+			]
+		},
+		{
+			"name": "an action's key needs no name",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "\t\t\tif (!EditorActions_KeyWords(key, words, sizeof(words)))\n",
+					"to": "\t\t\tif (false)\n"
+				}
+			]
+		},
+		{
+			"name": "a number of 0 passes",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (action.id <= 0)",
+					"to": "if (action.id < 0)"
+				}
+			]
+		},
+		{
+			"name": "two actions may share a number",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (actions[b].id == action.id)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "an action may be in no menu",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if ((size_t)action.menu >= (size_t)EditorMenu::Count)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "an action may have no words",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (!action.name || !action.name[0] || !action.run)",
+					"to": "if (!action.name || !action.run)"
+				}
+			]
+		},
+		{
+			"name": "an action may do nothing",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (!action.name || !action.name[0] || !action.run)",
+					"to": "if (!action.name || !action.name[0])"
+				}
+			]
+		},
+		{
+			"name": "a move may be out of order",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (moves[m].move != (EditorMove)m || !moves[m].name || !moves[m].name[0])",
+					"to": "if (!moves[m].name || !moves[m].name[0])"
+				}
+			]
+		},
+		{
+			"name": "a move may have no key",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "\t\t\tif (!EditorActions_KeyWords(held, words, sizeof(words)))\n",
+					"to": "\t\t\tif (false)\n"
+				}
+			]
+		},
+		{
+			"name": "two moves may share a key",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (MoveKeyIn(moves[n], layout) == held.virtualKey)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "the moves may be short of one",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (!moves || moveCount != (size_t)EditorMove::Count)",
+					"to": "if (!moves)"
+				}
+			]
+		},
+		{
+			"name": "an empty table passes",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (!actions || actionCount == 0)",
+					"to": "if (!actions)"
+				}
+			]
+		},
+		{
+			"name": "only Classic is checked",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "KeyLayout const layouts[] = { KeyLayout::Classic, KeyLayout::ModernWasd };",
+					"to": "KeyLayout const layouts[] = { KeyLayout::Classic, KeyLayout::Classic };"
+				}
+			]
+		},
+		{
+			"name": "the menus are made with too little room for words",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "itemRoom < actionCount || wordsRoom < actionCount)",
+					"to": "itemRoom < actionCount)"
+				}
+			]
+		},
+		{
+			"name": "Windows' keys are not shown",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "items[used].keys = hasKey ? words[used].text : actions[a].windowsKeys;",
+					"to": "items[used].keys = hasKey ? words[used].text : 0;"
+				}
+			]
+		},
+		{
+			"name": "a key's words are not shown",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "items[used].keys = hasKey ? words[used].text : actions[a].windowsKeys;",
+					"to": "items[used].keys = actions[a].windowsKeys;"
+				}
+			]
+		},
+		{
+			"name": "a line goes in every menu",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if ((size_t)actions[a].menu == m)",
+					"to": "if (true)"
+				}
+			]
+		},
+		{
+			"name": "a key with Alt held is an action",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (!actions || altHeld || virtualKey == 0)",
+					"to": "if (!actions || virtualKey == 0)"
+				}
+			]
+		},
+		{
+			"name": "Shift is ignored by a key",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (key.virtualKey == virtualKey && key.ctrl == ctrlHeld && key.shift == shiftHeld)",
+					"to": "if (key.virtualKey == virtualKey && key.ctrl == ctrlHeld)"
+				}
+			]
+		},
+		{
+			"name": "a number finds the first line, whatever it is",
+			"changes": [
+				{
+					"file": "src/host/editor_actions.cpp",
+					"from": "if (kEditorActions[a].id == id)",
+					"to": "if (true)"
+				}
+			]
+		}
+	]
+}

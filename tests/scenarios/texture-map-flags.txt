@@ -1,0 +1,39 @@
+# TEXTURE MAP FLAGS, HIDE AND UV SHIFT (hidden run, Invasion): one polygon is selected by a click; Flags > Add > No Light (0x6e) sets the flag 2 of its flag word; the saved copy is checked by flag_verify (exactly one polygon, exactly bit 2 set, nothing else changed); then Remove (0x6f) clears it again;
+# View (0x70) shows the polygons with the flag; Hide Selection (0x42) hides it and Show All (0x45) shows it; Shift UV Coords (0x133) 3 -2. Pictures 920 to 924.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+item 0x6e
+expect-status No Light added to 1 polygon
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/flag_verify/flag_verify.exe {orig} {copy} 2 on 1
+item 0x70
+expect-status the polygons with the flag No Light are shown
+picture 920
+item 0x4c
+expect-status no flag is viewed
+item 0x6f
+expect-status No Light taken from 1 polygon
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/flag_verify/flag_verify.exe {orig} {copy} 2 off 0
+item 0x42
+expect-status 1 polygon hidden
+picture 921
+item 0x45
+expect-status 1 polygon shown again
+picture 922
+click-view 0.50 0.60
+item 0x133
+expect-dialog-kind text
+type 3
+key Tab
+type -2
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+picture 923

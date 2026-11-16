@@ -1,0 +1,173 @@
+# ACCEPTANCE: Strategy Data's Edit Strategy of every kind, on Melanikus's path (Drake, 2026-11-16; Bishop's order of 09:4x: ONE mode with ALL functionality, Strategy Data).
+# One block per kind: click the object in the view, Assign Strategy on the bar, click the kind, see ITS lines (the state line's strategyview: "x@y:text|..." as drawn, from inteng's own method +0x14 of the kind), click a line, change it
+# in the dialog (or the click flips it), see the new line. Every line of text, its place and its words, is traced from the kind's method +0x14 (strategy-kind-vtables.md); a kind's creation values are its constructor's.
+# Level: Invasion, a read-only copy. NOTE: a placed object is picked from the object list (select-row 0) until Frost's selection rewrite lets a click in the view pick it; a MODULE is picked by a click. The object is flam014 (a placed object: it can take Platform Lift 54, Multi Switch 66, Linked Switch 61, Track Object 72, Track Object (Destructable) 80, Fan 75, Placed Object 62).
+# Run: AvP-docs/tools/drake/drive-scenario-t6.sh <tree> <this file> sevacc verify_light
+
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+picture 1
+expect-not-empty 0.05
+item 0x39
+expect-screen Strategy Data
+
+# ---- PLATFORM LIFT (54; FUN_0052eec0, vtable 0x5af3b4; constructor FUN_0052ee80: every field 0). Two lines, each a bit of the flags word (obj +0x14): a click on the first (y 16 to 31) flips "Starts enabled" / "Starts disabled" (bit 1), on the second (y 32 to 47) "Once enabled , continues working until switched off" / "Becomes disabled after one use" (bit 2)
+select-row 0
+expect-selected 1
+item 0x8
+expect-dialog Select Strategy
+click-button Platform_Lift
+expect-dialog-kind confirm
+click-button Yes
+wait 300
+expect-field strategyview 200@0:flam014 : Platform Lift|16@16:Starts enabled|16@32:Once enabled , continues working until switched off
+click-win 300 56
+wait 300
+expect-field strategyview 200@0:flam014 : Platform Lift|16@16:Starts disabled|16@32:Once enabled , continues working until switched off
+click-win 300 72
+wait 300
+expect-field strategyview 200@0:flam014 : Platform Lift|16@16:Starts disabled|16@32:Becomes disabled after one use
+click-win 300 56
+wait 300
+expect-field strategyview 200@0:flam014 : Platform Lift|16@16:Starts enabled|16@32:Becomes disabled after one use
+key Esc
+
+# ---- FAN (75; FUN_005356b0, vtable 0x5af728; constructor FUN_00535670: speed up 10 s, slow down 10 s, wind 100). The three numbers are typed in text dialogs: "Speed up time (seconds)", "Slow down time (seconds)" (taken above 0 and below 1000), "Wind strength (-1000 to 1000)"
+select-row 0
+item 0x8
+click-button Fan
+expect-dialog-kind confirm
+click-button Yes
+wait 300
+expect-field strategyview 200@0:flam014 : Fan|16@16:speed up time : 10  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :100  (default is 100)
+click-win 300 56
+expect-dialog Speed up time (seconds)
+expect-dialog-text 10
+key Back
+key Back
+type 12
+key Enter
+expect-no-dialog
+wait 300
+expect-field strategyview 200@0:flam014 : Fan|16@16:speed up time : 12  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :100  (default is 100)
+click-win 300 88
+expect-dialog Wind strength (-1000 to 1000)
+key Back
+key Back
+key Back
+type -50
+key Enter
+wait 300
+expect-field strategyview 200@0:flam014 : Fan|16@16:speed up time : 12  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :-50  (default is 100)
+# a number the view does not take leaves the line as it was
+click-win 300 56
+type 5000
+key Enter
+wait 300
+expect-field strategyview 200@0:flam014 : Fan|16@16:speed up time : 12  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :-50  (default is 100)
+key Esc
+
+# ---- DOOR (50; FUN_0052cbb0, vtable 0x5af3e8, read from the listing; constructor FUN_0052cb80: flags 0, open 1.0 s, close 0.5 s). A MODULE is picked by a click. The first line switches between a proximity door (bit 2) and a switch activated door (bit 8);
+# a proximity door shows locked (bit 1) and horizontal (bit 0x10) lines, a switch door "Open" / "Closed" (bit 4); then the two times, in tenths (taken from 0.1 up to below 25.5 seconds)
+key L
+click-win 640 130
+expect-selected 1
+item 0x8
+expect-dialog Select Strategy
+click-button Door
+wait 300
+expect-field strategyview 200@0:gARAGDOR : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
+# the first line makes it a switch activated door: the lines are the switch door's
+click-win 300 56
+wait 300
+expect-field strategyview 200@0:gARAGDOR : Door|16@16:Switch activated door ('lift door')|16@32:Closed|16@48:Time take to open : 1.0 seconds|16@64:Time take to close : 0.5 seconds
+click-win 300 72
+wait 300
+expect-field strategyview 200@0:gARAGDOR : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 1.0 seconds|16@64:Time take to close : 0.5 seconds
+# a time is typed in seconds (the dialog starts with the one it has) and kept in tenths
+click-win 300 88
+expect-dialog Time take to open (0.1 - 25 sec)
+expect-dialog-text 1
+key Back
+type 2.5
+key Enter
+wait 300
+expect-field strategyview 200@0:gARAGDOR : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.5 seconds
+# below 0.1 or from 25.5 up is not taken
+click-win 300 104
+key Back
+key Back
+key Back
+type 30
+key Enter
+wait 300
+expect-field strategyview 200@0:gARAGDOR : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.5 seconds
+# back to a proximity door: the "starts open" bit stays, the locked and horizontal lines come back
+click-win 300 56
+wait 300
+expect-field strategyview 200@0:gARAGDOR : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 2.5 seconds|16@80:Time take to close : 0.5 seconds
+click-win 300 72
+click-win 300 88
+wait 300
+expect-field strategyview 200@0:gARAGDOR : Door|16@16:Proximity door|16@32:Door is locked|16@48:Door is horizontal (ie. in floor/ceiling)|16@64:Time take to open : 2.5 seconds|16@80:Time take to close : 0.5 seconds
+key Esc
+
+# ---- SWITCH DOOR (59; FUN_0052d060, vtable 0x5af41c +0x14; constructor FUN_0052d020: the associated door is the object itself (shown as nothing), the word at +0x1c is 0: "Switch Operated" off, both times Default). A MODULE is picked by a click.
+# "Associated door :" and the name of the door (a click on those rows waits for a click on another object: "Select associated door" along the foot); a box "Switch Operated"; the times in tenths up to 6.3 s, 0 = Default
+key L
+click-win 640 130
+expect-selected 1
+item 0x8
+click-button Switch_Door
+expect-dialog-kind confirm
+click-button Yes
+wait 300
+expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:|0@48:[ ]|16@48:Switch Operated|0@64:Time taken to open : Default|0@80:Time taken to close : Default
+click-win 300 88
+wait 300
+expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:|0@48:[x]|16@48:Switch Operated|0@64:Time taken to open : Default|0@80:Time taken to close : Default
+click-win 300 104
+expect-dialog Time take to open (0.0 - 6.3 sec)
+type 1.5
+key Enter
+wait 300
+expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:|0@48:[x]|16@48:Switch Operated|0@64:Time taken to open : 1.5 seconds|0@80:Time taken to close : Default
+key Esc
+
+# ---- SELF DESTRUCT (78; FUN_00535cc0, vtable 0x5af790 +0x14, from the listing; constructor FUN_00535c90) and MESSAGE (73; FUN_005336c0, vtable 0x5af658 +0x14, from the listing): kinds of a VIRTUAL object (Create Virtual Object > Here asks the name in a text dialog)
+item 0x39
+expect-dialog Type name for new virtual object
+type VOSD
+key Enter
+expect-no-dialog
+# a new virtual object is NOT made the current one (FUN_005396d0 / FUN_005393c0 / FUN_00539ee0 never write the current-object globals, FUN_00524e90 0x5251e2 clears them): the camera steps back from where it stands and a click on the V picks it
+hold Z 1500
+wait 400
+click-win 378 300
+wait 300
+item 0x8
+expect-dialog Select Strategy
+click-button Self_Destruct
+wait 300
+expect-field strategyview 200@0:VOSD : Self Destruct|16@16:Time : 60
+click-win 300 56
+expect-dialog Time until destruction (seconds)
+expect-dialog-text 60
+key Back
+key Back
+type 125
+key Enter
+wait 300
+expect-field strategyview 200@0:VOSD : Self Destruct|16@16:Time : 125
+# a negative time is kept as 0
+click-win 300 56
+key Back
+key Back
+key Back
+type -5
+key Enter
+wait 300
+expect-field strategyview 200@0:VOSD : Self Destruct|16@16:Time : 0
+key Esc

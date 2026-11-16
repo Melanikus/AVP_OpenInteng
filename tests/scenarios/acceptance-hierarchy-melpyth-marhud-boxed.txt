@@ -1,0 +1,69 @@
+# ACCEPTANCE: Hierarchy, Melanikus's own way, on his own file (Bishop, 2026-11-16). This file says what FINISHED is for this path.
+# His words: "HIERARCHY TO SEE HUD AND WEAPONS ANIMS", "DO I SEE THE PIXELS OF A POP UP", "CLICKING THAT SHIT ACTUALLY DOES SOMETHING".
+# The behaviour is inteng's, traced: AvP-docs/engine/inteng/reassess/hierarchy-trace.md (Select Hierarchy FUN_0048b8a0, open FUN_0048b550,
+# Select Sequence FUN_0048bc10, list dialog FUN_00475bf0). The examples are read from the file itself: reassess/hierarchy-examples.md
+# (MelPyth_MarHUD.RIF: 107 objects, 8 hierarchies M79 ... GSS50; M79's 7 sequences in play order).
+# The file is a read-only copy of his original (AvP-maps/MelPyth-M5/MelPyth/avp_huds/MelPyth_MarHUD.RIF), hostile input like any rif.
+# Nothing here is typed: every choice is a click on what is drawn. Every check looks at the screen or at what the file holds.
+# EXPECTED TODAY (cut 10): RED from B1 on. Finished = every line ok.
+
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+picture 1
+# B1: his file opens with inteng's start: camera slot 10 at 0,0,0 looking +z, Lighting off (Frost's trace: FUN_00447550 ->
+# FUN_00470550(10)); his guns lie around the origin, mostly beside and behind that camera, so only a little is in view at first
+expect-not-empty 0.01
+# B1: as a user did, he moves back with Z (inteng's "Move backwards", Classic layout) and his guns fill the view
+hold Z 250
+picture 4
+expect-not-empty
+# Mode > Hierarchy
+item 0xcf
+expect-screen Hierarchy
+picture 2
+# B2: Select Hierarchy opens inteng's "Select Hierarchy" LIST DIALOG at 10,10 (8 hierarchies in this file), no typed question
+# Select Hierarchy is the first entry of the RIGHT-CLICK pop-up (FUN_004b7c50 right press -> FUN_004b8350; table registered by FUN_00485580 at 0x488723): right click in the view, then click the entry
+click-win 500 300 right
+click-win 540 311 left
+expect-pixels-changed panels 0 0 420 360
+expect-prompt 0
+expect-dialog Select Hierarchy
+# the dialog SHOWS its rows sorted (FUN_00475bf0 0x476403-0x476670, byte by byte), not in the file's order
+expect-dialog-rows AutoShotgun|GSS50|M79|RailGun|ScopeRifle|Shotgun|Sniper|Taurus
+# B3: a CLICK on the first row opens M79, and inteng goes straight on to its "Select Sequence" list (FUN_0048b550's last call)
+click-row 3
+expect-dialog Select Sequence
+expect-dialog-rows MarineHUD_Standard_Fire|MarineHUD_Standard_Reload|MarineHUD_Stationary|MarineHUD_come|MarineHUD_figit|MarineHUD_go|MarineHUD_tertiary_fire
+# B3: a click on the reload row: the dialog goes and the sequence is chosen FROZEN at its start (FUN_004784e0 -> FUN_0047d6f0 writes
+# running [+0x28] = 0 at 0x47d816, loop [+0x2c] = 1; FUN_0047dbc0 advances only a running player): two pictures half a second apart are
+# the SAME. Then P (case 5 of FUN_004889d0 -> FUN_0047b8b0, running = 1) makes the gun PLAY: two pictures half a second apart DIFFER.
+# Then O (case 6 -> FUN_0047b940, running = 0) stops it again. (Traced by Vasquez, checked by Bishop in listing-all-2.txt 0x47d7eb..0x47d819.)
+click-row 2
+expect-no-dialog
+# the hierarchy is drawn at the world origin (Vasquez's hierarchy-view-trace.md) and the camera is at the origin: move back with Z to
+# see the gun, as a user did
+hold Z 250
+picture 10
+wait 500
+picture 11
+expect-pixels-same picture 0 0 2000 2000 0.01
+key P
+picture 12
+wait 500
+picture 13
+# inteng draws the player's "Timer :%d" over the view every frame (FUN_004889d0 0x48a688): while it runs, the numbers on the screen change (the text block at the top left)
+expect-pixels-changed panels 0 48 300 200 0.0005
+expect-pixels-changed picture 350 370 280 180 0.003
+expect-not-empty
+key O
+picture 14
+wait 500
+picture 15
+expect-pixels-same picture 0 0 2000 2000 0.01
+# B4: Select Sequence again offers M79's sequences again (the hierarchy stays open)
+# Select Sequence is the second entry of the same pop-up
+click-win 500 300 right
+click-win 540 330 left
+expect-dialog Select Sequence

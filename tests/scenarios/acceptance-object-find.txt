@@ -1,0 +1,42 @@
+# ACCEPTANCE: Object Placement's Object > Find (AvP-docs/engine/inteng/reassess/object-placement.md OP-10, OP-40).
+# inteng (FUN_004d9af0 0x4da22b-0x4da528): the list dialog FUN_00475bf0 "Select Object" holds the name of EVERY object of the placement list (placed objects, then the special objects); Escape does nothing;
+# a pick puts the VIEW at the object's place (its turn kept) and makes the object current (FUN_004d64a0). Invasion, opened as by a double click, read-only.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+
+# ---- F1 a generator made here, named so that it is the first row of the list ("!" comes before every letter and digit)
+click-bar Create > AVP generator
+expect-dialog Name Object
+form-field 1 !findA
+click-button OK
+expect-no-dialog
+
+# ---- F2 the view 20 m away, nothing current
+camera -27851 -14055 105500 0 0
+wait 300
+key Back
+wait 300
+expect-status Deselected
+picture 1
+
+# ---- F3 Object > Find: the "Select Object" list; Escape leaves it and nothing changes
+click-bar Object > Find
+expect-dialog Select Object
+key Esc
+expect-no-dialog
+expect-status Deselected
+
+# ---- F4 Find again and the first row: the generator is THE current object (its lines on the screen) and the view is at its place (the picture changes)
+click-bar Object > Find
+expect-dialog Select Object
+click-row 1
+expect-no-dialog
+expect-status Selected: !findA
+expect-hierarchy-count 1 !findA
+wait 300
+expect-pixels-changed picture 0 0 2000 2000 0.01

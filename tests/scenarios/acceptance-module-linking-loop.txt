@@ -1,0 +1,44 @@
+# ACCEPTANCE (Bishop, 2026-11-16): Module Linking's WORKING LOOP on Melanikus's path. This file says what FINISHED is for the loop.
+# His path: double-click the level, Mode > Module Linking on the bar, click a module, S, click another, D / N, Mode > Exit + All Adjacencies.
+# The manual (Fox's AvP Bible, raw\bible\text\inteng\qa.txt): "select the module ... by left-clicking on it ... Press S to set that module as the
+# base module. It will turn blue. All other modules will be coloured yellow or white ... N ... The module will turn yellow ... D ... white".
+# The disassembly (the colours in true colour, DAT_00d876d8 != 0):
+#   FUN_004c3a00 0x4c3a94-0x4c3aab: entering the mode paints EVERY module white 0xffffff (FUN_0046da70) and draws it as polygon type 0xe
+#     with flag 2 (FUN_0046daa0): white lines.
+#   FUN_004c17a0 -> FUN_004c0720 (the base's link tree): the base (node +0x14) blue 0x0000ff (0x4c081d); a linked module with no branch
+#     yellow 0xffff00 (0x4c0830); a branch node green 0x00ff00 (0x4c07e3) or red 0xff0000 when closed (0x4c07cb); the picked module
+#     magenta 0x7f007f (0x4c090a, also FUN_004c1a90 0x4c1c5a while no base is set).
+#   Keys (FUN_004c1a90's key slots, screen_keys.cpp): S Base > Set Current 0xc8, N Link > Normal 0x32, D Link > Delete 0x36.
+#   Mode > Exit + All Adjacencies 0x65: inteng's Yes / No confirm (FUN_00474a40 + FUN_0057c800).
+# Every step is a click on what he sees or a key he presses; every check reads the picture. No item 0x.., no typed answers.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+# every module white, as lines
+picture 1
+expect-colour picture 0 0 1008 729 ffffff 0.001 30
+# the module in the middle of the view is picked (magenta), then S makes it the base: blue, and its stock links show yellow
+click-view 0.5 0.5
+picture 2
+expect-colour picture 0 0 1008 729 7f007f 0.0002 40
+key S
+picture 3
+expect-colour picture 0 0 1008 729 0000ff 0.0005 40
+expect-colour picture 0 0 1008 729 ffff00 0.0005 40
+# another module picked; D deletes its link (it turns white), N links it again (yellow): each changes the picture
+click-view 0.3 0.5
+picture 4
+key D
+# (the picture the key itself takes is the one compared with picture 4: a picture taken by the scenario right after would be compared with that one)
+expect-pixels-changed picture 0 0 2000 2000 0.0005
+key N
+expect-pixels-changed picture 0 0 2000 2000 0.0005
+# leaving with the adjacencies worked out: inteng's Yes / No question, then the hub
+click-bar Mode > Exit + All Adjacencies
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+expect-screen Construction

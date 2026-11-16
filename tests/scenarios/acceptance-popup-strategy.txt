@@ -1,0 +1,13 @@
+# ACCEPTANCE: the RIGHT-CLICK POP-UP of Strategy Data (inteng's menu object keeps a second table per page and shows it on the right button: FUN_004b7c50 -> FUN_004b8350; the table
+# is registered with method +0x14: AvP-docs\engine\inteng\reassess\popups-trace.md). A right click in the view shows the pop-up's pixels at the pointer; Esc closes it; a click on its first entry runs
+# that item (its prompt or answer shows). Every check looks at the screen.
+screen Strategy Data
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+picture 1
+click-win 500 300 right
+expect-pixels-changed picture 495 295 280 200 0.05
+key Esc
+expect-prompt 0
+picture 3

@@ -1,0 +1,46 @@
+# ACCEPTANCE: the hub's questions are inteng's dialogs (reassess/MASTER-MAP.md mode 0): Write Asc File x2 (FUN_00447860), Fix tears (FUN_00474170) and its "select two objects" message (FUN_00474030), Find Small Modules (FUN_004747f0 and
+# its list dialog), Find Object (the list dialog "Select Object"). Each is a window drawn over the view, answered by clicks.
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-no-dialog
+picture 800
+# Write Asc File: the form, the words, Cancel writes nothing
+item 0xe
+expect-dialog-kind form
+expect-dialog Write asc file
+expect-pixels-changed panels 100 100 440 260
+picture 801
+click-button Cancel
+expect-no-dialog
+item 0x10
+expect-dialog Write asc file (doors closed)
+click-button Cancel
+expect-no-dialog
+# Fix tears with nothing selected: the message
+item 0x5a
+expect-dialog-kind message
+expect-dialog You need to select two objects for tear fixing
+click-button Ok
+expect-no-dialog
+# Fix tears (All): the text dialog with the last tolerance, 5
+item 0x5b
+expect-dialog-kind form
+expect-dialog-text 5
+click-button Cancel
+expect-no-dialog
+# Find Small Modules: the limit in metres, 0.5
+item 0x2bd
+expect-dialog-kind form
+expect-dialog-text 0.5
+picture 802
+click-button Cancel
+expect-no-dialog
+# Find Object: the list dialog Select Object, the first row (click-row counts from 1) goes to it
+item 0x52
+expect-dialog-kind list
+expect-dialog Select Object
+picture 803
+click-row 1
+expect-no-dialog

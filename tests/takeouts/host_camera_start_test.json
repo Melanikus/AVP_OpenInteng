@@ -1,0 +1,79 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "with no player the body is read",
+			"changes": [
+				{
+					"file": "src/host/camera_start.cpp",
+					"from": "\tif (!hasPlayer)\n\t{\n\t\t*why = \"the level made no player, so the camera starts at the level's own start\";\n\t\treturn levelStart;\n\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "with no strategy block the body is read",
+			"changes": [
+				{
+					"file": "src/host/camera_start.cpp",
+					"from": "\tif (!hasStrategy)\n\t{\n\t\t*why = \"the player has no strategy block, so the camera starts at the level's own start\";\n\t\treturn levelStart;\n\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "with no dynamics block the body is read",
+			"changes": [
+				{
+					"file": "src/host/camera_start.cpp",
+					"from": "\tif (!hasDynamics)\n\t{\n\t\t*why = \"the player has no body (no dynamics block), so the camera starts at the level's own start\";\n\t\treturn levelStart;\n\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "the body is never used",
+			"changes": [
+				{
+					"file": "src/host/camera_start.cpp",
+					"from": "\t*why = 0;\n\treturn body;\n",
+					"to": "\t*why = 0;\n\treturn levelStart;\n"
+				}
+			]
+		},
+		{
+			"name": "the camera goes back to the display block",
+			"changes": [
+				{
+					"file": "src/host/level_view.cpp",
+					"from": "VECTORCH const &position = Player->ObStrategyBlock->DynPtr->Position;",
+					"to": "VECTORCH const &position = Player->ObWorld;"
+				}
+			]
+		},
+		{
+			"name": "the camera starts at the display block, not the choice",
+			"changes": [
+				{
+					"file": "src/host/level_view.cpp",
+					"from": "\tstartHere->x = start.x;\n",
+					"to": "\tstartHere->x = Player->ObWorld.vx;\n"
+				}
+			]
+		},
+		{
+			"name": "the dynamics block is read with no strategy block",
+			"changes": [
+				{
+					"file": "src/host/level_view.cpp",
+					"from": "bool const hasDynamics = hasStrategy && Player->ObStrategyBlock->DynPtr != 0;",
+					"to": "bool const hasDynamics = Player->ObStrategyBlock->DynPtr != 0;"
+				}
+			]
+		}
+	]
+}

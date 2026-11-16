@@ -1,0 +1,71 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"avpx/win32",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "an edit by ID takes no ID",
+			"changes": [
+				{
+					"file": "src/host/strategy_edit.cpp",
+					"from": "if (!id)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "an edit of an object with no strategy goes on",
+			"changes": [
+				{
+					"file": "src/host/strategy_edit.cpp",
+					"from": "if (answer != StrategyFound::Found)\n\t\t{\n\t\t\treturn EditAnswer::NoPayload;",
+					"to": "if (false)\n\t\t{\n\t\t\treturn EditAnswer::NoPayload;"
+				}
+			]
+		},
+		{
+			"name": "the lookup's answer isn't given",
+			"changes": [
+				{
+					"file": "src/host/strategy_edit.cpp",
+					"from": "\t\t\t*lookup = answer;\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "the strategy's bytes are the class's, not the store's",
+			"changes": [
+				{
+					"file": "src/host/strategy_edit.cpp",
+					"from": "out->payload.swap(held);",
+					"to": "(void)held;"
+				}
+			]
+		},
+		{
+			"name": "a chunk the store doesn't hold gives bytes anyway",
+			"changes": [
+				{
+					"file": "src/host/strategy_edit.cpp",
+					"from": "if (!store.PayloadOf(out->chunk, &held))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a strategy that isn't found is looked into",
+			"changes": [
+				{
+					"file": "src/host/strategy_edit.cpp",
+					"from": "if (answer != StrategyFound::Found)\n\t\t{\n\t\t\treturn answer;",
+					"to": "if (false)\n\t\t{\n\t\t\treturn answer;"
+				}
+			]
+		}
+	]
+}

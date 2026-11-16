@@ -1,0 +1,58 @@
+# ACCEPTANCE: Object Placement's FLY (F, X, B, L, R), by Melanikus's path: the bar is clicked, an object is clicked, F is pressed and the movement keys are held.
+# inteng (FUN_004def60 start, FUN_004dc38b-0x4dc5f1 the keys X / B / R, FUN_0053e123 the engine's key movement of the flying object, FUN_004df3c0 its words "Flying object", "Move Rel to Axes",
+# "Inc Bounding Box", "Colliding"): the movement keys move the FLYING OBJECT, the camera stays where it is unless R links it to the object. Invasion, read-only, in front of switch3.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+picture 1
+wait 300
+key F
+expect-status Fly selected object: on
+# the FLY SPEED takes the camera speed's place (OP-110: DAT_005f071c = DAT_005e51b4, 2 at start) and the screen says it flies (OP-101)
+expect-field camspeed 2
+expect-hierarchy-text Flying object
+# forward moves the OBJECT: the view stays exactly where it was, and the picture changes (the object moved away from where it was)
+hold Numpad3 500
+expect-field camera -27851 -14055 85500 0 0
+expect-pixels-changed picture 0 0 1008 729 0.0005
+# X: movement relative to the world's axes; the words are inteng's
+key X
+expect-status Move Rel to Axes: on
+hold Numpad3 500
+expect-field camera -27851 -14055 85500 0 0
+expect-pixels-changed picture 0 0 1008 729 0.0005
+key X
+expect-status Move Rel to Axes: off
+# B and L are the block's flags (inteng's words)
+wait 300
+key B
+expect-status Inc Bounding Box: on
+wait 300
+key B
+expect-status Inc Bounding Box: off
+# L flips the current object's "no collisions" bit (+0x5c 0x2000); while no object was current every placed object was made to collide (FUN_004dd2f0 0x4dd343, OP-4 (5)), so the first L turns them OFF
+expect-hierarchy-text Colliding
+key L
+expect-status Collisions: off
+expect-hierarchy-count 0 Colliding
+key L
+expect-status Collisions: on
+expect-hierarchy-text Colliding
+# R links the camera to the object: it follows when the object moves
+key R
+expect-status Camera link to object: on
+hold Numpad3 500
+expect-pixels-changed picture 0 0 1008 729 0.0005
+key R
+expect-status Camera link to object: off
+# F again lets it go where it flew
+wait 300
+key F
+expect-status Fly selected object: off

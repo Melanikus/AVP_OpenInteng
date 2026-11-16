@@ -1,0 +1,118 @@
+# ACCEPTANCE: Strategy Data's VOLUME EDITOR, HIS PATH (Frost, 2026-11-16, Bishop's order for Melanikus's "zones, triggers": the volume of an Area Switch (68) and a Volume of Death (77), FUN_005277c0).
+# inteng's editor is NOT two clicks for corners: it draws the volume as a RED WIREFRAME CUBE (FUN_00583130 with 0xff0000), writes six help lines at (16, 0) ("S : Set volume to module extents", "X : Expand volume to include
+# module", "Shift+Left Click : Select face of cube", "+/- : Move selected face", "Hold shift to move face faster", "Press return when finished"), a left click picks a MODULE (red), Shift + left click picks a FACE of the
+# cube (green), S sets the cube to the module's box, X grows it to include the box, + / - move the selected face (2 m a second, 20 with Shift), Return or the right button ends and the numbers are written into the strategy.
+# The manual (qa.txt, "death volumes"): "Press V to edit the volume ... Left Click: Selects a module. S: ... X: ... Shift + Left Click (on the volume cube): Selects a face on the cube. The face is shown as green. +/- : Moves
+# the selected face in or out. Right click, or press enter when finished."
+# By his path: open the file, bar to Strategy Data, right-click > Create Virtual Object > Here, click its V, right-click > Assign Strategy > Area Switch, V, click the room, S, Shift + click a wall, hold +, Return.
+# NAMED STAND-IN (the entry only): inteng reads V inside the kind's own Edit view (Area Switch: FUN_0052f700 "V : Change Trigger Volume" -> FUN_00530900; Volume of Death: FUN_00535970 slot 0xd87a96 "V : Edit Volume"),
+# and those views are not built yet, so here V is pressed on the Strategy screen with the object current. The editor itself (FUN_005277c0) is inteng's. E (entrance side) never shows for an AvP kind: both AvP
+# callers pass a null third argument (0x5309a1, 0x535bc6); only kind 2006 (NOT AVP, 0x4cf4f0) passes one.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+# a virtual object to hang the strategy on (FUN_005396d0): at the camera; the camera goes back so that its V is in front
+click-win 640 300 right
+click-popup 6
+click-popup 1
+type ZoneVO
+key Enter
+expect-no-dialog
+hold Z 1500
+wait 400
+click-win 378 300
+expect-selected 1
+# Assign Strategy > Area Switch (kind 68): a switch that fires when the player is inside its volume
+click-win 378 300 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Area_Switch
+expect-no-dialog
+expect-status The object has a new strategy
+key Esc
+# V: the volume editor takes the screen: the six lines of text, no field panel
+picture 1
+key V
+expect-status Edit Volume
+expect-pixels-changed panels 0 30 330 120 0.01
+expect-field volumeface -1
+expect-field volumemodule -1
+# a click on the room picks a module (it turns red)
+remember-field volumemodule
+click-win 640 130
+expect-field-changed volumemodule
+# S sets the cube to the room's box: a red wireframe cube is drawn
+remember-field volume
+key S
+expect-field-changed volume
+wait 400
+picture 2
+expect-colour picture 0 60 1008 660 ff0000 0.0004 40
+# Shift + click on a wall selects that face (green); the numbers do not change by it
+remember-field volumeface
+remember-field volume
+click-win 900 300 shift
+expect-field-same volume
+expect-field-changed volumeface
+wait 300
+picture 3
+expect-colour picture 0 60 1008 660 00ff00 0.0002 40
+# + held moves the selected face out: the numbers change; - held brings it back
+remember-field volume
+hold Plus 700
+expect-field-changed volume
+remember-field volume
+hold Minus 700
+expect-field-changed volume
+# X grows the cube to include the picked module's box: the numbers do not shrink below it (the box stays at least the room)
+remember-field volume
+key X
+wait 300
+# Return ends: the numbers are in the strategy (kept in the editor's bytes until Save a copy)
+remember-field volume
+key Enter
+expect-status The volume is written into the strategy
+# V again reads them back from the strategy: the same box, the face and the module let go
+wait 500
+key V
+wait 300
+expect-field-same volume
+expect-field volumeface -1
+expect-field volumemodule -1
+# the right button ends the editor too (FUN_005277c0 0x527d70: _DAT_00d8806a & 2; the buttons are cleared at 0x527d88, so no pop-up opens)
+click-win 640 300 right
+expect-status The volume is written into the strategy
+# ---- VOLUME OF DEATH (77, FUN_00535970 0x535b20-0x535c52): the same editor on volume_min / volume_max (+0x14 / +0x20 of the record); Assign again: the replace confirm (0x5ee2b4), Yes
+click-win 378 300 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Volume_of_Death
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+expect-status The object has a new strategy
+wait 300
+key V
+wait 300
+expect-status Edit Volume
+remember-field volumemodule
+click-win 640 130
+expect-field-changed volumemodule
+remember-field volume
+key S
+expect-field-changed volume
+wait 400
+picture 4
+expect-colour picture 0 60 1008 660 ff0000 0.0004 40
+remember-field volume
+key Enter
+expect-status The volume is written into the strategy
+wait 500
+key V
+wait 300
+expect-field-same volume
+key Enter
+expect-status The volume is written into the strategy

@@ -1,0 +1,38 @@
+# PLACEMENT (SOUNDS) main job: on the sounds screen make two sounds, give the first its dialog, Find the first again by its name, take the second away, save a copy and read it back
+# with the game's own loader (verify_special). A prompt answered with only Enter keeps the value it shows.
+screen Placement mode 1 (sounds)
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+expect-screen Placement mode 1 (sounds)
+item 0x37
+expect-status Sound
+item 0x18
+expect-prompt 42
+type snd one
+key Enter
+type step.wav
+key Enter
+type 10
+key Enter
+type 30
+key Enter
+type 0
+key Enter
+type 100
+key Enter
+key Enter
+key Enter
+expect-status saved
+picture 1
+item 0x37
+item 0x16
+expect-status deleted
+item 0x19
+expect-prompt 42
+type snd one
+key Enter
+expect-status selected
+picture 2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_special/verify_special.exe {copy} "sound|snd one|wav=step.wav|volume=127|pitch=0|soundflags=0|probability=0"

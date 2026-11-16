@@ -1,0 +1,210 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a level with too many objects is not said to be cut",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "cut = objects && count > kObjectListMost;",
+					"to": "cut = false;"
+				}
+			]
+		},
+		{
+			"name": "a level with too many objects is kept whole",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "size_t const kept = objects ? (cut ? kObjectListMost : count) : 0;",
+					"to": "size_t const kept = objects ? count : 0;"
+				}
+			]
+		},
+		{
+			"name": "no list at all is read",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "size_t const kept = objects ? (cut ? kObjectListMost : count) : 0;",
+					"to": "size_t const kept = cut ? kObjectListMost : count;"
+				}
+			]
+		},
+		{
+			"name": "a name is read past 63 bytes",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "OnlineScreens_SafeName(objects[i].name, kObjectNameMost, safe, sizeof(safe));",
+					"to": "OnlineScreens_SafeName(objects[i].name, sizeof(safe), safe, sizeof(safe));"
+				}
+			]
+		},
+		{
+			"name": "an object with no name is read",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "\t\t\tif (objects[i].name)\n",
+					"to": "\t\t\tif (true)\n"
+				}
+			]
+		},
+		{
+			"name": "an object's ID isn't kept",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "memcpy(row.id, objects[i].id, kObjectIdBytes);",
+					"to": "memset(row.id, 0, kObjectIdBytes);"
+				}
+			]
+		},
+		{
+			"name": "a reload keeps the chosen row",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "\t\tlist = ui::ScrollList();\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a row past the end gives a name",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "return row < rows.size() ? rows[row].name : kNoRow;",
+					"to": "return rows.empty() ? kNoRow : rows[row % rows.size()].name;"
+				}
+			]
+		},
+		{
+			"name": "a row past the end gives an ID",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "return row < rows.size() ? rows[row].id : 0;",
+					"to": "return rows.empty() ? 0 : rows[row % rows.size()].id;"
+				}
+			]
+		},
+		{
+			"name": "no ID finds a row",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "\t\tif (!id)\n\t\t{\n\t\t\treturn -1;\n\t\t}\n",
+					"to": "\t\tif (!id)\n\t\t{\n\t\t\treturn rows.empty() ? -1 : 0;\n\t\t}\n"
+				}
+			]
+		},
+		{
+			"name": "any ID finds the first row",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "if (memcmp(rows[r].id, id, kObjectIdBytes) == 0)",
+					"to": "if (true)"
+				}
+			]
+		},
+		{
+			"name": "a box of no height still has rows",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "return rowHeight > 0 && box.height > 0 && box.width > 0 ? box.height / rowHeight : 0;",
+					"to": "return rowHeight > 0 ? (box.height > 0 ? box.height : 1) / rowHeight + 1 : 0;"
+				}
+			]
+		},
+		{
+			"name": "more rows show than are left",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "int64_t const shown = fit < left ? fit : left;",
+					"to": "int64_t const shown = fit;"
+				}
+			]
+		},
+		{
+			"name": "a press outside the box is the list's",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "\t\tif (!ui::BoxHolds(box, x, y))\n\t\t{\n\t\t\treturn false;\n\t\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a press below the last row chooses one",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "if (rowHeight > 0 && row < Shown())",
+					"to": "if (rowHeight > 0)"
+				}
+			]
+		},
+		{
+			"name": "a press on a row does not say so",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "*onRow = true;",
+					"to": "*onRow = false;"
+				}
+			]
+		},
+		{
+			"name": "a row past the end is chosen from outside",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "if (row >= 0 && (size_t)row < rows.size())",
+					"to": "if (row >= 0)"
+				}
+			]
+		},
+		{
+			"name": "the chosen row has no band",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "if (row == list.Chosen() && *boxCount < mostBoxes)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "lines are written past the room",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "if (*lineCount < mostLines && PanelPaint_FitText(rows[(size_t)row].name, rowBox, widthOf, lineHeight, &lines[*lineCount]))",
+					"to": "if (*lineCount < 64 && PanelPaint_FitText(rows[(size_t)row].name, rowBox, widthOf, lineHeight, &lines[*lineCount]))"
+				}
+			]
+		},
+		{
+			"name": "every row sits at the top",
+			"changes": [
+				{
+					"file": "src/host/object_list.cpp",
+					"from": "ui::Box const rowBox = { box.x, (int32_t)((int64_t)box.y + (int64_t)r * rowHeight), box.width, rowHeight };",
+					"to": "ui::Box const rowBox = { box.x, box.y, box.width, rowHeight };"
+				}
+			]
+		}
+	]
+}

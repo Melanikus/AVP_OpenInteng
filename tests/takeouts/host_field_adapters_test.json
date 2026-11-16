@@ -1,0 +1,240 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a null place for the record is written through",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "\t\tif (!record)\n\t\t{\n\t\t\treturn false;\n\t\t}\n\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "the record keeps what it held before",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "\t\t*record = FieldRecord();\n\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "an object whose ID is all 0 is shown",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "\t\t\t\tif (IdIsNull(selected.objectId))\n\t\t\t\t{\n\t\t\t\t\treturn false;\n\t\t\t\t}\n\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "only the first byte of the ID says whether it is all 0",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "if (id[i] != 0)",
+					"to": "if (id[0] != 0)"
+				}
+			]
+		},
+		{
+			"name": "the ID's last byte is left out of the title",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "i < kSelectionIdBytes; i++)\n\t\t{\n\t\t\thex += kDigits[id[i] >> 4];",
+					"to": "i < kSelectionIdBytes - 1; i++)\n\t\t{\n\t\t\thex += kDigits[id[i] >> 4];"
+				}
+			]
+		},
+		{
+			"name": "each byte's first digit is its low half",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "hex += kDigits[id[i] >> 4];",
+					"to": "hex += kDigits[id[i] & 0x0F];"
+				}
+			]
+		},
+		{
+			"name": "each byte's second digit is its high half",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "hex += kDigits[id[i] & 0x0F];",
+					"to": "hex += kDigits[id[i] >> 4];"
+				}
+			]
+		},
+		{
+			"name": "an ID's letters are small letters",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "\"0123456789ABCDEF\"",
+					"to": "\"0123456789abcdef\""
+				}
+			]
+		},
+		{
+			"name": "a module numbered below 0 is shown",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "\t\t\t\tif (selected.moduleIndex < 0)\n\t\t\t\t{\n\t\t\t\t\treturn false;\n\t\t\t\t}\n\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "module 0 is refused",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "if (selected.moduleIndex < 0)",
+					"to": "if (selected.moduleIndex <= 0)"
+				}
+			]
+		},
+		{
+			"name": "module -1 is shown",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "if (selected.moduleIndex < 0)",
+					"to": "if (selected.moduleIndex < -1)"
+				}
+			]
+		},
+		{
+			"name": "nothing selected, or a kind it doesn't know, is shown",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "\t\t\t\t// Nothing selected, or a kind this doesn't know\n\t\t\t\treturn false;",
+					"to": "\t\t\t\t// Nothing selected, or a kind this doesn't know\n\t\t\t\treturn true;"
+				}
+			]
+		},
+		{
+			"name": "an object's title has no space in it",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "\"Object \"",
+					"to": "\"Object\""
+				}
+			]
+		},
+		{
+			"name": "a module's title has no space in it",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "\"Module \"",
+					"to": "\"Module\""
+				}
+			]
+		},
+		{
+			"name": "a module's number in its title is one less",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "std::to_string(selected.moduleIndex)",
+					"to": "std::to_string(selected.moduleIndex - 1)"
+				}
+			]
+		},
+		{
+			"name": "an object's record is said to be nothing to show",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "record->title = \"Object \" + IdInHex(selected.objectId);\n\t\t\t\treturn true;",
+					"to": "record->title = \"Object \" + IdInHex(selected.objectId);\n\t\t\t\treturn false;"
+				}
+			]
+		},
+		{
+			"name": "a module's record is said to be nothing to show",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "record->title = \"Module \" + std::to_string(selected.moduleIndex);\n\t\t\t\treturn true;",
+					"to": "record->title = \"Module \" + std::to_string(selected.moduleIndex);\n\t\t\t\treturn false;"
+				}
+			]
+		},
+		{
+			"name": "[header] the object's header is never asked for",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "if (hasHeader && BuildObjectHeaderRecord(header, record) && !record->title.empty())",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "[header] an object with no name gets no title",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "hasHeader && BuildObjectHeaderRecord(header, record) && !record->title.empty())",
+					"to": "hasHeader && BuildObjectHeaderRecord(header, record))"
+				}
+			]
+		},
+		{
+			"name": "[strategy] the strategy is never asked for",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "if (FindSelectedStrategy(LevelObjects_Level(), selected, &strategy) == StrategyFound::Found &&",
+					"to": "if (false &&"
+				}
+			]
+		},
+		{
+			"name": "[strategy] the header's boxes are left off a strategy's record",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "bool const boxes = hasHeader && record->list.size() + 6 <= kFieldPanelHostMostFields && AddObjectHeaderBoxes(header, record);",
+					"to": "bool const boxes = hasHeader;"
+				}
+			]
+		},
+		{
+			"name": "[strategy] the name is left off a strategy's title",
+			"changes": [
+				{
+					"file": "src/host/field_adapters.cpp",
+					"from": "record->title = boxes && !header.name.empty() ? header.name + \": \" + kind : kind;",
+					"to": "record->title = kind;"
+				}
+			]
+		},
+		{
+			"name": "[pointers] a record keeps its words in a vector",
+			"changes": [
+				{
+					"file": "src/host/field_record.h",
+					"from": "\t\tstd::deque<std::string> text;",
+					"to": "\t\tstd::vector<std::string> text;"
+				}
+			]
+		}
+	]
+}

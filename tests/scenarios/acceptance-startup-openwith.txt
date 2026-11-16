@@ -1,0 +1,10 @@
+# ACCEPTANCE: a double-clicked file opens ITSELF (inteng: WinMain FUN_0042b8c0(path): no copy to a name, no refusal). open_with.h. The file here is called Derelict.rif but its bytes are Invasion's (1988464 bytes), while the editor's own
+# avp_rifs\Derelict.RIF is the stock one (1485812 bytes): the old open refused "a different level called Derelict is already in the editor's avp_rifs folder". Now THAT file opens: its name for the game is
+# OpenedByEditor/Derelict and the file the game reads is 1988464 bytes; the stock Derelict.RIF is not touched.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-harness-out/openwith/Derelict.rif
+pictures on
+state
+expect-screen Construction
+expect-field level OpenedByEditor/Derelict
+expect-field levelbytes 1988464
+picture 300

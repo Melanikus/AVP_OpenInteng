@@ -1,0 +1,194 @@
+{
+	"copy": [
+		"src",
+		"tests",
+		"win32/VS2026"
+	],
+	"rows": [
+		{
+			"name": "a second editor isn't refused when the token was there already",
+			"changes": [
+				{
+					"file": "src/host/one_editor.cpp",
+					"from": "if (said == ERROR_ALREADY_EXISTS)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "the editor's start never asks for the token",
+			"changes": [
+				{
+					"file": "src/host/editor_main.cpp",
+					"from": "OneEditorAnswer const token = OneEditor_Claim();",
+					"to": "OneEditorAnswer const token = OneEditorAnswer::Taken;"
+				}
+			]
+		},
+		{
+			"name": "the game's ConfigFile.cpp is built into the editor again",
+			"changes": [
+				{
+					"file": "win32/VS2026/AVP_OpenInteng.vcxproj",
+					"from": "    <!-- avpx\\3dc\\ConfigFile.cpp is left out on purpose",
+					"to": "    <ClCompile Include=\"..\\..\\avpx\\3dc\\ConfigFile.cpp\" />\n    <!-- avpx\\3dc\\ConfigFile.cpp is left out on purpose"
+				}
+			]
+		},
+		{
+			"name": "the editor is a console program again",
+			"changes": [
+				{
+					"file": "win32/VS2026/AVP_OpenInteng.vcxproj",
+					"from": "<SubSystem Condition=\"'$(StockProof)' != 'true'\">Windows</SubSystem>",
+					"to": "<SubSystem Condition=\"'$(StockProof)' != 'true'\">Console</SubSystem>"
+				}
+			]
+		},
+		{
+			"name": "the camera's place isn't held on one axis",
+			"changes": [
+				{
+					"file": "src/host/level_view.h",
+					"from": "camera->x = FlyCamera_HeldTo(camera->x, kFlyCameraMostPlace);",
+					"to": "camera->x = camera->x;"
+				}
+			]
+		},
+		{
+			"name": "the camera's turn is left to grow",
+			"changes": [
+				{
+					"file": "src/host/level_view.h",
+					"from": "camera->turn = ((camera->turn % kFlyCameraWholeTurn) + kFlyCameraWholeTurn) % kFlyCameraWholeTurn;",
+					"to": "camera->turn = camera->turn;"
+				}
+			]
+		},
+		{
+			"name": "the camera's look isn't held",
+			"changes": [
+				{
+					"file": "src/host/level_view.h",
+					"from": "camera->look = FlyCamera_HeldTo(camera->look, kFlyCameraMostLook);",
+					"to": "camera->look = camera->look;"
+				}
+			]
+		},
+		{
+			"name": "a frame's move isn't held to the camera's limits",
+			"changes": [
+				{
+					"file": "src/host/editor_main.cpp",
+					"from": "\tFlyCamera_Hold(camera);\n}",
+					"to": "}"
+				}
+			]
+		},
+		{
+			"name": "the level's start place isn't held",
+			"changes": [
+				{
+					"file": "src/host/level_view.cpp",
+					"from": "\tFlyCamera_Hold(startHere);",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "the editor's settings answer writes a file",
+			"changes": [
+				{
+					"file": "src/host/edge_own.cpp",
+					"from": "bool Config_Save()\n{\n\treturn true;",
+					"to": "bool Config_Save()\n{\n\tFILE *written = fopen(\"AliensVsPredator.cfg\", \"w\");\n\tif (written)\n\t{\n\t\tfclose(written);\n\t}\n\treturn true;"
+				}
+			]
+		},
+		{
+			"name": "the Direct3D stop doesn't say the game's last error",
+			"changes": [
+				{
+					"file": "src/host/editor_main.cpp",
+					"from": "std::string reason = GetLastErrorMessage();",
+					"to": "std::string reason;"
+				}
+			]
+		},
+		{
+			"name": "the camera's forward is read from the view matrix's third row again",
+			"changes": [
+				{
+					"file": "src/host/level_view.cpp",
+					"from": "forward[0] = view.mat13;\n\tforward[1] = view.mat23;",
+					"to": "forward[0] = view.mat31;\n\tforward[1] = view.mat32;"
+				}
+			]
+		},
+		{
+			"name": "the camera's right is read from the view matrix's first row again",
+			"changes": [
+				{
+					"file": "src/host/level_view.cpp",
+					"from": "right[1] = view.mat21;\n\tright[2] = view.mat31;",
+					"to": "right[1] = view.mat12;\n\tright[2] = view.mat13;"
+				}
+			]
+		},
+		{
+			"name": "every folder gets the same token",
+			"changes": [
+				{
+					"file": "src/host/one_editor.cpp",
+					"from": "hash ^= (unsigned long long)finalName[i];",
+					"to": "hash ^= 0;"
+				},
+				{
+					"file": "src/host/one_editor.cpp",
+					"from": "hash *= 1099511628211ULL;",
+					"to": "hash *= 1;"
+				}
+			]
+		},
+		{
+			"name": "the editor never gives the game its own settings folder",
+			"changes": [
+				{
+					"file": "src/host/editor_main.cpp",
+					"from": "if (!SaveFolder_UseThisFolder(settingsFolder))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a DataFolder the settings folder's rule refuses is taken",
+			"changes": [
+				{
+					"file": "src/host/editor_main.cpp",
+					"from": "if (char const *const notUsable = SaveFolder_WhyNotUsable(dataFolder, checkedDataFolder, sizeof(checkedDataFolder)))",
+					"to": "if (char const *const notUsable = (const char *)0)"
+				}
+			]
+		},
+		{
+			"name": "a folder that can't be named is said to have another editor running",
+			"changes": [
+				{
+					"file": "src/host/one_editor.cpp",
+					"from": "\t\treturn OneEditorAnswer::FolderNotNamed;\n\t}\n\n\tHANDLE const token",
+					"to": "\t\treturn OneEditorAnswer::AnotherIsRunning;\n\t}\n\n\tHANDLE const token"
+				}
+			]
+		},
+		{
+			"name": "a refused token's words are the same whatever the refusal",
+			"changes": [
+				{
+					"file": "src/host/editor_main.cpp",
+					"from": "return Stop(OneEditor_Words(token));",
+					"to": "return Stop(OneEditor_Words(OneEditorAnswer::AnotherIsRunning));"
+				}
+			]
+		}
+	]
+}

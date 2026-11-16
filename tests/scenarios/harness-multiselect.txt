@@ -1,0 +1,18 @@
+# THE HARNESS'S SEVERAL-OBJECT SELECT (hidden run, Invasion): select-rows takes the first row and adds the others (as Shift+clicks on the rows do), select-row <n> add joins one more, expect-selected <n> reads the
+# size of the selection set from the state line; L (inteng's "deselect all") empties it. Shifted keys (key <k> shift, a chord with the posted Shift) are read by the editor through ShiftDown() (editor_main.cpp).
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+select-row 0
+expect-selected 1
+picture 601
+select-rows 0 3 5
+expect-selected 3
+picture 602
+select-row 7 add
+expect-selected 4
+picture 603
+key L
+expect-selected 0
+picture 604

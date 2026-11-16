@@ -1,0 +1,46 @@
+# ACCEPTANCE: Object Placement's key P / Create > With shape > Selected (AvP-docs/engine/inteng/reassess/object-placement.md OP-26, OP-88, OP-40).
+# inteng (FUN_004d9af0 0x4db0b2-0x4dc098): a current PLACED SHAPE: the Name Object window; OK with a free name makes a new placed object of the same shape at the VIEW's place with the view's turn and the
+# current one's simple-object properties, made current. A current SOUND: the Name Object window; OK makes a new sound at the view with the current sound's settings. A generator, bad guy, particle
+# generator or player start: nothing. Invasion, opened as by a double click, read-only.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+
+# ---- D1 the placed object in front of the view made current by a click, then P: the name window; OK makes dupA, THE current object (its name on the screen)
+click-win 504 364
+expect-selected 1
+key P
+expect-dialog Name Object
+form-field 1 dupA
+click-button OK
+expect-no-dialog
+expect-status Object dupA made at the view
+expect-selected 1
+expect-hierarchy-count 1 dupA
+
+# ---- D2 a sound (sndD) and P on it: the name window; OK makes sndE, current, with sndD's ranges
+click-bar Create > Sound
+expect-dialog Name Object
+form-field 1 sndD
+click-button OK
+expect-no-dialog
+key P
+expect-dialog Name Object
+form-field 1 sndE
+click-button OK
+expect-no-dialog
+expect-hierarchy-text sndE i_r 5.000000 o_r 10.000000
+
+# ---- D3 a generator current: P does nothing (no window)
+click-bar Create > AVP generator
+expect-dialog Name Object
+form-field 1 genD
+click-button OK
+expect-no-dialog
+key P
+expect-no-dialog
+expect-hierarchy-count 1 genD

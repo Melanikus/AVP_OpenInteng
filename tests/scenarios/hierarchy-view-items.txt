@@ -1,0 +1,31 @@
+# HIERARCHY, the view items: Adaptive Degradation (0x45), Dummy Objects (0x5c), Dummy Object Size (0x5d), Alien (0x3c), Marine (0x3d) and Help (0x38): each says what it did on the status line; Help shows
+# its two pages as two texts over the view. (The view follows them as Dietrich's view and the avpx hooks allow: the dummy cube and the projection scale are tracked in the board.)
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+item 0xcf
+expect-screen Hierarchy
+item 0x45
+expect-status Adaptive Degradation: on
+item 0x5c
+expect-status Dummy Objects: on
+item 0x5d
+expect-prompt 30
+type 250
+key Enter
+expect-status 250 mm
+item 0x5c
+expect-status Dummy Objects: off
+item 0x3c
+expect-status Alien
+item 0x3d
+expect-status Marine
+# Help is inteng's text over the view, twice (FUN_0048ab60 -> FUN_004724f0 -> FUN_0057be40, "Click to continue."): the model's keys, then the boned object and turret commands; a click closes each
+item 0x38
+picture 1
+click-win 500 300 left
+picture 2
+click-win 500 300 left
+expect-no-dialog
+expect-prompt 0

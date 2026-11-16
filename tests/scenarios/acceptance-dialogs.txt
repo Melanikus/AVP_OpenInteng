@@ -1,0 +1,32 @@
+# ACCEPTANCE: inteng's dialogs in the running editor (hidden run, Invasion; dialogs.h, dialog_box.h, list_picker.h). Each kind opens (the box of the window changes the picture), a click on a button / row / check box does what it says, and Cancel (or Escape) changes
+# nothing (the same box is the same picture after). Message and list: Adjacent Modules. Confirm and text: Module Linking. Form: Track Editing's Properties > Track (FUN_004f4090: 400 x 200, four check boxes, Ok and Cancel).
+screen Adjacent Modules
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Adjacent Modules
+expect-no-dialog
+picture 800
+item 0x47
+expect-dialog-kind message
+expect-pixels-changed panels 100 100 440 260
+click-button Ok
+expect-no-dialog
+item 0x68
+expect-dialog-kind list
+expect-dialog Modules without adjacent modules
+expect-pixels-changed panels 60 60 520 340
+key Esc
+expect-no-dialog
+item 0xa
+item 0xc8
+item 0x65
+expect-dialog-kind confirm
+expect-pixels-changed panels 100 100 440 260
+click-button No
+expect-no-dialog
+item 0xc8
+item 0xa4
+expect-dialog-kind text
+click-button Cancel
+expect-no-dialog

@@ -1,0 +1,38 @@
+# ADJACENT MODULES, the main job, in the running editor (hidden run, Invasion): module 54 (it has 4 adjacent modules: 80 81 82 55) is made the current one (Base > Set Current), module 55 is picked and taken
+# off its list (Link > Delete), Show All paints the modules with and without adjacent modules, module 55 is made the current one (Set Current writes module 54's list into the level: the write-back), Mode > Exit,
+# Save a copy, and the copy is read back with the game's loader (verify_adjacent: only module 54's list changed, it lost module 55, the others keep their order and entries, every entry is at its computed place).
+# Toggle View Distance (picture 404) and Select by polygons are switched on and off on the way.
+# Pictures: 401 module 54 current (blue) with its list (yellow), 402 after the Delete, 403 Show All, 404 View Distance on.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/adjacent-delete.txt
+screen Adjacent Modules
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Adjacent Modules
+pick-module 54
+item 0x64
+expect-status Current module
+picture 401
+pick-module 55
+item 0x34
+expect-status Delete
+picture 402
+item 0x66
+expect-status Show All
+picture 403
+item 0x46
+expect-status View Distance
+picture 404
+item 0x46
+expect-status View distance: off
+item 0xca
+expect-status Select by polygons: off
+item 0xca
+expect-status Select by polygons: on
+pick-module 55
+item 0x64
+expect-status 3 adjacent
+item 0xa
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_adjacent/verify_adjacent.exe {orig} {copy} delete 54 55

@@ -1,0 +1,150 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "the lookups never ask the OpenLevelFile for its level",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "return theOpenLevel ? theOpenLevel->Level() : nullptr;",
+					"to": "return nullptr;"
+				}
+			]
+		},
+		{
+			"name": "the OpenLevelFile the editor hands the lookups is dropped",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "theOpenLevel = open;",
+					"to": "(void)open;"
+				}
+			]
+		},
+		{
+			"name": "the list is not emptied before it is read",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "objects->clear();\n\n\tFile_Chunk *const level = TheLevel();",
+					"to": "File_Chunk *const level = TheLevel();"
+				}
+			]
+		},
+		{
+			"name": "a row's name is empty",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "row.name = object->object_data.o_name;",
+					"to": "row.name = \"\";"
+				}
+			]
+		},
+		{
+			"name": "a row's ID is cut to its first 4 bytes",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "memcpy(row.id, &object->object_data.ID, host::kObjectIdBytes);",
+					"to": "memcpy(row.id, &object->object_data.ID, host::kObjectIdBytes / 2);"
+				}
+			]
+		},
+		{
+			"name": "a header's flags are not copied",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "header->flags = (uint32_t)head->flags;",
+					"to": "header->flags = 0;"
+				}
+			]
+		},
+		{
+			"name": "a header's name is copied to the end of the game's 64 bytes, zeros and all",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "header->name.assign(name, length);",
+					"to": "header->name.assign(name, sizeof(object->object_data.o_name));"
+				}
+			]
+		},
+		{
+			"name": "a header's ID is not copied",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "memcpy(header->id, &object->object_data.ID, host::kSelectionIdBytes);",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "of two objects with one ID, the last is the one a header is found for",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "\t\t// The first with this ID is the one: the list and a pick find it too\n\t\tObject_Header_Chunk *const head = object->get_header();",
+					"to": "\t\tObject_Chunk *later = object;\n\n\t\tfor (each.next(); !each.done(); each.next())\n\t\t{\n\t\t\tif (each() && memcmp(&each()->object_data.ID, id, host::kSelectionIdBytes) == 0)\n\t\t\t{\n\t\t\t\tlater = each();\n\t\t\t}\n\t\t}\n\n\t\tObject_Header_Chunk *const head = later->get_header();"
+				}
+			]
+		},
+		{
+			"name": "the lookups' level is none",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "File_Chunk *LevelObjects_Level()\n{\n\treturn TheLevel();\n}",
+					"to": "File_Chunk *LevelObjects_Level()\n{\n\treturn nullptr;\n}"
+				}
+			]
+		},
+		{
+			"name": "holding a level does not hand it to the lookups",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "LevelObjects_Use(open);\n\treturn result;",
+					"to": "return result;"
+				}
+			]
+		},
+		{
+			"name": "holding a level ignores the path the game side gives",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "LevelView_FilePath(path, sizeof(path));",
+					"to": "(void)path;"
+				}
+			]
+		},
+		{
+			"name": "a refused open is said to have opened",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "LevelOpenResult const result = open->Open(path);",
+					"to": "open->Open(path);\n\tLevelOpenResult const result = LevelOpenResult::Opened;"
+				}
+			]
+		},
+		{
+			"name": "holding no OpenLevelFile leaves the lookups on what they read before",
+			"changes": [
+				{
+					"file": "src/host/level_objects.cpp",
+					"from": "\tif (!open)\n\t{\n\t\tLevelObjects_Use(nullptr);\n\t\treturn LevelOpenResult::NoPath;\n\t}",
+					"to": "\tif (!open)\n\t{\n\t\treturn LevelOpenResult::NoPath;\n\t}"
+				}
+			]
+		}
+	]
+}

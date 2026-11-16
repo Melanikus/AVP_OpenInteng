@@ -1,0 +1,23 @@
+# TEXTURE MAP OPTIONS (hidden run, Invasion): Select As Quad (0xf) and Triangle (0xe), then AutoSave (0x13) set to every 1 minute without a prompt; after a minute the editor saves a copy by itself (picture 900 before, 901 after).
+# Run: LANE=T4 LEVEL=Invasion AvP-docs\tools\dietrich\drive-scenario-hier.sh <tree> <this file> <name>
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+item 0xf
+expect-status selecting as quads
+picture 900
+item 0xe
+expect-status selecting as triangles
+item 0x13
+expect-prompt 43
+type 1 0
+key Enter
+expect-status saving every 1 minutes
+wait 66000
+expect-status Saved a copy
+picture 901

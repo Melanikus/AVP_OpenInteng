@@ -1,0 +1,161 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"avpx/win32",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a payload shorter than the chunk's is put in",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "payload.size() != found->second.bytes - HeadingBytes",
+					"to": "payload.size() > found->second.bytes - HeadingBytes"
+				}
+			]
+		},
+		{
+			"name": "a payload longer than the chunk's is put in",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "payload.size() != found->second.bytes - HeadingBytes",
+					"to": "payload.size() < found->second.bytes - HeadingBytes"
+				}
+			]
+		},
+		{
+			"name": "a chunk that holds chunks is given a payload",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "\tif (holders.count(chunk) != 0)\n\t{\n\t\treturn false;\n\t}\n\n\t// A chunk that isn't one of this level's has no place, and its size",
+					"to": "\tif (false)\n\t{\n\t\treturn false;\n\t}\n\n\t// A chunk that isn't one of this level's has no place, and its size"
+				}
+			]
+		},
+		{
+			"name": "a chunk that holds chunks has a payload",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "if (!payload || holders.count(chunk) != 0)",
+					"to": "if (!payload)"
+				}
+			]
+		},
+		{
+			"name": "a payload is read into no place at all",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "if (!payload || holders.count(chunk) != 0)",
+					"to": "if (holders.count(chunk) != 0)"
+				}
+			]
+		},
+		{
+			"name": "an edited chunk gives the file's bytes, not the edit",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "\tif (edit != edited.end())\n\t{\n\t\t*payload = edit->second;",
+					"to": "\tif (false)\n\t{\n\t\t*payload = edit->second;"
+				}
+			]
+		},
+		{
+			"name": "a payload is read from the heading, not after it",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "payload->assign(from + HeadingBytes, from + found->second.bytes);",
+					"to": "payload->assign(from, from + found->second.bytes - HeadingBytes);"
+				}
+			]
+		},
+		{
+			"name": "an edit isn't marked as changing the chunk",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "\t\tNoteChange(chunk);\n\n\t\ttry",
+					"to": "\t\ttry"
+				}
+			]
+		},
+		{
+			"name": "a chunk's holders aren't marked as holding a change",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "holdsAChange.insert(up->second);",
+					"to": "(void)up;"
+				}
+			]
+		},
+		{
+			"name": "an edit is kept for no chunk",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "\t\t\tedited[chunk].swap(copy);\n",
+					"to": "\t\t\tcopy.clear();\n"
+				}
+			]
+		},
+		{
+			"name": "a chunk the editor edited can be marked changed the library's way",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": " || classIsStale.count(chunk) != 0)",
+					"to": ")"
+				}
+			]
+		},
+		{
+			"name": "a chunk the editor edited isn't remembered as edited",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "\t\t\tclassIsStale.insert(chunk);\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a save writes the library's class for an edited chunk, not the edit",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "\t\tif (edited.count(chunk))\n",
+					"to": "\t\tif (false)\n"
+				}
+			]
+		},
+		{
+			"name": "an edited chunk is written without its heading",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "\t\t\tauto const & bytesMade = edited.find(chunk)->second;\n\n\t\t\tout.insert(out.end(), levelBytes.begin() + at, levelBytes.begin() + at + HeadingBytes);\n",
+					"to": "\t\t\tauto const & bytesMade = edited.find(chunk)->second;\n\n"
+				}
+			]
+		},
+		{
+			"name": "an edited chunk is written without its bytes",
+			"changes": [
+				{
+					"file": "src/io/level_file.cpp",
+					"from": "\t\t\tout.insert(out.end(), (char const *)bytesMade.data(), (char const *)bytesMade.data() + bytesMade.size());\n",
+					"to": ""
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,45 @@
+# TEXTURE WINDOW main job (hidden run, Invasion): Texture Map, one polygon selected by a click, Tab opens the texture window (the picture with the polygon's coordinates as nodes), node 2 is moved right by arrow keys (+3) and
+# down (+2), Tab leaves; the saved copy is checked through the game's loader: exactly one polygon changed, its node 2 holds the old coordinates plus (3, 2), the other corners are as they were. Pictures: 400 (the level), 401 (the window), 402 (after the moves), 403 (left).
+# Run: VERIFY=texmap LEVEL=Invasion AvP-docs\tools\dietrich\drive-scenario-hier.sh <tree> <this file> <name>
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+save-copy
+save-copy
+click-view 0.50 0.60
+picture 400
+key Tab
+wait 300
+picture 401
+key 2
+key Right
+wait 200
+key Right
+wait 200
+key Right
+wait 200
+key Down
+wait 200
+key Down
+wait 300
+expect-status given to 1 polygon
+picture 402
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} nodemove 2 3 2 --baseline {save1} {save2}
+key Tab
+wait 300
+picture 403
+# the repeats view: Select Number of Repeats (0x10f) 2 across and 1 down, and the window is shown with the picture twice (picture 404)
+key Tab
+wait 300
+item 0x10f
+expect-prompt 43
+type 2 1
+key Enter
+wait 300
+expect-status 2X1
+picture 404
+key Tab

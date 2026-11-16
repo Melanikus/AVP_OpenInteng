@@ -1,0 +1,18 @@
+# ACCEPTANCE: Strategy Data's colours (Frost's find, Bishop's order). inteng marks a block that has a strategy 0x2000000 (FUN_00522680 0x522935) and the current one 0x40000000 (FUN_00529470); FUN_004a7eca turns them into item flags
+# 0x100 and 0x80 and FUN_004980f0 into the colours 0x00ff00 (GREEN, has a strategy) and 0xff0000 (RED, the current object). The flag view's orange is 0xff7f00 (item flag 0x200). By clicks: Construction > Mode > Strategy Data,
+# the view in front of switch3 (Invasion): the switch and its neighbours are green; a click on one makes it the current object and it is red.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+camera -27851 -14055 85500 0 0
+wait 500
+picture 1
+expect-colour picture 0 0 1008 729 00ff00 0.002 70
+expect-not-empty
+click-win 504 364
+wait 300
+picture 2
+expect-colour picture 0 0 1008 729 ff0000 0.002 70

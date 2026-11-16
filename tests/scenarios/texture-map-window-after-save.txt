@@ -1,0 +1,18 @@
+# the texture window opens again after a Save a copy (hv-18 showed it did not): Tab, picture 600, Tab, Save a copy, Tab, picture 601
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+key Tab
+wait 300
+picture 600
+key Tab
+wait 300
+save-copy
+key Tab
+wait 300
+picture 601

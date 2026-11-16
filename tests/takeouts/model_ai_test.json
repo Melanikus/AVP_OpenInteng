@@ -1,0 +1,919 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "[ai] a path's number of 256 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "Limit::Loader, 0, 255, PathNumberWhy",
+					"to": "Limit::Loader, 0, 256, PathNumberWhy"
+				}
+			]
+		},
+		{
+			"name": "[ai] a path's number of -1 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "Limit::Loader, 0, 255, PathNumberWhy",
+					"to": "Limit::Loader, -1, 255, PathNumberWhy"
+				}
+			]
+		},
+		{
+			"name": "[ai] a path number's limit is called the editor's own",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "Limit::Loader, 0, 255, PathNumberWhy",
+					"to": "Limit::Editor, 0, 255, PathNumberWhy"
+				}
+			]
+		},
+		{
+			"name": "[ai] a point's place of 2^24 + 1 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "double const PositionMost = 16777216.0;",
+					"to": "double const PositionMost = 16777217.0;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a point's place limit is called the editor's own",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "Limit::Loader, -PositionMost, PositionMost, PositionWhy",
+					"to": "Limit::Editor, -PositionMost, PositionMost, PositionWhy"
+				}
+			]
+		},
+		{
+			"name": "[ai] a path's flags take a third bit",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "uint32_t const PathBits = 0x1 | 0x2;",
+					"to": "uint32_t const PathBits = 0x1 | 0x2 | 0x4;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a point's flags take a third bit",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "uint32_t const PathPointBits = 0x1 | 0x2;",
+					"to": "uint32_t const PathPointBits = 0x1 | 0x2 | 0x4;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a path's flags are looked for 4 bytes late",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"flags\", \"\", S, 4, Storage::UInt32, Unit::Flags, PathBits,",
+					"to": "{ \"flags\", \"\", S, 8, Storage::UInt32, Unit::Flags, PathBits,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a path's numbers are counted from the start of the payload, not the end of the name",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"AVPPATH2\", \"path\", false, AiOrigin::AfterName,",
+					"to": "{ \"AVPPATH2\", \"path\", false, AiOrigin::RecordStart,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a point is taken as 28 bytes",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "unsigned const PathPointBytes = 24;",
+					"to": "unsigned const PathPointBytes = 28;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a name's padding is one byte short",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "size_t const headAt = (nameLength + 4) & ~(size_t)3;",
+					"to": "size_t const headAt = (nameLength + 3) & ~(size_t)3;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a path with only 8 bytes of numbers after its name is taken as the right size",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (headAt > length || length - headAt < 12)",
+					"to": "if (headAt > length || length - headAt < 8)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a path's count is looked for 4 bytes early",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "ReadCount(payload, length, headAt + 12, PathPointBytes, &count)",
+					"to": "ReadCount(payload, length, headAt + 8, PathPointBytes, &count)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a name with no zero is refused for another reason",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (!zero)\n\t\t{\n\t\t\treturn SizeCheck::NameCutOff;",
+					"to": "if (!zero)\n\t\t{\n\t\t\treturn SizeCheck::TooShort;"
+				}
+			]
+		},
+		{
+			"name": "[ai] the point after the last is given an origin",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (index >= parts.pointCount)",
+					"to": "if (index > parts.pointCount)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a point's origin is counted from the count",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "*origin = parts.pointsAt + index * PathPointBytes;",
+					"to": "*origin = parts.countAt + index * PathPointBytes;"
+				}
+			]
+		},
+		{
+			"name": "[ai] the points are looked for where the count is",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "parts->pointsAt = headAt + 16;",
+					"to": "parts->pointsAt = headAt + 12;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a taken path number is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (others[i] == number)",
+					"to": "if (others[i] == number + 1)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a path number outside 0-255 is let through by the number rule",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (!ValueIsAllowed(PathFields[0], (double)number, why))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a field is set at the wrong origin",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "return SetFieldAt(field, payload, length, PlaceOf(field, length, origin), value, why);",
+					"to": "return SetFieldAt(field, payload, length, PlaceOf(field, length, origin + 4), value, why);"
+				}
+			]
+		},
+		{
+			"name": "[ai] an axis of a place is read from the wrong place",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "*value = LoadInt32(payload + at + 4 * (size_t)axis);",
+					"to": "*value = LoadInt32(payload + at + 4 * (size_t)(2 - axis));"
+				}
+			]
+		},
+		{
+			"name": "[ai] a masked flags field is read with the bits it doesn't own",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "*value = (double)(field.mask ? (bits & field.mask) : bits);",
+					"to": "*value = (double)bits;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a whole number is read as an unsigned one",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "*value = (double)LoadInt32(payload + at);",
+					"to": "*value = (double)LoadUInt32(payload + at);"
+				}
+			]
+		},
+		{
+			"name": "[ai] the loop flag is named as the back-and-forth flag",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"AVPPATH2\", \"path\", \"flags\", 0x1, \"Loop path\" },",
+					"to": "{ \"AVPPATH2\", \"path\", \"flags\", 0x1, \"Go back and forth\" },"
+				}
+			]
+		},
+		{
+			"name": "[ai] the words for a count below zero are another's",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "case SizeCheck::CountNegative: return \"a list in the chunk has a count below zero\";",
+					"to": "case SizeCheck::CountNegative: return \"the chunk ends before a list's count\";"
+				}
+			]
+		},
+		{
+			"name": "[ai] a waypoint corner of 2^24 + 1 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "double const WaypointPlaceMost = 16777216.0;",
+					"to": "double const WaypointPlaceMost = 16777217.0;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a waypoint corner limit is called the editor's own",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"min\", \"\", S, 0, Storage::IntTriple, Unit::GameUnits, 0, Limit::Loader,",
+					"to": "{ \"min\", \"\", S, 0, Storage::IntTriple, Unit::GameUnits, 0, Limit::Editor,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a waypoint's flags take a second bit",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "uint32_t const WaypointBits = 0x1;",
+					"to": "uint32_t const WaypointBits = 0x1 | 0x2;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a link's flags take a fifth bit",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "uint32_t const WaypointLinkBits = 0x1 | 0x2 | 0x4 | 0x8;",
+					"to": "uint32_t const WaypointLinkBits = 0x1 | 0x2 | 0x4 | 0x8 | 0x10;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a waypoint's centre is looked for 4 bytes late",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"centre\", \"\", S, 24, Storage::IntTriple,",
+					"to": "{ \"centre\", \"\", S, 28, Storage::IntTriple,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a waypoint's flags are looked for 4 bytes late",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"flags\", \"\", S, 36, Storage::UInt32, Unit::Flags, WaypointBits,",
+					"to": "{ \"flags\", \"\", S, 40, Storage::UInt32, Unit::Flags, WaypointBits,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a link index below 0 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "Limit::Loader, 0, 2147483647, WaypointLinkWhy",
+					"to": "Limit::Loader, -1, 2147483647, WaypointLinkWhy"
+				}
+			]
+		},
+		{
+			"name": "[ai] a link index limit is called the editor's own",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "Limit::Loader, 0, 2147483647, WaypointLinkWhy",
+					"to": "Limit::Editor, 0, 2147483647, WaypointLinkWhy"
+				}
+			]
+		},
+		{
+			"name": "[ai] a link's flags are looked for at +0",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"flags\", \"\", S, 4, Storage::UInt32, Unit::Flags, WaypointLinkBits,",
+					"to": "{ \"flags\", \"\", S, 0, Storage::UInt32, Unit::Flags, WaypointLinkBits,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a waypoint is taken as 56 bytes at least",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "unsigned const WaypointLeastBytes = 52;",
+					"to": "unsigned const WaypointLeastBytes = 56;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a waypoint's count of links is looked for at +40",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "unsigned const WaypointLinkCountAt = 44;",
+					"to": "unsigned const WaypointLinkCountAt = 40;"
+				}
+			]
+		},
+		{
+			"name": "[ai] the first-ground mark is looked for in another bit",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "uint32_t const WaypointFirstGround = 0x40000000;",
+					"to": "uint32_t const WaypointFirstGround = 0x80000000;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a link is taken as 12 bytes",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "unsigned const WaypointLinkBytes = 8;",
+					"to": "unsigned const WaypointLinkBytes = 12;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a module link is taken as needing 4 bytes at least",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "unsigned const ModuleLinkLeastBytes = 8;",
+					"to": "unsigned const ModuleLinkLeastBytes = 4;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a module link name's padding is one byte short",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "*after = at + ((nameLength + 4) & ~(size_t)3);",
+					"to": "*after = at + ((nameLength + 3) & ~(size_t)3);"
+				}
+			]
+		},
+		{
+			"name": "[ai] a waypoint with 4 bytes too few is taken as the right size",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (at > length || length - at < WaypointLeastBytes)",
+					"to": "if (at > length || length - at < WaypointLeastBytes - 4)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a module link's flags need no room",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (after > length || length - after < 4)",
+					"to": "if (after > length)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a group of 32768 waypoints is let through",
+			"changes": [
+				{
+					"file": "src/model/ai_fields.h",
+					"from": "size_t const MostWaypointsInAGroup = 32767;",
+					"to": "size_t const MostWaypointsInAGroup = 32768;"
+				}
+			]
+		},
+		{
+			"name": "[ai] the first ground waypoint is the first marked, not the last",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (LoadUInt32(payload + at + WaypointFlagsAt) & WaypointFirstGround)",
+					"to": "if (!anyGround && (LoadUInt32(payload + at + WaypointFlagsAt) & WaypointFirstGround))"
+				}
+			]
+		},
+		{
+			"name": "[ai] with no ground mark every waypoint is ground",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "parts->alienCount = anyGround ? firstGround : count;",
+					"to": "parts->alienCount = anyGround ? firstGround : 0;"
+				}
+			]
+		},
+		{
+			"name": "[ai] the waypoint after the last is given an origin",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "|| index >= count)",
+					"to": "|| index > count)"
+				}
+			]
+		},
+		{
+			"name": "[ai] the link after the last is given an origin",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (index >= place.linkCount)",
+					"to": "if (index > place.linkCount)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a link's origin is counted from the waypoint's start",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "*origin = place.linksAt + index * WaypointLinkBytes;",
+					"to": "*origin = place.start + index * WaypointLinkBytes;"
+				}
+			]
+		},
+		{
+			"name": "[ai] the module link after the last is given an origin",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (index >= place.moduleLinkCount)",
+					"to": "if (index > place.moduleLinkCount)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a link to the end of its list is allowed",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if ((size_t)target >= listSize)",
+					"to": "if ((size_t)target > listSize)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a box with no room on an axis is allowed",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "scale, &room) || room == 0)",
+					"to": "scale, &room))"
+				}
+			]
+		},
+		{
+			"name": "[ai] a box's room is worked out at scale 1",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "WaypointRoom(lowest[axis], highest[axis], centre[axis], scale, &room)",
+					"to": "WaypointRoom(lowest[axis], highest[axis], centre[axis], 1.0, &room)"
+				}
+			]
+		},
+		{
+			"name": "[ai] the count of waypoints is looked for at +4",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "const SizeCheck counted = ReadCount(payload, length, 0, WaypointLeastBytes, &count);",
+					"to": "const SizeCheck counted = ReadCount(payload, length, 4, WaypointLeastBytes, &count);"
+				}
+			]
+		},
+		{
+			"name": "[ai] Can Crawl is named as another bit",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"WAYPOINT\", \"waypoint\", \"flags\", 0x1, \"Can Crawl\" },",
+					"to": "{ \"WAYPOINT\", \"waypoint\", \"flags\", 0x1, \"Crawl\" },"
+				}
+			]
+		},
+		{
+			"name": "[ai] a link's one-way flag is named as another",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"WAYPOINT\", \"waypoint link\", \"flags\", 0x1, \"One way\" },",
+					"to": "{ \"WAYPOINT\", \"waypoint link\", \"flags\", 0x1, \"Aliens only\" },"
+				}
+			]
+		},
+		{
+			"name": "[ai] an entry point of 2^24 + 1 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "double const AdjacentPlaceMost = 16777216.0;",
+					"to": "double const AdjacentPlaceMost = 16777217.0;"
+				}
+			]
+		},
+		{
+			"name": "[ai] an entry point limit is called the editor's own",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"entry_point\", \"\", S, 8, Storage::IntTriple, Unit::GameUnits, 0, Limit::Loader,",
+					"to": "{ \"entry_point\", \"\", S, 8, Storage::IntTriple, Unit::GameUnits, 0, Limit::Editor,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a jump below 0 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "Limit::Loader, 0, 2147483647, VModuleBranchWhy,",
+					"to": "Limit::Loader, -1, 2147483647, VModuleBranchWhy,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a jump limit is called the editor's own",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "Limit::Loader, 0, 2147483647, VModuleBranchWhy,",
+					"to": "Limit::Editor, 0, 2147483647, VModuleBranchWhy,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a virtual module's flags may be 1",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "Limit::Loader, 0, 0, VModuleFlagsWhy,",
+					"to": "Limit::Loader, 0, 1, VModuleFlagsWhy,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a virtual module's flags limit is called the editor's own",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "Limit::Loader, 0, 0, VModuleFlagsWhy,",
+					"to": "Limit::Editor, 0, 0, VModuleFlagsWhy,"
+				}
+			]
+		},
+		{
+			"name": "[ai] an adjacent module's flags take a fifth bit",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "uint32_t const AdjacentBits = 0x1 | 0x2 | 0x4 | 0x8;",
+					"to": "uint32_t const AdjacentBits = 0x1 | 0x2 | 0x4 | 0x8 | 0x10;"
+				}
+			]
+		},
+		{
+			"name": "[ai] an adjacent module's flags are looked for at +8",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"flags\", \"\", S, 4, Storage::UInt32, Unit::Flags, AdjacentBits,",
+					"to": "{ \"flags\", \"\", S, 8, Storage::UInt32, Unit::Flags, AdjacentBits,"
+				}
+			]
+		},
+		{
+			"name": "[ai] an entry point is looked for at +4",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"entry_point\", \"\", S, 8,",
+					"to": "{ \"entry_point\", \"\", S, 4,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a virtual module's jump is looked for at +8",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"branch_no\", \"\", S, 4,",
+					"to": "{ \"branch_no\", \"\", S, 8,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a zone's spare is looked for at +0",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"spare\", \"\", S, 4, Storage::Int32, Unit::Plain, 0, Limit::None, 0, 0, \"\", false, 0, \"win95/chunk_object.cpp:877\" },",
+					"to": "{ \"spare\", \"\", S, 0, Storage::Int32, Unit::Plain, 0, Limit::None, 0, 0, \"\", false, 0, \"win95/chunk_object.cpp:877\" },"
+				}
+			]
+		},
+		{
+			"name": "[ai] a virtual module is taken as 12 bytes",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "unsigned const VModuleBytes = 16;",
+					"to": "unsigned const VModuleBytes = 12;"
+				}
+			]
+		},
+		{
+			"name": "[ai] an adjacent module is taken as 16 bytes",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "unsigned const AdjacentModuleBytes = 20;",
+					"to": "unsigned const AdjacentModuleBytes = 16;"
+				}
+			]
+		},
+		{
+			"name": "[ai] the count of items is looked for at +4",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "const SizeCheck counted = ReadCount(payload, length, 0, itemBytes, &items);",
+					"to": "const SizeCheck counted = ReadCount(payload, length, 4, itemBytes, &items);"
+				}
+			]
+		},
+		{
+			"name": "[ai] the item after the last is given an origin",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (index >= count || index > most)",
+					"to": "if (index > count || index > most)"
+				}
+			]
+		},
+		{
+			"name": "[ai] an item's origin is counted from the start of the chunk's count",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "*origin = 4 + index * itemBytes;",
+					"to": "*origin = index * itemBytes;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a chunk of fixed bytes one short is taken as right",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "return length >= chunk.leastBytes ? SizeCheck::Right : SizeCheck::TooShort;",
+					"to": "return length + 1 >= chunk.leastBytes ? SizeCheck::Right : SizeCheck::TooShort;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a jump back is allowed",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "(size_t)branch > index && (size_t)branch <= count))",
+					"to": "(size_t)branch >= index && (size_t)branch <= count))"
+				}
+			]
+		},
+		{
+			"name": "[ai] a jump past the end of the list is allowed",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "(size_t)branch > index && (size_t)branch <= count))",
+					"to": "(size_t)branch > index && (size_t)branch <= count + 1))"
+				}
+			]
+		},
+		{
+			"name": "[ai] a jump is refused for another field's reason",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "*why = VModuleFields[1].why;",
+					"to": "*why = VModuleFields[0].why;"
+				}
+			]
+		},
+		{
+			"name": "[ai] the entry-point-by-hand flag is named as another",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"ADJMDLEP\", \"adjacent module\", \"flags\", 0x1, \"Entry point set by hand\" },",
+					"to": "{ \"ADJMDLEP\", \"adjacent module\", \"flags\", 0x1, \"Vertical, for aliens only\" },"
+				}
+			]
+		},
+		{
+			"name": "[ai] a slave is taken as needing no bytes",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"AIMODSLA\", \"AI module slave\", \"MODULEDT\", 4,",
+					"to": "{ \"AIMODSLA\", \"AI module slave\", \"MODULEDT\", 0,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a zone is taken as needing 4 bytes",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"MODZONE\", \"module zone\", \"\", 8,",
+					"to": "{ \"MODZONE\", \"module zone\", \"\", 4,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a slave's master index is looked for at +4",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"MasterModuleIndex\", \"\", S, 0,",
+					"to": "{ \"MasterModuleIndex\", \"\", S, 4,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a zone's number is looked for at +4",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"Zone\", \"\", S, 0,",
+					"to": "{ \"Zone\", \"\", S, 4,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a master is read anywhere",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"AIMODMAS\", \"AI module master\", \"MODULEDT\", 0,",
+					"to": "{ \"AIMODMAS\", \"AI module master\", \"\", 0,"
+				}
+			]
+		},
+		{
+			"name": "[ai] adjacent modules are read only inside a module's data",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "{ \"ADJMDLEP\", \"entry points to adjacent modules\", \"\", 0,",
+					"to": "{ \"ADJMDLEP\", \"entry points to adjacent modules\", \"MODULEDT\", 0,"
+				}
+			]
+		},
+		{
+			"name": "[ai] a read may start past the payload's end",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "return (origin <= length && field.offset <= length - origin) ? origin + field.offset : NoPlace;",
+					"to": "return (field.offset <= length - origin) ? origin + field.offset : NoPlace;"
+				}
+			]
+		},
+		{
+			"name": "[ai] a position's fourth axis is read",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (field.storage != Storage::IntTriple || axis < 0 || axis > 2 || !ReadPlace(field, length, origin, &at))",
+					"to": "if (field.storage != Storage::IntTriple || !ReadPlace(field, length, origin, &at))"
+				}
+			]
+		},
+		{
+			"name": "[ai] a chunk's name is read on past its 8 letters",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (strncmp(AiChunks[i].id, id, 8) == 0)",
+					"to": "if (strcmp(AiChunks[i].id, id) == 0)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a chunk's eighth letter isn't compared",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (strncmp(AiChunks[i].id, id, 8) == 0)",
+					"to": "if (strncmp(AiChunks[i].id, id, 7) == 0)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a part's chunk name is read on past its 8 letters",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "strncmp(AiParts[i].chunk, chunk, 8) == 0",
+					"to": "strcmp(AiParts[i].chunk, chunk) == 0"
+				}
+			]
+		},
+		{
+			"name": "[ai] a part's chunk name's eighth letter isn't compared",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "strncmp(AiParts[i].chunk, chunk, 8) == 0",
+					"to": "strncmp(AiParts[i].chunk, chunk, 7) == 0"
+				}
+			]
+		},
+		{
+			"name": "[ai] a chunk lookup reads a name that isn't there",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (!id)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a part lookup reads a name that isn't there",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (!chunk || !label)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "[ai] a field lookup reads a name that isn't there",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_ai.cpp",
+					"from": "if (!name)",
+					"to": "if (false)"
+				}
+			]
+		}
+	]
+}

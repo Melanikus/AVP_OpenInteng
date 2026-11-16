@@ -1,0 +1,16 @@
+# TEXTURE MAP, Recentre Shape (0xd6): "Recentre object: select a polygon in the object": a click on the middle of the view names the polygon; that object's shape is recentred on the polygon's centre and its place
+# moved the other way; a copy is saved and read back (verify_shapes: a shape's own points changed, every point is where it was in the world).
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+item 0xd6
+expect-status Recentre object
+picture 1
+click-win 400 300
+expect-status Recentred
+picture 2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_shapes/verify_shapes.exe {orig} {copy} recentre

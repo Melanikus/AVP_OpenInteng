@@ -1,0 +1,33 @@
+# TEXTURE MAP ARROW SELECTION (hidden run, Invasion): one polygon is selected by a click, then S and an arrow key select the polygons next to it in that direction on the screen; the step size (0x100) is set to 2 down and 3 across and used. Pictures 800 to 804.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+picture 800
+chord S Right
+expect-status arrow selection added
+picture 801
+chord S Left
+expect-status arrow selection added
+picture 802
+item 0x100
+expect-dialog-kind text
+# the fields hold the current steps (1 and 1): Backspace takes the digit away, then the new one is typed; Tab goes to the second field; Ok answers
+key Back
+type 2
+key Tab
+key Back
+type 3
+click-button Ok
+expect-no-dialog
+expect-status arrow selection step size
+chord S Up
+expect-status arrow selection added
+picture 803
+chord S Right
+expect-status arrow selection added
+picture 804

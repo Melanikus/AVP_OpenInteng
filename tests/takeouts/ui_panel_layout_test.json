@@ -1,0 +1,179 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a window side below 0 is taken",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "return size < 0 ? 0 : (size > kPanelMostSide ? kPanelMostSide : size);",
+					"to": "return size > kPanelMostSide ? kPanelMostSide : size;"
+				}
+			]
+		},
+		{
+			"name": "a window side past the largest is taken",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "return size < 0 ? 0 : (size > kPanelMostSide ? kPanelMostSide : size);",
+					"to": "return size < 0 ? 0 : size;"
+				}
+			]
+		},
+		{
+			"name": "a toolbar height below 0 is taken",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "int64_t const askedToolbar = Side(sizes.toolbarHeight);",
+					"to": "int64_t const askedToolbar = sizes.toolbarHeight;"
+				}
+			]
+		},
+		{
+			"name": "a list width below 0 is taken",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "int64_t const askedList = Side(sizes.listWidth);",
+					"to": "int64_t const askedList = sizes.listWidth;"
+				}
+			]
+		},
+		{
+			"name": "a list's least above what it asks for is taken",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "int64_t const leastList = Least(Side(sizes.leastListWidth), askedList);",
+					"to": "int64_t const leastList = Side(sizes.leastListWidth);"
+				}
+			]
+		},
+		{
+			"name": "a field panel's least above what it asks for is taken",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "int64_t const leastFields = Least(Side(sizes.leastFieldsWidth), askedFields);",
+					"to": "int64_t const leastFields = Side(sizes.leastFieldsWidth);"
+				}
+			]
+		},
+		{
+			"name": "the toolbar can be taller than the window",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "int64_t const toolbar = Least(askedToolbar, height);",
+					"to": "int64_t const toolbar = askedToolbar;"
+				}
+			]
+		},
+		{
+			"name": "the status line takes height the toolbar took",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "int64_t const status = Least(askedStatus, height - toolbar);",
+					"to": "int64_t const status = Least(askedStatus, height);"
+				}
+			]
+		},
+		{
+			"name": "the panels never give way",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "if (list + fields > width)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "the list does not give way to its least first",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "int64_t const listGives = Least(over, list - leastList);",
+					"to": "int64_t const listGives = 0;"
+				}
+			]
+		},
+		{
+			"name": "the field panel does not give way to its least before the list goes",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "int64_t const fieldsGive = Least(over, fields - leastFields);",
+					"to": "int64_t const fieldsGive = 0;"
+				}
+			]
+		},
+		{
+			"name": "the list keeps its least while the field panel goes",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "int64_t const listGoes = Least(over, list);",
+					"to": "int64_t const listGoes = 0;"
+				}
+			]
+		},
+		{
+			"name": "the field panel never gives way below its least",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "fields -= Least(over, fields);",
+					"to": "fields -= 0;"
+				}
+			]
+		},
+		{
+			"name": "the list sits over the toolbar",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "layout.list = MakeBox(0, toolbar, list, middle);",
+					"to": "layout.list = MakeBox(0, 0, list, middle);"
+				}
+			]
+		},
+		{
+			"name": "the field panel sits over the view",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "layout.fields = MakeBox(list + view, toolbar, fields, middle);",
+					"to": "layout.fields = MakeBox(list, toolbar, fields, middle);"
+				}
+			]
+		},
+		{
+			"name": "the status line sits over the middle row",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "layout.status = MakeBox(0, toolbar + middle, width, status);",
+					"to": "layout.status = MakeBox(0, toolbar, width, status);"
+				}
+			]
+		},
+		{
+			"name": "a window with no view left is roomy",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "fields == askedFields && view > 0 && middle > 0;",
+					"to": "fields == askedFields;"
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,35 @@
+# TEXTURE MAP ANIM MENU, second run (hidden run, Invasion): Create (0x9e) on one clicked polygon, then another polygon is selected and Copy (0xb3, "Get Anim from which polygon") is clicked on the first: the second takes the first's animation in a group of its own;
+# Save a copy and anim_verify checks two new records in two groups. Then Play All (0xa3) runs, a picture is taken, and Esc stops it. Pictures 510 (copied), 511 (playing), 512 (stopped).
+# Run: LANE=T4 LEVEL=Invasion AvP-docs\tools\dietrich\drive-scenario-hier.sh <tree> <this file> <name>
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+# the click-view below lands on one polygon from the camera the editor used to start at (Invasion's start place); inteng starts at the origin now (startup-trace.md), so the scenario puts the camera there
+camera -7764 2852 10527 0
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+item 0x9e
+wait 600
+expect-status Created 1 polygon
+key L
+expect-status deselected
+click-view 0.30 0.55
+expect-status 1 selected
+item 0xb3
+expect-status Get Anim from which polygon
+click-view 0.50 0.60
+wait 800
+expect-status was copied to 1 polygon
+picture 510
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/anim_verify/anim_verify.exe {orig} {copy} 2 1 1 - groups 2
+item 0xa3
+expect-status playing
+wait 700
+picture 511
+key Esc
+expect-status play stopped
+picture 512

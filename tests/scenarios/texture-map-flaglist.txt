@@ -1,0 +1,25 @@
+# TEXTURE MAP TOGGLE FLAG LIST (hidden run, Invasion): Misc > Toggle Flag List (0xb4) on, the pointer moves over a polygon (a click there), and the polygon is described at the top of the view (picture 910); off again (picture 911).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+item 0xb4
+expect-status the flag list is on
+click-view 0.50 0.60
+wait 500
+picture 910
+item 0xb4
+expect-status the flag list is off
+picture 911
+# Fake Merge Data (0x143) on and off
+item 0x143
+expect-status Fake merge data turned on
+item 0xf
+expect-status selecting as quads
+click-view 0.50 0.60
+wait 300
+item 0x143
+expect-status Fake merge data turned off
+picture 912

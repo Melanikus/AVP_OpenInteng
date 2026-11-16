@@ -1,0 +1,64 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a release picks without a press on a title before it",
+			"changes": [
+				{ "file": "src/ui/menu_bar.cpp", "from": "\t\tif (!menus || !fromTitle || open < 0)\n", "to": "\t\tif (!menus || open < 0)\n" }
+			]
+		},
+		{
+			"name": "a release doesn't end the gesture, so a second one picks too",
+			"changes": [
+				{ "file": "src/ui/menu_bar.cpp", "from": "\t\tbool const fromTitle = openedByPress;\n\n\t\topenedByPress = false;\n", "to": "\t\tbool const fromTitle = openedByPress;\n\n" }
+			]
+		},
+		{
+			"name": "a key between the press and the release doesn't end the gesture",
+			"changes": [
+				{ "file": "src/ui/menu_bar.cpp", "from": "\t\topenedByPress = false;   // a key ends a press's gesture: the release after it picks nothing\n", "to": "" }
+			]
+		},
+		{
+			"name": "a press on a title doesn't start the gesture (the bug Melanikus hit)",
+			"changes": [
+				{ "file": "src/ui/menu_bar.cpp", "from": "\t\t\t\tOpenMenuAt((int)m);\n\t\t\t\topenedByPress = true;\n", "to": "\t\t\t\tOpenMenuAt((int)m);\n" }
+			]
+		},
+		{
+			"name": "a release outside the drop-down closes the menu",
+			"changes": [
+				{ "file": "src/ui/menu_bar.cpp", "from": "\t\tif (!BoxHolds(drop, x, y))\n\t\t{\n\t\t\treturn MenuAnswer::Nothing;\n\t\t}\n\n\t\t// Which item the release is on", "to": "\t\tif (!BoxHolds(drop, x, y))\n\t\t{\n\t\t\treturn Close();\n\t\t}\n\n\t\t// Which item the release is on" }
+			]
+		},
+		{
+			"name": "a release on an item that's off picks it",
+			"changes": [
+				{ "file": "src/ui/menu_bar.cpp", "from": "\t\tif (!enabled[open][item])\n\t\t{\n\t\t\trefused = menus[open].items[item].action;\n\t\t\treturn MenuAnswer::Refused;\n\t\t}\n\n\t\tpicked = menus[open].items[item].action;\n\t\tClose();\n\t\treturn MenuAnswer::Picked;\n\t}\n\n\tMenuAnswer MenuBar::Close()", "to": "\t\tpicked = menus[open].items[item].action;\n\t\tClose();\n\t\treturn MenuAnswer::Picked;\n\t}\n\n\tMenuAnswer MenuBar::Close()" }
+			]
+		},
+		{
+			"name": "a release that picks leaves the menu open",
+			"changes": [
+				{ "file": "src/ui/menu_bar.cpp", "from": "\t\tpicked = menus[open].items[item].action;\n\t\tClose();\n\t\treturn MenuAnswer::Picked;\n\t}\n\n\tMenuAnswer MenuBar::Close()", "to": "\t\tpicked = menus[open].items[item].action;\n\t\treturn MenuAnswer::Picked;\n\t}\n\n\tMenuAnswer MenuBar::Close()" }
+			]
+		},
+		{
+			"name": "the release counts its rows from the wrong place, one row down",
+			"changes": [
+				{ "file": "src/ui/menu_bar.cpp", "from": "\t\t// Which item the release is on, as for a press: whole rows of itemHeight from the drop-down's top, from the first shown\n\t\tsize_t const item = first + (size_t)(((int64_t)y - drop.y) / itemHeight);\n", "to": "\t\t// Which item the release is on, as for a press: whole rows of itemHeight from the drop-down's top, from the first shown\n\t\tsize_t const item = first + 1 + (size_t)(((int64_t)y - drop.y) / itemHeight);\n" }
+			]
+		},
+		{
+			"name": "[refused] a release on an item that's off doesn't say which",
+			"changes": [
+				{ "file": "src/ui/menu_bar.cpp", "from": "\t\t\trefused = menus[open].items[item].action;\n\t\t\treturn MenuAnswer::Refused;\n\t\t}\n\n\t\tpicked = menus[open].items[item].action;\n\t\tClose();\n\t\treturn MenuAnswer::Picked;\n\t}\n\n\tMenuAnswer MenuBar::Close()", "to": "\t\t\treturn MenuAnswer::Refused;\n\t\t}\n\n\t\tpicked = menus[open].items[item].action;\n\t\tClose();\n\t\treturn MenuAnswer::Picked;\n\t}\n\n\tMenuAnswer MenuBar::Close()" }
+			]
+		}
+	]
+}

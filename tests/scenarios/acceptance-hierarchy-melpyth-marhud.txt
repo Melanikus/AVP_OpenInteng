@@ -1,0 +1,83 @@
+# ACCEPTANCE: Hierarchy, Melanikus's own way, on his own file (Bishop, 2026-11-16). This file says what FINISHED is for this path.
+# His words: "HIERARCHY TO SEE HUD AND WEAPONS ANIMS", "DO I SEE THE PIXELS OF A POP UP", "CLICKING THAT SHIT ACTUALLY DOES SOMETHING".
+# The behaviour is inteng's, traced: AvP-docs/engine/inteng/reassess/hierarchy-trace.md (Select Hierarchy FUN_0048b8a0, open FUN_0048b550,
+# Select Sequence FUN_0048bc10, list dialog FUN_00475bf0). The examples are read from the file itself: reassess/hierarchy-examples.md
+# (MelPyth_MarHUD.RIF: 107 objects, 8 hierarchies M79 ... GSS50; M79's 7 sequences in play order).
+# The file is a read-only copy of his original (AvP-maps/MelPyth-M5/MelPyth/avp_huds/MelPyth_MarHUD.RIF), hostile input like any rif.
+# Nothing here is typed: every choice is a click on what is drawn. Every check looks at the screen or at what the file holds.
+# EXPECTED TODAY (cut 10): RED from B1 on. Finished = every line ok.
+
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+picture 1
+# B1: his file opens with inteng's start: camera slot 10 at 0,0,0 looking +z, Lighting off (Frost's trace: FUN_00447550 ->
+# FUN_00470550(10)); his guns lie around the origin, mostly beside and behind that camera, so only a little is in view at first
+expect-not-empty 0.01
+# B1: as a user did, he moves back with Z (inteng's "Move backwards"): inteng moves about 1 m a second (FUN_0053d7f0: speed 6, DAT_005f071c, x the frame time clamped at 0.1 s, Frost), so 1.5 s reaches his guns
+hold Z 1500
+picture 4
+expect-not-empty 0.05
+# Mode > Hierarchy
+item 0xcf
+expect-screen Hierarchy
+picture 2
+# B2: Select Hierarchy opens inteng's "Select Hierarchy" LIST DIALOG, centred (8 hierarchies in this file), no typed question
+# Select Hierarchy is the first entry of the RIGHT-CLICK pop-up (FUN_004b7c50 right press -> FUN_004b8350; table registered by FUN_00485580 at 0x488723): right click in the view, then click the entry
+click-win 500 300 right
+expect-popup-rows Select Hierarchy|Select Sequence|Add delta|Remove delta|Flag delta|Add keyframe flag|Remove keyframe flag
+click-popup 1
+# inteng CENTRES every dialog (FUN_0057c800, 0x57c80e: (screen - size) / 2; Dietrich): the 500 x 400 list dialog sits in the middle
+expect-pixels-changed panels 254 164 500 400
+expect-prompt 0
+expect-dialog Select Hierarchy
+# inteng SORTS the rows (FUN_00475bf0 at 0x47640e, byte order FUN_0053ed50: Dietrich, checked)
+expect-dialog-rows AutoShotgun|GSS50|M79|RailGun|ScopeRifle|Shotgun|Sniper|Taurus
+# B3: a CLICK on the second row opens his Shotgun, and inteng goes straight on to its "Select Sequence" list (FUN_0048b550's last call).
+# (Shotgun, not M79: every MarHUD gun has a "Camera Root" section at 0 0 0, and M79's sequences start behind it, z -581..0, so through
+# C it shows black at their start, in inteng too; the Shotgun sits in front, x 300..430, y 400..660, z 400..1990: Frost's read.)
+click-row 6
+expect-dialog Select Sequence
+expect-dialog-rows MarineHUD_Left_out|MarineHUD_Right_out|MarineHUD_Standard_Fire|MarineHUD_Standard_Reload|MarineHUD_Stationary|MarineHUD_come|MarineHUD_figit|MarineHUD_go|MarineHUD_tertiary_fire
+# B3: a click on the reload row: the dialog goes and the sequence is chosen FROZEN at its start (FUN_004784e0 -> FUN_0047d6f0 writes
+# running [+0x28] = 0 at 0x47d816, loop [+0x2c] = 1; FUN_0047dbc0 advances only a running player): two pictures half a second apart are
+# the SAME. Then P (case 5 of FUN_004889d0 -> FUN_0047b8b0, running = 1) makes the gun PLAY: two pictures half a second apart DIFFER.
+# Then O (case 6 -> FUN_0047b940, running = 0) stops it again. (Traced by Vasquez, checked by Bishop in listing-all-2.txt 0x47d7eb..0x47d819.)
+click-row 4
+expect-no-dialog
+# the hierarchy is drawn at the world origin (Vasquez's hierarchy-view-trace.md), and a HUD gun is modelled for the HUD camera: inteng's
+# C, "Toggle use of camera root (for hud weapons)" (FUN_004889d0 at 0x48a05d: DAT_006370f0 puts the camera root's matrix in the camera)
+# shows it as the player sees it. Melanikus: "HIERARCHY TO SEE HUD AND WEAPONS ANIMS". (Red until Frost builds the camera root.)
+# the bar is hidden unless the pointer is at the top edge (FUN_004b7c50): the pointer goes to the middle of the view first and the bar has a moment to go, so picture 10 and 11 are the same pixels (the earlier run kept the bar drawn in one of them once in a while)
+move-win 500 300
+wait 300
+key C
+picture 10
+wait 500
+picture 11
+# the HUD hands and gun fill 4-9% of the view at rest; the reload dips them out of the view (Frost: at timer 40918 only a tip is left), so the share is asked of this resting pose, not of a moment of the loop
+expect-not-empty 0.03
+expect-pixels-same picture 0 0 2000 2000 0.01
+key P
+# Standard_Reload rests at both ends of its 1.3 s loop (timer 0 and 16000 of 65536 look the same, Frost): look at 0.6 s and 0.9 s, mid-reload
+wait 600
+picture 12
+wait 300
+picture 13
+# inteng draws the player's "Timer :%d" over the view every frame (FUN_004889d0 0x48a688): while it runs, the numbers on the screen change (the text block at the top left)
+# (over a series: two single pictures can catch the Timer with the same look of its digits; Frost)
+expect-moving panels 0 48 300 200 8 100 0.0005
+# the gun itself moves: Standard_Reload rests near both ends of its loop (Frost), so 12 pictures 100 ms apart, some pair in a row must differ
+expect-moving picture 0 0 2000 2000 12 200 0.01
+# the HUD hands and gun fill 4-9% of the view depending on the pose (measured over runs): at least 3%
+key O
+picture 14
+wait 500
+picture 15
+expect-pixels-same picture 0 0 2000 2000 0.01
+# B4: Select Sequence again offers M79's sequences again (the hierarchy stays open)
+# Select Sequence is the second entry of the same pop-up
+click-win 500 300 right
+click-popup 2
+expect-dialog Select Sequence

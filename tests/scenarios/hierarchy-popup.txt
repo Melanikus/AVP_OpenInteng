@@ -1,0 +1,29 @@
+# HIERARCHY's RIGHT-CLICK POP-UP (Vasquez; inteng's menu object keeps a second table per page and shows it on the right button: FUN_004b7c50 -> FUN_004b8350; FUN_00485580 0x488723 registers it):
+# right-click in the view, the pop-up lists Select Hierarchy, Select Sequence, Add delta, Remove delta, Flag delta, Add keyframe flag, Remove keyframe flag; Select Sequence is clicked (the opened file is hnpcalien: one
+# hierarchy), the sequence is picked by clicking its name in the list dialog, P plays it, and a cascade entry (Add keyframe flag) opens its items as the next pop-up, where the first item is clicked.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-try-run/data/avp_rifs/hnpcalien.rif
+pictures on
+state
+item 0xcf
+expect-screen Hierarchy
+click-win 500 300 right
+expect-popup-rows Select Hierarchy|Select Sequence|Add delta|Remove delta|Flag delta|Add keyframe flag|Remove keyframe flag
+picture 1
+click-popup 2
+expect-dialog Select Sequence
+click-choice AlienStand_boom_fall_back
+expect-no-dialog
+expect-status Sequence 1 selected
+key P
+wait 1200
+picture 2
+expect-pixels-changed panels 0 48 300 200 0.0005
+key O
+# the cascade: Add keyframe flag > is the sixth entry; clicking it opens its items as the next pop-up, the first of which is clicked (flag 0)
+click-win 500 300 right
+click-popup 6
+picture 3
+click-popup 1
+expect-status Add keyframe flag
+picture 4

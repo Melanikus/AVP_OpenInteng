@@ -1,0 +1,19 @@
+# ACCEPTANCE: the keys are inteng's (Bishop 11-16). The F-keys are camera places (F8 restores slot 7, every slot starts at the origin, so this holds whatever camera file an earlier run left; Shift+F10 saves slot 9) and F10 does NOT open
+# the menu bar; Ctrl+E does nothing (no save, no message); Ctrl+O does nothing.
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+camera 1500 -800 2500 700
+key F8
+expect-status Camera position restored (F8)
+expect-field camera 0 0 0 0 0
+camera 1500 -800 2500 700
+key F10 shift
+expect-status Camera position saved (F10)
+expect-bar1 File|Mode|Object|Shape|Miscellaneous|Options
+# Ctrl+E (it used to save a copy) says nothing, and no copy is made; Ctrl+O opens nothing
+key E ctrl
+expect-status-not Saved
+key O ctrl
+expect-no-dialog
+expect-bar1 File|Mode|Object|Shape|Miscellaneous|Options

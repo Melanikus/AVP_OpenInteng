@@ -1,0 +1,8 @@
+# ACCEPTANCE, part 2 of 2 (the same run name as part 1): the editor starts again and the speed is what part 1 left, 15, not 6.
+#ini-keep
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-field camspeed 15
+type [
+expect-field camspeed 12

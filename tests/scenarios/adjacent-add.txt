@@ -1,0 +1,28 @@
+# ADJACENT MODULES, Add, in the running editor (hidden run, Invasion): module 54 (adjacent modules 80 81 82 55) is made the current one, module 80 is taken off its list (Link > Delete) and put on again
+# (Link > Add: it goes on the END of the list and its entry point is worked out again by the write-back), module 82 is made the current one by Set Current (the write-back of module 54),
+# Mode > Exit, Save a copy, and the copy is read back with the game's loader (verify_adjacent reorder: the list is 81 82 55 80, every entry as the stock level had it).
+# Pictures: 411 after the Delete, 412 after the Add.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/adjacent-add.txt
+screen Adjacent Modules
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Adjacent Modules
+pick-module 54
+item 0x64
+expect-status Current module
+pick-module 80
+item 0x34
+expect-status Delete
+picture 411
+pick-module 80
+item 0x32
+expect-status Add
+picture 412
+pick-module 82
+item 0x64
+expect-status adjacent
+item 0xa
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_adjacent/verify_adjacent.exe {orig} {copy} reorder 54 80

@@ -1,0 +1,19 @@
+# ACCEPTANCE: Replace shape (0x1d) through the Shape Chooser screen (Vasquez, 2026-11-16; MASTER-MAP item 2; FUN_004d9af0 0x4dc30e opens FUN_004dd910 for the selected placed object; Return leaves WITH the shape,
+# FUN_004e2e10 gives it to the object). An object is selected by a click, Replace shape opens the screen, . shows the next shape, Return leaves, the saved copy is read by verify_chooser: the same objects, exactly one has
+# another shape and it is the one shown.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+select-row 0
+expect-selected 1
+item 0x1d
+expect-screen Shape Chooser
+# the screen opens on the shape last looked at (the list iterator is kept): S picks Smrtam01 from the list by a click
+key S
+click-choice Smrtam01
+expect-no-dialog
+key Enter
+expect-screen Object Placement
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-harness-out/verify_chooser/verify_chooser.exe {orig} {copy} replace Smrtam01

@@ -1,0 +1,16 @@
+# DELETE 0-NORMAL POLYS (0xc9) then SAVE (hidden run, Invasion): every polygon with a normal of 0 (or a degenerate first triangle) is flagged after the y/n question and taken out by the save; the copy is whole (the loader takes it) and every shape that changed has
+# fewer polygons and one normal for each. Any number of shapes may differ (a level may have none).
+# Run: LANE=T4 LEVEL=Invasion VERIFY=poly AvP-docs\tools\hicks\drive-scenario-poly.sh <tree> <this file> <name>
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+item 0xc9
+expect-dialog-kind confirm
+click-button Yes
+expect-status polys flagged for deletion
+picture 940
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_poly/verify_poly.exe {orig} {copy} any

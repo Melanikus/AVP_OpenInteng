@@ -1,0 +1,46 @@
+# HIERARCHY TURRET preview (hidden run, Hangar): the sentry gun has no section named "dum turret" (no stock model has), so the run names its "pivot" section the turret (AVP_HV_TURRET=pivot, a proof-only choice).
+# Add a turret sequence (G, ours for Shift+T), turn the turret with L and K, restart with R. Run: AvP-docs\tools\dietrich\drive-scenario-hier.sh <tree> <this file> <name> with AVP_HV_TURRET=pivot
+screen Hierarchy
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-try-run/data/avp_rifs/sentry.rif
+start-args -viewmode headlight
+pictures on
+state
+# the opened file is the sentry model: Select Hierarchy lists the file's hierarchies, a row is clicked; Select Sequence follows; both are list dialogs with sorted rows
+item 0x03
+expect-dialog Select
+click-row 1
+state
+item 0x04
+expect-dialog Select Sequence
+click-row 1
+expect-no-dialog
+expect-prompt 0
+wait 300
+picture 300
+key T shift
+expect-dialog Select
+click-row 2
+expect-no-dialog
+expect-prompt 0
+# the turret player has its own block of text (FUN_004889d0 0x48a788: name, Timer, Seq. Time, Turret Angle): a second Timer line and the angle
+expect-hierarchy-text Turret Angle :
+expect-hierarchy-count 2 Timer :
+wait 300
+picture 301
+key L
+key L
+key L
+wait 300
+picture 302
+key K
+key K
+key K
+key K
+key K
+key K
+wait 300
+picture 303
+key R
+wait 300
+picture 304
+state

@@ -1,0 +1,500 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "no list where fields are counted is copied from",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "(count > 0 && (!list || !values))",
+					"to": "(count > 0 && (!values))"
+				}
+			]
+		},
+		{
+			"name": "more than the most fields are shown",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": " || count > kFieldPanelHostMostFields)",
+					"to": ")"
+				}
+			]
+		},
+		{
+			"name": "the most fields are refused",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "count > kFieldPanelHostMostFields",
+					"to": "count >= kFieldPanelHostMostFields"
+				}
+			]
+		},
+		{
+			"name": "a field the adapter said could change can be changed",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\t\tfield.readOnly = true;\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "the panel is given the adapter's own list, not the host's copy",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "panel.Load(descriptors.empty() ? 0 : descriptors.data(), descriptors.size(), values, problem)",
+					"to": "panel.Load(list, count, values, problem)"
+				}
+			]
+		},
+		{
+			"name": "a refused record leaves the record before it shown",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\tClear();\n\n\t\tif ((count > 0",
+					"to": "\t\tif ((count > 0"
+				}
+			]
+		},
+		{
+			"name": "the title is shown as the level wrote it",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "title = safe;",
+					"to": "title = newTitle ? newTitle : \"\";"
+				}
+			]
+		},
+		{
+			"name": "a record that is shown is not said to be shown",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\tshowing = true;\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "Clear leaves the title",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\ttitle.clear();\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "Clear leaves the record said to be shown",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\tshowing = false;\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "Clear leaves the panel holding the old list",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\tpanel.Load(0, 0, 0, 0);\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "the box is not kept",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\tbox = newBox;\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "the line height is not kept",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\tlineHeight = newLineHeight;\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a host showing nothing asks for a height",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "if (!showing || forLineHeight <= 0)",
+					"to": "if (forLineHeight <= 0)"
+				}
+			]
+		},
+		{
+			"name": "a line of no height asks for a height",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "if (!showing || forLineHeight <= 0)",
+					"to": "if (!showing)"
+				}
+			]
+		},
+		{
+			"name": "the title's line is not counted in the height",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "int64_t const lines = 1 + (int64_t)descriptors.size();",
+					"to": "int64_t const lines = (int64_t)descriptors.size();"
+				}
+			]
+		},
+		{
+			"name": "only one margin is counted in the height",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "lines * forLineHeight + 2 * kPaintMarginDown",
+					"to": "lines * forLineHeight + kPaintMarginDown"
+				}
+			]
+		},
+		{
+			"name": "a height past the end of the numbers wraps round",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "return height > INT32_MAX ? INT32_MAX : (int32_t)height;",
+					"to": "return (int32_t)height;"
+				}
+			]
+		},
+		{
+			"name": "the margins are not taken off the box's height",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "int64_t const inside = (int64_t)box.height - 2 * kPaintMarginDown;",
+					"to": "int64_t const inside = (int64_t)box.height;"
+				}
+			]
+		},
+		{
+			"name": "a line of no height is divided by",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "lineHeight > 0 && (int64_t)box.width > 2 * kPaintMarginAcross",
+					"to": "(int64_t)box.width > 2 * kPaintMarginAcross"
+				}
+			]
+		},
+		{
+			"name": "a box with nothing across but its margins has room",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "(int64_t)box.width > 2 * kPaintMarginAcross && ",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a box a pixel short of a line has room for it",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "inside >= lineHeight",
+					"to": "inside > lineHeight"
+				}
+			]
+		},
+		{
+			"name": "a box holds a line more than it does",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "(size_t)(inside / lineHeight)",
+					"to": "(size_t)(inside / lineHeight + 1)"
+				}
+			]
+		},
+		{
+			"name": "a flag that is set is shown as off",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "panel.BitChecked(place) ? \"on\" : \"off\"",
+					"to": "panel.BitChecked(place) ? \"off\" : \"on\""
+				}
+			]
+		},
+		{
+			"name": "a number's unit is left off",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\t\tparts.value += std::string(\" \") + field.unit;\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a value the panel flags is not marked",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "parts.mark = panel.Flag(place) != ui::FieldFlag::None ? \"! \" : \"\";",
+					"to": "parts.mark = \"\";"
+				}
+			]
+		},
+		{
+			"name": "a label has no colon after it",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "parts.value = \": \";",
+					"to": "parts.value = \" \";"
+				}
+			]
+		},
+		{
+			"name": "the count of lines is not started again",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\t*lineCount = 0;\n\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a box too short for a line is drawn in",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "if (!showing || !lines || fit == 0)",
+					"to": "if (!showing || !lines)"
+				}
+			]
+		},
+		{
+			"name": "the title takes no line of its own",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "the last line says how many more there are.\n\t\tsize_t const room = fit - 1;",
+					"to": "the last line says how many more there are.\n\t\tsize_t const room = fit;"
+				}
+			]
+		},
+		{
+			"name": "the line saying how many more takes no line of its own",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "how many more there are.\n\t\tsize_t const room = fit - 1;\n\t\tsize_t const shownFields = fields <= room ? fields : (room > 0 ? room - 1 : 0);",
+					"to": "how many more there are.\n\t\tsize_t const room = fit - 1;\n\t\tsize_t const shownFields = fields <= room ? fields : (room > 0 ? room : 0);"
+				}
+			]
+		},
+		{
+			"name": "a line saying how many more is drawn with no room for it",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "bool const moreLine = fields > shownFields && room > 0;",
+					"to": "bool const moreLine = fields > shownFields;"
+				}
+			]
+		},
+		{
+			"name": "the line saying how many more says how many fields there are",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "std::to_string(fields - shownFields)",
+					"to": "std::to_string(fields)"
+				}
+			]
+		},
+		{
+			"name": "the title's line is left out",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\t\t\ttext = title;\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "more lines than the room given are written",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "i < total && *lineCount < mostLines; i++)",
+					"to": "i < total; i++)"
+				}
+			]
+		},
+		{
+			"name": "the lines are a pixel further apart than a line is tall",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "(int64_t)i * lineHeight;",
+					"to": "(int64_t)i * (lineHeight + 1);"
+				}
+			]
+		},
+		{
+			"name": "a line's place wraps round past the end of the numbers",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\t\tif (top > INT32_MAX)\n\t\t\t{\n\t\t\t\tbreak;\n\t\t\t}\n\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a line's box has no margins",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "box.width, lineHeight + 2 * kPaintMarginDown };",
+					"to": "box.width, lineHeight };"
+				}
+			]
+		},
+		{
+			"name": "the lines start at the window's left, not the box's",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "ui::Box const lineBox = { box.x,",
+					"to": "ui::Box const lineBox = { 0,"
+				}
+			]
+		},
+		{
+			"name": "events reach the panel with nothing shown",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "return showing ? panel.Handle(event) : ui::PanelAnswer::Nothing;",
+					"to": "return panel.Handle(event);"
+				}
+			]
+		},
+		{
+			"name": "a click is placed in a box with no room",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "if (!showing || fit == 0 || !ui::BoxHolds(box, x, y))",
+					"to": "if (!showing || !ui::BoxHolds(box, x, y))"
+				}
+			]
+		},
+		{
+			"name": "a place outside the box is on a field",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": " || !ui::BoxHolds(box, x, y))",
+					"to": ")"
+				}
+			]
+		},
+		{
+			"name": "the margin above the first line is not taken off a click's place",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "(int64_t)y - box.y - kPaintMarginDown;",
+					"to": "(int64_t)y - box.y;"
+				}
+			]
+		},
+		{
+			"name": "a click's field is the one after its line's",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "(int32_t)(row - 1) : -1;",
+					"to": "(int32_t)row : -1;"
+				}
+			]
+		},
+		{
+			"name": "the line past the last field is a field",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "(size_t)(row - 1) < shownFields",
+					"to": "(size_t)(row - 1) <= shownFields"
+				}
+			]
+		},
+		{
+			"name": "the line saying how many more is a field",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "(room > 0 ? room - 1 : 0);\n\t\t// The title's line starts below the top margin",
+					"to": "(room > 0 ? room : 0);\n\t\t// The title's line starts below the top margin"
+				}
+			]
+		},
+		{
+			"name": "[value] a line's letters are not counted, so a long one loses its value's end unseen",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": " && parts.mark.size() + parts.label.size() + parts.value.size() <= kPaintMostLetters)",
+					"to": ")"
+				}
+			]
+		},
+		{
+			"name": "[value] the value's letters are not counted when its label is cut",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": " && parts.mark.size() + parts.value.size() <= kPaintMostLetters)",
+					"to": ")"
+				}
+			]
+		},
+		{
+			"name": "[value] a text of too many letters is not cut with \"..\"",
+			"changes": [
+				{
+					"file": "src/host/field_panel_host.cpp",
+					"from": "\t\tif (length > mostLetters)\n\t\t{\n\t\t\tletters[mostLetters - 2] = '.';\n\t\t\tletters[mostLetters - 1] = '.';\n\t\t\tletters[mostLetters] = '\\0';\n\t\t}\n\n",
+					"to": ""
+				}
+			]
+		}
+	]
+}

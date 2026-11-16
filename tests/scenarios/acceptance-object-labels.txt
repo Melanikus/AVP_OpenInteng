@@ -1,0 +1,20 @@
+# ACCEPTANCE: the object NAME labels of Object Placement are hidden by the level as the icons are (Melanikus 2026-11-16: "The texts are being draw on top of all geometry and I can see the entire map's text, make it have a Z").
+# A label is drawn only when its object's icon is SEEN (an occlusion query on the icon's triangles, avpx R_EditorTriangleGroupPixels). Invasion from the start view, by clicks: Construction > Mode > Object Placement.
+# The picture with the text on and the picture after T (Turn text on and off) differ where a label is drawn and nowhere else.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 800
+picture 1
+key T
+wait 500
+# the sound in view (the red S at the left, its label "sound sound11"): the label is there
+expect-pixels-changed picture 170 330 110 26 0.02
+# the ceiling and the far wall are full of objects behind the level (their names were drawn through the walls): no label there now. T is inteng's switch of ALL the screen's text (OP-83, DAT_005fd69c), so
+# the text lines at the top left (View Distance, Num Objects, Visible polygons: x 16, y 32 to 80, OP-100) go too: that corner is left out of the check
+expect-pixels-same picture 300 0 708 250 0.002
+expect-pixels-same picture 0 100 300 150 0.002
+expect-pixels-same picture 300 450 600 270 0.002

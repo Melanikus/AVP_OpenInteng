@@ -1,0 +1,18 @@
+# DELETE POLYS (0xc3) then SAVE (hidden run, Invasion): polygon 131 of Bigtube06 (object row 166) is picked by number, Delete polys flags it after the y/n question, the copy saved takes it out of its shape (host::PolyEdit_Remove): exactly one
+# shape has one polygon less, every polygon left is in the original, the other shapes are the original's. (Hicks)
+# Run: LANE=T4 LEVEL=Invasion VERIFY=poly AvP-docs\tools\hicks\drive-scenario-poly.sh <tree> <this file> <name>
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 166 131
+expect-status 1 selected
+item 0xc3
+expect-dialog-kind confirm
+click-button Yes
+expect-status 1 polygons flagged for deletion
+picture 920
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_poly/verify_poly.exe {orig} {copy} -1

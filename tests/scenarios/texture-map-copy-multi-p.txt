@@ -1,0 +1,44 @@
+# COPY TEXTURING > FROM MULTIPLE / TO MULTIPLE, T (hidden run, Invasion): RndSwitch1 (object row 148) and RndSwitch2 (row 147) have the same 48 polygons with the same corner points (tests\scenarios\shape_pairs). The coordinates of polygons 0 and 5 (two quads that share an edge) of RndSwitch2 are first
+# shifted by 7 3, so they differ from RndSwitch1's (checked by uv_verify); then polygons 0 and 5 of RndSwitch1 are From Multiple (references 0 and 5), polygons 0 and 5 of RndSwitch2 are To Multiple (references 0 and 5), T is pressed, and a saved copy shows polygons 0 and 5 of RndSwitch2 with exactly
+# RndSwitch1's coordinates and picture again. The polygons are picked by number (pick-poly), so the proof does not depend on what is on the screen.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 147 0
+pick-poly 147 5
+expect-status 2 selected
+item 0x133
+expect-dialog-kind text
+type 7
+key Tab
+type 3
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/uv_verify/uv_verify.exe {copy} 148 147 differ 0 5
+key L
+pick-poly 148 0
+pick-poly 148 5
+item 0x13f
+expect-status Select reference poly 1
+pick-poly 148 0
+expect-status Select reference poly 2
+pick-poly 148 5
+expect-status are kept
+key L
+pick-poly 147 0
+pick-poly 147 5
+item 0x140
+expect-status Select reference poly 1
+pick-poly 147 0
+pick-poly 147 5
+expect-status Copying multiple polygons
+key P
+wait 600
+expect-status copied by relative position
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/uv_verify/uv_verify.exe {copy} 148 147 same 0 5

@@ -1,0 +1,9 @@
+# ACCEPTANCE: the hub shows only what inteng's hub shows (ruling 10b; startup-trace.md; FUN_004452b0 draws the view, the bar and its dialogs, nothing else): the bar has inteng's six menus and none of ours (no "View (ours)",
+# no "Screens (ours)"), no draw-mode button row, no Open / Save copy buttons, no status words. The harness keeps the status words for its state line, so the status check below is about the state, not the picture.
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-bar1 File|Mode|Object|Shape|Miscellaneous|Options
+# the picture (look at it: the unlit level with nothing but the view on it; the objects are around the origin where the camera starts)
+picture 700

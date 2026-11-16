@@ -1,0 +1,12 @@
+# SHAPE MORPH (state 6, table 0x5e3cd0), in the running editor (hidden run, Invasion): the screen's only item is Mode > Exit (inteng's handler FUN_004ca190 reads command 10 only and writes nothing to the level), so
+# Exit goes back to Construction and a copy saved afterwards is the level as it was (verify_adjacent says nothing changed: it is run with "same").
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/shape-morph.txt
+screen Shape Morph
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Shape Morph
+picture 901
+item 0xa
+expect-screen Construction
+picture 902

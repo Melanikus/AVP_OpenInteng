@@ -1,0 +1,21 @@
+# LIGHT SOURCING, Edge > Soft, in the running editor (hidden run, Invasion): the Light Sourcing screen, Select > Object and a click picks an object, Edge > Soft asks the maximum angle for soft edges, 0 is typed and
+# Enter pressed, the shape's vertex normals are made again and the view is lit again, Save a copy, and the copy is read back with the game's loader (verify_soft: the shape that changed is exactly what Soft makes of
+# the original's, nothing else moved). Pictures 301 before and 302 after.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/light-soft.txt
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+item 0x48
+click-view 0.5 0.5
+expect-status Picked
+picture 301
+item 0x50
+expect-prompt 41
+type 0
+key Enter
+expect-status Soft edges at 0 degrees
+picture 302
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_soft/verify_soft.exe {orig} {copy} 0

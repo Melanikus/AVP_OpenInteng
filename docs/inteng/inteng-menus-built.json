@@ -1,0 +1,4206 @@
+{
+	"what": "inteng.exe code-built menus, facts only: for each of the six screens that build their menus in code (Strategy Data, Path, Waypoint, Texture Map, Hierarchy, Track Editing) the pages the program registers, each page a run of menu records (kind, words exactly as stored, command number). Made by Apone 2026-11-15 from Vasquez menu-pair documents and the page registrations read from the full listing (re-tools/projects/vasquez-inteng/out/listing-all-*.txt); tools in AvP-docs/tools/apone (build-menu-pages.js, menu-pages-config.json). row 1 and row 2 are shown together; a page with kinds is registered only for those game-kind values (kinds other = all the rest). Track Editing (added 2026-11-15 by Apone from Frost's track-menu-pairs.md, AvP-docs/tools/apone/track-pages-to-json.js): pages 2 to 11 of FUN_004d68e0, with the static table 0x5e6e98 as bar A of pages 2, 3 and 4.",
+	"gameKind": {
+		"value": 0,
+		"evidence": "DAT_00915104 has one write in the whole program, MOV [0x915104],0 at 0x57a918 in FUN_0057a850, and no data reference (Ghidra CodeMap r00915104, 15 references: 14 reads and that write)"
+	},
+	"screens": [
+		{
+			"screen": "Strategy Data",
+			"builder": "FUN_00522ab0",
+			"registrar": "0x524b40-0x524bc3",
+			"pages": [
+				{
+					"row": 1,
+					"page": 0,
+					"kinds": "all",
+					"base": "0x7c0",
+					"offsetCorrection": 4,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Module flags",
+							"command": "0x2"
+						},
+						{
+							"kind": 1,
+							"words": "&Stability flags",
+							"command": "0x37"
+						},
+						{
+							"kind": 1,
+							"words": "&Exit",
+							"command": "0x5"
+						},
+						{
+							"kind": 0,
+							"words": "&Find Object",
+							"command": "0x41"
+						},
+						{
+							"kind": 0,
+							"words": "Find &Errors",
+							"command": "0x44"
+						},
+						{
+							"kind": 0,
+							"words": "Mi&sc",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Reset fan wind speed",
+							"command": "0x43"
+						}
+					]
+				},
+				{
+					"row": 1,
+					"page": 1,
+					"kinds": "all",
+					"base": "0x1090",
+					"offsetCorrection": 4,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Exit",
+							"command": "0x5"
+						},
+						{
+							"kind": 0,
+							"words": "&Help",
+							"command": "0x36"
+						}
+					]
+				},
+				{
+					"row": 1,
+					"page": 2,
+					"kinds": "all",
+					"base": "0xc70",
+					"offsetCorrection": 4,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Object selection",
+							"command": "0x4"
+						},
+						{
+							"kind": 1,
+							"words": "&Exit",
+							"command": "0x5"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 0,
+					"kinds": "all",
+					"base": "0x970",
+					"offsetCorrection": 4,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Save",
+							"command": "0x9"
+						},
+						{
+							"kind": 0,
+							"words": "&Copy Strategy",
+							"command": "0x6"
+						},
+						{
+							"kind": 0,
+							"words": "&Edit Strategy",
+							"command": "0x7"
+						},
+						{
+							"kind": 0,
+							"words": "&Assign Strategy",
+							"command": "0x8"
+						},
+						{
+							"kind": 0,
+							"words": "&Delete Strategy",
+							"command": "0xc"
+						},
+						{
+							"kind": 0,
+							"words": "Create Virtual Object",
+							"command": "0x38"
+						},
+						{
+							"kind": 1,
+							"words": "Here",
+							"command": "0x39"
+						},
+						{
+							"kind": 1,
+							"words": "Above",
+							"command": "0x3a"
+						},
+						{
+							"kind": 1,
+							"words": "Below",
+							"command": "0x3b"
+						},
+						{
+							"kind": 1,
+							"words": "Left",
+							"command": "0x3c"
+						},
+						{
+							"kind": 1,
+							"words": "Right",
+							"command": "0x3d"
+						},
+						{
+							"kind": 1,
+							"words": "Front",
+							"command": "0x3e"
+						},
+						{
+							"kind": 1,
+							"words": "Behind",
+							"command": "0x3f"
+						},
+						{
+							"kind": 0,
+							"words": "Destroy Virtual Object",
+							"command": "0x40"
+						},
+						{
+							"kind": 0,
+							"words": "Delete Multiple Strategies",
+							"command": "0x42"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 1,
+					"kinds": [
+						1,
+						4
+					],
+					"base": "0x100",
+					"offsetCorrection": 4,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Add Flag",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Victory Zone",
+							"command": "0x1a"
+						},
+						{
+							"kind": 1,
+							"words": "Sneaky",
+							"command": "0x1d"
+						},
+						{
+							"kind": 1,
+							"words": "Sky Visible",
+							"command": "0x14"
+						},
+						{
+							"kind": 1,
+							"words": "Doorway",
+							"command": "0x20"
+						},
+						{
+							"kind": 1,
+							"words": "Not a Doorway",
+							"command": "0x23"
+						},
+						{
+							"kind": 1,
+							"words": "Exclude from map",
+							"command": "0x26"
+						},
+						{
+							"kind": 1,
+							"words": "Not Passable",
+							"command": "0x29"
+						},
+						{
+							"kind": 1,
+							"words": "Message",
+							"command": "0x2c"
+						},
+						{
+							"kind": 1,
+							"words": "Not a Room",
+							"command": "0x2f"
+						},
+						{
+							"kind": 1,
+							"words": "Draw Back Colour",
+							"command": "0x32"
+						},
+						{
+							"kind": 0,
+							"words": "Remove Flag",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Victory Zone",
+							"command": "0x1b"
+						},
+						{
+							"kind": 1,
+							"words": "Sneaky",
+							"command": "0x1e"
+						},
+						{
+							"kind": 1,
+							"words": "Sky Visible",
+							"command": "0x15"
+						},
+						{
+							"kind": 1,
+							"words": "Doorway",
+							"command": "0x21"
+						},
+						{
+							"kind": 1,
+							"words": "Not a Doorway",
+							"command": "0x24"
+						},
+						{
+							"kind": 1,
+							"words": "Exclude from map",
+							"command": "0x27"
+						},
+						{
+							"kind": 1,
+							"words": "Not Passable",
+							"command": "0x2a"
+						},
+						{
+							"kind": 1,
+							"words": "Message",
+							"command": "0x2d"
+						},
+						{
+							"kind": 1,
+							"words": "Not a Room",
+							"command": "0x30"
+						},
+						{
+							"kind": 1,
+							"words": "Draw Back Colour",
+							"command": "0x33"
+						},
+						{
+							"kind": 0,
+							"words": "View Flag",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Victory Zone",
+							"command": "0x1c"
+						},
+						{
+							"kind": 1,
+							"words": "Sneaky",
+							"command": "0x1f"
+						},
+						{
+							"kind": 1,
+							"words": "Sky Visible",
+							"command": "0x16"
+						},
+						{
+							"kind": 1,
+							"words": "Doorway",
+							"command": "0x22"
+						},
+						{
+							"kind": 1,
+							"words": "Not a Doorway",
+							"command": "0x25"
+						},
+						{
+							"kind": 1,
+							"words": "Exclude from map",
+							"command": "0x28"
+						},
+						{
+							"kind": 1,
+							"words": "Not Passable",
+							"command": "0x2b"
+						},
+						{
+							"kind": 1,
+							"words": "Message",
+							"command": "0x2e"
+						},
+						{
+							"kind": 1,
+							"words": "Not a Room",
+							"command": "0x31"
+						},
+						{
+							"kind": 1,
+							"words": "Draw Back Colour",
+							"command": "0x34"
+						},
+						{
+							"kind": 1,
+							"words": "Stop Flag View",
+							"command": "0x35"
+						},
+						{
+							"kind": 0,
+							"words": "&Save",
+							"command": "0x9"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 1,
+					"kinds": "other",
+					"base": "0xd30",
+					"offsetCorrection": 4,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Add Flag",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Airduct",
+							"command": "0xe"
+						},
+						{
+							"kind": 1,
+							"words": "Stair",
+							"command": "0x11"
+						},
+						{
+							"kind": 1,
+							"words": "Sky Visible",
+							"command": "0x14"
+						},
+						{
+							"kind": 1,
+							"words": "Fogged",
+							"command": "0x17"
+						},
+						{
+							"kind": 0,
+							"words": "Remove Flag",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Airduct",
+							"command": "0xf"
+						},
+						{
+							"kind": 1,
+							"words": "Stair",
+							"command": "0x12"
+						},
+						{
+							"kind": 1,
+							"words": "Sky Visible",
+							"command": "0x15"
+						},
+						{
+							"kind": 1,
+							"words": "Fogged",
+							"command": "0x18"
+						},
+						{
+							"kind": 0,
+							"words": "View Flag",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Airduct",
+							"command": "0x10"
+						},
+						{
+							"kind": 1,
+							"words": "Stair",
+							"command": "0x13"
+						},
+						{
+							"kind": 1,
+							"words": "Sky Visible",
+							"command": "0x16"
+						},
+						{
+							"kind": 1,
+							"words": "Fogged",
+							"command": "0x19"
+						},
+						{
+							"kind": 1,
+							"words": "Stop Flag View",
+							"command": "0x35"
+						},
+						{
+							"kind": 0,
+							"words": "&Save",
+							"command": "0x9"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 2,
+					"kinds": "all",
+					"base": "0x40",
+					"offsetCorrection": 4,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Edit Strategy",
+							"command": "0x7"
+						},
+						{
+							"kind": 0,
+							"words": "&Assign Strategy",
+							"command": "0x8"
+						},
+						{
+							"kind": 0,
+							"words": "&Delete Strategy",
+							"command": "0xc"
+						}
+					]
+				}
+			]
+		},
+		{
+			"screen": "Path",
+			"builder": "FUN_004f9780",
+			"registrar": "0x4f9b4e-0x4f9b6b",
+			"pages": [
+				{
+					"row": 1,
+					"page": 0,
+					"kinds": "all",
+					"base": "0x15c",
+					"offsetCorrection": 32,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Exit",
+							"command": "0x2"
+						},
+						{
+							"kind": 0,
+							"words": "&Keys",
+							"command": "0x8"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 0,
+					"kinds": "all",
+					"base": "0xc",
+					"offsetCorrection": 32,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Add Module",
+							"command": "0x3"
+						},
+						{
+							"kind": 0,
+							"words": "Select Path",
+							"command": "0x6"
+						},
+						{
+							"kind": 0,
+							"words": "Properties",
+							"command": "0x9"
+						},
+						{
+							"kind": 0,
+							"words": "Delete Module",
+							"command": "0x4"
+						},
+						{
+							"kind": 0,
+							"words": "Create Path",
+							"command": "0x5"
+						},
+						{
+							"kind": 0,
+							"words": "Delete Path",
+							"command": "0x7"
+						}
+					]
+				}
+			]
+		},
+		{
+			"screen": "Waypoint",
+			"builder": "FUN_00581650",
+			"registrar": "0x582c11-0x582caa",
+			"pages": [
+				{
+					"row": 1,
+					"page": 0,
+					"kinds": "all",
+					"base": "0x8cc",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "Show &Alien Waypoints",
+							"command": "0x3"
+						},
+						{
+							"kind": 1,
+							"words": "Show &Ground Waypoints",
+							"command": "0x4"
+						},
+						{
+							"kind": 1,
+							"words": "&Exit",
+							"command": "0x2"
+						},
+						{
+							"kind": 0,
+							"words": "&Entry points",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&Fly",
+							"command": "0x25"
+						},
+						{
+							"kind": 1,
+							"words": "&Delete",
+							"command": "0x24"
+						},
+						{
+							"kind": 1,
+							"words": "Recalculate all",
+							"command": "0x26"
+						},
+						{
+							"kind": 0,
+							"words": "&Help",
+							"command": "0x15"
+						}
+					]
+				},
+				{
+					"row": 1,
+					"page": 1,
+					"kinds": "all",
+					"base": "0xaac",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Exit",
+							"command": "0x2"
+						}
+					]
+				},
+				{
+					"row": 1,
+					"page": 3,
+					"kinds": "all",
+					"base": "0xaac",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Exit",
+							"command": "0x2"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 0,
+					"kinds": "all",
+					"base": "0x74c",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Edit Module",
+							"command": "0x19"
+						},
+						{
+							"kind": 0,
+							"words": "Add Module",
+							"command": "0x1a"
+						},
+						{
+							"kind": 0,
+							"words": "Remove Module",
+							"command": "0x1b"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 1,
+					"kinds": "all",
+					"base": "0x50c",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Set Base",
+							"command": "0x7"
+						},
+						{
+							"kind": 0,
+							"words": "Help",
+							"command": "0x15"
+						},
+						{
+							"kind": 0,
+							"words": "Edit Extents",
+							"command": "0x14"
+						},
+						{
+							"kind": 0,
+							"words": "Create Waypoint",
+							"command": "0x5"
+						},
+						{
+							"kind": 0,
+							"words": "Delete Waypoint",
+							"command": "0x6"
+						},
+						{
+							"kind": 0,
+							"words": "Flags",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Add Can Crawl",
+							"command": "0x16"
+						},
+						{
+							"kind": 1,
+							"words": "Remove Can Crawl",
+							"command": "0x17"
+						},
+						{
+							"kind": 0,
+							"words": "Hightlight link flag",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Alien",
+							"command": "0xe"
+						},
+						{
+							"kind": 1,
+							"words": "Deviation allowed",
+							"command": "0xf"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 2,
+					"kinds": "all",
+					"base": "0x80c",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Add Link",
+							"command": "0x8"
+						},
+						{
+							"kind": 0,
+							"words": "Delete Link",
+							"command": "0x10"
+						},
+						{
+							"kind": 0,
+							"words": "Finish Linking",
+							"command": "0x12"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 3,
+					"kinds": "all",
+					"base": "0x5c",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Set Base",
+							"command": "0x7"
+						},
+						{
+							"kind": 0,
+							"words": "Flags",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Add Can Crawl",
+							"command": "0x16"
+						},
+						{
+							"kind": 1,
+							"words": "Remove Can Crawl",
+							"command": "0x17"
+						},
+						{
+							"kind": 0,
+							"words": "Hightlight link flag",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Alien",
+							"command": "0xe"
+						},
+						{
+							"kind": 1,
+							"words": "Deviation allowed",
+							"command": "0xf"
+						},
+						{
+							"kind": 0,
+							"words": "Help",
+							"command": "0x15"
+						},
+						{
+							"kind": 0,
+							"words": "Add Link",
+							"command": "0x8"
+						},
+						{
+							"kind": 0,
+							"words": "Add Link - 1 way",
+							"command": "0x9"
+						},
+						{
+							"kind": 0,
+							"words": "Add Alien Link",
+							"command": "0xa"
+						},
+						{
+							"kind": 0,
+							"words": "Add Alien Link - 1 way",
+							"command": "0xb"
+						},
+						{
+							"kind": 0,
+							"words": "Add Deviation Link",
+							"command": "0xc"
+						},
+						{
+							"kind": 0,
+							"words": "Add Deviation Link - 1 way",
+							"command": "0xd"
+						},
+						{
+							"kind": 0,
+							"words": "Delete Link",
+							"command": "0x10"
+						},
+						{
+							"kind": 0,
+							"words": "Delete Waypoint",
+							"command": "0x6"
+						},
+						{
+							"kind": 0,
+							"words": "Create Waypoint",
+							"command": "0x5"
+						},
+						{
+							"kind": 0,
+							"words": "Edit Extents",
+							"command": "0x14"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 4,
+					"kinds": "all",
+					"base": "0x3ec",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Finish Extent Edit",
+							"command": "0x13"
+						},
+						{
+							"kind": 0,
+							"words": "Help",
+							"command": "0x15"
+						},
+						{
+							"kind": 0,
+							"words": "Create Waypoint",
+							"command": "0x5"
+						},
+						{
+							"kind": 0,
+							"words": "Delete Waypoint",
+							"command": "0x6"
+						},
+						{
+							"kind": 0,
+							"words": "Reset Waypoint Centre",
+							"command": "0x18"
+						}
+					]
+				}
+			]
+		},
+		{
+			"screen": "Texture Map",
+			"builder": "FUN_00544510",
+			"registrar": "0x54bb7d-0x54bc31",
+			"pages": [
+				{
+					"row": 1,
+					"page": 0,
+					"kinds": "all",
+					"base": "0x9a8",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Polygon",
+							"command": "0x2"
+						},
+						{
+							"kind": 1,
+							"words": "&Texture",
+							"command": "0x3"
+						},
+						{
+							"kind": 1,
+							"words": "&Merge",
+							"command": "0x4"
+						},
+						{
+							"kind": 1,
+							"words": "--------",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&Exit",
+							"command": "0x5"
+						},
+						{
+							"kind": 0,
+							"words": "&Options",
+							"command": "0xc"
+						},
+						{
+							"kind": 1,
+							"words": "&Select As",
+							"command": "0xd"
+						},
+						{
+							"kind": 2,
+							"words": "&Triangle",
+							"command": "0xe"
+						},
+						{
+							"kind": 2,
+							"words": "&Quad",
+							"command": "0xf"
+						},
+						{
+							"kind": 1,
+							"words": "&Polys Shown",
+							"command": "0x10"
+						},
+						{
+							"kind": 2,
+							"words": "&Untextured",
+							"command": "0x11"
+						},
+						{
+							"kind": 2,
+							"words": "&Textured",
+							"command": "0x12"
+						},
+						{
+							"kind": 1,
+							"words": "Select on &GotoPoly",
+							"command": "0xd4"
+						},
+						{
+							"kind": 1,
+							"words": "Repeating Texture Options",
+							"command": "0x0"
+						},
+						{
+							"kind": 2,
+							"words": "Select Number of Repeats",
+							"command": "0x10f"
+						},
+						{
+							"kind": 2,
+							"words": "",
+							"command": "0x0"
+						},
+						{
+							"kind": 2,
+							"words": "Default to 1X1",
+							"command": "0x110"
+						},
+						{
+							"kind": 2,
+							"words": "Maintain Used Area",
+							"command": "0x111"
+						},
+						{
+							"kind": 2,
+							"words": "Maintain Num Repeats",
+							"command": "0x112"
+						},
+						{
+							"kind": 1,
+							"words": "Show Gouraud",
+							"command": "0xcd"
+						},
+						{
+							"kind": 1,
+							"words": "Toggle Flag List",
+							"command": "0xb4"
+						},
+						{
+							"kind": 1,
+							"words": "&AutoSave",
+							"command": "0x13"
+						},
+						{
+							"kind": 1,
+							"words": "Add 1 to texture area",
+							"command": "0x14"
+						},
+						{
+							"kind": 1,
+							"words": "&Fake Merge Data",
+							"command": "0x143"
+						},
+						{
+							"kind": 1,
+							"words": "Show &Imported Shapes",
+							"command": "0x145"
+						},
+						{
+							"kind": 0,
+							"words": "M&isc",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&Help",
+							"command": "0x0"
+						},
+						{
+							"kind": 2,
+							"words": "&General",
+							"command": "0x27"
+						},
+						{
+							"kind": 2,
+							"words": "&Movement",
+							"command": "0x28"
+						},
+						{
+							"kind": 1,
+							"words": "&Screenshot",
+							"command": "0xb6"
+						},
+						{
+							"kind": 1,
+							"words": "Find",
+							"command": "0x0"
+						},
+						{
+							"kind": 2,
+							"words": "&Untextured polys",
+							"command": "0xb7"
+						},
+						{
+							"kind": 2,
+							"words": "&textured poly",
+							"command": "0xb8"
+						},
+						{
+							"kind": 2,
+							"words": "&Invalid PSX UV coords",
+							"command": "0xb9"
+						},
+						{
+							"kind": 1,
+							"words": "Find and select",
+							"command": "0x0"
+						},
+						{
+							"kind": 2,
+							"words": "&Untextured polys",
+							"command": "0xba"
+						},
+						{
+							"kind": 2,
+							"words": "&textured poly",
+							"command": "0xbb"
+						},
+						{
+							"kind": 2,
+							"words": "&Invalid PSX UV coords",
+							"command": "0xbc"
+						},
+						{
+							"kind": 1,
+							"words": "Fix wrapping textures (PSX)",
+							"command": "0x11b"
+						},
+						{
+							"kind": 1,
+							"words": "Me&rge selected polygons",
+							"command": "0x119"
+						},
+						{
+							"kind": 1,
+							"words": "&Unmerge selected polygons",
+							"command": "0x11a"
+						},
+						{
+							"kind": 1,
+							"words": "&Move rel. to poly",
+							"command": "0xca"
+						},
+						{
+							"kind": 1,
+							"words": "&Poly edit",
+							"command": "0x0"
+						},
+						{
+							"kind": 2,
+							"words": "&Create poly",
+							"command": "0x10e"
+						},
+						{
+							"kind": 2,
+							"words": "&Delete polys",
+							"command": "0xc3"
+						},
+						{
+							"kind": 2,
+							"words": "Restore polys",
+							"command": "0xc4"
+						},
+						{
+							"kind": 2,
+							"words": "Delete 0-normal polys",
+							"command": "0xc9"
+						},
+						{
+							"kind": 1,
+							"words": "Show Removed polys",
+							"command": "0xc5"
+						},
+						{
+							"kind": 1,
+							"words": "Hide Removed polys",
+							"command": "0xc6"
+						},
+						{
+							"kind": 1,
+							"words": "Split &Object",
+							"command": "0xd5"
+						},
+						{
+							"kind": 2,
+							"words": "As &Module",
+							"command": "0xc7"
+						},
+						{
+							"kind": 2,
+							"words": "As &Placed Obj",
+							"command": "0xc8"
+						},
+						{
+							"kind": 1,
+							"words": "Recentre Shape",
+							"command": "0xd6"
+						},
+						{
+							"kind": 0,
+							"words": "&Anim",
+							"command": "0x9c"
+						},
+						{
+							"kind": 1,
+							"words": "Se&lect",
+							"command": "0x9d"
+						},
+						{
+							"kind": 1,
+							"words": "&Create",
+							"command": "0x9e"
+						},
+						{
+							"kind": 1,
+							"words": "&Destroy",
+							"command": "0x9f"
+						},
+						{
+							"kind": 1,
+							"words": "&Sequence",
+							"command": "0xa5"
+						},
+						{
+							"kind": 2,
+							"words": "&Next",
+							"command": "0xa6"
+						},
+						{
+							"kind": 2,
+							"words": "&Previous",
+							"command": "0xa7"
+						},
+						{
+							"kind": 2,
+							"words": "&Add",
+							"command": "0xa8"
+						},
+						{
+							"kind": 2,
+							"words": "&Remove",
+							"command": "0xa9"
+						},
+						{
+							"kind": 2,
+							"words": "Cop&y",
+							"command": "0xaa"
+						},
+						{
+							"kind": 2,
+							"words": "&Change Properties",
+							"command": "0xab"
+						},
+						{
+							"kind": 1,
+							"words": "&Frame",
+							"command": "0xac"
+						},
+						{
+							"kind": 2,
+							"words": "&Next",
+							"command": "0xad"
+						},
+						{
+							"kind": 2,
+							"words": "&Previous",
+							"command": "0xae"
+						},
+						{
+							"kind": 2,
+							"words": "&Add",
+							"command": "0xaf"
+						},
+						{
+							"kind": 2,
+							"words": "&Remove",
+							"command": "0xb0"
+						},
+						{
+							"kind": 1,
+							"words": "Set Anim &Number",
+							"command": "0xa4"
+						},
+						{
+							"kind": 1,
+							"words": "&Add Polys",
+							"command": "0xb1"
+						},
+						{
+							"kind": 1,
+							"words": "&Remove Polys",
+							"command": "0xb2"
+						},
+						{
+							"kind": 1,
+							"words": "Copy",
+							"command": "0xb3"
+						},
+						{
+							"kind": 1,
+							"words": "&Play",
+							"command": "0xa2"
+						},
+						{
+							"kind": 1,
+							"words": "Play All",
+							"command": "0xa3"
+						},
+						{
+							"kind": 0,
+							"words": "&Copy Texturing",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&Polygon",
+							"command": "0x31"
+						},
+						{
+							"kind": 1,
+							"words": "&Object",
+							"command": "0xb5"
+						},
+						{
+							"kind": 1,
+							"words": "&From Multiple",
+							"command": "0x13f"
+						},
+						{
+							"kind": 1,
+							"words": "&To Multiple",
+							"command": "0x140"
+						},
+						{
+							"kind": 0,
+							"words": "&Selection",
+							"command": "0xf8"
+						},
+						{
+							"kind": 1,
+							"words": "by &Polygon",
+							"command": "0xf9"
+						},
+						{
+							"kind": 1,
+							"words": "by &Object",
+							"command": "0xfa"
+						},
+						{
+							"kind": 1,
+							"words": "by &Element",
+							"command": "0xfe"
+						},
+						{
+							"kind": 1,
+							"words": "&Rect (In or On)",
+							"command": "0xfb"
+						},
+						{
+							"kind": 1,
+							"words": "Rect (&In)",
+							"command": "0xfc"
+						},
+						{
+							"kind": 1,
+							"words": "Vertex",
+							"command": "0xfd"
+						},
+						{
+							"kind": 1,
+							"words": "In&vert",
+							"command": "0x101"
+						},
+						{
+							"kind": 1,
+							"words": "Angle",
+							"command": "0xff"
+						},
+						{
+							"kind": 1,
+							"words": "Set '&Arrow' Repeat Count",
+							"command": "0x100"
+						}
+					]
+				},
+				{
+					"row": 1,
+					"page": 1,
+					"kinds": "all",
+					"base": "0x2e08",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Polygon",
+							"command": "0x2"
+						},
+						{
+							"kind": 1,
+							"words": "&Texture",
+							"command": "0x3"
+						},
+						{
+							"kind": 0,
+							"words": "&Texture",
+							"command": "0x29"
+						},
+						{
+							"kind": 1,
+							"words": "&Select",
+							"command": "0x2a"
+						},
+						{
+							"kind": 1,
+							"words": "&Reset Source Rect",
+							"command": "0x9"
+						},
+						{
+							"kind": 0,
+							"words": "&Help",
+							"command": "0x27"
+						}
+					]
+				},
+				{
+					"row": 1,
+					"page": 2,
+					"kinds": "all",
+					"base": "0x4248",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Polygon",
+							"command": "0x2"
+						},
+						{
+							"kind": 1,
+							"words": "&Merge",
+							"command": "0x4"
+						},
+						{
+							"kind": 1,
+							"words": "--------",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&Exit",
+							"command": "0x5"
+						},
+						{
+							"kind": 0,
+							"words": "&Help",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&General",
+							"command": "0x27"
+						},
+						{
+							"kind": 1,
+							"words": "&Movement",
+							"command": "0x28"
+						}
+					]
+				},
+				{
+					"row": 1,
+					"page": 3,
+					"kinds": "all",
+					"base": "0x2f88",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Polygon",
+							"command": "0x2"
+						},
+						{
+							"kind": 1,
+							"words": "&Texture",
+							"command": "0x3"
+						},
+						{
+							"kind": 0,
+							"words": "&Texture",
+							"command": "0x29"
+						},
+						{
+							"kind": 1,
+							"words": "&Select",
+							"command": "0x2a"
+						},
+						{
+							"kind": 1,
+							"words": "&Reset Source Rect",
+							"command": "0x9"
+						},
+						{
+							"kind": 0,
+							"words": "&Help",
+							"command": "0x27"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 0,
+					"kinds": [
+						1,
+						4
+					],
+					"base": "0x3108",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "C&lear Selection",
+							"command": "0x2b"
+						},
+						{
+							"kind": 0,
+							"words": "Select Texture",
+							"command": "0x2a"
+						},
+						{
+							"kind": 0,
+							"words": "Select Colour",
+							"command": "0x40"
+						},
+						{
+							"kind": 0,
+							"words": "&Flags",
+							"command": "0x48"
+						},
+						{
+							"kind": 1,
+							"words": "&Add",
+							"command": "0x49"
+						},
+						{
+							"kind": 2,
+							"words": "No &Light",
+							"command": "0x6e"
+						},
+						{
+							"kind": 2,
+							"words": "Not &Visible",
+							"command": "0x71"
+						},
+						{
+							"kind": 2,
+							"words": "No BFC",
+							"command": "0x74"
+						},
+						{
+							"kind": 2,
+							"words": "Translucency",
+							"command": "0x77"
+						},
+						{
+							"kind": 1,
+							"words": "&Remove",
+							"command": "0x4a"
+						},
+						{
+							"kind": 2,
+							"words": "No &Light",
+							"command": "0x6f"
+						},
+						{
+							"kind": 2,
+							"words": "Not &Visible",
+							"command": "0x72"
+						},
+						{
+							"kind": 2,
+							"words": "No BFC",
+							"command": "0x75"
+						},
+						{
+							"kind": 2,
+							"words": "Translucency",
+							"command": "0x78"
+						},
+						{
+							"kind": 1,
+							"words": "&View",
+							"command": "0x4b"
+						},
+						{
+							"kind": 2,
+							"words": "&None",
+							"command": "0x4c"
+						},
+						{
+							"kind": 2,
+							"words": "Animation",
+							"command": "0x7d"
+						},
+						{
+							"kind": 2,
+							"words": "No &Light",
+							"command": "0x70"
+						},
+						{
+							"kind": 2,
+							"words": "Not &Visible",
+							"command": "0x73"
+						},
+						{
+							"kind": 2,
+							"words": "No BFC",
+							"command": "0x76"
+						},
+						{
+							"kind": 2,
+							"words": "Translucency",
+							"command": "0x79"
+						},
+						{
+							"kind": 0,
+							"words": "Flags (PSX)",
+							"command": "0x48"
+						},
+						{
+							"kind": 1,
+							"words": "&Add",
+							"command": "0x49"
+						},
+						{
+							"kind": 2,
+							"words": "Sort Far Z",
+							"command": "0x4d"
+						},
+						{
+							"kind": 2,
+							"words": "Sort Further Z",
+							"command": "0x53"
+						},
+						{
+							"kind": 2,
+							"words": "Sort Near Z",
+							"command": "0x50"
+						},
+						{
+							"kind": 2,
+							"words": "Translucency",
+							"command": "0x0"
+						},
+						{
+							"kind": 3,
+							"words": "Blend",
+							"command": "0x11d"
+						},
+						{
+							"kind": 3,
+							"words": "Add",
+							"command": "0x11f"
+						},
+						{
+							"kind": 3,
+							"words": "Add Half",
+							"command": "0x121"
+						},
+						{
+							"kind": 3,
+							"words": "Subtract",
+							"command": "0x123"
+						},
+						{
+							"kind": 2,
+							"words": "Step",
+							"command": "0x5c"
+						},
+						{
+							"kind": 2,
+							"words": "Pressure Pad",
+							"command": "0x5f"
+						},
+						{
+							"kind": 2,
+							"words": "Ladder",
+							"command": "0x62"
+						},
+						{
+							"kind": 2,
+							"words": "Door",
+							"command": "0x0"
+						},
+						{
+							"kind": 3,
+							"words": "Up",
+							"command": "0x126"
+						},
+						{
+							"kind": 3,
+							"words": "Left",
+							"command": "0x128"
+						},
+						{
+							"kind": 3,
+							"words": "Right",
+							"command": "0x12a"
+						},
+						{
+							"kind": 2,
+							"words": "Grill",
+							"command": "0x12d"
+						},
+						{
+							"kind": 2,
+							"words": "No Subdiv",
+							"command": "0x130"
+						},
+						{
+							"kind": 2,
+							"words": "&No Collisions",
+							"command": "0x56"
+						},
+						{
+							"kind": 2,
+							"words": "&Impassable to NPCs",
+							"command": "0x59"
+						},
+						{
+							"kind": 1,
+							"words": "&Remove",
+							"command": "0x4a"
+						},
+						{
+							"kind": 2,
+							"words": "&Sort Far Z",
+							"command": "0x4e"
+						},
+						{
+							"kind": 2,
+							"words": "Sort Further Z",
+							"command": "0x54"
+						},
+						{
+							"kind": 2,
+							"words": "Sort Near Z",
+							"command": "0x51"
+						},
+						{
+							"kind": 2,
+							"words": "Translucency",
+							"command": "0x125"
+						},
+						{
+							"kind": 2,
+							"words": "Step",
+							"command": "0x5d"
+						},
+						{
+							"kind": 2,
+							"words": "Pressure Pad",
+							"command": "0x60"
+						},
+						{
+							"kind": 2,
+							"words": "Ladder",
+							"command": "0x63"
+						},
+						{
+							"kind": 2,
+							"words": "Door",
+							"command": "0x12c"
+						},
+						{
+							"kind": 2,
+							"words": "Grill",
+							"command": "0x12e"
+						},
+						{
+							"kind": 2,
+							"words": "No Subdiv",
+							"command": "0x131"
+						},
+						{
+							"kind": 2,
+							"words": "&No Collisions",
+							"command": "0x57"
+						},
+						{
+							"kind": 2,
+							"words": "&Impassable to NPCs",
+							"command": "0x5a"
+						},
+						{
+							"kind": 1,
+							"words": "&View",
+							"command": "0x4b"
+						},
+						{
+							"kind": 2,
+							"words": "&Sort Far Z",
+							"command": "0x4f"
+						},
+						{
+							"kind": 2,
+							"words": "Sort Further Z",
+							"command": "0x55"
+						},
+						{
+							"kind": 2,
+							"words": "&Sort Near Z",
+							"command": "0x52"
+						},
+						{
+							"kind": 2,
+							"words": "Translucency",
+							"command": "0x0"
+						},
+						{
+							"kind": 3,
+							"words": "Blend",
+							"command": "0x11e"
+						},
+						{
+							"kind": 3,
+							"words": "Add",
+							"command": "0x120"
+						},
+						{
+							"kind": 3,
+							"words": "Add Half",
+							"command": "0x122"
+						},
+						{
+							"kind": 3,
+							"words": "Subtract",
+							"command": "0x124"
+						},
+						{
+							"kind": 2,
+							"words": "Step",
+							"command": "0x5e"
+						},
+						{
+							"kind": 2,
+							"words": "Pressure Pad",
+							"command": "0x61"
+						},
+						{
+							"kind": 2,
+							"words": "Ladder",
+							"command": "0x64"
+						},
+						{
+							"kind": 2,
+							"words": "Door",
+							"command": "0x0"
+						},
+						{
+							"kind": 3,
+							"words": "Up",
+							"command": "0x127"
+						},
+						{
+							"kind": 3,
+							"words": "Left",
+							"command": "0x129"
+						},
+						{
+							"kind": 3,
+							"words": "Right",
+							"command": "0x12b"
+						},
+						{
+							"kind": 2,
+							"words": "Grill",
+							"command": "0x12f"
+						},
+						{
+							"kind": 2,
+							"words": "No Subdiv",
+							"command": "0x132"
+						},
+						{
+							"kind": 2,
+							"words": "Sound",
+							"command": "0x13d"
+						},
+						{
+							"kind": 2,
+							"words": "&No Collisions",
+							"command": "0x58"
+						},
+						{
+							"kind": 2,
+							"words": "&Impassable to NPCs",
+							"command": "0x5b"
+						},
+						{
+							"kind": 1,
+							"words": "Add &Sound",
+							"command": "0x0"
+						},
+						{
+							"kind": 2,
+							"words": "Generic",
+							"command": "0x138"
+						},
+						{
+							"kind": 2,
+							"words": "Sand",
+							"command": "0x136"
+						},
+						{
+							"kind": 2,
+							"words": "Stone",
+							"command": "0x137"
+						},
+						{
+							"kind": 2,
+							"words": "Special 1",
+							"command": "0x13b"
+						},
+						{
+							"kind": 2,
+							"words": "Special 2",
+							"command": "0x13c"
+						},
+						{
+							"kind": 2,
+							"words": "None (Remove sound)",
+							"command": "0x135"
+						},
+						{
+							"kind": 0,
+							"words": "&Texture Across Sel",
+							"command": "0x2e"
+						},
+						{
+							"kind": 0,
+							"words": "&Shift UV Coords",
+							"command": "0x133"
+						},
+						{
+							"kind": 0,
+							"words": "Scale UV Coords",
+							"command": "0x134"
+						},
+						{
+							"kind": 0,
+							"words": "&Hide Selection",
+							"command": "0x42"
+						},
+						{
+							"kind": 0,
+							"words": "Hide Unselected",
+							"command": "0x43"
+						},
+						{
+							"kind": 0,
+							"words": "Show All",
+							"command": "0x44"
+						},
+						{
+							"kind": 1,
+							"words": "Don't select",
+							"command": "0x45"
+						},
+						{
+							"kind": 1,
+							"words": "Select",
+							"command": "0x46"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 0,
+					"kinds": [
+						2,
+						3
+					],
+					"base": "0x2298",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "C&lear Selection",
+							"command": "0x2b"
+						},
+						{
+							"kind": 0,
+							"words": "Select Texture",
+							"command": "0x2a"
+						},
+						{
+							"kind": 0,
+							"words": "Select Colour",
+							"command": "0x40"
+						},
+						{
+							"kind": 0,
+							"words": "&Flags",
+							"command": "0x48"
+						},
+						{
+							"kind": 1,
+							"words": "&Add",
+							"command": "0x49"
+						},
+						{
+							"kind": 2,
+							"words": "No &Light",
+							"command": "0x6e"
+						},
+						{
+							"kind": 2,
+							"words": "Not &Visible",
+							"command": "0x71"
+						},
+						{
+							"kind": 2,
+							"words": "No BFC",
+							"command": "0x74"
+						},
+						{
+							"kind": 2,
+							"words": "Translucency",
+							"command": "0x77"
+						},
+						{
+							"kind": 1,
+							"words": "&Remove",
+							"command": "0x4a"
+						},
+						{
+							"kind": 2,
+							"words": "No &Light",
+							"command": "0x6f"
+						},
+						{
+							"kind": 2,
+							"words": "Not &Visible",
+							"command": "0x72"
+						},
+						{
+							"kind": 2,
+							"words": "No BFC",
+							"command": "0x75"
+						},
+						{
+							"kind": 2,
+							"words": "Translucency",
+							"command": "0x78"
+						},
+						{
+							"kind": 1,
+							"words": "&View",
+							"command": "0x4b"
+						},
+						{
+							"kind": 2,
+							"words": "&None",
+							"command": "0x4c"
+						},
+						{
+							"kind": 2,
+							"words": "Animation",
+							"command": "0x7d"
+						},
+						{
+							"kind": 2,
+							"words": "No &Light",
+							"command": "0x70"
+						},
+						{
+							"kind": 2,
+							"words": "Not &Visible",
+							"command": "0x73"
+						},
+						{
+							"kind": 2,
+							"words": "No BFC",
+							"command": "0x76"
+						},
+						{
+							"kind": 2,
+							"words": "Translucency",
+							"command": "0x79"
+						},
+						{
+							"kind": 0,
+							"words": "Flags (&GunLok)",
+							"command": "0x48"
+						},
+						{
+							"kind": 1,
+							"words": "&Add",
+							"command": "0x49"
+						},
+						{
+							"kind": 2,
+							"words": "Impassable",
+							"command": "0x7e"
+						},
+						{
+							"kind": 2,
+							"words": "Low Height",
+							"command": "0x81"
+						},
+						{
+							"kind": 2,
+							"words": "Low Width",
+							"command": "0x84"
+						},
+						{
+							"kind": 2,
+							"words": "Very Low Width",
+							"command": "0x8d"
+						},
+						{
+							"kind": 2,
+							"words": "Water",
+							"command": "0x87"
+						},
+						{
+							"kind": 2,
+							"words": "Half Speed",
+							"command": "0x8a"
+						},
+						{
+							"kind": 2,
+							"words": "Trigger Polygon",
+							"command": "0x90"
+						},
+						{
+							"kind": 2,
+							"words": "Boundary",
+							"command": "0x93"
+						},
+						{
+							"kind": 2,
+							"words": "Path Stopper",
+							"command": "0x96"
+						},
+						{
+							"kind": 1,
+							"words": "&Remove",
+							"command": "0x4a"
+						},
+						{
+							"kind": 2,
+							"words": "Impassable",
+							"command": "0x7f"
+						},
+						{
+							"kind": 2,
+							"words": "Low Height",
+							"command": "0x82"
+						},
+						{
+							"kind": 2,
+							"words": "Low Width",
+							"command": "0x85"
+						},
+						{
+							"kind": 2,
+							"words": "Very Low Width",
+							"command": "0x8e"
+						},
+						{
+							"kind": 2,
+							"words": "Water",
+							"command": "0x88"
+						},
+						{
+							"kind": 2,
+							"words": "Half Speed",
+							"command": "0x8b"
+						},
+						{
+							"kind": 2,
+							"words": "Trigger Polygon",
+							"command": "0x91"
+						},
+						{
+							"kind": 2,
+							"words": "Boundary",
+							"command": "0x94"
+						},
+						{
+							"kind": 2,
+							"words": "Path Stopper",
+							"command": "0x97"
+						},
+						{
+							"kind": 1,
+							"words": "&View",
+							"command": "0x4b"
+						},
+						{
+							"kind": 2,
+							"words": "Impassable",
+							"command": "0x80"
+						},
+						{
+							"kind": 2,
+							"words": "Low Height",
+							"command": "0x83"
+						},
+						{
+							"kind": 2,
+							"words": "Low Width",
+							"command": "0x86"
+						},
+						{
+							"kind": 2,
+							"words": "Very Low Width",
+							"command": "0x8f"
+						},
+						{
+							"kind": 2,
+							"words": "Water",
+							"command": "0x89"
+						},
+						{
+							"kind": 2,
+							"words": "Half Speed",
+							"command": "0x8c"
+						},
+						{
+							"kind": 2,
+							"words": "Trigger Polygon",
+							"command": "0x92"
+						},
+						{
+							"kind": 2,
+							"words": "Boundary",
+							"command": "0x95"
+						},
+						{
+							"kind": 2,
+							"words": "Path Stopper",
+							"command": "0x98"
+						},
+						{
+							"kind": 0,
+							"words": "&Texture Across Sel",
+							"command": "0x2e"
+						},
+						{
+							"kind": 0,
+							"words": "&Shift UV Coords",
+							"command": "0x133"
+						},
+						{
+							"kind": 0,
+							"words": "Scale UV Coords",
+							"command": "0x134"
+						},
+						{
+							"kind": 0,
+							"words": "&Hide Selection",
+							"command": "0x42"
+						},
+						{
+							"kind": 0,
+							"words": "Hide Unselected",
+							"command": "0x43"
+						},
+						{
+							"kind": 0,
+							"words": "Show All",
+							"command": "0x44"
+						},
+						{
+							"kind": 1,
+							"words": "Don't select",
+							"command": "0x45"
+						},
+						{
+							"kind": 1,
+							"words": "Select",
+							"command": "0x46"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 0,
+					"kinds": "other",
+					"base": "0x1ae8",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "C&lear Selection",
+							"command": "0x2b"
+						},
+						{
+							"kind": 0,
+							"words": "Select Texture",
+							"command": "0x2a"
+						},
+						{
+							"kind": 0,
+							"words": "Select Colour",
+							"command": "0x40"
+						},
+						{
+							"kind": 0,
+							"words": "&Flags",
+							"command": "0x48"
+						},
+						{
+							"kind": 1,
+							"words": "&Add",
+							"command": "0x49"
+						},
+						{
+							"kind": 2,
+							"words": "No &Light",
+							"command": "0x6e"
+						},
+						{
+							"kind": 2,
+							"words": "Not &Visible",
+							"command": "0x71"
+						},
+						{
+							"kind": 2,
+							"words": "No BFC",
+							"command": "0x74"
+						},
+						{
+							"kind": 2,
+							"words": "Translucency",
+							"command": "0x77"
+						},
+						{
+							"kind": 1,
+							"words": "&Remove",
+							"command": "0x4a"
+						},
+						{
+							"kind": 2,
+							"words": "No &Light",
+							"command": "0x6f"
+						},
+						{
+							"kind": 2,
+							"words": "Not &Visible",
+							"command": "0x72"
+						},
+						{
+							"kind": 2,
+							"words": "No BFC",
+							"command": "0x75"
+						},
+						{
+							"kind": 2,
+							"words": "Translucency",
+							"command": "0x78"
+						},
+						{
+							"kind": 1,
+							"words": "&View",
+							"command": "0x4b"
+						},
+						{
+							"kind": 2,
+							"words": "&None",
+							"command": "0x4c"
+						},
+						{
+							"kind": 2,
+							"words": "Animation",
+							"command": "0x7d"
+						},
+						{
+							"kind": 2,
+							"words": "No &Light",
+							"command": "0x70"
+						},
+						{
+							"kind": 2,
+							"words": "Not &Visible",
+							"command": "0x73"
+						},
+						{
+							"kind": 2,
+							"words": "No BFC",
+							"command": "0x76"
+						},
+						{
+							"kind": 2,
+							"words": "Translucency",
+							"command": "0x79"
+						},
+						{
+							"kind": 0,
+							"words": "Flags (&AvP)",
+							"command": "0x48"
+						},
+						{
+							"kind": 1,
+							"words": "&Add",
+							"command": "0x49"
+						},
+						{
+							"kind": 2,
+							"words": "&Light Corona",
+							"command": "0x68"
+						},
+						{
+							"kind": 2,
+							"words": "&Mirror",
+							"command": "0x99"
+						},
+						{
+							"kind": 1,
+							"words": "&Remove",
+							"command": "0x4a"
+						},
+						{
+							"kind": 2,
+							"words": "&Light Corona",
+							"command": "0x69"
+						},
+						{
+							"kind": 2,
+							"words": "&Mirror",
+							"command": "0x9a"
+						},
+						{
+							"kind": 1,
+							"words": "&View",
+							"command": "0x4b"
+						},
+						{
+							"kind": 2,
+							"words": "&Light Corona",
+							"command": "0x6a"
+						},
+						{
+							"kind": 2,
+							"words": "&Mirror",
+							"command": "0x9b"
+						},
+						{
+							"kind": 2,
+							"words": "&Non-Planar Quads",
+							"command": "0x11c"
+						},
+						{
+							"kind": 0,
+							"words": "&Texture Across Sel",
+							"command": "0x2e"
+						},
+						{
+							"kind": 0,
+							"words": "&Shift UV Coords",
+							"command": "0x133"
+						},
+						{
+							"kind": 0,
+							"words": "Scale UV Coords",
+							"command": "0x134"
+						},
+						{
+							"kind": 0,
+							"words": "&Hide Selection",
+							"command": "0x42"
+						},
+						{
+							"kind": 0,
+							"words": "Hide Unselected",
+							"command": "0x43"
+						},
+						{
+							"kind": 0,
+							"words": "Show All",
+							"command": "0x44"
+						},
+						{
+							"kind": 1,
+							"words": "Don't select",
+							"command": "0x45"
+						},
+						{
+							"kind": 1,
+							"words": "Select",
+							"command": "0x46"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 1,
+					"kinds": "all",
+					"base": "0x408",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Nodes To Corners",
+							"command": "0x1c"
+						},
+						{
+							"kind": 1,
+							"words": "&Clockwise",
+							"command": "0x1d"
+						},
+						{
+							"kind": 2,
+							"words": "Top Left",
+							"command": "0x1e"
+						},
+						{
+							"kind": 2,
+							"words": "Top Right",
+							"command": "0x1f"
+						},
+						{
+							"kind": 2,
+							"words": "Bottom Right",
+							"command": "0x20"
+						},
+						{
+							"kind": 2,
+							"words": "Bottom Left",
+							"command": "0x21"
+						},
+						{
+							"kind": 1,
+							"words": "&Anti-Clockwise",
+							"command": "0x22"
+						},
+						{
+							"kind": 2,
+							"words": "Top Left",
+							"command": "0x23"
+						},
+						{
+							"kind": 2,
+							"words": "Top Right",
+							"command": "0x24"
+						},
+						{
+							"kind": 2,
+							"words": "Bottom Right",
+							"command": "0x25"
+						},
+						{
+							"kind": 2,
+							"words": "Bottom Left",
+							"command": "0x26"
+						},
+						{
+							"kind": 0,
+							"words": "&Rotate Nodes",
+							"command": "0x15"
+						},
+						{
+							"kind": 1,
+							"words": "90 Texture Centre",
+							"command": "0x19"
+						},
+						{
+							"kind": 1,
+							"words": "180 Texture Centre",
+							"command": "0x1a"
+						},
+						{
+							"kind": 1,
+							"words": "270 Texture Centre",
+							"command": "0x1b"
+						},
+						{
+							"kind": 1,
+							"words": "90 Node Centre",
+							"command": "0x16"
+						},
+						{
+							"kind": 1,
+							"words": "180 Node Centre",
+							"command": "0x17"
+						},
+						{
+							"kind": 1,
+							"words": "270 Node Centre",
+							"command": "0x18"
+						},
+						{
+							"kind": 0,
+							"words": "&X-Flip",
+							"command": "0x6"
+						},
+						{
+							"kind": 0,
+							"words": "&Y-Flip",
+							"command": "0x7"
+						},
+						{
+							"kind": 0,
+							"words": "&Next Texture",
+							"command": "0xa"
+						},
+						{
+							"kind": 0,
+							"words": "&Prev Texture",
+							"command": "0xb"
+						},
+						{
+							"kind": 0,
+							"words": "&Toggle Texture Resize",
+							"command": "0x103"
+						},
+						{
+							"kind": 0,
+							"words": "&Set Default Size",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "x1/4",
+							"command": "0xec"
+						},
+						{
+							"kind": 1,
+							"words": "x1/2",
+							"command": "0xed"
+						},
+						{
+							"kind": 1,
+							"words": "x1",
+							"command": "0xee"
+						},
+						{
+							"kind": 1,
+							"words": "x2",
+							"command": "0xef"
+						},
+						{
+							"kind": 1,
+							"words": "x3",
+							"command": "0xf0"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 3,
+					"kinds": "all",
+					"base": "0x48",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Rotate Nodes",
+							"command": "0x15"
+						},
+						{
+							"kind": 1,
+							"words": "90 Texture Centre",
+							"command": "0x19"
+						},
+						{
+							"kind": 1,
+							"words": "180 Texture Centre",
+							"command": "0x1a"
+						},
+						{
+							"kind": 1,
+							"words": "270 Texture Centre",
+							"command": "0x1b"
+						},
+						{
+							"kind": 1,
+							"words": "90 Node Centre",
+							"command": "0x16"
+						},
+						{
+							"kind": 1,
+							"words": "180 Node Centre",
+							"command": "0x17"
+						},
+						{
+							"kind": 1,
+							"words": "270 Node Centre",
+							"command": "0x18"
+						},
+						{
+							"kind": 0,
+							"words": "&X-Flip",
+							"command": "0x6"
+						},
+						{
+							"kind": 0,
+							"words": "&Y-Flip",
+							"command": "0x7"
+						},
+						{
+							"kind": 0,
+							"words": "&Next Texture",
+							"command": "0xa"
+						},
+						{
+							"kind": 0,
+							"words": "&Prev Texture",
+							"command": "0xb"
+						},
+						{
+							"kind": 0,
+							"words": "&Toggle Texture Resize",
+							"command": "0x103"
+						},
+						{
+							"kind": 0,
+							"words": "&Set Default Size",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "x1/4",
+							"command": "0xec"
+						},
+						{
+							"kind": 1,
+							"words": "x1/2",
+							"command": "0xed"
+						},
+						{
+							"kind": 1,
+							"words": "x1",
+							"command": "0xee"
+						},
+						{
+							"kind": 1,
+							"words": "x2",
+							"command": "0xef"
+						},
+						{
+							"kind": 1,
+							"words": "x3",
+							"command": "0xf0"
+						},
+						{
+							"kind": 0,
+							"words": "Toggle Node Selection",
+							"command": "0x102"
+						}
+					]
+				}
+			]
+		},
+		{
+			"screen": "Hierarchy",
+			"builder": "FUN_00485580",
+			"registrar": "0x4886f5-0x48872f",
+			"pages": [
+				{
+					"row": 1,
+					"page": 0,
+					"kinds": [
+						4
+					],
+					"base": "0x10cc",
+					"offsetCorrection": 32,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Exit",
+							"command": "0x2"
+						},
+						{
+							"kind": 0,
+							"words": "Hierarchy",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Calculate &Bounding Box",
+							"command": "0x46"
+						},
+						{
+							"kind": 1,
+							"words": "&Save changes to sequence times",
+							"command": "0x48"
+						},
+						{
+							"kind": 1,
+							"words": "&Copy Hierarchy",
+							"command": "0x49"
+						},
+						{
+							"kind": 1,
+							"words": "Change &object for section",
+							"command": "0x5e"
+						},
+						{
+							"kind": 1,
+							"words": "Attach shape to bones",
+							"command": "0x62"
+						},
+						{
+							"kind": 0,
+							"words": "&Sound",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&New sound",
+							"command": "0x4d"
+						},
+						{
+							"kind": 1,
+							"words": "&Edit sound",
+							"command": "0x4e"
+						},
+						{
+							"kind": 1,
+							"words": "&Delete sound",
+							"command": "0x4f"
+						},
+						{
+							"kind": 1,
+							"words": "&Apply frame sound",
+							"command": "0x50"
+						},
+						{
+							"kind": 1,
+							"words": "&Clear frame sound",
+							"command": "0x51"
+						},
+						{
+							"kind": 1,
+							"words": "Copy between hierarchies",
+							"command": "0x5b"
+						},
+						{
+							"kind": 0,
+							"words": "&Platform",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Toggle on/off",
+							"command": "0x4c"
+						},
+						{
+							"kind": 1,
+							"words": "Set speed",
+							"command": "0x4a"
+						},
+						{
+							"kind": 1,
+							"words": "Set angle",
+							"command": "0x4b"
+						},
+						{
+							"kind": 0,
+							"words": "&Alternate Shapes",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&Add Alternate",
+							"command": "0x6d"
+						},
+						{
+							"kind": 1,
+							"words": "&Remove Alternate",
+							"command": "0x6e"
+						},
+						{
+							"kind": 0,
+							"words": "Help",
+							"command": "0x38"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 0,
+					"kinds": [
+						4
+					],
+					"base": "0x1c",
+					"offsetCorrection": 32,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Select Hierarchy",
+							"command": "0x3"
+						},
+						{
+							"kind": 0,
+							"words": "Select Sequence",
+							"command": "0x4"
+						},
+						{
+							"kind": 0,
+							"words": "Add 'turret delta'",
+							"command": "0x7"
+						},
+						{
+							"kind": 0,
+							"words": "Remove delta",
+							"command": "0xa"
+						},
+						{
+							"kind": 0,
+							"words": "Sequence &Flags",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Sequence &Type",
+							"command": "0x0"
+						},
+						{
+							"kind": 2,
+							"words": "&Full",
+							"command": "0x68"
+						},
+						{
+							"kind": 2,
+							"words": "&Upper",
+							"command": "0x69"
+						},
+						{
+							"kind": 2,
+							"words": "&Lower",
+							"command": "0x6a"
+						},
+						{
+							"kind": 1,
+							"words": "&Add",
+							"command": "0x0"
+						},
+						{
+							"kind": 2,
+							"words": "No &Interpolation",
+							"command": "0x6f"
+						},
+						{
+							"kind": 2,
+							"words": "&Half Frame Rate",
+							"command": "0x71"
+						},
+						{
+							"kind": 1,
+							"words": "&Remove",
+							"command": "0x0"
+						},
+						{
+							"kind": 2,
+							"words": "No &Interpolation",
+							"command": "0x70"
+						},
+						{
+							"kind": 2,
+							"words": "&Half Frame Rate",
+							"command": "0x72"
+						},
+						{
+							"kind": 0,
+							"words": "Add keyframe flag",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "0 Blocking",
+							"command": "0x15"
+						},
+						{
+							"kind": 1,
+							"words": "1 Cause Damage",
+							"command": "0x16"
+						},
+						{
+							"kind": 1,
+							"words": "2 Can Be Blocked",
+							"command": "0x17"
+						},
+						{
+							"kind": 1,
+							"words": "3 Invincible",
+							"command": "0x18"
+						},
+						{
+							"kind": 1,
+							"words": "4 Left Step",
+							"command": "0x19"
+						},
+						{
+							"kind": 1,
+							"words": "5 Right Step",
+							"command": "0x1a"
+						},
+						{
+							"kind": 1,
+							"words": "6 Hit Floor Thud",
+							"command": "0x1b"
+						},
+						{
+							"kind": 1,
+							"words": "7 Hit Floor Sound",
+							"command": "0x1c"
+						},
+						{
+							"kind": 1,
+							"words": "8 Metal Chink",
+							"command": "0x1d"
+						},
+						{
+							"kind": 1,
+							"words": "9 Jump Now",
+							"command": "0x1e"
+						},
+						{
+							"kind": 1,
+							"words": "Combat Roll Left",
+							"command": "0x1f"
+						},
+						{
+							"kind": 1,
+							"words": "Combat Roll Right",
+							"command": "0x20"
+						},
+						{
+							"kind": 1,
+							"words": "Swipe Sound",
+							"command": "0x21"
+						},
+						{
+							"kind": 1,
+							"words": "Start Pushing",
+							"command": "0x22"
+						},
+						{
+							"kind": 1,
+							"words": "Stop Pushing",
+							"command": "0x23"
+						},
+						{
+							"kind": 1,
+							"words": "Start Moving",
+							"command": "0x24"
+						},
+						{
+							"kind": 1,
+							"words": "Stop Moving",
+							"command": "0x25"
+						},
+						{
+							"kind": 0,
+							"words": "Remove keyframe flag",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "0 Blocking",
+							"command": "0x26"
+						},
+						{
+							"kind": 1,
+							"words": "1 Cause Damage",
+							"command": "0x27"
+						},
+						{
+							"kind": 1,
+							"words": "2 Can Be Blocked",
+							"command": "0x28"
+						},
+						{
+							"kind": 1,
+							"words": "3 Invincible",
+							"command": "0x29"
+						},
+						{
+							"kind": 1,
+							"words": "4 Left Step",
+							"command": "0x2a"
+						},
+						{
+							"kind": 1,
+							"words": "5 Right Step",
+							"command": "0x2b"
+						},
+						{
+							"kind": 1,
+							"words": "6 Hit Floor Thud",
+							"command": "0x2c"
+						},
+						{
+							"kind": 1,
+							"words": "7 Hit Floor Sound",
+							"command": "0x2d"
+						},
+						{
+							"kind": 1,
+							"words": "8 Metal Chink",
+							"command": "0x2e"
+						},
+						{
+							"kind": 1,
+							"words": "9 Jump Now",
+							"command": "0x2f"
+						},
+						{
+							"kind": 1,
+							"words": "Combat Roll Left",
+							"command": "0x30"
+						},
+						{
+							"kind": 1,
+							"words": "Combat Roll Right",
+							"command": "0x31"
+						},
+						{
+							"kind": 1,
+							"words": "Swipe Sound",
+							"command": "0x32"
+						},
+						{
+							"kind": 1,
+							"words": "Start Pushing",
+							"command": "0x33"
+						},
+						{
+							"kind": 1,
+							"words": "Stop Pushing",
+							"command": "0x34"
+						},
+						{
+							"kind": 1,
+							"words": "Start Moving",
+							"command": "0x35"
+						},
+						{
+							"kind": 1,
+							"words": "Stop Moving",
+							"command": "0x36"
+						}
+					]
+				},
+				{
+					"row": 1,
+					"page": 0,
+					"kinds": "other",
+					"base": "0x9dc",
+					"offsetCorrection": 32,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Exit",
+							"command": "0x2"
+						},
+						{
+							"kind": 0,
+							"words": "&View mode",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Adaptive &Degradation",
+							"command": "0x45"
+						},
+						{
+							"kind": 1,
+							"words": "Du&mmy Objects",
+							"command": "0x5c"
+						},
+						{
+							"kind": 1,
+							"words": "Dummy Object &Size",
+							"command": "0x5d"
+						},
+						{
+							"kind": 1,
+							"words": "&Marine",
+							"command": "0x3d"
+						},
+						{
+							"kind": 1,
+							"words": "&Alien",
+							"command": "0x3c"
+						},
+						{
+							"kind": 0,
+							"words": "Hierarchy",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Calculate &Bounding Box",
+							"command": "0x46"
+						},
+						{
+							"kind": 1,
+							"words": "&Save changes to sequence times",
+							"command": "0x48"
+						},
+						{
+							"kind": 1,
+							"words": "&Copy Hierarchy",
+							"command": "0x49"
+						},
+						{
+							"kind": 1,
+							"words": "Change &object for section",
+							"command": "0x5e"
+						},
+						{
+							"kind": 1,
+							"words": "Attach shape to bones",
+							"command": "0x62"
+						},
+						{
+							"kind": 0,
+							"words": "&Sound",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&New sound",
+							"command": "0x4d"
+						},
+						{
+							"kind": 1,
+							"words": "&Edit sound",
+							"command": "0x4e"
+						},
+						{
+							"kind": 1,
+							"words": "&Delete sound",
+							"command": "0x4f"
+						},
+						{
+							"kind": 1,
+							"words": "&Apply frame sound",
+							"command": "0x50"
+						},
+						{
+							"kind": 1,
+							"words": "&Clear frame sound",
+							"command": "0x51"
+						},
+						{
+							"kind": 1,
+							"words": "Copy between hierarchies",
+							"command": "0x5b"
+						},
+						{
+							"kind": 0,
+							"words": "&Platform",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Toggle on/off",
+							"command": "0x4c"
+						},
+						{
+							"kind": 1,
+							"words": "Set speed",
+							"command": "0x4a"
+						},
+						{
+							"kind": 1,
+							"words": "Set angle",
+							"command": "0x4b"
+						},
+						{
+							"kind": 0,
+							"words": "Shape Se&ts",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&Select Single Set",
+							"command": "0x43"
+						},
+						{
+							"kind": 1,
+							"words": "Set &Properties",
+							"command": "0x58"
+						},
+						{
+							"kind": 1,
+							"words": "Se&lect Collection",
+							"command": "0x52"
+						},
+						{
+							"kind": 1,
+							"words": "Collection &Voice Index",
+							"command": "0x59"
+						},
+						{
+							"kind": 1,
+							"words": "&Create Collection",
+							"command": "0x53"
+						},
+						{
+							"kind": 1,
+							"words": "&Delete Collection",
+							"command": "0x54"
+						},
+						{
+							"kind": 1,
+							"words": "&Add to Collection",
+							"command": "0x55"
+						},
+						{
+							"kind": 1,
+							"words": "&Remove from Collection",
+							"command": "0x56"
+						},
+						{
+							"kind": 1,
+							"words": "Re&name Collection",
+							"command": "0x57"
+						},
+						{
+							"kind": 0,
+							"words": "Help",
+							"command": "0x38"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 0,
+					"kinds": "other",
+					"base": "0x154c",
+					"offsetCorrection": 32,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Select Hierarchy",
+							"command": "0x3"
+						},
+						{
+							"kind": 0,
+							"words": "Select Sequence",
+							"command": "0x4"
+						},
+						{
+							"kind": 0,
+							"words": "Add delta",
+							"command": "0x9"
+						},
+						{
+							"kind": 0,
+							"words": "Remove delta",
+							"command": "0xa"
+						},
+						{
+							"kind": 0,
+							"words": "Flag delta",
+							"command": "0xb"
+						},
+						{
+							"kind": 1,
+							"words": "Not a delta sequence",
+							"command": "0x11"
+						},
+						{
+							"kind": 1,
+							"words": "Deltas relative to first frame",
+							"command": "0x12"
+						},
+						{
+							"kind": 1,
+							"words": "Deltas relative to middle frame",
+							"command": "0x13"
+						},
+						{
+							"kind": 1,
+							"words": "Deltas relative to current frame",
+							"command": "0x14"
+						},
+						{
+							"kind": 0,
+							"words": "Add keyframe flag",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "0",
+							"command": "0x15"
+						},
+						{
+							"kind": 1,
+							"words": "1",
+							"command": "0x16"
+						},
+						{
+							"kind": 1,
+							"words": "2",
+							"command": "0x17"
+						},
+						{
+							"kind": 1,
+							"words": "3",
+							"command": "0x18"
+						},
+						{
+							"kind": 1,
+							"words": "4",
+							"command": "0x19"
+						},
+						{
+							"kind": 1,
+							"words": "5",
+							"command": "0x1a"
+						},
+						{
+							"kind": 1,
+							"words": "6",
+							"command": "0x1b"
+						},
+						{
+							"kind": 1,
+							"words": "7",
+							"command": "0x1c"
+						},
+						{
+							"kind": 1,
+							"words": "8",
+							"command": "0x1d"
+						},
+						{
+							"kind": 1,
+							"words": "9",
+							"command": "0x1e"
+						},
+						{
+							"kind": 0,
+							"words": "Remove keyframe flag",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "0",
+							"command": "0x26"
+						},
+						{
+							"kind": 1,
+							"words": "1",
+							"command": "0x27"
+						},
+						{
+							"kind": 1,
+							"words": "2",
+							"command": "0x28"
+						},
+						{
+							"kind": 1,
+							"words": "3",
+							"command": "0x29"
+						},
+						{
+							"kind": 1,
+							"words": "4",
+							"command": "0x2a"
+						},
+						{
+							"kind": 1,
+							"words": "5",
+							"command": "0x2b"
+						},
+						{
+							"kind": 1,
+							"words": "6",
+							"command": "0x2c"
+						},
+						{
+							"kind": 1,
+							"words": "7",
+							"command": "0x2d"
+						},
+						{
+							"kind": 1,
+							"words": "8",
+							"command": "0x2e"
+						},
+						{
+							"kind": 1,
+							"words": "9",
+							"command": "0x2f"
+						}
+					]
+				}
+			]
+		},
+		{
+			"screen": "Track Editing",
+			"builder": "FUN_004d68e0",
+			"registrar": "0x4d8264-0x4d836d",
+			"pages": [
+				{
+					"row": 1,
+					"page": 2,
+					"kinds": "all",
+					"base": "0x5e6e98",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Stop Track Edit",
+							"command": "0x51c"
+						},
+						{
+							"kind": 0,
+							"words": "&Object",
+							"command": "0x2"
+						},
+						{
+							"kind": 1,
+							"words": "&Find",
+							"command": "0x19"
+						},
+						{
+							"kind": 1,
+							"words": "&Move relative",
+							"command": "0x1c"
+						},
+						{
+							"kind": 0,
+							"words": "M&isc",
+							"command": "0x50"
+						},
+						{
+							"kind": 1,
+							"words": "&Keys",
+							"command": "0x53"
+						},
+						{
+							"kind": 1,
+							"words": "&Move rel. to poly",
+							"command": "0x51"
+						},
+						{
+							"kind": 1,
+							"words": "&Lighting",
+							"command": "0x54"
+						},
+						{
+							"kind": 1,
+							"words": "Toggle &Split Screen",
+							"command": "0x52"
+						},
+						{
+							"kind": 1,
+							"words": "Toggle Gravity",
+							"command": "0x58"
+						},
+						{
+							"kind": 1,
+							"words": "Show Polygon Counts",
+							"command": "0x5a"
+						}
+					]
+				},
+				{
+					"row": 1,
+					"page": 3,
+					"kinds": "all",
+					"base": "0x5e6e98",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Stop Track Edit",
+							"command": "0x51c"
+						},
+						{
+							"kind": 0,
+							"words": "&Object",
+							"command": "0x2"
+						},
+						{
+							"kind": 1,
+							"words": "&Find",
+							"command": "0x19"
+						},
+						{
+							"kind": 1,
+							"words": "&Move relative",
+							"command": "0x1c"
+						},
+						{
+							"kind": 0,
+							"words": "M&isc",
+							"command": "0x50"
+						},
+						{
+							"kind": 1,
+							"words": "&Keys",
+							"command": "0x53"
+						},
+						{
+							"kind": 1,
+							"words": "&Move rel. to poly",
+							"command": "0x51"
+						},
+						{
+							"kind": 1,
+							"words": "&Lighting",
+							"command": "0x54"
+						},
+						{
+							"kind": 1,
+							"words": "Toggle &Split Screen",
+							"command": "0x52"
+						},
+						{
+							"kind": 1,
+							"words": "Toggle Gravity",
+							"command": "0x58"
+						},
+						{
+							"kind": 1,
+							"words": "Show Polygon Counts",
+							"command": "0x5a"
+						}
+					]
+				},
+				{
+					"row": 1,
+					"page": 4,
+					"kinds": "all",
+					"base": "0x5e6e98",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "&Mode",
+							"command": "0x1"
+						},
+						{
+							"kind": 1,
+							"words": "&Stop Track Edit",
+							"command": "0x51c"
+						},
+						{
+							"kind": 0,
+							"words": "&Object",
+							"command": "0x2"
+						},
+						{
+							"kind": 1,
+							"words": "&Find",
+							"command": "0x19"
+						},
+						{
+							"kind": 1,
+							"words": "&Move relative",
+							"command": "0x1c"
+						},
+						{
+							"kind": 0,
+							"words": "M&isc",
+							"command": "0x50"
+						},
+						{
+							"kind": 1,
+							"words": "&Keys",
+							"command": "0x53"
+						},
+						{
+							"kind": 1,
+							"words": "&Move rel. to poly",
+							"command": "0x51"
+						},
+						{
+							"kind": 1,
+							"words": "&Lighting",
+							"command": "0x54"
+						},
+						{
+							"kind": 1,
+							"words": "Toggle &Split Screen",
+							"command": "0x52"
+						},
+						{
+							"kind": 1,
+							"words": "Toggle Gravity",
+							"command": "0x58"
+						},
+						{
+							"kind": 1,
+							"words": "Show Polygon Counts",
+							"command": "0x5a"
+						}
+					]
+				},
+				{
+					"row": 1,
+					"page": 7,
+					"kinds": "all",
+					"base": "0xa88",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Mode",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&Exit",
+							"command": "0xa"
+						},
+						{
+							"kind": 0,
+							"words": "&Module",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&Acoustic type",
+							"command": "0xbb8"
+						},
+						{
+							"kind": 1,
+							"words": "&Reverb",
+							"command": "0xbb9"
+						},
+						{
+							"kind": 1,
+							"words": "Set To Default Acoustic Type",
+							"command": "0xbba"
+						},
+						{
+							"kind": 1,
+							"words": "Set To Default Reverb",
+							"command": "0xbbb"
+						},
+						{
+							"kind": 0,
+							"words": "&Default",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "&Acoustic type",
+							"command": "0xbbc"
+						},
+						{
+							"kind": 1,
+							"words": "&Reverb",
+							"command": "0xbbd"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 2,
+					"kinds": "all",
+					"base": "0x698",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Edit Section End Position",
+							"command": "0x516"
+						},
+						{
+							"kind": 0,
+							"words": "Next Section",
+							"command": "0x519"
+						},
+						{
+							"kind": 0,
+							"words": "Previous Section",
+							"command": "0x51a"
+						},
+						{
+							"kind": 0,
+							"words": "Add Section",
+							"command": "0x518"
+						},
+						{
+							"kind": 0,
+							"words": "Play Track",
+							"command": "0x514"
+						},
+						{
+							"kind": 0,
+							"words": "Properties",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Section",
+							"command": "0x51b"
+						},
+						{
+							"kind": 1,
+							"words": "Track",
+							"command": "0x527"
+						},
+						{
+							"kind": 0,
+							"words": "Sound",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Edit",
+							"command": "0x524"
+						},
+						{
+							"kind": 1,
+							"words": "Delete",
+							"command": "0x525"
+						},
+						{
+							"kind": 0,
+							"words": "Start Sound",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Edit",
+							"command": "0x528"
+						},
+						{
+							"kind": 1,
+							"words": "Delete",
+							"command": "0x529"
+						},
+						{
+							"kind": 0,
+							"words": "End Sound",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Edit",
+							"command": "0x52a"
+						},
+						{
+							"kind": 1,
+							"words": "Delete",
+							"command": "0x52b"
+						},
+						{
+							"kind": 0,
+							"words": "Delete",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Section",
+							"command": "0x51f"
+						},
+						{
+							"kind": 1,
+							"words": "Track",
+							"command": "0x520"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 3,
+					"kinds": "all",
+					"base": "0x38",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Edit Pivot Point",
+							"command": "0x51d"
+						},
+						{
+							"kind": 0,
+							"words": "Add Section",
+							"command": "0x518"
+						},
+						{
+							"kind": 0,
+							"words": "Jump To Start",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "This Section",
+							"command": "0x521"
+						},
+						{
+							"kind": 1,
+							"words": "Next Section",
+							"command": "0x522"
+						},
+						{
+							"kind": 0,
+							"words": "Next Section",
+							"command": "0x519"
+						},
+						{
+							"kind": 0,
+							"words": "Previous Section",
+							"command": "0x51a"
+						},
+						{
+							"kind": 0,
+							"words": "Finish End Pos Edit",
+							"command": "0x517"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 4,
+					"kinds": "all",
+					"base": "0xc98",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Stop track play",
+							"command": "0x515"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 5,
+					"kinds": "all",
+					"base": "0x1e8",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Move Pivot To Centre",
+							"command": "0x523"
+						},
+						{
+							"kind": 0,
+							"words": "Stop Pivot Edit",
+							"command": "0x51e"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 6,
+					"kinds": "all",
+					"base": "0xcf8",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Play",
+							"command": "0x7d0"
+						},
+						{
+							"kind": 0,
+							"words": "Stop",
+							"command": "0x7d1"
+						},
+						{
+							"kind": 0,
+							"words": "Sequence",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Edit sequence",
+							"command": "0x7d2"
+						},
+						{
+							"kind": 1,
+							"words": "Choose sequence",
+							"command": "0x7db"
+						},
+						{
+							"kind": 1,
+							"words": "Add sequence",
+							"command": "0x7d9"
+						},
+						{
+							"kind": 1,
+							"words": "Delete sequence",
+							"command": "0x7da"
+						},
+						{
+							"kind": 0,
+							"words": "Sounds",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Edit",
+							"command": "0x7d4"
+						},
+						{
+							"kind": 1,
+							"words": "Add",
+							"command": "0x7d3"
+						},
+						{
+							"kind": 1,
+							"words": "Remove",
+							"command": "0x7d5"
+						},
+						{
+							"kind": 0,
+							"words": "Sound Timing",
+							"command": "0x0"
+						},
+						{
+							"kind": 1,
+							"words": "Edit",
+							"command": "0x7d7"
+						},
+						{
+							"kind": 1,
+							"words": "Add",
+							"command": "0x7d6"
+						},
+						{
+							"kind": 1,
+							"words": "Remove",
+							"command": "0x7d8"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 8,
+					"kinds": "all",
+					"base": "0x5d8",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Add After",
+							"command": "0x1389"
+						},
+						{
+							"kind": 0,
+							"words": "Add Before",
+							"command": "0x138a"
+						},
+						{
+							"kind": 0,
+							"words": "Add Branch",
+							"command": "0x138b"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 9,
+					"kinds": "all",
+					"base": "0x278",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Add After",
+							"command": "0x1f41"
+						},
+						{
+							"kind": 0,
+							"words": "Add Before",
+							"command": "0x1f42"
+						},
+						{
+							"kind": 0,
+							"words": "Create Event",
+							"command": "0x1f43"
+						},
+						{
+							"kind": 0,
+							"words": "Use Start Orientation",
+							"command": "0x1fa8"
+						},
+						{
+							"kind": 0,
+							"words": "Use End Orientation",
+							"command": "0x1fa9"
+						},
+						{
+							"kind": 0,
+							"words": "Snap To Dummy",
+							"command": "0x1fab"
+						},
+						{
+							"kind": 0,
+							"words": "Set Time To Next Point",
+							"command": "0x1f47"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 10,
+					"kinds": "all",
+					"base": "0xff8",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "Change Time",
+							"command": "0x1f46"
+						}
+					]
+				},
+				{
+					"row": 2,
+					"page": 11,
+					"kinds": "all",
+					"base": "0x3f8",
+					"offsetCorrection": 0,
+					"records": [
+						{
+							"kind": 0,
+							"words": "1: MinX Track",
+							"command": "0x1395"
+						},
+						{
+							"kind": 0,
+							"words": "2: MinY Track",
+							"command": "0x1396"
+						},
+						{
+							"kind": 0,
+							"words": "3: MinZ Track",
+							"command": "0x1397"
+						},
+						{
+							"kind": 0,
+							"words": "4: MaxX Track",
+							"command": "0x1398"
+						},
+						{
+							"kind": 0,
+							"words": "5: MaxY Track",
+							"command": "0x1399"
+						},
+						{
+							"kind": 0,
+							"words": "6: MaxZ Track",
+							"command": "0x139a"
+						},
+						{
+							"kind": 0,
+							"words": "7: Secret Track",
+							"command": "0x139b"
+						},
+						{
+							"kind": 0,
+							"words": "Trigger Volume",
+							"command": "0x139c"
+						},
+						{
+							"kind": 0,
+							"words": "Toggle 'Only Trigger On Exit'",
+							"command": "0x139d"
+						}
+					]
+				}
+			]
+		}
+	]
+}

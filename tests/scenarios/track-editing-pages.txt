@@ -1,0 +1,58 @@
+# TRACK EDITING's real pages (hidden run, Invasion): the screen starts on page 2 (a track is loaded): inteng's own two bars (bar A the table 0x5e6e98, bar B Edit Section End Position, Next Section, Previous Section,
+# Add Section, Play Track, Properties, Sound, Start Sound, End Sound, Delete); then every other page of FUN_004d68e0 is shown and its titles are read from the editor, with a picture of each (no title cut off the window).
+# The pages are shown by the harness' page message: only the track handlers' own commands reach them in inteng, and the editor does not have all of those yet.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/track-editing-pages.txt
+screen Track Editing
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Track Editing
+expect-bar1 Mode
+expect-bar1 Object
+expect-bar1 Misc
+expect-bar2 Edit Section End Position
+expect-bar2 Next Section
+expect-bar2 Previous Section
+expect-bar2 Add Section
+expect-bar2 Play Track
+expect-bar2 Properties
+expect-bar2 Sound
+expect-bar2 Start Sound
+expect-bar2 End Sound
+expect-bar2 Delete
+picture 301
+show-page 3
+expect-bar1 Mode
+expect-bar2 Edit Pivot Point
+expect-bar2 Jump To Start
+expect-bar2 Finish End Pos Edit
+show-page 4
+expect-bar2 Stop track play
+show-page 5
+expect-bar2 Move Pivot To Centre
+expect-bar2 Stop Pivot Edit
+show-page 6
+expect-bar2 Play
+expect-bar2 Sequence
+expect-bar2 Sounds
+expect-bar2 Sound Timing
+show-page 7
+expect-bar1 Mode
+expect-bar1 Module
+expect-bar1 Default
+show-page 8
+expect-bar2 Add After
+expect-bar2 Add Branch
+show-page 9
+expect-bar2 Create Event
+expect-bar2 Use Start Orientation
+expect-bar2 Snap To Dummy
+expect-bar2 Set Time To Next Point
+show-page 10
+expect-bar2 Change Time
+show-page 11
+expect-bar2 1: MinX Track
+expect-bar2 7: Secret Track
+expect-bar2 Trigger Volume
+show-page 2
+expect-bar2 Edit Section End Position

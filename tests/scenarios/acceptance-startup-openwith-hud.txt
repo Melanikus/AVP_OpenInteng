@@ -1,0 +1,8 @@
+# ACCEPTANCE: a file of avp_huds (marwep.rif, 785864 bytes) double-clicked opens too, as itself (open_with.h; inteng opens the given file). It is read from where it is, copied to OpenedByEditor/marwep, never refused.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_huds/marwep.rif
+pictures on
+state
+expect-screen Construction
+expect-field level OpenedByEditor/marwep
+expect-field levelbytes 785864
+picture 300

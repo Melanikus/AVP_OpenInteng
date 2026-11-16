@@ -1,0 +1,190 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a panel's text isn't made safe",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "\t\tchar safe[kPaintMostLetters + 1];\n\t\tOnlineScreens_SafeName(text.data(), text.size(), safe, sizeof(safe));\n\t\treturn std::string(safe);",
+					"to": "\t\treturn std::string(text, 0, kPaintMostLetters);"
+				}
+			]
+		},
+		{
+			"name": "a panel's text isn't cut to its box",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "\t\tOnlineScreens_FitToWidth(letters, (int)room, widthOf);\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a box with no room across shows text",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "if (room <= 0 || height < line ||",
+					"to": "if (height < line ||"
+				}
+			]
+		},
+		{
+			"name": "a box not one line tall shows text",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "if (room <= 0 || height < line ||",
+					"to": "if (room <= 0 ||"
+				}
+			]
+		},
+		{
+			"name": "the line's height isn't held to 1..256",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "lineHeight < 1 ? 1 : lineHeight > kPaintTallestLine ? kPaintTallestLine : lineHeight",
+					"to": "lineHeight"
+				}
+			]
+		},
+		{
+			"name": "a place past the end of the numbers is kept",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": " || (int64_t)box.x + kPaintMarginAcross > INT32_MAX",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "text is placed without the margin across",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "out->x = (int32_t)((int64_t)box.x + kPaintMarginAcross);",
+					"to": "out->x = box.x;"
+				}
+			]
+		},
+		{
+			"name": "text is placed without the margin down",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "out->y = (int32_t)((int64_t)box.y + kPaintMarginDown);",
+					"to": "out->y = box.y;"
+				}
+			]
+		},
+		{
+			"name": "no font measure is used anyway",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "if (!out || !widthOf)",
+					"to": "if (!out)"
+				}
+			]
+		},
+		{
+			"name": "a window too small doesn't say so",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "layout.roomy ? &texts.status : &tooSmall",
+					"to": "&texts.status"
+				}
+			]
+		},
+		{
+			"name": "the plan gives more lines than its list holds",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "i < 4 && count < mostItems",
+					"to": "i < 4"
+				}
+			]
+		},
+		{
+			"name": "the toolbar's and the list's lines change places",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "\t\t\t{ &layout.toolbar, &texts.toolbar },\n\t\t\t{ &layout.list, &texts.list },",
+					"to": "\t\t\t{ &layout.list, &texts.list },\n\t\t\t{ &layout.toolbar, &texts.toolbar },"
+				}
+			]
+		},
+		{
+			"name": "a plan with no list to fill fills it anyway",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "\t\tif (!items)\n\t\t{\n\t\t\treturn 0;\n\t\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a box past the left isn't cut",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "int64_t const left = box.x < 0 ? 0 : (int64_t)box.x;",
+					"to": "int64_t const left = (int64_t)box.x;"
+				}
+			]
+		},
+		{
+			"name": "a box past the top isn't cut",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "int64_t const top = box.y < 0 ? 0 : (int64_t)box.y;",
+					"to": "int64_t const top = (int64_t)box.y;"
+				}
+			]
+		},
+		{
+			"name": "a box past the right isn't cut",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "int64_t const right = rightEnd > width ? (int64_t)width : rightEnd;",
+					"to": "int64_t const right = rightEnd;"
+				}
+			]
+		},
+		{
+			"name": "a box past the bottom isn't cut",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "int64_t const bottom = bottomEnd > height ? (int64_t)height : bottomEnd;",
+					"to": "int64_t const bottom = bottomEnd;"
+				}
+			]
+		},
+		{
+			"name": "a box with no part inside is drawn",
+			"changes": [
+				{
+					"file": "src/host/panel_paint.cpp",
+					"from": "if (right <= left || bottom <= top)",
+					"to": "if (false)"
+				}
+			]
+		}
+	]
+}

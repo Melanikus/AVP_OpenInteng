@@ -1,0 +1,23 @@
+# SPLIT OBJECT > AS PLACED OBJ (0xc8) then SAVE (hidden run, Invasion): polygons 130 and 131 of Bigtube06 (object row 166) are picked, the y/n question is answered, the polygons are marked (flag 0x80000000) and the saved copy carries the split out: one new shape of
+# those two polygons with a new placed object round it, the old shape two polygons fewer (verify_poly split2). (Hicks)
+# Run: LANE=T4 LEVEL=Invasion bash AvP-docs\tools\hicks\drive-scenario-poly.sh <tree> <this file> <name>  (build the verifier first: AvP-docs\tools\hicks\build-verify.sh <tree> poly)
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 166 130
+pick-poly 166 131
+expect-status 2 selected
+item 0xc8
+expect-prompt 43
+type y
+key Enter
+expect-prompt 43
+type Door
+key Enter
+expect-status the new object will be called Split0Door
+picture 960
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_poly/verify_poly.exe {orig} {copy} split2 Split0Door

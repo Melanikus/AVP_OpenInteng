@@ -1,0 +1,52 @@
+# ACCEPTANCE: Texture Map, the items that ASK (Vasquez, 2026-11-16; AvP-docs\engine\inteng\reassess\texture-map.md, "Pass 2"). RED FIRST: inteng's dispatcher FUN_0054d260 opens its Yes/No and text dialogs
+# (FUN_00474a40 / FUN_00474170 / FUN_00474350, shown by FUN_0057c800) for these items; ours asks on a typed prompt line (kPromptTextureMap, expect-prompt 4x). Nothing is typed here: the polygon is picked by a click in the view,
+# the questions are answered by clicks on their buttons, and every check looks at the screen or at what the dialog says.
+# EXPECTED TODAY: RED at the first dialog (ours: a prompt line). Finished = every line ok.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+picture 1
+# a polygon is picked by a click in the view (Selection : Polygon is the mode it starts in, FUN_0054d260 case 0)
+click-view 0.5 0.5
+expect-status 1 selected
+# Delete polys (0xc3): a YES / NO question with inteng's words; No leaves everything as it is
+item 0xc3
+expect-dialog-kind confirm
+expect-dialog Are you sure that you want to delete these polygons?
+expect-pixels-changed panels 0 0 1000 700 0.005
+click-button No
+expect-no-dialog
+expect-prompt 0
+# Delete 0-normal polys (0xc9): its own question
+item 0xc9
+expect-dialog-kind confirm
+expect-dialog Would you like polygons with 0 normals deleted?
+click-button No
+expect-no-dialog
+# Angle (0xff): a text dialog with one field, the words of FUN_0054d260, Ok / Cancel
+item 0xff
+expect-dialog-kind text
+expect-dialog Select polygons based on angle away from vertical.
+click-button Cancel
+expect-no-dialog
+# Set 'Arrow' Repeat Count (0x100): a text dialog with the two fields "Vertical" and "Horizontal"
+item 0x100
+expect-dialog-kind text
+expect-dialog Arrow Selection Step Size
+click-button Cancel
+expect-no-dialog
+# Shift UV Coords (0x133): "Shift uv coordinates by how much?", fields "u shift" and "v shift"
+item 0x133
+expect-dialog-kind text
+expect-dialog Shift uv coordinates by how much?
+click-button Cancel
+expect-no-dialog
+# Scale UV Coords (0x134): "How much would you like to scale the uv coordinates by?"
+item 0x134
+expect-dialog-kind text
+expect-dialog How much would you like to scale the uv coordinates by?
+click-button Cancel
+expect-no-dialog

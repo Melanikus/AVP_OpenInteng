@@ -1,0 +1,60 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "[harness] the select is answered with someone at the screen",
+			"changes": [
+				{
+					"file": "src/host/harness_select.cpp",
+					"from": "\t\tif (!nobodyWatching)\n\t\t{\n\t\t\treturn HarnessSelectAnswer::Ignored;\n\t\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "[harness] the row is checked in 32 bits",
+			"changes": [
+				{
+					"file": "src/host/harness_select.cpp",
+					"from": "if (!list || row >= (uint64_t)list->Count())",
+					"to": "if (!list || (uint32_t)row >= (uint32_t)list->Count())"
+				}
+			]
+		},
+		{
+			"name": "[harness] the row is chosen before the selection refuses it",
+			"changes": [
+				{
+					"file": "src/host/harness_select.cpp",
+					"from": "\t\tif (!Selection_Set(picked))\n\t\t{\n\t\t\treturn HarnessSelectAnswer::Refused;\n\t\t}\n\n\t\t// The list holds at most kObjectListMost rows (2^20), so the row fits the list's own number\n\t\tlist->Choose((int32_t)row);\n",
+					"to": "\t\tlist->Choose((int32_t)row);\n\n\t\tif (!Selection_Set(picked))\n\t\t{\n\t\t\treturn HarnessSelectAnswer::Refused;\n\t\t}\n\n"
+				}
+			]
+		},
+		{
+			"name": "[harness] a line is printed without the safe text",
+			"changes": [
+				{
+					"file": "src/host/harness_select.cpp",
+					"from": "PanelPaint_SafeText(lines[i].text)",
+					"to": "lines[i].text"
+				}
+			]
+		},
+		{
+			"name": "[harness] the count line is left off",
+			"changes": [
+				{
+					"file": "src/host/harness_select.cpp",
+					"from": "\t\tout.push_back(\"AVP_OpenInteng: panel lines \" + std::to_string(shown));\n",
+					"to": ""
+				}
+			]
+		}
+	]
+}

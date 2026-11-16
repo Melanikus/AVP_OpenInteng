@@ -1,0 +1,25 @@
+# ACCEPTANCE: inteng's FORM toolkit (dialogs.h) through Track Properties (FUN_004f4090, hidden run, Invasion): Properties > Track opens the form (kind form, four check boxes as the track's flags are), a click on a box turns it, Cancel closes it and
+# changes nothing, and Ok applies what the boxes say. Every control is clicked where it is drawn.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Object Placement
+select-row 5
+item 0x36
+expect-screen Track Editing
+expect-no-dialog
+item 0x527
+expect-dialog-kind form
+expect-dialog Track Properties
+picture 810
+click-check 2
+click-button Cancel
+expect-no-dialog
+item 0x527
+expect-dialog-kind form
+picture 811
+click-check 1
+click-check 3
+click-button Ok
+expect-no-dialog

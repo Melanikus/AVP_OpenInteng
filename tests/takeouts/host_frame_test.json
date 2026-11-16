@@ -1,0 +1,379 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a point left of a box is in it",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "return x >= left && (int64_t)x < left + box.width && y >= top && (int64_t)y < top + box.height;",
+					"to": "return (int64_t)x < left + box.width && y >= top && (int64_t)y < top + box.height;"
+				}
+			]
+		},
+		{
+			"name": "a point right of a box is in it",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "return x >= left && (int64_t)x < left + box.width && y >= top && (int64_t)y < top + box.height;",
+					"to": "return x >= left && y >= top && (int64_t)y < top + box.height;"
+				}
+			]
+		},
+		{
+			"name": "a point above a box is in it",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "return x >= left && (int64_t)x < left + box.width && y >= top && (int64_t)y < top + box.height;",
+					"to": "return x >= left && (int64_t)x < left + box.width && (int64_t)y < top + box.height;"
+				}
+			]
+		},
+		{
+			"name": "a point below a box is in it",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "return x >= left && (int64_t)x < left + box.width && y >= top && (int64_t)y < top + box.height;",
+					"to": "return x >= left && (int64_t)x < left + box.width && y >= top;"
+				}
+			]
+		},
+		{
+			"name": "a box's right edge is summed in 32 bits, and wraps",
+			"changes": [
+				{
+					"file": "src/ui/panel_layout.cpp",
+					"from": "return x >= left && (int64_t)x < left + box.width && y >= top && (int64_t)y < top + box.height;",
+					"to": "return x >= left && (int64_t)x < (int64_t)(int32_t)(uint32_t)(left + box.width) && y >= top && (int64_t)y < top + box.height;"
+				}
+			]
+		},
+		{
+			"name": "a point in the toolbar is in no panel",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "\t\treturn HostPanel::Toolbar;",
+					"to": "\t\treturn HostPanel::None;"
+				}
+			]
+		},
+		{
+			"name": "a point in the list is in no panel",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "\t\treturn HostPanel::List;",
+					"to": "\t\treturn HostPanel::None;"
+				}
+			]
+		},
+		{
+			"name": "a point in the view is in no panel",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "\t\treturn HostPanel::View;",
+					"to": "\t\treturn HostPanel::None;"
+				}
+			]
+		},
+		{
+			"name": "a point in the fields is in no panel",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "\t\treturn HostPanel::Fields;",
+					"to": "\t\treturn HostPanel::None;"
+				}
+			]
+		},
+		{
+			"name": "a point in the status is in no panel",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "\t\treturn HostPanel::Status;",
+					"to": "\t\treturn HostPanel::None;"
+				}
+			]
+		},
+		{
+			"name": "the list takes a quarter of the width",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "int64_t const share = windowWidth > 0 ? (int64_t)windowWidth * kListSharePercent / 100 : 0;",
+					"to": "int64_t const share = windowWidth > 0 ? (int64_t)windowWidth * 25 / 100 : 0;"
+				}
+			]
+		},
+		{
+			"name": "a width below 0 makes a list below 0",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "int64_t const share = windowWidth > 0 ? (int64_t)windowWidth * kListSharePercent / 100 : 0;",
+					"to": "int64_t const share = (int64_t)windowWidth * kListSharePercent / 100;"
+				}
+			]
+		},
+		{
+			"name": "the list has no most",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "int32_t const list = share < kListMostWidth ? (int32_t)share : kListMostWidth;",
+					"to": "int32_t const list = (int32_t)share;"
+				}
+			]
+		},
+		{
+			"name": "the field panel keeps the width it was built with",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "ui::kPanelSizesAsBuilt.statusHeight, list, list, 0, 0 };",
+					"to": "ui::kPanelSizesAsBuilt.statusHeight, list, list, 340, 220 };"
+				}
+			]
+		},
+		{
+			"name": "the click is never moved into the picture",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "\tif (from <= 0 || to <= 0)\n",
+					"to": "\tif (true)\n"
+				}
+			]
+		},
+		{
+			"name": "a picture with no size is still stretched into",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "\tif (from <= 0 || to <= 0)\n",
+					"to": "\tif (from <= 0)\n"
+				}
+			]
+		},
+		{
+			"name": "a place left of the window lands inside the picture",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "\tif (place < 0)\n\t{\n\t\treturn -1;\n\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "the pixel's corner is stretched, not its middle",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "((2 * (int64_t)place + 1) * to) / (2 * (int64_t)from)",
+					"to": "((int64_t)place * to) / (int64_t)from"
+				}
+			]
+		},
+		{
+			"name": "the largest place wraps round",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "return stretched > INT32_MAX ? INT32_MAX : (int32_t)stretched;",
+					"to": "return (int32_t)stretched;"
+				}
+			]
+		},
+		{
+			"name": "down is stretched as across",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "*panelsY = Stretched(y, windowHeight, panelsHeight);",
+					"to": "*panelsY = Stretched(y, windowWidth, panelsWidth);"
+				}
+			]
+		},
+		{
+			"name": "no place for the list's part is written through",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "if (!listPart || !fieldsPart)",
+					"to": "if (!fieldsPart)"
+				}
+			]
+		},
+		{
+			"name": "no place for the field panel's part is written through",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "if (!listPart || !fieldsPart)",
+					"to": "if (!listPart)"
+				}
+			]
+		},
+		{
+			"name": "a column's width below 0 is kept",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "int64_t const width = column.width > 0 ? column.width : 0;",
+					"to": "int64_t const width = column.width;"
+				}
+			]
+		},
+		{
+			"name": "a column's height below 0 is kept",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "int64_t height = column.height > 0 ? column.height : 0;",
+					"to": "int64_t height = column.height;"
+				}
+			]
+		},
+		{
+			"name": "a column past the end of the numbers isn't cut there",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "\tif ((int64_t)column.y + height > INT32_MAX)\n\t{\n\t\theight = INT32_MAX - (int64_t)column.y;\n\t}\n\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "the cut at the end of the numbers ignores where the column starts",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "height = INT32_MAX - (int64_t)column.y;",
+					"to": "height = INT32_MAX;"
+				}
+			]
+		},
+		{
+			"name": "the field panel may take more than half the column",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "int64_t const half = height / 2;",
+					"to": "int64_t const half = height;"
+				}
+			]
+		},
+		{
+			"name": "the field panel always takes half the column, whatever it wants",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "wanted > 0 ? (wanted < half ? wanted : half) : 0",
+					"to": "wanted > 0 ? half : 0"
+				}
+			]
+		},
+		{
+			"name": "a want of less than nothing is given",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "wanted > 0 ?",
+					"to": "wanted != 0 ?"
+				}
+			]
+		},
+		{
+			"name": "the list loses the odd pixel",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "int64_t const listHeight = height - fields;",
+					"to": "int64_t const listHeight = height / 2;"
+				}
+			]
+		},
+		{
+			"name": "the field panel's box starts at the column's top",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "ui::Box const foot = { column.x, (int32_t)((int64_t)column.y + listHeight), (int32_t)width, (int32_t)fields };",
+					"to": "ui::Box const foot = { column.x, column.y, (int32_t)width, (int32_t)fields };"
+				}
+			]
+		},
+		{
+			"name": "the field panel's box has no width",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "(int32_t)width, (int32_t)fields };",
+					"to": "0, (int32_t)fields };"
+				}
+			]
+		},
+		{
+			"name": "the list's box has no width",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "{ column.x, column.y, (int32_t)width, (int32_t)listHeight };",
+					"to": "{ column.x, column.y, 0, (int32_t)listHeight };"
+				}
+			]
+		},
+		{
+			"name": "the list's box is at the window's left",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "ui::Box const list = { column.x,",
+					"to": "ui::Box const list = { 0,"
+				}
+			]
+		},
+		{
+			"name": "the field panel's box is at the window's left",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "ui::Box const foot = { column.x,",
+					"to": "ui::Box const foot = { 0,"
+				}
+			]
+		},
+		{
+			"name": "the list's box starts a pixel lower than the column",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "ui::Box const list = { column.x, column.y,",
+					"to": "ui::Box const list = { column.x, column.y + 1,"
+				}
+			]
+		},
+		{
+			"name": "[share] with no place for the list's part, the field panel's is written anyway",
+			"changes": [
+				{
+					"file": "src/host/host_frame.cpp",
+					"from": "\tif (!listPart || !fieldsPart)\n\t{\n\t\treturn;\n\t}",
+					"to": "\tif (!listPart || !fieldsPart)\n\t{\n\t\tif (fieldsPart)\n\t\t{\n\t\t\t*fieldsPart = column;\n\t\t}\n\n\t\treturn;\n\t}"
+				}
+			]
+		}
+	]
+}

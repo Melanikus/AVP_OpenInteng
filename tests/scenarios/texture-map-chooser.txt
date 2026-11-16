@@ -1,0 +1,21 @@
+# TEXTURE CHOOSER (hidden run, Invasion): one polygon selected, Select Texture (0x2a) opens the grid of every texture over the view (picture 930), a left click on a cell picks that texture for the polygon (picture 931 shows the level again), and Esc closes the chooser without a pick (picture 932).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+item 0x2a
+expect-status the texture chooser
+picture 930
+click-view 0.30 0.30
+wait 600
+expect-status picture
+picture 931
+item 0x2a
+expect-status the texture chooser
+key Esc
+expect-status was cancelled
+picture 932

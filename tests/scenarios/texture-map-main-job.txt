@@ -1,0 +1,49 @@
+# TEXTURE MAP main job, the way a person gets there (hidden run, Invasion): start on the hub, Mode > Texture Map (item 0x46), select polygons by clicks, then each command in turn - Set Texture (PageDown), X-Flip, Y-Flip,
+# Wrap (T, click the plane polygon), Tile (C or Shift+T, click the plane polygon) - with a Save a copy after each and a verify of that copy against the one before it, through the game's loader: the picture is the exact one Set Texture
+# named, the flips are exactly uv_model's FlipU / FlipV over the lowest picture's window (128 x 128 on Invasion), wrap and tile are exactly uv_project's ProjectCorners for some polygon's plane, and nothing else in the file changed.
+# Run: VERIFY=texmap LEVEL=Invasion AvP-docs\tools\dietrich\drive-scenario-hier.sh <tree> <this file> <name>   (the runner builds the verifier into apone-harness-out/verify_texmap)
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+# the BASELINE: two saves with no edit between them. inteng's save runs prepare_for_output on the whole tree (version_no up on every object, the shape headers rebuild their name lists), so every save differs from the one before in those chunks: the verifier lets a chunk differ only where these two differ
+save-copy
+save-copy
+picture 300
+click-view 0.30 0.55
+click-view 0.50 0.60
+click-view 0.70 0.55
+click-view 0.50 0.35
+picture 301
+key PageDown
+wait 300
+expect-status picture
+picture 302
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} texture triggered_plot --baseline {save1} {save2}
+key X
+wait 300
+picture 303
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} flipx 128 128 --baseline {save1} {save2}
+key Y
+wait 300
+picture 304
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} flipy 128 128 --baseline {save1} {save2}
+key T
+click-view 0.50 0.55
+wait 300
+expect-status wrapped
+picture 305
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} wrap 128 128 1 xy --baseline {save1} {save2}
+key C
+click-view 0.50 0.55
+wait 300
+expect-status tiled
+picture 306
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} tile 128 128 1 xy --baseline {save1} {save2}

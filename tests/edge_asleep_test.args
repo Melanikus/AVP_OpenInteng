@@ -1,0 +1,14 @@
+/std:c++17 /EHsc /MD /J /we4834 /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DUSE_D3D9 /D_WINDOWS /DUSE_OPENAL /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE /D_WIN32_WINNT=0x0602
+/Isrc/host /Iavpx/3dc /Iavpx/3dc/video /Iavpx/3dc/avp /Iavpx/3dc/avp/support /Iavpx/3dc/avp/win95 /Iavpx/3dc/avp/win95/frontend
+/Iavpx/3dc/avp/win95/gadgets /Iavpx/3dc/include /Iavpx/3dc/win95 /Iavpx/win32 /Iavpx/dependencies/libbinkdec/include
+/Iavpx/dependencies/libsmackerdec/include /Ivcpkg_installed/x86-windows/include /Ivcpkg_installed/x86-windows/include/dxsdk-d3dx
+tests/edge_asleep_test.cpp
+src/host/edge/asleep_hudson.cpp
+src/host/edge/asleep_hudson_play.cpp
+src/host/edge/data_hudson.cpp
+src/host/edge_media.cpp
+src/host/edge_own.cpp
+src/host/edge_stop.cpp
+src/host/nobody_watching.cpp
+/link user32.lib shell32.lib

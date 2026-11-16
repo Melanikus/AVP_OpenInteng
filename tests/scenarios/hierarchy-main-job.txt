@@ -1,0 +1,59 @@
+# HIERARCHY main job (Melanikus: "pick an animation and play it, then edit it"): open a model, pick a hierarchy and a sequence, watch it play, stop it, flag a frame, give it a new sound,
+# save a copy, and read the copy back (verify_hierarchy: one frame gained flag 6 and the new sound; the sound list has one more).
+# The picture after each step is the proof; "the model plays" is the status line "playing" and the pictures of the alien at different positions.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-try-run/data/avp_rifs/hnpcalien.rif
+pictures on
+state
+item 0xcf
+expect-screen Hierarchy
+# the OPENED file is the model (the data folder's avp_rifs holds hnpcalien, the run's level): Select Hierarchy finds ONE hierarchy and opens it at once, then the Select Sequence list dialog opens (inteng, traced); the first row is clicked
+# (its rows are SHOWN SORTED, FUN_00475bf0; the file's first sequence, type 2 sub 9, is AlienStand "Boom Fall Back", clicked by its name)
+item 0x3
+expect-dialog Select Sequence
+click-choice AlienStand_boom_fall_back
+expect-no-dialog
+expect-status Sequence 1 selected
+# the sequence stands still until P (FUN_0047d6f0 makes its player not running), then plays
+key P
+wait 1500
+picture 1
+wait 700
+picture 2
+# stop it (O, FUN_0047b940), then flag the frame it stopped on: keyframe flag 6 (item 0x1b) and a new sound index 100, edited to step.wav, volume 100, applied to the frame
+key O
+picture 5
+wait 500
+picture 6
+expect-pixels-same panels 0 48 300 200 0.0005
+item 0x1b
+expect-status Add keyframe flag 6
+item 0x4d
+expect-prompt 30
+type 100
+key Enter
+expect-status Sound 100 added
+item 0x4e
+expect-dialog Select sound to edit
+click-choice 100 Not Set
+expect-prompt 30
+type step.wav
+key Enter
+type 2000
+key Enter
+type 20000
+key Enter
+type 100
+key Enter
+type 0
+key Enter
+expect-status Sound 100 edited
+item 0x50
+expect-dialog Apply which sound
+click-choice 100 step.wav
+expect-status applied to frame
+picture 3
+# the sequence the editor picks as Sequence 1 of the list is 2.9 (the file order), which verify_hierarchy is given below
+# the sequence time: item 0xd is not a menu item (the + key), so it is not in this scenario
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_hierarchy/verify_hierarchy.exe C:/Users/Melanikus/source/AvP-run/avp_huds/hnpcalien.rif {copy} alien 2 9 step.wav

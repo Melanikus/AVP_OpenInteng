@@ -1,0 +1,38 @@
+# TRACK EDITING's four Misc items that inteng's one menu object gives Object Placement too (Frost): Lighting (0x54, the Gouraud switch), Toggle Split Screen (0x52: the window is cut in four, the three views of Track Editing give
+# way to it and come back), Toggle Gravity (0x58) and Show Polygon Counts (0x5a: the modules painted by their polygon figure). They are Vasquez's handlers; Track Editing's rows have the same does words.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/track-editing-rows.txt
+screen Track Editing
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+expect-screen Track Editing
+picture 1
+item 0x54
+wait 400
+picture 2
+item 0x58
+expect-status Toggle Gravity: on
+item 0x58
+expect-status Toggle Gravity: off
+item 0x5a
+expect-status Show Polygon Counts: on
+wait 800
+picture 3
+item 0x5a
+expect-status Show Polygon Counts: off
+item 0x52
+expect-status Split Screen: on
+wait 800
+picture 4
+item 0x52
+expect-status Split Screen: off
+wait 800
+picture 5
+# Object > Move relative (0x1c) on Track Editing's own bar: the same handler as Object Placement's (the selected placed object's place as an offset from its module; Enter keeps the numbers shown)
+select-row 2
+item 0x1c
+expect-prompt 45
+picture 6
+key Enter
+expect-status Moved
+picture 7

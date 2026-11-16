@@ -1,0 +1,420 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a count above the most is read as a list",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (count > kFieldPanelMost)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "fields counted with no list are read",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "else if (count > 0 && !list)",
+					"to": "else if (false)"
+				}
+			]
+		},
+		{
+			"name": "a sound list names its last field",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "\t\t\tif (found.why == FieldListRefusal::None)\n\t\t\t{\n\t\t\t\tfound.field = 0;\n\t\t\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "the measure stops one short, so a name one too long passes",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "while (length <= most && text[length] != 0)",
+					"to": "while (length < most && text[length] != 0)"
+				}
+			]
+		},
+		{
+			"name": "an empty text is taken as words",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (length == 0 || length > most)",
+					"to": "if (length > most)"
+				}
+			]
+		},
+		{
+			"name": "a text longer than its most is taken as words",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (length == 0 || length > most)",
+					"to": "if (length == 0)"
+				}
+			]
+		},
+		{
+			"name": "a byte the font doesn't have is taken in words",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (!IsFontLetter((unsigned char)text[i]))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "no text at all is measured as words",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "\t\tif (!text)\n\t\t{\n\t\t\treturn false;\n\t\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a name is never checked",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (!IsWords(field.name, kFieldNameMost))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "help is never checked",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (field.help && !IsWords(field.help, kFieldHelpMost))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a kind with no box is taken",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (!number && !bit && !choice && !text)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a field can carry another kind's parts",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if ((!number && numberParts) || (!bit && bitParts) || (!choice && choiceParts) || (!text && textParts))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a unit off a number is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "bool const numberParts = field.unit || field.numberCheck;",
+					"to": "bool const numberParts = field.numberCheck;"
+				}
+			]
+		},
+		{
+			"name": "a number's check off a number is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "bool const numberParts = field.unit || field.numberCheck;",
+					"to": "bool const numberParts = field.unit;"
+				}
+			]
+		},
+		{
+			"name": "a bit off a bit field is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "bool const bitParts = field.bit != 0;",
+					"to": "bool const bitParts = false;"
+				}
+			]
+		},
+		{
+			"name": "a choice list off a choice field is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "bool const choiceParts = field.choices || field.choiceCount != 0;",
+					"to": "bool const choiceParts = field.choiceCount != 0;"
+				}
+			]
+		},
+		{
+			"name": "a count of choices off a choice field is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "bool const choiceParts = field.choices || field.choiceCount != 0;",
+					"to": "bool const choiceParts = field.choices;"
+				}
+			]
+		},
+		{
+			"name": "a capacity off a text is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "bool const textParts = field.capacity != 0 || ",
+					"to": "bool const textParts = "
+				}
+			]
+		},
+		{
+			"name": "fixed off a text is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": " || field.fixed || field.capacityWhy",
+					"to": " || field.capacityWhy"
+				}
+			]
+		},
+		{
+			"name": "a capacity's reason off a text is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": " || field.capacityWhy || field.required",
+					"to": " || field.required"
+				}
+			]
+		},
+		{
+			"name": "required off a text is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": " || field.required || field.requiredWhy",
+					"to": " || field.requiredWhy"
+				}
+			]
+		},
+		{
+			"name": "a required reason off a text is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": " || field.requiredWhy || field.letters",
+					"to": " || field.letters"
+				}
+			]
+		},
+		{
+			"name": "a letter rule off a text is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": " || field.letters\n",
+					"to": "\n"
+				}
+			]
+		},
+		{
+			"name": "a text's check off a text is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "\t\t\t|| field.textCheck || field.prefixField != -1;",
+					"to": "\t\t\t|| field.prefixField != -1;"
+				}
+			]
+		},
+		{
+			"name": "a prefix off a text is not noticed",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "\t\t\t|| field.textCheck || field.prefixField != -1;",
+					"to": "\t\t\t|| field.textCheck;"
+				}
+			]
+		},
+		{
+			"name": "a range NumberRuleFor refuses is taken",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (!NumberRuleFor(field.lowest, field.highest, field.decimals).good || (field.unit && !IsWords(field.unit, kFieldUnitMost)))",
+					"to": "if (field.unit && !IsWords(field.unit, kFieldUnitMost))"
+				}
+			]
+		},
+		{
+			"name": "a unit is never checked",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (!NumberRuleFor(field.lowest, field.highest, field.decimals).good || (field.unit && !IsWords(field.unit, kFieldUnitMost)))",
+					"to": "if (!NumberRuleFor(field.lowest, field.highest, field.decimals).good)"
+				}
+			]
+		},
+		{
+			"name": "a bit field of no bit is taken",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (bit && (field.bit == 0 || (field.bit & (field.bit - 1)) != 0))",
+					"to": "if (bit && (field.bit & (field.bit - 1)) != 0)"
+				}
+			]
+		},
+		{
+			"name": "a bit field of several bits is taken",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (bit && (field.bit == 0 || (field.bit & (field.bit - 1)) != 0))",
+					"to": "if (bit && field.bit == 0)"
+				}
+			]
+		},
+		{
+			"name": "a choice list is never checked",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (choice && !ChoicesAreSound(field.choices, field.choiceCount))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a capacity of 0 is taken",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (field.capacity == 0 || field.capacity > kTextMostBytes || ",
+					"to": "if (field.capacity > kTextMostBytes || "
+				}
+			]
+		},
+		{
+			"name": "a capacity above what a text field holds is taken",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (field.capacity == 0 || field.capacity > kTextMostBytes || ",
+					"to": "if (field.capacity == 0 || "
+				}
+			]
+		},
+		{
+			"name": "a capacity's reason is never checked",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": " || (field.capacityWhy && !IsWords(field.capacityWhy, kFieldHelpMost)))",
+					"to": ")"
+				}
+			]
+		},
+		{
+			"name": "required and its reason needn't come together",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (field.required != (field.requiredWhy != 0) || ",
+					"to": "if ("
+				}
+			]
+		},
+		{
+			"name": "a required reason is never checked",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": " || (field.required && !IsWords(field.requiredWhy, kFieldHelpMost)))",
+					"to": ")"
+				}
+			]
+		},
+		{
+			"name": "a prefix past the end, or below 0, is read",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if ((size_t)field.prefixField >= count || !field.textCheck)",
+					"to": "if (!field.textCheck)"
+				}
+			]
+		},
+		{
+			"name": "a prefix with no spec's check is taken",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if ((size_t)field.prefixField >= count || !field.textCheck)",
+					"to": "if ((size_t)field.prefixField >= count)"
+				}
+			]
+		},
+		{
+			"name": "a prefix that isn't a text is taken",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (prefix.kind != FieldKind::Text || prefix.prefixField != -1)",
+					"to": "if (prefix.prefixField != -1)"
+				}
+			]
+		},
+		{
+			"name": "a chain of prefixes is taken",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "if (prefix.kind != FieldKind::Text || prefix.prefixField != -1)",
+					"to": "if (prefix.kind != FieldKind::Text)"
+				}
+			]
+		},
+		{
+			"name": "an empty descriptor names the first field as its prefix",
+			"changes": [
+				{
+					"file": "src/ui/field_descriptor.cpp",
+					"from": "field.prefixField = -1;",
+					"to": "field.prefixField = 0;"
+				}
+			]
+		},
+		{
+			"name": "the shared choice rule takes one choice too many, for the box and the list alike",
+			"changes": [
+				{
+					"file": "src/ui/choice_box.cpp",
+					"from": "if (!choices || count == 0 || count > kChoiceMost)",
+					"to": "if (!choices || count == 0 || count > kChoiceMost + 1)"
+				}
+			]
+		}
+	]
+}

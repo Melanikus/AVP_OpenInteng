@@ -1,0 +1,9 @@
+# a probe for Copy From / To Multiple and Copy Object: the camera stands 9 metres back from the first textured polygon of RndSwitch1 (-gotodistance), so RndSwitch2 beside it should be in the picture (picture 950)
+start-args -viewmode headlight -gotoobject RndSwitch1 -gotodistance 9000
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+wait 600
+picture 950

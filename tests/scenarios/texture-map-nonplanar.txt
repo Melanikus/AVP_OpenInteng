@@ -1,0 +1,11 @@
+# VIEW: NON-PLANAR QUADS (0x11c, hidden run, Invasion): the view shows the polygons Split Object marked (the flag 0x80000000, which only Split Object sets). Nothing is marked in a fresh level, so it finds 0; None (0x4c) puts the view back. The case with marked polygons is texture-map-nonplanar-split.txt (needs Split Object live in the menu).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+item 0x11c
+expect-status 0 found
+item 0x4c
+expect-status no flag is viewed

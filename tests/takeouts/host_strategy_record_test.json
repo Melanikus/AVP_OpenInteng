@@ -1,0 +1,510 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a letter the font lacks goes into a descriptor's words as it is",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "words += ui::IsFontLetter(letter) ? (char)letter : '?';",
+					"to": "words += (char)letter;"
+				}
+			]
+		},
+		{
+			"name": "words aren't cut to what a descriptor takes",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "for (size_t i = 0; i < most && text[i] != 0; i++)",
+					"to": "for (size_t i = 0; i < 100000 && text[i] != 0; i++)"
+				}
+			]
+		},
+		{
+			"name": "a field with no reason gets an empty help line",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "return help.empty() ? 0 : Keep(record, help);",
+					"to": "return Keep(record, help);"
+				}
+			]
+		},
+		{
+			"name": "a field's help line isn't its reason",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "std::string const help = SafeWords(field.why, ui::kFieldHelpMost);",
+					"to": "std::string const help = SafeWords(\"\", ui::kFieldHelpMost);"
+				}
+			]
+		},
+		{
+			"name": "tenths of a second have no unit words",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "case model::Unit::TenthsOfASecond: return \"tenths s\";",
+					"to": "case model::Unit::TenthsOfASecond: return 0;"
+				}
+			]
+		},
+		{
+			"name": "sixty-five-thousandths of a second say plain seconds",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "case model::Unit::Fixed16Seconds: return \"s/65536\";",
+					"to": "case model::Unit::Fixed16Seconds: return \"s\";"
+				}
+			]
+		},
+		{
+			"name": "a percent has no unit words",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "case model::Unit::Percent: return \"%\";",
+					"to": "case model::Unit::Percent: return 0;"
+				}
+			]
+		},
+		{
+			"name": "game units have no unit words",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "case model::Unit::GameUnits: return \"mm\";",
+					"to": "case model::Unit::GameUnits: return 0;"
+				}
+			]
+		},
+		{
+			"name": "a number's unit words aren't given to its descriptor",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "descriptor.unit = UnitWords(field.unit);",
+					"to": "descriptor.unit = 0;"
+				}
+			]
+		},
+		{
+			"name": "a field's own limit isn't its range",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "if (field.limit != model::Limit::None)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a fraction's range is its whole storage's, which the panel refuses",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "*lowest = -1e9;\n\t\t\t*highest = 1e9;",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a whole number's range isn't its storage's",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "model::StorageRange(field.storage, lowest, highest);",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a fraction has no decimals",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "descriptor.decimals = IsAFraction(field.storage) ? 3 : 0;",
+					"to": "descriptor.decimals = 0;"
+				}
+			]
+		},
+		{
+			"name": "a number's value isn't the payload's",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "value.number = number;",
+					"to": "value.number = 0;"
+				}
+			]
+		},
+		{
+			"name": "a descriptor can be edited",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "descriptor.readOnly = true;",
+					"to": "descriptor.readOnly = false;"
+				}
+			]
+		},
+		{
+			"name": "a flag's Bit box has no bit",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "descriptor.bit = bit;",
+					"to": "descriptor.bit = 0;"
+				}
+			]
+		},
+		{
+			"name": "a flag's value isn't the flags word",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "value.word = word;",
+					"to": "value.word = 0;"
+				}
+			]
+		},
+		{
+			"name": "the bits the editor always sets are shown",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "strcmp(named.field, field.name) != 0 || named.alwaysSet)",
+					"to": "strcmp(named.field, field.name) != 0)"
+				}
+			]
+		},
+		{
+			"name": "a flags field is skipped for having no label of its own",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (field.unit == model::Unit::Flags)\n\t\t\t{\n\t\t\t\treturn AddBits(kind, field, payload, length, record);\n\t\t\t}",
+					"to": "if (false)\n\t\t\t{\n\t\t\t\treturn AddBits(kind, field, payload, length, record);\n\t\t\t}"
+				}
+			]
+		},
+		{
+			"name": "a field the old editor showed no label for is shown",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (label.empty())\n\t\t\t{\n\t\t\t\treturn true;\n\t\t\t}\n\n\t\t\tif (field.unit == model::Unit::Choice)",
+					"to": "if (field.unit == model::Unit::Choice)"
+				}
+			]
+		},
+		{
+			"name": "a choice is shown as a number",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (field.unit == model::Unit::Choice)\n\t\t\t{\n\t\t\t\tbool added = false;",
+					"to": "if (false)\n\t\t\t{\n\t\t\t\tbool added = false;"
+				}
+			]
+		},
+		{
+			"name": "a choice's value isn't the payload's",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "value.choice = stored;",
+					"to": "value.choice = 0;"
+				}
+			]
+		},
+		{
+			"name": "a choice's names lose their values",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "ui::Choice const choice = { named.value, Keep(record, words) };",
+					"to": "ui::Choice const choice = { 0, Keep(record, words) };"
+				}
+			]
+		},
+		{
+			"name": "a choice's list isn't given to its box",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "descriptor.choices = kept.data();",
+					"to": "descriptor.choices = 0;"
+				}
+			]
+		},
+		{
+			"name": "a choice with no named value is made a dropdown of none",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (choices.empty())\n\t\t\t{\n\t\t\t\treturn true;\n\t\t\t}\n\n\t\t\tPushChoice(",
+					"to": "PushChoice("
+				}
+			]
+		},
+		{
+			"name": "a corner shows its x for every axis",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "help, field, axes[axis], SourceKind::Axis, axis);",
+					"to": "help, field, axes[0], SourceKind::Axis, axis);"
+				}
+			]
+		},
+		{
+			"name": "a corner isn't three numbers",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (field.storage == model::Storage::IntTriple)\n\t\t\t{\n\t\t\t\treturn AddTriple(",
+					"to": "if (false)\n\t\t\t{\n\t\t\t\treturn AddTriple("
+				}
+			]
+		},
+		{
+			"name": "an object isn't a text",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (field.storage == model::Storage::ObjectId)\n\t\t\t{\n\t\t\t\treturn AddObject(",
+					"to": "if (false)\n\t\t\t{\n\t\t\t\treturn AddObject("
+				}
+			]
+		},
+		{
+			"name": "an object of 0 and 0 isn't none",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "if (first == 0 && second == 0)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "an object's halves are the wrong way round",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "(unsigned)first, (unsigned)second);",
+					"to": "(unsigned)second, (unsigned)first);"
+				}
+			]
+		},
+		{
+			"name": "an object's text has no room for its two halves",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "descriptor.capacity = 17;",
+					"to": "descriptor.capacity = 16;"
+				}
+			]
+		},
+		{
+			"name": "an orientation is read as one number",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (field.storage == model::Storage::IntMatrix)\n\t\t\t{\n\t\t\t\treturn true;\n\t\t\t}",
+					"to": "if (false)\n\t\t\t{\n\t\t\t\treturn true;\n\t\t\t}"
+				}
+			]
+		},
+		{
+			"name": "a record isn't emptied before it's built",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "\t\t{\n\t\t\tEmptyRecord(record);\n\n\t\t\tchar const *const label =",
+					"to": "\t\t{\n\t\t\tchar const *const label ="
+				}
+			]
+		},
+		{
+			"name": "a title is the game's name, not the old editor's",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "char const *const label = (kind.offered && kind.label && kind.label[0]) ? kind.label : kind.name;",
+					"to": "char const *const label = kind.name;"
+				}
+			]
+		},
+		{
+			"name": "a title has no number",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "std::to_string(kind.number) + \")\";",
+					"to": "std::to_string(0) + \")\";"
+				}
+			]
+		},
+		{
+			"name": "a field that can't be read doesn't refuse the record",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (!AddField(kind, kind.fields[i], payload, length, record))",
+					"to": "if (!AddField(kind, kind.fields[i], payload, length, record) && false)"
+				}
+			]
+		},
+		{
+			"name": "the panel's own check isn't asked of the list",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (!ui::CheckFieldList(record->list.data(), record->list.size(), &problem))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a record of more fields than the panel shows isn't refused",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (record->list.size() > kFieldPanelHostMostFields)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a record of exactly the most fields is refused",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (record->list.size() > kFieldPanelHostMostFields)",
+					"to": "if (record->list.size() >= kFieldPanelHostMostFields)"
+				}
+			]
+		},
+		{
+			"name": "a payload's size isn't asked of the model",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (check != model::SizeCheck::Right)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a kind the editor doesn't know isn't refused",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (!kind)\n\t\t{\n\t\t\treturn Refuse(record, why, UnknownKindWords);",
+					"to": "if (false)\n\t\t{\n\t\t\treturn Refuse(record, why, UnknownKindWords);"
+				}
+			]
+		},
+		{
+			"name": "the kind's number is read from the wrong place",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "uint32_t const bits = (uint32_t)payload[8] |",
+					"to": "uint32_t const bits = (uint32_t)payload[12] |"
+				}
+			]
+		},
+		{
+			"name": "no payload isn't refused",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (!payload)\n\t\t{\n\t\t\treturn Refuse(record, why, NoPayloadWords);\n\t\t}\n\n\t\tmodel::SizeCheck const check",
+					"to": "model::SizeCheck const check"
+				}
+			]
+		},
+		{
+			"name": "a record can be copied",
+			"changes": [
+				{
+					"file": "src/host/field_record.h",
+					"from": "FieldRecord(const FieldRecord &) = delete;",
+					"to": "FieldRecord(const FieldRecord &) = default;"
+				}
+			]
+		},
+		{
+			"name": "a record can't be moved",
+			"changes": [
+				{
+					"file": "src/host/field_record.h",
+					"from": "FieldRecord(FieldRecord &&) = default;\n\t\tFieldRecord &operator=(FieldRecord &&) = default;\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a choice no int32 holds is converted to one anyway",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "if (!FitsAChoice(stored))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a choice one past the int32's top is taken as one",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "stored <= 2147483647.0;",
+					"to": "stored <= 2147483648.0;"
+				}
+			]
+		},
+		{
+			"name": "a choice below the int32's bottom is taken as one",
+			"changes": [
+				{
+					"file": "src/host/field_descriptor_from_model.cpp",
+					"from": "stored >= -2147483648.0 &&",
+					"to": "stored >= -4294967296.0 &&"
+				}
+			]
+		},
+		{
+			"name": "a field of three numbers has a label that is too long for its axis",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "PushTriple(record, SafeWords(field.label, ui::kFieldNameMost - 2),",
+					"to": "PushTriple(record, SafeWords(field.label, ui::kFieldNameMost),"
+				}
+			]
+		},
+		{
+			"name": "a size refusal leaves the record as it was",
+			"changes": [
+				{
+					"file": "src/host/strategy_record.cpp",
+					"from": "return Refuse(record, why, model::SizeCheckWords(check));",
+					"to": "return Refuse(0, why, model::SizeCheckWords(check));"
+				}
+			]
+		}
+	]
+}

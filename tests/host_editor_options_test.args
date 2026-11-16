@@ -1,0 +1,4 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE /Isrc/host
+tests/host_editor_options_test.cpp
+src/host/editor_options.cpp
+/link user32.lib

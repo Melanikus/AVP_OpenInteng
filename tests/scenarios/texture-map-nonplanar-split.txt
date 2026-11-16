@@ -1,0 +1,19 @@
+# VIEW: NON-PLANAR QUADS after Split Object (NOT RUN YET: Split Object 0xc7 is [wip] in the menu until Hicks flips it, so the menu item says "Not in the editor yet"). Polygons 0 and 5 of RndSwitch1 (row 148) are picked, Split Object > As Module marks them (flag 0x80000000), the view must then find exactly 2.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+item 0x11c
+expect-status 0 found
+pick-poly 148 0
+pick-poly 148 5
+expect-status 2 selected
+item 0xc7
+expect-status marked to become
+item 0x11c
+expect-status 2 found
+picture 940
+item 0x4c
+expect-status no flag is viewed

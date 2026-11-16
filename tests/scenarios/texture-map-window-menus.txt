@@ -1,0 +1,27 @@
+# THE TEXTURE WINDOW'S OWN MENUS (hidden run, Invasion): one polygon selected, Tab opens the texture window and the bars change to its own (Mode, Texture, Help / Rotate Nodes, X-Flip, Y-Flip, Next Texture ...); Rotate Nodes > 90 Node Centre (0x16), X-Flip (0x6), Next Texture (0xa), Toggle Node Selection (0x102); Mode > Polygon (0x2) leaves the window and the bars come back. Pictures 940 to 942.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+key Tab
+wait 300
+expect-bar2 Rotate Nodes
+picture 940
+item 0x16
+expect-status the nodes were given to 1 polygon
+item 0x6
+wait 300
+picture 941
+item 0xa
+wait 300
+expect-status picture
+item 0x102
+expect-status every node
+item 0x2
+wait 300
+expect-bar2 Clear Selection
+picture 942

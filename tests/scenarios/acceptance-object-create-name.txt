@@ -1,0 +1,47 @@
+# ACCEPTANCE: Object Placement's creates ask for the NAME first (AvP-docs/engine/inteng/reassess/object-placement.md OP-24, OP-27..OP-31; Bishop checked the rows 11-16).
+# inteng: Create > AVP generator / AVP Bad Guy / Sound / Particle Generator each call FUN_004d53d0 (FUN_004d9af0 0x4daa1b, 0x4dab31, 0x4dad35, 0x4dac43): the "Name Object" window FUN_004d4c70
+# (400 x 200, "Type in the name of the object.", an edit of up to 200 letters, OK and Cancel). OK with a name no object has makes the object with that name (FUN_004dd4d0 -> FUN_004e4ae0 copies it);
+# a used name gives FUN_004d4e00 ("The name of the object has already been used.", Re-enter / Cancel); Re-enter shows the name window again holding the typed name; Cancel makes nothing.
+# The player start takes no name window (0x4db273). Invasion, opened as by a double click, read-only.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+picture 1
+
+# ---- N1 Create > AVP generator opens the Name Object window (FUN_004d53d0 0x4daa1b); OK with a free name makes the generator with that name
+click-bar Create > AVP generator
+expect-dialog Name Object
+expect-dialog-kind form
+expect-pixels-changed picture 0 0 2000 2000 0.002
+form-field 1 genA
+click-button OK
+expect-no-dialog
+expect-status (genA)
+
+# ---- N2 the same name again: FUN_004d4e00 "The name of the object has already been used." with Re-enter; Re-enter shows the name window again with the typed name in it
+click-bar Create > AVP generator
+expect-dialog Name Object
+form-field 1 genA
+click-button OK
+expect-dialog Name Object
+click-button Re-enter
+expect-dialog Name Object
+expect-dialog-text genA
+
+# ---- N3 Cancel in the name window makes no object (FUN_004d53d0 0x4d5434: the answer is not OK)
+click-button Cancel
+expect-no-dialog
+
+# ---- N4 Create > Sound asks the name too (0x4dad35); the player start does not (0x4db273)
+click-bar Create > Sound
+expect-dialog Name Object
+form-field 1 sndA
+click-button OK
+expect-no-dialog
+expect-status (sndA)
+click-bar Create > Player starting position
+expect-no-dialog

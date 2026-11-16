@@ -1,0 +1,42 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "[bar] the editor's old Quit is put on the bar",
+			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "\treturn id == 2 || id == 301;", "to": "\treturn id == 301;" } ]
+		},
+		{
+			"name": "[bar] an item of inteng's gets no tag",
+			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "item.action, host::IntengMenus_TagWords(item.tag) };", "to": "item.action, nullptr };" } ]
+		},
+		{
+			"name": "[bar] a screen has no way back to the hub",
+			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "\t\troom->items[used++] = back;\n\t\tours.count++;\n", "to": "" } ]
+		},
+		{
+			"name": "[bar] Screens lists the hub too",
+			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "\t\t\tif (s == host::kIntengHub)\n\t\t\t{\n\t\t\t\tcontinue;\n\t\t\t}\n", "to": "" } ]
+		},
+		{
+			"name": "[bar] a tagged item says nothing of why",
+			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "\t\t\thost->statusWords = host::IntengMenus_Why(item->tag);", "to": "" } ]
+		},
+		{
+			"name": "[bar] Keys says nothing",
+			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "\t\t\thost->statusWords = EditorActions_KeysWords(host->layout);", "to": "" } ]
+		},
+		{
+			"name": "[bar] the widest bar is only the last one",
+			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "widest = sum > widest ? sum : widest;", "to": "widest = sum;" } ]
+		},
+		{
+			"name": "[bar] titles past the edge aren't named",
+			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "if (bar.TitleBox(m).width <= 0 && menus[m].title)", "to": "if (false)" } ]
+		}
+	]
+}

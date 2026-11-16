@@ -1,0 +1,339 @@
+# ACCEPTANCE: Strategy Data, HIS PATH (Frost, 2026-11-16, Bishop's order: "map a single mode with ALL functionality"; started by Drake from reassess/strategy-data.md). This file says what FINISHED is for this screen.
+# HIS PATH means what Melanikus does with the mouse, nothing else: the file is OPENED (start-args, as a double click), the BAR is clicked to reach the screen (click-bar: the pointer goes to the top edge, a title and an item are
+# clicked where the editor draws them), an object is CLICKED in the 3D view, the RIGHT button opens the pop-up (inteng's second menu table: FUN_004b7c50 -> FUN_004b8350) and an entry of it is clicked, the window that opens is
+# answered by clicking its buttons or typing in its box. No select-row, no "item 0x..", no typed answers where inteng shows buttons. Every block names the inteng code it is traced from (dump-all-3.txt).
+# The manual (AvP-docs\engine\inteng\raw\bible\text\inteng\strategy.txt): "select the object you wish to work on, then right click and assign a strategy to it". Where it and the disassembly differ the disassembly wins.
+# The level is Invasion, a read-only stock file: nothing here saves over it.
+
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+picture 1
+# Construction > Mode > Strategy Data: Normal (0x39) enters the screen (FUN_00522ab0 builds the bars: Mode, Find Object, Find Errors, Misc; the second bar is the right-click pop-up)
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+expect-bar1 Mode
+expect-bar1 Find Object
+expect-bar1 Find Errors
+expect-bar1 Misc
+picture 2
+# with no object current nothing is drawn in the text area (FUN_00524e90 draws the two lines only when DAT_00914970 is set)
+expect-selected 0
+
+# ---- S1 SELECTION (FUN_00524e90's last step 0x525242, a left press with no menu command: FUN_00528250): ONE current object. The click takes the object under the pointer (FUN_00559720); clicking the current one changes
+# nothing; clicking empty space lets it go; the old one's red goes (FUN_00529480), the new one's comes (FUN_00529470). Shift is NOT read: Shift + click is a plain click. Each frame the screen draws the current object's
+# name at (16, 0) and "ID - 0x%x %x" (0x5edddc) at (16, 16) of the text area, and NO field panel.
+click-win 120 500
+expect-selected 1
+expect-pixels-changed panels 0 30 260 50 0.004
+picture 3
+# another object: the first one goes, there is still ONE
+click-win 504 364
+expect-selected 1
+expect-pixels-changed panels 0 30 260 50 0.004
+picture 4
+# Shift + click on the first object: it becomes the current one, the other is let go (one, not two, and no toggling)
+click-win 120 500 shift
+expect-selected 1
+expect-pixels-changed panels 0 30 260 50 0.004
+picture 5
+# the right button opens the pop-up and changes nothing about what is current
+click-win 640 300 right
+expect-popup-rows Save|Copy Strategy|Edit Strategy|Assign Strategy|Delete Strategy|Create Virtual Object|Destroy Virtual Object|Delete Multiple Strategies
+key Esc
+expect-selected 1
+
+# ---- S2 ASSIGN STRATEGY (FUN_00528830 -> FUN_0052a160): with no current object it returns at once (DAT_00914970 == 0); with one the window "Select Strategy" (0x5ee77c) is a stack of BUTTONS, one per kind the
+# object's class accepts (its method +8(kind)), each 200 x 16 at x 0x12, y = row x 0x14, and Cancel (0xfa, 0x177). The current object is the module "APCmod": a module takes Lift, Door, Airlock, Switch Door, Lighting Effects.
+click-win 120 500 right
+click-popup 4
+expect-dialog Select Strategy
+expect-dialog-kind form
+picture 6
+click-button Door
+# the new strategy is built by its own constructor and its Edit view opens at once; the screen goes on with the same current object
+expect-selected 1
+picture 7
+key Esc
+expect-selected 1
+# Assign once more on an object that has a strategy now: the confirm "Object already has a strategy.\nWould you like to replace it?" (0x5ee2b4), Yes / No
+click-win 120 500 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Door
+expect-dialog-kind confirm
+expect-dialog Object already has a strategy.
+click-button No
+expect-no-dialog
+key Esc
+
+# ---- S3 EDIT STRATEGY (FUN_005286b0 -> the strategy's method +0x14(1)): with a strategy, its own view, NOT a panel: the Door's (FUN_0052cbb0, vtable 0x5af3e8; reassess\strategy-data-kinds.md S-K50) draws the object's name and
+# kind at (200, 0) and its five lines at x 16, y 16 .. 80 of the text area, and waits; the Escape key (slot 0xd87a45) or the right button (DAT_00d8806a & 2) ends it (0x52ce0d-0x52ce1d) and the lines go
+click-win 120 500 right
+click-popup 3
+expect-status Edit Strategy
+expect-pixels-changed panels 0 30 300 300 0.02
+wait 300
+expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
+picture 15
+key Esc
+expect-pixels-changed panels 0 30 300 300 0.02
+picture 16
+click-win 120 500
+expect-selected 1
+
+# ---- S4 COPY STRATEGY (FUN_00528340 with the collector FUN_00526bf0): the current object is the SOURCE ("Select object to copy from first" without one; "Selected object has no strategy" when it has none); then a click adds the
+# object under the pointer to the list, Shift + click takes it out, Return ends. "Select objects to copy to" is drawn along the foot.
+click-win 120 500 right
+click-popup 2
+expect-status Select objects to copy to
+click-win 640 300
+picture 8
+key Enter
+expect-status Copy Strategy
+
+# ---- S5 DELETE STRATEGY (FUN_00528790): a confirm (FUN_00474a40) "Are you sure you want to delete the \nstrategy on this object?" (0x5ee254), Yes / No; only Yes destroys the AVPSTRAT chunk
+click-win 120 500
+click-win 120 500 right
+click-popup 5
+expect-dialog-kind confirm
+expect-dialog Are you sure you want to delete the
+click-button No
+expect-no-dialog
+
+# ---- S6 FIND ERRORS (FUN_0053bf00): none found: the message dialog "No Errors Found" (0x5f04a0, FUN_00473f90), button Ok
+click-bar Find Errors > Find Errors
+expect-dialog-kind message
+expect-dialog No Errors Found
+click-button Ok
+expect-no-dialog
+
+# ---- S7 DELETE MULTIPLE STRATEGIES (FUN_005376a0 dialog, FUN_005380d0 work): the dialog "Select Strategies To Delete" (0x5f027c) of twenty check boxes, all off, Ok and Cancel
+click-win 640 300 right
+click-popup 8
+picture 9
+expect-dialog-kind form
+expect-dialog Select Strategies To Delete
+expect-dialog-checks off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off
+click-check 1
+click-check 20
+expect-dialog-checks on,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,on
+click-button Cancel
+expect-no-dialog
+
+# ---- S8 CREATE AND DESTROY A VIRTUAL OBJECT (FUN_005396d0 at 0x39 .. 0x3f; FUN_00539e00 at 0x525199). Create > Here asks the TEXT dialog "Type name for new virtual object" (0x5f02b0, FUN_00474bc0, Ok / Cancel) and puts the
+# object at the camera (DAT_00962308 + 0x10). It is NOT current afterwards (the code never sets DAT_0091496c): a click on its icon, the light blue V (shape 13, FUN_00539ee0 kind 0xd), makes it current. Destroy works
+# on the current object only when it is a virtual one (wrapper +8 == 1): with any other current object, or none, it does NOTHING. Then "Delete this object?" (0x5eddec) Yes / No; Yes destroys it and lets go of the current object.
+click-win 504 364
+click-win 640 300 right
+click-popup 6
+expect-popup-rows Here|Above|Below|Left|Right|Front|Behind
+click-popup 1
+expect-dialog-kind text
+expect-dialog Type name for new virtual object
+type AcceptVO
+key Enter
+expect-no-dialog
+# the camera goes back so that the new object is in front of it, then a click in the middle of the view lands on its icon
+hold Z 1500
+wait 400
+picture 10
+expect-colour picture 100 80 800 560 007fff 0.0005 40
+click-win 378 300
+expect-selected 1
+# the current object's two lines: the virtual object's name and its ID
+expect-pixels-changed panels 0 30 260 50 0.004
+picture 11
+# Destroy with the module current (a click on the APC) does nothing at all
+click-win 120 500
+click-win 120 500 right
+click-popup 7
+expect-no-dialog
+# Destroy with the virtual object current asks, and No keeps it
+click-win 378 300
+click-win 378 300 right
+click-popup 7
+expect-dialog-kind confirm
+expect-dialog Delete this object?
+click-button No
+expect-no-dialog
+expect-colour picture 100 80 800 560 007fff 0.0005 40
+# Yes destroys it: the V is gone from the view
+click-win 378 300 right
+click-popup 7
+expect-dialog Delete this object?
+click-button Yes
+expect-no-dialog
+wait 400
+picture 12
+expect-selected 0
+
+# ---- S9 STABILITY FLAGS (FUN_00527370 / 00527020 / 00527210): the current module's box in six faces, red (stable) / green (unstable); on leaving the confirm "Would you like to keep the changes?" (0x5ee000), Yes / No
+click-win 504 364
+click-bar Mode > Stability flags
+picture 13
+expect-field stability gggggg
+key Enter
+expect-dialog-kind confirm
+expect-dialog Would you like to keep the changes?
+click-button No
+expect-no-dialog
+# the camera goes forward again, back to where S8 moved it from, inside the level (from outside, the modules' faces are not drawn, so a module's flag colour could not be seen)
+hold A 1500
+wait 400
+
+# ---- S10 THE FLAG PAGE (FUN_00525700: command 0x2 shows page 1; its Exit 0x5 shows page 0 again). The collector there adds picked modules (a click adds, Shift + click takes out, L empties the list)
+click-bar Mode > Module flags
+expect-screen Strategy Data
+picture 14
+click-win 640 130
+expect-selected 1
+# the manual (MODULE FLAGS MODE): "select a module, then right-click and choose Add. To remove a flag ... Remove. The See option does not do anything" (ours: Add Flag / Remove Flag / View Flag, each with Airduct, Stair, Sky Visible, Fogged; the manual's names are Fog, Show_Sky, Stairs, Airduct)
+click-win 640 130 right
+expect-popup-rows Add Flag|Remove Flag|View Flag|Save
+click-popup 1
+expect-popup-rows Airduct|Stair|Sky Visible|Fogged
+click-popup 1
+expect-status Module flags: 1 of 1
+# View Flag > Airduct (0x10): every module that holds the flag is drawn in the flag colour (FUN_00522680: +0x64 |= 0x4000000, orange 0xff7f00)
+click-win 640 130 right
+click-popup 3
+click-popup 1
+wait 400
+picture 17
+expect-colour picture 0 100 800 600 d08030 0.02 40
+# Stop Flag View (0x35) puts the colours back
+click-win 640 130 right
+click-popup 3
+expect-popup-rows Airduct|Stair|Sky Visible|Fogged|Stop Flag View
+click-popup 5
+wait 400
+picture 18
+# Remove Flag > Airduct takes it off again
+click-win 640 130 right
+click-popup 2
+click-popup 1
+expect-status Module flags: 1 of 1
+# a second module, the APC (the room at 640 130 also fills the middle of the view, 504 364)
+click-win 120 500
+expect-selected 2
+click-win 120 500 shift
+expect-selected 1
+key L
+expect-selected 0
+click-bar Mode > Exit
+expect-screen Strategy Data
+expect-bar1 Misc
+
+# ---- S12 THE MANUAL'S REST OF THE RIGHT-CLICK LIST (strategy.txt "Strategy Options"): Delete Strategy with Yes, Edit / Copy on an object with none, Save, Reset Fan Wind Speed, a name already used.
+# Delete Strategy, Yes (FUN_00528790 0x5ee254): the AVPSTRAT chunk of the current object goes; Edit on it then says "Selected object has no strategy" (0x5ee174, FUN_0057bd40(200, 100), gone after 700 ms)
+click-win 120 500
+click-win 120 500 right
+click-popup 5
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+expect-status The object's strategy is deleted
+click-win 120 500 right
+click-popup 3
+expect-status Selected object has no strategy
+# Copy with a source that has none says the same (FUN_00528340)
+click-win 120 500 right
+click-popup 2
+expect-status Selected object has no strategy
+# Misc > Reset fan wind speed (FUN_005354d0, 0x5efd24): a Yes / No question; No changes nothing
+click-bar Misc > Reset fan wind speed
+expect-dialog-kind confirm
+expect-dialog Would you like to reset the wind strength for all fans
+click-button No
+expect-no-dialog
+click-bar Misc > Reset fan wind speed
+click-button Yes
+expect-no-dialog
+expect-status The wind strength of
+# Create Virtual Object with a name some object has already (FUN_005396d0 0x5399a1): the message "Please try another name" (0x5f0298, a box with Ok), then the name is asked again; Cancel ends it
+click-win 640 300 right
+click-popup 6
+click-popup 1
+type ClashVO
+key Enter
+expect-no-dialog
+click-win 640 300 right
+click-popup 6
+click-popup 1
+type ClashVO
+key Enter
+expect-dialog-kind message
+expect-dialog Please try another name
+click-button Ok
+expect-dialog Type name for new virtual object
+click-button Cancel
+expect-no-dialog
+# Save (0x9, FUN_005282d0: "Saving"): ours writes a COPY next to the editor, never over the opened file (the owner's rule), and says so
+click-win 640 300 right
+click-popup 1
+wait 800
+expect-status Saved
+# the level is not changed since the save (DAT_00914950 is 0): Exit asks nothing now, so the next change comes first
+# Create Virtual Object > Above (0x3a): needs a current object (here the module): it is placed relative to that object's extents (FUN_00524e90 0x524fc6); with none it does nothing
+click-win 120 500
+click-win 120 500 right
+click-popup 6
+click-popup 2
+expect-dialog Type name for new virtual object
+type AboveVO
+key Enter
+expect-no-dialog
+expect-status Virtual object AboveVO is in the level
+
+# ---- S14 A VIRTUAL OBJECT TAKES ITS OWN KINDS (the manual: "The options available vary depending on what the object is"; Virtual Objects: Multi Switch, Linked Switch, Area Switch, Mission Objective, Message, Volume of Death, Self Destruct):
+# create one, click its V, Assign Strategy > Area Switch (kind 68), whose Edit view opens at once
+click-win 640 300 right
+click-popup 6
+click-popup 1
+type KindsVO
+key Enter
+expect-no-dialog
+hold Z 1500
+wait 400
+click-win 378 300
+expect-selected 1
+click-win 378 300 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Multi_Switch
+expect-no-dialog
+expect-status The object has a new strategy
+click-win 378 300 right
+click-popup 4
+click-button Linked_Switch
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+click-win 378 300 right
+click-popup 4
+click-button Area_Switch
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+expect-status The object has a new strategy
+# Delete Multiple Strategies > Switches > Ok (FUN_005380d0): every switch strategy goes, the status says how many
+click-win 640 300 right
+click-popup 8
+click-check 1
+click-button Ok
+expect-no-dialog
+
+# ---- S11 EXIT (FUN_00524e90 case 5 -> FUN_00524d00): the confirm "Would you like to save first?" (0x5edd8c) Yes / No when the level changed (DAT_00914950); No leaves without saving
+click-bar Mode > Exit
+expect-dialog-kind confirm
+expect-dialog Would you like to save first?
+click-button No
+expect-screen Construction
+
+# ---- S13 THE NO TEXTURES CHOICE (the manual: "Normal draws everything while No Textures does not draw textures"; "No Textures is most commonly selected"): Construction > Mode > Strategy Data: No Textures (0x3a)
+click-bar Mode > Strategy Data: No Textures
+expect-screen Strategy Data
+expect-pixels-changed panels 0 100 800 500 0.2
+picture 19

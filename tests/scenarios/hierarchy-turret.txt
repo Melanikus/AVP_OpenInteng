@@ -1,0 +1,58 @@
+# HIERARCHY mode's main job, in the running editor (hidden run, Hangar): enter the mode, open a model of avp_huds, pick its hierarchy and a sequence, play it, stop it, step key frames, take another sequence.
+# Run: AvP-docs\tools\dietrich\drive-scenario-hier.sh <tree> <this file> <name>
+screen Hierarchy
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-try-run/data/avp_rifs/hnpcalien.rif
+start-args -viewmode headlight
+pictures on
+state
+expect-screen Hierarchy
+# the opened file is the model: one hierarchy opens at once, the Select Sequence list dialog follows (rows sorted); a row is clicked by its name
+item 0x03
+expect-dialog Select Sequence
+click-choice AlienStand_Standard
+expect-no-dialog
+expect-prompt 0
+state
+# Select Sequence again, now from the pop-up's key (S): another row
+item 0x04
+expect-dialog Select Sequence
+click-choice AlienStand_Standard
+expect-no-dialog
+expect-prompt 0
+state
+key P
+wait 900
+picture 201
+key O
+wait 300
+picture 202
+wait 600
+picture 203
+key M
+wait 300
+picture 204
+key End
+wait 300
+picture 205
+state
+
+
+picture 206
+# the turret: add a turret sequence (G = Shift+T), turn it with L and K, restart with R
+key T shift
+wait 300
+picture 301
+key L
+key L
+key L
+wait 300
+picture 302
+key K
+key K
+key K
+key K
+key K
+key K
+wait 300
+picture 303
+state

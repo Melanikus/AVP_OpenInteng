@@ -1,0 +1,16 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DNDEBUG /D_CRT_SECURE_NO_DEPRECATE
+/Isrc/host /Isrc/ui /Isrc/model /Isrc/common /Iavpx/3dc /Iavpx/3dc/avp/win95/frontend
+tests/host_strategy_record_test.cpp
+src/host/strategy_record.cpp
+src/host/field_descriptor_from_model.cpp
+src/model/strategy_fields.cpp
+src/model/strategy_rules.cpp
+src/ui/field_descriptor.cpp
+src/ui/choice_box.cpp
+src/ui/focus_ring.cpp
+src/ui/number_box.cpp
+src/ui/small_widgets.cpp
+src/ui/text_field.cpp
+avpx/3dc/avp/win95/frontend/online_screens.cpp
+avpx/3dc/shoulder_lamp.cpp

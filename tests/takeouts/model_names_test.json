@@ -1,0 +1,281 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc/level_file_name.h",
+		"avpx/3dc/win95/chunk_object_name.hpp",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "an object name's bound is one more than the game keeps",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "\"win95/chunk_object_name.hpp:13\", 63, ObjectNameWhy",
+					"to": "\"win95/chunk_object_name.hpp:13\", 64, ObjectNameWhy"
+				}
+			]
+		},
+		{
+			"name": "a sound file name's limit isn't the game's file-name limit",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "{ \"SOUNDOB2\", \"sound file name\", \"win95/chunk_sound.cpp:75\", E, 200,",
+					"to": "{ \"SOUNDOB2\", \"sound file name\", \"win95/chunk_sound.cpp:75\", E, 201,"
+				}
+			]
+		},
+		{
+			"name": "the sound folder's bound leaves no room for the / and a name",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "\"avp/win95/object_setup.cpp:138, :150\", 197, SoundFolderWhy",
+					"to": "\"avp/win95/object_setup.cpp:138, :150\", 198, SoundFolderWhy"
+				}
+			]
+		},
+		{
+			"name": "a shape picture's whole path may be one byte longer than the game opens",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "\"RIFFNAME\", 200, PicturePathLimit",
+					"to": "\"RIFFNAME\", 201, PicturePathLimit"
+				}
+			]
+		},
+		{
+			"name": "a lock user is shown",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "\"win95/chunk_object.cpp:421\", 16, LockUserWhy, 0, 0, \"\", false, \"\", false },",
+					"to": "\"win95/chunk_object.cpp:421\", 16, LockUserWhy, 0, 0, \"\", false, \"\", true },"
+				}
+			]
+		},
+		{
+			"name": "the sound folder may be empty",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "197, SoundFolderWhy, 0, 0, \"\", true, FolderNeededWhy",
+					"to": "197, SoundFolderWhy, 0, 0, \"\", false, FolderNeededWhy"
+				}
+			]
+		},
+		{
+			"name": "a name one byte longer than its bound is let through",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "if (length > kind.most)",
+					"to": "if (length > kind.most + 1)"
+				}
+			]
+		},
+		{
+			"name": "an empty name is let through where the game needs one",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "else if (kind.required && length == 0)",
+					"to": "else if (false)"
+				}
+			]
+		},
+		{
+			"name": "a path too long with its folder in front is let through",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "if (prefixLength >= kind.pathMostWithPrefix || length > kind.pathMostWithPrefix - prefixLength - 1)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "the / between the folder and the name isn't counted",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "length > kind.pathMostWithPrefix - prefixLength - 1)",
+					"to": "length > kind.pathMostWithPrefix - prefixLength)"
+				}
+			]
+		},
+		{
+			"name": "a folder length near the top of a size_t wraps round to a small one",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "if (prefixLength >= kind.pathMostWithPrefix || ",
+					"to": "if ("
+				}
+			]
+		},
+		{
+			"name": "a refused name's reason isn't given back",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "*why = refused;",
+					"to": "*why = 0;"
+				}
+			]
+		},
+		{
+			"name": "the folder is left out of the path the game's rule checks",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "path.append(prefix, prefixLength);",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "the / between the folder and the name is left out of the path",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "path += '/';",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a zero byte inside a file name or its folder is let through",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "if ((length && memchr(name, 0, length)) || (prefixApplies && prefixLength && memchr(prefix, 0, prefixLength)))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "the game's rule isn't run on the path",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "reason = LevelFileName_WhyRefused(path.c_str());",
+					"to": "reason = 0;"
+				}
+			]
+		},
+		{
+			"name": "a name given for the front is used for a picture the game opens with nothing in front",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "bool const prefixApplies = kind.pathPrefix && kind.pathPrefix[0] && prefix != 0;",
+					"to": "bool const prefixApplies = kind.pathPrefix && prefix != 0;"
+				}
+			]
+		},
+		{
+			"name": "the path rule overrides the length rule's reason",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "if (lengthIsAllowed && kind.pathPrefix)",
+					"to": "if (kind.pathPrefix)"
+				}
+			]
+		},
+		{
+			"name": "a name the game never opens is checked as a path",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "if (lengthIsAllowed && kind.pathPrefix)",
+					"to": "if (lengthIsAllowed)"
+				}
+			]
+		},
+		{
+			"name": "a refused file name's reason isn't given back",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "*why = reason;",
+					"to": "*why = 0;"
+				}
+			]
+		},
+		{
+			"name": "an empty rif name in front of a shape's picture is taken as none, so no / goes in front",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "bool const prefixApplies = kind.pathPrefix && kind.pathPrefix[0] && prefix != 0;",
+					"to": "bool const prefixApplies = kind.pathPrefix && kind.pathPrefix[0] && prefix != 0 && prefixLength != 0;"
+				}
+			]
+		},
+		{
+			"name": "a random texture set's empty name is taken as the game's refusal, not the loader's",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "Limit::Loader, \"win95/environment_chunk.cpp:284-287\" },",
+					"to": "Limit::GameMeaning, \"win95/environment_chunk.cpp:284-287\" },"
+				}
+			]
+		},
+		{
+			"name": "a hierarchy section's empty name is taken as the game's refusal, not the loader's",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "Limit::Loader, \"win95/hierarchy_chunk.cpp:290-294\" },",
+					"to": "Limit::GameMeaning, \"win95/hierarchy_chunk.cpp:290-294\" },"
+				}
+			]
+		},
+		{
+			"name": "a sound file name is taken as a loader limit",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "Limit::GameMeaning, \"avp/win95/object_setup.cpp:141-144; avp/win95/jsndsup.cpp:106-116\" },",
+					"to": "Limit::Loader, \"avp/win95/object_setup.cpp:141-144; avp/win95/jsndsup.cpp:106-116\" },"
+				}
+			]
+		},
+		{
+			"name": "the rif name is taken as a loader limit",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "Limit::GameMeaning, \"win95/chunk_load.cpp:846-848;",
+					"to": "Limit::Loader, \"win95/chunk_load.cpp:846-848;"
+				}
+			]
+		},
+		{
+			"name": "the sound folder cites no place for its rule",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "Limit::GameMeaning, \"avp/win95/object_setup.cpp:150; avp/win95/jsndsup.cpp:106-116\" },",
+					"to": "Limit::GameMeaning, \"\" },"
+				}
+			]
+		},
+		{
+			"name": "a name the game doesn't need says who enforces it",
+			"changes": [
+				{
+					"file": "src/model/name_kinds.cpp",
+					"from": "{ \"OBJHEAD1\", \"object name\", \"win95/chunk_object.cpp:449\", E, 63, \"win95/chunk_object_name.hpp:13\", 63, ObjectNameWhy, 0, 0, \"\", false, \"\", true },",
+					"to": "{ \"OBJHEAD1\", \"object name\", \"win95/chunk_object.cpp:449\", E, 63, \"win95/chunk_object_name.hpp:13\", 63, ObjectNameWhy, 0, 0, \"\", false, \"\", true, Limit::GameMeaning, \"win95/chunk_object.cpp:449\" },"
+				}
+			]
+		}
+	]
+}

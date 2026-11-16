@@ -1,0 +1,69 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a box of no bit, or of several, is taken",
+			"changes": [
+				{
+					"file": "src/ui/small_widgets.cpp",
+					"from": "if (newBit == 0 || (newBit & (newBit - 1)) != 0)",
+					"to": "if (newBit == 0)"
+				}
+			]
+		},
+		{
+			"name": "a refused box keeps the word it had",
+			"changes": [
+				{
+					"file": "src/ui/small_widgets.cpp",
+					"from": "\t\tword = 0;\n\t\tbit = 0;\n\n\t\t// Exactly one bit",
+					"to": "\t\tbit = 0;\n\n\t\t// Exactly one bit"
+				}
+			]
+		},
+		{
+			"name": "a press changes more than its own bit",
+			"changes": [
+				{
+					"file": "src/ui/small_widgets.cpp",
+					"from": "word ^= bit;",
+					"to": "word ^= bit | 1u;"
+				}
+			]
+		},
+		{
+			"name": "a disabled box changes its bit",
+			"changes": [
+				{
+					"file": "src/ui/small_widgets.cpp",
+					"from": "if (!Loaded() || !enabled)",
+					"to": "if (!Loaded())"
+				}
+			]
+		},
+		{
+			"name": "a space typed with Ctrl turns the bit over",
+			"changes": [
+				{
+					"file": "src/ui/small_widgets.cpp",
+					"from": "bool const space = event.key == Key::Space || (event.key == Key::Letter && event.letter == ' ' && !event.ctrl);",
+					"to": "bool const space = event.key == Key::Space || (event.key == Key::Letter && event.letter == ' ');"
+				}
+			]
+		},
+		{
+			"name": "Tab presses a button",
+			"changes": [
+				{
+					"file": "src/ui/small_widgets.cpp",
+					"from": "bool const presses = event.key == Key::Enter || event.key == Key::Space ||",
+					"to": "bool const presses = event.key == Key::Enter || event.key == Key::Space || event.key == Key::Tab ||"
+				}
+			]
+		}
+	]
+}

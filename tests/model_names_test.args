@@ -1,0 +1,5 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DNDEBUG
+/Isrc/model
+tests/model_names_test.cpp
+src/model/name_kinds.cpp

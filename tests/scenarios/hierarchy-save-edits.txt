@@ -1,0 +1,99 @@
+# HIERARCHY, the edits SAVED and read back (Melanikus: Newt's Blender export lands on this part). A model is opened, a no-edit copy is saved first (the BASELINE), then a sequence is
+# played and stopped, a frame is flagged and given a new sound, the sequence's time is changed (Save changes to sequence times on), a delta sequence is chosen, played and
+# given its own time (Shift + plus), a detail level is chosen and given the distance the camera is from the model now (Shift+D); then a second copy is saved. verify_hierarchy_edits
+# reads both copies with the game's own loader and shows: the edited keyframe and sound, the sequence's time, the delta's time and the level's distance exactly as asked, every
+# other sequence, sound and time as in the baseline, and every other chunk of the file byte for byte the baseline's (but the version numbers every save counts up).
+# The pictures show the alien playing, the delta, and the lower-detail shape.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-try-run/data/avp_rifs/hnpcalien.rif
+pictures on
+state
+item 0xcf
+expect-screen Hierarchy
+# the camera is the level's own (the origin, looking +z): to see the model (it stands at the origin) and for Shift+D, which stores the camera's distance from the model, the camera is put 3 metres back
+camera 0 -500 -3000 0
+# the OPENED file is the model (the run's ini says Level=hnpcalien; the data folder's avp_rifs holds it): it has ONE hierarchy, so inteng opens it at once and goes straight on to the Select Sequence list dialog
+# (its rows are SHOWN SORTED, FUN_00475bf0); the row of the file's first sequence (type 2 sub 9: AlienStand "Boom Fall Back") is clicked, by its name
+item 0x3
+expect-dialog Select Sequence
+click-choice AlienStand_boom_fall_back
+expect-no-dialog
+expect-status Sequence 1 selected
+# the baseline: a copy saved with nothing edited
+save-copy
+wait 1500
+picture 1
+wait 2000
+# the sequence stands still until P (FUN_0047d6f0), P starts it and O stops it (FUN_0047b8b0 / FUN_0047b940)
+key P
+wait 600
+key O
+# stopped: the Timer text no longer changes
+picture 5
+wait 500
+picture 6
+expect-pixels-same panels 0 48 300 200 0.0005
+# a frame of the sequence: keyframe flag 6 and a new sound 100 (step.wav, volume 100)
+item 0x1b
+expect-status Add keyframe flag 6
+item 0x4d
+expect-prompt 30
+type 100
+key Enter
+expect-status Sound 100 added
+item 0x4e
+expect-dialog Select sound to edit
+click-choice 100 Not Set
+expect-prompt 30
+type step.wav
+key Enter
+type 2000
+key Enter
+type 20000
+key Enter
+type 100
+key Enter
+type 0
+key Enter
+expect-status Sound 100 edited
+item 0x50
+expect-dialog Apply which sound
+click-choice 100 step.wav
+expect-status applied to frame
+picture 2
+# the sequence's time: Save changes to sequence times on, then + three times (1000 -> 1300 ms, written to the sequence); the time is checked after EACH press, so a key press lost to somebody using the computer fails at its own step
+item 0x48
+expect-status Save changes to sequence times: on
+key Plus
+expect-status Sequence time 1100 ms and written
+key Plus
+expect-status Sequence time 1200 ms and written
+key Plus
+expect-status Sequence time 1300 ms and written
+# a delta sequence (the alien's first delta, 2.17, is number 1 of the list), played over the main one, and its time with Shift + plus (1000 -> 1200 ms, written to the delta sequence)
+item 0x9
+expect-dialog Select Delta Sequence
+click-choice AlienStand_standard_elevation
+expect-status Delta sequence 2.17 added
+# the main player's "Timer :%d" and the delta player's (FUN_004889d0 0x48a688 and 0x48a7c3): two lines now
+expect-hierarchy-count 2 Timer :
+expect-hierarchy-count 2 Seq. Time :
+key Plus shift
+expect-status Delta time 1100 ms and written to the delta sequence
+key Plus shift
+expect-status Delta time 1200 ms and written to the delta sequence
+key P shift
+wait 800
+picture 3
+# stop the delta and play it again (Shift+O, Shift+P): nothing of the file changes
+key O shift
+key P shift
+# a lower detail level (U), and the distance it starts at: where the camera is from the model now (Shift+D)
+key U
+expect-status Detail level 1
+key D shift
+expect-status now starts at
+wait 500
+picture 4
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-harness-out/verify_hierarchy_edits/verify_hierarchy_edits.exe {save1} {save2} alien 2 9 step.wav 1300 18 1200 1 -2 C:/Users/Melanikus/source/AvP-run/avp_huds/hnpcalien.rif

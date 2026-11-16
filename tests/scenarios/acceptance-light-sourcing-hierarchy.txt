@@ -1,0 +1,45 @@
+# ACCEPTANCE: Light Sourcing on a level that HAS hierarchies (Drake, 2026-11-16): the bar is the Hierarchy table, and Hierarchy / Sequence select what they say before the lighting is made again.
+# Level: Melanikus's own MelPyth_MarHUD.RIF (107 objects, 8 hierarchies M79 Shotgun RailGun Taurus ScopeRifle Sniper AutoShotgun GSS50; reassess/hierarchy-examples.md). Traced: FUN_004aa440 0x4aa4d7-0x4aa59b (the table), FUN_004aab60 0x4aadeb-0x4aae66 (the Hierarchy / Sequence cases).
+# EXPECTED TODAY: RED until the screen chooses its bar from the level and the two items run the Hierarchy mode's choosers.
+
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+picture 1
+expect-not-empty 0.02
+
+# ---- H0 ENTRY: the file has OBJCHIER chunks, so the hub's Light Sourcing item (0xca) shows the table at 0x5e1750: Mode, Hierarchy (Hierarchy 0xc8, Sequence 0xc9), Lights, Select, Edge, Help, Screenshot, and NO Doors menu
+item 0xca
+expect-screen Light Sourcing (with Hierarchy)
+expect-bar1 Hierarchy
+expect-bar1 Lights
+expect-bar1 Select
+picture 10
+
+# ---- H1 HIERARCHY (0xc8: FUN_0048b8a0 = the Hierarchy mode's Select Hierarchy, the list dialog of the file's hierarchies, FUN_00475bf0; then, when a hierarchy is loaded (DAT_0063711c), FUN_00478920 and FUN_004b1720: every shape's vertex normals made again from its polygons, the lights worked out again)
+item 0xc8
+expect-dialog Select Hierarchy
+# inteng's list dialog shows its rows sorted (FUN_00475bf0): the file's eight hierarchies in letters
+expect-dialog-rows AutoShotgun|GSS50|M79|RailGun|ScopeRifle|Shotgun|Sniper|Taurus
+click-row 3
+# FUN_0048b8a0 goes on to the Select Sequence list as the Hierarchy mode does (FUN_0048b550's last call)
+expect-dialog Select Sequence
+click-row 1
+expect-no-dialog
+picture 11
+# This file has NO lights, and entering Light Sourcing lights the view from the lights (FUN_0046e700 0x8253): with none the shapes take no colour, so the view is black but for its drawn text (View Distance, Ambience, the status line): the picture is not empty by that text alone
+expect-not-empty 0.005
+# FUN_004b1720 makes every shape vertex normals again and the lights are worked out again: this file has no lights, so no pixel change is asserted; the data effect (normals) is in the Light hierarchy scenarios
+
+# ---- H2 SEQUENCE (0xc9: FUN_0048bc10 = Select Sequence of the loaded hierarchy, the same list dialog; then the same normals and lighting)
+item 0xc9
+expect-dialog Select Sequence
+click-row 1
+expect-no-dialog
+picture 12
+expect-not-empty 0.005
+
+# ---- H3 EXIT (0xa) back to the hub
+item 0xa
+expect-screen Construction

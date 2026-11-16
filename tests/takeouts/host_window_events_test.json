@@ -1,0 +1,389 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "Left is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_LEFT: return ui::Key::Left;",
+					"to": "case VK_LEFT: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "Right is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_RIGHT: return ui::Key::Right;",
+					"to": "case VK_RIGHT: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "Up is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_UP: return ui::Key::Up;",
+					"to": "case VK_UP: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "Down is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_DOWN: return ui::Key::Down;",
+					"to": "case VK_DOWN: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "Home is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_HOME: return ui::Key::Home;",
+					"to": "case VK_HOME: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "End is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_END: return ui::Key::End;",
+					"to": "case VK_END: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "PageUp is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_PRIOR: return ui::Key::PageUp;",
+					"to": "case VK_PRIOR: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "PageDown is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_NEXT: return ui::Key::PageDown;",
+					"to": "case VK_NEXT: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "Backspace is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_BACK: return ui::Key::Backspace;",
+					"to": "case VK_BACK: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "Delete is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_DELETE: return ui::Key::Delete;",
+					"to": "case VK_DELETE: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "Enter is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_RETURN: return ui::Key::Enter;",
+					"to": "case VK_RETURN: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "Escape is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_ESCAPE: return ui::Key::Escape;",
+					"to": "case VK_ESCAPE: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "Tab is no key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "case VK_TAB: return ui::Key::Tab;",
+					"to": "case VK_TAB: return ui::Key::None;"
+				}
+			]
+		},
+		{
+			"name": "Ctrl and a letter key is no letter",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "if (ctrlHeld && wParam >= 'A' && wParam <= 'Z')",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a key below A is a letter with Ctrl",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "if (ctrlHeld && wParam >= 'A' && wParam <= 'Z')",
+					"to": "if (ctrlHeld && wParam <= 'Z')"
+				}
+			]
+		},
+		{
+			"name": "a key past Z is a letter with Ctrl",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "if (ctrlHeld && wParam >= 'A' && wParam <= 'Z')",
+					"to": "if (ctrlHeld && wParam >= 'A')"
+				}
+			]
+		},
+		{
+			"name": "Ctrl and a letter key is a capital",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "*event = ui::LetterEvent((unsigned char)(wParam - 'A' + 'a'), true);",
+					"to": "*event = ui::LetterEvent((unsigned char)wParam, true);"
+				}
+			]
+		},
+		{
+			"name": "Ctrl and a letter key loses Shift",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "*event = ui::LetterEvent((unsigned char)(wParam - 'A' + 'a'), true);\n\t\t\tevent->shift = shiftHeld;",
+					"to": "*event = ui::LetterEvent((unsigned char)(wParam - 'A' + 'a'), true);"
+				}
+			]
+		},
+		{
+			"name": "a key the widgets have no use for is an event",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "\t\tif (key == ui::Key::None)\n\t\t{\n\t\t\treturn false;\n\t\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a key loses Shift and Ctrl",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "*event = ui::KeyEvent(key, shiftHeld, ctrlHeld);",
+					"to": "*event = ui::KeyEvent(key, false, false);"
+				}
+			]
+		},
+		{
+			"name": "more than a byte is a letter",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "if (wParam > 255 || wParam < 32 || wParam == 127 || ctrlHeld)",
+					"to": "if (wParam < 32 || wParam == 127 || ctrlHeld)"
+				}
+			]
+		},
+		{
+			"name": "a control code is a letter, so its key counts twice",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "if (wParam > 255 || wParam < 32 || wParam == 127 || ctrlHeld)",
+					"to": "if (wParam > 255 || wParam == 127 || ctrlHeld)"
+				}
+			]
+		},
+		{
+			"name": "the delete code is a letter",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "if (wParam > 255 || wParam < 32 || wParam == 127 || ctrlHeld)",
+					"to": "if (wParam > 255 || wParam < 32 || ctrlHeld)"
+				}
+			]
+		},
+		{
+			"name": "Ctrl's code for a letter counts as well",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "if (wParam > 255 || wParam < 32 || wParam == 127 || ctrlHeld)",
+					"to": "if (wParam > 255 || wParam < 32 || wParam == 127)"
+				}
+			]
+		},
+		{
+			"name": "a typed letter loses Shift",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "*event = ui::LetterEvent((unsigned char)wParam, false);\n\t\tevent->shift = shiftHeld;",
+					"to": "*event = ui::LetterEvent((unsigned char)wParam, false);"
+				}
+			]
+		},
+		{
+			"name": "Alt's keys are events",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "if (message == WM_KEYDOWN)",
+					"to": "if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)"
+				}
+			]
+		},
+		{
+			"name": "Alt's letters and dead keys are letters",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "if (message == WM_CHAR)",
+					"to": "if (message == WM_CHAR || message == WM_SYSCHAR || message == WM_DEADCHAR)"
+				}
+			]
+		},
+		{
+			"name": "AltGr counts as Ctrl",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "bool const ctrlHeld = ctrlHeldAsReported && !altHeld;",
+					"to": "bool const ctrlHeld = ctrlHeldAsReported;"
+				}
+			]
+		},
+		{
+			"name": "F10 is no menu key",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "if (message == WM_SYSKEYDOWN && wParam == VK_F10)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "Alt's repeat starts a tap again",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "if (isAlt && !tap->down)",
+					"to": "if (isAlt)"
+				}
+			]
+		},
+		{
+			"name": "a key while Alt is down leaves the tap alone",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "\t\t\telse if (!isAlt)\n\t\t\t{\n\t\t\t\ttap->alone = false;\n\t\t\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a plain key or a click while Alt is down leaves the tap alone",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "\t\t\ttap->alone = false;\n\t\t\treturn false;\n\n\t\tcase WM_SYSKEYUP:",
+					"to": "\t\t\treturn false;\n\n\t\tcase WM_SYSKEYUP:"
+				}
+			]
+		},
+		{
+			"name": "AltGr's Alt is a tap",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "bool const ends = message == WM_SYSKEYUP && tap->alone;",
+					"to": "bool const ends = tap->alone;"
+				}
+			]
+		},
+		{
+			"name": "Alt's letting go leaves it down",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "\t\t\ttap->down = false;\n\t\t\ttap->alone = false;\n\t\t\treturn ends;",
+					"to": "\t\t\ttap->alone = false;\n\t\t\treturn ends;"
+				}
+			]
+		},
+		{
+			"name": "Alt's letting go leaves the tap alone",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "\t\t\ttap->down = false;\n\t\t\ttap->alone = false;\n\t\t\treturn ends;",
+					"to": "\t\t\ttap->down = false;\n\t\t\treturn ends;"
+				}
+			]
+		},
+		{
+			"name": "focus leaving keeps the tap",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "\t\tcase WM_KILLFOCUS:\n\t\t\ttap->down = false;\n\t\t\ttap->alone = false;",
+					"to": "\t\tcase WM_KILLFOCUS:"
+				}
+			]
+		},
+		{
+			"name": "a system command's low bits make it another",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "return (wParam & 0xFFF0) == SC_KEYMENU && lParam == 0;",
+					"to": "return wParam == SC_KEYMENU && lParam == 0;"
+				}
+			]
+		},
+		{
+			"name": "Alt+Space is swallowed",
+			"changes": [
+				{
+					"file": "src/host/window_events.cpp",
+					"from": "return (wParam & 0xFFF0) == SC_KEYMENU && lParam == 0;",
+					"to": "return (wParam & 0xFFF0) == SC_KEYMENU;"
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,38 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "[menus] construction's Quit is shown as not built",
+			"changes": [ { "file": "src/host/inteng_menus.cpp", "from": "{ \"Quit\", 0x10001, 0xa, IntengTag::None, IntengWork::Quit, -1 },", "to": "{ \"Quit\", 0x10001, 0xa, IntengTag::Wip, IntengWork::None, -1 }," } ]
+		},
+		{
+			"name": "[menus] Object Placement goes to the hub's own bar",
+			"changes": [ { "file": "src/host/inteng_menus.cpp", "from": "{ \"Object Placement\", 0x1000a, 0xcc, IntengTag::None, IntengWork::ToScreen, 6 },", "to": "{ \"Object Placement\", 0x1000a, 0xcc, IntengTag::None, IntengWork::ToScreen, 0 }," } ]
+		},
+		{
+			"name": "[menus] the other game's item is shown as not built, not as never read",
+			"changes": [ { "file": "src/host/inteng_menus.cpp", "from": "{ \"Save\", 0x80002, 0xe, IntengTag::NoAvp, IntengWork::None, -1 },", "to": "{ \"Save\", 0x80002, 0xe, IntengTag::Wip, IntengWork::None, -1 }," } ]
+		},
+		{
+			"name": "[menus] a stand-in's Exit doesn't work",
+			"changes": [ { "file": "src/host/inteng_menus.cpp", "from": "{ \"Exit\", 0x110000, 0x0, IntengTag::None, IntengWork::ToHub, -1 },", "to": "{ \"Exit\", 0x110000, 0x0, IntengTag::Wip, IntengWork::None, -1 }," } ]
+		},
+		{
+			"name": "[menus] the wip tag has no words",
+			"changes": [ { "file": "src/host/inteng_menus_lookup.cpp", "from": "\t\t\t\treturn \" [wip]\";", "to": "\t\t\t\treturn nullptr;" } ]
+		},
+		{
+			"name": "[menus] a tagged item says nothing of why",
+			"changes": [ { "file": "src/host/inteng_menus_lookup.cpp", "from": "\t\t\t\treturn \"Not in the editor yet: one of the old editor's items, coming in a later version\";", "to": "\t\t\t\treturn nullptr;" } ]
+		},
+		{
+			"name": "[menus] an item isn't found by its number",
+			"changes": [ { "file": "src/host/inteng_menus_lookup.cpp", "from": "\t\t\t\t\tif (menu.items[i].action == action)", "to": "\t\t\t\t\tif (false)" } ]
+		}
+	]
+}

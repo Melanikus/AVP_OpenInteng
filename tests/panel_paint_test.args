@@ -1,0 +1,8 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DNDEBUG /D_CRT_SECURE_NO_DEPRECATE
+/Isrc/host /Isrc/ui /Iavpx/3dc /Iavpx/3dc/avp/win95/frontend
+tests/panel_paint_test.cpp
+src/host/panel_paint.cpp
+src/ui/panel_layout.cpp
+avpx/3dc/avp/win95/frontend/online_screens.cpp
+avpx/3dc/shoulder_lamp.cpp

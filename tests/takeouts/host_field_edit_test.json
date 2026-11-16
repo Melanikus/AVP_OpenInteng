@@ -1,0 +1,229 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a strategy edit takes no store",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "if (!store || !chunk || !NameOf(edit.field, &name))\n\t\t{\n\t\t\treturn EditAnswer::BadCall;\n\t\t}\n\n\t\t// Running out of memory",
+					"to": "if (!chunk || !NameOf(edit.field, &name))\n\t\t{\n\t\t\treturn EditAnswer::BadCall;\n\t\t}\n\n\t\t// Running out of memory"
+				}
+			]
+		},
+		{
+			"name": "a strategy edit takes no chunk",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "if (!store || !chunk || !NameOf(edit.field, &name))\n\t\t{\n\t\t\treturn EditAnswer::BadCall;\n\t\t}\n\n\t\t// Running out of memory",
+					"to": "if (!store || !NameOf(edit.field, &name))\n\t\t{\n\t\t\treturn EditAnswer::BadCall;\n\t\t}\n\n\t\t// Running out of memory"
+				}
+			]
+		},
+		{
+			"name": "a strategy edit takes no field name",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "if (!store || !chunk || !NameOf(edit.field, &name))\n\t\t{\n\t\t\treturn EditAnswer::BadCall;\n\t\t}\n\n\t\t// Running out of memory",
+					"to": "if (!store || !chunk)\n\t\t{\n\t\t\treturn EditAnswer::BadCall;\n\t\t}\n\n\t\t// Running out of memory"
+				}
+			]
+		},
+		{
+			"name": "a strategy of a size the game refuses is edited",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "if (model::CheckStrategySize(bytes.data(), bytes.size(), 0) != model::SizeCheck::Right)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a strategy that isn't the kind the edit was made for is edited",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "if (KindAt8(bytes) != kind)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "the kind's number is read with a byte in the wrong place",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "((uint32_t)bytes[9] << 8)",
+					"to": "((uint32_t)bytes[9] << 7)"
+				}
+			]
+		},
+		{
+			"name": "a strategy of a kind with no table is edited",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "if (!found)\n\t\t\t{\n\t\t\t\treturn EditAnswer::UnknownKind;",
+					"to": "if (false)\n\t\t\t{\n\t\t\t\treturn EditAnswer::UnknownKind;"
+				}
+			]
+		},
+		{
+			"name": "a strategy edit takes a field the kind hasn't",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "StrategyFieldNamed(*found, name);\n\n\t\t\tif (!field)",
+					"to": "StrategyFieldNamed(*found, name);\n\n\t\t\tif (false)"
+				}
+			]
+		},
+		{
+			"name": "a strategy's own kind number can be edited",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "strcmp(model::StrategyBaseFields[i].name, \"StrategyType\") != 0 && name ==",
+					"to": "name =="
+				}
+			]
+		},
+		{
+			"name": "an edit takes the kind's first field, whatever it names",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "if (name == kind.fields[i].name)",
+					"to": "if (true)"
+				}
+			]
+		},
+		{
+			"name": "a number is put in off by one",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "taken = model::SetField(*found, *field, bytes.data(), bytes.size(), edit.number, &reason);",
+					"to": "taken = model::SetField(*found, *field, bytes.data(), bytes.size(), edit.number + 1, &reason);"
+				}
+			]
+		},
+		{
+			"name": "a three-number field's axis is always the first",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "taken = model::SetFieldAxis(*found, *field, bytes.data(), bytes.size(), edit.axis, edit.axisValue, &reason);",
+					"to": "taken = model::SetFieldAxis(*found, *field, bytes.data(), bytes.size(), 0, edit.axisValue, &reason);"
+				}
+			]
+		},
+		{
+			"name": "an object's halves are put in the wrong way round",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "taken = model::SetFieldObject(*found, *field, bytes.data(), bytes.size(), edit.first, edit.second);",
+					"to": "taken = model::SetFieldObject(*found, *field, bytes.data(), bytes.size(), edit.second, edit.first);"
+				}
+			]
+		},
+		{
+			"name": "a strategy edit the model refused is kept anyway",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "taken = model::SetFieldObject(*found, *field, bytes.data(), bytes.size(), edit.first, edit.second);\n\t\t\t\treason = ObjectRefusedWords;\n\t\t\t\tbreak;\n\t\t\t}\n\n\t\t\tif (!taken)",
+					"to": "taken = model::SetFieldObject(*found, *field, bytes.data(), bytes.size(), edit.first, edit.second);\n\t\t\t\treason = ObjectRefusedWords;\n\t\t\t\tbreak;\n\t\t\t}\n\n\t\t\tif (false)"
+				}
+			]
+		},
+		{
+			"name": "a strategy edit's store refusal is answered as applied",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "return store->SetPayload(chunk, bytes) ? EditAnswer::Applied : EditAnswer::NotStored;\n\t\t}\n\t\tcatch (std::exception const &)\n\t\t{\n\t\t\treturn EditAnswer::NoMemory;\n\t\t}\n\t}\n\n\tEditAnswer ApplyChunkEdit",
+					"to": "store->SetPayload(chunk, bytes);\n\t\t\treturn EditAnswer::Applied;\n\t\t}\n\t\tcatch (std::exception const &)\n\t\t{\n\t\t\treturn EditAnswer::NoMemory;\n\t\t}\n\t}\n\n\tEditAnswer ApplyChunkEdit"
+				}
+			]
+		},
+		{
+			"name": "a field name longer than the most is read",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "while (length < kFieldEditNameMost && name[length] != 0)",
+					"to": "while (length <= kFieldEditNameMost && name[length] != 0)"
+				}
+			]
+		},
+		{
+			"name": "an empty field name is taken",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "return length > 0 && name[length] == 0;",
+					"to": "return name[length] == 0;"
+				}
+			]
+		},
+		{
+			"name": "a chunk of a size the game refuses is edited",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "if (model::CheckChunkSize(kind, bytes.data(), bytes.size()) != model::SizeCheck::Right)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a chunk edit takes a field the kind hasn't",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "FindChunkField(kind, name.c_str());\n\n\t\t\tif (!field)",
+					"to": "FindChunkField(kind, name.c_str());\n\n\t\t\tif (false)"
+				}
+			]
+		},
+		{
+			"name": "a chunk's axis is always the first",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "taken = model::SetChunkFieldAxis(kind, *field, bytes.data(), bytes.size(), edit.axis, edit.axisValue, &reason);",
+					"to": "taken = model::SetChunkFieldAxis(kind, *field, bytes.data(), bytes.size(), 0, edit.axisValue, &reason);"
+				}
+			]
+		},
+		{
+			"name": "a chunk's object halves are the wrong way round",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "taken = model::SetChunkFieldObject(kind, *field, bytes.data(), bytes.size(), edit.first, edit.second);",
+					"to": "taken = model::SetChunkFieldObject(kind, *field, bytes.data(), bytes.size(), edit.second, edit.first);"
+				}
+			]
+		},
+		{
+			"name": "a chunk's store refusal is answered as applied",
+			"changes": [
+				{
+					"file": "src/host/field_edit.cpp",
+					"from": "return store->SetPayload(chunk, bytes) ? EditAnswer::Applied : EditAnswer::NotStored;\n\t\t}\n\t\tcatch (std::exception const &)\n\t\t{\n\t\t\treturn EditAnswer::NoMemory;\n\t\t}\n\t}\n}",
+					"to": "store->SetPayload(chunk, bytes);\n\t\t\treturn EditAnswer::Applied;\n\t\t}\n\t\tcatch (std::exception const &)\n\t\t{\n\t\t\treturn EditAnswer::NoMemory;\n\t\t}\n\t}\n}"
+				}
+			]
+		}
+	]
+}

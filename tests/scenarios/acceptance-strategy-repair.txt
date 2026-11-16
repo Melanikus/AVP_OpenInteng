@@ -1,0 +1,24 @@
+# ACCEPTANCE: Strategy Data's Find Errors and Delete Multiple > Obsolete Switches work (strategy_repair.h: FUN_00536ad0 the repair pass, FUN_0053bf00 Find Errors, FUN_00537030 Obsolete Switches), by clicks on the bars, on a stock level, and the
+# copy saved after them is read by the game's own loader. Find Errors: the message box "No Errors Found" (FUN_00473f90) with Ok. Delete Multiple: the form, the box Obsolete Switches ticked, Ok; the status names the group and how many.
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x39
+expect-screen Strategy Data
+# Find Errors: the repair pass, then the message
+item 0x44
+expect-dialog-kind message
+expect-dialog No Errors Found
+picture 950
+click-button Ok
+expect-no-dialog
+# Delete Multiple Strategies > Obsolete Switches
+item 0x42
+expect-dialog-kind form
+click-check 2
+expect-dialog-checks off,on,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off,off
+click-button Ok
+expect-no-dialog
+expect-status Obsolete Switches
+# the level after the repair and the deletes is one the game's loader takes
+save-copy

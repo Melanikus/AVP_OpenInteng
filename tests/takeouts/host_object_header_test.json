@@ -1,0 +1,70 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "[header] the difficulty boxes show the file's bits as they are",
+			"changes": [
+				{
+					"file": "src/host/object_header.cpp",
+					"from": "uint32_t const difficulties = header.flags ^ (kHeaderNotEasy | kHeaderNotMedium | kHeaderNotHard);",
+					"to": "uint32_t const difficulties = header.flags;"
+				}
+			]
+		},
+		{
+			"name": "[header] Marine's box shows another bit",
+			"changes": [
+				{
+					"file": "src/host/object_header.h",
+					"from": "uint32_t const kHeaderMarine = 0x00000800;",
+					"to": "uint32_t const kHeaderMarine = 0x00000400;"
+				}
+			]
+		},
+		{
+			"name": "[header] Alien's box shows Predator's bit",
+			"changes": [
+				{
+					"file": "src/host/object_header.cpp",
+					"from": "Keep(record, \"Game mode: Alien\"), modeHelp, kHeaderAlien,",
+					"to": "Keep(record, \"Game mode: Alien\"), modeHelp, kHeaderPredator,"
+				}
+			]
+		},
+		{
+			"name": "[header] the title isn't the object's name",
+			"changes": [
+				{
+					"file": "src/host/object_header.cpp",
+					"from": "record->title = header.name;",
+					"to": "record->title = \"object\";"
+				}
+			]
+		},
+		{
+			"name": "[header] what the record held before is kept",
+			"changes": [
+				{
+					"file": "src/host/object_header.cpp",
+					"from": "EmptyRecord(record);\n\t\t\trecord->title",
+					"to": "record->title"
+				}
+			]
+		},
+		{
+			"name": "[header] a box's words are wrong",
+			"changes": [
+				{
+					"file": "src/host/object_header.cpp",
+					"from": "\"Difficulty: Hard\"",
+					"to": "\"Difficulty: Hrad\""
+				}
+			]
+		}
+	]
+}

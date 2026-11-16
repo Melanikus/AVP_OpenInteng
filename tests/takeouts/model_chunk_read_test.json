@@ -1,0 +1,189 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a chunk field of another kind is read as a number",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "\t\tif (!payload || !ChunkFieldPlace(kind, field, payload, length, &at))\n\t\t{\n\t\t\tat = NoPlace;\n\t\t}\n\n\t\treturn ReadFieldAt(field, payload, length, at, value);",
+					"to": "\t\tat = field.offset;\n\n\t\treturn ReadFieldAt(field, payload, length, at, value);"
+				}
+			]
+		},
+		{
+			"name": "a chunk field of another kind is read as three numbers",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "\t\tif (!payload || !ChunkFieldPlace(kind, field, payload, length, &at))\n\t\t{\n\t\t\tat = NoPlace;\n\t\t}\n\n\t\treturn ReadAxisAt(field, payload, length, at, axis, value);",
+					"to": "\t\tat = field.offset;\n\n\t\treturn ReadAxisAt(field, payload, length, at, axis, value);"
+				}
+			]
+		},
+		{
+			"name": "a chunk field of another kind is read as an object",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "\t\tif (!payload || !ChunkFieldPlace(kind, field, payload, length, &at))\n\t\t{\n\t\t\tat = NoPlace;\n\t\t}\n\n\t\treturn ReadObjectAt(field, payload, length, at, first, second);",
+					"to": "\t\tat = field.offset;\n\n\t\treturn ReadObjectAt(field, payload, length, at, first, second);"
+				}
+			]
+		},
+		{
+			"name": "ReadFieldAt reads past the end of the payload",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (!FitsAt(field, length, at) || !payload || !value)",
+					"to": "if (!payload || !value)"
+				}
+			]
+		},
+		{
+			"name": "ReadFieldAt reads through no payload",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (!FitsAt(field, length, at) || !payload || !value)",
+					"to": "if (!FitsAt(field, length, at) || !value)"
+				}
+			]
+		},
+		{
+			"name": "ReadFieldAt writes through no place for the value",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (!FitsAt(field, length, at) || !payload || !value)",
+					"to": "if (!FitsAt(field, length, at) || !payload)"
+				}
+			]
+		},
+		{
+			"name": "ReadAxisAt takes a fourth axis",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "(unsigned)axis > 2",
+					"to": "(unsigned)axis > 3"
+				}
+			]
+		},
+		{
+			"name": "ReadAxisAt takes an axis below the first",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "(unsigned)axis > 2 ||",
+					"to": "axis > 2 ||"
+				}
+			]
+		},
+		{
+			"name": "ReadAxisAt reads a field that isn't three numbers",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "|| field.storage != Storage::IntTriple || !FitsAt(field, length, at) || !payload || !value)",
+					"to": "|| !FitsAt(field, length, at) || !payload || !value)"
+				}
+			]
+		},
+		{
+			"name": "ReadObjectAt reads a field that isn't an object",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (field.storage != Storage::ObjectId || !FitsAt(field, length, at) || !payload || !first || !second)",
+					"to": "if (!FitsAt(field, length, at) || !payload || !first || !second)"
+				}
+			]
+		},
+		{
+			"name": "ReadObjectAt reads through no payload",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (field.storage != Storage::ObjectId || !FitsAt(field, length, at) || !payload || !first || !second)",
+					"to": "if (field.storage != Storage::ObjectId || !FitsAt(field, length, at) || !first || !second)"
+				}
+			]
+		},
+		{
+			"name": "ReadObjectAt writes through no place for the first half",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (field.storage != Storage::ObjectId || !FitsAt(field, length, at) || !payload || !first || !second)",
+					"to": "if (field.storage != Storage::ObjectId || !FitsAt(field, length, at) || !payload || !second)"
+				}
+			]
+		},
+		{
+			"name": "ReadObjectAt writes through no place for the second half",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "if (field.storage != Storage::ObjectId || !FitsAt(field, length, at) || !payload || !first || !second)",
+					"to": "if (field.storage != Storage::ObjectId || !FitsAt(field, length, at) || !payload || !first)"
+				}
+			]
+		},
+		{
+			"name": "a masked word is read with its mask not applied",
+			"changes": [
+				{
+					"file": "src/model/strategy_rules.cpp",
+					"from": "*value = (double)(field.mask ? (word & field.mask) : word);",
+					"to": "*value = (double)word;"
+				}
+			]
+		},
+		{
+			"name": "a chunk's named bits and choices aren't given with it",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "names->bitCount = ChunkBitCount;",
+					"to": "names->bitCount = 0;"
+				}
+			]
+		},
+		{
+			"name": "the names aren't cleared for a chunk no family has",
+			"changes": [
+				{
+					"file": "src/model/chunk_families.cpp",
+					"from": "\t\tif (names)\n\t\t{\n\t\t\tnames->bits = 0;",
+					"to": "\t\tif (false)\n\t\t{\n\t\t\tnames->bits = 0;"
+				}
+			]
+		},
+		{
+			"name": "an object is set into no payload at all",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "if (!payload || !ChunkFieldPlace(kind, field, payload, length, &place))",
+					"to": "if (!ChunkFieldPlace(kind, field, payload, length, &place))"
+				}
+			]
+		},
+		{
+			"name": "an object's halves are set the wrong way round",
+			"changes": [
+				{
+					"file": "src/model/chunk_rules.cpp",
+					"from": "return SetObjectAt(field, payload, length, place, first, second);",
+					"to": "return SetObjectAt(field, payload, length, place, second, first);"
+				}
+			]
+		}
+	]
+}

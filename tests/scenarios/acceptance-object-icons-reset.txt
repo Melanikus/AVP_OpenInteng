@@ -1,0 +1,27 @@
+# ACCEPTANCE: the icons and their labels survive the device being Reset (Bishop: the occlusion queries are outstanding between frames and are let go in ReleaseVolatileResources). The editor window is resized twice
+# (resize-win: the device is Reset to the new back buffer, as when a person drags the window's edge); after each the red S of the sound in view is on the screen and its label is drawn (T makes it go).
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 800
+picture 1
+expect-colour picture 0 0 1008 729 c81e1e 0.0005 45
+resize-win 900 700
+wait 1000
+picture 2
+expect-colour picture 0 0 880 660 c81e1e 0.0005 45
+key T
+wait 600
+expect-pixels-changed picture 0 230 440 130 0.0015
+key T
+wait 400
+resize-win 1100 780
+wait 1000
+picture 3
+expect-colour picture 0 0 1080 740 c81e1e 0.0005 45
+key T
+wait 600
+expect-pixels-changed picture 0 230 520 150 0.0015

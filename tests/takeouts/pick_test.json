@@ -1,0 +1,209 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a view wider than 16384 isn't refused",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "if (camera.viewWidth < 1 || camera.viewWidth > kPickMostSide || camera.viewHeight < 1 || camera.viewHeight > kPickMostSide)",
+					"to": "if (camera.viewWidth < 1 || camera.viewHeight < 1)"
+				}
+			]
+		},
+		{
+			"name": "a click one past the right edge isn't refused",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "clickX >= camera.viewWidth",
+					"to": "clickX > camera.viewWidth"
+				}
+			]
+		},
+		{
+			"name": "a click above or below the view isn't refused",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "if (clickX < 0 || clickX >= camera.viewWidth || clickY < 0 || clickY >= camera.viewHeight)",
+					"to": "if (clickX < 0 || clickX >= camera.viewWidth)"
+				}
+			]
+		},
+		{
+			"name": "a scale of 0, or one too small to divide by, isn't refused",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "return sign == 0 && exponent != 0xFF && exponent != 0;",
+					"to": "return sign == 0 && exponent != 0xFF;"
+				}
+			]
+		},
+		{
+			"name": "a scale below 0 isn't refused",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "return sign == 0 && exponent != 0xFF && exponent != 0;",
+					"to": "return exponent != 0xFF && exponent != 0;"
+				}
+			]
+		},
+		{
+			"name": "a scale that isn't a number, or is endless, isn't refused",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "return sign == 0 && exponent != 0xFF && exponent != 0;",
+					"to": "return sign == 0 && exponent != 0;"
+				}
+			]
+		},
+		{
+			"name": "a matrix number above 65536 isn't refused",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "if (camera.turn[row][column] < -kPickOne || camera.turn[row][column] > kPickOne)",
+					"to": "if (camera.turn[row][column] < -kPickOne)"
+				}
+			]
+		},
+		{
+			"name": "a camera place past the limit isn't refused",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "if (camera.place[axis] < -kPickMostPlace || camera.place[axis] > kPickMostPlace)",
+					"to": "if (camera.place[axis] < -kPickMostPlace)"
+				}
+			]
+		},
+		{
+			"name": "the view's down isn't turned back into the game's",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "-up / (double)camera.yScale",
+					"to": "up / (double)camera.yScale"
+				}
+			]
+		},
+		{
+			"name": "a pixel's middle is taken half a pixel on, as Direct3D 10 would",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "double const across = 2.0 * (double)clickX / (double)camera.viewWidth - 1.0;",
+					"to": "double const across = 2.0 * ((double)clickX + 0.5) / (double)camera.viewWidth - 1.0;"
+				}
+			]
+		},
+		{
+			"name": "the world comes from the matrix's columns, not its rows",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "world[row] = (double)camera.turn[row][0] * view[0] + (double)camera.turn[row][1] * view[1] + (double)camera.turn[row][2] * view[2];",
+					"to": "world[row] = (double)camera.turn[0][row] * view[0] + (double)camera.turn[1][row] * view[1] + (double)camera.turn[2][row] * view[2];"
+				}
+			]
+		},
+		{
+			"name": "the projection across is multiplied, not undone",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "across / (double)camera.xScale",
+					"to": "across * (double)camera.xScale"
+				}
+			]
+		},
+		{
+			"name": "the line doesn't start at the camera",
+			"changes": [
+				{
+					"file": "src/host/pick_ray.cpp",
+					"from": "ray->from[axis] = camera.place[axis];",
+					"to": "ray->from[axis] = 0;"
+				}
+			]
+		},
+		{
+			"name": "a module numbered -1 isn't refused",
+			"changes": [
+				{
+					"file": "src/host/selection.cpp",
+					"from": "if (picked.moduleIndex < 0)",
+					"to": "if (picked.moduleIndex < -1)"
+				}
+			]
+		},
+		{
+			"name": "an object whose ID is all 0 isn't refused",
+			"changes": [
+				{
+					"file": "src/host/selection.cpp",
+					"from": "if (IdIsNull(picked.objectId))",
+					"to": "if (false && IdIsNull(picked.objectId))"
+				}
+			]
+		},
+		{
+			"name": "an ID's last byte isn't compared",
+			"changes": [
+				{
+					"file": "src/host/selection.cpp",
+					"from": "return memcmp(picked.objectId, selected.objectId, kSelectionIdBytes) == 0;",
+					"to": "return memcmp(picked.objectId, selected.objectId, kSelectionIdBytes - 1) == 0;"
+				}
+			]
+		},
+		{
+			"name": "a module name's odd bytes aren't made safe",
+			"changes": [
+				{
+					"file": "src/host/selection.cpp",
+					"from": "name[length] = (letter >= ' ' && letter <= '~') ? (char)letter : '?';",
+					"to": "name[length] = (char)letter;"
+				}
+			]
+		},
+		{
+			"name": "a refused object pick still says Picked",
+			"changes": [
+				{
+					"file": "src/host/selection.cpp",
+					"from": "\t\t\t\tsaid.found = PickFound::NotInTheFile;",
+					"to": "\t\t\t\t;"
+				}
+			]
+		},
+		{
+			"name": "a distance isn't held to the line of sight's reach",
+			"changes": [
+				{
+					"file": "src/host/selection.cpp",
+					"from": "int32_t const held = distance < 0 ? 0 : (distance > kSelectionMostDistance ? kSelectionMostDistance : distance);",
+					"to": "int32_t const held = distance;"
+				}
+			]
+		},
+		{
+			"name": "words cut to fit aren't ended",
+			"changes": [
+				{
+					"file": "src/host/selection.cpp",
+					"from": "\t\t// _snprintf leaves out the 0 when the words fill the room, so the last place always gets one\n\t\twords[size - 1] = '\\0';",
+					"to": "\t\t// _snprintf leaves out the 0 when the words fill the room, so the last place always gets one"
+				}
+			]
+		}
+	]
+}

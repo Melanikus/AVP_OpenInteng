@@ -1,0 +1,25 @@
+# ACCEPTANCE: Strategy Data's Find Object (0x41, FUN_00524e90 -> FUN_005253c0(1)): the list dialog "Select Object" of the objects that have a strategy and the virtual objects (not every object, as Construction's 0x52 lists); a click on a row selects that
+# object and puts the view at its place. By clicks on the bar and on the dialog.
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x39
+expect-screen Strategy Data
+expect-selected 0
+item 0x41
+expect-dialog-kind list
+expect-dialog Select Object
+picture 960
+click-row 1
+expect-no-dialog
+expect-selected 1
+expect-pixels-changed picture 0 0 2000 2000 0.05
+# the on-screen messages (FUN_0057bd40(200, 100, 0, words), 700 ms): Edit Strategy with nothing selected says "Selected object has no strategy" on the screen (the pictures differ where the words go)
+key L
+expect-selected 0
+picture 962
+item 0x7
+expect-status Selected object has no strategy
+expect-pixels-changed panels 150 110 420 90 0.001
+# Mode > Object selection (0x4) is on bar A's page 2 (set 6), which nothing in inteng ever shows (no +0x18(2) call), and its command does nothing: no item on the bars of the screen has it (the harness refuses it: see the board)
+expect-screen Strategy Data

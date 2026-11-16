@@ -1,0 +1,223 @@
+// See shape_rescale_edit.h. Written 2026-11-15 by Melanikus (Drake) for AVP_OpenInteng (P11). AVP_OpenInteng's own code: see License.txt,
+// "AVP_OpenInteng's own code".
+
+#include "shape_rescale_edit.h"
+
+#include <math.h>
+#include <string.h>
+
+#include <exception>
+#include <vector>
+
+#include "chunk.hpp"
+#include "chunk_object.hpp"   // Object_Chunk, Shape_Chunk
+#include "chunk_shape.hpp"    // Shape_Chunk's children
+#include "mishchnk.hpp"       // File_Chunk::list_objects
+
+#include "level_file.h"
+#include "shape_edit.h"
+#include "shape_maths.h"
+
+namespace host
+{
+	namespace
+	{
+		// The first SHPEXTFN inside the first SHPEXTFL of the object's shape chunk, or null
+		Chunk *FirstExternalName(Object_Chunk *object)
+		{
+			Shape_Chunk *const shape = object ? object->get_assoc_shape() : nullptr;
+
+			if (!shape)
+			{
+				return nullptr;
+			}
+
+			Chunk *const file = shape->lookup_single_child("SHPEXTFL");
+			Chunk_With_Children *const holder = file && !file->r_u_miscellaneous() ? dynamic_cast<Chunk_With_Children *>(file) : nullptr;
+
+			if (!holder)
+			{
+				return nullptr;
+			}
+
+			Chunk *const name = holder->lookup_single_child("SHPEXTFN");
+
+			return name && !name->r_u_miscellaneous() ? name : nullptr;
+		}
+	}
+
+	char const *ShapeRescaleWords(ShapeRescaleResult result)
+	{
+		switch (result)
+		{
+		case ShapeRescaleResult::Done: return "done";
+		case ShapeRescaleResult::BadCall: return "no level is open, or no object is named";
+		case ShapeRescaleResult::NoObject: return "the level has no object with that ID";
+		case ShapeRescaleResult::BadValue: return "the size is a number above 0 and up to 1000000";
+		case ShapeRescaleResult::NoExternal: return "the shape has no outside-file name to scale from (inteng does nothing then)";
+		case ShapeRescaleResult::SharedShape: return "other objects use this shape too (inteng would rescale it once for each: not copied), so nothing was changed";
+		case ShapeRescaleResult::BadShape: return "the shape's numbers could not be read";
+		case ShapeRescaleResult::Overflow: return "a number would be too big for the level";
+		case ShapeRescaleResult::Refused: return "the bytes would not take the change, so nothing was changed";
+		}
+
+		return "the shape could not be rescaled";
+	}
+
+	ShapeRescaleResult ShapeRescale_ByValue(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, double typed, double levelScale, double *factorOut,
+		std::string *why)
+	{
+		if (factorOut)
+		{
+			*factorOut = 0.0;
+		}
+
+		if (!store || !level || !id)
+		{
+			return ShapeRescaleResult::BadCall;
+		}
+
+		// inteng's compare is 0.0 <= value <= 1,000,000.0 (0x4e1b10); a typed 0 is refused here
+		if (!(typed > 0.0) || !(typed <= kRescaleMost) || !isfinite(levelScale) || !(levelScale > 0.0))
+		{
+			return ShapeRescaleResult::BadValue;
+		}
+
+		try
+		{
+			List<Object_Chunk *> objects;
+			Object_Chunk *object = nullptr;
+
+			level->list_objects(&objects);
+
+			for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+			{
+				if (each() && memcmp(&each()->object_data.ID, id, 8) == 0)
+				{
+					object = each();
+					break;
+				}
+			}
+
+			if (!object)
+			{
+				return ShapeRescaleResult::NoObject;
+			}
+
+			Chunk *const name = FirstExternalName(object);
+			std::vector<unsigned char> nameBytes;
+
+			if (!name)
+			{
+				return ShapeRescaleResult::NoExternal;
+			}
+
+			if (!store->PayloadOf(name, &nameBytes) || nameBytes.size() < 12)
+			{
+				return ShapeRescaleResult::BadShape;
+			}
+
+			double rescale = 0.0;
+
+			memcpy(&rescale, nameBytes.data(), 8);
+
+			if (!isfinite(rescale) || !(rescale > 0.0))
+			{
+				return ShapeRescaleResult::BadShape;
+			}
+
+			// FUN_004e1a80 0x4e1c69: typed / (_DAT_00607bd8 x _DAT_005ac438 x rescale), _DAT_00607bd8 = 100.0 x the level's scale
+			double const denominator = ((100.0 * levelScale) * kRescaleHundredth) * rescale;
+			double const factor = typed / denominator;
+
+			if (!isfinite(factor) || !(factor > 0.0))
+			{
+				return ShapeRescaleResult::Overflow;
+			}
+
+			model::ShapeModel shape;
+			size_t users = 0;
+			std::string words;
+			ShapeEditResult const read = ShapeEdit_Read(level, store, id, &shape, &users, &words);
+
+			if (read != ShapeEditResult::Done)
+			{
+				if (why)
+				{
+					*why = words.empty() ? ShapeEditWords(read) : words;
+				}
+
+				return ShapeRescaleResult::BadShape;
+			}
+
+			if (users != 1)
+			{
+				return ShapeRescaleResult::SharedShape;
+			}
+
+			if (model::RescaleShape(&shape, factor) != model::ShapeMathsResult::Ok)
+			{
+				return ShapeRescaleResult::Overflow;
+			}
+
+			// the rescale double, made ready before anything is put in
+			double const rescaled = rescale * factor;
+
+			if (!isfinite(rescaled))
+			{
+				return ShapeRescaleResult::Overflow;
+			}
+
+			memcpy(nameBytes.data(), &rescaled, 8);
+
+			// FUN_0050f570 (the rebuild after the scaling) works the centre out again from the new extents ((max + min) / 2, each truncated toward
+			// zero) and the radius about it (model::ShapeRadiusAboutCentre): SHPCENTR is 3 ints and a float. Made ready now; written only when the
+			// shape has the chunk (inteng makes one when there is none, which would change the chunk's size: not done, named).
+			Shape_Chunk *const owned = object->get_assoc_shape();
+			Chunk *const centreChunk = owned ? owned->lookup_single_child("SHPCENTR") : nullptr;
+			std::vector<unsigned char> centreBytes;
+			bool writeCentre = false;
+
+			if (centreChunk && !centreChunk->r_u_miscellaneous() && store->PayloadOf(centreChunk, &centreBytes) && centreBytes.size() == 16)
+			{
+				int32_t const mid[3] =
+				{
+					(int32_t)(((int64_t)shape.extents.maxX + (int64_t)shape.extents.minX) / 2),
+					(int32_t)(((int64_t)shape.extents.maxY + (int64_t)shape.extents.minY) / 2),
+					(int32_t)(((int64_t)shape.extents.maxZ + (int64_t)shape.extents.minZ) / 2),
+				};
+				float const aboutCentre = model::ShapeRadiusAboutCentre(shape);
+
+				memcpy(centreBytes.data(), mid, 12);
+				memcpy(centreBytes.data() + 12, &aboutCentre, 4);
+				writeCentre = true;
+			}
+
+			if (ShapeEdit_WriteSameCounts(store, level, id, shape, &words) != ShapeEditResult::Done)
+			{
+				if (why)
+				{
+					*why = words;
+				}
+
+				return ShapeRescaleResult::Refused;
+			}
+
+			if (!store->SetPayload(name, nameBytes) || (writeCentre && !store->SetPayload(centreChunk, centreBytes)))
+			{
+				return ShapeRescaleResult::Refused;
+			}
+
+			if (factorOut)
+			{
+				*factorOut = factor;
+			}
+
+			return ShapeRescaleResult::Done;
+		}
+		catch (std::exception const &)
+		{
+			return ShapeRescaleResult::BadShape;
+		}
+	}
+}

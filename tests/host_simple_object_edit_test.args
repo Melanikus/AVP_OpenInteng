@@ -1,0 +1,56 @@
+/std:c++17 /EHsc /MD /J /we4834 /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DUSE_D3D9 /D_WINDOWS /DUSE_OPENAL /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE /D_WIN32_WINNT=0x0602
+/Isrc/host /Isrc/ui /Isrc/io /Isrc/model /Iavpx/3dc /Iavpx/3dc/video /Iavpx/3dc/avp /Iavpx/3dc/avp/support /Iavpx/3dc/avp/win95 /Iavpx/3dc/avp/win95/frontend /Iavpx/3dc/avp/win95/gadgets /Iavpx/3dc/include /Iavpx/3dc/win95 /Iavpx/win32
+tests/host_simple_object_edit_test.cpp
+src/host/shape_edit.cpp
+src/host/autolink_scene.cpp
+src/host/waypoint_model.cpp
+src/host/autolink_pass.cpp
+src/host/autolink_portal.cpp
+src/host/entry_recalc.cpp
+src/host/entry_points.cpp
+src/host/field_edit.cpp
+src/host/module_links.cpp
+src/host/level_chunks.cpp
+src/host/object_edit.cpp
+src/host/object_base.cpp
+src/model/shape_model.cpp
+src/model/strategy_rules.cpp
+src/model/strategy_fields.cpp
+src/model/chunk_fields.cpp
+src/model/chunk_rules.cpp
+src/model/shape_maths.cpp
+src/io/level_file.cpp
+avpx/3dc/win95/chunk.cpp
+avpx/3dc/win95/chunk_light.cpp
+avpx/3dc/win95/chunk_object.cpp
+avpx/3dc/win95/chunk_shape.cpp
+avpx/3dc/win95/chunk_type.cpp
+avpx/3dc/win95/hierarchy_chunk.cpp
+avpx/3dc/win95/huffman.cpp
+avpx/3dc/win95/list_tem.cpp
+avpx/3dc/win95/md5.c
+avpx/3dc/win95/mishchnk.cpp
+avpx/3dc/avp/win95/avp_chunk.cpp
+avpx/3dc/avp/win95/hierplace.cpp
+avpx/3dc/avp/win95/path_chunk.cpp
+avpx/3dc/avp/win95/strategy_chunk.cpp
+avpx/3dc/win95/animation_chunk.cpp
+avpx/3dc/win95/animation_objects.cpp
+avpx/3dc/win95/bitmap_names.cpp
+avpx/3dc/win95/chunk_dummy.cpp
+avpx/3dc/win95/chunk_fragments.cpp
+avpx/3dc/win95/chunk_gsprites.cpp
+avpx/3dc/win95/chunk_map.cpp
+avpx/3dc/win95/chunk_palette.cpp
+avpx/3dc/win95/chunk_sound.cpp
+avpx/3dc/win95/chunk_sprites.cpp
+avpx/3dc/win95/chunk_waypoint.cpp
+avpx/3dc/win95/enum_chunk.cpp
+avpx/3dc/win95/enumsch.cpp
+avpx/3dc/win95/environment_chunk.cpp
+avpx/3dc/win95/our_mem.cpp
+/link user32.lib
+src/host/simple_object_edit.cpp
+src/host/shape_chooser.cpp
+src/host/strategy_lookup.cpp

@@ -1,0 +1,441 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"avpx/win32",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "the chunk's heading is counted as 8 bytes, not 12",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "size_t const ChunkHeadingBytes = 12;",
+					"to": "size_t const ChunkHeadingBytes = 8;"
+				}
+			]
+		},
+		{
+			"name": "the least a strategy can be is 21 bytes, not 20",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "size_t const LeastPayloadBytes = 20;",
+					"to": "size_t const LeastPayloadBytes = 21;"
+				}
+			]
+		},
+		{
+			"name": "a strategy of exactly the least size is refused",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (whole < ChunkHeadingBytes + LeastPayloadBytes)",
+					"to": "if (whole <= ChunkHeadingBytes + LeastPayloadBytes)"
+				}
+			]
+		},
+		{
+			"name": "a strategy chunk holding no strategy is asked for its size",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (!strategy->Strategy)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a payload of exactly the most is refused",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (whole - ChunkHeadingBytes > kStrategyLookupMostBytes)",
+					"to": "if (whole - ChunkHeadingBytes >= kStrategyLookupMostBytes)"
+				}
+			]
+		},
+		{
+			"name": "a payload over the most is given",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (whole - ChunkHeadingBytes > kStrategyLookupMostBytes)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a payload a few bytes over the most is given",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (whole - ChunkHeadingBytes > kStrategyLookupMostBytes)",
+					"to": "if (whole - ChunkHeadingBytes > kStrategyLookupMostBytes + 4)"
+				}
+			]
+		},
+		{
+			"name": "the chunk's heading is given as the start of the payload",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "uint8_t const *const first = (uint8_t const *)block.get() + ChunkHeadingBytes;",
+					"to": "uint8_t const *const first = (uint8_t const *)block.get();"
+				}
+			]
+		},
+		{
+			"name": "the strategy chunk isn't given back",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "out->chunk = strategy;",
+					"to": "out->chunk = 0;"
+				}
+			]
+		},
+		{
+			"name": "no level isn't refused",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (!level)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "an ID of all 0 isn't refused",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (IdIsAllZero(id))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "an ID with any non-zero byte is taken for all 0",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (id[i] != 0)",
+					"to": "if (id[i] == 0)"
+				}
+			]
+		},
+		{
+			"name": "only an ID's first byte is looked at for 0",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "for (size_t i = 0; i < kSelectionIdBytes; i++)",
+					"to": "for (size_t i = 0; i < 1; i++)"
+				}
+			]
+		},
+		{
+			"name": "an ID's last byte isn't looked at for 0",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "for (size_t i = 0; i < kSelectionIdBytes; i++)",
+					"to": "for (size_t i = 0; i < kSelectionIdBytes - 1; i++)"
+				}
+			]
+		},
+		{
+			"name": "an ID is compared by its first 4 bytes only",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "memcmp(&object->object_data.ID, id, kSelectionIdBytes) != 0",
+					"to": "memcmp(&object->object_data.ID, id, 4) != 0"
+				}
+			]
+		},
+		{
+			"name": "an ID is compared without its last byte",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "memcmp(&object->object_data.ID, id, kSelectionIdBytes) != 0",
+					"to": "memcmp(&object->object_data.ID, id, kSelectionIdBytes - 1) != 0"
+				}
+			]
+		},
+		{
+			"name": "an ID matches when it differs",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "memcmp(&object->object_data.ID, id, kSelectionIdBytes) != 0",
+					"to": "memcmp(&object->object_data.ID, id, kSelectionIdBytes) == 0"
+				}
+			]
+		},
+		{
+			"name": "an object with another ID ends the search",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "continue;",
+					"to": "break;"
+				}
+			]
+		},
+		{
+			"name": "the last object with an ID is the one given",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "List<Object_Chunk *> objects;",
+					"to": "List<Object_Chunk *> objects;\n\t\t\tChunk *lastFound = 0;"
+				},
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "return CopyPayload((AVP_Strategy_Chunk *)found, out);",
+					"to": "lastFound = found;"
+				},
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "return StrategyFound::NoSuchObject;",
+					"to": "return lastFound ? CopyPayload((AVP_Strategy_Chunk *)lastFound, out) : StrategyFound::NoSuchObject;"
+				}
+			]
+		},
+		{
+			"name": "the project data is looked for under the wrong name",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "lookup_single_child(\"OBJPRJDT\")",
+					"to": "lookup_single_child(\"OBJPRJDX\")"
+				}
+			]
+		},
+		{
+			"name": "the strategy is looked for under the wrong name",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "lookup_single_child(\"AVPSTRAT\")",
+					"to": "lookup_single_child(\"AVPSTRAX\")"
+				}
+			]
+		},
+		{
+			"name": "an object with no project data is looked into",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (!data || data->r_u_miscellaneous())",
+					"to": "if (data->r_u_miscellaneous())"
+				}
+			]
+		},
+		{
+			"name": "an object whose project data holds no strategy is looked into",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (!found || found->r_u_miscellaneous())",
+					"to": "if (found->r_u_miscellaneous())"
+				}
+			]
+		},
+		{
+			"name": "an object with no project data is passed over for a twin that has some",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (!data || data->r_u_miscellaneous())\n\t\t\t\t{\n\t\t\t\t\treturn StrategyFound::NoStrategy;\n\t\t\t\t}",
+					"to": "if (!data || data->r_u_miscellaneous())\n\t\t\t\t{\n\t\t\t\t\tcontinue;\n\t\t\t\t}"
+				}
+			]
+		},
+		{
+			"name": "an object whose project data holds no strategy is passed over for a twin that has one",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (!found || found->r_u_miscellaneous())\n\t\t\t\t{\n\t\t\t\t\treturn StrategyFound::NoStrategy;\n\t\t\t\t}",
+					"to": "if (!found || found->r_u_miscellaneous())\n\t\t\t\t{\n\t\t\t\t\tcontinue;\n\t\t\t\t}"
+				}
+			]
+		},
+		{
+			"name": "no object is reported as no strategy",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "return StrategyFound::NoSuchObject;",
+					"to": "return StrategyFound::NoStrategy;"
+				}
+			]
+		},
+		{
+			"name": "no name is reported as no such object",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "return StrategyFound::NoName;",
+					"to": "return StrategyFound::NoSuchObject;"
+				}
+			]
+		},
+		{
+			"name": "no level is reported as no name",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "return StrategyFound::NoLevel;",
+					"to": "return StrategyFound::NoName;"
+				}
+			]
+		},
+		{
+			"name": "a strategy that is too big is reported as empty",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "return StrategyFound::TooBig;",
+					"to": "return StrategyFound::NoStrategyBytes;"
+				}
+			]
+		},
+		{
+			"name": "what isn't an object is reported as having no strategy",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "return StrategyFound::NotAnObject;",
+					"to": "return StrategyFound::NoStrategy;"
+				}
+			]
+		},
+		{
+			"name": "an answer's words are empty",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "case StrategyFound::TooBig: return \"the object's strategy is larger than any real one\";",
+					"to": "case StrategyFound::TooBig: return \"\";"
+				}
+			]
+		},
+		{
+			"name": "an answer has no words at all",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "case StrategyFound::NoMemory: return \"there isn't memory enough to read the object's strategy\";",
+					"to": "case StrategyFound::NoMemory: return 0;"
+				}
+			]
+		},
+		{
+			"name": "an answer the code doesn't know has no words",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "return \"the object's strategy couldn't be looked up\";",
+					"to": "return 0;"
+				}
+			]
+		},
+		{
+			"name": "no place for the answer isn't refused",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (!out)\n\t\t{\n\t\t\treturn StrategyFound::BadCall;\n\t\t}\n\n\t\tout->chunk = 0;",
+					"to": "if (false)\n\t\t{\n\t\t\treturn StrategyFound::BadCall;\n\t\t}\n\n\t\tout->chunk = 0;"
+				}
+			]
+		},
+		{
+			"name": "no ID isn't refused",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (!id)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "the answer's chunk isn't emptied before the lookup",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "out->chunk = 0;\n\t\tout->payload.clear();\n\n\t\tif (!id)",
+					"to": "out->payload.clear();\n\n\t\tif (!id)"
+				}
+			]
+		},
+		{
+			"name": "the answer's strategy bytes aren't emptied before the lookup",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "out->chunk = 0;\n\t\tout->payload.clear();\n\n\t\tif (!id)",
+					"to": "out->chunk = 0;\n\n\t\tif (!id)"
+				}
+			]
+		},
+		{
+			"name": "nothing selected, with no place for the answer, isn't refused",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (!out)\n\t\t{\n\t\t\treturn StrategyFound::BadCall;\n\t\t}\n\n\t\tif (selected.kind",
+					"to": "if (false)\n\t\t{\n\t\t\treturn StrategyFound::BadCall;\n\t\t}\n\n\t\tif (selected.kind"
+				}
+			]
+		},
+		{
+			"name": "what's selected isn't looked at",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "if (selected.kind != SelectedKind::Object)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a selection that isn't an object leaves the old chunk in the answer",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "out->chunk = 0;\n\t\t\tout->payload.clear();\n\t\t\treturn StrategyFound::NotAnObject;",
+					"to": "out->payload.clear();\n\t\t\treturn StrategyFound::NotAnObject;"
+				}
+			]
+		},
+		{
+			"name": "a selection that isn't an object leaves the old strategy bytes in the answer",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "out->chunk = 0;\n\t\t\tout->payload.clear();\n\t\t\treturn StrategyFound::NotAnObject;",
+					"to": "out->chunk = 0;\n\t\t\treturn StrategyFound::NotAnObject;"
+				}
+			]
+		},
+		{
+			"name": "the selected object's ID isn't looked for",
+			"changes": [
+				{
+					"file": "src/host/strategy_lookup.cpp",
+					"from": "return FindObjectStrategy(level, selected.objectId, out);",
+					"to": "return FindObjectStrategy(level, 0, out);"
+				}
+			]
+		}
+	]
+}

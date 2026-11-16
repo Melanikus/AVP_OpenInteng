@@ -1,0 +1,63 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "choosing Polyline (8) changes nothing, Melanikus's first click",
+			"changes": [
+				{ "file": "src/host/view_toggles.cpp", "from": "\t\t\t\tif (can.outlines)\n\t\t\t\t{\n\t\t\t\t\tafter.drawMode = DrawMode::Polyline;\n\t\t\t\t}\n", "to": "" }
+			]
+		},
+		{
+			"name": "Polyline can be chosen while the game can't show its white lines",
+			"changes": [
+				{ "file": "src/host/view_toggles.cpp", "from": "\t\t\tcase ViewToggle::Polyline:\n\t\t\t\tif (can.outlines)\n", "to": "\t\t\tcase ViewToggle::Polyline:\n\t\t\t\tif (true)\n" }
+			]
+		},
+		{
+			"name": "a mode turns the Gouraud switch back on, so it isn't kept across modes",
+			"changes": [
+				{ "file": "src/host/view_toggles.cpp", "from": "\t\t\tcase ViewToggle::Polygon:\n\t\t\t\tafter.drawMode = DrawMode::Polygon;\n", "to": "\t\t\tcase ViewToggle::Polygon:\n\t\t\t\tafter.drawMode = DrawMode::Polygon;\n\t\t\t\tafter.gouraud = Gouraud::On;\n" }
+			]
+		},
+		{
+			"name": "the Gouraud switch never turns off",
+			"changes": [
+				{ "file": "src/host/view_toggles.cpp", "from": "after.gouraud = now.gouraud == Gouraud::Off ? Gouraud::On : Gouraud::Off;", "to": "after.gouraud = Gouraud::On;" }
+			]
+		},
+		{
+			"name": "unlit is no longer fully lit",
+			"changes": [
+				{ "file": "src/host/view_toggles.cpp", "from": "switches.drawFullBright = unlit ? 1 : 0;", "to": "switches.drawFullBright = 0;" }
+			]
+		},
+		{
+			"name": "the textured wireframe loses its lines",
+			"changes": [
+				{ "file": "src/host/view_toggles.cpp", "from": "bool const lines = mode == DrawMode::Polyline || mode == DrawMode::WireTextured;", "to": "bool const lines = mode == DrawMode::Polyline;" }
+			]
+		},
+		{
+			"name": "Polyline's white lines are lit even when the switch is off",
+			"changes": [
+				{ "file": "src/host/view_toggles.cpp", "from": "switches.outlinesLit = whiteLines && mode == DrawMode::Polyline && !unlit ? 1 : 0;", "to": "switches.outlinesLit = whiteLines && mode == DrawMode::Polyline ? 1 : 0;" }
+			]
+		},
+		{
+			"name": "the lines are green again",
+			"changes": [
+				{ "file": "src/host/view_toggles.cpp", "from": "switches.outlineColour = kWireWhite;", "to": "switches.outlineColour = 0x00FF00;" }
+			]
+		},
+		{
+			"name": "the headlight is turned off by a mode",
+			"changes": [
+				{ "file": "src/host/view_toggles.cpp", "from": "\t\t\tcase ViewToggle::WireTextured:\n\t\t\t\tafter.drawMode = DrawMode::WireTextured;\n", "to": "\t\t\tcase ViewToggle::WireTextured:\n\t\t\t\tafter.drawMode = DrawMode::WireTextured;\n\t\t\t\tafter.headlight = false;\n" }
+			]
+		}
+	]
+}

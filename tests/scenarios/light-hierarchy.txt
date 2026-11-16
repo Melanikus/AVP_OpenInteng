@@ -1,0 +1,16 @@
+# LIGHT SOURCING (with Hierarchy), Hierarchy (0xc8) and Sequence (0xc9), in the running editor (hidden run, Invasion): inteng runs its Select Hierarchy / Select Sequence (the Hierarchy mode's own, a level
+# with no hierarchy has none to select) and then FUN_004b1720: every shape's vertex normals are made again from its polygons and the lights are worked out again. Pictures 501 before, 502 after Hierarchy,
+# 503 after Sequence: 501 vs 502 differ (the normals the lighting uses changed), 502 vs 503 are the same.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/light-hierarchy.txt
+screen Light Sourcing (with Hierarchy)
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Hierarchy)
+picture 501
+item 0xc8
+expect-status vertex normals made again
+picture 502
+item 0xc9
+expect-status vertex normals made again
+picture 503

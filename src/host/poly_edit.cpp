@@ -1,0 +1,2614 @@
+// See poly_edit.h. Written 2026-11-15 by Melanikus (Hicks) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
+
+#include "poly_edit.h"
+
+#include <math.h>
+#include <algorithm>
+#include <set>
+#include <string.h>
+
+#include "chunk_object.hpp"   // Object_Chunk, Shape_Chunk
+#include "chunk_shape.hpp"    // Chunk_With_Children::lookup_single_child
+#include "mishchnk.hpp"       // File_Chunk::list_objects
+#include "level_file.h"       // OpenLevelFile: PayloadOf, BuildLevel, ReplaceLevel
+
+#include "shape_edit.h"       // ShapeEdit_Read
+#include "shape_model.h"
+#include "uv_model.h"
+#include "shape_maths.h"
+#include "anim_edit.h"
+#include "object_make.h"     // CreateObjectWithShapeChunk
+#include "object_type_edit.h" // ObjectType_Change: As Module
+
+namespace host
+{
+	namespace
+	{
+		typedef std::vector<char> Image;
+		typedef std::vector<unsigned char> Payload;
+
+		size_t const kHeadingBytes = 12;      // a chunk: its 8-letter name, then its size (which counts these 12 bytes too)
+		size_t const kShapeNumberAt = 20;     // in SHPHEAD1's payload (shape_model.h)
+
+		// inteng's thresholds are whole numbers of 65536 (FUN_00564fc0)
+		double const kOne = 65536.0;
+		double const kNearPerpendicular = 500.0 / kOne;
+		double const kMostOffPlane = 400.0 / kOne;
+		double const kFarthestSquared = 1000000000.0;   // inteng's start for "nearest" (local_28)
+
+		bool Say(std::string *why, char const *words)
+		{
+			if (why)
+			{
+				*why = words;
+			}
+
+			return false;
+		}
+
+		struct Vec
+		{
+			double x, y, z;
+		};
+
+		Vec VSub(Vec a, Vec b)
+		{
+			Vec r = { a.x - b.x, a.y - b.y, a.z - b.z };
+			return r;
+		}
+
+		double VDot(Vec a, Vec b)
+		{
+			return a.x * b.x + a.y * b.y + a.z * b.z;
+		}
+
+		Vec VCross(Vec a, Vec b)
+		{
+			Vec r = { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x };
+			return r;
+		}
+
+		// False for a vector with no length (or one that is not a number): inteng would divide by 0 there
+		bool VUnit(Vec *v)
+		{
+			double const length = sqrt(VDot(*v, *v));
+
+			if (!(length > 0.0) || !isfinite(length))
+			{
+				return false;
+			}
+
+			v->x /= length;
+			v->y /= length;
+			v->z /= length;
+			return true;
+		}
+
+		Vec PointOf(model::ShapePoint const &p)
+		{
+			Vec r = { (double)p.x, (double)p.y, (double)p.z };
+			return r;
+		}
+
+		// A triangle's corners and its new unit normal: inteng's FUN_00565460 (the two edges made unit, their cross made unit), turned round when the camera looks along it
+		bool MakeTriangle(std::vector<model::ShapePoint> const &points, int32_t a, int32_t b, int32_t c, Vec const *view, model::ShapePolygon *polygon, model::ShapeNormal *normal, int32_t number)
+		{
+			Vec ab = VSub(PointOf(points[(size_t)b]), PointOf(points[(size_t)a]));
+			Vec ac = VSub(PointOf(points[(size_t)c]), PointOf(points[(size_t)a]));
+
+			if (!VUnit(&ab) || !VUnit(&ac))
+			{
+				return false;
+			}
+
+			Vec n = VCross(ab, ac);
+
+			if (!VUnit(&n))
+			{
+				return false;   // the three corners are in a line
+			}
+
+			bool const turn = view && VDot(*view, n) > 0.0;
+
+			memset(polygon, 0, sizeof(*polygon));
+			polygon->engineType = 2;          // I_Polygon, a plain colour
+			polygon->normalIndex = number;
+			polygon->flags = 0;
+			polygon->colour = 0x7fff;
+			polygon->cornerCount = 3;
+			polygon->corners[0] = a;
+			polygon->corners[1] = turn ? c : b;
+			polygon->corners[2] = turn ? b : c;
+			polygon->corners[3] = -1;
+			polygon->corners[4] = -1;
+			normal->x = (float)(turn ? -n.x : n.x);
+			normal->y = (float)(turn ? -n.y : n.y);
+			normal->z = (float)(turn ? -n.z : n.z);
+			return true;
+		}
+
+		int32_t IntAt(Image const &bytes, size_t at)
+		{
+			int32_t value;
+
+			memcpy(&value, bytes.data() + at, sizeof(value));
+			return value;
+		}
+
+		void PutIntAt(Image *bytes, size_t at, int32_t value)
+		{
+			memcpy(bytes->data() + at, &value, sizeof(value));
+		}
+
+		struct Span
+		{
+			size_t at;
+			size_t size;
+		};
+
+		bool ChunkSizeAt(Image const &bytes, size_t at, size_t end, size_t *size)
+		{
+			if (end > bytes.size() || at > end || end - at < kHeadingBytes)
+			{
+				return false;
+			}
+
+			int32_t const stored = IntAt(bytes, at + 8);
+
+			if (stored < (int32_t)kHeadingBytes || (size_t)stored > end - at)
+			{
+				return false;
+			}
+
+			*size = (size_t)stored;
+			return true;
+		}
+
+		bool NameIs(Image const &bytes, size_t at, char const *name)
+		{
+			return memcmp(bytes.data() + at, name, 8) == 0;
+		}
+
+		bool Children(Image const &bytes, size_t from, size_t to, std::vector<Span> *out)
+		{
+			out->clear();
+
+			for (size_t at = from; at < to; )
+			{
+				size_t size = 0;
+
+				if (!ChunkSizeAt(bytes, at, to, &size))
+				{
+					return false;
+				}
+
+				Span const span = { at, size };
+
+				out->push_back(span);
+				at += size;
+			}
+
+			return true;
+		}
+
+		void AppendChunk(Image *out, char const *name, Payload const &payload)
+		{
+			size_t const start = out->size();
+
+			out->resize(start + kHeadingBytes + payload.size());
+			memcpy(out->data() + start, name, 8);
+			PutIntAt(out, start + 8, (int32_t)(kHeadingBytes + payload.size()));
+
+			if (!payload.empty())
+			{
+				memcpy(out->data() + start + kHeadingBytes, payload.data(), payload.size());
+			}
+		}
+
+		void AppendBytes(Image *out, Image const &from, size_t at, size_t size)
+		{
+			out->insert(out->end(), from.begin() + (std::ptrdiff_t)at, from.begin() + (std::ptrdiff_t)(at + size));
+		}
+
+		Object_Chunk *ObjectWithId(File_Chunk *level, uint8_t const *id)
+		{
+			List<Object_Chunk *> found;
+
+			level->list_objects(&found);
+
+			for (LIF<Object_Chunk *> each(&found); !each.done(); each.next())
+			{
+				Object_Chunk *const object = each();
+
+				if (object && memcmp(&object->object_data.ID, id, 8) == 0)
+				{
+					return object;
+				}
+			}
+
+			return nullptr;
+		}
+	}
+
+	// ---------------------------------------------------------------- the pick
+
+	bool PolyEdit_NearestCorner(PolyCornerSpot const *spots, size_t count, double cx, double cy, int32_t *point)
+	{
+		if (!point || (count > 0 && !spots))
+		{
+			return false;
+		}
+
+		double best = kFarthestSquared;
+		bool found = false;
+
+		for (size_t i = 0; i < count; i++)
+		{
+			if (!spots[i].onScreen)
+			{
+				continue;
+			}
+
+			double const dx = spots[i].x - cx;
+			double const dy = spots[i].y - cy;
+			double const distance = dx * dx + dy * dy;
+
+			if (distance < best)
+			{
+				best = distance;
+				*point = spots[i].point;
+				found = true;
+			}
+		}
+
+		return found;
+	}
+
+	char const *PolyVertexClickWords(PolyVertexClick result)
+	{
+		switch (result)
+		{
+		case PolyVertexClick::Added: return "corner taken";
+		case PolyVertexClick::AddedAndOrdered: return "fourth corner taken: the four make a flat quad";
+		case PolyVertexClick::Removed: return "corner taken out";
+		case PolyVertexClick::OtherShape: return "that corner is of another shape than the ones held";
+		case PolyVertexClick::AlreadyHeld: return "that corner is held already";
+		case PolyVertexClick::NotHeld: return "that corner is not held";
+		case PolyVertexClick::NotAQuad: return "the four corners would not make a flat convex quad, so the fourth was not taken";
+		case PolyVertexClick::ListFull: return "four corners are held already (Shift takes one out)";
+		case PolyVertexClick::BadCall: return "nothing to click";
+		}
+
+		return "unknown answer";
+	}
+
+	bool PolyEdit_QuadOrder(std::vector<model::ShapePoint> const &points, int32_t const four[4], int32_t order[4])
+	{
+		if (!four || !order)
+		{
+			return false;
+		}
+
+		Vec p[4];
+
+		for (int i = 0; i < 4; i++)
+		{
+			if (four[i] < 0 || (size_t)four[i] >= points.size())
+			{
+				return false;
+			}
+
+			p[i] = PointOf(points[(size_t)four[i]]);
+		}
+
+		// The edges of the order as given, each made unit (FUN_00564fc0's first loop)
+		Vec e[4];
+
+		for (int i = 0; i < 4; i++)
+		{
+			e[i] = VSub(p[i], p[(i + 1) & 3]);
+
+			if (!VUnit(&e[i]))
+			{
+				return false;
+			}
+		}
+
+		// The plane's normal: from the first two edges when they are about at right angles, else from the first and third; the last edge has to lie in that plane
+		Vec n = fabs(VDot(e[0], e[1])) < kNearPerpendicular ? VCross(e[0], e[1]) : VCross(e[0], e[2]);
+
+		if (!VUnit(&n) || fabs(VDot(n, e[3])) > kMostOffPlane)
+		{
+			return false;
+		}
+
+		// The first order (p, q, r, s) that goes round the same way at every corner
+		for (int a = 0; a < 4; a++)
+		{
+			for (int b = 0; b < 4; b++)
+			{
+				if (b == a)
+				{
+					continue;
+				}
+
+				for (int c = 0; c < 4; c++)
+				{
+					if (c == a || c == b)
+					{
+						continue;
+					}
+
+					int const d = 6 - a - b - c;
+					int const at[4] = { a, b, c, d };
+					Vec v[4];
+
+					for (int i = 0; i < 4; i++)
+					{
+						v[i] = VSub(p[at[i]], p[at[(i + 1) & 3]]);
+					}
+
+					bool all = true;
+
+					for (int i = 0; i < 4 && all; i++)
+					{
+						Vec turn = VCross(v[i], v[(i + 1) & 3]);
+
+						// a dot that rounds to 0 in 16.16 is not above 0
+						all = VUnit(&turn) && VDot(turn, n) * kOne >= 1.0;
+					}
+
+					if (all)
+					{
+						for (int i = 0; i < 4; i++)
+						{
+							order[i] = four[at[i]];
+						}
+
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	void PolyEdit_VertexClear(PolyVertexList *list)
+	{
+		if (list)
+		{
+			memset(list, 0, sizeof(*list));
+		}
+	}
+
+	PolyVertexClick PolyEdit_VertexClick(PolyVertexList *list, uint8_t const *id, int32_t point, bool shift, std::vector<model::ShapePoint> const &points)
+	{
+		if (!list || !id || list->count > kPolyVertexMost || point < 0 || (size_t)point >= points.size())
+		{
+			return PolyVertexClick::BadCall;
+		}
+
+		if (list->count > 0 && memcmp(list->id, id, 8) != 0)
+		{
+			return PolyVertexClick::OtherShape;
+		}
+
+		size_t held = list->count;
+
+		for (size_t i = 0; i < list->count; i++)
+		{
+			if (list->point[i] == point)
+			{
+				held = i;
+				break;
+			}
+		}
+
+		if (shift)
+		{
+			if (held == list->count)
+			{
+				return PolyVertexClick::NotHeld;
+			}
+
+			for (size_t i = held; i + 1 < list->count; i++)
+			{
+				list->point[i] = list->point[i + 1];
+			}
+
+			list->count--;
+			return PolyVertexClick::Removed;
+		}
+
+		if (list->count == kPolyVertexMost)
+		{
+			return PolyVertexClick::ListFull;
+		}
+
+		if (held < list->count)
+		{
+			return PolyVertexClick::AlreadyHeld;
+		}
+
+		if (list->count == 0)
+		{
+			memcpy(list->id, id, 8);
+		}
+
+		list->point[list->count++] = point;
+
+		if (list->count == kPolyVertexMost)
+		{
+			int32_t order[4];
+
+			if (!PolyEdit_QuadOrder(points, list->point, order))
+			{
+				list->count--;
+				return PolyVertexClick::NotAQuad;
+			}
+
+			for (size_t i = 0; i < 4; i++)
+			{
+				list->point[i] = order[i];
+			}
+
+			return PolyVertexClick::AddedAndOrdered;
+		}
+
+		return PolyVertexClick::Added;
+	}
+
+	// ---------------------------------------------------------------- create
+
+	char const *PolyCreateWords(PolyCreateResult result)
+	{
+		switch (result)
+		{
+		case PolyCreateResult::Done: return "done";
+		case PolyCreateResult::BadCall: return "three or four different corners of the shape are needed";
+		case PolyCreateResult::Degenerate: return "those corners are in a line or at one place, so they make no polygon";
+		case PolyCreateResult::TooMany: return "the shape would have more polygons than the editor reads";
+		case PolyCreateResult::NoObject: return "no object has that name";
+		case PolyCreateResult::NoShape: return "the object has no shape the editor can read";
+		case PolyCreateResult::Morphing: return "a shape with a SHPMORPH is not edited (inteng does not edit it either)";
+		case PolyCreateResult::Unreadable: return "a chunk of the shape could not be read or put together";
+		case PolyCreateResult::CantBuild: return "the level couldn't be put together from its bytes";
+		case PolyCreateResult::LoaderRefused: return "the game's own loader wouldn't take the changed level, so nothing was changed";
+		}
+
+		return "unknown answer";
+	}
+
+	PolyCreateResult PolyEdit_CreateInModel(model::ShapeModel *shape, std::vector<int32_t> *mergeData, int32_t const *corners, size_t count, double const viewForward[3], size_t *first)
+	{
+		if (!shape || !corners || (count != 3 && count != 4))
+		{
+			return PolyCreateResult::BadCall;
+		}
+
+		for (size_t i = 0; i < count; i++)
+		{
+			if (corners[i] < 0 || (size_t)corners[i] >= shape->points.size())
+			{
+				return PolyCreateResult::BadCall;
+			}
+
+			for (size_t j = 0; j < i; j++)
+			{
+				if (corners[j] == corners[i])
+				{
+					return PolyCreateResult::BadCall;
+				}
+			}
+		}
+
+		size_t const now = shape->polygons.size();
+		size_t const added = count - 2;
+
+		if (shape->polygonNormals.size() != now || (mergeData && mergeData->size() != now))
+		{
+			return PolyCreateResult::Unreadable;
+		}
+
+		if (now > model::kMostShapePolygons || added > model::kMostShapePolygons - now)
+		{
+			return PolyCreateResult::TooMany;
+		}
+
+		// Three corners make one triangle; four make (0,1,3) and (1,2,3)
+		int32_t const last = corners[count - 1];
+		int32_t const triangles[2][3] = { { corners[0], corners[1], count == 4 ? last : corners[2] }, { corners[1], corners[2], last } };
+		Vec view = { 0, 0, 0 };
+		bool const flip = viewForward && (viewForward[0] != 0.0 || viewForward[1] != 0.0 || viewForward[2] != 0.0);
+
+		if (flip)
+		{
+			view.x = viewForward[0];
+			view.y = viewForward[1];
+			view.z = viewForward[2];
+		}
+
+		model::ShapePolygon made[2];
+		model::ShapeNormal normals[2];
+
+		for (size_t k = 0; k < added; k++)
+		{
+			if (!MakeTriangle(shape->points, triangles[k][0], triangles[k][1], triangles[k][2], flip ? &view : nullptr, &made[k], &normals[k], (int32_t)(now + k)))
+			{
+				return PolyCreateResult::Degenerate;
+			}
+		}
+
+		for (size_t k = 0; k < added; k++)
+		{
+			shape->polygons.push_back(made[k]);
+			shape->polygonNormals.push_back(normals[k]);
+
+			if (mergeData)
+			{
+				mergeData->push_back(-1);
+			}
+		}
+
+		if (mergeData && added == 2)
+		{
+			(*mergeData)[now] = (int32_t)(now + 1);
+			(*mergeData)[now + 1] = (int32_t)now;
+		}
+
+		if (first)
+		{
+			*first = now;
+		}
+
+		return PolyCreateResult::Done;
+	}
+
+	namespace
+	{
+		enum class Rebuilt
+		{
+			Done,
+			CantBuild,
+			LoaderRefused,
+		};
+
+		struct NewChunk
+		{
+			char const *name;
+			Payload const *payload;
+			bool addIfMissing = false;   // put the chunk at the end of the shape's chunks when it has none
+		};
+
+		// The level as the next save would write it, with the chunks named in `chunks` of the shape numbered shapeNumber made again from their payloads (each must be in the shape, the others are
+		// copied as they were), put in by ReplaceLevel, which reads it with the game's loader and swaps it in only if the loader takes it.
+		Rebuilt RebuildShape(OpenLevelFile *file, int32_t shapeNumber, NewChunk const *chunks, size_t chunkCount)
+		{
+			Image image;
+
+			if (chunkCount > 12 || !file->BuildLevel(image) || image.size() < kHeadingBytes || !NameIs(image, 0, "REBINFF2"))
+			{
+				return Rebuilt::CantBuild;
+			}
+
+			std::vector<Span> top;
+
+			if (!Children(image, kHeadingBytes, image.size(), &top))
+			{
+				return Rebuilt::CantBuild;
+			}
+
+			// The shape's chunk, found by its number
+			size_t at_Shape = top.size();
+
+			for (size_t i = 0; i < top.size() && at_Shape == top.size(); i++)
+			{
+				if (!NameIs(image, top[i].at, "REBSHAPE"))
+				{
+					continue;
+				}
+
+				std::vector<Span> inside;
+
+				if (!Children(image, top[i].at + kHeadingBytes, top[i].at + top[i].size, &inside))
+				{
+					return Rebuilt::CantBuild;
+				}
+
+				for (Span const &child : inside)
+				{
+					if (NameIs(image, child.at, "SHPHEAD1") && child.size >= kHeadingBytes + kShapeNumberAt + 4 && IntAt(image, child.at + kHeadingBytes + kShapeNumberAt) == shapeNumber)
+					{
+						at_Shape = i;
+						break;
+					}
+				}
+			}
+
+			if (at_Shape == top.size())
+			{
+				return Rebuilt::CantBuild;
+			}
+
+			// The new image: every top-level chunk as it was, except the shape, whose named chunks are made again
+			Image out;
+
+			AppendBytes(&out, image, 0, kHeadingBytes);
+
+			for (size_t i = 0; i < top.size(); i++)
+			{
+				if (i != at_Shape)
+				{
+					AppendBytes(&out, image, top[i].at, top[i].size);
+					continue;
+				}
+
+				std::vector<Span> inside;
+
+				if (!Children(image, top[i].at + kHeadingBytes, top[i].at + top[i].size, &inside))
+				{
+					return Rebuilt::CantBuild;
+				}
+
+				size_t const start = out.size();
+				bool done[12] = { false };
+
+				AppendBytes(&out, image, top[i].at, kHeadingBytes);
+
+				for (Span const &child : inside)
+				{
+					size_t which = chunkCount;
+
+					for (size_t n = 0; n < chunkCount; n++)
+					{
+						if (!done[n] && NameIs(image, child.at, chunks[n].name))
+						{
+							which = n;
+							break;
+						}
+					}
+
+					if (which == chunkCount)
+					{
+						AppendBytes(&out, image, child.at, child.size);
+					}
+					else
+					{
+						done[which] = true;
+						if (chunks[which].payload)   // a null payload drops the chunk
+						{
+							AppendChunk(&out, chunks[which].name, *chunks[which].payload);
+						}
+					}
+				}
+
+				for (size_t n = 0; n < chunkCount; n++)
+				{
+					if (!done[n] && chunks[n].payload)
+					{
+						if (!chunks[n].addIfMissing)
+						{
+							return Rebuilt::CantBuild;   // the shape lacked a chunk that was to be made again
+						}
+
+						AppendChunk(&out, chunks[n].name, *chunks[n].payload);   // a chunk the shape does not have yet goes at the end of its chunks
+					}
+				}
+
+				PutIntAt(&out, start + 8, (int32_t)(out.size() - start));
+			}
+
+			PutIntAt(&out, 8, (int32_t)out.size());
+
+			switch (file->ReplaceLevel(out))
+			{
+			case LevelOpenResult::Opened: return Rebuilt::Done;
+			case LevelOpenResult::CantRead: return Rebuilt::CantBuild;
+			default: return Rebuilt::LoaderRefused;
+			}
+		}
+	}
+
+	PolyCreateResult PolyEdit_Create(OpenLevelFile *file, uint8_t const *id, int32_t const *corners, size_t count, double const viewForward[3], size_t *first, size_t *added, std::string *why)
+	{
+		if (!file || !id || !corners || !file->Level())
+		{
+			return PolyCreateResult::BadCall;
+		}
+
+		File_Chunk *const level = file->Level();
+		Object_Chunk *const object = ObjectWithId(level, id);
+
+		if (!object)
+		{
+			return PolyCreateResult::NoObject;
+		}
+
+		Shape_Chunk *const shape = object->get_assoc_shape();
+
+		if (!shape)
+		{
+			return PolyCreateResult::NoShape;
+		}
+
+		if (shape->lookup_single_child("SHPMORPH"))
+		{
+			return PolyCreateResult::Morphing;
+		}
+
+		model::ShapeModel model;
+
+		if (ShapeEdit_Read(level, file, id, &model, nullptr, why) != ShapeEditResult::Done)
+		{
+			return PolyCreateResult::NoShape;
+		}
+
+		// The shape's merge numbers, one per polygon, when it has the chunk
+		Chunk *const mergeChunk = shape->lookup_single_child("SHPMRGDT");
+		std::vector<int32_t> merge;
+		bool const hasMerge = mergeChunk != nullptr;
+
+		if (hasMerge)
+		{
+			Payload bytes;
+
+			if (!file->PayloadOf(mergeChunk, &bytes) || bytes.size() % 4 != 0 || bytes.size() / 4 != model.polygons.size())
+			{
+				Say(why, "the shape's merge data is not one number for each polygon");
+				return PolyCreateResult::Unreadable;
+			}
+
+			merge.resize(bytes.size() / 4);
+
+			if (!bytes.empty())
+			{
+				memcpy(merge.data(), bytes.data(), bytes.size());
+			}
+		}
+
+		size_t firstNew = 0;
+		PolyCreateResult const made = PolyEdit_CreateInModel(&model, hasMerge ? &merge : nullptr, corners, count, viewForward, &firstNew);
+
+		if (made != PolyCreateResult::Done)
+		{
+			return made;
+		}
+
+		// The new bytes of the chunks that change
+		Payload headerBytes;
+		Chunk *const headerChunk = shape->lookup_single_child("SHPHEAD1");
+
+		if (!headerChunk || !file->PayloadOf(headerChunk, &headerBytes))
+		{
+			return PolyCreateResult::Unreadable;
+		}
+
+		Payload polygonBytes(model.polygons.size() * model::kShapePolygonBytes);
+		Payload normalBytes(model.polygonNormals.size() * model::kShapeNormalBytes);
+		Payload mergeBytes(merge.size() * 4);
+
+		if (model::WriteShapePolygons(model, &polygonBytes) != model::ShapeModelResult::Ok ||
+			model::WriteShapeNormals(model.polygonNormals, &normalBytes) != model::ShapeModelResult::Ok ||
+			model::WriteShapeHeaderSettingCounts(model, &headerBytes) != model::ShapeModelResult::Ok)
+		{
+			Say(why, "the new polygons' numbers wouldn't go into chunks");
+			return PolyCreateResult::Unreadable;
+		}
+
+		if (!merge.empty())
+		{
+			memcpy(mergeBytes.data(), merge.data(), mergeBytes.size());
+		}
+
+		NewChunk chunks[4] = { { "SHPHEAD1", &headerBytes }, { "SHPPOLYS", &polygonBytes }, { "SHPPNORM", &normalBytes }, { "SHPMRGDT", &mergeBytes } };
+
+		switch (RebuildShape(file, model.number, chunks, hasMerge ? 4 : 3))
+		{
+		case Rebuilt::Done:
+			if (first)
+			{
+				*first = firstNew;
+			}
+
+			if (added)
+			{
+				*added = count - 2;
+			}
+
+			return PolyCreateResult::Done;
+		case Rebuilt::CantBuild: return PolyCreateResult::CantBuild;
+		default: return PolyCreateResult::LoaderRefused;
+		}
+	}
+
+	// ---------------------------------------------------------------- polygon type changes
+
+	char const *PolyTypeWords(PolyTypeResult result)
+	{
+		switch (result)
+		{
+		case PolyTypeResult::Done: return "done";
+		case PolyTypeResult::BadCall: return "nothing to change, a polygon named twice, or a colour the game would refuse";
+		case PolyTypeResult::NoObject: return "no object has that name";
+		case PolyTypeResult::NoShape: return "the object has no shape the editor can read";
+		case PolyTypeResult::NoPolygon: return "a polygon the shape does not have";
+		case PolyTypeResult::Animated: return "a polygon is in the shape's texture animation: take it out of the animation first";
+		case PolyTypeResult::TooManyCorners: return "a polygon with five corners cannot be textured (a list of texture coordinates holds four)";
+		case PolyTypeResult::NoPicture: return "the shape has no picture of that number, or no list chunk to put the coordinates in";
+		case PolyTypeResult::Unreadable: return "a chunk of the shape could not be read or put together";
+		case PolyTypeResult::CantBuild: return "the level couldn't be put together from its bytes";
+		case PolyTypeResult::LoaderRefused: return "the game's own loader wouldn't take the changed level, so nothing was changed";
+		}
+
+		return "unknown answer";
+	}
+
+	namespace
+	{
+		struct TypeWork
+		{
+			model::ShapeModel shape;
+			std::vector<model::UvList> lists;
+			std::vector<std::string> names;
+			bool hasUvChunk;
+		};
+
+		// Lists of texture coordinates that were used by polygons that are plain now (or gone): `freed` are their numbers. A list that no textured polygon of the shape uses any more goes out of the
+		// lists, and the lists after it move down in every textured polygon's colour word. *dropped says whether any went. False (with *why) for a polygon that names a list the shape does not have.
+		bool DropFreedLists(model::ShapeModel *shape, std::vector<model::UvList> *lists, std::set<int32_t> const &freed, bool *dropped, std::string *why)
+		{
+			std::set<int32_t> used;
+
+			*dropped = false;
+
+			for (model::ShapePolygon const &polygon : shape->polygons)
+			{
+				if (model::EngineTypeIsTextured(polygon.engineType))
+				{
+					used.insert(model::PolygonUvListNumber(polygon.colour));
+				}
+			}
+
+			std::set<int32_t> gone;
+
+			for (int32_t const list : freed)
+			{
+				if (list < 0 || (size_t)list >= lists->size())
+				{
+					return Say(why, "a polygon names a list of texture coordinates the shape does not have");
+				}
+
+				if (used.count(list) == 0)
+				{
+					gone.insert(list);
+				}
+			}
+
+			if (gone.empty())
+			{
+				return true;
+			}
+
+			std::vector<int32_t> moved(lists->size(), -1);
+			std::vector<model::UvList> kept;
+
+			for (size_t i = 0; i < lists->size(); i++)
+			{
+				if (gone.count((int32_t)i) == 0)
+				{
+					moved[i] = (int32_t)kept.size();
+					kept.push_back((*lists)[i]);
+				}
+			}
+
+			for (model::ShapePolygon &polygon : shape->polygons)
+			{
+				if (model::EngineTypeIsTextured(polygon.engineType))
+				{
+					int32_t const old = model::PolygonUvListNumber(polygon.colour);
+
+					if (old < 0 || (size_t)old >= moved.size() || moved[(size_t)old] < 0)
+					{
+						return Say(why, "a polygon names a list of texture coordinates the shape does not have");
+					}
+
+					polygon.colour = (int32_t)(((uint32_t)moved[(size_t)old] << 16) | ((uint32_t)polygon.colour & 0xffffu));
+				}
+			}
+
+			lists->swap(kept);
+			*dropped = true;
+			return true;
+		}
+
+		// Everything the two type changes read first. The polygons are checked here: some, all different, all in the shape.
+		PolyTypeResult PrepareType(OpenLevelFile *file, uint8_t const *id, int32_t const *polygons, size_t count, TypeWork *work, std::string *why)
+		{
+			if (!file || !id || !polygons || count == 0 || count > model::kMostShapePolygons || !file->Level())
+			{
+				return PolyTypeResult::BadCall;
+			}
+
+			File_Chunk *const level = file->Level();
+			Object_Chunk *const object = ObjectWithId(level, id);
+
+			if (!object)
+			{
+				return PolyTypeResult::NoObject;
+			}
+
+			Shape_Chunk *const shape = object->get_assoc_shape();
+
+			if (!shape || ShapeEdit_Read(level, file, id, &work->shape, nullptr, why) != ShapeEditResult::Done)
+			{
+				return PolyTypeResult::NoShape;
+			}
+
+			std::vector<int32_t> sorted(polygons, polygons + count);
+
+			std::sort(sorted.begin(), sorted.end());
+
+			for (size_t i = 0; i < sorted.size(); i++)
+			{
+				if (sorted[i] < 0 || (size_t)sorted[i] >= work->shape.polygons.size())
+				{
+					return PolyTypeResult::NoPolygon;
+				}
+
+				if (i > 0 && sorted[i] == sorted[i - 1])
+				{
+					return PolyTypeResult::BadCall;
+				}
+			}
+
+			Chunk *const uv = shape->lookup_single_child("SHPUVCRD");
+			Chunk *const names = shape->lookup_single_child("SHPTEXFN");
+			Payload bytes;
+
+			work->hasUvChunk = uv != nullptr;
+
+			if (uv && (!file->PayloadOf(uv, &bytes) || model::ReadUvLists(bytes.data(), bytes.size(), &work->lists) != model::UvModelResult::Ok))
+			{
+				Say(why, "the shape's list of texture coordinates could not be read");
+				return PolyTypeResult::Unreadable;
+			}
+
+			if (names && (!file->PayloadOf(names, &bytes) || model::ReadTextureNames(bytes.data(), bytes.size(), &work->names) != model::UvModelResult::Ok))
+			{
+				Say(why, "the shape's picture names could not be read");
+				return PolyTypeResult::Unreadable;
+			}
+
+			return PolyTypeResult::Done;
+		}
+
+		// SHPUVCRD's payload: the count, then for each list its count of corners and the corners' u and v
+		Payload UvBytes(std::vector<model::UvList> const &lists)
+		{
+			Payload out;
+			int32_t const count = (int32_t)lists.size();
+
+			out.resize(4);
+			memcpy(out.data(), &count, 4);
+
+			for (model::UvList const &list : lists)
+			{
+				int32_t const corners = list.cornerCount;
+				size_t const at = out.size();
+
+				out.resize(at + 4 + (size_t)corners * 8);
+				memcpy(out.data() + at, &corners, 4);
+
+				for (int j = 0; j < corners; j++)
+				{
+					memcpy(out.data() + at + 4 + (size_t)j * 8, &list.corners[j].u, 4);
+					memcpy(out.data() + at + 4 + (size_t)j * 8 + 4, &list.corners[j].v, 4);
+				}
+			}
+
+			return out;
+		}
+
+		PolyTypeResult Finish(OpenLevelFile *file, TypeWork const &work, bool listsChanged)
+		{
+			Payload polygonBytes(work.shape.polygons.size() * model::kShapePolygonBytes);
+			Payload uvBytes;
+
+			if (model::WriteShapePolygons(work.shape, &polygonBytes) != model::ShapeModelResult::Ok)
+			{
+				return PolyTypeResult::Unreadable;
+			}
+
+			if (listsChanged)
+			{
+				uvBytes = UvBytes(work.lists);
+			}
+
+			NewChunk chunks[2] = { { "SHPPOLYS", &polygonBytes }, { "SHPUVCRD", &uvBytes } };
+
+			switch (RebuildShape(file, work.shape.number, chunks, listsChanged ? 2 : 1))
+			{
+			case Rebuilt::Done: return PolyTypeResult::Done;
+			case Rebuilt::CantBuild: return PolyTypeResult::CantBuild;
+			default: return PolyTypeResult::LoaderRefused;
+			}
+		}
+	}
+
+	PolyTypeResult PolyEdit_MakePlain(OpenLevelFile *file, uint8_t const *id, int32_t const *polygons, size_t count, int32_t colourWord, size_t *changed, std::string *why)
+	{
+		TypeWork work;
+		PolyTypeResult const ready = PrepareType(file, id, polygons, count, &work, why);
+
+		if (ready != PolyTypeResult::Done)
+		{
+			return ready;
+		}
+
+		if (colourWord < 0)
+		{
+			return PolyTypeResult::BadCall;
+		}
+
+		// a polygon in the shape's texture animation is the caller's to take out first
+		int32_t shapeNumber = 0;
+		model::TextureAnim anim;
+
+		if (AnimEdit_Read(file, id, &shapeNumber, &anim) != AnimEditResult::Done)
+		{
+			return PolyTypeResult::NoShape;
+		}
+
+		for (size_t i = 0; i < count; i++)
+		{
+			for (model::AnimPolygon const &animated : anim.polygons)
+			{
+				if (animated.polygon == polygons[i])
+				{
+					return PolyTypeResult::Animated;
+				}
+			}
+		}
+
+		std::set<int32_t> freed;
+		size_t wereTextured = 0;
+
+		for (size_t i = 0; i < count; i++)
+		{
+			model::ShapePolygon &polygon = work.shape.polygons[(size_t)polygons[i]];
+
+			if (model::EngineTypeIsTextured(polygon.engineType))
+			{
+				freed.insert(model::PolygonUvListNumber(polygon.colour));
+				wereTextured++;
+			}
+
+			polygon.engineType = 2;
+			polygon.colour = colourWord;
+		}
+
+		bool listsGone = false;
+
+		if (!DropFreedLists(&work.shape, &work.lists, freed, &listsGone, why))
+		{
+			return PolyTypeResult::Unreadable;
+		}
+
+
+		PolyTypeResult const done = Finish(file, work, listsGone);
+
+		if (done == PolyTypeResult::Done && changed)
+		{
+			*changed = wereTextured;
+		}
+
+		return done;
+	}
+
+	PolyTypeResult PolyEdit_MakeTextured(OpenLevelFile *file, uint8_t const *id, int32_t const *polygons, size_t count, int32_t pictureNumber, size_t *changed, std::string *why)
+	{
+		TypeWork work;
+		PolyTypeResult const ready = PrepareType(file, id, polygons, count, &work, why);
+
+		if (ready != PolyTypeResult::Done)
+		{
+			return ready;
+		}
+
+		int32_t const picture = pictureNumber < 0 ? 0 : pictureNumber;
+		size_t plain = 0;
+
+		for (size_t i = 0; i < count; i++)
+		{
+			model::ShapePolygon const &polygon = work.shape.polygons[(size_t)polygons[i]];
+
+			if (!model::EngineTypeIsTextured(polygon.engineType))
+			{
+				if (polygon.cornerCount > model::kMostUvCorners)
+				{
+					return PolyTypeResult::TooManyCorners;
+				}
+
+				plain++;
+			}
+		}
+
+		if (plain == 0)
+		{
+			if (changed)
+			{
+				*changed = 0;
+			}
+
+			return PolyTypeResult::Done;   // every one is textured already: nothing to change
+		}
+
+		if (!work.hasUvChunk || (!work.names.empty() && (size_t)picture >= work.names.size()) || (size_t)picture > 0x7fff || work.lists.size() + plain > 0xffffu)
+		{
+			return PolyTypeResult::NoPicture;
+		}
+
+		for (size_t i = 0; i < count; i++)
+		{
+			model::ShapePolygon &polygon = work.shape.polygons[(size_t)polygons[i]];
+
+			if (model::EngineTypeIsTextured(polygon.engineType))
+			{
+				continue;
+			}
+
+			model::UvList list = {};
+
+			list.cornerCount = polygon.cornerCount;   // every corner at (0, 0)
+			polygon.engineType = 7;                   // I_3dTexturedPolygon
+			polygon.colour = (int32_t)(((uint32_t)work.lists.size() << 16) | (uint32_t)picture);
+			work.lists.push_back(list);
+		}
+
+		PolyTypeResult const done = Finish(file, work, true);
+
+		if (done == PolyTypeResult::Done && changed)
+		{
+			*changed = plain;
+		}
+
+		return done;
+	}
+
+	// ---------------------------------------------------------------- taking polygons out
+
+	char const *PolyRemoveWords(PolyRemoveResult result)
+	{
+		switch (result)
+		{
+		case PolyRemoveResult::Done: return "done";
+		case PolyRemoveResult::BadCall: return "nothing to take out, or a polygon named twice";
+		case PolyRemoveResult::AllPolygons: return "that is every polygon of the shape (inteng deletes the whole object then: use Object Placement's Delete)";
+		case PolyRemoveResult::NoObject: return "no object has that name";
+		case PolyRemoveResult::NoShape: return "the object has no shape the editor can read";
+		case PolyRemoveResult::NoPolygon: return "a polygon the shape does not have";
+		case PolyRemoveResult::Unsupported: return "the shape has a chunk that polygons cannot be taken out of yet";
+		case PolyRemoveResult::Unreadable: return "a chunk of the shape could not be read or put together";
+		case PolyRemoveResult::CantBuild: return "the level couldn't be put together from its bytes";
+		case PolyRemoveResult::LoaderRefused: return "the game's own loader wouldn't take the changed level, so nothing was changed";
+		}
+
+		return "unknown answer";
+	}
+
+	PolyRemoveResult PolyEdit_RemoveInModel(model::ShapeModel *shape, std::vector<int32_t> *mergeData, int32_t const *polygons, size_t count, PolyRemoveMap *map)
+	{
+		if (!shape || !polygons || count == 0)
+		{
+			return PolyRemoveResult::BadCall;
+		}
+
+		size_t const n = shape->polygons.size();
+		std::vector<char> gone(n, 0);
+
+		for (size_t i = 0; i < count; i++)
+		{
+			if (polygons[i] < 0 || (size_t)polygons[i] >= n)
+			{
+				return PolyRemoveResult::NoPolygon;
+			}
+
+			if (gone[(size_t)polygons[i]])
+			{
+				return PolyRemoveResult::BadCall;
+			}
+
+			gone[(size_t)polygons[i]] = 1;
+		}
+
+		if (count >= n)
+		{
+			return PolyRemoveResult::AllPolygons;
+		}
+
+		bool const pointNormals = !shape->pointNormals.empty();
+
+		if (shape->polygonNormals.empty() || (mergeData && mergeData->size() != n) || (pointNormals && shape->pointNormals.size() != shape->points.size()))
+		{
+			return PolyRemoveResult::Unreadable;
+		}
+
+		// the new numbers
+		std::vector<int32_t> polygonMap(n, -1), pointMap(shape->points.size(), -1);
+		int32_t kept = 0;
+
+		for (size_t i = 0; i < n; i++)
+		{
+			if (!gone[i])
+			{
+				polygonMap[i] = kept++;
+
+				for (int c = 0; c < shape->polygons[i].cornerCount; c++)
+				{
+					int32_t const point = shape->polygons[i].corners[c];
+
+					if (point < 0 || (size_t)point >= pointMap.size())
+					{
+						return PolyRemoveResult::Unreadable;
+					}
+
+					pointMap[(size_t)point] = 0;   // used
+				}
+			}
+		}
+
+		int32_t pointsKept = 0;
+
+		for (size_t p = 0; p < pointMap.size(); p++)
+		{
+			if (pointMap[p] != -1)
+			{
+				pointMap[p] = pointsKept++;
+			}
+		}
+
+		// the new shape, made aside and put in only when it is whole
+		model::ShapeModel now = *shape;
+
+		now.polygons.clear();
+		now.polygonNormals.clear();
+		now.points.clear();
+		now.pointNormals.clear();
+
+		for (size_t i = 0; i < n; i++)
+		{
+			if (gone[i])
+			{
+				continue;
+			}
+
+			model::ShapePolygon polygon = shape->polygons[i];
+
+			if (polygon.normalIndex < 0 || (size_t)polygon.normalIndex >= shape->polygonNormals.size())
+			{
+				return PolyRemoveResult::Unreadable;
+			}
+
+			now.polygonNormals.push_back(shape->polygonNormals[(size_t)polygon.normalIndex]);
+			polygon.normalIndex = polygonMap[i];
+
+			for (int c = 0; c < polygon.cornerCount; c++)
+			{
+				polygon.corners[c] = pointMap[(size_t)polygon.corners[c]];
+			}
+
+			now.polygons.push_back(polygon);
+		}
+
+		for (size_t p = 0; p < pointMap.size(); p++)
+		{
+			if (pointMap[p] != -1)
+			{
+				now.points.push_back(shape->points[p]);
+
+				if (pointNormals)
+				{
+					now.pointNormals.push_back(shape->pointNormals[p]);
+				}
+			}
+		}
+
+		if (model::ShapeExtentsOf(now.points, &now.extents) != model::ShapeMathsResult::Ok)
+		{
+			return PolyRemoveResult::Unreadable;
+		}
+
+		now.radius = model::ShapeRadiusOf(now.points);
+
+		std::vector<int32_t> newMerge;
+
+		if (mergeData)
+		{
+			newMerge.assign(now.polygons.size(), -1);
+
+			for (size_t i = 0; i < n; i++)
+			{
+				if (polygonMap[i] >= 0)
+				{
+					int32_t const partner = (*mergeData)[i];
+
+					newMerge[(size_t)polygonMap[i]] = partner >= 0 && (size_t)partner < n ? polygonMap[(size_t)partner] : -1;
+				}
+			}
+
+			mergeData->swap(newMerge);
+		}
+
+		*shape = now;
+
+		if (map)
+		{
+			map->polygon.swap(polygonMap);
+			map->point.swap(pointMap);
+		}
+
+		return PolyRemoveResult::Done;
+	}
+
+	PolyRemoveResult PolyEdit_Remove(OpenLevelFile *file, uint8_t const *id, int32_t const *polygons, size_t count, PolyRemoveMap *map, std::string *why)
+	{
+		if (!file || !id || !polygons || count == 0 || !file->Level())
+		{
+			return PolyRemoveResult::BadCall;
+		}
+
+		File_Chunk *const level = file->Level();
+		Object_Chunk *const object = ObjectWithId(level, id);
+
+		if (!object)
+		{
+			return PolyRemoveResult::NoObject;
+		}
+
+		Shape_Chunk *const shape = object->get_assoc_shape();
+
+		if (!shape)
+		{
+			return PolyRemoveResult::NoShape;
+		}
+
+		for (char const *const name : { "SHPMORPH", "ANIMSEQU", "SHPPCINF", "SHPFRAGS", "SHPFRGTP" })
+		{
+			if (shape->lookup_single_child(name))
+			{
+				Say(why, (std::string("the shape has a ") + name + " chunk").c_str());
+				return PolyRemoveResult::Unsupported;
+			}
+		}
+
+		model::ShapeModel model;
+
+		if (ShapeEdit_Read(level, file, id, &model, nullptr, why) != ShapeEditResult::Done)
+		{
+			return PolyRemoveResult::NoShape;
+		}
+
+		// the chunks that follow the polygons
+		Chunk *const mergeChunk = shape->lookup_single_child("SHPMRGDT");
+		Chunk *const uvChunk = shape->lookup_single_child("SHPUVCRD");
+		Chunk *const centreChunk = shape->lookup_single_child("SHPCENTR");
+		std::vector<int32_t> merge;
+		std::vector<model::UvList> lists;
+		Payload bytes;
+
+		if (mergeChunk)
+		{
+			if (!file->PayloadOf(mergeChunk, &bytes) || bytes.size() % 4 != 0 || bytes.size() / 4 != model.polygons.size())
+			{
+				Say(why, "the shape's merge data is not one number for each polygon");
+				return PolyRemoveResult::Unreadable;
+			}
+
+			merge.resize(bytes.size() / 4);
+
+			if (!bytes.empty())
+			{
+				memcpy(merge.data(), bytes.data(), bytes.size());
+			}
+		}
+
+		if (uvChunk && (!file->PayloadOf(uvChunk, &bytes) || model::ReadUvLists(bytes.data(), bytes.size(), &lists) != model::UvModelResult::Ok))
+		{
+			Say(why, "the shape's list of texture coordinates could not be read");
+			return PolyRemoveResult::Unreadable;
+		}
+
+		Payload centreBytes;
+
+		if (centreChunk && (!file->PayloadOf(centreChunk, &centreBytes) || centreBytes.size() != 16))
+		{
+			Say(why, "the shape's centre is not what the editor reads");
+			return PolyRemoveResult::Unreadable;
+		}
+
+		int32_t shapeNumber = 0;
+		model::TextureAnim anim;
+
+		if (AnimEdit_Read(file, id, &shapeNumber, &anim) != AnimEditResult::Done)
+		{
+			return PolyRemoveResult::NoShape;
+		}
+
+		// the lists the polygons taken out were using
+		std::set<int32_t> freed;
+
+		for (size_t i = 0; i < count; i++)
+		{
+			if (polygons[i] >= 0 && (size_t)polygons[i] < model.polygons.size() && model::EngineTypeIsTextured(model.polygons[(size_t)polygons[i]].engineType) && !(model.polygons[(size_t)polygons[i]].colour & 0x8000))
+			{
+				freed.insert(model::PolygonUvListNumber(model.polygons[(size_t)polygons[i]].colour));
+			}
+		}
+
+		PolyRemoveMap made;
+		PolyRemoveResult const removed = PolyEdit_RemoveInModel(&model, mergeChunk ? &merge : nullptr, polygons, count, &made);
+
+		if (removed != PolyRemoveResult::Done)
+		{
+			return removed;
+		}
+
+		bool listsGone = false;
+
+		if (!DropFreedLists(&model, &lists, freed, &listsGone, why))
+		{
+			return PolyRemoveResult::Unreadable;
+		}
+
+		// the animation: the records of the polygons taken out go, the others are renumbered
+		bool animChanged = false;
+		model::TextureAnim keptAnim;
+
+		for (model::AnimPolygon const &one : anim.polygons)
+		{
+			if (one.polygon >= 0 && (size_t)one.polygon < made.polygon.size() && made.polygon[(size_t)one.polygon] >= 0)
+			{
+				model::AnimPolygon moved = one;
+
+				moved.polygon = made.polygon[(size_t)one.polygon];
+				animChanged = animChanged || moved.polygon != one.polygon;
+				keptAnim.polygons.push_back(moved);
+			}
+			else
+			{
+				animChanged = true;
+			}
+		}
+
+		// the new bytes
+		Payload headerBytes, pointsBytes(model.points.size() * model::kShapePointBytes), polygonBytes(model.polygons.size() * model::kShapePolygonBytes);
+		Payload polyNormalBytes(model.polygonNormals.size() * model::kShapeNormalBytes), pointNormalBytes(model.pointNormals.size() * model::kShapeNormalBytes);
+		Payload mergeBytes(merge.size() * 4), uvBytes, animBytes;
+		Chunk *const headerChunk = shape->lookup_single_child("SHPHEAD1");
+
+		if (!headerChunk || !file->PayloadOf(headerChunk, &headerBytes))
+		{
+			return PolyRemoveResult::Unreadable;
+		}
+
+		if (model::WriteShapePoints(model, &pointsBytes) != model::ShapeModelResult::Ok || model::WriteShapePolygons(model, &polygonBytes) != model::ShapeModelResult::Ok ||
+			model::WriteShapeNormals(model.polygonNormals, &polyNormalBytes) != model::ShapeModelResult::Ok || model::WriteShapeNormals(model.pointNormals, &pointNormalBytes) != model::ShapeModelResult::Ok ||
+			model::WriteShapeHeaderSettingCounts(model, &headerBytes) != model::ShapeModelResult::Ok)
+		{
+			Say(why, "the new numbers wouldn't go into chunks");
+			return PolyRemoveResult::Unreadable;
+		}
+
+		if (!merge.empty())
+		{
+			memcpy(mergeBytes.data(), merge.data(), mergeBytes.size());
+		}
+
+		if (listsGone)
+		{
+			uvBytes = UvBytes(lists);
+		}
+
+		if (animChanged && !keptAnim.polygons.empty() && model::WriteTextureAnim(keptAnim, &animBytes) != model::TextureAnimResult::Ok)
+		{
+			Say(why, "the shape's animation wouldn't go into its chunk");
+			return PolyRemoveResult::Unreadable;
+		}
+
+		// SHPCENTR is worked out again from the new extents, as inteng's rebuild does (FUN_0050f570): the middle of the extents, each sum halved toward zero, and the longest distance of a point from it
+		if (centreChunk)
+		{
+			int32_t const mid[3] =
+			{
+				(int32_t)(((int64_t)model.extents.maxX + (int64_t)model.extents.minX) / 2),
+				(int32_t)(((int64_t)model.extents.maxY + (int64_t)model.extents.minY) / 2),
+				(int32_t)(((int64_t)model.extents.maxZ + (int64_t)model.extents.minZ) / 2),
+			};
+			float const aboutCentre = model::ShapeRadiusAboutCentre(model);
+
+			memcpy(centreBytes.data(), mid, 12);
+			memcpy(centreBytes.data() + 12, &aboutCentre, 4);
+		}
+
+		NewChunk chunks[10];
+		size_t used = 0;
+
+		chunks[used++] = { "SHPHEAD1", &headerBytes };
+		chunks[used++] = { "SHPRAWVT", &pointsBytes };
+		chunks[used++] = { "SHPPOLYS", &polygonBytes };
+		chunks[used++] = { "SHPPNORM", &polyNormalBytes };
+
+		if (!model.pointNormals.empty())
+		{
+			chunks[used++] = { "SHPVNORM", &pointNormalBytes };
+		}
+
+		if (mergeChunk)
+		{
+			chunks[used++] = { "SHPMRGDT", &mergeBytes };
+		}
+
+		if (listsGone)
+		{
+			chunks[used++] = { "SHPUVCRD", &uvBytes };
+		}
+
+		if (animChanged)
+		{
+			chunks[used++] = { "TEXTANIM", keptAnim.polygons.empty() ? nullptr : &animBytes };
+		}
+
+		if (centreChunk)
+		{
+			chunks[used++] = { "SHPCENTR", &centreBytes };
+		}
+
+		switch (RebuildShape(file, model.number, chunks, used))
+		{
+		case Rebuilt::Done:
+			if (map)
+			{
+				*map = made;
+			}
+
+			return PolyRemoveResult::Done;
+		case Rebuilt::CantBuild: return PolyRemoveResult::CantBuild;
+		default: return PolyRemoveResult::LoaderRefused;
+		}
+	}
+
+	bool PolyEdit_CanFlagForDeletion(OpenLevelFile *file, uint8_t const *id)
+	{
+		if (!file || !id || !file->Level())
+		{
+			return false;
+		}
+
+		Object_Chunk *const object = ObjectWithId(file->Level(), id);
+		Shape_Chunk *const shape = object ? object->get_assoc_shape() : nullptr;
+
+		return shape && !shape->lookup_single_child("SHPMORPH") && !shape->lookup_single_child("ANIMSEQU");
+	}
+
+	// ---------------------------------------------------------------- unmerge
+
+	char const *PolyUnmergeWords(PolyUnmergeResult result)
+	{
+		switch (result)
+		{
+		case PolyUnmergeResult::Done: return "done";
+		case PolyUnmergeResult::BadCall: return "nothing to unmerge";
+		case PolyUnmergeResult::NoObject: return "no object has that name";
+		case PolyUnmergeResult::NoShape: return "the object has no shape the editor can read";
+		case PolyUnmergeResult::NoPolygon: return "a polygon the shape does not have";
+		case PolyUnmergeResult::NoMergeData: return "the shape has no merge data, so nothing is merged";
+		case PolyUnmergeResult::Unreadable: return "the shape's merge data is not one number for each polygon";
+		case PolyUnmergeResult::CantBuild: return "the level couldn't be put together from its bytes";
+		case PolyUnmergeResult::LoaderRefused: return "the game's own loader wouldn't take the changed level, so nothing was changed";
+		}
+
+		return "unknown answer";
+	}
+
+	PolyUnmergeResult PolyEdit_Unmerge(OpenLevelFile *file, uint8_t const *id, int32_t const *polygons, size_t count, size_t *parted, std::string *why)
+	{
+		if (!file || !id || !polygons || count == 0 || !file->Level())
+		{
+			return PolyUnmergeResult::BadCall;
+		}
+
+		Object_Chunk *const object = ObjectWithId(file->Level(), id);
+		Shape_Chunk *const shape = object ? object->get_assoc_shape() : nullptr;
+
+		if (!object)
+		{
+			return PolyUnmergeResult::NoObject;
+		}
+
+		model::ShapeModel model;
+
+		if (!shape || ShapeEdit_Read(file->Level(), file, id, &model, nullptr, why) != ShapeEditResult::Done)
+		{
+			return PolyUnmergeResult::NoShape;
+		}
+
+		Chunk *const mergeChunk = shape->lookup_single_child("SHPMRGDT");
+		Payload bytes;
+
+		if (!mergeChunk)
+		{
+			return PolyUnmergeResult::NoMergeData;
+		}
+
+		if (!file->PayloadOf(mergeChunk, &bytes) || bytes.size() % 4 != 0 || bytes.size() / 4 != model.polygons.size())
+		{
+			return PolyUnmergeResult::Unreadable;
+		}
+
+		Payload const original = bytes;
+		std::vector<int32_t> merge(bytes.size() / 4);
+
+		memcpy(merge.data(), bytes.data(), bytes.size());
+
+		for (size_t i = 0; i < count; i++)
+		{
+			if (polygons[i] < 0 || (size_t)polygons[i] >= merge.size())
+			{
+				return PolyUnmergeResult::NoPolygon;
+			}
+		}
+
+		// FUN_00573e20: each selected polygon that has a partner is parted from it, both numbers made -1
+		size_t made = 0;
+
+		for (size_t i = 0; i < count; i++)
+		{
+			int32_t const partner = merge[(size_t)polygons[i]];
+
+			if (partner >= 0 && (size_t)partner < merge.size())
+			{
+				merge[(size_t)polygons[i]] = -1;
+				merge[(size_t)partner] = -1;
+				made++;
+			}
+		}
+
+		if (made > 0)
+		{
+			memcpy(bytes.data(), merge.data(), bytes.size());
+
+			if (!file->SetPayload(mergeChunk, bytes))
+			{
+				return PolyUnmergeResult::Unreadable;
+			}
+
+			// the loader reads the level again so the game's items are the new quads and triangles
+			Image image;
+
+			if (!file->BuildLevel(image))
+			{
+				file->SetPayload(mergeChunk, original);
+				return PolyUnmergeResult::CantBuild;
+			}
+
+			switch (file->ReplaceLevel(image))
+			{
+			case LevelOpenResult::Opened: break;
+			case LevelOpenResult::CantRead: file->SetPayload(mergeChunk, original); return PolyUnmergeResult::CantBuild;
+			default: file->SetPayload(mergeChunk, original); return PolyUnmergeResult::LoaderRefused;
+			}
+		}
+
+		if (parted)
+		{
+			*parted = made;
+		}
+
+		return PolyUnmergeResult::Done;
+	}
+
+	// ---------------------------------------------------------------- merge
+
+	namespace
+	{
+		// FUN_0055a0d0 (false = the two triangles can be one quad): the free corner of each, then the quad's two turns, each made unit; a turn of 0 or less everywhere
+		bool QuadTurnsWrong(model::ShapeModel const &shape, size_t a, size_t b, int freeA, int freeB)
+		{
+			model::ShapePolygon const &pa = shape.polygons[a];
+			model::ShapePolygon const &pb = shape.polygons[b];
+			model::ShapeNormal const &na = shape.polygonNormals[(size_t)pa.normalIndex];
+			Vec const n = { na.x, na.y, na.z };
+			Vec const free1 = PointOf(shape.points[(size_t)pa.corners[freeA]]);
+			Vec const next = PointOf(shape.points[(size_t)pa.corners[(freeA + 1) % 3]]);
+			Vec const prev = PointOf(shape.points[(size_t)pa.corners[(freeA + 2) % 3]]);
+			Vec const freeB2 = PointOf(shape.points[(size_t)pb.corners[freeB]]);
+
+			Vec e1 = VSub(next, free1);
+			Vec e2 = VSub(freeB2, next);
+
+			if (!VUnit(&e1) || !VUnit(&e2))
+			{
+				return true;
+			}
+
+			if (VDot(VCross(e1, n), e2) * kOne >= 1.0)
+			{
+				return true;
+			}
+
+			Vec f1 = VSub(prev, freeB2);
+			Vec f2 = VSub(free1, prev);
+
+			if (!VUnit(&f1) || !VUnit(&f2))
+			{
+				return true;
+			}
+
+			return VDot(VCross(f1, n), f2) * kOne >= 1.0;
+		}
+
+		int FreeCorner(model::ShapePolygon const &of, model::ShapePolygon const &other)
+		{
+			for (int i = 0; i < 3; i++)
+			{
+				bool found = false;
+
+				for (int j = 0; j < 3; j++)
+				{
+					found = found || of.corners[i] == other.corners[j];
+				}
+
+				if (!found)
+				{
+					return i;
+				}
+			}
+
+			return -1;
+		}
+
+		// FUN_00573b70: the cosine of the angle at a triangle's free corner, the larger of the two triangles'
+		double ApexCosine(model::ShapeModel const &shape, model::ShapePolygon const &of, int free)
+		{
+			Vec const origin = PointOf(shape.points[(size_t)of.corners[free]]);
+			Vec e1 = VSub(PointOf(shape.points[(size_t)of.corners[(free + 1) % 3]]), origin);
+			Vec e2 = VSub(PointOf(shape.points[(size_t)of.corners[(free + 2) % 3]]), origin);
+
+			if (!VUnit(&e1) || !VUnit(&e2))
+			{
+				return 1.0;
+			}
+
+			return VDot(e1, e2);
+		}
+	}
+
+	bool PolyEdit_Joinable(model::ShapeModel const &shape, int32_t a, int32_t b, bool fake, double *score)
+	{
+		size_t const n = shape.polygons.size();
+
+		if (a < 0 || b < 0 || a == b || (size_t)a >= n || (size_t)b >= n || shape.polygonNormals.size() != n)
+		{
+			return false;
+		}
+
+		model::ShapePolygon const &pa = shape.polygons[(size_t)a];
+		model::ShapePolygon const &pb = shape.polygons[(size_t)b];
+
+		if (pa.cornerCount != 3 || pb.cornerCount != 3 || pa.normalIndex < 0 || pb.normalIndex < 0 || (size_t)pa.normalIndex >= n || (size_t)pb.normalIndex >= n)
+		{
+			return false;
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			if (pa.corners[i] < 0 || pb.corners[i] < 0 || (size_t)pa.corners[i] >= shape.points.size() || (size_t)pb.corners[i] >= shape.points.size())
+			{
+				return false;
+			}
+		}
+
+		int shared = 0;
+
+		for (int i = 0; i < 3; i++)
+		{
+			for (int j = 0; j < 3; j++)
+			{
+				shared += pa.corners[i] == pb.corners[j] ? 1 : 0;
+			}
+		}
+
+		if (shared != 2)
+		{
+			return false;
+		}
+
+		model::ShapeNormal const &na = shape.polygonNormals[(size_t)pa.normalIndex];
+		model::ShapeNormal const &nb = shape.polygonNormals[(size_t)pb.normalIndex];
+		double const dot = (double)na.x * nb.x + (double)na.y * nb.y + (double)na.z * nb.z;
+
+		int const freeB = FreeCorner(pb, pa);
+		int const freeA = FreeCorner(pa, pb);
+
+		if (freeA < 0 || freeB < 0)
+		{
+			return false;
+		}
+
+		if (!fake)
+		{
+			if (dot < 0.9998)
+			{
+				// not the same way round: the free corner of the second has to lie in the first one's plane within 1 unit (FUN_0055a360)
+				Vec const edge = VSub(PointOf(shape.points[(size_t)pb.corners[freeB]]), PointOf(shape.points[(size_t)pb.corners[(freeB + 1) % 3]]));
+				double const out = edge.x * na.x + edge.y * na.y + edge.z * na.z;
+
+				if (out < -1.0 || out > 1.0)
+				{
+					return false;
+				}
+			}
+		}
+		else if (dot < 0.6)
+		{
+			return false;
+		}
+
+		if (QuadTurnsWrong(shape, (size_t)a, (size_t)b, freeA, freeB))
+		{
+			return false;
+		}
+
+		if (score)
+		{
+			double const sa = ApexCosine(shape, pa, freeA);
+			double const sb = ApexCosine(shape, pb, freeB);
+
+			*score = sb < sa ? sa : sb;
+		}
+
+		return true;
+	}
+
+	size_t PolyEdit_MergeInModel(model::ShapeModel const &shape, std::vector<int32_t> *mergeData, int32_t const *polygons, size_t count, bool fake)
+	{
+		if (!mergeData || !polygons || mergeData->size() != shape.polygons.size())
+		{
+			return 0;
+		}
+
+		// the selected polygons that are not paired yet, in the order they were selected (FUN_00573620 takes the others out of its list)
+		std::vector<int32_t> pool;
+
+		for (size_t i = 0; i < count; i++)
+		{
+			if (polygons[i] >= 0 && (size_t)polygons[i] < mergeData->size() && (*mergeData)[(size_t)polygons[i]] == -1 && std::find(pool.begin(), pool.end(), polygons[i]) == pool.end())
+			{
+				pool.push_back(polygons[i]);
+			}
+		}
+
+		struct Pair
+		{
+			int32_t a, b;
+			double score;
+		};
+
+		std::vector<Pair> pairs;
+
+		while (pool.size() >= 2)
+		{
+			int32_t const a = pool.front();
+
+			pool.erase(pool.begin());
+
+			for (int32_t const b : pool)
+			{
+				double score = 0;
+
+				if (PolyEdit_Joinable(shape, a, b, fake, &score))
+				{
+					// inserted before the first pair whose score is not smaller: lowest first, a tie goes in front
+					size_t at = 0;
+
+					while (at < pairs.size() && pairs[at].score < score)
+					{
+						at++;
+					}
+
+					Pair const made = { a, b, score };
+
+					pairs.insert(pairs.begin() + (std::ptrdiff_t)at, made);
+				}
+			}
+		}
+
+		size_t joined = 0;
+
+		for (Pair const &pair : pairs)
+		{
+			if ((*mergeData)[(size_t)pair.a] == -1 && (*mergeData)[(size_t)pair.b] == -1)
+			{
+				(*mergeData)[(size_t)pair.a] = pair.b;
+				(*mergeData)[(size_t)pair.b] = pair.a;
+				joined++;
+			}
+		}
+
+		return joined;
+	}
+
+	char const *PolyMergeWords(PolyMergeResult result)
+	{
+		switch (result)
+		{
+		case PolyMergeResult::Done: return "done";
+		case PolyMergeResult::BadCall: return "nothing to merge";
+		case PolyMergeResult::NoObject: return "no object has that name";
+		case PolyMergeResult::NoShape: return "the object has no shape the editor can read";
+		case PolyMergeResult::NoPolygon: return "a polygon the shape does not have";
+		case PolyMergeResult::Unreadable: return "the shape's merge data is not one number for each polygon";
+		case PolyMergeResult::CantBuild: return "the level couldn't be put together from its bytes";
+		case PolyMergeResult::LoaderRefused: return "the game's own loader wouldn't take the changed level, so nothing was changed";
+		}
+
+		return "unknown answer";
+	}
+
+	PolyMergeResult PolyEdit_Merge(OpenLevelFile *file, uint8_t const *id, int32_t const *polygons, size_t count, size_t *joined, std::string *why)
+	{
+		if (!file || !id || !polygons || count == 0 || !file->Level())
+		{
+			return PolyMergeResult::BadCall;
+		}
+
+		Object_Chunk *const object = ObjectWithId(file->Level(), id);
+
+		if (!object)
+		{
+			return PolyMergeResult::NoObject;
+		}
+
+		Shape_Chunk *const shape = object->get_assoc_shape();
+		model::ShapeModel model;
+
+		if (!shape || ShapeEdit_Read(file->Level(), file, id, &model, nullptr, why) != ShapeEditResult::Done)
+		{
+			return PolyMergeResult::NoShape;
+		}
+
+		for (size_t i = 0; i < count; i++)
+		{
+			if (polygons[i] < 0 || (size_t)polygons[i] >= model.polygons.size())
+			{
+				return PolyMergeResult::NoPolygon;
+			}
+		}
+
+		Chunk *const mergeChunk = shape->lookup_single_child("SHPMRGDT");
+		std::vector<int32_t> merge(model.polygons.size(), -1);
+		Payload bytes;
+
+		if (mergeChunk)
+		{
+			if (!file->PayloadOf(mergeChunk, &bytes) || bytes.size() != model.polygons.size() * 4)
+			{
+				return PolyMergeResult::Unreadable;
+			}
+
+			if (!bytes.empty())
+			{
+				memcpy(merge.data(), bytes.data(), bytes.size());
+			}
+		}
+
+		size_t const made = PolyEdit_MergeInModel(model, &merge, polygons, count, false);
+
+		if (joined)
+		{
+			*joined = made;
+		}
+
+		if (made == 0)
+		{
+			return PolyMergeResult::Done;
+		}
+
+		Payload mergeBytes(merge.size() * 4);
+
+		memcpy(mergeBytes.data(), merge.data(), mergeBytes.size());
+
+		if (mergeChunk)
+		{
+			// same size: put in place, then the loader reads the level again
+			Payload const original = bytes;
+
+			if (!file->SetPayload(mergeChunk, mergeBytes))
+			{
+				return PolyMergeResult::Unreadable;
+			}
+
+			Image image;
+
+			if (!file->BuildLevel(image))
+			{
+				file->SetPayload(mergeChunk, original);
+				return PolyMergeResult::CantBuild;
+			}
+
+			switch (file->ReplaceLevel(image))
+			{
+			case LevelOpenResult::Opened: return PolyMergeResult::Done;
+			case LevelOpenResult::CantRead: file->SetPayload(mergeChunk, original); return PolyMergeResult::CantBuild;
+			default: file->SetPayload(mergeChunk, original); return PolyMergeResult::LoaderRefused;
+			}
+		}
+
+		// a shape without the chunk gets one (inteng's save writes the pairing into SHPMRGDT: FUN_00566d60)
+		NewChunk chunks[1] = { { "SHPMRGDT", &mergeBytes, true } };
+
+		switch (RebuildShape(file, model.number, chunks, 1))
+		{
+		case Rebuilt::Done: return PolyMergeResult::Done;
+		case Rebuilt::CantBuild: return PolyMergeResult::CantBuild;
+		default: return PolyMergeResult::LoaderRefused;
+		}
+	}
+
+	// ---------------------------------------------------------------- split into a new placed object
+
+	namespace
+	{
+		// A whole new REBSHAPE chunk made from the shape numbered oldNumber: its chunks named in `chunks` are made from their payloads (a null payload leaves the chunk out), the others are copied; the new shape's number
+		// (one more than the highest the level has) is put in the header payload (the chunk named SHPHEAD1 in `chunks`), whose list of users is left empty. *newNumber says it.
+		bool CloneShapeChunk(OpenLevelFile *file, int32_t oldNumber, NewChunk const *chunks, size_t chunkCount, Payload *header, int32_t knownHighest, int32_t *newNumber, Image *out)
+		{
+			Image image;
+
+			if (!file->BuildLevel(image) || image.size() < kHeadingBytes || !NameIs(image, 0, "REBINFF2"))
+			{
+				return false;
+			}
+
+			std::vector<Span> top;
+
+			if (!Children(image, kHeadingBytes, image.size(), &top))
+			{
+				return false;
+			}
+
+			size_t at_Shape = top.size();
+			int32_t highest = -1;
+
+			for (size_t i = 0; i < top.size(); i++)
+			{
+				if (!NameIs(image, top[i].at, "REBSHAPE"))
+				{
+					continue;
+				}
+
+				std::vector<Span> inside;
+
+				if (!Children(image, top[i].at + kHeadingBytes, top[i].at + top[i].size, &inside))
+				{
+					return false;
+				}
+
+				for (Span const &child : inside)
+				{
+					if (NameIs(image, child.at, "SHPHEAD1") && child.size >= kHeadingBytes + kShapeNumberAt + 4)
+					{
+						int32_t const number = IntAt(image, child.at + kHeadingBytes + kShapeNumberAt);
+
+						highest = number > highest ? number : highest;
+
+						if (number == oldNumber && at_Shape == top.size())
+						{
+							at_Shape = i;
+						}
+					}
+				}
+			}
+
+			// the numbers the objects name too (an object's header holds its shape's number at 56): a level can name a shape that is not among its top-level shapes
+			List<Object_Chunk *> objects;
+
+			file->Level()->list_objects(&objects);
+
+			for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+			{
+				Object_Header_Chunk *const objectHeader = each() ? each()->get_header() : nullptr;
+				Payload objectBytes;
+
+				if (objectHeader && file->PayloadOf(objectHeader, &objectBytes) && objectBytes.size() >= 60)
+				{
+					int32_t number;
+
+					memcpy(&number, &objectBytes[56], sizeof(number));
+					highest = number > highest ? number : highest;
+				}
+			}
+
+			// and the numbers the library gives every shape it holds (the game's file_id_num)
+			List<Shape_Chunk *> shapes;
+
+			file->Level()->list_shapes(&shapes);
+
+			for (LIF<Shape_Chunk *> each(&shapes); !each.done(); each.next())
+			{
+				Shape_Header_Chunk *const shapeHeader = each() ? each()->get_header() : nullptr;
+
+				Payload shapeBytes;
+
+				if (shapeHeader && file->PayloadOf(shapeHeader, &shapeBytes) && shapeBytes.size() >= kShapeNumberAt + 4)
+				{
+					int32_t number;
+
+					memcpy(&number, &shapeBytes[kShapeNumberAt], sizeof(number));
+					highest = number > highest ? number : highest;
+				}
+			}
+
+			highest = knownHighest > highest ? knownHighest : highest;
+
+			if (at_Shape == top.size() || highest < 0 || highest >= 0x7ffffff0 || header->size() < 68)
+			{
+				return false;
+			}
+
+			*newNumber = highest + 1;
+			memcpy(header->data() + kShapeNumberAt, newNumber, 4);
+			memset(header->data() + 64, 0, 4);   // no users yet: the object made around the shape adds its name
+			header->resize(68);
+
+			std::vector<Span> inside;
+
+			if (!Children(image, top[at_Shape].at + kHeadingBytes, top[at_Shape].at + top[at_Shape].size, &inside))
+			{
+				return false;
+			}
+
+			out->clear();
+			AppendBytes(out, image, top[at_Shape].at, kHeadingBytes);
+
+			bool done[12] = { false };
+
+			for (Span const &child : inside)
+			{
+				size_t which = chunkCount;
+
+				for (size_t n = 0; n < chunkCount; n++)
+				{
+					if (!done[n] && NameIs(image, child.at, chunks[n].name))
+					{
+						which = n;
+						break;
+					}
+				}
+
+				if (which == chunkCount)
+				{
+					AppendBytes(out, image, child.at, child.size);
+				}
+				else
+				{
+					done[which] = true;
+
+					if (chunks[which].payload)
+					{
+						AppendChunk(out, chunks[which].name, *chunks[which].payload);
+					}
+				}
+			}
+
+			for (size_t n = 0; n < chunkCount; n++)
+			{
+				if (!done[n] && chunks[n].payload)
+				{
+					if (!chunks[n].addIfMissing)
+					{
+						return false;
+					}
+
+					AppendChunk(out, chunks[n].name, *chunks[n].payload);
+				}
+			}
+
+			PutIntAt(out, 8, (int32_t)out->size());
+			return true;
+		}
+	}
+
+	char const *PolySplitWords(PolySplitResult result)
+	{
+		switch (result)
+		{
+		case PolySplitResult::Done: return "done";
+		case PolySplitResult::BadCall: return "nothing to split off, or a polygon named twice";
+		case PolySplitResult::NoObject: return "no object has that name";
+		case PolySplitResult::NoShape: return "the object has no shape the editor can read";
+		case PolySplitResult::NoPolygon: return "a polygon the shape does not have";
+		case PolySplitResult::AllPolygons: return "Cannot remove all polygons from shape";
+		case PolySplitResult::Unsupported: return "the shape has a chunk that polygons cannot be split out of yet";
+		case PolySplitResult::Unreadable: return "a chunk of the shape could not be read or put together";
+		case PolySplitResult::CantBuild: return "the level couldn't be put together from its bytes";
+		case PolySplitResult::LoaderRefused: return "the game's own loader wouldn't take the changed level, so nothing was changed";
+		case PolySplitResult::OldNotCut: return "the new object was made, but the polygons could not be taken out of the old shape (they are in both)";
+		case PolySplitResult::NotModule: return "the new object was made and the polygons taken out, but it could not be made a module (it stays a placed object)";
+		case PolySplitResult::BadName: return "that name cannot be used (plain letters and digits up to 63, and no object of the level has it)";
+		}
+
+		return "unknown answer";
+	}
+
+	PolySplitResult PolyEdit_SplitAsObject(OpenLevelFile *file, uint8_t const *id, int32_t const *polygons, size_t count, uint8_t *newId, std::string *newName, std::string *why, bool asModule, char const *name)
+	{
+		if (!file || !id || !polygons || count == 0 || !file->Level())
+		{
+			return PolySplitResult::BadCall;
+		}
+
+		File_Chunk *const level = file->Level();
+		Object_Chunk *const object = ObjectWithId(level, id);
+
+		if (!object)
+		{
+			return PolySplitResult::NoObject;
+		}
+
+		Shape_Chunk *const shape = object->get_assoc_shape();
+
+		if (!shape)
+		{
+			return PolySplitResult::NoShape;
+		}
+
+		for (char const *const name : { "SHPMORPH", "ANIMSEQU", "SHPPCINF", "SHPFRAGS", "SHPFRGTP", "SHPEXTFL" })
+		{
+			if (shape->lookup_single_child(name))
+			{
+				Say(why, (std::string("the shape has a ") + name + " chunk").c_str());
+				return PolySplitResult::Unsupported;
+			}
+		}
+
+		model::ShapeModel model;
+
+		size_t users = 0;
+
+		if (ShapeEdit_Read(level, file, id, &model, &users, why) != ShapeEditResult::Done)
+		{
+			return PolySplitResult::NoShape;
+		}
+
+		if (users != 1)
+		{
+			Say(why, "another object uses the same shape");
+			return PolySplitResult::Unsupported;
+		}
+
+		size_t const n = model.polygons.size();
+		std::vector<char> inSplit(n, 0);
+
+		for (size_t i = 0; i < count; i++)
+		{
+			if (polygons[i] < 0 || (size_t)polygons[i] >= n)
+			{
+				return PolySplitResult::NoPolygon;
+			}
+
+			if (inSplit[(size_t)polygons[i]])
+			{
+				return PolySplitResult::BadCall;
+			}
+
+			inSplit[(size_t)polygons[i]] = 1;
+		}
+
+		if (count >= n)
+		{
+			return PolySplitResult::AllPolygons;
+		}
+
+		std::vector<int32_t> rest;
+
+		for (size_t i = 0; i < n; i++)
+		{
+			if (!inSplit[i])
+			{
+				rest.push_back((int32_t)i);
+			}
+		}
+
+		// the chunks that follow the polygons, as PolyEdit_Remove reads them
+		Chunk *const mergeChunk = shape->lookup_single_child("SHPMRGDT");
+		Chunk *const uvChunk = shape->lookup_single_child("SHPUVCRD");
+		Chunk *const centreChunk = shape->lookup_single_child("SHPCENTR");
+		Chunk *const headerChunk = shape->lookup_single_child("SHPHEAD1");
+		std::vector<int32_t> merge;
+		std::vector<model::UvList> lists;
+		Payload bytes, centreBytes, headerBytes;
+
+		if (!headerChunk || !file->PayloadOf(headerChunk, &headerBytes))
+		{
+			return PolySplitResult::Unreadable;
+		}
+
+		if (mergeChunk)
+		{
+			if (!file->PayloadOf(mergeChunk, &bytes) || bytes.size() % 4 != 0 || bytes.size() / 4 != n)
+			{
+				Say(why, "the shape's merge data is not one number for each polygon");
+				return PolySplitResult::Unreadable;
+			}
+
+			merge.resize(bytes.size() / 4);
+
+			if (!bytes.empty())
+			{
+				memcpy(merge.data(), bytes.data(), bytes.size());
+			}
+		}
+
+		if (uvChunk && (!file->PayloadOf(uvChunk, &bytes) || model::ReadUvLists(bytes.data(), bytes.size(), &lists) != model::UvModelResult::Ok))
+		{
+			Say(why, "the shape's list of texture coordinates could not be read");
+			return PolySplitResult::Unreadable;
+		}
+
+		if (centreChunk && (!file->PayloadOf(centreChunk, &centreBytes) || centreBytes.size() != 16))
+		{
+			Say(why, "the shape's centre is not what the editor reads");
+			return PolySplitResult::Unreadable;
+		}
+
+		int32_t animShape = 0;
+		model::TextureAnim anim;
+
+		if (AnimEdit_Read(file, id, &animShape, &anim) != AnimEditResult::Done)
+		{
+			return PolySplitResult::NoShape;
+		}
+
+		// the object's place and turn, so the new object lies where the polygons already are
+		Object_Header_Chunk *const objectHeader = object->get_header();
+		Payload objectBytes;
+
+		if (!objectHeader || !file->PayloadOf(objectHeader, &objectBytes) || objectBytes.size() < 48)
+		{
+			return PolySplitResult::Unreadable;
+		}
+
+		int32_t place[3];
+		float turn[4];
+
+		memcpy(place, &objectBytes[20], sizeof(place));
+		memcpy(turn, &objectBytes[32], sizeof(turn));
+
+		// THE NEW SHAPE: the old one without the polygons that stay, its lists, merge data and animation following
+		model::ShapeModel fresh = model;
+		std::vector<int32_t> freshMerge = merge;
+		PolyRemoveMap freshMap;
+		std::set<int32_t> notWanted;
+
+		for (int32_t const staying : rest)
+		{
+			if (model::EngineTypeIsTextured(model.polygons[(size_t)staying].engineType) && !(model.polygons[(size_t)staying].colour & 0x8000))
+			{
+				notWanted.insert(model::PolygonUvListNumber(model.polygons[(size_t)staying].colour));
+			}
+		}
+
+		if (PolyEdit_RemoveInModel(&fresh, mergeChunk ? &freshMerge : nullptr, rest.data(), rest.size(), &freshMap) != PolyRemoveResult::Done)
+		{
+			return PolySplitResult::Unreadable;
+		}
+
+		std::vector<model::UvList> freshLists = lists;
+		bool freshListsChanged = false;
+
+		if (!DropFreedLists(&fresh, &freshLists, notWanted, &freshListsChanged, why))
+		{
+			return PolySplitResult::Unreadable;
+		}
+
+		model::TextureAnim freshAnim;
+
+		for (model::AnimPolygon const &one : anim.polygons)
+		{
+			if (one.polygon >= 0 && (size_t)one.polygon < freshMap.polygon.size() && freshMap.polygon[(size_t)one.polygon] >= 0)
+			{
+				model::AnimPolygon moved = one;
+
+				moved.polygon = freshMap.polygon[(size_t)one.polygon];
+				freshAnim.polygons.push_back(moved);
+			}
+		}
+
+		Payload fHeader = headerBytes, fPoints(fresh.points.size() * model::kShapePointBytes), fPolygons(fresh.polygons.size() * model::kShapePolygonBytes);
+		Payload fPolyNormals(fresh.polygonNormals.size() * model::kShapeNormalBytes), fPointNormals(fresh.pointNormals.size() * model::kShapeNormalBytes);
+		Payload fMerge(freshMerge.size() * 4), fUv, fAnim, fCentre = centreBytes;
+
+		if (model::WriteShapePoints(fresh, &fPoints) != model::ShapeModelResult::Ok || model::WriteShapePolygons(fresh, &fPolygons) != model::ShapeModelResult::Ok ||
+			model::WriteShapeNormals(fresh.polygonNormals, &fPolyNormals) != model::ShapeModelResult::Ok || model::WriteShapeNormals(fresh.pointNormals, &fPointNormals) != model::ShapeModelResult::Ok ||
+			model::WriteShapeHeaderSettingCounts(fresh, &fHeader) != model::ShapeModelResult::Ok)
+		{
+			Say(why, "the new shape's numbers wouldn't go into chunks");
+			return PolySplitResult::Unreadable;
+		}
+
+		if (!freshMerge.empty())
+		{
+			memcpy(fMerge.data(), freshMerge.data(), fMerge.size());
+		}
+
+		if (uvChunk)
+		{
+			fUv = UvBytes(freshLists);
+		}
+
+		if (!freshAnim.polygons.empty() && model::WriteTextureAnim(freshAnim, &fAnim) != model::TextureAnimResult::Ok)
+		{
+			Say(why, "the new shape's animation wouldn't go into its chunk");
+			return PolySplitResult::Unreadable;
+		}
+
+		if (centreChunk)
+		{
+			int32_t const mid[3] =
+			{
+				(int32_t)(((int64_t)fresh.extents.maxX + (int64_t)fresh.extents.minX) / 2),
+				(int32_t)(((int64_t)fresh.extents.maxY + (int64_t)fresh.extents.minY) / 2),
+				(int32_t)(((int64_t)fresh.extents.maxZ + (int64_t)fresh.extents.minZ) / 2),
+			};
+			float const aboutCentre = model::ShapeRadiusAboutCentre(fresh);
+
+			memcpy(fCentre.data(), mid, 12);
+			memcpy(fCentre.data() + 12, &aboutCentre, 4);
+		}
+
+		NewChunk chunks[10];
+		size_t used = 0;
+
+		chunks[used++] = { "SHPHEAD1", &fHeader };
+		chunks[used++] = { "SHPRAWVT", &fPoints };
+		chunks[used++] = { "SHPPOLYS", &fPolygons };
+		chunks[used++] = { "SHPPNORM", &fPolyNormals };
+
+		if (!fresh.pointNormals.empty())
+		{
+			chunks[used++] = { "SHPVNORM", &fPointNormals };
+		}
+
+		if (mergeChunk)
+		{
+			chunks[used++] = { "SHPMRGDT", &fMerge };
+		}
+
+		if (uvChunk)
+		{
+			chunks[used++] = { "SHPUVCRD", &fUv };
+		}
+
+		if (shape->lookup_single_child("TEXTANIM"))
+		{
+			chunks[used++] = { "TEXTANIM", freshAnim.polygons.empty() ? nullptr : &fAnim };
+		}
+
+		if (centreChunk)
+		{
+			chunks[used++] = { "SHPCENTR", &fCentre };
+		}
+
+		Image shapeChunk;
+		int32_t newShapeNumber = 0;
+
+		// the highest shape number any object of the level reads (the library's own lists have missed some)
+		int32_t knownHighest = -1;
+		List<Object_Chunk *> everyObject;
+
+		level->list_objects(&everyObject);
+
+		for (LIF<Object_Chunk *> each(&everyObject); !each.done(); each.next())
+		{
+			model::ShapeModel probe;
+			std::string skip;
+
+			if (each() && each()->get_assoc_shape() && ShapeEdit_Read(level, file, (uint8_t const *)&each()->object_data.ID, &probe, nullptr, &skip) == ShapeEditResult::Done)
+			{
+				knownHighest = probe.number > knownHighest ? probe.number : knownHighest;
+			}
+		}
+
+		if (!CloneShapeChunk(file, model.number, chunks, used, &fHeader, knownHighest, &newShapeNumber, &shapeChunk))
+		{
+			return PolySplitResult::CantBuild;
+		}
+
+		// the header payload was made before the number was known: the chunk was built from it after (it is passed by pointer), so the number in the chunk is the new one
+		// THE NEW OBJECT, around that shape, at the old one's place and turn
+		std::string made;
+		uint8_t madeId[8] = { 0 };
+
+		bool const named = name && *name;
+
+		switch (CreateObjectWithShapeChunk(file, shapeChunk, named ? name : "Split", place, turn, madeId, &made, named))
+		{
+		case ObjectMakeResult::Done: break;
+		case ObjectMakeResult::LoaderRefused: return PolySplitResult::LoaderRefused;
+		case ObjectMakeResult::BadShapeName:
+		case ObjectMakeResult::NoNameFree:
+		case ObjectMakeResult::SubNameNotCopied: return PolySplitResult::BadName;
+		default: return PolySplitResult::CantBuild;
+		}
+
+		if (newId)
+		{
+			memcpy(newId, madeId, 8);
+		}
+
+		if (newName)
+		{
+			*newName = made;
+		}
+
+		// THE OLD SHAPE loses the polygons
+		std::string cutWhy;
+
+		if (PolyEdit_Remove(file, id, polygons, count, nullptr, &cutWhy) != PolyRemoveResult::Done)
+		{
+			Say(why, cutWhy.c_str());
+			return PolySplitResult::OldNotCut;
+		}
+
+		// AS MODULE (FUN_00564300: a split made As Placed gets the placed-object flag 0x400, the game modes 0x3800 and a placed object's strategy; As Module gets none of these): the new object is a module, which is
+		// Change Object Type > Module's own effect (object_type_edit.h: the strategy goes, the placed flag goes, the module flag 0x200 is set). NAMED: inteng asks for the new object's name ("Spliting Objects - Please give
+		// name for new object", Escape: the default); this uses the default name.
+		if (asModule)
+		{
+			ObjectTypeCall call;
+			ObjectTypeOutcome outcome = ObjectTypeOutcome::NoObject;
+
+			memcpy(call.id, madeId, 8);
+			call.deleteModuleData = false;
+
+			if (ObjectType_Change(file, ObjectTypeWhat::Module, &call, 1, &outcome) != ObjectTypeResult::Done || outcome != ObjectTypeOutcome::Changed)
+			{
+				return PolySplitResult::NotModule;
+			}
+		}
+
+		return PolySplitResult::Done;
+	}
+
+	std::string PolyEdit_NextFreeObjectName(OpenLevelFile *file, char const *base, std::vector<std::string> const &alsoTaken)
+	{
+		if (!file || !file->Level() || !base)
+		{
+			return std::string();
+		}
+
+		List<Object_Chunk *> objects;
+
+		file->Level()->list_objects(&objects);
+
+		for (int n = 0; n < 100000; n++)
+		{
+			std::string const candidate = std::string(base) + std::to_string(n);
+			bool taken = std::find(alsoTaken.begin(), alsoTaken.end(), candidate) != alsoTaken.end();
+
+			for (LIF<Object_Chunk *> each(&objects); !each.done() && !taken; each.next())
+			{
+				taken = each() && strncmp(each()->object_data.o_name, candidate.c_str(), sizeof(each()->object_data.o_name)) == 0;
+			}
+
+			if (!taken)
+			{
+				return candidate;
+			}
+		}
+
+		return std::string();
+	}
+}

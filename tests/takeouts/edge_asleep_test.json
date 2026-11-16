@@ -1,0 +1,174 @@
+{
+	"copy": [
+		"avpx/3dc",
+		"avpx/win32",
+		"avpx/dependencies/libbinkdec/include",
+		"avpx/dependencies/libsmackerdec/include",
+		"avpx/tests/every_test",
+		"src",
+		"tests",
+		"vcpkg_installed/x86-windows/include"
+	],
+	"rows": [
+		{
+			"name": "Hudson starts awake",
+			"changes": [
+				{
+					"file": "src/host/edge/data_hudson.cpp",
+					"from": "bool HudsonRunIsOn = false;",
+					"to": "bool HudsonRunIsOn = true;"
+				}
+			]
+		},
+		{
+			"name": "Hudson's way of dying starts as a real way",
+			"changes": [
+				{
+					"file": "src/host/edge/data_hudson.cpp",
+					"from": "int HudsonWayOfDying = -1;",
+					"to": "int HudsonWayOfDying = 0;"
+				}
+			]
+		},
+		{
+			"name": "Hudson asleep stops every film",
+			"changes": [
+				{
+					"file": "src/host/edge/asleep_hudson.cpp",
+					"from": "return true;",
+					"to": "return false;"
+				}
+			]
+		},
+		{
+			"name": "Hudson asleep loses the net picture's kind",
+			"changes": [
+				{
+					"file": "src/host/edge/asleep_hudson.cpp",
+					"from": "return \"net\";",
+					"to": "return \"\";"
+				}
+			]
+		},
+		{
+			"name": "Hudson asleep presses on the access page",
+			"changes": [
+				{
+					"file": "src/host/edge/asleep_hudson.cpp",
+					"from": "return kHudsonAccessNone;",
+					"to": "return kHudsonAccessNone + 1;"
+				}
+			]
+		},
+		{
+			"name": "Hudson asleep keeps the ribbon's corners",
+			"changes": [
+				{
+					"file": "src/host/edge/asleep_hudson_play.cpp",
+					"from": "corners.clear();",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a Bink film opens",
+			"changes": [
+				{
+					"file": "src/host/edge_media.cpp",
+					"from": "BinkHandle handle;",
+					"to": "BinkHandle handle = { true, 0 }; if (handle.isValid) return handle;"
+				}
+			]
+		},
+		{
+			"name": "a Smacker film opens",
+			"changes": [
+				{
+					"file": "src/host/edge_media.cpp",
+					"from": "SmackerHandle handle;",
+					"to": "SmackerHandle handle = { true, 0 }; if (handle.isValid) return handle;"
+				}
+			]
+		},
+		{
+			"name": "a piece of music opens",
+			"changes": [
+				{
+					"file": "src/host/edge_media.cpp",
+					"from": "return OV_ENOTVORBIS;",
+					"to": "return 0;"
+				}
+			]
+		},
+		{
+			"name": "emptying a piece of music says it failed",
+			"changes": [
+				{
+					"file": "src/host/edge_media.cpp",
+					"from": "return 0;",
+					"to": "return -1;"
+				}
+			]
+		},
+		{
+			"name": "the editor takes the keyboard even with nobody at the screen",
+			"changes": [
+				{
+					"file": "src/host/edge_own.cpp",
+					"from": "\treturn NobodyWatching();",
+					"to": "\treturn false;"
+				}
+			]
+		},
+		{
+			"name": "a dialog is made even with nobody at the screen",
+			"changes": [
+				{
+					"file": "src/host/nobody_watching.cpp",
+					"from": "\t\t\tdialogsRefused++;\n\t\t\treturn 1;",
+					"to": "\t\t\tdialogsRefused++;\n\t\t\treturn 0;"
+				}
+			]
+		},
+		{
+			"name": "the editor's settings forget a first value asked for",
+			"changes": [
+				{
+					"file": "src/host/edge_own.cpp",
+					"from": "\t\tunderHeading.insert(std::make_pair(variable, asText.str()));\n\t\treturn defaultValue;",
+					"to": "\t\treturn defaultValue;"
+				}
+			]
+		},
+		{
+			"name": "the editor's settings hold a whole number set before it was ever asked for",
+			"changes": [
+				{
+					"file": "src/host/edge_own.cpp",
+					"from": "\t{\n\t\treturn;\n\t}\n\tstd::ostringstream asText;\n\tasText << newValue;",
+					"to": "\t{\n\t\tsettingsInMemory[heading][variable] = std::to_string(newValue);\n\t\treturn;\n\t}\n\tstd::ostringstream asText;\n\tasText << newValue;"
+				}
+			]
+		},
+		{
+			"name": "the editor's settings give a text with its quote marks",
+			"changes": [
+				{
+					"file": "src/host/edge_own.cpp",
+					"from": "\ttext.erase(std::remove(text.begin(), text.end(), '\"'), text.end());\n\treturn text;",
+					"to": "\treturn text;"
+				}
+			]
+		},
+		{
+			"name": "the editor's settings leave a yes or no that's neither as it was",
+			"changes": [
+				{
+					"file": "src/host/edge_own.cpp",
+					"from": "\theld->second = defaultValue ? \"true\" : \"false\";\n\treturn defaultValue;",
+					"to": "\treturn defaultValue;"
+				}
+			]
+		}
+	]
+}

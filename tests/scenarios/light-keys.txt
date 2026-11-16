@@ -1,0 +1,43 @@
+# LIGHT SOURCING by its own KEYS (hidden run, Invasion): the Light Sourcing screen, a light is picked and the camera turned to face it (face-light), C copies it, > chooses the attribute Spread, the + key held makes its
+# spread larger, D drops a new light at the camera, V pastes the copied light there, L flies the pasted light to where the camera is put and L again puts it down, I and I again flip the invisible flag, U takes the changed flag out, Mode > Exit does the write-back (every light un-hidden) and saves a copy
+# of the changed level, Save a copy again, and the copy is read back with the game's loader (verify_lightkeys: 2 lights more, the chosen light's spread larger, the paste equal to the copy). Pictures 801 and 802.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/light-keys.txt
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+face-light 5
+key C
+expect-status Light 5 copied
+key Period
+expect-status Spread
+hold Plus 600
+expect-status Spread
+picture 801
+camera 5000 -300 9000 0
+key D
+expect-status Light dropped
+key V
+expect-status Light pasted
+key L
+expect-status Fly light on
+camera 6000 -300 9500 0
+state
+key L
+expect-status Fly light off
+key I
+expect-status invisible
+key I
+expect-status visible
+key U
+expect-status updated
+key X
+expect-status is off
+key S
+expect-status is on
+picture 802
+item 0xa
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_lightkeys/verify_lightkeys.exe {orig} {copy} 4 2 5000 -300 9000 6000 -300 9500

@@ -1,0 +1,556 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a text field loaded without a check keeps its old one",
+			"changes": [
+				{ "file": "src/ui/text_field.cpp", "from": "keepCheck = check;", "to": "keepCheck = check ? check : keepCheck;" }
+			]
+		},
+		{
+			"name": "a number box loaded without a check keeps its old one",
+			"changes": [
+				{ "file": "src/ui/number_box.cpp", "from": "check = newCheck;", "to": "check = newCheck ? newCheck : check;" }
+			]
+		},
+		{
+			"name": "a text field never asks the spec's check",
+			"changes": [
+				{ "file": "src/ui/text_field.cpp", "from": "if (!keepCheck(keepContext, edit, editLength, &said))", "to": "if (false)" }
+			]
+		},
+		{
+			"name": "a number box never asks the spec's check",
+			"changes": [
+				{ "file": "src/ui/number_box.cpp", "from": "if (!check(checkContext, number, &said))", "to": "if (false)" }
+			]
+		},
+		{
+			"name": "a text field loses the spec's reason",
+			"changes": [
+				{ "file": "src/ui/text_field.cpp", "from": "specWhy = said;", "to": "specWhy = 0;" }
+			]
+		},
+		{
+			"name": "a number box loses the spec's reason",
+			"changes": [
+				{ "file": "src/ui/number_box.cpp", "from": "specWhy = said;", "to": "specWhy = 0;" }
+			]
+		},
+		{
+			"name": "a text field gives an old spec's reason for another refusal",
+			"changes": [
+				{ "file": "src/ui/text_field.h", "from": "return refusal == TextRefusal::SpecRefused ? specWhy : 0;", "to": "return specWhy;" }
+			]
+		},
+		{
+			"name": "a number box gives an old spec's reason for another refusal",
+			"changes": [
+				{ "file": "src/ui/number_box.h", "from": "return refusal == NumberRefusal::SpecRefused ? specWhy : 0;", "to": "return specWhy;" }
+			]
+		},
+		{
+			"name": "a list CheckFieldList refuses is loaded",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "if (!CheckFieldList(newList, newCount, problem) || (newCount > 0 && !values))", "to": "if (newCount > 0 && !values)" }
+			]
+		},
+		{
+			"name": "fields counted with no values are read",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "if (!CheckFieldList(newList, newCount, problem) || (newCount > 0 && !values))", "to": "if (!CheckFieldList(newList, newCount, problem))" }
+			]
+		},
+		{
+			"name": "a refused load leaves the list before it loaded",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\tUnload();\n\n\t\tif (!CheckFieldList", "to": "\t\tif (!CheckFieldList" }
+			]
+		},
+		{
+			"name": "a new load keeps the old focus ring",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\tring = FocusRing();\n", "to": "" }
+			]
+		},
+		{
+			"name": "a new load keeps the old status line",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\tring = FocusRing();\n\t\tQuiet();\n", "to": "\t\tring = FocusRing();\n" }
+			]
+		},
+		{
+			"name": "the level's number isn't kept to compare with",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "slot.levelNumberBits = BitsOf(value.number);", "to": "slot.levelNumberBits = 1;" }
+			]
+		},
+		{
+			"name": "the level's flags word isn't kept to compare with",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "slot.levelWord = value.word;", "to": "slot.levelWord = 0;" }
+			]
+		},
+		{
+			"name": "the level's choice isn't kept to compare with",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "slot.levelChoice = value.choice;", "to": "slot.levelChoice = 0;" }
+			]
+		},
+		{
+			"name": "the level's name length isn't kept to compare with",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "slot.levelTextLength = slot.text.ValueLength();", "to": "slot.levelTextLength = 0;" }
+			]
+		},
+		{
+			"name": "the level's name isn't kept to compare with",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "memcpy(slot.levelText, slot.text.Value(), slot.levelTextLength);", "to": ";" }
+			]
+		},
+		{
+			"name": "a required name can be emptied",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "if (field.required && length == 0)", "to": "if (false)" }
+			]
+		},
+		{
+			"name": "a text with no spec's check calls one anyway",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\tif (!field.textCheck)\n\t\t{\n\t\t\treturn true;", "to": "\t\tif (false)\n\t\t{\n\t\t\treturn true;" }
+			]
+		},
+		{
+			"name": "a name in front that couldn't be read is used anyway",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "if (!before.loaded)", "to": "if (false)" }
+			]
+		},
+		{
+			"name": "the name in front isn't given to the spec's check",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "prefixLength = before.text.ValueLength();", "to": "prefixLength = 0;" }
+			]
+		},
+		{
+			"name": "a text's spec check is never asked",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "if (!field.textCheck(field.checkContext, bytes, length, prefix, prefixLength, &said))", "to": "if (false)" }
+			]
+		},
+		{
+			"name": "a text's spec check loses its reason",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\t\t*why = said;\n\t\t\treturn false;\n\t\t}\n\n\t\treturn true;\n\t}\n\n\tbool FieldPanel::TextKeep", "to": "\t\t\t*why = 0;\n\t\t\treturn false;\n\t\t}\n\n\t\treturn true;\n\t}\n\n\tbool FieldPanel::TextKeep" }
+			]
+		},
+		{
+			"name": "the status line clears only its words, not whose they were",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\tstatus = 0;\n\t\tstatusIsTheSpecs = false;\n", "to": "\t\tstatus = 0;\n" }
+			]
+		},
+		{
+			"name": "the status line never says the words are the spec's",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "statusIsTheSpecs = theSpecs;", "to": "statusIsTheSpecs = false;" }
+			]
+		},
+		{
+			"name": "a spec that gives no reason leaves the status line empty",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "return why ? Say(why, true, answer) : Say(kPanelSpecGaveNoReason, false, answer);", "to": "return Say(why, true, answer);" }
+			]
+		},
+		{
+			"name": "a number the spec refuses is said in the panel's words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case NumberRefusal::SpecRefused: return SpecSays(slot.number.SpecWhy(), result);", "to": "case NumberRefusal::SpecRefused: return Say(kPanelSpecGaveNoReason, false, result);" }
+			]
+		},
+		{
+			"name": "a number out of range isn't given the field's help as its reason",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case NumberRefusal::OutOfRange: return field.help ? Say(field.help, true, result) : Say(kPanelOutOfRange, false, result);", "to": "case NumberRefusal::OutOfRange: return Say(kPanelOutOfRange, false, result);" }
+			]
+		},
+		{
+			"name": "a comma isn't told to use a dot",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case NumberRefusal::UseADot: return Say(kPanelUseADot, false, result);", "to": "case NumberRefusal::UseADot: return result;" }
+			]
+		},
+		{
+			"name": "a letter that's never in a number gets no words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case NumberRefusal::NotANumberLetter: return Say(kPanelNotANumberLetter, false, result);", "to": "case NumberRefusal::NotANumberLetter: return result;" }
+			]
+		},
+		{
+			"name": "a number too long gets no words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case NumberRefusal::TooLong: return Say(kPanelTooLong, false, result);", "to": "case NumberRefusal::TooLong: return result;" }
+			]
+		},
+		{
+			"name": "text that isn't a number gets no words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case NumberRefusal::NotANumber: return Say(kPanelNotANumber, false, result);", "to": "case NumberRefusal::NotANumber: return result;" }
+			]
+		},
+		{
+			"name": "too many decimals get no words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case NumberRefusal::TooManyDecimals: return Say(kPanelTooManyDecimals, false, result);", "to": "case NumberRefusal::TooManyDecimals: return result;" }
+			]
+		},
+		{
+			"name": "a bad paste into a number gets no words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case NumberRefusal::BadPaste: return Say(kPanelBadPaste, false, result);", "to": "case NumberRefusal::BadPaste: return result;" }
+			]
+		},
+		{
+			"name": "an edit of a name the editor can't fully type gives no notice",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "return slot.text.ShowsCantTypeNotice() ? Say(kPanelCantTypeSome, false, PanelAnswer::Changed) : PanelAnswer::Changed;", "to": "return PanelAnswer::Changed;" }
+			]
+		},
+		{
+			"name": "a text the spec refuses because the name in front couldn't be read is said to be the spec's words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "return slot.text.SpecWhy() == kPanelPrefixNotLoaded ? Say(kPanelPrefixNotLoaded, false, result) : SpecSays(slot.text.SpecWhy(), result);", "to": "return SpecSays(slot.text.SpecWhy(), result);" }
+			]
+		},
+		{
+			"name": "a full field never gives the spec's reason for its length",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "const char *const capacityWords = field.capacityWhy ? field.capacityWhy : kPanelFull;", "to": "const char *const capacityWords = kPanelFull;" }
+			]
+		},
+		{
+			"name": "the spec's reason for a field's length isn't said to be the spec's",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case TextRefusal::Full: return Say(capacityWords, field.capacityWhy != 0, result);", "to": "case TextRefusal::Full: return Say(capacityWords, false, result);" }
+			]
+		},
+		{
+			"name": "a paste too long never gives the spec's reason",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case TextRefusal::PasteTooLong: return field.capacityWhy ? Say(field.capacityWhy, true, result) : Say(kPanelBadPaste, false, result);", "to": "case TextRefusal::PasteTooLong: return Say(kPanelBadPaste, false, result);" }
+			]
+		},
+		{
+			"name": "a letter the font doesn't have gets no words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case TextRefusal::NotAFontLetter: return Say(kPanelNotAFontLetter, false, result);", "to": "case TextRefusal::NotAFontLetter: return result;" }
+			]
+		},
+		{
+			"name": "a letter this field doesn't take gets no words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case TextRefusal::NotAllowedHere: return Say(kPanelNotAllowedHere, false, result);", "to": "case TextRefusal::NotAllowedHere: return result;" }
+			]
+		},
+		{
+			"name": "a paste of two lines gets no words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case TextRefusal::PasteHasALineBreak: return Say(kPanelPasteOneLine, false, result);", "to": "case TextRefusal::PasteHasALineBreak: return result;" }
+			]
+		},
+		{
+			"name": "a paste with a bad letter gets no words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case TextRefusal::PasteHasANonLetter: return Say(kPanelBadPaste, false, result);", "to": "case TextRefusal::PasteHasANonLetter: return result;" }
+			]
+		},
+		{
+			"name": "an edit still holding a letter the field doesn't take gets no words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case TextRefusal::NotKeptHasABadLetter: return Say(kPanelHasABadLetter, false, result);", "to": "case TextRefusal::NotKeptHasABadLetter: return result;" }
+			]
+		},
+		{
+			"name": "a text that couldn't be loaded gets no words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case TextRefusal::NotLoaded: return Say(kPanelNotLoaded, false, result);", "to": "case TextRefusal::NotLoaded: return result;" }
+			]
+		},
+		{
+			"name": "focus leaving a number neither keeps nor gives up its edit",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case FieldKind::Number: FromNumber(field, slot, slot.number.Leave()); break;", "to": "case FieldKind::Number: break;" }
+			]
+		},
+		{
+			"name": "focus leaving a text neither keeps nor gives up its edit",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case FieldKind::Text: FromText(field, slot, slot.text.Leave()); break;", "to": "case FieldKind::Text: break;" }
+			]
+		},
+		{
+			"name": "focus leaving an open list leaves it open",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case FieldKind::Choice: slot.choice.Leave(); break;", "to": "case FieldKind::Choice: break;" }
+			]
+		},
+		{
+			"name": "an event doesn't clear the status line",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "PanelAnswer FieldPanel::Handle(const Event &event)\n\t{\n\t\tQuiet();\n", "to": "PanelAnswer FieldPanel::Handle(const Event &event)\n\t{\n" }
+			]
+		},
+		{
+			"name": "a panel with nothing loaded takes events",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "PanelAnswer FieldPanel::Handle(const Event &event)\n\t{\n\t\tQuiet();\n\n\t\tif (!loaded)", "to": "PanelAnswer FieldPanel::Handle(const Event &event)\n\t{\n\t\tQuiet();\n\n\t\tif (false)" }
+			]
+		},
+		{
+			"name": "Shift+Tab moves forward",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "bool const moved = event.shift ? ring.Previous() : ring.Next();", "to": "bool const moved = ring.Next();" }
+			]
+		},
+		{
+			"name": "Tab says focus moved when it didn't",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "return moved && ring.Focused() != before ? PanelAnswer::FocusMoved : PanelAnswer::Nothing;", "to": "return PanelAnswer::FocusMoved;" }
+			]
+		},
+		{
+			"name": "a read-only field takes letters",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\t// A field that couldn't be loaded needs no check here: its box refuses every event itself, saying so\n\t\tif (field.readOnly)", "to": "\t\t// A field that couldn't be loaded needs no check here: its box refuses every event itself, saying so\n\t\tif (false)" }
+			]
+		},
+		{
+			"name": "turning a bit over isn't a kept change",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case SmallAnswer::Changed: return PanelAnswer::Kept;", "to": "case SmallAnswer::Changed: return PanelAnswer::Nothing;" }
+			]
+		},
+		{
+			"name": "opening a list means nothing",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case ChoiceAnswer::Opened: return PanelAnswer::Moved;", "to": "case ChoiceAnswer::Opened: return PanelAnswer::Nothing;" }
+			]
+		},
+		{
+			"name": "picking a choice isn't a kept change",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case ChoiceAnswer::Picked: return PanelAnswer::Kept;", "to": "case ChoiceAnswer::Picked: return PanelAnswer::Nothing;" }
+			]
+		},
+		{
+			"name": "a paste doesn't clear the status line",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "PanelAnswer FieldPanel::Paste(const unsigned char *bytes, size_t length)\n\t{\n\t\tQuiet();\n", "to": "PanelAnswer FieldPanel::Paste(const unsigned char *bytes, size_t length)\n\t{\n" }
+			]
+		},
+		{
+			"name": "a panel with nothing loaded takes pastes",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "PanelAnswer FieldPanel::Paste(const unsigned char *bytes, size_t length)\n\t{\n\t\tQuiet();\n\n\t\tif (!loaded)", "to": "PanelAnswer FieldPanel::Paste(const unsigned char *bytes, size_t length)\n\t{\n\t\tQuiet();\n\n\t\tif (false)" }
+			]
+		},
+		{
+			"name": "a read-only field takes pastes",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\tconst FieldDescriptor &field = list[(size_t)focused];\n\n\t\tif (field.readOnly)", "to": "\t\tconst FieldDescriptor &field = list[(size_t)focused];\n\n\t\tif (false)" }
+			]
+		},
+		{
+			"name": "a paste never reaches a number",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case FieldKind::Number: return FromNumber(field, slot, slot.number.Paste(bytes, length));", "to": "case FieldKind::Number: return PanelAnswer::Nothing;" }
+			]
+		},
+		{
+			"name": "a paste never reaches a text",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case FieldKind::Text: return FromText(field, slot, slot.text.Paste(bytes, length));", "to": "case FieldKind::Text: return PanelAnswer::Nothing;" }
+			]
+		},
+		{
+			"name": "a click doesn't clear the status line",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "PanelAnswer FieldPanel::ClickField(size_t place)\n\t{\n\t\tQuiet();\n", "to": "PanelAnswer FieldPanel::ClickField(size_t place)\n\t{\n" }
+			]
+		},
+		{
+			"name": "a click past the end ends the edit",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "if (place >= count || (int)place == ring.Focused())", "to": "if ((int)place == ring.Focused())" }
+			]
+		},
+		{
+			"name": "a click on the field with focus ends its edit",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "if (place >= count || (int)place == ring.Focused())", "to": "if (place >= count)" }
+			]
+		},
+		{
+			"name": "a flag is asked for past the end",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\t*why = 0;\n\n\t\tif (place >= count)\n\t\t{\n\t\t\treturn FieldFlag::None;", "to": "\t\t*why = 0;\n\n\t\tif (false)\n\t\t{\n\t\t\treturn FieldFlag::None;" }
+			]
+		},
+		{
+			"name": "a field that couldn't be loaded isn't flagged",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\tif (!slot.loaded)\n\t\t{\n\t\t\t*why = kPanelNotLoaded;", "to": "\t\tif (false)\n\t\t{\n\t\t\t*why = kPanelNotLoaded;" }
+			]
+		},
+		{
+			"name": "a number out of range isn't flagged",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "if (slot.number.OutOfRangeNow())", "to": "if (false)" }
+			]
+		},
+		{
+			"name": "a number out of range is flagged with no words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\t\t\t\t*why = field.help;", "to": "\t\t\t\t\t*why = 0;" }
+			]
+		},
+		{
+			"name": "a number the spec refuses as it is isn't flagged",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "if (field.numberCheck && !field.numberCheck(field.checkContext, slot.number.Value(), &said))", "to": "if (false)" }
+			]
+		},
+		{
+			"name": "a choice the list doesn't have isn't flagged",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "return slot.choice.Chosen() < 0 ? FieldFlag::UnknownChoice : FieldFlag::None;", "to": "return FieldFlag::None;" }
+			]
+		},
+		{
+			"name": "a name whose prefix couldn't be read is flagged as one the spec refuses",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "if (said == kPanelPrefixNotLoaded)", "to": "if (false)" }
+			]
+		},
+		{
+			"name": "an empty required name is flagged as one the spec refuses",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "return field.required && slot.text.ValueLength() == 0 ? FieldFlag::EmptyButRequired : FieldFlag::SpecRefusesIt;", "to": "return FieldFlag::SpecRefusesIt;" }
+			]
+		},
+		{
+			"name": "whether a field changed is asked past the end",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\tif (place >= count)\n\t\t{\n\t\t\treturn false;", "to": "\t\tif (false)\n\t\t{\n\t\t\treturn false;" }
+			]
+		},
+		{
+			"name": "a number edited is never changed",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case FieldKind::Number: return BitsOf(slot.number.Value()) != slot.levelNumberBits;", "to": "case FieldKind::Number: return false;" }
+			]
+		},
+		{
+			"name": "a bit turned over is never changed",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case FieldKind::Bit: return slot.bit.Word() != slot.levelWord;", "to": "case FieldKind::Bit: return false;" }
+			]
+		},
+		{
+			"name": "a choice picked is never changed",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "case FieldKind::Choice: return slot.choice.Value() != slot.levelChoice;", "to": "case FieldKind::Choice: return false;" }
+			]
+		},
+		{
+			"name": "a name of the same length with a letter changed is never changed",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": " || memcmp(slot.text.Value(), slot.levelText, slot.levelTextLength) != 0;", "to": ";" }
+			]
+		},
+		{
+			"name": "a number is asked for past the end",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "return place < count ? slots[place].number.Value() : 0.0;", "to": "return slots[place].number.Value();" }
+			]
+		},
+		{
+			"name": "a flags word is asked for past the end",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "return place < count ? slots[place].bit.Word() : 0;", "to": "return slots[place].bit.Word();" }
+			]
+		},
+		{
+			"name": "a bit is asked for past the end",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "return place < count && slots[place].bit.Checked();", "to": "return slots[place].bit.Checked();" }
+			]
+		},
+		{
+			"name": "a choice is asked for past the end",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "return place < count ? slots[place].choice.Value() : 0;", "to": "return slots[place].choice.Value();" }
+			]
+		},
+		{
+			"name": "a text is asked for past the end",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "bool const there = place < count && list[place].kind == FieldKind::Text && slots[place].loaded;", "to": "bool const there = list[place].kind == FieldKind::Text && slots[place].loaded;" }
+			]
+		},
+		{
+			"name": "a field of another kind gives its text box's storage",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "bool const there = place < count && list[place].kind == FieldKind::Text && slots[place].loaded;", "to": "bool const there = place < count && slots[place].loaded;" }
+			]
+		},
+		{
+			"name": "a text that couldn't be loaded gives its empty storage",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "bool const there = place < count && list[place].kind == FieldKind::Text && slots[place].loaded;", "to": "bool const there = place < count && list[place].kind == FieldKind::Text;" }
+			]
+		},
+		{
+			"name": "a field is shown into no room",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\tvoid FieldPanel::Shown(size_t place, char *out, size_t outSize) const\n\t{\n\t\tif (outSize == 0)", "to": "\tvoid FieldPanel::Shown(size_t place, char *out, size_t outSize) const\n\t{\n\t\tif (false)" }
+			]
+		},
+		{
+			"name": "a bit's line is left as it was",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\tout[0] = 0;\n\n\t\tif (place >= count)", "to": "\t\tif (place >= count)" }
+			]
+		},
+		{
+			"name": "a field is shown past the end",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\t\tout[0] = 0;\n\n\t\tif (place >= count)", "to": "\t\tout[0] = 0;\n\n\t\tif (false)" }
+			]
+		},
+		{
+			"name": "the help row is read with no field in focus",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "ShowWords(focused >= 0 ? list[(size_t)focused].help : 0, out, outSize);", "to": "ShowWords(list[(size_t)focused].help, out, outSize);" }
+			]
+		},
+		{
+			"name": "words are written into no room",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "\tstatic void ShowWords(const char *words, char *out, size_t outSize)\n\t{\n\t\tif (outSize == 0)", "to": "\tstatic void ShowWords(const char *words, char *out, size_t outSize)\n\t{\n\t\tif (false)" }
+			]
+		},
+		{
+			"name": "no words are read as words",
+			"changes": [
+				{ "file": "src/ui/field_panel.cpp", "from": "if (!words)", "to": "if (false)" }
+			]
+		}
+	]
+}

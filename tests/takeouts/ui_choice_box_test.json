@@ -1,0 +1,90 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a list longer than kChoiceMost is taken",
+			"changes": [
+				{
+					"file": "src/ui/choice_box.cpp",
+					"from": "if (!choices || count == 0 || count > kChoiceMost)",
+					"to": "if (!choices || count == 0)"
+				}
+			]
+		},
+		{
+			"name": "a choice with no words is taken",
+			"changes": [
+				{
+					"file": "src/ui/choice_box.cpp",
+					"from": "if (!choices[i].words)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "two choices with the same value are taken",
+			"changes": [
+				{
+					"file": "src/ui/choice_box.cpp",
+					"from": "if (choices[i].value == choices[j].value)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a value the list does not have is replaced by the first choice",
+			"changes": [
+				{
+					"file": "src/ui/choice_box.cpp",
+					"from": "\t\tvalue = stored;\n",
+					"to": "\t\tvalue = newChoices[0].value;\n"
+				}
+			]
+		},
+		{
+			"name": "Down changes the value while the list is closed",
+			"changes": [
+				{
+					"file": "src/ui/choice_box.cpp",
+					"from": "\t\t\tif (!picks)\n\t\t\t{\n\t\t\t\treturn ChoiceAnswer::Nothing;",
+					"to": "\t\t\tif (!picks)\n\t\t\t{\n\t\t\t\tif (event.key == Key::Down && count > 1) { value = choices[1].value; chosen = 1; }\n\t\t\t\treturn ChoiceAnswer::Nothing;"
+				}
+			]
+		},
+		{
+			"name": "Esc picks the lit choice",
+			"changes": [
+				{
+					"file": "src/ui/choice_box.cpp",
+					"from": "\t\tif (event.key == Key::Escape)\n\t\t{\n\t\t\topen = false;",
+					"to": "\t\tif (event.key == Key::Escape)\n\t\t{\n\t\t\tvalue = choices[lit].value;\n\t\t\tchosen = lit;\n\t\t\topen = false;"
+				}
+			]
+		},
+		{
+			"name": "the lit choice goes past the last",
+			"changes": [
+				{
+					"file": "src/ui/choice_box.cpp",
+					"from": "to = to < 0 ? 0 : (to > last ? last : to);",
+					"to": "to = to < 0 ? 0 : to;"
+				}
+			]
+		},
+		{
+			"name": "an unknown value is not shown as unknown",
+			"changes": [
+				{
+					"file": "src/ui/choice_box.cpp",
+					"from": "snprintf(out, outSize, \"unknown (%ld)\", (long)value);",
+					"to": "snprintf(out, outSize, \"%s\", choices[0].words);"
+				}
+			]
+		}
+	]
+}

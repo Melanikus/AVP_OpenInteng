@@ -1,0 +1,49 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "the track reader reads a payload that is not there",
+			"changes": [
+				{
+					"file": "src/model/tracks_readers.cpp",
+					"from": "if (!payload || !TrackFieldPlace(field, payload, length, &place))",
+					"to": "if (!TrackFieldPlace(field, payload, length, &place))"
+				}
+			]
+		},
+		{
+			"name": "the section reader reads a payload that is not there",
+			"changes": [
+				{
+					"file": "src/model/tracks_readers.cpp",
+					"from": "double *value)\n\t{\n\t\tsize_t place = 0;\n\n\t\tif (!payload || !TrackSectionFieldPlace(field, payload, length, section, &place))",
+					"to": "double *value)\n\t{\n\t\tsize_t place = 0;\n\n\t\tif (!TrackSectionFieldPlace(field, payload, length, section, &place))"
+				}
+			]
+		},
+		{
+			"name": "the axis reader reads a payload that is not there",
+			"changes": [
+				{
+					"file": "src/model/tracks_readers.cpp",
+					"from": "int32_t *value)\n\t{\n\t\tsize_t place = 0;\n\n\t\tif (!payload || !TrackSectionFieldPlace(field, payload, length, section, &place))",
+					"to": "int32_t *value)\n\t{\n\t\tsize_t place = 0;\n\n\t\tif (!TrackSectionFieldPlace(field, payload, length, section, &place))"
+				}
+			]
+		},
+		{
+			"name": "the track reader looks for its field among the sections' fields",
+			"changes": [
+				{
+					"file": "src/model/tracks_readers.cpp",
+					"from": "|| !TrackFieldPlace(field, payload, length, &place)",
+					"to": "|| !TrackSectionFieldPlace(field, payload, length, 0, &place)"
+				}
+			]
+		}
+	]
+}

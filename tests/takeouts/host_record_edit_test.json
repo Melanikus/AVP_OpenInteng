@@ -1,0 +1,71 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"avpx/win32",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "an axis value no int32 holds is cast",
+			"changes": [
+				{
+					"file": "src/host/record_edit.cpp",
+					"from": "return FitsAChoice(value) && value == (double)(int32_t)value;",
+					"to": "return true;"
+				}
+			]
+		},
+		{
+			"name": "a fraction is taken as an axis value",
+			"changes": [
+				{
+					"file": "src/host/record_edit.cpp",
+					"from": "&& value == (double)(int32_t)value;",
+					"to": ";"
+				}
+			]
+		},
+		{
+			"name": "a choice needn't be named",
+			"changes": [
+				{
+					"file": "src/host/record_edit.cpp",
+					"from": "if (source->field->unit != model::Unit::Choice)",
+					"to": "if (true)"
+				}
+			]
+		},
+		{
+			"name": "the model's own check of a number isn't run",
+			"changes": [
+				{
+					"file": "src/host/record_edit.cpp",
+					"from": "if (!model::ValueIsAllowed(*source->field, value, why))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "any separator is taken in an object's text",
+			"changes": [
+				{
+					"file": "src/host/record_edit.cpp",
+					"from": "bytes[8] != ':' || ",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "an object's text is read with no text",
+			"changes": [
+				{
+					"file": "src/host/record_edit.cpp",
+					"from": "if (!bytes || !first || !second)",
+					"to": "if (!first || !second)"
+				}
+			]
+		}
+	]
+}

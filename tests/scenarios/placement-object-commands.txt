@@ -1,0 +1,17 @@
+# OBJECT PLACEMENT, the object commands left: Create > With shape: Selected (0x33, a copy of the selected object in front of the view) and Object > Move relative (0x1c, the selected placed object's place typed
+# as an offset from the module it is in; Enter keeps the numbers shown, so the object stays where it is). The pictures are the proof.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+expect-screen Object Placement
+select-row 2
+item 0x33
+expect-status Object created
+picture 1
+item 0x1c
+expect-prompt 45
+picture 2
+key Enter
+expect-status Moved
+picture 3

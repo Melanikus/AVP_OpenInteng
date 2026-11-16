@@ -1,0 +1,26 @@
+# DELETE POLYS (0xc3) then RESTORE POLYS (0xc4) then SAVE (hidden run, Invasion): the flag is taken back before the save, so the copy has no shape that differs from the original. Hide Removed (0xc6) and Show Removed (0xc5) are used in between.
+# Run: LANE=T4 LEVEL=Invasion VERIFY=poly AvP-docs\tools\hicks\drive-scenario-poly.sh <tree> <this file> <name>
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 166 131
+expect-status 1 selected
+item 0xc3
+expect-dialog-kind confirm
+click-button Yes
+expect-status 1 polygons flagged for deletion
+item 0xc6
+expect-status Hide Removed polys
+picture 930
+pick-poly 166 131
+expect-status 1 selected
+item 0xc4
+expect-status 1 polygons are not flagged
+item 0xc5
+expect-status Show Removed polys
+picture 931
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_poly/verify_poly.exe {orig} {copy} 0

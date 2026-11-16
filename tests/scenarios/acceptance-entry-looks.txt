@@ -1,0 +1,102 @@
+# ACCEPTANCE: every screen's ENTRY LOOK (AvP-docs\engine\inteng\view-state-table.md section 0). Each inteng screen's start reloads the level with its own load flags and sets every polygon:
+# R-1  the CONSTRUCTION hub, the first thing seen after a double click and where every Exit returns (FUN_00447550 0x4475e0 PUSH 0x82, FUN_0046e700; 0x44760f FUN_0046da70 white on every level
+#      shape; 0x447626 FUN_0046daa0: every polygon 0xe | 2): a WHITE WIREFRAME, unlit, see-through.
+# R-3  MODULE LINKING (FUN_004c3a00 0x481), R-7 ADJACENT MODULES (FUN_00404780 0x481), R-9 PATH (FUN_004f9780 0x483), R-11 WAYPOINT (FUN_00581650 0x83): the same white wire.
+# R-12 OBJECT PLACEMENT (FUN_004d68e0 0x4d83c0 0x6017), R-13 TEXTURE MAP (FUN_00544510 0x22007), R-14 LIGHT SOURCING (FUN_004aa440 0x8253): TEXTURED.
+# A wire picture is mostly black between pure white lines; a textured one has next to no pure black when unlit (Object Placement, Texture Map: their bright metal can be pure
+# white), next to no pure white when lit (Light Sourcing, dark). His path: the file opened by a double click (start-args), the bar clicked. Pictures looked at (el-2): the hub's wire, the textured hangar room.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+wait 300
+picture 1
+# R-1: the hub is the white wire from the first frame
+expect-colour picture 0 0 1008 729 000000 0.40 16
+expect-colour picture 0 0 1008 729 ffffff 0.01 16
+# R-12: Object Placement is textured
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 300
+picture 2
+expect-colour-at-most picture 0 0 1008 729 000000 0.10 16
+# its Exit goes through the hub's start: the wire again
+click-bar Mode > Exit
+expect-screen Construction
+wait 300
+picture 3
+expect-colour picture 0 0 1008 729 000000 0.40 16
+expect-colour picture 0 0 1008 729 ffffff 0.01 16
+# R-3: Module Linking is the white wire
+click-bar Mode > Module Linking
+expect-screen Module Linking
+wait 300
+picture 4
+expect-colour picture 0 0 1008 729 000000 0.40 16
+expect-colour picture 0 0 1008 729 ffffff 0.01 16
+# R-4: View Mode > Filled (0x48, FUN_004c1a90 0x4c29ed-0x4c2a26, FUN_0046db20: every polygon kind 2, flag 2 cleared): solid, lit, white (no textures on this screen)
+click-bar View Mode > Filled
+wait 300
+picture 41
+expect-colour-at-most picture 0 0 1008 729 ffffff 0.10 16
+# R-6: View Mode > Filled Polyline (0x47, 0x4c2a87-0x4c2ac5, FUN_0046dae0: kind 0x10, flag 2): black faces with white edges, not see-through
+click-bar View Mode > Filled Polyline
+wait 300
+picture 42
+expect-colour picture 0 0 1008 729 000000 0.40 16
+# R-5: View Mode > Polyline (0x46, 0x4c2a38-0x4c2a75, FUN_0046daa0): the white wire again
+click-bar View Mode > Polyline
+wait 300
+picture 43
+expect-colour picture 0 0 1008 729 000000 0.40 16
+expect-colour picture 0 0 1008 729 ffffff 0.01 16
+click-bar Mode > Exit
+expect-screen Construction
+# R-13: Texture Map is textured (unlit, so its bright metal can be pure white: the test is that next to nothing is the black seen between wire lines)
+click-bar Mode > Texture Map
+expect-screen Texture Map
+wait 300
+picture 5
+expect-colour-at-most picture 0 0 1008 729 000000 0.10 16
+click-bar Mode > Exit
+expect-screen Construction
+wait 300
+picture 6
+expect-colour picture 0 0 1008 729 ffffff 0.01 16
+# R-7: Adjacent Modules is the white wire
+click-bar Mode > Adjacent Modules
+expect-screen Adjacent Modules
+wait 300
+picture 7
+expect-colour picture 0 0 1008 729 000000 0.40 16
+expect-colour picture 0 0 1008 729 ffffff 0.01 16
+click-bar Mode > Exit
+expect-screen Construction
+# R-14: Light Sourcing is textured
+click-bar Mode > Light Sourcing
+wait 300
+picture 8
+expect-colour-at-most picture 0 0 1008 729 ffffff 0.003 16
+click-bar Mode > Exit
+expect-screen Construction
+# R-9: Path is the white wire
+click-bar Mode > Path
+expect-screen Path
+wait 300
+picture 9
+expect-colour picture 0 0 1008 729 000000 0.40 16
+expect-colour picture 0 0 1008 729 ffffff 0.01 16
+click-bar Mode > Exit
+expect-screen Construction
+# R-11: Waypoint is the white wire (its green waypoint modules are a row still to build)
+click-bar Mode > Waypoint
+expect-screen Waypoint
+wait 300
+picture 10
+expect-colour picture 0 0 1008 729 000000 0.40 16
+click-bar Mode > Exit
+expect-screen Construction
+wait 300
+picture 11
+expect-colour picture 0 0 1008 729 000000 0.40 16
+expect-colour picture 0 0 1008 729 ffffff 0.01 16

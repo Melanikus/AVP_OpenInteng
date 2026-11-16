@@ -1,0 +1,26 @@
+# ACCEPTANCE: the BAR is hidden until asked for (inteng's FUN_004b7c50 0x4b7d12: the menu's per-frame input shows the bar, method +8 FUN_004b7dd0, only while the pointer is at the very top of the screen,
+# y < 3, or Control is held; FUN_004b6a00 draws it and is called nowhere else). AvP-docs\engine\inteng\reassess\popups-trace.md, "The bar". Every check looks at the screen.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+move-win 500 300
+picture 1
+expect-bar-hidden
+# the pointer to the top edge: the bar is drawn
+move-win 400 1
+expect-bar-shown
+expect-pixels-changed panels 0 0 450 34 0.05
+# it stays while the pointer is inside the bar's height, and goes when the pointer leaves it
+move-win 400 12
+expect-bar-shown
+move-win 500 300
+expect-bar-hidden
+expect-pixels-changed panels 0 0 450 34 0.05
+# a click on a title of the shown bar opens its drop-down (a press on a hidden bar does nothing)
+move-win 400 1
+click-win 20 10 left
+expect-pixels-changed panels 0 30 300 250 0.02
+key Esc
+move-win 500 300
+expect-bar-hidden

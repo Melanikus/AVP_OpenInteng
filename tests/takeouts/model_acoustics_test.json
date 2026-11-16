@@ -1,0 +1,411 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc/level_file_name.h",
+		"avpx/3dc/reverb_choice.h",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "[acoustics] a module's acoustic type of 26 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "Limit::GameMeaning, -1, 25, ModuleKindWhy",
+					"to": "Limit::GameMeaning, -1, 26, ModuleKindWhy"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a module's acoustic type of -2 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "Limit::GameMeaning, -1, 25, ModuleKindWhy",
+					"to": "Limit::GameMeaning, -2, 25, ModuleKindWhy"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] the level's acoustic type of 26 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "Limit::GameMeaning, 0, 25, LevelKindWhy",
+					"to": "Limit::GameMeaning, 0, 26, LevelKindWhy"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] the level's acoustic type of -1 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "Limit::GameMeaning, 0, 25, LevelKindWhy",
+					"to": "Limit::GameMeaning, -1, 25, LevelKindWhy"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a module's reverb of 2.0001 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "Limit::Editor, -1, 2, ModuleReverbWhy",
+					"to": "Limit::Editor, -1, 3, ModuleReverbWhy"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a module's reverb of -1.0001 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "Limit::Editor, -1, 2, ModuleReverbWhy",
+					"to": "Limit::Editor, -2, 2, ModuleReverbWhy"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] the level's reverb of 2.0001 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "Limit::Editor, 0, 2, LevelReverbWhy",
+					"to": "Limit::Editor, 0, 3, LevelReverbWhy"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] the level's reverb of -0.0001 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "Limit::Editor, 0, 2, LevelReverbWhy",
+					"to": "Limit::Editor, -1, 2, LevelReverbWhy"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a module's reverb is looked for 4 bytes late",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"reverb\", \"Reverb\", S, 4, Storage::Float32,",
+					"to": "{ \"reverb\", \"Reverb\", S, 8, Storage::Float32,"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a module's acoustics of 11 bytes is taken as the right size",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"MODACOUS\", \"module acoustics\", \"\", 12, 12,",
+					"to": "{ \"MODACOUS\", \"module acoustics\", \"\", 11, 11,"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] the level's acoustics of 11 bytes is taken as the right size",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"ENVACOUS\", \"level acoustics\", \"\", 12, 12,",
+					"to": "{ \"ENVACOUS\", \"level acoustics\", \"\", 11, 11,"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a module's acoustics is taken as read only inside its module's data",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"MODACOUS\", \"module acoustics\", \"\",",
+					"to": "{ \"MODACOUS\", \"module acoustics\", \"MODULEDT\","
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a room's name is spelt wrong",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"MODACOUS\", \"env_index\", 10, \"Hangar\" },",
+					"to": "{ \"MODACOUS\", \"env_index\", 10, \"Hanger\" },"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a module's reverb of 0 is taken as the level's",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "if (!IsNaN(reverb) && reverb >= 0.0f)",
+					"to": "if (!IsNaN(reverb) && reverb > 0.0f)"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a module's kind of 0 is taken as the level's",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "if (kind >= 0)",
+					"to": "if (kind > 0)"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a module's reverb above 1 is used as it is",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "echo.amount = reverb > 1.0f ? -1.0f : reverb;",
+					"to": "echo.amount = reverb;"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] the level's reverb above 1 is used as it is",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "if (!IsNaN(reverb) && reverb <= 1.0f)",
+					"to": "if (!IsNaN(reverb))"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] room kind 26 is taken for one the game has",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "return (uint32_t)kind < (uint32_t)RoomKindCount;",
+					"to": "return (uint32_t)kind <= (uint32_t)RoomKindCount;"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a negative room kind is taken for one the game has",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "return (uint32_t)kind < (uint32_t)RoomKindCount;",
+					"to": "return kind < RoomKindCount;"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] the sound side keeps an amount of 1.5 as it is",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "amount >= 0.0f && amount <= 1.0f) ? amount : -1.0f;",
+					"to": "amount >= 0.0f && amount <= 2.0f) ? amount : -1.0f;"
+				}
+			]
+		},
+		{
+			"name": "[light set] an ambience of 65537 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "Limit::Editor, 0, 65536, AmbienceWhy",
+					"to": "Limit::Editor, 0, 65537, AmbienceWhy"
+				}
+			]
+		},
+		{
+			"name": "[light set] an ambience of -1 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "Limit::Editor, 0, 65536, AmbienceWhy",
+					"to": "Limit::Editor, -1, 65536, AmbienceWhy"
+				}
+			]
+		},
+		{
+			"name": "[light set] an ambience is counted as a plain number, not 16.16",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "Storage::Int32, Unit::Fixed16,",
+					"to": "Storage::Int32, Unit::Plain,"
+				}
+			]
+		},
+		{
+			"name": "[light set] an ambience has no label",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"ambience\", \"Ambience\", S, 0,",
+					"to": "{ \"ambience\", \"\", S, 0,"
+				}
+			]
+		},
+		{
+			"name": "[light set] an ambience of 3 bytes is taken as the right size",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"AMBIENCE\", \"ambience\", \"\", 4, 4,",
+					"to": "{ \"AMBIENCE\", \"ambience\", \"\", 3, 3,"
+				}
+			]
+		},
+		{
+			"name": "[light set] a light set header of 11 bytes is taken as the right size",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"LTSETHDR\", \"light set header\", \"\", 12, 12,",
+					"to": "{ \"LTSETHDR\", \"light set header\", \"\", 11, 11,"
+				}
+			]
+		},
+		{
+			"name": "[light set] a light set header's number is looked for at 4",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"pad\", \"\", S, 8, Storage::Int32,",
+					"to": "{ \"pad\", \"\", S, 4, Storage::Int32,"
+				}
+			]
+		},
+		{
+			"name": "[light set] a light scale of 39 bytes is taken as the right size",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"LITSCALE\", \"light scale\", \"\", 40, 40,",
+					"to": "{ \"LITSCALE\", \"light scale\", \"\", 39, 39,"
+				}
+			]
+		},
+		{
+			"name": "[light set] a light scale is taken as read only inside its light set",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"LITSCALE\", \"light scale\", \"\",",
+					"to": "{ \"LITSCALE\", \"light scale\", \"LIGHTSET\","
+				}
+			]
+		},
+		{
+			"name": "[light set] a light scale number of 16777218 is let through",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "double const LightScaleMost = 16777216.0;",
+					"to": "double const LightScaleMost = 16777218.0;"
+				}
+			]
+		},
+		{
+			"name": "[light set] a light scale's run-time multiply is looked for 4 bytes early",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"runtime_multiply\", \"Runtime: Scale\", S, 16,",
+					"to": "{ \"runtime_multiply\", \"Runtime: Scale\", S, 12,"
+				}
+			]
+		},
+		{
+			"name": "[light set] a light scale's first number is read as a fraction",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"light_mode\", \"\", S, 0, Storage::Int32,",
+					"to": "{ \"light_mode\", \"\", S, 0, Storage::Float32,"
+				}
+			]
+		},
+		{
+			"name": "[light set] a new light scale's prelight multiply starts at 0",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"prelight_multiply\", \"Prelight: Scale\", S, 4, Storage::Float32, Unit::Plain, 0, Limit::Loader, -LightScaleMost, LightScaleMost, LightScaleWhy, true, 1,",
+					"to": "{ \"prelight_multiply\", \"Prelight: Scale\", S, 4, Storage::Float32, Unit::Plain, 0, Limit::Loader, -LightScaleMost, LightScaleMost, LightScaleWhy, true, 0,"
+				}
+			]
+		},
+		{
+			"name": "[light set] a light scale's add has another label",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"prelight_add\", \"Prelight: Add\", S, 12,",
+					"to": "{ \"prelight_add\", \"Add\", S, 12,"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] the level's acoustics is taken as read only inside its environment data",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"ENVACOUS\", \"level acoustics\", \"\",",
+					"to": "{ \"ENVACOUS\", \"level acoustics\", \"REBENVDT\","
+				}
+			]
+		},
+		{
+			"name": "[light set] an ambience is taken as read only inside its light set",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"AMBIENCE\", \"ambience\", \"\",",
+					"to": "{ \"AMBIENCE\", \"ambience\", \"LIGHTSET\","
+				}
+			]
+		},
+		{
+			"name": "[light set] a light set header is taken as read only inside its light set",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "{ \"LTSETHDR\", \"light set header\", \"\",",
+					"to": "{ \"LTSETHDR\", \"light set header\", \"LIGHTSET\","
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a kind's name is read on past its 8 letters",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "if (strncmp(AcousticsKinds[i].id, id, 8) == 0)",
+					"to": "if (strcmp(AcousticsKinds[i].id, id) == 0)"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a kind's eighth letter isn't compared",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "if (strncmp(AcousticsKinds[i].id, id, 8) == 0)",
+					"to": "if (strncmp(AcousticsKinds[i].id, id, 7) == 0)"
+				}
+			]
+		},
+		{
+			"name": "[acoustics] a choice's chunk name is read on past its 8 letters",
+			"changes": [
+				{
+					"file": "src/model/chunk_fields_acoustics.cpp",
+					"from": "strncmp(AcousticsChoices[i].chunk, chunk, 8) == 0",
+					"to": "strcmp(AcousticsChoices[i].chunk, chunk) == 0"
+				}
+			]
+		}
+	]
+}

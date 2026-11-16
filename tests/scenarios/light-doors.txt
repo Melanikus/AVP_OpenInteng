@@ -1,0 +1,16 @@
+# LIGHT SOURCING, Doors > Close / Open, in the running editor (hidden run, Invasion): the Light Sourcing screen, the camera put 5 m from the door "Door" (4028 -1667 23420) looking at it, Doors > Close draws the doors shut and the
+# view is lit again, Doors > Open draws them open again. Pictures 401 (open, the file's own), 402 (closed), 403 (open again): 401 and 403 are the same picture, 402 is not.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/light-doors.txt
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+camera 4028 -1667 18423 0
+picture 401
+item 0x14
+expect-status Doors closed
+picture 402
+item 0x16
+expect-status Doors open
+picture 403

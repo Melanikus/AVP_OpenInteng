@@ -1,0 +1,160 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a comma is taken as a letter to type",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "if (event.key == Key::Letter && !event.ctrl && event.letter == ',')",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a paste with a comma is not told to use a dot",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "if (bytes && length > 0 && length <= kNumberMostLetters && memchr(bytes, ',', length))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a minus can be typed where the range does not go below 0",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "LetterRule const letters = rule.mayBeNegative ? IsNumberLetterWithMinus : IsNumberLetterNoMinus;",
+					"to": "LetterRule const letters = IsNumberLetterWithMinus;"
+				}
+			]
+		},
+		{
+			"name": "the reader is not given the field's longest",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": ": ReadPlainNumber(typed, (unsigned int)length, &number, rule.longest);",
+					"to": ": ReadPlainNumber(typed, (unsigned int)length, &number);"
+				}
+			]
+		},
+		{
+			"name": "more decimals than the field has are kept",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "if (dot && (rule.decimals == 0 || afterDot > rule.decimals))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a number outside the range is kept",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "if (number < rule.lowest || number > rule.highest)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a field's longest leaves out its decimals",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "rule.longest = digits + (decimals > 0 ? 1 + decimals : 0);",
+					"to": "rule.longest = digits;"
+				}
+			]
+		},
+		{
+			"name": "a range with an end that is not a number is a good rule",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "if (!IsRealNumber(lowest) || !IsRealNumber(highest) || lowest > highest || decimals > kNumberMostDecimals)",
+					"to": "if (decimals > kNumberMostDecimals)"
+				}
+			]
+		},
+		{
+			"name": "a range too large to count exactly is a good rule",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "if (largest * TenTo(decimals) >= kNumberLargest)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a number too large to write out exactly is written anyway",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "else if (decimals > kNumberMostDecimals || IsNaNOrEndless(value) || fabs(value) * TenTo(decimals) >= kNumberLargest)",
+					"to": "else if (IsNaNOrEndless(value))"
+				}
+			]
+		},
+		{
+			"name": "the shared IsNaN takes endless as a NaN",
+			"changes": [
+				{
+					"file": "src/common/real_numbers.h",
+					"from": "return ((bits >> 52) & 0x7FF) == 0x7FF && (bits & 0x000FFFFFFFFFFFFFull) != 0;",
+					"to": "return ((bits >> 52) & 0x7FF) == 0x7FF;"
+				}
+			]
+		},
+		{
+			"name": "the box writes endless as not a number",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "if (IsNaN(value))",
+					"to": "if (IsNaNOrEndless(value))"
+				}
+			]
+		},
+		{
+			"name": "a negative number that rounds to 0 is written with a minus",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "if (value < 0.0 && !allZero)",
+					"to": "if (value < 0.0)"
+				}
+			]
+		},
+		{
+			"name": "a level's value outside the range is changed to fit it",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "\t\tvalue = newValue;\n\t\tShowValue();",
+					"to": "\t\tvalue = newValue < rule.lowest ? rule.lowest : (newValue > rule.highest ? rule.highest : newValue);\n\t\tShowValue();"
+				}
+			]
+		},
+		{
+			"name": "leaving with a number that cannot be kept leaves it half typed",
+			"changes": [
+				{
+					"file": "src/ui/number_box.cpp",
+					"from": "\t\t// Keep said why in refusal, which stays for the panel to show\n\t\ttext.Handle(KeyEvent(Key::Escape));",
+					"to": "\t\t// Keep said why in refusal, which stays for the panel to show"
+				}
+			]
+		}
+	]
+}

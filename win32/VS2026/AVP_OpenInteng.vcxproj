@@ -1,0 +1,1108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AVP_OpenInteng's project. Written 2026-11-14 by Melanikus (Hicks) for AVP_OpenInteng.
+
+     WHAT IT BUILDS TODAY (the phase 2 plan, F2; R-INT-15, option A): the editor's own start, still empty (src\probe\probe_main.cpp),
+     with the game's own files from the avpx submodule: 284 of the 319 the game compiles. docs\avpx-files.md lists the 35 it leaves out
+     (the game's start, its network code, its online pages, Hudson and the player's settings file) and why. What those 35 would have given the rest of the game is
+     "the edge", in src\host\: tools\make-edge.js writes it from the linker's own list, and docs\host-symbols.md says what each part of
+     it does. /p:NoEdge=true builds without the edge, for that list.
+
+     THE COMPILE SETTINGS ARE THE GAME'S OWN, copied from avpx\win32\VS2026\AvP.vcxproj's Release|Win32 block at the pinned commit
+     (85704f7a), so the editor's game files are the game's: the same defines, the same /fp:fast, /J (a plain char is unsigned) and
+     /we4834, the same /sdl, Control Flow Guard and /MD, the same optimisation and whole-program optimisation. A same-flags gate is to
+     prove that they stay the same when the pin moves (the phase 2 plan, section 2). Only the include folders point into avpx\, and the
+     editor is a Windows program, with no console (the Link settings below); the F4 stock proof is a console one. The editor's own files are C++17.
+
+     Built only inside AvP-builds-excluded, in lane T2, with release libraries only. VcpkgInstalledDir and VcpkgTriplet come on the
+     command line (the folder holding the release libraries, and their name), as for the game, so no private path is written here. -->
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{934AF813-0681-4B02-A703-F0CF04595BC4}</ProjectGuid>
+    <RootNamespace>AVP_OpenInteng</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC60.props" />
+  </ImportGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <!-- Build output stays under win32\VS2026\Win32\, which .gitignore keeps out of the repository. -->
+    <OutDir>$(MSBuildProjectDirectory)\Win32\Release\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\Win32\Release\obj\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <Optimization>Full</Optimization>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <OmitFramePointers>true</OmitFramePointers>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <AdditionalIncludeDirectories>..\..\avpx\3dc;..\..\avpx\3dc\video;..\..\avpx\3dc\avp;..\..\avpx\3dc\avp\support;..\..\avpx\3dc\avp\win95;..\..\avpx\3dc\avp\win95\frontend;..\..\avpx\3dc\avp\win95\gadgets;..\..\avpx\3dc\include;..\..\avpx\3dc\win95;..\..\avpx\win32;..\..\avpx\dependencies\libbinkdec\include;..\..\avpx\dependencies\libsmackerdec\include;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\dxsdk-d3dx;$(VcpkgInstalledDir)$(VcpkgTriplet)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>USE_D3D9;_WINDOWS;USE_OPENAL;NDEBUG;_CRT_SECURE_NO_DEPRECATE;_WIN32_WINNT=0x0602;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <StringPooling>true</StringPooling>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <SDLCheck>true</SDLCheck>
+      <ControlFlowGuard>Guard</ControlFlowGuard>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <AdditionalOptions> /J /we4834</AdditionalOptions>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ProgramDataBaseFileName>$(IntDir)vc90.pdb</ProgramDataBaseFileName>
+      <WarningLevel>Level3</WarningLevel>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <CompileAs>Default</CompileAs>
+      <DisableSpecificWarnings>4018;4013;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapFileName>$(OutDir)$(TargetName).map</MapFileName>
+      <!-- Microsoft's platform libraries, and OpenAL for sound effects (R-INT-10, R-INT-15), and nothing else: none of the game's
+           network libraries (ENet, mlkem, mldsa), film decoders or music libraries (the edge stands in for those). The map file lets
+           tools\check-edge-link.js prove, from what the linker actually took, that no other library gave the program code. -->
+      <AdditionalDependencies>winmm.lib;shell32.lib;d3d9.lib;user32.lib;xinput.lib;d3dx9.lib;OpenAL32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(VcpkgInstalledDir)$(VcpkgTriplet)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
+      <!-- The editor is a Windows program, so "Open with" and a double-click open no console window; it still starts at main
+           (mainCRTStartup). The F4 stock proof stays a console program: it's only ever run from a command line. -->
+      <SubSystem Condition="'$(StockProof)' != 'true'">Windows</SubSystem>
+      <EntryPointSymbol Condition="'$(StockProof)' != 'true'">mainCRTStartup</EntryPointSymbol>
+      <SubSystem Condition="'$(StockProof)' == 'true'">Console</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <RandomizedBaseAddress>true</RandomizedBaseAddress>
+      <DataExecutionPrevention>true</DataExecutionPrevention>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <!-- The editor's start, or (with /p:StockProof=true, and its own /p:OutDir and /p:IntDir) the F4 stock proof's in its place -->
+    <ClCompile Include="..\..\src\host\editor_main.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- One editor at a time (one_editor.h); only editor_main uses it -->
+    <ClCompile Include="..\..\src\host\one_editor.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- A level file given on the command line ("Open with"), copied into the data folder's avp_rifs (open_with.h); only editor_main uses it -->
+    <ClCompile Include="..\..\src\host\open_with.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\stock_proof_main.cpp" Condition="'$(StockProof)' == 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- The editor's own stop, which the edge's stand-ins call and the editor's start sets up: it's not a stand-in itself, so it's
+         compiled in every build, NoEdge too -->
+    <ClCompile Include="..\..\src\host\edge_stop.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\nobody_watching.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\level_view.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\hierarchy_player.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\uv_project.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\texture_anim.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\topology_match.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\hierarchy_view.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\camera_file.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\view_surface.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\device_keeper.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ui\panel_layout.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\ui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\object_list.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\level_objects.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\editor_icons.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\simple_object_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\object_place_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ui\scroll_list.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ui\menu_bar.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ui\text_field.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\menu_paint.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\editor_actions.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\window_events.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\panel_paint.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\field_panel_host.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\field_adapters.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\inteng_menus.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\inteng_help.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\inteng_menus_lookup.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\editor_bar.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\harness_select.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\object_header.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\field_descriptor_from_model.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\strategy_record.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\strategy_lookup.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\object_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\track_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\uv_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\polygon_items.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\polygon_items_read.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\module_poly_count.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\module_data_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\module_overlaps.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_merge_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\poly_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_recalc_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\file_pick.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\list_picker.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\dialog_box.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\dialogs.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\sequence_names.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\move_rel_poly_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\move_rel_poly.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\shape_merge.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\shape_model.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\shape_maths.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\special_objects_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\special_mode.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\fix_tears_all.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\hierarchy_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\hierarchy_collections.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\hierarchy_name.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\sequence_speed.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\frame_sound_index.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\hierarchy_mode.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\uv_model.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\light_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\alt_locations_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_rescale_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_chooser.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\virtual_object.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_replace_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\object_make.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\object_base.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\poly_counts.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\hidden_objects.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\path_mode.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\strategy_views.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\strategy_repair.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\strategy_mode.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_import.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\object_type_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\small_modules.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\quick_create.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\light_pick.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\level_chunks.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\reverse_links.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\track_pages.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\editor_options.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\waypoint_view.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\waypoint_mode.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\waypoint_model.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\ai_modules_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\adjacency_generate.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\autolink_scene.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\light_maths.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\light_scene.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\module_site.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_soften_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\shape_soften.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\light_state.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\light_intensities_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\light_shadows.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\autolink_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\autolink_mlf.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\autolink_pass.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\autolink_portal.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\module_links.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\asc_export.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\asc_level.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\asc_text.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\entry_points.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\screen_keys.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\entry_markers.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\light_keys.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\adjacent_write.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\adjacent_list.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\entry_recalc.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\record_join.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\save_copy.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- The edit path (S3d): the panel's fields become edits of the bytes the level holds (field_edit.h, record_edit.h, strategy_edit.h), and
+         the records of the chunks the model has a table for (chunk_record.h) with the tables themselves -->
+    <ClCompile Include="..\..\src\host\field_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\record_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\strategy_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\chunk_record.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\list_chunk_record.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\chunk_fields.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\model;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\chunk_fields_acoustics.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\model;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\chunk_fields_ai.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\model;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\chunk_fields_tracks.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\model;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\alt_locations.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\model;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\chunk_rules.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\model;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\chunk_families.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\model;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\name_kinds.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\model;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\tracks_readers.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\model;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\strategy_fields.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\strategy_rules.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\model;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- The field panel host shows a record's fields with the ui kit's panel, descriptors and boxes (F5) -->
+    <ClCompile Include="..\..\src\ui\field_panel.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\ui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ui\field_descriptor.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\ui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ui\choice_box.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\ui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ui\focus_ring.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\ui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ui\number_box.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\ui;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ui\small_widgets.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\ui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\panel_pass.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\texture_window_paint.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\anim_edit.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\texture_keys.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\host_frame.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\screen_picture.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\screen_measure.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\camera_start.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\key_layout.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- src\host\draw_chain_stand_in.cpp is out of the try build: its local avpx carries the real R_DrawScreenToChain (R-DRAW-CHAIN-1,
+         71847648), as the stand-in's own top says it would be when the pin moves -->
+
+    <ClCompile Include="..\..\src\host\view_toggles.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\view_toggles_game.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- The save path (the phase 2 plan, F7): opening a level to edit, and writing it back as it was read -->
+    <ClCompile Include="..\..\src\io\level_file.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\pick_centre.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\pick_ray.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\selection.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\click_mode.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\screenshot_name.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\place_at_view.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\tool_buttons.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\three_view.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\track_view.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\track_sections.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\track_play_game.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\track_editor.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\pick_game.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\avpx\3dc\avp\hudson_vision.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\ai_sight.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\alien_ways_view.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\alien_ways.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\alien_ways_build.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\alien_ways_guide.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\alien_ways_level.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\alien_ways_map.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\npc_grid.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_agun.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_ais.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_alien.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_binary_switch.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_cable.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_corpse.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_death_volume.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_debris.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_dummy.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_facehugger.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_fan.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_far.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_generator.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_lift.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_lift_door.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_light.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_light_fx.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_link_switch.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_marine.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_mission.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_near.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_paq.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_particle_generator.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_placed_hierarchy.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_platform_lift.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_predator.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_queen.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_rubberduck.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_self_destruct.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_sounds.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_switch_door.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_track.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_types.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_videoscreen.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_waypoint.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_weapon.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bh_xeno.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\bonusabilities.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\cconvars.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\cheatmodes.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\compiled_map.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\compiled_shapes.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\consolelog.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\davehook.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\deaths.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\decal.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\detaillevels.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\dynamics.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\dynblock.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\equipment.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\equipment_util.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\extents.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\game.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\gameflow.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\gamevars.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\game_commands.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\game_statistics.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\hmodel.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\model_needs.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\save_checks.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\hud.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\campaign_kit.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\inventory.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\language.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\lighting.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\load_shape.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\los.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\mark_key.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\mempool.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\messagehistory.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\missions.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\movement.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\paintball.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\particle.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\pfarlocs.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\pheromone.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\player.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\pmove.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\psnd.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\psndproj.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\pvisible.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\savegame.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\scream.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\secstats.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\sfx.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\shapes\cube.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\strategy_def.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\near_wake.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\console_batch.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\console_bind.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\coord_strategies.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\daemon.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\index_font.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\r2base.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\r2pos666.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\reentrant_queue.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\reflist.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\refobj.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\scstring.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\string_table.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\strutil.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\trig666.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\support\wrap_string.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\targeting.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\track.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\triggers.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\view.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\weapons.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\weapon_hooks.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\weapon_shotgun.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\weapon_sniper.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\weapon_pulse_counter.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\weapon_revolver.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\weapon_m79.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\weapon_staff.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\weapon_scope.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\avp_chunk.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\cheat.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\cheat_codes.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\d3d_hud.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\frontend\env_info.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\frontend\intro.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\frontend\menus.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\frontend\menu_data.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\frontend\menu_gfx.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\frontend\mp_config.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\frontend\custom_maps.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\frontend\coop_menu.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\frontend\host_page.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\frontend\online_screens.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\frontend\user_profile.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gadgets\alien_hud_gadget.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gadgets\console_command.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gadgets\console_symbol.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gadgets\console_variable.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gadgets\gadget.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gadgets\hud_gadget.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gadgets\root_gadget.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gadgets\teletype.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gadgets\text_expansion.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gadgets\text_input.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gadgets\text_in_gadget.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gadgets\text_report_gadget.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\gammacontrol.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\hierplace.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\iofocus.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\jsndsup.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\kzsort.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\module_commands.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\mousecentreing.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\npcsetup.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\object_setup.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\openal_audio.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\openal_stream.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\path_chunk.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\platsup.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\pldghost.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\npc_ghosts.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\progress_bar.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\projload.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\screenshot.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\strategy_chunk.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\system.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\user_io.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\vision.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\win95\win_proj.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\build_identity.cpp" />
+    <!-- avpx\3dc\ConfigFile.cpp is left out on purpose: it reads and writes the player's own game settings, AliensVsPredator.cfg in the
+         game's save folder, and the editor must never write that file. src\host\edge_own.cpp keeps the game's settings in memory
+         instead (docs\avpx-files.md, "The player's game settings"). -->
+    <ClCompile Include="..\..\avpx\3dc\console.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\d3d_render.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\FastFile.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\FileStream.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\FmvCutscenes.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\FmvPlayback.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\Fmv_stubbed.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\Fonts.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\frustum.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\IndexBuffer.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\kshape.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\level_log.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\light_choice.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\logString.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\map.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\mathline.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\maths.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\mem3dcpp.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\MemoryStream.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\module.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\morph.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\mslhand.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\MurmurHash3.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\MusicPlayer.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\window_slot_game.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\window_slot.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\object.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\OnScreenKeyboard.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\RenderList.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\surface_normals.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\shoulder_lamp.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\other_lamps.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\surface_pictures.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\surface_static.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\static_scene.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\texture_relief.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\pixel_lights.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\pixel_look.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\shadow_reach.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\static_level.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\static_level_card.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\frame_timing.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\flicker_meter.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\shadow_debug.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\view_settings.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\view_keys.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\fast_random.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\hud_scale.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\texture_animation.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\shadow_shoot.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\static_frame.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\shadow_volumes.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\shadow_volumes_card.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\surface_tangent.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\RimLoader.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\RingBuffer.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\ShaderManager.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\shpanim.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\sphere.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\tables.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\TextureManager.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\utilities.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\vdb.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\version.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\VertexBuffer.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\VertexDeclaration.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\video\BinkPlayback.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\video\SmackerPlayback.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\video\TheoraPlayback.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\VorbisPlayer.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\animation_chunk.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\animation_objects.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\avp_string.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\bitmap_names.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_dummy.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_fragments.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_gsprites.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_light.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_load.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_map.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_object.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_palette.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_shape.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_sound.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_sprites.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_textures.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_type.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\chunk_waypoint.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\debuglog.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\dxlog.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\enumsch.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\enum_chunk.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\environment_chunk.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\fail.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\hierarchy_chunk.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\huffman.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\io.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\list_tem.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\md5.c" />
+    <ClCompile Include="..\..\avpx\3dc\win95\mishchnk.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\our_mem.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\plat_shp.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\plspecfn.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\videomodes.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\win95\win_func.cpp" />
+    <!-- New in AvPx after 85704f7a (D3D-ENUM-1): the try build's local avpx has it, so it's compiled as the game compiles it -->
+    <ClCompile Include="..\..\avpx\win32\d3_enumerate.cpp" />
+    <ClCompile Include="..\..\avpx\win32\d3_func.cpp" />
+    <ClCompile Include="..\..\avpx\win32\di_func.cpp" />
+  </ItemGroup>
+  <!-- The edge (R-INT-15): the stand-ins for what the editor doesn't compile. NoEdge=true leaves them all out, for the build whose
+       log tools/make-edge.js reads. The generated folder is taken whole, so a file the generator adds or removes needs no edit here. -->
+  <ItemGroup Condition="'$(NoEdge)' != 'true'">
+    <ClCompile Include="..\..\src\host\edge_media.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\edge_own.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\edge\*.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

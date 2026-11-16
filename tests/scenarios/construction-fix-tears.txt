@@ -1,0 +1,16 @@
+# CONSTRUCTION, Fix tears between Objects (All) (0x5b): the tolerance is asked (5 mm to start with), every pair of objects whose shapes come near is welded, a copy is saved and read back with the game's
+# own loader (verify_shapes: at least one point is somewhere else in the world, none by more than the tolerance allows).
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+expect-screen Construction
+item 0x5b
+expect-prompt 44
+picture 1
+key Enter
+expect-prompt 0
+expect-status Fixing tears for all objects
+picture 2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_shapes/verify_shapes.exe {orig} {copy} tears 5

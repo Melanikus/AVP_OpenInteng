@@ -1,0 +1,59 @@
+# ACCEPTANCE: Object Placement's TEXT LINES and its VIEW DISTANCE (AvP-docs/engine/inteng/reassess/object-placement.md OP-100..OP-105, OP-80, OP-83, OP-4 (5)).
+# inteng draws every frame at x 16 (FUN_004d9af0 0x4dc74e-0x4dc832): "View Distance :%d" (DAT_005fd678 / 500000: 2 at start) and "Num Objects :%d", then the CURRENT object's lines (FUN_004df3c0 and its
+# class's: a generator "Difficulty (EMH)", its name, "In Object %s"; a sound "%s i_r %f o_r %f" in metres), then "Visible polygons %d" when the camera's target is in a module. T flips ALL of it
+# (DAT_005fd69c, 0x4dd0cd). H held adds 500000 to the distance every frame, N takes 500000 away, never below 0 (0x4d9f64-0x4d9f81). Every block whose distance from the camera less its radius is not below the
+# distance is hidden, the current object's kept (FUN_004dd2f0). Invasion, opened as by a double click, read-only.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+
+# ---- X1 the start: the distance (2), the count, the module's polygons
+expect-hierarchy-text View Distance :2
+expect-hierarchy-text Num Objects :
+expect-hierarchy-text Visible polygons
+picture 1
+
+# ---- X2 a generator made here (genT): its lines (Difficulty (EMH): a new generator appears at every difficulty; its name; the module it is in)
+click-bar Create > AVP generator
+expect-dialog Name Object
+form-field 1 genT
+click-button OK
+expect-no-dialog
+expect-hierarchy-text Difficulty (EMH)
+expect-hierarchy-count 1 genT
+expect-hierarchy-text In Object
+
+# ---- X3 a sound (sndT): its name and its ranges in metres (a new sound: 5 m and 10 m, OP-30)
+click-bar Create > Sound
+expect-dialog Name Object
+form-field 1 sndT
+click-button OK
+expect-no-dialog
+expect-hierarchy-text sndT i_r 5.000000 o_r 10.000000
+
+# ---- X4 T turns ALL the text off, and on again
+key T
+wait 300
+expect-hierarchy-count 0 View Distance
+expect-hierarchy-count 0 Num Objects
+key T
+wait 300
+expect-hierarchy-text View Distance :2
+
+# ---- X5 N held: the distance goes down to 0 (never below) and the blocks beyond it go (the picture changes); H held: it grows again and they come back
+key Back
+wait 300
+picture 2
+hold N 400
+wait 300
+expect-hierarchy-text View Distance :0
+expect-pixels-changed picture 0 0 2000 2000 0.01
+picture 3
+hold H 1000
+wait 300
+expect-hierarchy-count 0 View Distance :0
+expect-pixels-changed picture 0 0 2000 2000 0.01

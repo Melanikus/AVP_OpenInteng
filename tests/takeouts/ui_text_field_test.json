@@ -1,0 +1,190 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a capacity above the field's storage is taken",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "if (newCapacity == 0 || newCapacity > kTextMostBytes || (!bytes && length > 0))",
+					"to": "if (newCapacity == 0 || (!bytes && length > 0))"
+				}
+			]
+		},
+		{
+			"name": "a name longer than its capacity is let in",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "if (nameLength > newCapacity)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a name is read past its first zero",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "size_t const nameLength = zero ? (size_t)((const unsigned char *)zero - bytes) : length;",
+					"to": "size_t const nameLength = length;"
+				}
+			]
+		},
+		{
+			"name": "a refused load leaves the old value usable",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "\t\tcapacity = 0;\n\t\tcursor = 0;",
+					"to": "\t\tcursor = 0;"
+				}
+			]
+		},
+		{
+			"name": "a byte the font has no letter for can be typed",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "return letter >= 32 && letter <= 126;",
+					"to": "return letter >= 1;"
+				}
+			]
+		},
+		{
+			"name": "a letter the field's rule refuses can be typed",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "return IsFontLetter(letter) && (!allowed || allowed(letter));",
+					"to": "return IsFontLetter(letter);"
+				}
+			]
+		},
+		{
+			"name": "a letter goes into a full field",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "if (editLength - (SelectionEnd() - SelectionStart()) >= capacity)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a letter typed with Ctrl goes into the text",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "if (event.key == Key::Letter && event.ctrl)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "Right goes past the end of the text",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "to = cursor < editLength ? cursor + 1 : editLength;",
+					"to": "to = cursor + 1;"
+				}
+			]
+		},
+		{
+			"name": "a paste that does not fit goes in",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "if (length > capacity - kept)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a paste of more than one line goes in",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "if (bytes[i] == '\\r' || bytes[i] == '\\n')",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a paste with a byte the field does not take goes in",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "if (!TakesLetter(bytes[i]))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "Copy writes more than its room",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "size_t const count = end - start < outSize ? end - start : outSize;",
+					"to": "size_t const count = end - start;"
+				}
+			]
+		},
+		{
+			"name": "an edit starts from the level's own bytes, not what is shown",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "edit[i] = TakesLetter(value[i]) ? value[i] : (unsigned char)'?';",
+					"to": "edit[i] = value[i];"
+				}
+			]
+		},
+		{
+			"name": "an edit with a letter the field does not take is kept",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "if (!TakesLetter(edit[i]))\n\t\t\t{\n\t\t\t\treturn Refuse(TextRefusal::NotKeptHasABadLetter);",
+					"to": "if (false)\n\t\t\t{\n\t\t\t\treturn Refuse(TextRefusal::NotKeptHasABadLetter);"
+				}
+			]
+		},
+		{
+			"name": "Esc keeps the edit instead of giving it up",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "\t\t\tediting = false;\n\t\t\treturn TextAnswer::GaveUp;",
+					"to": "\t\t\treturn Keep();"
+				}
+			]
+		},
+		{
+			"name": "leaving with an edit that cannot be kept leaves it half edited",
+			"changes": [
+				{
+					"file": "src/ui/text_field.cpp",
+					"from": "\t\t// Keep said why in refusal, which stays for the panel to show\n\t\tediting = false;",
+					"to": "\t\t// Keep said why in refusal, which stays for the panel to show"
+				}
+			]
+		},
+		{
+			"name": "the notice about letters the editor can't type never shows",
+			"changes": [
+				{
+					"file": "src/ui/text_field.h",
+					"from": "bool ShowsCantTypeNotice() const { return editing && valueHasLettersItCantType; }",
+					"to": "bool ShowsCantTypeNotice() const { return false; }"
+				}
+			]
+		}
+	]
+}

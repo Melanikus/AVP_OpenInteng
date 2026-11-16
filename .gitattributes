@@ -1,0 +1,6 @@
+# Plain line ends for everything git takes as text, on every machine, so a clean checkout is the same everywhere (the rebuild proof
+# depends on it). Visual Studio's own files keep the Windows line ends it writes.
+* text=auto eol=lf
+*.sln text eol=crlf
+*.vcxproj text eol=crlf
+*.vcxproj.filters text eol=crlf

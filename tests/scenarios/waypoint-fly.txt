@@ -1,0 +1,23 @@
+# WAYPOINT, Entry points > Fly, in the running editor (hidden run, Invasion): module 54 is picked, the orange cubes of its AI module's entry points are drawn in the 3D view, one is picked (pick-marker: the click's own rule
+# is tested in light_pick), Fly (the menu item) lets the movement keys move it (key A held), Fly again (the F key) writes it back: the entries between the two AI modules get one point, held inside the other
+# AI module's nearest box, with the hand-set bit. Save a copy, and the copy is read back with the game's loader (verify_adjacent marker). Pictures: 701 the markers, 702 flying, 703 after.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/waypoint-fly.txt
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Waypoint
+pick-module 54
+camera 3816 -38 20000 0
+state
+picture 701
+pick-marker 0
+item 0x25
+expect-status Moving Entry Point
+hold A 1500
+picture 702
+key F
+expect-status Entry point written
+picture 703
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_adjacent/verify_adjacent.exe {orig} {copy} marker

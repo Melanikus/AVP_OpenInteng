@@ -1,0 +1,460 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "the measure stops one short, so a title one too long passes",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "while (length <= most && text[length] != 0)",
+					"to": "while (length < most && text[length] != 0)"
+				}
+			]
+		},
+		{
+			"name": "an empty title passes",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (length == 0 || length > most)",
+					"to": "if (length > most)"
+				}
+			]
+		},
+		{
+			"name": "a title too long passes",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (length == 0 || length > most)",
+					"to": "if (length == 0)"
+				}
+			]
+		},
+		{
+			"name": "a letter the font doesn't have passes",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (!IsFontLetter((unsigned char)text[i]))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "no menus at all load",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (!newMenus || newCount == 0 || newCount > kMenuMostMenus)",
+					"to": "if (!newMenus || newCount > kMenuMostMenus)"
+				}
+			]
+		},
+		{
+			"name": "13 menus load",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (!newMenus || newCount == 0 || newCount > kMenuMostMenus)",
+					"to": "if (!newMenus || newCount == 0)"
+				}
+			]
+		},
+		{
+			"name": "a title is never checked",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (!IsWords(menu.title, kMenuNameMost) || menu.count > kMenuMostItems || (menu.count > 0 && !menu.items))",
+					"to": "if (menu.count > kMenuMostItems || (menu.count > 0 && !menu.items))"
+				}
+			]
+		},
+		{
+			"name": "33 items load",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (!IsWords(menu.title, kMenuNameMost) || menu.count > kMenuMostItems || (menu.count > 0 && !menu.items))",
+					"to": "if (!IsWords(menu.title, kMenuNameMost) || (menu.count > 0 && !menu.items))"
+				}
+			]
+		},
+		{
+			"name": "an item's name is never checked",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (!IsWords(item.name, kMenuNameMost) || (item.keys && !IsWords(item.keys, kMenuKeysMost)) || item.action <= 0)",
+					"to": "if ((item.keys && !IsWords(item.keys, kMenuKeysMost)) || item.action <= 0)"
+				}
+			]
+		},
+		{
+			"name": "an item's keys are never checked",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (!IsWords(item.name, kMenuNameMost) || (item.keys && !IsWords(item.keys, kMenuKeysMost)) || item.action <= 0)",
+					"to": "if (!IsWords(item.name, kMenuNameMost) || item.action <= 0)"
+				}
+			]
+		},
+		{
+			"name": "an action of 0 or below loads",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (!IsWords(item.name, kMenuNameMost) || (item.keys && !IsWords(item.keys, kMenuKeysMost)) || item.action <= 0)",
+					"to": "if (!IsWords(item.name, kMenuNameMost) || (item.keys && !IsWords(item.keys, kMenuKeysMost)))"
+				}
+			]
+		},
+		{
+			"name": "the same action twice loads",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (newMenus[earlierMenu].items[j].action == item.action)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "an action in an earlier menu isn't looked at",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "size_t const earlierCount = earlierMenu < m ? newMenus[earlierMenu].count : i;",
+					"to": "size_t const earlierCount = earlierMenu < m ? 0 : i;"
+				}
+			]
+		},
+		{
+			"name": "a new load keeps the items that were off",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\tfor (size_t m = 0; m < kMenuMostMenus; m++)\n\t\t{\n\t\t\tfor (size_t i = 0; i < kMenuMostItems; i++)\n\t\t\t{\n\t\t\t\tenabled[m][i] = true;\n\t\t\t}\n\t\t}\n\n\t\tif (!newMenus",
+					"to": "\t\tif (!newMenus"
+				}
+			]
+		},
+		{
+			"name": "turning an item off does nothing",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "enabled[m][i] = on;",
+					"to": ";"
+				}
+			]
+		},
+		{
+			"name": "the lit item stays lit when it is turned off",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (open >= 0 && lit >= 0 && !enabled[open][lit])",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "an item that is off can be lit",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\t\tif (enabled[open][place])\n",
+					"to": "\t\t\tif (true)\n"
+				}
+			]
+		},
+		{
+			"name": "going back from no item starts at the first",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "from = step > 0 ? -1 : items;",
+					"to": "from = -1;"
+				}
+			]
+		},
+		{
+			"name": "closed, every key opens the bar",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\t\tif (event.key == Key::Menu)\n\t\t\t{\n\t\t\t\tOpenMenuAt(0);",
+					"to": "\t\t\tif (true)\n\t\t\t{\n\t\t\t\tOpenMenuAt(0);"
+				}
+			]
+		},
+		{
+			"name": "Esc and the menu key leave it open",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\t\tcase Key::Menu:\n\t\t\tcase Key::Escape:\n\t\t\t\treturn Close();",
+					"to": "\t\t\tcase Key::Menu:\n\t\t\tcase Key::Escape:\n\t\t\t\treturn MenuAnswer::Nothing;"
+				}
+			]
+		},
+		{
+			"name": "one menu moves to itself",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (count < 2)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "Left goes right",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "int const step = event.key == Key::Left ? -1 : 1;",
+					"to": "int const step = 1;"
+				}
+			]
+		},
+		{
+			"name": "Up goes down",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "to = NextEnabled(lit, event.key == Key::Up ? -1 : 1);",
+					"to": "to = NextEnabled(lit, 1);"
+				}
+			]
+		},
+		{
+			"name": "End goes to the first",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "to = event.key == Key::Home ? NextEnabled(-1, 1) : NextEnabled(items, -1);",
+					"to": "to = NextEnabled(-1, 1);"
+				}
+			]
+		},
+		{
+			"name": "a move to the same item says it moved",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (to < 0 || to == lit)",
+					"to": "if (to < 0)"
+				}
+			]
+		},
+		{
+			"name": "Ctrl and a space picks",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "bool const picks = event.key != Key::Letter || (event.letter == ' ' && !event.ctrl);",
+					"to": "bool const picks = event.key != Key::Letter || event.letter == ' ';"
+				}
+			]
+		},
+		{
+			"name": "any letter picks",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "bool const picks = event.key != Key::Letter || (event.letter == ' ' && !event.ctrl);",
+					"to": "bool const picks = true;"
+				}
+			]
+		},
+		{
+			"name": "an item that is off can be picked",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (!picks || lit < 0 || !enabled[open][lit])",
+					"to": "if (!picks || lit < 0)"
+				}
+			]
+		},
+		{
+			"name": "a picked action is not said",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\t\t\tpicked = menus[open].items[lit].action;",
+					"to": "\t\t\t\tpicked = 0;"
+				}
+			]
+		},
+		{
+			"name": "the last pick is still said on the next event",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\tMenuAnswer MenuBar::Handle(const Event &event)\n\t{\n\t\tpicked = 0;",
+					"to": "\tMenuAnswer MenuBar::Handle(const Event &event)\n\t{"
+				}
+			]
+		},
+		{
+			"name": "a width below 0 is kept",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "titleWidths[m] = m < count && newTitleWidths ? (int32_t)NotBelowZero(newTitleWidths[m]) : 0;",
+					"to": "titleWidths[m] = m < count && newTitleWidths ? newTitleWidths[m] : 0;"
+				}
+			]
+		},
+		{
+			"name": "a title is not cut where the bar ends",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "int64_t const right = left + titleWidths[menu] < barRight ? left + titleWidths[menu] : barRight;",
+					"to": "int64_t const right = left + titleWidths[menu];"
+				}
+			]
+		},
+		{
+			"name": "the titles all start at the left",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\t\tleft += titleWidths[m];",
+					"to": "\t\t\t;"
+				}
+			]
+		},
+		{
+			"name": "a drop-down is not cut to the room",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "int64_t const width = dropWidths[open] < room.width ? dropWidths[open] : room.width;",
+					"to": "int64_t const width = dropWidths[open];"
+				}
+			]
+		},
+		{
+			"name": "a drop-down is not moved left to stay inside the room",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\tif (left + width > roomRight)\n\t\t{\n\t\t\tleft = roomRight - width;\n\t\t}\n",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "the lit item is not kept shown above",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (lit >= 0 && (size_t)lit < first)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "the lit item is not kept shown below",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "if (lit >= 0 && (size_t)lit >= first + shown)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a room too short for one item shows one",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "size_t const fit = (size_t)(room.height / itemHeight);",
+					"to": "size_t const fit = (size_t)(room.height / itemHeight) + 1;"
+				}
+			]
+		},
+		{
+			"name": "a press on the open title opens it again",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\t\t\tif (open == (int)m)\n\t\t\t\t{\n\t\t\t\t\treturn Close();",
+					"to": "\t\t\t\tif (false)\n\t\t\t\t{\n\t\t\t\t\treturn Close();"
+				}
+			]
+		},
+		{
+			"name": "a press elsewhere leaves the menu open",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\tif (!BoxHolds(drop, x, y))\n\t\t{\n\t\t\treturn Close();",
+					"to": "\t\tif (!BoxHolds(drop, x, y))\n\t\t{\n\t\t\treturn MenuAnswer::Nothing;"
+				}
+			]
+		},
+		{
+			"name": "a press picks the first item shown, whichever row",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\t// Which item the press is on: whole rows of itemHeight from the drop-down's top, from the first shown\n\t\tsize_t const item = first + (size_t)(((int64_t)y - drop.y) / itemHeight);",
+					"to": "\t\t// Which item the press is on: whole rows of itemHeight from the drop-down's top, from the first shown\n\t\tsize_t const item = first;"
+				}
+			]
+		},
+		{
+			"name": "a press on an item that is off picks it",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\tif (!enabled[open][item])\n\t\t{\n\t\t\trefused = menus[open].items[item].action;\n\t\t\treturn MenuAnswer::Refused;\n\t\t}\n\n\t\tpicked = menus[open].items[item].action;\n\t\tClose();\n\t\treturn MenuAnswer::Picked;\n\t}\n}",
+					"to": "\t\tpicked = menus[open].items[item].action;\n\t\tClose();\n\t\treturn MenuAnswer::Picked;\n\t}\n}"
+				}
+			]
+		},
+		{
+			"name": "[refused] a press on an item that's off doesn't say which",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\t\trefused = menus[open].items[item].action;\n\t\t\treturn MenuAnswer::Refused;\n\t\t}\n\n\t\tpicked = menus[open].items[item].action;\n\t\tClose();\n\t\treturn MenuAnswer::Picked;\n\t}\n}",
+					"to": "\t\t\treturn MenuAnswer::Refused;\n\t\t}\n\n\t\tpicked = menus[open].items[item].action;\n\t\tClose();\n\t\treturn MenuAnswer::Picked;\n\t}\n}"
+				}
+			]
+		},
+		{
+			"name": "[refused] a press keeps the item an earlier press refused",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\trefused = 0;\n\t\topenedByPress = false;\n",
+					"to": "\t\topenedByPress = false;\n"
+				}
+			]
+		},
+		{
+			"name": "[tag] a tag is never checked",
+			"changes": [
+				{
+					"file": "src/ui/menu_bar.cpp",
+					"from": "\t\t\t\tif (item.tag && !IsWords(item.tag, kMenuTagMost))",
+					"to": "\t\t\t\tif (false)"
+				}
+			]
+		}
+	]
+}

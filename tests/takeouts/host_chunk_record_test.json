@@ -1,0 +1,170 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a bit of another kind's flags field is shown",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (strcmp(named.chunk, kind.id) != 0 || strcmp(named.field, field.name) != 0)",
+					"to": "if (strcmp(named.field, field.name) != 0)"
+				}
+			]
+		},
+		{
+			"name": "a bit the old editor showed no words for is shown",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "continue;   // a bit the old editor showed no label for isn't shown",
+					"to": "// (kept)"
+				}
+			]
+		},
+		{
+			"name": "a choice of another kind's field is listed",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (strcmp(named.chunk, kind.id) == 0 && strcmp(named.field, field.name) == 0)",
+					"to": "if (strcmp(named.field, field.name) == 0)"
+				}
+			]
+		},
+		{
+			"name": "a choice isn't shown as the file holds it",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "PushChoice(record, Keep(record, label), HelpOf(record, field), choices, (int32_t)stored, &field);",
+					"to": "PushChoice(record, Keep(record, label), HelpOf(record, field), choices, 0, &field);"
+				}
+			]
+		},
+		{
+			"name": "a chunk's choice no int32 holds is converted to one anyway",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (!FitsAChoice(stored))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a choice with no named value is made a box",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (choices.empty())",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a field of three numbers shows its first number three times",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "ReadChunkFieldAxis(kind, field, payload, length, axis, &axes[axis], 0)",
+					"to": "ReadChunkFieldAxis(kind, field, payload, length, 0, &axes[axis], 0)"
+				}
+			]
+		},
+		{
+			"name": "an object's two halves are swapped",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "ReadChunkFieldObject(kind, field, payload, length, &first, &second)",
+					"to": "ReadChunkFieldObject(kind, field, payload, length, &second, &first)"
+				}
+			]
+		},
+		{
+			"name": "a field the old editor showed no label for is shown",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (label.empty())\n\t\t\t{\n\t\t\t\treturn true;",
+					"to": "if (false)\n\t\t\t{\n\t\t\t\treturn true;"
+				}
+			]
+		},
+		{
+			"name": "an orientation is shown",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (field.storage == model::Storage::IntMatrix)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a payload of a size the game refuses is built anyway",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (check != model::SizeCheck::Right)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a chunk the editor doesn't know is built",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (!kind)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "no payload, with a length said, isn't refused",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "\t\tif (!payload)\n\t\t{\n\t\t\treturn Refuse(record, why, NoPayloadWords);\n\t\t}\n\n\t\tmodel::ChunkNames names",
+					"to": "\t\tif (false)\n\t\t{\n\t\t\treturn Refuse(record, why, NoPayloadWords);\n\t\t}\n\n\t\tmodel::ChunkNames names"
+				}
+			]
+		},
+		{
+			"name": "the panel's own check of the list isn't asked",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (!ui::CheckFieldList(record->list.data(), record->list.size(), &problem))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a refused record keeps what it held",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (record)\n\t\t\t{\n\t\t\t\tEmptyRecord(record);",
+					"to": "if (record)\n\t\t\t{\n\t\t\t\t(void)record;"
+				}
+			]
+		},
+		{
+			"name": "more fields than the panel shows are built",
+			"changes": [
+				{
+					"file": "src/host/chunk_record.cpp",
+					"from": "if (record->list.size() > kFieldPanelHostMostFields)",
+					"to": "if (record->list.size() > kFieldPanelHostMostFields + 1)"
+				}
+			]
+		}
+	]
+}

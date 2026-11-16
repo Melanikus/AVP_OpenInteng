@@ -1,0 +1,31 @@
+# MODULE LINKING by its own KEYS (hidden run, Invasion): the keys inteng's screen reads (screen_keys.h): S sets the current module, N makes a Normal link, B a Branch link, V draws only the linked modules and
+# again takes that off, 8 / 9 / 7 / 0 change the draw mode; then Mode > Exit writes the links, Save a copy, and the copy is read back with the library (verify_links: exactly one module's links changed, 2 links more).
+# Pictures: 601 after S, 602 after N and B, 603 with V on.
+# Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/module-linking-keys.txt
+screen Module Linking
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Module Linking
+pick-module 54
+key S
+expect-status Current module
+picture 601
+pick-module 150
+key N
+expect-status Normal Link
+pick-module 250
+key B
+expect-status Branch Link made
+picture 602
+key V
+expect-status Draw Linked Modules Only
+picture 603
+key V
+key 8
+key 9
+key 7
+item 0x64
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_links/verify_links.exe {orig} {copy} 2

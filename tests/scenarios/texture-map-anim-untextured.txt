@@ -1,0 +1,15 @@
+# ANIM > CREATE on an UNTEXTURED triangle (hidden run, Invasion): polygon 131 of Bigtube06 (object row 166) is a plain triangle (type 2). Create (0x9e) makes it a textured one first (Hicks's PolyEdit_MakeTextured: type 7, a new zero list) and then an animation of it; the saved copy has
+# one new record whose frame holds the polygon's own picture and coordinates (anim_verify). The polygon is picked by number (pick-poly).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 166 131
+expect-status 1 selected
+item 0x9e
+wait 1200
+expect-status Created 1 polygon
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/anim_verify/anim_verify.exe {orig} {copy} 1 1 1 -

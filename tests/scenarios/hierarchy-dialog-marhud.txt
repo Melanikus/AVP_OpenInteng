@@ -1,0 +1,24 @@
+# HIERARCHY on the OPENED FILE (MelPyth_MarHUD, Melanikus's way: open the HUD / weapon file itself, go to Hierarchy, pick a weapon, pick an animation, watch it). inteng's Select Hierarchy (FUN_0048b8a0) lists the OBJCHIER
+# objects of the opened file in a LIST DIALOG titled "Select Hierarchy" (FUN_0048c610 -> FUN_00475bf0, shown at 10,10); a clicked row opens it and goes straight on to Select Sequence (FUN_0048bc10), a list dialog
+# "Select Sequence" of the sequences' names; a clicked row plays. Here: click, never type. The run's ini names the file as its Level (the data folder's avp_rifs holds MelPyth_MarHUD).
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-try-run/data/avp_rifs/MelPyth_MarHUD.rif
+pictures on
+state
+item 0xcf
+expect-screen Hierarchy
+picture 1
+item 0x3
+expect-dialog Select Hierarchy
+picture 2
+click-choice Shotgun
+expect-dialog Select Sequence
+picture 3
+click-choice Standard_Fire
+expect-prompt 0
+wait 1500
+expect-status selected
+expect-prompt 0
+picture 4
+wait 700
+picture 5

@@ -1,0 +1,40 @@
+# ACCEPTANCE: the editor objects' ICONS (Melanikus 2026-11-16: "when you create a sound or a strategy it shows an icon ... I see nothing"). inteng draws every editor object as its own built-in shape, filled and flat-coloured
+# (editor_icons.h: sound = shape 8, dark red 0x961414 and red 0xc81e1e; virtual object = shape 13, light blue 0x007fff). This clicks: Construction > Mode > Object Placement, Create > Sound, the view moved back,
+# the red is on the screen; then Tab (Strategy Data), Create Virtual Object > Here, the view moved back, the light blue is on the screen as well as the sound's red.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+picture 1
+# Create > Sound (0x37) makes the sound at the view and selects it (FUN_004d9af0)
+click-bar Create > Sound
+expect-status Sound
+hold Z 1800
+# the selected object FLASHES (white, then its colours, as the selected light does); Backspace deselects it so the picture is steady
+key Back
+wait 300
+picture 2
+expect-colour picture 0 0 1008 729 c81e1e 0.0003 45
+# Tab: Strategy Data, entered from Object Placement
+key Tab
+expect-screen Strategy Data
+# Create Virtual Object > Here (0x39), by the right-click pop-up (row 6, then row 1): the text dialog asks the name
+click-win 640 300 right
+click-popup 6
+click-popup 1
+expect-dialog-kind text
+type IconVO
+key Enter
+expect-no-dialog
+hold Z 1800
+wait 300
+picture 3
+expect-colour picture 0 0 1008 729 007fff 0.0003 45
+expect-colour picture 0 0 1008 729 c81e1e 0.0003 45
+# Tab leaves Strategy Data (Exit asks the save question: No)
+key Tab
+expect-dialog Would you like to save first?
+click-button No
+expect-screen Object Placement

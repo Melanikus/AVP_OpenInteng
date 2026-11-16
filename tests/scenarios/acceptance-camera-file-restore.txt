@@ -1,0 +1,9 @@
+# ACCEPTANCE, part 2 of 2: a new run of the same level reads the camera file part 1 wrote. The first frame is still the origin (the hub restores slot 10 first; the file's places are used from the next F key),
+# and F1 then brings the camera to where part 1 saved it.
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-field camera 0 0 0 0 0
+key F1
+expect-status Camera position restored (F1)
+expect-field camera 1000 2000 3000 512 0

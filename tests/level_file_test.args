@@ -1,0 +1,20 @@
+/std:c++17 /EHsc /MD /J /we4834 /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DUSE_D3D9 /D_WINDOWS /DUSE_OPENAL /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE /D_WIN32_WINNT=0x0602
+/Isrc/io /Iavpx/3dc /Iavpx/3dc/video /Iavpx/3dc/avp /Iavpx/3dc/avp/support /Iavpx/3dc/avp/win95 /Iavpx/3dc/avp/win95/frontend
+/Iavpx/3dc/avp/win95/gadgets /Iavpx/3dc/include /Iavpx/3dc/win95 /Iavpx/win32
+tests/level_file_test.cpp
+src/io/level_file.cpp
+avpx/3dc/win95/chunk.cpp
+avpx/3dc/win95/mishchnk.cpp
+avpx/3dc/win95/huffman.cpp
+avpx/3dc/win95/md5.c
+avpx/3dc/win95/list_tem.cpp
+avpx/3dc/win95/our_mem.cpp
+avpx/3dc/win95/chunk_shape.cpp
+avpx/3dc/win95/chunk_object.cpp
+avpx/3dc/win95/chunk_type.cpp
+avpx/3dc/win95/hierarchy_chunk.cpp
+avpx/3dc/win95/animation_objects.cpp
+avpx/3dc/avp/win95/avp_chunk.cpp
+avpx/3dc/avp/win95/strategy_chunk.cpp
+/link user32.lib

@@ -1,0 +1,220 @@
+{
+	"copy": [
+		"avpx/tests/every_test",
+		"avpx/3dc",
+		"src",
+		"tests"
+	],
+	"rows": [
+		{
+			"name": "a flags word that is not a number is let through",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "IsNaNOrEndless(number) || ",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a flags word below 32 bits is let through",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "number < -2147483648.0 || ",
+					"to": ""
+				}
+			]
+		},
+		{
+			"name": "a flags word above 32 bits is let through",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": " || number > 4294967295.0)",
+					"to": ")"
+				}
+			]
+		},
+		{
+			"name": "a flags word with a fraction is let through",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "if (left > 0.0 || left < 0.0)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a flags word that is not a flags word is shown",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "if (!part.reader->Number(field, &number) || !WordOf(number, &word))",
+					"to": "if (!part.reader->Number(field, &number))"
+				}
+			]
+		},
+		{
+			"name": "a field of three numbers that can't be read is shown",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "if (!part.reader->Axis(field, axis, &axes[axis]))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a number that can't be read is shown",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "if (!part.reader->Number(field, &number))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a head that can't be shown is let through",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "return RefuseWith(record, why, \"the chunk's own field \" + problem + \" couldn't be shown\");",
+					"to": "return true;"
+				}
+			]
+		},
+		{
+			"name": "an item that can't be shown is let through",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "return RefuseWith(record, why, \"the item's field \" + problem + \" couldn't be shown\");",
+					"to": "return true;"
+				}
+			]
+		},
+		{
+			"name": "more fields than the panel host shows are let through",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "if (record->list.size() > kFieldPanelHostMostFields)",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "the most fields the panel host shows is refused",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "record->list.size() > kFieldPanelHostMostFields",
+					"to": "record->list.size() >= kFieldPanelHostMostFields"
+				}
+			]
+		},
+		{
+			"name": "the panel's own check is not asked",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "if (!ui::CheckFieldList(record->list.data(), record->list.size(), &refused))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a track of a wrong size is let through",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "if (!model::TrackSectionCount(payload, length, &count))",
+					"to": "if (false)"
+				}
+			]
+		},
+		{
+			"name": "a track with no section is taken to have one",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "bool const hasItem = count > 0;",
+					"to": "bool const hasItem = true;"
+				}
+			]
+		},
+		{
+			"name": "a section past the count is taken to be there",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "bool const itemIsThere = model::TrackSectionPlace(payload, length, item, &place);",
+					"to": "bool const itemIsThere = true;"
+				}
+			]
+		},
+		{
+			"name": "a section past the count is let through",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "if (hasItem ? !itemIsThere : item != 0)",
+					"to": "if (hasItem ? false : item != 0)"
+				}
+			]
+		},
+		{
+			"name": "an item of a list with no item is let through",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "if (hasItem ? !itemIsThere : item != 0)",
+					"to": "if (hasItem ? !itemIsThere : false)"
+				}
+			]
+		},
+		{
+			"name": "a record of parts with no record to fill is not refused",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "if (!record)\n\t\t{\n\t\t\treturn Refuse(0, why, NoRecordWords);\n\t\t}\n\n\t\treturn Guarded(record, why, [&] { return Assemble",
+					"to": "if (false)\n\t\t{\n\t\t\treturn Refuse(0, why, NoRecordWords);\n\t\t}\n\n\t\treturn Guarded(record, why, [&] { return Assemble"
+				}
+			]
+		},
+		{
+			"name": "a chunk's item with no record to fill is not refused",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "if (!record)\n\t\t{\n\t\t\treturn Refuse(0, why, NoRecordWords);\n\t\t}\n\n\t\tif (!payload)",
+					"to": "if (false)\n\t\t{\n\t\t\treturn Refuse(0, why, NoRecordWords);\n\t\t}\n\n\t\tif (!payload)"
+				}
+			]
+		},
+		{
+			"name": "a chunk with no payload is not refused",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "if (!payload)\n\t\t{\n\t\t\treturn Refuse(record, why, NoPayloadWords);",
+					"to": "if (false)\n\t\t{\n\t\t\treturn Refuse(record, why, NoPayloadWords);"
+				}
+			]
+		},
+		{
+			"name": "running out of memory is refused with other words",
+			"changes": [
+				{
+					"file": "src/host/list_chunk_record.cpp",
+					"from": "return Refuse(record, why, NoMemoryWords);",
+					"to": "return Refuse(record, why, NoPayloadWords);"
+				}
+			]
+		}
+	]
+}

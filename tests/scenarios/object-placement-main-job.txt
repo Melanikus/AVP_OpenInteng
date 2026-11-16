@@ -1,0 +1,73 @@
+# OBJECT PLACEMENT main job (Melanikus: "MVPs mean IT WORKS"): on Object Placement make a Sound, a Particle Generator, an AVP generator, an AVP Bad Guy and a Player starting position at the view,
+# give each its settings in its own Edit dialog (edobtype.dll's fields, in its order, limits and units; AvP-docs/engine/inteng/edobtype-dialogs.md), take one away, save a copy and read the copy back with the
+# game's own loader (verify_special). A prompt answered with only Enter keeps the value it shows. The picture after each step is the proof.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+expect-screen Object Placement
+# SOUND: Create (selected), then Edit: name, wav, inner m, outer m, pitch, volume %, Playing at Start n, Sound Loops y
+item 0x37
+expect-status Sound
+item 0x18
+# edobtype.dll's "Sound Edit" is ONE window with every control (FUN_0057c800 is not used; the MFC dialog): fields in the order of the dialog
+expect-dialog-kind form
+form-field 1 step.wav
+form-field 2 12.5
+form-field 3 40
+form-field 4 2
+form-field 5 80
+click-check 1
+click-button OK
+expect-no-dialog
+expect-status saved
+picture 1
+# PARTICLE GENERATOR: name, type Steam (2), frequency kept, speed 3.25, probability kept, quantity 20, Active y
+item 0x39
+item 0x18
+expect-dialog-kind form
+form-field 1 2
+form-field 3 3.25
+form-field 5 20
+click-button OK
+expect-no-dialog
+expect-status saved
+picture 2
+# AVP GENERATOR: name; Easy, Medium kept; Hard n; the Pulse Rifle weight 5; the other 13 weights, rate, increase, Marine, Alien, Predator, global times, starts inactive kept; Marine Pistol weight 7; Max NPCs 9; own max, multiplayer kept
+item 0x34
+item 0x18
+expect-dialog Generator Settings
+click-check 3
+form-field 1 5
+form-field 17 7
+form-field 18 9
+click-button OK
+expect-no-dialog
+expect-status saved
+picture 3
+# AVP BAD GUY: name, a Marine, the Pistol subtype, texturing 9, the flags kept
+item 0x35
+item 0x18
+expect-dialog Edit object properties
+form-field 1 marine
+click-button OK
+# the type changed the controls under it: the window is shown again with the Marine's
+expect-dialog Edit object properties
+form-field 2 pistol
+form-field 3 9
+click-button OK
+expect-no-dialog
+expect-status saved
+picture 4
+# PLAYER STARTING POSITION: made at the view; it has no Edit dialog
+item 0x3a
+expect-status Player starting position
+item 0x18
+expect-status no settings
+# DELETE: a second sound is made and taken away
+item 0x37
+item 0x16
+expect-status deleted
+picture 5
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_special/verify_special.exe {copy} "sound||wav=step.wav|volume=102|pitch=256|soundflags=1|probability=0" "particle||ptype=1|time=0|pprob=0|speed=325|quantity=20|pflagson=0|pflagsoff=1" "generator||flagson=8400000|flagson=8000000|rate=0|limit=9|weight0=5|weight14=7" "badguy||type=7|subtype=5|texture=9" "start|*"

@@ -1,0 +1,9 @@
+# ACCEPTANCE, part 1 of 2 (run with the same run name as part 2): inteng's camera file (FUN_00470610, camera_file.h). Shift+F1 saves camera slot 0; the editor ends at the end of the run and writes <RIFFNAME>.cam
+# into its own camera folder (never beside the level). The first frame's camera is the origin.
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-field camera 0 0 0 0 0
+camera 1000 2000 3000 512
+key F1 shift
+expect-status Camera position saved (F1)

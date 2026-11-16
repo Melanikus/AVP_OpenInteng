@@ -1,0 +1,28 @@
+# VERTEX CORNER SURVEY (hidden run, Invasion): clicks on a grid in Vertex mode; only the log lines "vertex pick" matter (the corners each click chose from and where the view puts them).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+item 0xfd
+click-view 0.15 0.2
+click-view 0.15 0.4
+click-view 0.15 0.6
+click-view 0.15 0.8
+click-view 0.35 0.2
+click-view 0.35 0.4
+click-view 0.35 0.6
+click-view 0.35 0.8
+click-view 0.55 0.2
+click-view 0.55 0.4
+click-view 0.55 0.6
+click-view 0.55 0.8
+click-view 0.75 0.2
+click-view 0.75 0.4
+click-view 0.75 0.6
+click-view 0.75 0.8
+click-view 0.9 0.2
+click-view 0.9 0.4
+click-view 0.9 0.6
+click-view 0.9 0.8

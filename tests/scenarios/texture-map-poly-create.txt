@@ -1,0 +1,25 @@
+# SELECT AS > VERTEX (0xfd) then CREATE POLY (0x10e) then SAVE (hidden run, Invasion): three clicks in the view take the corner nearest each click of the polygon under it, Create poly makes one triangle, the saved copy has one shape with one polygon more (verify_poly). The clicks are the
+# exact projected places of three corners of the start room (from the "vertex pick" log lines of texture-map-poly-corners.txt: points 611, 319/944 and 316/937/938). (Hicks)
+# Run: LANE=T4 LEVEL=Invasion bash AvP-docs\tools\hicks\drive-scenario-poly.sh <tree> <this file> <name>  (build the verifier first: AvP-docs\tools\hicks\build-verify.sh <tree> poly)
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+# the clicks below are at the projected places of corners seen from the level's own start place (the camera the editor used to start at, whose EYE was 1750 mm above the player: y 2852 - 1750; inteng starts at the origin now)
+camera -7764 1102 10527 0
+item 0x46
+expect-screen Texture Map
+item 0xfd
+expect-status selecting Vertex
+click-view 0.1528 0.7654
+expect-status Vertex: corner taken
+click-view 0.2292 0.3814
+expect-status Vertex: corner taken
+click-view 0.4950 0.3690
+expect-status Vertex: corner taken
+picture 950
+item 0x10e
+expect-status Create poly: 1 polygon(s) made
+picture 951
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_poly/verify_poly.exe {orig} {copy} 1
