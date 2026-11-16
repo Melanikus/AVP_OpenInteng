@@ -30,6 +30,9 @@
 class File_Chunk;      // the game's chunk library
 class OpenLevelFile;   // the editor's own open of a level (src/io/level_file.h)
 
+#include <array>
+#include <vector>
+
 namespace host
 {
 	// The most a typed name or search is read to, in letters
@@ -64,6 +67,14 @@ namespace host
 		std::string *why);
 
 	// Gives the object a new name (the rules above). *newId gets its new ID when the answer is Done.
+	// The size inteng gives an object for a lift (FUN_00529850: the Lift view's "Radius %f" and each position's "R:%f"): the shape's stored box (SHPHEAD1's max and min, the chunk library's
+	// ChunkShape) across x and z, sqrt((max.x - min.x)^2 + (max.z - min.z)^2) with the differences taken as whole numbers, times the level's ENVSDSCL scale (1.0 when it has none). False when no object
+	// has the ID (inteng then gives 1.0) or the object has no shape (inteng reads through the null shape there; ours gives 1.0 too: memory safety, reassess/strategy-data-kinds.md S-K51-2).
+	bool ObjectEdit_ShapeRadius(File_Chunk *level, const uint8_t *id, double *radius);
+
+	// The IDs of every object of the level (modules and placed objects), in the file's order
+	void ObjectEdit_Ids(File_Chunk *level, std::vector<std::array<uint8_t, 8>> *ids);
+
 	ObjectEditAnswer ObjectEdit_Rename(OpenLevelFile *store, File_Chunk *level, const uint8_t *id, const char *name, uint8_t *newId,
 		std::string *why);
 }

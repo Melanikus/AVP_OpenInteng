@@ -59,6 +59,49 @@ void EditorBar_SetPage(int32_t page)
 	shownPage = page < 0 ? 0 : page;
 }
 
+// The page of the right-click pop-up alone (inteng's menu method +0x1c: the placed hierarchy's select FUN_004e9b20 calls it with 6, its unselect FUN_004e9b40 with 0, reassess/object-placement.md
+// PH-1); 0: the screen's own pop-up. Object Placement and Track Editing are one menu object in inteng (DAT_008f4cdc, FUN_004d68e0), and the pages FUN_004d68e0 builds are kept with Track Editing's
+// table here (0x5e6e98), so a pop-up page is looked for there. Added 2026-11-16 by Melanikus (Vasquez).
+static int32_t shownPopupPage = 0;
+
+void EditorBar_SetPopupPage(int32_t page)
+{
+	shownPopupPage = page < 0 ? 0 : page;
+}
+
+int32_t EditorBar_PopupPage()
+{
+	return shownPopupPage;
+}
+
+static bool PopupPageMenus(size_t screen, const host::IntengMenu **menus, size_t *count)
+{
+	if (shownPopupPage == 0 || screen >= kIntengScreenCount || strcmp(kIntengScreens[screen].table, "0x5e51b8") != 0)
+	{
+		return false;
+	}
+
+	for (size_t s = 0; s < kIntengScreenCount; s++)
+	{
+		if (strcmp(kIntengScreens[s].table, "0x5e6e98") != 0 || !kIntengScreens[s].pages)
+		{
+			continue;
+		}
+
+		for (size_t p = 0; p < kIntengScreens[s].pageCount; p++)
+		{
+			if (kIntengScreens[s].pages[p].page == shownPopupPage && kIntengScreens[s].pages[p].row == 2)
+			{
+				*menus = kIntengScreens[s].pages[p].menus;
+				*count = kIntengScreens[s].pages[p].count;
+				return *menus != nullptr && *count > 0;
+			}
+		}
+	}
+
+	return false;
+}
+
 // The screen as its bars show it now: on a page other than 0 each row is that page's menus (none when the page has none for that row)
 static host::IntengScreen ScreenOnPage(const host::IntengScreen &screen)
 {
@@ -99,6 +142,11 @@ static char popupGroupNames[ui::kMenuMostItems][40];
 
 static bool PopupMenusOf(size_t screen, const host::IntengMenu **menus, size_t *count)
 {
+	if (PopupPageMenus(screen, menus, count))
+	{
+		return true;
+	}
+
 	size_t const popup = EditorBar_PopupScreen(screen);
 
 	if (popup != kEditorNoPopup)
@@ -150,12 +198,13 @@ bool EditorBar_MakePopupLevel(size_t screen, int32_t group, EditorBarRoom *room)
 			}
 
 			const host::IntengItem &item = menus[group].items[i];
-			ui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag) };
+			ui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag), item.access };
 
 			room->items[used++] = shown;
 		}
 
 		room->menus[0].title = menus[group].title;
+		room->menus[0].titleAccess = menus[group].access;
 	}
 	else
 	{
@@ -169,15 +218,18 @@ bool EditorBar_MakePopupLevel(size_t screen, int32_t group, EditorBarRoom *room)
 			if (menus[m].count == 1)
 			{
 				const host::IntengItem &item = menus[m].items[0];
-				ui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag) };
+				ui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag), item.access };
 
 				room->items[used++] = shown;
 			}
 			else if (menus[m].count > 1)
 			{
-				_snprintf_s(popupGroupNames[used], sizeof(popupGroupNames[used]), _TRUNCATE, "%s >", menus[m].title);
+				// the words alone: the row's mark is inteng's glyph 2, drawn by the menus (menu_paint.cpp), or ">" when inteng's font was not read
+				_snprintf_s(popupGroupNames[used], sizeof(popupGroupNames[used]), _TRUNCATE, "%s", menus[m].title);
 
-				ui::MenuItem const shown = { popupGroupNames[used], nullptr, kEditorPopupGroupBase + (int32_t)m, nullptr };
+				ui::MenuItem shown = { popupGroupNames[used], nullptr, kEditorPopupGroupBase + (int32_t)m, nullptr, menus[m].access };
+
+				shown.subMenu = true;
 
 				room->items[used++] = shown;
 			}
@@ -222,6 +274,7 @@ bool EditorBar_Make(size_t screen, KeyLayout layout, EditorBarRoom *room)
 		ui::Menu &menu = room->menus[m];
 
 		menu.title = inteng.menus[m].title;
+		menu.titleAccess = inteng.menus[m].access;
 		menu.items = room->items + used;
 		menu.count = 0;
 
@@ -233,7 +286,7 @@ bool EditorBar_Make(size_t screen, KeyLayout layout, EditorBarRoom *room)
 			}
 
 			const host::IntengItem &item = inteng.menus[m].items[i];
-			ui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag) };
+			ui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag), item.access };
 
 			room->items[used++] = shown;
 			menu.count++;
@@ -275,6 +328,7 @@ bool EditorBar_MakeSecond(size_t screen, EditorBarRoom *room)
 		ui::Menu &menu = room->menus[m];
 
 		menu.title = inteng.secondRow[m].title;
+		menu.titleAccess = inteng.secondRow[m].access;
 		menu.items = room->items + used;
 		menu.count = 0;
 
@@ -286,7 +340,7 @@ bool EditorBar_MakeSecond(size_t screen, EditorBarRoom *room)
 			}
 
 			const host::IntengItem &item = inteng.secondRow[m].items[i];
-			ui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag) };
+			ui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag), item.access };
 
 			room->items[used++] = shown;
 			menu.count++;
@@ -700,6 +754,9 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 		case host::IntengWork::HierarchyCommand:
 			host->hierarchyCommand = item->command;
 			break;
+		case host::IntengWork::PlacedHierarchy:
+			host->placedHierarchyCommand = item->command;
+			break;
 		case host::IntengWork::ViewLighting:
 			host->viewMode = 4;
 			break;
@@ -944,9 +1001,6 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 			break;
 		case host::IntengWork::Rescale:
 			host->prompt = kPromptRescale;
-			break;
-		case host::IntengWork::ReplaceShape:
-			host->prompt = kPromptReplaceShape;
 			break;
 		case host::IntengWork::ChooserStart:
 			host->chooserOp = kChooserStart;

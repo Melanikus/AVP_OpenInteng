@@ -20,7 +20,7 @@ namespace host
 	// The figure for the module whose object has this 8-byte ID. *hasFigure false (count 0) for a module with no MODULEDT or no VMDARRAY. False when there is no such object or its shape can't be read.
 	bool ModulePolyCount_Of(OpenLevelFile const *store, File_Chunk *level, uint8_t const *objectId, int32_t *count, bool *hasFigure);
 
-	// The colour Show All paints for a figure: green below 1200, blue 1200 to 1499, orange 1500 to 1999, yellow 2000 and up (ARGB); white (0xFFFFFFFF) for none
+	// The colour Show All paints for a figure: green below 1200, blue 1200 to 1499, orange 1500 to 1999, red 2000 and up (ARGB); white (0xFFFFFFFF) for none
 	uint32_t ModulePolyCount_Colour(bool hasFigure, int32_t count);
 
 	// count of one shape by the merge rule above, from the shape's flag words and its merge data (null: no SHPMRGDT). Pure.

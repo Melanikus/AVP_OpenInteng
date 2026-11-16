@@ -34,17 +34,18 @@ expect-pixels-changed panels 0 40 420 120 0.001
 # ---- P2 ADD MODULE (FUN_004fa6a0; key L, slot 0xd87a8c): the picked module becomes a node; a click on a module picks it and FUN_004fa1c0 colours it; with a path that has nodes the modules between (FUN_004f8c10, breadth first over the ADJMDLEP graph FUN_004f8240) come too, flags|=1
 picture 12
 click-win 504 364
-# the picked module is drawn purple (0x7f007f, FUN_004fa1c0 0x4fa471) and its name is drawn as a line (FUN_004f9d10 0x4fa0b0): the colour is read in the part of the view the text does not cover
+# the picked module is drawn purple (0x7f007f, FUN_004fa1c0 0x4fa471) and its name is drawn as a line (FUN_004f9d10 0x4fa0b0): the colour is read in the part of the view the text does not cover. Path is the WHITE WIRE
+# (FUN_004f9780 loads with 0x483: no textures, every polygon 0xe | 2; view-state-table.md R-9), so the module's lines are the purple itself (about 0.056 of the box on Invasion)
 expect-pixels-changed picture 300 100 700 600 0.01
-expect-colour picture 300 100 700 600 70307a 0.05 40
+expect-colour picture 300 100 700 600 7f007f 0.02 40
 picture 13
 key L
 # the module is a node: its name is drawn as a line under the path line, and the pick is gone (FUN_004fa6a0 clears it); the module turns from purple to the node colour (blue 0x0000ff, FUN_004fa1c0 0x4fa313)
 expect-pixels-changed panels 0 40 420 120 0.0005
-# the module turns from purple to the node colour, blue 0x0000ff (FUN_004fa1c0 0x4fa313), read with the colour verb (the texture shows through: about 3030b0)
+# the module turns from purple to the node colour, blue 0x0000ff (FUN_004fa1c0 0x4fa313): on the white wire its lines are that blue (about 0.056 of the box)
 wait 400
 picture 18
-expect-colour picture 300 100 700 600 3030b0 0.05 40
+expect-colour picture 300 100 700 600 0000ff 0.02 40
 # the camera moves on, another module is picked and added: its route's modules between are added with it
 hold A 1500
 hold A 1500
@@ -61,10 +62,11 @@ expect-pixels-changed panels 0 40 420 200 0.0003
 click-win 150 250
 key L
 
-# ---- P4 VIEW KEYS 8 / 9 (FUN_004f9d10 after the switch): 8 Polyline, 9 Filled Polyline, on THIS screen
+# ---- P4 VIEW KEYS 8 / 9 (FUN_004f9d10 after the switch): 8 Polyline, 9 Filled Polyline, on THIS screen. 8 makes every polygon 0xe | 2 (0x4f9ef6-0x4f9f13, R-10): the look the screen entered with,
+# so the picture does NOT change; 9 makes them 0x10 | 2, the white hidden-line look (0x4f9f2a-0x4f9f47)
 picture 16
 key 8
-expect-pixels-changed picture 0 0 2000 2000 0.01
+expect-pixels-same picture 0 0 2000 2000 0.01
 picture 17
 key 9
 expect-pixels-changed picture 0 0 2000 2000 0.003

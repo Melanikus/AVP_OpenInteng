@@ -1,0 +1,40 @@
+# ACCEPTANCE: the switch kinds' Edit views, HIS PATH (Frost; strategy-data.md section K S-K52-1 .. S-K52-8, reassess/strategy-data-verify-frost.md S-37, MAPPING-ORDERS section 14).
+# 52 BINARY SWITCH, FUN_0052d700 (vtable +0x14; dump-full-3:64723, the words at listing-all-3 0x52d7d5-0x52d8aa): (200, 0) "%s : Binary Switch"; the editable foot "E : Edit extra message data for
+# target" (h - 0x3c), "P : Change Properties" (h - 0x28), "T : Change Target (+Ctrl to choose environment)" (h - 0x14); (16, 0x20) Rest State (+0x14 & 1); (16, 0x30) the mode (+0x18; 1 "Mode : Wait");
+# modes 0-2 (16, 0x40) the switch-off line (& 2 Same, & 4 None, else "Reversed (default)"); (16, 0x50) "Target : %s", the name by FUN_00529eb0 (S-KC-12: "<name> - <its kind's word>").
+# The stock levels hold 4 Binary Switches, all in Genshd1 (opslev01..04; their targets are the virtual objects tolink01..04, Multi Switches): read 11-16 with Drake's decoder.
+# By his path: open Genshd1, bar to Strategy Data, the camera facing +z (turn 0, look 0), Find Object > opslev01, E.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+camera 0 0 0 0 0
+click-bar Find Object
+expect-dialog Select Object
+click-choice opslev01
+expect-no-dialog
+expect-selected 1
+key E
+wait 400
+picture 2
+expect-field strategyview 200@0:opslev01 : Binary Switch|100@669:E : Edit extra message data for target|100@689:P : Change Properties|100@709:T : Change Target (+Ctrl to choose environment)|16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Target : tolink04 - Multi switch
+
+# T (slot 0xd87a94, 0x52d9ee -> FUN_0052db10): "Select target for switch" along the foot, the camera to the target (FUN_00529280(record, 0): its place, tolink04's VOBJPROP -22220 -17381 78793 at scale 1,
+# LESS the camera's forward (0, 0, 65536) / 10: z 72240), and the pick loop FUN_00527540 with the target red; Return ends it with nothing else picked: the target is kept (FUN_0042f5d0: unchanged, +0x2c kept)
+key T
+wait 400
+picture 3
+expect-field camera -22220 -17381 72240 0 0
+key Enter
+wait 400
+picture 4
+expect-field strategyview 200@0:opslev01 : Binary Switch|100@669:E : Edit extra message data for target|100@689:P : Change Properties|100@709:T : Change Target (+Ctrl to choose environment)|16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Target : tolink04 - Multi switch
+
+# Escape (0x52dabb) ends the view: back to Strategy Data, the level drawn again (the view's black screen gone)
+key Esc
+wait 400
+picture 5
+expect-screen Strategy Data
+expect-not-empty

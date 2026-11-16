@@ -310,7 +310,8 @@ static void TestFile(std::string const & path)
 
 		Check(!gone.passOn && !mode.haveCurrent && !Find(&file, SpecialKind::Sound, mode.number, &sound), "Delete takes the selected sound away: " + gone.answer);
 		Check(SpecialMode_Command(&file, &mode, 0x16).passOn, "Delete with nothing selected is left to the editor");
-		Check(SpecialMode_Command(&file, &mode, 0x19).passOn, "Find on the main screen is left to the editor");
+		// Object Placement's Find (OP-10, FUN_004d9af0 0x4da22b-0x4da528: "Select Object") lists every object of the placement list, the placed ones first, so it is the editor's PlacementFind
+		Check(SpecialMode_Command(&file, &mode, 0x19).passOn, "Find on the main screen is left to the editor (inteng's Select Object lists every object of the placement list, not only the special ones)");
 	}
 
 	// particle generator: type Steam zeroes probability and frequency

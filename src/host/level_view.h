@@ -101,7 +101,7 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 // savePictureTo when it's given, and shown. (Added 2026-11-16 by Melanikus (Dietrich).)
 bool LevelView_DrawNoLevel(const char *savePictureTo, void (*addToFrame)(void *context) = nullptr, void *context = nullptr);
 
-bool LevelView_CameraAxes(int forward[3], int right[3]);
+bool LevelView_CameraAxes(int forward[3], int right[3], int *down = nullptr);   // down (when given, 3 numbers): the camera's own down axis, the view's (0, 1, 0)
 
 // Where the game put its eyes in the last frame (VDB_World): for a proof that the camera the editor sets is the one drawn from
 bool LevelView_EyePlace(int32_t place[3]);
@@ -175,6 +175,8 @@ void LevelView_SetAdaptiveDegradation(bool on);
 
 // The current module of the module screens, drawn purple (inteng: the picked module purple, 0x7F007F, menu-reads-1-full.txt:5648, :7174, :7184, :8168, :8179), or -1
 void LevelView_SetCurrentModule(int32_t moduleIndex);
+// The current module's colour (0xAARRGGBB): purple 0x7f007f unless a screen gives another (the Construction hub: its selection ORANGE 0xff7f00, view-state-table.md H-2a)
+void LevelView_SetCurrentModuleColour(uint32_t argb);
 
 // Modules drawn in a colour of their own (Module Linking: the current module, its linked modules): the game's module numbers (MODULE.m_index) and each one's
 // colour as ARGB, at most kLevelViewMostSelected. They are drawn over what the level looks like, the selected objects' green with them. count 0 clears them.
@@ -279,6 +281,10 @@ void LevelView_HideObjects(const uint8_t (*ids)[8], size_t count, bool everyObje
 // The same for MODULES of the level (the game's module numbers, MODULE.m_index): these are not drawn, and with everyModule none is. Replaces what modules were hidden before.
 void LevelView_HideModules(const int32_t *moduleIndex, size_t count, bool everyModule);
 
+// And these display blocks themselves (up to kLevelViewMostHidden), for blocks no strategy block or module names: the ones the editor made for the objects of a file with no modules
+// (hierarchy_view.h ModelObjects). Replaces the earlier list; count 0 hides none.
+void LevelView_HideBlocks(const struct displayblock *const *blocks, size_t count);
+
 // Everything (module or object) whose distance from the camera, less its radius, is at least `distance` millimetres is not drawn, as inteng's view-distance rule hides it
 // (FUN_004c36f0: distance(camera place, record place) - radius < view distance is drawn). on false: off.
 void LevelView_HideBeyond(bool on, int32_t distance);
@@ -320,6 +326,9 @@ bool LevelView_ModuleSite(int32_t moduleIndex, std::string *name, int32_t world[
 
 // The box round a module's shape in the game's world units (its place plus the shape's extremes: SHAPEHEADER shapeminx .. shapemaxz), for Stability flags' box (FUN_00447f10 makes it from those six numbers). False for a module with no shape.
 bool LevelView_ModuleBox(int32_t moduleIndex, int32_t mins[3], int32_t maxs[3]);
+
+// An object's box in the world (its place plus its shape's extents), found among the active blocks by its ID; false when it is not in play
+bool LevelView_ObjectBox(const uint8_t id[8], int32_t mins[3], int32_t maxs[3]);
 
 // Doors > Close / Open (FUN_004a9f40 / FUN_004aa1b0): every module whose shape has morph frames has the points and vertex normals of its main shape exchanged with those of the other shape of its first frame (the game keeps both as
 // shapes; closed is the exchanged state). Does it only when the state changes. The static level is built again so the next frame draws the new points. Gives back how many module shapes were exchanged. (Added 2026-11-15 by

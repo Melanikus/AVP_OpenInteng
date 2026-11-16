@@ -2,6 +2,7 @@
 
 #include "dialogs.h"
 
+#include "list_order.h"   // ListOrder: the rows' order, a stable sort (hostile counts)
 #include "panel_pass.h"
 
 namespace host
@@ -13,20 +14,29 @@ namespace host
 		std::function<void(int32_t, std::vector<DialogWidget> const &)> formDone;   // form
 		ListPicker list;
 		std::function<void(int32_t)> listDone;
+		std::function<void(int32_t)> listRight;   // the list's right-click handler (inteng's list +0x6c, FUN_00476f70; FUN_00476d10 calls it with the row): the row's place in the rows given
 		std::vector<size_t> listOrder;   // the rows as the dialog shows them (sorted): the place each had in the rows given
 		DialogRect screen = { 0, 0, 640, 480 };
 
+		// inteng's dialogs measure and draw their words in its own font (font16.fnt, FUN_0057adb0; dialog-look-drake.md DL-3) when the editor read it, else the game's small font
 		int32_t TextWidth(std::string const &text)
 		{
+			bool const inteng = PanelPass_HasMenuFont();
 			int32_t w = 0;
 
 			for (size_t c = 0; c < text.size(); c++)
 			{
-				w += PanelPass_SmallWidth((unsigned char)text[c]);
+				w += inteng ? PanelPass_MenuWidth((unsigned char)text[c]) : PanelPass_SmallWidth((unsigned char)text[c]);
 			}
 
 			return w;
 		}
+
+		// the toolkit's four colours (FUN_0057d170: the dialog's +0x30, +0x33, +0x36, +0x39; DL-1)
+		uint32_t const kDialogWhite = 0xFFFFFFFFu;
+		uint32_t const kDialogBlack = 0xFF000000u;
+		uint32_t const kDialogBlue = 0xFF0000FFu;
+		uint32_t const kDialogRed = 0xFFFF0000u;
 
 		std::string Word(std::string const &label, DialogRect const &r)
 		{
@@ -83,6 +93,7 @@ namespace host
 
 			list.Close();
 			listDone = nullptr;
+			listRight = nullptr;
 
 			if (done)
 			{
@@ -119,22 +130,12 @@ namespace host
 		formDone = then;
 	}
 
-	// FUN_00475bf0 0x476403-0x476670: the rows are put in an ascending list by FUN_0053ed50 (a byte-by-byte comparison), each after the ones that are not above it
-	void Dialogs_List(std::string const &title, std::vector<std::string> const &rows, std::function<void(int32_t)> const &then)
+	// FUN_00475bf0 0x476403-0x476670: the rows are put in an ascending list by FUN_0053ed50 (a byte-by-byte comparison), each after the ones that are not above it. The same order,
+	// made by a stable sort (list_order.h): one insertion at a time took a hostile level's 100,000 rows minutes
+	void Dialogs_List(std::string const &title, std::vector<std::string> const &rows, std::function<void(int32_t)> const &then, std::function<void(int32_t)> const &onRight)
 	{
-		listOrder.clear();
-
-		for (size_t i = 0; i < rows.size(); i++)
-		{
-			size_t at = listOrder.size();
-
-			while (at > 0 && rows[listOrder[at - 1]].compare(rows[i]) > 0)
-			{
-				at--;
-			}
-
-			listOrder.insert(listOrder.begin() + (std::ptrdiff_t)at, i);
-		}
+		listRight = onRight;
+		listOrder = ListOrder(rows);
 
 		std::vector<std::string> shown;
 
@@ -153,6 +154,7 @@ namespace host
 		{
 			list.Close();
 			listDone = nullptr;
+			listRight = nullptr;
 		}
 	}
 
@@ -190,6 +192,31 @@ namespace host
 			if (list.Press(x, y, &choice) == ListPickerHit::Choice && choice >= 0)
 			{
 				ListAnswered(choice);
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+
+	bool Dialogs_RightPress(int32_t x, int32_t y)
+	{
+		if (box.IsOpen())
+		{
+			return true;   // a box takes the press and does nothing with the right button
+		}
+
+		if (list.IsOpen())
+		{
+			int32_t choice = -1;
+
+			// a right press on a row: the list's handler with that row (FUN_00476d10 0x476f43-0x476f57), the dialog stays open
+			if (listRight && list.Press(x, y, &choice) == ListPickerHit::Choice && choice >= 0 && (size_t)choice < listOrder.size())
+			{
+				auto const handler = listRight;
+
+				handler((int32_t)listOrder[(size_t)choice]);
 			}
 
 			return true;
@@ -257,8 +284,15 @@ namespace host
 		return false;
 	}
 
-	void Dialogs_Draw(std::vector<PaintBox> *boxes, std::vector<PaintText> *lines, uint32_t grayColour, uint32_t litColour)
+	// inteng's dialog toolkit's look (reassess/dialog-look-drake.md): the window BLACK with a WHITE 1-pixel frame (FUN_0057cee0); a title a RED band with a white frame across the
+	// window's top, the font's height high (FUN_0057e330); a button a WHITE frame filled BLUE (FUN_0057d890); a text field framed WHITE when it has the focus, else BLUE, BLACK inside
+	// (FUN_0057d970); words WHITE in inteng's font, letters only (FUN_0057be40 with its colour key); a check box a WHITE frame, its tick the font's glyph 3 (FUN_0057d6f0). Nothing is lit
+	// when pointed at or pressed (DL-9). grayColour and litColour are no longer used: the look is inteng's whatever the editor's own panels are.
+	void Dialogs_Draw(std::vector<PaintBox> *boxes, std::vector<PaintText> *lines, uint32_t, uint32_t)
 	{
+		bool const inteng = PanelPass_HasMenuFont();
+		int32_t const fontHeight = inteng ? PanelPass_MenuFontHeight() : kPanelPassLineHeight;
+
 		auto const text = [&](std::string const &words, int32_t x, int32_t y)
 		{
 			PaintText t;
@@ -266,23 +300,63 @@ namespace host
 			t.text = words;
 			t.x = x;
 			t.y = y;
+			t.colour = kDialogWhite;
+			t.menuFont = inteng;
 			lines->push_back(t);
 		};
 
 		auto const fill = [&](DialogRect const &r, uint32_t colour)
 		{
+			if (r.width <= 0 || r.height <= 0)
+			{
+				return;
+			}
+
 			PaintBox b = { r.x, r.y, r.width, r.height, colour };
 
 			boxes->push_back(b);
 		};
 
+		// a 1-pixel frame along the rectangle's edges (FUN_0057c360), and its inside filled (FUN_0057c4e0)
+		auto const framed = [&](DialogRect const &r, uint32_t edge, uint32_t inside)
+		{
+			fill(r, edge);
+
+			DialogRect const in = { r.x + 1, r.y + 1, r.width - 2, r.height - 2 };
+
+			fill(in, inside);
+		};
+
+		auto const button = [&](DialogRect const &r, std::string const &words)
+		{
+			framed(r, kDialogWhite, kDialogBlue);
+			text(words, r.x + 1, r.y - 1);
+		};
+
+		auto const field = [&](DialogRect const &r, std::string const &words, bool focus)
+		{
+			framed(r, focus ? kDialogWhite : kDialogBlue, kDialogBlack);
+			text(words + (focus ? "_" : ""), r.x + 1, r.y - 1);   // the "_" is ours (DL-6: inteng's cursor not read)
+		};
+
+		auto const window = [&](DialogRect const &r, std::string const &title)
+		{
+			framed(r, kDialogWhite, kDialogBlack);
+
+			if (!title.empty())
+			{
+				DialogRect const band = { r.x, r.y, r.width, fontHeight };
+
+				framed(band, kDialogWhite, kDialogRed);
+				text(title, r.x + 1, r.y);
+			}
+		};
+
 		if (box.IsOpen())
 		{
-			fill(box.Window(), grayColour);
-
 			if (box.Kind() == DialogKind::Form)
 			{
-				text(box.Title(), box.Window().x + 10, box.Window().y + 4);
+				window(box.Window(), box.Title());
 
 				for (size_t i = 0; i < box.Widgets().size(); i++)
 				{
@@ -295,26 +369,25 @@ namespace host
 
 					if (w.type == DialogWidgetType::Combo)
 					{
-						fill(w.box, 0xFF202428u);
-						text(w.text, w.box.x + 4, w.box.y + 1);
+						// not one of inteng's own controls (edobtype's MFC windows have them): drawn as a text field with its arrow
+						field(w.box, w.text, false);
 
-						DialogRect arrow = { w.box.x + w.box.width - 16, w.box.y + 1, 15, w.box.height > 2 ? w.box.height - 2 : 1 };
+						DialogRect arrow = { w.box.x + w.box.width - 16, w.box.y, 16, w.box.height };
 
-						fill(arrow, 0xFF30343Cu);
-						text("v", arrow.x + 4, arrow.y);
+						button(arrow, "v");
 					}
 					else if (w.type == DialogWidgetType::Label)
 					{
 						// a label of more than one line (the words have \n in them) is drawn a line under a line
 						size_t lineAt = 0;
-						int32_t lineY = w.box.y + 1;
+						int32_t lineY = w.box.y - 1;
 
 						while (lineAt <= w.text.size())
 						{
 							size_t const newline = w.text.find('\n', lineAt);
 
-							text(w.text.substr(lineAt, newline == std::string::npos ? std::string::npos : newline - lineAt), w.box.x, lineY);
-							lineY += 15;
+							text(w.text.substr(lineAt, newline == std::string::npos ? std::string::npos : newline - lineAt), w.box.x + 1, lineY);
+							lineY += fontHeight;
 
 							if (newline == std::string::npos)
 							{
@@ -326,24 +399,20 @@ namespace host
 					}
 					else if (w.type == DialogWidgetType::Edit)
 					{
-						fill(w.box, i == box.Focus() ? 0xFF303844u : 0xFF202428u);
-						text(w.text + (i == box.Focus() ? "_" : ""), w.box.x + 4, w.box.y + 1);
+						field(w.box, w.text, i == box.Focus());
 					}
 					else if (w.type == DialogWidgetType::Check)
 					{
-						fill(w.box, 0xFF30343Cu);
+						framed(w.box, w.enabled ? kDialogWhite : kDialogBlue, kDialogBlack);
 
 						if (w.checked)
 						{
-							DialogRect inner = { w.box.x + 3, w.box.y + 3, w.box.width > 6 ? w.box.width - 6 : 1, w.box.height > 6 ? w.box.height - 6 : 1 };
-
-							fill(inner, litColour);
+							text(inteng ? std::string(1, (char)3) : std::string("X"), w.box.x, w.box.y);   // glyph 3: an X across the box (DL-8)
 						}
 					}
 					else
 					{
-						fill(w.box, 0xFF30343Cu);
-						text(w.text, w.box.x + 4, w.box.y + 1);
+						button(w.box, w.text);
 					}
 				}
 
@@ -359,36 +428,36 @@ namespace host
 					{
 						DialogRect const r = InDialog::ComboRow(w, row);
 
-						fill(r, (int32_t)row == w.selected ? litColour : 0xFF30343Cu);
-						text(w.items[row], r.x + 4, r.y + 1);
+						framed(r, kDialogWhite, (int32_t)row == w.selected ? kDialogRed : kDialogBlue);
+						text(w.items[row], r.x + 1, r.y - 1);
 					}
 				}
 
 				return;
 			}
 
+			window(box.Window(), std::string());
+
 			for (size_t i = 0; i < box.Lines().size(); i++)
 			{
-				text(box.Lines()[i], box.TextArea().x, box.TextArea().y + (int32_t)i * kPanelPassLineHeight);
+				text(box.Lines()[i], box.TextArea().x, box.TextArea().y + (int32_t)i * fontHeight);
 			}
 
 			for (size_t i = 0; i < box.Fields().size(); i++)
 			{
 				DialogField const &f = box.Fields()[i];
 
-				fill(f.edit, i == box.Focus() ? 0xFF303844u : 0xFF202428u);
-				text(f.text + (i == box.Focus() ? "_" : ""), f.edit.x + 4, f.edit.y + 1);
+				field(f.edit, f.text, i == box.Focus());
 
 				if (!f.label.empty())
 				{
-					text(f.label, f.labelBox.x, f.labelBox.y + 1);
+					text(f.label, f.labelBox.x + 1, f.labelBox.y - 1);
 				}
 			}
 
 			for (DialogButton const &b : box.Buttons())
 			{
-				fill(b.box, 0xFF30343Cu);
-				text(b.label, b.box.x + 4, b.box.y + 1);
+				button(b.box, b.label);
 			}
 
 			return;
@@ -397,28 +466,40 @@ namespace host
 		if (list.IsOpen())
 		{
 			ListPickerBox const w = list.Window();
-			DialogRect window = { w.x, w.y, w.width, w.height };
+			DialogRect const all = { w.x, w.y, w.width, w.height };
 
-			fill(window, grayColour);
-			text(list.Title(), w.x + 10, w.y + 4);
+			window(all, list.Title());
 
 			for (ListPickerCell const &cell : list.Cells())
 			{
-				DialogRect b = { cell.box.x, cell.box.y, cell.box.width, cell.box.height };
+				DialogRect const b = { cell.box.x, cell.box.y, cell.box.width, cell.box.height };
 
-				fill(b, cell.choice == list.Highlighted() ? litColour : 0xFF30343Cu);
-				text(list.Choice(cell.choice), cell.box.x + 4, cell.box.y + 1);
+				// the list's keyboard highlight is ours (list_picker.h, NAMED): drawn only once a key moved it
+				if (list.Keyed() && cell.choice == list.Highlighted())
+				{
+					framed(b, kDialogWhite, kDialogRed);
+					text(list.Choice(cell.choice), b.x + 1, b.y - 1);
+				}
+				else
+				{
+					button(b, list.Choice(cell.choice));
+				}
+			}
+
+			// the text field under the entries (FUN_0057d8e0 at (0x1e, height - 0x3c)): which control has the focus at the start is not read (DL-6), so it is drawn framed blue
+			ListPickerBox const tf = list.TextField();
+
+			if (tf.width > 0 && tf.height > 0)
+			{
+				field(DialogRect{ tf.x, tf.y, tf.width, tf.height }, std::string(), false);
 			}
 
 			if (list.Pages() > 1)
 			{
 				ListPickerBox const pb = list.PrevButton(), nb = list.NextButton();
-				DialogRect p = { pb.x, pb.y, pb.width, pb.height }, n = { nb.x, nb.y, nb.width, nb.height };
 
-				fill(p, 0xFF30343Cu);
-				fill(n, 0xFF30343Cu);
-				text("Prev", pb.x + 4, pb.y + 1);
-				text("Next", nb.x + 4, nb.y + 1);
+				button(DialogRect{ pb.x, pb.y, pb.width, pb.height }, "Prev");
+				button(DialogRect{ nb.x, nb.y, nb.width, nb.height }, "Next");
 			}
 		}
 	}

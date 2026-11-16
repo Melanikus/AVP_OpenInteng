@@ -1,0 +1,57 @@
+# ACCEPTANCE: Module Linking's Base > SET CURRENT (S) as inteng's (Dietrich, 2026-11-16; row ML-M-19 of AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md). His path: clicks, keys, reading the picture.
+# FUN_004c1a90 0x4c22f2-0x4c2999: the old current tree is written only when it was CHANGED (+0x18): with links its VMDARRAY made again and the flag 0x200 on; with NO link only the flag off, the old
+# VMDARRAY LEFT (0x4c267d; Bishop's ruling 2026-11-16, rule 10b). The new module's tree is loaded from its VMDARRAY when it has one and ends with changed = 0 (0x4c2959): looking at a module
+# does not write it when it is left. The harness's state field "linktree" (the bot's, not the screen's) says "module M changed C links N".
+#ini ViewDistance=100000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+# ---- S on 16 (its stock links): the tree is loaded and NOT changed
+click-view 0.5 0.5
+key S
+expect-number linktree changed 0 0
+expect-colour picture 0 0 1008 700 0000ff 0.0005 40
+# ---- 16 with one link: its links taken out (AutoLink > Delete Links: Module), S, N on 38, then S on 39 writes 16 (changed, one link)
+click-view 0.5 0.5
+click-bar AutoLink > Delete Links: Module
+key S
+click-view 0.2 0.2
+key N
+expect-number linktree changed 1 1
+expect-number linktree links 1 1
+click-view 0.1 0.5
+key S
+expect-number linktree changed 0 0
+# ---- S on 16 again: its link 38 is back, yellow (picture 1 of the case)
+click-view 0.5 0.5
+key S
+expect-number linktree links 1 1
+picture 1
+expect-colour picture 0 0 1008 700 ffff00 0.0005 40
+# ---- D on 38: 16 has no link (changed); S on 39 writes 16: ONLY its flag goes, its old VMDARRAY stays
+click-view 0.2 0.2
+key D
+expect-number linktree links 0 0
+expect-number linktree changed 1 1
+click-view 0.1 0.5
+key S
+# ---- S on 16: inteng loads the old VMDARRAY again: 38 is linked and yellow again, the picture is picture 1's
+click-view 0.5 0.5
+key S
+expect-number linktree links 1 1
+picture 2
+expect-pixels-same-since 1 picture 0 0 1008 700 0.0005
+# ---- Shift+S turns the follow on (the base follows the module the camera is in: room 38 at the start); S on 16 turns it OFF first (0x4c2314-0x4c2322, row ML-M-19, Drake's review R2), so 16
+# (object 54) stays the base; with the follow left on, the next frame would make the camera's module the base again
+key S shift
+wait 500
+click-view 0.5 0.5
+key S
+wait 500
+expect-number linktree module 54 54
+expect-screen-text-not Setting base to current module
+picture 3
+expect-colour picture 0 0 1008 700 0000ff 0.0005 40

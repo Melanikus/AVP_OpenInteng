@@ -140,7 +140,7 @@
 			"changes": [
 				{
 					"file": "src/model/strategy_rules.cpp",
-					"from": "*value = (double)(field.mask ? (word & field.mask) : word);",
+					"from": "*value = (double)(field.mask ? ((word & field.mask) >> field.shift) : word);",
 					"to": "*value = (double)word;"
 				}
 			]

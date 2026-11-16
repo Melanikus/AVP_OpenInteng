@@ -1,0 +1,40 @@
+# ACCEPTANCE: Hierarchy's Ctrl keys (Dietrich, 2026-11-16; rows K-1, K-2, C-39, C-3e in AvP-docs/engine/inteng/reassess/hierarchy-view-sound-dietrich.md). The key translator FUN_0048cde0 gives
+# Ctrl+R -> 0x39 and Ctrl+F -> 0x3e (0x48cdfd-0x48ce18); neither has a menu item.
+#  - Ctrl+R (FUN_00479590 -> FUN_0047f720 -> FUN_00480eb0): every frame of the ROOT section's current sequence turned half round the vertical (x and z negated, the orientation turned): the gun
+#    swings round, at once (inteng changes its player's frames with the chunks).
+#  - Ctrl+F (FUN_004795d0): every sequence posed at its start and lowered by its lowest point (each stands on the floor); the player is left on the LAST sequence of the list.
+# His path: his file by start-args, the pop-up, the keys; every check reads the screen or the state line's words.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+move-win 500 300
+wait 300
+picture 1
+# Ctrl+R: the sequence frozen at its start swings half round: the picture changes
+key R ctrl
+expect-status Sequence rotated by 180 degrees
+expect-pixels-changed picture 0 0 2000 2000 0.01
+# a second Ctrl+R turns it back round (the same pose as before the first)
+move-win 500 300
+wait 300
+picture 2
+key R ctrl
+expect-pixels-changed picture 0 0 2000 2000 0.01
+# Ctrl+F: every one of the Shotgun's 9 sequences is put on the floor, and the last of the list is the current one, at its start
+move-win 500 300
+wait 300
+picture 3
+key F ctrl
+expect-status Put 9 sequence(s) on the floor
+expect-hierarchy-text Key frame :0
+expect-pixels-changed picture 0 0 2000 2000 0.005

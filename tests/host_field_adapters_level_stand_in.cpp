@@ -70,6 +70,12 @@ Chunk *host::FindLightChunk(File_Chunk *, size_t)
 	return 0;
 }
 
+// ... and the placed light's (light_edit.h, used by FieldAdapters_BuildPlacedLight): none either
+Chunk *host::FindPlacedLightChunk(File_Chunk *, uint8_t const *)
+{
+	return 0;
+}
+
 File_Chunk *LevelObjects_Level()
 {
 	// The stand-in's level is the tables here, not a file

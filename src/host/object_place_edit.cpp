@@ -4,11 +4,14 @@
 #include "object_place_edit.h"
 
 #include <ctype.h>
+#include <math.h>
 #include <string.h>
 
 #include <vector>
 
 #include "chunk_object.hpp"   // Object_Chunk, Object_Header_Chunk
+#include "chunk_shape.hpp"    // Shape_Chunk, ChunkShape
+#include "environment_chunk.hpp"   // Environment_Scale_Chunk (ENVSDSCL)
 #include "mishchnk.hpp"       // File_Chunk::list_objects
 #include "level_file.h"       // OpenLevelFile: PayloadOf and SetPayload
 #include "level_file_name.h"  // LevelFileName_WhyRefused: the game's rule for a name
@@ -102,6 +105,77 @@ namespace host
 
 			return false;
 		}
+	}
+
+	void ObjectEdit_Ids(File_Chunk *level, std::vector<std::array<uint8_t, 8>> *ids)
+	{
+		ids->clear();
+
+		if (!level)
+		{
+			return;
+		}
+
+		List<Object_Chunk *> all;
+
+		level->list_objects(&all);
+
+		for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
+		{
+			if (each())
+			{
+				std::array<uint8_t, 8> one;
+
+				memcpy(one.data(), &each()->object_data.ID, 8);
+				ids->push_back(one);
+			}
+		}
+	}
+
+	bool ObjectEdit_ShapeRadius(File_Chunk *level, const uint8_t *id, double *radius)
+	{
+		if (!level || !id || !radius)
+		{
+			return false;
+		}
+
+		List<Object_Chunk *> all;
+		Object_Chunk *object = nullptr;
+
+		level->list_objects(&all);
+
+		for (LIF<Object_Chunk *> each(&all); !each.done() && !object; each.next())
+		{
+			if (each() && memcmp(&each()->object_data.ID, id, 8) == 0)
+			{
+				object = each();
+			}
+		}
+
+		Shape_Chunk *const shape = object ? object->get_assoc_shape() : nullptr;
+
+		if (!shape)
+		{
+			return false;
+		}
+
+		// the first REBENVDT's first ENVSDSCL (FUN_004316e0 finds the lists; +0x28 is its double)
+		double scale = 1.0;
+		Chunk_With_Children *const envd = dynamic_cast<Chunk_With_Children *>(level->lookup_single_child("REBENVDT"));
+		Environment_Scale_Chunk const *const scaleChunk = envd ? dynamic_cast<Environment_Scale_Chunk const *>(envd->lookup_single_child("ENVSDSCL")) : nullptr;
+
+		if (scaleChunk)
+		{
+			scale = scaleChunk->scale;
+		}
+
+		// 0x529a3e-0x529a78: the two differences as whole numbers (the 32-bit wrap of SUB kept), then squared and added as doubles
+		ChunkShape const &data = shape->shape_data;
+		double const dx = (double)(int32_t)((uint32_t)data.max.x - (uint32_t)data.min.x);
+		double const dz = (double)(int32_t)((uint32_t)data.max.z - (uint32_t)data.min.z);
+
+		*radius = sqrt(dx * dx + dz * dz) * scale;
+		return true;
 	}
 
 	bool ObjectEdit_Find(File_Chunk *level, const OpenLevelFile *store, const char *typed, FoundObject *found)

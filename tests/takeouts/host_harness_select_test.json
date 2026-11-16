@@ -31,8 +31,8 @@
 			"changes": [
 				{
 					"file": "src/host/harness_select.cpp",
-					"from": "\t\tif (!Selection_Set(picked))\n\t\t{\n\t\t\treturn HarnessSelectAnswer::Refused;\n\t\t}\n\n\t\t// The list holds at most kObjectListMost rows (2^20), so the row fits the list's own number\n\t\tlist->Choose((int32_t)row);\n",
-					"to": "\t\tlist->Choose((int32_t)row);\n\n\t\tif (!Selection_Set(picked))\n\t\t{\n\t\t\treturn HarnessSelectAnswer::Refused;\n\t\t}\n\n"
+					"from": "\t\tif (!(add ? Selection_Toggle(picked) : Selection_Set(picked)))\n\t\t{\n\t\t\treturn HarnessSelectAnswer::Refused;\n\t\t}\n\n\t\t// The list holds at most kObjectListMost rows (2^20), so the row fits the list's own number\n\t\tlist->Choose((int32_t)row);\n",
+					"to": "\t\tlist->Choose((int32_t)row);\n\n\t\tif (!(add ? Selection_Toggle(picked) : Selection_Set(picked)))\n\t\t{\n\t\t\treturn HarnessSelectAnswer::Refused;\n\t\t}\n\n"
 				}
 			]
 		},

@@ -1,0 +1,58 @@
+# ACCEPTANCE: Object Placement's PLACED HIERARCHY PLAYS (AvP-docs/engine/inteng/reassess/object-placement.md section 6: PH-1, PH-2, PH-3, PH-14, PH-15, PH-16; NA-6).
+# inteng: selecting the placed hierarchy (FUN_004e9b20 -> FUN_004e9520) makes a Hierarchy player at its place with its turn and shows the hierarchy's model instead of the icon. The FIRST of its
+# sequence records (PLHISEQU, FUN_004eb690) becomes current and the player is set to that sequence, stopped. The right-click pop-up goes to page 6 (Play, Stop, Sequence, Sounds, Sound Timing).
+# The text gains "Sequence %d" (the record's index), "Timer %d" and "Frame %d" (FUN_004e9b60). While stopped, one '.' / ',' press is one key frame forward / back (FUN_004e9cb0 -> FUN_00479110 /
+# FUN_00479290). Play (0x7d0, FUN_004e9f70) runs it from 0 with the record's time and loop; Stop (0x7d1, FUN_004ea210) stops it where it is. Unselect (FUN_004e94a0) takes the player away.
+# Invasion holds one: "dropship ken" (hierarchy 0, the dropship) at 72906 -27615 50151, one record: index 0, sequence 22.0, 16000 ms, flags 2 (stock survey 11-16, plhisequ-dump.js).
+# Opened as by a double click, read-only.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera 72906 -27615 45151 0 0
+wait 400
+
+# ---- P1 select it: the current object, its text lines, its pop-up on page 6
+click-win 504 322
+wait 400
+expect-status Selected: dropship ken
+expect-hierarchy-text Sequence 0
+expect-hierarchy-text Timer 0
+expect-hierarchy-text Frame 0
+click-win 504 322 right
+expect-popup-rows Play|Stop|Sequence|Sounds|Sound Timing
+key Esc
+
+# ---- P2 stopped: one '.' is the next key frame, one ',' the one before
+key Period
+wait 200
+expect-hierarchy-text Frame 1
+expect-hierarchy-count 0 Timer 0
+key Comma
+wait 200
+expect-hierarchy-text Frame 0
+expect-hierarchy-text Timer 0
+
+# ---- P3 Play: the timer runs and the model moves
+click-win 504 322 right
+click-popup 1
+wait 600
+expect-hierarchy-count 0 Timer 0
+expect-moving picture 0 0 1000 700 6 250 0.001
+
+# ---- P4 Stop: it stands still where it is
+click-win 504 322 right
+click-popup 2
+wait 300
+picture 201
+wait 500
+picture 202
+expect-pixels-same picture 0 0 1000 700 0.001
+
+# ---- P5 let go of it: its player and its lines are gone
+key Back
+wait 300
+expect-status Deselected
+expect-hierarchy-count 0 Sequence 0
+expect-hierarchy-count 0 Frame 0

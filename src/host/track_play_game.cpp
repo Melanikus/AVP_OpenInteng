@@ -8,6 +8,7 @@
 #include "gamedef.h"
 #include "track.h"
 #include "jsndsup.h"
+#include "psnd.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -633,5 +634,72 @@ namespace host
 	bool TrackPlay_Playing()
 	{
 		return controller != nullptr && controller->playing != 0;
+	}
+
+	namespace
+	{
+		LOADED_SOUND const *listened = nullptr;   // the sound the last listen loaded (let go at the next listen)
+		int listenedActive = SOUND_NOACTIVEINDEX;
+	}
+
+	bool TrackPlay_Listen(std::string const &wav, int32_t inner, int32_t outer, int32_t volume, int32_t pitch, int32_t const place[3])
+	{
+		// FUN_00501080 first stops what plays: here the sound the last listen started
+		if (listenedActive != SOUND_NOACTIVEINDEX)
+		{
+			Sound_Stop(listenedActive);
+			listenedActive = SOUND_NOACTIVEINDEX;
+		}
+
+		if (listened)
+		{
+			LoseSound(listened);
+			listened = nullptr;
+		}
+
+		if (!place || wav.empty() || wav == "Not Set" || wav.size() > 255 || inner < 0 || outer < 0)
+		{
+			return false;
+		}
+
+		if (!SoundSwitchedOn)
+		{
+			SoundSys_Start();
+		}
+
+		if (!SoundSwitchedOn)
+		{
+			return false;
+		}
+
+		if (silent)
+		{
+			SoundSys_ChangeVolume(0);   // VOLUME_MIN: a hidden run is silent
+		}
+
+		char *const keptDirectory = Rif_Sound_Directory;
+
+		Rif_Sound_Directory = soundDirectory.empty() ? nullptr : (char *)soundDirectory.c_str();
+		listened = GetSoundForMainRif(wav.c_str());
+		Rif_Sound_Directory = keptDirectory;
+
+		if (!listened)
+		{
+			return false;
+		}
+
+		// FUN_004ec0a0: Sound_Play(its index, "nvp" (0x5d0a88), the place with no speed and the two ranges, its volume, its pitch); "e" here as well, so the next listen can stop it
+		SOUND3DDATA s3d;
+
+		s3d.position.vx = place[0];
+		s3d.position.vy = place[1];
+		s3d.position.vz = place[2];
+		s3d.velocity.vx = 0;
+		s3d.velocity.vy = 0;
+		s3d.velocity.vz = 0;
+		s3d.inner_range = inner;
+		s3d.outer_range = outer;
+		Sound_Play((SOUNDINDEX)listened->sound_num, (char *)"nvpe", &s3d, (int)(volume < 0 ? 0 : (volume > 127 ? 127 : volume)), (int)pitch, &listenedActive);
+		return listenedActive != SOUND_NOACTIVEINDEX;
 	}
 }

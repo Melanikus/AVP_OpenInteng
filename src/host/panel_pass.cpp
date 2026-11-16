@@ -16,12 +16,44 @@
 
 #include "draw_chain.h"
 #include "panel_pass.h"
+#include "menu_font.h"
+#include "TextureManager.h"   // Tex_Create / Tex_Lock: one texture a letter of inteng's menu font
 
 // The game's small font string at a place (menu_gfx.cpp): the same drawing RenderSmallMenuText ends in, without its debug-only assert that x is above 0, so a line at inteng's x 0 lands on the window's left edge exactly
 extern int RenderSmallFontString(char *textPtr, int sx, int sy, int alpha, int red, int green, int blue);
 
 namespace
 {
+	// inteng's menu font, once set: its widths and height, and a texture a letter (MISSING_TEXTURE for none)
+	bool menuFontSet = false;
+	int32_t menuFontHeight = 0;
+	int32_t menuFontCell = 0;
+	int32_t menuFontWidths[host::kMenuFontLetters] = {};
+	texID_t menuFontLetters[host::kMenuFontLetters];
+
+	// A line in inteng's menu font: each letter 0 to 127 its texture, unfiltered, solid in the colour (TRANSLUCENCY_NORMAL with the texture's 0 / 255 alpha), the next letter its width on
+	void DrawMenuFontLine(const std::string &text, int32_t x, int32_t y, uint32_t colour)
+	{
+		int64_t at = x;
+
+		for (size_t i = 0; i < text.size() && i < host::kPaintMostLetters; i++)
+		{
+			unsigned const letter = (unsigned char)text[i];
+
+			if (letter >= host::kMenuFontLetters)
+			{
+				continue;   // the font has 128 letters: anything past them is not drawn
+			}
+
+			if (at >= 0 && at < 16384)
+			{
+				DrawQuadSharp((uint32_t)at, (uint32_t)y, (uint32_t)menuFontCell, (uint32_t)menuFontHeight, menuFontLetters[letter], colour, TRANSLUCENCY_NORMAL);
+			}
+
+			at += menuFontWidths[letter];
+		}
+	}
+
 	// What the fill needs from the frame: where the panels are, what each one says, what else is shown, and the window's size
 	struct PanelFrame
 	{
@@ -34,17 +66,22 @@ namespace
 
 	// One line on the game's screen list: a copy of its letters, at most kPaintMostLetters and always ending in 0, as the game's call takes
 	// text it may not change as a plain char *. Fully opaque, as the game's own pages draw it (ONE_FIXED), from the line's left.
-	void DrawLine(const std::string &text, int32_t x, int32_t y)
+	void DrawLine(const std::string &text, int32_t x, int32_t y, uint32_t colour = 0xFFFFFFFFu)
 	{
 		char letters[host::kPaintMostLetters + 1];
 		size_t const length = text.size() < host::kPaintMostLetters ? text.size() : host::kPaintMostLetters;
 		memcpy(letters, text.data(), length);
 		letters[length] = '\0';
-		RenderSmallFontString(letters, x, y, ONE_FIXED, ONE_FIXED, ONE_FIXED, ONE_FIXED);   // = RenderSmallMenuText(letters, x, y, ONE_FIXED, AVPMENUFORMAT_LEFTJUSTIFIED)
+		// the font's white letters times the colour's parts (ONE_FIXED each for white: RenderSmallMenuText(letters, x, y, ONE_FIXED, AVPMENUFORMAT_LEFTJUSTIFIED))
+		int const red = (int)(((colour >> 16) & 0xFFu) * (uint32_t)ONE_FIXED / 255u);
+		int const green = (int)(((colour >> 8) & 0xFFu) * (uint32_t)ONE_FIXED / 255u);
+		int const blue = (int)((colour & 0xFFu) * (uint32_t)ONE_FIXED / 255u);
+
+		RenderSmallFontString(letters, x, y, ONE_FIXED, red, green, blue);
 	}
 
-	// The extra boxes, each cut to the window: plain colour, no picture, as the game's own scope draws its bars (weapon_scope.cpp)
-	void AddBoxes(const PanelExtras &extras, int32_t width, int32_t height)
+	// The extra boxes of one layer (the screen's own, or the overlay: PaintBox), each cut to the window: plain colour, no picture, as the game's own scope draws its bars (weapon_scope.cpp)
+	void AddBoxes(const PanelExtras &extras, int32_t width, int32_t height, bool overlay)
 	{
 		size_t const boxes = extras.boxes ? (extras.boxCount < kPanelPassMostExtras ? extras.boxCount : kPanelPassMostExtras) : 0;
 
@@ -52,15 +89,15 @@ namespace
 		{
 			host::PaintBox cut;
 
-			if (host::PanelPaint_CutBox(extras.boxes[i], width, height, &cut))
+			if (extras.boxes[i].overlay == overlay && host::PanelPaint_CutBox(extras.boxes[i], width, height, &cut))
 			{
 				DrawQuad((uint32_t)cut.x, (uint32_t)cut.y, (uint32_t)cut.width, (uint32_t)cut.height, NO_TEXTURE, cut.colour, TRANSLUCENCY_OFF);
 			}
 		}
 	}
 
-	// The extra lines: made safe again, and only those whose place is inside the window (a line at x 0 is on the left edge)
-	void AddLines(const PanelExtras &extras, int32_t width, int32_t height)
+	// The extra lines of one layer: made safe again, and only those whose place is inside the window (a line at x 0 is on the left edge)
+	void AddLines(const PanelExtras &extras, int32_t width, int32_t height, bool overlay)
 	{
 		size_t const extraLines = extras.lines ? (extras.lineCount < kPanelPassMostExtras ? extras.lineCount : kPanelPassMostExtras) : 0;
 
@@ -68,12 +105,18 @@ namespace
 		{
 			host::PaintText const &line = extras.lines[i];
 
-			if (line.x < 0 || line.y < 0 || line.x >= width || line.y >= height)
+			if (line.overlay != overlay || line.x < 0 || line.y < 0 || line.x >= width || line.y >= height)
 			{
 				continue;
 			}
 
-			DrawLine(host::PanelPaint_SafeText(line.text), line.x, line.y);
+			if (line.menuFont && menuFontSet)
+			{
+				DrawMenuFontLine(line.text, line.x, line.y, line.colour);
+				continue;
+			}
+
+			DrawLine(host::PanelPaint_SafeText(line.text), line.x, line.y, line.colour);
 		}
 	}
 
@@ -88,8 +131,8 @@ namespace
 			return;
 		}
 
-		// 1. The extra boxes
-		AddBoxes(*frame->extras, frame->width, frame->height);
+		// 1. The screen's own extra boxes
+		AddBoxes(*frame->extras, frame->width, frame->height, false);
 
 		// 2. Each panel's own line
 		host::PaintText lines[4];
@@ -100,8 +143,12 @@ namespace
 			DrawLine(lines[i].text, lines[i].x, lines[i].y);
 		}
 
-		// 3. The extra lines, last
-		AddLines(*frame->extras, frame->width, frame->height);
+		// 3. The screen's own extra lines
+		AddLines(*frame->extras, frame->width, frame->height, false);
+
+		// 4. Over all of it, the overlay: the bar, its drop-downs, the pop-up, a dialog (BAR-6: inteng blits them opaque over the frame), their boxes and then their words
+		AddBoxes(*frame->extras, frame->width, frame->height, true);
+		AddLines(*frame->extras, frame->width, frame->height, true);
 	}
 }
 
@@ -113,10 +160,83 @@ void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extr
 	}
 
 	// The level may have been drawn as lines (the View menu's Wireframe): the panels never are, as in PanelPass_Draw below. The boxes are
-	// added before the lines, so a line is over every box.
+	// added before the lines, so a line is over every box; the overlay (the bar, its drop-downs, the pop-up, a dialog) after both, so nothing of the screen is over it.
 	CheckWireFrameMode(0);
-	AddBoxes(extras, width, height);
-	AddLines(extras, width, height);
+	AddBoxes(extras, width, height, false);
+	AddLines(extras, width, height, false);
+	AddBoxes(extras, width, height, true);
+	AddLines(extras, width, height, true);
+}
+
+bool PanelPass_SetMenuFont(const host::MenuFont &font)
+{
+	if (font.height <= 0 || font.rowBytes <= 0 || font.bits.size() != host::kMenuFontLetters * (size_t)font.height * (size_t)font.rowBytes)
+	{
+		return false;
+	}
+
+	int32_t const cell = font.rowBytes * 8;
+	texID_t made[host::kMenuFontLetters];
+
+	for (size_t letter = 0; letter < host::kMenuFontLetters; letter++)
+	{
+		made[letter] = Tex_Create("editor_menu_font_" + std::to_string((unsigned long long)letter), (uint32_t)cell, (uint32_t)font.height, 32, TextureUsage_Normal);
+
+		uint8_t *data = nullptr;
+		uint32_t pitch = 0;
+
+		if (made[letter] == MISSING_TEXTURE || !Tex_Lock(made[letter], &data, &pitch) || !data || pitch < (uint32_t)cell * 4)
+		{
+			for (size_t back = 0; back <= letter; back++)
+			{
+				if (made[back] != MISSING_TEXTURE)
+				{
+					Tex_Release(made[back]);
+				}
+			}
+
+			return false;
+		}
+
+		for (int32_t y = 0; y < font.height; y++)
+		{
+			uint32_t *const row = (uint32_t *)(data + (size_t)y * pitch);
+
+			for (int32_t x = 0; x < cell; x++)
+			{
+				row[x] = host::MenuFont_Pixel(font, (unsigned)letter, x, y) ? 0xFFFFFFFFu : 0x00FFFFFFu;
+			}
+		}
+
+		Tex_Unlock(made[letter]);
+	}
+
+	memcpy(menuFontLetters, made, sizeof(menuFontLetters));
+	memcpy(menuFontWidths, font.widths, sizeof(menuFontWidths));
+	menuFontHeight = font.height;
+	menuFontCell = cell;
+	menuFontSet = true;
+	return true;
+}
+
+bool PanelPass_HasMenuFont()
+{
+	return menuFontSet;
+}
+
+int PanelPass_MenuWidth(int letter)
+{
+	if (!menuFontSet)
+	{
+		return PanelPass_SmallWidth(letter);
+	}
+
+	return letter >= 0 && letter < (int)host::kMenuFontLetters ? menuFontWidths[letter] : 0;
+}
+
+int32_t PanelPass_MenuFontHeight()
+{
+	return menuFontSet ? menuFontHeight : 0;
 }
 
 int PanelPass_SmallWidth(int letter)

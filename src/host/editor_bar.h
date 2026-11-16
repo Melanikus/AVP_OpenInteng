@@ -87,6 +87,9 @@ EditorBarPlace EditorBar_Place(const ui::PanelLayout &layout, bool second);
 // The page the code-built screens show on both bars (inteng's menu method +0x18): 0 is the page a screen starts with; a page a row does not have shows that row empty. Both bars made after this are on it.
 void EditorBar_SetPage(int32_t page);
 int32_t EditorBar_Page();
+// The right-click pop-up's page alone (inteng's menu method +0x1c): on Object Placement a page other than 0 is that page of FUN_004d68e0's built pages (6: the current placed hierarchy's, PH-1)
+void EditorBar_SetPopupPage(int32_t page);
+int32_t EditorBar_PopupPage();
 
 // TITLES THAT WRAP (Bishop 11-15: "when a row's titles don't fit, WRAP onto another row under it, never off the edge"). A screen's bars are two LOGICAL rows (inteng's row 1 with the editor's own menus, and
 // its row 2); when their titles are wider than the window, each logical row is cut into PHYSICAL rows, a menu never split and a logical row always starting a new physical row, so every title is in the window and

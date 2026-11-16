@@ -474,7 +474,10 @@ namespace host
 
 			level->list_shapes(&shapes);
 
-			int32_t next = 0;
+			// mod_pos counts from 0, but the game's module array has its "infinite module" in front (projload.cpp:2012-2019 moves the arrays on by one while
+			// loading, 2694 / 2726 put them back with sm_marray[0] = the infinite module), so the module at mod_pos is sm_marray[mod_pos + 1] and PreprocessModuleArray
+			// (module.cpp:744) gives it m_index = mod_pos + 1. (Until 2026-11-16 this counted from 0: every module tint, Hide and pick that used it was one module off.)
+			int32_t next = 1;
 
 			for (LIF<Shape_Chunk *> each(&shapes); !each.done(); each.next())
 			{

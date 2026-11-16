@@ -1,0 +1,106 @@
+# ACCEPTANCE: Hierarchy mode, EDITING HIERARCHIES (Drake, 2026-11-16; HIERARCHY 100%, AvP-docs\director\hierarchy-100\PLAN.md; rows in AvP-docs\engine\inteng\reassess\hierarchy-edit-drake.md).
+# His path: the model file opened as a double click, Mode > Hierarchy, the right button's pop-up and the bar's items, the dialogs answered by clicking rows and typing in their box. Pictures looked at.
+# Run: AvP-docs/tools/drake/drive-scenario-t6.sh <tree> <this file> hedit verify_light
+
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+wait 400
+picture 1
+# HE-0x49 / HE-F-0047b170: Copy Hierarchy with NO hierarchy chosen does nothing (case 0x49 needs DAT_0063711c): no dialog
+click-bar Hierarchy > Copy Hierarchy
+expect-no-dialog
+# a hierarchy chosen (Frost's open: the right button's pop-up, Select Hierarchy, the list's row M79)
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-choice M79
+# the open asks for the sequence at once (Frost's rows): its first row
+expect-dialog Select Sequence
+click-row 1
+expect-no-dialog
+wait 400
+# the view draws the hierarchy, with inteng's text over it ("Detail level %d", FUN_004889d0): his file, opened by a double click, is named OpenedByEditor/<name>
+expect-hierarchy-text Detail level
+expect-status-not the model's name is not a plain file name
+picture 6
+# Copy Hierarchy: the TEXT dialog "Type name of new hierarchy" (FUN_00474bc0), empty
+click-bar Hierarchy > Copy Hierarchy
+expect-dialog-kind text
+expect-dialog Type name of new hierarchy
+picture 2
+# a name in use: "That name is already in use" (0x5d4998), Ok, nothing made
+type M79
+key Enter
+expect-dialog That name is already in use
+click-button Ok
+expect-no-dialog
+# a new name: the copy is made; Select Hierarchy's list has it
+click-bar Hierarchy > Copy Hierarchy
+type M79copy
+key Enter
+expect-no-dialog
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+expect-dialog-rows AutoShotgun|GSS50|M79|M79copy|RailGun|ScopeRifle|Shotgun|Sniper|Taurus
+key Esc
+expect-no-dialog
+# HE-0x4a: Platform > Set speed: the whole-number dialog "Platform speed in mm/s" (FUN_00474170)
+click-bar Platform > Set speed
+expect-dialog Platform speed in mm/s
+picture 3
+key Esc
+expect-no-dialog
+# HE-0x53 / HE-F-0048af00: Create Collection: "Name of new shape collection", typed; Select Collection's LIST has it
+click-bar Shape Sets > Create Collection
+expect-dialog-kind text
+expect-dialog Name of new shape collection
+type Coll1
+key Enter
+expect-no-dialog
+click-bar Shape Sets > Select Collection
+expect-dialog Select Shape Collection
+# the rows are the collections' names, sorted (the model holds Frag and Proxy already)
+expect-dialog-rows Coll1|Frag|Proxy
+picture 4
+click-row 1
+expect-no-dialog
+# a name in use: "That name is already used" (0x5cd664), Ok, and the same question again
+click-bar Shape Sets > Create Collection
+type Coll1
+key Enter
+expect-dialog-kind message
+expect-dialog That name is already used
+click-button Ok
+expect-dialog-kind text
+expect-dialog Name of new shape collection
+click-button Cancel
+expect-no-dialog
+# HE-F-0047a880 Rename Collection: the text dialog holding the current name (Coll1, chosen above)
+click-bar Shape Sets > Rename Collection
+expect-dialog-kind text
+expect-dialog New name for shape collection
+expect-dialog-text Coll1
+click-button Cancel
+expect-no-dialog
+# HE-F-0047a780 Delete Collection: the Yes / No box; No keeps it
+click-bar Shape Sets > Delete Collection
+expect-dialog-kind confirm
+expect-dialog Delete the current shape set collection?
+picture 5
+click-button No
+expect-no-dialog
+click-bar Shape Sets > Select Collection
+expect-dialog-rows Coll1|Frag|Proxy
+key Esc
+expect-no-dialog
+# HE-0x4b Set angle: the whole-number dialog "Platform angle (0-360)" holding the last angle (0 at the start)
+click-bar Platform > Set angle
+expect-dialog-kind text
+expect-dialog Platform angle (0-360)
+expect-dialog-text 0
+key Esc
+expect-no-dialog

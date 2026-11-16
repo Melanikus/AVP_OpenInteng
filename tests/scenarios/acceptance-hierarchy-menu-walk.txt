@@ -1,0 +1,144 @@
+# ACCEPTANCE: Hierarchy's MENU WALK (Dietrich, 2026-11-16; hierarchy-100 PLAN.md): every item of the bar and of the right-click pop-up clicked once, and what inteng does
+# then, read from the disassembly (rows: AvP-docs/engine/inteng/reassess/hierarchy-view-sound-dietrich.md, K-* and C-*). His path: his file opened by start-args, the bar and
+# the pop-up clicked, the dialogs answered by their own edits and buttons; nothing typed into a prompt of ours. The file is a read-only copy of his MelPyth_MarHUD.RIF
+# (hostile input, as every rif); it holds 12 sounds (001 to 012).
+# Section by section; a section is added when its items are built. TODAY: Sound (C-4d..C-51, C-SND) and View mode > Dummy Object Size (C-5d).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+# a hierarchy and a sequence, as he picks them: the pop-up's Select Hierarchy, the Shotgun, its Standard_Reload (acceptance-hierarchy-melpyth-marhud.txt B2, B3)
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+picture 1
+# ---- SOUND. New sound (FUN_00481440): inteng's TEXT DIALOG "Select sound index" holding the first index no sound has (13 here); an index below 1 or above 127 is the MESSAGE BOX
+# "Index must be between 1 and 127" (0x5d4cd0) and nothing more. The Hierarchy screen has no status line: words that are not in a box are never seen.
+click-bar Sound > New sound
+expect-dialog-kind text
+expect-dialog Select sound index
+expect-dialog-text 13
+picture 2
+key Back
+key Back
+type 0
+click-button Ok
+expect-dialog-kind message
+expect-dialog Index must be between 1 and 127
+click-button Ok
+expect-no-dialog
+click-bar Sound > New sound
+expect-dialog Select sound index
+key Back
+key Back
+type 128
+click-button Ok
+expect-dialog Index must be between 1 and 127
+click-button Ok
+expect-no-dialog
+# index 13: the sound is made (FUN_004ebc80: "Not Set", inner 500000 and outer 4000000 of inteng's unit, volume 127, pitch 0) and its own SOUND EDIT window opens at once (FUN_004ebc80
+# calls FUN_004ebd60 at 0x4ebcfd: edobtype's edit_sound, resource 132): the wav name, Inner Range 5 (m), Pitch 0, Outer Range 40, Volume 100 (%), in the window's order
+click-bar Sound > New sound
+expect-dialog Select sound index
+expect-dialog-text 13
+click-button Ok
+expect-dialog-kind form
+expect-dialog Sound Edit
+expect-dialog-text Not Set|5|0|40|100
+picture 3
+form-field 1 step.wav
+click-button OK
+expect-no-dialog
+# the next New sound offers 14; index 1 is the message box "That index is already being used" (0x5d4cf0)
+click-bar Sound > New sound
+expect-dialog-text 14
+key Back
+key Back
+type 1
+click-button Ok
+expect-dialog-kind message
+expect-dialog That index is already being used
+click-button Ok
+expect-no-dialog
+# Edit sound: the LIST DIALOG FUN_00475bf0 titled "Select sound to edit" and "      (Right click to listen to sound)" (0x5d4d54), a row "%03d %s" per sound (0x5d4d80)
+click-bar Sound > Edit sound
+expect-dialog-kind list
+expect-dialog Select sound to edit      (Right click to listen to sound)
+expect-dialog-rows 001 Marine\Ed_nade_ready.wav|002 Marine\Pistol_HammerCock01.wav|003 Marine\Pistol_DetachClip.wav|004 Marine\Pistol_AttachClip.wav|005 Marine\wil_pulse_rifle_ready.wav|006 Marine\Ed_PulseGrenade_reload.wav|007 Marine\Pistol_ChamberingA.wav|008 Marine\Ed_nade_reload_A.wav|009 Marine\Ed_GunSwish.wav|010 Marine\Pistol_DetachClip.wav|011 Marine\Ed_Skeeter_Close.wav|012 Marine\Ed_Sadar_Close.wav|013 step.wav
+picture 4
+# a RIGHT click on a row plays that row's sound and the list stays open (FUN_00481740 gives the list the handler 0x481720 with FUN_00476f70: FUN_00501080 stops what plays, then
+# FUN_004ec0a0 plays the sound at the camera's place)
+right-click-choice 001 Marine\Ed_nade_ready.wav
+expect-dialog Select sound to edit
+expect-status Listening to Marine\Ed_nade_ready.wav
+click-row 13
+expect-dialog-kind form
+expect-dialog Sound Edit
+expect-dialog-text step.wav|5|0|40|100
+# the DLL's own limit on the inner range (DDV_MinMaxFloat 0 .. 1000): 2000 is refused with MFC's words from the DLL's strings, and the window comes back
+form-field 2 2000
+click-button OK
+expect-dialog-kind message
+expect-dialog Please enter a number between 0 and 1000.
+click-button Ok
+expect-dialog Sound Edit
+click-button Cancel
+expect-no-dialog
+# Clear frame sound (FUN_00479e90): no chooser and no box
+click-bar Sound > Clear frame sound
+expect-no-dialog
+# Apply frame sound (FUN_00479de0): the chooser "Apply which sound?" (0x5d480c); the pick goes on the key frame that holds the time now
+click-bar Sound > Apply frame sound
+expect-dialog-kind list
+expect-dialog Apply which sound?      (Right click to listen to sound)
+click-row 13
+expect-no-dialog
+# Delete sound (FUN_00481620): the chooser "Delete which sound?" (0x5d4d28), no confirm: the row picked is gone from the next chooser
+click-bar Sound > Delete sound
+expect-dialog-kind list
+expect-dialog Delete which sound?      (Right click to listen to sound)
+click-row 13
+expect-no-dialog
+click-bar Sound > Delete sound
+expect-dialog-rows 001 Marine\Ed_nade_ready.wav|002 Marine\Pistol_HammerCock01.wav|003 Marine\Pistol_DetachClip.wav|004 Marine\Pistol_AttachClip.wav|005 Marine\wil_pulse_rifle_ready.wav|006 Marine\Ed_PulseGrenade_reload.wav|007 Marine\Pistol_ChamberingA.wav|008 Marine\Ed_nade_reload_A.wav|009 Marine\Ed_GunSwish.wav|010 Marine\Pistol_DetachClip.wav|011 Marine\Ed_Skeeter_Close.wav|012 Marine\Ed_Sadar_Close.wav
+key Esc
+expect-no-dialog
+# ---- RETURN (key code 6 -> 0x47, FUN_004889d0 0x488a37-0x488a80, row C-47): the model was changed by the sounds above (DAT_00637134): "Saving" at (200, 100), then the save (ours: a COPY,
+# with its collections' text, never his file); the model unchanged since: nothing at all (the status words stay as the last item left them)
+key Enter
+expect-status Saved a copy
+click-bar View mode > Dummy Objects
+expect-status Dummy Objects: on
+key Enter
+expect-status Dummy Objects: on
+click-bar View mode > Dummy Objects
+# ---- VIEW MODE > Dummy Object Size (0x48972e): the text dialog "Dummy object size in mm" (0x5d56f8) holding the size / 100 (400 at the start: DAT_005d4e24 = 40000); Ok with a number above
+# 0 keeps it x 100; 0 changes nothing
+click-bar View mode > Dummy Object Size
+expect-dialog-kind text
+expect-dialog Dummy object size in mm
+expect-dialog-text 400
+key Back
+key Back
+key Back
+type 250
+click-button Ok
+expect-no-dialog
+click-bar View mode > Dummy Object Size
+expect-dialog-text 250
+key Back
+key Back
+key Back
+type 0
+click-button Ok
+click-bar View mode > Dummy Object Size
+expect-dialog-text 250
+click-button Cancel
+expect-no-dialog
+picture 5

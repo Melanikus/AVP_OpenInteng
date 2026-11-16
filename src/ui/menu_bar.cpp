@@ -230,6 +230,44 @@ namespace ui
 		KeepLitShown();
 	}
 
+	bool MenuBar::PointAt(int32_t x, int32_t y)
+	{
+		if (!menus || open < 0 || itemHeight <= 0)
+		{
+			return false;
+		}
+
+		// With a menu open, the pointer on ANOTHER title opens that title's menu, with no press: inteng's menu loop opens the drop-down of the item under the pointer as soon as it
+		// differs from the one before (FUN_004b7dd0 0x4b81de-0x4b82da; reassess/dialog-look-drake.md BAR-5). Nothing is lit in it yet; a press's gesture goes on, so its release on an item
+		// of the new menu picks it, as inteng's. (With no menu open the pointer opens nothing: the first needs a press, BAR-4.) (Modified 2026-11-16 by Melanikus (Drake).)
+		for (size_t m = 0; m < count; m++)
+		{
+			if ((int)m != open && BoxHolds(TitleBox(m), x, y))
+			{
+				OpenMenuAt((int)m);
+				lit = -1;
+				return true;
+			}
+		}
+
+		Box const drop = DropBox();
+
+		if (!BoxHolds(drop, x, y))
+		{
+			return false;
+		}
+
+		size_t const item = first + (size_t)(((int64_t)y - drop.y) / itemHeight);
+
+		if (item >= menus[open].count || (int)item == lit)
+		{
+			return false;
+		}
+
+		lit = (int)item;
+		return true;
+	}
+
 	MenuAnswer MenuBar::Release(int32_t x, int32_t y)
 	{
 		// One release ends one press: whatever it does, the gesture is over
@@ -515,6 +553,7 @@ namespace ui
 				bool const wasOpen = open >= 0;
 
 				OpenMenuAt((int)m);
+				lit = -1;   // opened by the mouse: no row is pointed until the pointer is on one (H-5d); the keys light the first row as before
 				openedByPress = true;
 				return wasOpen ? MenuAnswer::Moved : MenuAnswer::Opened;
 			}

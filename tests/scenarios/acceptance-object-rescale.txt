@@ -1,0 +1,34 @@
+# ACCEPTANCE: Object Placement's Object > Rescale (AvP-docs/engine/inteng/reassess/object-placement.md OP-13).
+# inteng (FUN_004d9af0 0x4dc28f-0x4dc2a6 -> the current object's +0x18): a placed shape opens the "Rescale Shape" window FUN_004d4f80 (400 x 240, "Type in the new scale of the shape.", an empty edit
+# of up to 200 letters, OK, Cancel, "Take scale from shape rif"); every other kind's +0x18 is RET 4: nothing happens. Invasion, opened as by a double click, read-only.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+
+# ---- R1 the placed object in front of the view (switch3) current: Object > Rescale opens inteng's window, not a typed prompt
+click-win 504 364
+expect-selected 1
+click-bar Object > Rescale
+expect-dialog Rescale Shape
+expect-dialog-kind form
+expect-prompt 0
+expect-pixels-changed panels 0 0 2000 2000 0.01
+
+# ---- R2 Cancel closes it and changes nothing
+click-button Cancel
+expect-no-dialog
+expect-selected 1
+
+# ---- R3 a generator current: its +0x18 is RET 4, no window
+click-bar Create > AVP generator
+expect-dialog Name Object
+form-field 1 genR
+click-button OK
+expect-no-dialog
+click-bar Object > Rescale
+expect-no-dialog
+expect-prompt 0

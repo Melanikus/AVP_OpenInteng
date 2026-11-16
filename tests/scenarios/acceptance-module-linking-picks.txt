@@ -1,0 +1,38 @@
+# ACCEPTANCE: Module Linking's PICKS as inteng's (Dietrich, 2026-11-16; row ML-M-61 of AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md; Drake's review R3). His path: clicks with Shift / Delete
+# held, keys, reading the picture. FUN_004c3760: the module under the pointer; a click on nothing does nothing. With the DELETE key held (slot 0x55 = VK 0x2e) FUN_004c3880 takes the module off the picks;
+# else FUN_004c0cb0(module, Shift): without Shift every pick is let go and the module is the one pick; WITH Shift it is ADDED at the end (a module picked already: nothing). Every pick is drawn 0x7f007f.
+# N (Normal Link) then links every pick in order. The harness's state field "linktree" (the bot's, not the screen's) says "module M changed C links N".
+#ini ViewDistance=100000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+# ---- the base: 16, with no links (AutoLink > Delete Links: Module, then S)
+click-view 0.5 0.5
+click-bar AutoLink > Delete Links: Module
+key S
+expect-number linktree links 0 0
+# ---- one pick: 38 alone is magenta
+click-view 0.2 0.2
+picture 1
+expect-colour picture 0 0 1008 700 7f007f 0.0002 40
+# ---- Shift+click 40: BOTH are picked, more magenta than 38 alone; N links both
+click-view 0.9 0.5 shift
+picture 2
+expect-pixels-changed-since 1 picture 0 0 1008 700 0.002
+key N
+expect-number linktree links 2 2
+# ---- 38, Shift 40, Shift 39, then Delete+click 38: the picks are 40 and 39; N links 39 (40 is in the tree already): three links
+click-view 0.2 0.2
+click-view 0.9 0.5 shift
+click-view 0.1 0.5 shift
+click-view 0.2 0.2 delete
+key N
+expect-number linktree links 3 3
+# ---- Shift+click on a module picked already keeps it: 39, Shift 39, D takes 39 out of the tree
+click-view 0.1 0.5
+click-view 0.1 0.5 shift
+key D
+expect-number linktree links 2 2

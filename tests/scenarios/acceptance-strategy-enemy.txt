@@ -1,0 +1,109 @@
+# ACCEPTANCE: Strategy Data's ENEMIES and GENERATORS (kinds 69 / 79) on his path (Drake, 2026-11-16; reassess/strategy-data-kinds.md S-KC-6, S-11, S-K69-0..5 / -end, S-K79-0..3 / -end).
+# Stat101 (a stock level, read only; 9 paths): Find Object lists the enemies and generators (S-11), a chosen one is the current object; Assign offers its class's one kind (an enemy: Enemy, a generator:
+# Generator; S-KC-6) and the view opens at once; the Mission line opens "Select Mission Type" (a marine's six buttons, a generator's two), the path line "Select Path" (the level's paths, "%d  %s");
+# Escape ends the view (and fixes the path data, S-K69-end: not on the screen); Edit Strategy opens it again with what was stored. Every step is a click on what is drawn.
+# Run: AvP-docs/tools/drake/drive-scenario-t6.sh <tree> <this file> senemy verify_light
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+# ---- the MARINE marine20 (no strategy yet): Find Object, page 5 of the list
+click-bar Find Object
+expect-dialog Select Object
+click-button Next
+click-button Next
+click-button Next
+click-button Next
+click-choice marine20
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 4
+expect-dialog Select Strategy
+# the window "Select Strategy" (600 x 400, centred): the enemy's class takes Enemy only (wrapper 0x5afa00, +8 at 0x53a2b0)
+expect-field dialogbuttons Enemy 222 184 200 16|Cancel 454 539 100 16
+click-button Enemy
+wait 400
+expect-field strategyview 200@0:marine20 : Enemy|100@709:E : Edit extra message data for target|16@16:Mission : Wait then wander (default)|16@32:Turn Death Target On|16@48:Death Target : None
+picture 1
+# S-K69-2: the Mission line: the marine's six buttons; Path follower
+click-win 300 24
+expect-dialog Select Mission Type
+expect-field dialogbuttons Wait_then_wander 324 244 200 16|Wander 324 264 200 16|Guard 324 284 200 16|Local_Guard 324 304 200 16|Noncombatant 324 324 200 16|Path_follower 324 344 200 16|Cancel 504 474 50 16
+picture 2
+click-button Path_follower
+expect-no-dialog
+wait 300
+expect-field strategyview 200@0:marine20 : Enemy|100@709:E : Edit extra message data for target|16@16:Mission : Path follower|16@32:Path - 0  smart01|16@48:Turn Death Target On|16@64:Death Target : None
+# S-K69-3: the path line: "Select Path", the level's nine paths; the second, genpath01 (path 1)
+click-win 300 40
+expect-dialog Select Path
+expect-dialog-rows 0  smart01|1  genpath01|2  genpath02|3  minipath01|4  nasty01|5  nasty02|6  iso01|7  iso02|8  iso03
+picture 3
+click-row 2
+expect-no-dialog
+wait 300
+# S-K69-4: the request line (row 3 now) turns the death target off
+click-win 300 56
+wait 300
+expect-field strategyview 200@0:marine20 : Enemy|100@709:E : Edit extra message data for target|16@16:Mission : Path follower|16@32:Path - 1  genpath01|16@48:Turn Death Target Off|16@64:Death Target : None
+picture 4
+key Esc
+wait 400
+# Edit Strategy (the pop-up's third row) opens the view again with what was stored
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field strategyview 200@0:marine20 : Enemy|100@709:E : Edit extra message data for target|16@16:Mission : Path follower|16@32:Path - 1  genpath01|16@48:Turn Death Target Off|16@64:Death Target : None
+key Esc
+wait 400
+# ---- the GENERATOR generator02: page 3
+click-bar Find Object
+expect-dialog Select Object
+click-button Next
+click-button Next
+click-choice generator02
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 4
+# generator02 has a strategy already: the replace question first (S-38), Yes, then the window with Generator only (wrapper 0x5afa20, +8 at 0x53aa70)
+expect-dialog-kind confirm
+click-button Yes
+expect-dialog Select Strategy
+expect-field dialogbuttons Generator 222 184 200 16|Cancel 454 539 100 16
+click-button Generator
+wait 400
+expect-field strategyview 200@0:generator02 : Generator|16@16:Mission : Hunt (default)
+picture 5
+# S-K79-2: Hunt / Path follower
+click-win 300 24
+expect-dialog Select Mission Type
+click-button Path_follower
+expect-no-dialog
+wait 300
+expect-field strategyview 200@0:generator02 : Generator|16@16:Mission : Path follower|16@32:Path - 0  smart01
+# S-K79-3: Select Path, the third path
+click-win 300 40
+expect-dialog Select Path
+click-row 3
+expect-no-dialog
+wait 300
+expect-field strategyview 200@0:generator02 : Generator|16@16:Mission : Path follower|16@32:Path - 2  genpath02
+picture 6
+key Esc
+wait 400
+# Delete Strategy (the pop-up's fifth row): Yes; Edit Strategy then finds none
+click-win 500 300 right
+click-popup 5
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+wait 300
+click-win 500 300 right
+click-popup 3
+wait 300
+expect-status Selected object has no strategy

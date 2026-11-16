@@ -302,6 +302,61 @@ namespace host
 		return result == LevelOpenResult::CantRead ? PathModeResult::CantBuild : PathModeResult::LoaderRefused;
 	}
 
+	int PathMode_NearestStep(PathGraph const &graph, std::vector<int32_t> const &numbers, int start, std::vector<PathNode> const &steps)
+	{
+		int const count = (int)graph.neighbours.size();
+
+		if (start < 0 || start >= count || numbers.size() != graph.neighbours.size() || steps.empty())
+		{
+			return -1;
+		}
+
+		std::vector<int> distance((size_t)count, -1), queue(1, start);
+
+		distance[(size_t)start] = 0;
+
+		for (size_t at = 0; at < queue.size(); at++)
+		{
+			for (int const next : graph.neighbours[(size_t)queue[at]])
+			{
+				if (next >= 0 && next < count && distance[(size_t)next] == -1)
+				{
+					distance[(size_t)next] = distance[(size_t)queue[at]] + 1;
+					queue.push_back(next);
+				}
+			}
+		}
+
+		int best = 1000000;   // 0xf4240 (0x4f96bf)
+		int chosen = -1;
+
+		for (int i = 0; i < count; i++)
+		{
+			if (distance[(size_t)i] == -1 || distance[(size_t)i] >= best)
+			{
+				continue;
+			}
+
+			bool first = true;
+
+			for (int k = 0; k < i && first; k++)
+			{
+				first = numbers[(size_t)k] != numbers[(size_t)i];
+			}
+
+			for (PathNode const &step : steps)
+			{
+				if (first && step.module == numbers[(size_t)i])
+				{
+					best = distance[(size_t)i];
+					chosen = i;
+				}
+			}
+		}
+
+		return chosen;
+	}
+
 	bool PathMode_Route(PathGraph const &graph, int from, int to, std::vector<int> *between)
 	{
 		between->clear();

@@ -8,6 +8,7 @@ src/model/hierarchy_collections.cpp
 src/model/hierarchy_name.cpp
 src/model/frame_sound_index.cpp
 src/model/sequence_speed.cpp
+src/model/sequence_names.cpp
 src/io/level_file.cpp
 avpx/3dc/avp/win95/avp_chunk.cpp
 avpx/3dc/avp/win95/hierplace.cpp

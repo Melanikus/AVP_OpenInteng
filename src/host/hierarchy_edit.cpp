@@ -1377,6 +1377,7 @@ namespace host
 		{
 			int32_t at;
 			size_t flagsAt;   // the flag word's place in the image
+			size_t baseAt;    // the frame's first byte: its orientation (4 floats x, y, z, w: inteng's chunk +0x28..+0x34, FUN_00480450 0x48056c-0x4805cb), then its transform (3 ints)
 		};
 
 		// The root section (the first OBJCHIER inside the hierarchy's own OBJCHIER) of the named hierarchy
@@ -1463,7 +1464,7 @@ namespace host
 							for (int32_t f = 0; f < frameCount; f++)
 							{
 								size_t const frameAt = at + (size_t)f * kCompactFrameBytes;
-								FrameAt made = { IntAt(image, frameAt + 28), frameAt + 32 };
+								FrameAt made = { IntAt(image, frameAt + 28), frameAt + 32, frameAt };
 
 								frames->push_back(made);
 							}
@@ -1514,7 +1515,7 @@ namespace host
 									return HierarchyEditResult::BadLevelBytes;
 								}
 
-								FrameAt made = { IntAt(image, part.at + kHeadingBytes + 28), part.at + kHeadingBytes + kFrameChunkFlagsAt };
+								FrameAt made = { IntAt(image, part.at + kHeadingBytes + 28), part.at + kHeadingBytes + kFrameChunkFlagsAt, part.at + kHeadingBytes };
 
 								frames->push_back(made);
 							}
@@ -1759,6 +1760,88 @@ namespace host
 		}
 
 		return done;
+	}
+
+	namespace
+	{
+		// The root section's frames of one sequence, each changed in place by `change` (the image, the frame's first byte); the file is replaced once, after every frame
+		template <typename Change>
+		HierarchyEditResult ChangeRootFrames(OpenLevelFile *file, std::string const &hierarchy, int32_t number, int32_t subNumber, Change change)
+		{
+			Image image;
+			Span root;
+			HierarchyEditResult const opened = Open(file, &image, &root);
+
+			if (opened != HierarchyEditResult::Done)
+			{
+				return opened;
+			}
+
+			Span section;
+			HierarchyEditResult const found = RootSection(image, root, hierarchy, &section);
+
+			if (found != HierarchyEditResult::Done)
+			{
+				return found;
+			}
+
+			std::vector<FrameAt> list;
+			HierarchyEditResult const read = FramesOf(image, section, number, subNumber, &list);
+
+			if (read != HierarchyEditResult::Done)
+			{
+				return read;
+			}
+
+			Image out = image;
+
+			for (FrameAt const &each : list)
+			{
+				// the orientation (16) and the transform (12) lie inside the frame (FramesOf checked each frame's size)
+				if (each.baseAt + 28 > out.size())
+				{
+					return HierarchyEditResult::BadLevelBytes;
+				}
+
+				change(&out, each.baseAt);
+			}
+
+			return Replace(file, out);
+		}
+	}
+
+	HierarchyEditResult HierarchyEdit_TurnRootFrames(OpenLevelFile *file, std::string const &hierarchy, int32_t number, int32_t subNumber)
+	{
+		return ChangeRootFrames(file, hierarchy, number, subNumber, [](Image *out, size_t at)
+		{
+			// FUN_00480eb0 on the frame's chunk (+0x4c): its floats +0x28..+0x34 (x, y, z, w) become (-z, -w, x, y), a minus being a flip of the sign bit, as the x87's FCHS makes it; its
+			// transform's x (+0x38) and z (+0x40) are negated (32-bit, as the exe's NEG)
+			uint32_t q[4];
+
+			for (int i = 0; i < 4; i++)
+			{
+				q[i] = (uint32_t)IntAt(*out, at + (size_t)i * 4);
+			}
+
+			uint32_t const turned[4] = { q[2] ^ 0x80000000u, q[3] ^ 0x80000000u, q[0], q[1] };
+
+			for (int i = 0; i < 4; i++)
+			{
+				PutIntAt(out, at + (size_t)i * 4, (int32_t)turned[i]);
+			}
+
+			PutIntAt(out, at + 16, (int32_t)(0u - (uint32_t)IntAt(*out, at + 16)));
+			PutIntAt(out, at + 24, (int32_t)(0u - (uint32_t)IntAt(*out, at + 24)));
+		});
+	}
+
+	HierarchyEditResult HierarchyEdit_LowerRootFrames(OpenLevelFile *file, std::string const &hierarchy, int32_t number, int32_t subNumber, int32_t by)
+	{
+		return ChangeRootFrames(file, hierarchy, number, subNumber, [by](Image *out, size_t at)
+		{
+			// FUN_004795d0 0x479699-0x4796a5: the chunk's transform y (+0x3c) less the lowest point (32-bit, as the exe's SUB)
+			PutIntAt(out, at + 20, (int32_t)((uint32_t)IntAt(*out, at + 20) - (uint32_t)by));
+		});
 	}
 
 	HierarchyEditResult HierarchyEdit_Sounds(OpenLevelFile *file, std::vector<SoundInfo> *sounds)

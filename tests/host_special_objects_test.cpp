@@ -315,6 +315,99 @@ static void TestFile(std::string const & path, std::string const & folder)
 	}
 }
 
+// A placed hierarchy's sequences (PLHISEQU) are written as inteng's save writes them (reassess/object-placement.md PH-4..PH-7, PH-16; FUN_004e96d0 with FUN_004eb9b0): every one replaced, in the
+// order given, the PLACHIER's other children kept, and refused outside what the game's reader takes (index 0..4095). Added 2026-11-16 by Melanikus (Vasquez).
+static void TestPlacedHierarchySequences(std::string const & path, std::string const & folder)
+{
+	OpenLevelFile file;
+
+	if (file.Open(path.c_str()) != LevelOpenResult::Opened)
+	{
+		return;
+	}
+
+	std::vector<PlacedHierarchyInfo> before;
+	std::vector<SpecialObject> objectsBefore;
+
+	Check(PlacedHierarchies_Read(&file, &before) == SpecialResult::Done && SpecialObjects_Read(&file, &objectsBefore) == SpecialResult::Done, "the placed hierarchies are read: " + path);
+
+	std::vector<PlacedHierarchySequence> mine(2);
+
+	mine[0].index = 3;
+	mine[0].sequence = 22;
+	mine[0].sub = 0;
+	mine[0].milliseconds = 2500;
+	mine[0].flags = 2 | 4;
+	mine[0].sounds.resize(2);
+	mine[0].sounds[0].soundIndex = 1;
+	mine[0].sounds[0].start = 100;
+	mine[0].sounds[0].end = 65536;
+	mine[0].sounds[1].soundIndex = 0;
+	mine[0].sounds[1].start = 0;
+	mine[0].sounds[1].end = 38000;
+	mine[1].index = 0;
+	mine[1].sequence = 7;
+	mine[1].sub = 2;
+	mine[1].milliseconds = 1000;
+	mine[1].flags = 1;
+
+	if (before.empty())
+	{
+		Check(PlacedHierarchy_WriteSequences(&file, 0, mine) == SpecialResult::NotFound, "a level with no placed hierarchy refuses the write as not found");
+		return;
+	}
+
+	Check(PlacedHierarchy_WriteSequences(&file, before.size(), mine) == SpecialResult::NotFound, "a placed hierarchy past the list's end is not found");
+
+	std::vector<PlacedHierarchySequence> bad = mine;
+
+	bad[1].index = 4096;
+	Check(PlacedHierarchy_WriteSequences(&file, 0, bad) == SpecialResult::BadValue, "an index above 4095 (the game's reader's limit) is refused");
+	bad[1].index = -1;
+	Check(PlacedHierarchy_WriteSequences(&file, 0, bad) == SpecialResult::BadValue, "a negative index is refused");
+	bad = mine;
+	bad[0].milliseconds = 0;
+	Check(PlacedHierarchy_WriteSequences(&file, 0, bad) == SpecialResult::BadValue, "a time of 0 is refused");
+
+	Check(PlacedHierarchy_WriteSequences(&file, 0, mine) == SpecialResult::Done, "the sequences are written");
+
+	std::vector<PlacedHierarchyInfo> after;
+	std::vector<SpecialObject> objectsAfter;
+
+	Check(PlacedHierarchies_Read(&file, &after) == SpecialResult::Done && after.size() == before.size(), "the level still holds as many placed hierarchies");
+	Check(SpecialObjects_Read(&file, &objectsAfter) == SpecialResult::Done && objectsAfter.size() == objectsBefore.size(), "and as many other special objects");
+
+	bool same = !after.empty() && after[0].sequences.size() == mine.size() && after[0].name == before[0].name && memcmp(after[0].place, before[0].place, 12) == 0;
+
+	for (size_t i = 0; same && i < mine.size(); i++)
+	{
+		PlacedHierarchySequence const &a = after[0].sequences[i];
+		PlacedHierarchySequence const &b = mine[i];
+
+		same = a.index == b.index && a.sequence == b.sequence && a.sub == b.sub && a.milliseconds == b.milliseconds && a.flags == b.flags && a.sounds.size() == b.sounds.size();
+
+		for (size_t k = 0; same && k < a.sounds.size(); k++)
+		{
+			same = a.sounds[k].soundIndex == b.sounds[k].soundIndex && a.sounds[k].start == b.sounds[k].start && a.sounds[k].end == b.sounds[k].end;
+		}
+	}
+
+	Check(same, "they read back in the order given, with their sounds, and the placed hierarchy keeps its name and place");
+
+	std::string const saved = folder + "\\placed_hierarchy_saved.rif";
+
+	if (file.SaveAs(saved.c_str()) == LevelSaveResult::Saved)
+	{
+		OpenLevelFile second;
+		std::vector<PlacedHierarchyInfo> reread;
+
+		Check(second.Open(saved.c_str()) == LevelOpenResult::Opened && PlacedHierarchies_Read(&second, &reread) == SpecialResult::Done && !reread.empty() && reread[0].sequences.size() == mine.size(),
+			"a saved copy is taken by the game's own loader with the sequences");
+		DeleteFileA(saved.c_str());
+		DeleteFileA((saved + ".bak").c_str());
+	}
+}
+
 int main(int argc, char ** argv)
 {
 	setvbuf(stdout, 0, _IONBF, 0);
@@ -336,6 +429,7 @@ int main(int argc, char ** argv)
 	for (int i = 1; i < argc; i++)
 	{
 		TestFile(argv[i], folder);
+		TestPlacedHierarchySequences(argv[i], folder);
 	}
 
 	RemoveDirectoryA(folder.c_str());

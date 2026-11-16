@@ -1,0 +1,33 @@
+# ACCEPTANCE: Module Linking's own TEXT ROWS as inteng's (Dietrich, 2026-11-16; rows ML-M-4, ML-M-6, ML-M-7 of AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md). His path: clicks, keys.
+# FUN_004c1a90 every frame (FUN_0057b1b0 at x 10): the picks' names at (10, 110 + 16 i) ("%s"), after the 21st "........"; at (10, 70) "View Distance :%d" (the distance / 500000) while Toggle View
+# Distance is on, "Draw Linked Modules Only" instead while that switch is on (key V); at (10, 90) "Setting base to current module" while Shift+S's follow is on. The checks read the screen's
+# top-left text (the state's screentext) and the picture.
+#ini ViewDistance=100000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+# ---- the view distance's row: 100,000,000 / 500,000 = 200
+expect-screen-text View Distance :200
+picture 1
+# ---- V: Only Draw Linked Modules: the row says so instead; V again: the distance again
+key V
+expect-screen-text Draw Linked Modules Only
+expect-screen-text-not View Distance
+key V
+expect-screen-text View Distance :200
+# ---- picks: each pick's name is a row; Shift+click adds a second row
+click-view 0.2 0.2
+expect-screen-text APCmod
+expect-screen-text-not Base
+click-view 0.9 0.5 shift
+expect-screen-text APCmod|Base
+picture 2
+expect-pixels-changed-since 1 picture 0 100 300 60 0.01
+# ---- Shift+S: the follow's row
+key S shift
+expect-screen-text Setting base to current module
+key S shift
+expect-screen-text-not Setting base to current module

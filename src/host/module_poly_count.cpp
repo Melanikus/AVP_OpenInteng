@@ -44,7 +44,9 @@ namespace host
 			return 0xFFFFFFFFu;
 		}
 
-		return count >= 2000 ? 0xFFFFFF00u : count >= 1500 ? 0xFFFF7F00u : count >= 1200 ? 0xFF0000FFu : 0xFF00FF00u;
+		// FUN_004c1a90 0x4c2067-0x4c20c7 in true colour (0xRRGGBB, as the tree's blue base and yellow links): 2000 and up RED 0xff0000 (0xfa + 0xfeff06, the legend's "2000+(Quads) RED";
+		// until 2026-11-16 this was yellow), 1500 orange 0xff7f00 (0xfb + 0xff7e05), 1200 blue 0x0000ff (0xfe + 1), below green 0x00ff00 (0xfd + 0xfe03) (row ML-M-13)
+		return count >= 2000 ? 0xFFFF0000u : count >= 1500 ? 0xFFFF7F00u : count >= 1200 ? 0xFF0000FFu : 0xFF00FF00u;
 	}
 
 	namespace

@@ -21,8 +21,8 @@
 			"changes": [
 				{
 					"file": "src/host/field_adapters.cpp",
-					"from": "\t\t*record = FieldRecord();\n\n",
-					"to": ""
+					"from": "\t\t*record = FieldRecord();\n\n\t\tswitch (selected.kind)",
+					"to": "\t\tswitch (selected.kind)"
 				}
 			]
 		},
@@ -201,8 +201,8 @@
 			"changes": [
 				{
 					"file": "src/host/field_adapters.cpp",
-					"from": "if (FindSelectedStrategy(LevelObjects_Level(), selected, &strategy) == StrategyFound::Found &&",
-					"to": "if (false &&"
+					"from": "if (found && (editable ?",
+					"to": "if (false && (editable ?"
 				}
 			]
 		},

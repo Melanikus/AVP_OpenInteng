@@ -85,6 +85,7 @@ struct EditorHostState
 	int32_t strategyCommand;   // a Strategy mode item's command number (0xc Delete Strategy, ...: strategy-menu-pairs.md), or 0 (strategy_mode.h)
 	int32_t altLocation;       // an Alt Locations item's command number (0x64 to 0x69), or 0
 	int32_t hierarchyCommand;  // a Hierarchy mode item's command number (hierarchy_mode.h), or 0
+	int32_t placedHierarchyCommand;   // the current placed hierarchy's pop-up item (0x7d0 Play, 0x7d1 Stop, ...: reassess/object-placement.md PH-2..PH-13), or 0
 	int32_t fixTears;          // Construction, Miscellaneous, Fix tears: 1 = the two selected objects (0x5a), 2 = all (0x5b)
 	bool recentrePolygon;      // Texture Map, Recentre Shape (0xd6): wait for the click on a polygon
 	bool splitScreen;          // Object Placement, Misc, Toggle Split Screen (0x52)
@@ -189,7 +190,6 @@ int32_t const kPromptFindSelect = 22;       // Construction's Find Object (0x52)
 int32_t const kPromptStrategyDelete = 19;  // Strategy mode, Delete Strategy (0xc): "Are you sure you want to delete the strategy on this object?" (yes or no)
 int32_t const kPromptStrategyFans = 20;    // Strategy mode, Reset fan wind speed (0x43): "Would you like to reset the wind strength for all fans" (yes or no)
 int32_t const kPromptSoftEdge = 41;  // Light Sourcing, Edge > Soft: the maximum angle for soft edges (shape_soften_edit.h)
-int32_t const kPromptReplaceShape = 11;   // Replace shape: the name of the shape the selected object is given (inteng shows its shape chooser screen: a named deviation)
 int32_t const kPromptDeleteAllLinks = 12;   // AutoLink > Delete Links: Environment: a yes before every module's links are deleted
 int32_t const kPromptTypeLinks = 13;  // Change Object Type: Placed: "<name> has module linking data. Do you want to delete it?" (yes or no), once per object that has some
 int32_t const kPromptRescale = 14;   // Rescale: the new size of the selected object's shape (shape_rescale_edit.h)

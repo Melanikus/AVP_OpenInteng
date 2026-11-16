@@ -77,6 +77,17 @@ check(track && track.pages.find((p) => p.page === 2 && p.row === 2).menus.map((m
 check(track && track.pages.find((p) => p.page === 3 && p.row === 2).menus.some((m) => m.items.some((i) => i.command === 0x517)), "page 3 has Finish End Pos Edit (0x517)");
 check(strategy && strategy.menus.flatMap((m) => m.items).some((i) => i.command === 0x2), "the items carry inteng's own command numbers (Strategy Data's Exit is 0x2)");
 
+// The letter inteng underlines (the one after its '&', FUN_0046ce70 0x46ceac; view-state-table.md H-5c) is kept as a place in the words shown
+const hub = screens[0];
+const fileMenu = hub.menus.find((m) => m.title === 'File');
+const quit = fileMenu && fileMenu.items.find((i) => i.name === 'Quit');
+check(fileMenu && fileMenu.access === 0 && quit && quit.access === 0, "the hub's &File and &Quit underline their first letter (access 0)");
+const subItem = screens.flatMap((sc) => sc.menus).flatMap((m) => m.items).find((i) => i.name.includes(': ') && i.access >= 0);
+check(subItem && subItem.access >= subItem.name.indexOf(': ') + 2, `a sub-item's letter is in its own words, after its parents' ("${subItem ? subItem.name : ''}")`);
+check(screens.flatMap((sc) => sc.menus).every((m) => m.access === undefined || (m.access >= -1 && m.access < m.title.length)) && screens.flatMap((sc) => sc.menus).flatMap((m) => m.items).every((i) => i.access === undefined || (i.access >= -1 && i.access < i.name.length)), 'every underlined place is inside its words, or -1');
+const written = tool.emit(screens);
+check(written.includes('{ "Quit", 0x10001, 0xa, IntengTag::None, IntengWork::Quit, -1, 0 },') && /\{ "File", kItems0_0, \d+, 0 \},/.test(written), 'the C++ written carries the place: Quit 0, File 0');
+
 console.log('Every refusal, each on a file made wrong in one way:');
 refusedFor(() => {}, '', '(the same file, read back, is taken)');
 check(refusal(() => {}) === '', 'a file with nothing wrong is taken');

@@ -113,6 +113,16 @@ namespace host
 			return step;
 		}
 
+		// inteng's message box (FUN_00474030 with the words, FUN_0057c800(100, 100)): Select Sequence's and Add delta's refusals (FUN_0048bc10, FUN_0048c640)
+		HierarchyStep Box(std::string const &words)
+		{
+			HierarchyStep step;
+
+			step.answer = words;
+			step.messageBox = true;
+			return step;
+		}
+
 		// inteng's two help texts (FUN_0048ab60: 0x5d58e4 and 0x5d5738, read from the exe), one line each
 		std::vector<std::string> HelpLines(int page)
 		{
@@ -152,6 +162,38 @@ namespace host
 			step.title = title;
 			step.defaultText = defaultText;
 			return step;
+		}
+
+		// inteng's Yes / No box (FUN_00474a40): the answer is "yes" or "no"
+		HierarchyStep AskYesNo(HierarchyMode *mode, HierarchyAsk ask, std::string const &title)
+		{
+			HierarchyStep step = Ask(mode, ask, title, std::string());
+
+			step.confirm = true;
+			return step;
+		}
+
+		// inteng's message box (FUN_00474030 + FUN_0057c800, Ok), then the question `after` asks (asked again in inteng's loop)
+		HierarchyStep BoxThen(std::string const &words, HierarchyStep after)
+		{
+			after.answer = words;
+			after.messageBox = true;
+			return after;
+		}
+
+		// inteng's text dialog (FUN_00474170): the words and one edit holding the number or text offered, Ok / Cancel
+		HierarchyStep AskInDialog(HierarchyMode *mode, HierarchyAsk ask, std::string const &title, std::string const &defaultText)
+		{
+			HierarchyStep step = Ask(mode, ask, title, defaultText);
+
+			step.textDialog = true;
+			return step;
+		}
+
+		// The words after a sound chooser's own (0x5d4d54: six spaces, then the right click's words), as FUN_00481740 joins them
+		std::string SoundChooserTitle(char const *words)
+		{
+			return std::string(words) + "      (Right click to listen to sound)";
 		}
 
 		std::string Why(HierarchyEditResult result, char const *why)
@@ -301,20 +343,61 @@ namespace host
 	}
 
 	// FUN_0048b550(hierarchy, 0): the hierarchy becomes the current one and inteng goes straight on to Select Sequence (its last call, 0x48b83a, is FUN_0048bc10); when it is already the current one nothing is done
-	HierarchyStep ChooseHierarchy(OpenLevelFile *file, HierarchyMode *mode, std::string const &name)
+	HierarchyStep ChooseHierarchy(OpenLevelFile *file, HierarchyMode *mode, std::string const &name, bool again = false)
 	{
-		if (mode->hierarchy == name)
+		if (!again && mode->hierarchy == name)
 		{
-			return Say("Hierarchy \"" + name + "\" is open already");
+			return HierarchyStep();   // FUN_0048b550 0x48b61a: the player is up for that hierarchy already: nothing, no words
 		}
 
 		mode->hierarchy = name;
 		mode->sequenceSelected = false;
 		mode->sequence = 0;
 		mode->deltaSelected = false;
+		mode->playersMade++;   // a new player (FUN_00477450): its +0x88 is 0 (0x477603)
+
+		// the delta frames as the open builds them (HD-13)
+		mode->deltaFrameHeld.clear();
+
+		std::vector<SequenceInfo> held;
+
+		if (HierarchyEdit_Sequences(file, name, &held) == HierarchyEditResult::Done)
+		{
+			for (SequenceInfo const &one : held)
+			{
+				int32_t frame = -1;
+
+				if (HierarchyEdit_DeltaFrame(file, name, one.number, one.subNumber, &frame) != HierarchyEditResult::Done)
+				{
+					frame = -1;
+				}
+
+				mode->deltaFrameHeld[(int64_t)one.number * 65536 + one.subNumber] = frame;
+			}
+		}
+
 		mode->vertexMode = false;
 		mode->vertices.clear();
 		return HierarchyMode_Command(file, mode, 0x04);
+	}
+
+	// Attach shape to bones' hierarchy picker, FUN_0048b1e0("Attach to which hierarchy?") (0x48ea58): the file's OBJCHIER chunks by their OBHIERNM names, the LIST dialog even for one
+	// (FUN_00475bf0, width 600, FUN_0057c800(10, 10)); none: 0, nothing happens
+	HierarchyStep AttachHierarchyPicker(OpenLevelFile *file, HierarchyMode *mode)
+	{
+		std::vector<std::string> hierarchies;
+
+		if (HierarchyEdit_Names(file, &hierarchies) != HierarchyEditResult::Done || hierarchies.empty())
+		{
+			return HierarchyStep();
+		}
+
+		for (size_t i = 0; i < hierarchies.size(); i++)
+		{
+			Line(mode, hierarchies[i], (int32_t)i);
+		}
+
+		return Ask(mode, HierarchyAsk::AttachHierarchy, "Attach to which hierarchy?", std::string());
 	}
 
 	HierarchyStep HierarchyMode_Command(OpenLevelFile *file, HierarchyMode *mode, int32_t command)
@@ -358,12 +441,12 @@ namespace host
 		{
 			if (mode->hierarchy.empty())
 			{
-				return Say("Please select hierarchy first");
+				return Box("Please select hierarchy first");
 			}
 
 			if (!mode->sequenceSelected)
 			{
-				return Say("Please select a main sequence first");
+				return Box("Please select a main sequence first");   // FUN_0048c070's own words (0x5d5c4c), a message box
 			}
 
 			std::vector<SequenceInfo> sequences;
@@ -371,7 +454,7 @@ namespace host
 
 			if (read != HierarchyEditResult::Done || sequences.empty())
 			{
-				return Say(read != HierarchyEditResult::Done ? std::string("Add turret delta: ") + HierarchyEditWords(read) : std::string("Hierarchy has no sequences"));
+				return read != HierarchyEditResult::Done ? Say(std::string("Add turret delta: ") + HierarchyEditWords(read)) : Box("Hierarchy has no sequences");
 			}
 
 			for (size_t i = 0; i < sequences.size(); i++)
@@ -394,7 +477,7 @@ namespace host
 				}
 				else
 				{
-					return Say("Please select hierarchy first");   // inteng's message box at 100, 100 (FUN_00474030 + FUN_0057c800(100, 100)); ours is the status line
+					return Box("Please select hierarchy first");   // inteng's message box at 100, 100 (FUN_00474030 + FUN_0057c800(100, 100))
 				}
 			}
 
@@ -425,7 +508,7 @@ namespace host
 				return Say("Copy Hierarchy: no hierarchy is selected, so nothing happens (as in inteng): use Select Hierarchy first");
 			}
 
-			return Ask(mode, HierarchyAsk::CopyName, "Type name of new hierarchy", std::string());
+			return AskInDialog(mode, HierarchyAsk::CopyName, "Type name of new hierarchy", std::string());   // FUN_00474bc0 (0x5d49b4), empty
 
 		case 0x52:   // Select Collection
 		{
@@ -449,10 +532,10 @@ namespace host
 
 			for (model::ShapeSetCollection const &each : all)
 			{
-				Line(mode, each.name + " (collection " + Number(each.number) + ", " + Number((long long)each.shapeSets.size()) + " shape sets)", each.number);
+				Line(mode, each.name, each.number);   // the row is the collection's name (+0x28), as inteng's
 			}
 
-			return Ask(mode, HierarchyAsk::SelectCollection, "Select Collection: type its place in the list (1 to " + Number((long long)all.size()) + ") or part of its name", std::string());
+			return Ask(mode, HierarchyAsk::SelectCollection, "Select Shape Collection", std::string());   // inteng's list dialog (FUN_00475bf0, 0x5d5b9c)
 		}
 
 		case 0x53:   // Create Collection
@@ -461,7 +544,7 @@ namespace host
 				return Say(kSelectHierarchyFirst);
 			}
 
-			return Ask(mode, HierarchyAsk::CreateName, "Name of new shape collection", std::string());
+			return AskInDialog(mode, HierarchyAsk::CreateName, "Name of new shape collection", std::string());   // FUN_00474bc0 (0x5d5bb4), empty
 
 		case 0x57:   // Rename Collection
 		{
@@ -478,7 +561,7 @@ namespace host
 				return Say("The selected shape set collection is no longer in the level");
 			}
 
-			return Ask(mode, HierarchyAsk::RenameName, "New name for shape collection", current.name);
+			return AskInDialog(mode, HierarchyAsk::RenameName, "New name for shape collection", current.name);   // FUN_00474bc0 (0x5d4938), the current name
 		}
 
 		case 0x54:   // Delete Collection
@@ -487,7 +570,7 @@ namespace host
 				return Say(kSelectCollectionFirst);
 			}
 
-			return Ask(mode, HierarchyAsk::DeleteYes, "Delete the current shape set collection?  (type yes or no)", std::string());
+			return AskYesNo(mode, HierarchyAsk::DeleteYes, "Delete the current shape set collection?");   // FUN_00474a40 (0x5d48e0)
 
 		case 0x59:   // Collection Voice Index
 		{
@@ -504,43 +587,49 @@ namespace host
 				return Say("The selected shape set collection is no longer in the level");
 			}
 
-			return Ask(mode, HierarchyAsk::VoiceIndex, "Select the voice index for this collection", Number(current.voiceIndex));
+			return AskInDialog(mode, HierarchyAsk::VoiceIndex, "Select the voice index for this collection", Number(current.voiceIndex));   // FUN_00474170 (0x5d4964)
 		}
 
 		case 0x43:   // Select Single Set: "Original" (no set) or one alternate shape set becomes the applied list (a view change: nothing in the file changes)
 		{
+			// case 0x43 (0x488f12-0x4896c0, reassess/hierarchy-edit-frost.md HF-0x43): no hierarchy chosen (DAT_0063711c): nothing, no words; the file's alternate shape sets (OBHALTSH,
+			// FUN_004316e0) none: nothing; else the rows "Original" (0x5d5724, value 0) and each set's NAME (+0x28) alone, the sorted list window "Select Shape Set" (0x5d5710, FUN_00475bf0
+			// width 0xe1), FUN_0057c800(10, 10); a row: FUN_00477b40(that set or 0, the detail level); Escape: nothing
 			if (mode->hierarchy.empty())
 			{
-				return Say("Select Single Set: no hierarchy is selected, so nothing happens (as in inteng): use Select Hierarchy first");
+				return HierarchyStep();
 			}
 
 			std::vector<model::AlternateSetInfo> alternates;
 
-			if (HierarchyEdit_AlternateSets(file, &alternates) != HierarchyEditResult::Done)
+			if (HierarchyEdit_AlternateSets(file, &alternates) != HierarchyEditResult::Done || alternates.empty())
 			{
-				return Say("Select Single Set: the alternate shape sets could not be read");
+				return HierarchyStep();
 			}
 
 			Line(mode, "Original", -1);
 
 			for (model::AlternateSetInfo const &each : alternates)
 			{
-				Line(mode, each.name + " (shape set " + Number(each.number) + ")", each.number);
+				Line(mode, each.name, each.number);
 			}
 
-			return Ask(mode, HierarchyAsk::SelectSingleSet, "Select Shape Set: type its place in the list (1 to " + Number((long long)mode->list.size()) + ") or part of its name", std::string());
+			return Ask(mode, HierarchyAsk::SelectSingleSet, "Select Shape Set", std::string());
 		}
 
 		case 0x58:   // Set Properties: the single applied shape set's "Female" flag
 		{
+			// case 0x58 (0x489b4c-0x489bef, HF-0x58): no player: nothing; the applied list not exactly one set (+0x2c != 1): the message box "Please select a single shape set" (0x5d5684);
+			// else that set's window FUN_0048d6a0 (600 x 420, "Shape set properties", the label "Female" at (0x12, 0x28), its check box FUN_0057d670 at (0x76, 0x28) holding the set's flags
+			// bit 0 (+0x40, 0x48d84b), "Ok" at (200, 0x172) and "Cancel" at (0x15e, 0x172)), run by FUN_0057c800(10, 10)
 			if (mode->hierarchy.empty())
 			{
-				return Say("Set Properties: no hierarchy is selected, so nothing happens (as in inteng): use Select Hierarchy first");
+				return HierarchyStep();
 			}
 
 			if (mode->applied.size() != 1)
 			{
-				return Say("Please select a single shape set");
+				return Box("Please select a single shape set");
 			}
 
 			uint32_t flags = 0;
@@ -552,7 +641,11 @@ namespace host
 				return Say("Set Properties: " + std::string(HierarchyEditWords(read)));
 			}
 
-			return Ask(mode, HierarchyAsk::FemaleYes, "Shape set properties: Female?  (type yes or no; now " + std::string((flags & 1) ? "yes" : "no") + ")", (flags & 1) ? "yes" : "no");
+			HierarchyStep window = Ask(mode, HierarchyAsk::FemaleYes, "Shape set properties", std::string());
+
+			window.femaleForm = true;
+			window.femaleChecked = (flags & 1) != 0;
+			return window;
 		}
 
 		case 0x15: case 0x16: case 0x17: case 0x18: case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x1d: case 0x1e: case 0x1f: case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25:
@@ -605,7 +698,8 @@ namespace host
 				used.push_back(each.index);
 			}
 
-			return Ask(mode, HierarchyAsk::SoundIndex, "Select sound index", Number(model::FirstFreeSoundIndex(used)));
+			// FUN_00481440: the text dialog "Select sound index" (0x5d4d14) holding the first index no sound has, counting from 1 (0x48145b-0x48147a)
+			return AskInDialog(mode, HierarchyAsk::SoundIndex, "Select sound index", Number(model::FirstFreeSoundIndex(used)));
 		}
 
 		case 0x4e: case 0x4f: case 0x50:   // Edit sound, Delete sound, Apply frame sound: each first asks which sound
@@ -627,7 +721,7 @@ namespace host
 
 			if (sounds.empty())
 			{
-				return Say("Please add a sound first");
+				return Box("Please add a sound first");   // FUN_00481740: the message box (0x5d4d88), nothing chosen
 			}
 
 			for (SoundInfo const &each : sounds)
@@ -638,8 +732,9 @@ namespace host
 				Line(mode, std::string(numbered) + " " + each.wav, each.index);
 			}
 
+			// FUN_00481740: the list dialog FUN_00475bf0 titled "<words>      (Right click to listen to sound)" (0x5d4d54), a row "%03d %s" (0x5d4d80) per sound
 			return Ask(mode, command == 0x4e ? HierarchyAsk::SoundEditPick : command == 0x4f ? HierarchyAsk::SoundDeletePick : HierarchyAsk::SoundApplyPick,
-				std::string(words) + " (type its place, or part of its name)", std::string());
+				SoundChooserTitle(words), std::string());
 		}
 
 		case 0x51:   // Clear frame sound
@@ -759,6 +854,17 @@ namespace host
 				return Say(what + ": " + (done == HierarchyEditResult::NoSequence ? "no section has frames for this sequence" : HierarchyEditWords(done)));
 			}
 
+			// HD-13: only the middle / current paths write the held delta frame (0x13 runs on into 0x14, so both end at the current frame); "not a delta" and "first frame" leave it
+			if (command == 0x13 || command == 0x14)
+			{
+				int32_t frame = -1;
+
+				if (HierarchyEdit_DeltaFrame(file, mode->hierarchy, number.number, number.subNumber, &frame) == HierarchyEditResult::Done)
+				{
+					mode->deltaFrameHeld[(int64_t)number.number * 65536 + number.subNumber] = frame;
+				}
+			}
+
 			return Say(what + " (" + Number((long long)sections) + " sections)" + (command == 0x13 ? " (as inteng does it, the current frame is what ends up the reference)" : ""));
 		}
 
@@ -766,12 +872,12 @@ namespace host
 		{
 			if (mode->hierarchy.empty())
 			{
-				return Say("Please select hierarchy first");
+				return Box("Please select hierarchy first");
 			}
 
 			if (!mode->sequenceSelected)
 			{
-				return Say("Please select main sequence first");
+				return Box("Please select main sequence first");
 			}
 
 			std::vector<SequenceInfo> sequences;
@@ -779,14 +885,25 @@ namespace host
 
 			if (read != HierarchyEditResult::Done || sequences.empty())
 			{
-				return Say(read != HierarchyEditResult::Done ? std::string("Add delta: ") + HierarchyEditWords(read) : std::string("Hierarchy has no sequences"));
+				return read != HierarchyEditResult::Done ? Say(std::string("Add delta: ") + HierarchyEditWords(read)) : Box("Hierarchy has no sequences");
 			}
 
+			// FUN_00478930 != -1: the HELD delta frame (HD-13), read from the file only for a sequence the open did not see
 			for (size_t i = 0; i < sequences.size(); i++)
 			{
 				int32_t frame = -1;
+				std::map<int64_t, int32_t>::const_iterator const held = mode->deltaFrameHeld.find((int64_t)sequences[i].number * 65536 + sequences[i].subNumber);
 
-				if (HierarchyEdit_DeltaFrame(file, mode->hierarchy, sequences[i].number, sequences[i].subNumber, &frame) == HierarchyEditResult::Done && frame >= 0)
+				if (held != mode->deltaFrameHeld.end())
+				{
+					frame = held->second;
+				}
+				else if (HierarchyEdit_DeltaFrame(file, mode->hierarchy, sequences[i].number, sequences[i].subNumber, &frame) != HierarchyEditResult::Done)
+				{
+					frame = -1;
+				}
+
+				if (frame >= 0)
 				{
 					Line(mode, SequenceLine(sequences[i]), (int32_t)i);
 				}
@@ -794,7 +911,7 @@ namespace host
 
 			if (mode->list.empty())
 			{
-				return Say("None of the sequences have been flagged as delta sequences");
+				return Box("None of the sequences have been flagged as delta sequences");
 			}
 
 			return Ask(mode, HierarchyAsk::SelectDelta, "Select Delta Sequence (type its place, or part of its name)", std::string());
@@ -810,9 +927,17 @@ namespace host
 				return Say(std::string("Attach shape to bones: ") + HierarchyEditWords(read));
 			}
 
+			// FUN_004be4f0: every RBOBJECT of the file. None: the message box "Hmm.\nNo objects." (0x5d5fc8, FUN_00474030 + FUN_0057c800(100, 100)); one: taken without asking (0x48ea44);
+			// more: the LIST dialog "Select object to attach to bones" (0x5d5fa4, FUN_00475bf0 width 0xe1, FUN_0057c800(10, 10)), Escape nothing (0x48e926)
 			if (objects.empty())
 			{
-				return Say("Hmm.\nNo objects.");
+				return Box("Hmm.\nNo objects.");
+			}
+
+			if (objects.size() == 1)
+			{
+				mode->attachObject = objects[0];
+				return AttachHierarchyPicker(file, mode);
 			}
 
 			for (size_t i = 0; i < objects.size(); i++)
@@ -820,7 +945,7 @@ namespace host
 				Line(mode, objects[i], (int32_t)i);
 			}
 
-			return Ask(mode, HierarchyAsk::AttachObject, "Select object to attach to bones (type its place, or part of its name)", std::string());
+			return Ask(mode, HierarchyAsk::AttachObject, "Select object to attach to bones", std::string());
 		}
 
 		case 0x46:   // Calculate Bounding Box (FUN_004796f0): needs a hierarchy; the caller does the playing
@@ -931,7 +1056,7 @@ namespace host
 		}
 
 		case 0x4a:   // Set speed
-			return Ask(mode, HierarchyAsk::Speed, "Platform speed in mm/s", Number(mode->platform.lastSpeed));
+			return AskInDialog(mode, HierarchyAsk::Speed, "Platform speed in mm/s", Number(mode->platform.lastSpeed));   // FUN_00474170 (0x5d56c0), DAT_005d4e4c
 
 		case 0x45:   // Adaptive Degradation (0x4896e5): DAT_006370f4 flips and the item's tick follows; each frame it is on, FUN_00479b80 sets the detail level from the distance
 			mode->adaptiveDegradation = !mode->adaptiveDegradation;
@@ -942,7 +1067,7 @@ namespace host
 			return Say(std::string("Dummy Objects: ") + (mode->dummyObjects ? "on (a cube of " + Number(mode->dummyObjectSize / 100) + " mm and three axes are shown at the model's place)" : std::string("off")));
 
 		case 0x5d:   // Dummy Object Size (0x48972e): "Dummy object size in mm", the size now / 100 offered; a number above 0 is kept x 100
-			return Ask(mode, HierarchyAsk::DummySize, "Dummy object size in mm", Number(mode->dummyObjectSize / 100));
+			return AskInDialog(mode, HierarchyAsk::DummySize, "Dummy object size in mm", Number(mode->dummyObjectSize / 100));
 
 		case 0x3c:   // Alien (0x488e86): the view's projection scale +0x34 and +0x38 become 0xa0
 			mode->viewKind = 1;
@@ -959,7 +1084,7 @@ namespace host
 			return Ask(mode, HierarchyAsk::Help, "Hierarchy help (Enter: next page, Esc: close)", std::string());
 
 		case 0x4b:   // Set angle
-			return Ask(mode, HierarchyAsk::Angle, "Platform angle (0-360)", Number(mode->platform.lastAngle));
+			return AskInDialog(mode, HierarchyAsk::Angle, "Platform angle (0-360)", Number(mode->platform.lastAngle));   // FUN_00474170 (0x5d56a8), DAT_00637114
 
 		case 0x68: case 0x69: case 0x6a: case 0x6f: case 0x70: case 0x71: case 0x72:   // Sequence Flags: Type (Full, Upper, Lower), No Interpolation, Half Frame Rate
 		{
@@ -1006,11 +1131,11 @@ namespace host
 			mode->platformOn = !mode->platformOn;
 			return Say(std::string("Platform: ") + (mode->platformOn ? "on" : "off"));
 
-		case 0x55:   // Add to Collection
+		case 0x55:   // Add to Collection (FUN_00479f20, HF-0x55): no collection: the message box (0x5d4864); the sets not applied by NAME, "Add which shape set?" (0x5d4820); none: the box (0x5d4838)
 		{
 			if (!mode->collectionSelected)
 			{
-				return Say("You must select a shape collection first");
+				return Box("You must select a shape collection first");
 			}
 
 			model::ShapeSetCollection current;
@@ -1030,22 +1155,22 @@ namespace host
 
 			if (offered.empty())
 			{
-				return Say("All shape sets have already been applied");
+				return Box("All shape sets have already been applied");
 			}
 
 			for (model::AlternateSetInfo const &each : offered)
 			{
-				Line(mode, each.name + " (shape set " + Number(each.number) + ")", each.number);
+				Line(mode, each.name, each.number);
 			}
 
-			return Ask(mode, HierarchyAsk::AddSet, "Add which shape set?  type its place in the list (1 to " + Number((long long)offered.size()) + ") or part of its name", std::string());
+			return Ask(mode, HierarchyAsk::AddSet, "Add which shape set?", std::string());
 		}
 
-		case 0x56:   // Remove from Collection
+		case 0x56:   // Remove from Collection (FUN_0047a380, HF-0x56): no collection: the box (0x5d4864); no applied set: the box (0x5d48a8); the applied sets by NAME, "Remove which shape set?" (0x5d4890)
 		{
 			if (!mode->collectionSelected)
 			{
-				return Say("You must select a shape collection first");
+				return Box("You must select a shape collection first");
 			}
 
 			model::ShapeSetCollection current;
@@ -1057,17 +1182,24 @@ namespace host
 			}
 
 			// inteng lists the shape sets in its applied list (view +0x28)
+			if (mode->applied.empty())
+			{
+				return Box("This shape collection contains no alternate shape sets");
+			}
+
 			for (int32_t const member : mode->applied)
 			{
-				Line(mode, SetWords(alternates, member), member);
+				std::string name = SetWords(alternates, member);
+
+				for (model::AlternateSetInfo const &each : alternates)
+				{
+					name = each.number == member ? each.name : name;
+				}
+
+				Line(mode, name, member);
 			}
 
-			if (mode->list.empty())
-			{
-				return Say("This shape collection contains no alternate shape sets");
-			}
-
-			return Ask(mode, HierarchyAsk::RemoveSet, "Remove which shape set?  type its place in the list (1 to " + Number((long long)mode->list.size()) + ") or part of its name", std::string());
+			return Ask(mode, HierarchyAsk::RemoveSet, "Remove which shape set?", std::string());
 		}
 		}
 
@@ -1119,22 +1251,55 @@ namespace host
 
 		case HierarchyAsk::SoundIndex:
 		{
-			int32_t index = 0;
+			// FUN_00481440 0x4814af-0x4815e9: the edit's number (FUN_00474340); below 1 or above 127 the message "Index must be between 1 and 127" (0x5d4cd0), an index a sound has already
+			// "That index is already being used" (0x5d4cf0), and nothing more (no second asking); else the new sound, whose own Sound Edit window opens at once (FUN_004ebc80 calls
+			// FUN_004ebd60 at 0x4ebcfd: the window's Cancel leaves the start values), at the end of the list
+			int32_t const index = HierarchyMode_EditNumber(typed);
 
-			if (!WholeNumber(typed, &index))
+			if (index < 1 || index > 0x7f)
 			{
-				return Ask(mode, HierarchyAsk::SoundIndex, "\"" + typed + "\" is not a whole number. Select sound index", std::string());
+				return Box("Index must be between 1 and 127");
+			}
+
+			std::vector<SoundInfo> sounds;
+			HierarchyEditResult const read = HierarchyEdit_Sounds(file, &sounds);
+
+			if (read != HierarchyEditResult::Done)
+			{
+				return Say(std::string("New sound: ") + HierarchyEditWords(read));
+			}
+
+			for (SoundInfo const &each : sounds)
+			{
+				if (each.index == index)
+				{
+					return Box("That index is already being used");
+				}
 			}
 
 			HierarchyEditResult const done = HierarchyEdit_NewSound(file, index, mode->levelScale, &why);
 
-			if (done == HierarchyEditResult::Refused)
+			if (done != HierarchyEditResult::Done)
 			{
-				return Ask(mode, HierarchyAsk::SoundIndex, Why(done, why) + ". Select sound index", std::string());
+				return Say("New sound: " + Why(done, why));
 			}
 
-			// inteng's New sound then opens the sound's own dialog at once: Edit sound (0x4e) does that here
-			return Say(done == HierarchyEditResult::Done ? "Sound " + Number(index) + " added (name \"Not Set\"): use Edit sound to give it its file" : "New sound: " + Why(done, why));
+			sounds.clear();
+			HierarchyEdit_Sounds(file, &sounds);
+
+			for (SoundInfo const &each : sounds)
+			{
+				if (each.index == index)
+				{
+					HierarchyStep step = Say("Sound " + Number(index) + " added");
+
+					mode->soundBeingEdited = each;
+					step.soundForm = true;
+					return step;
+				}
+			}
+
+			return Say("New sound: the new sound could not be read back");
 		}
 
 		case HierarchyAsk::SoundEditPick:
@@ -1157,52 +1322,16 @@ namespace host
 			{
 				if (each.index == index)
 				{
+					// FUN_004816f0: the sound's own Sound Edit window (FUN_004ebd60), one window with every field (HierarchyMode_SoundForm takes its answers)
+					HierarchyStep step;
+
 					mode->soundBeingEdited = each;
-					return Ask(mode, HierarchyAsk::SoundEditName, "Sound file name", each.wav);
+					step.soundForm = true;
+					return step;
 				}
 			}
 
 			return Say("Edit sound: that sound is no longer there");
-		}
-
-		case HierarchyAsk::SoundEditName:
-			mode->soundBeingEdited.wav = typed;
-			return Ask(mode, HierarchyAsk::SoundEditInner, "Inner range (mm)", Number(mode->soundBeingEdited.inner));
-
-		case HierarchyAsk::SoundEditInner:
-		case HierarchyAsk::SoundEditOuter:
-		case HierarchyAsk::SoundEditVolume:
-		case HierarchyAsk::SoundEditPitch:
-		{
-			int32_t value = 0;
-
-			if (!WholeNumber(typed, &value))
-			{
-				return Say("Edit sound: \"" + typed + "\" is not a whole number, nothing changed");
-			}
-
-			if (ask == HierarchyAsk::SoundEditInner)
-			{
-				mode->soundBeingEdited.inner = value;
-				return Ask(mode, HierarchyAsk::SoundEditOuter, "Outer range (mm)", Number(mode->soundBeingEdited.outer));
-			}
-
-			if (ask == HierarchyAsk::SoundEditOuter)
-			{
-				mode->soundBeingEdited.outer = value;
-				return Ask(mode, HierarchyAsk::SoundEditVolume, "Volume (0 to 127)", Number(mode->soundBeingEdited.volume));
-			}
-
-			if (ask == HierarchyAsk::SoundEditVolume)
-			{
-				mode->soundBeingEdited.volume = value;
-				return Ask(mode, HierarchyAsk::SoundEditPitch, "Pitch (1/1536ths of an octave)", Number(mode->soundBeingEdited.pitch));
-			}
-
-			SoundInfo const &s = mode->soundBeingEdited;
-			HierarchyEditResult const done = HierarchyEdit_EditSound(file, s.index, s.wav, s.inner, s.outer, s.volume, value, &why);
-
-			return Say(done == HierarchyEditResult::Done ? "Sound " + Number(s.index) + " edited" : "Edit sound: " + Why(done, why));
 		}
 
 		case HierarchyAsk::SoundDeletePick:
@@ -1256,20 +1385,7 @@ namespace host
 
 			mode->attachObject = mode->list[(size_t)at].substr(mode->list[(size_t)at].find("  ") + 2);
 			ClearList(mode);
-
-			std::vector<std::string> hierarchies;
-
-			if (HierarchyEdit_Names(file, &hierarchies) != HierarchyEditResult::Done || hierarchies.empty())
-			{
-				return Say("The file holds no hierarchy");
-			}
-
-			for (size_t i = 0; i < hierarchies.size(); i++)
-			{
-				Line(mode, hierarchies[i], (int32_t)i);
-			}
-
-			return Ask(mode, HierarchyAsk::AttachHierarchy, "Attach to which hierarchy? (type its place, or part of its name)", std::string());
+			return AttachHierarchyPicker(file, mode);
 		}
 
 		case HierarchyAsk::AttachHierarchy:
@@ -1289,31 +1405,52 @@ namespace host
 
 				mode->attachHierarchy = mode->list[(size_t)at].substr(mode->list[(size_t)at].find("  ") + 2);
 				ClearList(mode);
+
+				// 0x48ea71-0x48ea92: the hierarchy needs an OBJCHIER whose OBANSEQS holds sequence 10000, sub 0 (FUN_00407c80(10000, 0), "the reference sequence"); without, the message box
+				// "The hierarchy doesn't have the reference sequence" (0x5d5f54), Ok, and nothing more. This comes BEFORE the "already attached" question.
+				std::vector<SequenceInfo> sequences;
+				bool reference = false;
+
+				if (HierarchyEdit_Sequences(file, mode->attachHierarchy, &sequences) == HierarchyEditResult::Done)
+				{
+					for (SequenceInfo const &one : sequences)
+					{
+						reference = reference || (one.number == 10000 && one.subNumber == 0);
+					}
+				}
+
+				if (!reference)
+				{
+					return Box("The hierarchy doesn't have the reference sequence");
+				}
 			}
 			else
 			{
+				// the Yes / No box (FUN_00474a40 + FUN_0057c800(100, 100)): anything but Yes (3) ends with nothing (0x48eb2d)
 				redo = _stricmp(typed.c_str(), "yes") == 0 || _stricmp(typed.c_str(), "y") == 0;
 
 				if (!redo)
 				{
-					return Say("Attach shape to bones: nothing changed");
+					return HierarchyStep();
 				}
 			}
 
 			size_t points = 0;
 			HierarchyEditResult const done = HierarchyEdit_AttachToBones(file, mode->attachObject, mode->attachHierarchy, 10000, 0, redo, &why, &points);
 
+			// the shape already has bone data for the hierarchy with its points' count unchanged (FUN_0041cf70 then FUN_0041d540, 0x48eae9-0x48eb06): the Yes / No box (0x5d5ee8)
 			if (done == HierarchyEditResult::Refused && why && std::string(why).find("already attached") != std::string::npos)
 			{
-				return Ask(mode, HierarchyAsk::AttachRedo, "The shape is already attached to the hierarchy. Do you want to redetermine the vertex connections anyway? (yes or no)", "no");
+				return AskYesNo(mode, HierarchyAsk::AttachRedo, "The shape is already attached to the hierarchy.\nDo you want to redetermine the vertex connections anyway?");
 			}
 
 			if (done != HierarchyEditResult::Done)
 			{
-				return Say("Attach shape to bones: " + Why(done, why));
+				return Say("Attach shape to bones: " + Why(done, why));   // ours: a refusal of the file's bytes (inteng has no such branch)
 			}
 
-			return Say("Attached " + Number((long long)points) + " points of " + mode->attachObject + " to the bones of " + mode->attachHierarchy);
+			// FUN_0041f4d0 attached the points (0x48eb51), then FUN_0048b550(hierarchy, 1) makes that hierarchy's player afresh and goes on to Select Sequence (0x48eb59); DAT_00637134 = 1 (changed)
+			return ChooseHierarchy(file, mode, mode->attachHierarchy, true);
 		}
 
 		case HierarchyAsk::SelectDelta:
@@ -1563,7 +1700,8 @@ namespace host
 				mode->applied = AppliedOf(file, chosen);
 			}
 
-			return Say("Shape set collection selected: " + line.substr(line.find("  ") + 2));
+			(void)line;
+			return HierarchyStep();   // FUN_0048abc0 0x48ae6b: FUN_00477d10(that collection, detail), no words (HF-0x52)
 		}
 
 		case HierarchyAsk::CopyName:
@@ -1574,6 +1712,11 @@ namespace host
 			}
 
 			HierarchyEditResult const done = HierarchyEdit_Copy(file, mode->hierarchy, typed, &why);
+
+			if (done == HierarchyEditResult::Refused && Why(done, why) == model::HierarchyNameWords(model::HierarchyNameResult::InUse))
+			{
+				return Box("That name is already in use");   // the message box (FUN_00474030, 0x5d4998), Ok; nothing made
+			}
 
 			return Say(done == HierarchyEditResult::Done ? "Hierarchy copied as \"" + typed + "\"" : "Copy Hierarchy: " + Why(done, why));
 		}
@@ -1586,7 +1729,7 @@ namespace host
 
 			if (typed.empty())
 			{
-				return Ask(mode, ask, std::string(title) + " (it cannot be empty)", std::string());
+				return AskInDialog(mode, ask, title, std::string());   // inteng's loop asks again (FUN_0048af00; Rename's empty name OPEN, HE-F-0047a880)
 			}
 
 			if (create)
@@ -1596,7 +1739,7 @@ namespace host
 
 				if (done == HierarchyEditResult::Refused)
 				{
-					return Ask(mode, ask, "That name is already used.  " + std::string(title), std::string());
+					return BoxThen("That name is already used", AskInDialog(mode, ask, title, std::string()));   // 0x5cd664, Ok, and asked again
 				}
 
 				if (done != HierarchyEditResult::Done)
@@ -1607,14 +1750,14 @@ namespace host
 				mode->collectionSelected = true;
 				mode->collection = number;
 				mode->applied.clear();
-				return Say("Shape set collection " + Number(number) + " \"" + typed + "\" created and selected");
+				return HierarchyStep();   // FUN_0048af00 0x48b100-0x48b117: made (number: the smallest free from 2) and current, DAT_00637134 = 1, no words (HF-0x53)
 			}
 
 			HierarchyEditResult const done = HierarchyEdit_RenameCollection(file, mode->collection, typed, &why);
 
 			if (done == HierarchyEditResult::Refused)
 			{
-				return Ask(mode, ask, "That name is already used.  " + std::string(title), std::string());
+				return BoxThen("That name is already used", AskInDialog(mode, ask, title, std::string()));   // 0x5cd664, Ok, and asked again
 			}
 
 			return Say(done == HierarchyEditResult::Done ? "Shape set collection renamed \"" + typed + "\"" : "Rename Collection: " + Why(done, why));
@@ -1641,12 +1784,7 @@ namespace host
 
 		case HierarchyAsk::VoiceIndex:
 		{
-			int32_t value = 0;
-
-			if (!WholeNumber(typed, &value))
-			{
-				return Say("Collection Voice Index: \"" + typed + "\" is not a whole number, nothing changed");
-			}
+			int32_t const value = HierarchyMode_EditNumber(typed);   // FUN_0047ac10: Ok sets +0x40 to the edit's number, no range check
 
 			HierarchyEditResult const done = HierarchyEdit_SetCollectionVoiceIndex(file, mode->collection, value, &why);
 
@@ -1655,11 +1793,11 @@ namespace host
 
 		case HierarchyAsk::Speed:
 		{
-			int32_t value = 0;
+			int32_t const value = HierarchyMode_EditNumber(typed);
 
-			if (!WholeNumber(typed, &value) || model::SetPlatformSpeed(&mode->platform, value) != model::SequenceSpeedResult::Ok)
+			if (model::SetPlatformSpeed(&mode->platform, value) != model::SequenceSpeedResult::Ok)
 			{
-				return Say("Set speed: a speed of 0 or more is wanted, nothing changed");
+				return Say(std::string());   // case 0x4a: below 0, nothing (no words: the Hierarchy screen has no status line)
 			}
 
 			return Say(WritePlatformIfDue(file, mode, "Platform speed " + Number(value) + " mm/s"));
@@ -1667,11 +1805,11 @@ namespace host
 
 		case HierarchyAsk::Angle:
 		{
-			int32_t value = 0;
+			int32_t const value = HierarchyMode_EditNumber(typed);
 
-			if (!WholeNumber(typed, &value) || model::SetPlatformAngle(&mode->platform, value, nullptr) != model::SequenceSpeedResult::Ok)
+			if (model::SetPlatformAngle(&mode->platform, value, nullptr) != model::SequenceSpeedResult::Ok)
 			{
-				return Say("Set angle: 0 to 360 is wanted, nothing changed");
+				return Say(std::string());   // case 0x4b: outside 0 to 360, nothing
 			}
 
 			return Say(WritePlatformIfDue(file, mode, "Platform angle " + Number(value)));
@@ -1679,14 +1817,15 @@ namespace host
 
 		case HierarchyAsk::DummySize:
 		{
-			int32_t value = 0;
+			// 0x48975d-0x489773: Ok with the edit's number above 0 sets DAT_005d4e24 = the number x 100 (the exe's 32-bit product); 0, below 0 or not a number: nothing
+			int32_t const value = HierarchyMode_EditNumber(typed);
 
-			if (!WholeNumber(typed, &value) || value <= 0 || value > 100000)
+			if (value <= 0)
 			{
-				return Say("Dummy Object Size: a size above 0 mm is wanted, nothing changed");
+				return Say(std::string());
 			}
 
-			mode->dummyObjectSize = value * 100;
+			mode->dummyObjectSize = (int32_t)((uint32_t)value * 100u);
 			return Say("Dummy object size " + Number(value) + " mm");
 		}
 
@@ -1717,14 +1856,17 @@ namespace host
 				return Say("Select Single Set: nothing matches \"" + typed + "\", nothing changed");
 			}
 
+			// FUN_00477b40(set, detail): the collection let go (+0x38 = 0), the set list made of that one set (none for "Original"), the shapes chosen again; no words
 			mode->applied.clear();
+			mode->collectionSelected = false;
 
 			if (number >= 0)
 			{
 				mode->applied.push_back(number);
 			}
 
-			return Say("Shape set applied: " + line.substr(line.find("  ") + 2));
+			(void)line;
+			return HierarchyStep();
 		}
 
 		case HierarchyAsk::FemaleYes:
@@ -1740,7 +1882,8 @@ namespace host
 			uint32_t flags = 0;
 			HierarchyEditResult const done = HierarchyEdit_ChangeShapeSetFlags(file, mode->applied.front(), yes ? 1u : 0u, yes ? 0u : 1u, &flags);
 
-			return Say(done == HierarchyEditResult::Done ? std::string("Shape set properties: Female ") + (yes ? "yes" : "no") : "Set Properties: " + Why(done, why));
+			// FUN_0048d820 0x48d864-0x48d897: Ok (2): the box read, the set's flags bit 0 set or cleared, DAT_00637134 = 1; no words
+			return done == HierarchyEditResult::Done ? HierarchyStep() : Say("Set Properties: " + Why(done, why));
 		}
 
 		case HierarchyAsk::AddSet:
@@ -1780,10 +1923,177 @@ namespace host
 				}
 			}
 
-			return Say(std::string("Shape set ") + Number(setNumber) + (ask == HierarchyAsk::AddSet ? " added to the collection" : " removed from the collection"));
+			return HierarchyStep();   // DAT_00637134 = 1 and the shapes chosen again (0x47a2fb / 0x47a705), no words
 		}
 		}
 
 		return HierarchyStep();
+	}
+
+	int32_t HierarchyMode_EditNumber(std::string const &text)
+	{
+		// FUN_0057d620: [this+0x18] is the edit's text; a "-" first, then the digits; any other letter after them gives 0
+		size_t at = !text.empty() && text[0] == '-' ? 1 : 0;
+		uint32_t sum = 0;
+
+		while (at < text.size() && text[at] >= '0' && text[at] <= '9')
+		{
+			sum = sum * 10u + (uint32_t)(text[at] - '0');
+			at++;
+		}
+
+		if (at != text.size())
+		{
+			return 0;
+		}
+
+		return !text.empty() && text[0] == '-' ? (int32_t)(0u - sum) : (int32_t)sum;
+	}
+
+	namespace
+	{
+		// MFC's float edit (DDX_Text on a float, AfxSimpleFloatParse): spaces round one number strtod reads whole; nothing else is a number (the DLL then says "Please enter a number.")
+		bool MfcFloat(std::string const &text, double *value)
+		{
+			size_t from = 0;
+			size_t to = text.size();
+
+			while (from < to && (text[from] == ' ' || text[from] == '\t'))
+			{
+				from++;
+			}
+
+			while (to > from && (text[to - 1] == ' ' || text[to - 1] == '\t'))
+			{
+				to--;
+			}
+
+			if (from == to || to - from > 63)
+			{
+				return false;
+			}
+
+			std::string const part = text.substr(from, to - from);
+			char *end = nullptr;
+			double const read = strtod(part.c_str(), &end);
+
+			if (!end || *end != '\0' || !(read == read) || read > 3.4e38 || read < -3.4e38)
+			{
+				return false;
+			}
+
+			*value = (double)(float)read;   // the DLL keeps it in a float
+			return true;
+		}
+
+		// MFC's DDX_Text shows a float as "%.*g" with FLT_DIG (6) digits
+		std::string MfcShown(float value)
+		{
+			char text[64];
+
+			_snprintf_s(text, sizeof(text), _TRUNCATE, "%.*g", 6, (double)value);
+			return text;
+		}
+
+		// ftol: toward 0, held inside the 32-bit range the exe's word has
+		int32_t Ftol(double value)
+		{
+			if (!(value == value))
+			{
+				return 0;
+			}
+
+			if (value >= 2147483647.0)
+			{
+				return 2147483647;
+			}
+
+			if (value <= -2147483648.0)
+			{
+				return (int32_t)-2147483647 - 1;
+			}
+
+			return (int32_t)value;
+		}
+
+		double InteUnit(double levelScale)
+		{
+			return 100.0 * (levelScale > 0.0 && levelScale <= 1000000.0 ? levelScale : 1.0);
+		}
+	}
+
+	std::vector<std::string> HierarchyMode_SoundFormShown(HierarchyMode const &mode)
+	{
+		SoundInfo const &s = mode.soundBeingEdited;
+		double const unit = InteUnit(mode.levelScale);
+
+		// FUN_004ebd60 0x4ebe12-0x4ebe88: inner and outer (inteng's unit, as unsigned words) x 0.00001, pitch / 128, volume x 100 x 0.007874016, each kept in a float; the DLL shows the volume as
+		// ftol(% + 0.5) (edobtype 0x10006c0f)
+		float const inner = (float)((double)(uint32_t)Ftol(s.inner * unit) * 1e-05);
+		float const outer = (float)((double)(uint32_t)Ftol(s.outer * unit) * 1e-05);
+		float const pitch = (float)((double)s.pitch * 0.0078125);
+		float const volume = (float)((double)s.volume * 100.0 * 0.007874016);
+
+		return { s.wav, MfcShown(inner), MfcShown(outer), MfcShown(pitch), std::to_string((long long)Ftol((double)volume + 0.5)) };
+	}
+
+	HierarchyStep HierarchyMode_SoundForm(OpenLevelFile *file, HierarchyMode *mode, std::vector<std::string> const &values)
+	{
+		HierarchyStep step;
+
+		if (!mode || values.size() < 5)
+		{
+			return step;
+		}
+
+		// the DLL's DoDataExchange order (edobtype 0x10006830): the name, then inner 0..1000, outer 0..2000, pitch -48..48, volume 0..100 (DDV_MinMaxFloat); the first that fails says so and
+		// the window stays (MFC's words, from the DLL's own strings: edobtype-resources.json)
+		struct Limit { double lowest, highest; char const *words; };
+		static Limit const limits[4] = { { 0.0, 1000.0, "Please enter a number between 0 and 1000." }, { 0.0, 2000.0, "Please enter a number between 0 and 2000." },
+			{ -48.0, 48.0, "Please enter a number between -48 and 48." }, { 0.0, 100.0, "Please enter a number between 0 and 100." } };
+		double read[4] = { 0, 0, 0, 0 };
+
+		if (values[0].size() > 255)
+		{
+			step.answer = "Please enter no more than 255 characters.";
+			step.messageBox = true;
+			step.soundForm = true;
+			return step;
+		}
+
+		for (int i = 0; i < 4; i++)
+		{
+			if (!MfcFloat(values[(size_t)i + 1], &read[i]))
+			{
+				step.answer = "Please enter a number.";
+				step.messageBox = true;
+				step.soundForm = true;
+				return step;
+			}
+
+			if (read[i] < limits[i].lowest || read[i] > limits[i].highest)
+			{
+				step.answer = limits[i].words;
+				step.messageBox = true;
+				step.soundForm = true;
+				return step;
+			}
+		}
+
+		// back (0x4ebf13-0x4ebf5d): ftol(m x 100000), ftol(semitones x 128), ftol((% + 50/127) x 0.01 x 127); the file's ranges are inteng's / (100 x levelScale)
+		double const unit = InteUnit(mode->levelScale);
+		SoundInfo s = mode->soundBeingEdited;
+
+		s.wav = values[0];
+		s.inner = Ftol((double)Ftol(read[0] * 100000.0) / unit);
+		s.outer = Ftol((double)Ftol(read[1] * 100000.0) / unit);
+		s.pitch = Ftol(read[2] * 128.0);
+		s.volume = Ftol((read[3] + 0.3937007874) * 0.01 * 127.0);
+
+		char const *why = nullptr;
+		HierarchyEditResult const done = HierarchyEdit_EditSound(file, s.index, s.wav, s.inner, s.outer, s.volume, s.pitch, &why);
+
+		step.answer = done == HierarchyEditResult::Done ? "Sound " + std::to_string((long long)s.index) + " edited" : "Edit sound: " + Why(done, why);
+		return step;
 	}
 }

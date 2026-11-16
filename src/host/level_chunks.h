@@ -98,7 +98,8 @@ namespace host
 
 	// THE GAME'S NUMBER OF EACH MODULE (MODULE.m_index), by object index, into *out (emptied first): the game numbers modules as it loads the level
 	// (projload.cpp:2038-2193, the loop over File_Chunk::list_shapes): for each shape, in the level's order, the objects tied to it (Shape_Chunk::
-	// list_assoc_objs), and each one that is not a placed object takes the next number from 0 (mod_pos; the module array's index is the same,
-	// module.cpp:744). A shape that is an external file holds none (the game asserts so). Gives how many there are, 0 for no level.
+	// list_assoc_objs), and each one that is not a placed object is the next module (mod_pos, from 0). Its m_index, the index of the game's module array,
+	// is mod_pos + 1: the array's first entry is the "infinite module" the loader puts in front (projload.cpp:2012-2019, 2694-2726; module.cpp:744). So the
+	// numbers here start at 1. A shape that is an external file holds none (the game asserts so). Gives how many there are, 0 for no level.
 	size_t GameModuleNumbers(File_Chunk *level, std::map<int32_t, int32_t> *out);
 }

@@ -32,7 +32,7 @@
 		{
 			"name": "unlit is no longer fully lit",
 			"changes": [
-				{ "file": "src/host/view_toggles.cpp", "from": "switches.drawFullBright = unlit ? 1 : 0;", "to": "switches.drawFullBright = 0;" }
+				{ "file": "src/host/view_toggles.cpp", "from": "switches.drawFullBright = unlit || hiddenLine ? 1 : 0;", "to": "switches.drawFullBright = hiddenLine ? 1 : 0;" }
 			]
 		},
 		{
@@ -44,7 +44,7 @@
 		{
 			"name": "Polyline's white lines are lit even when the switch is off",
 			"changes": [
-				{ "file": "src/host/view_toggles.cpp", "from": "switches.outlinesLit = whiteLines && mode == DrawMode::Polyline && !unlit ? 1 : 0;", "to": "switches.outlinesLit = whiteLines && mode == DrawMode::Polyline ? 1 : 0;" }
+				{ "file": "src/host/view_toggles.cpp", "from": "switches.outlinesLit = whiteLines && !unlit && !hiddenLine ? 1 : 0;", "to": "switches.outlinesLit = whiteLines && !hiddenLine ? 1 : 0;" }
 			]
 		},
 		{

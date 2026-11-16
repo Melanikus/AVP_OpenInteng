@@ -1,0 +1,22 @@
+# ACCEPTANCE: Module Linking's Shift+S FOLLOW as inteng's (Dietrich, 2026-11-16; rows ML-M-17 / ML-M-66 of AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md). His path: keys, the camera.
+# Shift+S flips DAT_00704384 (FUN_004c1a90 0x4c227f-0x4c229a); each frame while it is on FUN_004c96f0 makes the module the camera is in the current one (FUN_004c10c0, changed 0) when the current
+# one does not hold the camera, without touching the picks; the row "Setting base to current module" shows at (10, 90). The harness's state field "linktree" (the bot's) says the current module.
+#ini ViewDistance=100000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+picture 1
+# ---- no module is current; Shift+S: the camera's module (the camera starts in room 38) becomes the base, blue, not changed
+key S shift
+wait 500
+expect-screen-text Setting base to current module
+expect-number linktree changed 0 0
+picture 2
+expect-colour picture 0 0 1008 700 0000ff 0.0005 40
+# ---- a pick made while it follows stays picked (the follow does not touch the picks)
+click-view 0.9 0.5
+wait 300
+expect-screen-text Base

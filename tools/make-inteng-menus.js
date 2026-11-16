@@ -43,7 +43,7 @@ const kMostBuiltRecords = 400;   // records on one page (Texture Map's biggest h
 
 const kTagWords = { none: '', wip: ' [wip]', blender: ' [Blender]', noavp: ' [no AvP]', unfinished: ' [unfinished in inteng]' };
 const kTagCpp = { none: 'None', wip: 'Wip', blender: 'Blender', noavp: 'NoAvp', unfinished: 'Unfinished' };
-const kWorkCpp = { none: 'None', quit: 'Quit', screen: 'ToScreen', hub: 'ToHub', keys: 'Keys', find: 'Find', moverel: 'MoveRelative', delete: 'DeleteObject', createlike: 'CreateLikeSelected', setbase: 'SetBaseModule', findsmall: 'FindSmallModules', keysmode: 'ConstructionKeys', screenshot: 'Screenshot', copytrack: 'CopyTrack', pastetrackabs: 'PasteTrackAbsolute', findnotdone: 'FindNotDone', writeasc: 'WriteAsc', writeascdoors: 'WriteAscDoorsClosed', linkcurrent: 'LinkSetCurrent', linknormal: 'LinkNormal', linkbranch: 'LinkBranch', linkdelete: 'LinkDelete', linkclose: 'LinkClose', selectlight: 'SelectLights', selectobject: 'SelectObjects', lighthelp: 'LightHelp', hideall: 'HideAllLights', unhideall: 'UnhideAllLights', quickcreate: 'QuickCreate', altloc: 'AltLocation', screenwhite: 'ToScreenNoTextures', recalcentry: 'RecalcEntryPoints', recalcnormals: 'RecalculateNormals', moverelpoly: 'MoveRelToPoly', replaceshape: 'ReplaceShape', adjadd: 'AdjacentAdd', adjdelete: 'AdjacentDelete', adjsetcurrent: 'AdjacentSetCurrent', deletemoduledata: 'DeleteModuleData', mergeobjects: 'MergeObjects', linkexit: 'LinkExit', viewpolygon: 'ViewPolygon', viewpolyline: 'ViewPolyline', viewfilledpolyline: 'ViewFilledPolyline', linkview: 'LinkView', linkhide: 'LinkHide', deletelinks: 'DeleteLinksPicked', deletelinksall: 'DeleteLinksAll', typemodule: 'ChangeToModule', typeplaced: 'ChangeToPlaced', rescale: 'Rescale', centretop: 'MoveCentreTop', centrebottom: 'MoveCentreBottom', reverselinks: 'ReverseLinksPicked', reverselinksall: 'ReverseLinksAll', linkopen: 'LinkOpen', chooserstart: 'ChooserStart', chooserwith: 'ChooserWith', chooserwithout: 'ChooserWithout', choosercreate: 'ChooserStartCreate', autolinkmodule: 'AutoLinkModule', autolinkenv: 'AutoLinkEnvironment', autolinkmodulenew: 'AutoLinkModuleNew', autolinkenvnew: 'AutoLinkEnvironmentNew', setvisibility: 'SetVisibility', autolinkload: 'AutoLinkLoadFile', linkexitnew: 'LinkExitNew', linkexitall: 'LinkExitAll', linkhelp: 'LinkHelp', viewdistance: 'ViewDistanceToggle', onlylinked: 'OnlyLinkedToggle', selectpoly: 'SelectByPolygons', preferbmp: 'PreferBmp', polyviewdist: 'PolygonViewDistance', showall: 'ShowAllModules', objhide: 'HideObjects', objunhidelast: 'UnhideLastObject', objunhideall: 'UnhideAllObjects', strategy: 'Strategy', findobject: 'FindObject', mixed: 'MixedView', polycounts: 'ShowPolyCounts', selectcentres: 'SelectWithCentres', path: 'PathCommand', hierarchy: 'HierarchyCommand', savecopy: 'SaveCopy', waypoint: 'WaypointCommand', doorsclose: 'DoorsClose', doorsopen: 'DoorsOpen', lighttoggle: 'LightToggle', lightswitchallon: 'LightSwitchAllOn', saveintgame: 'SaveIntensitiesGame', saveinttools: 'SaveIntensitiesTools', special: 'SpecialCommand', soften: 'SoftEdge', lighthier: 'LightHierarchy', lightseq: 'LightSequence', trackedit: 'TrackEdit', texturemap: 'TextureMapCommand', viewlighting: 'ViewLighting', opcounts: 'PlacementPolyCounts', snapvertex: 'SnapToVertex', gravity: 'GravityToggle', splitscreen: 'SplitScreenToggle', moverelmodule: 'MoveRelativeToModule', fixtears: 'FixTearsSelected', fixtearsall: 'FixTearsEvery', recentrepoly: 'RecentrePolygon', pastetrackrel: 'PasteTrackRelative', exitmode: 'ExitMode', adjexit: 'AdjacentExit', adjshowall: 'AdjacentShowAll', adjviewdistance: 'AdjacentViewDistance', adjselectpoly: 'AdjacentSelectPolygons' };
+const kWorkCpp = { none: 'None', quit: 'Quit', screen: 'ToScreen', hub: 'ToHub', keys: 'Keys', find: 'Find', moverel: 'MoveRelative', delete: 'DeleteObject', createlike: 'CreateLikeSelected', setbase: 'SetBaseModule', findsmall: 'FindSmallModules', keysmode: 'ConstructionKeys', screenshot: 'Screenshot', copytrack: 'CopyTrack', pastetrackabs: 'PasteTrackAbsolute', findnotdone: 'FindNotDone', writeasc: 'WriteAsc', writeascdoors: 'WriteAscDoorsClosed', linkcurrent: 'LinkSetCurrent', linknormal: 'LinkNormal', linkbranch: 'LinkBranch', linkdelete: 'LinkDelete', linkclose: 'LinkClose', selectlight: 'SelectLights', selectobject: 'SelectObjects', lighthelp: 'LightHelp', hideall: 'HideAllLights', unhideall: 'UnhideAllLights', quickcreate: 'QuickCreate', altloc: 'AltLocation', screenwhite: 'ToScreenNoTextures', recalcentry: 'RecalcEntryPoints', recalcnormals: 'RecalculateNormals', moverelpoly: 'MoveRelToPoly', replaceshape: 'ReplaceShape', adjadd: 'AdjacentAdd', adjdelete: 'AdjacentDelete', adjsetcurrent: 'AdjacentSetCurrent', deletemoduledata: 'DeleteModuleData', mergeobjects: 'MergeObjects', linkexit: 'LinkExit', viewpolygon: 'ViewPolygon', viewpolyline: 'ViewPolyline', viewfilledpolyline: 'ViewFilledPolyline', linkview: 'LinkView', linkhide: 'LinkHide', deletelinks: 'DeleteLinksPicked', deletelinksall: 'DeleteLinksAll', typemodule: 'ChangeToModule', typeplaced: 'ChangeToPlaced', rescale: 'Rescale', centretop: 'MoveCentreTop', centrebottom: 'MoveCentreBottom', reverselinks: 'ReverseLinksPicked', reverselinksall: 'ReverseLinksAll', linkopen: 'LinkOpen', chooserstart: 'ChooserStart', chooserwith: 'ChooserWith', chooserwithout: 'ChooserWithout', choosercreate: 'ChooserStartCreate', autolinkmodule: 'AutoLinkModule', autolinkenv: 'AutoLinkEnvironment', autolinkmodulenew: 'AutoLinkModuleNew', autolinkenvnew: 'AutoLinkEnvironmentNew', setvisibility: 'SetVisibility', autolinkload: 'AutoLinkLoadFile', linkexitnew: 'LinkExitNew', linkexitall: 'LinkExitAll', linkhelp: 'LinkHelp', viewdistance: 'ViewDistanceToggle', onlylinked: 'OnlyLinkedToggle', selectpoly: 'SelectByPolygons', preferbmp: 'PreferBmp', polyviewdist: 'PolygonViewDistance', showall: 'ShowAllModules', objhide: 'HideObjects', objunhidelast: 'UnhideLastObject', objunhideall: 'UnhideAllObjects', strategy: 'Strategy', findobject: 'FindObject', mixed: 'MixedView', polycounts: 'ShowPolyCounts', selectcentres: 'SelectWithCentres', path: 'PathCommand', hierarchy: 'HierarchyCommand', savecopy: 'SaveCopy', waypoint: 'WaypointCommand', doorsclose: 'DoorsClose', doorsopen: 'DoorsOpen', lighttoggle: 'LightToggle', lightswitchallon: 'LightSwitchAllOn', saveintgame: 'SaveIntensitiesGame', saveinttools: 'SaveIntensitiesTools', special: 'SpecialCommand', soften: 'SoftEdge', lighthier: 'LightHierarchy', lightseq: 'LightSequence', trackedit: 'TrackEdit', texturemap: 'TextureMapCommand', viewlighting: 'ViewLighting', opcounts: 'PlacementPolyCounts', snapvertex: 'SnapToVertex', gravity: 'GravityToggle', splitscreen: 'SplitScreenToggle', moverelmodule: 'MoveRelativeToModule', fixtears: 'FixTearsSelected', fixtearsall: 'FixTearsEvery', recentrepoly: 'RecentrePolygon', pastetrackrel: 'PasteTrackRelative', exitmode: 'ExitMode', adjexit: 'AdjacentExit', adjshowall: 'AdjacentShowAll', adjviewdistance: 'AdjacentViewDistance', adjselectpoly: 'AdjacentSelectPolygons', moduleoverlaps: 'ModuleOverlaps', placementkeys: 'PlacementKeys', placedhier: 'PlacedHierarchy' };
 
 
 // What an item of a stand-in's own menus may do (the ones of the tables' items that need no table, and the strategy mode's)
@@ -488,6 +488,14 @@ function shown(value) {
 	return value.replace('&', '');
 }
 
+// The place, in the words as shown (name), of the letter inteng underlines: the one after the "&" of its own words, which end the name (a sub-item's name is "<its parents' words>: <its
+// words>"); -1 when they have none. FUN_0046ce70 0x46ceac draws the letter after a "&" underlined (view-state-table.md H-5c).
+function accessIn(name, words) {
+	const at = words.indexOf('&');
+
+	return at < 0 ? -1 : name.length - shown(words).length + at;
+}
+
 // One page of a code-built screen as bar menus: the same rules as a table's (a kind 0 is a title, a kind 1 an item under it, a kind 2 an item under the last
 // kind 1 and a kind 3 one under the last kind 2, each shown as "its parents' words: its words"; a blank line is left out), the items keyed by inteng's own
 // command numbers. What an item does is the status file's, found by the screen and the command: the same command is the same item wherever it is.
@@ -502,7 +510,7 @@ function builtPageMenus(screen, page, s, status, screenOf, tag) {
 		const action = (s + 1) * 0x10000 + (page.row - 1) * 0x4000 + page.page * 0x400 + r;
 		const where = `${screen.screen}, row ${page.row} page ${page.page}, record ${r}`;
 
-		const addItem = (menu, name) => {
+		const addItem = (menu, name, words) => {
 			const said = status.items.filter((i) => i.table === tableKey && parseInt(i.command, 16) === command);
 
 			if (said.length > 1) {
@@ -528,17 +536,17 @@ function builtPageMenus(screen, page, s, status, screenOf, tag) {
 				refuse(`${where}: "${name}${kTagWords[itemTag]}" is longer than ${kNameMost} letters`);
 			}
 
-			menu.items.push({ name, action, command, tag: itemTag, work, toScreen });
+			menu.items.push({ name, action, command, tag: itemTag, work, toScreen, access: accessIn(name, words) });
 		};
 
 		if (record.kind === 0) {
-			const menu = { title: shown(record.words), items: [] };
+			const menu = { title: shown(record.words), access: record.words.indexOf('&'), items: [] };
 
 			menus.push(menu);
 
 			// A title with a command and nothing under it is a menu of one item with its words
 			if (command !== 0 && (!next || next.kind === 0)) {
-				addItem(menu, shown(record.words));
+				addItem(menu, shown(record.words), record.words);
 			}
 
 			return;
@@ -565,7 +573,7 @@ function builtPageMenus(screen, page, s, status, screenOf, tag) {
 			}
 		}
 
-		addItem(menus[menus.length - 1], [...chain, shown(record.words)].join(': '));
+		addItem(menus[menus.length - 1], [...chain, shown(record.words)].join(': '), record.words);
 	});
 
 	// Items of ours on this page (status "extras"): each a menu of one item, after inteng's, with an action number past the page's records
@@ -672,7 +680,7 @@ function build(menus, status, built) {
 		const screen = { name: status.screens[s].name, table: table.address, menus: [] };
 		const records = table.records;
 
-		const addItem = (menu, name, r, command) => {
+		const addItem = (menu, name, r, command, words) => {
 			const said = itemOf(table.address, command);
 
 			if (said.length > 1) {
@@ -699,21 +707,21 @@ function build(menus, status, built) {
 				refuse(`table ${table.address}, record ${r}: "${name}${kTagWords[tag]}" is longer than ${kNameMost} letters`);
 			}
 
-			menu.items.push({ name, action: (s + 1) * 0x10000 + r, command, tag, work, toScreen });
+			menu.items.push({ name, action: (s + 1) * 0x10000 + r, command, tag, work, toScreen, access: accessIn(name, words) });
 		};
 
 		records.forEach((record, r) => {
 			const command = parseInt(record.command, 16);
 
 			if (record.kind === 0) {
-				const menu = { title: shown(record.words), items: [] };
+				const menu = { title: shown(record.words), access: record.words.indexOf('&'), items: [] };
 				const next = records[r + 1];
 
 				screen.menus.push(menu);
 
 				// A title with a command and nothing under it is a menu of one item with its words (ours until run 1)
 				if (command !== 0 && (!next || next.kind === 0)) {
-					addItem(menu, shown(record.words), r, command);
+					addItem(menu, shown(record.words), r, command, record.words);
 				}
 			} else {
 				const menu = screen.menus[screen.menus.length - 1];
@@ -739,7 +747,7 @@ function build(menus, status, built) {
 					name = `${shown(records[parent].words)}: ${name}`;
 				}
 
-				addItem(menu, name, r, command);
+				addItem(menu, name, r, command, record.words);
 			}
 		});
 
@@ -793,6 +801,7 @@ function build(menus, status, built) {
 		let next = 1;
 		const menus = standIn.menus.map((menu) => ({
 			title: shown(menu.title),
+			access: menu.title.indexOf('&'),
 			items: menu.items.map((item) => {
 				const name = shown(item.name);
 				const tag = 'tag' in item ? item.tag : 'none';
@@ -802,7 +811,7 @@ function build(menus, status, built) {
 					refuse(`${standIn.name}: "${name}${kTagWords[tag]}" is longer than ${kNameMost} letters`);
 				}
 
-				return { name, action: (s + 1) * 0x10000 + next++, command: 'command' in item ? parseInt(item.command, 16) : 0, tag, work, toScreen: -1 };
+				return { name, action: (s + 1) * 0x10000 + next++, command: 'command' in item ? parseInt(item.command, 16) : 0, tag, work, toScreen: -1, access: accessIn(name, item.name) };
 			}),
 		}));
 
@@ -846,11 +855,11 @@ function emit(screens) {
 			out.push('\t\t{');
 
 			if (menu.items.length === 0) {
-				out.push('\t\t\t{ "", 0, 0, IntengTag::None, IntengWork::None, -1 },   // none: an array can\'t be empty');
+				out.push('\t\t\t{ "", 0, 0, IntengTag::None, IntengWork::None, -1, -1 },   // none: an array can\'t be empty');
 			}
 
 			for (const item of menu.items) {
-				out.push(`\t\t\t{ ${cpp(item.name)}, 0x${item.action.toString(16)}, 0x${item.command.toString(16)}, IntengTag::${kTagCpp[item.tag]}, IntengWork::${kWorkCpp[item.work]}, ${item.toScreen} },`);
+				out.push(`\t\t\t{ ${cpp(item.name)}, 0x${item.action.toString(16)}, 0x${item.command.toString(16)}, IntengTag::${kTagCpp[item.tag]}, IntengWork::${kWorkCpp[item.work]}, ${item.toScreen}, ${'access' in item ? item.access : -1} },`);
 			}
 
 			out.push('\t\t};');
@@ -859,7 +868,7 @@ function emit(screens) {
 		out.push('\t\t{');
 
 		menus.forEach((menu, m) => {
-			out.push(`\t\t\t{ ${cpp(menu.title)}, kItems${tag}_${m}, ${menu.items.length} },`);
+			out.push(`\t\t\t{ ${cpp(menu.title)}, kItems${tag}_${m}, ${menu.items.length}, ${'access' in menu ? menu.access : -1} },`);
 		});
 
 		out.push('\t\t};');

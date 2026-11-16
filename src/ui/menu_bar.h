@@ -56,6 +56,8 @@ namespace ui
 		                             // yet, or null for none: 1 to kMenuTagMost font letters. Null unless set, so an item made field by field
 		                             // (ui_menu_bar_test's TestSmallRooms makes ten on the stack) has none. (Added 2026-11-15 by Melanikus
 		                             // (Frost), A6.)
+		int32_t access = -1;         // the place in name of the letter drawn underlined (inteng's '&': FUN_0046ce70 0x46ceac, view-state-table.md H-5c), -1 for none
+		bool subMenu = false;        // the item opens a menu of its own: its row shows inteng's sub-menu mark (glyph 2 of the menu font, FUN_004b6f70 0x4b71c5; H-5b)
 	};
 
 	struct Menu
@@ -63,6 +65,7 @@ namespace ui
 		const char *title;    // the menu's words on the bar
 		const MenuItem *items;
 		size_t count;         // 0 to kMenuMostItems: a menu with none shows an empty drop-down, and picks nothing
+		int32_t titleAccess = -1;   // the place in title of the letter drawn underlined, -1 for none
 	};
 
 	enum class MenuAnswer
@@ -111,6 +114,10 @@ namespace ui
 		// the press, or a release already counted. So a plain click on a title still opens its menu and leaves it open, and a click on an
 		// item still picks it on the press.
 		MenuAnswer Release(int32_t x, int32_t y);
+
+		// The pointer moved to a place in the window: with a menu open, the shown row under it becomes the lit (pointed) one, as inteng's menu loop does with
+		// the row under the mouse (FUN_004b7dd0 -> FUN_004b7590, view-state-table.md H-5d). Anywhere else the lit row stays. True when the lit row changed.
+		bool PointAt(int32_t x, int32_t y);
 
 		bool Loaded() const { return menus != 0; }
 		bool IsOpen() const { return open >= 0; }

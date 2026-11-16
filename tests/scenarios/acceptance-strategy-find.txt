@@ -1,25 +1,49 @@
-# ACCEPTANCE: Strategy Data's Find Object (0x41, FUN_00524e90 -> FUN_005253c0(1)): the list dialog "Select Object" of the objects that have a strategy and the virtual objects (not every object, as Construction's 0x52 lists); a click on a row selects that
-# object and puts the view at its place. By clicks on the bar and on the dialog.
-level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+# ACCEPTANCE: Strategy Data's Find Object, HIS PATH (Frost; strategy-data.md S-11, reassess/strategy-data-verify-frost.md S-11, MAPPING-ORDERS section 14). Read on the new dump:
+# FUN_00524e90 case 0x41 -> FUN_005253c0(1) (dump-full-3:58960): the list is made AGAIN each time (its flag DAT_0091495c is never set but to 0, and starts 0: the exe's .bss), of every
+# record whose wrapper is a virtual object (+8 != 0) or holds a strategy (+0x14 +0x30), EACH ONCE, by its name; FUN_00475bf0 "Select Object" (0x5cf744) sorts the rows; a choice ->
+# FUN_00529280(record, 1) (dump-full-3:61782): the old current's red off, the camera's place (+0x10..+0x18) = the record's place LESS 10 x the camera's FORWARD axis (+0x50..+0x58, a 16.16
+# unit vector: camera-mover-trace.md step 8), i.e. 655360 inteng units = 6553.6 of the game's units behind it, looking the way it looked; the record current and red. No words.
+# By his path: open the file, bar to Strategy Data, the camera at the origin facing +z (turn 0, look 0: forward (0, 0, 65536)), Find Object.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
 state
-item 0x39
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
 expect-screen Strategy Data
 expect-selected 0
-item 0x41
+camera 0 0 0 0 0
+
+# a virtual object that HAS a strategy is one record: one row (Drake's find, 11-16: on Invasion the row "Dropship room death volume" selected nothing, "No object matches";
+# ours listed it twice, once as an object whose ID no object chunk has)
+click-bar Find Object
 expect-dialog-kind list
 expect-dialog Select Object
-picture 960
-click-row 1
+picture 2
+click-choice Dropship room death volume
 expect-no-dialog
 expect-selected 1
-expect-pixels-changed picture 0 0 2000 2000 0.05
-# the on-screen messages (FUN_0057bd40(200, 100, 0, words), 700 ms): Edit Strategy with nothing selected says "Selected object has no strategy" on the screen (the pictures differ where the words go)
-key L
+wait 300
+picture 3
+# its V (the virtual object's icon, ahead in the middle) is RED: the current record's +0x64 0x40000000 -> FUN_004a7cd0 0x4a7eca item flag 0x80 -> FUN_004980f0 0xff0000 (S-62)
+expect-colour picture 440 290 140 150 ff0000 0.05 40
+# a click on empty space lets it go (FUN_00528250, pick 0): the V is GREEN, as every record holding a strategy (FUN_00522680 0x522935 0x2000000 -> item 0x100 -> 0x00ff00, S-61)
+click-win 900 120
 expect-selected 0
-picture 962
-item 0x7
-expect-status Selected object has no strategy
-expect-pixels-changed panels 150 110 420 90 0.001
-# Mode > Object selection (0x4) is on bar A's page 2 (set 6), which nothing in inteng ever shows (no +0x18(2) call), and its command does nothing: no item on the bars of the screen has it (the harness refuses it: see the board)
+wait 300
+picture 5
+expect-colour picture 440 290 140 150 00ff00 0.05 40
+
+# an object: the camera goes 6553 game units BEHIND it along the view (forward +z: z less 6553), the turn and the look as they were; it is current
+camera 0 0 0 0 0
+click-bar Find Object
+expect-dialog Select Object
+click-choice 3rdDeg06
+expect-no-dialog
+expect-selected 1
+expect-field camera 16998 -10743 86782 0 0
+picture 4
+
+# L does NOTHING on Strategy Data's page 0 (FUN_00522980 / FUN_00524e90 read no L; L is the flag page's and the collector's): the found object stays current
+key L
+expect-selected 1
 expect-screen Strategy Data

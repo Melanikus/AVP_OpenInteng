@@ -1,0 +1,79 @@
+# ACCEPTANCE: Strategy Data's save question counts only STRATEGY's own changes, HIS PATH (Frost, 2026-11-16; reassess/strategy-data-verify-frost.md W-3 / S-5 / S-10, MAPPING-ORDERS
+# section 14). inteng: the mode's entry FUN_00522ab0 sets DAT_00914950 = 0 (0x522ae2, MOV [0x914950], EBP with EBP = 0: on EVERY entry, Object Placement's Tab (FUN_00524ce0) included); only the
+# mode's own edits set it (its 30 writers are all in 0x5286b0-0x53b7a9) and Save (FUN_005282d0 0x52831b) clears it. Exit / Tab (case 5, FUN_00524d80 -> FUN_00524d00): the question
+# "Would you like to save first?" ONLY when it is set; Yes saves, No does not; no silent write either way.
+# By his path: open the file, bar to Object Placement, click an object, F (fly), A held, F (the object written where it flew: a Placement change), Tab (Strategy Data), Tab.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+camera -27851 -14055 85500 0 0
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-win 504 364
+expect-selected 1
+key F
+hold A 800
+key F
+wait 300
+picture 2
+
+# Tab: Strategy Data (FUN_004d9af0 0x4da823 -> FUN_00524ce0 -> FUN_00522ab0(0, id, 1): DAT_00914950 = 0)
+key Tab
+expect-screen Strategy Data
+wait 300
+picture 3
+# Tab again with NO Strategy change: no question, back in Object Placement (the Placement change is not Strategy's: it is not saved here either)
+key Tab
+expect-no-dialog
+expect-screen Object Placement
+wait 300
+picture 4
+
+# Tab, then a STRATEGY change (Edit Strategy on an object that has one sets DAT_00914950 = 1 at 0x5286cc even when nothing is edited, S-37): Tab asks, No leaves without saving
+key Tab
+expect-screen Strategy Data
+click-win 504 364
+expect-selected 1
+key E
+wait 300
+key Esc
+wait 300
+key Tab
+expect-dialog Would you like to save first?
+click-button No
+expect-no-dialog
+expect-screen Object Placement
+
+# ---- S-13: Reset fan wind speed marks NOTHING changed (FUN_005354d0, dump-full-3:69544, writes every fan's +0x1c / +0x20 and no DAT_00914950): Exit after it alone asks nothing.
+# From the hub: Object Placement's Exit first (it writes its copy), then Mode > Strategy Data: Normal, Misc > Reset fan wind speed > Yes, Mode > Exit
+click-bar Mode > Exit
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+click-bar Misc > Reset fan wind speed
+expect-dialog Would you like to reset the wind strength for all fans
+click-button Yes
+expect-no-dialog
+click-bar Mode > Exit
+expect-no-dialog
+expect-screen Construction
+
+# ---- S-19: Add Flag with NO module picked still marks the level changed (FUN_0052f360 0x52f660: DAT_00914950 = 1 after its loop, whatever the list held), so Exit asks.
+# From the hub: Strategy Data, Mode > Module flags, right-click > Add Flag > Airduct (nothing picked: no module changes), Mode > Exit (the flag page's), Mode > Exit: the question; No
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+click-bar Mode > Module flags
+expect-selected 0
+click-win 640 300 right
+click-popup 1
+click-popup 1
+expect-no-dialog
+click-bar Mode > Exit
+expect-screen Strategy Data
+click-bar Mode > Exit
+expect-dialog Would you like to save first?
+click-button No
+expect-no-dialog
+expect-screen Construction

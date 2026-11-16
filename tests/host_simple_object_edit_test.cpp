@@ -291,11 +291,10 @@ static void TestLevel(char const *path, std::string const &folder)
 		draft.explosion = 3;
 		host::SimpleObjectResult const madeNone = host::SimpleObject_Write(&f, f.Level(), id, draft);
 
-		Check(madeNone == host::SimpleObjectResult::Done || madeNone == host::SimpleObjectResult::Referenced || madeNone == host::SimpleObjectResult::NotPlaced, std::string("an object with no strategy is given a simple object: ") + host::SimpleObjectWords(madeNone));
+		Check(madeNone == host::SimpleObjectResult::Done || madeNone == host::SimpleObjectResult::NotPlaced, std::string("an object with no strategy is given a simple object: ") + host::SimpleObjectWords(madeNone));
 
 		host::SimpleObjectDraft back;
 
-		// (a refusal, because other objects name the object, is a right answer and changes nothing)
 		Check(madeNone != host::SimpleObjectResult::Done || (host::SimpleObject_Read(&f, f.Level(), id, &back) == host::SimpleObjectResult::Done && back.strategyKind == 62 && back.type == 4 && back.extra == 1 && back.explosion == 3), "which reads back with the values given");
 
 		std::vector<unsigned char> bytes;
@@ -312,7 +311,7 @@ static void TestLevel(char const *path, std::string const &folder)
 		memcpy(id, other->id, 8);
 		host::SimpleObjectResult const madeOther = host::SimpleObject_Write(&f, f.Level(), id, other->draft);
 
-		Check(madeOther == host::SimpleObjectResult::Done || madeOther == host::SimpleObjectResult::Referenced, std::string("an object with another strategy is written: ") + host::SimpleObjectWords(madeOther) + " (kind " + std::to_string(other->draft.strategyKind) + ")");
+		Check(madeOther == host::SimpleObjectResult::Done, std::string("an object with another strategy is written, named by others or not (inteng replaces it): ") + host::SimpleObjectWords(madeOther) + " (kind " + std::to_string(other->draft.strategyKind) + ")");
 
 		host::SimpleObjectDraft back;
 

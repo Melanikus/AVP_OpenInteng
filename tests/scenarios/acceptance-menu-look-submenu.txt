@@ -1,0 +1,21 @@
+# ACCEPTANCE: a SUB-MENU's mark (Drake, 2026-11-16; view-state-table.md H-5b): an item with children gets glyph 2 of inteng's menu font on its row (FUN_004b6f70 0x4b71a6-0x4b71c5, FUN_004b6b30),
+# a right-pointing triangle, in the words' white. His path: a model file opened as a double click, Mode > Hierarchy on the bar, the RIGHT button in the view: the pop-up's "Add keyframe flag" and
+# "Remove keyframe flag" open menus of their own. The menu font is Tools\font16.fnt, read at run time (the run's IntengTools setting).
+# Run: AvP-docs/tools/drake/drive-scenario-t6.sh <tree> <this file> mlooksub verify_light
+
+# inteng's menu font for any runner (Bishop 11-16): his installed inteng's Tools folder, read only; the runner appends #ini lines to the clean ini
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+wait 400
+click-win 500 300 right
+expect-popup-rows Select Hierarchy|Select Sequence|Add delta|Remove delta|Flag delta|Add keyframe flag|Remove keyframe flag
+wait 300
+picture 1
+# the rows are 19 high from 300 (popuprow1 500 300 178 19); a sub-menu row's mark is glyph 2's 16-pixel cell at the row's right, x 662: solid white there on "Add keyframe flag" (row 6, y 395),
+# none on "Add delta" (row 3, y 338), which opens nothing
+expect-colour panels 662 395 16 19 ffffff 0.05 10
+expect-colour-at-most panels 662 338 16 19 ffffff 0.001 10

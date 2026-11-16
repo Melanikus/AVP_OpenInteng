@@ -29,24 +29,19 @@ expect-pixels-same panels 0 48 300 200 0.0005
 item 0x1b
 expect-status Add keyframe flag 6
 item 0x4d
-expect-prompt 30
+# New sound: inteng's text dialog "Select sound index" (FUN_00481440) holding the first free index, cleared and 100 typed; the sound's own Sound Edit window then opens at once (FUN_004ebc80 -> FUN_004ebd60)
+expect-dialog Select sound index
+key Back
+key Back
+key Back
+key Back
 type 100
-key Enter
-expect-status Sound 100 added
-item 0x4e
-expect-dialog Select sound to edit
-click-choice 100 Not Set
-expect-prompt 30
-type step.wav
-key Enter
-type 2000
-key Enter
-type 20000
-key Enter
-type 100
-key Enter
-type 0
-key Enter
+click-button Ok
+expect-dialog Sound Edit
+form-field 1 step.wav
+form-field 5 79
+click-button OK
+expect-no-dialog
 expect-status Sound 100 edited
 item 0x50
 expect-dialog Apply which sound

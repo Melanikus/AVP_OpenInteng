@@ -1,0 +1,41 @@
+# ACCEPTANCE: the MENU BAR's look as inteng's (Drake, 2026-11-16; Bishop's rows view-state-table.md H-5, H-5a..H-5e). inteng's menu style (FUN_004b7950 0x4b7aef-0x4b7b11): BLUE (0, 0, 0xff) the bar and the
+# drop-downs (FUN_004b6f70 fills each drop-down's surface with it, 0x4b7062), WHITE the words (0x4b7137), ORANGE (0xff, 0x7f, 0) the pointed row's background (FUN_004b7590 / FUN_004b6c50 swap blue and orange in
+# its band), YELLOW an "on" item's words (FUN_004b7470, no tick). The bar is a strip the window's WHOLE width (Bishop's measure of his picture). His path: the file opened as a double click, the pointer to the top
+# edge, a title clicked, the pointer on a row. Every check reads the panels' picture (the bar and its drop-downs are drawn on the panels).
+# The words are inteng's own menu font, Tools\font16.fnt, read at run time from his inteng folder (the run's IntengTools setting) and drawn solid, pixel for pixel. NOT YET: glyph 2 on a sub-menu row.
+# Run: AvP-docs/tools/drake/drive-scenario-t6.sh <tree> <this file> mlook verify_light
+
+# inteng's menu font for any runner (Bishop 11-16): his installed inteng's Tools folder, read only; the runner appends #ini lines to the clean ini
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+# the pointer at the top edge: the bar is drawn, BLUE from the window's left to its right edge (far past the last title)
+move-win 500 1
+wait 400
+picture 1
+expect-bar-shown
+expect-colour panels 0 0 1008 3 0000ff 0.95 30
+expect-colour panels 700 0 300 3 0000ff 0.95 30
+# the ACCESS LETTER is underlined in the words' own colour, one row the letter's width (inteng's '&': FUN_0046ce70 0x46cffb-0x46d04d, H-5c): &File's F, a solid white row under it
+# (the last row of inteng's font16: y 17 under the line's top at 2)
+expect-colour panels 0 17 30 1 ffffff 0.2 10
+# a title clicked (Options): its drop-down is BLUE with WHITE words
+click-bar Options
+wait 300
+picture 2
+expect-colour panels 0 20 1008 200 0000ff 0.01 30
+expect-colour panels 0 20 1008 200 ffffff 0.001 40
+# the open title is the bar's pointed item: ORANGE behind its words
+expect-colour panels 0 0 1008 20 ff7f00 0.002 40
+# a menu opened by a click points at no row yet (the pointer is on its title): no orange in the drop-down
+expect-colour-at-most panels 295 32 196 57 ff7f00 0.001 30
+# "Select by polygons" is ON at the start (editor_options.cpp): its words are YELLOW ffff00, solid (FUN_004b7470); the other rows' are not
+expect-colour panels 295 32 196 19 ffff00 0.03 10
+expect-colour-at-most panels 295 70 196 19 ffff00 0.001 10
+# the pointer on the second row ("Prefer .BMP over .RIM"): its band turns ORANGE (FUN_004b7590 / FUN_004b6c50); blue is left round the words
+move-win 393 60
+wait 300
+picture 3
+expect-colour panels 295 51 196 19 ff7f00 0.4 30
+key Esc

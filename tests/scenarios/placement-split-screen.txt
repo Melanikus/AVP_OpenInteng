@@ -6,6 +6,11 @@ pictures on
 state
 expect-screen Object Placement
 item 0x37
+# Create > Sound asks the object's name first (OP-24 / OP-30, FUN_004d53d0 at 0x4dad35)
+expect-dialog Name Object
+form-field 1 sndSplit
+click-button OK
+expect-no-dialog
 expect-status Sound
 picture 1
 item 0x52

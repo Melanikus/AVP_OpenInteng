@@ -1,0 +1,90 @@
+# ACCEPTANCE: Copy Strategy's replace question, HIS PATH (Frost, 2026-11-16; strategy-data.md 1:1 TABLE rows S-80 and S-36, Phase 2 batch 1).
+# FUN_00528340: for each picked target that has a strategy FUN_00521860 does not call replaceable, unless an earlier answer was "Yes All" (10: replaced without asking) or "No All" (0xb: passed by without
+# asking), FUN_00529f30 asks "%s already has a strategy\nDo you want to replace it?" (0x5ee1b4): 400 x 200, four 0x32 x 0x10 buttons at y 0x96: "Yes All" 0x28 (10), "Yes" 0x82 (3), "No" 0xdc (2),
+# "No All" 0x136 (0xb) (method 0x52a100); 2 and 0xb pass the target by (0x5284fb), every other answer replaces, ESCAPE TOO (FUN_0057c800 answers 1 for Escape, 0x57cca4).
+# By his path: the module APCmod gets a Door (Assign, its view, Escape); Copy Strategy to two modules (they get it, no question); Copy again: No All, Yes All, Escape.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+
+# the source: APCmod with a Door (its view comes up at once; Escape ends it)
+click-win 120 500
+expect-selected 1
+click-win 120 500 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Door
+expect-no-dialog
+key Esc
+wait 300
+
+# Copy 1: two targets with no strategy: both get the Door, no question
+click-win 120 500 right
+click-popup 2
+expect-status Select objects to copy to
+click-win 640 300
+click-win 640 130
+key Enter
+expect-no-dialog
+expect-status Copy Strategy: 2 object(s) got the strategy
+
+# Copy 2: both have a Door now: the question for the first; "No All" passes it AND the second by, without a second question
+click-win 120 500
+click-win 120 500 right
+click-popup 2
+click-win 640 300
+click-win 640 130
+key Enter
+expect-dialog-kind form
+picture 2
+click-button No_All
+expect-no-dialog
+expect-status Copy Strategy: 0 object(s) got the strategy
+
+# Copy 3: "Yes All" replaces the first and the second without asking again
+click-win 120 500
+click-win 120 500 right
+click-popup 2
+click-win 640 300
+click-win 640 130
+key Enter
+expect-dialog-kind form
+click-button Yes_All
+expect-no-dialog
+expect-status Copy Strategy: 2 object(s) got the strategy
+
+# Copy 4: Escape answers 1, which is not No / No All: the first IS replaced, and the question comes again for the second; No passes it by
+click-win 120 500
+click-win 120 500 right
+click-popup 2
+click-win 640 300
+click-win 640 130
+key Enter
+expect-dialog-kind form
+key Esc
+expect-dialog-kind form
+click-button No
+expect-no-dialog
+expect-status Copy Strategy: 1 object(s) got the strategy
+
+# S-36: a strategy that cannot be copied: FUN_00528340 0x52838c asks the source's method +0x10, which is 0 (0x404550) for a Lift: "Copying not supported for this strategy" (0x5ee208) at (200, 100), no collector
+click-win 120 500
+click-win 120 500 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Lift
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+key Esc
+wait 400
+picture 3
+click-win 120 500 right
+# the message is on the screen for 700 ms (FUN_00529220): the picture is taken 150 ms after the click
+click-popup 2 quick
+expect-pixels-changed panels 150 90 450 40 0.004
+expect-colour panels 190 90 400 30 ffffff 0.02 40
+expect-status Copying not supported for this strategy

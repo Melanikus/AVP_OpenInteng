@@ -1,0 +1,26 @@
+# ACCEPTANCE, PART 1 of 2: "Save changes to sequence times" (0x48) writes the time into the saved copy (AvP-docs/engine/inteng/reassess/hierarchy-deltas-vasquez.md HD-17).
+# Run acceptance-hierarchy-seqtimes-restore.txt right after this one: it reopens the copy saved here, so both scenarios name the same `level` and land in the same editor folder.
+# With the switch on, the chosen sequence's player starts at 1000 ms (FUN_0047d6f0 0x47d80c). Each + (0xd) adds 100 ms and writes the time to the sequence's OBASEQTM (FUN_0047da50): 1.2 s,
+# shown with the saved time in brackets. File > Save a copy writes AVP_OpenInteng/edited/MelPyth_MarHUD-edited.rif beside the editor.
+# MelPyth_MarHUD (his HUD file): the Shotgun hierarchy, sequence MarineHUD_Standard_Reload.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+expect-hierarchy-text MarineHUD_Standard_Reload
+expect-hierarchy-text Seq. Time :1.0 sec
+click-bar Hierarchy > Save changes to sequence times
+expect-hierarchy-text (Saving Seq. Times)
+key Plus
+key Plus
+expect-hierarchy-text Seq. Time :1.2 sec  (1.2)
+save-copy

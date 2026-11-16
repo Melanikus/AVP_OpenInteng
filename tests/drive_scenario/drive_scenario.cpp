@@ -32,6 +32,9 @@
 //   expect-pixels-changed <screen|panels|picture> <x> <y> <w> <h> [share]   the newest picture against the one before: at least that share
 //                               (default 0.05) of the box changed (a dialog appeared, a gun moved); expect-pixels-same ... [share]: at most
 //                               that share (default 0.01) changed (nothing happened there)
+//   expect-number <field> <label> <least> <most>   the number right after <label> (_ a space) in that state-line field is in the range
+//   expect-pixels-changed-since <n> <kind> <x> <y> <w> <h> [share]   the same, the newest picture against picture n (one taken with picture <n>),
+//                               not the one before: dialog steps between them take their own pictures; expect-pixels-same-since likewise
 //   expect-colour <kind> <x> <y> <w> <h> <rrggbb> [share] [tolerance]   that share of the box is that colour (channels within the tolerance)
 //   expect-not-empty [share]    the newest picture of the 3D view has at least that share (default 0.10) of pixels away from its background
 //   expect-dialog <words> / expect-no-dialog / expect-dialog-rows <a|b|...> / click-row <n>   inteng's list dialogs, from the state line's
@@ -343,7 +346,7 @@ static void DragWindow(Scenario *s, int x0, int y0, int x1, int y1)
 	Sleep(600);
 }
 
-static void ClickWindow(Scenario *s, int x, int y, bool right, bool shift)
+static void ClickWindow(Scenario *s, int x, int y, bool right, bool shift, DWORD settle = 600)
 {
 	HWND const target = TargetOf(s, &x, &y);
 
@@ -354,7 +357,7 @@ static void ClickWindow(Scenario *s, int x, int y, bool right, bool shift)
 	PostMessageW(target, right ? WM_RBUTTONDOWN : WM_LBUTTONDOWN, keys, at);
 	Sleep(60);
 	PostMessageW(target, right ? WM_RBUTTONUP : WM_LBUTTONUP, shift ? MK_SHIFT : 0, at);
-	Sleep(600);   // the frame that answers a pick is drawn after the press, so the state is asked after it
+	Sleep(settle);   // the frame that answers a pick is drawn after the press, so the state is asked after it
 }
 
 // Runs a program, capturing its lines; gives its exit code, or -1 if it didn't start
@@ -446,6 +449,7 @@ static UINT KeyOf(std::string const &name)
 	if (name == "Down") return VK_DOWN;
 	if (name == "Space") return VK_SPACE;
 	if (name == "Home") return VK_HOME;
+	if (name == "Insert") return VK_INSERT;
 	// F1 to F9: the camera slots' keys (Shift+F1 saves slot 0, F1 restores it)
 	if (name.size() == 2 && name[0] == 'F' && name[1] >= '1' && name[1] <= '9') return VK_F1 + (UINT)(name[1] - '1');
 	if (name == "F10") return VK_F10;
@@ -513,6 +517,38 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		Check(AskState(s), label);
 		printf("  (%s)\n", s->last.c_str());
 		return true;
+	}
+
+	// right-click-choice <words>: a RIGHT click in the middle of the list dialog's row (on the page shown) whose words hold these; the list stays open (inteng's list +0x6c handler: the
+	// sound chooser's "Right click to listen to sound"). Dietrich, 2026-11-16.
+	if (verb == "right-click-choice" && w.size() >= 2)
+	{
+		std::string const wanted = Rest(line, 1);
+		std::string const choices = AskState(s) ? Field(s->last, "choices") : std::string();
+		bool clicked = false;
+		size_t from = 0;
+
+		while (from < choices.size() && !clicked)
+		{
+			size_t const bar = choices.find('|', from);
+			std::string const one = choices.substr(from, bar == std::string::npos ? std::string::npos : bar - from);
+			size_t const at = one.rfind('@');
+			int x = 0, y = 0, bw = 0, bh = 0;
+
+			from = bar == std::string::npos ? choices.size() : bar + 1;
+
+			if (at != std::string::npos && one.substr(0, at).find(wanted) != std::string::npos && sscanf_s(one.c_str() + at + 1, "%d,%d,%d,%d", &x, &y, &bw, &bh) == 4)
+			{
+				ClickWindow(s, x + bw / 2, y + bh / 2, true, false);
+				Sleep(300);
+				AskState(s);
+				clicked = true;
+			}
+		}
+
+		Check(clicked, label + (clicked ? "" : " (no row of the list has those words: \"" + choices.substr(0, 200) + "\")"));
+		PictureAfter(s, line);
+		return clicked;
 	}
 
 	// click-choice <words>: a left click on the middle of the button of the list chooser (inteng's Genfunc list dialog, list_picker.h) whose words contain these (the editor's state line gives the buttons of the page
@@ -686,6 +722,141 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		}
 
 		Check(Field(s->last, w[1]) == Rest(line, 2), label + " (" + w[1] + " is \"" + Field(s->last, w[1]) + "\")");
+		return true;
+	}
+
+	// expect-field-has <name> <words>: a field of the editor's scenario line contains the words (a drop-down's items in dropboxes, BAR-5)
+	if (verb == "expect-field-has" && w.size() >= 3)
+	{
+		if (!AskState(s))
+		{
+			Check(false, label + " (the editor gave no state line)");
+			return false;
+		}
+
+		Check(Field(s->last, w[1]).find(Rest(line, 2)) != std::string::npos, label + " (" + w[1] + " is \"" + Field(s->last, w[1]).substr(0, 300) + "\")");
+		return true;
+	}
+
+	// expect-field-empty <name>: a field of the editor's scenario line is empty (nothing of it on the screen: the screen's top-left text while inteng's menu loop is up, BAR-8)
+	if (verb == "expect-field-empty" && w.size() >= 2)
+	{
+		if (!AskState(s))
+		{
+			Check(false, label + " (the editor gave no state line)");
+			return false;
+		}
+
+		Check(Field(s->last, w[1]).empty(), label + " (" + w[1] + " is \"" + Field(s->last, w[1]) + "\")");
+		return true;
+	}
+
+	// expect-number <field> <label> <least> <most>: the whole number written right after the label's words (_ for a space) in that state-line field lies in the range, ends included
+	// (a value the screen shows as text, e.g. "Timer :%d" of the Hierarchy rows in the field hierarchylines). A sixth word n (1 to 64) takes the label's n-th place in the field
+	// (the Hierarchy text has a "Timer :" row for the main, the turret and each delta), else the first.
+	if (verb == "expect-number" && w.size() >= 5)
+	{
+		if (!AskState(s))
+		{
+			Check(false, label + " (the editor gave no state line)");
+			return false;
+		}
+
+		std::string const now = Field(s->last, w[1]);
+		std::string wanted = w[2];
+
+		for (char &letter : wanted)
+		{
+			letter = letter == '_' ? ' ' : letter;
+		}
+
+		int const nth = w.size() >= 6 ? atoi(w[5].c_str()) : 1;
+
+		if (nth < 1 || nth > 64)
+		{
+			Check(false, label + " (the place is 1 to 64)");
+			return true;
+		}
+
+		size_t at = now.find(wanted);
+
+		for (int i = 1; i < nth && at != std::string::npos; i++)
+		{
+			at = now.find(wanted, at + wanted.size());
+		}
+		long long const least = atoll(w[3].c_str()), most = atoll(w[4].c_str());
+
+		if (at == std::string::npos)
+		{
+			Check(false, label + " (\"" + wanted + "\" is not in " + w[1] + ": \"" + now.substr(0, 200) + "\")");
+			return true;
+		}
+
+		long long const value = atoll(now.c_str() + at + wanted.size());
+
+		Check(value >= least && value <= most, label + " (it is " + std::to_string(value) + ")");
+		return true;
+	}
+
+	// remember-number <field> <label> [n]: keeps the number expect-number would read; expect-number-moved <field> <label> <least> <most> [n]: the number now LESS the one kept lies in
+	// the range, ends included, the difference taken as a 16-bit timer's (wrapped to -32768..32767: the Hierarchy timers run 0..65535 and wrap). For a step that depends on how many
+	// frames the editor drew (a key held): what the check sees is the direction and size of the move, not the wall clock.
+	if ((verb == "remember-number" && w.size() >= 3) || (verb == "expect-number-moved" && w.size() >= 5))
+	{
+		static long long kept = 0;
+		static bool haveKept = false;
+		bool const remember = verb == "remember-number";
+
+		if (!AskState(s))
+		{
+			Check(false, label + " (the editor gave no state line)");
+			return false;
+		}
+
+		std::string const now = Field(s->last, w[1]);
+		std::string wanted = w[2];
+
+		for (char &letter : wanted)
+		{
+			letter = letter == '_' ? ' ' : letter;
+		}
+
+		size_t const nthAt = remember ? 3 : 5;
+		int const nth = w.size() > nthAt ? atoi(w[nthAt].c_str()) : 1;
+
+		if (nth < 1 || nth > 64)
+		{
+			Check(false, label + " (the place is 1 to 64)");
+			return true;
+		}
+
+		size_t at = now.find(wanted);
+
+		for (int i = 1; i < nth && at != std::string::npos; i++)
+		{
+			at = now.find(wanted, at + wanted.size());
+		}
+
+		if (at == std::string::npos)
+		{
+			Check(false, label + " (\"" + wanted + "\" is not in " + w[1] + ": \"" + now.substr(0, 200) + "\")");
+			return true;
+		}
+
+		long long const value = atoll(now.c_str() + at + wanted.size());
+
+		if (remember)
+		{
+			kept = value;
+			haveKept = true;
+			printf("  (kept %lld)\n", value);
+			return true;
+		}
+
+		long long const least = atoll(w[3].c_str()), most = atoll(w[4].c_str());
+		long long const moved = ((value - kept + 32768) % 65536 + 65536) % 65536 - 32768;
+
+		Check(haveKept && moved >= least && moved <= most, label + " (it is " + std::to_string(value) + ", kept " + std::to_string(kept) + ": moved " + std::to_string(moved) + ")");
 		return true;
 	}
 
@@ -903,6 +1074,30 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	// THE HIERARCHY VIEW'S TEXT (Vasquez; inteng draws it every frame, FUN_004889d0 0x48a07a on): the state line carries hierarchylines "<row>:<words>|<row>@200:<words>|...".
 	//   expect-hierarchy-text <words>          some line of it contains the words
 	//   expect-hierarchy-count <n> <words>     exactly n lines contain the words (0: none does)
+	// expect-screen-text-not <words>: no line of the screen's top-left text contains the words (Module Linking's Show All legend gone after Escape or a click)
+	if (verb == "expect-screen-text-not" && w.size() >= 2)
+	{
+		AskState(s);
+
+		std::string const all = Field(s->last, "screentext");
+		std::string const unwanted = Rest(line, 1);
+
+		Check(all.find(unwanted) == std::string::npos, label + " (the screen's text: \"" + all.substr(0, 300) + "\")");
+		return true;
+	}
+
+	// expect-screen-text <words>: a line of the screen's top-left text (the state line's screentext: Frame Rate, Speed, the hub's View Distance ...) contains the words
+	if (verb == "expect-screen-text" && w.size() >= 2)
+	{
+		AskState(s);
+
+		std::string const all = Field(s->last, "screentext");
+		std::string const wanted = Rest(line, 1);
+
+		Check(all.find(wanted) != std::string::npos, label + " (the screen's text: \"" + all.substr(0, 300) + "\")");
+		return true;
+	}
+
 	if ((verb == "expect-hierarchy-text" && w.size() >= 2) || (verb == "expect-hierarchy-count" && w.size() >= 3))
 	{
 		AskState(s);
@@ -944,6 +1139,32 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		bool const shown = Field(s->last, "barshown") == "1";
 
 		Check(shown == (verb == "expect-bar-shown"), label + " (the bar is " + (shown ? "drawn" : "not drawn") + ")");
+		return true;
+	}
+
+	// expect-drop-ticked <a|b|...>: the open drop-down's TICKED items (the state line's dropticked: the items MenuBar::IsChecked, as the bar draws them "on"), exactly the rest of the line;
+	// "none" for no ticked item (Dietrich, 2026-11-16: inteng's menu object method +0x2c ticks Hierarchy's switches)
+	if (verb == "expect-drop-ticked" && w.size() >= 2)
+	{
+		AskState(s);
+
+		std::string const want = line.substr(line.find(w[1]));
+		std::string const ticked = Field(s->last, "dropticked");
+
+		Check(want == "none" ? ticked.empty() : ticked == want, label + " (the ticked items: \"" + ticked + "\")");
+		return true;
+	}
+
+	// expect-text-screen <words>: the full text screen over the view (inteng's FUN_004724f0, "Click to continue.": a Help page) has a first line that holds the rest of the line;
+	// "none" for no text screen (the state line's textscreen)
+	if (verb == "expect-text-screen" && w.size() >= 2)
+	{
+		AskState(s);
+
+		std::string const want = line.substr(line.find(w[1]));
+		std::string const shown = Field(s->last, "textscreen");
+
+		Check(want == "none" ? shown.empty() : (!shown.empty() && shown.find(want) != std::string::npos), label + " (the text screen's first line: \"" + shown + "\")");
 		return true;
 	}
 
@@ -1067,6 +1288,8 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	// the state line carries popup "<a|b|...>" (its top-level entries), popuprow1 "<x> <y> <w> <h>" and popupstep "<dx> <dy>".
 	//   expect-popup-rows <a|b|...>   the open pop-up's top-level entries, exactly the rest of the line
 	//   click-popup <n>               a click in the middle of entry n (from 1) where it is drawn
+	//   click-popup <n> quick         the same, its picture taken 150 ms after the click and before the state is asked: a message that is on the screen for 700 ms only
+	//                                 (inteng's FUN_0057bd40 + FUN_00529220) is still in it
 	if (verb == "expect-popup-rows" && w.size() >= 2)
 	{
 		AskState(s);
@@ -1095,11 +1318,24 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 			step[1] = box[3];
 		}
 
-		ClickWindow(s, box[0] + (n - 1) * step[0] + box[2] / 2, box[1] + (n - 1) * step[1] + box[3] / 2, false, false);
+		bool const quick = w.size() >= 3 && w[2] == "quick";
+
+		ClickWindow(s, box[0] + (n - 1) * step[0] + box[2] / 2, box[1] + (n - 1) * step[1] + box[3] / 2, false, false, quick ? 150 : 600);
+
+		if (quick)
+		{
+			PictureAfter(s, line);
+		}
+
 		AskState(s);
 		Check(true, label);
 		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
-		PictureAfter(s, line);
+
+		if (!quick)
+		{
+			PictureAfter(s, line);
+		}
+
 		return true;
 	}
 
@@ -1308,6 +1544,8 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	{
 		bool const right = std::find(w.begin(), w.end(), "right") != w.end();
 		bool const shift = std::find(w.begin(), w.end(), "shift") != w.end();
+		// "delete": the Delete key held over the click (Module Linking's un-pick, inteng's slot 0x55 = VK 0x2e): its key-down is posted before the press, its key-up after the release
+		bool const held = std::find(w.begin(), w.end(), "delete") != w.end();
 
 		AskState(s);   // the box's place now
 
@@ -1321,8 +1559,22 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		int const x = box[0] + (int)(atof(w[1].c_str()) * box[2]);
 		int const y = box[1] + (int)(atof(w[2].c_str()) * box[3]);
+		UINT const deleteScan = MapVirtualKeyW(VK_DELETE, MAPVK_VK_TO_VSC);
+
+		if (held)
+		{
+			PostMessageW(s->editor.window, WM_KEYDOWN, VK_DELETE, 1 | (deleteScan << 16));
+			Sleep(60);
+		}
 
 		ClickWindow(s, x, y, right, shift);
+
+		if (held)
+		{
+			PostMessageW(s->editor.window, WM_KEYUP, VK_DELETE, 1 | (deleteScan << 16) | (1u << 30) | (1u << 31));
+			Sleep(200);
+		}
+
 		AskState(s);
 		Check(true, label + " at " + std::to_string(x) + "," + std::to_string(y));
 		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
@@ -1511,7 +1763,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 			return false;
 		}
 
-		HoldAKey(&s->editor, key, 60);
+		HoldAKey(&s->editor, key, 120);   // three of inteng's frames (25 a second, the editor's frame cap): a shorter press can be let go of within one frame and never be seen held
 		AskState(s);
 		Check(true, label);
 		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
@@ -1599,7 +1851,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		PostMessageW(window, WM_KEYDOWN, held, 1 | (heldScan << 16));
 		Sleep(80);
 		PostMessageW(window, WM_KEYDOWN, second, 1 | (secondScan << 16));
-		Sleep(80);
+		Sleep(120);   // the second key is held three frames (the 25-a-second cap)
 		PostMessageW(window, WM_KEYUP, second, 1 | (secondScan << 16) | (1u << 30) | (1u << 31));
 		Sleep(80);
 		PostMessageW(window, WM_KEYUP, held, 1 | (heldScan << 16) | (1u << 30) | (1u << 31));
@@ -1634,13 +1886,34 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 	if (verb == "hold" && w.size() >= 3)
 	{
-		// hold <a letter or a key's name> <milliseconds>: the key held down that long (the camera moves while it is: Classic keys, A forward and Z back). "Shift+A" holds Shift down all that time as well.
+		// hold <a letter or a key's name> <milliseconds>: the key held down that long (the camera moves while it is: Classic keys, A forward and Z back). "Shift+A" holds Shift down all that time as well;
+		// "<key>+<key>" (Comma+Period) holds the first key down all that time too (two keys held together)
 		std::string keyName = w[1];
 		bool const withShift = keyName.compare(0, 6, "Shift+") == 0;
+		UINT alsoHeld = 0;
 
 		if (withShift)
 		{
 			keyName = keyName.substr(6);
+		}
+		else if (keyName.find('+') != std::string::npos && keyName.find('+') > 0 && keyName.find('+') + 1 < keyName.size())
+		{
+			std::string const first = keyName.substr(0, keyName.find('+'));
+
+			alsoHeld = KeyOf(first);
+
+			if (!alsoHeld && first.size() == 1 && ((first[0] >= 'A' && first[0] <= 'Z') || (first[0] >= '0' && first[0] <= '9')))
+			{
+				alsoHeld = (UINT)first[0];
+			}
+
+			if (!alsoHeld)
+			{
+				Check(false, label + " (a key the scenario doesn't know)");
+				return false;
+			}
+
+			keyName = keyName.substr(keyName.find('+') + 1);
 		}
 
 		UINT key = KeyOf(keyName);
@@ -1656,16 +1929,18 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 			return false;
 		}
 
-		if (withShift)
+		UINT const heldFirst = withShift ? VK_SHIFT : alsoHeld;
+
+		if (heldFirst)
 		{
-			PostMessageW(s->editor.window, WM_KEYDOWN, VK_SHIFT, 1 | (MapVirtualKeyW(VK_SHIFT, MAPVK_VK_TO_VSC) << 16));
+			PostMessageW(s->editor.window, WM_KEYDOWN, heldFirst, 1 | (MapVirtualKeyW(heldFirst, MAPVK_VK_TO_VSC) << 16));
 		}
 
 		HoldAKey(&s->editor, key, (DWORD)atoi(w[2].c_str()));
 
-		if (withShift)
+		if (heldFirst)
 		{
-			PostMessageW(s->editor.window, WM_KEYUP, VK_SHIFT, 1 | (MapVirtualKeyW(VK_SHIFT, MAPVK_VK_TO_VSC) << 16) | (1u << 30) | (1u << 31));
+			PostMessageW(s->editor.window, WM_KEYUP, heldFirst, 1 | (MapVirtualKeyW(heldFirst, MAPVK_VK_TO_VSC) << 16) | (1u << 30) | (1u << 31));
 		}
 
 		AskState(s);
@@ -1755,6 +2030,29 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	// that share (0.05 if not given) of the box's pixels changed: something appeared or moved there (a dialog opened, a gun played).
 	// expect-pixels-same <screen|panels|picture> <x> <y> <w> <h> [share]: at most that share (0.01 if not given) changed: nothing
 	// happened there (a refused or empty action).
+	// expect-pixels-changed-since <n> ... / expect-pixels-same-since <n> ...: the same against picture n (taken earlier with picture <n>), not the one before
+	if ((verb == "expect-pixels-changed-since" || verb == "expect-pixels-same-since") && w.size() >= 7)
+	{
+		bool const wantChange = verb == "expect-pixels-changed-since";
+		int const since = atoi(w[1].c_str());
+		double const limit = w.size() >= 8 ? atof(w[7].c_str()) : (wantChange ? 0.05 : 0.01);
+		std::string const kind = w[2];
+
+		if ((kind != "screen" && kind != "panels" && kind != "picture") || since < 1 || since > 999 || s->lastPicture == 0)
+		{
+			Check(false, label + " (the kind must be screen, panels or picture, n 1 to 999, and a picture must have been taken)");
+			return true;
+		}
+
+		double const share = ShareChangedIn(PictureOf(s, kind, since), PictureOf(s, kind, s->lastPicture), atoi(w[3].c_str()),
+			atoi(w[4].c_str()), atoi(w[5].c_str()), atoi(w[6].c_str()));
+		char words[160];
+
+		sprintf_s(words, " (%s-%d against %s-%d: %.3f of the box changed)", kind.c_str(), s->lastPicture, kind.c_str(), since, share);
+		Check(share >= 0.0 && (wantChange ? share >= limit : share <= limit), label + words);
+		return true;
+	}
+
 	if ((verb == "expect-pixels-changed" || verb == "expect-pixels-same") && w.size() >= 6)
 	{
 		bool const wantChange = verb == "expect-pixels-changed";
@@ -2024,8 +2322,13 @@ int main(int argc, char **argv)
 
 		if (w[0] == "start-args" && w.size() >= 2 && steps.empty())
 		{
-			// more words for the editor's command line, after -screen (for example "-viewmode headlight": the Hierarchy scenario's model is lit by it)
-			startArguments += L" " + Widen(Rest(line, 1));
+			// more words for the editor's command line, after -screen (for example "-viewmode headlight": the Hierarchy scenario's model is lit by it). {exedir} is the editor's folder,
+			// with its closing backslash: a scenario can open the copy an earlier run saved (<exedir>AVP_OpenInteng/edited/<level>-edited.rif). (Added 2026-11-16 by Vasquez.)
+			std::string words = Rest(line, 1);
+			std::string const folderOfEditor = Narrow(exe.substr(0, exe.find_last_of(L"\\/") + 1));
+
+			words = Replace(words, "{exedir}", folderOfEditor);
+			startArguments += L" " + Widen(words);
 			continue;
 		}
 

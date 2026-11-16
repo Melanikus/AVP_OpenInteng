@@ -100,7 +100,7 @@
 			"changes": [
 				{
 					"file": "src/model/strategy_rules.cpp",
-					"from": "else if (field.mask && ((uint32_t)value & ~field.mask) != 0)",
+					"from": "else if (field.mask && (((uint32_t)value << field.shift) & ~field.mask) != 0)",
 					"to": "else if (false && field.mask)"
 				}
 			]
@@ -116,12 +116,12 @@
 			]
 		},
 		{
-			"name": "a fan time of 64 is let through",
+			"name": "a fan's speed-up time of 0 is let through",
 			"changes": [
 				{
 					"file": "src/model/strategy_fields.cpp",
-					"from": "Limit::LoaderPlanned, 65, IntMax, \"a fan takes at least 65/65536 of a second to speed up\"",
-					"to": "Limit::LoaderPlanned, 64, IntMax, \"a fan takes at least 65/65536 of a second to speed up\""
+					"from": "\"speed_up_time\", \"Speed up time (seconds)\", Anchor::Start, 20, Storage::Int32, Unit::Seconds, 0,\n\t\t\t  Limit::Editor, 1, 999,",
+					"to": "\"speed_up_time\", \"Speed up time (seconds)\", Anchor::Start, 20, Storage::Int32, Unit::Seconds, 0,\n\t\t\t  Limit::Editor, 0, 999,"
 				}
 			]
 		},
@@ -140,8 +140,8 @@
 			"changes": [
 				{
 					"file": "src/model/strategy_fields.cpp",
-					"from": "0, 0, \"\", true, 10, \"the game's reader; 0 keeps the game's own speed",
-					"to": "0, 0, \"\", true, 0, \"the game's reader; 0 keeps the game's own speed"
+					"from": "true, 10, \"the game's reader; 0 keeps the game's own speed (object_setup.cpp, add_door)",
+					"to": "true, 0, \"the game's reader; 0 keeps the game's own speed (object_setup.cpp, add_door)"
 				}
 			]
 		},

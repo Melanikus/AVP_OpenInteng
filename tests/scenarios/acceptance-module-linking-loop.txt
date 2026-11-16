@@ -11,6 +11,9 @@
 #   Keys (FUN_004c1a90's key slots, screen_keys.cpp): S Base > Set Current 0xc8, N Link > Normal 0x32, D Link > Delete 0x36.
 #   Mode > Exit + All Adjacencies 0x65: inteng's Yes / No confirm (FUN_00474a40 + FUN_0057c800).
 # Every step is a click on what he sees or a key he presses; every check reads the picture. No item 0x.., no typed answers.
+# The view distance is inteng's units, 100 to the millimetre (view-state-table.md H-6): Toggle View Distance starts ON at 1,000,000 = 10 m, which from this camera
+# hides nearly every module. This loop is about the links, so it starts from a saved distance of 1000 m (ViewDistance=, H-7), as a user who had raised it with J would.
+#ini ViewDistance=100000000
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
 state

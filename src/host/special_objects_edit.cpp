@@ -773,6 +773,247 @@ namespace host
 		return SpecialResult::Done;
 	}
 
+	// Every placed hierarchy of SPECLOBJ, in the file's order; `where` gets each one's place among SPECLOBJ's children
+	static void PlacedHierarchiesOf(Where const &w, std::vector<PlacedHierarchyInfo> *out, std::vector<size_t> *where)
+	{
+		for (size_t s = 0; s < w.special.size(); s++)
+		{
+			Span const &one = w.special[s];
+			std::vector<Span> parts;
+
+			if (!NameIs(w.image, one.at, "PLACHIER") || !Children(w.image, one.at + kHeadingBytes, one.at + one.size, &parts))
+			{
+				continue;
+			}
+
+			size_t const dataAt = FirstNamed(w.image, parts, "PLACHIDT");
+
+			if (dataAt == parts.size() || parts[dataAt].size < kHeadingBytes)
+			{
+				continue;
+			}
+
+			size_t const at = parts[dataAt].at + kHeadingBytes;
+			size_t const length = parts[dataAt].size - kHeadingBytes;
+			char const *const first = w.image.data() + at;
+			char const *const zero = length ? (char const *)memchr(first, 0, length) : nullptr;
+
+			if (!zero)
+			{
+				continue;
+			}
+
+			size_t const nameLength = (size_t)(zero - first);
+			size_t const nameBytes = (nameLength + 4) & ~(size_t)3;
+			size_t const numberBytes = 4 + 12 + 16 + 8 + 4;   // hierarchy_index, the place, the turn, the ID, the extra count
+
+			if (length < nameBytes || length - nameBytes < numberBytes)
+			{
+				continue;
+			}
+
+			PlacedHierarchyInfo made;
+			size_t const p = at + nameBytes;
+
+			made.number = out->size();
+			made.name.assign(first, nameLength);
+			made.hierarchyIndex = IntAt(w.image, p);
+
+			for (int i = 0; i < 3; i++)
+			{
+				made.place[i] = IntAt(w.image, p + 4 + (size_t)i * 4);
+			}
+
+			memcpy(made.turn, w.image.data() + p + 16, 16);
+			memcpy(made.id, w.image.data() + p + 32, 8);
+
+			// Its sequences (PLHISEQU, inteng FUN_004eb690): five numbers (index, sequence, sub, time, flags), a count and that many timed sounds of 3 numbers, then a count and that many
+			// extra numbers. Both counts come from the file, so each is measured against the chunk first, and the chunk has to end where they end, as the game's reader checks (avpx hierplace.cpp).
+			for (Span const &part : parts)
+			{
+				if (!NameIs(w.image, part.at, "PLHISEQU") || part.size < kHeadingBytes)
+				{
+					continue;
+				}
+
+				size_t const from = part.at + kHeadingBytes;
+				size_t const bytes = part.size - kHeadingBytes;
+				size_t const numbersBytes = 5 * 4;
+
+				if (bytes < numbersBytes + 2 * 4)
+				{
+					continue;
+				}
+
+				int32_t const soundCount = IntAt(w.image, from + numbersBytes);
+				size_t const room = bytes - numbersBytes - 2 * 4;
+
+				if (soundCount < 0 || (size_t)soundCount > room / 12)
+				{
+					continue;
+				}
+
+				size_t const soundBytes = (size_t)soundCount * 12;
+				int32_t const extraCount = IntAt(w.image, from + numbersBytes + 4 + soundBytes);
+
+				if (extraCount < 0 || (size_t)extraCount * 4 != room - soundBytes)
+				{
+					continue;
+				}
+
+				PlacedHierarchySequence sequence;
+
+				sequence.index = IntAt(w.image, from);
+				sequence.sequence = IntAt(w.image, from + 4);
+				sequence.sub = IntAt(w.image, from + 8);
+				sequence.milliseconds = IntAt(w.image, from + 12);
+				sequence.flags = IntAt(w.image, from + 16);
+
+				for (int32_t s = 0; s < soundCount; s++)
+				{
+					size_t const at3 = from + numbersBytes + 4 + (size_t)s * 12;
+					PlacedHierarchyTimedSound timed;
+
+					timed.soundIndex = IntAt(w.image, at3);
+					timed.start = IntAt(w.image, at3 + 4);
+					timed.end = IntAt(w.image, at3 + 8);
+					sequence.sounds.push_back(timed);
+				}
+
+				made.sequences.push_back(sequence);
+			}
+
+			out->push_back(made);
+
+			if (where)
+			{
+				where->push_back(s);
+			}
+		}
+	}
+
+	SpecialResult PlacedHierarchies_Read(OpenLevelFile *file, std::vector<PlacedHierarchyInfo> *out)
+	{
+		Where w;
+
+		out->clear();
+
+		SpecialResult const found = Find(file, &w);
+
+		if (found == SpecialResult::NoEnvironment)
+		{
+			return SpecialResult::Done;
+		}
+
+		if (found != SpecialResult::Done)
+		{
+			return found;
+		}
+
+		PlacedHierarchiesOf(w, out, nullptr);
+		return SpecialResult::Done;
+	}
+
+	SpecialResult PlacedHierarchy_WriteSequences(OpenLevelFile *file, size_t number, std::vector<PlacedHierarchySequence> const &sequences)
+	{
+		// What inteng's save writes for them (FUN_004e96d0 0x4e98b1-0x4e9a80: every PLHISEQU taken out, then one per record by FUN_004eb9b0 = FUN_00485010(parent, index), the game's
+		// Placed_Hierarchy_Sequence_Chunk(parent, index): no extra data), held to what the game's reader takes (avpx hierplace.cpp: index 0..4095)
+		if (sequences.size() > 4096)
+		{
+			return SpecialResult::BadValue;
+		}
+
+		for (PlacedHierarchySequence const &one : sequences)
+		{
+			if (one.index < 0 || one.index > 4095 || one.milliseconds <= 0 || one.sounds.size() > 4096)
+			{
+				return SpecialResult::BadValue;
+			}
+		}
+
+		Where w;
+		SpecialResult const found = Find(file, &w);
+
+		if (found != SpecialResult::Done)
+		{
+			return found;
+		}
+
+		std::vector<PlacedHierarchyInfo> all;
+		std::vector<size_t> where;
+
+		PlacedHierarchiesOf(w, &all, &where);
+
+		if (number >= where.size())
+		{
+			return SpecialResult::NotFound;
+		}
+
+		Span const &one = w.special[where[number]];
+		std::vector<Span> parts;
+
+		if (!Children(w.image, one.at + kHeadingBytes, one.at + one.size, &parts))
+		{
+			return SpecialResult::CantBuild;
+		}
+
+		Bytes made(w.image.begin() + (std::ptrdiff_t)one.at, w.image.begin() + (std::ptrdiff_t)(one.at + kHeadingBytes));
+		Bytes chunks;
+
+		for (PlacedHierarchySequence const &sequence : sequences)
+		{
+			Bytes chunk(kHeadingBytes, 0);
+			int32_t const numbers[] = { sequence.index, sequence.sequence, sequence.sub, sequence.milliseconds, sequence.flags & 7, (int32_t)sequence.sounds.size() };
+
+			memcpy(chunk.data(), "PLHISEQU", 8);
+			AddBytes(&chunk, numbers, sizeof(numbers));
+
+			for (PlacedHierarchyTimedSound const &timed : sequence.sounds)
+			{
+				int32_t const three[] = { timed.soundIndex, timed.start, timed.end };
+
+				AddBytes(&chunk, three, sizeof(three));
+			}
+
+			int32_t const noExtra = 0;
+
+			AddBytes(&chunk, &noExtra, sizeof(noExtra));
+			PutIntAt(&chunk, 8, (int32_t)chunk.size());
+			chunks.insert(chunks.end(), chunk.begin(), chunk.end());
+		}
+
+		// the other children kept in their order; the sequences go where the first one was (at the end when there was none)
+		bool placed = false;
+
+		for (Span const &part : parts)
+		{
+			if (NameIs(w.image, part.at, "PLHISEQU"))
+			{
+				if (!placed)
+				{
+					made.insert(made.end(), chunks.begin(), chunks.end());
+					placed = true;
+				}
+
+				continue;
+			}
+
+			made.insert(made.end(), w.image.begin() + (std::ptrdiff_t)part.at, w.image.begin() + (std::ptrdiff_t)(part.at + part.size));
+		}
+
+		if (!placed)
+		{
+			made.insert(made.end(), chunks.begin(), chunks.end());
+		}
+
+		PutIntAt(&made, 8, (int32_t)made.size());
+
+		std::vector<Bytes> copies = Copies(w);
+
+		copies[where[number]] = made;
+		return Rebuilt(file, w, copies);
+	}
+
 	SpecialObject SpecialObject_Fresh(SpecialKind kind, SpecialPlace const &where, double levelScale)
 	{
 		SpecialObject o;

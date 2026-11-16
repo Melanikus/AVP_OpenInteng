@@ -354,9 +354,10 @@ static void RealLevel(std::string const &levelPath, std::string const &copyFolde
 		moved += SameItems(afterFirst[module], now) ? 0 : 1;
 	}
 
-	// NOT a check: inteng's own walk is not idempotent (it compares only the first node of a branch, so a path nested deeper is made again; the quirk is copied),
-	// so how many modules a second run moves is only reported
-	printf("  --  a second run: %zu modules' links moved, %zu links added (inteng's quirk: the first node of a branch is the only one compared)\n", moved, again.linksAdded);
+	// NOT a check: inteng's walk does not promise that a second run changes nothing. With its flag set (row ML-V-12: a node found without a branch, or made) a later
+	// element of the path is compared with the node held only, not looked for along that node's chain (0x4c60fe), so a path met again can be put in again. How many
+	// modules a second run moves is only reported (Invasion 10, Genshd1 3, Derelict 3 on 459a1ba)
+	printf("  --  a second run: %zu modules' links moved, %zu links added (inteng's walk: with its flag set, a later element is compared with the node held only, ML-V-12)\n", moved, again.linksAdded);
 
 	std::string const copyPath = CopyPathIn(copyFolder, "reverse-links-test-copy.rif");
 

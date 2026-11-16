@@ -1,0 +1,41 @@
+# ACCEPTANCE: Module Linking's Base > SHOW ALL as inteng's (Dietrich, 2026-11-16; rows ML-M-3 / ML-M-13 of AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md). His path: the bar, keys, clicks.
+# FUN_004c1a90 0x4c1eda-0x4c2158: every module with links is painted by its quad count (FUN_004d5e60): 2000 and up RED 0xff0000 (0x4c207b), 1500 orange, 1200 blue, below green; a module with no links white.
+# DAT_0070439c = 1 then HOLDS the screen (0x4c1aee-0x4c1b74): each frame only the legend rows "2000+(Quads) RED", "1500-1999 ORANGE", "1200-1499 BLUE", "0-1199 GREEN" at (10, 30 / 50 / 70 / 90) and
+# the frame ends before the command is read: no item or key does anything. Escape (slot 0x45) or a mouse button lets it go: the modules are drawn as before (the tree's colours), and the button is
+# then read as a click (0x4c36a8).
+#ini ViewDistance=100000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+picture 1
+# ---- Show All: the legend's four rows, and the modules painted (no yellow: 2000 and up is RED)
+click-bar Base > Show All
+picture 2
+expect-screen-text 2000+(Quads) RED
+expect-screen-text 1500-1999 ORANGE
+expect-screen-text 1200-1499 BLUE
+expect-screen-text 0-1199 GREEN
+expect-pixels-changed-since 1 picture 0 0 1008 700 0.01
+expect-colour-at-most picture 0 0 1008 700 ffff00 0.0002 40
+# ---- held: a key (S, Set Current) does nothing and the legend stays
+key S
+expect-screen-text 2000+(Quads) RED
+# ---- Escape lets it go: the legend is gone and the modules are drawn as before Show All
+key Esc
+picture 3
+expect-screen-text-not 2000+(Quads) RED
+expect-pixels-same-since 1 picture 0 0 1008 700 0.002
+# ---- Show All again; a click lets it go AND picks the module under it (magenta)
+click-bar Base > Show All
+expect-screen-text 0-1199 GREEN
+click-view 0.2 0.2
+picture 4
+expect-screen-text-not 0-1199 GREEN
+expect-colour picture 0 0 1008 700 7f007f 0.0002 40
+# ---- the click's pick is the base with S (the key works again): blue
+key S
+picture 5
+expect-colour picture 0 0 1008 700 0000ff 0.0005 40

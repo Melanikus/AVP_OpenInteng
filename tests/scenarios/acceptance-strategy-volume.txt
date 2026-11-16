@@ -75,11 +75,13 @@ wait 300
 remember-field volume
 key Enter
 expect-status The volume is written into the strategy
-# V again reads them back from the strategy: the same box, the face and the module let go
+# V again reads them back from the strategy: the same box, the face and the module let go; the box is not empty, so the camera goes to its centre (FUN_00529280(cube, 0), 0x5277fa: strategy-data.md S-VOL-2)
 wait 500
+remember-field camera
 key V
 wait 300
 expect-field-same volume
+expect-field-changed camera
 expect-field volumeface -1
 expect-field volumemodule -1
 # the right button ends the editor too (FUN_005277c0 0x527d70: _DAT_00d8806a & 2; the buttons are cleared at 0x527d88, so no pop-up opens)

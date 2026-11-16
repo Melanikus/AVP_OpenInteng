@@ -1,0 +1,127 @@
+# ACCEPTANCE: Hierarchy > Shape Sets, HIS PATH (Frost, 2026-11-16; reassess/hierarchy-edit-frost.md; Drake's HE-0x43 and HE-F rows; hierarchy-100 PLAN.md, Bishop's order to take Drake's OPENs).
+# By his path: open his ShotgunBot (start-args: the double-click; one hierarchy "Marine with Shotgun", six alternate shape sets: Face Four, Face Three, cap, officer body, bush hat, Smart gunner).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/ShotgunBot.RIF
+pictures on
+state
+expect-screen Construction
+camera 0 0 -3000 0 0
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+
+# SELECT SINGLE SET (case 0x43 0x488f12-0x4896c0) with no hierarchy chosen: nothing (the case tests DAT_0063711c first)
+click-bar Shape Sets > Select Single Set
+expect-no-dialog
+expect-status-not Select Single Set
+
+# the hierarchy (one: no dialog, FUN_0048b8a0 0x48b931) and a sequence
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Sequence
+click-row 1
+expect-no-dialog
+wait 600
+picture 2
+
+# Select Single Set: the file's alternate shape sets (OBHALTSH, FUN_004316e0) and "Original" (0x5d5724, value 0) first, each row the set's NAME (+0x28) alone; the sorted list window
+# "Select Shape Set" (0x5d5710, FUN_00475bf0 width 0xe1: the rows byte by byte ascending), FUN_0057c800(10, 10); a row (answer > 1): FUN_00477b40(that set or 0, the detail level)
+click-bar Shape Sets > Select Single Set
+expect-dialog Select Shape Set
+expect-dialog-rows Face Four|Face Three|Original|Smart gunner|bush hat|cap|officer body
+click-row 4
+expect-no-dialog
+wait 600
+picture 3
+# the model wears the set: "Smart gunner" replaces the helm, neck guard, pads and chest sections' shapes (its OBHALTSH pairs; FUN_00477b40 -> FUN_0047e9f0)
+expect-pixels-changed-since 2 picture 420 130 180 250 0.02
+# "Original" (value 0): every section its own shape again, the picture as before
+click-bar Shape Sets > Select Single Set
+expect-dialog Select Shape Set
+click-row 3
+expect-no-dialog
+wait 600
+picture 4
+expect-pixels-same-since 2 picture 420 130 180 250 0.002
+# Escape: nothing (0x489332, FUN_00476850)
+click-bar Shape Sets > Select Single Set
+expect-dialog Select Shape Set
+key Esc
+expect-no-dialog
+
+# SET PROPERTIES (case 0x58 0x489b4c-0x489bef): the applied list is not ONE set ("Original" is none): the message box "Please select a single shape set" (0x5d5684)
+click-bar Shape Sets > Set Properties
+expect-dialog Please select a single shape set
+key Enter
+expect-no-dialog
+# one set ("Smart gunner"): its window FUN_0048d6a0, "Shape set properties", the label "Female" and its check box holding the set's flags bit 0 (off); the box ticked and Ok: the bit set
+# (FUN_0048d820 0x48d87e), the window again shows it ticked; Cancel: nothing
+click-bar Shape Sets > Select Single Set
+expect-dialog Select Shape Set
+click-row 4
+expect-no-dialog
+click-bar Shape Sets > Set Properties
+expect-dialog Shape set properties
+expect-dialog-checks off
+click-check 1
+click-button Ok
+expect-no-dialog
+expect-status-not Shape set properties
+click-bar Shape Sets > Set Properties
+expect-dialog Shape set properties
+expect-dialog-checks on
+click-button Cancel
+expect-no-dialog
+
+# ADD TO / REMOVE FROM COLLECTION with no collection chosen (FUN_00479f20 0x479f61 / FUN_0047a380 0x47a3c3): the message box "You must select a shape collection first" (0x5d4864), Ok
+click-bar Shape Sets > Add to Collection
+expect-dialog You must select a shape collection first
+key Enter
+expect-no-dialog
+click-bar Shape Sets > Remove from Collection
+expect-dialog You must select a shape collection first
+key Enter
+expect-no-dialog
+
+# SELECT COLLECTION (case 0x52, FUN_0048abc0): the sorted list "Select Shape Collection" of the HSETCOLL names; a row (answer 2 and up, 0x48ad80): FUN_00477d10(that collection, the detail
+# level): it is the current collection and its alternate sets are worn (matched by number, OBHALTSH); no words
+click-bar Shape Sets > Select Collection
+expect-dialog Select Shape Collection
+expect-dialog-rows Shotgun Marine 2|Smart Gunner|Smart Gunner 2|cap|hat|marine2|marine3|officer|officer2|officer3
+click-row 2
+expect-no-dialog
+expect-status-not Shape set collection
+wait 600
+picture 5
+expect-pixels-changed-since 4 picture 420 130 180 250 0.02
+
+# ADD TO COLLECTION (FUN_00479f20): the file's alternate sets NOT in the applied list, by NAME, the sorted list "Add which shape set?" (0x5d4820); a row: its number joins the collection's list
+# (0x47a2d9-0x47a2e7, FUN_00405c60 on the HSETCOLL +0x30) and the applied list (FUN_004827e0), DAT_00637134 = 1, the shapes chosen again; no words
+click-bar Shape Sets > Add to Collection
+expect-dialog Add which shape set?
+expect-dialog-rows Face Four|Face Three|bush hat|cap|officer body
+click-row 1
+expect-no-dialog
+# REMOVE FROM COLLECTION (FUN_0047a380): the applied sets by NAME, the sorted list "Remove which shape set?" (0x5d4890); a row: its number leaves the collection's list (0x47a675-0x47a6f0)
+# and the applied list (FUN_004fc260), DAT_00637134 = 1; no words
+click-bar Shape Sets > Remove from Collection
+expect-dialog Remove which shape set?
+expect-dialog-rows Face Four|Smart gunner
+key Esc
+expect-no-dialog
+
+# CREATE COLLECTION (case 0x53, FUN_0048af00): the number is the smallest from 2 up that no collection has (0x48b051-0x48b066: on a match +1 and the list again): ShotgunBot's are 2 to 11,
+# so 12. The new collection becomes the current one (FUN_00477d10, no sets: the model in its own shapes), the file is changed (DAT_00637134 = 1), no words.
+click-bar Shape Sets > Create Collection
+expect-dialog-kind text
+expect-dialog Name of new shape collection
+type Frost1
+key Enter
+expect-no-dialog
+expect-status-not Shape set collection
+wait 600
+picture 6
+expect-pixels-same-since 4 picture 420 130 180 250 0.002
+# Exit saves the changed file (a copy, HP-1) and the collections' ".txt" beside it holds the new one's number and name (HP-29)
+click-bar Mode > Exit
+expect-screen Construction
+expect-status Saved a copy:
+verify findstr /R /C:"^12.Frost1" {exedir}AVP_OpenInteng\edited\.txt

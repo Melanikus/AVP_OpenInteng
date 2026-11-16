@@ -1,0 +1,79 @@
+# ACCEPTANCE: Module Linking's BRANCH commands on Melanikus's path (Dietrich, 2026-11-16; MAPPING-ORDERS section 14: module_links.* was written 11-15, so it is checked here;
+# rows AvP-docs/engine/inteng/reassess/module-linking-verify-dietrich.md ML-V-1..8, ML-V-11). Every step is a click on a module or a key / bar item he uses; every check reads the PICTURE.
+# What inteng draws after each link command (FUN_004c17a0, called from FUN_004c1a90 after each one): every module white, then the base's tree (FUN_004c0720: the base blue, a link
+# with no branch yellow, a link with a branch green, red while its branch is CLOSED (+0xc), its branch walked only while OPEN (+0x10)), then the picked modules magenta 0x7f007f.
+# The commands (key slots of FUN_004c1a90, screen_keys.cpp): N Normal Link 0x32 (FUN_004c4230), B Branch Link 0x34 (FUN_004c42b0), C Close Branch 0x40 (FUN_004c4350), D Delete Link 0x36
+# (FUN_004c4590: an OPEN branch is searched before the next chain), Branch > View 0x3c (FUN_004c4480: the branch open again, still marked closed; the picks kept).
+# THE CASE THAT TELLS ML-V-5 APART: Branch Link ends with Open Branch FROM THE ROOT on the node that got the branch (0x4c4329-0x4c4335), which closes a branch left open on the way.
+# Base 16; 38 linked; 39 a branch of 38; 38's branch closed; 40 linked after 38 (picture 1: 38 red, 39 white, 40 yellow); 38's branch viewed (39 yellow again); then a Branch Link of 39
+# again (it goes under 40, the last node with no branch, and 38's viewed branch is closed by the walk from the root) and a Delete of 39 (38's branch is closed, so the 39 under 40 is the one
+# taken out): the tree is the one of picture 1 again, so the view must be too. Without the walk from the root, 38's branch stays open: the Delete takes 39 out of 38's branch and the
+# colours differ (38 yellow, 40 green, 39 yellow). Modules picked by clicks in the view from the start camera (16 in the middle, 38 at the left top, 39 at the left, 40 at the right).
+# The view distance starts at 1000 m (a user who raised it with J), as acceptance-module-linking-loop does.
+#ini ViewDistance=100000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+# ---- the base: 16, its stock links taken out (AutoLink > Delete Links: Module, 0xa7, the picks kept), then S: blue, and no link drawn (nothing yellow, green or red)
+click-view 0.5 0.5
+click-bar AutoLink > Delete Links: Module
+key S
+picture 2
+expect-colour picture 0 0 1008 700 0000ff 0.0005 40
+expect-colour-at-most picture 0 0 1008 700 ffff00 0.00005 40
+expect-colour-at-most picture 0 0 1008 700 00ff00 0.00005 40
+# ---- N: 38 linked (yellow)
+click-view 0.2 0.2
+key N
+picture 3
+expect-colour picture 0 0 1008 700 ffff00 0.0005 40
+# ---- B: 39 a branch of 38: 38 green, 39 yellow
+click-view 0.1 0.5
+key B
+picture 4
+expect-colour picture 0 0 1008 700 00ff00 0.0005 40
+# ---- C on 38: its branch closed: 38 red, 39 no longer walked (white): no green left
+click-view 0.2 0.2
+key C
+picture 5
+expect-colour picture 0 0 1008 700 ff0000 0.0005 40
+expect-colour-at-most picture 0 0 1008 700 00ff00 0.00005 40
+# ---- N: 40 linked after 38 (38's branch is closed, so not into it): yellow. PICTURE 1 of the case
+click-view 0.9 0.5
+key N
+picture 6
+expect-colour picture 0 0 1008 700 ffff00 0.0005 40
+expect-colour picture 0 0 1008 700 ff0000 0.0005 40
+# ---- Branch > View on 38: its branch open again (39 yellow), 38 still red (still marked closed); 38 stays picked (magenta)
+click-view 0.2 0.2
+click-bar Branch > View
+picture 7
+expect-pixels-changed-since 6 picture 0 0 1008 700 0.0005
+expect-colour picture 0 0 1008 700 7f007f 0.0002 40
+# ---- B: 39 again: under 40 (the last node with no branch); the walk from the root closes 38's viewed branch
+click-view 0.1 0.5
+key B
+picture 8
+expect-colour picture 0 0 1008 700 00ff00 0.0005 40
+# ---- D on 39: the one under 40 is taken out (38's branch is closed, not searched): the tree and the view are those of picture 6
+click-view 0.1 0.5
+key D
+picture 9
+expect-pixels-same-since 6 picture 0 0 1008 700 0.0005
+# ---- Open Branch (O) on 38: its branch opened and no longer closed: 38 green, 39 yellow
+click-view 0.2 0.2
+key O
+picture 10
+expect-colour picture 0 0 1008 700 00ff00 0.0005 40
+expect-colour-at-most picture 0 0 1008 700 ff0000 0.00005 40
+# ---- Branch > Hide on 38: its branch no longer walked (39 white), 38 still green (not closed); Branch > View shows it again
+click-view 0.2 0.2
+click-bar Branch > Hide
+picture 11
+expect-pixels-changed-since 10 picture 0 0 1008 700 0.0005
+click-bar Branch > View
+picture 12
+expect-pixels-changed-since 11 picture 0 0 1008 700 0.0005

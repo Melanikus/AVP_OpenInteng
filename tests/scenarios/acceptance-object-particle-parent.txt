@@ -1,0 +1,42 @@
+# ACCEPTANCE (red first): Object Placement's Q, "Click on parent for generator", by Melanikus's path (the bar, the Name Object window, Q, clicks in the view).
+# inteng FUN_004e7100 (object-placement.md OP-90, section 8a V-11; dump-full, read again 11-16): a modal wait for a press; a LEFT press on NOTHING keeps waiting; a RIGHT press ends it and
+# changes nothing; a left press on a block that is a PLACED object (its rif object's definition has 0x400) and not the generator's own block makes that object the parent (+0x60/+0x64 = its ID);
+# a left press on any other block (a MODULE) makes the parent "None" (DAT_00914930/34, the null ID). The particle generator's text shows "Parent :%s" (FUN_004e71f0). Invasion, read-only.
+# The generator is made 5 m BEHIND the view on switch3 (it is made at the view's place, and its icon would fill the view), then the view is put back in front of switch3.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 80500 0 0
+wait 400
+click-bar Create > Particle Generator
+expect-dialog Name Object
+form-field 1 pgParent
+click-button OK
+expect-no-dialog
+camera -27851 -14055 85500 0 0
+wait 400
+expect-hierarchy-text Parent :None
+picture 1
+# Q, then a left press on switch3 (a placed object, in the middle of the view): it is the parent
+key Q
+wait 300
+expect-status Click on parent for generator
+click-win 504 364
+wait 400
+expect-hierarchy-text Parent :switch3
+# Q, then a RIGHT press: the wait ends and nothing changes (the parent stays switch3)
+key Q
+wait 300
+click-win 504 364 right
+wait 400
+expect-status-not Click on parent for generator (right
+expect-hierarchy-text Parent :switch3
+# Q, then a left press on the MODULE (the wall under switch3): the parent becomes None
+key Q
+wait 300
+click-win 504 600
+wait 400
+expect-hierarchy-text Parent :None
+picture 2

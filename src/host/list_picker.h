@@ -80,6 +80,9 @@ namespace host
 		bool Move(Key key);
 		int32_t Highlighted() const { return highlighted; }
 
+		// Whether a key moved the highlight since the list opened (inteng's list has no highlight: it is drawn only then)
+		bool Keyed() const { return keyed; }
+
 		void SetPage(int32_t newPage);
 
 	private:
@@ -87,6 +90,7 @@ namespace host
 		std::string title;
 		std::vector<std::string> choices;
 		int32_t rows = 1, columns = 1, page = 0, pages = 1, highlighted = 0;
+		bool keyed = false;
 		int32_t columnWidth = 100;
 		ListPickerBox window = { 0, 0, 0, 0 }, prev = { 0, 0, 0, 0 }, next = { 0, 0, 0, 0 }, field = { 0, 0, 0, 0 };
 	};

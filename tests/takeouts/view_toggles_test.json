@@ -71,8 +71,8 @@
 			"changes": [
 				{
 					"file": "src/host/view_toggles.cpp",
-					"from": "ViewToggles const toggles = { DrawMode::Polygon, Gouraud::On, false, false, kBrightnessAsBuilt };",
-					"to": "ViewToggles const toggles = { DrawMode::Polygon, Gouraud::Off, false, false, kBrightnessAsBuilt };"
+					"from": "ViewToggles const toggles = { DrawMode::Polygon, Gouraud::On, false, false, kBrightnessAsBuilt, true };",
+					"to": "ViewToggles const toggles = { DrawMode::Polygon, Gouraud::Off, false, false, kBrightnessAsBuilt, true };"
 				}
 			]
 		},
@@ -91,8 +91,8 @@
 			"changes": [
 				{
 					"file": "src/host/view_toggles.cpp",
-					"from": "switches.drawFullBright = unlit ? 1 : 0;",
-					"to": "switches.drawFullBright = 0;"
+					"from": "switches.drawFullBright = unlit || hiddenLine ? 1 : 0;",
+					"to": "switches.drawFullBright = hiddenLine ? 1 : 0;"
 				}
 			]
 		},
@@ -131,7 +131,7 @@
 			"changes": [
 				{
 					"file": "src/host/view_toggles.cpp",
-					"from": "switches.outlinesLit = whiteLines && mode == DrawMode::Polyline && !unlit ? 1 : 0;",
+					"from": "switches.outlinesLit = whiteLines && !unlit && !hiddenLine ? 1 : 0;",
 					"to": "switches.outlinesLit = 0;"
 				}
 			]
@@ -141,8 +141,8 @@
 			"changes": [
 				{
 					"file": "src/host/view_toggles.cpp",
-					"from": "switches.outlinesLit = whiteLines && mode == DrawMode::Polyline && !unlit ? 1 : 0;",
-					"to": "switches.outlinesLit = whiteLines && !unlit ? 1 : 0;"
+					"from": "switches.outlinesLit = whiteLines && !unlit && !hiddenLine ? 1 : 0;",
+					"to": "switches.outlinesLit = whiteLines && mode == DrawMode::Polyline && !unlit && !hiddenLine ? 1 : 0;"
 				}
 			]
 		},

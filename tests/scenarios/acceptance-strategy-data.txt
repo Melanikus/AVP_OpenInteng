@@ -4,6 +4,8 @@
 # answered by clicking its buttons or typing in its box. No select-row, no "item 0x..", no typed answers where inteng shows buttons. Every block names the inteng code it is traced from (dump-all-3.txt).
 # The manual (AvP-docs\engine\inteng\raw\bible\text\inteng\strategy.txt): "select the object you wish to work on, then right click and assign a strategy to it". Where it and the disassembly differ the disassembly wins.
 # The level is Invasion, a read-only stock file: nothing here saves over it.
+# the icons are inteng's own shapes, read at run time from his installed inteng.exe (object-placement.md 8b V-25): the run names his Tools folder
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
@@ -103,7 +105,8 @@ click-button No
 expect-no-dialog
 
 # ---- S6 FIND ERRORS (FUN_0053bf00): none found: the message dialog "No Errors Found" (0x5f04a0, FUN_00473f90), button Ok
-click-bar Find Errors > Find Errors
+# Find Errors is a bar TITLE with no items (kind 0, command 0x44): ONE press runs it (FUN_004b7dd0 0x4b7fe1-0x4b7ff8: a title with no items returns its command at once; Dietrich, row M-HELP)
+click-bar Find Errors
 expect-dialog-kind message
 expect-dialog No Errors Found
 click-button Ok
@@ -200,6 +203,8 @@ expect-status Module flags: 1 of 1
 click-win 640 130 right
 click-popup 3
 click-popup 1
+# the room is still in the list: it is RED (0x40000000 wins over the orange 0x4000000: FUN_004a7cd0 0x4a7eca); Shift + click takes it out and its orange shows
+click-win 640 130 shift
 wait 400
 picture 17
 expect-colour picture 0 100 800 600 d08030 0.02 40
@@ -210,7 +215,8 @@ expect-popup-rows Airduct|Stair|Sky Visible|Fogged|Stop Flag View
 click-popup 5
 wait 400
 picture 18
-# Remove Flag > Airduct takes it off again
+# Remove Flag > Airduct takes it off again (the room back in the list first)
+click-win 640 130
 click-win 640 130 right
 click-popup 2
 click-popup 1
@@ -305,17 +311,20 @@ expect-dialog Select Strategy
 click-button Multi_Switch
 expect-no-dialog
 expect-status The object has a new strategy
+# with a strategy on it, Assign asks FIRST (FUN_00528830 0x528874-0x52889d: "Object already has a strategy. Would you like to replace it?"), and only Yes opens "Select Strategy" (0x5288db)
 click-win 378 300 right
 click-popup 4
-click-button Linked_Switch
 expect-dialog-kind confirm
 click-button Yes
+expect-dialog Select Strategy
+click-button Linked_Switch
 expect-no-dialog
 click-win 378 300 right
 click-popup 4
-click-button Area_Switch
 expect-dialog-kind confirm
 click-button Yes
+expect-dialog Select Strategy
+click-button Area_Switch
 expect-no-dialog
 expect-status The object has a new strategy
 # Delete Multiple Strategies > Switches > Ok (FUN_005380d0): every switch strategy goes, the status says how many

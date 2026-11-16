@@ -11,9 +11,12 @@ expect-status Adaptive Degradation: on
 item 0x5c
 expect-status Dummy Objects: on
 item 0x5d
-expect-prompt 30
+expect-dialog Dummy object size in mm
+key Back
+key Back
+key Back
 type 250
-key Enter
+click-button Ok
 expect-status 250 mm
 item 0x5c
 expect-status Dummy Objects: off

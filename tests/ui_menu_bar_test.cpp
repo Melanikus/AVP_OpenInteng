@@ -267,6 +267,15 @@ static void TestMouse()
 	bar.Press(120, 10);
 	Check(bar.OpenMenu() == 2 && BoxIs(bar.DropBox(), 0, 0, 0, 0), "Mode, with no items, shows no drop-down");
 	bar.Handle(KeyEvent(Key::Escape));
+
+	// inteng's menu loop (reassess/dialog-look-drake.md BAR-4, BAR-5): the first drop-down needs a press; with one open, the pointer on another title opens that one, no press
+	Check(!bar.PointAt(60, 10) && !bar.IsOpen(), "BAR-4: with nothing open, the pointer on a title opens nothing (FUN_004b7dd0 leaves its wait only on a press, 0x4b7e7c)");
+	bar.Press(5, 10);
+	Check(bar.PointAt(60, 10) && bar.OpenMenu() == 1 && bar.LitItem() == -1 && BoxIs(bar.DropBox(), 50, 32, 200, 40),
+		"BAR-5: with File open, the pointer on View opens View's drop-down, nothing lit in it (0x4b81de-0x4b82da)");
+	Check(!bar.PointAt(60, 12) && bar.OpenMenu() == 1, "the pointer moving on the same title changes nothing");
+	Check(bar.Release(60, 32 + 25) == MenuAnswer::Picked && bar.Picked() == 11, "the press that opened File goes on: let go on View's second item, it picks Lights");
+	bar.Handle(KeyEvent(Key::Escape));
 }
 
 static void TestSmallRooms()

@@ -70,11 +70,31 @@ namespace host
 		std::string name;
 		uint8_t id[kSelectionIdBytes];
 		Chunk *viobject;
+		int32_t place[3] = { 0, 0, 0 };   // its VOBJPROP's location (the level file's units): where inteng's record for it stands (Find Object, S-11)
 	};
 
 	size_t const kMostVirtualObjects = 100000;
 
 	void ListVirtualObjects(File_Chunk *level, std::vector<VirtualObjectRef> *out);
+
+	// THE LEVEL'S ENEMIES AND GENERATORS (AVPGENER in REBENVDT > SPECLOBJ: Object Placement's generators and Bad Guys), as the game's chunk classes hold them: each one's name, its ID (the game's own
+	// AVP_Generator_Chunk::CalculateID: md5 of the level's RIFFNAME and the name), its type (0 a generator, else the species of an enemy: inteng's record +0x38, S-KC-6) and its AVPGENER chunk. Its strategy
+	// is the AVPSTRAT inside the AVPGENEX whose AVPGENNM holds the same name (AVP_Generator_Chunk::get_extra_data_chunk, as the game reads it: object_setup.cpp); found by its ID like any object.
+	struct GeneratorRef
+	{
+		std::string name;
+		uint8_t id[kSelectionIdBytes];
+		int32_t type;
+		int32_t place[3];   // the AVPGENER's location, in the file's units
+		Chunk *generator;
+	};
+
+	size_t const kMostGenerators = 100000;
+
+	void ListGenerators(File_Chunk *level, std::vector<GeneratorRef> *out);
+
+	// The enemy or generator with this ID (the first, as the game's name lookup takes the first); false when none has it
+	bool FindGenerator(File_Chunk *level, uint8_t const *id, GeneratorRef *out);
 
 	// Looks for the object whose ID is the 8 bytes at id, in level, and gives its strategy in *out (emptied first, whatever happens).
 	StrategyFound FindObjectStrategy(File_Chunk *level, uint8_t const *id, ObjectStrategy *out);

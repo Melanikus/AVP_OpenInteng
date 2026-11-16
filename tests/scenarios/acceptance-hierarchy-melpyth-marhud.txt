@@ -18,7 +18,8 @@ expect-not-empty 0.01
 # B1: as a user did, he moves back with Z (inteng's "Move backwards"): inteng moves about 1 m a second (FUN_0053d7f0: speed 6, DAT_005f071c, x the frame time clamped at 0.1 s, Frost), so 1.5 s reaches his guns
 hold Z 1500
 picture 4
-expect-not-empty 0.05
+# the hub is inteng's white wireframe (FUN_00447550, view-state-table.md R-1): thin lines on black, so 1% (the textured level filled 5%)
+expect-not-empty 0.01
 # Mode > Hierarchy
 item 0xcf
 expect-screen Hierarchy

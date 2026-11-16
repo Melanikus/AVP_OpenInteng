@@ -1,6 +1,7 @@
 # ACCEPTANCE, part 1 of 2 (the same run name as part 2): inteng's camera keys (Classic: A forward, Z back, the arrow keys strafe) and the camera speed that is KEPT (inteng saves DAT_005f071c: FUN_004732a0 writes it, FUN_00473430 reads it back).
-# The owner's word 11-16 ~10:45: "Let's use that then (A/Z) and remove the wasd layout". Shift makes the move step four times longer: a NAMED ADDITION by his request ("SHIFT to move fast we can still use?"), inteng never reads Shift there.
-# Part 1: A held moves the view; each arrow key strafes it (the view changes); Shift+A held as long as A went about four times as far; ] three times raises the speed from 6 to 15; the run ends and the ini keeps it.
+# The owner's word 11-16 ~10:45: "Let's use that then (A/Z) and remove the wasd layout". Shift held is inteng's own GLIDE (FUN_0053db40: acceptance-camera-glide.txt); the Shift x4 named addition is gone
+# (Bishop 11-16 12:5x: inteng's own Shift answers his "SHIFT to move fast we can still use?"), so the old Shift+A ratio check is gone with it.
+# Part 1: A held moves the view; each arrow key strafes it (the view changes); ] three times raises the speed from 6 to 15; the run ends and the ini keeps it.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
 state
@@ -14,11 +15,6 @@ expect-pixels-changed picture 0 0 2000 2000 0.01
 camera-note afterA
 hold Z 400
 camera-note back
-camera -7764 1102 10527 0
-camera-note again
-hold Shift+A 400
-camera-note afterShiftA
-expect-travel-ratio again afterShiftA start afterA 0.15 0.45
 # the arrow keys strafe (the manual's General Keys: "1 / Left Arrow", "3 / Right Arrow", "- / Up Arrow", "+ / Down Arrow"): with the camera facing straight on (turn 0), Left and Right move it along x, Up and Down along y; z, the forward way, stays
 camera-note s0
 hold Left 400

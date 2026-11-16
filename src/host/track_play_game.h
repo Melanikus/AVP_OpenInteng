@@ -80,4 +80,9 @@ namespace host
 
 	void TrackPlay_Stop();
 	bool TrackPlay_Playing();
+
+	// The sound chooser's right click (Hierarchy's "Right click to listen to sound": FUN_00481740's handler 0x481720): what the last listen started is stopped (FUN_00501080 stops what plays),
+	// then the wav (found as the game finds a track's, under the sound folder TrackPlay_UseSoundDirectory gave) plays once at the place, with its ranges, volume (0 to 127) and pitch
+	// (FUN_004ec0a0: Sound_Play(index, "nvp", position and ranges, volume, pitch)). The ranges and the place in the game's unit. False when nothing plays (no sound device, no such wav).
+	bool TrackPlay_Listen(std::string const &wav, int32_t inner, int32_t outer, int32_t volume, int32_t pitch, int32_t const place[3]);
 }

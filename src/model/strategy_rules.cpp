@@ -238,7 +238,8 @@ namespace model
 				return true;
 
 			default:
-				*value = field.shift && !field.mask ? (double)(LoadInt32(at) >> field.shift) : (double)LoadInt32(at);
+				// a plain number with a shift (a fan's times, 16.16): the word / 2^shift ROUNDED TOWARD 0, as inteng's view divides (S-K75-1, 0x5356b0-0x53575a); a shift would round a negative word down
+				*value = field.shift && !field.mask && field.shift < 31 ? (double)(LoadInt32(at) / (int32_t)(1 << field.shift)) : (double)LoadInt32(at);
 				return true;
 			}
 		}

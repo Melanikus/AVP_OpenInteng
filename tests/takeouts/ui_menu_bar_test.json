@@ -141,8 +141,8 @@
 			"changes": [
 				{
 					"file": "src/ui/menu_bar.cpp",
-					"from": "\t\tfor (size_t m = 0; m < kMenuMostMenus; m++)\n\t\t{\n\t\t\tfor (size_t i = 0; i < kMenuMostItems; i++)\n\t\t\t{\n\t\t\t\tenabled[m][i] = true;\n\t\t\t}\n\t\t}\n\n\t\tif (!newMenus",
-					"to": "\t\tif (!newMenus"
+					"from": "\t\t\t\tenabled[m][i] = true;\n\t\t\t\tchecked[m][i] = false;\n",
+					"to": "\t\t\t\tchecked[m][i] = false;\n"
 				}
 			]
 		},

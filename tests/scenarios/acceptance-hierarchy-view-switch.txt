@@ -1,0 +1,61 @@
+# ACCEPTANCE: Hierarchy's VIEW SWITCH, HIS PATH (Frost, 2026-11-16, Bishop's order; reassess/hierarchy.md H-VS-1..5, reassess/hierarchy-play-frost.md HP-1 / HP-3 / HP-20 / HP-21 / HP-22).
+# Melanikus, in his own inteng: "I was able to select one, but inteng 'switches' the view to an animation player showing the anim hierarchy you choose."
+# FUN_0048b8a0 (hierplay.cpp) -> FUN_0048b550(hier, 0): every record of the level (DAT_0093d120[0..DAT_0093d108], modules AND placed objects) is listed (0x48b5ea-0x48b606) and handed to the
+# new player FUN_00477450, which sets +0x5c |= 4 (not drawn) and +0x64 |= 0x800000 (never shown by a view-distance pass) on each (0x4776f0-0x477765): the level disappears; only the hierarchy's
+# own sections are drawn (FUN_0047e320 shows those records again, at the origin), animated each frame (FUN_00478920 -> FUN_00478850). The camera is not moved on this path.
+# By his path: open his MelPyth_MarHUD (start-args: the double-click, the editor's copy in avp_rifsOpenedByEditor), the camera back from the origin, bar to Mode > Hierarchy, right-click > Select Hierarchy, a row, Select Sequence, a row.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+expect-screen Construction
+# the camera 1.5 m back from the origin, looking at it (where Z held 1.5 s takes it at speed 6: a fixed place, since the hold's length depends on the frame rate)
+camera 0 0 -1500 0 0
+wait 400
+picture 2
+# the file's own objects are drawn (the cluster of every weapon's parts round the origin): the part on the right and the guns on the left
+expect-not-empty 0.02
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+wait 400
+picture 3
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+
+# BEFORE A SEQUENCE (HP-21 / HP-31): Select Sequence answered with Escape (FUN_0048bc10: no main player). The player is up, so the level is hidden; the hierarchy's sections are the file's own
+# objects put at the origin with the identity turn (FUN_0047e320 0x47e6d4-0x47e733) and nothing places them (FUN_00478850 needs a main): a pile at the middle of the view
+key Esc
+expect-no-dialog
+wait 400
+picture 30
+expect-colour picture 690 345 250 95 000000 0.99 8
+expect-colour-at-most picture 404 265 200 200 000000 0.97 8
+expect-not-empty 0.003
+
+# Select Sequence again (pop-up row 2), a row: the model is placed by the sequence
+click-win 500 300 right
+click-popup 2
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+wait 800
+picture 4
+
+# THE SWITCH: the level's records are not drawn (FUN_00477450 0x477716 / 0x477756): the part on the right (another weapon's, placed by the file) and the cluster on the left are gone
+# (compared with picture 3, the same camera before the choice: the dialogs' own pictures lie between)
+expect-pixels-changed-since 3 picture 690 345 250 95 0.1
+expect-colour picture 690 345 250 95 000000 0.99 8
+expect-pixels-changed-since 3 picture 0 355 330 230 0.1
+expect-colour picture 0 355 330 230 000000 0.99 8
+# ...and the hierarchy's own model IS drawn (its sections at the origin, in front of the camera)
+expect-not-empty 0.003
+
+# Exit (case 2, FUN_004888d0 + FUN_00447550): the player is freed, the next screen shows the level again (the hub: its white wire, thin lines)
+click-bar Mode > Exit
+expect-screen Construction
+wait 600
+picture 7
+expect-pixels-changed-since 4 picture 690 345 250 95 0.04
+expect-colour-at-most picture 690 345 250 95 000000 0.97 8

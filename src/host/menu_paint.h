@@ -19,10 +19,25 @@ namespace host
 	// The colours, as the game's ARGB numbers: the drop-down's background, and the band behind the lit item and the open title
 	uint32_t const kMenuDropColour = 0xFF30363Cu;
 	uint32_t const kMenuLitColour = 0xFF4A6A8Au;
-	uint32_t const kMenuCheckedColour = 0xFF3C6C3Cu;   // the band behind an item that is checked (its state is on): the draw mode in use, a switch that is on
+	uint32_t const kMenuCheckedColour = 0xFF3C6C3Cu;   // (no longer drawn by the menus: an "on" item's words are yellow, kMenuOnColour)
+
+	// INTENG'S MENU STYLE (FUN_004b7950 0x4b7aef-0x4b7b11, view-state-table.md H-5a): BLUE (0, 0, 0xff) the bar and the drop-downs (FUN_004b6800's fill, 0x4b7062), WHITE the words (0x4b7137), ORANGE (0xff, 0x7f, 0)
+	// the pointed row's background (FUN_004b7590 / FUN_004b6c50 swap blue and orange in its band, H-5d), YELLOW the words of an item that is "on" (FUN_004b7470 swaps white and yellow, H-5e: no tick mark)
+	uint32_t const kMenuBlueColour = 0xFF0000FFu;
+	uint32_t const kMenuPointedColour = 0xFFFF7F00u;
+	uint32_t const kMenuOnColour = 0xFFFFFF00u;
 
 	// The room between an item's words and its keys, in pixels
 	int32_t const kMenuKeysGap = 16;
+
+	// The row under a line's top where an access letter's underline goes (its font's LAST row: FUN_0046ce70 0x46cffb); -1 (the start) for lineHeight - 2, the small font's
+	void MenuPaint_SetUnderlineRow(int32_t row);
+
+	// Whether the menus' lines are in inteng's own menu font (its glyph 2 is the sub-menu mark); false (the start): the mark is ">" in the small font
+	void MenuPaint_SetMenuGlyphs(bool on);
+
+	// The room a sub-menu's mark takes at the right of its row: glyph 2's cell (16 pixels in font16)
+	int32_t const kMenuSubMarkRoom = 16;
 
 	// The height of one item: a line of the font, with the panels' margin above and below it
 	int32_t MenuPaint_ItemHeight(int32_t lineHeight);

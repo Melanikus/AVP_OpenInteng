@@ -1,6 +1,8 @@
 # ACCEPTANCE: Object Placement on a stock level (Drake, 2026-11-16, from reassess/object-placement.md; inteng code in object-placement-reads.md, edobtype-dialogs.md, inteng-help-keys.md). This file says what FINISHED is for this screen.
 # Items I authored (Delete 0x16, With shape: Selected 0x33, Replace shape 0x1d, Rescale 0x1a, Move relative 0x1c) are not here: Hicks's review decides them. UNTRACED marks a read still owed.
 # Level: Invasion, read-only. EXPECTED TODAY (cut 10): RED. Finished = every line ok.
+# the icons are inteng's own shapes, read at run time from his installed inteng.exe (object-placement.md 8b V-25): the run names his Tools folder
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
@@ -92,10 +94,10 @@ key F
 # ---- O8 TAB enters Strategy mode and Tab (or Exit) there gives Object Placement back (FUN_00524e90 0x524eca)
 key Tab
 expect-screen Strategy Data
-# Tab there is Exit (FUN_00524e90 0x524eca), which asks "Would you like to save first?" when something was changed (DAT_00914950, set by every edit: this run has made and moved objects); No leaves without saving
+# Tab there is Exit (FUN_00524e90 0x524eca), which asks "Would you like to save first?" only when STRATEGY changed something: DAT_00914950 is cleared on every entry of the mode (FUN_00522ab0
+# 0x522ae2, this Tab's FUN_00524ce0 included) and set only by Strategy's own edits (Frost, 11-16, reassess/strategy-data-verify-frost.md W-3). This run's Placement changes are not asked about: no question
 key Tab
-expect-dialog Would you like to save first?
-click-button No
+expect-no-dialog
 expect-screen Object Placement
 
 # ---- O9 EXIT (FUN_004d9820: the list emptied, FUN_004bd8e0(level,1) when DAT_008f4f54, FUN_00500f00, FUN_004704a0; FUN_004719e0 writes the level; "Camera position saved")

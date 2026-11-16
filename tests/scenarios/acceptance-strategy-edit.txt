@@ -1,0 +1,61 @@
+# ACCEPTANCE: Strategy Data's Edit Strategy and Assign Strategy, HIS PATH (Frost, 2026-11-16; strategy-data.md 1:1 TABLE rows S-37 and S-38, Phase 2 batch 1).
+# S-37 Edit Strategy (0x7, FUN_005286b0): with NO current object (DAT_00914970 == 0, 0x5286b5) it does NOTHING (no message); with one that has a strategy the level counts as changed (DAT_00914950 = 1 at
+# 0x5286cc, even when nothing is edited), the current object's red mark is cleared (FUN_00529480 0x5286d7) while the kind's view (+0x14(1)) runs and set again after it (FUN_00529470 0x5286f9).
+# S-38 Assign Strategy (0x8, FUN_00528830): after the kind is made, the new strategy's view runs AT ONCE (0x529141), with the red off (0x52897d) and back after it (0x529151).
+# By his path: open the file, bar to Strategy Data, right-click > Edit Strategy with nothing picked; click the module APCmod, right-click > Assign Strategy > Door: the Door's view; Escape; Save; Edit, Escape; Mode > Exit asks.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+expect-selected 0
+
+# ---- S-37: Edit Strategy with nothing current: nothing at all (not "Selected object has no strategy", no view)
+click-win 640 300 right
+click-popup 3
+wait 300
+expect-status-not Selected object has no strategy
+expect-status-not Edit Strategy
+expect-no-dialog
+
+# ---- S-38: the module APCmod current (RED), Assign Strategy > Door: the Door's view comes up at once and the module is not red while it runs (its new strategy's GREEN shows)
+click-win 120 500
+expect-selected 1
+wait 400
+picture 2
+expect-colour picture 0 400 300 200 ff0000 0.01 70
+click-win 120 500 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Door
+expect-no-dialog
+expect-status The object has a new strategy: its Edit view
+expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
+wait 400
+picture 3
+# the Edit view is up: the whole window is black every pass (FUN_0052cbb0 0x52cbe7 FUN_00418b80(&DAT_0091f6c0, 0); strategy-data-kinds.md S-KC-1): the level, its green and the current's red are not drawn; its lines are (light grey, the font's anti-aliased white)
+expect-colour-at-most picture 0 400 300 200 00ff00 0.001 70
+expect-colour-at-most picture 0 400 300 200 ff0000 0.001 70
+expect-colour picture 0 16 300 80 c0c0c0 0.03 64
+# Escape ends the view (the Door's 0x52ce0d): the module is red again (0x529151)
+key Esc
+wait 400
+picture 4
+expect-colour picture 0 400 300 200 ff0000 0.01 70
+
+# ---- S-37: opening a view is a change by itself: Save a copy (the mark cleared, FUN_005282d0 0x52831b), Edit Strategy, Escape at once, Mode > Exit: "Would you like to save first?" (0x5edd8c)
+click-win 640 300 right
+click-popup 1
+wait 600
+click-win 120 500 right
+click-popup 3
+expect-status Edit Strategy
+wait 300
+key Esc
+wait 300
+click-bar Mode > Exit
+expect-dialog-kind confirm
+expect-dialog Would you like to save first?
+click-button No
+expect-screen Construction

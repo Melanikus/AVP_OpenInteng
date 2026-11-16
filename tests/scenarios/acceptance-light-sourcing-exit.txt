@@ -1,0 +1,23 @@
+# ACCEPTANCE: Light Sourcing's own Exit leaves the mode FULLY (Drake, 2026-11-16; Bishop's queue line after Frost's Hierarchy find: Mode > Exit runs LeaveTheMode, not the bar's change of screen, so a
+# mode's leave work has to run there too: ExitCleanup). What leaving undoes: the Gouraud switch the entry turned on (EnterLightSourcing: inteng's screen is lit, FUN_004aab60), the light screen's text rows,
+# and the hub's own look after it (the white wire, view-state-table.md R-1). His path: the file opened as a double click, Mode > Light Sourcing on the bar, Mode > Exit.
+# Run: AvP-docs/tools/drake/drive-scenario-t6.sh <tree> <this file> lsexit verify_light
+
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-field viewmode polygon+unlit
+click-bar Mode > Light Sourcing
+expect-screen Light Sourcing (with Doors)
+wait 400
+picture 1
+click-bar Mode > Exit
+expect-screen Construction
+wait 400
+picture 2
+# the switch the entry turned on is off again, as when the bar leaves the screen (LeaveLightSourcing)
+expect-field viewmode polygon+unlit
+# the hub's white wire again
+expect-colour picture 0 0 1008 729 000000 0.40 16
+expect-colour picture 0 0 1008 729 ffffff 0.01 16

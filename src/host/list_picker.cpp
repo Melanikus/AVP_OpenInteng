@@ -121,6 +121,7 @@ namespace host
 
 		page = 0;
 		highlighted = 0;
+		keyed = false;
 		open = true;
 	}
 
@@ -254,6 +255,7 @@ namespace host
 
 		highlighted = std::max(0, std::min(at, count - 1));
 		page = highlighted / perPage;
+		keyed = true;
 		return true;
 	}
 }

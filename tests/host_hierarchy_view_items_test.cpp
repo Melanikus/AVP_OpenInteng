@@ -90,6 +90,29 @@ int main()
 	HierarchyMode_Command(nullptr, &mode, 0x5d);
 	HierarchyMode_Typed(nullptr, &mode, "abc");
 	Check(mode.dummyObjectSize == 25000, "and so does a word");
+	step = HierarchyMode_Command(nullptr, &mode, 0x5d);
+	Check(step.textDialog, "Dummy Object Size is inteng's text dialog (FUN_00474170), not a typed line");
+	HierarchyMode_Cancel(&mode);
+
+	// the number an inteng edit holds (FUN_0057d620): a "-" first, then digits only; anything else is 0
+	Check(HierarchyMode_EditNumber("250") == 250 && HierarchyMode_EditNumber("-7") == -7 && HierarchyMode_EditNumber("12a") == 0 && HierarchyMode_EditNumber("") == 0 &&
+		HierarchyMode_EditNumber(" 5") == 0 && HierarchyMode_EditNumber("0") == 0, "the edit's number is read as FUN_0057d620 reads it");
+
+	// the Sound Edit window (FUN_004ebd60 -> edit_sound): what it shows first, and the DLL's limits, checked before anything is written (no file here)
+	mode.soundBeingEdited = { 13, "Not Set", 5000, 40000, 127, 0, 0 };
+	mode.levelScale = 1.0;
+
+	std::vector<std::string> const shown = HierarchyMode_SoundFormShown(mode);
+
+	Check(shown.size() == 5 && shown[0] == "Not Set" && shown[1] == "5" && shown[2] == "40" && shown[3] == "0" && shown[4] == "100", "a new sound shows Not Set, 5 m, 40 m, 0 semitones, 100 %");
+	step = HierarchyMode_SoundForm(nullptr, &mode, { "a.wav", "2000", "40", "0", "100" });
+	Check(step.messageBox && step.soundForm && step.answer == "Please enter a number between 0 and 1000.", "an inner range of 2000 m is refused with MFC's words and the window comes back: " + step.answer);
+	step = HierarchyMode_SoundForm(nullptr, &mode, { "a.wav", "5", "40", "49", "100" });
+	Check(step.messageBox && step.answer == "Please enter a number between -48 and 48.", "a pitch of 49 is refused: " + step.answer);
+	step = HierarchyMode_SoundForm(nullptr, &mode, { "a.wav", "five", "40", "0", "100" });
+	Check(step.messageBox && step.answer == "Please enter a number.", "a word is not a number: " + step.answer);
+	step = HierarchyMode_SoundForm(nullptr, &mode, { "a.wav", "5", "40", "0", "101" });
+	Check(step.messageBox && step.answer == "Please enter a number between 0 and 100.", "a volume of 101 % is refused: " + step.answer);
 
 	HierarchyMode_Command(nullptr, &mode, 0x3c);
 	Check(mode.viewKind == 1, "Alien");

@@ -66,16 +66,14 @@ namespace host
 
 		SimpleChoice const explosionChoices[] = { { "None", 0 }, { "Small", 1 }, { "Big", 2 }, { "Molotov", 3 } };
 
-		// inteng's shape-name table at 0x5e7b58 (read from the exe): name, type, extra data
-		struct ShapeRow { char const *name; int32_t type; int32_t extra; };
-
-		ShapeRow const shapeRows[] =
+		// inteng's shape-name table (0x5e7b58), as read from his inteng.exe at run time (SimpleObject_SetShapeNames; Bishop's ruling V-31 11-16): empty while it was not read, and then no type is guessed
+		std::vector<SimpleShapeName> &ShapeNames()
 		{
-			{ "sentry", 9, 500 }, { "acarmr", 5, 1 }, { "armour01", 5, 0 }, { "atsham01", 3, 1 }, { "autoshot", 2, 1 }, { "flam01", 3, 3 }, { "flame", 2, 3 }, { "grenade", 2, 6 },
-			{ "grenam01", 3, 6 }, { "grenbx01", 3, 6 }, { "medbox01", 4, 0 }, { "minigun", 2, 7 }, { "miniamo", 3, 7 }, { "plasam02", 3, 4 }, { "plasma", 2, 4 }, { "pulam", 3, 0 },
-			{ "grenband", 3, 8 }, { "pulse", 2, 0 }, { "rocam01", 3, 5 }, { "6spears", 3, 9 }, { "sadar", 2, 5 }, { "smart", 2, 2 }, { "smrtam01", 3, 2 }, { "pboost", 15, 0 },
-			{ "pistol", 2, 22 }, { "skeeter", 2, 23 }, { "bulb", 16, 0 }, { "mine", 16, 0 }, { "simple", 16, 0 },
-		};
+			static std::vector<SimpleShapeName> names;
+
+			return names;
+		}
+
 
 		// which type shows which list, and which shows the Mass and Integrity boxes (FUN_10004520's switch)
 		bool ShowsMass(int32_t type)
@@ -276,9 +274,20 @@ namespace host
 		return count;
 	}
 
+	void SimpleObject_SetShapeNames(std::vector<SimpleShapeName> const &names)
+	{
+		ShapeNames() = names;
+	}
+
+	bool SimpleObject_ShapeNamesKnown()
+	{
+		return !ShapeNames().empty();
+	}
+
 	bool SimpleShapeGuess(std::string const &lowerName, int32_t *type, int32_t *extra)
 	{
-		for (ShapeRow const &row : shapeRows)
+		// FUN_004f6a20: the first row whose name is the same (strcmp: the caller gives the lower-cased name)
+		for (SimpleShapeName const &row : ShapeNames())
 		{
 			if (lowerName == row.name)
 			{
@@ -307,7 +316,6 @@ namespace host
 		case SimpleObjectResult::BadCall: return "no level or no object";
 		case SimpleObjectResult::NoObject: return "the level has no object with that name";
 		case SimpleObjectResult::NoHeader: return "the object has no header the editor can change";
-		case SimpleObjectResult::Referenced: return "another object names this one, so its strategy is not replaced (Tab, Strategy mode, changes it)";
 		case SimpleObjectResult::NotPlaced: return "a module has no simple object data, so none is made on it";
 		case SimpleObjectResult::CantBuild: return "the object's strategy could not be put together";
 		case SimpleObjectResult::LoaderRefused: return "the game would not take the level that way, so nothing was changed";
@@ -444,7 +452,7 @@ namespace host
 
 			if (made != ObjectEditResult::Done)
 			{
-				return made == ObjectEditResult::LoaderRefused ? SimpleObjectResult::LoaderRefused : made == ObjectEditResult::IsReferenced ? SimpleObjectResult::Referenced : made == ObjectEditResult::NotPlaced ? SimpleObjectResult::NotPlaced : SimpleObjectResult::CantBuild;
+				return made == ObjectEditResult::LoaderRefused ? SimpleObjectResult::LoaderRefused : made == ObjectEditResult::NotPlaced ? SimpleObjectResult::NotPlaced : SimpleObjectResult::CantBuild;
 			}
 
 			level = store->Level();

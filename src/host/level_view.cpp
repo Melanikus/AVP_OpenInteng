@@ -514,10 +514,16 @@ void LevelView_SetAdaptiveDegradation(bool on)
 }
 
 static int32_t currentModule = -1;
+static uint32_t currentModuleColour = 0xFF7F007Fu;
 
 void LevelView_SetCurrentModule(int32_t moduleIndex)
 {
 	currentModule = moduleIndex;
+}
+
+void LevelView_SetCurrentModuleColour(uint32_t argb)
+{
+	currentModuleColour = argb;
 }
 
 bool LevelView_ThreeViewBounds(int32_t mins[3], int32_t maxs[3])
@@ -1092,6 +1098,21 @@ void LevelView_HideModules(const int32_t *moduleIndex, size_t count, bool everyM
 	}
 }
 
+static std::vector<const DISPLAYBLOCK *> hiddenBlocksAsGiven;   // LevelView_HideBlocks
+
+void LevelView_HideBlocks(const struct displayblock *const *blocks, size_t count)
+{
+	hiddenBlocksAsGiven.clear();
+
+	for (size_t i = 0; blocks && i < count && i < kLevelViewMostHidden; i++)
+	{
+		if (blocks[i])
+		{
+			hiddenBlocksAsGiven.push_back(blocks[i]);
+		}
+	}
+}
+
 void LevelView_HideBeyond(bool on, int32_t distance)
 {
 	hideBeyondOn = on;
@@ -1238,7 +1259,8 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 			flyOriginal = BlockOfShape(flying);
 		}
 
-		for (size_t i = 0; i < selectedBlockCount && tinted < kLevelViewMostSelected; i++)
+		// a selection colour of 0: the selected objects are not tinted (Strategy Data while a kind's Edit view runs: FUN_005286b0 clears the current object's red mark first)
+		for (size_t i = 0; selectedTintColour != 0 && i < selectedBlockCount && tinted < kLevelViewMostSelected; i++)
 		{
 			tintBlocks[tinted] = flyOriginal && selectedBlocks[i] == flyOriginal ? flyCopy : selectedBlocks[i];
 			tintColours[tinted++] = selectedTintColour;
@@ -1246,11 +1268,11 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 
 		SCENEMODULE *const scene = Global_ModulePtr ? Global_ModulePtr[Global_Scene] : nullptr;
 
-		// the current module first, purple (0x7F007F), so it wins over any other colour given for it
+		// the current module first, in its colour (purple 0x7F007F, or the screen's: LevelView_SetCurrentModuleColour), so it wins over any other colour given for it
 		if (scene && currentModule >= 0 && currentModule < ModuleArraySize && scene->sm_marray[currentModule] && scene->sm_marray[currentModule]->m_dptr && tinted < kLevelViewMostSelected)
 		{
 			tintBlocks[tinted] = scene->sm_marray[currentModule]->m_dptr;
-			tintColours[tinted++] = 0xFF7F007Fu;
+			tintColours[tinted++] = currentModuleColour;
 		}
 
 		for (size_t i = 0; scene && i < moduleTintCount && tinted < kLevelViewMostSelected; i++)
@@ -1281,7 +1303,7 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 	}
 	// The objects the editor hides: their blocks found now (an ID of no object in play is left out)
 	{
-		std::vector<const struct displayblock *> hidden;
+		std::vector<const struct displayblock *> hidden(hiddenBlocksAsGiven.begin(), hiddenBlocksAsGiven.end());
 
 		for (std::vector<uint8_t> const &id : hiddenIds)
 		{
@@ -1468,7 +1490,7 @@ bool LevelView_EyePlace(int32_t place[3])
 	return true;
 }
 
-bool LevelView_CameraAxes(int forward[3], int right[3])
+bool LevelView_CameraAxes(int forward[3], int right[3], int *down)
 {
 	if (!levelIsOpen || !Global_VDB_Ptr)
 	{
@@ -1487,6 +1509,15 @@ bool LevelView_CameraAxes(int forward[3], int right[3])
 	right[0] = view.mat11;
 	right[1] = view.mat21;
 	right[2] = view.mat31;
+
+	// the camera's own down, the view's (0, 1, 0): the second column (the game's y points down)
+	if (down)
+	{
+		down[0] = view.mat12;
+		down[1] = view.mat22;
+		down[2] = view.mat32;
+	}
+
 	return true;
 }
 
@@ -1727,6 +1758,31 @@ bool LevelView_ModuleBox(int32_t moduleIndex, int32_t mins[3], int32_t maxs[3])
 
 	mins[0] = room->m_world.vx + shape->shapeminx; mins[1] = room->m_world.vy + shape->shapeminy; mins[2] = room->m_world.vz + shape->shapeminz;
 	maxs[0] = room->m_world.vx + shape->shapemaxx; maxs[1] = room->m_world.vy + shape->shapemaxy; maxs[2] = room->m_world.vz + shape->shapemaxz;
+	return true;
+}
+
+bool LevelView_ObjectBox(const uint8_t id[8], int32_t mins[3], int32_t maxs[3])
+{
+	if (!id || !mins || !maxs)
+	{
+		return false;
+	}
+
+	LevelViewShapeOf shape = {};
+
+	shape.isModule = false;
+	memcpy(shape.objectId, id, sizeof(shape.objectId));
+
+	const DISPLAYBLOCK *const block = BlockOfShape(shape);
+	SHAPEHEADER *const data = block && block->ObShape >= 0 ? GetShapeData(block->ObShape) : nullptr;
+
+	if (!data)
+	{
+		return false;
+	}
+
+	mins[0] = block->ObWorld.vx + data->shapeminx; mins[1] = block->ObWorld.vy + data->shapeminy; mins[2] = block->ObWorld.vz + data->shapeminz;
+	maxs[0] = block->ObWorld.vx + data->shapemaxx; maxs[1] = block->ObWorld.vy + data->shapemaxy; maxs[2] = block->ObWorld.vz + data->shapemaxz;
 	return true;
 }
 

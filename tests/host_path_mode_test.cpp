@@ -135,6 +135,7 @@ static void TestFile(std::string const & path, std::string const & folder)
 	std::vector<PathInfo> before;
 
 	Check(!original.empty() && PathMode_ReadPaths(&file, &before), "the level builds and its paths are read");
+	printf("  (%zu paths in the level)\n", before.size());
 
 	int32_t number = -1;
 
@@ -265,16 +266,49 @@ static void TestFile(std::string const & path, std::string const & folder)
 	Check(PathMode_ReadPaths(&file, &after) && CountNumber(after, number) == 0, "the path is gone");
 }
 
+// PathMode_NearestStep (FUN_004f9650 with FUN_004f89f0's distances): an Enemy's / Generator's path start, on graphs made here (no level needed)
+static void TestNearestStep()
+{
+	auto steps = [](std::vector<int32_t> const &modules) { std::vector<PathNode> out; for (int32_t m : modules) { PathNode n = {}; n.module = m; out.push_back(n); } return out; };
+	PathGraph chain;
+
+	// 0 - 1 - 2 - 3, and 0 - 4; module i has the number 10 + i; 5 stands alone
+	chain.neighbours = { { 1, 4 }, { 0, 2 }, { 1, 3 }, { 2 }, { 0 }, {} };
+	std::vector<int32_t> const numbers = { 10, 11, 12, 13, 14, 15 };
+
+	Check(PathMode_NearestStep(chain, numbers, 0, steps({ 12, 14 })) == 4, "the nearest of the path's modules by the breadth-first distance (14, one away, not 12, two away)");
+	Check(PathMode_NearestStep(chain, numbers, 0, steps({ 11, 14 })) == 1, "two at the same distance: the first in the modules' order");
+	Check(PathMode_NearestStep(chain, numbers, 3, steps({ 10, 13 })) == 3, "the start itself when it is on the path (distance 0)");
+	Check(PathMode_NearestStep(chain, numbers, 0, steps({ 15 })) == -1, "a path no step of which can be reached: none");
+	Check(PathMode_NearestStep(chain, numbers, 0, steps({})) == -1, "no steps: none");
+	Check(PathMode_NearestStep(chain, numbers, -1, steps({ 12 })) == -1 && PathMode_NearestStep(chain, numbers, 6, steps({ 12 })) == -1, "a start outside the graph: none");
+	Check(PathMode_NearestStep(chain, { 10, 11 }, 0, steps({ 11 })) == -1, "numbers that don't match the graph: none");
+
+	// two modules with one number: a step names the FIRST (FUN_004beb90), even when the other is nearer
+	PathGraph twins;
+
+	twins.neighbours = { { 2 }, { 2 }, { 0, 1 } };
+	Check(PathMode_NearestStep(twins, { 10, 11, 11 }, 0, steps({ 11 })) == 1, "a step names the first module with its number, two away, not its twin one away");
+
+	// a hostile neighbour index is passed over
+	PathGraph bad;
+
+	bad.neighbours = { { -3, 99, 1 }, { 0 } };
+	Check(PathMode_NearestStep(bad, { 10, 11 }, 0, steps({ 11 })) == 1, "a neighbour index outside the graph is passed over");
+}
+
 int main(int argc, char ** argv)
 {
 	setvbuf(stdout, 0, _IONBF, 0);
 
+	TestNearestStep();
+
 	if (argc < 2)
 	{
-		// no level named (the suite runs every test with no arguments): nothing to test here, and that is said, like the other tests that need a level
-		printf("usage: host_path_mode_test <level file> [<level file> ...]: no level was named, so nothing was tested here\n");
-		printf("All checks passed\n");
-		return 0;
+		// no level named (the suite runs every test with no arguments): only the checks above, which need none
+		printf("usage: host_path_mode_test <level file> [<level file> ...]: no level was named, so only the graphs made here were tested\n");
+		printf("%d checks, %d failed\n", checksRun, checksFailed);
+		return checksFailed ? 1 : 0;
 	}
 
 	std::string const folder = "path_mode_test_" + std::to_string(GetCurrentProcessId());

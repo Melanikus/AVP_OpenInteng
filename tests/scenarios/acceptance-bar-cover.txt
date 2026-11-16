@@ -1,0 +1,34 @@
+# ACCEPTANCE: what the screen holds while inteng's BAR is up (Drake, 2026-11-16; Melanikus: "The information text on top left draws on top of menus ... map them"). Rows: AvP-docs\engine\inteng\reassess\
+# dialog-look-drake.md BAR-1..8. inteng's bar and drop-downs are OPAQUE blits over the frame (FUN_004b6a00 / FUN_004b6ab0, DDBLT_WAIT with no colour key) from inside a modal loop entered at the
+# mode's command step (FUN_004b7c50 -> FUN_004b7dd0): the main loop's top-left text (FUN_00471b60, "Frame Rate = %d" at (10, 0), "Speed   :%d" at (10, 16), drawn at 0x58cfe3 after the mode's
+# frame) and the hub's own text (drawn after its command step, 0x4452c5 before 0x447104) are not on any picture shown while the bar is up, and nothing of the screen is drawn over a menu.
+# His path: the level opened as a double click (start-args), the pointer moved to the top edge, a title pressed. Every check reads the screen or the state line of what was drawn.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+move-win 500 300
+expect-bar-hidden
+expect-screen-text Frame Rate
+picture 1
+# the pointer to the top edge (BAR-1: y < 3): the bar shows, and the top-left text is gone (BAR-8)
+move-win 400 1
+expect-bar-shown
+expect-field-empty screentext
+picture 2
+# a title pressed (BAR-4): its drop-down opens over the top left, nothing of the screen drawn over it
+click-win 20 10 left
+expect-field-empty screentext
+picture 3
+# the drop-down's first row right of its word "Quit": solid blue (inteng's opaque blit); before, "Frame Rate = N" of the screen was drawn over it. The box (x 40 to 150) lies inside the row in either
+# font: 207 wide in inteng's font16, 163 in the game's font when no IntengTools is set (a run with no menu font)
+expect-colour panels 40 34 110 14 0000ff 0.99 16
+# BAR-5: with File's drop-down open, the pointer moved onto Mode (no press) opens Mode's drop-down (inteng's menu loop opens the item under the pointer: 0x4b81de-0x4b82da)
+move-win 50 10
+expect-field-has dropboxes Strategy Data: Normal
+picture 5
+key Esc
+# the pointer leaves the bar (BAR-3): the bar goes, the text is drawn again (BAR-7)
+move-win 500 300
+expect-bar-hidden
+expect-screen-text Frame Rate
+picture 4

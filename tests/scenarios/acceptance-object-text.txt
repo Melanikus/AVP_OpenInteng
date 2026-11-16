@@ -3,6 +3,8 @@
 # class's: a generator "Difficulty (EMH)", its name, "In Object %s"; a sound "%s i_r %f o_r %f" in metres), then "Visible polygons %d" when the camera's target is in a module. T flips ALL of it
 # (DAT_005fd69c, 0x4dd0cd). H held adds 500000 to the distance every frame, N takes 500000 away, never below 0 (0x4d9f64-0x4d9f81). Every block whose distance from the camera less its radius is not below the
 # distance is hidden, the current object's kept (FUN_004dd2f0). Invasion, opened as by a double click, read-only.
+# the icons are inteng's own shapes, read at run time from his installed inteng.exe (object-placement.md 8b V-25): the run names his Tools folder
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
 state

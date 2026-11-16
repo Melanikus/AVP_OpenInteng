@@ -1,0 +1,39 @@
+# ACCEPTANCE (red first): Object Placement's SPLIT SCREEN views stay where they were put, by Melanikus's path (the bar, a click on the object, the keys, the camera moved).
+# inteng (object-placement.md OP-45, OP-46, OP-40, OP-82; section 8a V-3, 8b): Toggle Split Screen (FUN_004d5980) puts the three extra views 500000 back along z, x and y from the CURRENT OBJECT's
+# place (else the view's) ONCE; only D (FUN_004d58e0 with the current object's place, else the VIEW's) and making ANOTHER object current (FUN_004d64a0 -> FUN_004d58e0) move them. Moving the
+# camera does not, and Backspace (FUN_004d64a0(0)) does not. The three views are the top left, top right and bottom left quarters; the main view is the bottom right. Invasion, read-only.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+click-bar Misc > Toggle Split Screen
+wait 800
+picture 1
+# the camera moves 5 m back: the main view changes, the three extra views stay
+camera -27851 -14055 80500 0 0
+wait 800
+picture 2
+expect-pixels-same-since 1 picture 0 0 504 364 0.01
+expect-pixels-same-since 1 picture 504 0 504 364 0.01
+expect-pixels-same-since 1 picture 0 364 504 364 0.01
+expect-pixels-changed-since 1 picture 504 364 504 364 0.02
+# Backspace lets go of the object: the views stay
+key Back
+wait 400
+expect-selected 0
+picture 3
+# (below the text lines: the current object's lines go with Backspace, OP-101)
+expect-pixels-same-since 1 picture 0 170 504 194 0.01
+# D with no current object takes them to the VIEW's place (5 m from the object's): they change
+key D
+wait 800
+picture 4
+expect-pixels-changed-since 1 picture 0 0 504 364 0.02
+click-bar Misc > Toggle Split Screen
+wait 400

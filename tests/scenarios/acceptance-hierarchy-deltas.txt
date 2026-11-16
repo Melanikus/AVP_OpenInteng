@@ -1,0 +1,162 @@
+# ACCEPTANCE: Hierarchy's DELTAS on his file (AvP-docs/engine/inteng/reassess/hierarchy-deltas-vasquez.md HD-0a, HD-10, HD-11, HD-12, HD-13, HD-16).
+# inteng, right-click pop-up (AvP's set at ESP+0x154c): Add delta (FUN_0048c640) refuses with a MESSAGE BOX "None of the sequences have been flagged as delta sequences" when no sequence's delta frame
+# (+0x10, FUN_00478930) is set; Flag delta > Deltas relative to middle frame (0x13, which runs on into 0x14: the CURRENT frame ends as the base) marks one and HOLDS its frame; Add delta then lists
+# it in "Select Delta Sequence" and a pick adds a delta player (FUN_00478780) whose difference changes the pose; Remove delta (0xa, FUN_00479410) takes it away and the pose is back.
+# MelPyth_MarHUD (his HUD file), the Shotgun hierarchy.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+
+# ---- D1 the Shotgun and its sequence MarineHUD_Standard_Reload
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+
+# ---- D2 Add delta with no sequence flagged: inteng's message box, not a list
+click-win 500 300 right
+click-popup 3
+expect-dialog None of the sequences have been flagged as delta sequences
+key Enter
+expect-no-dialog
+# Shift+S is the same command (0x9, the key translator FUN_0048cde0 0x48ce50)
+key S shift
+expect-dialog None of the sequences have been flagged as delta sequences
+key Enter
+expect-no-dialog
+
+# ---- D2b Shift+T: Add 'turret delta' (0x7, the key only: AvP's menus do not carry it); FUN_0048c070: the Shotgun has no turret section: inteng's message box
+key T shift
+expect-dialog This hierarchy hasn't got a turret section
+key Enter
+expect-no-dialog
+
+# ---- D2c the keyframe flags (0x15-0x1e / 0x26-0x2f): Add keyframe flag > "3" puts flag 3 on the frame under the position (the text's "Flag 3 'Invincible' at 0"); Shift+3 takes it away; 3 puts it back
+click-win 500 300 right
+click-popup 6
+expect-popup-rows 0|1|2|3|4|5|6|7|8|9
+click-popup 4
+expect-hierarchy-text Flag 3 'Invincible' at 0
+key 3 shift
+expect-hierarchy-count 0 Flag 3
+key 3
+expect-hierarchy-text Flag 3 'Invincible' at 0
+key 3 shift
+expect-hierarchy-count 0 Flag 3
+
+# ---- D3 MarineHUD_Standard_Fire made a delta: Flag delta > Deltas relative to middle frame
+click-win 500 300 right
+click-popup 2
+expect-dialog Select Sequence
+click-row 3
+expect-no-dialog
+click-win 500 300 right
+click-popup 5
+expect-popup-rows Not a delta sequence|Deltas relative to first frame|Deltas relative to middle frame|Deltas relative to current frame
+click-popup 3
+
+# ---- D4 back to MarineHUD_Stationary standing still: the pose without a delta
+click-win 500 300 right
+click-popup 2
+expect-dialog Select Sequence
+click-row 5
+expect-no-dialog
+move-win 500 300
+wait 500
+picture 1
+
+# ---- D5 Add delta: the list holds the flagged sequence; a pick adds it, and the pose changes
+click-win 500 300 right
+click-popup 3
+expect-dialog Select Delta Sequence
+expect-dialog-rows MarineHUD_Standard_Fire
+click-row 1
+# the shotgun swings up into the top right corner (the delta at its base frame against the standing pose): that corner changes from the picture taken with the list open
+expect-pixels-changed picture 760 60 240 240 0.05
+expect-no-dialog
+
+# ---- D6 Remove delta: the pose is back
+click-win 500 300 right
+click-popup 4
+# the corner is empty again
+expect-pixels-changed picture 760 60 240 240 0.05
+move-win 500 300
+wait 500
+picture 3
+
+# ---- D7 the delta again; Shift+P (case 0xb, FUN_0048cde0 0x48ce40) plays THE DELTA only: the main sequence stands, the delta's swing moves the gun; Shift+O (0xc) stops it (HD-19)
+click-win 500 300 right
+click-popup 3
+expect-dialog Select Delta Sequence
+click-row 1
+expect-no-dialog
+move-win 500 300
+wait 300
+key P shift
+expect-moving picture 0 0 2000 2000 6 150 0.002
+key O shift
+wait 300
+picture 4
+wait 400
+picture 5
+expect-pixels-same picture 0 0 2000 2000 0.002
+
+# ---- D8 "Not a delta sequence" (0x11) on MarineHUD_Standard_Fire: the file's flag goes, but inteng keeps the HELD delta frame (HD-13: -1 does not write +0x10), so Shift+S still lists it;
+# opening the hierarchy again reads the frames again, and then none is flagged
+key O shift
+click-win 500 300 right
+click-popup 4
+click-win 500 300 right
+click-popup 2
+expect-dialog Select Sequence
+click-row 3
+expect-no-dialog
+click-win 500 300 right
+click-popup 5
+click-popup 1
+key S shift
+expect-dialog Select Delta Sequence
+expect-dialog-rows MarineHUD_Standard_Fire
+key Esc
+expect-no-dialog
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 5
+expect-dialog Select Sequence
+key Esc
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+key S shift
+expect-dialog None of the sequences have been flagged as delta sequences
+key Enter
+expect-no-dialog
+
+# ---- D9 Save changes to sequence times (0x48, the bar): on, the text says "(Saving Seq. Times)"; the chosen sequence's player starts at 1000 ms (FUN_0047d6f0 0x47d80c); + (0xd) adds 100 ms
+# a press and, with the switch on, writes the time (FUN_0047da50): 1.2 s, shown with the saved time in brackets. acceptance-hierarchy-seqtimes-save.txt / -restore.txt do the same on their own and open the saved copy again.
+expect-hierarchy-text Seq. Time :1.0 sec
+click-bar Hierarchy > Save changes to sequence times
+expect-hierarchy-text (Saving Seq. Times)
+key Plus
+key Plus
+expect-hierarchy-text Seq. Time :1.2 sec  (1.2)
+save-copy
+
+# ---- D10 the turret angle keys (the key translator: K -> 0x64, L -> 0x65): K is FUN_0047b800 (+10, kept 0..359), L FUN_0047b820 (+350: 10 the other way); from 0 one K makes 10, then two L make 350.
+# The Shotgun has no turret section, so nothing turns and inteng's text has no "Turret Angle" block; the number is the editor's status words.
+key K
+expect-status turret elevation 10 degrees
+key L
+key L
+expect-status turret elevation 350 degrees

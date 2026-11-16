@@ -1,0 +1,35 @@
+# ACCEPTANCE (red first): Object Placement's R (camera link to the object) works ONLY WHILE THE OBJECT FLIES, by Melanikus's path (the bar, a click on the object, the keys).
+# inteng FUN_004d9af0 0x4dc37f-0x4dc385: with DAT_008f4f44 == 0 (not flying) the frame jumps past the fly keys C and R to 0x4dc5f6, so R on a current object that doesn't fly does nothing
+# (object-placement.md OP-114, section 8a V-16). Invasion, read-only, in front of switch3.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+wait 300
+picture 1
+# NOT flying: R and Shift+R leave the view where it is
+key R
+wait 400
+expect-field camera -27851 -14055 85500 0 0
+expect-status-not Camera link to object: on
+picture 2
+expect-pixels-same-since 1 picture 0 0 1008 729 0.005
+# flying: R links (the words are the fly's, OP-101: "Flying object, camlink")
+key F
+wait 300
+expect-hierarchy-text Flying object
+key R
+wait 400
+expect-hierarchy-text camlink
+key R
+wait 300
+expect-hierarchy-count 0 camlink
+key F
+wait 300
+expect-hierarchy-count 0 Flying object

@@ -26,7 +26,9 @@ namespace host
 	void Dialogs_Message(std::string const &text, std::function<void()> const &then = nullptr);
 	void Dialogs_Confirm(std::string const &text, std::function<void(bool)> const &then);
 	void Dialogs_Text(std::string const &text, std::vector<DialogField> const &fields, std::function<void(int32_t, std::vector<std::string> const &)> const &then);
-	void Dialogs_List(std::string const &title, std::vector<std::string> const &rows, std::function<void(int32_t)> const &then);
+	// onRight (none by default): a RIGHT press on a row calls it with the row's place in the rows given, and the list stays open (inteng's list +0x6c, set by FUN_00476f70: the sound chooser's
+	// "Right click to listen to sound")
+	void Dialogs_List(std::string const &title, std::vector<std::string> const &rows, std::function<void(int32_t)> const &then, std::function<void(int32_t)> const &onRight = nullptr);
 	void Dialogs_Form(DialogFormSpec const &spec, std::function<void(int32_t, std::vector<DialogWidget> const &)> const &then);
 
 	bool Dialogs_IsOpen();
@@ -39,6 +41,7 @@ namespace host
 
 	// A left press at (x, y) of the screen's pixels, and a key: isChar for WM_CHAR (key is the letter), else a virtual key. Both return true when a dialog took it.
 	bool Dialogs_Press(int32_t x, int32_t y);
+	bool Dialogs_RightPress(int32_t x, int32_t y);   // a RIGHT press: a list's onRight on the row under it; true when a dialog is open (it takes the press)
 	bool Dialogs_Key(bool isChar, uint32_t key);
 
 	// What to paint: gray behind the window, then boxes and lines (the editor's panel pass takes both lists)

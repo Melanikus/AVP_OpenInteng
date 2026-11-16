@@ -113,14 +113,15 @@ static void TestPlan()
 	MenuPaint_Plan(bar, kBar, SixWide, 15, lines, 64, &lineCount, boxes, 64, &boxCount);
 
 	int32_t const dropWidth = 4 * 6 + 8 + kMenuKeysGap + 6 * 6 + 8;
-	Check(boxCount == 3 && BoxIs(boxes[0], 0, 0, 32, 32, kMenuLitColour) && BoxIs(boxes[1], 0, 32, dropWidth, 2 * 19, kMenuDropColour)
-		&& BoxIs(boxes[2], 0, 32, dropWidth, 19, kMenuLitColour), "open: the open title's band, the drop-down's background, then the lit item's band");
+	// inteng's menu style (view-state-table.md H-5a, H-5d): the open title and the pointed row ORANGE, the drop-down BLUE
+	Check(boxCount == 3 && BoxIs(boxes[0], 0, 0, 32, 32, kMenuPointedColour) && BoxIs(boxes[1], 0, 32, dropWidth, 2 * 19, kMenuBlueColour)
+		&& BoxIs(boxes[2], 0, 32, dropWidth, 19, kMenuPointedColour), "open: the open title's band, the drop-down's background, then the lit item's band");
 	Check(lineCount == 5 && LineIs(lines[2], "Open", 4, 32 + 2) && LineIs(lines[3], "Ctrl+O", dropWidth - (6 * 6 + 8) + 4, 32 + 2) && LineIs(lines[4], "Quit", 4, 32 + 19 + 2),
 		"and each item's words at its row's left, its keys at the right, row by row");
 
 	bar.Handle(KeyEvent(Key::Down));
 	MenuPaint_Plan(bar, kBar, SixWide, 15, lines, 64, &lineCount, boxes, 64, &boxCount);
-	Check(BoxIs(boxes[2], 0, 32 + 19, dropWidth, 19, kMenuLitColour), "the lit band follows the lit item");
+	Check(BoxIs(boxes[2], 0, 32 + 19, dropWidth, 19, kMenuPointedColour), "the lit band follows the lit item");
 
 	MenuPaint_Plan(bar, kBar, SixWide, 15, lines, 3, &lineCount, boxes, 2, &boxCount);
 	Check(lineCount == 3 && boxCount == 2, "it never writes more lines or boxes than it has room for");

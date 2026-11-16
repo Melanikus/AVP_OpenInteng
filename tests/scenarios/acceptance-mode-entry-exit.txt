@@ -1,0 +1,36 @@
+# ACCEPTANCE: what a mode's Exit and entry clear, HIS PATH (Frost, 2026-11-16; reassess/mode-entry-exit-frost.md; Melanikus on 8672ec21: "If I go into texture mode, select polygons and
+# exit to hub the selection of polygons mode is still on"; Bishop: map and confirm from the code, then red first).
+# TEXTURE MAP. Exit (FUN_0054d260 case 5, 0x54d304): FUN_0054bfd0 frees the mode's everything ("delete poly list": DAT_00914dcc, the polygon list and its selection; the bar; the text info ...),
+# then the hub's entry FUN_00447550 reloads the level: nothing Texture Map picked is drawn in the hub, and a click there is the hub's own. Entry (FUN_00544510 0x544551): the selection mode
+# DAT_00914d9c = 0 (by Polygon) every time.
+# By his path: open Hangar, bar to Mode > Texture Map, a click on a polygon in the middle of the view (yellow), Mode > Exit (the hub: no yellow).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Texture Map
+expect-screen Texture Map
+wait 400
+click-view 0.5 0.5
+expect-status 1 selected
+wait 300
+picture 2
+# the picked polygon is drawn tinted yellow (looked at: picture 2)
+click-bar Mode > Exit
+expect-screen Construction
+wait 400
+picture 3
+# TM-X1 / TM-H1: in the hub nothing of Texture Map's selection is drawn (ours drew its outline in pure yellow over the hub's wireframe: picture 3 of the red run)
+expect-colour-at-most picture 0 0 1000 700 ffff00 0.0005 40
+
+# TM-E1: the selection mode starts as "by Polygon" on every entry. Selection > Rect (In or On), Exit, Texture Map again: a click picks ONE polygon (by Polygon), not a rectangle's start
+click-bar Mode > Texture Map
+expect-screen Texture Map
+click-bar Selection > Rect (In or On)
+click-bar Mode > Exit
+expect-screen Construction
+click-bar Mode > Texture Map
+expect-screen Texture Map
+wait 400
+click-view 0.5 0.5
+expect-status 1 selected

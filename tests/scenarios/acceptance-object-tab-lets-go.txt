@@ -1,0 +1,25 @@
+# ACCEPTANCE (red first): Object Placement's TAB lets go of the current object and turns the split screen off before Strategy mode, by Melanikus's path (a click on the object, the bar, Tab).
+# inteng FUN_004d9af0 0x4da71e-0x4da835 (object-placement.md OP-81, section 8a V-2): mode 0 only; every object saved; the current object's ID taken (+0x44) and handed to Strategy mode
+# (FUN_00524ce0(ID): Frost's S-4 makes it current there); FUN_004d64a0(0) (Object Placement has NO current object); FUN_004d5d80 (the split screen off). So after Tab and Tab back, nothing is
+# current in Object Placement and the view is whole again. Invasion, read-only, in front of switch3.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+click-bar Misc > Toggle Split Screen
+wait 800
+picture 1
+key Tab
+expect-screen Strategy Data
+key Tab
+expect-screen Object Placement
+expect-selected 0
+wait 800
+picture 2
+# the split screen is off: the top left quarter is the main view's again, not the view along +z
+expect-pixels-changed-since 1 picture 0 0 504 364 0.05

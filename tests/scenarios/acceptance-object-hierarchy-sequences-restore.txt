@@ -1,0 +1,21 @@
+# ACCEPTANCE, PART 2 of 2: the placed hierarchy's sequence records are KEPT in the saved copy (reassess/object-placement.md PH-6, PH-7, PH-16; inteng's save writes them as PLHISEQU, FUN_004e96d0).
+# RUN RIGHT AFTER acceptance-object-hierarchy-sequences-save.txt. That part added record 1 and deleted record 0 of Invasion's "dropship ken", then saved a copy beside the editor.
+# Here that copy is opened as by a double click: the placed hierarchy's only record is 1 (the first one, current at select), and Choose sequence lists only it.
+start-args {exedir}AVP_OpenInteng/edited/Invasion-edited.rif
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera 72906 -27615 45151 0 0
+wait 400
+click-win 504 322
+wait 400
+expect-status Selected: dropship ken
+expect-hierarchy-text Sequence 1
+click-win 504 322 right
+click-popup 3
+click-popup 2
+expect-dialog Select Sequence
+expect-dialog-rows 1
+key Esc
+expect-no-dialog

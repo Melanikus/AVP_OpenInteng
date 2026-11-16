@@ -1,0 +1,38 @@
+# ACCEPTANCE: Object Placement's PLACED HIERARCHY object (AvP-docs/engine/inteng/reassess/object-placement.md OP-2, OP-105, NA-6, section 0b).
+# inteng makes an object of class 0x5ae6c4 (kind 5) for every PLACHIER of SPECLOBJ on entry (FUN_004e8cc0 <- 0x4d8e96), drawn as the editor's icon shape 4 (blue and red, FUN_004e4ae0(5, ..., 4)
+# at 0x4e8ce3-0x4e8d4a) at its place; it is in the placement list: "Num Objects" counts it, the click takes it (FUN_004d6520), it becomes THE current object drawn red, and its text (FUN_004e9b60)
+# has no name line: "Colliding" while its block collides. Invasion holds one: "dropship ken" at 72906 -27615 50151 (stock survey 11-16). Invasion, opened as by a double click, read-only.
+# the icons are inteng's own shapes, read at run time from his installed inteng.exe (object-placement.md 8b V-25): the run names his Tools folder
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera 72906 -27615 45151 0 0
+wait 400
+
+# ---- H1 the placed hierarchy is in the placement list: Num Objects is 301 (the editor before this said 300)
+expect-hierarchy-text Num Objects :301
+
+# ---- H2 its icon (shape 4, blue and red) straight ahead, 5 m away
+picture 1
+expect-colour picture 404 214 200 200 0000ff 0.02 45
+
+# ---- H3 a click on it: THE current object; its own text: "Colliding" and no name line. Its icon is NOT drawn while it is current: its select (FUN_004e9520 0x4e95ac) sets the icon record's
+# +0x64 0x800000, which Object Placement's view distance pass (FUN_004dd2f0 0x4dd398) turns into "not drawn" every frame, and shows the hierarchy's own model instead
+# (acceptance-object-hierarchy-play.txt, reassess/object-placement.md PH-1). Changed 2026-11-16 by Vasquez: this asked for the icon drawn red before PH-1 was built.
+click-win 504 322
+wait 300
+expect-status Selected: dropship ken
+expect-hierarchy-text Colliding
+expect-hierarchy-count 0 dropship ken
+expect-colour-at-most picture 404 214 200 200 ff0000 0.005 45
+expect-colour-at-most picture 404 214 200 200 0000ff 0.005 45
+
+# ---- H4 Backspace lets go of it: its icon is back, blue and red
+key Back
+wait 300
+expect-status Deselected
+expect-hierarchy-count 0 Colliding
+expect-colour picture 404 214 200 200 0000ff 0.02 45

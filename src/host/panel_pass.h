@@ -54,3 +54,16 @@ void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extr
 // How wide the small menu font draws a letter: the same rule as the game's own OnlinePage_SmallWidth (online_screens_page.cpp:176), which the
 // editor doesn't compile. The letter's width from the font's table, looked up as 0 to 255, never below 0 and never above 17, its widest.
 int PanelPass_SmallWidth(int letter);
+
+// INTENG'S MENU FONT (menu_font.h, read from its Tools folder at the start): each letter made a texture (white where a bit is set, see-through elsewhere), drawn unfiltered
+// (avpx DrawQuadSharp) in the line's colour, so a menu's words are inteng's pixels in its exact colours (view-state-table.md H-5b, H-5c, H-5e). Call once at the start, after
+// the game's menu textures and outside a frame; false when a texture could not be made (the game's small font is used then).
+namespace host { struct MenuFont; }
+bool PanelPass_SetMenuFont(const host::MenuFont &font);
+bool PanelPass_HasMenuFont();
+
+// A letter's width in the menu font when one is set, else the small font's (PanelPass_SmallWidth): the menus are measured with it
+int PanelPass_MenuWidth(int letter);
+
+// The menu font's letters' height, 0 when none is set
+int32_t PanelPass_MenuFontHeight();

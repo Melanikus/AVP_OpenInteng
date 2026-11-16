@@ -47,10 +47,15 @@ namespace host
 		std::string text;
 		int32_t x;
 		int32_t y;
+		uint32_t colour = 0xFFFFFFFFu;   // ARGB the letters are drawn in: white unless a part asks otherwise (an "on" menu item is yellow, H-5e)
+		bool menuFont = false;           // drawn in inteng's own menu font when one was read (panel_pass.h PanelPass_SetMenuFont): letters 0 to 127 as they are, solid in the colour
+		bool overlay = false;            // drawn after every box and line of the screen itself (the bar, its drop-downs, the pop-up, a dialog: see PaintBox)
 	};
 
 	// A plain box of one colour on the panels, such as an open menu's background: its top left and size in the window's pixels, and its
-	// colour as ARGB
+	// colour as ARGB. overlay: drawn after every box and line of the screen itself, with the overlay's own lines over it. inteng's bar, drop-downs and pop-up are OPAQUE
+	// blits over the frame (reassess/dialog-look-drake.md BAR-6: FUN_004b6a00 / FUN_004b6ab0, DDBLT_WAIT with no colour key), and a dialog is drawn over everything (DL-2), so no
+	// word of the screen under them shows through
 	struct PaintBox
 	{
 		int32_t x;
@@ -58,6 +63,7 @@ namespace host
 		int32_t width;
 		int32_t height;
 		uint32_t colour;
+		bool overlay = false;
 	};
 
 	// The part of box inside a window of width by height pixels, in *out. Gives back false, with nothing in *out, when no part of it is

@@ -35,6 +35,7 @@ extern int NormalFrameTime;                          // io.cpp:74: how long the 
 extern int GlobalFrameCounter;                       // io.cpp:93: the game's frame number; the model works its positions out once a frame
 extern MODULEMAPBLOCK VisibilityDefaultObjectMap;    // pvisible.cpp, as bh_placed_hierarchy.cpp declares it
 extern SECTION *GetNamedHierarchyFromLibrary(const char *rifName, const char *hierarchyName);   // projload.cpp:1733
+extern HIERARCHY_SHAPE_REPLACEMENT *GetHierarchyAlternateShapeSetFromLibrary(const char *rifName, const char *shapeSetName);   // projload.cpp:1751
 
 extern List<Global_Hierarchy_Store *> Global_Hierarchy_Library;   // projload.cpp:459
 
@@ -69,10 +70,17 @@ static void Say(std::string *why, const char *what)
 
 bool HierarchyView_LoadModel(const char *modelName, std::string *why)
 {
-	// "avp_rifs/<file>": the OPENED file itself (inteng's hierarchies are those of the opened file); a plain name is a file of avp_huds
+	// "avp_rifs/<file>": the OPENED file itself (inteng's hierarchies are those of the opened file); a plain name is a file of avp_huds. A file he double-clicked is the editor's copy in
+	// avp_rifs\OpenedByEditor (open_with.h, kOpenedFolder): "avp_rifs/OpenedByEditor/<file>", that one folder and no other
 	bool const ofTheLevel = modelName && strncmp(modelName, "avp_rifs/", 9) == 0;
+	const char *plain = ofTheLevel ? modelName + 9 : modelName;
 
-	if (!modelName || !modelName[0] || strlen(modelName) > 80 || strpbrk(ofTheLevel ? modelName + 9 : modelName, "\\/:.*?\"<>|"))
+	if (ofTheLevel && _strnicmp(plain, "OpenedByEditor/", 15) == 0)
+	{
+		plain += 15;
+	}
+
+	if (!modelName || !modelName[0] || strlen(modelName) > 80 || !plain[0] || strpbrk(plain, "\\/:.*?\"<>|"))
 	{
 		Say(why, "the model's name is not a plain file name");
 		return false;
@@ -117,9 +125,12 @@ bool HierarchyView_LoadModel(const char *modelName, std::string *why)
 
 	// The library's entry is this very file's only when the file is named as its RIFFNAME is (hnpcalien.rif holds "HNPCalien"). Any other file with that RIFFNAME is a different file (Melanikus's MelPyth_hnpcmarine.rif
 	// is "hnpcmarine", as the stock NPC file is, and the game's loader insists the stock marine's hierarchies are in a file of that name): it is loaded under a name of its own, so the level's own marine stays as it is.
-	if (already && _stricmp(modelName, inside.c_str()) != 0)
+	// The same when the library does NOT hold that name yet: a file opened by double-click is the level itself (no stock marine loaded before it), and a file whose RIFFNAME is a stock model's
+	// (his ShotgunBot.RIF and MelPyth_hnpcmarine.RIF are "hnpcmarine") would be checked as that model by the game's loader (projload.cpp Stop_On_Bad_Model: "Error loading model \"marine with pulse
+	// rifle\" from file hnpcmarine") and the game would stop. So any file not named as its RIFFNAME is loaded under its own plain name + "~hv" (no folder in it).
+	if (_stricmp(plain, inside.c_str()) != 0)
 	{
-		std::string const own = std::string(modelName) + "~hv";
+		std::string const own = std::string(plain) + "~hv";
 
 		delete[] nameChunk->rif_name;
 		nameChunk->rif_name = new char[own.size() + 1];
@@ -193,7 +204,112 @@ bool HierarchyView_IsShown()
 	return shown != nullptr;
 }
 
+static bool ShowWithTurn(const char *modelName, const char *hierarchyName, int sequence, int sub, int32_t seconds, const int32_t place[3], EULER turn, std::string *why);
+
+static int showCount = 0;
+static std::string shownLibrary;   // the game's library name of the model shown (libraryNameOf)
+
+struct SectionOwnShape
+{
+	SECTION_DATA *section;
+	SHAPEHEADER *shape;
+	int shapeNum;
+	int replacementId;
+};
+
+static std::vector<SectionOwnShape> ownShapes;   // the shown model's sections' own shapes, taken at the first ApplyShapeSets after a Show
+static int ownShapesFor = -1;
+
+int HierarchyView_ShowCount()
+{
+	return showCount;
+}
+
 bool HierarchyView_Show(const char *modelName, const char *hierarchyName, int sequence, int sub, int32_t seconds, const int32_t place[3], int32_t heading, std::string *why)
+{
+	EULER turn;
+
+	turn.EulerX = 0;
+	turn.EulerY = heading & 4095;
+	turn.EulerZ = 0;
+	return ShowWithTurn(modelName, hierarchyName, sequence, sub, seconds, place, turn, why);
+}
+
+bool HierarchyView_ShowPlaced(const char *modelName, const char *hierarchyName, int sequence, int sub, int32_t seconds, const int32_t place[3], const float quaternion[4], std::string *why)
+{
+	if (!quaternion)
+	{
+		Say(why, "no turn was given");
+		return false;
+	}
+
+	// The game's own turn for a placed hierarchy (avpx object_setup.cpp, the placed hierarchy's template): the quaternion's x, y and z negated, made a matrix (QuatToMat) and then the
+	// Euler angles (MatrixToEuler) the display block keeps
+	QUAT q;
+	MATRIXCH m;
+	EULER turn;
+
+	q.quatx = (int)-(quaternion[0] * ONE_FIXED);
+	q.quaty = (int)-(quaternion[1] * ONE_FIXED);
+	q.quatz = (int)-(quaternion[2] * ONE_FIXED);
+	q.quatw = (int)(quaternion[3] * ONE_FIXED);
+	QuatToMat(&q, &m);
+	MatrixToEuler(&m, &turn);
+	return ShowWithTurn(modelName, hierarchyName, sequence, sub, seconds, place, turn, why);
+}
+
+bool HierarchyView_FirstSequence(const char *modelName, const char *hierarchyName, int *sequence, int *sub, std::string *why)
+{
+	if (!sequence || !sub || !HierarchyView_LoadModel(modelName, why))
+	{
+		return false;
+	}
+
+	SECTION *const root = GetNamedHierarchyFromLibrary(libraryNameOf[LowerName(modelName)].c_str(), hierarchyName && hierarchyName[0] ? hierarchyName : "Template");
+
+	if (!root || !root->sequence_array || root->num_sequences <= 0)
+	{
+		Say(why, "the hierarchy is not in the model file, or has no sequences");
+		return false;
+	}
+
+	*sequence = root->sequence_array[0].sequence_id & 0xffff;
+	*sub = root->sequence_array[0].sequence_id >> 16;
+	return true;
+}
+
+int HierarchyView_KeyFrame()
+{
+	if (!shown || !controller.Root_Section)
+	{
+		return 0;
+	}
+
+	// FUN_004790a0: the key frame whose time range holds the player's timer, the last one when none does
+	SEQUENCE *const sequence = GetSequencePointer(controller.Sequence_Type, controller.Sub_Sequence, controller.Root_Section);
+	int index = 0;
+	int count = 0;
+	int at = 0;
+	int found = -1;
+
+	for (KEYFRAME_DATA *frame = sequence ? sequence->first_frame : nullptr; frame && count < 4096; frame = frame->last_frame ? nullptr : frame->Next_Frame)
+	{
+		int const to = at + frame->Sequence_Length;
+
+		if (found < 0 && at <= controller.sequence_timer && controller.sequence_timer < to)
+		{
+			found = index;
+		}
+
+		at = to;
+		index++;
+		count++;
+	}
+
+	return found >= 0 ? found : (count > 0 ? count - 1 : 0);
+}
+
+static bool ShowWithTurn(const char *modelName, const char *hierarchyName, int sequence, int sub, int32_t seconds, const int32_t place[3], EULER turn, std::string *why)
 {
 	HierarchyView_Close();
 
@@ -201,6 +317,11 @@ bool HierarchyView_Show(const char *modelName, const char *hierarchyName, int se
 	{
 		return false;
 	}
+
+	showCount++;
+	ownShapes.clear();
+	ownShapesFor = -1;
+	shownLibrary = libraryNameOf[LowerName(modelName)];
 
 	SECTION *const root = GetNamedHierarchyFromLibrary(libraryNameOf[LowerName(modelName)].c_str(), hierarchyName && hierarchyName[0] ? hierarchyName : "Template");
 
@@ -288,9 +409,7 @@ bool HierarchyView_Show(const char *modelName, const char *hierarchyName, int se
 	shown->ObWorld.vx = place[0];
 	shown->ObWorld.vy = place[1];
 	shown->ObWorld.vz = place[2];
-	shown->ObEuler.EulerX = 0;
-	shown->ObEuler.EulerY = heading & 4095;
-	shown->ObEuler.EulerZ = 0;
+	shown->ObEuler = turn;
 	CreateEulerMatrix(&shown->ObEuler, &shown->ObMat);
 	TransposeMatrixCH(&shown->ObMat);
 	shown->HModelControlBlock = &controller;
@@ -301,7 +420,7 @@ bool HierarchyView_Show(const char *modelName, const char *hierarchyName, int se
 	return true;
 }
 
-void HierarchyView_Play(bool on, bool loop)
+void HierarchyView_Play(bool on, bool loop, bool all)
 {
 	if (shown)
 	{
@@ -310,10 +429,60 @@ void HierarchyView_Play(bool on, bool loop)
 		controller.Playing = on ? 1 : 0;
 		controller.Looped = loop ? 1 : 0;
 
-		for (DELTA_CONTROLLER *each = controller.Deltas; each; each = each->next_controller)
+		for (DELTA_CONTROLLER *each = all ? controller.Deltas : nullptr; each; each = each->next_controller)
 		{
 			each->Playing = on ? 1 : 0;
 		}
+	}
+}
+
+static void ApplyTheTurret();
+
+void HierarchyView_ScrubMain(int32_t step, bool all)
+{
+	if (!shown)
+	{
+		return;
+	}
+
+	if (!controller.Playing)
+	{
+		controller.sequence_timer = (controller.sequence_timer + step) & 0xffff;
+	}
+
+	// a stopped DELTA: inteng adds the step to its +0x28, the RUNNING word, not to its timer (FUN_0047b9c0 0x47baa2-0x47baaa, FUN_0047bb20 0x47bbfd): the first scrub frame makes it run, and it plays
+	// from then on; its timer is only wrapped (0x47bae5). inteng's own quirk, kept as it is (Bishop's ruling 11-16, rule 10b)
+	for (DELTA_CONTROLLER *each = all ? controller.Deltas : nullptr; each; each = each->next_controller)
+	{
+		if (!each->Playing && step != 0)
+		{
+			each->Playing = 1;
+		}
+	}
+
+	// the turret only while it is stopped (FUN_0047b9c0 0x47ba03: [1] +0x28 == 0); ours plays it with the main when it follows (Y)
+	if (all && turretOn && !(turretFollows && controller.Playing))
+	{
+		turretPosition = (turretPosition + step) & 0xffff;
+		ApplyTheTurret();
+	}
+}
+
+void HierarchyView_ScrubSecond(int32_t step, bool delta)
+{
+	if (!shown)
+	{
+		return;
+	}
+
+	if (delta && controller.Deltas)
+	{
+		controller.Deltas->timer = (controller.Deltas->timer + step) & 0xffff;
+	}
+	else if (turretOn)
+	{
+		turretPosition = (turretPosition + step) & 0xffff;
+		ApplyTheTurret();
 	}
 }
 
@@ -336,12 +505,78 @@ int32_t HierarchyView_Position()
 	return shown ? controller.sequence_timer : 0;
 }
 
-void HierarchyView_StepFrame(int direction)
+// Ctrl+R and Ctrl+F on the shown model's frames too, as inteng's FUN_00480eb0 / FUN_004795d0 change the player's own frames with the chunks (so the change shows at once). The game keeps each frame's
+// orientation as (w, -x, -y, -z) of the file's floats (projload.cpp: q.quatx = -orientation.x ...), the same as inteng's player (FUN_00480450 0x48056c-0x4805cb: x, y, z times -65536, w times
+// 65536), so inteng's own change of the player's words applies here as it is: (q0, q1, q2, q3) -> (-q2, -q3, q0, q1). It keeps the angle between neighbouring frames, so omega and the slerp sign
+// the loader worked out stand.
+static int RootSequenceFrames(int sequence, int sub, KEYFRAME_DATA **frames, int most)
+{
+	if (!shown || !controller.Root_Section)
+	{
+		return 0;
+	}
+
+	SEQUENCE *const found = GetSequencePointer(sequence, sub, controller.Root_Section);
+	int count = 0;
+
+	for (KEYFRAME_DATA *frame = found ? found->first_frame : nullptr; frame && count < most; frame = frame->last_frame ? nullptr : frame->Next_Frame)
+	{
+		frames[count++] = frame;
+	}
+
+	return count;
+}
+
+bool HierarchyView_TurnRootSequence(int sequence, int sub)
+{
+	static KEYFRAME_DATA *frames[4096];
+	int const count = RootSequenceFrames(sequence, sub, frames, 4096);
+
+	for (int i = 0; i < count; i++)
+	{
+		VECTORCH offset;
+		QUAT_SHORT const q = frames[i]->QOrient;
+
+		GetKeyFrameOffset(frames[i], &offset);
+		offset.vx = (int)(0u - (unsigned)offset.vx);
+		offset.vz = (int)(0u - (unsigned)offset.vz);
+		SetKeyFrameOffset(frames[i], &offset);
+		frames[i]->QOrient.quatw = (short)-q.quaty;
+		frames[i]->QOrient.quatx = (short)-q.quatz;
+		frames[i]->QOrient.quaty = q.quatw;
+		frames[i]->QOrient.quatz = q.quatx;
+	}
+
+	return count > 0;
+}
+
+bool HierarchyView_LowerRootSequence(int sequence, int sub, int by)
+{
+	static KEYFRAME_DATA *frames[4096];
+	int const count = RootSequenceFrames(sequence, sub, frames, 4096);
+
+	for (int i = 0; i < count; i++)
+	{
+		VECTORCH offset;
+
+		GetKeyFrameOffset(frames[i], &offset);
+		offset.vy = (int)((unsigned)offset.vy - (unsigned)by);
+		SetKeyFrameOffset(frames[i], &offset);
+	}
+
+	return count > 0;
+}
+
+static int TurretSeconds();
+
+void HierarchyView_StepFrame(int direction, bool all)
 {
 	if (!shown || !controller.Root_Section)
 	{
 		return;
 	}
+
+	int32_t const before = controller.sequence_timer;
 
 	SEQUENCE *const sequence = GetSequencePointer(controller.Sequence_Type, controller.Sub_Sequence, controller.Root_Section);
 	int starts[4096];
@@ -367,7 +602,44 @@ void HierarchyView_StepFrame(int direction)
 	}
 
 	current = (current + (direction >= 0 ? 1 : count - 1)) % count;
-	HierarchyView_SetPosition(starts[current]);
+
+	// FUN_00480ff0 / FUN_00481040 write the main's timer (+0x10) and nothing else: a playing main plays on from the key frame's start, a stopped one stays stopped (HP-79)
+	controller.sequence_timer = starts[current] < 0 ? 0 : (starts[current] > ONE_FIXED - 1 ? ONE_FIXED - 1 : starts[current]);
+
+	// M (FUN_00479110 0x47914a) / N (FUN_00479290 0x4792ca) with Y's "Play commands affect all sequences" on (+0x88): the time the main moved, its timer's change (wrapped to 0..0xffff) times its
+	// sequence's time (FUN_00499b30, MUL_FIXED), moves the turret player and every delta player on (M) or back (N) by that time in its own sequence's terms (FUN_005803e0, DIV_FIXED by its time),
+	// each wrapped & 0xffff (0x479193 / 0x47924c); whether they run or not is left as it is (reassess/hierarchy-play-frost.md HP-78)
+	if (!all)
+	{
+		return;
+	}
+
+	int32_t moved = direction >= 0 ? controller.sequence_timer - before : before - controller.sequence_timer;
+
+	if (moved < 0)
+	{
+		moved += 0x10000;
+	}
+
+	long long const seconds = ((long long)moved * controller.Seconds_For_Sequence) >> 16;
+	int const sign = direction >= 0 ? 1 : -1;
+
+	// a time of 0 has no share to give (inteng would divide by it; a file's sequence time is hostile input)
+	auto const share = [seconds](int ownSeconds) { return ownSeconds > 0 ? (int32_t)((seconds << 16) / ownSeconds) : 0; };
+
+	if (turretOn)
+	{
+		turretPosition = (turretPosition + sign * share(TurretSeconds())) & 0xffff;
+		ApplyTheTurret();
+	}
+
+	for (DELTA_CONTROLLER *each = controller.Deltas; each; each = each->next_controller)
+	{
+		each->timer = (each->timer + sign * share(each->seconds_for_sequence)) & 0xffff;
+	}
+
+	GlobalFrameCounter++;
+	ProveHModel(&controller, shown);
 }
 
 static int deltasAdded = 0;
@@ -400,6 +672,17 @@ bool HierarchyView_AddDelta(int sequence, int sub)
 	added->Playing = 0;   // a new delta player is not running (FUN_0047d6f0); P starts it
 	added->Looped = 1;
 	added->Active = 1;
+	return true;
+}
+
+bool HierarchyView_SetDeltaPlaying(bool on)
+{
+	if (!shown || !controller.Deltas)
+	{
+		return false;
+	}
+
+	controller.Deltas->Playing = on ? 1 : 0;   // the game's list has the last added first (HierarchyView_SetDeltaMilliseconds takes the same one)
 	return true;
 }
 
@@ -565,6 +848,15 @@ void HierarchyView_ChangeTime(int milliseconds)
 	HModel_ChangeSpeed(&controller, (int)seconds);
 }
 
+void HierarchyView_SetSequenceSeconds(int32_t seconds)
+{
+	// A placed hierarchy's Play (inteng FUN_004e9f70: the player's +0x14 = the record's time in 16.16 seconds, unclamped) keeps the position, as the game's own speed change does
+	if (shown && seconds > 0)
+	{
+		HModel_ChangeSpeed(&controller, seconds);
+	}
+}
+
 int HierarchyView_SequenceMilliseconds()
 {
 	return shown ? (int)(((long long)controller.Seconds_For_Sequence * 1000) / 65536) : 0;
@@ -601,6 +893,68 @@ static void FlatSections(std::vector<SECTION_DATA *> *flat, std::vector<int> *pa
 	{
 		WalkSections(controller.section_data, -1, flat, parents);
 	}
+}
+
+int HierarchyView_ApplyShapeSets(const std::vector<std::string> &setNames)
+{
+	std::vector<SECTION_DATA *> flat;
+	std::vector<int> parents;
+
+	FlatSections(&flat, &parents);
+
+	if (flat.empty())
+	{
+		return 0;
+	}
+
+	if (ownShapesFor != showCount)
+	{
+		ownShapes.clear();
+
+		for (SECTION_DATA *section : flat)
+		{
+			ownShapes.push_back(SectionOwnShape{ section, section->Shape, section->ShapeNum, section->replacement_id });
+		}
+
+		ownShapesFor = showCount;
+	}
+
+	int changed = 0;
+
+	for (SectionOwnShape const &own : ownShapes)
+	{
+		if (own.section->Shape != own.shape || own.section->ShapeNum != own.shapeNum)
+		{
+			own.section->Shape = own.shape;
+			own.section->ShapeNum = own.shapeNum;
+			own.section->replacement_id = own.replacementId;
+			Setup_Texture_Animation_For_Section(own.section);
+			changed++;
+		}
+	}
+
+	for (std::string const &name : setNames)
+	{
+		HIERARCHY_SHAPE_REPLACEMENT *const replacements = GetHierarchyAlternateShapeSetFromLibrary(shownLibrary.c_str(), name.c_str());
+
+		for (int a = 0; replacements && replacements[a].replaced_section_name && a < 4096; a++)
+		{
+			SECTION_DATA *const target = GetThisSectionData(controller.section_data, replacements[a].replaced_section_name);
+
+			if (target)
+			{
+				target->Shape = replacements[a].replacement_shape;
+				target->ShapeNum = replacements[a].replacement_shape_index;
+				target->replacement_id = replacements[a].replacement_id;
+				Setup_Texture_Animation_For_Section(target);
+				changed++;
+			}
+		}
+	}
+
+	GlobalFrameCounter++;
+	ProveHModel(&controller, shown);
+	return changed;
 }
 
 bool HierarchyView_Sections(std::vector<HierarchyViewSection> *sections)
@@ -815,6 +1169,14 @@ void HierarchyView_RemoveTurret()
 	}
 }
 
+// the turret player's sequence time (16.16 seconds): its sequence's own, else one second (FUN_0047d6f0 0x47d803: +0x14 = 0x10000)
+static int TurretSeconds()
+{
+	SEQUENCE *const sequence = controller.Root_Section ? GetSequencePointer(turretSequence, turretSub, controller.Root_Section) : nullptr;
+
+	return sequence && sequence->Time > 0 ? sequence->Time : ONE_FIXED;
+}
+
 bool HierarchyView_TurretFacts(int *timer, int *milliseconds)
 {
 	if (!shown || !turretOn || !timer || !milliseconds || !controller.Root_Section)
@@ -822,8 +1184,7 @@ bool HierarchyView_TurretFacts(int *timer, int *milliseconds)
 		return false;
 	}
 
-	SEQUENCE *const sequence = GetSequencePointer(turretSequence, turretSub, controller.Root_Section);
-	int const seconds = sequence && sequence->Time > 0 ? sequence->Time : ONE_FIXED;
+	int const seconds = TurretSeconds();
 
 	*timer = turretPosition;
 	*milliseconds = (int)(((long long)seconds * 1000) / 65536);
@@ -1050,13 +1411,18 @@ void HierarchyView_ApplyDetail()
 
 	int distance = 0;
 
-	if (forcedDetail == 0)
+	// A level beyond the model's own (inteng's are 0 to 9): FUN_0047e9f0 gives each section the "L<k>#<its shape>" object with the LARGEST k at or below the level asked (0x47ed20-0x47edf6;
+	// the shape itself when none), so a level past the last shows the last
+	int const levels = HierarchyView_DetailLevels();
+	int const level = forcedDetail < levels ? forcedDetail : levels - 1;
+
+	if (level <= 0)
 	{
 		GlobalLevelOfDetail_Hierarchical = 0;      // the full shape: the nearest band
 		return;
 	}
 
-	if (!HierarchyView_DetailDistance(forcedDetail, &distance) || distance <= 0)
+	if (!HierarchyView_DetailDistance(level, &distance) || distance <= 0)
 	{
 		return;
 	}
@@ -1119,6 +1485,9 @@ struct ModelObject
 	uint8_t id[8];
 	DISPLAYBLOCK *block;
 	int32_t place[3];
+	bool collapsed;     // ModelObjects_Collapse put it at the origin; its own place and turn are kept below
+	EULER euler;
+	MATRIXCH matrix;
 };
 
 static std::vector<ModelObject> modelObjects;
@@ -1234,7 +1603,77 @@ size_t ModelObjects_Build(File_Chunk *level, std::string *report)
 
 void ModelObjects_Close()
 {
+	ModelObjects_Uncollapse();
 	modelObjects.clear();
+}
+
+void ModelObjects_Uncollapse()
+{
+	for (ModelObject &each : modelObjects)
+	{
+		if (each.collapsed && each.block)
+		{
+			each.block->ObWorld.vx = each.place[0];
+			each.block->ObWorld.vy = each.place[1];
+			each.block->ObWorld.vz = each.place[2];
+			each.block->ObEuler = each.euler;
+			each.block->ObMat = each.matrix;
+		}
+
+		each.collapsed = false;
+	}
+}
+
+size_t ModelObjects_Collapse(const std::vector<std::vector<uint8_t>> &ids)
+{
+	ModelObjects_Uncollapse();
+
+	size_t found = 0;
+
+	for (ModelObject &each : modelObjects)
+	{
+		bool wanted = false;
+
+		for (std::vector<uint8_t> const &id : ids)
+		{
+			wanted = wanted || (id.size() == 8 && memcmp(id.data(), each.id, 8) == 0);
+		}
+
+		if (!wanted || !each.block)
+		{
+			continue;
+		}
+
+		each.euler = each.block->ObEuler;
+		each.matrix = each.block->ObMat;
+		each.collapsed = true;
+		each.block->ObWorld.vx = 0;
+		each.block->ObWorld.vy = 0;
+		each.block->ObWorld.vz = 0;
+		each.block->ObEuler.EulerX = 0;
+		each.block->ObEuler.EulerY = 0;
+		each.block->ObEuler.EulerZ = 0;
+		CreateEulerMatrix(&each.block->ObEuler, &each.block->ObMat);
+		TransposeMatrixCH(&each.block->ObMat);
+		found++;
+	}
+
+	return found;
+}
+
+size_t ModelObjects_Blocks(std::vector<const struct displayblock *> *out)
+{
+	out->clear();
+
+	for (ModelObject const &each : modelObjects)
+	{
+		if (each.block && !each.collapsed)
+		{
+			out->push_back(each.block);
+		}
+	}
+
+	return out->size();
 }
 
 size_t ModelObjects_Count()

@@ -286,12 +286,12 @@
 			]
 		},
 		{
-			"name": "F10 is no menu key",
+			"name": "F10 opens the bar again (inteng's F10 is camera slot 9)",
 			"changes": [
 				{
 					"file": "src/host/window_events.cpp",
-					"from": "if (message == WM_SYSKEYDOWN && wParam == VK_F10)",
-					"to": "if (false)"
+					"from": "\t// F10 is no menu key: in inteng it is camera slot 9",
+					"to": "\tif (message == WM_SYSKEYDOWN && wParam == VK_F10)\n\t{\n\t\t*event = ui::KeyEvent(ui::Key::Menu, shiftHeld, false);\n\t\treturn true;\n\t}\n\n\t// F10 is no menu key: in inteng it is camera slot 9"
 				}
 			]
 		},

@@ -62,6 +62,7 @@ namespace host
 		int32_t selected = -1;          // a combo: the row picked (-1 none, the box then shows no words)
 		bool listOpen = false;          // a combo: its list is open under it
 		bool visible = true;            // a part that is not visible is not drawn, not pressed and not given to the harness
+		bool enabled = true;            // a part that is off (a greyed MFC control, EnableWindow FALSE) is drawn darker and a press on it does nothing
 	};
 
 	struct DialogFormSpec
@@ -73,6 +74,10 @@ namespace host
 
 		// Called after a combo's pick CHANGED, with the form's parts and the number of the combo (as the DLL's CBN_SELCHANGE handlers do): the parts may be changed in place (items, visibility, texts)
 		std::function<void(std::vector<DialogWidget> &, size_t)> onChange;
+
+		// Called after a check box was ticked or unticked, with the form's parts and the box's number: the parts may be changed in place (inteng's windows tick one box from another's, as the
+		// placed hierarchy's Edit sequence window FUN_004ec6e0 ticks Initial sequence when Playing at start is ticked). Added 2026-11-16 by Melanikus (Vasquez).
+		std::function<void(std::vector<DialogWidget> &, size_t)> onCheck;
 	};
 
 	// What a way of leaving answers (inteng's numbers)
@@ -145,6 +150,7 @@ namespace host
 		std::vector<DialogWidget> widgets;
 		std::string title;
 		std::function<void(std::vector<DialogWidget> &, size_t)> changeHook;
+		std::function<void(std::vector<DialogWidget> &, size_t)> checkHook;
 		size_t focus = 0;   // a text dialog's field, or a form's widget (an edit)
 	};
 }

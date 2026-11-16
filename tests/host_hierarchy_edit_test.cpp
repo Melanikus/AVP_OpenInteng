@@ -102,6 +102,24 @@ static std::string Words(HierarchyEditResult result)
 }
 
 
+// The shape sets the collection with this number holds, as the file has them now (none when it isn't there)
+static std::vector<int32_t> CollectionSets(OpenLevelFile *file, int32_t number)
+{
+	std::vector<model::ShapeSetCollection> all;
+
+	HierarchyEdit_Collections(file, &all);
+
+	for (model::ShapeSetCollection const &one : all)
+	{
+		if (one.number == number)
+		{
+			return one.shapeSets;
+		}
+	}
+
+	return std::vector<int32_t>();
+}
+
 // The commands as the editor runs them: ask, type, answer
 static HierarchyStep Run(OpenLevelFile * file, HierarchyMode * mode, int32_t command, std::string const & typed)
 {
@@ -125,7 +143,10 @@ static void TestMode(OpenLevelFile * file, std::vector<std::string> const & name
 	Check(Run(file, &mode, 0x57, "x").answer == "Please select a shape set collection first" && Built(file) == before, "Rename with no collection selected says so");
 	Check(Run(file, &mode, 0x4c, "").answer == "Platform: on" && mode.platformOn, "Toggle on/off switches the platform on");
 
-	Check(Run(file, &mode, 0x03, "1").answer.find("selected") != std::string::npos && mode.hierarchy == names.front(), "Select Hierarchy by its place");
+	// a file with one hierarchy opens it at once and says so; with two or more the typed place picks it, and Select Sequence follows at once (FUN_0048b550's last call, 0x48b83a)
+	HierarchyStep const picked = Run(file, &mode, 0x03, "1");
+
+	Check((picked.answer.find("selected") != std::string::npos || picked.prompt) && mode.hierarchy == names.front(), "Select Hierarchy by its place");
 
 	// Create asks again for an empty name and for a name in use, then makes the collection and selects it
 	HierarchyStep step = HierarchyMode_Command(file, &mode, 0x53);
@@ -137,14 +158,14 @@ static void TestMode(OpenLevelFile * file, std::vector<std::string> const & name
 
 	step = HierarchyMode_Command(file, &mode, 0x53);
 	step = HierarchyMode_Typed(file, &mode, "MODE TEST COLLECTION");
-	Check(step.prompt && step.title.find("That name is already used") == 0, "a name in use (other letters) is asked for again");
+	Check(step.prompt && step.messageBox && step.answer == "That name is already used" && step.title == "Name of new shape collection" && step.textDialog, "a name in use (other letters): inteng's message box, then asked again");
 	HierarchyMode_Cancel(&mode);
 
 	Check(Run(file, &mode, 0x59, "12").answer == "Voice index set to 12", "Collection Voice Index");
-	Check(Run(file, &mode, 0x59, "twelve").answer.find("not a whole number") != std::string::npos, "a voice index that is not a number changes nothing");
+	Check(Run(file, &mode, 0x59, "twelve").answer == "Voice index set to 0", "a voice index that is not a number is 0, as inteng's edit gives it (FUN_0057d620)");
 	Check(Run(file, &mode, 0x57, "Mode test renamed").answer.find("renamed") != std::string::npos, "Rename Collection");
 
-	// Add and Remove, when the file has alternate shape sets
+	// Add and Remove, when the file has alternate shape sets. inteng says nothing after either (the Hierarchy screen has no status line): the answer is empty, and what changed is read back
 	std::vector<model::AlternateSetInfo> alternates;
 
 	HierarchyEdit_AlternateSets(file, &alternates);
@@ -152,28 +173,60 @@ static void TestMode(OpenLevelFile * file, std::vector<std::string> const & name
 	if (!alternates.empty())
 	{
 		Check(Run(file, &mode, 0x56, "1").answer == "This shape collection contains no alternate shape sets", "Remove from an empty collection says so");
-		Check(Run(file, &mode, 0x55, "1").answer.find("added") != std::string::npos, "Add to Collection");
-		Check(Run(file, &mode, 0x56, "1").answer.find("removed") != std::string::npos, "Remove from Collection");
+
+		// Add to Collection (FUN_00479f20, hierarchy-edit-frost.md HF-0x55): the sets NOT applied, by name, under "Add which shape set?" (0x5d4820); a row: that set's number joins the
+		// collection's list (0x47a2d9-0x47a2e7) and the applied list (FUN_004827e0); no words
+		HierarchyStep step = HierarchyMode_Command(file, &mode, 0x55);
+		int32_t const offered = mode.listValues.empty() ? -1 : mode.listValues.front();
+
+		Check(step.prompt && step.title == "Add which shape set?" && mode.list.size() == alternates.size() && offered >= 0,
+			"Add to Collection lists every set (none is applied yet) under inteng's title");
+		step = HierarchyMode_Typed(file, &mode, "1");
+		Check(!step.prompt && step.answer.empty() && CollectionSets(file, mode.collection) == std::vector<int32_t>{ offered } && mode.applied == std::vector<int32_t>{ offered },
+			"Add to Collection: the row's set joins the collection and the applied list, with no words");
+
+		// Remove from Collection (FUN_0047a380, HF-0x56): the applied sets by name, "Remove which shape set?" (0x5d4890); a row: its number leaves the collection's list (0x47a675-0x47a6f0)
+		// and the applied list (FUN_004fc260); no words
+		step = Run(file, &mode, 0x56, "1");
+		Check(!step.prompt && step.answer.empty() && CollectionSets(file, mode.collection).empty() && mode.applied.empty(), "Remove from Collection: the set leaves the collection and the applied list, with no words");
 	}
 
 	// Select Single Set and Set Properties (the Female flag), when the file has alternate shape sets
 	if (!alternates.empty())
 	{
 		Check(Run(file, &mode, 0x58, "yes").answer == "Please select a single shape set" || mode.applied.size() == 1, "Set Properties with no single set applied says so");
-		Check(Run(file, &mode, 0x43, "2").answer.find("Shape set applied") == 0 && mode.applied.size() == 1 && mode.applied.front() == alternates.front().number, "Select Single Set applies one shape set");
+
+		// Select Single Set (case 0x43, HF-0x43): the rows "Original" (no set) and each set's name, under "Select Shape Set" (0x5d5710); a row: FUN_00477b40(that set): the applied list is
+		// that set alone and the collection is LET GO (+0x38 = 0); no words
+		HierarchyStep step = HierarchyMode_Command(file, &mode, 0x43);
+
+		Check(step.prompt && step.title == "Select Shape Set" && mode.list.size() == alternates.size() + 1 && mode.list.front() == "1  Original",
+			"Select Single Set lists \"Original\" and each set by name under inteng's title");
+		step = HierarchyMode_Typed(file, &mode, "2");
+		Check(!step.prompt && step.answer.empty() && mode.applied.size() == 1 && mode.applied.front() == alternates.front().number && !mode.collectionSelected,
+			"Select Single Set applies one shape set and lets the collection go (FUN_00477b40), with no words");
 
 		uint32_t flagsOld = 0;
 		uint32_t flagsNew = 0;
 
 		HierarchyEdit_ReadShapeSetFlags(file, mode.applied.front(), &flagsOld);
-		Check(Run(file, &mode, 0x58, "yes").answer == "Shape set properties: Female yes", "Set Properties: Female yes");
+
+		// Set Properties (case 0x58, HF-0x58): ONE set applied: its window FUN_0048d6a0 "Shape set properties", the Female box holding the set's flags bit 0; Ok with the box ticked or not sets or
+		// clears bit 0 (FUN_0048d820 0x48d864-0x48d897); no words. The editor's window gives the box as "yes" / "no"
+		step = HierarchyMode_Command(file, &mode, 0x58);
+		Check(step.prompt && step.femaleForm && step.title == "Shape set properties" && step.femaleChecked == ((flagsOld & 1) != 0), "Set Properties opens the set's window, its Female box as the flag is");
+		step = HierarchyMode_Typed(file, &mode, "yes");
+		Check(!step.prompt && step.answer.empty(), "Set Properties: the Female box ticked and Ok, with no words");
 		HierarchyEdit_ReadShapeSetFlags(file, mode.applied.front(), &flagsNew);
 		Check(flagsNew == (flagsOld | 1), "the shape set's flag word has bit 1 and the rest as it was");
 		Check(Run(file, &mode, 0x58, "maybe").answer.find("nothing changed") != std::string::npos, "Set Properties with neither yes nor no changes nothing");
-		Check(Run(file, &mode, 0x58, "no").answer == "Shape set properties: Female no", "Set Properties: Female no");
+		Check(Run(file, &mode, 0x58, "no").answer.empty(), "Set Properties: the Female box not ticked and Ok, with no words");
 		HierarchyEdit_ReadShapeSetFlags(file, mode.applied.front(), &flagsNew);
 		Check(flagsNew == (flagsOld & ~1u), "bit 1 is clear again");
-		Check(Run(file, &mode, 0x43, "1").answer.find("Original") != std::string::npos && mode.applied.empty(), "Select Single Set: Original applies none");
+		Check(Run(file, &mode, 0x43, "1").answer.empty() && mode.applied.empty(), "Select Single Set: Original applies none, with no words");
+
+		// Select Single Set let the collection go: Select Collection (case 0x52, FUN_0048abc0, HF-0x52) takes it back by its name, with no words
+		Check(Run(file, &mode, 0x52, "Mode test renamed").answer.empty() && mode.collectionSelected, "Select Collection takes the collection back, with no words");
 	}
 
 	Check(Run(file, &mode, 0x54, "no").answer == "Delete Collection: nothing deleted" && mode.collectionSelected, "Delete Collection with a no keeps it");
@@ -185,8 +238,8 @@ static void TestMode(OpenLevelFile * file, std::vector<std::string> const & name
 
 	if (HierarchyEdit_Sequences(file, mode.hierarchy, &sequences) == HierarchyEditResult::Done && !sequences.empty())
 	{
-		Check(Run(file, &mode, 0x4a, "-5").answer.find("nothing changed") != std::string::npos && mode.platform.lastSpeed == 3000, "a negative speed is not taken");
-		Check(Run(file, &mode, 0x4b, "361").answer.find("nothing changed") != std::string::npos, "an angle above 360 is not taken");
+		Check(Run(file, &mode, 0x4a, "-5").answer.empty() && mode.platform.lastSpeed == 3000, "a negative speed is not taken (case 0x4a: nothing, no words)");
+		Check(Run(file, &mode, 0x4b, "361").answer.empty(), "an angle above 360 is not taken (case 0x4b: nothing, no words)");
 		Check(Run(file, &mode, 0x4a, "1500").answer.find("kept for the next write") != std::string::npos && Built(file) == before, "with no sequence selected the speed is kept, not written");
 
 		Check(Run(file, &mode, 0x04, "1").answer.find("Sequence 1 selected") == 0, "Select Sequence");
@@ -233,11 +286,13 @@ static void TestMode(OpenLevelFile * file, std::vector<std::string> const & name
 
 				HierarchyStep step = HierarchyMode_Command(file, &mode, 0x4d);
 
-				Check(step.prompt && step.title == "Select sound index" && step.defaultText == std::to_string(mine), "New sound asks for the first free index");
+				Check(step.prompt && step.textDialog && step.title == "Select sound index" && step.defaultText == std::to_string(mine), "New sound asks for the first free index in a text dialog");
 				step = HierarchyMode_Typed(file, &mode, "0");
-				Check(step.prompt && step.title.find("between 1 and 127") != std::string::npos, "index 0 is asked again");
+				Check(!step.prompt && step.messageBox && step.answer == "Index must be between 1 and 127", "index 0 is the message box, and nothing more (FUN_00481440)");
+				HierarchyMode_Command(file, &mode, 0x4d);
 				step = HierarchyMode_Typed(file, &mode, std::to_string(mine));
-				Check(!step.prompt && step.answer.find("Sound " + std::to_string(mine) + " added") == 0, "the free index makes the sound: " + step.answer);
+				Check(!step.prompt && step.soundForm && step.answer.find("Sound " + std::to_string(mine) + " added") == 0 && mode.soundBeingEdited.wav == "Not Set",
+					"the free index makes the sound and opens its Sound Edit window at once (FUN_004ebc80 -> FUN_004ebd60): " + step.answer);
 
 				step = HierarchyMode_Command(file, &mode, 0x4e);
 
@@ -248,15 +303,25 @@ static void TestMode(OpenLevelFile * file, std::vector<std::string> const & name
 					place = mode.listValues[i] == mine ? i + 1 : place;
 				}
 
-				Check(step.prompt && place > 0 && mode.list[place - 1].find("Not Set") != std::string::npos, "Edit sound lists the new sound as Not Set");
+				Check(step.prompt && place > 0 && mode.list[place - 1].find("Not Set") != std::string::npos && step.title == "Select sound to edit      (Right click to listen to sound)",
+					"Edit sound lists the new sound as Not Set under inteng's title");
 				step = HierarchyMode_Typed(file, &mode, std::to_string(place));
-				Check(step.prompt && step.defaultText == "Not Set", "its file name is asked first");
-				step = HierarchyMode_Typed(file, &mode, "step.wav");
-				step = HierarchyMode_Typed(file, &mode, "2000");
-				step = HierarchyMode_Typed(file, &mode, "20000");
-				step = HierarchyMode_Typed(file, &mode, "100");
-				step = HierarchyMode_Typed(file, &mode, "0");
-				Check(!step.prompt && step.answer == "Sound " + std::to_string(mine) + " edited", "the edit goes through its five questions");
+				Check(!step.prompt && step.soundForm && mode.soundBeingEdited.index == mine, "a pick opens the sound's Sound Edit window");
+				// the window's answers: 2 m and 20 m (the file's 2000 and 20000 at scale 1), 0 semitones, 79 % (volume 100 of 127)
+				step = HierarchyMode_SoundForm(file, &mode, { "step.wav", "2", "20", "0", "79" });
+				Check(!step.prompt && !step.messageBox && step.answer == "Sound " + std::to_string(mine) + " edited", "the window's OK writes the sound: " + step.answer);
+
+				std::vector<SoundInfo> after;
+
+				HierarchyEdit_Sounds(file, &after);
+
+				for (SoundInfo const &each : after)
+				{
+					if (each.index == mine)
+					{
+						Check(each.wav == "step.wav" && each.inner == 2000 && each.outer == 20000 && each.volume == 100 && each.pitch == 0, "the sound holds step.wav, 2000, 20000, volume 100, pitch 0");
+					}
+				}
 
 				step = HierarchyMode_Command(file, &mode, 0x50);
 				step = HierarchyMode_Typed(file, &mode, "step.wav");
@@ -272,6 +337,22 @@ static void TestMode(OpenLevelFile * file, std::vector<std::string> const & name
 				// the frame's own sound index, as it was
 				HierarchyEdit_ChangeFrameAt(file, mode.hierarchy, sequences[0].number, sequences[0].subNumber, 0, 0, 0, (int32_t)((oldFlags >> 24) & 0x7f), nullptr);
 				Check(Built(file) == beforeFrames, "the level is the very bytes it was before the keyframe and sound commands");
+
+				// Ctrl+R (FUN_00480eb0): a half turn changes the root's frames; two turns give the transforms back with every orientation negated (the same turn, other bytes); four give the
+				// very bytes back. Ctrl+F's part (FUN_004795d0): lowering by n and then by -n gives the very bytes back.
+				Check(HierarchyEdit_TurnRootFrames(file, mode.hierarchy, sequences[0].number, sequences[0].subNumber) == HierarchyEditResult::Done && Built(file) != beforeFrames,
+					"Ctrl+R turns the root section's frames");
+				HierarchyEdit_TurnRootFrames(file, mode.hierarchy, sequences[0].number, sequences[0].subNumber);
+				Check(Built(file) != beforeFrames, "two half turns: the orientations' signs are flipped, so the bytes differ");
+				HierarchyEdit_TurnRootFrames(file, mode.hierarchy, sequences[0].number, sequences[0].subNumber);
+				HierarchyEdit_TurnRootFrames(file, mode.hierarchy, sequences[0].number, sequences[0].subNumber);
+				Check(Built(file) == beforeFrames, "four half turns give the very bytes back");
+				Check(HierarchyEdit_LowerRootFrames(file, mode.hierarchy, sequences[0].number, sequences[0].subNumber, 1234) == HierarchyEditResult::Done && Built(file) != beforeFrames,
+					"Ctrl+F's lowering changes the root section's frames");
+				HierarchyEdit_LowerRootFrames(file, mode.hierarchy, sequences[0].number, sequences[0].subNumber, -1234);
+				Check(Built(file) == beforeFrames, "lowering by 1234 and by -1234 gives the very bytes back");
+				Check(HierarchyEdit_TurnRootFrames(file, mode.hierarchy, 0x7fffffff, 0x7fffffff) != HierarchyEditResult::Done && Built(file) == beforeFrames,
+					"a sequence the root section has not is refused, and nothing changes");
 			}
 		}
 
@@ -317,7 +398,7 @@ static void TestMode(OpenLevelFile * file, std::vector<std::string> const & name
 
 	// Copy Hierarchy
 	Check(Run(file, &mode, 0x49, "").answer.find("no name typed") != std::string::npos, "Copy Hierarchy with an empty name does nothing");
-	Check(Run(file, &mode, 0x49, mode.hierarchy).answer.find("That name is already in use") != std::string::npos, "Copy Hierarchy with a name in use is refused");
+	Check(Run(file, &mode, 0x49, mode.hierarchy).answer == "That name is already in use", "Copy Hierarchy with a name in use is refused: inteng's message box");
 	Check(Run(file, &mode, 0x49, "Mode test copy").answer == "Hierarchy copied as \"Mode test copy\"", "Copy Hierarchy");
 
 	std::vector<std::string> after;
@@ -454,24 +535,35 @@ static void TestFile(std::string const & path, std::string const & folder)
 	// ---- copying hierarchies and platform speeds need a hierarchy
 	if (names.empty())
 	{
-		// a file with no hierarchy (a level): Select Hierarchy offers the model files, and a typed pick names one for the editor to open
+		// a file with no hierarchy (a level): Select Hierarchy (FUN_0048b8a0) finds no OBJCHIER in the OPENED file, so nothing is shown and nothing changes (the typed model names of before are
+		// gone: inteng's hierarchies are the opened file's own, reassess/hierarchy.md)
 		HierarchyMode noneMode;
 		Bytes const untouched = Built(&file);
+		HierarchyStep const ask = HierarchyMode_Command(&file, &noneMode, 0x03);
 
-		noneMode.models.push_back("marine");
-		noneMode.models.push_back("alien");
-
-		HierarchyStep ask = HierarchyMode_Command(&file, &noneMode, 0x03);
-
-		Check(ask.prompt && ask.title.find("Open model") == 0 && noneMode.list.size() == 2, "Select Hierarchy on a file with no hierarchy offers the models");
-		ask = HierarchyMode_Typed(&file, &noneMode, "2");
-		Check(!ask.prompt && noneMode.modelRequested == "alien" && Built(&file) == untouched, "a typed place names the model to open, the file unchanged");
-
-		HierarchyMode noModels;
-
-		ask = HierarchyMode_Command(&file, &noModels, 0x03);
-		Check(!ask.prompt && ask.answer.find("no model file") != std::string::npos, "with no model files found it says so");
+		Check(!ask.prompt && noneMode.list.empty() && noneMode.hierarchy.empty() && Built(&file) == untouched, "Select Hierarchy on a file with no hierarchy shows nothing and changes nothing");
 		return;
+	}
+
+	{
+		// Select Hierarchy (FUN_0048b8a0) on a file with hierarchies: exactly one is opened at once (FUN_0048b550(it, 0), which goes on to Select Sequence), two or more are offered in the list
+		// dialog "Select Hierarchy"
+		OpenLevelFile pickFile;
+
+		if (pickFile.Open(path.c_str()) == LevelOpenResult::Opened)
+		{
+			HierarchyMode pick;
+			HierarchyStep const step = HierarchyMode_Command(&pickFile, &pick, 0x03);
+
+			if (names.size() == 1)
+			{
+				Check(pick.hierarchy == names.front(), "Select Hierarchy with one hierarchy in the file opens it at once");
+			}
+			else
+			{
+				Check(step.prompt && pick.list.size() == names.size() && pick.hierarchy.empty(), "Select Hierarchy with two or more hierarchies offers them all in its list");
+			}
+		}
 	}
 
 	{

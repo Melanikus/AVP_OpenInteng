@@ -41,7 +41,7 @@
 			"changes": [
 				{
 					"file": "src/host/field_panel_host.cpp",
-					"from": "\t\t\tfield.readOnly = true;\n",
+					"from": "\t\t\tfield.readOnly = field.readOnly || !editable;\n",
 					"to": ""
 				}
 			]

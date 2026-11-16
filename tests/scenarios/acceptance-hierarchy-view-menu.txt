@@ -1,0 +1,150 @@
+# ACCEPTANCE: Hierarchy's VIEW MENU and the bar's own behaviour (Dietrich, 2026-11-16; hierarchy-100 PLAN.md; rows: AvP-docs/engine/inteng/reassess/hierarchy-view-sound-dietrich.md
+# C-45, C-5c, C-38, M-HELP, M-TICK). His path: his file opened by start-args, the bar clicked; every check reads the screen (the bar's drop-down as drawn, the text over the view).
+#  - M-TICK: Adaptive Degradation (0x45), Dummy Objects (0x5c) and Save changes to sequence times (0x48) flip their switch and call the menu object's method +0x2c with the command
+#    and the switch's new value (0x4896ef, 0x489714, 0x488aa7; 0x4b90b0 -> FUN_004b7500): the item is "on" exactly while the switch is; all start off. Toggle on/off (0x4c, 0x4897f3) has none.
+#  - M-HELP: Help is a bar TITLE with no items (set 1, kind 0, command 0x38): a press on it returns 0x38 at once (FUN_004b7dd0 0x4b7fe1-0x4b7ff8), no drop-down; Help (FUN_0048ab60)
+#    shows its two pages as full text screens (FUN_004724f0, "Click to continue."), each closed by a click.
+# inteng's own menu font (Tools\font16.fnt, read at run time as hostile input) from his inteng tools folder, as Drake's menu runs have it: an "on" item's words are drawn YELLOW in it (H-5e)
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+# ---- M-TICK: nothing ticked at the start
+click-bar View mode
+expect-drop-ticked none
+picture 1
+key Esc
+click-bar View mode > Adaptive Degradation
+click-bar View mode
+expect-drop-ticked Adaptive Degradation
+picture 2
+# the picture: Adaptive Degradation's row (the drop-down's first, 47 32 159 19 in this window) has YELLOW words, the next row none (inteng's font, H-5e: FUN_004b7470)
+expect-colour panels 47 32 159 19 ffff00 0.03 10
+expect-colour-at-most panels 47 51 159 19 ffff00 0.001 10
+key Esc
+click-bar View mode > Dummy Objects
+click-bar View mode
+expect-drop-ticked Adaptive Degradation|Dummy Objects
+key Esc
+click-bar View mode > Adaptive Degradation
+click-bar View mode
+expect-drop-ticked Dummy Objects
+key Esc
+click-bar View mode > Dummy Objects
+click-bar View mode
+expect-drop-ticked none
+key Esc
+click-bar Hierarchy > Save changes to sequence times
+click-bar Hierarchy
+expect-drop-ticked Save changes to sequence times
+picture 3
+key Esc
+click-bar Hierarchy > Save changes to sequence times
+click-bar Hierarchy
+expect-drop-ticked none
+key Esc
+click-bar Platform > Toggle on/off
+click-bar Platform
+expect-drop-ticked none
+key Esc
+click-bar Platform > Toggle on/off
+# ---- U / I (K-18; 0x41 / 0x42 -> FUN_00477fb0 0x477fe5-0x477ff2): the detail level is held to 0..9, whatever levels the model has (inteng's text "Detail level %d", 0x5d5500);
+# they do not touch Adaptive Degradation: its tick stays on after U
+key U
+key U
+key U
+key U
+key U
+key U
+key U
+key U
+key U
+key U
+key U
+expect-hierarchy-text Detail level 9
+key I
+key I
+key I
+key I
+key I
+key I
+key I
+key I
+key I
+key I
+key I
+expect-hierarchy-text Detail level 0
+click-bar View mode > Adaptive Degradation
+key U
+click-bar View mode
+expect-drop-ticked Adaptive Degradation
+key Esc
+key I
+click-bar View mode > Adaptive Degradation
+click-bar View mode
+expect-drop-ticked none
+key Esc
+# ---- C-5c DUMMY OBJECTS: every section's own dummy block (FUN_0047ef70 0x47f2df-0x47f338) stands at the section's place, a cube of the Dummy Object Size and three axes (FUN_004822c0:
+# x red, y green, z blue), shown while the switch is on: the Shotgun's sections each get one
+move-win 500 300
+wait 300
+picture 30
+click-bar View mode > Dummy Objects
+move-win 500 300
+wait 300
+picture 31
+# the picture: the sections' green y axes are there (one dummy at the model's place alone shows none in this view: 0 such pixels on f818fbe; about 900 here)
+expect-colour panels 0 0 1008 729 40ff40 0.0005 60
+click-bar View mode > Dummy Objects
+move-win 500 300
+wait 300
+picture 32
+expect-colour-at-most panels 0 0 1008 729 40ff40 0.00005 60
+# ---- C-45 ADAPTIVE DEGRADATION (FUN_00479b80, each frame while on): from level 9 down, the first level whose distance (HIDEGDIS, or level x 10000 mm) is no more than the camera's distance
+# from the WORLD'S ORIGIN becomes the level ("Detail level %d"): at the origin level 0; 15 m out, level 1 (10 m <= 15 m < 20 m); the game's own pick by the depth to the model never changed it
+click-bar View mode > Adaptive Degradation
+camera 0 0 -15000 0 0
+wait 300
+expect-hierarchy-text Detail level 1
+camera 0 0 0 0 0
+wait 300
+expect-hierarchy-text Detail level 0
+click-bar View mode > Adaptive Degradation
+# ---- N / M (K-16; 0x3b / 0x3a): M goes to the start of the frame after the one that holds the time (FUN_00480ff0); N finds the frame i that holds the time (FUN_00481040 0x481057:
+# start <= t < next) and goes to frame i-1's START (0x481073), below 0 round to the last (0x481076). So from the very start of frame 2, N goes to frame 1, not to frame 2's own start
+# (Vasquez, Bishop). The sequence is frozen at its start (FUN_0047d6f0); inteng's text "Key frame :%d" says which frame holds the time.
+expect-hierarchy-text Key frame :0
+key M
+expect-hierarchy-text Key frame :1
+key M
+expect-hierarchy-text Key frame :2
+key N
+expect-hierarchy-text Key frame :1
+key N
+expect-hierarchy-text Key frame :0
+key N
+expect-hierarchy-count 0 Key frame :0
+key M
+expect-hierarchy-text Key frame :0
+# ---- M-HELP: ONE press on the bar's Help shows Help's first page at once (no drop-down); a click shows the second; a click closes it
+expect-text-screen none
+click-bar Help
+expect-text-screen H  Select hierarchy
+picture 4
+click-win 500 300 left
+expect-text-screen Boned object commands
+picture 5
+click-win 500 300 left
+expect-text-screen none
+expect-no-dialog
+picture 6

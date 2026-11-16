@@ -1,0 +1,36 @@
+# ACCEPTANCE: inteng's DIALOG LOOK (Drake, 2026-11-16; reassess/dialog-look-drake.md DL-1..9). Melanikus: "The menus are blue and matching original, the animation and hierarchy picker are still old style gray".
+# His path: his model file opened as a double click, Mode > Hierarchy on the bar, the RIGHT button's pop-up, Select Hierarchy: inteng's list dialog (FUN_00475bf0). Every check reads the panels' picture:
+# the window BLACK with a 1-pixel WHITE frame (FUN_0057cee0), the title a RED band with a white frame (FUN_0057e330), each entry a BUTTON: a white frame filled BLUE (FUN_0057d890) with its words WHITE
+# in inteng's font16 (FUN_0057adb0 / FUN_0057be40), the text field under them framed BLUE (not focused, FUN_0057d970). The words are read from his inteng's Tools folder (read only).
+# Run: AvP-docs/tools/drake/drive-scenario-t6.sh <tree> <this file> dlook verify_light
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+wait 400
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+expect-dialog-rows AutoShotgun|GSS50|M79|RailGun|ScopeRifle|Shotgun|Sniper|Taurus
+wait 400
+picture 1
+# DL-4: the title band across the window's top (y 234 to 249): RED, the words white over it
+expect-colour panels 470 236 170 12 ff0000 0.8 10
+expect-colour panels 356 236 120 12 ffffff 0.1 10
+# DL-5: an entry (AutoShotgun, 364 264 280 x 18): its right part, past the words, BLUE; its words white
+expect-colour panels 470 267 160 12 0000ff 0.95 10
+expect-colour panels 366 267 90 12 ffffff 0.15 10
+# and its frame: the top edge white
+expect-colour panels 380 264 250 1 ffffff 0.9 10
+# DL-2: the window black under the entries, and its left edge a white line
+expect-colour panels 360 460 280 25 000000 0.95 10
+expect-colour panels 354 260 1 220 ffffff 0.9 10
+# DL-6: the text field under the entries (not focused): its top edge BLUE, black inside
+expect-colour panels 390 434 180 1 0000ff 0.9 10
+expect-colour panels 390 438 180 10 000000 0.95 10
+# nothing is lit: no entry is drawn another colour (no gray, no highlight) before a key
+expect-colour-at-most panels 364 264 280 160 30343c 0.001 10
+key Esc
+expect-no-dialog

@@ -817,6 +817,15 @@ namespace host
 
 		if (command == 0x19)
 		{
+			// Object Placement's own Find (OP-10, FUN_004d9af0 0x4da22b-0x4da528: FUN_00475bf0 "Select Object") lists EVERY object of the placement list, the placed objects first and then these, so it
+			// is the editor's (editor_main.cpp PlacementFind), not this module's: on the main screen Find is passed on. This module's Find is the sounds screen's, the sounds alone. (Changed 2026-11-16
+			// by Melanikus (Vasquez): b584272 made it list the special objects on the main screen too, which PlacementFind replaced; host_special_mode_test asks for the pass.)
+			if (!mode->soundsOnly)
+			{
+				none.passOn = true;
+				return none;
+			}
+
 			std::vector<SpecialObject> all;
 
 			mode->found.clear();
@@ -825,8 +834,7 @@ namespace host
 
 			for (SpecialObject const &each : all)
 			{
-				// Object Placement's Find (FUN_004d9af0 0x4da337: FUN_00475bf0 "Select Object" over the objects of the placement list) lists every special object; the sounds screen's only the sounds
-				if (!mode->soundsOnly || each.kind == SpecialKind::Sound)
+				if (each.kind == SpecialKind::Sound)
 				{
 					mode->found.push_back(each);
 					mode->list.push_back(std::to_string((unsigned long long)mode->found.size()) + "  " + SpecialObject_Words(each) + (each.wav.empty() ? "" : " (" + each.wav + ")"));
@@ -835,7 +843,7 @@ namespace host
 
 			if (mode->found.empty())
 			{
-				return Answer(mode->soundsOnly ? "Find: this level has no sounds" : "Find: this level has no special objects");
+				return Answer("Find: this level has no sounds");
 			}
 
 			mode->ask = SpecialAsk::PickObject;

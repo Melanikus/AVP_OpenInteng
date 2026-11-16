@@ -1,0 +1,35 @@
+# ACCEPTANCE: Stability flags, HIS PATH (Frost, 2026-11-16; strategy-data.md 1:1 TABLE rows S-75 and S-78, Phase 2).
+# FUN_00527020 / FUN_00447f10: the current module's box, six faces made as POLYLINES (polygon type 0xe, 0x44816a), each red (bit set: stable) or green (clear: unstable); T (slot 0xd87a94, 0x5274c9) switches
+# every face 0xe <-> 2 (filled). Return or the right button: FUN_00527210 asks "Would you like to keep the changes?" (0x5ee000); Yes writes the six bits and SAVES the level at once (0x527329 FUN_005282d0;
+# ours saves a COPY, the owner's rule). The four lines "Red : stable", "Green : unstable", "T : toggle polyline on/off", "Press return when finished" are on the rows 3-6 (y 48 ..).
+# By his path: open the file, bar to Strategy Data, click a module, Mode > Stability flags, T, click a face, Return, Yes.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+click-win 504 364
+expect-selected 1
+click-bar Mode > Stability flags
+wait 400
+picture 2
+
+# S-75: the faces start as lines; T fills them: a large share of the view turns the faces' green (all six are clear in this module)
+key T
+wait 400
+picture 3
+expect-colour picture 0 60 1008 600 00ff00 0.05 70
+
+# a click on a face turns it red (stable)
+remember-field stability
+click-win 504 364
+expect-field-changed stability
+
+# S-78: Return asks; Yes writes the faces and saves (a copy)
+key Enter
+expect-dialog-kind confirm
+expect-dialog Would you like to keep the changes?
+click-button Yes
+expect-no-dialog
+expect-status Saved a copy:

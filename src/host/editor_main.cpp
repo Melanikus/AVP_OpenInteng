@@ -112,6 +112,7 @@
 #include "record_edit.h"
 #include "save_copy.h"
 #include "nobody_watching.h"
+#include "key_reader.h"
 #include "one_editor.h"
 #include "utilities.h"     // SaveFolder_UseThisFolder (SAVE-FOLDER-1)
 #include "save_folder.h"   // SaveFolder_WhyNotUsable, for DataFolder too
@@ -149,7 +150,10 @@
 #include "special_mode.h"
 #include "simple_object_edit.h"
 #include "editor_icons.h"
+#include "inteng_exe.h"
+#include "inteng_shapes.h"
 #include "virtual_object.h"
+#include "generator_strategy.h"
 #include "fix_tears_all.h"
 #include "shape_recalc_edit.h"
 #include "shape_replace_edit.h"
@@ -185,6 +189,7 @@
 #include "host_frame.h"
 #include "menu_bar.h"
 #include "menu_paint.h"
+#include "menu_font.h"
 #include "object_list.h"
 #include "panel_layout.h"
 #include "panel_pass.h"
@@ -274,26 +279,40 @@ static ui::PanelLayout PlaceTheView(int windowWidth, int windowHeight)
 static bool keyDown[256];
 
 // Shift is down: the real key, or the harness's (a hidden run posts messages, which never move GetKeyState: the scenario's `chord Shift D` posts a Shift key-down the table above records, and a posted click carries MK_SHIFT)
+// A key held now (key_reader.h): the editor's own table, and the real keyboard only when no scenario drives the editor (a -picture run: then the person at the computer
+// cannot change what the scenario's keys do, Bishop 2026-11-16). Every key the editor reads itself goes through here.
+static bool KeyHeldNow(int vk)
+{
+	return host::KeyReader_Held(vk, keyDown, NobodyWatching());
+}
+
 static bool ShiftDown()
 {
-	return keyDown[VK_SHIFT] || GetKeyState(VK_SHIFT) < 0;
+	return KeyHeldNow(VK_SHIFT);
 }
 static int screenKeySwallowChar = 0;   // a screen key (screen_keys.h) was done on its key message: the character message that follows it (L types "l", which would also deselect all) is let go of
 
-// THE CAMERA'S SPEED. A step of a frame is 100 millimetres at the normal pace, doubled for each level up and halved for each level down. inteng's
-// Classic keys (keys.txt, AvP-docs\engine\inteng\keys-and-modes-2026-11-14.md): ] and [ change the speed, Shift+A is faster and Shift+Z slower, and Space
-// stops. inteng's own speed numbers aren't read, so the factors are ours: a level doubles, from a quarter of the pace to 32 times it; the editor
-// starts at the normal pace; Space puts the pace back to normal (nothing carries the camera on by itself here, so "stops" can only mean that); and,
-// ours too, holding Shift while a move key of the Modern WASD layout is held makes the step 4 times as long. (Added 2026-11-15 by Melanikus
-// (Dietrich), at Bishop's request.)
-static int const kSpeedShiftFactor = 4;
+// THE CAMERA'S MOVER, inteng's LIVE one (Bishop's trace 2026-11-16, AvP-docs\engine\inteng\reassess\camera-mover-trace.md; the code is FUN_0053db40, an orphan in dump-orphans-3.txt line
+// 12615: the camera block's strategy slot 2, table 0x5f0754, run each frame by FUN_0053c350). The mover this editor was first built from, FUN_0053d7f0, never runs (DAT_0093110c, read once
+// at 0x53dbed, is never written). Each frame, in inteng's order (MoveTheCamera):
+//  - ] / [ change the speed by 3, at least 3 (0x53db60-0x53dbc2; ChangeTheSpeed);
+//  - C held: nothing moves this frame, the glide neither (0x53dc0e JNZ 0x53e58b, past the glide at 0x53e582);
+//  - Shift NOT held: A forward, Z back, Left / Right (and numpad 1 / 3) along the camera's right axis, Up / Down (and numpad - / +) along its up axis, each by the step below, and EVERY
+//    one of them sets the glide to 0 (0x53e216-0x53e362);
+//  - Shift HELD: no step at all; Shift+A adds 100000 to the glide each frame, Shift+Z takes 100000 off (0x53e088-0x53e0f6); Shift with an arrow does nothing;
+//  - Space held: the glide is 0 (0x53e54d);
+//  - the glide (block +0x168, inteng's units a second, 100 to the millimetre) moves the camera along the way it faces by glide x the frame's time, NOT held to 0.1 s (FUN_0053c7d0,
+//    0x53e582): nothing slows it, letting go of the keys keeps it going. Melanikus remembers exactly that: "A makes you move slowly, holding shift speeds you up, letting go of both
+//    makes you keep moving, pressing space stops you".
+// NOT HERE: numpad * levelling the view (0x53e41b-0x53e51a), the joystick's glide (DAT_00d881a0), and Object Placement's world-axis movement (DAT_00914af8, toggled by its key at
+// 0x4dc5bf: the same keys along the level's axes; its Down / numpad + add 0x3e87360 to the y sum where the others add 0x10000, 0x53e1ca: inteng's own oddity, named for Vasquez).
+static int const kGlidePerFrame = 100000;   // Shift+A / Shift+Z: the glide's change each frame (0x53e0b9 ADD +0x168, 0x186a0; 0x53e0f6 ADD +0x168, 0xfffe7960: listing read)
+static int32_t cameraGlide = 0;              // the camera block's +0x168: inteng's units a second along the way it faces
 
-// THE CAMERA'S STEP, as inteng makes it (traced from inteng.exe): the engine's mover FUN_0053d7f0 moves along each held direction by FUN_0053d7d0(speed x the direction's matrix component, t) >> 2, where speed is
-// DAT_005f071c (6 at the start: .data; the HUD shows it divided by 3, FUN_00471bcb), the component is +-65536 (a unit vector in 16.16) and t is the FRAME TIME DAT_00d876dc in 16.16 seconds, clamped to 0x199a (0.1 s: 0x53d951,
-// 0x53d9df...). So the distance is speed x 16384 engine units for each second held; the engine's units are 100 to a file unit (FUN_0046e700 sets DAT_00607bd8 = 100.0, times the file's ENVSDSCL), so at the start
-// the camera moves 6 x 163.84 = 983 file units (mm) a second, whatever the frame rate. The speed keys (the code outside any function at 0x53db40): one key takes 3 off the speed and holds it at 3 at the least, the other
-// adds 3, no limit. Here those are [ and ] (and Shift+A / Shift+Z of the Classic layout, the same two commands in inteng's help). Space "Stop movement" (key slot DAT_00d87a5d, written at 0x58c065) is read in inteng.exe only by the list dialog's page step
-// (FUN_0052f700 at 0x52fdb7); the camera code has no reader, and the camera has no momentum (it moves only while a key is held), so Space does nothing to it, as inteng. Ours too: Shift with a Modern WASD move key makes the step 4 times as long. (Changed 2026-11-16 by Melanikus (Frost): the step was 100 mm a FRAME doubling per level, Dietrich's.)
+// THE CAMERA'S STEP (FUN_0053db40 0x53e37f-0x53e3ee): each move key held without Shift moves the camera by FUN_0053d7d0(speed x the axis' component, t) >> 2 along that axis, where speed is DAT_005f071c (6 at the start:
+// .data; the text shows it divided by 3, FUN_00471bcb), the component is +-65536 (a unit vector in 16.16) and t is the FRAME TIME DAT_00d876dc in 16.16 seconds, held to 0x199a (0.1 s). So the distance is speed x 16384
+// engine units for each second held; the engine's units are 100 to the game's millimetre, so at the start the camera moves 6 x 163.84 = 983 mm a second, whatever the frame rate. ] and [ are the speed keys (one
+// takes 3 off and holds it at 3 at the least, the other adds 3, no limit). Shift and Space: THE CAMERA'S MOVER above (the glide). (Frost 2026-11-16: the step is time-based; Dietrich 2026-11-16: the live mover.)
 static int const kSpeedStart = 6;
 static int const kSpeedLeast = 3;
 static int const kSpeedStepBy = 3;
@@ -301,6 +320,7 @@ static int speedUnits = kSpeedStart;       // inteng's DAT_005f071c
 static double stepMillimetres = 0.0;       // this frame's distance in whole millimetres, from the frame's time
 static double stepCarry = 0.0;             // what is left of a fraction of a millimetre, carried to the next frame
 static LARGE_INTEGER stepClock = {};
+static double frameSeconds = 0.0;          // this frame's time, NOT held to 0.1 s: the glide's (FUN_0053c7d0 reads DAT_00d876dc as it is)
 static char speedWords[80];
 
 // Called once at the top of each frame, before the camera moves: works the frame's step out from the time since the last (at most 0.1 s, as inteng)
@@ -314,11 +334,13 @@ static void BeginTheFrameStep()
 	double seconds = stepClock.QuadPart != 0 && frequency.QuadPart > 0 ? (double)(now.QuadPart - stepClock.QuadPart) / (double)frequency.QuadPart : 0.0;
 
 	stepClock = now;
+	frameSeconds = seconds < 0.0 ? 0.0 : (seconds > 10.0 ? 10.0 : seconds);   // the glide's time is not held to 0.1 s; held to 10 s only so a stalled frame can't throw the camera far
 	seconds = seconds < 0.0 ? 0.0 : (seconds > 0.1 ? 0.1 : seconds);
 
-	extern double local_scale;
-
-	stepCarry += (double)speedUnits * 16384.0 / 100.0 * (local_scale > 0.0 ? local_scale : 1.0) * seconds;
+	// speed x 16384 of inteng's engine units a second; its engine unit is a hundredth of the game's millimetre (DAT_00607bd8 = 100 x the file's scale, and the game's world is the file's
+	// units x that same scale), so the step is speed x 163.84 game millimetres a second on every level, with NO scale factor (Vasquez's read through Bishop, 2026-11-16: the step was
+	// multiplied by local_scale, too fast or too slow on any level whose scale isn't 1)
+	stepCarry += (double)speedUnits * 16384.0 / 100.0 * seconds;
 	stepMillimetres = floor(stepCarry);
 	stepCarry -= stepMillimetres;
 }
@@ -437,6 +459,7 @@ static bool AMenuIsOpen()
 {
 	return menuBar.IsOpen() || ALowerMenuIsOpen() || popupBar.IsOpen();
 }
+
 static int lastMouseX = 0;
 static int lastMouseY = 0;
 static int mouseTurn = 0;               // how far the mouse has asked to turn and look since the last frame, in the game's angle units
@@ -503,7 +526,7 @@ static bool harnessPanelAsked = false;
 static bool LoadTheMenus()
 {
 	// the bars' rows, wrapped to the window's width (1008 before the first frame has said): every title is in the window, whatever the width
-	if (!EditorBar_MakeRows(barScreen, keyLayout, barWrapWidth > 0 ? barWrapWidth : 1008, PanelPass_SmallWidth, &barRows) || (barRows.menuCount[0] > 0 ? !menuBar.Load(barRows.menus[0], barRows.menuCount[0]) : (menuBar.Load(nullptr, 0), false)))
+	if (!EditorBar_MakeRows(barScreen, keyLayout, barWrapWidth > 0 ? barWrapWidth : 1008, PanelPass_MenuWidth, &barRows) || (barRows.menuCount[0] > 0 ? !menuBar.Load(barRows.menus[0], barRows.menuCount[0]) : (menuBar.Load(nullptr, 0), false)))
 	{
 		return false;
 	}
@@ -544,6 +567,7 @@ static bool LoadTheMenus()
 static bool pickAsked = false;
 static bool pickInBox = false;   // the pick is a click in the 3D view's quarter of the window (the three views): its place is from the quarter's corner
 static bool pickWithS = false;   // S was held at the press on the Strategy Data screen (inteng's S + click: select by texture)
+static bool pickDelete = false;   // the Delete key was held at the press (Module Linking's un-pick, row ML-M-61)
 static bool pickShift = false;   // Shift was held at the press: the click adds to the selection or takes out (inteng's Shift+LMB)
 static int pickX = 0;
 static int pickY = 0;
@@ -723,6 +747,12 @@ static ui::Box hitPrompt = { 0, 0, 0, 0 };
 // draws it at any other time). barPointerY is the pointer's y in the panels' pixels from the last mouse message; barVisible is decided each frame (BarDecide).
 static int32_t barPointerY = -1;
 static bool barVisible = false;
+// inteng's menu loop is up: FUN_004b7c50 runs the bar (FUN_004b7dd0) while the bar shows, and the pop-up (+0xc) while it is open, modally, from the mode's command step; what the mode
+// draws after that step is not on the screen meanwhile (reassess/dialog-look-drake.md BAR-6, BAR-8)
+static bool MenuLoopUp()
+{
+	return barVisible || AMenuIsOpen();
+}
 // The Hierarchy mode's questions that list their choices are inteng's list dialog (DialogList below, FUN_00475bf0): a click or Return answers with the row's place in the list, Esc cancels
 static void HierarchyDialogAnswer(std::string const &typed);
 static void HierarchyDialogCancel();
@@ -750,9 +780,9 @@ static void DialogText(std::string const &text, std::vector<host::DialogField> c
 	host::Dialogs_Text(text, fields, then);
 }
 
-static void DialogList(std::string const &title, std::vector<std::string> const &rows, std::function<void(int32_t)> const &then)
+static void DialogList(std::string const &title, std::vector<std::string> const &rows, std::function<void(int32_t)> const &then, std::function<void(int32_t)> const &onRight = nullptr)
 {
-	host::Dialogs_List(title, rows, then);
+	host::Dialogs_List(title, rows, then, onRight);
 }
 
 static void DialogPress(int32_t x, int32_t y)
@@ -776,6 +806,8 @@ static void OpenAPrompt(int32_t kind);
 static bool onHierarchy = false;                // the Hierarchy screen is the one shown (hierarchy_mode.h)
 static OpenLevelFile hierarchyModelFile;         // the model file (avp_huds\<name>.rif) Hierarchy mode works on once one is opened: hierarchies live in models, not levels
 static bool hierarchyModelOpen = false;
+static unsigned hierarchyModelSavedGeneration = ~0u;   // the model's generation when it was opened or last saved as a copy: inteng's "changed" DAT_00637134 is the model differing from it
+static int hierarchySaveAsked = 0;   // Return (C-47): 2 = "Saving" is drawn this frame, 1 = the frame with it was drawn, so the save runs now (HierarchySaveIfAsked); 0 = none
 static std::string openLevelName;   // the level the editor opened (its file is avp_rifs\<name>.rif in the data folder): inteng's Hierarchy mode works on the OPENED FILE
 // The model and hierarchy the view shows now (so a change of either shows it again, and a change of sequence only switches it)
 static DWORD hierarchyAnswerUntil = 0;           // a command's own words stay on the status line until this tick; the playing view's per-frame words come back after it
@@ -798,6 +830,10 @@ static void HierarchyTypedAnswer(std::string const &typed);
 static void HierarchySyncView(bool restart = false);
 static void HierarchyStepSequence(int direction);
 static void SpecialRunCommand(int32_t command, bool soundsScreen);
+// OP-47 / section 8a (V-6, V-7, V-8, V-11, V-21; FUN_004d9af0 0x4dc12c-0x4dc204, 0x4dc343, 0x4dc66e): Gravity on (DAT_008f4f50) skips the current object's commands and keys; a flying object
+// (DAT_008f4f44) can't be deleted and Gravity can't be switched while it flies
+static bool PlacementGravityOn();
+static bool PlacementIsFlying();
 static void SimpleEditOpen();
 static void NameObjectBox(std::string const &start, std::function<void(std::string const &)> const &named);   // inteng's "Name Object" dialog (FUN_004d4c70 / FUN_004d53d0)
 // Every editor object's icon as it is drawn, with the object's id, for Strategy Data's click (an icon is a thing the click can land on, as inteng's display blocks are)
@@ -828,6 +864,7 @@ static void DeleteTheModuleData();
 static void MergeTheSelectedObjects();
 static void RecalculateEntryPoints();
 static void LinkSetCurrent();
+static void LinkFollowOff();
 static bool RunScreenKey(uint8_t key, bool shift);
 static bool RunLightKey(int32_t command);
 static void LightKeysEveryFrame();
@@ -863,18 +900,30 @@ static void PolyScreenPress(int32_t x, int32_t y, bool right);
 static bool WriteTheLinks();
 // MODULE LINKING'S VIEW RULES (module-linking-reads.md section 2, FUN_004c1a90 / FUN_004c36f0 / FUN_004c17a0). inteng marks records NotVis (ObFlags bit 4, not drawn): Toggle View Distance (0x49,
 // DAT_005e2c80, STARTS ON, the exe's data holds 1) makes every frame hide each record whose distance from the camera less its radius is at least the view distance (DAT_005fd678, starts at
-// 1,000,000 mm; the status line "View Distance :%d" shows it divided by 500,000); the keys J and M add and take away 500,000 for each frame they are held, never below 0, only while the toggle is on. Only
+// 1,000,000, inteng's units: 100 to the millimetre, so 10 m (H-6); the status line "View Distance :%d" shows it divided by 500,000); the keys J and M add and take away 500,000 for each frame they are held, never below 0, only while the toggle is on. Only
 // Draw Linked Modules (0x4b, DAT_00704388, off on entering the mode) hides EVERY record at once and then shows the selected module and the modules linked from it; while it is on the distance rule is
 // skipped and the status line reads "Draw Linked Modules Only". Turning the toggle off shows everything again. Here the hiding is LevelView_HideBeyond / HideModules / HideObjects (avpx
 // R_SetEditorHiddenBlocks). NAMED: the key repeat is per frame of OUR window (60 a second, so a held J is fast: capped at 100,000,000 mm); leaving the screen shows everything (other modes' use of the
 // same rule, FUN_00405620, is not wired); the modules kept are those the link tree colours (the current one and the linked ones).
 static std::vector<int32_t> showAllModules;      // Show All's paint: the game's module numbers and their colours
 static std::vector<uint32_t> showAllColours;
+// Module Linking's Show All HOLDS the screen (DAT_0070439c, set by 0xca at 0x4c214a; FUN_004c1a90 0x4c1aee-0x4c1b74, row ML-M-3 of module-linking-map-dietrich.md): while it is on, the frame draws
+// the four legend rows and ENDS before the command is read, so no menu item or key does anything; the Escape key (slot 0x45) or a mouse button lets it go, and the modules are drawn as before
+// it (the tree's colours, FUN_004c17a0). The button that lets it go is still read as a click that frame (0x4c36a8).
+static bool showAllHeld = false;
+
+static void ShowAllRelease()
+{
+	showAllHeld = false;
+	showAllModules.clear();
+	showAllColours.clear();
+}
 
 static bool viewDistanceOn = true;
 static bool adjacentViewDistanceOn = false;   // the Adjacent Modules screen's own switch (DAT_00606780: off; the distance itself, DAT_005fd678, is the one Module Linking uses)
 static bool adjacentSelectPolygons = false;   // Adjacent Modules, Select by polygons (DAT_00631268: off; off picks the module whose centre is nearest the pointer, FUN_00405690)
 static int32_t viewDistance = 1000000;
+static bool viewDistanceFromCommandLine = false;   // -viewdistance gave it (a proof run): not read from the ini, not kept (H-7)
 static bool onlyDrawLinked = false;
 static std::vector<int32_t> linkedGameModules;   // the game's numbers of the modules the link tree colours, from UpdateModuleTints
 static std::string viewWords;                     // kept here so statusWords can point at it
@@ -945,6 +994,20 @@ static void ScreenLookPass()
 static void ModuleLinkingViewPass(bool onModuleLinking, bool onAdjacent)
 {
 	static bool applied = false;
+	static bool wasOnModuleLinking = false;
+
+	// THE SCREEN'S START (FUN_004c3a00 0x4c3a03-0x4c3b0e, row ML-E-2 of module-linking-map-dietrich.md): Mixed, Shift+S's follow and Only Draw Linked Modules off, Select With
+	// Centres off, "the last hidden" forgotten (the hidden ones stay hidden). Toggle View Distance keeps its value (inteng does not reset DAT_005e2c80), and so does the distance.
+	if (onModuleLinking && !wasOnModuleLinking)
+	{
+		ViewToggles_SetMixed(false);
+		LinkFollowOff();
+		onlyDrawLinked = false;
+		selectWithCentres = false;
+		host::HiddenObjects_ForgetLast();
+	}
+
+	wasOnModuleLinking = onModuleLinking;
 
 	if (onAdjacent)
 	{
@@ -961,7 +1024,7 @@ static void ModuleLinkingViewPass(bool onModuleLinking, bool onAdjacent)
 		}
 
 		LevelView_HideByRule(nullptr, 0, false);
-		LevelView_HideBeyond(adjacentViewDistanceOn, viewDistance);
+		LevelView_HideBeyond(adjacentViewDistanceOn, viewDistance / 100);   // inteng's DAT_005fd678 is 100 to the millimetre (H-6); the hiding is in millimetres
 		return;
 	}
 
@@ -1008,7 +1071,7 @@ static void ModuleLinkingViewPass(bool onModuleLinking, bool onAdjacent)
 	else
 	{
 		LevelView_HideByRule(nullptr, 0, false);
-		LevelView_HideBeyond(viewDistanceOn, viewDistance);
+		LevelView_HideBeyond(viewDistanceOn, viewDistance / 100);   // inteng's DAT_005fd678 is 100 to the millimetre (H-6); the hiding is in millimetres
 	}
 }
 
@@ -1018,6 +1081,31 @@ static int32_t ActionOfCommand(char const *table, int32_t command)
 	for (size_t s = 0; s < host::kIntengScreenCount; s++)
 	{
 		if (strcmp(host::kIntengScreens[s].table, table) != 0)
+		{
+			continue;
+		}
+
+		for (size_t m = 0; m < host::kIntengScreens[s].count; m++)
+		{
+			for (size_t i = 0; i < host::kIntengScreens[s].menus[m].count; i++)
+			{
+				if (host::kIntengScreens[s].menus[m].items[i].command == command)
+				{
+					return host::kIntengScreens[s].menus[m].items[i].action;
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
+// The same for Hierarchy's code-built bar (its first row, page 0: AvP's set 1), found by the screen's name (a code-built screen has no table address)
+static int32_t HierarchyBarAction(int32_t command)
+{
+	for (size_t s = 0; s < host::kIntengScreenCount; s++)
+	{
+		if (strcmp(host::kIntengScreens[s].name, "Hierarchy") != 0)
 		{
 			continue;
 		}
@@ -1615,6 +1703,12 @@ static void SimpleEditOpen()
 
 static bool specialNameGiven = false;   // SpecialRunCommand is running again from the Name Object dialog's OK
 
+// THE PLACED HIERARCHIES of Object Placement (OP-2, OP-105, NA-6): inteng makes an object of class 0x5ae6c4 (kind 5) for every PLACHIER of SPECLOBJ on entry (FUN_004e8cc0 <- 0x4d8e96), drawn as the
+// editor's icon shape 4 at its place with its turn (FUN_004e4ae0(5, ..., shape 4) at 0x4e8ce3-0x4e8d4a); it is in the placement list, so the click, Find and Num Objects take it, and it can be THE current
+// object (its select FUN_004e9b20 also puts the right-click pop-up on page 6: NOT BUILT here yet). The list is read again whenever the level changes (PlacementFrame).
+static std::vector<host::PlacedHierarchyInfo> placementHierarchies;
+static int placedHierarchyCurrent = -1;   // its place in placementHierarchies; -1: none is current
+
 // THE NEW-SOUND DEFAULTS (DAT_005e7a60 / 64 / 68 inner, outer, volume; DAT_008f4f98 / 9c / a0 pitch, flags, probability: the constructor FUN_004ecb20 reads them): inteng's constants until P on a sound makes them
 // that sound's (OP-26, FUN_004d9af0 0x4dbe1c-0x4dbf6c); every later Create > Sound takes them. The ranges are kept in the game's millimetres (inteng keeps its own units, the file's x 100 x the scale).
 struct SoundDefaults
@@ -1664,12 +1758,26 @@ static void PlacementFind()
 		names.push_back(one.kind == host::SpecialKind::PlayerStart && one.name.empty() ? std::string("Default name") : one.name);   // a player start is "Default name" (FUN_00421800 / FUN_004216d0: 0x5cd0cc)
 	}
 
-	DialogList("Select Object", names, [placed, specials](int32_t at)
+	std::vector<host::PlacedHierarchyInfo> hierarchies;
+
+	if (open)
 	{
-		if (at < 0 || (size_t)at >= placed.size() + specials.size())
+		host::PlacedHierarchies_Read(open, &hierarchies);
+	}
+
+	for (host::PlacedHierarchyInfo const &one : hierarchies)
+	{
+		names.push_back(one.name);   // NAMED: inteng lists them among the SPECLOBJ children in the file's order; here after the other special objects (the dialog sorts the names)
+	}
+
+	DialogList("Select Object", names, [placed, specials, hierarchies](int32_t at)
+	{
+		if (at < 0 || (size_t)at >= placed.size() + specials.size() + hierarchies.size())
 		{
 			return;
 		}
+
+		placedHierarchyCurrent = -1;
 
 		double const scale = local_scale > 0.0 ? local_scale : 1.0;
 		int32_t const *place = nullptr;
@@ -1685,6 +1793,16 @@ static void PlacementFind()
 			host::Selection_Set(picked);
 			place = placed[(size_t)at].place;
 			name = placed[(size_t)at].name;
+		}
+		else if ((size_t)at >= placed.size() + specials.size())
+		{
+			host::PlacedHierarchyInfo const &one = hierarchies[(size_t)at - placed.size() - specials.size()];
+
+			host::Selection_Clear();
+			specialMode.haveCurrent = false;
+			placedHierarchyCurrent = (int)one.number;
+			place = one.place;
+			name = one.name;
 		}
 		else
 		{
@@ -1725,6 +1843,12 @@ static void SpecialRunCommand(int32_t command, bool soundsScreen)
 	}
 
 	bool const create = command == 0x34 || command == 0x35 || command == 0x3a || command == 0x37 || command == 0x39;
+
+	// OP-12 / OP-47 (V-8, V-21): Edit (0x18, key E) and Delete (0x16) need Gravity off (0x4dc1fe); Delete does nothing while an object flies (0x4dc343): nothing happens, as in inteng
+	if ((command == 0x18 || command == 0x16) && (PlacementGravityOn() || (command == 0x16 && PlacementIsFlying())))
+	{
+		return;
+	}
 
 	// Create > AVP generator / Bad Guy / Sound / Particle Generator: inteng's "Name Object" dialog first (FUN_004d53d0 at 0x4daa1b, 0x4dab31, 0x4dad35, 0x4dac43; OP-24); Cancel makes nothing. The player
 	// start takes no name (0x4db273).
@@ -2019,13 +2143,46 @@ static void RecentrePolygonClicked(host::PickReport const &report)
 // none) along z, x and y, looking along +z, +x and +y (the matrices 0x10000 / 0xffff0000 of FUN_004d5980). READ: which quarter takes which is not (the track screens' layout is used: z top left, x top
 // right, y bottom left). The picture is drawn by LevelView_SetExtraViews (level_view.h). The markers are not drawn while it is on.
 static bool placementSplit = false;
-static bool splitCentreOn = false;      // D: the split screen is centred on this place (the selected object's), else on the current special object, else on the view
+static bool splitCentreOn = false;      // the split screen's three views are put round this place (OP-45 / OP-46 / OP-40); off: round the camera
 static int32_t splitCentre[3] = { 0, 0, 0 };   // game units (mm)
 static bool placementText = true;       // T: inteng's text switch DAT_005fd69c (1 at start; T flips it, 0x4dd0cd-0x4dd0ef; the frame's text is drawn only when it is on, 0x4dd126): all of Object Placement's text lines, and the names beside the markers (the owner's addition) with them
+static bool LinkedObjectWorld(int32_t out[3], int32_t *radius = nullptr, bool *special = nullptr, uint8_t *idOut = nullptr);
+
+// OP-45 / OP-46 / OP-40 (section 8a V-3, 8b): the place FUN_004d5980 and FUN_004d58e0 put the three views round, ONCE: the current object's block place (DAT_008f4f3c[1] +0x10.., where it flies too:
+// LinkedObjectWorld), else the view's (DAT_00962308 +0x10.., 0x4da105 / 0x4da161). The views then stay there: only the split's start, D and another object made current (FUN_004d64a0 -> FUN_004d58e0)
+// move them; the camera and Backspace (FUN_004d64a0(0)) don't. Corrected 2026-11-16 by Melanikus (Vasquez): the views followed the camera every frame.
+static void SplitCentreOnCurrent()
+{
+	int32_t world[3];
+
+	if (LinkedObjectWorld(world))
+	{
+		memcpy(splitCentre, world, sizeof(splitCentre));
+	}
+	else if (theCamera)
+	{
+		splitCentre[0] = theCamera->x;
+		splitCentre[1] = theCamera->y;
+		splitCentre[2] = theCamera->z;
+	}
+
+	splitCentreOn = true;
+}
 
 static void SplitScreenCommand()
 {
 	placementSplit = !placementSplit;
+
+	// FUN_004d5980 (on) places the views; FUN_004d5d80 (off) frees them
+	if (placementSplit)
+	{
+		SplitCentreOnCurrent();
+	}
+	else
+	{
+		splitCentreOn = false;
+	}
+
 	Answer(placementSplit ? "Toggle Split Screen: on (three more views of the level 5 m from the current object, back along z, x and y; the main view is the bottom right)" : "Toggle Split Screen: off");
 }
 
@@ -2145,8 +2302,19 @@ static void MoveRelativeModuleDo(std::string const &typed)
 // = 9; off, +0x1c4 = 0. All of it is the LIVE PREVIEW of inteng's own game blocks: nothing in the level file changes. The editor runs no such blocks, so this keeps the flag and says so (NAMED).
 static bool placementGravity = false;
 
+static bool PlacementGravityOn()
+{
+	return placementGravity;
+}
+
 static void GravityToggleCommand()
 {
+	// OP-47 / OP-119 (V-21): only when no object flies (0x4dc66e: DAT_008f4f44 == 0); otherwise nothing
+	if (PlacementIsFlying())
+	{
+		return;
+	}
+
 	placementGravity = !placementGravity;
 	Answer(placementGravity ? "Toggle Gravity: on (inteng lets its placed shape objects of kinds 1 to 5 and 15 fall in its own preview; nothing in the level changes, and this editor runs no such preview)"
 	                        : "Toggle Gravity: off");
@@ -2252,6 +2420,12 @@ static void DeleteTheSelectedObject()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	host::Selected const selected = host::Selection_Get();
+
+	// OP-47 / OP-119 (V-21): Delete (0x16) needs Gravity off (0x4dc1fe) and does nothing while an object flies (0x4dc343): nothing happens, as in inteng
+	if (PlacementGravityOn() || PlacementIsFlying())
+	{
+		return;
+	}
 
 	// a special object that was just made or found is the one Delete takes (the selection is cleared when it is made)
 	if (specialMode.haveCurrent && selected.kind != host::SelectedKind::Object)
@@ -2807,12 +2981,72 @@ static void CameraKey(int n, bool save)
 }
 
 static bool strategyFromPlacement = false;   // Strategy mode was entered from Object Placement (Tab, DAT_0091493c): its Exit and Tab go back there, not to the hub
+static bool strategyMarkedChanged = false;   // inteng's "changed" mark DAT_00914950 for what changes no bytes (an Edit view opened: FUN_005286b0 0x5286cc): Exit asks "Would you like to save first?"; Save (0x52831b) and leaving the screen clear it
 static uint32_t strategyViewBit = 0;   // Strategy mode's View Flag (FUN_0052f680 sets DAT_00914944 to the bit, FUN_00522650 colours the modules that hold it): 0 is none
 static unsigned copySavedGeneration = ~0u;   // defined with the mode's Exit below: the level's generation at the opening, then at each Save a copy
+
+// STRATEGY DATA'S "CHANGED" (strategy-data.md S-10, S-5; reassess/strategy-data-verify-frost.md W-3): inteng's mark DAT_00914950 is cleared on EVERY entry of the mode (FUN_00522ab0 0x522ae2,
+// Object Placement's Tab included) and by its Save (FUN_005282d0 0x52831b), and set only by the mode's own edits (its 30 writers, all in 0x5286b0-0x53b7a9). So a change made before the mode
+// was entered (Object Placement's, carried in by Tab) does not make Exit ask. Ours: the level's generation at the entry or the last Save, and strategyMarkedChanged for the marks that change no bytes.
+static unsigned strategyCleanGeneration = ~0u;
+
+static void StrategyCleanNow()   // W-3: the entry (FUN_00522ab0 0x522ae2) and Save (0x52831b)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	strategyCleanGeneration = open ? open->Generation() : ~0u;
+	strategyMarkedChanged = false;
+}
+
+static bool StrategyChanged()   // W-3: DAT_00914950 as FUN_00524d00 0x524d1d reads it
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	return strategyMarkedChanged || (open && strategyCleanGeneration != ~0u && open->Generation() != strategyCleanGeneration);
+}
 
 static void TextureAnimFlush();
 
 static void TexturePolyApplyRemoved();
+
+// THE COLLECTIONS' TEXT FILE (FUN_0048cac0, run after inteng's save of the file by Hierarchy's Exit 0x488991 and Return 0x488a7b; reassess/hierarchy-play-frost.md HP-29): with no HSETCOLL in the file
+// nothing; else a text file of one line per shape-set collection, "%d\t%s\n" (0x5d5d14: its number +0x2c, its name +0x28), in the file's order, written over any earlier one (CreateFile GENERIC_WRITE,
+// CREATE_ALWAYS). Its name: DAT_0091506c (set to "." at the start, 0x57a969-0x57a973) + the RIFFNAME, cut at the FIRST '.' (_strchr 0x48cbed), + ".txt" (0x5d5d1c): the cut falls on the leading
+// ".", so inteng's file is always named ".txt", in its working folder. Ours writes it beside the saved copy, in the editor's own folder for copies (Melanikus's standing ruling: nothing is written in
+// the game folder), under that same name. Security: each line is bounded (inteng's sprintf into 1000 bytes had none); the names are the file's own, written as text.
+static void WriteTheCollectionsText(OpenLevelFile *model, std::string const &folder)
+{
+	std::vector<model::ShapeSetCollection> collections;
+
+	if (host::HierarchyEdit_Collections(model, &collections) != host::HierarchyEditResult::Done || collections.empty())
+	{
+		return;
+	}
+
+	std::string const path = folder + "\\.txt";
+	HANDLE const file = CreateFileA(path.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+	if (file == INVALID_HANDLE_VALUE)
+	{
+		LogString("collections text: not written, " + path);
+		return;
+	}
+
+	for (model::ShapeSetCollection const &each : collections)
+	{
+		char line[1000];
+		int const length = _snprintf_s(line, sizeof(line), _TRUNCATE, "%d\t%s\n", (int)each.number, each.name.c_str());
+		DWORD written = 0;
+
+		if (length > 0)
+		{
+			WriteFile(file, line, (DWORD)length, &written, NULL);
+		}
+	}
+
+	CloseHandle(file);
+	LogString("collections text: " + path);
+}
 
 static void SaveTheCopy()
 {
@@ -2895,6 +3129,13 @@ static void SaveTheCopy()
 	savedWords = "Saved a copy: " + copyPath;
 	statusWords = savedWords.c_str();
 	copySavedGeneration = open->Generation();
+
+	if (saveTheModel)
+	{
+		hierarchyModelSavedGeneration = open->Generation();
+		WriteTheCollectionsText(open, copyFolder);
+	}
+	StrategyCleanNow();   // FUN_005282d0 0x52831b: DAT_00914950 = 0 (W-3)
 	LogString("save a copy: " + copyPath);
 }
 
@@ -3603,7 +3844,7 @@ static void LightKeysEveryFrame()
 		statusWords = lightWords.c_str();
 	}
 
-	LevelView_HideBeyond(true, viewDistance);
+	LevelView_HideBeyond(true, viewDistance / 100);   // inteng's DAT_005fd678 is 100 to the millimetre (H-6); the hiding is in millimetres
 	lightViewApplied = true;
 
 	// Fly light: the selected light is where the camera is, every frame
@@ -3624,8 +3865,8 @@ static void LightKeysEveryFrame()
 	}
 
 	// the keys held: the window's own notes of the key messages (a scenario sends messages, not real key states) or the keyboard's state
-	bool const plus = keyDown[VK_OEM_PLUS] || keyDown[VK_ADD] || GetKeyState(VK_OEM_PLUS) < 0 || GetKeyState(VK_ADD) < 0;
-	bool const minus = keyDown[VK_OEM_MINUS] || keyDown[VK_SUBTRACT] || GetKeyState(VK_OEM_MINUS) < 0 || GetKeyState(VK_SUBTRACT) < 0;
+	bool const plus = KeyHeldNow(VK_OEM_PLUS) || KeyHeldNow(VK_ADD);
+	bool const minus = KeyHeldNow(VK_OEM_MINUS) || KeyHeldNow(VK_SUBTRACT);
 	bool const shift = ShiftDown();
 	int direction = plus && !minus ? 1 : (minus && !plus ? -1 : 0);
 
@@ -4089,6 +4330,11 @@ static void ShowTheScreen(size_t screen)
 	if (screen < host::kIntengScreenCount && screen != barScreen)
 	{
 		barScreen = screen;
+
+		if (strcmp(host::kIntengScreens[screen].name, "Strategy Data") == 0)
+		{
+			StrategyCleanNow();   // FUN_00522ab0 0x522ae2: DAT_00914950 = 0 on entry (Object Placement's Tab: FUN_00524ce0) (W-3)
+		}
 
 		if (!LoadTheMenus())
 		{
@@ -4965,6 +5211,8 @@ struct VolumeEditor
 	double hi[3] = { 0, 0, 0 };
 	int face = -1;
 	int module = -1;          // the picked module's game number, -1 none
+	bool objectPicked = false;   // a placed object was picked instead (FUN_00559720 gives any record): its ID
+	uint8_t object[8] = { 0 };
 	ULONGLONG last = 0;       // the last frame's time
 };
 static VolumeEditor volume;
@@ -4972,19 +5220,36 @@ static void VolumeEnd();
 static void VolumeBegin();
 static bool VolumeKey(WPARAM key);
 static void VolumeClick(host::PickReport const &report, bool shift, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight);
+static int32_t strategyViewTop = 0;   // the y of the window's top in the panels' pixels: an Edit view's lines and clicks are measured from it (inteng's FUN_0057bd90 y 0 is the window's top)
 static int32_t textAreaTop = 0;   // where inteng's text area starts under the menu bars (the lowest bottom of the bars), set each frame by the drawing code
 static std::string strategyViewWord;           // the lines of the Edit view of the frame, "x@y:text|..." (the state line's strategyview)
 static std::string strategyPickField;       // the object field a Pick line waits to fill (the next click on an object in the view fills it), empty for none
 static std::string strategyViewPickWords;   // the words drawn along the foot while it waits ("Select associated door")
 static int32_t strategyEditKind = 0;     // the strategy kind whose Edit view is up (strategy_views.h), 0 for none
 static bool strategyEditFan = false;   // the Fan's Edit Strategy view is up (FUN_005356b0: drawn lines, a click on one asks its number, Escape ends)
+static void StrategyViewEnd();   // below, with the views
+static uint8_t strategyEditId[8];        // the object whose view is up: the current object when Edit / Assign called its method +0x14 (DAT_0091496c), kept while a pick makes another one red
+static bool strategyPickHave = false;    // the object pick holds an object (FUN_00527540's param_1, drawn red)
+static uint8_t strategyPickId[8];
+static int32_t strategyPickRow = 0;      // what the end of the pick does (host::StrategyPickRow)
+static std::string strategyPickRequest;  // kPickTarget: the request field set to 1 when the target changed
+static void StrategyPickEnd();
+static void LiftPositionsEnd();   // the Lift's positions collector ends (FUN_0052b360 after FUN_00526bf0)
+static void MissionTargetsEnd();  // the Mission Objective's targets collector ends (FUN_00532ea0)
+static void MissionToggleUnderPointer(int32_t bit);   // the Mission Objective's P / V (S-K70-8)
+static int32_t trackPage = -1;    // a Track Object's view: -1 its main page, else the point whose page is open (S-K72-4)
+static void TrackTargetsEnd();    // a point page's targets collector ends (FUN_00534df0)
+static void TrackPageBack();      // the right button on a point page (S-K72-7)
+static void TrackAskPoint(uint8_t const *subject);   // "Which track point?" (S-K72-2)
+static void StrategyViewClickAt(int32_t x, int32_t y);   // below, with the views
 
 // COPY STRATEGY (FUN_00528340 with the collector FUN_00526bf0): the object to copy from is the current one; then the collector runs: a click adds the object under the pointer to the list (when it is not in it), Shift + click takes it out, L empties the list,
 // Return or the right button ends; the screen draws "Press return when finished" at (16, 0) and the names from the third row on (rows of 16; DAT_00914928 is incremented twice before the first name), and "Select objects to copy to" along the foot (200, height - 20).
-// Then each target in the list is dealt with in order: the source itself and a target whose class cannot take the kind are passed; one that has a strategy asks "%s already has a strategy\nDo you want to replace it?" (Yes replaces, No passes it by); a copy that fails says "Unable to copy this strategy" and the rest is abandoned.
+// Then each target in the list is dealt with in order: the source itself and a target whose class cannot take the kind are passed; one that has a strategy FUN_00521860 does not call replaceable gets the four-answer question (CopyQuestion, FUN_00529f30: Yes All / Yes / No / No All; Escape replaces); a copy that fails says "Unable to copy this strategy" and the rest is abandoned.
 // NAMED: the Ctrl + click that adds a whole group (the objects that share the clicked one's FUN_004d0fd0 group) is not built.
 struct CopyTarget { uint8_t id[8]; };
 static bool copyCollecting = false;
+static int32_t copyPurpose = 0;   // what the collector's list is for: 0 Copy Strategy's targets, 1 a Lift's positions (FUN_0052b360, the Lift view's positions block)
 static uint8_t copyFrom[8];
 static int32_t copyKind = 0;
 static size_t copyDone = 0;
@@ -4996,8 +5261,15 @@ static std::vector<CopyTarget> copyTargets;
 static bool stabilityActive = false;
 static uint8_t stabilityObject[8];
 static uint32_t stabilityFaces = 0;     // bit i set: face i is red (stable)
-static bool stabilityPolygons = true;   // T: the faces as polygons (the cross) or as lines only
+static bool stabilityPolygons = false;   // T: the faces as polygons (the cross) or as lines only; they START as lines (FUN_00447f10 0x44816a: polygon type 0xe; T at 0x5274c9 switches 0xe <-> 2)
 static int32_t stabilityMin[3], stabilityMax[3];
+
+// Strategy Data runs one of the loops whose frame is FUN_00529370 (the flag page FUN_00525700, Stability FUN_00527370, the volume editor FUN_005277c0, the collector FUN_00526bf0, the pick loop
+// FUN_00527540): only there Insert / Home zoom (0x5293a2 / 0x5293b0). The screen's own page 0 (FUN_00522980) and a kind's Edit view (its own loop) read neither (strategy-data.md S-57)
+static bool StrategyInASubLoop()
+{
+	return OnStrategyScreen() && !strategyEditFan && (strategyFlagPage || stabilityActive || volume.on || copyCollecting || strategyPick != 0 || !strategyPickField.empty());
+}
 
 static std::string strategyMessage;          // an on-screen message of Strategy Data at (200, 100) (FUN_0057bd40(200, 100, 0, words)), gone after 700 ms (FUN_00529220 waits that long for a click or key)
 static ULONGLONG strategyMessageAt = 0;
@@ -5016,12 +5288,20 @@ static void ExitTheMode()
 	}
 
 	bool const strategy = strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0;
-	bool const changed = LevelChangedSinceSave();
+	// Hierarchy: inteng's Exit (FUN_004888d0 0x488967) saves when the hierarchy code marked the file changed (DAT_00637134): ours, the model differing from its last save
+	bool const hierarchyChanged = IsTheHierarchyScreen(barScreen) && hierarchyModelOpen && hierarchyModelFile.Generation() != hierarchyModelSavedGeneration;
+	// Strategy Data: ONLY its own mark (FUN_00524d00 0x524d1d: DAT_00914950, W-3): a change carried in from Object Placement is not asked about, and the mode's Exit writes nothing
+	// silently (FUN_00524d80 calls no FUN_004719e0). The other modes: the level changed since the last save (their Exits write the level).
+	bool const changed = strategy ? StrategyChanged() : (LevelChangedSinceSave() || hierarchyChanged);
 
+	// THE FLAG PAGE'S EXIT (strategy-data.md S-14, FUN_00525700 0x5267cd-0x526845): the bar's page 0 (+0x18(0)), every listed module's red off and the list freed, the flag view STOPPED
+	// (FUN_0052f680(0): DAT_00914944 = 0, nothing coloured for a flag) and F / Shift + F's commands DAT_00914948 / DAT_0091494c = 0; back on the screen, not out of Strategy Data
 	if (strategy && strategyFlagPage)
 	{
 		strategyFlagPage = false;
 		host::Selection_Clear();   // the loop's list goes with it
+		strategyViewBit = 0;       // S-14: FUN_0052f680(0) 0x526831
+		strategyViewAdd = 0;       // S-14: 0x52683f / 0x526845
 		EditorBar_SetPage(0);
 
 		if (!LoadTheMenus())
@@ -5051,7 +5331,7 @@ static void ExitTheMode()
 
 	bool const back = strategy && strategyFromPlacement;
 
-	if (changed)
+	if (changed && !strategy)
 	{
 		SaveTheCopy();
 		LeaveTheMode(savedWords.compare(0, 14, "Saved a copy: ") == 0 ? savedWords.c_str() : "the level was NOT saved (see the log)", !back, back ? ScreenOfTable("0x5e51b8") : host::kIntengHub);
@@ -5105,6 +5385,7 @@ static bool ModuleObject(OpenLevelFile *open, int32_t moduleIndex, uint8_t id[8]
 
 static const int32_t kClickMoveRelPoly = 0x51;
 static bool moveRelWaiting = false;
+static bool parentWaiting = false;   // Q's "Click on parent for generator" is waiting (OP-90): a right press gives it up with nothing changed
 static uint8_t moveRelMover[8];
 static uint8_t moveRelTarget[8];
 static int32_t moveRelPolygon = -1;
@@ -5188,9 +5469,9 @@ static void MoveRelPolyClicked(host::PickReport const &report)
 }
 
 // Module Linking > Show All (0xca, FUN_004c1a90 0x4c1eda-0x4c2158): every module that has an object is painted by its polygon figure (module_poly_count.h: its own polygons plus those of the modules its
-// VMDARRAY lists): green below 1200, blue 1200 to 1499, orange 1500 to 1999, yellow 2000 and up, white when it has no MODULEDT or no VMDARRAY. NAMED: inteng REPAINTS the shape's polygons in that colour,
-// here the colour is the editor's half see-through tint over the level (the colours' byte order in inteng is unread: red green blue is assumed); the paint stays until the screen is left or a link is
-// made (inteng's next repaint, FUN_004c17a0, would paint over it).
+// VMDARRAY lists): green 0x00ff00 below 1200, blue 0x0000ff 1200 to 1499, orange 0xff7f00 1500 to 1999, RED 0xff0000 2000 and up (0x4c207b: 0xfa + 0xfeff06; inteng's own legend says "2000+(Quads) RED"),
+// white when it has no MODULEDT or no VMDARRAY (the colours are 0xRRGGBB as the tree's are: the base blue 0x0000ff, a link yellow 0xffff00, as the manual says). NAMED: inteng REPAINTS the shape's
+// polygons in that colour, here the colour is the editor's half see-through tint over the level. On Module Linking the screen is then HELD until Escape or a mouse button (showAllHeld, row ML-M-3).
 static void ShowAllTheModules()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
@@ -5203,6 +5484,7 @@ static void ShowAllTheModules()
 
 	showAllModules.clear();
 	showAllColours.clear();
+	showAllHeld = OnModuleLinkingScreen();   // DAT_0070439c = 1 (0x4c214a); Object Placement's Show Polygon Counts uses the paint without the hold
 
 	size_t byColour[5] = { 0, 0, 0, 0, 0 };
 
@@ -5225,7 +5507,7 @@ static void ShowAllTheModules()
 	static std::string words;
 
 	words = "Show All: " + std::to_string(showAllModules.size()) + " modules painted by polygon count: " + std::to_string(byColour[0]) + " green (under 1200), " + std::to_string(byColour[1]) +
-		" blue (1200 up), " + std::to_string(byColour[2]) + " orange (1500 up), " + std::to_string(byColour[3]) + " yellow (2000 up), " + std::to_string(byColour[4]) + " white (no data)";
+		" blue (1200 up), " + std::to_string(byColour[2]) + " orange (1500 up), " + std::to_string(byColour[3]) + " red (2000 up), " + std::to_string(byColour[4]) + " white (no data)";
 	statusWords = words.c_str();
 }
 
@@ -5241,7 +5523,7 @@ static void PlacementPolyCountsToggle()
 	if (placementPolyCounts)
 	{
 		ShowAllTheModules();
-		statusWords = "Show Polygon Counts: on (the modules are painted by their polygon figure: green under 1200, blue 1200 up, orange 1500 up, yellow 2000 up)";
+		statusWords = "Show Polygon Counts: on (the modules are painted by their polygon figure: green under 1200, blue 1200 up, orange 1500 up, red 2000 up)";
 	}
 	else
 	{
@@ -5291,6 +5573,8 @@ static bool IsTheTextureMapScreen(size_t screen)
 	return screen < host::kIntengScreenCount && strcmp(host::kIntengScreens[screen].name, "Texture Map") == 0;
 }
 
+static void TextureModeStateReset();   // the mode's held states (reassess/mode-entry-exit-frost.md TM-E1 / TM-X2), defined with them below
+
 static void EnterTextureMap()
 {
 	if (onTextureMap)
@@ -5299,6 +5583,7 @@ static void EnterTextureMap()
 	}
 
 	onTextureMap = true;
+	TextureModeStateReset();   // FUN_00544510 0x544551: the selection mode DAT_00914d9c = 0 on every entry (TM-E1)
 	textureMapSavedMode = ViewToggles_Now().drawMode;
 	texturePolygons.clear();
 	ShowTheTexturePolygons();
@@ -5320,7 +5605,8 @@ static void LeaveTextureMap()
 
 	TexturePolyApplyRemoved();   // inteng takes the flagged polygons out when the mode is left (FUN_0054bfd0 -> FUN_00563d90)
 	onTextureMap = false;
-	texturePolygons.clear();
+	texturePolygons.clear();   // FUN_0054bfd0 "delete poly list": DAT_00914dcc freed (TM-X2)
+	TextureModeStateReset();   // FUN_0054bfd0 frees the rest of the mode (TM-X2)
 	ShowTheTexturePolygons();
 
 	switch (textureMapSavedMode)
@@ -5525,6 +5811,7 @@ struct HierarchyTextLine
 };
 
 static std::vector<HierarchyTextLine> hierarchyTextNow;   // the lines of the frame being drawn (the state line says them as hierarchylines)
+static std::string screenTextNow;   // every screen's top-left text of the frame being drawn (view-state-table.md H-1, H-2), lines joined by '|' (the state line says it as screentext)
 static void PlacementFrame();
 static void PlacementFlyStop();
 static void PlacementTextLines(std::vector<HierarchyTextLine> *out);
@@ -5924,9 +6211,109 @@ static void HierarchyTextLines(std::vector<HierarchyTextLine> *out)
 
 // inteng's Hierarchy keys that run the mode's commands (its help text, read from the exe; hierarchy-data-model.md): H select hierarchy, S select sequence, + / - sequence time, 0-9 add keyframe flag
 // (Shift: remove), Q apply frame sound (Shift: remove), D / F previous / next sequence, P / O start / stop, N / M previous / next key frame. Shift on S, + , -, P, O applies to the delta sequence, which is not built.
+// The current sequence's number and sub-number, from the file's list (hierarchyMode.sequence is its place)
+static bool HierarchyCurrentSequence(host::SequenceInfo *out, std::vector<host::SequenceInfo> *all)
+{
+	if (!onHierarchy || !hierarchyModelOpen || hierarchyMode.hierarchy.empty() || !hierarchyMode.sequenceSelected ||
+		host::HierarchyEdit_Sequences(&hierarchyModelFile, hierarchyMode.hierarchy, all) != host::HierarchyEditResult::Done || hierarchyMode.sequence >= all->size())
+	{
+		return false;
+	}
+
+	*out = (*all)[hierarchyMode.sequence];
+	return true;
+}
+
+// Ctrl+R (key word 'R' | Ctrl -> 0x39, FUN_0048cde0 0x48ce02; rows K-1, C-39): with a sequence open, FUN_00479590 -> FUN_0047f720 -> FUN_00480eb0 turns every frame of the ROOT section's current
+// sequence half round the vertical (the frames' chunks, so the file, and the player, so the view), then marks the file changed (DAT_00637134). No words on the screen.
+static void HierarchyTurnTheSequence()
+{
+	host::SequenceInfo current = { 0, 0, 0, false };
+	std::vector<host::SequenceInfo> all;
+
+	if (!HierarchyCurrentSequence(&current, &all))
+	{
+		return;
+	}
+
+	if (host::HierarchyEdit_TurnRootFrames(&hierarchyModelFile, hierarchyMode.hierarchy, current.number, current.subNumber) != host::HierarchyEditResult::Done)
+	{
+		Answer("Rotate sequence by 180 degrees: the sequence's frames could not be changed");
+		return;
+	}
+
+	HierarchyView_TurnRootSequence(current.number, current.subNumber);
+	Answer("Sequence rotated by 180 degrees");
+	hierarchyAnswerUntil = GetTickCount() + 5000;
+}
+
+// Ctrl+F (key word 'F' | Ctrl -> 0x3e, FUN_0048cde0 0x48cdfd; rows K-2, C-3e; not in Help): with a sequence open, FUN_004795d0: for EVERY sequence of the hierarchy, in the list's order, the player
+// takes it (FUN_004784e0) and poses its start (FUN_00478920), the LOWEST point of every section's posed shape is found (FUN_0047f900: the largest y, y pointing down, from -10000000), and every frame
+// of the ROOT section's sequence has it taken off its y (0x479670-0x4796a5): each sequence stands on the floor at its start. The player is left on the LAST sequence of the list. The file is
+// marked changed. Ours poses with the game's own pose (HierarchyPlayer, as Calculate Bounding Box does) in the game's unit, the file's for a model. NAMED: a sequence whose sections have no point
+// is left as it is (inteng would take -10000000 / its scale off).
+static void HierarchyPutSequencesOnTheFloor()
+{
+	host::SequenceInfo current = { 0, 0, 0, false };
+	std::vector<host::SequenceInfo> all;
+
+	if (!HierarchyCurrentSequence(&current, &all) || all.empty())
+	{
+		return;
+	}
+
+	host::HierarchyPlayer player;
+	std::string why;
+
+	if (!player.Load(hierarchyMode.modelName, hierarchyMode.hierarchy, nullptr, &why))
+	{
+		Answer("Put sequences on the floor: " + why);
+		return;
+	}
+
+	int done = 0;
+
+	for (host::SequenceInfo const &each : all)
+	{
+		int32_t low[3] = { 0, 0, 0 }, high[3] = { 0, 0, 0 };
+
+		if (!player.Start(each.number, each.subNumber, &why) || !player.Box(std::vector<int>(1, 0), low, high))
+		{
+			continue;
+		}
+
+		if (host::HierarchyEdit_LowerRootFrames(&hierarchyModelFile, hierarchyMode.hierarchy, each.number, each.subNumber, high[1]) == host::HierarchyEditResult::Done)
+		{
+			HierarchyView_LowerRootSequence(each.number, each.subNumber, high[1]);
+			done++;
+		}
+	}
+
+	// the player is left on the last sequence of the list (FUN_004784e0 for each, in turn): at timer 0, not running, its deltas let go
+	hierarchyMode.sequence = 0;
+	HierarchyStepSequence(-1);
+	Answer("Put " + std::to_string(done) + " sequence(s) on the floor");
+	hierarchyAnswerUntil = GetTickCount() + 5000;
+}
+
 static bool HierarchyModeKey(WPARAM key)
 {
 	bool const shift = ShiftDown();
+
+	// Ctrl+R and Ctrl+F (the key translator's Ctrl words, FUN_0048cde0 0x48cdfd-0x48ce18)
+	if (onHierarchy && !shift && KeyHeldNow(VK_CONTROL) && (key == 'R' || key == 'F'))
+	{
+		if (key == 'R')
+		{
+			HierarchyTurnTheSequence();
+		}
+		else
+		{
+			HierarchyPutSequencesOnTheFloor();
+		}
+
+		return true;
+	}
 
 	// Dietrich's HierarchyKey (below) has the keys of the model's time, sequences, key frames, sounds, the turret and the delta variants; this one takes only the keys it lacks: T, W, C and Return
 	// U / I (Alter detail level) and Shift+D (Set distance for current detail level, FUN_00479a80) are this one's too
@@ -5966,22 +6353,14 @@ static bool HierarchyModeKey(WPARAM key)
 		{
 			HierarchyRunCommand(0x9);       // Add delta: which delta sequence plays over the main one
 		}
-		else if (key == 'O')
-		{
-			HierarchyRunCommand(0xa);       // Remove delta
-		}
-		else if (HierarchyView_DeltaCount() == 0 && hierarchyMode.addDeltaNumber != 0)
-		{
-			HierarchyView_AddDelta(hierarchyMode.addDeltaNumber, hierarchyMode.addDeltaSub);   // Shift+P: the delta sequence last chosen plays again
-			if (hierarchyMode.deltaSelected)
-			{
-				HierarchyView_SetDeltaMilliseconds(hierarchyMode.deltaMs);
-			}
-			Answer("Delta sequence playing");
-		}
 		else
 		{
-			Answer(HierarchyView_DeltaCount() != 0 ? "The delta sequence is playing" : "Delta: choose one with Shift+S first");
+			// Shift+P / Shift+O: cases 0xb / 0xc (FUN_0048cde0 0x48ce40 / 0x48ce48): the CURRENT delta (the one last added, the player's +8) gets +0x28 = 1 / 0: it plays / stops
+			// (0x488b07-0x488b41; reassess/hierarchy-deltas-vasquez.md HD-19). No delta: nothing happens.
+			if (HierarchyView_SetDeltaPlaying(key == 'P'))
+			{
+				Answer(key == 'P' ? "Delta sequence playing" : "Delta sequence stopped");
+			}
 		}
 
 		hierarchyAnswerUntil = GetTickCount() + 5000;
@@ -5999,9 +6378,11 @@ static bool HierarchyModeKey(WPARAM key)
 		int const levels = HierarchyView_DetailLevels();
 		int const wanted = hierarchyDetail + (key == 'U' ? 1 : -1);
 
-		hierarchyDetail = wanted < 0 ? 0 : (wanted > levels - 1 ? levels - 1 : wanted);
-		hierarchyMode.adaptiveDegradation = false;   // a level chosen by hand: the choice by distance is off (FUN_00479b80 would set it back each frame)
-		hierarchyWords = "Detail level " + std::to_string(hierarchyDetail) + " of " + std::to_string(levels - 1) + (levels == 1 ? " (this model's shapes have no lower-detail versions)" : (hierarchyDetail == 0 ? " (the full shape)" : " (a lower polygon count)"));
+		// FUN_00477fb0 (0x477fe5-0x477ff2): the level is held to 0..9, whatever the model has; Adaptive Degradation is NOT touched (while it is on, the next frame's pick, FUN_00479b80, sets
+		// the level by the distance again: the view shows that pick, editor_main.cpp's LevelView_SetAdaptiveDegradation)
+		hierarchyDetail = wanted < 0 ? 0 : (wanted > 9 ? 9 : wanted);
+		// NAMED: which shape a level beyond the model's own levels shows is FUN_0047e9f0's pick among the "L<k>#<name>" objects (0x47eb48-0x47ebe9), not read through yet
+		hierarchyWords = "Detail level " + std::to_string(hierarchyDetail) + " (the model has " + std::to_string(levels) + ")";
 		Answer(hierarchyWords);
 		hierarchyAnswerUntil = GetTickCount() + 5000;
 		return true;
@@ -6009,17 +6390,20 @@ static bool HierarchyModeKey(WPARAM key)
 
 	if (distanceKey)
 	{
-		// Shift+D: this detail level starts at the distance the camera is from the model now; the levels below it can start no farther, the ones above no nearer (FUN_00479a80)
+		// Shift+D (FUN_00479a80): only with a hierarchy and a detail level above 0 (0x479a99: at level 0 nothing at all); the level's distance is the camera's distance from the WORLD'S
+		// ORIGIN (FUN_004fd830 of the camera block's place +0x10: the length of the vector) / 100, inteng's unit to mm (the hierarchy stands at the origin); the levels below it can start no
+		// farther, the ones above no nearer; the file is marked changed (DAT_00637134)
 		int const levels = HierarchyView_DetailLevels();
 		int32_t distances[10];
 		bool present = false;
-		int const distance = HierarchyView_DistanceFromModel() / 1;
 
-		if (!HierarchyView_IsShown() || !hierarchyModelOpen || distance <= 0)
+		if (!HierarchyView_IsShown() || !hierarchyModelOpen || hierarchyDetail <= 0 || !theCamera)
 		{
-			Answer("Set distance for current detail level: open a model with Select Hierarchy first, and keep it in front of the camera");
 			return true;
 		}
+
+		double const length = sqrt((double)theCamera->x * theCamera->x + (double)theCamera->y * theCamera->y + (double)theCamera->z * theCamera->z);
+		int const distance = length < 2147483647.0 ? (int)length : 2147483647;
 
 		if (host::HierarchyEdit_ReadDegradation(&hierarchyModelFile, distances, &present) != host::HierarchyEditResult::Done)
 		{
@@ -6057,7 +6441,7 @@ static bool HierarchyModeKey(WPARAM key)
 		return true;
 	}
 
-	if ((GetKeyState(VK_CONTROL) & 0x8000) != 0)
+	if (KeyHeldNow(VK_CONTROL))
 	{
 		return false;
 	}
@@ -6097,12 +6481,13 @@ static bool HierarchyModeKey(WPARAM key)
 	}
 	else if (HierarchyView_IsShown() && (key == 'P' || key == 'O'))
 	{
-		HierarchyView_Play(key == 'P', true);
+		// P (case 5, FUN_0047b8b0) / O (case 6, FUN_0047b940): the main sequence; the turret and the deltas too only with Y's "Play commands affect all sequences" on (0x47b8c3, HP-4 / HP-5)
+		HierarchyView_Play(key == 'P', true, hierarchyPlayAll);
 		HierarchyStatus();
 	}
 	else if (HierarchyView_IsShown() && (key == 'N' || key == 'M'))
 	{
-		HierarchyView_StepFrame(key == 'M' ? 1 : -1);
+		HierarchyView_StepFrame(key == 'M' ? 1 : -1, hierarchyPlayAll);
 		HierarchyStatus();
 	}
 	else if (!shift && key == 'T')
@@ -6141,9 +6526,13 @@ static bool HierarchyModeKey(WPARAM key)
 	}
 	else if (!shift && key == VK_RETURN)
 	{
-		// Return: Save changes (inteng saves on exit anyway): here every change is in the editor's bytes as it is made, and File > Save a copy writes the file
-		Answer("Return: the changes are kept in the editor's bytes as they are made; File > Save a copy writes the model");
-		hierarchyAnswerUntil = GetTickCount() + 5000;
+		// Return (key code 6 -> 0x47, FUN_004889d0 0x488a37-0x488a80; row C-47): only when the hierarchy code marked the file changed (DAT_00637134; ours: the model differs from its last
+		// save), the words "Saving" (0x5d5730) at (200, 100) (FUN_0057bd40(200, 100, 0, words)), then the save (FUN_00481b60 the sounds, FUN_004719e0 the file) and the collections' text
+		// (FUN_0048cac0). Ours saves a COPY, never his file (SaveTheCopy: the model and its ".txt", as Exit does, HP-1 / HP-29). Not changed: nothing at all.
+		if (hierarchyModelOpen && hierarchyModelFile.Generation() != hierarchyModelSavedGeneration && hierarchySaveAsked == 0)
+		{
+			hierarchySaveAsked = 2;
+		}
 	}
 	else
 	{
@@ -6155,7 +6544,8 @@ static bool HierarchyModeKey(WPARAM key)
 
 // Object Placement's keys (inteng's help, AvP-docs/engine/inteng/inteng-help-keys.md): Backspace deselects, T text on and off, S split screen, D centre the split screen on the selected object, E edit the
 // selected object, P duplicate it, V snap it to a vertex, Q set the particle generator's parent (click an object). Not on the Modern WASD layout's movement keys (S, D, F, R there move the camera).
-// NOT BUILT (named in the help-keys document): F fly the object, L collisions, R / Shift+R / C camera linked to the object, Tab to Strategy; X, B, O, < and > and P-about-the-pivot belong to Track Editing.
+// F (fly), L (collisions), X and B (while flying), R / Shift+R and C (the camera linked to the flying object) and Tab (Strategy) are below too; their rows and what still differs from inteng:
+// reassess/object-placement.md section 8a (V-1..V-22). O, < and > and P-about-the-pivot belong to Track Editing.
 static const int32_t kClickParentGenerator = 0x4e7;
 
 static bool IsAMoveKey(WPARAM key)
@@ -6182,6 +6572,12 @@ static int32_t cameraLinkDistance = 0;     // mm from the object's centre, back 
 // F: "Fly selected object" (FUN_004def60 = slot +0x48 of the current object, DAT_008f4f44): the object takes the camera's place as it moves, and the camera is let go of it when F is pressed again. The object
 // keeps the offset from the camera it had when F was pressed; its place is written when F is pressed again (the editor draws no live copy of an ordinary object: a cube marks where it is meanwhile).
 static bool flyOn = false;
+
+static bool PlacementIsFlying()
+{
+	return flyOn;
+}
+
 static bool flyIsSpecial = false;
 static uint8_t flyId[8];
 static int32_t flyWorld[3] = { 0, 0, 0 };
@@ -6234,6 +6630,532 @@ static int32_t PlacementHideDistance()
 
 static bool placementHideOn = false;   // Object Placement's view distance rule is applied (its own screen shown)
 
+// THE CURRENT PLACED HIERARCHY'S PLAYER (reassess/object-placement.md PH-1, PH-2, PH-3, PH-14, PH-15). Added 2026-11-16 by Melanikus (Vasquez).
+// inteng's select (FUN_004e9520, called by the class's select FUN_004e9b20) makes a Hierarchy player for the object when it has none. The player is at the object's place with its turn, and it shows
+// the hierarchy's model while hiding the object's own icon. Then the FIRST sequence record becomes current and the player is set to its sequence, not running and looped (FUN_00478630(.., 1)).
+// The pop-up goes to page 6. Unselect (FUN_004e94a0) stops it, destroys the player, shows the icon again and puts the pop-up back on page 0.
+// Ours: the hierarchy view shows the model the game's way (HierarchyView_ShowPlaced). inteng's three placed hierarchies are FUN_004f4db0's table at 0x5e7b20, the same three the game knows
+// (avpx projload.cpp PlacedHierarchyArray), read from avp_huds by the game's recipe; the hierarchy is found by the game's own names.
+// NOT YET (later steps): a placed hierarchy with no sequence record gets one made for its first sequence (FUN_004ea290; here the first sequence is shown and no record is made); its sounds (PH-2 / PH-14 timings).
+static int placedHierarchyShown = -1;       // the placed hierarchy whose model the view shows (its place in placementHierarchies); -1: none
+static size_t placedHierarchyRecord = 0;    // its current sequence record (inteng's +0x64): a place in its sequences
+static bool placedCommaWas = false;         // ',' / '.' were down the frame before (inteng's key slots 0xd87afc / 0xd87afe: set on the key press, cleared by the one who uses them)
+static bool placedPeriodWas = false;
+
+static const char *const kPlacedHierarchyModels[3][2] =
+{
+	{ "Dropship", "dropship" },
+	{ "pred ship fury", "pred ship fury" },
+	{ "pred ship ob", "pred ship ob" },
+};
+
+// The placed hierarchy's own model file (avp_huds\<file>.rif), read-only, for the names of its hierarchy's sequences (FUN_0047b450 lists them; FUN_0047b730 gives one)
+static OpenLevelFile placedModelFile;
+static std::string placedModelHierarchy;   // the hierarchy's name in that file
+
+static bool PlacedHierarchyWriteRecords(std::vector<host::PlacedHierarchySequence> const &records);
+
+static void PlacedHierarchyUnselect()
+{
+	if (placedHierarchyShown < 0)
+	{
+		return;
+	}
+
+	// FUN_004e94a0: Stop (FUN_004ea210), the player destroyed (FUN_00477870), the icon shown again; FUN_004e9b40 then puts the pop-up back on page 0
+	HierarchyView_Close();
+	placedHierarchyShown = -1;
+	placedHierarchyRecord = 0;
+	EditorBar_SetPopupPage(0);
+}
+
+static void PlacedHierarchySelect(int which)
+{
+	PlacedHierarchyUnselect();
+
+	if (which < 0 || (size_t)which >= placementHierarchies.size())
+	{
+		return;
+	}
+
+	host::PlacedHierarchyInfo const &one = placementHierarchies[(size_t)which];
+
+	// FUN_004e9b20 puts the pop-up on page 6 whether or not a player could be made (FUN_004f4db0 gives none outside 0..2)
+	EditorBar_SetPopupPage(6);
+	placedHierarchyShown = which;
+	placedHierarchyRecord = 0;
+
+	if (one.hierarchyIndex < 0 || one.hierarchyIndex > 2)
+	{
+		return;
+	}
+
+	double const scale = local_scale > 0.0 ? local_scale : 1.0;
+	int32_t const place[3] = { (int32_t)(one.place[0] * scale), (int32_t)(one.place[1] * scale), (int32_t)(one.place[2] * scale) };
+	int sequence = -1;
+	int sub = 0;
+
+	if (!one.sequences.empty())
+	{
+		sequence = one.sequences[0].sequence;
+		sub = one.sequences[0].sub;
+	}
+
+	std::string why;
+	char const *const model = kPlacedHierarchyModels[one.hierarchyIndex][0];
+	char const *const hierarchy = kPlacedHierarchyModels[one.hierarchyIndex][1];
+
+	// No record: the hierarchy's first sequence (FUN_004784e0(0))
+	bool const madeRecord = sequence < 0;
+
+	if (sequence < 0 && !HierarchyView_FirstSequence(model, hierarchy, &sequence, &sub, &why))
+	{
+		Answer("The placed hierarchy's model can't be shown: " + why);
+		return;
+	}
+
+	if (!HierarchyView_ShowPlaced(model, hierarchy, sequence, sub, -1, place, one.turn, &why))
+	{
+		Answer("The placed hierarchy's model can't be shown: " + why);
+		return;
+	}
+
+	HierarchyView_Play(false, true, false);
+	HierarchyView_SetPosition(0);
+
+	// its model file, read-only, for its sequences' names (PH-4 / PH-6); the hierarchy is the one with the game's name, else the file's first
+	std::vector<std::string> names;
+
+	placedModelHierarchy.clear();
+
+	if (placedModelFile.Open((std::string("avp_huds\\") + model + ".rif").c_str()) == LevelOpenResult::Opened && host::HierarchyEdit_Names(&placedModelFile, &names) == host::HierarchyEditResult::Done && !names.empty())
+	{
+		placedModelHierarchy = names[0];
+
+		for (std::string const &each : names)
+		{
+			if (_stricmp(each.c_str(), hierarchy) == 0)
+			{
+				placedModelHierarchy = each;
+			}
+		}
+	}
+
+	// FUN_004e9520 0x4e9649-0x4e96a1: with no record, one is made for that first sequence (FUN_004ea290: index 0, 1000 ms, Loop on) and it is current; the save writes it (PH-1)
+	if (madeRecord)
+	{
+		host::PlacedHierarchySequence first;
+
+		first.index = 0;
+		first.sequence = sequence;
+		first.sub = sub;
+		first.milliseconds = 1000;
+		first.flags = 1;
+		PlacedHierarchyWriteRecords({ first });
+	}
+}
+
+// The frame of Object Placement for its placed hierarchy: select / unselect follow the current object, and while one is current and STOPPED, one ',' / '.' press is one key frame back / forward
+// (FUN_004e9cb0 0x4e9f29-0x4e9f4f: FUN_00479290 / FUN_00479110, each key slot cleared once it is used). The player's own step is the hierarchy view's frame (FUN_00478920).
+static void PlacedHierarchyFrame(bool here)
+{
+	int const wanted = here ? placedHierarchyCurrent : -1;
+
+	if (wanted != placedHierarchyShown)
+	{
+		if (wanted < 0)
+		{
+			PlacedHierarchyUnselect();
+		}
+		else
+		{
+			PlacedHierarchySelect(wanted);
+		}
+	}
+
+	bool const comma = keyDown[VK_OEM_COMMA];
+	bool const period = keyDown[VK_OEM_PERIOD];
+
+	// PH-14: ',' -> FUN_00479290, '.' -> FUN_00479110 on the placed hierarchy's OWN player (+0x5c, made by FUN_00477450 at 0x4e95df). Their "all sequences" test reads that player's +0x88
+	// (FUN_00479110 0x47914a), which FUN_00477450 sets to 0 (0x477603) and nothing of the placed hierarchy writes (Y is Hierarchy mode's, on its own player): all = false, the main only.
+	if (placedHierarchyShown >= 0 && HierarchyView_IsShown() && !HierarchyView_IsPlaying() && !AMenuIsOpen() && !ADialogIsOpen() && promptFor == kPromptNone)
+	{
+		if (comma && !placedCommaWas)
+		{
+			HierarchyView_StepFrame(-1, false);
+		}
+
+		if (period && !placedPeriodWas)
+		{
+			HierarchyView_StepFrame(1, false);
+		}
+	}
+
+	placedCommaWas = comma;
+	placedPeriodWas = period;
+}
+
+// THE SEQUENCE RECORDS (PH-4..PH-7, NA-6 step 2). inteng keeps them in the object (+0x70) and its save writes them as PLHISEQU (FUN_004e96d0); ours writes them into the level's bytes at once
+// (special_objects_edit.cpp PlacedHierarchy_WriteSequences), and the copy saved holds them. Added 2026-11-16 by Melanikus (Vasquez).
+static bool PlacedHierarchyWriteRecords(std::vector<host::PlacedHierarchySequence> const &records)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	host::SpecialResult const done = open ? host::PlacedHierarchy_WriteSequences(open, (size_t)placedHierarchyShown, records) : host::SpecialResult::BadCall;
+
+	if (done != host::SpecialResult::Done)
+	{
+		Answer(std::string("The placed hierarchy's sequences were not changed: ") + host::SpecialWords(done));
+		return false;
+	}
+
+	// the list is read again from the bytes when the level's generation changes (PlacementFrame); until then it holds what was written
+	placementHierarchies[(size_t)placedHierarchyShown].sequences = records;
+	return true;
+}
+
+static bool PlacedModelSequences(std::vector<host::SequenceInfo> *sequences)
+{
+	sequences->clear();
+	return !placedModelHierarchy.empty() && host::HierarchyEdit_Sequences(&placedModelFile, placedModelHierarchy, sequences) == host::HierarchyEditResult::Done;
+}
+
+static std::string PlacedSequenceName(int32_t number, int32_t sub)
+{
+	std::vector<host::SequenceInfo> sequences;
+
+	if (PlacedModelSequences(&sequences))
+	{
+		for (host::SequenceInfo const &one : sequences)
+		{
+			if (one.number == number && one.subNumber == sub)
+			{
+				return one.name;
+			}
+		}
+	}
+
+	return std::to_string(number) + "." + std::to_string(sub);
+}
+
+// FUN_004ea3f0: Stop; the record becomes current (+0x64); FUN_00478630(its number, sub, 1): that sequence from 0, stopped, looped (a sequence the hierarchy has not: the player keeps its own)
+static void PlacedHierarchyMakeCurrent(size_t place)
+{
+	host::PlacedHierarchyInfo const &one = placementHierarchies[(size_t)placedHierarchyShown];
+
+	if (place >= one.sequences.size())
+	{
+		return;
+	}
+
+	HierarchyView_Play(false, true, false);
+	placedHierarchyRecord = place;
+	HierarchyView_SetSequence(one.sequences[place].sequence, one.sequences[place].sub);
+	HierarchyView_Play(false, true, false);
+	HierarchyView_SetPosition(0);
+}
+
+// The lowest index no record has (FUN_004ea290 0x4ea2b0-0x4ea2dd)
+static int32_t PlacedHierarchyFreeIndex(std::vector<host::PlacedHierarchySequence> const &records)
+{
+	for (int32_t index = 0;; index++)
+	{
+		bool used = false;
+
+		for (host::PlacedHierarchySequence const &one : records)
+		{
+			used = used || one.index == index;
+		}
+
+		if (!used)
+		{
+			return index;
+		}
+	}
+}
+
+// PH-4, Sequence > Edit sequence (0x7d2, FUN_004ea9a0): inteng's window FUN_004ec2b0 (600 x 400, style 0xb), run by FUN_004ec650. `draft` is the record as the window shows it: the name button
+// (control 1, FUN_004ec6e0) picks another of the hierarchy's sequences (FUN_0047b450) and the window comes back with it; ours closes the window for that list and opens it again (NAMED: inteng
+// shows the list over the open window).
+static void PlacedHierarchyEditWindow(host::PlacedHierarchySequence draft)
+{
+	host::DialogFormSpec spec;
+	host::DialogWidget name, timeLabel, timeEdit, loopLabel, loopTick, initialLabel, initialTick, playingLabel, playingTick, ok;
+
+	spec.title = "Sequence " + std::to_string(draft.index);
+	spec.width = 600;
+	spec.height = 400;
+	name.type = host::DialogWidgetType::Button;
+	name.text = PlacedSequenceName(draft.sequence, draft.sub);
+	name.box = { 0x12, 0x14, 0x172, 0x12 };
+	name.answer = 10;
+	timeLabel.type = host::DialogWidgetType::Label;
+	timeLabel.text = "Time in ms";
+	timeLabel.box = { 0x12, 0x28, 100, 0x12 };
+	timeEdit.type = host::DialogWidgetType::Edit;
+	timeEdit.text = std::to_string(draft.milliseconds);
+	timeEdit.box = { 0x76, 0x28, 100, 0x12 };
+	loopLabel.type = host::DialogWidgetType::Label;
+	loopLabel.text = "Loop";
+	loopLabel.box = { 0x12, 0x3c, 200, 0x11 };
+	loopTick.type = host::DialogWidgetType::Check;
+	loopTick.checked = (draft.flags & 1) != 0;
+	loopTick.box = { 0xda, 0x3c, 0x11, 0x11 };
+	initialLabel.type = host::DialogWidgetType::Label;
+	initialLabel.text = "Initial sequence";
+	initialLabel.box = { 0x12, 0x50, 200, 0x11 };
+	initialTick.type = host::DialogWidgetType::Check;
+	initialTick.checked = (draft.flags & 2) != 0;
+	initialTick.box = { 0xda, 0x50, 0x11, 0x11 };
+	playingLabel.type = host::DialogWidgetType::Label;
+	playingLabel.text = "Playing at start";
+	playingLabel.box = { 0x12, 100, 200, 0x11 };
+	playingTick.type = host::DialogWidgetType::Check;
+	playingTick.checked = (draft.flags & 4) != 0;
+	playingTick.box = { 0xda, 100, 0x11, 0x11 };
+	ok.type = host::DialogWidgetType::Button;
+	ok.text = "OK";
+	ok.box = { 200, 0x15e, 100, 0x12 };
+	ok.answer = host::kDialogOk;
+
+	for (host::DialogWidget const &part : { name, timeLabel, timeEdit, loopLabel, loopTick, initialLabel, initialTick, playingLabel, playingTick, ok })
+	{
+		spec.widgets.push_back(part);
+	}
+
+	// FUN_004ec6e0, control 9: ticking Playing at start ticks Initial sequence too
+	spec.onCheck = [](std::vector<host::DialogWidget> &widgets, size_t changed)
+	{
+		if (changed == 8 && widgets[8].checked)
+		{
+			widgets[6].checked = true;
+		}
+	};
+
+	host::Dialogs_Form(spec, [draft](int32_t answer, std::vector<host::DialogWidget> const &widgets)
+	{
+		host::PlacedHierarchySequence edited = draft;
+		std::string const typed = widgets[2].text;
+		bool digits = !typed.empty() && typed.size() <= 9;
+
+		for (char const c : typed)
+		{
+			digits = digits && c >= '0' && c <= '9';
+		}
+
+		// FUN_004ec650, whatever the window answered: a time over 10 ms is taken (and its 16.16 length with it), the three ticks always
+		if (digits && atoi(typed.c_str()) > 10)
+		{
+			edited.milliseconds = atoi(typed.c_str());
+		}
+
+		edited.flags = (widgets[4].checked ? 1 : 0) | (widgets[6].checked ? 2 : 0) | (widgets[8].checked ? 4 : 0);
+
+		if (answer == 10)
+		{
+			// the name button: the hierarchy's own list (FUN_0047b450, "Select Sequence"); a pick sets the record's sequence, Cancel keeps it; then the window again
+			std::vector<host::SequenceInfo> sequences;
+			std::vector<std::string> names;
+
+			PlacedModelSequences(&sequences);
+
+			for (host::SequenceInfo const &one : sequences)
+			{
+				names.push_back(one.name);
+			}
+
+			DialogList("Select Sequence", names, [edited, sequences](int32_t picked)
+			{
+				host::PlacedHierarchySequence again = edited;
+
+				if (picked >= 0 && (size_t)picked < sequences.size())
+				{
+					again.sequence = sequences[(size_t)picked].number;
+					again.sub = sequences[(size_t)picked].subNumber;
+				}
+
+				PlacedHierarchyEditWindow(again);
+			});
+			return;
+		}
+
+		if (placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size())
+		{
+			return;
+		}
+
+		std::vector<host::PlacedHierarchySequence> records = placementHierarchies[(size_t)placedHierarchyShown].sequences;
+		size_t place = records.size();
+
+		for (size_t i = 0; i < records.size(); i++)
+		{
+			if (records[i].index == edited.index)
+			{
+				place = i;
+			}
+		}
+
+		if (place == records.size())
+		{
+			return;
+		}
+
+		records[place] = edited;
+
+		// FUN_004ea9a0 0x4ea9f4-0x4eaaac: an Initial sequence is the only one: every other record loses Initial sequence and Playing at start
+		if (edited.flags & 2)
+		{
+			for (size_t i = 0; i < records.size(); i++)
+			{
+				if (i != place)
+				{
+					records[i].flags &= ~6;
+				}
+			}
+		}
+
+		if (PlacedHierarchyWriteRecords(records))
+		{
+			PlacedHierarchyMakeCurrent(place);
+		}
+	});
+}
+
+// The current placed hierarchy's pop-up items (page 6): Play (0x7d0, FUN_004e9f70), Stop (0x7d1, FUN_004ea210), and the Sequence items (0x7d2 / 0x7db / 0x7d9 / 0x7da). Sounds and Sound Timing
+// are later steps.
+static void PlacedHierarchyCommand(int32_t command)
+{
+	// FUN_004d9af0 0x4db540-0x4db75c: each needs a current object of kind 5
+	if (placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size() || placedHierarchyCurrent != placedHierarchyShown)
+	{
+		return;
+	}
+
+	host::PlacedHierarchyInfo const &one = placementHierarchies[(size_t)placedHierarchyShown];
+
+	if (command == 0x7d0)
+	{
+		// Play: only a STOPPED main player; timer 0, the record's time (16.16 seconds, [4]) and loop ([5]); the record's sounds start with their timings (later steps)
+		if (!HierarchyView_IsShown() || HierarchyView_IsPlaying())
+		{
+			return;
+		}
+
+		bool loop = true;
+
+		if (placedHierarchyRecord < one.sequences.size())
+		{
+			host::PlacedHierarchySequence const &record = one.sequences[placedHierarchyRecord];
+
+			loop = (record.flags & 1) != 0;
+			HierarchyView_SetSequenceSeconds((int32_t)(((int64_t)record.milliseconds << 16) / 1000));
+		}
+
+		HierarchyView_SetPosition(0);
+		HierarchyView_Play(true, loop, false);
+	}
+	else if (command == 0x7d1)
+	{
+		// Stop: only a running one; the pose stays where it is (and every sound of the object stops: later steps)
+		if (HierarchyView_IsShown() && HierarchyView_IsPlaying())
+		{
+			HierarchyView_Play(false, true, false);
+		}
+	}
+	else if (command == 0x7db)
+	{
+		// PH-5 Choose sequence (FUN_004ea4f0): the list "Select Sequence" of the records' indexes ("%d", in the list's order); Cancel: nothing; a pick: FUN_004ea3f0
+		std::vector<std::string> rows;
+
+		for (host::PlacedHierarchySequence const &record : one.sequences)
+		{
+			rows.push_back(std::to_string(record.index));
+		}
+
+		DialogList("Select Sequence", rows, [](int32_t picked)
+		{
+			if (picked >= 0 && placedHierarchyShown >= 0 && (size_t)placedHierarchyShown < placementHierarchies.size())
+			{
+				PlacedHierarchyMakeCurrent((size_t)picked);
+			}
+		});
+	}
+	else if (command == 0x7d9)
+	{
+		// PH-6 Add sequence (FUN_004ea490): the hierarchy's own "Select Sequence" list (FUN_0047b450: the names, 600 wide); Cancel: nothing; a pick: a new record at the END with the lowest unused
+		// index, that sequence, 1000 ms, Loop on, Initial and Playing off, no sound timings (FUN_004ea290), then it is current (FUN_004ea3f0)
+		std::vector<host::SequenceInfo> sequences;
+		std::vector<std::string> names;
+
+		if (!PlacedModelSequences(&sequences))
+		{
+			return;
+		}
+
+		for (host::SequenceInfo const &each : sequences)
+		{
+			names.push_back(each.name);
+		}
+
+		DialogList("Select Sequence", names, [sequences](int32_t picked)
+		{
+			if (picked < 0 || (size_t)picked >= sequences.size() || placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size())
+			{
+				return;
+			}
+
+			std::vector<host::PlacedHierarchySequence> records = placementHierarchies[(size_t)placedHierarchyShown].sequences;
+			host::PlacedHierarchySequence made;
+
+			made.index = PlacedHierarchyFreeIndex(records);
+			made.sequence = sequences[(size_t)picked].number;
+			made.sub = sequences[(size_t)picked].subNumber;
+			made.milliseconds = 1000;
+			made.flags = 1;
+			records.push_back(made);
+
+			if (PlacedHierarchyWriteRecords(records))
+			{
+				PlacedHierarchyMakeCurrent(records.size() - 1);
+			}
+		});
+	}
+	else if (command == 0x7da)
+	{
+		// PH-7 Delete sequence (FUN_004ea800): with ONE record inteng's message box "Must have at least one sequence"; otherwise Stop, the current record taken out, the FIRST one current
+		if (placedHierarchyRecord >= one.sequences.size())
+		{
+			return;
+		}
+
+		if (one.sequences.size() == 1)
+		{
+			DialogMessage("Must have at least one sequence");
+			return;
+		}
+
+		std::vector<host::PlacedHierarchySequence> records = one.sequences;
+
+		HierarchyView_Play(false, true, false);
+		records.erase(records.begin() + (std::ptrdiff_t)placedHierarchyRecord);
+
+		if (PlacedHierarchyWriteRecords(records))
+		{
+			PlacedHierarchyMakeCurrent(0);
+		}
+	}
+	else if (command == 0x7d2)
+	{
+		// PH-4 Edit sequence (FUN_004ea9a0): needs a current record; Stop, then the window
+		if (placedHierarchyRecord >= one.sequences.size())
+		{
+			return;
+		}
+
+		HierarchyView_Play(false, true, false);
+		PlacedHierarchyEditWindow(one.sequences[placedHierarchyRecord]);
+	}
+}
+
 // OBJECT PLACEMENT'S FRAME, called every frame (OP-80, OP-4 (5)): on its screen, H / N held change the view distance (the shared DAT_005fd678, `viewDistance`: the key flags are set on key-down and cleared
 // on key-up, FUN_0058c010 / 0x58c74b, and 0x4d9f64-0x4d9f81 does not clear them, so it changes every frame a key is held; never below 0); FUN_004dd2f0 then hides every block whose distance from the camera
 // less its radius is not below the distance, except the current object's (LevelView_HideBeyond / HideBeyondKeep; the special objects' icons by the same rule in SpecialIconTriangles). Off its screen the
@@ -6257,6 +7179,9 @@ static void PlacementFrame()
 			PlacementFlyStop();
 		}
 	}
+
+	// PH-1 / PH-14: the current placed hierarchy's player follows the current object
+	PlacedHierarchyFrame(here);
 
 	if (!here)
 	{
@@ -6283,8 +7208,46 @@ static void PlacementFrame()
 	LevelView_HideBeyond(true, PlacementHideDistance());
 	placementHideOn = true;
 
+	// one current object (FUN_004d64a0): another made current lets go of the placed hierarchy; one past the list's end (the level changed) is none
+	if (specialMode.haveCurrent || host::Selection_Get().kind == host::SelectedKind::Object || placedHierarchyCurrent >= (int)placementHierarchies.size())
+	{
+		placedHierarchyCurrent = -1;
+	}
+
+	// OP-40 (FUN_004d64a0 0x4d64f7-0x4d6507): ANOTHER object made current puts the split screen's views round its place (FUN_004d58e0, which does nothing while the split is off); none made
+	// current (Backspace) leaves them
+	{
+		static std::string currentWas;
+		std::string now;
+		host::Selected const current = host::Selection_Get();
+
+		if (current.kind == host::SelectedKind::Object)
+		{
+			now.assign((char const *)current.objectId, 8);
+			now.insert(0, "o");
+		}
+		else if (specialMode.haveCurrent)
+		{
+			now = "s" + std::to_string((int)specialMode.kind) + ":" + std::to_string(specialMode.number);
+		}
+		else if (placedHierarchyCurrent >= 0)
+		{
+			now = "h" + std::to_string(placedHierarchyCurrent);
+		}
+
+		if (now != currentWas)
+		{
+			if (!now.empty() && placementSplit)
+			{
+				SplitCentreOnCurrent();
+			}
+
+			currentWas = now;
+		}
+	}
+
 	// with no current object every placed object collides again (FUN_004dd2f0 0x4dd343-0x4dd37c clears block +0x5c bit 0x2000): the L switch of the next current object starts ON
-	if (!specialMode.haveCurrent && host::Selection_Get().kind != host::SelectedKind::Object)
+	if (!specialMode.haveCurrent && host::Selection_Get().kind != host::SelectedKind::Object && placedHierarchyCurrent < 0)
 	{
 		collisionsOn = true;
 	}
@@ -6302,6 +7265,7 @@ static void PlacementFrame()
 		}
 
 		host::SpecialObjects_Read(open, &placementSpecials);
+		host::PlacedHierarchies_Read(open, &placementHierarchies);
 		placementRowsOpen = open;
 		placementRowsFor = open->Generation();
 	}
@@ -6402,7 +7366,7 @@ static void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 
 	snprintf(line, sizeof(line), "View Distance :%d", viewDistance / 500000);   // 0x4dc746-0x4dc768: DAT_005fd678 / 500000 (the multiply by 0x431bde83, shift 49)
 	put(line);
-	snprintf(line, sizeof(line), "Num Objects :%d", (int)(placedCount + placementSpecials.size()));
+	snprintf(line, sizeof(line), "Num Objects :%d", (int)(placedCount + placementSpecials.size() + placementHierarchies.size()));
 	put(line);
 
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
@@ -6449,7 +7413,30 @@ static void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 		}
 	};
 
-	if (specialMode.haveCurrent)
+	if (placedHierarchyCurrent >= 0 && (size_t)placedHierarchyCurrent < placementHierarchies.size())
+	{
+		// FUN_004e9b60 (the class 0x5ae6c4's +0x4c): while it flies the fly lines (it cannot fly here yet: NAMED), "Colliding" when its block collides, then (PH-15) "Sequence %d" (the current
+		// record's index, 0x4e9c24) when there is a current record, and "Timer %d" (the main player's +0x10) and "Frame %d" (FUN_004790a0) when the player has a main sequence: no name line and none
+		// of FUN_004df3c0's common lines
+		if (collisionsOn)
+		{
+			put("Colliding");
+		}
+
+		host::PlacedHierarchyInfo const &current = placementHierarchies[(size_t)placedHierarchyCurrent];
+
+		if (placedHierarchyShown == placedHierarchyCurrent && placedHierarchyRecord < current.sequences.size())
+		{
+			put("Sequence " + std::to_string(current.sequences[placedHierarchyRecord].index));
+		}
+
+		if (placedHierarchyShown == placedHierarchyCurrent && HierarchyView_IsShown())
+		{
+			put("Timer " + std::to_string(HierarchyView_Position()));
+			put("Frame " + std::to_string(HierarchyView_KeyFrame()));
+		}
+	}
+	else if (specialMode.haveCurrent)
 	{
 		for (host::SpecialObject const &o : placementSpecials)
 		{
@@ -6656,7 +7643,7 @@ static bool LinkedObjectWorldInFile(int32_t out[3], int32_t *radius, bool *speci
 }
 
 // While an object flies the camera link follows IT where the keys have taken it (the file still holds where it was)
-static bool LinkedObjectWorld(int32_t out[3], int32_t *radius = nullptr, bool *special = nullptr, uint8_t *idOut = nullptr)
+static bool LinkedObjectWorld(int32_t out[3], int32_t *radius, bool *special, uint8_t *idOut)
 {
 	if (!LinkedObjectWorldInFile(out, radius, special, idOut))
 	{
@@ -6817,7 +7804,7 @@ static void PlacementFlyStop()
 
 static bool PlacementKey(WPARAM key, bool shift)
 {
-	if (barScreen >= host::kIntengScreenCount || (GetKeyState(VK_CONTROL) & 0x8000) != 0)
+	if (barScreen >= host::kIntengScreenCount || KeyHeldNow(VK_CONTROL))
 	{
 		return false;
 	}
@@ -6835,13 +7822,20 @@ static bool PlacementKey(WPARAM key, bool shift)
 	{
 		host::Selection_Clear();
 		specialMode.haveCurrent = false;
-		splitCentreOn = false;
+		placedHierarchyCurrent = -1;
+		// OP-82 (V-3): FUN_004d64a0(0) leaves the split screen's views where they are
 		Answer("Deselected");
 		return true;
 	}
 
 	if (key == 'R' && !IsAMoveKey(key))
 	{
+		// OP-114 (V-16): R and Shift+R are fly keys: FUN_004d9af0 0x4dc37f-0x4dc385 skips them unless an object flies (DAT_008f4f44); not flying, nothing
+		if (!flyOn)
+		{
+			return true;
+		}
+
 		if (cameraLinked)
 		{
 			cameraLinked = false;
@@ -6869,6 +7863,12 @@ static bool PlacementKey(WPARAM key, bool shift)
 
 	if (key == 'F' && !shift && !IsAMoveKey(key))
 	{
+		// OP-85 (V-6): F needs Gravity off (0x4dc13a); with it on, nothing
+		if (PlacementGravityOn())
+		{
+			return true;
+		}
+
 		if (flyOn)
 		{
 			PlacementFlyStop();
@@ -6927,6 +7927,12 @@ static bool PlacementKey(WPARAM key, bool shift)
 
 	if (key == 'L' && !shift && !IsAMoveKey(key))
 	{
+		// OP-86 (V-7): L needs Gravity off (0x4dc13a); with it on, nothing
+		if (PlacementGravityOn())
+		{
+			return true;
+		}
+
 		collisionsOn = !collisionsOn;
 		Answer(collisionsOn ? "Collisions: on (the switch is kept: the flying object does not yet bump into the level)" : "Collisions: off");
 		return true;
@@ -6962,32 +7968,18 @@ static bool PlacementKey(WPARAM key, bool shift)
 		return true;
 
 	case 'D':
-	{
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-		uint8_t id[8];
-		int32_t place[3];
-
+		// OP-46 (FUN_004d9af0 0x4da131-0x4da17e): FUN_004d58e0 with the current object's place, else the VIEW's; it does nothing while the split screen is off (DAT_008f4f60 == 0)
 		if (!placementSplit)
 		{
 			Answer("Centre view on object: only in the split screen mode (S)");
 		}
-		else if (open && open->Level() && host::Selection_Get().kind == host::SelectedKind::Object && SelectedObjectId(id) && host::ObjectPlace_Get(open, open->Level(), id, place) == host::MoveRelPolyEditResult::Done)
-		{
-			double const scale = local_scale > 0.0 ? local_scale : 1.0;
-
-			splitCentre[0] = (int32_t)(place[0] * scale);
-			splitCentre[1] = (int32_t)(place[1] * scale);
-			splitCentre[2] = (int32_t)(place[2] * scale);
-			splitCentreOn = true;
-			Answer("The split screen is centred on the selected object");
-		}
 		else
 		{
-			Answer("Centre view on object: select an object first");
+			SplitCentreOnCurrent();
+			Answer("The split screen is centred on the current object (on the view when there is none)");
 		}
 
 		return true;
-	}
 
 	case 'E':
 		SpecialRunCommand(0x18, sounds);
@@ -7007,10 +7999,18 @@ static bool PlacementKey(WPARAM key, bool shift)
 		return true;
 
 	case 'Q':
+		// OP-90 (V-11): Q is read inside the current object's per-frame +0x30, which runs only with Gravity off (0x4dc13a); with it on, nothing
+		if (PlacementGravityOn())
+		{
+			return true;
+		}
+
 		if (specialMode.haveCurrent && specialMode.kind == host::SpecialKind::ParticleGenerator)
 		{
-			bool const waiting = host::ClickMode_Start(kClickParentGenerator, host::ClickWants::Object, "Click on parent for generator");
+			// OP-90 (V-11): FUN_004e7100 waits for a press on ANY block (FUN_00559720), a module too; a press on nothing keeps it waiting, a right press ends it with nothing changed
+			bool const waiting = host::ClickMode_Start(kClickParentGenerator, host::ClickWants::Polygon, "Click on parent for generator");
 
+			parentWaiting = waiting;   // the right button ends it (WM_RBUTTONUP, FUN_004e7100 0x4e7184)
 			Answer(waiting ? "Click on parent for generator (right button: cancel)" : "That command can't wait for a click");
 		}
 		else
@@ -7028,22 +8028,28 @@ static bool PlacementKey(WPARAM key, bool shift)
 static void ParentClicked(host::PickReport const &report)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	uint8_t target[8];
+	uint8_t target[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };   // the null ID (DAT_00914930/34): "None"
 
-	if (!open || !open->Level() || !report.hasHit)
+	parentWaiting = false;
+
+	if (!open || !open->Level())
 	{
-		Answer("Click on parent for generator: nothing under the click");
+		Answer("Click on parent for generator: no level");
 		return;
 	}
 
+	// OP-90 (V-11), FUN_004e7100 0x4e7184-0x4e71d7: a block whose rif object (+0x154) is a PLACED object (its definition's 0x400, FUN_004d0fc0; poly_counts' `placed`) becomes the parent
+	// (+0x60/+0x64 = its ID +0x9c/+0xa0); the generator's own block, a module, or any other block makes the parent the null ID
 	if (report.found == host::PickFound::Object)
 	{
-		memcpy(target, report.objectId, 8);
-	}
-	else if (!ModuleObject(open, report.moduleIndex, target))
-	{
-		Answer("Click on parent for generator: the level file has no single object for that module");
-		return;
+		for (host::PolyCountRow const &one : placementRows)
+		{
+			if (one.placed && memcmp(one.id, report.objectId, 8) == 0)
+			{
+				memcpy(target, report.objectId, 8);
+				break;
+			}
+		}
 	}
 
 	Answer(host::SpecialMode_SetParent(open, &specialMode, target).answer);
@@ -7066,14 +8072,15 @@ static bool HierarchyKey(WPARAM key)
 	bool const inMode = onHierarchy && hierarchyModelOpen;
 	DWORD const answerWas = hierarchyAnswerUntil;   // a key whose command gave an answer (the time keys, the sound keys) keeps those words; the position words are for the other keys
 
-	// (Space was ours: inteng's keys are P to start and O to stop)
+	// (Space was ours: inteng's keys are P to start and O to stop; Shift+P / Shift+O, the delta's, are HierarchyModeKey's)
 	if (key == 'P' || key == 'O')
 	{
-		HierarchyView_Play(key == 'P', true);
+		HierarchyView_Play(key == 'P', true, hierarchyPlayAll);   // the main only unless Y's switch is on (FUN_0047b8b0 0x47b8c3)
 	}
 	else if (key == 'N' || key == 'M')
 	{
-		HierarchyView_StepFrame(key == 'M' ? 1 : -1);
+		// N (0x3b, FUN_00479290) / M (0x3a, FUN_00479110): the main to its previous / next key frame; with Y on the turret and the deltas by the same time (HP-78)
+		HierarchyView_StepFrame(key == 'M' ? 1 : -1, hierarchyPlayAll);
 	}
 	else if ((key == VK_OEM_PLUS || key == VK_OEM_MINUS) && shift)
 	{
@@ -7100,20 +8107,13 @@ static bool HierarchyKey(WPARAM key)
 	}
 	else if (key == VK_OEM_COMMA || key == VK_OEM_PERIOD)
 	{
-		// < and > are the shifted keys; the plain ones step a key frame
-		if (shift)
-		{
-			HierarchyView_SetBackwards(key == VK_OEM_COMMA);
-		}
-		else
-		{
-			HierarchyView_StepFrame(key == VK_OEM_PERIOD ? 1 : -1);
-		}
+		// , and . are HELD keys in inteng (key slots 0xd87afc / 0xd87afe read each frame, FUN_004889d0 0x489f9d-0x48a030): the frame loop scrubs (HierarchyScrubEveryFrame); a press does nothing more
 	}
 	else if (key == 'K' || key == 'L')
 	{
-		// inteng's K / L rotate the turret left / right, 10 degrees (commands 0x65 / 0x64)
-		HierarchyView_TurnTurret(key == 'L' ? 10 : -10);
+		// inteng's K / L: the key translator FUN_0048cde0 gives K 0x64 and L 0x65 (the exe's key table 0x48d16c -> 0x48d0e4, Drake); 0x64 is FUN_0047b800, the player's +0x80 += 10 kept to
+		// 0..359, and 0x65 FUN_0047b820, += 350 (10 the other way). So K adds 10 and L takes 10 away (reassess/hierarchy-deltas-vasquez.md; it was the other way round here)
+		HierarchyView_TurnTurret(key == 'K' ? 10 : -10);
 		hierarchyWords = "Hierarchy: turret elevation " + std::to_string(HierarchyView_Elevation()) + " degrees" + (HierarchyView_HasTurret() ? "" : " (this hierarchy has no turret section: nothing turns)");
 		statusWords = hierarchyWords.c_str();
 		return true;
@@ -7124,22 +8124,31 @@ static bool HierarchyKey(WPARAM key)
 	}
 	else if (key == 'Y')
 	{
-		hierarchyWords = HierarchyView_ToggleTurretFollows() ? "Hierarchy: play / stop also act on the turret sequence" : "Hierarchy: play / stop act on the main sequence only";
-		statusWords = hierarchyWords.c_str();
+		// Y (FUN_0048cde0 -> 0x67, case 0x67 0x489d30): the player's +0x88 flips, "Play commands affect all sequences": P / O (FUN_0047b8b0 0x47b8c3) and , / . (FUN_0047b9c0) then act on the turret
+		// and the deltas as well; the text row says so at x 200 (0x48a088), no other words (hierarchy-play-frost.md HP-4)
+		hierarchyPlayAll = !hierarchyPlayAll;
+
+		if (HierarchyView_ToggleTurretFollows() != hierarchyPlayAll)
+		{
+			HierarchyView_ToggleTurretFollows();
+		}
+
 		return true;
 	}
 	else if (key == 'T' && shift)
 	{
-		// Add 'turret delta' (0x7, Shift+T): the hierarchy has to have a turret section ("dum turret"); inteng then asks "Select Turret Sequence" and the chosen sequence plays on the sections under it
-		if (!HierarchyView_HasTurret())
+		// Add 'turret delta' (0x7, Shift+T: the key translator FUN_0048cde0 0x48ce58; AvP's menus do not carry it): FUN_0048c070, in its order, with inteng's MESSAGE BOXES (FUN_00474030 +
+		// FUN_0057c800(100, 100)): no hierarchy: "Please select hierarchy first"; no turret section (player +0x21, "dum turret"): "This hierarchy hasn't got a turret section"; then the main sequence
+		// and the sequences (case 0x07 of hierarchy_mode); then "Select Turret Sequence" and the chosen sequence plays on the sections under the turret (reassess/hierarchy-deltas-vasquez.md HD-18)
+		if (!inMode || hierarchyMode.hierarchy.empty())
 		{
-			Answer("This hierarchy hasn't got a turret section");
+			DialogMessage("Please select hierarchy first");
 			return true;
 		}
 
-		if (!inMode)
+		if (!HierarchyView_HasTurret())
 		{
-			Answer("Hierarchy: open a model with Select Hierarchy first");
+			DialogMessage("This hierarchy hasn't got a turret section");
 			return true;
 		}
 
@@ -7156,6 +8165,11 @@ static bool HierarchyKey(WPARAM key)
 	{
 		hierarchyMode.position = HierarchyView_Position();
 		HierarchyRunCommand(key == 'Q' ? (shift ? 0x51 : 0x50) : (shift ? 0x26 : 0x15) + (int32_t)(key - '0'));
+	}
+	else if (!shift && (key == 'D' || key == 'F'))
+	{
+		// D / F: the previous / next sequence (FUN_0048cde0: D -> 0x40, F -> 0x3f; reassess/hierarchy-play-frost.md HP-11 / HP-12)
+		HierarchyStepSequence(key == 'F' ? 1 : -1);
 	}
 	else if (key == VK_HOME || key == VK_END)
 	{
@@ -7719,6 +8733,20 @@ static bool textureSelectOnGoto = false;   // 0xd4 Select on GotoPoly (DAT_00914
 static void TextureGoto(int direction);
 static bool textureCopyPending = false;   // 0x31 Copy Texturing > Polygon (key U): the next click names the polygon whose coordinates and picture the selected polygons take ("Get UV coords from which polygon")
 static bool textureInvertPending = false;   // 0x101 was chosen: the next click names the object to invert (A: all shapes, right click or Esc: cancel)
+
+// TEXTURE MAP's held states, cleared on entry and when it is left (reassess/mode-entry-exit-frost.md): FUN_00544510 0x544551 sets the selection mode DAT_00914d9c = 0 on every entry
+// (TM-E1); FUN_0054bfd0 frees everything of the mode on its Exit (TM-X2): no corners held, no plane or rectangle or invert waiting, no multiple copy half done
+static void TextureModeStateReset()
+{
+	textureSelectMode = 0;
+	host::PolyEdit_VertexClear(&polyVertices);
+	texturePlaneMode = 0;
+	textureRectActive = false;
+	textureRectAsked = false;
+	textureRectShift = false;
+	textureMultiMode = 0;
+	textureInvertPending = false;
+}
 static int textureAsk = 0;                  // the question kPromptTextureMap holds: 1 = the angle, 2 = the arrow step sizes
 
 static const char *TextureModeWords(int mode)
@@ -14053,7 +15081,7 @@ static void TexturePolygonClicked(OpenLevelFile *open, uint8_t const *target, bo
 
 	// inteng's selection mode (see TextureMapCommand): by Object, or with Ctrl or Alt, takes the whole object; by Element takes the polygons joined to the one clicked
 	{
-		bool const whole = textureSelectMode == 1 || (GetKeyState(VK_CONTROL) & 0x8000) || (GetKeyState(VK_MENU) & 0x8000);
+		bool const whole = textureSelectMode == 1 || KeyHeldNow(VK_CONTROL) || KeyHeldNow(VK_MENU);
 
 		if (whole || textureSelectMode == 5)
 		{
@@ -15004,7 +16032,8 @@ static void RunAction(int32_t id)
 		host.screen = barScreen;   // Stop Track Edit may have shown another screen already
 	}
 
-	if (host.altLocation != 0)
+	// OP-47 (V-21): the alternate-location commands 0x64, 0x65, 0x66, 0x67, 0x68 (0x4dc235-0x4dc28d), Move relative 0x1c and Replace 0x1d need Gravity off (FUN_004d9af0 0x4dc1fe); with it on, nothing
+	if (host.altLocation != 0 && !PlacementGravityOn())
 	{
 		AltLocationCommand(host.altLocation);
 	}
@@ -15051,7 +16080,8 @@ static void RunAction(int32_t id)
 		ShowTheLevelSettings();
 	}
 
-	if (host.prompt != kPromptNone)
+	// (Assign Group Number 0x66 is in the Gravity block, 0x4dc27d; Change shown location 0x69 is read before it, 0x4dc0a3, so Gravity doesn't stop that one)
+	if (host.prompt != kPromptNone && !(host.prompt == kPromptAltGroup && PlacementGravityOn()))
 	{
 		OpenAPrompt(host.prompt);
 	}
@@ -15096,7 +16126,7 @@ static void RunAction(int32_t id)
 		}
 	}
 
-	if (host.chooserOp != kChooserNone)
+	if (host.chooserOp != kChooserNone && !(host.chooserOp == kChooserStart && PlacementGravityOn()))
 	{
 		ShapeChooserCommand(host.chooserOp, &host.screen);
 	}
@@ -15104,6 +16134,11 @@ static void RunAction(int32_t id)
 	if (host.hierarchyCommand != 0)
 	{
 		HierarchyRunCommand(host.hierarchyCommand);
+	}
+
+	if (host.placedHierarchyCommand != 0)
+	{
+		PlacedHierarchyCommand(host.placedHierarchyCommand);
 	}
 
 	if (host.fixTears != 0)
@@ -15116,7 +16151,7 @@ static void RunAction(int32_t id)
 		RecentrePolygonStart();
 	}
 
-	if (host.moveRelativeModule)
+	if (host.moveRelativeModule && !PlacementGravityOn())
 	{
 		MoveRelativeModuleStart();
 	}
@@ -15196,6 +16231,12 @@ static void RunAction(int32_t id)
 	if (host.adjacentOp != kAdjNone)
 	{
 		AdjacentEdit(host.adjacentOp);
+	}
+
+	// While Show All holds the screen, inteng's frame ends before it reads the command (0x4c1b74): the item chosen does nothing (row ML-M-3)
+	if (showAllHeld && OnModuleLinkingScreen())
+	{
+		host.linkOp = kLinkNone;
 	}
 
 	// A link made (any Module Linking action but the view ones) lets go of Show All's paint
@@ -15365,6 +16406,11 @@ static void RunAction(int32_t id)
 		}
 
 		barScreen = host.screen;
+
+		if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0)
+		{
+			StrategyCleanNow();   // FUN_00524cc0 -> FUN_00522ab0 0x522ae2: DAT_00914950 = 0 on entry from the hub (W-3)
+		}
 
 		// a screen starts on its first page (Track Editing on page 2: a track is loaded when it is entered, host::kTrackPageEntry); Waypoint mode starts in its first mode
 		EditorBar_SetPage(IsTheTrackScreen(barScreen) ? host::kTrackPageEntry : 0);
@@ -15611,6 +16657,33 @@ static void AfterMenu(ui::MenuAnswer answer, ui::MenuBar &bar)
 	if (answer == ui::MenuAnswer::Opened)
 	{
 		memset(keyDown, 0, sizeof(keyDown));
+
+		// A BARE TITLE runs at once: inteng's bar (FUN_004b7dd0 0x4b7fe1-0x4b7ff8) returns a title's own command on the press when the title has no items (+4 == 0) and its +0xc is 0, and
+		// opens no drop-down (Hierarchy's Help, command 0x38, row M-HELP). A code-built screen's bare title (a kind-0 record with a command and nothing under it) is made by
+		// tools/make-inteng-menus.js as a menu of ONE item with the title's own words: that menu runs its item on the press that opens it. Only the code-built screens' tables are made
+		// that way (a data table's one-item menu is a real drop-down).
+		size_t row = 0;
+
+		while (row < barRowCount && &BarRow(row) != &bar)
+		{
+			row++;
+		}
+
+		int const open = bar.OpenMenu();
+
+		if (row < barRowCount && open >= 0 && (size_t)open < barRows.menuCount[row] && barScreen < host::kIntengScreenCount && host::kIntengScreens[barScreen].pages)
+		{
+			ui::Menu const &menu = barRows.menus[row][open];
+
+			if (menu.count == 1 && menu.title && menu.items[0].name && strcmp(menu.title, menu.items[0].name) == 0)
+			{
+				int32_t const action = menu.items[0].action;
+
+				bar.Handle(ui::KeyEvent(ui::Key::Escape));
+				RunAction(action);
+				return;
+			}
+		}
 	}
 
 	if (answer == ui::MenuAnswer::Picked)
@@ -15963,6 +17036,57 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		barPointerY = InThePanels(window, lParam).y;
 	}
 
+	// an open menu's row under the pointer is the pointed one, orange (FUN_004b7dd0 -> FUN_004b7590, view-state-table.md H-5d)
+	if (message == WM_MOUSEMOVE)
+	{
+		POINT const pointed = InThePanels(window, lParam);
+
+		menuBar.PointAt(pointed.x, pointed.y);
+		popupBar.PointAt(pointed.x, pointed.y);
+
+		for (ui::MenuBar &lower : lowerBar)
+		{
+			lower.PointAt(pointed.x, pointed.y);
+		}
+
+		// BAR-5 across our rows (inteng's bar is one row; ours wraps its titles into rows, each its own MenuBar): with a menu open in one row, the pointer on a title of ANOTHER row opens
+		// that title's menu and closes the other, with no press (FUN_004b7dd0 0x4b81de-0x4b82da), as MenuBar::PointAt does inside one row
+		for (size_t row = 0; row < barRowCount; row++)
+		{
+			ui::MenuBar &here = BarRow(row);
+			bool otherOpen = false;
+
+			for (size_t other = 0; other < barRowCount; other++)
+			{
+				otherOpen = otherOpen || (other != row && BarRow(other).IsOpen());
+			}
+
+			if (!otherOpen || here.IsOpen())
+			{
+				continue;
+			}
+
+			for (size_t m = 0; m < barRows.menuCount[row]; m++)
+			{
+				ui::Box const title = here.TitleBox(m);
+
+				if (pointed.x >= title.x && pointed.x < title.x + title.width && pointed.y >= title.y && pointed.y < title.y + title.height)
+				{
+					for (size_t other = 0; other < barRowCount; other++)
+					{
+						if (other != row && BarRow(other).IsOpen())
+						{
+							BarRow(other).Handle(ui::KeyEvent(ui::Key::Escape));
+						}
+					}
+
+					here.Press(pointed.x, pointed.y);
+					break;
+				}
+			}
+		}
+	}
+
 	// No Alt tap and no F10 for the menu bar: inteng shows its bar with a press at the top of the window or with Control held (FUN_004b7c50, DAT_00d87a5f = Control, FUN_0058c010 case 0x11; Vasquez), and F10 is camera slot 9
 
 	// Show Poly Counts' screen takes every press and the page keys (FUN_004c0950: it waits for a mouse button, Page Down or Page Up)
@@ -16001,6 +17125,13 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		case WM_SYSKEYDOWN:
 		case WM_CHAR:
 		{
+			// Module Linking's Show All is let go by Escape (slot 0x45, FUN_004c1a90 0x4c1aff), which does nothing else (row ML-M-3)
+			if (showAllHeld && OnModuleLinkingScreen() && message == WM_KEYDOWN && wParam == VK_ESCAPE)
+			{
+				ShowAllRelease();
+				return 0;
+			}
+
 			// the volume editor (FUN_005277c0): S, X, Return and the keys of the screen it shadows
 			if (volume.on && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN) && VolumeKey(wParam))
 			{
@@ -16042,14 +17173,47 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				return 0;
 			}
 
-			// the Fan's edit view ends with Escape (slot 0xd87a45, FUN_0058c010 case 0x1b)
-			if (strategyEditFan && wParam == VK_ESCAPE && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN))
+			// the object pick of a view (S-KC-5) and the Lift's positions collector (FUN_00526bf0): Return (slot 0xd87a46) ends the pick; neither reads Escape: its slot is only HELD (kept in keyDown), and the view
+			// ends after them when it is still down
+			if (strategyEditFan && (!strategyPickField.empty() || copyCollecting) && !ADialogIsOpen() && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN) && (wParam == VK_RETURN || wParam == VK_ESCAPE))
 			{
-				strategyEditFan = false;
-				strategyEditKind = 0;
-				strategyPickField.clear();
-				strategyViewPickWords.clear();
-				statusWords = "Strategy Data";
+				if (wParam == VK_ESCAPE)
+				{
+					keyDown[VK_ESCAPE] = true;
+				}
+				else if (!strategyPickField.empty())
+				{
+					StrategyPickEnd();
+				}
+
+				return 0;
+			}
+
+			// the Mission Objective's P / V (S-K70-8, 0x532dc3: slots 0xd87a90 / 0xd87a96): the alteration row under the POINTER's y has its word bit 2 / bit 1 flipped
+			// a Track Object's main page: P (slot 0xd87a90) acts as a click at y 32 (S-K72-2)
+			if (strategyEditFan && (strategyEditKind == 72 || strategyEditKind == 80) && trackPage < 0 && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && wParam == 'P')
+			{
+				StrategyViewClickAt(0, 32);
+				return 0;
+			}
+
+			// a Binary Switch's T (slot 0xd87a94, FUN_0052d700 0x52d9ee): the target pick, as a press on its line (S-K52-4)
+			if (strategyEditFan && strategyEditKind == 52 && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && wParam == 'T')
+			{
+				StrategyViewClickAt(0, 0x50);
+				return 0;
+			}
+
+			if (strategyEditFan && strategyEditKind == 70 && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && (wParam == 'P' || wParam == 'V'))
+			{
+				MissionToggleUnderPointer(wParam == 'P' ? 2 : 1);
+				return 0;
+			}
+
+			// an Edit view ends with Escape (slot 0xd87a45, FUN_0058c010 case 0x1b; S-KC-3). A dialog open over the view takes the Escape itself (FUN_0057c800 0x57cc91: it answers 1 and clears the slot), so the view goes on
+			if (strategyEditFan && !ADialogIsOpen() && wParam == VK_ESCAPE && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN))
+			{
+				StrategyViewEnd();
 				return 0;
 			}
 
@@ -16116,8 +17280,8 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			bool const menuWasOpen = AMenuIsOpen();
 			bool const typingHere = fieldsHaveKeys && fieldHost.Showing();   // the keyboard is in the field panel (S3d)
 			bool const shiftHeld = ShiftDown();
-			bool const ctrlHeld = GetKeyState(VK_CONTROL) < 0;
-			bool const altHeld = GetKeyState(VK_MENU) < 0;
+			bool const ctrlHeld = KeyHeldNow(VK_CONTROL);
+			bool const altHeld = KeyHeldNow(VK_MENU);
 
 			if (WindowEvents_FromMessage(message, wParam, shiftHeld, ctrlHeld, altHeld, &event))
 			{
@@ -16256,11 +17420,11 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					{
 						// Object Placement's keys (inteng's help)
 					}
-					else if (wParam == VK_INSERT && !onTextureMap)
+					else if (wParam == VK_INSERT && !onTextureMap && (!OnStrategyScreen() || StrategyInASubLoop()))
 					{
 						ZoomStart();   // the Movement help's Insert
 					}
-					else if (wParam == VK_HOME && !onTextureMap)
+					else if (wParam == VK_HOME && !onTextureMap && (!OnStrategyScreen() || StrategyInASubLoop()))
 					{
 						ZoomReset();   // the Movement help's Home: back to the default zoom level
 						statusWords = "The zoom is back to the default level";
@@ -16368,6 +17532,10 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					else if (wParam >= VK_F1 && wParam <= VK_F12)
 					{
 						CameraKey((int)(wParam - VK_F1) + 1, shiftHeld);
+					}
+					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && wParam == 'M' && !shiftHeld && !strategyFlagPage)
+					{
+						// page 0 (FUN_00522980 / FUN_00524e90) reads no M (strategy-data.md S-58): nothing
 					}
 					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && wParam == 'M' && !shiftHeld)
 					{
@@ -16477,6 +17645,10 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 						// with a flag in view, F does the flag's Add on the picked modules, Shift+F its Remove (FUN_00525700 0x525779: the slot 0xd87a86 is F, 0xd87a5e the Shift-like slot)
 						StrategyModeCommand(shiftHeld ? strategyViewAdd + 1 : strategyViewAdd);
 					}
+					else if (wParam == 'L' && !shiftHeld && OnStrategyScreen() && !strategyFlagPage)
+					{
+						// Strategy Data's page 0 (and a kind's view) reads no L (strategy-data.md S-58): nothing
+					}
 					else if (wParam == 'L' && !shiftHeld)
 					{
 						// inteng's "L: Deselect all objects"
@@ -16502,6 +17674,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		}
 		case WM_LBUTTONDOWN:
 		{
+			// Module Linking's Show All is let go by a mouse button (_DAT_00d8806a, 0x4c1aff); the press then goes on as a click (0x4c36a8) (row ML-M-3)
+			if (showAllHeld && OnModuleLinkingScreen())
+			{
+				ShowAllRelease();
+			}
+
 			// the texture chooser takes a press: the cell under it is the texture
 			if (onTextureMap && textureChooserOn)
 			{
@@ -16726,7 +17904,8 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				{
 					pickAsked = true;
 					pickShift = ShiftDown() || (wParam & MK_SHIFT) != 0;
-					pickWithS = keyLayout == KeyLayout::Classic && keyDown['S'] && barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0;
+					pickDelete = KeyHeldNow(VK_DELETE);   // Module Linking: Delete + click takes a module off the picks (slot 0x55 = VK 0x2e, FUN_004c3880)
+					pickWithS = keyLayout == KeyLayout::Classic && keyDown['S'] && barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && strategyFlagPage;   // S + click is the flag page's (FUN_00525700 0x525dbf); page 0 takes it as a plain click (S-58)
 					pickX = GET_X_LPARAM(lParam);
 					pickY = GET_Y_LPARAM(lParam);
 					pickInBox = threeMainBox.width > 0 && ui::BoxHolds(threeMainBox, at.x, at.y);
@@ -16812,9 +17991,47 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			rightButtonDown = false;
 			return 0;
 		case WM_RBUTTONDOWN:
+			// Module Linking's Show All is let go by a mouse button, the right one too (row ML-M-3)
+			if (showAllHeld && OnModuleLinkingScreen())
+			{
+				ShowAllRelease();
+			}
+
+			// an open dialog takes the right press too: a list's right-click handler (the sound chooser's listen), else nothing
+			if (ADialogIsOpen())
+			{
+				POINT const press = InThePanels(window, lParam);
+
+				host::Dialogs_RightPress(press.x, press.y);
+				return 0;
+			}
+
 			if (volume.on)
 			{
 				VolumeEnd();   // the right button ends the volume editor (_DAT_00d8806a & 2)
+				return 0;
+			}
+
+			// an Edit view ends with the RIGHT button too (_DAT_00d8806a & 2, e.g. FUN_0052cbb0 0x52ce16; S-KC-3): it opens no pop-up
+			if (strategyEditFan && OnStrategyScreen() && !ADialogIsOpen())
+			{
+				if (copyCollecting)
+				{
+					CopyCollectEnd();   // the Lift's positions collector (FUN_00526bf0): the right button ends it, the view goes on
+				}
+				else if (!strategyPickField.empty())
+				{
+					StrategyPickEnd();   // the pick ends on the right button (FUN_00527540 0x52764e), the view goes on
+				}
+				else if ((strategyEditKind == 72 || strategyEditKind == 80) && trackPage >= 0)
+				{
+					TrackPageBack();   // a point page: back to the main page (0x534d29), the view goes on
+				}
+				else
+				{
+					StrategyViewEnd();
+				}
+
 				return 0;
 			}
 
@@ -16867,6 +18084,16 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				host::ClickMode_Cancel();
 				moveRelWaiting = false;
 				statusWords = "Move rel. to poly: given up";
+				rightButtonDown = false;
+				return 0;
+			}
+
+			// Q waiting for the generator's parent: a RIGHT press ends it with the parent as it was (OP-90, FUN_004e7100 0x4e7177 / 0x4e7184)
+			if (rightButtonDown && !rightDragged && parentWaiting && host::ClickMode_Waiting())
+			{
+				host::ClickMode_Cancel();
+				parentWaiting = false;
+				statusWords = "Click on parent for generator: given up, the parent is as it was";
 				rightButtonDown = false;
 				return 0;
 			}
@@ -17154,6 +18381,67 @@ static bool Held(EditorMove move)
 
 // One frame's move of the camera, from the layout's keys held down and the mouse. The game's angles are 4096ths of a full turn, and its
 // distances are millimetres: 4096 is a whole turn, and 100 a step of 10 centimetres.
+// ADAPTIVE DEGRADATION (row C-45): each frame while it is on and a sequence is open (FUN_004889d0 0x48a03a -> FUN_00479b80), the distance table (the model's HIDEGDIS; with none, the one
+// FUN_00484380 makes: level x 10000) is read from level 9 down, and the first level whose distance is no more than the camera's distance from the world's origin (FUN_004fd830 of the camera's
+// place, / 100: mm) becomes the level (FUN_00477fb0); none: no change. The table is read again only when the model's bytes changed (Shift+D writes it).
+static void HierarchyAdaptivePick()
+{
+	static unsigned readGeneration = ~0u;
+	static std::string readModel;
+	static int32_t distances[10] = { 0, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000 };
+
+	if (!onHierarchy || !hierarchyMode.adaptiveDegradation || !hierarchyMode.sequenceSelected || !hierarchyModelOpen || !theCamera)
+	{
+		return;
+	}
+
+	if (hierarchyModelFile.Generation() != readGeneration || hierarchyMode.modelName != readModel)
+	{
+		bool present = false;
+
+		if (host::HierarchyEdit_ReadDegradation(&hierarchyModelFile, distances, &present) != host::HierarchyEditResult::Done)
+		{
+			return;
+		}
+
+		readGeneration = hierarchyModelFile.Generation();
+		readModel = hierarchyMode.modelName;
+	}
+
+	double const length = sqrt((double)theCamera->x * theCamera->x + (double)theCamera->y * theCamera->y + (double)theCamera->z * theCamera->z);
+	int32_t const distance = length < 2147483647.0 ? (int32_t)length : 2147483647;
+
+	for (int level = 9; level >= 0; level--)
+	{
+		if (distances[level] <= distance)
+		{
+			hierarchyDetail = level;
+			return;
+		}
+	}
+}
+
+// Hierarchy's Return (C-47): once the frame with "Saving" has been drawn, the changed model is saved as a copy with its collections' text (SaveTheCopy, as Exit's HP-1), and the saved
+// words are the state line's; nothing is said otherwise (the Hierarchy screen has no status line)
+static void HierarchySaveIfAsked()
+{
+	if (hierarchySaveAsked != 1)
+	{
+		return;
+	}
+
+	hierarchySaveAsked = 0;
+
+	if (!onHierarchy || !hierarchyModelOpen)
+	{
+		return;
+	}
+
+	SaveTheCopy();
+	Answer(savedWords.c_str());
+	hierarchyAnswerUntil = GetTickCount() + 5000;
+}
+
 // USE CAMERA ROOT (C, command 0x37), traced from inteng.exe. The hierarchy player's section update FUN_0047ef70 (0x47f29a-0x47f2dd) puts the object tied to a section ([section + 4]) at the section's place and matrix every
 // frame. FUN_0047e320 (0x47e582-0x47e5ae) ties NO object to the section named "Camera Root" (DAT_006370ec) unless the C flag DAT_006370f0 is on, and then ties the CAMERA object (DAT_00962308): command 0x37 (0x488da5) flips
 // the flag and sets or clears [DAT_006370ec + 4] the same way. So with C on the camera is moved to the Camera Root section's place each frame (the gun then shows as the game's HUD camera sees it), and the frame code of
@@ -17189,10 +18477,17 @@ static void HierarchyCameraRootFrame(FlyCamera *camera)
 
 static void MoveTheCamera(FlyCamera *camera, bool moves = true)
 {
-	// The speed's step (see THE CAMERA'S SPEED). With moves false the keys only TURN the camera (a flying object is moved by them: MoveTheFlyingObject)
-	// NAMED ADDITION (the owner's request, 11-16: "SHIFT to move fast we can still use?"): Shift held makes the step four times longer on the move keys (A, Z and the strafe keys). inteng's movement code (FUN_0053d7f0, FUN_00471cb0) never reads Shift;
-	// the turn keys are left as they are.
-	int const step = moves ? StepAtTheSpeed() * (ShiftDown() ? kSpeedShiftFactor : 1) : 0;
+	// inteng's live mover, FUN_0053db40 (THE CAMERA'S MOVER above). With moves false the keys only TURN the camera (a flying object is moved by them: MoveTheFlyingObject), and the
+	// camera does not glide (inteng gives the flown object the mover, slot 2, and the camera slot 0: 0x4ad474 / 0x4df0b7)
+
+	// C held: nothing moves this frame, the glide neither (0x53dc0e: JNZ 0x53e58b, past the glide)
+	if (keyDown['C'])
+	{
+		mouseTurn = 0;
+		mouseLook = 0;
+		return;
+	}
+
 	int const turnStep = 24;
 
 	// The game's angles turn the other way from the usual editor's, so each is taken away rather than added: the right arrow, or the
@@ -17206,23 +18501,77 @@ static void MoveTheCamera(FlyCamera *camera, bool moves = true)
 	// Keypad 7 and 9: roll left and right (the Movement help's "7/9 Roll left/right")
 	camera->roll -= (Held(EditorMove::RollRight) ? turnStep : 0) - (Held(EditorMove::RollLeft) ? turnStep : 0);
 
-	// W, S, A and D move along the way the camera faces, as the game drew it last (level_view.h: forward and right, the look up or down
-	// included), not along the level's own axes. R and F move straight up and down in the level, as in most editors. The game's y points
-	// down, so up is less y.
-	int const forward = (Held(EditorMove::Forward) ? step : 0) - (Held(EditorMove::Back) ? step : 0);
-	int const sideways = (Held(EditorMove::Right) ? step : 0) - (Held(EditorMove::Left) ? step : 0);
+	// The camera's own axes, as the game drew it last (level_view.h): the way it faces, its right and its down (the look up or down included)
 	int facing[3];
 	int toTheRight[3];
-	if (LevelView_CameraAxes(facing, toTheRight))
-	{
-		camera->x += MUL_FIXED(forward, facing[0]) + MUL_FIXED(sideways, toTheRight[0]);
-		camera->y += MUL_FIXED(forward, facing[1]) + MUL_FIXED(sideways, toTheRight[1]);
-		camera->z += MUL_FIXED(forward, facing[2]) + MUL_FIXED(sideways, toTheRight[2]);
-	}
-	camera->y += (Held(EditorMove::Down) ? step : 0) - (Held(EditorMove::Up) ? step : 0);
+	int down[3];
+	bool const axes = LevelView_CameraAxes(facing, toTheRight, down);
 
-	// And held to the camera's limits (level_view.h), so no key held for days can carry a number past what an int holds. One frame's
-	// steps are a few hundred at most, so nothing above can go past them before this holds it.
+	if (moves)
+	{
+		if (!ShiftDown())
+		{
+			// Shift NOT held (0x53e216-0x53e3ee): A forward, Z back, Left / Right along the right axis, Up / Down along the up axis (Up rises), each by the step; every one of
+			// them stops the glide
+			int const step = StepAtTheSpeed();
+			int const forward = (Held(EditorMove::Forward) ? step : 0) - (Held(EditorMove::Back) ? step : 0);
+			int const sideways = (Held(EditorMove::Right) ? step : 0) - (Held(EditorMove::Left) ? step : 0);
+			int const downwards = (Held(EditorMove::Down) ? step : 0) - (Held(EditorMove::Up) ? step : 0);
+
+			if (Held(EditorMove::Forward) || Held(EditorMove::Back) || Held(EditorMove::Left) || Held(EditorMove::Right) || Held(EditorMove::Up) || Held(EditorMove::Down))
+			{
+				cameraGlide = 0;
+			}
+
+			if (axes)
+			{
+				camera->x += MUL_FIXED(forward, facing[0]) + MUL_FIXED(sideways, toTheRight[0]) + MUL_FIXED(downwards, down[0]);
+				camera->y += MUL_FIXED(forward, facing[1]) + MUL_FIXED(sideways, toTheRight[1]) + MUL_FIXED(downwards, down[1]);
+				camera->z += MUL_FIXED(forward, facing[2]) + MUL_FIXED(sideways, toTheRight[2]) + MUL_FIXED(downwards, down[2]);
+			}
+		}
+		else
+		{
+			// Shift HELD (0x53e088-0x53e0f6): no step; Shift+A speeds the glide up, Shift+Z down, every frame (inteng's int wraps: so does this one, by unsigned sums)
+			if (Held(EditorMove::Forward))
+			{
+				cameraGlide = (int32_t)((uint32_t)cameraGlide + (uint32_t)kGlidePerFrame);
+			}
+
+			if (Held(EditorMove::Back))
+			{
+				cameraGlide = (int32_t)((uint32_t)cameraGlide - (uint32_t)kGlidePerFrame);
+			}
+		}
+
+		// Space held: the glide stops (0x53e54d)
+		if (keyDown[VK_SPACE])
+		{
+			cameraGlide = 0;
+		}
+
+		// THE GLIDE (FUN_0053c7d0, 0x53e582): along the way the camera faces now, glide x the frame's time (not held to 0.1 s), in inteng's units, 100 to the millimetre; the
+		// part of a millimetre left over is carried to the next frame
+		static double glideCarry[3] = { 0.0, 0.0, 0.0 };
+
+		if (cameraGlide != 0 && axes)
+		{
+			double const millimetres = (double)cameraGlide * frameSeconds / 100.0;
+			int *const place[3] = { &camera->x, &camera->y, &camera->z };
+
+			for (int i = 0; i < 3; i++)
+			{
+				glideCarry[i] += millimetres * (double)facing[i] / 65536.0;
+
+				double const whole = glideCarry[i] < 0.0 ? ceil(glideCarry[i]) : floor(glideCarry[i]);
+
+				glideCarry[i] -= whole;
+				*place[i] = (int)((double)*place[i] + whole);
+			}
+		}
+	}
+
+	// And held to the camera's limits (level_view.h), so no key held for days (nor a glide) can carry a number past what an int holds
 	FlyCamera_Hold(camera);
 }
 
@@ -17232,7 +18581,7 @@ static void MoveTheCamera(FlyCamera *camera, bool moves = true)
 // across, up and down along its down) is the editor's own. The step is the engine's at the FLY speed (OP-112: F swaps it into speedUnits, OP-110, so StepAtTheSpeed gives it).
 static void MoveTheFlyingObject(bool turns)
 {
-	int const step = StepAtTheSpeed() * (ShiftDown() ? kSpeedShiftFactor : 1);
+	int const step = StepAtTheSpeed();   // (the named Shift x4 is gone: inteng's Shift is the glide, THE CAMERA'S MOVER; the flown object's glide is Vasquez's, he is told)
 	int const turnStep = 24;
 
 	if (turns)
@@ -17289,6 +18638,151 @@ static bool ReadSetting(const char *settingsFile, const char *name, char *buf, s
 {
 	DWORD const length = GetPrivateProfileStringA("Editor", name, "", buf, (DWORD)size, settingsFile);
 	return length > 0 && length < size - 1;
+}
+
+// INTENG'S MENU FONT (view-state-table.md H-5b, H-5c, H-5e; Bishop's ruling 11-16: Rebellion's font is never carried in our source, it is read at run time from the user's own inteng
+// Tools folder): Tools\font16.fnt next to this program first, then in the folder the setting IntengTools names. The file is read as hostile input (menu_font.h); missing or refused,
+// the menus keep the game's small font and the status line says why.
+static std::string menuFontWords;
+
+static void MenuFontStart()
+{
+	std::vector<std::string> tries;
+	char folder[MAX_PATH];
+	char named[MAX_PATH];
+
+	if (ProgramFolder(folder, sizeof(folder)))
+	{
+		tries.push_back(std::string(folder) + "Tools\\font16.fnt");
+	}
+
+	if (layoutSettingsFile[0] && ReadSetting(layoutSettingsFile, "IntengTools", named, sizeof(named)))
+	{
+		tries.push_back(std::string(named) + "\\font16.fnt");
+	}
+
+	std::string last = "not found";
+
+	for (std::string const &path : tries)
+	{
+		FILE *file = nullptr;
+
+		if (fopen_s(&file, path.c_str(), "rb") != 0 || !file)
+		{
+			continue;
+		}
+
+		std::vector<uint8_t> bytes(host::kMenuFontMostBytes + 1);
+		size_t const got = fread(bytes.data(), 1, bytes.size(), file);
+
+		fclose(file);
+
+		host::MenuFont font;
+		host::MenuFontRefusal why = host::MenuFontRefusal::None;
+
+		if (!host::MenuFont_Read(bytes.data(), got, &font, &why))
+		{
+			last = std::string("refused, ") + host::MenuFont_Why(why);
+			continue;
+		}
+
+		if (PanelPass_SetMenuFont(font))
+		{
+			host::MenuPaint_SetUnderlineRow(font.height - 1);   // the letter's last row (FUN_0046ce70 0x46cffb)
+			host::MenuPaint_SetMenuGlyphs(true);                 // glyph 2 marks a sub-menu's row
+			return;
+		}
+
+		last = "its letters could not be made";
+	}
+
+	menuFontWords = "inteng's menu font (Tools\\font16.fnt): " + last + "; the menus use the game's font";
+	statusWords = menuFontWords.c_str();
+}
+
+// INTENG'S OWN EXE, for its binary data (object-placement.md section 8b V-25; Melanikus's ruling via Bishop 11-16: inteng's binary data is never in our source, it is read at run time from his
+// own files): inteng.exe next to this program first, then in the folder the setting IntengTools names; only the traced exe (its sha256, inteng_exe.h), every read bounded. It is loaded once
+// and shared (IntengExe_Shared: the editor icons here, Drake's light marker). The editor icons are inteng's built-in shapes 2, 3, 4, 7, 8, 9 and 13 (FUN_0042c700's slots, inteng_shapes.h);
+// missing or refused, they are our own plain boxes and the status line says why. Added 2026-11-16 by Melanikus (Vasquez).
+static std::string intengExeWords;
+
+static void IntengExeStart()
+{
+	std::vector<std::string> tries;
+	char folder[MAX_PATH];
+	char named[MAX_PATH];
+
+	if (ProgramFolder(folder, sizeof(folder)))
+	{
+		tries.push_back(std::string(folder) + "inteng.exe");
+	}
+
+	if (layoutSettingsFile[0] && ReadSetting(layoutSettingsFile, "IntengTools", named, sizeof(named)))
+	{
+		tries.push_back(std::string(named) + "\\inteng.exe");
+	}
+
+	static host::IntengExeImage image;
+	std::string from;
+	host::IntengExeRefusal why = host::IntengExeRefusal::None;
+
+	if (!host::IntengExe_Load(tries, &image, &from, &why))
+	{
+		std::string const words = std::string(host::IntengExe_Why(why)) + (from.empty() ? std::string() : " (" + from + ")");
+
+		host::IntengExe_SetShared(nullptr, words);
+		host::EditorIcon_NotRead(words);
+		intengExeWords = std::string("inteng.exe: ") + words + "; the editor icons are our own plain boxes and no placed shape's type is guessed from its name";
+		LogString(intengExeWords);
+		statusWords = intengExeWords.c_str();
+		return;
+	}
+
+	host::IntengExe_SetShared(&image, "read from " + from);
+
+	int const wanted[] = { 2, 3, 4, 7, 8, 9, 13 };
+	host::IntengShapes shapes;
+	host::IntengShapesRefusal refused = host::IntengShapesRefusal::None;
+
+	if (!host::IntengShapes_Read(image, wanted, sizeof(wanted) / sizeof(wanted[0]), &shapes, &refused))
+	{
+		host::EditorIcon_NotRead(std::string(host::IntengShapes_Why(refused)) + " (" + from + ")");
+		intengExeWords = std::string("inteng.exe: ") + host::IntengShapes_Why(refused) + "; the editor icons are our own plain boxes";
+		LogString(intengExeWords);
+		statusWords = intengExeWords.c_str();
+	}
+	else
+	{
+		host::EditorIcon_UseShapes(shapes, from);
+		LogString(std::string("editor icons: ") + host::EditorIcon_From());
+	}
+
+	// inteng's shape-name table (0x5e7b58, FUN_004f6a20; simple_object_edit.h): a placed shape's type and extra data guessed from its outside file's name (Bishop's ruling V-31: read here, no copy)
+	std::vector<host::IntengShapeName> names;
+	host::IntengNamesRefusal namesWhy = host::IntengNamesRefusal::None;
+
+	if (!host::IntengShapeNames_Read(image, &names, &namesWhy))
+	{
+		intengExeWords = std::string("inteng.exe: ") + host::IntengNames_Why(namesWhy) + "; no placed shape's type is guessed from its name";
+		LogString(intengExeWords);
+		statusWords = intengExeWords.c_str();
+		return;
+	}
+
+	std::vector<host::SimpleShapeName> rows;
+
+	for (host::IntengShapeName const &one : names)
+	{
+		host::SimpleShapeName row;
+
+		row.name = one.name;
+		row.type = one.type;
+		row.extra = one.extra;
+		rows.push_back(row);
+	}
+
+	host::SimpleObject_SetShapeNames(rows);
+	LogString("inteng's shape-name table: " + std::to_string(rows.size()) + " names read from " + from);
 }
 
 
@@ -17572,10 +19066,133 @@ static void HierarchyClicked(host::PickReport const &report)
 	Answer("Hierarchy: section " + sections[(size_t)index].name + " selected");
 }
 
-// What the mode says next: a question (shown as a prompt, with its list under it) or an answer for the status line
+// What the mode says next. HIERARCHYSHOW IS THE ONE PLACE a Hierarchy step becomes what inteng shows (Bishop 2026-11-16: each owner traces the dialog kind of his asks and returns it):
+//   step.messageBox            inteng's MESSAGE BOX (FUN_00474030 + FUN_0057c800(100, 100)): the words and Ok; with soundForm the Sound Edit window opens after the Ok
+//   step.soundForm             the Sound Edit window of hierarchyMode.soundBeingEdited (FUN_004ebd60 -> edobtype's edit_sound): HierarchySoundFormOpen, answered by HierarchyMode_SoundForm
+//   step.prompt + textDialog   inteng's TEXT DIALOG (FUN_00474170: the words, one edit holding defaultText, Ok / Cancel): Ok gives the edit's words to HierarchyMode_Typed (a number: read it with
+//                              HierarchyMode_EditNumber = FUN_0057d620, as FUN_00474340 does), Cancel calls HierarchyMode_Cancel
+//   step.prompt + the Help ask the two Help pages as inteng's full text screens (FUN_004724f0, "Click to continue.")
+//   step.prompt + a list       inteng's LIST DIALOG (FUN_00475bf0, the rows sorted): the pick is answered as its place from 1
+//   step.prompt, nothing else  OUR TYPED LINE: a substitute, still to be traced to one of the kinds above
+//   anything else              the answer is kept for the state line only (the Hierarchy screen draws no status line)
+// (The mode's helpers in hierarchy_mode.cpp: AskInDialog, Box, Line + Ask.)
+static void HierarchySoundFormOpen();
+
+// The sound chooser's right click (0x481720: FUN_00501080, then FUN_004ec0a0(the sound, the camera block's place +0x10)): the sound with that index plays once at the camera's place, with its
+// ranges (the file's x the level's scale, as the game takes a track's), volume and pitch; the sound folder is the level's (SOUNDDIR, as Track Editing's sounds). Its words are the state line's.
+static void HierarchyListen(int32_t index)
+{
+	std::vector<host::SoundInfo> sounds;
+
+	if (!hierarchyModelOpen || !theCamera || host::HierarchyEdit_Sounds(&hierarchyModelFile, &sounds) != host::HierarchyEditResult::Done)
+	{
+		return;
+	}
+
+	for (host::SoundInfo const &each : sounds)
+	{
+		if (each.index != index)
+		{
+			continue;
+		}
+
+		double const scale = hierarchyMode.levelScale > 0.0 && hierarchyMode.levelScale <= 1000000.0 ? hierarchyMode.levelScale : 1.0;
+		int32_t const place[3] = { theCamera->x, theCamera->y, theCamera->z };
+
+		host::TrackPlay_UseSoundDirectory(host::TrackLevelSoundDirectory(LevelObjects_OpenForEdit()));
+		bool const playing = host::TrackPlay_Listen(each.wav, (int32_t)(each.inner * scale), (int32_t)(each.outer * scale), each.volume, each.pitch, place);
+
+		Answer(playing ? "Listening to " + each.wav : "Listen: " + each.wav + " could not be played (no sound device, or no such wav in the sound folder)");
+		hierarchyAnswerUntil = GetTickCount() + 5000;
+		return;
+	}
+}
+static void HierarchyFemaleFormOpen(bool checked);
+
 static void HierarchyShow(host::HierarchyStep const &step)
 {
 	promptList = hierarchyMode.list;
+
+	// inteng's message box (FUN_00474030 + FUN_0057c800(100, 100)): the refusals of Select Sequence and Add delta (reassess/hierarchy-deltas-vasquez.md HD-10, HD-16), the sound items' (C-SND,
+	// C-4d); a Sound Edit window that is shown again after it (a refused answer) opens when Ok closes the box
+	if (step.messageBox)
+	{
+		promptList.clear();
+		Answer(step.answer);
+		hierarchyAnswerUntil = GetTickCount() + 5000;
+
+		// a box and then a question ("That name is already used", Ok, the same text dialog again: FUN_0048af00 / FUN_0047a880's loops)
+		if (step.prompt)
+		{
+			host::HierarchyStep question = step;
+
+			question.messageBox = false;
+			question.answer.clear();
+			memset(keyDown, 0, sizeof(keyDown));
+			DialogMessage(step.answer, [question]() { HierarchyShow(question); });
+			return;
+		}
+
+		if (step.soundForm)
+		{
+			DialogMessage(step.answer, []() { HierarchySoundFormOpen(); });
+		}
+		else
+		{
+			DialogMessage(step.answer);
+		}
+
+		return;
+	}
+
+	// Set Properties' window (FUN_0048d6a0 / FUN_0048d820)
+	if (step.prompt && step.femaleForm)
+	{
+		promptList.clear();
+		memset(keyDown, 0, sizeof(keyDown));
+		HierarchyFemaleFormOpen(step.femaleChecked);
+		return;
+	}
+
+	// the sound's Sound Edit window (FUN_004ebd60: edobtype's edit_sound)
+	if (step.soundForm)
+	{
+		promptList.clear();
+
+		if (!step.answer.empty())
+		{
+			Answer(step.answer);
+			hierarchyAnswerUntil = GetTickCount() + 5000;
+		}
+
+		HierarchySoundFormOpen();
+		return;
+	}
+
+	// inteng's text dialog (FUN_00474170): the words, one edit holding the number offered, Ok / Cancel (FUN_0057c800(100, 100)); Ok gives the edit's words to the mode, Cancel closes the question
+	if (step.prompt && step.textDialog)
+	{
+		host::DialogField field;
+
+		promptList.clear();
+		hierarchyTitle = step.title;
+		memset(keyDown, 0, sizeof(keyDown));
+		promptFor = kPromptNone;
+		promptText.clear();
+		field.text = step.defaultText;
+		DialogText(step.title, { field }, [](int32_t answer, std::vector<std::string> const &texts)
+		{
+			if (answer == host::kDialogOk && !texts.empty())
+			{
+				HierarchyDialogAnswer(texts[0]);
+			}
+			else
+			{
+				HierarchyDialogCancel();
+			}
+		});
+		return;
+	}
 
 	// Help (0x38, FUN_0048ab60): FUN_004724f0 twice, the model's keys and then the boned object and turret commands. FUN_004724f0 is NOT a toolkit message box (it never calls FUN_0057c800): it draws the text over the view
 	// (FUN_0057be40) with "Click to continue." (005d3ed8) and runs its own message loop until a click: the text panel Module Linking's, Strategy's and Light's Help use (textPanelText / textPanelNext)
@@ -17638,6 +19255,22 @@ static void HierarchyShow(host::HierarchyStep const &step)
 			names.push_back(digits > 0 && line.compare(digits, 2, "  ") == 0 ? line.substr(digits + 2) : line);
 		}
 
+		// the sound chooser (FUN_00481740) gives its list a right-click handler (FUN_00476f70 with 0x481720): a right click on a row plays that row's sound, the list stays open
+		std::function<void(int32_t)> listen;
+
+		if (hierarchyMode.ask == host::HierarchyAsk::SoundEditPick || hierarchyMode.ask == host::HierarchyAsk::SoundDeletePick || hierarchyMode.ask == host::HierarchyAsk::SoundApplyPick)
+		{
+			std::vector<int32_t> const indices = hierarchyMode.listValues;   // each row's sound index
+
+			listen = [indices](int32_t place)
+			{
+				if (place >= 0 && (size_t)place < indices.size())
+				{
+					HierarchyListen(indices[(size_t)place]);
+				}
+			};
+		}
+
 		DialogList(step.title, names, [](int32_t choice)
 		{
 			if (choice < 0)
@@ -17648,7 +19281,18 @@ static void HierarchyShow(host::HierarchyStep const &step)
 			{
 				HierarchyDialogAnswer(std::to_string(choice + 1));
 			}
-		});
+		}, listen);
+		return;
+	}
+
+	// inteng's Yes / No box (FUN_00474a40)
+	if (step.prompt && step.confirm)
+	{
+		hierarchyTitle = step.title;
+		memset(keyDown, 0, sizeof(keyDown));
+		promptFor = kPromptNone;
+		promptText.clear();
+		DialogConfirm(step.title, [](bool yes) { HierarchyDialogAnswer(yes ? "yes" : "no"); });
 		return;
 	}
 
@@ -17702,6 +19346,7 @@ static void HierarchyOpenRequestedModel()
 	}
 
 	hierarchyModelOpen = true;
+	hierarchyModelSavedGeneration = hierarchyModelFile.Generation();
 	hierarchyMode.modelName = name;
 	hierarchyMode.hierarchy.clear();
 	hierarchyMode.sequenceSelected = false;
@@ -17817,11 +19462,14 @@ static void HierarchySyncView(bool restart)
 	bool const same = HierarchyView_IsShown() && hierarchyShownModel == hierarchyMode.modelName && hierarchyShownName == hierarchyMode.hierarchy;
 	int sequence = 0, sub = 0;
 
+	// A sequence player's time is ITS OWN: 1000 ms unless the sequence has an OBASEQTM above 0 (FUN_0047d6f0 0x47d80c +0x18 = 1000, +0x14 = 0x10000; 0x47d982-0x47d99c the chunk's time),
+	// never the game's default length of the sequence (reassess/hierarchy-play-frost.md HP-32): hierarchyMode.sequenceMs holds it
 	if (same && !restart)
 	{
 		if (!(HierarchyView_CurrentSequence(&sequence, &sub) && sequence == wanted.number && sub == wanted.subNumber))
 		{
 			HierarchyView_SetSequence(wanted.number, wanted.subNumber);
+			HierarchyView_ChangeTime(hierarchyMode.sequenceMs - HierarchyView_SequenceMilliseconds());
 		}
 
 		return;
@@ -17834,7 +19482,7 @@ static void HierarchySyncView(bool restart)
 
 	if (!HierarchyView_LoadModel(hierarchyMode.modelName.c_str(), &why) ||
 		!ShowTheModelInFront(hierarchyMode.modelName.c_str(), hierarchyMode.hierarchy.c_str(), wanted.number, wanted.subNumber, place, &why,
-			restart ? (int32_t)(((int64_t)hierarchyMode.sequenceMs * 65536) / 1000) : 0))
+			(int32_t)(((int64_t)hierarchyMode.sequenceMs * 65536) / 1000)))
 	{
 		Answer("Hierarchy view: " + why);
 		return;
@@ -17855,11 +19503,13 @@ static void HierarchySyncView(bool restart)
 }
 
 // D / F: the previous / next sequence of the hierarchy becomes the current one (inteng's keys; the sequence's time is read as Select Sequence reads it)
+// D / F (the key table FUN_0048cde0: D -> 0x40, F -> 0x3f; FUN_004889d0 cases 0x40 0x488e4d / 0x3f 0x488e26, reassess/hierarchy-play-frost.md HP-11 / HP-12 / HP-30): only with a player and a main
+// sequence (else NOTHING, no message); FUN_004784e0(main index -/+ 1): the main player is replaced by a new one for that index, wrapped by the hierarchy's sequence count (FUN_0047d6f0 0x47d743-0x47d74c,
+// the file's order), at timer 0 and NOT running (0x47d810 / 0x47d816), with its own time (OBASEQTM, else 1000 ms); the delta players are freed (0x478526-0x4785dc). Its name shows in the text rows.
 static void HierarchyStepSequence(int direction)
 {
-	if (hierarchyMode.hierarchy.empty() || !hierarchyModelOpen)
+	if (hierarchyMode.hierarchy.empty() || !hierarchyModelOpen || !hierarchyMode.sequenceSelected)
 	{
-		Answer("Please select a hierarchy first");
 		return;
 	}
 
@@ -17867,14 +19517,12 @@ static void HierarchyStepSequence(int direction)
 
 	if (host::HierarchyEdit_Sequences(&hierarchyModelFile, hierarchyMode.hierarchy, &sequences) != host::HierarchyEditResult::Done || sequences.empty())
 	{
-		Answer("The hierarchy has no sequences");
 		return;
 	}
 
 	size_t const count = sequences.size();
 
-	hierarchyMode.sequence = hierarchyMode.sequenceSelected ? (hierarchyMode.sequence + (direction > 0 ? 1 : count - 1)) % count : 0;
-	hierarchyMode.sequenceSelected = true;
+	hierarchyMode.sequence = (hierarchyMode.sequence + (direction > 0 ? 1 : count - 1)) % count;
 
 	int32_t milliseconds = 0;
 	bool has = false;
@@ -17886,9 +19534,11 @@ static void HierarchyStepSequence(int direction)
 		hierarchyMode.sequenceMs = milliseconds;
 	}
 
-	HierarchySyncView();
-	hierarchyAnswerUntil = GetTickCount() + 5000;
-	Answer("Sequence " + std::to_string(sequences[hierarchyMode.sequence].number) + "." + std::to_string(sequences[hierarchyMode.sequence].subNumber) + " (" + std::to_string(hierarchyMode.sequence + 1) + " of " + std::to_string(count) + ")");
+	HierarchyView_RemoveDeltas();
+	hierarchyMode.deltaSelected = false;
+	HierarchySyncView();   // the new sequence (the turret player stays: FUN_004784e0 keeps [1])
+	HierarchyView_ChangeTime(hierarchyMode.sequenceMs - HierarchyView_SequenceMilliseconds());   // at its own time
+	HierarchyView_SetPosition(0);   // timer 0, not running
 }
 
 // inteng's Hierarchy mode works on the OPENED FILE (FUN_0048b8a0 lists its OBJCHIER objects): when the file the editor opened holds hierarchies (a HUD or weapon file, a model file) it becomes the mode's file, drawn
@@ -17909,6 +19559,7 @@ static void HierarchyOpenTheLevelAsTheFile()
 	}
 
 	hierarchyModelOpen = true;
+	hierarchyModelSavedGeneration = hierarchyModelFile.Generation();
 	hierarchyMode.modelName = "avp_rifs/" + openLevelName;
 	hierarchyMode.hierarchy.clear();
 	hierarchyMode.sequenceSelected = false;
@@ -17948,6 +19599,143 @@ static void HierarchyRunCommand(int32_t command)
 		hierarchySkin.clear();   // the points are read again next frame (the attachment changed, the shape did not: this is only to be safe)
 		host::HierarchyEdit_SkinPoints(open, hierarchyMode.attachObject, &hierarchySkin);
 	}
+}
+
+// THE SOUND EDIT WINDOW of a hierarchy's sound (New sound and Edit sound: FUN_004ebd60 -> edobtype's edit_sound, resource 132 "Sound Edit", 245 x 178 dialog units in MS Sans Serif 8, each control
+// where the resource puts it): the wav name, Inner Range (m), Outer Range (m), Pitch +/- semitones, Volume %, the boxes Playing at Start and Sound Loops (OFF for a hierarchy's sound: FUN_004ebd60
+// passes the mask 0, FUN_004ebc80's third number being 0), OK and Cancel. The probability (1060 / 1061) is hidden in AvP (edobtype 0x10006930). The caption is "Sound Edit - %s" with the sound
+// folder FUN_004ebd60 passes (DAT_008f4dac, made by FUN_004f68b0 from the level's SOUNDDIR: the folder's first part is still to trace). NOT BUILT: the wav name is an edit, where the DLL's is a
+// combo of the folder's *.wav; the Play button (1065).
+static void HierarchySoundFormOpen()
+{
+	auto const dx = [](int32_t u) { return (int32_t)(u * 3 / 2); };
+	auto const dy = [](int32_t u) { return (int32_t)(u * 13 / 8); };
+	std::vector<std::string> const shown = host::HierarchyMode_SoundFormShown(hierarchyMode);
+	host::DialogFormSpec spec;
+
+	spec.title = "Sound Edit - " + host::TrackLevelSoundDirectory(LevelObjects_OpenForEdit());
+	spec.width = dx(245) + 10;
+	spec.height = dy(178) + 10;
+
+	auto const add = [&spec](host::DialogWidgetType kind, std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h, int32_t answer, size_t most, bool enabled)
+	{
+		host::DialogWidget one;
+
+		one.type = kind;
+		one.text = words;
+		one.box = { x, y, w, h };
+		one.answer = answer;
+		one.most = most;
+		one.enabled = enabled;
+		spec.widgets.push_back(one);
+	};
+
+	add(host::DialogWidgetType::Label, "Wav file name", dx(13), dy(9), dx(60), 16, 0, 10, true);
+	add(host::DialogWidgetType::Edit, shown.size() > 0 ? shown[0] : std::string(), dx(13), dy(25), dx(216), 18, 0, 255, true);
+	add(host::DialogWidgetType::Label, "Inner Range (m)", dx(13), dy(44), dx(60), 16, 0, 10, true);
+	add(host::DialogWidgetType::Edit, shown.size() > 1 ? shown[1] : std::string(), dx(15), dy(55), dx(63), 18, 0, 20, true);
+	add(host::DialogWidgetType::Label, "Pitch +/- semitones", dx(91), dy(44), dx(70), 16, 0, 10, true);
+	add(host::DialogWidgetType::Edit, shown.size() > 3 ? shown[3] : std::string(), dx(91), dy(56), dx(63), 18, 0, 20, true);
+	add(host::DialogWidgetType::Label, "Outer Range (m)", dx(13), dy(76), dx(60), 16, 0, 10, true);
+	add(host::DialogWidgetType::Edit, shown.size() > 2 ? shown[2] : std::string(), dx(15), dy(90), dx(63), 18, 0, 20, true);
+	add(host::DialogWidgetType::Label, "Volume %", dx(91), dy(76), dx(62), 16, 0, 10, true);
+	add(host::DialogWidgetType::Edit, shown.size() > 4 ? shown[4] : std::string(), dx(91), dy(88), dx(63), 18, 0, 20, true);
+
+	// the two flag boxes, off (greyed) for a hierarchy's sound; what they show: Playing at Start is checked when the flag bit 0 is clear, Sound Loops when the bit 1 FUN_004ebd60 makes is clear
+	// (it sets that bit when the sound's bit 0 is clear: 0x4ebe2b), so for a hierarchy's sound exactly one of them is checked
+	bool const bitZero = (hierarchyMode.soundBeingEdited.flags & 1u) != 0;
+
+	add(host::DialogWidgetType::Check, std::string(), dx(90), dy(115), 12, 12, 0, 10, false);
+	spec.widgets.back().checked = true;   // the flags word FUN_004ebd60 passes has no bit 0 (0x4ebe2b: only bit 1)
+	add(host::DialogWidgetType::Label, "Playing at Start", dx(90) + 16, dy(115) - 2, dx(60), 16, 0, 10, true);
+	add(host::DialogWidgetType::Check, std::string(), dx(90), dy(129), 12, 12, 0, 10, false);
+	spec.widgets.back().checked = bitZero;
+	add(host::DialogWidgetType::Label, "Sound Loops", dx(90) + 16, dy(129) - 2, dx(60), 16, 0, 10, true);
+	add(host::DialogWidgetType::Button, "OK", dx(35), dy(155), dx(50), 20, host::kDialogOk, 10, true);
+	add(host::DialogWidgetType::Button, "Cancel", dx(170), dy(155), dx(50), 20, host::kDialogEscape, 10, true);
+
+	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &widgets)
+	{
+		if (answer != host::kDialogOk)
+		{
+			// Cancel: the DLL writes nothing back, so the sound keeps what it had (a new sound its start values); FUN_004816f0 still marks the file changed
+			return;
+		}
+
+		// the edits in the window's order are name, inner, pitch, outer, volume: the mode takes name, inner, outer, pitch, volume
+		std::vector<std::string> edits;
+
+		for (host::DialogWidget const &one : widgets)
+		{
+			if (one.type == host::DialogWidgetType::Edit)
+			{
+				edits.push_back(one.text);
+			}
+		}
+
+		if (edits.size() < 5)
+		{
+			return;
+		}
+
+		OpenLevelFile *const open = HierarchyFile();
+
+		if (!open || !open->Level())
+		{
+			return;
+		}
+
+		HierarchyShow(host::HierarchyMode_SoundForm(open, &hierarchyMode, { edits[0], edits[1], edits[3], edits[2], edits[4] }));
+	});
+}
+
+// SET PROPERTIES' WINDOW (case 0x58, FUN_0048d6a0 / FUN_0048d820; reassess/hierarchy-edit-frost.md HF-0x58): FUN_0057d170(600, 0x1a4, 5) with its title "Shape set properties" (0x5d5d2c), "Ok"
+// (0x5cf68c) at (200, 0x172) and "Cancel" (0x5cfab4) at (0x15e, 0x172), each 0x50 x 0x12, the label "Female" (0x5d5d24) at (0x12, 0x28) 100 x 0x12 (FUN_0057d400) and the check box FUN_0057d670 at
+// (0x76, 0x28) holding the applied set's flags bit 0; Ok gives the box's state to the mode, Cancel nothing
+static void HierarchyFemaleFormOpen(bool checked)
+{
+	host::DialogFormSpec spec;
+
+	spec.title = "Shape set properties";
+	spec.width = 600;
+	spec.height = 0x1a4;
+
+	auto const add = [&spec](host::DialogWidgetType kind, std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h, int32_t answer)
+	{
+		host::DialogWidget one;
+
+		one.type = kind;
+		one.text = words;
+		one.box = { x, y, w, h };
+		one.answer = answer;
+		one.most = 10;
+		one.enabled = true;
+		spec.widgets.push_back(one);
+	};
+
+	add(host::DialogWidgetType::Button, "Ok", 200, 0x172, 0x50, 0x12, host::kDialogOk);
+	add(host::DialogWidgetType::Button, "Cancel", 0x15e, 0x172, 0x50, 0x12, host::kDialogEscape);
+	add(host::DialogWidgetType::Label, "Female", 0x12, 0x28, 100, 0x12, 0);
+	add(host::DialogWidgetType::Check, std::string(), 0x76, 0x28, 12, 12, 0);
+	spec.widgets.back().checked = checked;
+
+	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &widgets)
+	{
+		if (answer != host::kDialogOk)
+		{
+			HierarchyDialogCancel();
+			return;
+		}
+
+		bool on = false;
+
+		for (host::DialogWidget const &one : widgets)
+		{
+			on = one.type == host::DialogWidgetType::Check ? one.checked : on;
+		}
+
+		HierarchyDialogAnswer(on ? "yes" : "no");
+	});
 }
 
 static void HierarchyDialogAnswer(std::string const &typed)
@@ -18294,9 +20082,74 @@ static void RecalculateEntryPoints()
 // Melanikus (Drake), P5.)
 static std::unique_ptr<host::LinkTree> linkTree;
 
-// The picked modules, as object indexes, in pick order; an object that is not a module is not one
+// For the harness's state line only (the bot reads it, the screen does not show it): the current module's tree, "none" or "module M changed C links N"
+static std::string LinkTreeStateWords()
+{
+	if (!linkTree)
+	{
+		return "none";
+	}
+
+	return "module " + std::to_string(linkTree->RootModule()) + " changed " + std::to_string(linkTree->Changed() ? 1 : 0) + " links " + std::to_string((unsigned long long)linkTree->Count());
+}
+
+// MODULE LINKING'S PICKS (inteng's list DAT_00704320, DAT_00704324 how many; row ML-M-61 of module-linking-map-dietrich.md): the modules' object indexes in pick order, changed only by its clicks
+// (LinkClick) and let go of by the link commands that let them go (LinkPicksLetGo). Each is drawn 0x7f007f over the tree's colours (FUN_004c17a0 paints the picks last).
+static std::vector<int32_t> linkPicks;
+
+static void LinkPicksLetGo()
+{
+	linkPicks.clear();
+	host::Selection_Clear();
+}
+
+// A click on Module Linking (FUN_004c3760): the module it found (none: NOTHING happens, 0x4c3842 / 0x4c37ed). With the Delete key held (FUN_004c3880) the module is taken off the picks;
+// else FUN_004c0cb0(module, Shift): without Shift every pick is let go and the module is the one pick; with Shift it is added at the end unless it is picked already (then nothing).
+static void LinkClick(host::PickReport const &used, bool shift, bool held)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	uint8_t id[8];
+	int32_t index = -1;
+
+	if (used.found != host::PickFound::Module || !open || !open->Level() || !ModuleObject(open, used.moduleIndex, id) || !host::ModuleIndexOfId(open->Level(), id, &index))
+	{
+		return;
+	}
+
+	std::vector<int32_t>::iterator const at = std::find(linkPicks.begin(), linkPicks.end(), index);
+
+	if (held)
+	{
+		if (at != linkPicks.end())
+		{
+			linkPicks.erase(at);
+		}
+
+		host::Selection_Clear();
+		return;
+	}
+
+	if (!shift)
+	{
+		linkPicks.clear();
+		linkPicks.push_back(index);
+	}
+	else if (at == linkPicks.end())
+	{
+		linkPicks.push_back(index);
+	}
+
+	statusWords = host::Selection_UsePick(used);   // the module clicked is the selection too (the field panel, the harness's "selection")
+}
+
+// The picked modules, as object indexes, in pick order; an object that is not a module is not one. On Module Linking: its own list (linkPicks).
 static std::vector<int32_t> PickedModules()
 {
+	if (OnModuleLinkingScreen())
+	{
+		return linkPicks;
+	}
+
 	std::vector<int32_t> picked;
 
 	for (size_t i = 0; i < host::Selection_SetCount(); i++)
@@ -18329,10 +20182,10 @@ static std::vector<int32_t> PickedModules()
 	return picked;
 }
 
-// FUN_004c10c0's write (0x4c10e2-0x4c1430, menu-reads-4.txt): when the tree was changed and has a link, the current module's VMDARRAY is rebuilt from it and
-// the object's module flag (0x200) goes in (0x4c13b0); when it was changed and has NO link, the flag comes out (0x4c1410) and, as a NAMED DEVIATION (inteng
-// leaves the old VMDARRAY: a module with links and no flag), the old VMDARRAY is destroyed too (host::DropModuleLinks). Gives false when that was needed and could not be done (the level is then as it was). The level is
-// swapped for a new one, so what was made of the old one is made again.
+// FUN_004c10c0's write (0x4c10e2-0x4c1430, menu-reads-4.txt) and Set Current's (FUN_004c1a90 0x4c2377-0x4c26a3, row ML-M-19): when the tree was changed and has a link, the current
+// module's VMDARRAY is rebuilt from it and the object's module flag (0x200) goes in (0x4c13b0 / 0x4c2611); when it was changed and has NO link, ONLY the flag comes out (0x4c1410 /
+// 0x4c267d): the old VMDARRAY is LEFT, as inteng leaves it (Bishop's ruling 2026-11-16, rule 10b: the earlier named deviation that destroyed it is gone), so a module made current again
+// loads its old links. Gives false when that was needed and could not be done (the level is then as it was). The level is swapped for a new one, so what was made of the old one is made again.
 static bool WriteTheLinks()
 {
 	if (!linkTree || !linkTree->Changed())
@@ -18350,17 +20203,7 @@ static bool WriteTheLinks()
 
 	if (!linkTree->HasLinks())
 	{
-		// NAMED DEVIATION (Bishop 16:5x, Apone's check): inteng takes the flag out and leaves the old VMDARRAY (a module with links and no flag); here the VMDARRAY is destroyed
-		// too, as Delete Links does, so the links and the flag always agree (drake-deviations.md, unfinished-in-inteng.md)
-		bool dropped = false;
-		host::ObjectEditResult const drop = host::DropModuleLinks(open, linkTree->RootModule(), &dropped);
-
-		if (drop != host::ObjectEditResult::Done)
-		{
-			Answer(std::string("Module links not taken out: ") + host::ObjectEditWords(drop));
-			return false;
-		}
-
+		// inteng takes the flag out and leaves the old VMDARRAY (0x4c267d; a module with links and no flag): the same here (row ML-M-19)
 		host::BaseObjectResult const flagged = host::SetModuleObjectFlag(open, id, false);
 
 		if (flagged != host::BaseObjectResult::Done)
@@ -19201,25 +21044,15 @@ static void AdjacentEdit(int32_t what)
 	}
 }
 
-// Set Current (command 0xc8): the first picked module becomes the current one. The links of the one that was current are written first (when
-// changed), then the new one's are loaded from its VMDARRAY, and the picks are let go of.
-static void LinkSetCurrent()
+// A module made the current one (Set Current: FUN_004c1a90 0x4c2377-0x4c2959; the follow: FUN_004c96f0 0x4c975c-0x4c9766, FUN_004c10c0(i, 0, 1) then +0x18 = 0): the links of the one
+// that was current are written first when it was changed, the module's are loaded from its VMDARRAY, and its tree ends with changed = 0 (a module only looked at is not written when it
+// is left). The picks are not touched here. False when the old links could not be written (nothing then changes).
+static bool LinkMakeCurrent(int32_t module)
 {
-	std::vector<int32_t> const picked = PickedModules();
-
-	if (picked.empty())
-	{
-		Answer("Set Current: pick a module first (click it, Shift+click for more)");
-		return;
-	}
-
 	if (!WriteTheLinks())
 	{
-		return;
+		return false;
 	}
-
-	std::vector<int32_t> const again = PickedModules();   // the level may have been swapped: the picks are the same objects
-	int32_t const module = again.empty() ? picked[0] : again[0];
 
 	std::set<int32_t> modules;
 	std::vector<host::LinkItem> items;
@@ -19232,9 +21065,32 @@ static void LinkSetCurrent()
 		linkTree->Load(items.data(), (int)items.size(), [&modules](int32_t index) { return modules.count(index) != 0; });
 	}
 
-	linkTree->MarkChanged();   // FUN_004c10c0 0x4c14df: a module made current is marked changed (a link-less one is written when left, which takes its flag out)
-	host::Selection_Clear();
-	Answer("Current module: " + ModuleNameOfIndex(module) + " (" + std::to_string(linkTree->Count()) + " links)");
+	// changed = 0 (0x4c2959 / 0x4c9766, row ML-M-19). (Until 2026-11-16 this marked it changed, citing FUN_004c10c0 0x4c14df, which Set Current does not call.)
+	linkTree->ClearChanged();
+	return true;
+}
+
+// Set Current (command 0xc8): the first picked module becomes the current one (LinkMakeCurrent), and the picks are let go of. (The picks are object indexes, the same after the level is swapped.)
+static void LinkSetCurrent()
+{
+	// S / Set Current turns Shift+S's follow OFF first (DAT_00704384 = 0, FUN_004c1a90 0x4c2314-0x4c2322), with picks or without (row ML-M-19, Drake's review R2)
+	LinkFollowOff();
+
+	std::vector<int32_t> const picked = PickedModules();
+
+	if (picked.empty())
+	{
+		Answer("Set Current: pick a module first (click it, Shift+click for more)");
+		return;
+	}
+
+	if (!LinkMakeCurrent(picked[0]))
+	{
+		return;
+	}
+
+	LinkPicksLetGo();
+	Answer("Current module: " + ModuleNameOfIndex(picked[0]) + " (" + std::to_string(linkTree->Count()) + " links)");
 }
 
 // AutoLink > Add Reverse Links: Module (0x12c, FUN_004c86b0 with the picked modules) and Environment (0x12d, FUN_004c86b0(0): every module). The rules and what
@@ -19736,6 +21592,11 @@ static void DoWaypointCommand(int32_t command, EditorHostState &host)
 // frame; ours makes the module under the camera the current one when it is another than the current one.
 static bool linkFollowCamera = false;
 
+static void LinkFollowOff()
+{
+	linkFollowCamera = false;
+}
+
 static void LinkFollowPass(bool onModuleLinking)
 {
 	if (!linkFollowCamera)
@@ -19755,7 +21616,7 @@ static void LinkFollowPass(bool onModuleLinking)
 	uint8_t id[8];
 	int32_t index = -1;
 
-	statusWords = "Setting base to current module";
+	// inteng's words for the follow are its text row at (10, 90) (the panels' text, row ML-M-7), not a status line
 
 	if (!open || !open->Level() || room < 0 || !ModuleObject(open, room, id) || !host::ModuleIndexOfId(open->Level(), id, &index))
 	{
@@ -19767,13 +21628,10 @@ static void LinkFollowPass(bool onModuleLinking)
 		return;
 	}
 
-	host::Selected picked = {};
-
-	picked.kind = host::SelectedKind::Object;
-	memcpy(picked.objectId, id, host::kSelectionIdBytes);
-	host::Selection_Set(picked);
-	LinkSetCurrent();
-	statusWords = "Setting base to current module";
+	// FUN_004c96f0 0x4c975c: the module made current directly (FUN_004c10c0), the picks untouched and the follow left on (until 2026-11-16 this went through the picks and Set Current,
+	// which stopped working when Module Linking got its own picks, e6ef0b4). NAMED: inteng takes the FIRST module in its order whose box holds the camera (FUN_004a6f30); here the view's
+	// own LevelView_ModuleAt (row ML-M-66)
+	LinkMakeCurrent(index);
 }
 
 // Light Sourcing's S and X (FUN_004aab60 0x4aad37 / 0x4aad57: FUN_004ac240(the selected light, 1 / 0)): the selected light on or off, the editor's state only
@@ -19817,7 +21675,6 @@ static bool RunScreenKey(uint8_t key, bool shift)
 	if (command == host::kScreenKeyLinkFollow)
 	{
 		linkFollowCamera = !linkFollowCamera;
-		statusWords = linkFollowCamera ? "Setting base to current module" : "Setting base: off";
 		return true;
 	}
 
@@ -19951,8 +21808,9 @@ static void LinkExit()
 
 	bool const wrote = linkTree && linkTree->Count() > 0;
 
+	// FUN_004c3f40: the current module 0 and EVERY PICK let go (0x4c3f71-0x4c3fff, row ML-E-4): back in the screen nothing is picked
 	linkTree.reset();
-	host::Selection_Clear();
+	LinkPicksLetGo();
 	Answer(wrote ? "Module Linking left: the current module's links are kept in the editor's bytes until Save a copy" : "Module Linking left");
 }
 
@@ -20386,6 +22244,8 @@ static void StrategySelectByTexture(host::PickReport const &report)
 
 // The hidden modules (hidden_objects.h) handed to the view (LevelView_HideModules, which takes the GAME's module numbers): worked out again only when the set or the level
 // changes. Called each frame. The set is kept by 8-byte ID; an ID that is no module any more is left out.
+static bool hiddenModulesStale = false;   // set when a pass that hid every module ends (the hierarchy player's): the set is handed to the view again
+
 static void UpdateHiddenModules()
 {
 	static unsigned seenVersion = ~0u;
@@ -20395,10 +22255,12 @@ static void UpdateHiddenModules()
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	unsigned const generation = open ? open->Generation() : 0;
 
-	if (seenVersion == host::HiddenObjects_Version() && seenGeneration == generation)
+	if (!hiddenModulesStale && seenVersion == host::HiddenObjects_Version() && seenGeneration == generation)
 	{
 		return;
 	}
+
+	hiddenModulesStale = false;
 
 	seenVersion = host::HiddenObjects_Version();
 	seenGeneration = generation;
@@ -20510,7 +22372,7 @@ static host::PickReport PickTheNearestCentre(int32_t clickX, int32_t clickY, int
 // object (one object: no Shift, no set). No candidate in front of the view: FUN_004d64a0(0), none current. The "select by polygons" option of the Construction screen is not read here.
 struct PlacementPick
 {
-	int what = 0;                    // 0 none, 1 a placed shape (report), 2 a special object (kind, number)
+	int what = 0;                    // 0 none, 1 a placed shape (report), 2 a special object (kind, number), 3 a placed hierarchy (number)
 	host::PickReport report;
 	host::SpecialKind kind = host::SpecialKind::Generator;
 	size_t number = 0;
@@ -20575,10 +22437,41 @@ static PlacementPick PlacementClickPick(int32_t clickX, int32_t clickY, int32_t 
 		centres.push_back(centre);
 	}
 
+	// the placed hierarchies come last in the list here (NAMED: inteng has them among the SPECLOBJ children in the file's order; it matters only when two centres are on the same pixel)
+	std::vector<host::PlacedHierarchyInfo> hierarchies;
+	size_t const beforeHierarchies = centres.size();
+
+	if (open)
+	{
+		host::PlacedHierarchies_Read(open, &hierarchies);
+	}
+
+	for (host::PlacedHierarchyInfo const &one : hierarchies)
+	{
+		host::PickCentre centre;
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			centre.place[axis] = worldOf(one.place[axis]);
+		}
+
+		centres.push_back(centre);
+	}
+
 	int const taken = host::PickCentre_Nearest(camera, clickX, clickY, centres.data(), centres.size(), true);
 
 	if (taken < 0)
 	{
+		return out;
+	}
+
+	if ((size_t)taken >= beforeHierarchies)
+	{
+		host::PlacedHierarchyInfo const &hierarchy = hierarchies[(size_t)taken - beforeHierarchies];
+
+		out.what = 3;
+		out.number = hierarchy.number;
+		out.name = hierarchy.name;
 		return out;
 	}
 
@@ -20614,6 +22507,18 @@ static std::string placementClickWords;
 // The click's result, as FUN_004d64a0 does it: the old current object let go of, the new one made current (red), none when nothing was taken
 static void PlacementClickUse(PlacementPick const &pick)
 {
+	placedHierarchyCurrent = -1;
+
+	if (pick.what == 3)
+	{
+		host::Selection_Clear();
+		specialMode.haveCurrent = false;
+		placedHierarchyCurrent = (int)pick.number;
+		placementClickWords = std::string("Selected: ") + (pick.name.empty() ? std::string("(no name)") : pick.name);
+		statusWords = placementClickWords.c_str();
+		return;
+	}
+
 	if (pick.what == 2)
 	{
 		host::Selection_Clear();
@@ -20784,7 +22689,7 @@ static void LinkEdit(int32_t what)
 				done += linkTree->Normal(module) ? 1 : 0;
 			}
 
-			host::Selection_Clear();
+			LinkPicksLetGo();
 			Answer("Normal Link: " + std::to_string(done) + " of " + std::to_string(picked.size()) + " linked (a module already in the tree, or the current one, is not)");
 			break;
 		case kLinkBranch:
@@ -20792,7 +22697,7 @@ static void LinkEdit(int32_t what)
 			if (picked[0] != root)
 			{
 				done = linkTree->Branch(picked[0]) ? 1 : 0;
-				host::Selection_Clear();
+				LinkPicksLetGo();
 				Answer(done ? "Branch Link made" : "Branch Link: not made (the last link's branch is closed)");
 			}
 
@@ -20806,7 +22711,7 @@ static void LinkEdit(int32_t what)
 				}
 			}
 
-			host::Selection_Clear();
+			LinkPicksLetGo();
 			Answer("Delete Link done");
 			break;
 		case kLinkClose:
@@ -20818,7 +22723,7 @@ static void LinkEdit(int32_t what)
 				}
 			}
 
-			host::Selection_Clear();
+			LinkPicksLetGo();
 			Answer("Close Branch done");
 			break;
 		case kLinkOpen:
@@ -20832,7 +22737,7 @@ static void LinkEdit(int32_t what)
 				}
 			}
 
-			host::Selection_Clear();
+			LinkPicksLetGo();
 			Answer("Open Branch done");
 			break;
 		case kLinkView:
@@ -20924,7 +22829,7 @@ static void ToggleModuleOverlaps()
 	WorkOutModuleOverlaps(open);
 }
 
-// Hierarchy > Dummy Objects (0x5c) and Dummy Object Size (0x5d): inteng makes a "dummy object" at the hierarchy's place (FUN_00481d70 / FUN_004822c0): a cube of side N, its eight corners at +/- N/2, and three
+// Hierarchy > Dummy Objects (0x5c) and Dummy Object Size (0x5d): inteng makes a "dummy object" for EVERY section, at the section's place (FUN_00481d70 / FUN_004822c0, placed by FUN_0047ef70): a cube of side N, its eight corners at +/- N/2, and three
 // axes of length N from the origin (the points (N,0,0), (0,N,0), (0,0,N)); N is the size in inteng's unit (1e-5 m: 40000 to start with, 400 mm), hidden by bit 4 of its flags when the switch is off. Here the cube and
 // the axes are drawn as lines in the world (R_SetEditorWorldLines) while the switch is on. NAMED: inteng's polygons of the shape are not read, only its points; the lines are the cube's twelve edges. The model
 // is drawn heading 0, so the cube is aligned with the world's axes.
@@ -20950,49 +22855,67 @@ static void UpdateDummyObject()
 	std::vector<host::TrackLine> lines(4096);
 	size_t count = 0;
 	uint32_t const cubeColour = 0xFFFFFFFFu;
-
-	for (int c = 0; hierarchyMode.dummyObjects && c < 8; c++)
-	{
-		for (int axis = 0; axis < 3; axis++)
-		{
-			if ((c & (1 << axis)) != 0)
-			{
-				continue;
-			}
-
-			int32_t from[3], to[3];
-
-			for (int k = 0; k < 3; k++)
-			{
-				from[k] = centre[k] + ((c & (1 << k)) ? half : -half);
-				to[k] = from[k];
-			}
-
-			to[axis] = centre[axis] + half;
-
-			for (int k = 0; k < 3; k++)
-			{
-				lines[count].from[k] = from[k];
-				lines[count].to[k] = to[k];
-			}
-
-			lines[count].colour = cubeColour;
-			count++;
-		}
-	}
-
 	uint32_t const axisColours[3] = { 0xFFFF4040u, 0xFF40FF40u, 0xFF4040FFu };
 
-	for (int axis = 0; hierarchyMode.dummyObjects && axis < 3; axis++)
+	// ONE DUMMY OBJECT PER SECTION (row C-5c): each section's update (FUN_0047ef70 0x47f2df-0x47f338) puts its own dummy block (+8) at the section's place (+0x54..0x5c) with the matrix DAT_005d4e28
+	// (the identity, read from the exe) and the size DAT_005d4e24, shown while Dummy Objects is on (its ObFlags +0x5c bit 4 clear): a cube and three axes stand at EVERY section's place
+	std::vector<HierarchyViewSection> sections;
+
+	if (hierarchyMode.dummyObjects)
 	{
-		for (int k = 0; k < 3; k++)
+		HierarchyView_Sections(&sections);
+	}
+
+	for (HierarchyViewSection const &section : sections)
+	{
+		int32_t const *const at = section.world;
+
+		if (count + 15 > lines.size())
 		{
-			lines[count].from[k] = centre[k];
-			lines[count].to[k] = centre[k] + (k == axis ? side : 0);
+			break;
 		}
 
-		lines[count].colour = axisColours[axis];
-		count++;
+		for (int c = 0; c < 8; c++)
+		{
+			for (int axis = 0; axis < 3; axis++)
+			{
+				if ((c & (1 << axis)) != 0)
+				{
+					continue;
+				}
+
+				int32_t from[3], to[3];
+
+				for (int k = 0; k < 3; k++)
+				{
+					from[k] = at[k] + ((c & (1 << k)) ? half : -half);
+					to[k] = from[k];
+				}
+
+				to[axis] = at[axis] + half;
+
+				for (int k = 0; k < 3; k++)
+				{
+					lines[count].from[k] = from[k];
+					lines[count].to[k] = to[k];
+				}
+
+				lines[count].colour = cubeColour;
+				count++;
+			}
+		}
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			for (int k = 0; k < 3; k++)
+			{
+				lines[count].from[k] = at[k];
+				lines[count].to[k] = at[k] + (k == axis ? side : 0);
+			}
+
+			lines[count].colour = axisColours[axis];
+			count++;
+		}
 	}
 
 	// B: the box round the sections' places, 3 x (their extent from the root with +/- 10 mm kept in it), FUN_0047f4a0
@@ -21151,14 +23074,41 @@ static void FlagViewTints(OpenLevelFile *open)
 		tintsBit = strategyViewBit;
 	}
 
+	// RED modules (FUN_00529470: block flag 0x40000000 -> FUN_004a7cd0 0x4a7eca), FIRST in the list so they win over a green or orange (strategy-data.md S-62): the selection's red reaches only placed objects
+	// (blocks with a strategy block), so a module's red is given here: the volume editor's picked module; on page 0 the current module; on the flag page every module in its list. Not while a kind's
+	// Edit view runs (0x5286d7) nor on the Stability page (0x527379: the current's red is cleared first)
+	std::vector<int32_t> redModules;
+
 	if (volume.on && volume.module >= 0)
 	{
-		// the picked module is RED (FUN_00529470: block flag 0x40000000)
-		std::vector<int32_t> withModule = modules;
-		std::vector<uint32_t> withColour = colours;
+		redModules.push_back(volume.module);
+	}
+	else if (OnStrategyScreen() && !strategyEditFan && !stabilityActive && !copyCollecting && host::Selection_SetCount() > 0)
+	{
+		for (size_t s = 0; s < host::Selection_SetCount() && redModules.size() < 64; s++)
+		{
+			uint8_t memberId[8];
+			int32_t number = 0;
 
-		withModule.push_back(volume.module);
-		withColour.push_back(0xFFFF0000u);
+			if (host::Selection_SetMember(s, memberId) && host::ModuleIndexOfId(LevelObjects_Level(), memberId, &number))
+			{
+				int32_t const game = GameModuleOfNumber(number);
+
+				if (game >= 0)
+				{
+					redModules.push_back(game);
+				}
+			}
+		}
+	}
+
+	if (!redModules.empty())
+	{
+		std::vector<int32_t> withModule = redModules;
+		std::vector<uint32_t> withColour(redModules.size(), 0xFFFF0000u);
+
+		withModule.insert(withModule.end(), modules.begin(), modules.end());
+		withColour.insert(withColour.end(), colours.begin(), colours.end());
 		LevelView_SetModuleTints(withModule.data(), withColour.data(), withModule.size());
 	}
 	else
@@ -21166,7 +23116,21 @@ static void FlagViewTints(OpenLevelFile *open)
 		LevelView_SetModuleTints(modules.data(), colours.data(), modules.size());
 	}
 
-	LevelView_SetObjectTints(objectIds.data(), objectColours.data(), objectColours.size());
+	if (volume.on && volume.objectPicked)
+	{
+		// the object the volume editor picked is RED (FUN_00529470: block flag 0x40000000), over its green
+		std::vector<uint8_t> withObject(volume.object, volume.object + 8);
+		std::vector<uint32_t> withColour(1, 0xFFFF0000u);
+
+		withObject.insert(withObject.end(), objectIds.begin(), objectIds.end());
+		withColour.insert(withColour.end(), objectColours.begin(), objectColours.end());
+		LevelView_SetObjectTints(withObject.data(), withColour.data(), withColour.size());
+	}
+	else
+	{
+		LevelView_SetObjectTints(objectIds.data(), objectColours.data(), objectColours.size());
+	}
+
 	flagViewTintCount = modules.size();
 }
 
@@ -21191,7 +23155,8 @@ static void UpdateModuleTints(bool onAdjacent)
 		showAllColours.clear();
 	}
 
-	if (!linkTree && open && placementPolyCounts && !showAllModules.empty())
+	// Module Linking's Show All while it holds the screen: its paint ALONE, with or without a current module (FUN_004c17a0 is not called until Escape or a button lets it go, row ML-M-3)
+	if (open && !showAllModules.empty() && ((!linkTree && placementPolyCounts) || (showAllHeld && OnModuleLinkingScreen())))
 	{
 		size_t const count = showAllModules.size() < kLevelViewMostSelected ? showAllModules.size() : kLevelViewMostSelected;
 
@@ -21211,7 +23176,9 @@ static void UpdateModuleTints(bool onAdjacent)
 
 	bool const adjacentPaint = onAdjacent && open && (adjacentShowAllPaint || (adjacentList && adjacentList->Current() >= 0));
 
-	if ((!linkTree && !adjacentPaint && !moduleOverlapsOn) || !open)
+	bool const linkPicksShown = !linkPicks.empty() && OnModuleLinkingScreen();
+
+	if ((!linkTree && !adjacentPaint && !moduleOverlapsOn && !linkPicksShown) || !open)
 	{
 		bool const onStrategy = barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0;
 
@@ -21251,6 +23218,15 @@ static void UpdateModuleTints(bool onAdjacent)
 			colours.push_back(colour);
 		}
 	};
+
+	// the picks first (the first colour given for a module wins in the view): 0x7f007f, as FUN_004c17a0 paints them after the tree (0x4c18b2, row ML-M-61)
+	if (linkPicksShown)
+	{
+		for (int32_t const pick : linkPicks)
+		{
+			add(pick, 0xFF7F007Fu);
+		}
+	}
 
 	if (linkTree && !onAdjacent)
 	{
@@ -21938,7 +23914,7 @@ static void StabilityBegin()
 
 	memcpy(stabilityObject, ids.data(), sizeof(stabilityObject));
 	stabilityFaces = faces;
-	stabilityPolygons = true;
+	stabilityPolygons = false;   // FUN_00447f10: the faces start as polylines (strategy-data.md S-75)
 	stabilityActive = true;
 	strategyEditFan = false;
 	copyCollecting = false;
@@ -22027,7 +24003,10 @@ static void StabilityEnd()
 		}
 
 		LoadTheObjectListAgain();
-		strategyWords = "Stability flags: the six faces are written into the module's shape (kept in the editor's bytes until Save a copy)";
+
+		// FUN_00527210 0x527329: Yes saves the level at once (FUN_005282d0); ours saves a COPY (the owner's rule), as Save does (strategy-data.md S-78)
+		SaveTheCopy();
+		strategyWords = std::string("Stability flags: the six faces are written into the module's shape; ") + (savedWords.compare(0, 14, "Saved a copy: ") == 0 ? savedWords : std::string("the level was NOT saved (see the log)"));
 		statusWords = strategyWords.c_str();
 	});
 }
@@ -22080,6 +24059,64 @@ static void StabilityShapes(std::vector<host::TrackLine> *lines, std::vector<Lev
 }
 
 static void CopyNext(size_t index);
+static bool StrategyReplaceableWithoutAsking(std::vector<uint8_t> const &payload);
+static void CopyDo(size_t index);
+
+// FUN_00528340: the answer kept from the last replace question (2 at the start, 0x528436); "Yes All" (10) and "No All" (0xb) hold for the rest of the list (0x5284a7 / 0x5284b0)
+static int32_t copyAnswer = 2;
+
+// Copy's replace question (FUN_00529f30, strategy-data.md S-80): 400 x 200, no title, the words "%s already has a strategy\nDo you want to replace it?" (0x5ee1b4) at (0x12, 0x12) 0x172 x 100,
+// four 0x32 x 0x10 buttons at y 0x96: "Yes All" (0x5ee5a8) x 0x28 answers 10, "Yes" x 0x82 answers 3, "No" x 0xdc answers 2, "No All" (0x5ee5a0) x 0x136 answers 0xb (the class's method 0x52a100);
+// Escape answers 1 (FUN_0057c800 0x57cca4). 2 and 0xb pass the target by; any other answer (Escape too) replaces its strategy (0x5284fb)
+static void CopyQuestion(size_t index, std::string const &name)
+{
+	host::DialogFormSpec spec;
+
+	spec.title = "";
+	spec.width = 400;
+	spec.height = 200;
+
+	host::DialogWidget words;
+
+	words.type = host::DialogWidgetType::Label;
+	words.box.x = 0x12;
+	words.box.y = 0x12;
+	words.box.width = 0x172;
+	words.box.height = 100;
+	words.text = name + " already has a strategy\nDo you want to replace it?";
+	spec.widgets.push_back(words);
+
+	struct Answer { char const *label; int32_t x; int32_t answer; };
+	static Answer const answers[4] = { { "Yes All", 0x28, 10 }, { "Yes", 0x82, 3 }, { "No", 0xdc, 2 }, { "No All", 0x136, 0xb } };
+
+	for (Answer const &one : answers)
+	{
+		host::DialogWidget button;
+
+		button.type = host::DialogWidgetType::Button;
+		button.box.x = one.x;
+		button.box.y = 0x96;
+		button.box.width = 0x32;
+		button.box.height = 0x10;
+		button.text = one.label;
+		button.answer = one.answer;
+		spec.widgets.push_back(button);
+	}
+
+	host::Dialogs_Form(spec, [index](int32_t answer, std::vector<host::DialogWidget> const &)
+	{
+		copyAnswer = answer;
+
+		if (answer == 2 || answer == 0xb)
+		{
+			CopyNext(index + 1);
+		}
+		else
+		{
+			CopyDo(index);
+		}
+	});
+}
 
 static void CopyFinished()
 {
@@ -22132,23 +24169,22 @@ static void CopyNext(size_t index)
 
 		host::ObjectStrategy now;
 
-		if (host::FindObjectStrategy(LevelObjects_Level(), id, &now) == host::StrategyFound::Found)
+		// the target's strategy as edited so far (the store); one FUN_00521860 calls replaceable goes without a question (0x528497), "No All" passes the rest by, "Yes All" replaces them (0x5284a7 / 0x5284b0)
+		if (host::LookUpStrategyBytes(LevelObjects_Level(), host::LevelStore(LevelObjects_OpenForEdit()), id, &now) == host::StrategyFound::Found && !StrategyReplaceableWithoutAsking(now.payload))
 		{
-			host::FoundObject found;
-			std::string const name = host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(id).c_str(), &found) ? found.name : std::string("The object");
-
-			DialogConfirm(name + " already has a strategy\nDo you want to replace it?", [index](bool yes)   // 0x5ee1b4, FUN_00474a40
+			if (copyAnswer == 0xb)
 			{
-				if (yes)
-				{
-					CopyDo(index);
-				}
-				else
-				{
-					CopyNext(index + 1);
-				}
-			});
-			return;
+				continue;
+			}
+
+			if (copyAnswer != 10)
+			{
+				host::FoundObject found;
+				std::string const name = host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(id).c_str(), &found) ? found.name : std::string("The object");
+
+				CopyQuestion(index, name);
+				return;
+			}
 		}
 
 		CopyDo(index);
@@ -22158,7 +24194,7 @@ static void CopyNext(size_t index)
 	CopyFinished();
 }
 
-static void CopyCollectClick(host::PickReport const &report, bool shift)
+static void CopyCollectClick(host::PickReport const &report, bool shift, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	CopyTarget one = {};
@@ -22175,6 +24211,14 @@ static void CopyCollectClick(host::PickReport const &report, bool shift)
 			memcpy(one.id, report.objectId, sizeof(one.id));
 			have = true;
 		}
+	}
+
+	// an icon nearer than what the level's pick met is what the click took (FUN_00526bf0 takes any object that has a wrapper: a virtual object's V and the like)
+	if (open && open->Level())
+	{
+		bool const levelHit = report.found == host::PickFound::Module || report.found == host::PickFound::Object;
+
+		have = StrategyIconUnderClick(x, y, viewWidth, viewHeight, levelHit ? report.distance : -1, one.id) || have;
 	}
 
 	if (!have)
@@ -22205,7 +24249,27 @@ static void CopyCollectClick(host::PickReport const &report, bool shift)
 static void CopyCollectEnd()
 {
 	copyCollecting = false;
+
+	if (copyPurpose == 1)
+	{
+		LiftPositionsEnd();   // a Lift's positions (FUN_0052b360), not Copy Strategy's targets
+		return;
+	}
+
+	if (copyPurpose == 2)
+	{
+		MissionTargetsEnd();   // a Mission Objective's alteration targets (FUN_00532ea0)
+		return;
+	}
+
+	if (copyPurpose == 3)
+	{
+		TrackTargetsEnd();   // a Track Object's point page targets (FUN_00534df0)
+		return;
+	}
+
 	copyDone = 0;
+	copyAnswer = 2;   // 0x528436
 	CopyNext(0);
 }
 
@@ -22217,21 +24281,59 @@ static bool StrategyViewNameOf(uint8_t const *id, std::string *name)
 {
 	host::FoundObject found;
 
-	if (!LevelObjects_Level() || !host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(id).c_str(), &found))
+	if (!LevelObjects_Level())
 	{
 		return false;
 	}
 
-	*name = found.name;
-	return true;
+	if (host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(id).c_str(), &found))
+	{
+		*name = found.name;
+		return true;
+	}
+
+	// a virtual object the level brought has no object chunk, only its VIOBJECT: its VOBJPROP's name (inteng's record for it has a wrapper, so FUN_00529eb0 names it: S-KC-12).
+	// Found on Genshd1: the Binary Switches' targets tolink01..04 are virtual objects, and the view said "(null)"
+	std::vector<host::VirtualObjectRef> virtuals;
+
+	host::ListVirtualObjects(LevelObjects_Level(), &virtuals);
+
+	for (host::VirtualObjectRef const &one : virtuals)
+	{
+		if (memcmp(one.id, id, 8) == 0)
+		{
+			*name = one.name;
+			return true;
+		}
+	}
+
+	// an enemy or a generator: its AVPGENER's name
+	host::GeneratorRef generator;
+
+	if (host::FindGenerator(LevelObjects_Level(), id, &generator))
+	{
+		*name = generator.name;
+		return true;
+	}
+
+	return false;
 }
 
 static bool StrategyViewSubject(std::vector<uint8_t> *payload, std::string *name, int32_t *kind, uint8_t *id)
 {
 	host::ObjectStrategy now;
 
-	// the bytes the editor holds NOW (an edit is in them; the game's class the lookup copies from still has what the file held)
-	if (!SelectedObjectId(id) || !LevelObjects_OpenForEdit())
+	// the bytes the editor holds NOW (an edit is in them; the game's class the lookup copies from still has what the file held). While a view is up its object is the one it was opened on (a pick selects another)
+	if (strategyEditFan)
+	{
+		memcpy(id, strategyEditId, 8);
+	}
+	else if (!SelectedObjectId(id))
+	{
+		return false;
+	}
+
+	if (!LevelObjects_OpenForEdit())
 	{
 		return false;
 	}
@@ -22267,10 +24369,427 @@ static bool StrategyViewSubject(std::vector<uint8_t> *payload, std::string *name
 		}
 	}
 
+	// an enemy or a generator: its AVPGENER's name
+	host::GeneratorRef generator;
+
+	if (name->empty() && host::FindGenerator(LevelObjects_Level(), id, &generator))
+	{
+		*name = generator.name;
+	}
+
 	return true;
 }
 
 static void StrategyViewApply(uint8_t const *id, int32_t kind, char const *field, double number);
+
+// The view ends (Escape or the right button, S-KC-3): the screen is drawn again, the object stays the current one
+static void EnemyPathFixAtEnd(uint8_t const *id, int32_t kind);   // below, with the Enemy / Generator windows
+
+static void StrategyViewEnd()
+{
+	// an Enemy's or a Generator's view fixes its path data as it ends (S-K69-end, S-K79-end)
+	if (strategyEditFan && (strategyEditKind == 69 || strategyEditKind == 79))
+	{
+		EnemyPathFixAtEnd(strategyEditId, strategyEditKind);
+	}
+
+	if (strategyEditFan)
+	{
+		host::Selected current = {};
+
+		current.kind = host::SelectedKind::Object;
+		memcpy(current.objectId, strategyEditId, 8);
+		host::Selection_Set(current);   // the object is the current one again (FUN_00529470 after the method)
+	}
+
+	strategyPickHave = false;
+	trackPage = -1;
+
+	if (copyPurpose != 0)
+	{
+		copyCollecting = false;
+		copyPurpose = 0;
+		copyTargets.clear();
+	}
+
+	strategyEditFan = false;
+	strategyEditKind = 0;
+	strategyPickField.clear();
+	strategyViewPickWords.clear();
+	statusWords = "Strategy Data";
+}
+
+static bool StrategyOfObject(uint8_t const *id, int32_t *kind, std::vector<uint8_t> *payload);
+
+// S-KC-12 (FUN_00529eb0 / FUN_00529b60): the words a view shows for an object it names (the null ID is the caller's "None"): an ID no object has prints the null name, "(null)"; else the name and, with a strategy,
+// its kind's word (" - type '%d'" for a kind with none: 52 Binary Switch, 53, 63 Console, 67 Teleport, 79 Generator ...); with no strategy a module, placed object (wrapper +8 = 0) or virtual object (+8 = 1) shows the
+// name alone. NAMED: ours finds modules, placed objects and virtual objects; an enemy, generator, sound, light, placed hierarchy, particle generator or cut-scene head named by a target shows "(null)" (inteng: " - Enemy",
+// " - Generator", " - Light", " - Sound", " - Hierarchy", " - Particle Generator", " - Cutscene" by the wrapper's +8, or its strategy's word)
+static std::string StrategyTargetWords(uint8_t const *id)
+{
+	std::string name;
+
+	if (!StrategyViewNameOf(id, &name))
+	{
+		return "(null)";
+	}
+
+	int32_t kind = 0;
+	std::vector<uint8_t> bytes;
+
+	if (!StrategyOfObject(id, &kind, &bytes))
+	{
+		host::GeneratorRef generator;
+
+		if (LevelObjects_Level() && host::FindGenerator(LevelObjects_Level(), id, &generator))
+		{
+			return name + (generator.type != 0 ? " - Enemy" : " - Generator");   // by the wrapper's +8 (0x5ee318; the generator's word: to read, NAMED)
+		}
+
+		return name;
+	}
+
+	int32_t type = 0;
+	char const *word = nullptr;
+
+	switch (kind)
+	{
+		case 50: word = " - Door"; break;                          // 0x5ee590
+		case 51: word = " - Lift"; break;                          // 0x5ee598
+		case 54: word = " - Platform lift"; break;                 // 0x5ee57c
+		case 59: word = " - Switch door"; break;                   // 0x5ee56c
+		case 61: word = " - Link switch"; break;                   // 0x5ee55c
+		case 62: word = host::StrategyView_FieldNumber(62, bytes, "Type", &type) && type == 16 ? " - Light object" : " - Placed object"; break;   // 0x5ee4a8, 0x5ee4b8
+		case 64: word = " - Lighting"; break;                      // 0x5ee530
+		case 66: word = " - Multi switch"; break;                  // 0x5ee54c
+		case 68: word = " - Area switch"; break;                   // 0x5ee53c
+		case 69: word = " - Enemy"; break;                         // 0x5ee318
+		case 70: word = " - Mission objective"; break;             // 0x5ee518
+		case 72: word = " - Track object"; break;                  // 0x5ee508
+		case 73: word = " - Message"; break;                       // 0x5ee4fc
+		case 75: word = " - Fan"; break;                           // 0x5ee4f4
+		case 76: word = " - Hierarchy"; break;                     // 0x5ee324
+		case 77: word = " - Volume of Death"; break;               // 0x5ee4e0
+		case 78: word = " - Self Destruct"; break;                 // 0x5ee4cc
+		case 80: word = " - Destructable track object"; break;     // 0x5ee488
+		case 1000: word = " - Swinging door"; break;               // the other games' kinds, as FUN_00529b60 names them
+		case 1001: word = " - Bomb"; break;
+		case 1002: word = " - Switch"; break;
+		case 2000: word = " - Inanimate Object"; break;
+		case 2001: word = " - Pickup"; break;
+		case 2002: word = " - Simple Object"; break;
+		case 2005: word = " - Chest"; break;
+		case 2006: word = " - Camera Adjust Region"; break;
+		case 2007: word = " - Pivot Object"; break;
+		case 2009: word = " - Crumbling Floor"; break;
+		case 2010: word = " - Trigger Volume"; break;
+		case 2011: word = " - Track/Morphing"; break;
+		case 2012: word = " - Liquid Death Zone"; break;
+		case 2013: word = " - Starkey Fragment"; break;
+		case 2014: word = " - Spike Trap"; break;
+		case 2015: word = " - Training Text"; break;
+		default: break;
+	}
+
+	if (word)
+	{
+		return name + word;
+	}
+
+	char other[32];
+
+	snprintf(other, sizeof(other), " - type '%d'", kind);   // 0x5ee35c
+	return name + other;
+}
+
+// MFC's float exchange of edobtype.dll's dialogs (DDX_Text float: leading and trailing spaces, then strtod; anything else left over is no number)
+static bool LightFxNumber(std::string const &text, float *value)
+{
+	char const *at = text.c_str();
+
+	while (*at == ' ' || *at == '\t')
+	{
+		at++;
+	}
+
+	char *end = nullptr;
+	double const number = strtod(at, &end);
+
+	if (end == at)
+	{
+		return false;
+	}
+
+	while (*end == ' ' || *end == '\t')
+	{
+		end++;
+	}
+
+	if (*end != '\0')
+	{
+		return false;
+	}
+
+	*value = (float)number;
+	return true;
+}
+
+// LIGHTING EFFECTS (64; reassess/strategy-data-kinds.md S-K64-1..3): the view is edobtype.dll's "Light FX" dialog (resource 131, 248 x 146 dialog units: 1.5 x 1.625 pixels each). The display hand-over
+// (FlipToGDISurface, the palette) is the full-screen display's: ours is a window (NAMED). The group box "Light Types" is a label here (the form has no frame part: NAMED).
+static void LightFxOpen(uint8_t const *subject, std::vector<uint8_t> const &payload)
+{
+	auto const dx = [](int32_t u) { return (int32_t)(u * 3 / 2); };
+	auto const dy = [](int32_t u) { return (int32_t)(u * 13 / 8); };
+	int32_t type = 0, state = 0;
+
+	host::StrategyView_FieldNumber(64, payload, "type", &type);
+	host::StrategyView_FieldNumber(64, payload, "init_state", &state);
+
+	// the model gives a Fixed16Seconds field in whole seconds; the dialog shows word / 65536 as a float (%.6g, MFC's FLT_DIG): read the words themselves
+	auto const word = [&payload](size_t at) -> int32_t { int32_t v = 0; if (payload.size() >= at + 4) { memcpy(&v, payload.data() + at, 4); } return v; };
+	auto const shown = [](int32_t w) { char text[64]; snprintf(text, sizeof(text), "%.6g", (double)((float)w / 65536.0f)); return std::string(text); };
+
+	host::DialogFormSpec spec;
+
+	spec.title = "Light FX";
+	spec.width = dx(248) + 10;
+	spec.height = dy(146) + 10;
+
+	auto const add = [&spec](host::DialogWidgetType kind, char const *words, int32_t x, int32_t y, int32_t w, int32_t h, int32_t group, bool checked, int32_t answer)
+	{
+		host::DialogWidget one;
+
+		one.type = kind;
+		one.text = words;
+		one.box = { x, y, w, h };
+		one.group = group;
+		one.checked = checked;
+		one.answer = answer;
+		spec.widgets.push_back(one);
+	};
+
+	int32_t const shownType = type >= 0 && type <= 3 ? type : 0;   // a type above 3 shows Random Flicker
+
+	// 0 label; 1..4 the type radios (1008..1011)
+	add(host::DialogWidgetType::Label, "Light Types", dx(17), dy(7), dx(89), 16, -1, false, 0);
+	// each radio is its round button (the toolkit's 16 x 16 box) with its words beside it, as the resource's BS_AUTORADIOBUTTON draws them (the toolkit draws no words on a box)
+	add(host::DialogWidgetType::Check, "", dx(21), dy(18), 16, 16, 0, shownType == 0, 0);
+	add(host::DialogWidgetType::Check, "", dx(21), dy(29), 16, 16, 0, shownType == 1, 0);
+	add(host::DialogWidgetType::Check, "", dx(21), dy(40), 16, 16, 0, shownType == 2, 0);
+	add(host::DialogWidgetType::Check, "", dx(21), dy(51), 16, 16, 0, shownType == 3, 0);
+	// 5..7 the column labels; 8 "Up"; 9 edit 1003; 10 edit 1004; 11 radio 1017; 12 "Down"; 13 edit 1005; 14 edit 1006; 15 radio 1018
+	add(host::DialogWidgetType::Label, "Fading (sec)", dx(63), dy(76), dx(60), 16, -1, false, 0);
+	add(host::DialogWidgetType::Label, "After Fading (sec)", dx(133), dy(76), dx(64), 16, -1, false, 0);
+	add(host::DialogWidgetType::Label, "Default", dx(197), dy(76), dx(40), 16, -1, false, 0);
+	add(host::DialogWidgetType::Label, "Up", dx(35), dy(92), dx(20), 16, -1, false, 0);
+	add(host::DialogWidgetType::Edit, shown(word(28)).c_str(), dx(63), dy(91), dx(40), dy(14), -1, false, 0);
+	add(host::DialogWidgetType::Edit, shown(word(36)).c_str(), dx(139), dy(91), dx(40), dy(14), -1, false, 0);
+	add(host::DialogWidgetType::Check, "", dx(203), dy(93), 16, 16, 1, type != 0 && state == 0, 0);
+	add(host::DialogWidgetType::Label, "Down", dx(35), dy(119), dx(24), 16, -1, false, 0);
+	add(host::DialogWidgetType::Edit, shown(word(32)).c_str(), dx(63), dy(116), dx(40), dy(14), -1, false, 0);
+	add(host::DialogWidgetType::Edit, shown(word(40)).c_str(), dx(139), dy(116), dx(40), dy(14), -1, false, 0);
+	add(host::DialogWidgetType::Check, "", dx(203), dy(119), 16, 16, 1, type != 0 && state == 1, 0);
+	// 16 OK, 17 Cancel
+	add(host::DialogWidgetType::Button, "OK", dx(191), dy(7), dx(50), dy(14), -1, false, host::kDialogOk);
+	add(host::DialogWidgetType::Button, "Cancel", dx(191), dy(24), dx(50), dy(14), -1, false, host::kDialogEscape);
+	// the radios' words, after every widget the form numbers (form-field / the edits' order is unchanged)
+	add(host::DialogWidgetType::Label, "Random Flicker", dx(21) + 20, dy(18), dx(80) - 20, 16, -1, false, 0);
+	add(host::DialogWidgetType::Label, "Strobe", dx(21) + 20, dy(29), dx(80) - 20, 16, -1, false, 0);
+	add(host::DialogWidgetType::Label, "Switch", dx(21) + 20, dy(40), dx(80) - 20, 16, -1, false, 0);
+	add(host::DialogWidgetType::Label, "Flicky Switch", dx(21) + 20, dy(51), dx(80) - 20, 16, -1, false, 0);
+
+	for (host::DialogWidget &one : spec.widgets)
+	{
+		one.most = one.type == host::DialogWidgetType::Edit ? 32 : one.most;
+	}
+
+	std::array<uint8_t, 8> lift;
+
+	memcpy(lift.data(), subject, 8);
+	host::Dialogs_Form(spec, [lift, type, state, shownType](int32_t answer, std::vector<host::DialogWidget> const &widgets)
+	{
+		if (answer != host::kDialogOk || widgets.size() < 18)
+		{
+			return;   // Cancel / Escape: nothing changes
+		}
+
+		// UpdateData(TRUE) (DoDataExchange 0x10002700): 1006, 1004, 1005 (each read, then checked 0 to 100), the Up / Down radio, 1003, then the type radio. A box that is no number stops the exchange before it is
+		// stored ("Please enter a number."); one out of range is stored and THEN stops it ("Please enter a number between 0 and 100."); what comes after a stop keeps the dialog's first values. OnOK does not test
+		// the result.
+		struct Box { size_t widget; size_t at; };
+		Box const order[4] = { { 14, 40 }, { 10, 36 }, { 13, 32 }, { 9, 28 } };
+		std::map<size_t, int32_t> words;
+		std::string warning;
+		int32_t radioState = state == 0 || state == 1 ? state : -1;
+		int32_t radioType = shownType;
+		bool stopped = false;
+
+		for (size_t step = 0; step < 4 && !stopped; step++)
+		{
+			if (step == 3)
+			{
+				// the Up / Down radio is exchanged before 1003
+				radioState = widgets[11].checked ? 0 : (widgets[15].checked ? 1 : -1);
+			}
+
+			float value = 0.0f;
+
+			if (!LightFxNumber(widgets[order[step].widget].text, &value))
+			{
+				warning = "Please enter a number.";
+				stopped = true;
+				break;
+			}
+
+			words[order[step].at] = (int32_t)(value * 65536.0f);   // 0x1001a660: stored as (int)(value x 65536)
+
+			if (!(value >= 0.0f && value <= 100.0f))
+			{
+				warning = "Please enter a number between 0 and 100.";
+				stopped = true;
+			}
+		}
+
+		if (!stopped)
+		{
+			radioType = widgets[1].checked ? 0 : (widgets[2].checked ? 1 : (widgets[3].checked ? 2 : (widgets[4].checked ? 3 : -1)));
+		}
+
+		auto const store = [lift, words, radioType, radioState, type]()
+		{
+			std::vector<uint8_t> now;
+			int32_t kindNow = 0;
+
+			if (!StrategyOfObject(lift.data(), &kindNow, &now) || kindNow != 64 || now.size() < 44)
+			{
+				return;
+			}
+
+			for (auto const &one : words)
+			{
+				memcpy(now.data() + one.first, &one.second, 4);
+			}
+
+			// the type = the radio (0..3: none checked keeps it); with 1, 2 or 3 the initial state = the Up / Down radio (left when neither is set); with 0 it is left as it was
+			int32_t const newType = radioType >= 0 ? radioType : type;
+
+			memcpy(now.data() + 20, &newType, 4);
+
+			if (newType >= 1 && newType <= 3 && radioState >= 0)
+			{
+				memcpy(now.data() + 24, &radioState, 4);
+			}
+
+			if (LevelObjects_OpenForEdit())
+			{
+				host::SetStrategyBytes(LevelObjects_OpenForEdit(), lift.data(), now.data(), now.size());
+			}
+		};
+
+		// OnOK (0x10002900): after the exchange, the debug message box "Radio num = %d" (0x1001f0b8) with the type radio's number, every time; COPIED as inteng shows it (Bishop's order 10b), NAMED so Melanikus
+		// can veto it. Its caption (the DLL's application name) is not drawn by ours.
+		char radio[48];
+
+		snprintf(radio, sizeof(radio), "Radio num = %d", radioType);
+
+		std::string const radioWords = radio;
+
+		if (!warning.empty())
+		{
+			DialogMessage(warning, [radioWords, store]() { DialogMessage(radioWords, store); });
+		}
+		else
+		{
+			DialogMessage(radioWords, store);
+		}
+	});
+}
+
+// CONSOLE (63; S-K63-1): a window, not a page of lines (FUN_0052f260: FUN_0057d170(400, 200, 4), centred): "Console Number" (0x5eeedc), a number box at (0x82, 100), 0x96 x 0x12, holding ConsoleNum, "Ok" (100, 0x96)
+// answering 2 and "Cancel" (200, 0x96). Ok (Return too): the number typed is stored when no other Console of the level has it (FUN_0052f1d0), else the message "This number is used by another console" (0x5ef054)
+// and nothing changes
+static void ConsoleOpen(uint8_t const *subject, std::vector<uint8_t> const &payload)
+{
+	int32_t number = 0;
+
+	host::StrategyView_FieldNumber(63, payload, "ConsoleNum", &number);
+
+	host::DialogFormSpec spec;
+	host::DialogWidget box, ok, cancel;
+
+	spec.title = "Console Number";
+	spec.width = 400;
+	spec.height = 200;
+	box.type = host::DialogWidgetType::Edit;
+	box.text = std::to_string((long long)number);
+	box.box = { 0x82, 100, 0x96, 0x12 };
+	box.most = 10;   // FUN_0057de30's number box
+	ok.type = host::DialogWidgetType::Button;
+	ok.text = "Ok";
+	ok.box = { 100, 0x96, 0x32, 0x10 };
+	ok.answer = 2;
+	cancel = ok;
+	cancel.text = "Cancel";
+	cancel.box = { 200, 0x96, 0x32, 0x10 };
+	cancel.answer = host::kDialogEscape;
+	spec.widgets = { box, ok, cancel };
+
+	std::array<uint8_t, 8> console;
+
+	memcpy(console.data(), subject, 8);
+	host::Dialogs_Form(spec, [console](int32_t answer, std::vector<host::DialogWidget> const &widgets)
+	{
+		if ((answer != 2 && answer != host::kDialogOk) || widgets.empty())
+		{
+			return;
+		}
+
+		int32_t const typed = (int32_t)strtol(widgets[0].text.c_str(), nullptr, 10);
+		std::vector<std::array<uint8_t, 8>> ids;
+
+		host::ObjectEdit_Ids(LevelObjects_Level(), &ids);
+
+		for (std::array<uint8_t, 8> const &one : ids)
+		{
+			int32_t kind = 0, other = 0;
+			std::vector<uint8_t> bytes;
+
+			if (memcmp(one.data(), console.data(), 8) != 0 && StrategyOfObject(one.data(), &kind, &bytes) && kind == 63 && host::StrategyView_FieldNumber(63, bytes, "ConsoleNum", &other) && other == typed)
+			{
+				DialogMessage("This number is used by another console");   // 0x5ef054, FUN_00474030
+				return;
+			}
+		}
+
+		StrategyViewApply(console.data(), 63, "ConsoleNum", (double)typed);
+	});
+}
+
+// The kinds whose method +0x14 shows no page of lines: 64 (the Light FX dialog), 63 (the Console Number window), and the kinds with no class of their own (S-KC-11: 55, 56, 57 or 60 written literally, 58, 65, 71, 74:
+// "Unknown strategy type" (0x5ee814) for 700 ms). True when the kind is one of them (and what it shows is up)
+static bool StrategyViewIsADialog(int32_t kind, uint8_t const *id, std::vector<uint8_t> const &payload)
+{
+	if (kind == 64)
+	{
+		LightFxOpen(id, payload);
+		return true;
+	}
+
+	if (kind == 63)
+	{
+		ConsoleOpen(id, payload);
+		return true;
+	}
+
+	if (kind == 55 || kind == 56 || kind == 57 || kind == 58 || kind == 60 || kind == 65 || kind == 71 || kind == 74)
+	{
+		StrategyMessage("Unknown strategy type");
+		statusWords = "Unknown strategy type";
+		return true;
+	}
+
+	return false;
+}
 
 static bool StrategyViewOpen()
 {
@@ -22279,6 +24798,13 @@ static bool StrategyViewOpen()
 	int32_t kind = 0;
 	uint8_t id[8];
 
+	if (StrategyViewSubject(&payload, &name, &kind, id) && StrategyViewIsADialog(kind, id, payload))
+	{
+		strategyEditFan = false;
+		strategyEditKind = 0;
+		return true;   // no lines: a dialog (64, 63) or a message (S-KC-11) is what the kind's method shows
+	}
+
 	if (!StrategyViewSubject(&payload, &name, &kind, id) || !host::StrategyView_Has(kind))
 	{
 		strategyEditFan = false;
@@ -22286,8 +24812,11 @@ static bool StrategyViewOpen()
 		return false;
 	}
 
+	memcpy(strategyEditId, id, 8);
 	strategyEditKind = kind;
 	strategyEditFan = true;
+	trackPage = -1;
+	strategyPickHave = false;
 
 	// what the kind's method writes before it draws (a door's times of 0, a door that is neither kind)
 	std::vector<host::StrategyViewFix> fixes;
@@ -22333,8 +24862,140 @@ static void StrategyViewApply(uint8_t const *id, int32_t kind, char const *field
 	StrategyViewApplyBody(id, kind, field, number);
 }
 
-// the click that answers a Pick line: the module or placed object under the pointer becomes the object of the field (not the strategy's own object)
-static void StrategyViewPickClicked(host::PickReport const &report)
+// THE OBJECT PICK of a view line (FUN_00527540(start, 1); reassess/strategy-data-kinds.md S-KC-5): the screen is drawn as usual (FUN_00529370) with "Press return when finished" and the picked object's
+// name; the picked object is RED; a left click takes the object under the pointer (any object the screen has a wrapper for: a module, a placed object, a virtual object's V ...), a click on nothing lets the picked one go;
+// Return or the RIGHT button ends it (Escape does not: its slot stays set and the view ends once the pick does). Then the row's own end (StrategyPickEnd).
+static bool StrategyObjectExists(uint8_t const *id)
+{
+	host::FoundObject found;
+	host::GeneratorRef generator;
+
+	if (LevelObjects_Level() && host::FindGenerator(LevelObjects_Level(), id, &generator))
+	{
+		return true;
+	}
+
+	if (LevelObjects_Level() && host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(id).c_str(), &found))
+	{
+		return true;
+	}
+
+	std::vector<host::VirtualObjectRef> virtuals;
+
+	host::ListVirtualObjects(LevelObjects_Level(), &virtuals);
+
+	for (host::VirtualObjectRef const &one : virtuals)
+	{
+		if (memcmp(one.id, id, 8) == 0)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// A virtual object (no shape: the rows that need the picked object's shape record, +0x154, refuse it)
+static bool StrategyObjectIsVirtual(uint8_t const *id)
+{
+	std::vector<host::VirtualObjectRef> virtuals;
+
+	host::ListVirtualObjects(LevelObjects_Level(), &virtuals);
+
+	for (host::VirtualObjectRef const &one : virtuals)
+	{
+		if (memcmp(one.id, id, 8) == 0)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// FUN_00529280(block, 0): the camera goes to the object's place (its motion numbers are 0 at rest, so "less ten times them" is nothing), the turn kept
+static void StrategyFlyTo(uint8_t const *id)
+{
+	if (!theCamera || !LevelObjects_Level())
+	{
+		return;
+	}
+
+	// FUN_00529280(record, 0) (dump-full-3:61782; S-11, S-K52-7): the camera's place = the record's LESS 10 x its own forward axis (+0x50..+0x58, 16.16: 655360 inteng units, forward / 10 in
+	// the game's), its turn and look kept. The record's place: an object chunk's (as edited), else a virtual object the editor made (its object chunk), else a level's virtual object (its VOBJPROP)
+	int64_t place3[3], least[3], most[3];
+	host::FoundObject found;
+	double at[3] = { 0, 0, 0 };
+	bool have = false;
+
+	if (host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(id).c_str(), &found))
+	{
+		at[0] = found.x; at[1] = found.y; at[2] = found.z;
+		have = true;
+	}
+	else if (host::VirtualObject_Geometry(LevelObjects_Level(), id, place3, least, most))
+	{
+		at[0] = (double)place3[0]; at[1] = (double)place3[1]; at[2] = (double)place3[2];
+		have = true;
+	}
+	else
+	{
+		std::vector<host::VirtualObjectRef> virtuals;
+
+		host::ListVirtualObjects(LevelObjects_Level(), &virtuals);
+
+		for (host::VirtualObjectRef const &one : virtuals)
+		{
+			if (!have && memcmp(one.id, id, 8) == 0)
+			{
+				at[0] = one.place[0]; at[1] = one.place[1]; at[2] = one.place[2];
+				have = true;
+			}
+		}
+	}
+
+	// an enemy or a generator (bishop-int's Find rows, Drake): its AVPGENER's place
+	host::GeneratorRef generator;
+
+	if (!have && host::FindGenerator(LevelObjects_Level(), id, &generator))
+	{
+		at[0] = generator.place[0]; at[1] = generator.place[1]; at[2] = generator.place[2];
+		have = true;
+	}
+
+	if (!have)
+	{
+		return;
+	}
+
+	int forward[3] = { 0, 0, 0 }, right[3] = { 0, 0, 0 };
+
+	LevelView_CameraAxes(forward, right, nullptr);
+	theCamera->x = (int)(at[0] * local_scale) - forward[0] / 10;
+	theCamera->y = (int)(at[1] * local_scale) - forward[1] / 10;
+	theCamera->z = (int)(at[2] * local_scale) - forward[2] / 10;
+	FlyCamera_Hold(theCamera);
+}
+
+// the picked object is the red one (the screen's current object, which the view's own object is not while the pick runs: FUN_00529480 before the method)
+static void StrategyPickShow()
+{
+	if (strategyPickHave)
+	{
+		host::Selected one = {};
+
+		one.kind = host::SelectedKind::Object;
+		memcpy(one.objectId, strategyPickId, 8);
+		host::Selection_Set(one);
+	}
+	else
+	{
+		host::Selection_Clear();
+	}
+}
+
+// a left click while the pick runs (FUN_00527540 0x5275db-0x527633): the object under the pointer, else none
+static void StrategyViewPickClicked(host::PickReport const &report, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	uint8_t target[8] = { 0 };
@@ -22351,35 +25012,1404 @@ static void StrategyViewPickClicked(host::PickReport const &report)
 			memcpy(target, report.objectId, sizeof(target));
 			have = true;
 		}
+
+		bool const levelHit = report.found == host::PickFound::Module || report.found == host::PickFound::Object;
+
+		have = StrategyIconUnderClick(x, y, viewWidth, viewHeight, levelHit ? report.distance : -1, target) || have;
 	}
 
-	std::vector<uint8_t> payload;
-	std::string name;
-	int32_t kind = 0;
-	uint8_t id[8];
-
-	if (!have || !StrategyViewSubject(&payload, &name, &kind, id) || memcmp(target, id, 8) == 0)
+	if (!have)
 	{
-		return;
+		strategyPickHave = false;   // a click on nothing lets the picked one go
+	}
+	else if (!strategyPickHave || memcmp(target, strategyPickId, 8) != 0)
+	{
+		memcpy(strategyPickId, target, 8);
+		strategyPickHave = true;
 	}
 
+	StrategyPickShow();
+}
+
+// An object field of a strategy (by its object's ID and kind) set to an object, or to the null ID (0 0) when target is null
+static bool StrategyFieldSetObject(uint8_t const *id, int32_t kind, char const *field, uint8_t const *target)
+{
 	if (!LevelObjects_OpenForEdit())
 	{
-		return;
+		return false;
 	}
 
 	host::LevelStore store(LevelObjects_OpenForEdit());
 	host::FieldEdit edit;
 	char const *why = nullptr;
 	host::StrategyFound lookup;
+	uint8_t none[8] = { 0 };
+	uint8_t const *const put = target ? target : none;
 
-	edit.field = strategyPickField.c_str();
+	edit.field = field;
 	edit.what = host::EditWhat::Object;
-	memcpy(&edit.first, target, 4);
-	memcpy(&edit.second, target + 4, 4);
-	host::ApplyStrategyEdit(LevelObjects_Level(), id, kind, edit, &store, &why, &lookup);
+	memcpy(&edit.first, put, 4);
+	memcpy(&edit.second, put + 4, 4);
+	return host::ApplyStrategyEdit(LevelObjects_Level(), id, kind, edit, &store, &why, &lookup) == host::EditAnswer::Applied;
+}
+
+// The kind of an object's strategy, and its bytes; false when it has none
+static bool StrategyOfObject(uint8_t const *id, int32_t *kind, std::vector<uint8_t> *payload)
+{
+	if (!LevelObjects_OpenForEdit())
+	{
+		return false;
+	}
+
+	host::LevelStore store(LevelObjects_OpenForEdit());
+	host::ObjectStrategy now;
+
+	if (host::LookUpStrategyBytes(LevelObjects_Level(), store, id, &now) != host::StrategyFound::Found || now.payload.size() < 12)
+	{
+		return false;
+	}
+
+	memcpy(kind, now.payload.data() + 8, sizeof(int32_t));
+
+	if (payload)
+	{
+		*payload = now.payload;
+	}
+
+	return true;
+}
+
+// THE LIFT'S EDITS (51; reassess/strategy-data-kinds.md S-K51-6..12). The payload: 20 bytes, the positions' count (+20) and their IDs (8 each), then the door, the call switch and the floor switch (8 each), the flags,
+// the Floor, the external lifts' count and their 28-byte records, and the Facing (the last 4 bytes). An edit that changes the list's size writes the whole payload (object_edit.h SetStrategyBytes).
+static int32_t StrategyGet32(std::vector<uint8_t> const &bytes, size_t at)
+{
+	int32_t value = 0;
+
+	memcpy(&value, bytes.data() + at, sizeof(value));
+	return value;
+}
+
+static void StrategyPut32(std::vector<uint8_t> *bytes, size_t at, int32_t value)
+{
+	memcpy(bytes->data() + at, &value, sizeof(value));
+}
+
+struct LiftParts
+{
+	std::vector<std::array<uint8_t, 8>> positions;
+	size_t tail = 0;          // where the door starts (24 + 8 x the count)
+	size_t externalEnd = 0;   // where the external lifts' records end
+};
+
+// The parts of a Lift's payload; false when the counts are negative or the bytes do not hold what they say (a hostile file): such a lift is not changed by these edits (inteng would read past its lists;
+// memory safety, named in S-K51-7 and S-K51-12)
+static bool LiftPartsOf(std::vector<uint8_t> const &payload, LiftParts *parts)
+{
+	if (payload.size() < 24)
+	{
+		return false;
+	}
+
+	int32_t const count = StrategyGet32(payload, 20);
+
+	if (count < 0 || (size_t)count > (payload.size() - 24) / 8)
+	{
+		return false;
+	}
+
+	parts->tail = 24 + 8 * (size_t)count;
+
+	if (payload.size() - parts->tail < 40)
+	{
+		return false;
+	}
+
+	int32_t const external = StrategyGet32(payload, parts->tail + 32);
+
+	if (external < 0 || (size_t)external > (payload.size() - parts->tail - 40) / 28)
+	{
+		return false;
+	}
+
+	parts->externalEnd = parts->tail + 36 + 28 * (size_t)external;
+	parts->positions.clear();
+
+	for (int32_t i = 0; i < count; i++)
+	{
+		std::array<uint8_t, 8> one;
+
+		memcpy(one.data(), payload.data() + 24 + 8 * (size_t)i, 8);
+		parts->positions.push_back(one);
+	}
+
+	return true;
+}
+
+// The payload with these positions in place of its own, everything else as it was
+static bool LiftWithPositions(std::vector<uint8_t> const &payload, std::vector<std::array<uint8_t, 8>> const &positions, std::vector<uint8_t> *out)
+{
+	LiftParts parts;
+
+	if (!LiftPartsOf(payload, &parts) || positions.size() > 4096)
+	{
+		return false;
+	}
+
+	out->assign(payload.begin(), payload.begin() + 24);
+	StrategyPut32(out, 20, (int32_t)positions.size());
+
+	for (std::array<uint8_t, 8> const &one : positions)
+	{
+		out->insert(out->end(), one.begin(), one.end());
+	}
+
+	out->insert(out->end(), payload.begin() + (std::ptrdiff_t)parts.tail, payload.end());
+	return true;
+}
+
+// FUN_0052bcf0: a lift's Floor = how many of these positions' objects lie before the lift's own object in the order y, then z, then x (RBOBJECT +0x48, +0x4c, +0x44: the place, with inteng's 50-byte
+// names); a position no object has is not counted, and with no level it is 0
+static int32_t LiftFloorOf(uint8_t const *own, std::vector<std::array<uint8_t, 8>> const &positions)
+{
+	host::FoundObject me;
+
+	// inteng reads through a null object when the lift's own is not in the level; it always is here (a module's view): 0 then
+	if (!LevelObjects_Level() || !host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(own).c_str(), &me))
+	{
+		return 0;
+	}
+
+	int32_t floor = 0;
+
+	for (std::array<uint8_t, 8> const &one : positions)
+	{
+		host::FoundObject at;
+
+		if (host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(one.data()).c_str(), &at) &&
+		    (at.y < me.y || (at.y == me.y && (at.z < me.z || (at.z == me.z && at.x < me.x)))))
+		{
+			floor++;
+		}
+	}
+
+	return floor;
+}
+
+static bool StrategyObjectInLevel(uint8_t const *id)
+{
+	host::FoundObject found;
+
+	return LevelObjects_Level() && host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(id).c_str(), &found);
+}
+
+// FUN_0052b770 ("make the other positions agree", S-K51-12): this lift's Floor first; then each position whose object is in the level: no strategy -> a new Lift; a Lift -> its positions = this lift's with
+// its own place taken by this lift's object, its external lifts = this lift's, its Floor worked out the same way, its flags 2, 4 and 8 = this lift's (its flag 1 and the rest kept). Other strategies: left alone.
+static void LiftMakeAgree(uint8_t const *subject)
+{
+	int32_t kind = 0;
+	std::vector<uint8_t> mine;
+	LiftParts me;
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !LevelObjects_Level() || !StrategyOfObject(subject, &kind, &mine) || kind != 51 || !LiftPartsOf(mine, &me))
+	{
+		return;
+	}
+
+	StrategyViewApply(subject, 51, "Floor", (double)LiftFloorOf(subject, me.positions));   // 0x52ba07
+
+	uint32_t const myFlags = (uint32_t)StrategyGet32(mine, me.tail + 24);
+
+	for (size_t i = 0; i < me.positions.size(); i++)
+	{
+		uint8_t const *const position = me.positions[i].data();
+
+		if (!StrategyObjectInLevel(position))
+		{
+			continue;   // FUN_005295e0 with the level's list: not there, left alone
+		}
+
+		int32_t theirKind = 0;
+		std::vector<uint8_t> theirs;
+
+		if (!StrategyOfObject(position, &theirKind, &theirs))
+		{
+			// 0x52ba62-0x52bab4: no strategy, a new Lift (FUN_0052b2f0)
+			if (host::AssignStrategy(open, position, 51) != host::ObjectEditResult::Done)
+			{
+				continue;
+			}
+
+			LoadTheObjectListAgain();
+
+			if (!StrategyOfObject(position, &theirKind, &theirs))
+			{
+				continue;
+			}
+		}
+
+		LiftParts them;
+
+		if (theirKind != 51 || !LiftPartsOf(theirs, &them))
+		{
+			continue;
+		}
+
+		std::vector<std::array<uint8_t, 8>> list = me.positions;
+
+		memcpy(list[i].data(), subject, 8);   // 0x52bb2c-0x52bb5f
+
+		uint32_t const flags = ((uint32_t)StrategyGet32(theirs, them.tail + 24) & ~0xEu) | (myFlags & 0xEu);   // 0x52bbe9-0x52bc1e
+		std::vector<uint8_t> bytes(theirs.begin(), theirs.begin() + 24);
+
+		StrategyPut32(&bytes, 20, (int32_t)list.size());
+
+		for (std::array<uint8_t, 8> const &one : list)
+		{
+			bytes.insert(bytes.end(), one.begin(), one.end());
+		}
+
+		bytes.insert(bytes.end(), theirs.begin() + (std::ptrdiff_t)them.tail, theirs.begin() + (std::ptrdiff_t)(them.tail + 24));   // door, call switch, floor switch
+		bytes.resize(bytes.size() + 8);
+		StrategyPut32(&bytes, bytes.size() - 8, (int32_t)flags);
+		StrategyPut32(&bytes, bytes.size() - 4, LiftFloorOf(position, list));   // 0x52bbd4: its Floor from its new list
+		bytes.insert(bytes.end(), mine.begin() + (std::ptrdiff_t)(me.tail + 32), mine.begin() + (std::ptrdiff_t)me.externalEnd);   // 0x52bb6e-0x52bbbc: the external lifts
+		bytes.insert(bytes.end(), theirs.begin() + (std::ptrdiff_t)them.externalEnd, theirs.end());                              // the Facing (and anything after the records) kept
+		host::SetStrategyBytes(open, position, bytes.data(), bytes.size());
+	}
+}
+
+// The positions block's click (0x52c765-0x52c7ab, FUN_0052b360 with edit; S-K51-6, -7): the camera first goes to the position clicked, then the collector runs with the positions in its list; its end is
+// LiftPositionsEnd. The list given to the collector holds the positions the level has: an ID no object has would be a null block that inteng reads through (memory safety: left out, named in S-K51-7)
+static void LiftPositionsStart(uint8_t const *subject, std::vector<uint8_t> const &payload, int32_t index)
+{
+	std::vector<std::array<uint8_t, 8>> positions;
+
+	host::StrategyView_LiftPositions(payload, &positions);
+
+	if (index >= 0 && (size_t)index < positions.size())
+	{
+		StrategyFlyTo(positions[(size_t)index].data());   // FUN_005294f0 + FUN_00529280
+	}
+
+	copyTargets.clear();
+
+	for (std::array<uint8_t, 8> const &one : positions)
+	{
+		if (StrategyObjectExists(one.data()))
+		{
+			CopyTarget target = {};
+
+			memcpy(target.id, one.data(), 8);
+			copyTargets.push_back(target);
+		}
+	}
+
+	memcpy(copyFrom, subject, 8);
+	copyPurpose = 1;
+	copyCollecting = true;
+}
+
+// The collector's end (0x52b443-0x52b6fd): the lift's own object is taken out, then every object that cannot take a Lift (its class's +8(0x33) is 0: anything but a module); what is left are the positions, in the
+// list's order. None: no positions, nothing asked. Else "Would you like the other positions altered\nto agree with this one?" (FUN_00474a40, 0x5ee83c): Yes makes them agree (FUN_0052b770)
+static void LiftPositionsEnd()
+{
+	uint8_t subject[8];
+	std::vector<std::array<uint8_t, 8>> kept;
+
+	memcpy(subject, strategyEditId, 8);
+	copyPurpose = 0;
+
+	for (CopyTarget const &one : copyTargets)
+	{
+		int32_t kinds[16];
+		size_t const count = memcmp(one.id, subject, 8) == 0 ? 0 : KindsTheObjectCanTake(one.id, kinds);
+		bool can = false;
+
+		for (size_t k = 0; k < count; k++)
+		{
+			can = can || kinds[k] == 51;
+		}
+
+		if (can)
+		{
+			std::array<uint8_t, 8> id;
+
+			memcpy(id.data(), one.id, 8);
+			kept.push_back(id);
+		}
+	}
+
+	copyTargets.clear();
+
+	int32_t kind = 0;
+	std::vector<uint8_t> payload, bytes;
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !StrategyOfObject(subject, &kind, &payload) || kind != 51 || !LiftWithPositions(payload, kept, &bytes) ||
+	    host::SetStrategyBytes(open, subject, bytes.data(), bytes.size()) != host::ObjectEditResult::Done)
+	{
+		statusWords = "Edit Strategy: the lift's positions could not be written";   // (ours: a lift whose bytes do not hold their lists, or a store that refused)
+		return;
+	}
+
+	if (kept.empty())
+	{
+		if (keyDown[VK_ESCAPE])
+		{
+			StrategyViewEnd();   // Escape still held as the collector ends: the view's own check sees it
+		}
+
+		return;
+	}
+
+	uint8_t const *const keep = strategyEditId;
+	std::array<uint8_t, 8> lift;
+
+	memcpy(lift.data(), keep, 8);
+	DialogConfirm("Would you like the other positions altered\nto agree with this one?", [lift](bool yes)   // 0x5ee83c
+	{
+		if (yes)
+		{
+			LiftMakeAgree(lift.data());
+		}
+	});
+}
+
+// A Lift's door (when it names one that is a Door in the level): bit 4 (open) = `open`
+static void LiftDoorOpen(std::vector<uint8_t> const &liftPayload, bool open)
+{
+	uint8_t door[8];
+	int32_t doorKind = 0, flags = 0;
+	std::vector<uint8_t> doorBytes;
+
+	if (!host::StrategyView_FieldObject(51, liftPayload, "AssocDoor", door) || !StrategyOfObject(door, &doorKind, &doorBytes) || doorKind != 50 || !StrategyObjectInLevel(door) ||
+	    !host::StrategyView_FieldNumber(50, doorBytes, "DoorFlags", &flags))
+	{
+		return;
+	}
+
+	StrategyViewApply(door, 50, "DoorFlags", (double)(open ? ((uint32_t)flags | 4u) : ((uint32_t)flags & ~4u)));
+}
+
+// "Lift starts at" (S-K51-11): the window "Select Lift Start Position" (FUN_0052af00: 600 x 400, centred by FUN_0057c800) with "Here" (0x5edcb8) at (0x12, 0x14), 100 x 16, answering 2, and one button per
+// position at (0x12, 40 + 20 i) with its name, answering 3 + i. Escape (1): nothing. Return answers 3, as every dialog's does: the first position.
+static void LiftStartWindow(uint8_t const *subject, std::vector<uint8_t> const &payload)
+{
+	std::vector<std::array<uint8_t, 8>> positions;
+	host::DialogFormSpec spec;
+	host::DialogWidget here;
+
+	host::StrategyView_LiftPositions(payload, &positions);
+	spec.title = "Select Lift Start Position";   // 0x5ee78c
+	spec.width = 600;
+	spec.height = 400;
+	here.type = host::DialogWidgetType::Button;
+	here.text = "Here";
+	here.box = { 0x12, 0x14, 100, 0x10 };
+	here.answer = 2;
+	spec.widgets.push_back(here);
+
+	for (size_t i = 0; i < positions.size(); i++)
+	{
+		host::DialogWidget button;
+		std::string name;
+
+		button.type = host::DialogWidgetType::Button;
+		button.text = StrategyViewNameOf(positions[i].data(), &name) ? name : std::string();   // FUN_005297f0: an ID no object has gives a null name (ours: no words)
+		button.box = { 0x12, 40 + 20 * (int32_t)i, 100, 0x10 };
+		button.answer = 3 + (int32_t)i;
+		spec.widgets.push_back(button);
+	}
+
+	std::array<uint8_t, 8> lift;
+
+	memcpy(lift.data(), subject, 8);
+	host::Dialogs_Form(spec, [lift](int32_t answer, std::vector<host::DialogWidget> const &)
+	{
+		int32_t kind = 0, flags = 0;
+		std::vector<uint8_t> mine;
+
+		// 0x52c8bb: an answer of 2 or more; Escape (1) changes nothing
+		if (answer < 2 || !StrategyOfObject(lift.data(), &kind, &mine) || kind != 51 || !host::StrategyView_FieldNumber(51, mine, "LiftFlags", &flags))
+		{
+			return;
+		}
+
+		bool const here = answer == 2;
+		int32_t const chosen = answer - 3;   // -1 for "Here": no position is the start
+
+		StrategyViewApply(lift.data(), 51, "LiftFlags", (double)(here ? ((uint32_t)flags | 1u) : ((uint32_t)flags & ~1u)));
+		LiftDoorOpen(mine, here);   // 0x52c8db-0x52c949
+
+		std::vector<std::array<uint8_t, 8>> list;
+
+		host::StrategyView_LiftPositions(mine, &list);
+
+		// 0x52c94f-0x52ca6d: each position in the level whose strategy is a Lift: flag 1 = it is the one chosen, and its door opens or closes the same way
+		for (size_t i = 0; i < list.size(); i++)
+		{
+			int32_t theirKind = 0, theirFlags = 0;
+			std::vector<uint8_t> theirs;
+
+			if (!StrategyObjectInLevel(list[i].data()) || !StrategyOfObject(list[i].data(), &theirKind, &theirs) || theirKind != 51 ||
+			    !host::StrategyView_FieldNumber(51, theirs, "LiftFlags", &theirFlags))
+			{
+				continue;
+			}
+
+			bool const start = (int32_t)i == chosen;
+
+			StrategyViewApply(list[i].data(), 51, "LiftFlags", (double)(start ? ((uint32_t)theirFlags | 1u) : ((uint32_t)theirFlags & ~1u)));
+			LiftDoorOpen(theirs, start);
+		}
+	});
+}
+
+// The door's pick ends (FUN_0052bd70, S-K51-8): the door is the null ID first; a picked object (not the lift's own, which `have` already leaves out) with a shape (not a virtual object) becomes the door, and
+// the Facing comes from where it lies: d = its place less the lift's; |d.x| > |d.z| gives 1 when d.x > 0, else 3; otherwise 0 when d.z > 0, else 2. With no strategy it gets a new Door; a Door then gets
+// flags 8 (switch activated, closed), plus 4 (open) when this lift starts here. Any other strategy on it is left alone.
+static void LiftDoorPicked(uint8_t const *subject, int32_t kind, std::vector<uint8_t> const &payload, uint8_t const *picked)
+{
+	StrategyFieldSetObject(subject, kind, "AssocDoor", nullptr);
+
+	host::FoundObject door, lift;
+
+	if (!picked || StrategyObjectIsVirtual(picked) || !LevelObjects_Level() || !host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(picked).c_str(), &door) ||
+	    !host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(subject).c_str(), &lift))
+	{
+		return;
+	}
+
+	StrategyFieldSetObject(subject, kind, "AssocDoor", picked);
+
+	int64_t const dx = (int64_t)door.x - lift.x;
+	int64_t const dz = (int64_t)door.z - lift.z;
+	int32_t const facing = (dx < 0 ? -dx : dx) > (dz < 0 ? -dz : dz) ? (dx > 0 ? 1 : 3) : (dz > 0 ? 0 : 2);   // 0x52be92-0x52bec5
+
+	StrategyViewApply(subject, kind, "Facing", (double)facing);
+
+	int32_t doorKind = 0;
+
+	if (!StrategyOfObject(picked, &doorKind, nullptr))
+	{
+		if (!LevelObjects_OpenForEdit() || host::AssignStrategy(LevelObjects_OpenForEdit(), picked, 50) != host::ObjectEditResult::Done)   // FUN_0052cb80
+		{
+			return;
+		}
+
+		LoadTheObjectListAgain();
+		doorKind = 50;
+	}
+
+	if (doorKind == 50)
+	{
+		int32_t flags = 0;
+
+		host::StrategyView_FieldNumber(kind, payload, "LiftFlags", &flags);
+		StrategyViewApply(picked, 50, "DoorFlags", (double)(8u | ((flags & 1) != 0 ? 4u : 0u)));   // 0x52bf25-0x52bf5c
+	}
+}
+
+// The call or floor switch's pick ends (FUN_0052bf80 / FUN_0052c170, S-K51-9, -10): the switch is the null ID first; a picked object with a shape becomes the switch. With no strategy, or one FUN_00521860
+// takes for none (kind 53, 2002, or a placed object (62) of type 0 with extra data 0), it gets a new Binary Switch (FUN_0052d5e0). Then a Binary or Linked Switch (52 / 61): flags 0, mode 1, its target = this
+// lift, request 0; a Multi or Area Switch (66 / 68): rest state 0, mode 1, and this lift is added to its targets with request 1 unless it is one already (FUN_00530650). Any other kind is left alone.
+static void LiftSwitchPicked(uint8_t const *subject, int32_t kind, char const *field, uint8_t const *picked)
+{
+	StrategyFieldSetObject(subject, kind, field, nullptr);
+
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !picked || StrategyObjectIsVirtual(picked) || !StrategyObjectInLevel(picked))
+	{
+		return;
+	}
+
+	StrategyFieldSetObject(subject, kind, field, picked);
+
+	int32_t switchKind = 0;
+	std::vector<uint8_t> bytes;
+	bool const has = StrategyOfObject(picked, &switchKind, &bytes);
+	int32_t type = -1, extra = -1;
+
+	if (has && switchKind == 62)
+	{
+		host::StrategyView_FieldNumber(62, bytes, "Type", &type);
+		host::StrategyView_FieldNumber(62, bytes, "ExtraData", &extra);
+	}
+
+	if (!has || switchKind == 53 || switchKind == 2002 || (switchKind == 62 && type == 0 && extra == 0))
+	{
+		if (host::AssignStrategy(open, picked, 52) != host::ObjectEditResult::Done)
+		{
+			return;
+		}
+
+		LoadTheObjectListAgain();
+
+		if (!StrategyOfObject(picked, &switchKind, &bytes))
+		{
+			return;
+		}
+	}
+
+	if ((switchKind == 52 || switchKind == 61) && bytes.size() >= 48)
+	{
+		// 0x52c138-0x52c14d: flags (+0x14) 0, mode (+0x18) 1, target (+0x24) this lift, request (+0x2c) 0
+		StrategyPut32(&bytes, 20, 0);
+		StrategyPut32(&bytes, 24, 1);
+		memcpy(bytes.data() + 36, subject, 8);
+		StrategyPut32(&bytes, 44, 0);
+		host::SetStrategyBytes(open, picked, bytes.data(), bytes.size());
+	}
+	else if ((switchKind == 66 || switchKind == 68) && bytes.size() >= 40)
+	{
+		int32_t const targets = StrategyGet32(bytes, 36);
+
+		// a list the bytes do not hold: nothing is changed (inteng would read past it; memory safety, named in S-K51-9)
+		if (targets < 0 || (size_t)targets > (bytes.size() - 40) / 12)
+		{
+			return;
+		}
+
+		StrategyPut32(&bytes, 20, 0);   // rest state
+		StrategyPut32(&bytes, 24, 1);   // mode
+
+		bool there = false;
+
+		for (int32_t i = 0; i < targets && !there; i++)
+		{
+			there = memcmp(bytes.data() + 40 + 12 * (size_t)i, subject, 8) == 0;
+		}
+
+		if (!there)
+		{
+			uint8_t entry[12];
+			int32_t const request = 1;
+
+			memcpy(entry, subject, 8);
+			memcpy(entry + 8, &request, 4);
+			bytes.insert(bytes.begin() + (std::ptrdiff_t)(40 + 12 * (size_t)targets), entry, entry + 12);
+			StrategyPut32(&bytes, 36, targets + 1);
+		}
+
+		host::SetStrategyBytes(open, picked, bytes.data(), bytes.size());
+	}
+}
+
+// THE MISSION OBJECTIVE'S EDITS (70; reassess/strategy-data-kinds.md S-K70-2, -3, -7, -8). The alterations list: its count at +40, then 12 bytes each (the target's ID, its word), then the request targets.
+static bool MissionWithTargets(std::vector<uint8_t> const &payload, std::vector<host::MissionTarget> const &targets, std::vector<uint8_t> *out)
+{
+	std::vector<host::MissionTarget> old;
+
+	if (!host::StrategyView_MissionTargets(payload, &old) || targets.size() > 4096)
+	{
+		return false;
+	}
+
+	size_t const tail = 44 + 12 * old.size();
+
+	out->assign(payload.begin(), payload.begin() + 44);
+	StrategyPut32(out, 40, (int32_t)targets.size());
+
+	for (host::MissionTarget const &one : targets)
+	{
+		uint8_t entry[12];
+
+		memcpy(entry, one.id.data(), 8);
+		memcpy(entry + 8, &one.word, 4);
+		out->insert(out->end(), entry, entry + 12);
+	}
+
+	out->insert(out->end(), payload.begin() + (std::ptrdiff_t)tail, payload.end());
+	return true;
+}
+
+// FUN_00532550 (S-K70-2, -3): a window 500 x 400, centred: "Mission Description" (0x5ef6a8) or "Completed Message" (0x5ef694) at (0x12, 0x12), a number box at (0x1e, 0x24), 300 x 0x12, holding the number, "Ok" (200, 0x15e)
+// and "Cancel" (300, 0x15e), and a text area at (0x12, 0x50), 400 x 0xfa, with the message's text: always empty here (the table is never filled off Rebellion's network; ours draws an empty label there).
+// Ok: the number is stored with no range check (FUN_00474340)
+static void MissionTextWindow(uint8_t const *subject, int32_t which, int32_t wanted = 70)
+{
+	int32_t kind = 0, number = 0;
+	std::vector<uint8_t> payload;
+	char const *const field = wanted == 73 ? "message_string" : (which == 0 ? "mission_description_string" : "mission_complete_string");
+
+	if (!StrategyOfObject(subject, &kind, &payload) || kind != wanted || !host::StrategyView_FieldNumber(wanted, payload, field, &number))
+	{
+		return;
+	}
+
+	host::DialogFormSpec spec;
+	host::DialogWidget words, box, ok, cancel, text;
+
+	spec.width = 500;
+	spec.height = 400;
+	words.type = host::DialogWidgetType::Label;
+	words.text = wanted == 73 ? "Message" : (which == 0 ? "Mission Description" : "Completed Message");   // 0x5edb98, 0x5ef6a8, 0x5ef694
+	words.box = { 0x12, 0x12, 300, 16 };
+	box.type = host::DialogWidgetType::Edit;
+	box.text = std::to_string((long long)number);
+	box.box = { 0x1e, 0x24, 300, 0x12 };
+	box.most = 10;
+	ok.type = host::DialogWidgetType::Button;
+	ok.text = "Ok";
+	ok.box = { 200, 0x15e, 0x32, 0x10 };
+	ok.answer = host::kDialogOk;
+	cancel = ok;
+	cancel.text = "Cancel";
+	cancel.box = { 300, 0x15e, 0x32, 0x10 };
+	cancel.answer = host::kDialogEscape;
+	text.type = host::DialogWidgetType::Label;
+	text.box = { 0x12, 0x50, 400, 0xfa };
+	spec.widgets = { words, box, ok, cancel, text };
+
+	std::array<uint8_t, 8> objective;
+	std::string const fieldName = field;
+
+	memcpy(objective.data(), subject, 8);
+	host::Dialogs_Form(spec, [objective, fieldName, wanted](int32_t answer, std::vector<host::DialogWidget> const &widgets)
+	{
+		if (answer != host::kDialogOk || widgets.size() < 2)
+		{
+			return;
+		}
+
+		StrategyViewApply(objective.data(), wanted, fieldName.c_str(), (double)(int32_t)strtol(widgets[1].text.c_str(), nullptr, 10));
+	});
+}
+
+// FUN_00532ea0 (S-K70-7): the camera first goes to the target row clicked; the collector starts with the targets in its list (an ID no object has is left out: memory safety, named in S-K70-7)
+static void MissionTargetsStart(uint8_t const *subject, std::vector<uint8_t> const &payload, int32_t index)
+{
+	std::vector<host::MissionTarget> targets;
+
+	host::StrategyView_MissionTargets(payload, &targets);
+
+	if (index >= 0 && (size_t)index < targets.size())
+	{
+		StrategyFlyTo(targets[(size_t)index].id.data());
+	}
+
+	copyTargets.clear();
+
+	for (host::MissionTarget const &one : targets)
+	{
+		if (StrategyObjectExists(one.id.data()))
+		{
+			CopyTarget target = {};
+
+			memcpy(target.id, one.id.data(), 8);
+			copyTargets.push_back(target);
+		}
+	}
+
+	memcpy(copyFrom, subject, 8);
+	copyPurpose = 2;
+	copyCollecting = true;
+}
+
+// The collector's end: this objective's own object out; old entries still in the list kept in order with their words (and taken out of it), old ones not in it dropped; each object left must have a Mission Objective
+// strategy (0x46 or 0x47), else it is taken out with "Targets must have mission objective strategies" (0x5ef85c, one box each); the rest are added with the word 3
+static void MissionTargetsEnd()
+{
+	uint8_t subject[8];
+	std::vector<std::array<uint8_t, 8>> list;
+
+	memcpy(subject, strategyEditId, 8);
+	copyPurpose = 0;
+
+	for (CopyTarget const &one : copyTargets)
+	{
+		if (memcmp(one.id, subject, 8) != 0)
+		{
+			std::array<uint8_t, 8> id;
+
+			memcpy(id.data(), one.id, 8);
+			list.push_back(id);
+		}
+	}
+
+	copyTargets.clear();
+
+	int32_t kind = 0;
+	std::vector<uint8_t> payload, bytes;
+	std::vector<host::MissionTarget> old, now;
+
+	if (!StrategyOfObject(subject, &kind, &payload) || kind != 70 || !host::StrategyView_MissionTargets(payload, &old))
+	{
+		return;
+	}
+
+	for (host::MissionTarget const &entry : old)
+	{
+		for (size_t i = 0; i < list.size(); i++)
+		{
+			if (list[i] == entry.id)
+			{
+				now.push_back(entry);
+				list.erase(list.begin() + (std::ptrdiff_t)i);
+				break;
+			}
+		}
+	}
+
+	size_t refused = 0;
+
+	for (std::array<uint8_t, 8> const &id : list)
+	{
+		int32_t theirKind = 0;
+
+		if (StrategyOfObject(id.data(), &theirKind, nullptr) && (theirKind == 70 || theirKind == 71))
+		{
+			host::MissionTarget added;
+
+			added.id = id;
+			added.word = 3;
+			now.push_back(added);
+		}
+		else
+		{
+			refused++;
+		}
+	}
+
+	if (MissionWithTargets(payload, now, &bytes) && LevelObjects_OpenForEdit())
+	{
+		host::SetStrategyBytes(LevelObjects_OpenForEdit(), subject, bytes.data(), bytes.size());
+	}
+
+	// one message box for each object taken out (FUN_00474030, Ok)
+	std::shared_ptr<std::function<void(size_t)>> boxes = std::make_shared<std::function<void(size_t)>>();
+
+	*boxes = [boxes](size_t left)
+	{
+		if (left > 0)
+		{
+			DialogMessage("Targets must have mission objective strategies", [boxes, left]() { (*boxes)(left - 1); });
+		}
+	};
+	(*boxes)(refused);
+}
+
+// P / V (S-K70-8): the alteration row under the pointer's y (from the window's top) has bit 2 (P, make possible) or bit 1 (V, make visible) of its word flipped
+static void MissionToggleUnderPointer(int32_t bit)
+{
+	int32_t kind = 0;
+	std::vector<uint8_t> payload, bytes;
+	std::vector<host::MissionTarget> targets;
+	size_t index = 0;
+
+	if (!StrategyOfObject(strategyEditId, &kind, &payload) || kind != 70 || !host::StrategyView_MissionTargets(payload, &targets) ||
+	    !host::StrategyView_MissionTargetAt(payload, barPointerY - strategyViewTop, &index))
+	{
+		return;
+	}
+
+	targets[index].word ^= bit;
+
+	if (MissionWithTargets(payload, targets, &bytes) && LevelObjects_OpenForEdit())
+	{
+		host::SetStrategyBytes(LevelObjects_OpenForEdit(), strategyEditId, bytes.data(), bytes.size());
+	}
+}
+
+// THE TRACK OBJECT'S EDITS (72 / 80; reassess/strategy-data-kinds.md S-K72-2..7). trackPage is the page shown: -1 the main page, else the point whose page is open.
+static bool TrackWrite(uint8_t const *subject, std::vector<uint8_t> const &payload, std::vector<host::TrackEffect> const &effects)
+{
+	std::vector<uint8_t> bytes;
+
+	return host::StrategyView_TrackWith(payload, effects, &bytes) && LevelObjects_OpenForEdit() &&
+	       host::SetStrategyBytes(LevelObjects_OpenForEdit(), subject, bytes.data(), bytes.size()) == host::ObjectEditResult::Done;
+}
+
+static bool TrackNow(uint8_t const *subject, int32_t *kind, std::vector<uint8_t> *payload, std::vector<host::TrackEffect> *effects)
+{
+	return StrategyOfObject(subject, kind, payload) && (*kind == 72 || *kind == 80) && host::StrategyView_TrackEffects(*payload, effects);
+}
+
+// the object's track's sections (OBJTRAK2 +0x28), 0 when it has none
+// An enemy's species (its AVPGENER's type: inteng's record +0x38, 7 marine, 2 predator ...), -1 when the ID is no enemy's or generator's
+static int32_t EnemySpeciesOf(uint8_t const *id)
+{
+	host::GeneratorRef generator;
+
+	return LevelObjects_Level() && host::FindGenerator(LevelObjects_Level(), id, &generator) ? generator.type : -1;
+}
+
+// The level's paths (SPECLOBJ > AVPPATH2), read again when the level changes: FUN_004fbaf0 finds the one whose number (+0x34) is asked
+static std::vector<host::PathInfo> levelPaths;
+static unsigned levelPathsFor = ~0u;
+static OpenLevelFile *levelPathsOpen = nullptr;
+
+static std::vector<host::PathInfo> const &LevelPaths()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (open && (levelPathsOpen != open || levelPathsFor != open->Generation()))
+	{
+		levelPaths.clear();
+
+		if (!host::PathMode_ReadPaths(open, &levelPaths))
+		{
+			levelPaths.clear();
+		}
+
+		levelPathsOpen = open;
+		levelPathsFor = open->Generation();
+	}
+
+	return levelPaths;
+}
+
+static bool LevelPathNamed(int32_t number, std::string *name)
+{
+	for (host::PathInfo const &one : LevelPaths())
+	{
+		if (one.number == number)
+		{
+			*name = one.name;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// "Select Mission Type" (an enemy's: FUN_00531fb0 a marine's six, FUN_00532230 a predator's two; a generator's: FUN_005323c0): 400 x 280, centred; buttons 200 x 16 at x 20, y 20, 40 ...; "Cancel" at
+// (200, 250), 50 x 16. A button sets the Mission (the button methods 0x5321f0 / 0x532380 / 0x532510), and when that changes it, ExtraMissionData = 0; Cancel or Escape: nothing
+static void MissionTypeWindow(uint8_t const *subject, int32_t kind, std::vector<std::pair<std::string, int32_t>> const &buttons)
+{
+	host::DialogFormSpec spec;
+
+	spec.title = "Select Mission Type";   // 0x5ef660
+	spec.width = 400;
+	spec.height = 280;
+
+	for (size_t i = 0; i < buttons.size(); i++)
+	{
+		host::DialogWidget button;
+
+		button.type = host::DialogWidgetType::Button;
+		button.text = buttons[i].first;
+		button.box = { 20, 20 + 20 * (int32_t)i, 200, 16 };
+		button.answer = 10 + (int32_t)i;
+		spec.widgets.push_back(button);
+	}
+
+	host::DialogWidget cancel;
+
+	cancel.type = host::DialogWidgetType::Button;
+	cancel.text = "Cancel";
+	cancel.box = { 200, 250, 50, 16 };
+	cancel.answer = host::kDialogEscape;
+	spec.widgets.push_back(cancel);
+
+	std::array<uint8_t, 8> who;
+
+	memcpy(who.data(), subject, 8);
+	host::Dialogs_Form(spec, [who, kind, buttons](int32_t answer, std::vector<host::DialogWidget> const &)
+	{
+		int32_t had = 0, now = 0;
+		std::vector<uint8_t> payload;
+
+		if (answer < 10 || (size_t)(answer - 10) >= buttons.size() || !StrategyOfObject(who.data(), &had, &payload) || had != kind || !host::StrategyView_FieldNumber(kind, payload, "MissionType", &now))
+		{
+			return;
+		}
+
+		int32_t const chosen = buttons[(size_t)(answer - 10)].second;
+
+		if (chosen != now)
+		{
+			StrategyViewApply(who.data(), kind, "MissionType", (double)chosen);
+			StrategyViewApply(who.data(), kind, "ExtraMissionData", 0.0);
+		}
+	});
+}
+
+// "Select Path" (FUN_004fb6a0 -> FUN_0045dd10: the list window with a row per path of the level, its number, two spaces, its name); a path chosen: ExtraMissionData = (old & 0x0ffff000) | its number
+// (0x531a63 / 0x531ef2); Escape: nothing
+static void SelectPathWindow(uint8_t const *subject, int32_t kind)
+{
+	std::vector<host::PathInfo> const paths = LevelPaths();
+	std::vector<std::string> rows;
+
+	for (host::PathInfo const &one : paths)
+	{
+		rows.push_back(std::to_string((long long)one.number) + "  " + one.name);
+	}
+
+	std::array<uint8_t, 8> who;
+
+	memcpy(who.data(), subject, 8);
+	DialogList("Select Path", rows, [who, kind, paths](int32_t choice)   // 0x5e97e8
+	{
+		int32_t had = 0, extra = 0;
+		std::vector<uint8_t> payload;
+
+		if (choice < 0 || (size_t)choice >= paths.size() || !StrategyOfObject(who.data(), &had, &payload) || had != kind || !host::StrategyView_FieldNumber(kind, payload, "ExtraMissionData", &extra))
+		{
+			return;
+		}
+
+		StrategyViewApply(who.data(), kind, "ExtraMissionData", (double)(int32_t)(((uint32_t)extra & 0x0ffff000u) | (uint32_t)paths[(size_t)choice].number));
+	});
+}
+
+// The view's end for an Enemy (69) or a Generator (79): a path follower (a marine's Mission 5, a predator's 1, a generator's 1) keeps the path's number (ExtraMissionData & 0xffff); when the level has that
+// path, the module holding its place (FUN_00474de0: the first module, in the level's order, whose box holds the place, its edges included) is the start, and the path's module nearest to it by the
+// breadth-first distance over the modules' adjacency (FUN_004f89f0 / FUN_004f8240: PathMode_BuildGraph; ties: the first module in the graph's order) gives its object number to the high 16 bits
+// (FUN_004f9650: its record +0x98), which the game turns into the step to start at (ConvertObjectIndexToPathIndex). Any other Mission or species: ExtraMissionData = 0. NAMED: a place no module holds
+// is an assert in inteng (PathMode.cpp line 0x1ac); here the high bits stay 0.
+static void EnemyPathFixAtEnd(uint8_t const *id, int32_t kind)
+{
+	int32_t had = 0, mission = 0, extra = 0;
+	std::vector<uint8_t> payload;
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !StrategyOfObject(id, &had, &payload) || had != kind || !host::StrategyView_FieldNumber(kind, payload, "MissionType", &mission) ||
+	    !host::StrategyView_FieldNumber(kind, payload, "ExtraMissionData", &extra))
+	{
+		return;
+	}
+
+	int32_t const species = kind == 69 ? EnemySpeciesOf(id) : -1;
+	bool const follower = kind == 69 ? ((species == 7 && mission == 5) || (species == 2 && mission == 1)) : mission == 1;
+
+	if (!follower)
+	{
+		if (extra != 0)
+		{
+			StrategyViewApply(id, kind, "ExtraMissionData", 0.0);
+		}
+
+		return;
+	}
+
+	uint32_t value = (uint32_t)extra & 0xffffu;
+	host::PathInfo const *path = nullptr;
+
+	for (host::PathInfo const &one : LevelPaths())
+	{
+		if (one.number == (int32_t)value && !path)
+		{
+			path = &one;
+		}
+	}
+
+	host::GeneratorRef generator;
+	std::vector<host::ModuleBox> boxes;
+	host::PathGraph graph;
+	std::vector<int32_t> numbers;
+	std::vector<std::string> names;
+
+	if (path && !path->nodes.empty() && host::FindGenerator(open->Level(), id, &generator) && host::ModuleOverlaps_ReadBoxes(open, &boxes) &&
+	    host::PathMode_BuildGraph(open, &graph, &numbers, &names) && graph.neighbours.size() == numbers.size())
+	{
+		// the module holding the place: extents are max x, min x, max y, min y, max z, min z about the module's place
+		int32_t startNumber = -1;
+
+		for (host::ModuleBox const &one : boxes)
+		{
+			bool inside = true;
+
+			for (int axis = 0; axis < 3; axis++)
+			{
+				int64_t const least = (int64_t)one.place[axis] + one.extents[2 * axis + 1];
+				int64_t const most = (int64_t)one.place[axis] + one.extents[2 * axis];
+
+				inside = inside && generator.place[axis] >= least && generator.place[axis] <= most;
+			}
+
+			if (inside)
+			{
+				startNumber = one.objectIndex;
+				break;
+			}
+		}
+
+		int start = -1;
+
+		for (size_t i = 0; i < numbers.size() && start < 0; i++)
+		{
+			start = numbers[i] == startNumber ? (int)i : start;
+		}
+
+		if (start >= 0)
+		{
+			int const chosen = host::PathMode_NearestStep(graph, numbers, start, path->nodes);   // FUN_004f9650
+
+			if (chosen >= 0)
+			{
+				value |= (uint32_t)numbers[(size_t)chosen] << 16;
+			}
+		}
+	}
+
+	if ((int32_t)value != extra)
+	{
+		StrategyViewApply(id, kind, "ExtraMissionData", (double)(int32_t)value);
+	}
+}
+
+static int32_t TrackSectionsOf(uint8_t const *id)
+{
+	host::TrackLoaded loaded;
+
+	if (!LevelObjects_OpenForEdit() || host::TrackLoad(LevelObjects_OpenForEdit(), id, &loaded) != host::TrackEditResult::Done || !loaded.had)
+	{
+		return 0;
+	}
+
+	return (int32_t)loaded.track.sections.size();
+}
+
+// "Which track point?" (S-K72-2; the whole-number dialog holding 0): Ok and 0 <= n < sections + 1 -> the effect for point n (a new one with no targets, put in its place in the list kept sorted by point) and its page
+static void TrackAskPoint(uint8_t const *subject)
+{
+	host::DialogField field;
+	std::array<uint8_t, 8> track;
+
+	field.text = "0";
+	memcpy(track.data(), subject, 8);
+	DialogText("Which track point?", std::vector<host::DialogField>(1, field), [track](int32_t answer, std::vector<std::string> const &texts)   // 0x5efb98
+	{
+		int32_t kind = 0;
+		std::vector<uint8_t> payload;
+		std::vector<host::TrackEffect> effects;
+
+		if (answer != host::kDialogOk || texts.empty() || !TrackNow(track.data(), &kind, &payload, &effects))
+		{
+			return;
+		}
+
+		int32_t const n = (int32_t)strtol(texts[0].c_str(), nullptr, 10);
+
+		if (n < 0 || n >= TrackSectionsOf(track.data()) + 1)
+		{
+			return;
+		}
+
+		size_t at = 0;
+
+		while (at < effects.size() && effects[at].point < n)
+		{
+			at++;
+		}
+
+		if (at == effects.size() || effects[at].point != n)
+		{
+			host::TrackEffect added;
+
+			added.point = n;
+			added.pad = 0;
+			effects.insert(effects.begin() + (std::ptrdiff_t)at, added);
+
+			if (!TrackWrite(track.data(), payload, effects))
+			{
+				return;
+			}
+		}
+
+		trackPage = n;
+	});
+}
+
+// a target row's request (x < 50: 1 when it was 0, else 0) or direction (50 <= x < 190: Forward only 1 -> Backward only 2 -> Opposite back 7 -> Both directions 3 -> Forward only, 0x534c8a-0x534cbc)
+static void TrackChangeTarget(uint8_t const *subject, int32_t row, bool direction)
+{
+	int32_t kind = 0;
+	std::vector<uint8_t> payload;
+	std::vector<host::TrackEffect> effects;
+
+	if (!TrackNow(subject, &kind, &payload, &effects))
+	{
+		return;
+	}
+
+	for (host::TrackEffect &effect : effects)
+	{
+		if (effect.point == trackPage && row >= 0 && (size_t)row < effect.targets.size())
+		{
+			host::TrackTarget &t = effect.targets[(size_t)row];
+			uint32_t const d = (uint32_t)t.direction;
+
+			if (!direction)
+			{
+				t.request = t.request == 0 ? 1 : 0;   // any extra data is lost
+			}
+			else if ((d & 1u) != 0 && (d & 2u) != 0)
+			{
+				t.direction = (int32_t)((((uint32_t)(int32_t)(int8_t)(d & 0xffu) & 4u) | 2u) >> 1);   // 3 -> 1, 7 -> 3
+			}
+			else
+			{
+				t.direction = (d & 1u) != 0 ? 2 : 7;   // 1 -> 2, no bit 1 -> 7
+			}
+
+			TrackWrite(subject, payload, effects);
+			return;
+		}
+	}
+}
+
+// The targets editor of a point page (FUN_00534df0): the camera first goes to the target row clicked; the collector starts with the page's targets (an ID no object has is left out: memory safety)
+static void TrackTargetsStart(uint8_t const *subject, int32_t row)
+{
+	int32_t kind = 0;
+	std::vector<uint8_t> payload;
+	std::vector<host::TrackEffect> effects;
+
+	if (!TrackNow(subject, &kind, &payload, &effects))
+	{
+		return;
+	}
+
+	copyTargets.clear();
+
+	for (host::TrackEffect const &effect : effects)
+	{
+		if (effect.point != trackPage)
+		{
+			continue;
+		}
+
+		if (row >= 0 && (size_t)row < effect.targets.size())
+		{
+			StrategyFlyTo(effect.targets[(size_t)row].id.data());   // FUN_005294f0 + FUN_00529280 (0x534cd1)
+		}
+
+		for (host::TrackTarget const &t : effect.targets)
+		{
+			if (StrategyObjectExists(t.id.data()))
+			{
+				CopyTarget target = {};
+
+				memcpy(target.id, t.id.data(), 8);
+				copyTargets.push_back(target);
+			}
+		}
+	}
+
+	memcpy(copyFrom, subject, 8);
+	copyPurpose = 3;
+	copyCollecting = true;
+}
+
+// The collector's end: the track's own object out; old targets still listed kept in order with their words; the others go; new ones added with request 1 (on) and direction 3 (both)
+static void TrackTargetsEnd()
+{
+	uint8_t subject[8];
+	std::vector<std::array<uint8_t, 8>> list;
+
+	memcpy(subject, strategyEditId, 8);
+	copyPurpose = 0;
+
+	for (CopyTarget const &one : copyTargets)
+	{
+		if (memcmp(one.id, subject, 8) != 0)
+		{
+			std::array<uint8_t, 8> id;
+
+			memcpy(id.data(), one.id, 8);
+			list.push_back(id);
+		}
+	}
+
+	copyTargets.clear();
+
+	int32_t kind = 0;
+	std::vector<uint8_t> payload;
+	std::vector<host::TrackEffect> effects;
+
+	if (!TrackNow(subject, &kind, &payload, &effects))
+	{
+		return;
+	}
+
+	for (host::TrackEffect &effect : effects)
+	{
+		if (effect.point != trackPage)
+		{
+			continue;
+		}
+
+		std::vector<host::TrackTarget> now;
+
+		for (host::TrackTarget const &t : effect.targets)
+		{
+			for (size_t i = 0; i < list.size(); i++)
+			{
+				if (list[i] == t.id)
+				{
+					now.push_back(t);
+					list.erase(list.begin() + (std::ptrdiff_t)i);
+					break;
+				}
+			}
+		}
+
+		for (std::array<uint8_t, 8> const &id : list)
+		{
+			host::TrackTarget added;
+
+			added.id = id;
+			added.request = 1;
+			added.direction = 3;
+			now.push_back(added);
+		}
+
+		effect.targets = now;
+		TrackWrite(subject, payload, effects);
+		return;
+	}
+}
+
+// The right button on a point page (S-K72-7): back to the main page; an effect left with no targets is taken out of the list. NAMED (memory safety): inteng shifts the list from the index = the effect's POINT
+// NUMBER (0x534d4b), not its place: with the effect not last that keeps the freed effect and drops the next one; ours takes out the effect itself
+static void TrackPageBack()
+{
+	int32_t kind = 0;
+	std::vector<uint8_t> payload;
+	std::vector<host::TrackEffect> effects;
+	int32_t const point = trackPage;
+
+	trackPage = -1;
+
+	if (!TrackNow(strategyEditId, &kind, &payload, &effects))
+	{
+		return;
+	}
+
+	for (size_t i = 0; i < effects.size(); i++)
+	{
+		if (effects[i].point == point && effects[i].targets.empty())
+		{
+			effects.erase(effects.begin() + (std::ptrdiff_t)i);
+			TrackWrite(strategyEditId, payload, effects);
+			return;
+		}
+	}
+}
+
+// The end of an object pick (Return or the right button): the row's field takes the picked object, then what the row does more (reassess/strategy-data-kinds.md S-KC-5 and the rows named)
+static void StrategyPickEnd()
+{
+	std::string const field = strategyPickField;
+	int32_t const row = strategyPickRow;
+	std::string const request = strategyPickRequest;
+	// the Escape slot (0xd87a45) is set while the key is HELD (FUN_0058c010 sets it, FUN_0058c5e0 clears it when the key comes up): the pick does not read it, and the view ends after the pick only when it is still down
+	bool const escaped = keyDown[VK_ESCAPE];
+	uint8_t subject[8];
+	uint8_t picked[8];
+
+	memcpy(subject, strategyEditId, 8);
+	memcpy(picked, strategyPickId, 8);
+
+	// the picked object is never the view's own object (FUN_00527540's callers compare with the wrapper's block)
+	bool const have = strategyPickHave && memcmp(picked, subject, 8) != 0;
+
 	strategyPickField.clear();
 	strategyViewPickWords.clear();
+	strategyPickHave = false;
+	strategyPickRow = 0;
+	strategyPickRequest.clear();
+
+	int32_t kind = 0;
+	std::vector<uint8_t> payload;
+
+	if (!StrategyOfObject(subject, &kind, &payload))
+	{
+		StrategyViewEnd();
+		return;
+	}
+
+	uint8_t before[8] = { 0 };
+	bool const hadOne = host::StrategyView_FieldObject(kind, payload, field.c_str(), before);
+
+	if (row == host::kPickTarget)
+	{
+		// FUN_00531160 / FUN_00531b70 / FUN_005353c0: the target = the picked object's ID or the null ID; changed -> the request = 1 (on, no extra data)
+		StrategyFieldSetObject(subject, kind, field.c_str(), have ? picked : nullptr);
+
+		uint8_t none[8] = { 0 };
+		bool const changed = memcmp(hadOne ? before : none, have ? picked : none, 8) != 0;
+
+		if (changed && !request.empty())
+		{
+			StrategyViewApply(subject, kind, request.c_str(), 1.0);
+		}
+	}
+	else if (row == host::kPickSwitchTarget)
+	{
+		// FUN_0052db10 0x52dba7-0x52dc07 (S-K52-4): the target = the null ID, then the picked object's when one was picked (never the switch's own: `have`); a changed target -> +0x2c = 0
+		StrategyFieldSetObject(subject, kind, field.c_str(), have ? picked : nullptr);
+
+		uint8_t none[8] = { 0 };
+		bool const changed = memcmp(hadOne ? before : none, have ? picked : none, 8) != 0;
+
+		if (changed && !request.empty())
+		{
+			StrategyViewApply(subject, kind, request.c_str(), 0.0);
+		}
+	}
+	else if (row == host::kPickSwitchDoor || row == host::kPickTeleport)
+	{
+		// FUN_0052d490 / FUN_00530ce0: the field = the picked object when it has a shape (a module or placed object, not a virtual one), else the null ID. That object with no strategy gets a new one of the same kind
+		// (its wrapper's +0xc, FUN_0052d020 / FUN_00530b10) naming this one; a Switch Door already there is made to name this one; any other strategy on it is left alone
+		bool const shaped = have && !StrategyObjectIsVirtual(picked);
+		int32_t const pairKind = row == host::kPickSwitchDoor ? 59 : 67;
+		char const *const pairField = row == host::kPickSwitchDoor ? "AssocDoor" : "TeleportTo";
+
+		StrategyFieldSetObject(subject, kind, field.c_str(), shaped ? picked : nullptr);
+
+		if (shaped)
+		{
+			int32_t otherKind = 0;
+			bool const otherHas = StrategyOfObject(picked, &otherKind, nullptr);
+
+			if (!otherHas && LevelObjects_OpenForEdit() && host::AssignStrategy(LevelObjects_OpenForEdit(), picked, pairKind) == host::ObjectEditResult::Done)
+			{
+				LoadTheObjectListAgain();
+				StrategyFieldSetObject(picked, pairKind, pairField, subject);
+
+				if (row == host::kPickTeleport)
+				{
+					int32_t type = 0;
+
+					if (host::StrategyView_FieldNumber(kind, payload, "Type", &type))
+					{
+						StrategyViewApply(picked, pairKind, "Type", (double)type);   // FUN_00530ce0 0x530df6: the new one's Type is this one's
+					}
+				}
+			}
+			else if (otherHas && otherKind == 59 && row == host::kPickSwitchDoor)
+			{
+				StrategyFieldSetObject(picked, 59, "AssocDoor", subject);   // 0x52d5ad: the pair name each other
+			}
+		}
+	}
+
+	else if (row == host::kPickLiftDoor)
+	{
+		LiftDoorPicked(subject, kind, payload, have ? picked : nullptr);
+	}
+	else if (row == host::kPickLiftCall || row == host::kPickLiftFloor)
+	{
+		LiftSwitchPicked(subject, kind, field.c_str(), have ? picked : nullptr);
+	}
+
+	// the view's object is the red one again, and the view goes on (or ends now when Escape is held as the pick ends)
+	host::Selected current = {};
+
+	current.kind = host::SelectedKind::Object;
+	memcpy(current.objectId, subject, 8);
+	host::Selection_Set(current);
+
+	if (escaped)
+	{
+		StrategyViewEnd();
+	}
 }
 
 // a left click at (x, y) of the text area (y from its top) in the view that is up
@@ -22391,7 +26421,7 @@ static void StrategyViewClickAt(int32_t x, int32_t y)
 	uint8_t id[8];
 	host::StrategyViewClick click;
 
-	if (!StrategyViewSubject(&payload, &name, &kind, id) || kind != strategyEditKind || !host::StrategyView_Click(kind, payload, x, y, &click))
+	if (!StrategyViewSubject(&payload, &name, &kind, id) || kind != strategyEditKind || !host::StrategyView_Click(kind, payload, x, y, &click, trackPage, kind == 69 ? EnemySpeciesOf(id) : -1))
 	{
 		return;
 	}
@@ -22410,8 +26440,110 @@ static void StrategyViewClickAt(int32_t x, int32_t y)
 
 	if (click.action == host::StrategyViewClick::Pick)
 	{
+		// FUN_00527540(start, edit): the field's object, when the level has it, is drawn red and the camera goes to its place (FUN_00529280(block, 0)); none -> nothing is red
 		strategyPickField = click.field;
 		strategyViewPickWords = click.pickWords;
+		strategyPickRow = click.pickRow;
+		strategyPickRequest = click.requestField;
+		strategyPickHave = host::StrategyView_FieldObject(kind, payload, click.field.c_str(), strategyPickId) && StrategyObjectExists(strategyPickId);
+
+		if (strategyPickHave)
+		{
+			StrategyFlyTo(strategyPickId);
+		}
+
+		StrategyPickShow();
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Collect && click.pickRow == host::kCollectLiftPositions)
+	{
+		LiftPositionsStart(id, payload, click.index);
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Window && click.pickRow == host::kWindowTrackPoint)
+	{
+		TrackAskPoint(id);
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Window && click.pickRow == host::kOpenTrackPage)
+	{
+		trackPage = click.index;
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Run && (click.pickRow == host::kRunTrackRequest || click.pickRow == host::kRunTrackDirection))
+	{
+		TrackChangeTarget(id, click.index, click.pickRow == host::kRunTrackDirection);
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Collect && click.pickRow == host::kCollectTrackTargets)
+	{
+		TrackTargetsStart(id, click.index);
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Window && click.pickRow == host::kWindowEnemyMission)
+	{
+		if (EnemySpeciesOf(id) == 7)
+		{
+			MissionTypeWindow(id, 69, { { "Wait then wander", 0 }, { "Wander", 1 }, { "Guard", 2 }, { "Local Guard", 4 }, { "Noncombatant", 3 }, { "Path follower", 5 } });   // FUN_00531fb0
+		}
+		else if (EnemySpeciesOf(id) == 2)
+		{
+			MissionTypeWindow(id, 69, { { "Wait then wander", 0 }, { "Path follower", 1 } });   // FUN_00532230
+		}
+
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Window && click.pickRow == host::kWindowGeneratorMission)
+	{
+		MissionTypeWindow(id, 79, { { "Hunt", 0 }, { "Path follower", 1 } });   // FUN_005323c0 (0x5ef674)
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Window && click.pickRow == host::kWindowSelectPath)
+	{
+		SelectPathWindow(id, kind);
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Window && click.pickRow == host::kWindowMessageText)
+	{
+		MissionTextWindow(id, 0, 73);
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Window && click.pickRow == host::kWindowMissionText)
+	{
+		MissionTextWindow(id, click.index);
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Collect && click.pickRow == host::kCollectMissionTargets)
+	{
+		MissionTargetsStart(id, payload, click.index);
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Window && click.pickRow == host::kWindowLiftStart)
+	{
+		LiftStartWindow(id, payload);
+		return;
+	}
+
+	if (click.action == host::StrategyViewClick::Run && click.pickRow == host::kRunLiftExit)
+	{
+		// 0x52ca98-0x52cabf: flag 8 (Exit opposite side) flips, then every position is made to agree (FUN_0052b770)
+		int32_t flags = 0;
+
+		host::StrategyView_FieldNumber(kind, payload, "LiftFlags", &flags);
+		StrategyViewApply(id, kind, "LiftFlags", (double)((uint32_t)flags ^ 8u));
+		LiftMakeAgree(id);
 		return;
 	}
 
@@ -22465,6 +26597,35 @@ static void StrategyViewClickAt(int32_t x, int32_t y)
 			StrategyViewApply(id, kind, asked.field.c_str(), (double)(int64_t)(scaled + asked.bias));
 		}
 	});
+}
+
+// FUN_00521860: a strategy Assign (and Copy) replaces without asking: none, kind 0x35 (53), kind 0x7d2 (2002), or a Placed Object (0x3e) whose +0x14 and +0x18 are 0 (the file's payload 20 and 24)
+static bool StrategyReplaceableWithoutAsking(std::vector<uint8_t> const &payload)
+{
+	if (payload.size() < 12)
+	{
+		return true;
+	}
+
+	int32_t kind = 0;
+
+	memcpy(&kind, payload.data() + 8, 4);
+
+	if (kind == 0x35 || kind == 0x7d2)
+	{
+		return true;
+	}
+
+	if (kind != 0x3e || payload.size() < 28)
+	{
+		return false;
+	}
+
+	int32_t type = 0, extra = 0;
+
+	memcpy(&type, payload.data() + 20, 4);
+	memcpy(&extra, payload.data() + 24, 4);
+	return type == 0 && extra == 0;
 }
 
 // ASSIGN STRATEGY'S WINDOW (FUN_0052a160: FUN_0057d170(600, 400, 0x18) titled "Select Strategy" 0x5ee77c): one BUTTON per strategy kind the object's class accepts (its method +8(kind)), in the code's own order, each 200 x 16 at x 0x12 and y = row x 0x14 (the first row at y 0x14),
@@ -22637,16 +26798,28 @@ static void StrategyModeCommand(int32_t command)
 			return;
 		}
 
-		if (host::FindObjectStrategy(LevelObjects_Level(), from, &now) != host::StrategyFound::Found || now.payload.size() < 12)
+		if (host::LookUpStrategyBytes(LevelObjects_Level(), host::LevelStore(open), from, &now) != host::StrategyFound::Found || now.payload.size() < 12)
 		{
 			StrategyMessage("Selected object has no strategy");
 			return;
 		}
 
+		// the kind's +0x10 (0x52838c; reassess/strategy-data-kinds.md S-KC-7): only 50, 52, 61, 62, 64, 66 and 68 return 1 (0x4316d0); every other kind, the Lift (51, its Airlock and LiftNoTel too) and
+		// the kinds with no class of their own included, returns 0 (0x404550): "Copying not supported for this strategy" (0x5ee208) for 700 ms and no collector
+		int32_t const sourceKind = *(int32_t const *)(now.payload.data() + 8);
+
+		if (sourceKind != 50 && sourceKind != 52 && sourceKind != 61 && sourceKind != 62 && sourceKind != 64 && sourceKind != 66 && sourceKind != 68)
+		{
+			StrategyMessage("Copying not supported for this strategy");
+			statusWords = "Copying not supported for this strategy";
+			return;
+		}
+
 		memcpy(copyFrom, from, sizeof(copyFrom));
-		copyKind = *(int32_t const *)(now.payload.data() + 8);
+		copyKind = sourceKind;
 		copyTargets.clear();
 		copyCollecting = true;
+		copyPurpose = 0;
 		strategyEditFan = false;
 		StrategyMessage("Select objects to copy to");   // 0x5ee1ec
 		statusWords = "Select objects to copy to";
@@ -22659,8 +26832,7 @@ static void StrategyModeCommand(int32_t command)
 	{
 		if (!open || !SelectedObjectId(assignId))
 		{
-			statusWords = "Assign Strategy: select an object first";
-			return;
+			return;   // FUN_00528830 0x528850: no current object: nothing (strategy-data.md S-38)
 		}
 
 		promptList.clear();
@@ -22679,6 +26851,25 @@ static void StrategyModeCommand(int32_t command)
 			model::StrategyKind const *const known = model::FindStrategyKind(canTake[k]);
 
 			promptList.push_back(std::to_string((long long)canTake[k]) + "  " + (known ? (known->label ? known->label : known->name) : "?"));
+		}
+
+		// FUN_00528830 0x528859-0x5288cb: the question comes FIRST, only when the strategy the object has is not one FUN_00521860 replaces without asking (none, kind 0x35, kind 0x7d2, or a Placed Object
+		// (0x3e) whose +0x14 and +0x18 are 0: our payload 20 "Type" and 24 "ExtraData", by its writer FUN_0051ed20); the bytes as edited so far (the store). Not Yes: nothing. Yes, or no question: the window
+		// (FUN_0052a160 at 0x5288db)
+		host::ObjectStrategy had;
+
+		if (host::LookUpStrategyBytes(LevelObjects_Level(), host::LevelStore(open), assignId, &had) == host::StrategyFound::Found && !StrategyReplaceableWithoutAsking(had.payload))
+		{
+			std::vector<int32_t> const kinds(canTake, canTake + canCount);
+
+			DialogConfirm("Object already has a strategy.\nWould you like to replace it?", [kinds](bool yes)   // 0x5ee2b4, FUN_00474a40 (400 x 200, Yes / No)
+			{
+				if (yes)
+				{
+					AssignWindow(kinds.data(), kinds.size());
+				}
+			});
+			return;
 		}
 
 		AssignWindow(canTake, canCount);
@@ -22760,29 +26951,38 @@ static void StrategyModeCommand(int32_t command)
 		return;
 	}
 
-	// Edit Strategy (0x7, FUN_005286b0): inteng opens the strategy's own dialog for the selected object, or says "Selected object has no strategy" (0x5ee174). Here the strategy's
-	// fields are the editable record in the field panel as soon as an object is selected (the UI is ours); the item checks the selection the same way and says where they are.
+	// Edit Strategy (0x7, FUN_005286b0; strategy-data.md S-37): NO current object (DAT_00914970 == 0, 0x5286b5): NOTHING, no message. A current object without a strategy: "Selected object has no strategy"
+	// (0x5ee174, FUN_0057bd40 at (200, 100), held 700 ms). Else the level counts as changed (0x5286cc, even when nothing is edited), the current object's red is off while the kind's view runs (0x5286d7) and
+	// back after it (0x5286f9). Kinds whose view is not built yet: the field panel (NAMED stand-in).
 	if (command == 0x7)
 	{
 		uint8_t selected[8];
 
 		if (!open || !SelectedObjectId(selected))
 		{
-			StrategyMessage("Selected object has no strategy");   // FUN_005286b0 0x528710: with no current object it says the same words
-			statusWords = "Selected object has no strategy";
 			return;
 		}
 
-		if (host::StrategyMode_Has(open, selected) != host::StrategyModeResult::Done)
+		// any object with a strategy: a level object, a virtual object, an enemy or a generator (their strategies are found by the same lookup the views read)
+		host::LevelStore heldNow(open);
+		host::ObjectStrategy hasNow;
+
+		if (host::LookUpStrategyBytes(LevelObjects_Level(), heldNow, selected, &hasNow) != host::StrategyFound::Found)
 		{
 			StrategyMessage("Selected object has no strategy");   // inteng's own words (0x5ee174), drawn at (200, 100) for 700 ms (FUN_0057bd40)
 			statusWords = "Selected object has no strategy";
 			return;
 		}
 
+		strategyMarkedChanged = true;   // 0x5286cc: DAT_00914950 = 1
+
 		if (StrategyViewOpen())
 		{
-			statusWords = "Edit Strategy: click a line to change it; Escape ends";
+			if (strategyEditFan)
+			{
+				statusWords = "Edit Strategy: click a line to change it; Escape ends";
+			}
+
 			return;
 		}
 
@@ -22906,10 +27106,12 @@ static void StrategyModeCommand(int32_t command)
 	{
 		std::vector<uint8_t> const ids = PickedModuleIdBytes();
 
+		// S-19: FUN_0052f360 0x52f660 sets DAT_00914950 = 1 after its loop whatever the list held (an empty one, a flag a module had already): Exit then asks
+		strategyMarkedChanged = true;
+
 		if (!open || ids.empty())
 		{
-			statusWords = "Module flags: pick modules first (click, Shift+click for more)";
-			return;
+			return;   // nothing picked: the loop does nothing and says nothing
 		}
 
 		size_t changed = 0;
@@ -22949,6 +27151,23 @@ static void StrategyModeCommand(int32_t command)
 		return;
 	}
 
+	// an enemy or a generator: its strategy is in its AVPGENEX; with none, nothing (FUN_00528790: no holder)
+	host::GeneratorRef generator;
+
+	if (host::FindGenerator(LevelObjects_Level(), id, &generator))
+	{
+		host::ObjectStrategy had;
+
+		if (host::FindObjectStrategy(LevelObjects_Level(), id, &had) != host::StrategyFound::Found)
+		{
+			return;
+		}
+
+		memcpy(strategyDeleteId, id, sizeof(strategyDeleteId));
+		ConfirmAs(kPromptStrategyDelete, host::StrategyMode_DeleteQuestion());   // FUN_00528790: 0x5ee254 in a Yes / No box
+		return;
+	}
+
 	host::StrategyModeResult const has = host::StrategyMode_Has(open, id);
 
 	if (has != host::StrategyModeResult::Done)
@@ -22979,6 +27198,24 @@ static void RunStrategyDelete(std::string const &typed)
 	}
 
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	host::GeneratorRef generator;
+
+	if (open && host::FindGenerator(open->Level(), strategyDeleteId, &generator))
+	{
+		host::GeneratorStrategyResult const taken = host::GeneratorStrategy_Delete(open, strategyDeleteId);
+
+		if (taken != host::GeneratorStrategyResult::Done)
+		{
+			strategyWords = std::string("Delete Strategy: ") + host::GeneratorStrategyWords(taken);
+			statusWords = strategyWords.c_str();
+			return;
+		}
+
+		LoadTheObjectListAgain();
+		statusWords = "The object's strategy is deleted (kept in the editor's bytes until Save a copy)";
+		return;
+	}
+
 	host::StrategyModeResult const result = open ? host::StrategyMode_Delete(open, strategyDeleteId) : host::StrategyModeResult::BadCall;
 
 	if (result != host::StrategyModeResult::Done)
@@ -23211,12 +27448,31 @@ static void ExitCleanup(size_t screen)
 		strategyFromPlacement = false;
 		strategyFlagPage = false;
 		strategyViewBit = 0;
+		strategyMarkedChanged = false;   // FUN_00522ab0 0x522ae2: DAT_00914950 = 0 on the next entry
 		host::Selection_Clear();   // FUN_00529480: the current object's selection mark is cleared
 	}
 	else if (strcmp(name, "Path") == 0)
 	{
 		pathNumber = -1;           // FUN_004f9b90 releases the working path (it was written by every change here, as FUN_004fab40 does on the way out)
 		pathNodes.clear();
+	}
+	else if (IsALightScreen(screen))
+	{
+		// Light Sourcing's Exit comes here (LeaveTheMode), not through the bar's change of screen, so what leaving the screen undoes runs here too: the Gouraud switch its entry turned on
+		// (EnterLightSourcing / LeaveLightSourcing), as when the bar leaves it. (Bishop's queue 11-16, after Frost found the same in Hierarchy.)
+		LeaveLightSourcing();
+	}
+	else if (IsTheTextureMapScreen(screen))
+	{
+		// Texture Map's Exit (FUN_0054d260 case 5): FUN_0054bfd0 frees the mode, then the hub. Exit comes here (LeaveTheMode), not through the bar's change of screen, so the mode is left here too:
+		// before, the hub kept onTextureMap and drew the picked polygons (Melanikus 11-16; reassess/mode-entry-exit-frost.md TM-X1)
+		LeaveTextureMap();
+	}
+	else if (IsTheHierarchyScreen(screen))
+	{
+		// Hierarchy's Exit (case 0x2, FUN_004888d0, reassess/hierarchy-play-frost.md HP-1): the player is freed (FUN_00477870) and the hub shows the level again. Mode > Exit comes here (LeaveTheMode),
+		// not through the bar's change of screen, so the mode is left here: the model, its text rows and the view switch's hiding go with it
+		LeaveHierarchy();
 	}
 }
 
@@ -23865,6 +28121,17 @@ static void RunDeleteMulti(std::string const &typed)
 // Gives how many kinds, into kinds (most 16), for the object with that ID; 0 when the object's header can't be read.
 static size_t KindsTheObjectCanTake(uint8_t const *id, int32_t *kinds)
 {
+	// an ENEMY (AVPGENER with a species, type != 0: wrapper vtable 0x5afa00, +8 at 0x53a2b0) takes Enemy 69 only; a GENERATOR (type 0: 0x5afa20, +8 at 0x53aa70) Generator 79 only (S-KC-6)
+	{
+		host::GeneratorRef generator;
+
+		if (host::FindGenerator(LevelObjects_Level(), id, &generator))
+		{
+			kinds[0] = generator.type != 0 ? 69 : 79;
+			return 1;
+		}
+	}
+
 	// a VIRTUAL object (VIOBJECT): class vtable 0x5af9e0, +8 at 0x539cf0 takes Binary 52, Linked 61, Multi 66, Area 68, Mission Objective 70, Message 73, Volume of Death 77 and Self Destruct 78;
 	// the chooser has rows for these (no Binary Switch row), in its order
 	{
@@ -23945,15 +28212,7 @@ static void RunAssignPrompt(int32_t kind, std::string const &typed)
 			return;
 		}
 
-		assignKind = found->number;
-
-		host::ObjectStrategy had;
-
-		if (host::FindObjectStrategy(LevelObjects_Level(), assignId, &had) == host::StrategyFound::Found)
-		{
-			ConfirmAs(kPromptAssignReplace, "Object already has a strategy.\nWould you like to replace it?");   // 0x5ee2b4, FUN_00474a40 (400 x 200, Yes / No)
-			return;
-		}
+		assignKind = found->number;   // the replace question was asked before the window (command 0x8 above)
 	}
 	else
 	{
@@ -23985,11 +28244,20 @@ static void RunAssignPrompt(int32_t kind, std::string const &typed)
 
 	host::ObjectEditResult result = host::ObjectEditResult::Done;
 
+	host::GeneratorRef generator;
+
 	if (isVirtual)
 	{
 		host::VirtualObjectResult const made = host::VirtualObject_AssignStrategy(open, assignId, assignKind);
 
 		result = made == host::VirtualObjectResult::Done ? host::ObjectEditResult::Done : host::ObjectEditResult::BadStrategy;
+	}
+	else if (host::FindGenerator(LevelObjects_Level(), assignId, &generator))
+	{
+		// the enemy wrapper's +0xc (FUN_0053a2c0) / the generator's (FUN_0053aa80): the old strategy destroyed, or a holder made, then the new one (S-K69-0, S-K79-0)
+		host::GeneratorStrategyResult const made = host::GeneratorStrategy_Assign(open, assignId, assignKind);
+
+		result = made == host::GeneratorStrategyResult::Done ? host::ObjectEditResult::Done : made == host::GeneratorStrategyResult::LoaderRefused ? host::ObjectEditResult::LoaderRefused : host::ObjectEditResult::BadStrategy;
 	}
 	else
 	{
@@ -24007,9 +28275,10 @@ static void RunAssignPrompt(int32_t kind, std::string const &typed)
 	LoadTheObjectListAgain();
 	ShowTheSelected(host::Selection_Get());
 
-	StrategyViewOpen();   // FUN_00528830's last call: the new strategy's method +0x14(1)
+	// FUN_00528830's last call: the new strategy's view at once (method +0x14(1), 0x529141), the current object's red off while it runs; a kind whose view is not built yet: the field panel (NAMED stand-in)
+	bool const viewOpen = StrategyViewOpen();
 
-	strategyWords = "The object has a new strategy (every field at its creation value; kept in the editor's bytes until Save a copy): its fields are in the field panel";
+	strategyWords = viewOpen ? "The object has a new strategy: its Edit view (Escape or the right button ends it)" : "The object has a new strategy (kept in the editor's bytes until Save a copy)";   // ours: inteng shows the view and says nothing
 	statusWords = strategyWords.c_str();
 }
 
@@ -24291,7 +28560,14 @@ static void RunStrategyFans(std::string const &typed)
 
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	size_t fans = 0;
+	// S-13: FUN_005354d0 writes no DAT_00914950, so a reset alone does not make Exit ask: when nothing of Strategy's had changed, the clean mark moves with it (W-3)
+	bool const wasClean = open && !StrategyChanged();
 	host::StrategyModeResult const result = open ? host::StrategyMode_ResetFans(open, &fans) : host::StrategyModeResult::BadCall;
+
+	if (result == host::StrategyModeResult::Done && wasClean)
+	{
+		strategyCleanGeneration = open->Generation();
+	}
 
 	if (result == host::StrategyModeResult::NoStrategy)
 	{
@@ -24619,38 +28895,80 @@ static bool OpenAsDialog(int32_t kind)
 	}
 
 	// Find Object (0x52, 0x446636-0x44696e): the list dialog "Select Object" of every object of the level by name (FUN_00475bf0, rows sorted by the dialog); the one chosen is selected and the view goes to its place
-	// STRATEGY DATA's Find Object (0x41, FUN_00524e90 -> FUN_005253c0(1)): the same list dialog "Select Object", but of the records that are a virtual object or have a strategy (0x525496-0x5254a2: record type != 0, or its object data holds a strategy);
-	// the one chosen becomes the current object and the view goes to its place (FUN_00529280, 0x5292c5: the camera's place = the object's, less ten times the camera's own motion numbers, which are 0 at rest)
+	// STRATEGY DATA's Find Object (strategy-data.md S-11; reassess/strategy-data-verify-frost.md S-11): FUN_00524e90 case 0x41 -> FUN_005253c0(1) (dump-full-3:58960) makes the list AGAIN each
+	// time (DAT_0091495c is only ever set to 0) of every record whose wrapper is a virtual object (+8 != 0, 0x525496) or holds a strategy (+0x14 +0x30, 0x52549b), EACH RECORD ONCE, by its
+	// name (wrapper +4(-1)); FUN_00475bf0 "Select Object" sorts the rows. Our object list holds the virtual objects too, so they are taken from it once, as virtual objects. A choice:
+	// FUN_00529280(record, 1) (dump-full-3:61782) lets the old current go, puts the camera at the record's place LESS 10 x the camera's FORWARD axis (+0x50..+0x58, a 16.16 unit vector:
+	// camera-mover-trace.md step 8; 655360 inteng units = 6553.6 of the game's), the turn and look as they were, and makes the record current and red. No words.
 	if (kind == kPromptFindSelect && OnStrategyScreen())
 	{
 		struct One
 		{
 			std::string name;
-			std::string hex;
+			std::array<uint8_t, 8> id;
 			bool virt;
+			bool generator = false;
+			int32_t place[3] = { 0, 0, 0 };
 		};
 
 		std::vector<One> found;
 		std::vector<std::string> rows;
-
-		for (size_t i = 0; i < objectList.Count(); i++)
-		{
-			const uint8_t *const id = objectList.Id(i);
-			host::ObjectStrategy now;
-
-			if (id && host::FindObjectStrategy(LevelObjects_Level(), id, &now) == host::StrategyFound::Found)
-			{
-				found.push_back(One{ objectList.Name(i), HexOf(id), false });
-			}
-		}
-
 		std::vector<host::VirtualObjectRef> virtuals;
+		std::set<std::array<uint8_t, 8>> virtualIds;
 
 		host::ListVirtualObjects(LevelObjects_Level(), &virtuals);
 
 		for (host::VirtualObjectRef const &one : virtuals)
 		{
-			found.push_back(One{ one.name, HexOf(one.id), true });
+			std::array<uint8_t, 8> key;
+
+			memcpy(key.data(), one.id, 8);
+			virtualIds.insert(key);
+		}
+
+		for (size_t i = 0; i < objectList.Count(); i++)
+		{
+			const uint8_t *const id = objectList.Id(i);
+			host::ObjectStrategy now;
+			std::array<uint8_t, 8> key = {};
+
+			if (id)
+			{
+				memcpy(key.data(), id, 8);
+			}
+
+			// S-11: a virtual object is its own row below (0x525496), never a second one here
+			if (id && !virtualIds.count(key) && host::FindObjectStrategy(LevelObjects_Level(), id, &now) == host::StrategyFound::Found)
+			{
+				found.push_back(One{ objectList.Name(i), key, false });
+			}
+		}
+
+		for (host::VirtualObjectRef const &one : virtuals)
+		{
+			std::array<uint8_t, 8> key;
+
+			memcpy(key.data(), one.id, 8);
+			found.push_back(One{ one.name, key, true });
+		}
+
+		// the enemies and generators (their wrappers are not level blocks: +8 != 0, so inteng lists them whether or not they have a strategy). NOT YET: the sounds, particle generators and placed
+		// hierarchies inteng lists the same way
+		std::vector<host::GeneratorRef> generators;
+
+		host::ListGenerators(LevelObjects_Level(), &generators);
+
+		for (host::GeneratorRef const &one : generators)
+		{
+			std::array<uint8_t, 8> key;
+
+			memcpy(key.data(), one.id, 8);
+
+			One row{ one.name, key, true };
+
+			row.generator = true;
+			memcpy(row.place, one.place, sizeof(row.place));
+			found.push_back(row);
 		}
 
 		for (One const &one : found)
@@ -24667,37 +28985,13 @@ static bool OpenAsDialog(int32_t kind)
 
 			One const &chosen = found[(size_t)place];
 
-			if (!chosen.virt)
-			{
-				promptFor = kPromptFindSelect;
-				promptText = chosen.hex;
-				RunThePrompt();
-				return;
-			}
-
-			// a virtual object: it is selected by its ID and the view goes to its place (file units)
+			// FUN_00529280(record, 1): 0x52928e-0x5292a5 / 0x529342-0x529357 the old current let go, the record current and red; 0x5292c1-0x529321 the camera behind it (StrategyFlyTo)
 			host::Selected picked = {};
 
 			picked.kind = host::SelectedKind::Object;
-
-			for (size_t b = 0; b < host::kSelectionIdBytes && 2 * b + 1 < chosen.hex.size(); b++)
-			{
-				picked.objectId[b] = (uint8_t)strtoul(chosen.hex.substr(2 * b, 2).c_str(), nullptr, 16);
-			}
-
+			memcpy(picked.objectId, chosen.id.data(), host::kSelectionIdBytes);
 			host::Selection_Set(picked);
-
-			int64_t place3[3], least[3], most[3];
-
-			if (theCamera && host::VirtualObject_Geometry(LevelObjects_Level(), picked.objectId, place3, least, most))
-			{
-				theCamera->x = (int)((double)place3[0] * local_scale);
-				theCamera->y = (int)((double)place3[1] * local_scale);
-				theCamera->z = (int)((double)place3[2] * local_scale);
-				FlyCamera_Hold(theCamera);
-			}
-
-			Answer("Found " + chosen.name + ": the view is at its place");
+			StrategyFlyTo(chosen.id.data());
 		});
 		return true;
 	}
@@ -24731,8 +29025,116 @@ static bool OpenAsDialog(int32_t kind)
 	return false;
 }
 
+// Object > Rescale (0x1a, OP-13): FUN_004d9af0 0x4dc28f-0x4dc2a6 calls the CURRENT object's +0x18 when Gravity is off; only the placed shape has one (0x4e1a80, the others RET 4: nothing happens).
+// FUN_004e1a80 opens inteng's "Rescale Shape" window FUN_004d4f80: 400 x 240, the words "Type in the new scale of the shape." at 18,18 (370 x 40), an EMPTY edit at 30,100 (300 x 35, up to 200 letters),
+// OK at 100,150 and Cancel at 200,150 (50 x 16), "Take scale from shape rif" at 75,200 (200 x 16); Return is OK. The answers (0x4d5150): OK 2, Cancel 1, Take scale 3. OK: the text is read by
+// sscanf "%lf" (0x5e8af8: a number at its start; nothing read, nothing done) and taken when it is 0 to 1,000,000 and the shape has an outside file: the shape made that size (shape_rescale_edit.h, with
+// its named deviations). Take scale (FUN_004e1970) reads the scale from the shape's own .rif: NOT BUILT (NAMED: the editor opens no outside shape file here); it says so.
+static std::string rescaleWords;
+
+static void RescaleShapeBox()
+{
+	uint8_t id[8];
+
+	if (placementGravity || specialMode.haveCurrent || placedHierarchyCurrent >= 0 || host::Selection_Get().kind != host::SelectedKind::Object || !SelectedObjectId(id))
+	{
+		return;   // no current placed shape (or Gravity on): inteng does nothing
+	}
+
+	host::DialogFormSpec spec;
+	host::DialogWidget words, edit, ok, cancel, fromRif;
+
+	spec.title = "Rescale Shape";
+	spec.width = 400;
+	spec.height = 0xf0;
+	words.type = host::DialogWidgetType::Label;
+	words.text = "Type in the new scale of the shape.";
+	words.box = { 0x12, 0x12, 0x172, 0x28 };
+	edit.type = host::DialogWidgetType::Edit;
+	edit.box = { 0x1e, 100, 300, 0x23 };
+	edit.most = 200;
+	ok.type = host::DialogWidgetType::Button;
+	ok.text = "OK";
+	ok.box = { 100, 0x96, 0x32, 0x10 };
+	ok.answer = host::kDialogOk;
+	cancel.type = host::DialogWidgetType::Button;
+	cancel.text = "Cancel";
+	cancel.box = { 200, 0x96, 0x32, 0x10 };
+	cancel.answer = host::kDialogEscape;
+	fromRif.type = host::DialogWidgetType::Button;
+	fromRif.text = "Take scale from shape rif";
+	fromRif.box = { 0x4b, 200, 200, 0x10 };
+	fromRif.answer = 4;   // its own answer (inteng's 3; ours numbers OK as 3)
+	spec.widgets.push_back(words);
+	spec.widgets.push_back(edit);
+	spec.widgets.push_back(ok);
+	spec.widgets.push_back(cancel);
+	spec.widgets.push_back(fromRif);
+
+	std::vector<uint8_t> const object(id, id + 8);
+
+	host::Dialogs_Form(spec, [object](int32_t answer, std::vector<host::DialogWidget> const &widgets)
+	{
+		if (answer == 4)
+		{
+			Answer("Take scale from shape rif: not built (inteng reads the scale from the shape's own .rif file, FUN_004e1970)");
+			return;
+		}
+
+		if (answer != host::kDialogOk)
+		{
+			return;   // Cancel or Escape
+		}
+
+		std::string typed;
+
+		for (host::DialogWidget const &one : widgets)
+		{
+			if (one.type == host::DialogWidgetType::Edit)
+			{
+				typed = one.text;
+			}
+		}
+
+		double value = 0.0;
+
+		if (sscanf_s(typed.c_str(), "%lf", &value) != 1 || !(value >= 0.0 && value <= host::kRescaleMost))
+		{
+			return;   // nothing read, or outside 0 to 1,000,000: inteng does nothing
+		}
+
+		OpenLevelFile *const open = LevelObjects_OpenForEdit();
+		double factor = 0.0;
+		std::string reason;
+
+		if (!open)
+		{
+			return;
+		}
+
+		host::ShapeRescaleResult const result = host::ShapeRescale_ByValue(open, LevelObjects_Level(), object.data(), value, local_scale > 0.0 ? local_scale : 1.0, &factor, &reason);
+
+		if (result != host::ShapeRescaleResult::Done)
+		{
+			rescaleWords = std::string("Rescale: ") + host::ShapeRescaleWords(result) + (reason.empty() ? std::string() : " (" + reason + ")");
+			Answer(rescaleWords);
+			return;
+		}
+
+		rescaleWords = "Rescaled: every point of the shape is " + std::to_string(factor) + " times what it was (kept in the editor's bytes until Save a copy)";
+		Answer(rescaleWords);
+	});
+}
+
 static void OpenAPrompt(int32_t kind)
 {
+	// Object > Rescale: inteng's window, not a typed prompt
+	if (kind == kPromptRescale)
+	{
+		RescaleShapeBox();
+		return;
+	}
+
 	uint8_t id[8];
 
 	if (!LevelObjects_Level() || !editedLevel)
@@ -24755,7 +29157,7 @@ static void OpenAPrompt(int32_t kind)
 		return;
 	}
 
-	if ((kind == kPromptMove || kind == kPromptName || kind == kPromptAltGroup || kind == kPromptReplaceShape || kind == kPromptRescale) && !SelectedObjectId(id))
+	if ((kind == kPromptMove || kind == kPromptName || kind == kPromptAltGroup) && !SelectedObjectId(id))
 	{
 		Answer("Select an object first: click it in the level, or choose it in the object list");
 		return;
@@ -24946,12 +29348,6 @@ static void PromptWords(std::string *title, std::string *hint)
 			break;
 		case kPromptSoftEdge:
 			*title = "Type in the maximum angle for soft edges (flat is 0).";
-			break;
-		case kPromptRescale:
-			*title = "Rescale: type the new size of the selected object's shape (a number above 0, up to 1000000)";
-			break;
-		case kPromptReplaceShape:
-			*title = "Replace shape: type the name of the shape (its file's name, without the extension)";
 			break;
 		default:
 			*title = "Name object: type its new name";
@@ -25328,64 +29724,6 @@ static void RunThePrompt()
 		return;
 	}
 
-	if (kind == kPromptRescale)
-	{
-		// Rescale (FUN_004e1a80 -> FUN_004e1340): the typed size is read as a number (inteng's sscanf of a double), then the shape is scaled
-		// (shape_rescale_edit.h). The words around it are ours: inteng's dialog text is not read.
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-		char *end = nullptr;
-
-		errno = 0;
-
-		double const typedValue = strtod(typed.c_str(), &end);
-
-		if (!open || typed.empty() || end == typed.c_str() || *end != '\0' || errno != 0)
-		{
-			Answer("Rescale: type a number (above 0, up to 1000000)");
-			return;
-		}
-
-		double factor = 0.0;
-		std::string reason;
-		host::ShapeRescaleResult const result =
-			host::ShapeRescale_ByValue(open, LevelObjects_Level(), id, typedValue, local_scale > 0.0 ? local_scale : 1.0, &factor, &reason);
-
-		if (result != host::ShapeRescaleResult::Done)
-		{
-			Answer(std::string("Rescale: ") + host::ShapeRescaleWords(result) + (reason.empty() ? std::string() : " (" + reason + ")"));
-			return;
-		}
-
-		Answer("Rescaled: every point of the shape is " + std::to_string(factor) + " times what it was (kept in the editor's bytes until Save a copy)");
-		return;
-	}
-
-	if (kind == kPromptReplaceShape)
-	{
-		// Replace shape (FUN_004e2e10): the object is paired with another of the level's shapes. inteng picks the shape on its chooser screen
-		// (not read yet); here it is typed (a named deviation, drake-deviations.md). Every Chunk * the editor held is gone after a success.
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-		int32_t newNumber = 0;
-
-		if (!open)
-		{
-			Answer("No level is held to work on");
-			return;
-		}
-
-		host::ShapeReplaceResult const result = host::ShapeReplace_ByName(open, id, typed.c_str(), &newNumber);
-
-		if (result != host::ShapeReplaceResult::Done)
-		{
-			Answer(std::string("Replace shape: ") + host::ShapeReplaceWords(result));
-			return;
-		}
-
-		LoadTheObjectListAgain();
-		Answer("Shape replaced by " + typed + " (kept in the editor's bytes until Save a copy)");
-		return;
-	}
-
 	if (kind == kPromptMove)
 	{
 		long long by[3] = { 0, 0, 0 };
@@ -25514,12 +29852,44 @@ static void PromptKey(UINT message, WPARAM key)
 // What this frame's panels are, as the boxes and lines the panel pass adds to the game's frame (panel_pass.h): the gray behind each, in
 // order before every line. titleBoxes gets the menu bar's titles' boxes, for a run's report. lines and boxes have room for
 // kPanelPassMostExtras each.
-// Object Placement's special objects in the view (Bishop: "a map maker has to see what they place"): a small box at each one's place with its short name beside it. NAMED DEVIATION: inteng draws each as a
-// shape of its own (the base class FUN_004e4ae0 builds a render block from the templates at 0x5cda48; not read); here they are 2D markers over the view, the nearest ones in front of the camera first (the
-// panel pass holds 64 boxes and lines in all): generator green, Bad Guy red, Player start white, Sound cyan, Particle generator orange; the current one is drawn larger. (Added 2026-11-15 by Melanikus (Vasquez).)
+// Object Placement's special objects in the view: each is drawn as inteng's own built-in shape (FUN_004e4ae0's display block with the class's shape slot; SpecialIconTriangles, editor_icons.h, the
+// shapes read at run time from his inteng.exe: object-placement.md section 8b V-25), and the owner's addition, its short name beside it while the shape is seen (the label pass below; the panel pass
+// holds 64 boxes and lines in all, the nearest ones in front of the camera first). (Added 2026-11-15 by Melanikus (Vasquez); the comment corrected 2026-11-16: the 2D boxes are long gone.)
 static std::vector<host::SpecialObject> specialMarkers;
 static unsigned specialMarkersFor = ~0u;
 static OpenLevelFile *specialMarkersOpen = nullptr;
+
+// An enemy's or a generator's ID by its name (the game's own, AVP_Generator_Chunk::CalculateID: the first of a name, as the game's lookups take the first), read again when the level changes
+static std::map<std::string, std::array<uint8_t, 8>> generatorIdsByName;
+static unsigned generatorIdsFor = ~0u;
+static OpenLevelFile *generatorIdsOpen = nullptr;
+
+static void GeneratorIdsRefresh(OpenLevelFile *open)
+{
+	if (!open || !open->Level() || (generatorIdsOpen == open && generatorIdsFor == open->Generation()))
+	{
+		return;
+	}
+
+	std::vector<host::GeneratorRef> generators;
+
+	host::ListGenerators(open->Level(), &generators);
+	generatorIdsByName.clear();
+
+	for (host::GeneratorRef const &one : generators)
+	{
+		if (generatorIdsByName.count(one.name) == 0)
+		{
+			std::array<uint8_t, 8> id;
+
+			memcpy(id.data(), one.id, 8);
+			generatorIdsByName[one.name] = id;
+		}
+	}
+
+	generatorIdsOpen = open;
+	generatorIdsFor = open->Generation();
+}
 
 // The special objects as boxes in the world (R_SetEditorWorldLines, depth-tested): the twelve edges of a cube round each place, 300 mm (the current one 500 mm), in the kind's colour. The nearest 120 that the view
 // sees. The text beside them is the panel pass's. Cleared when the screen is left. (inteng gives each a render block of its own: unread, unfinished-in-inteng.md.)
@@ -25614,6 +29984,12 @@ static void VolumeBegin()
 		return;
 	}
 
+	// a Volume of Death: V is read by its Edit view only (FUN_00535970 0x535b20); on page 0 it does nothing (strategy-data.md S-59). The Area Switch keeps V on the screen until its view is built (NAMED stand-in)
+	if (kind == 77 && !(strategyEditFan && strategyEditKind == 77))
+	{
+		return;
+	}
+
 	model::Field const *loField = nullptr;
 	model::Field const *hiField = nullptr;
 
@@ -25652,13 +30028,23 @@ static void VolumeBegin()
 	memcpy(volume.id, selected, sizeof(volume.id));
 	memcpy(volume.lo, lo, sizeof(lo));
 	memcpy(volume.hi, hi, sizeof(hi));
+
+	// a box that is not empty (some corner number differs, 0x5277fa): FUN_00529280(cube, 0) puts the camera at the cube's place, its centre (FUN_00582f40 0x5830c4), less ten times the camera's own
+	// motion numbers, 0 at rest (as Find Object's move, 0x5292c5); the current object stays (strategy-data.md S-VOL-2)
+	if (theCamera && (lo[0] != hi[0] || lo[1] != hi[1] || lo[2] != hi[2]))
+	{
+		theCamera->x = (int)((lo[0] + hi[0]) / 2);
+		theCamera->y = (int)((lo[1] + hi[1]) / 2);
+		theCamera->z = (int)((lo[2] + hi[2]) / 2);
+		FlyCamera_Hold(theCamera);
+	}
 	volume.kind = kind;
 	volume.face = -1;
 	volume.module = -1;
+	volume.objectPicked = false;
 	volume.last = 0;
 	volume.on = true;
 	strategyPick = 0;
-	strategyEditFan = false;
 	copyCollecting = false;
 	statusWords = "Edit Volume: Return or the right button ends";
 }
@@ -25787,6 +30173,7 @@ static void VolumeEnd()
 	volume.on = false;
 	volume.face = -1;
 	volume.module = -1;
+	volume.objectPicked = false;
 
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	char const *loName = nullptr;
@@ -25845,7 +30232,7 @@ static bool VolumeKey(WPARAM key)
 	{
 		int32_t mins[3], maxs[3];
 
-		if (volume.module >= 0 && LevelView_ModuleBox(volume.module, mins, maxs))
+		if ((volume.module >= 0 && LevelView_ModuleBox(volume.module, mins, maxs)) || (volume.objectPicked && LevelView_ObjectBox(volume.object, mins, maxs)))
 		{
 			for (int a = 0; a < 3; a++)
 			{
@@ -25865,7 +30252,7 @@ static bool VolumeKey(WPARAM key)
 		return true;
 	}
 
-	return key == 'T' || key == 'V' || key == 'E';
+	return key == 'T' || key == 'V' || key == 'E' || key == VK_ESCAPE;   // Escape: the editor's loop reads none (S-VOL-11)
 }
 
 // a click in the volume editor: no Shift picks a module (FUN_00559720; nothing hit lets it go), Shift picks the cube's face the line meets first (FUN_00559a60)
@@ -25873,13 +30260,22 @@ static void VolumeClick(host::PickReport const &report, bool shift, int32_t x, i
 {
 	if (!shift)
 	{
+		// FUN_00559720 gives the record under the pointer, module or object (0x527a5b): it is the picked one (strategy-data.md S-VOL-4)
 		if (report.found == host::PickFound::Module)
 		{
 			volume.module = report.moduleIndex;
+			volume.objectPicked = false;
+		}
+		else if (report.found == host::PickFound::Object)
+		{
+			volume.module = -1;
+			volume.objectPicked = true;
+			memcpy(volume.object, report.objectId, sizeof(volume.object));
 		}
 		else if (report.found == host::PickFound::Nothing || report.found == host::PickFound::NoLine)
 		{
 			volume.module = -1;
+			volume.objectPicked = false;
 		}
 
 		return;
@@ -25935,6 +30331,40 @@ static void VolumeClick(host::PickReport const &report, bool shift, int32_t x, i
 	}
 
 	volume.face = best;
+}
+
+// STRATEGY DATA'S VIEW DISTANCE (strategy-data.md S-53 / S-54 / S-65): the screen's frame FUN_00522980 (0x5229a0-0x5229e0) and the sub-loops' FUN_00529370 (0x52940b-0x52944b): H held (slot 0xd87a88) adds 500000 to
+// the shared distance DAT_005fd678 (1,000,000 at the start) each frame, N held (0xd87a8e) takes 500000 away, never below 0; then FUN_00522a30 every frame: a module whose distance from the camera, less its radius (+0x100),
+// is not under the distance is not drawn. A kind's Edit view runs its own loop (FUN_0058b700 only): no H / N and no culling pass while it is up. NAMED: inteng never hides a record flagged 0x800000 (+0x64); ours has no such flag.
+static bool strategyDistanceApplied = false;
+
+static void StrategyViewDistanceEveryFrame()
+{
+	if (!OnStrategyScreen())
+	{
+		if (strategyDistanceApplied)
+		{
+			strategyDistanceApplied = false;
+			LevelView_HideBeyond(false, 0);
+		}
+
+		return;
+	}
+
+	if (strategyEditFan)
+	{
+		return;
+	}
+
+	if (!AMenuIsOpen() && !ADialogIsOpen() && promptFor == kPromptNone && (keyDown['H'] || keyDown['N']))
+	{
+		int64_t const next = (int64_t)viewDistance + (keyDown['H'] ? 500000 : 0) - (keyDown['N'] ? 500000 : 0);
+
+		viewDistance = next < 0 ? 0 : (next > 100000000 ? 100000000 : (int32_t)next);
+	}
+
+	LevelView_HideBeyond(true, viewDistance / 100);   // inteng's DAT_005fd678 is 100 to the millimetre (H-6, merged 399a933); the hiding is in millimetres: 1,000,000 = 10 m
+	strategyDistanceApplied = true;
 }
 
 static bool OnAPlacementScreen()
@@ -26023,9 +30453,59 @@ static void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint
 
 		piece.group = (int)markerAt;   // the triangle group is the marker's place in the list: its label asks LevelView_TriangleGroupPixels with the same number
 		memcpy(piece.id, o.id, sizeof(piece.id));
+
+		// an enemy or a generator is named by the game's own ID (Strategy Data selects it by that, and finds its strategy in the AVPGENEX of its name)
+		if (o.kind == host::SpecialKind::Generator || o.kind == host::SpecialKind::BadGuy)
+		{
+			GeneratorIdsRefresh(open);
+
+			if (generatorIdsByName.count(o.name))
+			{
+				memcpy(piece.id, generatorIdsByName[o.name].data(), sizeof(piece.id));
+			}
+		}
 		piece.away = (place[0] - eye[0]) * (place[0] - eye[0]) + (place[1] - eye[1]) * (place[1] - eye[1]) + (place[2] - eye[2]) * (place[2] - eye[2]);
 		host::EditorIcon_Add(shape, place, haveAxes ? axes : nullptr, flash, &piece.triangles);
 		pieces.push_back(piece);
+	}
+
+	// the placed hierarchies of Object Placement: the editor's icon shape 4 at the place, turned by the PLACHIDT's turn, red when current, under the view distance rule (no name label: NAMED)
+	if (!strategy && !soundsOnly && !forPick)
+	{
+		// the list PlacementFrame keeps (read again only when the level changes: not each frame)
+		std::vector<host::PlacedHierarchyInfo> const &hierarchies = placementHierarchies;
+
+		for (host::PlacedHierarchyInfo const &one : hierarchies)
+		{
+			double const place[3] = { one.place[0] * scale, one.place[1] * scale, one.place[2] * scale };
+			double axes[9];
+			bool const haveAxes = host::TrackPlay_QuatAxes(one.turn, axes);
+			bool const current = placedHierarchyCurrent == (int)one.number;
+
+			// PH-1: while it is current its model is shown and its own icon is not (FUN_004e9520 0x4e95ac: the object's record +0x64 |= 0x800000)
+			if (current && placedHierarchyShown == (int)one.number && HierarchyView_IsShown())
+			{
+				continue;
+			}
+
+			if (placementHideOn && !current)
+			{
+				double const dx = place[0] - eye[0], dy = place[1] - eye[1], dz = place[2] - eye[2];
+
+				if (sqrt(dx * dx + dy * dy + dz * dz) - host::EditorIcon_Radius(4) >= (double)PlacementHideDistance())
+				{
+					continue;
+				}
+			}
+
+			Piece piece;
+
+			piece.group = -1;
+			memcpy(piece.id, one.id, sizeof(piece.id));
+			piece.away = (place[0] - eye[0]) * (place[0] - eye[0]) + (place[1] - eye[1]) * (place[1] - eye[1]) + (place[2] - eye[2]) * (place[2] - eye[2]);
+			host::EditorIcon_Add(4, place, haveAxes ? axes : nullptr, current ? 0xFFFF0000u : 0u, &piece.triangles);
+			pieces.push_back(piece);
+		}
 	}
 
 	if (strategy)
@@ -26034,16 +30514,23 @@ static void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint
 
 		if (host::VirtualObject_List(open, &virtuals))
 		{
+			host::Selected const selected = host::Selection_Get();
+
 			for (host::VirtualObjectInfo const &v : virtuals)
 			{
 				double const place[3] = { v.place[0] * scale, v.place[1] * scale, v.place[2] * scale };
+
+				// a virtual object's record is coloured as every record of the screen (S-61 / S-62): the CURRENT one red (+0x64 0x40000000 -> FUN_004a7cd0 0x4a7eca item 0x80 -> FUN_004980f0
+				// 0xff0000), else one holding a strategy green (FUN_00522680 0x522935 0x2000000 -> item 0x100 -> 0x00ff00), else its own colours
+				bool const current = selected.kind == host::SelectedKind::Object && memcmp(selected.objectId, v.id, sizeof(v.id)) == 0;
+				uint32_t const tint = current ? 0xFFFF0000u : (v.hasStrategy ? 0xFF00FF00u : 0u);
 
 				Piece piece;
 
 				piece.group = -1;
 				memcpy(piece.id, v.id, sizeof(piece.id));
 				piece.away = (place[0] - eye[0]) * (place[0] - eye[0]) + (place[1] - eye[1]) * (place[1] - eye[1]) + (place[2] - eye[2]) * (place[2] - eye[2]);
-				host::EditorIcon_Add(13, place, nullptr, 0u, &piece.triangles);
+				host::EditorIcon_Add(13, place, nullptr, tint, &piece.triangles);
 				pieces.push_back(piece);
 			}
 		}
@@ -26237,7 +30724,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 	for (size_t row = 0; row < barRowCount; row++)
 	{
-		host::MenuPaint_Measure(barRows.menus[row], barRows.menuCount[row], PanelPass_SmallWidth, titleWidths, dropWidths);
+		host::MenuPaint_Measure(barRows.menus[row], barRows.menuCount[row], PanelPass_MenuWidth, titleWidths, dropWidths);
 		BarRow(row).LayOut(place.bar[row], place.dropRoom[row], titleWidths, dropWidths, host::MenuPaint_ItemHeight(kPanelPassLineHeight));
 		titlesEnd[row] = layout.toolbar.x;
 
@@ -26274,10 +30761,11 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 	// FUN_004b7c50: the bar is shown while the pointer is at the top edge (y < 3) or Control is held, and stays while the pointer is inside the bar's height, or a menu is open
 	{
 		bool const open = menuBar.IsOpen() || ALowerMenuIsOpen();
-		bool const control = keyDown[VK_CONTROL] || GetKeyState(VK_CONTROL) < 0;
+		bool const control = KeyHeldNow(VK_CONTROL);
 		bool const over = barPointerY >= 0 && (barPointerY < 3 || (barVisible && barPointerY < layout.toolbar.y + layout.toolbar.height));
 
-		barVisible = open || control || over;
+		// a strategy kind's Edit view runs its own loop (S-KC-1: FUN_0052cbb0 and the others clear the window and draw their lines, then FUN_0057bd90): FUN_004b7c50 is not called, so no bar shows over it
+		barVisible = !strategyEditFan && (open || control || over);
 	}
 
 	titlesEnd[0] += 12;
@@ -26292,7 +30780,10 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 	}
 	else
 	{
-		boxes[boxCount++] = GrayBehind(hitBar.x, hitBar.y, hitBar.width, hitBar.height);
+		// inteng's bar is a BLUE strip the window's whole width (view-state-table.md H-5, H-5a: style +0x30 (0, 0, 0xff)); a press anywhere on it is the bar's
+		hitBar.x = 0;
+		hitBar.width = layout.view.x + layout.view.width;
+		boxes[boxCount++] = host::PaintBox{ hitBar.x, hitBar.y, hitBar.width, hitBar.height, host::kMenuBlueColour, true };   // over the screen (BAR-6)
 	}
 
 	for (size_t row = 1; row < kEditorBarMostRows; row++)
@@ -26304,7 +30795,9 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 			hitLower[row - 1].y = place.bar[row].y;
 			hitLower[row - 1].width = titlesEnd[row] - place.bar[row].x > 0 ? titlesEnd[row] - place.bar[row].x : 0;
 			hitLower[row - 1].height = place.bar[row].height;
-			boxes[boxCount++] = GrayBehind(hitLower[row - 1].x, hitLower[row - 1].y, hitLower[row - 1].width, hitLower[row - 1].height);
+			hitLower[row - 1].x = 0;
+			hitLower[row - 1].width = layout.view.x + layout.view.width;
+			boxes[boxCount++] = host::PaintBox{ hitLower[row - 1].x, hitLower[row - 1].y, hitLower[row - 1].width, hitLower[row - 1].height, host::kMenuBlueColour, true };
 		}
 		else
 		{
@@ -26344,6 +30837,12 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 			bar.SetChecked(ActionOfCommand("0x5e2e38", 0x49), viewDistanceOn);
 			bar.SetChecked(ActionOfCommand("0x5e2e38", 0x4b), onlyDrawLinked);
 			bar.SetChecked(ActionOfCommand("0x5c3508", 0x46), adjacentViewDistanceOn);
+
+			// Hierarchy's three switches with a tick (row M-TICK): each flip calls the menu object's method +0x2c(command, the new value) (0x4b90b0 -> FUN_004b7500), which SETS the item's "on" state to it (Adaptive Degradation 0x4896ef,
+			// Dummy Objects 0x489714, Save changes to sequence times 0x488aa7); all three start off, so the tick is the switch. Toggle on/off (0x4c, 0x4897f3) flips DAT_00637118 with no tick.
+			bar.SetChecked(HierarchyBarAction(0x45), hierarchyMode.adaptiveDegradation);
+			bar.SetChecked(HierarchyBarAction(0x5c), hierarchyMode.dummyObjects);
+			bar.SetChecked(HierarchyBarAction(0x48), hierarchyMode.saveTimesOn);
 		}
 
 		// The textures setting is kept in the editor's own settings file when it changes
@@ -26354,9 +30853,12 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 		}
 	}
 
+	size_t const menuLinesFrom = lineCount;
+	size_t const menuBoxesFrom = boxCount;
+
 	if (barVisible)
 	{
-		host::MenuPaint_Plan(menuBar, barRows.menus[0], PanelPass_SmallWidth, kPanelPassLineHeight, lines, kPanelPassMostExtras, &menuLines, boxes + boxCount,
+		host::MenuPaint_Plan(menuBar, barRows.menus[0], PanelPass_MenuWidth, kPanelPassLineHeight, lines + lineCount, kPanelPassMostExtras - lineCount, &menuLines, boxes + boxCount,
 			kPanelPassMostExtras - boxCount, &menuBoxes);
 		lineCount += menuLines;
 		boxCount += menuBoxes;
@@ -26367,7 +30869,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 		size_t menuLinesRow = 0;
 		size_t menuBoxesRow = 0;
 
-		host::MenuPaint_Plan(lowerBar[row - 1], barRows.menus[row], PanelPass_SmallWidth, kPanelPassLineHeight, lines + lineCount, kPanelPassMostExtras - lineCount, &menuLinesRow, boxes + boxCount,
+		host::MenuPaint_Plan(lowerBar[row - 1], barRows.menus[row], PanelPass_MenuWidth, kPanelPassLineHeight, lines + lineCount, kPanelPassMostExtras - lineCount, &menuLinesRow, boxes + boxCount,
 			kPanelPassMostExtras - boxCount, &menuBoxesRow);
 		lineCount += menuLinesRow;
 		boxCount += menuBoxesRow;
@@ -26386,16 +30888,27 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 		ui::Box const popBar = { popupAt.x, top, windowRight - popupAt.x > 0 ? windowRight - popupAt.x : 0, 0 };
 		ui::Box const popRoom = { 0, top, windowRight, windowBottom - top > 0 ? windowBottom - top : 0 };
 
-		host::MenuPaint_Measure(popupRoom.menus, 1, PanelPass_SmallWidth, popTitle, popDrop);
+		host::MenuPaint_Measure(popupRoom.menus, 1, PanelPass_MenuWidth, popTitle, popDrop);
 		popupBar.LayOut(popBar, popRoom, popTitle, popDrop, rowH);
 
 		size_t popLines = 0;
 		size_t popBoxes = 0;
 
-		host::MenuPaint_Plan(popupBar, popupRoom.menus, PanelPass_SmallWidth, kPanelPassLineHeight, lines + lineCount, kPanelPassMostExtras - lineCount, &popLines,
+		host::MenuPaint_Plan(popupBar, popupRoom.menus, PanelPass_MenuWidth, kPanelPassLineHeight, lines + lineCount, kPanelPassMostExtras - lineCount, &popLines,
 			boxes + boxCount, kPanelPassMostExtras - boxCount, &popBoxes);
 		lineCount += popLines;
 		boxCount += popBoxes;
+	}
+
+	// the bar's rows, their drop-downs and the pop-up are inteng's opaque blits over the frame (reassess/dialog-look-drake.md BAR-6): drawn over every word and box of the screen
+	for (size_t i = menuLinesFrom; i < lineCount; i++)
+	{
+		lines[i].overlay = true;
+	}
+
+	for (size_t i = menuBoxesFrom; i < boxCount; i++)
+	{
+		boxes[i].overlay = true;
 	}
 
 	// The field panel follows the selection first: when it changes, the record for what's selected is shown, and the panel opens over the level
@@ -26445,17 +30958,19 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 	ui::Box listBox = { 0, 0, 0, 0 };
 	ui::Box fieldsBox = { 0, 0, 0, 0 };
 
-	if (listShown && fieldsShown)
-	{
-		HostFrame_ShareTheColumn(layout.list, wanted, &listBox, &fieldsBox);
-	}
-	else if (listShown)
+	// THE FIELD PANEL AT THE TOP RIGHT (Bishop 2026-11-16, Vasquez's find): inteng prints its own lines at the top LEFT of the view on most screens (Object Placement FUN_004d9af0
+	// 0x4dc74e on, from x 16, y 32: View Distance, Num Objects, Difficulty, the object's name, In Object Control, Visible polygons; Path, Waypoint, Hierarchy, Light Sourcing
+	// and Strategy Data in the same corner), and the panel covered them. It now stands at the top right of the view, as wide as the left column, where no screen prints; the
+	// object list keeps the left column.
+	if (listShown)
 	{
 		listBox = layout.list;
 	}
-	else if (fieldsShown)
+
+	if (fieldsShown)
 	{
 		fieldsBox = layout.list;
+		fieldsBox.x = layout.view.x + layout.view.width - layout.list.width;
 		fieldsBox.height = wanted > 0 && wanted < layout.list.height ? wanted : (wanted > 0 ? layout.list.height : 0);
 	}
 
@@ -26601,7 +31116,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 	// inteng has no status line: the Hierarchy screen draws only its own text (HierarchyTextLines) and the dialogs; the words are still kept (the state line's status) for the harness
 	// The hub draws no status words either (FUN_004452b0 draws only the view, the bar and its dialogs: its strings are all prompts): the words are still kept for the harness' state line
-	texts.status = (onHierarchy || (OnTheTrackScreen() && trackEd.state != host::TrackState::Off) || (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Waypoint") == 0) || barScreen == host::kIntengHub || textPanelText || polyScreenOpen || chooserActive) ? "" : (statusWords ? statusWords : "");
+	texts.status = (onHierarchy || (OnTheTrackScreen() && trackEd.state != host::TrackState::Off) || (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Waypoint") == 0) || barScreen == host::kIntengHub || textPanelText || polyScreenOpen || chooserActive || (strategyEditFan && OnStrategyScreen())) ? "" : (statusWords ? statusWords : "");
 	hitStatus = ui::Box{ 0, 0, 0, 0 };
 
 	size_t const statusCount = host::PanelPaint_Plan(layout, texts, PanelPass_SmallWidth, kPanelPassLineHeight, statusLines, 4);
@@ -26725,6 +31240,19 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 		}
 	}
 
+	// Hierarchy's Return (C-47): "Saving" at (200, 100) (FUN_0057bd40(200, 100, 0, "Saving") 0x488a3f-0x488a4d) on the frame drawn before the save; the save itself runs at the start of the next
+	// frame (HierarchySaveIfAsked), as inteng's save follows the drawn words
+	if (onHierarchy && hierarchySaveAsked == 2 && lineCount < kPanelPassMostExtras)
+	{
+		host::PaintText saving;
+
+		saving.text = "Saving";
+		saving.x = 200;
+		saving.y = layout.view.y + 100;
+		lines[lineCount++] = saving;
+		hierarchySaveAsked = 1;
+	}
+
 	// COPY STRATEGY'S COLLECTOR and the Strategy messages (above)
 	if (OnStrategyScreen())
 	{
@@ -26746,7 +31274,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 		{
 			// the words, a line under a line at 0x14 (FUN_0057bd40(200, 100) then (200, 0x74): "Saving" and the file's name)
 			size_t at = 0;
-			int32_t y = base + 100;
+			int32_t y = layout.view.y + 100;   // FUN_0057bd40(200, 100): from the window's top
 
 			while (at <= strategyMessage.size() && lineCount < kPanelPassMostExtras)
 			{
@@ -26778,7 +31306,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 				line.text = rows[row];
 				line.x = 16;
-				line.y = base + 16 * row;
+				line.y = layout.view.y + 16 * (3 + row);   // rows 3-8 (y 48 ..) from the window's top (strategy-data.md S-VOL-3)
 				lines[lineCount++] = line;
 			}
 
@@ -26805,13 +31333,95 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 				line.text = rows[row];
 				line.x = 16;
-				line.y = base + 16 * row;
+				line.y = layout.view.y + 16 * (3 + row);   // rows 3-6 (y 48 ..) from the window's top
 				lines[lineCount++] = line;
 			}
 		}
 
-		// THE CURRENT OBJECT'S TWO LINES (FUN_00524e90 0x52525a-0x5252bf, drawn every frame the screen's own loop runs while an object is current): its wrapper's name (method +4) at (16, row 0) and "ID - 0x%x %x" (005edddc, the two words
-		// of its id) at (16, row 1), rows of 16 from the text area's top
+		// "View Distance :%d" (0x5c39b0, the distance / 500000) at (16, 0x20): FUN_00522980 0x5229e0 and FUN_00529370 0x52944b draw it every frame, on page 0 and in every loop of the screen (the flag page, Stability,
+		// the volume editor, the collectors); a kind's Edit view does not (strategy-data.md S-65)
+		if (!strategyEditFan && lineCount < kPanelPassMostExtras)
+		{
+			static char distanceWords[48];
+			host::PaintText distance;
+
+			_snprintf_s(distanceWords, sizeof(distanceWords), _TRUNCATE, "View Distance :%d", (int)(viewDistance / 500000));
+			distance.text = distanceWords;
+			distance.x = 16;
+			distance.y = layout.view.y + 0x20;
+			lines[lineCount++] = distance;
+		}
+
+		// THE FLAG PAGE'S TEXT (FUN_00525700 0x526245-0x5266c5, strategy-data.md S-73), rows of 16 from row 3 (y 48 from the window's top): no flag viewed: "Flag View - None" (0x5ede30); a flag viewed:
+		// "Flag View - Airduct" (0x5ede80) / "Flag View - Stair" (0x5ede6c) / "Flag View - Sky Visible" (0x5ededc) / "Flag View - Fogged" (0x5ede94), then "F : Add flag" (0x5ede5c) and "Shift + F : Remove flag" (0x5ede44).
+		// With modules in the page's list, the one added LAST: one row left empty, "Flags for %s :" (0x5ede20, its name), then a row for each flag it has: "Airduct" (0x5edc38), "Stair" (0x5edc30),
+		// "Sky Visible" (0x5edc24), "Fogged" (0x5edc1c) (the bits 0x80000000, 0x40000000, 0x20000000, 0x10000000 of its MODFLAGS word, in that order)
+		if (strategyFlagPage && !strategyEditFan && lineCount + 10 <= kPanelPassMostExtras)
+		{
+			int32_t row = 3;
+			auto put = [&](std::string const &words)
+			{
+				host::PaintText one;
+
+				one.text = words;
+				one.x = 16;
+				one.y = layout.view.y + 16 * row;
+				lines[lineCount++] = one;
+				row++;
+			};
+
+			char const *viewed = nullptr;
+
+			switch (strategyViewBit)
+			{
+			case 0x80000000u: viewed = "Flag View - Airduct"; break;
+			case 0x40000000u: viewed = "Flag View - Stair"; break;
+			case 0x20000000u: viewed = "Flag View - Sky Visible"; break;
+			case 0x10000000u: viewed = "Flag View - Fogged"; break;
+			default: break;
+			}
+
+			if (!viewed)
+			{
+				put("Flag View - None");
+			}
+			else
+			{
+				put(viewed);
+				put("F : Add flag");
+				put("Shift + F : Remove flag");
+			}
+
+			size_t const listed = host::Selection_SetCount();
+			uint8_t lastId[8];
+			OpenLevelFile *const flagOpen = LevelObjects_OpenForEdit();
+
+			if (listed > 0 && flagOpen && host::Selection_SetMember(listed - 1, lastId))
+			{
+				host::FoundObject lastFound;
+				std::string const lastName = host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(lastId).c_str(), &lastFound) ? lastFound.name : std::string();
+				uint32_t flags = 0;
+				Chunk *flagChunk = nullptr;
+				std::vector<unsigned char> flagBytes;
+				host::LevelStore flagStore(flagOpen);
+
+				if (host::FindModuleFlags(LevelObjects_Level(), lastId, &flagChunk) == host::LevelChunkFound::Found && flagChunk && flagStore.PayloadOf(flagChunk, &flagBytes) && flagBytes.size() >= 4)
+				{
+					memcpy(&flags, flagBytes.data(), 4);
+				}
+
+				row++;   // 0x526539: the row counter goes up by two, the words on the second
+				put("Flags for " + lastName + " :");
+
+				if (flags & 0x80000000u) put("Airduct");
+				if (flags & 0x40000000u) put("Stair");
+				if (flags & 0x20000000u) put("Sky Visible");
+				if (flags & 0x10000000u) put("Fogged");
+			}
+		}
+
+		// THE CURRENT OBJECT'S TWO LINES (FUN_00524e90 0x52525a-0x5252bf, drawn every frame the screen's own loop runs while an object is current): its wrapper's name (method +4) and "ID - 0x%x %x" (005edddc, the two words
+		// of its id) on the rows 3 and 4 (FUN_00522980 sets the row counter to 3 at 0x5229d4 before them): y 48 and 64 from the window's top (strategy-data.md S-66)
 		if (!strategyFlagPage && !copyCollecting && !stabilityActive && !volume.on && !strategyEditFan && !fieldHost.Showing() && lineCount + 2 <= kPanelPassMostExtras)
 		{
 			uint8_t currentId[8];
@@ -26852,11 +31462,11 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 				nameLine.text = currentFound.name;
 				nameLine.x = 16;
-				nameLine.y = base;
+				nameLine.y = layout.view.y + 3 * 16;
 				lines[lineCount++] = nameLine;
 				idLine.text = idWords;
 				idLine.x = 16;
-				idLine.y = base + 16;
+				idLine.y = layout.view.y + 4 * 16;
 				lines[lineCount++] = idLine;
 			}
 		}
@@ -26867,9 +31477,9 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 			head.text = "Press return when finished";   // 0x5edfe4
 			head.x = 16;
-			head.y = base;
+			head.y = layout.view.y + 16 * 3;   // row 3 (y 48) from the window's top (strategy-data.md S-79)
 			lines[lineCount++] = head;
-			foot.text = "Select objects to copy to";   // 0x5ee1ec
+			foot.text = copyPurpose == 1 ? "Select other positions for this lift" : (copyPurpose == 2 ? "Select mission objectives" : (copyPurpose == 3 ? "Select targets" : "Select objects to copy to"));   // 0x5ee880, 0x5ef88c, 0x5efb5c, 0x5ee1ec
 			foot.x = 200;
 			foot.y = layout.view.y + layout.view.height - 20;
 			lines[lineCount++] = foot;
@@ -26881,19 +31491,19 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 				name.text = host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(copyTargets[i].id).c_str(), &found) ? found.name : std::string("?");
 				name.x = 16;
-				name.y = base + 32 + 16 * (int32_t)i;
+				name.y = layout.view.y + 16 * (5 + (int32_t)i);   // from row 5 (y 80)
 				lines[lineCount++] = name;
 			}
 		}
 	}
 
 	// THE EDIT VIEW'S DRAWN LINES (strategy_views.h): in the text area, each at inteng's x and y
-	if (!strategyEditFan)
+	if (!strategyEditFan || copyCollecting)
 	{
 		strategyViewWord.clear();
 	}
 
-	if (strategyEditFan && OnStrategyScreen())
+	if (strategyEditFan && OnStrategyScreen() && !volume.on && !copyCollecting)
 	{
 		std::vector<uint8_t> payload;
 		std::string name;
@@ -26902,30 +31512,64 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 		if (StrategyViewSubject(&payload, &name, &kind, id) && kind == strategyEditKind)
 		{
-			int32_t base = layout.toolbar.y + layout.toolbar.height;
-
-			for (ui::Box const &lower : hitLower)
-			{
-				base = lower.height > 0 && lower.y + lower.height > base ? lower.y + lower.height : base;
-			}
-
-			textAreaTop = base;
+			strategyViewTop = layout.view.y;   // inteng's lines are placed from the window's top, not under the bar (the bar, when it is shown, covers 0..32 over them as in inteng)
 
 			std::vector<host::StrategyViewLine> shown;
 
 			strategyViewWord.clear();
 
-			if (host::StrategyView_Lines(kind, payload, name, layout.view.height, StrategyViewNameOf, id, &shown))
-			{
-				if (!strategyPickField.empty())
-				{
-					host::StrategyViewLine foot;
+			// while an object pick runs the screen's own frame is drawn (FUN_00529370): "View Distance :%d" (16, 32), "Press return when finished" (16, 48, 0x5edfe4), the picked object's name (16, 80),
+			// the row's words along the foot (200, height - 20); not the view's lines
+			bool const picking = !strategyPickField.empty();
+			// the Lift's lines read the level: an object's radius (FUN_00529850) and whether a position's Lift starts there (FUN_0052cb10)
+			host::StrategyViewWorld world;
 
-					foot.x = 200;
-					foot.y = layout.view.height - 20;
-					foot.text = strategyViewPickWords;
-					shown.push_back(foot);
+			world.radius = [](uint8_t const *one, double *radius) { return host::ObjectEdit_ShapeRadius(LevelObjects_Level(), one, radius); };
+			world.liftStartsHere = [](uint8_t const *one)
+			{
+				int32_t oneKind = 0, flags = 0;
+				std::vector<uint8_t> bytes;
+
+				return StrategyOfObject(one, &oneKind, &bytes) && oneKind == 51 && host::StrategyView_FieldNumber(51, bytes, "LiftFlags", &flags) && (flags & 1) != 0;
+			};
+
+			world.targetWords = StrategyTargetWords;
+			world.trackSections = TrackSectionsOf;
+			world.species = EnemySpeciesOf;
+			world.path = LevelPathNamed;
+			world.page = trackPage;
+
+			bool const haveLines = picking || host::StrategyView_Lines(kind, payload, name, layout.view.height, StrategyViewNameOf, id, &shown, &world);
+
+			if (picking)
+			{
+				host::StrategyViewLine one;
+
+				one.x = 16;
+				one.y = 32;
+				one.text = "View Distance :" + std::to_string((long long)(viewDistance / 500000));   // 0x5c39b0
+				shown.push_back(one);
+				one.y = 48;
+				one.text = "Press return when finished";   // 0x5edfe4
+				shown.push_back(one);
+
+				std::string pickedName;
+
+				if (strategyPickHave && StrategyViewNameOf(strategyPickId, &pickedName))
+				{
+					one.y = 80;
+					one.text = pickedName;
+					shown.push_back(one);
 				}
+
+				one.x = 200;
+				one.y = layout.view.height - 20;
+				one.text = strategyViewPickWords;
+				shown.push_back(one);
+			}
+
+			if (haveLines)
+			{
 
 				for (host::StrategyViewLine const &one : shown)
 				{
@@ -26950,7 +31594,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 					line.text = one.text;
 					line.x = one.x;
-					line.y = base + one.y;
+					line.y = layout.view.y + one.y;
 					lines[lineCount++] = line;
 				}
 			}
@@ -26960,7 +31604,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 	// THE SELECTED LIGHT'S TEXT BLOCK (FUN_004ac430, called by FUN_004acf30 every frame; layout of the 16-pixel text lines, DAT_00915210 == 0x10; strings 0x5e2348..0x5e2204, read from inteng.exe's bytes): two columns at x 10 and 200, rows from 0x42 down in steps of 16
 	// Brightness / Spread, Range / Shadows, Atten / Spread Atten, Omni / Runtime, Red / Green, Blue / No PreLight, Specular, then "Light saved - no. %d" (or Up / Down colour for a placed-object light), then "Light Turned Off". The attribute < and > chose (DAT_00703e58) shows its VALUE ONLY on every third frame (DAT_00703e44 % 3 == 0): it flashes.
 	// The other layout (DAT_00915210 != 0x10: 8-pixel lines, rows from 0x32 with "Bright:" and the columns at x 0xa0) is the one for a small text area (inteng's 320-pixel modes); the editor's text area is never that small, so only this one is made.
-	if (OnALightScreen() && !textPanelText)
+	if (OnALightScreen() && !textPanelText && !MenuLoopUp())   // Light Sourcing's command step (0x4aab7f) comes before its text block (FUN_004acf30 0x4aafe3): none while a menu is up (BAR-8)
 	{
 		size_t light = 0;
 		host::LightData data;
@@ -27138,6 +31782,135 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 		}
 	}
 
+	// EVERY SCREEN'S TOP-LEFT TEXT (view-state-table.md H-1: the main loop 0x58cfe3 -> FUN_00471b60 0x471b8f / 0x471bcb, FUN_0057b1b0 at inteng's x 10, white): "Frame Rate = %d" at
+	// y 0 and "Speed   :%d" (the camera speed / 3, DAT_005f071c / 3) at y 0x10. NAMED: the frame rate is this program's frames in the last second (inteng's DAT_00d88070 is its own
+	// count). NOT YET: "(On Grid)" (DAT_00914b14), the cencon WARNING (DAT_00636f48) and the Recording line (DAT_00636f78): ours has none of those states.
+	// THE HUB'S TEXT (H-2, FUN_004452b0 0x447104-0x447138, no object selected): "View Distance :%d" (DAT_005fd678 / 500000) at (10, 0x20). NOT YET: "Polygon count : %d / %d" at
+	// (10, 0x32) (FUN_00472720: the polygons of each shape the level places, then those times its uses) and the selected objects' lines (name, radius, flags, Location).
+	// FOR NOW ON THE HUB ONLY: inteng's rows 0 and 1 lie in the bar's band, where our text comes out as magenta boxes (fixed with the bar row H-5); drawn under the band they would sit
+	// on the other screens' own rows 2 and 3 (Object Placement, Path, Waypoint, Hierarchy: FUN_004d9af0 0x4dc74e "View Distance" at y 0x20), so until then only the hub, which
+	// has nothing on those rows, shows them.
+	screenTextNow.clear();
+
+	// While a menu is up, neither: FUN_00471b60 runs after the mode's frame (0x58cfe3) and the hub draws its text after its command step (0x4452c5 before 0x447104), so no picture shown
+	// from inside the menu loop has them (BAR-6, BAR-8)
+	if (LevelObjects_Level() && barScreen == host::kIntengHub && !textPanelText && !MenuLoopUp() && lineCount + 3 <= kPanelPassMostExtras)
+	{
+		static DWORD rateFrom = GetTickCount();
+		static int rateFrames = 0;
+		static int rateShown = 0;
+		DWORD const now = GetTickCount();
+		// inteng's y 0 is the top of its screen. NAMED, to fix with the bar row (H-5): ours starts under the bar's band, as the other screens' text does; text drawn in that band
+		// comes out as solid magenta boxes today (the band is the bar's own area in the panels)
+		int32_t const base = layout.toolbar.y + layout.toolbar.height;
+
+		rateFrames++;
+
+		if (now - rateFrom >= 1000)
+		{
+			rateShown = rateFrames;
+			rateFrames = 0;
+			rateFrom = now;
+		}
+
+		auto const sayAt = [&](int32_t y, std::string const &words)
+		{
+			host::PaintText line;
+
+			line.text = words;
+			line.x = 10;
+			line.y = base + y;
+			lines[lineCount++] = line;
+			screenTextNow += (screenTextNow.empty() ? "" : "|") + words;
+		};
+
+		sayAt(0, "Frame Rate = " + std::to_string(rateShown));
+		sayAt(0x10, "Speed   :" + std::to_string(speedUnits / 3));
+
+		if (barScreen == host::kIntengHub)
+		{
+			sayAt(0x20, "View Distance :" + std::to_string(viewDistance / 500000));
+		}
+	}
+
+	// MODULE LINKING'S SHOW ALL LEGEND (FUN_004c1a90 0x4c1b1c-0x4c1b5a, FUN_0057b1b0 at x 10, row ML-M-3): while Show All holds the screen these four rows are its only text. Leaving the screen lets it go.
+	if (showAllHeld && !OnModuleLinkingScreen())
+	{
+		ShowAllRelease();
+	}
+
+	if (showAllHeld && LevelObjects_Level() && lineCount + 4 <= kPanelPassMostExtras)
+	{
+		struct Legend { int32_t y; char const *words; };
+		Legend const legend[] = { { 0x1e, "2000+(Quads) RED" }, { 0x32, "1500-1999 ORANGE" }, { 0x46, "1200-1499 BLUE" }, { 0x5a, "0-1199 GREEN" } };
+		int32_t const base = layout.toolbar.y + layout.toolbar.height;   // inteng's y 0 is under our bar band, as the hub's rows above
+
+		for (Legend const &one : legend)
+		{
+			host::PaintText line;
+
+			line.text = one.words;
+			line.x = 10;
+			line.y = base + one.y;
+			lines[lineCount++] = line;
+			screenTextNow += (screenTextNow.empty() ? "" : "|") + std::string(one.words);
+		}
+	}
+
+	// MODULE LINKING'S TEXT (FUN_004c1a90 every frame, FUN_0057b1b0 at x 10, white; rows ML-M-4, ML-M-6, ML-M-7 of module-linking-map-dietrich.md; inteng's y 0 under our bar band, as above):
+	// the picks' names in pick order at (10, 110 + 16 i) ("%s" 0x5c39c4 of the pick's file object +0x154, +100: its name), after the 21st a row "........" and no more (0x4c1b8d-0x4c1d33);
+	// at (10, 70) "Draw Linked Modules Only" while that switch is on, else "View Distance :%d" (the distance / 500000) while Toggle View Distance is on (0x4c1d8d-0x4c1dc4); at (10, 90)
+	// "Setting base to current module" while Shift+S's follow is on (0x4c1de7-0x4c1dff). Not while Show All holds the screen (its legend alone). NOT YET: "Num quads %d (%d tri)" and
+	// "Num Modules %d" at (10, 30) / (10, 50) with a current module (ML-M-5: the totals FUN_004c0720 adds up, FUN_004725b0 to read).
+	if (!showAllHeld && OnModuleLinkingScreen() && LevelObjects_Level())
+	{
+		int32_t const base = layout.toolbar.y + layout.toolbar.height;
+
+		auto const sayAt = [&](int32_t y, std::string const &words)
+		{
+			if (lineCount >= kPanelPassMostExtras)
+			{
+				return;
+			}
+
+			host::PaintText line;
+
+			line.text = words;
+			line.x = 10;
+			line.y = base + y;
+			lines[lineCount++] = line;
+			screenTextNow += (screenTextNow.empty() ? "" : "|") + words;
+		};
+
+		int32_t row = 0;
+
+		for (int32_t const pick : linkPicks)
+		{
+			sayAt(0x6e + row * 0x10, ModuleNameOfIndex(pick));
+			row++;
+
+			if (row > 0x14)
+			{
+				sayAt(0x6e + row * 0x10, "........");
+				break;
+			}
+		}
+
+		if (onlyDrawLinked)
+		{
+			sayAt(0x46, "Draw Linked Modules Only");
+		}
+		else if (viewDistanceOn)
+		{
+			sayAt(0x46, "View Distance :" + std::to_string(viewDistance / 500000));
+		}
+
+		if (linkFollowCamera)
+		{
+			sayAt(0x5a, "Setting base to current module");
+		}
+	}
+
 	// Light Sourcing's on-screen message at (200, 100) of the text area (FUN_0057bd40(200, 100, 0, words))
 	if (!lightMessage.empty() && lineCount < kPanelPassMostExtras)
 	{
@@ -27227,6 +32000,8 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 	}
 
 	// The Hierarchy view's text: inteng draws it every frame (HierarchyTextLines), at x, 16 * row of the screen
+	bool textAfterTheCommand = false;   // the mode draws this text after its command step (BAR-8)
+
 	if (OnTheTrackScreen())
 	{
 		TrackTextLines(&hierarchyTextNow);
@@ -27234,14 +32009,25 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 	else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Waypoint") == 0)
 	{
 		WaypointTextLines(&hierarchyTextNow);
+		textAfterTheCommand = true;   // FUN_00586450: each sub-state (FUN_00583d00 / 584ee0 / 585750 / 584d80) calls the command at its top, the list is drawn after them (0x58649f)
 	}
 	else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Object Placement") == 0)
 	{
 		PlacementTextLines(&hierarchyTextNow);
+		textAfterTheCommand = true;   // FUN_004d9af0: its command step 0x4d9d1b, its text from 0x4dc73a
 	}
 	else
 	{
 		HierarchyTextLines(&hierarchyTextNow);
+		textAfterTheCommand = true;   // FUN_004889d0: its command step 0x4889fb, its text from 0x48a07a
+	}
+
+	// While the bar or the pop-up is up, inteng's frame is stopped inside its menu loop (FUN_004b7c50 -> FUN_004b7dd0, modal) at the mode's command step: a mode that draws its text after that
+	// step has none of it on the screen then (reassess/dialog-look-drake.md BAR-6, BAR-8, BAR-9: as render state 0 shows it). NOT MAPPED YET: Track Editing (Object Placement's sub-state; its
+	// text may come from FUN_00501080, which runs before FUN_004d9af0), whose text is kept until its order is read
+	if (textAfterTheCommand && MenuLoopUp())
+	{
+		hierarchyTextNow.clear();
 	}
 
 	for (HierarchyTextLine const &one : hierarchyTextNow)
@@ -27268,14 +32054,17 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 		if (boxCount + (int)dialogBoxes.size() <= kPanelPassMostExtras && lineCount + (int)dialogLines.size() <= kPanelPassMostExtras)
 		{
+			// a dialog is over everything (DL-2), the bar too
 			for (host::PaintBox const &b : dialogBoxes)
 			{
-				boxes[boxCount++] = b;
+				boxes[boxCount] = b;
+				boxes[boxCount++].overlay = true;
 			}
 
 			for (host::PaintText const &t : dialogLines)
 			{
-				lines[lineCount++] = t;
+				lines[lineCount] = t;
+				lines[lineCount++].overlay = true;
 			}
 		}
 	}
@@ -27323,7 +32112,8 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 		int const rowCount = (int)words.size() < (int)(kPanelPassMostExtras - lineCount) ? (int)words.size() : (int)(kPanelPassMostExtras - lineCount);
 
 		hitPrompt = ui::Box{ left, top, width, rowCount * lineHeight + 6 };
-		boxes[boxCount++] = GrayBehind(hitPrompt.x, hitPrompt.y, hitPrompt.width, hitPrompt.height);
+		boxes[boxCount] = GrayBehind(hitPrompt.x, hitPrompt.y, hitPrompt.width, hitPrompt.height);
+		boxes[boxCount++].overlay = true;   // a prompt asks as a dialog does: over everything
 
 		for (int i = 0; i < rowCount; i++)
 		{
@@ -27332,6 +32122,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 			line.text = words[(size_t)i];
 			line.x = left + host::kPaintMarginAcross + (left == 0 ? 1 : 0);
 			line.y = top + 3 + i * lineHeight;
+			line.overlay = true;
 			lines[lineCount++] = line;
 		}
 	}
@@ -29896,7 +34687,7 @@ static void RunTheSClickProof(long frame)
 		pickY = proofViewHeight * spotY[(tries / 7) % 5] / 100;
 		pickInBox = false;
 		pickShift = false;
-		pickWithS = keyLayout == KeyLayout::Classic && keyDown['S'] && onStrategy();
+		pickWithS = keyLayout == KeyLayout::Classic && keyDown['S'] && onStrategy() && strategyFlagPage;   // the flag page's only (S-58)
 		strategyTextureCount = 0;
 		statusWords = nullptr;
 		pickAsked = true;
@@ -30895,6 +35686,7 @@ int main(int, char **)
 			}
 
 			viewDistance = mm;
+			viewDistanceFromCommandLine = true;
 			i++;
 		}
 		else if (wcscmp(args[i], L"-nofile") == 0)
@@ -31132,6 +35924,15 @@ int main(int, char **)
 		speedUnits = saved < (UINT)kSpeedLeast ? kSpeedLeast : (saved > 3000 ? 3000 : (int)saved);
 	}
 
+	// THE VIEW DISTANCE is saved too (view-state-table.md H-7: FUN_00473430 reads it FIRST from inteng.ini, ReadFile 0x4734b5 -> DAT_005fd678 0x4734d4; FUN_004732a0 writes it at the
+	// end): ViewDistance= in the same file, in inteng's units (100 to the millimetre), 0 to 100,000,000. A -viewdistance on the command line (a proof run) wins and is not kept.
+	if (!viewDistanceFromCommandLine)
+	{
+		int const saved = (int)GetPrivateProfileIntA("Editor", "ViewDistance", (INT)viewDistance, layoutSettingsFile);
+
+		viewDistance = saved < 0 ? 0 : (saved > 100000000 ? 100000000 : saved);
+	}
+
 
 	// The shape folder (shape_import.h): where Quick-create looks for a shape the level doesn't hold. Anyone can write it, so it passes the data
 	// folder's check; one that doesn't is left empty and the log says why. (Added 2026-11-15 by Melanikus (Frost).)
@@ -31328,7 +36129,9 @@ int main(int, char **)
 	// used now). A table the bar refuses is a mistake in the editor's own code: it stops here, saying so.
 	// The widest bar's titles, with the room the gray behind them takes past the last (PlanThePanels), as the least client width
 	// the titles wrap onto up to kEditorBarMostRows rows, so the least width is the one where the widest page of every screen still wraps into that many (and no title is wider than the window)
-	barMinClientWidth = EditorBar_LeastWidth(keyLayout, PanelPass_SmallWidth);
+	MenuFontStart();   // inteng's own menu font, before the bar is measured with it
+	IntengExeStart();  // inteng's own exe, for its built-in shapes (the editor icons) and tables (V-25)
+	barMinClientWidth = EditorBar_LeastWidth(keyLayout, PanelPass_MenuWidth);
 
 	if (!LoadTheMenus())
 	{
@@ -31626,6 +36429,7 @@ int main(int, char **)
 
 		UpdateCameraLink(&camera);
 		HierarchyCameraRootFrame(&camera);
+		HierarchySaveIfAsked();
 
 		if (chooserActive)
 		{
@@ -31645,6 +36449,36 @@ int main(int, char **)
 		ScreenLookPass();      // the screen's entry look: the white wire of the hub, Module Linking, Adjacent Modules, Path and Waypoint
 		ViewToggles_Apply();   // the View menu's switches, given to the game before it draws the level (view_toggles_game.h)
 		frames++;
+
+		// THE FRAME CAP (view-state-table.md H-8; Bishop's ruling 11-16, 10b: copy inteng). inteng's loop waits, after its text and before it draws (WinMain 0x58d012-0x58d02e: GetTickCount
+		// again and again), until 40 ms (0x28) have passed since the last frame: at most 25 frames a second (his screenshot: "Frame Rate = 21", GetTickCount's own steps). What depends
+		// on frames runs at inteng's speed then: Light Sourcing's blinking attribute (frame % 3, FUN_004ac430), keys held for a number of frames. NAMED: ours sleeps to that moment
+		// instead of spinning.
+		{
+			static DWORD lastFrameTick = 0;
+			DWORD const sinceLast = GetTickCount() - lastFrameTick;
+
+			if (lastFrameTick != 0 && sinceLast < 40)
+			{
+				Sleep(40 - sinceLast);
+			}
+
+			lastFrameTick = GetTickCount();
+		}
+
+		// the view distance, kept for the next start whenever it changed (H-7; inteng writes it at the end, FUN_004732a0: kept at once here, as the speed is)
+		{
+			static int32_t viewDistanceWritten = -1;
+
+			if (viewDistance != viewDistanceWritten && layoutSettingsFile[0] && !viewDistanceFromCommandLine)
+			{
+				char number[16];
+
+				_snprintf_s(number, sizeof(number), _TRUNCATE, "%d", viewDistance);
+				WritePrivateProfileStringA("Editor", "ViewDistance", number, layoutSettingsFile);
+				viewDistanceWritten = viewDistance;
+			}
+		}
 
 		if (mixedProof && pictureAfter && frames == 5)
 		{
@@ -31773,8 +36607,85 @@ int main(int, char **)
 			int const elapsed = lastHierarchyTick == 0 ? 0 : (int)(nowTick - lastHierarchyTick);
 
 			lastHierarchyTick = nowTick;
-			HierarchyView_Frame(pictureAfter ? 50 : (elapsed > 250 ? 250 : elapsed));
-			if (HierarchyView_IsPlaying() && !pictureAfter && GetTickCount() > hierarchyAnswerUntil)
+
+			int const frameMs = pictureAfter ? 50 : (elapsed > 250 ? 250 : elapsed);
+
+			// , / . HELD (HP-17, FUN_004889d0 0x489f9d-0x48a030): each frame a quarter of the frame time (DAT_00d876dc, 16.16 seconds; (t + (t >> 31 & 3)) >> 2), ',' first then '.'.
+			// No Shift: FUN_0047bb20 / FUN_0047b9c0 move a STOPPED main's timer (and with Y's switch the stopped turret and deltas); Shift: inteng's [2] (the newest delta, else the turret), running or not.
+			// inteng's FUN_0047b9c0 / FUN_0047bb20 add a stopped delta's step to its +0x28 (the running word, 0x47baaa / 0x47bbfd), so it starts running: kept as inteng's own quirk (Bishop's ruling, rule 10b).
+			if (onHierarchy && !AMenuIsOpen() && !ADialogIsOpen() && promptFor == kPromptNone && (keyDown[VK_OEM_COMMA] || keyDown[VK_OEM_PERIOD]))
+			{
+				int32_t const frameTime = (int32_t)(((int64_t)frameMs * 65536) / 1000);
+				int32_t const quarter = (frameTime + ((frameTime >> 31) & 3)) >> 2;
+
+				// ',' first, then '.', each its own call as inteng's two tests (0x48a018 / 0x48a026): with both held a stopped delta is already running after ',' (Vasquez's review)
+				if (keyDown[VK_OEM_COMMA])
+				{
+					ShiftDown() ? HierarchyView_ScrubSecond(-quarter, hierarchyMode.deltaSelected) : HierarchyView_ScrubMain(-quarter, hierarchyPlayAll);
+				}
+
+				if (keyDown[VK_OEM_PERIOD])
+				{
+					ShiftDown() ? HierarchyView_ScrubSecond(quarter, hierarchyMode.deltaSelected) : HierarchyView_ScrubMain(quarter, hierarchyPlayAll);
+				}
+			}
+
+			// every new player starts with "Play commands affect all sequences" off (FUN_00477450 0x477603: +0x88 = 0)
+			{
+				static uint32_t playersSeen = 0;
+
+				if (hierarchyMode.playersMade != playersSeen)
+				{
+					playersSeen = hierarchyMode.playersMade;
+
+					if (hierarchyPlayAll)
+					{
+						hierarchyPlayAll = false;
+
+						if (HierarchyView_ToggleTurretFollows())
+						{
+							HierarchyView_ToggleTurretFollows();
+						}
+					}
+				}
+			}
+
+			// the applied shape sets on the model (HF-0x43, inteng FUN_00477b40 -> FUN_0047e9f0): put on again when the list or the model shown changes
+			{
+				static std::string appliedKey;
+				std::string key = std::to_string(HierarchyView_ShowCount()) + ":";
+
+				for (int32_t const member : hierarchyMode.applied)
+				{
+					key += std::to_string(member) + ",";
+				}
+
+				if (key != appliedKey && hierarchyModelOpen)
+				{
+					std::vector<model::AlternateSetInfo> alternates;
+					std::vector<std::string> names;
+
+					if (!hierarchyMode.applied.empty() && host::HierarchyEdit_AlternateSets(&hierarchyModelFile, &alternates) == host::HierarchyEditResult::Done)
+					{
+						for (int32_t const member : hierarchyMode.applied)
+						{
+							for (model::AlternateSetInfo const &one : alternates)
+							{
+								if (one.number == member)
+								{
+									names.push_back(one.name);
+								}
+							}
+						}
+					}
+
+					HierarchyView_ApplyShapeSets(names);
+					appliedKey = key;
+				}
+			}
+
+			HierarchyView_Frame(frameMs);
+			if (onHierarchy && HierarchyView_IsPlaying() && !pictureAfter && GetTickCount() > hierarchyAnswerUntil)
 			{
 				HierarchyStatus();
 			}
@@ -31835,6 +36746,8 @@ int main(int, char **)
 
 			PathTintsEveryFrame();
 
+			StrategyViewDistanceEveryFrame();
+
 			// Path mode's H and N (FUN_004f9d10 0x4f9e74: slots 0xd87a88 / 0xd87a8e): the view distance +500000 for each frame H is held, -500000 for N (never below 0)
 			if (OnThePathScreen() && !AMenuIsOpen())
 			{
@@ -31849,9 +36762,14 @@ int main(int, char **)
 			static bool trianglesShown = false;
 
 			// the selected object is RED in Object Placement and Strategy Data (inteng's block mark 0x40000000 -> item flag 0x80 -> 0xff0000), green elsewhere
-			LevelView_SetSelectedColour(OnAPlacementScreen() || OnStrategyScreen() ? 0xFFFF0000u : 0xFF00FF00u);
+			// while a kind's Edit view runs, the current object is not red (FUN_005286b0 0x5286d7 FUN_00529480 before the view, 0x5286f9 FUN_00529470 after it): its green shows
+			// the Construction hub's selection (view-state-table.md H-2a, H-2c: FUN_00444750 0x4449b7 / 0x44498c): ORANGE 0xff7f00 for a module and an object alike, GREEN while Module Overlaps is on
+			bool const onTheHub = barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].table, "0x5ced30") == 0;
+			uint32_t const hubSelection = moduleOverlapsOn ? 0xFF00FF00u : 0xFFFF7F00u;
 
-			bool const iconsWanted = !OnALightScreen() && !(stabilityActive && OnStrategyScreen()) && (OnAPlacementScreen() || OnStrategyScreen()) && !placementSplit;
+			LevelView_SetSelectedColour(OnStrategyScreen() && strategyEditFan ? 0u : (OnAPlacementScreen() || OnStrategyScreen() ? 0xFFFF0000u : (onTheHub ? hubSelection : 0xFF00FF00u)));
+
+			bool const iconsWanted = !OnALightScreen() && !(stabilityActive && OnStrategyScreen()) && (OnAPlacementScreen() || OnStrategyScreen()) && !placementSplit && !(strategyEditFan && OnStrategyScreen() && strategyPickField.empty() && !copyCollecting && !volume.on);   // an Edit view's black screen shows no icons (S-KC-1)
 
 			if (trianglesShown && !OnALightScreen() && !(stabilityActive && OnStrategyScreen()) && !iconsWanted)
 			{
@@ -32031,6 +36949,8 @@ int main(int, char **)
 				host::Selected const current = host::Selection_Get();
 
 				LevelView_SetCurrentModule(moduleScreen && current.kind == host::SelectedKind::Module ? current.moduleIndex : -1);
+				// H-2a: on the hub the selected module is the selection's ORANGE (green with Module Overlaps on), not the module screens' purple
+				LevelView_SetCurrentModuleColour(onTheHub ? hubSelection : 0xFF7F007Fu);
 
 				// Module Linking's own view rules (view distance, only the linked modules)
 				LinkFollowPass(barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].table, "0x5e2e38") == 0);
@@ -32043,13 +36963,87 @@ int main(int, char **)
 			UpdateDummyObject();
 			LevelView_SetProjectionScale((onHierarchy && hierarchyMode.viewKind == 1 ? 0.5f : 1.0f) * zoomScale);
 			zoomViewBox = threeMainBox.width > 0 ? threeMainBox : layout.view;
-			LevelView_SetAdaptiveDegradation(!onHierarchy || hierarchyMode.adaptiveDegradation);   // off at the start in Hierarchy mode (0x4887da): the full-detail shape
-			HierarchyView_SetDetailLevel(onHierarchy && !hierarchyMode.adaptiveDegradation ? hierarchyDetail : -1);
+			// Hierarchy's detail level is always the mode's own (off at the start, 0x4887da): with Adaptive Degradation on, inteng's pick sets it each frame (HierarchyAdaptivePick, FUN_00479b80),
+			// never the game's own pick by the depth to the model
+			LevelView_SetAdaptiveDegradation(!onHierarchy);
+			HierarchyAdaptivePick();
+			HierarchyView_SetDetailLevel(onHierarchy ? hierarchyDetail : -1);
 			if (onHierarchy)
 			{
 				HierarchyView_ApplyDetail();
 			}
 			UpdateHiddenModules();
+
+			// THE VIEW SWITCH (reassess/hierarchy.md H-VS-1 / H-VS-2 / H-VS-5): a hierarchy chosen in Hierarchy mode makes inteng's player, FUN_0048b550 -> FUN_00477450(hier, 0, list of EVERY record of
+			// the level, 0x48b5ea-0x48b606), which sets +0x5c |= 4 (not drawn) and +0x64 |= 0x800000 (never shown again by a view-distance pass) on each of them (0x4776f0-0x477765): every module and every
+			// placed object disappears and only the hierarchy's own sections are drawn (FUN_0047dc90), the "animation player" Melanikus saw. Choosing another hierarchy hands the hidden list on (0x48b729-
+			// 0x48b779): the level stays hidden. Exit (FUN_004888d0) frees the player; the level's records come back with the next screen. Ours: every module and every object the level places is not drawn
+			// while the Hierarchy screen has a hierarchy chosen (re-asserted each frame, after the hidden set); the model's blocks are no placed objects (no strategy block), so they are drawn.
+			// NAMED DIFFERENCE: inteng draws the chosen hierarchy's sections in their rest place before a sequence is chosen (the player has no main sequence, [0] = 0); ours shows the model once a
+			// sequence is chosen (the game's pose code needs one): between the two dialogs the view is empty.
+			{
+				static bool levelHiddenForHierarchy = false;
+				bool const want = onHierarchy && hierarchyModelOpen && !hierarchyMode.hierarchy.empty();
+
+				// BEFORE A SEQUENCE (HP-31): the chosen hierarchy's sections are the file's own objects at the origin with the identity turn (FUN_0047e320), drawn there until a main sequence places them;
+				// once the view shows the model (a sequence chosen) they are hidden with the rest. NAMED: done for a file of objects with no modules (his HUD and weapon files, ModelObjects); in a level
+				// with modules the sections' placed objects are not moved.
+				{
+					static std::string collapsedFor;
+					bool const collapseWanted = want && !HierarchyView_IsShown() && ModelObjects_Count() > 0;
+					std::string const key = hierarchyMode.modelName + "|" + hierarchyMode.hierarchy;
+
+					if (collapseWanted && collapsedFor != key)
+					{
+						std::vector<std::string> sectionNames;
+						std::vector<host::LevelObject> objects;
+						std::vector<std::vector<uint8_t>> ids;
+
+						if (host::HierarchyEdit_SectionObjects(&hierarchyModelFile, hierarchyMode.hierarchy, &sectionNames) == host::HierarchyEditResult::Done && LevelObjects_Read(&objects))
+						{
+							for (host::LevelObject const &object : objects)
+							{
+								for (std::string const &name : sectionNames)
+								{
+									if (object.name && _stricmp(object.name, name.c_str()) == 0)
+									{
+										ids.push_back(std::vector<uint8_t>(object.id, object.id + 8));
+										break;
+									}
+								}
+							}
+						}
+
+						ModelObjects_Collapse(ids);
+						collapsedFor = key;
+					}
+					else if (!collapseWanted && !collapsedFor.empty())
+					{
+						ModelObjects_Uncollapse();
+						collapsedFor.clear();
+					}
+				}
+
+				if (want)
+				{
+					// the file's objects: placed objects of the level (strategy blocks), and for a file with no modules (his HUD and weapon files) the blocks the editor made for them
+					std::vector<const struct displayblock *> fileObjects;
+
+					ModelObjects_Blocks(&fileObjects);
+					LevelView_HideModules(nullptr, 0, true);
+					LevelView_HideObjects(nullptr, 0, true);
+					LevelView_HideBlocks(fileObjects.data(), fileObjects.size());
+				}
+				else if (levelHiddenForHierarchy)
+				{
+					LevelView_HideModules(nullptr, 0, false);
+					LevelView_HideObjects(nullptr, 0, false);
+					LevelView_HideBlocks(nullptr, 0);
+					hiddenModulesStale = true;   // Module Linking's hidden set comes back on the next frame
+				}
+
+				levelHiddenForHierarchy = want;
+			}
 
 			// The bottom right quarter is the 3D view (inteng's layout): the world is drawn into it, so a click in it picks from its own pixels
 			bool const split = placementSplit && !on;
@@ -32061,32 +37055,14 @@ int main(int, char **)
 			// Toggle Split Screen: three more cameras round the current object (or the view), 5 m (5000 mm, the game's unit) back along z, x and y
 			if (split && threeMainBox.width > 0)
 			{
-				double const gameScale = local_scale > 0.0 ? local_scale : 1.0;
 				int centre[3] = { camera.x, camera.y, camera.z };
 
+				// OP-45 / OP-46 / OP-40: the place the views were put round (SplitCentreOnCurrent); they don't follow the camera
 				if (splitCentreOn)
 				{
 					centre[0] = splitCentre[0];
 					centre[1] = splitCentre[1];
 					centre[2] = splitCentre[2];
-				}
-
-				if (specialMode.haveCurrent && !splitCentreOn)
-				{
-					std::vector<host::SpecialObject> shown;
-
-					if (host::SpecialObjects_Read(LevelObjects_OpenForEdit(), &shown) == host::SpecialResult::Done)
-					{
-						for (host::SpecialObject const &o : shown)
-						{
-							if (o.kind == specialMode.kind && o.number == specialMode.number)
-							{
-								centre[0] = (int)(o.place[0] * gameScale);
-								centre[1] = (int)(o.place[1] * gameScale);
-								centre[2] = (int)(o.place[2] * gameScale);
-							}
-						}
-					}
 				}
 
 				int const halfW = threeBox.width / 2;
@@ -32166,7 +37142,12 @@ int main(int, char **)
 
 		AnimPlayTick();
 
-		bool const drawn = LevelView_Draw(camera, askedPicture ? askedPicture : screenshotTo, AddThePanels, &framePanels);
+		// A strategy's Edit view (each kind's method +0x14) fills the WHOLE window black every pass (FUN_00418b80(&DAT_0091f6c0, 0), e.g. FUN_0052cbb0 0x52cbe7) and draws
+		// only its own lines: the level is not drawn while it is up (reassess/strategy-data-kinds.md S-KC-1). An object pick of a view line shows the screen again (S-KC-5).
+		// the volume editor (FUN_005277c0, Volume of Death's view) draws the level with its red cube and the picked module red (strategy-data.md S-VOL-1): not black
+		bool const editViewBlack = strategyEditFan && OnStrategyScreen() && strategyPickField.empty() && !copyCollecting && !volume.on;   // a pick or the Lift's collector draws the screen as usual
+		bool const drawn = editViewBlack ? LevelView_DrawNoLevel(askedPicture ? askedPicture : screenshotTo, AddThePanels, &framePanels)
+		                                 : LevelView_Draw(camera, askedPicture ? askedPicture : screenshotTo, AddThePanels, &framePanels);
 
 		if (screenshotTo)
 		{
@@ -32266,15 +37247,15 @@ int main(int, char **)
 			}
 			else if (copyCollecting && OnStrategyScreen())
 			{
-				CopyCollectClick(picked, pickShift);
+				CopyCollectClick(picked, pickShift, pickX, pickY, pickInBox ? threeMainBox.width : view.right - view.left, pickInBox ? threeMainBox.height : view.bottom - view.top);
 			}
 			else if (strategyEditFan && OnStrategyScreen() && !strategyPickField.empty())
 			{
-				StrategyViewPickClicked(picked);
+				StrategyViewPickClicked(picked, pickX, pickY, pickInBox ? threeMainBox.width : view.right - view.left, pickInBox ? threeMainBox.height : view.bottom - view.top);
 			}
 			else if (strategyEditFan && OnStrategyScreen())
 			{
-				StrategyViewClickAt(pickX, pickY - textAreaTop);
+				StrategyViewClickAt(pickX, pickY - strategyViewTop);
 			}
 			else if (OnStrategyScreen() && !pickWithS)
 			{
@@ -32323,7 +37304,14 @@ int main(int, char **)
 						used = PickTheNearestCentre(pickX, pickY, pickInBox ? threeMainBox.width : view.right - view.left, pickInBox ? threeMainBox.height : view.bottom - view.top);
 					}
 
-					statusWords = pickShift ? host::Selection_UsePickToggling(used) : host::Selection_UsePick(used);
+					if (OnModuleLinkingScreen())
+					{
+						LinkClick(used, pickShift, pickDelete);   // row ML-M-61
+					}
+					else
+					{
+						statusWords = pickShift ? host::Selection_UsePickToggling(used) : host::Selection_UsePick(used);
+					}
 				}
 			}
 		}
@@ -32542,7 +37530,15 @@ int main(int, char **)
 
 			// Stability flags: the six faces as letters, r red (stable) or g green, empty when the mode is not on (for expect-field stability)
 			// THE BAR FOR THE ACCEPTANCE HARNESS's click-bar: barboxes "<title>~<x> <y> <w> <h>|..." the titles of every physical row, dropboxes "<item>~<x> <y> <w> <h>|..." the items shown in the open drop-down
-			std::string barBoxesWord, dropBoxesWord;
+			std::string barBoxesWord, dropBoxesWord, dropTickedWord;
+			// textScreenWord: the first line of the full text screen shown over the view (inteng's FUN_004724f0: a Help page, "Click to continue."), quotes taken out; empty when none
+			std::string textScreenWord = textPanelText ? std::string(textPanelText).substr(0, std::string(textPanelText).find('\n')) : std::string();
+
+			for (char &c : textScreenWord)
+			{
+				c = (c == '"' || c == '\r' || c == '\t') ? ' ' : c;
+			}
+   // dropTickedWord: the open drop-down's ticked items (MenuBar::IsChecked), joined by |
 			std::string volumeWord;
 
 			if (volume.on)
@@ -32573,6 +37569,11 @@ int main(int, char **)
 					for (size_t k = 0; k < rowBar.ShownItems(); k++)
 					{
 						dropBoxesWord += (dropBoxesWord.empty() ? "" : "|") + std::string(openMenu.items[rowBar.FirstShownItem() + k].name) + "~" + std::to_string(d.x) + " " + std::to_string(d.y + (int32_t)k * rowBar.ItemHeight()) + " " + std::to_string(d.width) + " " + std::to_string(rowBar.ItemHeight());
+
+						if (rowBar.IsChecked((size_t)rowBar.OpenMenu(), rowBar.FirstShownItem() + k))
+						{
+							dropTickedWord += (dropTickedWord.empty() ? "" : "|") + std::string(openMenu.items[rowBar.FirstShownItem() + k].name);
+						}
 					}
 				}
 			}
@@ -32584,8 +37585,8 @@ int main(int, char **)
 				stabilityWord += (stabilityFaces & (1u << face)) ? 'r' : 'g';
 			}
 
-			printf("AVP_OpenInteng: scenario: screen \"%s\"; bar1 \"%s\"; bar2 \"%s\"; selection \"%s\"; prompt %d; status \"%s\"; selected \"%zu\"; modelbox \"%s\"; choices \"%s\"; dialog \"%s\"; dialogrows \"%s\"; dialogrow1 \"%s\"; dialogkind \"%s\"; dialogbuttons \"%s\"; dialogtext \"%s\"; dialogchecks \"%s\"; dialogfields \"%s\"; dialogcombos \"%s\"; dialogcomborows \"%s\"; popup \"%s\"; popuprow1 \"%s\"; popupstep \"%s\"; viewmode \"%s\"; camera \"%d %d %d %d %d\"; level \"%s\"; levelbytes \"%lld\"; hierarchylines \"%s\"; barshown \"%d\"; stability \"%s\"; camspeed \"%d\"; barboxes \"%s\"; dropboxes \"%s\"; strategyview \"%s\"; volume \"%s\"; volumeface \"%d\"; volumemodule \"%d\"\n", barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : "?", titles1.c_str(), titles2.c_str(),
-				selectedWords.c_str(), (int)promptFor, statusWords ? statusWords : "", host::Selection_SetCount(), modelBox.c_str(), choiceBoxes.c_str(), dialogTitle.c_str(), dialogRows.c_str(), dialogRow1.c_str(), dialogKindWord.c_str(), dialogNow.buttons.c_str(), dialogNow.text.c_str(), dialogNow.checks.c_str(), dialogNow.fields.c_str(), dialogNow.combos.c_str(), dialogNow.comborows.c_str(), popupEntries.c_str(), popupRow1.c_str(), popupStep.c_str(), scenarioViewMode, camera.x, camera.y, camera.z, camera.turn, camera.look, openLevelName.c_str(), scenarioLevelBytes, hierarchyLinesWord.c_str(), barVisible ? 1 : 0, stabilityWord.c_str(), speedUnits, barBoxesWord.c_str(), dropBoxesWord.c_str(), strategyViewWord.c_str(), volumeWord.c_str(), volume.on ? volume.face : -1, volume.on ? volume.module : -1);
+			printf("AVP_OpenInteng: scenario: screen \"%s\"; bar1 \"%s\"; bar2 \"%s\"; selection \"%s\"; prompt %d; status \"%s\"; selected \"%zu\"; modelbox \"%s\"; choices \"%s\"; dialog \"%s\"; dialogrows \"%s\"; dialogrow1 \"%s\"; dialogkind \"%s\"; dialogbuttons \"%s\"; dialogtext \"%s\"; dialogchecks \"%s\"; dialogfields \"%s\"; dialogcombos \"%s\"; dialogcomborows \"%s\"; popup \"%s\"; popuprow1 \"%s\"; popupstep \"%s\"; viewmode \"%s\"; camera \"%d %d %d %d %d\"; level \"%s\"; levelbytes \"%lld\"; hierarchylines \"%s\"; barshown \"%d\"; stability \"%s\"; camspeed \"%d\"; barboxes \"%s\"; dropboxes \"%s\"; strategyview \"%s\"; volume \"%s\"; volumeface \"%d\"; volumemodule \"%d\"; screentext \"%s\"; viewdistance \"%d\"; dropticked \"%s\"; textscreen \"%s\"; linktree \"%s\"\n", barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : "?", titles1.c_str(), titles2.c_str(),
+				selectedWords.c_str(), (int)promptFor, statusWords ? statusWords : "", host::Selection_SetCount(), modelBox.c_str(), choiceBoxes.c_str(), dialogTitle.c_str(), dialogRows.c_str(), dialogRow1.c_str(), dialogKindWord.c_str(), dialogNow.buttons.c_str(), dialogNow.text.c_str(), dialogNow.checks.c_str(), dialogNow.fields.c_str(), dialogNow.combos.c_str(), dialogNow.comborows.c_str(), popupEntries.c_str(), popupRow1.c_str(), popupStep.c_str(), scenarioViewMode, camera.x, camera.y, camera.z, camera.turn, camera.look, openLevelName.c_str(), scenarioLevelBytes, hierarchyLinesWord.c_str(), barVisible ? 1 : 0, stabilityWord.c_str(), speedUnits, barBoxesWord.c_str(), dropBoxesWord.c_str(), strategyViewWord.c_str(), volumeWord.c_str(), volume.on ? volume.face : -1, volume.on ? volume.module : -1, screenTextNow.c_str(), (int)(viewDistance / 500000), dropTickedWord.c_str(), textScreenWord.c_str(), LinkTreeStateWords().c_str());
 			fflush(stdout);
 
 			// the camera, for a run that moves it (hold Z, a turn): where it is, in the game's millimetres, and the frames drawn so far

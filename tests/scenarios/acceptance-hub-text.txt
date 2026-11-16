@@ -1,0 +1,21 @@
+# ACCEPTANCE: the hub's first screen on Melanikus's own file, against his picture of the real inteng (Documents\AVP_OpenInteng\inteng-shots\OpeningMelPyth_MarHUDFirstScreen.png:
+# the white wireframe of the hands and weapon, and at the top left "Frame Rate = 21", "Speed   :2", "View Distance :2", "Polygon count : 6256 / 6256", then the current object's lines).
+# Traced (AvP-docs\engine\inteng\view-state-table.md H-1, H-2): the main loop 0x58cfe3 -> FUN_00471b60 draws "Frame Rate = %d" at (10, 0) and "Speed   :%d" (the camera speed / 3) at
+# (10, 0x10) on every screen, every frame; the hub's FUN_004452b0 0x447138 draws "View Distance :%d" (the distance / 500000) at (10, 0x20). The hub itself is the white wire
+# (FUN_00447550, R-1). NOT YET (rows): the polygon count line, the current object's lines and its orange, the "+".
+# His path: the file opened as a double click opens it (start-args).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+expect-screen Construction
+wait 300
+picture 1
+expect-colour picture 0 0 1008 729 000000 0.40 16
+expect-colour picture 0 0 1008 729 ffffff 0.003 16
+expect-screen-text Frame Rate =
+expect-screen-text Speed   :2
+expect-screen-text View Distance :2
+# ] raises the speed by 3 units: 6 -> 9, so Speed :3
+type ]
+wait 200
+expect-screen-text Speed   :3

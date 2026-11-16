@@ -19,6 +19,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -48,12 +49,7 @@ namespace host
 		FemaleYes,
 		OpenModel,
 		SoundIndex,       // New sound (0x4d): the index
-		SoundEditPick,    // Edit sound (0x4e): which sound
-		SoundEditName,    // ... its file name
-		SoundEditInner,   // ... its inner range
-		SoundEditOuter,   // ... its outer range
-		SoundEditVolume,  // ... its volume (0 to 127)
-		SoundEditPitch,   // ... its pitch
+		SoundEditPick,    // Edit sound (0x4e): which sound (its fields are then one window: HierarchyStep::soundForm)
 		SoundDeletePick,  // Delete sound (0x4f): which sound
 		SoundApplyPick,   // Apply frame sound (0x50): which sound
 		ChangeObjectList, // Change object for section (0x5e): "from a list?" yes or no
@@ -73,6 +69,10 @@ namespace host
 	{
 		std::string hierarchy;               // the current hierarchy's name; empty: none
 		bool sequenceSelected = false;
+		// inteng's delta frame of each sequence (its +0x10, which FUN_00478930 reads for Add delta's list and the text), as it was when the hierarchy was opened (FUN_0048b550 builds it from the
+		// keyframe flags). Of the four delta types only "middle" / "current" write it (FUN_004808e0 -3, FUN_00480950); "not a delta" and "first frame" change the file's flags but leave it as it was
+		// (reassess/hierarchy-deltas-vasquez.md HD-13: inteng's own quirk, kept), so Add delta lists what was there until the hierarchy is opened again. Key: number * 65536 + sub-number; -1 not a delta.
+		std::map<int64_t, int32_t> deltaFrameHeld;
 		bool turretChosen = false;           // Add 'turret delta' (0x7) was answered: the view starts that sequence on the sections under "dum turret" (turretSequence is its place in the list); the caller clears it
 		size_t turretSequence = 0;
 		size_t sequence = 0;                 // the current sequence's place in the hierarchy's list
@@ -92,6 +92,7 @@ namespace host
 		bool vertexMode = false;             // V (0x63, DAT_00637130 "Vertex Selection Mode"): clicks in the view take the points of the attached object's shape; the view owns the click, the mode the switch
 		std::vector<int32_t> vertices;       // the points taken so far (numbers in the attached object's shape); Shift + V (0x61) puts them on the selected bone and clears this
 		bool deltaTimeRequested = false;     // set by Shift + / Shift - (0xf / 0x10): the view gives its delta controller deltaMs, then the caller clears this
+		uint32_t playersMade = 0;            // counts inteng's new players (FUN_0048b550 -> FUN_00477450): each one starts with "Play commands affect all sequences" off (+0x88 = 0, 0x477603)
 		bool deltaSelected = false;          // inteng's delta object (view +0x8) exists: a delta sequence was chosen with Add delta (0x9) and not taken away with Remove delta (0xa)
 		size_t deltaPlace = 0;               // ... its place in the hierarchy's sequence list
 		int32_t deltaMs = 1000;              // ... its time in milliseconds: its OBASEQTM number when above 0, else 1000; Shift + and Shift - (0xf / 0x10) change it
@@ -119,8 +120,28 @@ namespace host
 		bool prompt = false;                 // true: show `title` (and the mode's list) and wait for a typed answer, then HierarchyMode_Typed
 		std::string title;
 		std::string answer;                  // else: what to say on the status line
+		bool messageBox = false;             // the answer is inteng's MESSAGE BOX (FUN_00474030 + FUN_0057c800(100, 100): the words and Ok), not the status line
 		std::string defaultText;             // for a prompt: what is typed already
+		bool confirm = false;                // the prompt is inteng's YES / NO box (FUN_00474a40, title the words): Yes answers "yes", No "no" (Delete Collection)
+		// messageBox with prompt: the box (answer, Ok) comes first and then the question ("That name is already used", then the same text dialog again: FUN_0048af00 / FUN_0047a880)
+		bool textDialog = false;             // the prompt is inteng's TEXT DIALOG (FUN_00474170: the words, one edit holding defaultText, Ok / Cancel, run by FUN_0057c800(100, 100)), not a typed line
+		bool femaleForm = false;             // the prompt is Set Properties' window (FUN_0048d6a0: "Shape set properties", the label "Female" and its check box, Ok / Cancel); femaleChecked how the box starts
+		bool femaleChecked = false;
+		bool soundForm = false;              // open the Sound Edit window for mode->soundBeingEdited (FUN_004ebd60: edobtype's edit_sound), then HierarchyMode_SoundForm; with messageBox, after the box's Ok
 	};
+
+	// The number an inteng edit holds (the edit's method +0x2c, FUN_0057d620, which FUN_00474340 calls): a "-" first, then digits only, else 0; an empty edit is 0. The sum wraps as the exe's
+	// 32-bit one does.
+	int32_t HierarchyMode_EditNumber(std::string const &text);
+
+	// The Sound Edit window's answers for mode->soundBeingEdited, in its order: the wav name, inner range (m), outer range (m), pitch (semitones), volume (%). FUN_004ebd60 gives edobtype the
+	// sound's inner and outer x 0.00001, pitch / 128, volume x 100 / 127, and takes them back as ftol(m x 100000), ftol(semitones x 128), ftol((% + 50/127) x 0.01 x 127); the DLL's own limits
+	// (DDV: inner 0..1000, outer 0..2000, pitch -48..48, volume 0..100) refuse an answer outside them, the window then shown again. The flag boxes are off for a hierarchy's sound (FUN_004ebc80's
+	// third number is 0, so the mask FUN_004ebd60 passes is 0) and its flag bit 0 is cleared after the edit (FUN_004816f0 0x48171b). The ranges are inteng's unit: the file's x 100 x levelScale.
+	HierarchyStep HierarchyMode_SoundForm(OpenLevelFile *file, HierarchyMode *mode, std::vector<std::string> const &values);
+
+	// What the Sound Edit window shows first for mode.soundBeingEdited, in the same order (the volume as a whole percent, the others as MFC shows a float: "%.6g")
+	std::vector<std::string> HierarchyMode_SoundFormShown(HierarchyMode const &mode);
 
 	// The command's first step. An unknown command number is not this module's: answer is empty and prompt false.
 	HierarchyStep HierarchyMode_Command(OpenLevelFile *file, HierarchyMode *mode, int32_t command);

@@ -1,0 +1,26 @@
+# ACCEPTANCE: Hierarchy > Attach shape to bones (case 0x62, FUN_0048e610), HIS PATH (Frost, 2026-11-16; reassess/hierarchy-edit-frost.md HF-0x62, Drake's HE-0x62 / HE-F-0048e610).
+# FUN_0048e610: every object of the file (FUN_004be4f0: all its RBOBJECT chunks). None: the message box "Hmm.\nNo objects." (0x5d5fc8). One: taken without asking (0x48ea44). More: the LIST dialog
+# "Select object to attach to bones" (0x5d5fa4, FUN_00475bf0 width 0xe1, FUN_0057c800(10, 10)); Escape: nothing. Then the hierarchy picker FUN_0048b1e0 "Attach to which hierarchy?" (0x5d5f88): a list
+# dialog of the file's hierarchies by their names, even one. The hierarchy needs an OBJCHIER with an OBANSEQS holding sequence 10000 (FUN_00407c80(10000, 0), the "reference sequence"): without, the
+# message box "The hierarchy doesn't have the reference sequence" (0x5d5f54), Ok, nothing attached. (None of his files has sequence 10000: ShotgunBot's are types 5 to 8.)
+# By his path: open his ShotgunBot (start-args: the double-click), Mode > Hierarchy, Hierarchy > Attach shape to bones, an object, the hierarchy.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/ShotgunBot.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-bar Hierarchy > Attach shape to bones
+expect-dialog Select object to attach to bones
+click-row 1
+expect-dialog Attach to which hierarchy?
+click-row 1
+expect-dialog The hierarchy doesn't have the reference sequence
+key Enter
+expect-no-dialog
+
+# Escape on the object list: nothing (FUN_00476850 closes it, 0x48e926)
+click-bar Hierarchy > Attach shape to bones
+expect-dialog Select object to attach to bones
+key Esc
+expect-no-dialog

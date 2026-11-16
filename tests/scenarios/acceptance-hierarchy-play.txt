@@ -1,0 +1,190 @@
+# ACCEPTANCE: Hierarchy's PLAY, HIS PATH (Frost, 2026-11-16, hierarchy-100 PLAN.md; reassess/hierarchy-play-frost.md HP-4 / HP-5 / HP-7 / HP-8 / HP-11 / HP-12 / HP-30 / HP-31).
+# The keys go through the mode's key table FUN_0048cde0 (P -> 5, O -> 6, F -> 0x3f, D -> 0x40, VK 0xbb -> 0xd, VK 0xbd -> 0xe) into FUN_004889d0's cases.
+# The text rows (FUN_004889d0 0x48a07a-0x48a96b, 16 pixels each from the window's top): the main sequence's name (FUN_0053ea00) at y 96, "Timer :%d" at y 144, "Seq. Time :%.1f sec" at y 160
+# on this hierarchy (the rows above them: Poly Count, Detail level, Current distance).
+# By his path: open his MelPyth_MarHUD (start-args: the double-click), the camera back from the origin, bar to Mode > Hierarchy, right-click > Select Hierarchy > Shotgun, Select Sequence, a row.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+expect-screen Construction
+# the camera 1.5 m back from the origin, looking at it (a fixed place: a held Z's length depends on the frame rate)
+camera 0 0 -1500 0 0
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+wait 800
+picture 2
+
+# CHOOSE A HIERARCHY -> only its model, as inteng shows it (HP-20 / HP-21: the level's records hidden, the sections at the origin): the part on the right is gone, the model is drawn
+expect-colour picture 690 345 250 95 000000 0.99 8
+expect-not-empty 0.003
+
+# A chosen sequence stands still (FUN_0047d6f0 0x47d816: +0x28 = 0, not running)
+wait 400
+picture 3
+expect-pixels-same picture 300 250 600 479 0.001
+
+# P (case 5, FUN_0047b8b0 0x47b8c0: the main's +0x28 = 1): the picture changes frame to frame (FUN_00478850: FUN_0047dbc0 moves the running main's timer, FUN_0047ef70 places the sections)
+key P
+wait 300
+picture 4
+wait 300
+picture 5
+expect-pixels-changed panels 0 144 200 16 0.01
+expect-moving picture 300 250 600 479 8 150 0.002
+
+# O (case 6, FUN_0047b940: +0x28 = 0): it stops where it is
+key O
+wait 300
+picture 6
+wait 400
+picture 7
+expect-pixels-same picture 300 250 600 479 0.001
+
+# F (case 0x3f 0x488e26: FUN_004784e0(main index + 1)): the NEXT sequence's name on the screen
+key F
+wait 300
+picture 8
+expect-pixels-changed-since 7 panels 0 96 300 16 0.01
+
+# D (case 0x40 0x488e4d: index - 1): the previous one's name again, the same row as before F
+key D
+wait 300
+picture 9
+expect-pixels-same-since 7 panels 0 96 300 16 0.002
+
+# M while it PLAYS (reassess/hierarchy-play-frost.md HP-79): FUN_00479110 -> FUN_00480ff0 writes the main's timer (+0x10) only, its running word (+0x28) is not touched: the sequence jumps
+# to the next key frame and plays on from there. O stops it again
+key P
+wait 300
+key M
+wait 200
+picture 24
+expect-moving picture 300 250 600 479 8 150 0.002
+key O
+wait 300
+
+# F while it PLAYS: FUN_004784e0 replaces the main by a new player made NOT running (FUN_0047d6f0 0x47d816): the picture stands still after F
+key P
+wait 300
+key F
+wait 300
+picture 10
+wait 400
+picture 11
+expect-pixels-same picture 300 250 600 479 0.001
+
+# + (VK 0xbb, case 0xd 0x488b6d: main +0x18 += 100 ms): the "Seq. Time" text changes; - (case 0xe: -100, held at 100): it changes back. The sequence is now
+# MarineHUD_Stationary (two F), which has no "Sound" row: "Seq. Time" is the row at y 144 (1.0 sec: no OBASEQTM, FUN_0047d6f0's 1000 ms)
+picture 12
+key Plus
+wait 300
+picture 13
+expect-pixels-changed-since 12 panels 0 144 200 16 0.01
+key Minus
+wait 300
+picture 14
+expect-pixels-same-since 12 panels 0 144 200 16 0.002
+
+# , / . HELD (key slots 0xd87afc VK_OEM_COMMA / 0xd87afe VK_OEM_PERIOD read each frame, FUN_004889d0 0x489f9d-0x48a030 -> FUN_0047bb20 / FUN_0047b9c0; hierarchy-play-frost.md HP-17): a STOPPED main's
+# timer moves by a quarter of the frame time each frame (65536 is the whole sequence: a quarter of it a second, whatever the sequence's time), wrapped & 0xffff; a running main is not touched.
+# The main here: MarineHUD_Stationary, stopped at timer 0 since F. How far it moves depends on how many frames the editor draws while the key is held (a hidden run draws few;
+# ours takes at most 250 ms of one frame, so one frame's step is at most 4096): the checks read the MOVE, its direction and size, against the number kept before the key.
+expect-number hierarchylines Timer_: 0 0
+remember-number hierarchylines Timer_:
+picture 15
+hold Period 1500
+wait 200
+picture 16
+expect-pixels-changed-since 15 picture 300 250 600 479 0.002
+# '.' moved it ON: at least one frame's step, at most a quarter of the 1.5 s held and one frame more (24576 + 4096)
+expect-number-moved hierarchylines Timer_: 4000 28672
+remember-number hierarchylines Timer_:
+hold Comma 1000
+wait 200
+# ',' moved it BACK: at least one frame's step, at most a quarter of 1 s and one frame more (16384 + 4096); a move below 0 wraps (& 0xffff)
+expect-number-moved hierarchylines Timer_: -20480 -4000
+
+# INTENG'S OWN QUIRK, built as it is (Bishop's ruling 11-16, rule 10b): with Y's "Play commands affect all sequences" on, '.' held adds the step to a stopped DELTA's +0x28, its RUNNING word,
+# not to its timer (FUN_0047b9c0 0x47ba56 tests +0x28 == 0, then 0x47baa2 MOV EDX,[ECX+0x28] / 0x47baa8 ADD / 0x47baaa MOV [ECX+0x28],EDX): the first scrub frame makes the delta RUN, and it plays from then on.
+# A delta on his file (as Vasquez's acceptance-hierarchy-deltas): MarineHUD_Standard_Fire flagged "Deltas relative to middle frame", the main another sequence, Add delta > Standard_Fire
+click-win 500 300 right
+click-popup 2
+expect-dialog Select Sequence
+click-row 3
+expect-no-dialog
+click-win 500 300 right
+click-popup 5
+click-popup 3
+click-win 500 300 right
+click-popup 2
+expect-dialog Select Sequence
+click-row 5
+expect-no-dialog
+click-win 500 300 right
+click-popup 3
+expect-dialog Select Delta Sequence
+click-row 1
+expect-no-dialog
+move-win 500 300
+# the delta is made NOT running (FUN_0047d6f0 +0x28 = 0) and the main stands at timer 0: the picture stays
+wait 400
+picture 18
+wait 400
+picture 19
+expect-pixels-same picture 300 250 600 479 0.001
+
+# N / M (key table 0x3b / 0x3a, cases 0x488e0e / 0x488df6: FUN_00479290 / FUN_00479110; reassess/hierarchy-play-frost.md HP-78). The text's "Timer :" rows: the 1st the main's, the 2nd the delta's
+# (no turret on this model). M takes the main to the start of its NEXT key frame (FUN_0047f780 -> FUN_00480ff0); with Y's switch OFF (+0x88 = 0, 0x47914a) nothing else moves
+expect-number hierarchylines Timer_: 0 0 1
+expect-number hierarchylines Timer_: 0 0 2
+key M
+wait 200
+expect-number hierarchylines Timer_: 1 65535 1
+expect-number hierarchylines Timer_: 0 0 2
+# N: the main back to the key frame before (FUN_0047f800 -> FUN_00481040), the first: timer 0
+key N
+wait 200
+expect-number hierarchylines Timer_: 0 0 1
+# Y ON, then M: the delta moves on by the TIME the main moved (0x479158-0x47920e: the timer's change times the main's sequence time, FUN_00499b30, then over the delta's own time,
+# FUN_005803e0, wrapped & 0xffff 0x47924c), though it is not running. Both sequences are 1.0 sec here (no OBASEQTM), so the delta's timer becomes the main's: 3120, key frame 1's start
+# on MarineHUD_Stationary (red on 6941c52: the delta stayed at 0)
+key Y
+key M
+wait 200
+picture 20
+expect-number hierarchylines Timer_: 3120 3120 1
+expect-number hierarchylines Timer_: 3120 3120 2
+# N with Y on: the main back to 0, the delta back by the same time (FUN_00479290 0x47938d): 0 again
+key N
+wait 200
+picture 21
+expect-number hierarchylines Timer_: 0 0 1
+expect-number hierarchylines Timer_: 0 0 2
+
+# Y (on since the N / M block), '.' held a moment: the main moves a little and stays; the delta now RUNS: the picture keeps changing after the key is let go
+hold Period 300
+wait 300
+expect-moving picture 300 250 600 479 8 150 0.002
+
+# A NEW player switches Y off (FUN_00477450 0x477603: +0x88 = 0): the row "Play commands affect all sequences" (x 200, row 3) is there, then another hierarchy is chosen (Select Hierarchy,
+# a different row: FUN_0048b550 makes a new player), Select Sequence answered with Escape: the row is gone
+wait 300
+picture 22
+expect-colour panels 200 46 330 18 c0c0c0 0.02 64
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 5
+expect-dialog Select Sequence
+key Esc
+expect-no-dialog
+wait 300
+picture 23
+expect-colour-at-most panels 200 46 330 18 c0c0c0 0.003 64

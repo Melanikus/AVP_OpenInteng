@@ -102,8 +102,8 @@
 			"changes": [
 				{
 					"file": "src/host/strategy_lookup.cpp",
-					"from": "if (!level)",
-					"to": "if (false)"
+					"from": "if (!level)\n\t\t\t{\n\t\t\t\treturn StrategyFound::NoLevel;",
+					"to": "if (false)\n\t\t\t{\n\t\t\t\treturn StrategyFound::NoLevel;"
 				}
 			]
 		},
@@ -182,8 +182,8 @@
 			"changes": [
 				{
 					"file": "src/host/strategy_lookup.cpp",
-					"from": "continue;",
-					"to": "break;"
+					"from": "memcmp(&object->object_data.ID, id, kSelectionIdBytes) != 0)\n\t\t\t\t{\n\t\t\t\t\tcontinue;",
+					"to": "memcmp(&object->object_data.ID, id, kSelectionIdBytes) != 0)\n\t\t\t\t{\n\t\t\t\t\tbreak;"
 				}
 			]
 		},
@@ -197,13 +197,8 @@
 				},
 				{
 					"file": "src/host/strategy_lookup.cpp",
-					"from": "return CopyPayload((AVP_Strategy_Chunk *)found, out);",
-					"to": "lastFound = found;"
-				},
-				{
-					"file": "src/host/strategy_lookup.cpp",
-					"from": "return StrategyFound::NoSuchObject;",
-					"to": "return lastFound ? CopyPayload((AVP_Strategy_Chunk *)lastFound, out) : StrategyFound::NoSuchObject;"
+					"from": "return CopyPayload((AVP_Strategy_Chunk *)found, out);\n\t\t\t}\n\n\t\t\treturn StrategyFound::NoSuchObject;\n\t\t}\n\n\t\t// An ID that no object has",
+					"to": "lastFound = found;\n\t\t\t}\n\n\t\t\treturn lastFound ? CopyPayload((AVP_Strategy_Chunk *)lastFound, out) : StrategyFound::NoSuchObject;\n\t\t}\n\n\t\t// An ID that no object has"
 				}
 			]
 		},
@@ -222,8 +217,8 @@
 			"changes": [
 				{
 					"file": "src/host/strategy_lookup.cpp",
-					"from": "lookup_single_child(\"AVPSTRAT\")",
-					"to": "lookup_single_child(\"AVPSTRAX\")"
+					"from": "((Object_Project_Data_Chunk *)data)->lookup_single_child(\"AVPSTRAT\")",
+					"to": "((Object_Project_Data_Chunk *)data)->lookup_single_child(\"AVPSTRAX\")"
 				}
 			]
 		},
@@ -242,8 +237,8 @@
 			"changes": [
 				{
 					"file": "src/host/strategy_lookup.cpp",
-					"from": "if (!found || found->r_u_miscellaneous())",
-					"to": "if (found->r_u_miscellaneous())"
+					"from": "((Object_Project_Data_Chunk *)data)->lookup_single_child(\"AVPSTRAT\");\n\n\t\t\t\tif (!found || found->r_u_miscellaneous())",
+					"to": "((Object_Project_Data_Chunk *)data)->lookup_single_child(\"AVPSTRAT\");\n\n\t\t\t\tif (found->r_u_miscellaneous())"
 				}
 			]
 		},
@@ -262,8 +257,8 @@
 			"changes": [
 				{
 					"file": "src/host/strategy_lookup.cpp",
-					"from": "if (!found || found->r_u_miscellaneous())\n\t\t\t\t{\n\t\t\t\t\treturn StrategyFound::NoStrategy;\n\t\t\t\t}",
-					"to": "if (!found || found->r_u_miscellaneous())\n\t\t\t\t{\n\t\t\t\t\tcontinue;\n\t\t\t\t}"
+					"from": "((Object_Project_Data_Chunk *)data)->lookup_single_child(\"AVPSTRAT\");\n\n\t\t\t\tif (!found || found->r_u_miscellaneous())\n\t\t\t\t{\n\t\t\t\t\treturn StrategyFound::NoStrategy;",
+					"to": "((Object_Project_Data_Chunk *)data)->lookup_single_child(\"AVPSTRAT\");\n\n\t\t\t\tif (!found || found->r_u_miscellaneous())\n\t\t\t\t{\n\t\t\t\t\tcontinue;"
 				}
 			]
 		},
@@ -272,8 +267,8 @@
 			"changes": [
 				{
 					"file": "src/host/strategy_lookup.cpp",
-					"from": "return StrategyFound::NoSuchObject;",
-					"to": "return StrategyFound::NoStrategy;"
+					"from": "return StrategyFound::NoSuchObject;\n\t\t}\n\t}\n\n\tvoid ListGenerators",
+					"to": "return StrategyFound::NoStrategy;\n\t\t}\n\t}\n\n\tvoid ListGenerators"
 				}
 			]
 		},

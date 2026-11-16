@@ -121,7 +121,7 @@
 			"changes": [
 				{
 					"file": "src/host/menu_paint.cpp",
-					"from": "\t\t\tAddBox(bar.TitleBox((size_t)open), kMenuLitColour, boxes, mostBoxes, boxCount);",
+					"from": "\t\t\tAddBox(bar.TitleBox((size_t)open), kMenuPointedColour, boxes, mostBoxes, boxCount);",
 					"to": "\t\t\t;"
 				}
 			]
@@ -141,7 +141,7 @@
 			"changes": [
 				{
 					"file": "src/host/menu_paint.cpp",
-					"from": "\t\tAddBox(drop, kMenuDropColour, boxes, mostBoxes, boxCount);",
+					"from": "\t\tAddBox(drop, kMenuBlueColour, boxes, mostBoxes, boxCount);",
 					"to": "\t\t;"
 				}
 			]
@@ -151,7 +151,7 @@
 			"changes": [
 				{
 					"file": "src/host/menu_paint.cpp",
-					"from": "\t\t\t\tAddBox(rowBox, kMenuLitColour, boxes, mostBoxes, boxCount);",
+					"from": "\t\t\t\tAddBox(rowBox, kMenuPointedColour, boxes, mostBoxes, boxCount);",
 					"to": "\t\t\t\t;"
 				}
 			]

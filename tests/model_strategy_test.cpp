@@ -690,6 +690,16 @@ static void SettersWriteOnlyTheirPart()
 	Check(fan && speedUp && !SetField(*fan, *speedUp, fanBytes.data(), fanBytes.size(), 0, &why) && GetInt(fanBytes, 20) == 655360 &&
 	      why == speedUp->why,
 	      "a refused value changes nothing, and the reason given is the field's own");
+
+	// S-K75-1 (0x5356b0-0x53575a): the view shows a fan's time as the word / 65536, ROUNDED TOWARD 0 (a C division); a hostile file's negative word must read so too, not toward minus infinity
+	std::vector<uint8_t> hostileFan = NewOne(75);
+	double seconds = 0.0;
+
+	PutInt(hostileFan, 20, -65537);
+	Check(fan && speedUp && ReadField(*fan, *speedUp, hostileFan.data(), hostileFan.size(), &seconds, nullptr) && seconds == -1.0,
+	      "a fan time word of -65537 reads -1 second, as inteng divides by 65536 (not -2, an arithmetic shift)");
+	PutInt(hostileFan, 20, 65537);
+	Check(fan && speedUp && ReadField(*fan, *speedUp, hostileFan.data(), hostileFan.size(), &seconds, nullptr) && seconds == 1.0, "and 65537 reads 1 second");
 }
 
 static void FieldsOutsideThePayloadAreRefused()

@@ -125,6 +125,14 @@ namespace host
 	HierarchyEditResult HierarchyEdit_ChangeFrameAt(OpenLevelFile *file, std::string const &hierarchy, int32_t number, int32_t subNumber, int32_t position, uint32_t setMask,
 		uint32_t clearMask, int32_t sound, size_t *frame);
 
+	// Ctrl+R (0x39, FUN_00479590 -> FUN_0047f720 -> FUN_00480eb0): every frame of the ROOT section's sequence turned half round the vertical, as inteng turns the frames' chunks: the
+	// orientation's floats (x, y, z, w) become (-z, -w, x, y) and the transform's x and z are negated
+	HierarchyEditResult HierarchyEdit_TurnRootFrames(OpenLevelFile *file, std::string const &hierarchy, int32_t number, int32_t subNumber);
+
+	// Ctrl+F's part for one sequence (FUN_004795d0 0x479656-0x4796b2): every frame of the ROOT section's sequence has `by` taken off its transform's y (the sequence's lowest point at its
+	// start, in the file's unit), so the sequence stands on the floor
+	HierarchyEditResult HierarchyEdit_LowerRootFrames(OpenLevelFile *file, std::string const &hierarchy, int32_t number, int32_t subNumber, int32_t by);
+
 	// One sound of the hierarchy's sound list (an INDSOUND chunk of the file; the game plays the sound a frame names by its index)
 	struct SoundInfo
 	{

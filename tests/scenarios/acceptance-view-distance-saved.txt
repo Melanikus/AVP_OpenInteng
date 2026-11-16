@@ -1,0 +1,17 @@
+# ACCEPTANCE: the view distance is SAVED as inteng saves it (view-state-table.md H-7): FUN_00473430 reads DAT_005fd678 FIRST from inteng.ini (ReadFile 0x4734b5 -> 0x4734d4) and
+# FUN_004732a0 writes it at the end; ours keeps it as ViewDistance= in AVP_OpenInteng.ini (inteng's units, 100 to the millimetre), written when it changes, read at the start.
+# Module Linking's J adds 500,000 for each frame it is held (FUN_004c1a90, ModuleLinkingViewPass); held for 300 ms at inteng's 25 frames a second it is over 2,000,000, and the file
+# then says so (the start's 1,000,000 begins with a 1, the new value with 2 to 9).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-screen-text View Distance :2
+click-bar Mode > Module Linking
+expect-screen Module Linking
+hold J 300
+click-bar Mode > Exit
+expect-screen Construction
+wait 200
+expect-screen-text View Distance :
+verify findstr /R /C:"^ViewDistance=[2-9][0-9]*" {exedir}AVP_OpenInteng.ini

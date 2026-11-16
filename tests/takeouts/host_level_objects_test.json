@@ -111,8 +111,8 @@
 			"changes": [
 				{
 					"file": "src/host/level_objects.cpp",
-					"from": "LevelObjects_Use(open);\n\treturn result;",
-					"to": "return result;"
+					"from": "LevelObjects_Use(open);\n\ttheOpenLevelForEdit = open;",
+					"to": "theOpenLevelForEdit = open;"
 				}
 			]
 		},

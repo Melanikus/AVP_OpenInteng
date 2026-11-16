@@ -1,0 +1,81 @@
+# ACCEPTANCE: the flag page's F / Shift + F, HIS PATH (Frost, 2026-11-16; strategy-data.md 1:1 TABLE row S-72, Phase 2 batch 1). Ours already did this (BUILT): this block proves it, so it is green
+# from the start, not red first.
+# FUN_00525700 0x52577d-0x525795: with no menu command and F (slot 0xd87a86): Shift (0xd87a5e) down -> DAT_0091494c, else DAT_00914948. The View items set them: View Airduct 0x5257ef DAT_00914948 = 0xe,
+# 0x5257f9 DAT_0091494c = 0xf; case 0xe (0x5257b1 PUSH 1) = FUN_0052f360(list, 0x80000000, ADD), case 0xf (0x5257ca PUSH 0) = REMOVE. So F ADDS the viewed flag to the picked modules, Shift + F REMOVES it;
+# with no flag viewed (Stop Flag View: both 0, 0x525c58 / 0x525c5e) F does nothing.
+# By his path: open the file, bar to Strategy Data, Mode > Module flags, click the room, right-click > View Flag > Airduct, F (the room turns orange), Shift + F (the orange goes).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+click-bar Mode > Module flags
+expect-screen Strategy Data
+click-win 640 130
+expect-selected 1
+
+# View Flag > Airduct: the room has no Airduct, so nothing is orange yet
+click-win 640 130 right
+click-popup 3
+click-popup 1
+wait 400
+picture 2
+
+# F: Airduct ADDED to the room. The room is in the list, so it is RED: FUN_004a7cd0 0x4a7eca gives 0x40000000 (red) before 0x2000000 (green) and 0x4000000 (the flag's orange).
+# Shift + click takes it out of the list: its orange (0xff7f00 on its textures) shows
+key F
+expect-status Module flags: 1 of 1
+click-win 640 130 shift
+expect-selected 0
+wait 400
+picture 3
+expect-colour picture 0 100 800 600 d08030 0.02 40
+
+# Shift + F: Airduct REMOVED from the modules in the list: the room is put back in the list (red), Shift + F, then taken out again: no orange any more
+click-win 640 130
+expect-selected 1
+key F shift
+expect-status Module flags: 1 of 1
+click-win 640 130 shift
+expect-selected 0
+wait 400
+picture 4
+expect-colour-at-most picture 0 100 800 600 d08030 0.002 40
+
+# with no flag viewed, F does nothing: Stop Flag View, then F: the picture stays
+click-win 640 130 right
+click-popup 3
+click-popup 5
+wait 400
+picture 5
+key F
+expect-pixels-same picture 0 100 800 600 0.002
+wait 400
+picture 6
+
+# THE FLAG PAGE'S EXIT STOPS THE VIEW (strategy-data.md S-14; reassess/strategy-data-verify-frost.md S-14, section 14): FUN_00525700 0x5267cd-0x526845 on Mode > Exit: the bar's page 0, every
+# listed module's red off, FUN_0052f680(0) (DAT_00914944 = 0: nothing is coloured for a flag any more) and F / Shift + F's commands DAT_00914948 / DAT_0091494c = 0. So back on page 0 the
+# room's orange is gone and F does nothing. The room gets Airduct again (View Flag > Airduct, click, F, Shift + click: its orange shows), then Mode > Exit.
+click-win 640 130 right
+click-popup 3
+click-popup 1
+click-win 640 130
+expect-selected 1
+key F
+click-win 640 130 shift
+expect-selected 0
+wait 400
+picture 7
+expect-colour picture 0 100 800 600 d08030 0.02 40
+click-bar Mode > Exit
+expect-screen Strategy Data
+expect-bar1 Find Object
+wait 400
+picture 8
+expect-colour-at-most picture 0 100 800 600 d08030 0.002 40
+# F on page 0: FUN_00524e90 reads no F (and the flag view is off): the picture stays
+key F
+wait 400
+picture 9
+expect-pixels-same-since 8 picture 0 100 800 600 0.002

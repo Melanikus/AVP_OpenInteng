@@ -1,0 +1,35 @@
+# ACCEPTANCE: the flag page's text, HIS PATH (Frost, 2026-11-16; strategy-data.md 1:1 TABLE row S-73, Phase 2).
+# FUN_00525700 0x526245-0x5266c5, rows of 16 from row 3 (y 48): no flag viewed "Flag View - None" (0x5ede30); View Flag > Airduct: "Flag View - Airduct" (0x5ede80), "F : Add flag" (0x5ede5c),
+# "Shift + F : Remove flag" (0x5ede44) on rows 3-5; with a module in the list: one row empty, "Flags for %s :" (0x5ede20) on row 7, then one row per flag it has ("Airduct" 0x5edc38 on row 8).
+# By his path: open the file, bar to Strategy Data, Mode > Module flags, right-click > View Flag > Airduct, click the room, F.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+click-bar Mode > Module flags
+expect-screen Strategy Data
+wait 400
+picture 2
+
+# View Flag > Airduct: the rows 3-5 become "Flag View - Airduct", "F : Add flag", "Shift + F : Remove flag" (row 3 held "Flag View - None")
+click-win 640 130 right
+click-popup 3
+click-popup 1
+expect-pixels-changed panels 0 47 300 48 0.004
+wait 400
+picture 3
+
+# a click on the room puts it in the list: row 7 "Flags for <its name> :" (no flag rows yet: the room has none)
+click-win 640 130
+expect-selected 1
+expect-pixels-changed panels 0 110 300 18 0.004
+wait 400
+picture 4
+
+# F adds Airduct to it: row 8 "Airduct"
+key F
+expect-pixels-changed panels 0 126 300 18 0.004
+wait 400
+picture 5

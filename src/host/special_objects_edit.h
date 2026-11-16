@@ -95,6 +95,47 @@ namespace host
 	// Every special object of the level (the five kinds), in the file's order
 	SpecialResult SpecialObjects_Read(OpenLevelFile *file, std::vector<SpecialObject> *out);
 
+	// A PLACED HIERARCHY of SPECLOBJ (PLACHIER > PLACHIDT, avp/win95/hierplace.cpp:68-120: the name padded to 4, hierarchy_index, the place, the turn, the ID, the extra data). inteng
+	// makes one object of class 0x5ae6c4 (kind 5) for each on entering Object Placement (FUN_004e8cc0 <- 0x4d8e96). Stock: Invasion, Furyall and odobenus hold one each.
+	// One timed sound of a placed hierarchy's sequence (PLHISEQU's sound list: avpx hierplace.hpp Timed_Sound_Description)
+	struct PlacedHierarchyTimedSound
+	{
+		int32_t soundIndex = 0;
+		int32_t start = 0;                  // compared with the player's timer, 0 .. 0xffff (inteng FUN_004e9cb0): a fraction of the sequence
+		int32_t end = 0x10000;
+	};
+
+	// One sequence a placed hierarchy plays (a PLHISEQU chunk; inteng's record of FUN_004eb690, reassess/object-placement.md PH-16)
+	struct PlacedHierarchySequence
+	{
+		int32_t index = 0;                  // its own number (inteng's "Sequence %d")
+		int32_t sequence = 0;               // the hierarchy's sequence and sub-sequence
+		int32_t sub = 0;
+		int32_t milliseconds = 1000;
+		int32_t flags = 0;                  // 1 Loop, 2 Initial sequence, 4 Playing at start
+		std::vector<PlacedHierarchyTimedSound> sounds;
+	};
+
+	struct PlacedHierarchyInfo
+	{
+		size_t number = 0;                  // its place among the level's placed hierarchies, from 0, in the file's order
+		std::string name;
+		int32_t hierarchyIndex = 0;
+		int32_t place[3] = { 0, 0, 0 };     // file units
+		float turn[4] = { 0, 0, 0, 1 };     // x y z w
+		uint8_t id[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+		std::vector<PlacedHierarchySequence> sequences;   // its PLHISEQU chunks, in the file's order (inteng's list +0x70)
+	};
+
+	// Every placed hierarchy of the level, in the file's order. A PLACHIER with no PLACHIDT, or one too short for its numbers, is left out (the game's reader refuses such a level).
+	// A PLHISEQU whose counts don't fit its chunk exactly, as the game's reader checks them (avpx hierplace.cpp), is left out of the sequences.
+	SpecialResult PlacedHierarchies_Read(OpenLevelFile *file, std::vector<PlacedHierarchyInfo> *out);
+
+	// Placed hierarchy `number` (its place in PlacedHierarchies_Read's list) gets these sequences: every PLHISEQU of its PLACHIER is replaced by one per record, in this order, where the first one was
+	// (inteng's save FUN_004e96d0 0x4e98b1-0x4e9a80 with FUN_004eb9b0; no extra data). The other children are kept. BadValue for an index outside 0..4095 (the game's reader), a time of 0 or less,
+	// or more than 4096 records or sounds (reassess/object-placement.md PH-4..PH-7).
+	SpecialResult PlacedHierarchy_WriteSequences(OpenLevelFile *file, size_t number, std::vector<PlacedHierarchySequence> const &sequences);
+
 	// What a new object of that kind is, before it has a name: inteng's constructor values (generator type 0, Bad Guy type 1, flags 0x3801; sound 5000 / 10000 mm at scale 1, volume 127;
 	// particle generator time 50, probability 50)
 	SpecialObject SpecialObject_Fresh(SpecialKind kind, SpecialPlace const &where, double levelScale);

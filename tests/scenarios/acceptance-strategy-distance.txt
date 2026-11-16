@@ -1,0 +1,35 @@
+# ACCEPTANCE: Strategy Data's view distance and its text rows, HIS PATH (Frost, 2026-11-16; strategy-data.md 1:1 TABLE rows S-53, S-54, S-65, S-66, Phase 2).
+# FUN_00522980 every frame: H held (slot 0xd87a88) adds 500000 to the shared distance DAT_005fd678 (1,000,000 at the start), N held (0xd87a8e) takes 500000 away, never below 0 (0x5229a0-0x5229b9);
+# "View Distance :%d" (0x5c39b0, the distance / 500000) at (16, 0x20) (0x5229e0); FUN_00522a30: a module whose distance from the camera less its radius is not under the distance is not drawn.
+# The current object's name and "ID - 0x%x %x" are on the rows 3 and 4 (the row counter set to 3 at 0x5229d4): y 48 and 64 from the window's top, below the View Distance line (FUN_00524e90 0x52525a).
+# By his path: open the file, bar to Strategy Data, click a module (its name and ID appear below the View Distance line), hold H, hold N.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+expect-field viewdistance 2
+
+# S-66: a click on the module APCmod: its name and ID come on the rows 3 and 4 (y 48 .. 79); the band of row 2 (y 32 .. 45, the View Distance line) stays as it was
+wait 400
+picture 2
+click-win 120 500
+expect-selected 1
+expect-colour panels 10 30 140 15 ffffff 0.015 40
+expect-pixels-changed panels 0 47 300 32 0.004
+expect-colour panels 10 47 300 32 ffffff 0.008 40
+
+# S-53: H held: the distance grows
+remember-field viewdistance
+hold H 600
+expect-field-changed viewdistance
+
+# S-54 / S-65: N held long: down to 0 and no lower; the modules away from the camera are not drawn any more
+wait 400
+picture 3
+hold N 4000
+expect-field viewdistance 0
+expect-pixels-changed picture 0 60 1008 600 0.05
+hold N 500
+expect-field viewdistance 0

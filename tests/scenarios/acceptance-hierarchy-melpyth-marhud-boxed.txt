@@ -18,7 +18,8 @@ expect-not-empty 0.01
 # B1: as a user did, he moves back with Z (inteng's "Move backwards", Classic layout) and his guns fill the view
 hold Z 250
 picture 4
-expect-not-empty
+# the hub is inteng's white wireframe (FUN_00447550, view-state-table.md R-1): thin lines on black, so the same 1% as picture 1
+expect-not-empty 0.01
 # Mode > Hierarchy
 item 0xcf
 expect-screen Hierarchy
@@ -27,7 +28,8 @@ picture 2
 # Select Hierarchy is the first entry of the RIGHT-CLICK pop-up (FUN_004b7c50 right press -> FUN_004b8350; table registered by FUN_00485580 at 0x488723): right click in the view, then click the entry
 click-win 500 300 right
 click-win 540 311 left
-expect-pixels-changed panels 0 0 420 360
+# the box is the dialog as ours draws it (centred, 354..654 x 234..494; Dietrich 2026-11-16: the old box 0 0 420 360 read the field panel's old corner, which 897e2ec moved to the top right)
+expect-pixels-changed panels 354 234 300 260
 expect-prompt 0
 expect-dialog Select Hierarchy
 # the dialog SHOWS its rows sorted (FUN_00475bf0 0x476403-0x476670, byte by byte), not in the file's order
@@ -56,7 +58,8 @@ picture 13
 # inteng draws the player's "Timer :%d" over the view every frame (FUN_004889d0 0x48a688): while it runs, the numbers on the screen change (the text block at the top left)
 expect-pixels-changed panels 0 48 300 200 0.0005
 expect-pixels-changed picture 350 370 280 180 0.003
-expect-not-empty
+# the guns drawn (about 0.11 of the picture; the field panel, moved off the view's corner by 897e2ec, no longer adds to it)
+expect-not-empty 0.05
 key O
 picture 14
 wait 500

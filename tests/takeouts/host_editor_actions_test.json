@@ -57,12 +57,12 @@
 			]
 		},
 		{
-			"name": "Ctrl+O is no key in Classic",
+			"name": "Ctrl+O opens a level in Classic again",
 			"changes": [
 				{
 					"file": "src/host/editor_actions.cpp",
-					"from": "{ 'O', true }, { 'O', true }, 0,        OpenLevel }",
-					"to": "{ 0 },         { 'O', true }, 0,        OpenLevel }"
+					"from": "\"Open level...\",       { 0 },         { 0 },",
+					"to": "\"Open level...\",       { 'O', true }, { 0 },"
 				}
 			]
 		},

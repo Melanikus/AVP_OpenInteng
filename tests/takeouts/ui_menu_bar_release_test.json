@@ -27,7 +27,7 @@
 		{
 			"name": "a press on a title doesn't start the gesture (the bug Melanikus hit)",
 			"changes": [
-				{ "file": "src/ui/menu_bar.cpp", "from": "\t\t\t\tOpenMenuAt((int)m);\n\t\t\t\topenedByPress = true;\n", "to": "\t\t\t\tOpenMenuAt((int)m);\n" }
+				{ "file": "src/ui/menu_bar.cpp", "from": "\t\t\t\tOpenMenuAt((int)m);\n\t\t\t\tlit = -1;   // opened by the mouse: no row is pointed until the pointer is on one (H-5d); the keys light the first row as before\n\t\t\t\topenedByPress = true;\n", "to": "\t\t\t\tOpenMenuAt((int)m);\n\t\t\t\tlit = -1;   // opened by the mouse: no row is pointed until the pointer is on one (H-5d); the keys light the first row as before\n" }
 			]
 		},
 		{

@@ -1,0 +1,10 @@
+# ACCEPTANCE: a level SAVED BY THE ORIGINAL INTENG opens (Melanikus's Genshd1, saved with inteng 2026-11-16 12:01: 1781232 bytes, MD5 60d0d30d8137e4b2896d6473a2b84f94; a copy, never his game folder).
+# inteng's save turned module shape 958 a quarter round and wrote its box's x axis the wrong way round (largest -5845, smallest 5845; its points -5845..5845). The port's check that a module's
+# points lie in its box (mishchnk.cpp points_fit_box) refused the whole level. Now such an axis is read the right way round first (chunk_shape.cpp put_box_right_way_round): the level opens,
+# as it does in inteng and the game. Opened as by a double click.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/bishop-colony/openwith/Genshd1.rif
+pictures on
+state
+expect-screen Construction
+picture 1
+expect-not-empty 0.01

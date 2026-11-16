@@ -171,6 +171,7 @@ namespace host
 		fields.clear();
 		widgets = spec.widgets;
 		changeHook = spec.onChange;
+		checkHook = spec.onCheck;
 		Layout(screen, spec.width, spec.height, textWidth);
 		lines.clear();
 		focus = widgets.size();
@@ -202,6 +203,7 @@ namespace host
 	void InDialog::Close()
 	{
 		changeHook = nullptr;
+		checkHook = nullptr;
 		open = false;
 		buttons.clear();
 		fields.clear();
@@ -265,7 +267,7 @@ namespace host
 		{
 			DialogWidget &w = widgets[i];
 
-			if (!w.visible || !Holds(w.box, x, y))
+			if (!w.visible || !w.enabled || !Holds(w.box, x, y))
 			{
 				continue;
 			}
@@ -303,6 +305,11 @@ namespace host
 				else
 				{
 					w.checked = !w.checked;
+				}
+
+				if (checkHook)
+				{
+					checkHook(widgets, i);
 				}
 			}
 		}

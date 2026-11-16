@@ -19,7 +19,8 @@ click-bar Mode > Object Placement
 expect-screen Object Placement
 wait 300
 picture 2
-expect-colour-at-most picture 0 0 1008 729 000000 0.10 16
+# Object Placement hides the modules beyond its view distance (Vasquez, FUN_004d9af0): those show black, so up to 30% (the wire is over 60%)
+expect-colour-at-most picture 0 0 1008 729 000000 0.30 16
 # its Exit goes through the hub's start: the wire again
 click-bar Mode > Exit
 expect-screen Construction

@@ -10,8 +10,8 @@
 			"changes": [
 				{
 					"file": "src/model/chunk_fields.cpp",
-					"from": "{ \"range\", \"Range\", S, 60, Storage::Int32, Unit::GameUnits, 0, Limit::Loader, 1, LightRangeMost,",
-					"to": "{ \"range\", \"Range\", S, 60, Storage::Int32, Unit::GameUnits, 0, Limit::Loader, 0, LightRangeMost,"
+					"from": "{ \"range\", \"Range\", S, 60, Storage::Int32, Unit::LightRange, 0, Limit::Loader, 1, LightRangeMost,",
+					"to": "{ \"range\", \"Range\", S, 60, Storage::Int32, Unit::LightRange, 0, Limit::Loader, 0, LightRangeMost,"
 				}
 			]
 		},
@@ -560,8 +560,8 @@
 			"changes": [
 				{
 					"file": "src/model/chunk_fields.cpp",
-					"from": "{ \"range\", \"Range\", S, 60, Storage::Int32, Unit::GameUnits, 0, Limit::Loader, 1, LightRangeMost,",
-					"to": "{ \"range\", \"Range\", S, 60, Storage::Int32, Unit::GameUnits, 0, Limit::LoaderPlanned, 1, LightRangeMost,"
+					"from": "{ \"range\", \"Range\", S, 60, Storage::Int32, Unit::LightRange, 0, Limit::Loader, 1, LightRangeMost,",
+					"to": "{ \"range\", \"Range\", S, 60, Storage::Int32, Unit::LightRange, 0, Limit::LoaderPlanned, 1, LightRangeMost,"
 				}
 			]
 		},
@@ -570,8 +570,8 @@
 			"changes": [
 				{
 					"file": "src/model/chunk_fields.cpp",
-					"from": "{ \"range\", \"\", S, 8, Storage::Int32, Unit::GameUnits, 0, Limit::Loader, 1, LightRangeMost,",
-					"to": "{ \"range\", \"\", S, 8, Storage::Int32, Unit::GameUnits, 0, Limit::LoaderPlanned, 1, LightRangeMost,"
+					"from": "{ \"range\", \"\", S, 8, Storage::Int32, Unit::LightRange, 0, Limit::Loader, 1, LightRangeMost,",
+					"to": "{ \"range\", \"\", S, 8, Storage::Int32, Unit::LightRange, 0, Limit::LoaderPlanned, 1, LightRangeMost,"
 				}
 			]
 		},

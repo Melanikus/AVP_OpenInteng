@@ -160,6 +160,7 @@ namespace host
 		ReplaceShape,     // placement's Replace shape: a prompt for the new shape's name, then the selected object is given it (FUN_004e2e10, shape_replace_edit.h)
 		ModuleOverlaps,   // Construction, Miscellaneous, Module Overlaps (0x56, FUN_00445110 / FUN_004476d0, module_overlaps.h): a switch, the overlapping modules are tinted
 		RecalculateNormals, // Construction, Miscellaneous, Recalculate Normals and Extents (FUN_0044baa0, shape_recalc_edit.h): every shape of the level
+		PlacedHierarchy,  // the current placed hierarchy's pop-up (page 6 of FUN_004d68e0, commands 0x7d0-0x7db): the item's command is handed to the editor (reassess/object-placement.md PH-2..PH-13)
 	};
 
 	struct IntengItem
@@ -170,6 +171,7 @@ namespace host
 		IntengTag tag;
 		IntengWork work;
 		int32_t toScreen;     // for ToScreen: the screen shown, as a place in kIntengScreens; otherwise -1
+		int32_t access;       // the place in name of the letter inteng underlines (the one after its "&", FUN_0046ce70 0x46ceac), -1 for none
 	};
 
 	struct IntengMenu
@@ -177,6 +179,7 @@ namespace host
 		const char *title;    // inteng's words without &
 		const IntengItem *items;
 		size_t count;
+		int32_t access;       // the place in title of the letter inteng underlines, -1 for none
 	};
 
 	// One page of a code-built screen's menus (inteng's method +0x10 registers a page of the first row and +0x14 one of the second; +0x18 chooses the page shown)

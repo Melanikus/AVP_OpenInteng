@@ -13,8 +13,8 @@
 // The links of the root node (the module being edited) hang off root->next. Nothing here reads or writes a level: the editor maps modules to object
 // indexes and VMDARRAY chunks.
 //
-// NOT BUILT (the decompile leaves one thing open each): Open Branch (FUN_004c43c0 / FUN_004c43d0) and View / Hide (FUN_004c4480 / FUN_004c44f0):
-// which node FUN_004c4560 is called on (the decompiler dropped its register argument) decides what they close.
+// Open Branch, View and Hide are built and read again on the new dumps (2026-11-16, MAPPING-ORDERS section 14): reassess/module-linking-verify-dietrich.md
+// ML-V-1..4. Open Branch calls FUN_004c4560 on the node's next (0x4c4420) and on its branch (0x4c445c); View / Hide never call it.
 #pragma once
 
 #include <stddef.h>
@@ -64,10 +64,11 @@ namespace host
 
 		void ReverseVisits(std::vector<ReverseVisit> *out) const;
 
-		// The body of FUN_004c60a0 for the CURRENT tree (the one of a module that was a node of the tree walked) and one path: for each element from the
-		// last to the first the node of that module is looked for (along the root's chain only until a node was found or made), and where there is none
-		// a new node is made, as a branch of the node held when one was, else as the next of the node held, an old branch or next being overwritten as
-		// inteng does. A new node is made by FUN_004c41a0, which sets its [5] (the root flag) too.
+		// The body of FUN_004c60a0 for the CURRENT tree (the one of a module that was a node of the tree walked) and one path (row ML-V-12, listing-all-2
+		// 0x4c60c9-0x4c626e): for each element from the last to the first, while no node was found without a branch or made, the node of that module is
+		// looked for along the chain of the node held (first the root's); found with a branch, the branch's first node is held next (and the next element
+		// is looked for along ITS chain); found without one, it stays held; not found, a new node is made, as the branch of the node held once a node was
+		// found without a branch or made, else as the next of the node held. A new node is made by FUN_004c41a0, which sets its [5] (the root flag) too.
 		void AddReversePath(std::vector<int32_t> const &path);
 
 		// View Branch (FUN_004c4480) and Hide Branch (FUN_004c44f0): the node of that module that has a branch gets its "open" on (View) or off (Hide);

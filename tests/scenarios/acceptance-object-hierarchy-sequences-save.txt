@@ -1,0 +1,78 @@
+# ACCEPTANCE, PART 1 of 2: the placed hierarchy's SEQUENCE items (AvP-docs/engine/inteng/reassess/object-placement.md section 6: PH-4, PH-5, PH-6, PH-7; NA-6 step 2).
+# Run acceptance-object-hierarchy-sequences-restore.txt right after this one (it opens the copy saved here, in the same editor folder).
+# inteng's page 6 > Sequence: Delete sequence (0x7da, FUN_004ea800) with ONE record shows the message box "Must have at least one sequence". Add sequence (0x7d9, FUN_004ea490) lists the hierarchy's
+# own sequences (FUN_0047b450 "Select Sequence"); a pick is a new record at the end with the lowest unused index, 1000 ms, Loop on, and it is current. Choose sequence (0x7db, FUN_004ea4f0) lists the
+# records' indexes. Edit sequence (0x7d2, FUN_004ea9a0) is the window "Sequence %d" (FUN_004ec2b0): Time in ms, Loop, Initial sequence, Playing at start; ticking Playing at start ticks Initial
+# too (FUN_004ec6e0); a time over 10 ms is taken (FUN_004ec650); an Initial sequence is the only one (0x4ea9f4). The records go into the level as PLHISEQU (inteng's save FUN_004e96d0).
+# Invasion's "dropship ken": one record, index 0, sequence 22.0, 16000 ms, flags 2 (Initial). Opened as by a double click; the saved copy is ours.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera 72906 -27615 45151 0 0
+wait 400
+click-win 504 322
+wait 400
+expect-status Selected: dropship ken
+expect-hierarchy-text Sequence 0
+
+# ---- Q1 Delete sequence with one record: inteng's message box, nothing else
+click-win 504 322 right
+click-popup 3
+expect-popup-rows Edit sequence|Choose sequence|Add sequence|Delete sequence
+click-popup 4
+expect-dialog Must have at least one sequence
+key Enter
+expect-no-dialog
+expect-hierarchy-text Sequence 0
+
+# ---- Q2 Add sequence: the hierarchy's list; a pick is record 1, current
+click-win 504 322 right
+click-popup 3
+click-popup 3
+expect-dialog Select Sequence
+click-row 1
+expect-no-dialog
+expect-hierarchy-text Sequence 1
+
+# ---- Q3 Choose sequence: the records' indexes; 0 is current again
+click-win 504 322 right
+click-popup 3
+click-popup 2
+expect-dialog Select Sequence
+expect-dialog-rows 0|1
+click-row 1
+expect-no-dialog
+expect-hierarchy-text Sequence 0
+
+# ---- Q4 Edit sequence on record 0: its time and ticks; Playing at start ticks Initial too; a new time
+click-win 504 322 right
+click-popup 3
+click-popup 1
+expect-dialog Sequence 0
+expect-dialog-text 16000
+expect-dialog-checks off,on,off
+click-check 3
+expect-dialog-checks off,on,on
+form-field 1 2500
+click-button OK
+expect-no-dialog
+
+# ---- Q5 Edit again: kept
+click-win 504 322 right
+click-popup 3
+click-popup 1
+expect-dialog Sequence 0
+expect-dialog-text 2500
+expect-dialog-checks off,on,on
+click-button OK
+expect-no-dialog
+
+# ---- Q6 Delete sequence takes the current record (0) away; the first one left (1) is current
+click-win 504 322 right
+click-popup 3
+click-popup 4
+expect-no-dialog
+expect-hierarchy-text Sequence 1
+save-copy

@@ -36,7 +36,6 @@ namespace host
 		NoSuchObject,      // no object in the level has that ID
 		IsAModule,         // the object is a module: neither taken out nor copied
 		NotPlaced,         // the object to copy isn't a placed object
-		IsReferenced,      // another object's strategy or chunk names this object, so it isn't taken out
 		BadName,           // the new name is empty, longer than the game keeps (63 bytes), or has a letter that isn't plain text
 		NameTaken,         // another object has that name (letters of either case are one), or no name could be made
 		PlaceOutOfRange,   // a coordinate of the place is farther than 2^24 millimetres from the middle
@@ -65,8 +64,8 @@ namespace host
 	// and the game's loader reads the result before anything is swapped in. After a success every Chunk * the editor held is gone (as above),
 	// and the object's ID is the same.
 	// - Only a PLACED object has a strategy to give, take or copy: a module is refused (IsAModule), any other object (NotPlaced).
-	// - A strategy that is replaced or taken out belongs to an object other objects may name (a door a switch opens): while any other object's
-	//   chunk holds this object's ID, it is refused (IsReferenced), as taking the object out is.
+	// - A strategy is replaced or taken out whether or not other objects name the object (a door a switch opens), as inteng's Copy / Assign / Delete do: the names stay
+	//   and the game follows them by name, null-safe and checking the kind (strategy-data-kinds.md S-KC-15).
 	// - A copy is of the strategy's bytes as the level holds them now (edits made in the panel included), the target's own is replaced, and it
 	//   names what the original names: its targets stay the original's.
 
@@ -79,6 +78,10 @@ namespace host
 
 	// Gives the object `to` a copy of the strategy of the object `from`, in place of its own.
 	ObjectEditResult CopyStrategy(OpenLevelFile *file, uint8_t const *from, uint8_t const *to);
+
+	// Puts these payload bytes (the AVPSTRAT chunk's, after its 12-byte heading) in place of the object's strategy, or in as its strategy: an edit whose size changes (a Lift's lists). The object keeps a
+	// strategy; the game's loader reads the result before it is swapped in, as for the others. Refused above 64 KB.
+	ObjectEditResult SetStrategyBytes(OpenLevelFile *file, uint8_t const *id, uint8_t const *payload, size_t length);
 
 	// THE LINKS OF A MODULE (Module Linking; P5): the module's VMDARRAY, inside its MODULEDT, is replaced by one holding these items (the file's order:
 	// object index, branch number, flags, spare), or put in when the module has none. As inteng writes it (FUN_004c10c0, menu-reads-4.txt): only

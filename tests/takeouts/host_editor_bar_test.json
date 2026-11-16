@@ -12,15 +12,15 @@
 		},
 		{
 			"name": "[bar] an item of inteng's gets no tag",
-			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "item.action, host::IntengMenus_TagWords(item.tag) };", "to": "item.action, nullptr };" } ]
+			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "\t\t\tconst host::IntengItem &item = inteng.menus[m].items[i];\n\t\t\tui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag), item.access };\n\n\t\t\troom->items[used++] = shown;\n\t\t\tmenu.count++;\n", "to": "\t\t\tconst host::IntengItem &item = inteng.menus[m].items[i];\n\t\t\tui::MenuItem const shown = { item.name, nullptr, item.action, nullptr, item.access };\n\n\t\t\troom->items[used++] = shown;\n\t\t\tmenu.count++;\n" } ]
 		},
 		{
-			"name": "[bar] a screen has no way back to the hub",
-			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "\t\troom->items[used++] = back;\n\t\tours.count++;\n", "to": "" } ]
+			"name": "[bar] Back to Construction is on a screen's bar again (ruling 10b took it away)",
+			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "\troom->menuCount = menuCount;\n\treturn true;\n}\n\nbool EditorBar_MakeSecond(", "to": "\tif (menuCount > 0 && used < kEditorBarMostItems)\n\t{\n\t\tui::MenuItem const back = { \"Back to Construction\", nullptr, kActionBackToHub, nullptr, -1 };\n\n\t\troom->items[used++] = back;\n\t\troom->menus[menuCount - 1].count++;\n\t}\n\n\troom->menuCount = menuCount;\n\treturn true;\n}\n\nbool EditorBar_MakeSecond(" } ]
 		},
 		{
-			"name": "[bar] Screens lists the hub too",
-			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "\t\t\tif (s == host::kIntengHub)\n\t\t\t{\n\t\t\t\tcontinue;\n\t\t\t}\n", "to": "" } ]
+			"name": "[bar] a menu of ours is on the hub's bar again (ruling 10b took Screens away)",
+			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "\troom->menuCount = menuCount;\n\treturn true;\n}\n\nbool EditorBar_MakeSecond(", "to": "\tif (screen == host::kIntengHub && menuCount < ui::kMenuMostMenus)\n\t{\n\t\troom->menus[menuCount].title = \"Screens (ours)\";\n\t\troom->menus[menuCount].items = room->items + used;\n\t\troom->menus[menuCount].count = 0;\n\t\troom->menuCount = menuCount + 1;\n\t\treturn true;\n\t}\n\n\troom->menuCount = menuCount;\n\treturn true;\n}\n\nbool EditorBar_MakeSecond(" } ]
 		},
 		{
 			"name": "[bar] a tagged item says nothing of why",

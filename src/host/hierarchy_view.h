@@ -27,6 +27,19 @@ bool HierarchyView_Names(const char *modelName, std::vector<std::string> *names)
 // playing sequence `sequence`.`sub` for `seconds` 16.16 seconds (0: the sequence's own time). false with `why` when the model or the hierarchy or the sequence is not there. A model already shown is taken away first.
 bool HierarchyView_Show(const char *modelName, const char *hierarchyName, int sequence, int sub, int32_t seconds, const int32_t place[3], int32_t heading, std::string *why);
 
+// The same for a PLACED HIERARCHY of the level (Object Placement's kind 5, reassess/object-placement.md PH-1): turned by its own quaternion (x y z w, as PLACHIDT keeps it) the game's way,
+// at `place` in the game's units. Added 2026-11-16 by Melanikus (Vasquez).
+bool HierarchyView_ShowPlaced(const char *modelName, const char *hierarchyName, int sequence, int sub, int32_t seconds, const int32_t place[3], const float quaternion[4], std::string *why);
+
+// The shown sequence's length in 16.16 seconds, set as it is (a placed hierarchy's record time, PH-2), the position kept
+void HierarchyView_SetSequenceSeconds(int32_t seconds);
+
+// The first sequence of a model's hierarchy (the game's root section's list, the file's order: inteng's sequence index 0), the model loaded when it isn't yet; false with `why` when there is none
+bool HierarchyView_FirstSequence(const char *modelName, const char *hierarchyName, int *sequence, int *sub, std::string *why);
+
+// The key frame the shown sequence's timer is in (inteng FUN_004790a0: the frame whose range holds the timer, the last one when none does); 0 when nothing is shown
+int HierarchyView_KeyFrame();
+
 // The sequences of the shown hierarchy's root section: the game's type and sub number, how many keyframes it has, and its own length in 16.16 seconds (0 when the file gives none)
 struct HierarchyViewSequence
 {
@@ -47,7 +60,20 @@ void HierarchyView_Close();
 bool HierarchyView_IsShown();
 
 // Play / stop (the sequence loops while it plays unless loop is false) and the position, 0..65535 of the sequence; setting the position stops it
-void HierarchyView_Play(bool on, bool loop);
+// , / . HELD (inteng FUN_004889d0 0x489f9d-0x48a030, reassess/hierarchy-play-frost.md HP-17), called each frame with the frame's step (a quarter of the frame time in 16.16 seconds, signed): Main moves a
+// STOPPED main sequence's timer by it (wrapped to 0..0xffff; a running one is not touched) and, with all, the stopped turret too and a stopped DELTA is made to RUN (inteng's quirk: the step goes into its running
+// word, FUN_0047b9c0 0x47baaa); Second moves the timer of inteng's [2] (the newest
+// delta when there is one, else the turret), running or not (the Shift variant)
+void HierarchyView_ScrubMain(int32_t step, bool all);
+void HierarchyView_ScrubSecond(int32_t step, bool delta);
+// THE ALTERNATE SHAPE SETS on the model (inteng FUN_00477b40 / FUN_00477d10 -> FUN_0047e9f0: each section's shape is the set's replacement when a set of the list names that section, else the
+// hierarchy's own; reassess/hierarchy-edit-frost.md HF-0x43): the sections are put back to their own shapes, then each named set (the file's OBHALTSH, by the game's library,
+// GetHierarchyAlternateShapeSetFromLibrary) replaces its sections' shapes in turn, as the game's ChangeToAlternateAccoutrementSet does. An empty list is "Original". Gives how many sections changed.
+int HierarchyView_ApplyShapeSets(const std::vector<std::string> &setNames);
+// Counts each model shown (HierarchyView_Show): a new one has its own shapes again
+int HierarchyView_ShowCount();
+// all false: the main sequence only (inteng's P / O with "Play commands affect all sequences" off: FUN_0047b8b0 0x47b8c3 skips the turret and the deltas unless the player's +0x88, Y's switch, is on)
+void HierarchyView_Play(bool on, bool loop, bool all = true);
 bool HierarchyView_IsPlaying();
 void HierarchyView_SetPosition(int32_t position);
 int32_t HierarchyView_Position();
@@ -56,8 +82,14 @@ int32_t HierarchyView_Position();
 bool HierarchyView_TurretFacts(int *timer, int *milliseconds);
 int HierarchyView_DeltaFacts(int *timers, int *milliseconds, int most);
 
-// One keyframe of the playing sequence forward (direction 1) or back (-1), wrapping: the position lands on the start of the next / previous keyframe of the root section's list (each keyframe's Sequence_Length is its share of the sequence); stops it
-void HierarchyView_StepFrame(int direction);
+// One keyframe of the playing sequence forward (direction 1) or back (-1), wrapping: the position lands on the start of the next / previous keyframe of the root section's list (each keyframe's Sequence_Length is its share of the sequence); a playing sequence plays on from there (inteng writes the timer only, HP-79).
+// all (Y's "Play commands affect all sequences", inteng FUN_00479110 / FUN_00479290): the turret and every delta move on / back by the same time, each in its own sequence's terms
+void HierarchyView_StepFrame(int direction, bool all);
+
+// Ctrl+R / Ctrl+F on the shown model's root section frames of one sequence (the file's bytes are hierarchy_edit.h's): turned half round the vertical (x and z negated, the orientation as
+// inteng's FUN_00480eb0 turns its player's), or lowered by `by` in the game's unit (each frame's y less it). False when the shown model has no such sequence.
+bool HierarchyView_TurnRootSequence(int sequence, int sub);
+bool HierarchyView_LowerRootSequence(int sequence, int sub, int by);
 
 // DETAIL LEVELS (inteng's U and I, FUN_00477fb0; Shift+D, FUN_00479a80). A model whose shapes have lower-detail versions (the game's shape_degradation_array, built from the HIDEGDIS distances) shows the one
 // the camera's distance asks for (the game's Get_Degraded_Shape). HierarchyView_DetailLevels is how many levels the shown model has (1 when none), HierarchyView_SetDetailLevel forces one (0 the full shape,
@@ -121,6 +153,9 @@ bool HierarchyView_AddDelta(int sequence, int sub);
 // Takes every delta away
 void HierarchyView_RemoveDeltas();
 
+// The CURRENT delta (the one last added: inteng's player +8, FUN_00478780) plays or stops: Shift+P (case 0xb, +0x28 = 1 at 0x488b1a) and Shift+O (case 0xc, +0x28 = 0 at 0x488b3a). false when none.
+bool HierarchyView_SetDeltaPlaying(bool on);
+
 // How many deltas play now
 int HierarchyView_DeltaCount();
 
@@ -155,6 +190,13 @@ bool ModelObjects_IdOfBlock(const struct displayblock *block, uint8_t id[8]);
 struct displayblock *ModelObjects_BlockOfId(const uint8_t id[8]);
 // Where the objects are (millimetres, the game's world), the smallest and largest of each axis, for the camera; false when there are none
 bool ModelObjects_Bounds(int32_t mins[3], int32_t maxs[3]);
+// Every display block made for the file's objects (for hiding them all: the Hierarchy view switch), leaving out the ones ModelObjects_Collapse put at the origin; gives how many
+size_t ModelObjects_Blocks(std::vector<const struct displayblock *> *out);
+// THE SECTIONS BEFORE A SEQUENCE (inteng FUN_0047e320 0x47e6d4-0x47e733 / 0x47e544-0x47e556, reassess/hierarchy-play-frost.md HP-21 / HP-31): a chosen hierarchy's sections are the file's own objects, put
+// at the origin (DAT_00637068/6c/70, never written: 0, 0, 0) with the identity turn (DAT_005d45d0) and drawn there until a main sequence places them (FUN_00478850 does nothing without one). Collapse
+// moves the blocks of the objects with these IDs there (remembering where they were) and gives how many it found; Uncollapse puts them back. A second Collapse puts the first ones back first.
+size_t ModelObjects_Collapse(const std::vector<std::vector<uint8_t>> &ids);
+void ModelObjects_Uncollapse();
 
 // THE SHAPE CHOOSER'S PREVIEW (inteng FUN_004dd870 / FUN_004dd6f0 / FUN_0053c4f0): the shape with that number drawn ALONE, turned by the identity matrix, at the origin, the camera 2 x its maxx behind it. Show makes the block and draws objects outside the modules (the renderer hook; the caller hides every module and placed object, LevelView_HideModules / HideObjects), and gives the camera's place (*cameraZ = -2 * shapemaxx); false when the game has no such shape. Close takes it all back.
 bool ShapePreview_Show(int shapeNumber, int32_t *cameraZ);

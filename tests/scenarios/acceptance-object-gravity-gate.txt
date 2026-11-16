@@ -1,0 +1,59 @@
+# ACCEPTANCE (red first): Object Placement's GRAVITY GATE and the FLY GATE, by Melanikus's path (the bar is clicked, an object is clicked, the keys are pressed).
+# inteng FUN_004d9af0 (object-placement.md section 8a, V-6 / V-7 / V-8 / V-21; listing-all-3): with Gravity ON (DAT_008f4f50) the block at 0x4dc12c-0x4dc204 is skipped, so F (fly), L (collisions),
+# E and Object > Edit, and Object > Delete do NOTHING; while an object FLIES, Delete does nothing (0x4dc343) and Toggle Gravity can't be switched (0x4dc66e). Invasion, read-only, in front of switch3.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+picture 1
+# GRAVITY ON: F, L, E, Edit and Delete do nothing
+click-bar Misc > Toggle Gravity
+wait 300
+key F
+wait 300
+expect-hierarchy-count 0 Flying object
+# L with Gravity on does nothing: its effect is seen once the object flies (the "Colliding" line is a fly line, OP-101), below
+key L
+wait 300
+key E
+wait 300
+expect-no-dialog
+click-bar Object > Edit
+wait 300
+expect-no-dialog
+click-bar Object > Delete
+wait 300
+expect-selected 1
+picture 2
+# the view between the text lines and the status line (the status line says what Toggle Gravity did): the object is where it was, not deleted
+expect-pixels-same-since 1 picture 0 250 1008 400 0.005
+# GRAVITY OFF again: F flies, and the object still COLLIDES (the L above was skipped)
+click-bar Misc > Toggle Gravity
+wait 300
+key F
+wait 300
+expect-hierarchy-text Flying object
+expect-hierarchy-text Colliding
+# WHILE FLYING: Delete does nothing, and Gravity can't be switched on
+click-bar Object > Delete
+wait 300
+expect-selected 1
+expect-hierarchy-text Flying object
+click-bar Misc > Toggle Gravity
+wait 300
+key F
+wait 300
+expect-hierarchy-count 0 Flying object
+# Gravity stayed OFF: F flies again
+key F
+wait 300
+expect-hierarchy-text Flying object
+key F
+wait 300
+expect-hierarchy-count 0 Flying object

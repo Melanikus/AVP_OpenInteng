@@ -338,25 +338,6 @@ namespace host
 			return false;
 		}
 
-		// Whether any chunk inside this object holds the 8 bytes of that ID, at any place. Another object names this one by its ID (a switch's
-		// target, a door, a parent, a death target...), in a field or in an item of a list the field model doesn't list, and a kind the editor
-		// doesn't know could hold one too, so the bytes are searched, not the fields. Eight bytes of a level matching by chance is 1 in 2^56.
-		bool HoldsId(Bytes const &bytes, ObjectInfo const &object, uint8_t const *id)
-		{
-			for (Piece const &child : object.children)
-			{
-				for (size_t at = child.at + HeadingBytes; at + 8 <= child.at + child.size; at++)
-				{
-					if (memcmp(bytes.data() + at, id, 8) == 0)
-					{
-						return true;
-					}
-				}
-			}
-
-			return false;
-		}
-
 		bool NameIsTaken(std::vector<ObjectInfo> const &objects, std::string const &name)
 		{
 			for (ObjectInfo const &object : objects)
@@ -669,11 +650,12 @@ namespace host
 		{
 			Delete,
 			Assign,
-			Copy
+			Copy,
+			Replace   // the bytes given
 		};
 
 		// What the three strategy edits share: the object `id`, a strategy to put in it (Assign's kind, or Copy's from), or none to take out
-		ObjectEditResult EditStrategy(OpenLevelFile *file, uint8_t const *id, StrategyWhat what, int32_t kind, uint8_t const *from)
+		ObjectEditResult EditStrategy(OpenLevelFile *file, uint8_t const *id, StrategyWhat what, int32_t kind, uint8_t const *from, uint8_t const *given = 0, size_t givenLength = 0)
 		{
 			Bytes image;
 			std::vector<ObjectInfo> objects;
@@ -704,6 +686,16 @@ namespace host
 					return ObjectEditResult::NoStrategy;
 				}
 			}
+			else if (what == StrategyWhat::Replace)
+			{
+				if (!given || givenLength < 12 || givenLength > 65536)
+				{
+					return ObjectEditResult::BadStrategy;
+				}
+
+				chunk = StrategyChunk(given, givenLength);
+				put = &chunk;
+			}
 			else if (what == StrategyWhat::Assign)
 			{
 				uint8_t payload[1024];
@@ -714,11 +706,8 @@ namespace host
 					return ObjectEditResult::BadStrategy;
 				}
 
-				// a new Switch Door's associated door is the OBJECT ITSELF in inteng (FUN_0052d020 stores the current object's ID, DAT_00914930, at +0x14); the model's creation value 0 (no door) was ours
-				if (kind == 59 && length >= 28)
-				{
-					memcpy(payload + 20, id, 8);
-				}
+				// a new Switch Door's associated door is the NULL ID (FUN_0052d020 stores DAT_00914930/34 at +0x14: a .bss pair nothing ever writes, so 0 0; the view shows "None"):
+				// the model's creation value 0 (reassess/strategy-data-kinds.md S-K59-0)
 
 				chunk = StrategyChunk(payload, length);
 				put = &chunk;
@@ -748,18 +737,8 @@ namespace host
 				put = &chunk;
 			}
 
-			// A strategy that goes away belongs to an object other objects may name
-			if (object.hasStrategy)
-			{
-				for (size_t i = 0; i < objects.size(); i++)
-				{
-					if (i != at && HoldsId(image, objects[i], id))
-					{
-						return ObjectEditResult::IsReferenced;
-					}
-				}
-			}
-
+			// No check of who names the object, as inteng's Copy / Assign / Delete (FUN_00528340 / FUN_00528830 / FUN_00528790) have none: the names stay, and the game follows each by name when a level
+			// starts (avpx bh_types.cpp AssignAllSBNames), null-safe and checking the kind it finds (Bishop's ruling 11-16, strategy-data-kinds.md S-KC-15; tests/host_strategy_named_test.cpp)
 			PutStrategy(image, object, put);
 			return FromLoader(file->ReplaceLevel(image));
 		}
@@ -1535,7 +1514,6 @@ namespace host
 		case ObjectEditResult::NoSuchObject: return "the level has no object with that name";
 		case ObjectEditResult::IsAModule: return "a module can be neither taken out nor copied";
 		case ObjectEditResult::NotPlaced: return "only a placed object can be copied";
-		case ObjectEditResult::IsReferenced: return "another object names this one, so it is not taken out";
 		case ObjectEditResult::BadName: return "a name is 1 to 63 plain letters";
 		case ObjectEditResult::NameTaken: return "another object has that name";
 		case ObjectEditResult::PlaceOutOfRange: return "that place is too far from the middle of the level";
@@ -1606,6 +1584,18 @@ namespace host
 		try
 		{
 			return EditLinks(file, id, items, count);
+		}
+		catch (std::exception const &)
+		{
+			return ObjectEditResult::CantBuild;
+		}
+	}
+
+	ObjectEditResult SetStrategyBytes(OpenLevelFile *file, uint8_t const *id, uint8_t const *payload, size_t length)
+	{
+		try
+		{
+			return EditStrategy(file, id, StrategyWhat::Replace, 0, 0, payload, length);
 		}
 		catch (std::exception const &)
 		{

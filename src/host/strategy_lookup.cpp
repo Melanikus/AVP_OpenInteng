@@ -13,6 +13,7 @@
 #include "chunk_object.hpp"   // Object_Chunk, Object_Project_Data_Chunk
 #include "mishchnk.hpp"       // File_Chunk::list_objects
 #include "strategy_chunk.hpp" // AVP_Strategy_Chunk
+#include "avp_chunk.hpp"      // AVP_Generator_Chunk, AVP_Generator_Extra_Data_Chunk
 
 // An object's ID is the game's ObjectID, two ints: the 8 bytes a pick compares (selection.h)
 static_assert(sizeof(ObjectID) == host::kSelectionIdBytes, "an ObjectID is the 8 bytes a pick in the view compares");
@@ -157,8 +158,106 @@ namespace host
 				return CopyPayload((AVP_Strategy_Chunk *)found, out);
 			}
 
+			// an enemy or a generator: the AVPSTRAT in the AVPGENEX named as it is (none: no strategy)
+			GeneratorRef generator;
+
+			if (FindGenerator(level, id, &generator))
+			{
+				AVP_Generator_Extra_Data_Chunk *const extra = ((AVP_Generator_Chunk *)generator.generator)->get_extra_data_chunk();
+				Chunk *const held = extra && !extra->r_u_miscellaneous() ? extra->lookup_single_child("AVPSTRAT") : 0;
+
+				if (!held || held->r_u_miscellaneous())
+				{
+					return StrategyFound::NoStrategy;
+				}
+
+				return CopyPayload((AVP_Strategy_Chunk *)held, out);
+			}
+
 			return StrategyFound::NoSuchObject;
 		}
+	}
+
+	void ListGenerators(File_Chunk *level, std::vector<GeneratorRef> *out)
+	{
+		out->clear();
+
+		if (!level)
+		{
+			return;
+		}
+
+		try
+		{
+			Chunk *const env = level->lookup_single_child("REBENVDT");
+
+			if (!env || env->r_u_miscellaneous())
+			{
+				return;
+			}
+
+			Chunk *const spec = ((Chunk_With_Children *)env)->lookup_single_child("SPECLOBJ");
+
+			if (!spec || spec->r_u_miscellaneous())
+			{
+				return;
+			}
+
+			List<Chunk *> found;
+
+			((Chunk_With_Children *)spec)->lookup_child("AVPGENER", found);
+
+			for (LIF<Chunk *> each(&found); !each.done() && out->size() < kMostGenerators; each.next())
+			{
+				Chunk *const one = each();
+
+				// a chunk the library kept as plain bytes (too short for what it reads) is no generator; nor one with no name to make its ID from
+				if (!one || one->r_u_miscellaneous() || !((AVP_Generator_Chunk *)one)->name)
+				{
+					continue;
+				}
+
+				AVP_Generator_Chunk *const generator = (AVP_Generator_Chunk *)one;
+				ObjectID const id = generator->CalculateID();
+				GeneratorRef ref;
+
+				ref.name = generator->name;
+				memcpy(ref.id, &id, kSelectionIdBytes);
+				ref.type = generator->type;
+				ref.place[0] = generator->location.x;
+				ref.place[1] = generator->location.y;
+				ref.place[2] = generator->location.z;
+				ref.generator = one;
+				out->push_back(ref);
+			}
+		}
+		catch (std::exception const &)
+		{
+			out->clear();
+		}
+	}
+
+	bool FindGenerator(File_Chunk *level, uint8_t const *id, GeneratorRef *out)
+	{
+		if (!id || !out)
+		{
+			return false;
+		}
+
+		std::vector<GeneratorRef> all;
+
+		ListGenerators(level, &all);
+
+		for (GeneratorRef const &one : all)
+		{
+			if (memcmp(one.id, id, kSelectionIdBytes) == 0)
+			{
+				*out = one;
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	void ListVirtualObjects(File_Chunk *level, std::vector<VirtualObjectRef> *out)
@@ -212,6 +311,9 @@ namespace host
 				ref.name = p->name ? p->name : "";
 				memcpy(ref.id, &p->ID, kSelectionIdBytes);
 				ref.viobject = one;
+				ref.place[0] = p->location.x;
+				ref.place[1] = p->location.y;
+				ref.place[2] = p->location.z;
 				out->push_back(ref);
 			}
 		}

@@ -1,0 +1,18 @@
+# ACCEPTANCE (red first): the Construction hub draws its SELECTION ORANGE, a module and a placed object alike (Melanikus 11-16: "The selection on hub mode is still purple, not orange like I showed").
+# inteng (view-state-table.md H-2a, H-2d): FUN_00444750 0x4449b7 -> FUN_0046da70(the selected entry's shape, 0xff7e05 + 0xfb) = 0xff7f00 in true colour, written into every polygon of the shape;
+# the hub draws the level as white lines (R-1), so the selected thing's lines are orange. Module Overlaps is off on the hub's entry (FUN_00447550 0x447555). By his path: the file opened as by a
+# double click (the hub is the first screen), a click on the view. Invasion, read-only, in front of switch3. Red before the fix: ours drew a module purple (0x7f007f) and an object green.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+camera -27851 -14055 85500 0 0
+wait 400
+picture 1
+click-win 504 364
+expect-selected 1
+wait 400
+picture 2
+expect-colour picture 0 0 1008 729 ff7f00 0.0003 20
+# neither the old purple nor the old green is the selection's colour
+expect-colour-at-most picture 0 0 1008 729 7f007f 0.0002 20

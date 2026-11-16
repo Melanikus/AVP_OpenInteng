@@ -141,7 +141,7 @@
 			"changes": [
 				{
 					"file": "src/host/field_descriptor_from_model.cpp",
-					"from": "value.number = number;",
+					"from": "value.number = number * factor;",
 					"to": "value.number = 0;"
 				}
 			]
@@ -311,7 +311,7 @@
 			"changes": [
 				{
 					"file": "src/host/field_descriptor_from_model.cpp",
-					"from": "descriptor.capacity = 17;",
+					"from": "descriptor.capacity = 63;",
 					"to": "descriptor.capacity = 16;"
 				}
 			]

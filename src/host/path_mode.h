@@ -78,6 +78,11 @@ namespace host
 	// The modules between module "from" and module "to" (indexes, in order from "from" outward), by the breadth-first search above. False for a bad index.
 	bool PathMode_Route(PathGraph const &graph, int from, int to, std::vector<int> *between);
 
+	// The path's module NEAREST module "start" (FUN_004f9650, used by an Enemy's / Generator's view end, S-K69-end): the breadth-first distances from start over the graph (FUN_004f89f0); over the
+	// modules in the graph's order, one closer than the best so far (from 1,000,000) that is the FIRST module with a step's number (FUN_004beb90) becomes the answer (ties: the earlier). Gives
+	// its graph index, or -1 (a bad start, no steps, or no step reachable).
+	int PathMode_NearestStep(PathGraph const &graph, std::vector<int32_t> const &numbers, int start, std::vector<PathNode> const &steps);
+
 	// Add the picked module to the working path. numbers[i] = the module chunk number of module i (PathNode::module). lastIndex = the last node's module index (ignored when the path is empty).
 	bool PathMode_AddModule(std::vector<PathNode> *path, PathGraph const &graph, std::vector<int32_t> const &numbers, int lastIndex, int pickedIndex);
 

@@ -1,0 +1,33 @@
+# ACCEPTANCE: Module Linking LEFT and ENTERED AGAIN as inteng's (Dietrich, 2026-11-16; rows ML-E-1..5 of AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md; Melanikus on 8672ec21: "When I go
+# away from module linking and go back to it my old module is still selected"). His path: the bar, clicks, keys, moving on the hub, reading the screen.
+# Exit (FUN_004c3b90 + FUN_004c3f40): the current module 0, every pick let go, the camera saved in slot 10 for the hub. Entering (the hub's 0xc8: FUN_004476d0 saves the camera in slot 10,
+# FUN_004c3a00 puts it back: the HUB'S camera): Mixed, the follow, Only Draw Linked and Select With Centres off, nothing current, nothing picked; Toggle View Distance and the distance kept.
+#ini ViewDistance=100000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+picture 1
+# ---- a base, a pick, Only Draw Linked on
+click-view 0.5 0.5
+key S
+click-view 0.2 0.2
+expect-screen-text APCmod
+key V
+expect-screen-text Draw Linked Modules Only
+# ---- Exit, move away on the hub (Z: back), and in again
+click-bar Mode > Exit
+expect-screen Construction
+hold Z 300
+click-bar Mode > Module Linking
+expect-screen Module Linking
+wait 300
+# nothing current (the state field linktree says "none"), nothing picked: no pick's name, no blue base, no magenta; Only Draw Linked off: the view distance's row again
+expect-screen-text-not APCmod
+expect-screen-text-not Draw Linked Modules Only
+expect-screen-text View Distance :200
+picture 2
+expect-colour-at-most picture 0 0 1008 700 7f007f 0.00005 40
+expect-colour-at-most picture 0 0 1008 700 0000ff 0.00005 40
