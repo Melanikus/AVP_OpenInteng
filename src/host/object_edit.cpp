@@ -1555,6 +1555,82 @@ namespace host
 		}
 	}
 
+	ObjectEditResult RenameObject(OpenLevelFile *file, uint8_t const *id, char const *name, uint8_t *newId)
+	{
+		try
+		{
+			if (!name || !name[0] || strlen(name) > MostNameBytes)
+			{
+				return ObjectEditResult::NoName;
+			}
+
+			Bytes image;
+			std::vector<ObjectInfo> objects;
+			size_t at = 0;
+			ObjectEditResult const prepared = Prepare(file, id, &image, &objects, &at);
+
+			if (prepared != ObjectEditResult::Done)
+			{
+				return prepared;
+			}
+
+			ObjectInfo const object = objects[at];
+			std::string const made = name;
+
+			// The object's bytes as they are, but for its header, made again with the new name at the size the library writes it for that name (Object_Header_Chunk::size_chunk:
+			// 72 and the name with its zero, to a whole 4); every other byte of the header (the fixed 60 after its heading) as it was
+			Bytes whole(HeadingBytes, 0);
+			bool headerSeen = false;
+
+			memcpy(whole.data(), image.data() + object.whole.at, HeadingBytes);
+
+			for (Piece const &child : object.children)
+			{
+				if (!NameIs(image, child.at, "OBJHEAD1") || headerSeen || child.size < HeadingBytes + NameAt)
+				{
+					whole.insert(whole.end(), image.begin() + (std::ptrdiff_t)child.at, image.begin() + (std::ptrdiff_t)(child.at + child.size));
+					continue;
+				}
+
+				headerSeen = true;
+
+				size_t length = HeadingBytes + NameAt + made.size() + 1;
+				length += (4 - length % 4) % 4;
+
+				size_t const start = whole.size();
+				whole.resize(start + length, 0);
+				memcpy(whole.data() + start, "OBJHEAD1", 8);
+				PutIntAt(whole, start + 8, (int32_t)length);
+				memcpy(whole.data() + start + HeadingBytes, image.data() + child.at + HeadingBytes, NameAt);
+				memcpy(whole.data() + start + HeadingBytes + NameAt, made.c_str(), made.size());
+			}
+
+			if (!headerSeen)
+			{
+				return ObjectEditResult::CantBuild;
+			}
+
+			PutIntAt(whole, 8, (int32_t)whole.size());
+			image.erase(image.begin() + (std::ptrdiff_t)object.whole.at, image.begin() + (std::ptrdiff_t)(object.whole.at + object.whole.size));
+			image.insert(image.begin() + (std::ptrdiff_t)object.whole.at, whole.begin(), whole.end());
+			PutIntAt(image, 8, (int32_t)image.size());
+
+			ObjectEditResult const done = FromLoader(file->ReplaceLevel(image));
+
+			if (done == ObjectEditResult::Done && newId)
+			{
+				memset(newId, 0, 8);
+				IdOfName(file, made, newId);
+			}
+
+			return done;
+		}
+		catch (std::exception const &)
+		{
+			return ObjectEditResult::CantBuild;
+		}
+	}
+
 	ObjectEditResult DeleteStrategy(OpenLevelFile *file, uint8_t const *id)
 	{
 		try

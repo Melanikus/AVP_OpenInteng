@@ -1,0 +1,45 @@
+# ACCEPTANCE (red first): an ENEMY (69)'s lines on his path, the saved copy read back through the game's own loader (Vasquez 11-17; reassess/strategy-data-kinds.md S-K69-1..4, -end:
+# FUN_005316a0's view, its clicks 0x531989-0x531a63, the end 0x531a94-0x531b42). Stat101's mar7 is a marine on Guard (MissionType 2, request 0, no death target; read 11-17 by switch_survey).
+# The Mission line (y 16): "Select Mission Type", Path follower (5); the path line (y 32): "Select Path", genpath01 (path 1); the request line (y 48): "Turn Death Target Off" -> On (bit 1);
+# Escape ends the view and fixes the path data (a marine path follower: ExtraMissionData &= 0xffff, the path's step module nearest the enemy in the high 16 bits). The copy must hold
+# MissionType 5, request 1, ExtraMissionData 1 (path 1; the high 16 bits the end's fix found are 0: read 11-17 from the green run of this build, so pinned, not derived from inteng),
+# every other strategy byte for byte. RED on the stock file read as the copy: 2, 0, 0.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is mar7
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 200@0:mar7 : Enemy
+expect-field-has strategyview 16@32:Turn Death Target Off|16@48:Death Target : None
+picture 1
+# y 16: the Mission, Path follower
+click-win 300 24
+expect-dialog Select Mission Type
+click-button Path_follower
+expect-no-dialog
+wait 300
+expect-field-has strategyview 16@16:Mission : Path follower|16@32:Path - 0  smart01|16@48:Turn Death Target Off|16@64:Death Target : None
+# y 32: the path, genpath01 (path 1)
+click-win 300 40
+expect-dialog Select Path
+click-row 2
+expect-no-dialog
+wait 300
+# y 48: the death target's request, on
+click-win 300 56
+wait 300
+expect-field-has strategyview 16@16:Mission : Path follower|16@32:Path - 1  genpath01|16@48:Turn Death Target On|16@64:Death Target : None
+picture 2
+key Esc
+wait 400
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF {copy} mar7 MissionType 5 request 1 ExtraMissionData 1

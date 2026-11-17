@@ -13,6 +13,13 @@ src/host/field_edit.cpp
 src/host/module_links.cpp
 src/host/level_chunks.cpp
 src/host/object_edit.cpp
+src/host/object_make.cpp
+src/host/object_place_edit.cpp
+src/host/quick_create.cpp
+src/host/shape_chooser.cpp
+src/host/shape_import.cpp
+src/host/simple_object_edit.cpp
+src/host/strategy_lookup.cpp
 src/host/object_base.cpp
 src/model/shape_model.cpp
 src/model/strategy_rules.cpp

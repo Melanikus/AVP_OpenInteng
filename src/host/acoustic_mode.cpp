@@ -274,7 +274,7 @@ namespace host
 			for (Span const &chunk : top)
 			{
 				bool const isObject = NameIs(image, chunk.at, "RBOBJECT");
-				std::vector<NewRecord>::const_iterator const wanted = !isObject ? records.end() :
+				const std::vector<NewRecord>::const_iterator wanted = !isObject ? records.end() :
 					std::find_if(records.begin(), records.end(), [&](NewRecord const &r) { return r.place == place; });
 
 				if (isObject)

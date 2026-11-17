@@ -258,13 +258,15 @@ static void TestRename(OpenLevelFile *open)
 
 	Check(host::ObjectEdit_Rename(open, level, lamp.id, "Torch", newId, &why) == ObjectEditAnswer::Done, "a free name that fits is done");
 
+	// the rename made the level again (RenameObject, 11-17): every Chunk * from before is gone, so the level is asked for again
+	File_Chunk *const renamedLevel = open->Level();
 	FoundObject torch;
 
-	Check(host::ObjectEdit_Find(level, open, "torch", &torch) && memcmp(torch.id, newId, 8) == 0 && memcmp(newId, lamp.id, 8) != 0, "it's found by its new name, with a new ID");
-	Check(!host::ObjectEdit_Find(level, open, "lamp", &same), "and no longer by the old one");
+	Check(host::ObjectEdit_Find(renamedLevel, open, "torch", &torch) && memcmp(torch.id, newId, 8) == 0 && memcmp(newId, lamp.id, 8) != 0, "it's found by its new name, with a new ID");
+	Check(!host::ObjectEdit_Find(renamedLevel, open, "lamp", &same), "and no longer by the old one");
 
 	List<Object_Chunk *> all;
-	level->list_objects(&all);
+	renamedLevel->list_objects(&all);
 	Object_Header_Chunk *head = nullptr;
 
 	for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
@@ -277,9 +279,52 @@ static void TestRename(OpenLevelFile *open)
 
 	std::vector<unsigned char> bytes;
 
-	Check(head && open->PayloadOf(head, &bytes) && bytes.size() == 72 - 12 + 8, "the header's bytes keep their size (60 and the 8 the old name's room was)");
+	Check(head && open->PayloadOf(head, &bytes) && bytes.size() == 72 - 12 + 8, "the header is the size the library writes for the name (60 and \"Torch\" with its 0, to a whole 4: 8)");
 	Check(bytes.size() == 68 && memcmp(&bytes[60], "Torch\0\0\0", 8) == 0, "with the new name and 0s after it");
-	Check(host::ObjectEdit_Rename(open, level, torch.id, "Lamp", newId, &why) == ObjectEditAnswer::Done, "a name can be given back");
+	Check(host::ObjectEdit_Rename(open, open->Level(), torch.id, "Lamp", newId, &why) == ObjectEditAnswer::Done, "a name can be given back");
+
+	// 11-17 (Drake, strategy-data.md S-35a): a SHORTER name than the room the old one had ("DoorHole", 8 letters: a 72-byte header, to "Dh": 64). The rename wrote the name
+	// into the old room, so the header's bytes (72) and the library's chunk (64) were of different sizes: after a save the level paired with nothing, and the next save was
+	// refused (NothingOpen). Now the header is written at the library's size, and the level is saved twice.
+	FoundObject door;
+	std::string const folder = "object_edit_test_rename_" + std::to_string(GetCurrentProcessId());
+	std::string const first = folder + "\\first.rif", second = folder + "\\second.rif";
+
+	CreateDirectoryA(folder.c_str(), 0);
+	Check(host::ObjectEdit_Find(open->Level(), open, "doorhole", &door) && host::ObjectEdit_Rename(open, open->Level(), door.id, "Dh", newId, &why) == ObjectEditAnswer::Done,
+		"a name shorter than the old room is done (DoorHole to Dh)");
+
+	Object_Header_Chunk *dh = nullptr;
+	List<Object_Chunk *> now;
+
+	open->Level()->list_objects(&now);
+
+	for (LIF<Object_Chunk *> each(&now); !each.done(); each.next())
+	{
+		dh = memcmp(&each()->object_data.ID, newId, 8) == 0 ? each()->get_header() : dh;
+	}
+
+	std::vector<unsigned char> dhBytes;
+	bool const dhRead = dh && open->PayloadOf(dh, &dhBytes);
+
+	Check(dhRead && dhBytes.size() == 64, "its header is the size the library writes for \"Dh\" (64 after the heading, it was 72): " + std::to_string(dhBytes.size()));
+	Check(open->SaveAs(first.c_str()) == LevelSaveResult::Saved, "the level is saved");
+
+	LevelSaveResult const again = open->SaveAs(second.c_str());
+
+	Check(again == LevelSaveResult::Saved, "and saved again (it was refused: SaveAs answered " + std::to_string((int)again) + ")");
+
+	OpenLevelFile back;
+
+	Check(back.Open(second.c_str()) == LevelOpenResult::Opened && back.Level() && host::ObjectEdit_Find(back.Level(), &back, "dh", &door), "the game's loader takes it, with Dh in it");
+
+	for (std::string const &path : { first, second })
+	{
+		DeleteFileA(path.c_str());
+		DeleteFileA((path + ".bak").c_str());
+	}
+
+	RemoveDirectoryA(folder.c_str());
 }
 
 int main()

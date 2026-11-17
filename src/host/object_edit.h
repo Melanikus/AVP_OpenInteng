@@ -59,6 +59,13 @@ namespace host
 	// place is its place, three whole numbers in millimetres (null: the original's). Gives its ID in newId (8 bytes), if newId isn't null.
 	ObjectEditResult CreateObjectLike(OpenLevelFile *file, uint8_t const *like, char const *name, int32_t const *place, uint8_t *newId);
 
+	// Gives the object whose ID is id a new name, the level made again with its header (OBJHEAD1) written at the size the game's library writes it for that name (72 bytes and
+	// the name with its ending zero, to a whole 4), as a structural edit through ReplaceLevel, as create and delete are: every Chunk * handed out before is gone, and
+	// Generation() is one more. The name is not judged here (ObjectEdit_Rename does). Gives its new ID in newId (8 bytes), if newId isn't null. (Added 2026-11-17 by Drake:
+	// the rename wrote the name into the old header's room, so the header's bytes and the library's chunk were of different sizes and the level stopped pairing after a
+	// save, strategy-data.md S-35a.)
+	ObjectEditResult RenameObject(OpenLevelFile *file, uint8_t const *id, char const *name, uint8_t *newId);
+
 	// THE STRATEGY OF AN OBJECT (strategy mode: Assign, Copy and Delete Strategy; F). The same way as above, on the bytes of the whole level:
 	// the object's AVPSTRAT chunk, inside its OBJPRJDT, is cut out, put in, or replaced, the sizes of the chunks around it are made again,
 	// and the game's loader reads the result before anything is swapped in. After a success every Chunk * the editor held is gone (as above),

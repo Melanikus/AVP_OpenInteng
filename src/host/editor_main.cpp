@@ -22050,7 +22050,7 @@ static void LinkClick(host::PickReport const &used, bool shift, bool held)
 		return;
 	}
 
-	std::vector<int32_t>::iterator const at = std::find(linkPicks.begin(), linkPicks.end(), index);
+	const std::vector<int32_t>::iterator at = std::find(linkPicks.begin(), linkPicks.end(), index);
 
 	if (held)
 	{
@@ -22181,7 +22181,7 @@ static void AcousticClick(host::PickReport const &used, bool shift)
 		return;
 	}
 
-	std::vector<std::array<uint8_t, 8>>::iterator const at = std::find(acousticPicks.begin(), acousticPicks.end(), id);
+	const std::vector<std::array<uint8_t, 8>>::iterator at = std::find(acousticPicks.begin(), acousticPicks.end(), id);
 
 	if (shift)
 	{
@@ -22499,7 +22499,7 @@ static model::AltLocations const *PlacementAltShown(OpenLevelFile *open, uint8_t
 	static std::string failedKey;
 	static unsigned failedFor = 0;
 	std::string const key = HexOf(id);
-	std::map<std::string, model::AltLocations>::const_iterator const found = altLists.find(key);
+	const std::map<std::string, model::AltLocations>::const_iterator found = altLists.find(key);
 
 	if (found != altLists.end())
 	{
@@ -33353,11 +33353,9 @@ static void RunThePrompt()
 		return;
 	}
 
-	// The name and the ID come from the library's own copy, made again: the list is read again, and the selection follows the object
-	std::vector<host::LevelObject> rows;
-
-	LevelObjects_Read(&rows);
-	objectList.Load(rows.data(), rows.size());
+	// The rename made the level again (RenameObject, a structural edit, 11-17): the list is made again and the field panel lets go of the old level, and the selection
+	// follows the object
+	LoadTheObjectListAgain();
 
 	host::Selected renamed = {};
 

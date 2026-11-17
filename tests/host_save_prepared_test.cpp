@@ -29,6 +29,9 @@
 #include "huffman.hpp"
 #include "level_file.h"
 #include "object_edit.h"
+#include "object_make.h"
+#include "object_place_edit.h"
+#include "shape_chooser.h"
 
 static int checksFailed = 0;
 
@@ -514,6 +517,77 @@ int main(int argc, char **argv)
 		Check(back.Open(thirdPath.c_str()) == LevelOpenResult::Opened && back.Level(), "the game's loader takes the third save");
 
 		for (std::string const &path : { firstPath, againPath, thirdPath })
+		{
+			DeleteFileA(path.c_str());
+			DeleteFileA((path + ".bak").c_str());
+		}
+	}
+
+	// 11-17 (Drake): P's OTHER branch, a placed object whose shape HAS an outside file (Invasion's first: Flam01; Genshd1's locker02 is "Cabinet"): a new object made from the shape
+	// (CreateObjectFromShape, named "<shape><n>"), renamed (svB), saved three times. The shape's header still lists the made name and the object's chunks were changed in their
+	// bytes, so the editor's tree pairs with neither the prepared bytes nor its own image: SaveAs's step 7 makes the level held the one written. Red on 406f11e (the
+	// second save answered NothingOpen).
+	{
+		OpenLevelFile edited;
+		uint8_t like[8] = {};
+		std::string shapeName;
+
+		if (edited.Open(argv[1]) == LevelOpenResult::Opened && edited.Level())
+		{
+			std::vector<host::ShapeChoice> shapes;
+
+			host::ShapeChooser_List(edited.Level(), &edited, &shapes);
+
+			List<Object_Chunk *> all;
+
+			edited.Level()->list_objects(&all);
+
+			for (LIF<Object_Chunk *> each(&all); !each.done() && shapeName.empty(); each.next())
+			{
+				int32_t number = -1;
+
+				if (each() && each()->get_header() && (each()->get_header()->flags & 0x400) != 0 &&
+					host::ShapeChooser_ShapeOfObject(edited.Level(), &edited, (uint8_t const *)&each()->object_data.ID, &number))
+				{
+					for (host::ShapeChoice const &one : shapes)
+					{
+						if (one.number == number && !one.name.empty())
+						{
+							shapeName = one.name;
+							memcpy(like, &each()->object_data.ID, 8);
+						}
+					}
+				}
+			}
+		}
+
+		int32_t const place[3] = { 1000, 2000, 3000 };
+		int32_t const matrix[9] = { 65536, 0, 0, 0, 65536, 0, 0, 0, 65536 };
+		uint8_t newId[8] = {}, madeId[8] = {};
+		std::string autoName, why;
+		bool const made = !shapeName.empty() && host::CreateObjectFromShape(&edited, shapeName.c_str(), place, matrix, newId, &autoName, "") == host::ObjectMakeResult::Done;
+
+		Check(made, "a placed object is made from the shape of a placed one with an outside file (" + shapeName + ", made as " + autoName + ")");
+		host::ObjectEditAnswer const renamed = made ? host::ObjectEdit_Rename(&edited, edited.Level(), newId, "svB", madeId, &why) : host::ObjectEditAnswer::BadCall;
+
+		Check(renamed == host::ObjectEditAnswer::Done, "and renamed svB (shorter than the made name: a header never changes its size), as P names it (answer " + std::to_string((int)renamed) + (why.empty() ? std::string() : ": " + why) + ")");
+
+		std::string const paths[3] = { scratchFolder + "save-prepared-shape1.rif", scratchFolder + "save-prepared-shape2.rif", scratchFolder + "save-prepared-shape3.rif" };
+
+		for (int round = 0; round < 3; round++)
+		{
+			DeleteFileA(paths[round].c_str());
+
+			LevelSaveResult const saved = edited.SaveAs(paths[round].c_str());
+
+			Check(saved == LevelSaveResult::Saved, "saved, round " + std::to_string(round + 1) + " of 3 (SaveAs answered " + std::to_string((int)saved) + "; the second was refused, NothingOpen)");
+		}
+
+		OpenLevelFile back;
+
+		Check(back.Open(paths[2].c_str()) == LevelOpenResult::Opened && back.Level(), "the game's loader takes the third save");
+
+		for (std::string const &path : paths)
 		{
 			DeleteFileA(path.c_str());
 			DeleteFileA((path + ".bak").c_str());

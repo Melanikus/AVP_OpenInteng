@@ -186,7 +186,7 @@ bool Config_Save()
 int Config_GetInt(const std::string &heading, const std::string &variable, int defaultValue)
 {
 	std::map<std::string, std::string> &underHeading = settingsInMemory[heading];
-	std::map<std::string, std::string>::const_iterator const held = underHeading.find(variable);
+	const std::map<std::string, std::string>::const_iterator held = underHeading.find(variable);
 	if (held == underHeading.end())
 	{
 		std::ostringstream asText;
@@ -205,7 +205,7 @@ int Config_GetInt(const std::string &heading, const std::string &variable, int d
 // ConfigFile.cpp:202-208. Changes a whole number that's held. One that's never been asked for isn't held, and nothing changes.
 void Config_SetInt(const std::string &heading, const std::string &variable, int newValue)
 {
-	std::map<std::string, std::map<std::string, std::string>>::iterator const underHeading = settingsInMemory.find(heading);
+	const std::map<std::string, std::map<std::string, std::string>>::iterator underHeading = settingsInMemory.find(heading);
 	if (underHeading == settingsInMemory.end() || underHeading->second.find(variable) == underHeading->second.end())
 	{
 		return;
@@ -218,7 +218,7 @@ void Config_SetInt(const std::string &heading, const std::string &variable, int 
 // ConfigFile.cpp:210-216. Changes a text that's held. One that's never been asked for isn't held, and nothing changes.
 void Config_SetString(const std::string &heading, const std::string &variable, const std::string &newValue)
 {
-	std::map<std::string, std::map<std::string, std::string>>::iterator const underHeading = settingsInMemory.find(heading);
+	const std::map<std::string, std::map<std::string, std::string>>::iterator underHeading = settingsInMemory.find(heading);
 	if (underHeading == settingsInMemory.end() || underHeading->second.find(variable) == underHeading->second.end())
 	{
 		return;
@@ -230,7 +230,7 @@ void Config_SetString(const std::string &heading, const std::string &variable, c
 std::string Config_GetString(const std::string &heading, const std::string &variable, const std::string &defaultString)
 {
 	std::map<std::string, std::string> &underHeading = settingsInMemory[heading];
-	std::map<std::string, std::string>::const_iterator const held = underHeading.find(variable);
+	const std::map<std::string, std::string>::const_iterator held = underHeading.find(variable);
 	if (held == underHeading.end())
 	{
 		underHeading.insert(std::make_pair(variable, defaultString));
@@ -246,7 +246,7 @@ std::string Config_GetString(const std::string &heading, const std::string &vari
 bool Config_GetBool(const std::string &heading, const std::string &variable, bool defaultValue)
 {
 	std::map<std::string, std::string> &underHeading = settingsInMemory[heading];
-	std::map<std::string, std::string>::iterator const held = underHeading.find(variable);
+	const std::map<std::string, std::string>::iterator held = underHeading.find(variable);
 	if (held == underHeading.end())
 	{
 		underHeading.insert(std::make_pair(variable, defaultValue ? "true" : "false"));
@@ -269,7 +269,7 @@ bool Config_GetBool(const std::string &heading, const std::string &variable, boo
 // ConfigFile.cpp:284-297. Changes a yes or no that's held. One that's never been asked for isn't held, and nothing changes.
 void Config_SetBool(const std::string &heading, const std::string &variable, bool newValue)
 {
-	std::map<std::string, std::map<std::string, std::string>>::iterator const underHeading = settingsInMemory.find(heading);
+	const std::map<std::string, std::map<std::string, std::string>>::iterator underHeading = settingsInMemory.find(heading);
 	if (underHeading == settingsInMemory.end() || underHeading->second.find(variable) == underHeading->second.end())
 	{
 		return;

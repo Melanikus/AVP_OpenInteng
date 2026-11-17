@@ -84,7 +84,7 @@ namespace host
 
 	AdjacentDelete AdjacentList::Delete(int32_t picked)
 	{
-		std::vector<int32_t>::iterator const found = picked < 0 ? members.end() : std::find(members.begin(), members.end(), picked);
+		const std::vector<int32_t>::iterator found = picked < 0 ? members.end() : std::find(members.begin(), members.end(), picked);
 
 		if (found == members.end())
 		{
