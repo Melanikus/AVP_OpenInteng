@@ -371,10 +371,10 @@ int main(int argc, char **argv)
 		}
 	}
 
-	size_t const accountedFor = shapeBefore.points.size() * 12 + 28 + usersAt.size() * 12 + baseline * 2;
+	size_t const mayDiffer = shapeBefore.points.size() * 12 + 28 + usersAt.size() * 12 + baseline * 2;
 
-	printf("  (%zu bytes differ; the points, the header's radius and extents, %zu place(s) and the save's own prepare_for_output (a baseline of %zu bytes, twice) can account for up to %zu)\n", differing, usersAt.size(), baseline, accountedFor);
-	Check(differing > 0 && differing <= accountedFor, "only the numbers that were meant to move have changed");
+	printf("  (%zu bytes differ; the points, the header's radius and extents, %zu place(s) and the save's own prepare_for_output (a baseline of %zu bytes, twice) can change up to %zu of them)\n", differing, usersAt.size(), baseline, mayDiffer);
+	Check(differing > 0 && differing <= mayDiffer, "only the numbers that were meant to move have changed");
 
 	DeleteFileA(copyPath.c_str());
 	printf("%s\n", checksFailed ? "SOME CHECKS FAILED" : "All checks passed");

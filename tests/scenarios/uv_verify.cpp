@@ -19,6 +19,8 @@
 #include "shape_edit.h"
 #include "uv_edit.h"
 
+#include "arg_number.h"
+
 HANDLE avp_CreateFile(const char *n, DWORD a, DWORD s, LPSECURITY_ATTRIBUTES sa, DWORD c, DWORD f, HANDLE m) { return CreateFileA(n, a, s, sa, c, f, m); }
 DWORD avp_GetFileAttributes(const char *n) { return GetFileAttributesA(n); }
 void avp_MessageBox(const char *m, int) { printf("  the game's code says: %s\n", m ? m : ""); }
@@ -51,7 +53,14 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	int const rowA = atoi(argv[2]), rowB = atoi(argv[3]);
+	// the rows and polygon numbers are bounded before they are used (arg_number.h)
+	long rowA = 0, rowB = 0;
+
+	if (!ArgNumber("row A", argv[2], 0, 1000000, &rowA) || !ArgNumber("row B", argv[3], 0, 1000000, &rowB))
+	{
+		return 2;
+	}
+
 	bool const same = strcmp(argv[4], "same") == 0;
 	uint8_t ids[2][8];
 	bool have[2] = { false, false };
@@ -88,7 +97,15 @@ int main(int argc, char **argv)
 
 	for (int i = 5; i < argc; i++)
 	{
-		int const polygon = atoi(argv[i]);
+		long polygonNumber = 0;
+
+		if (!ArgNumber("the polygon number", argv[i], 0, 65535, &polygonNumber))
+		{
+			failed++;
+			continue;
+		}
+
+		int const polygon = (int)polygonNumber;
 		model::PolygonUv a, b;
 		std::string why;
 		bool const read = host::UvEdit_ReadPolygon(&file, file.Level(), ids[0], polygon, &a, &why) == host::UvEditResult::Done && host::UvEdit_ReadPolygon(&file, file.Level(), ids[1], polygon, &b, &why) == host::UvEditResult::Done && a.textured && b.textured;

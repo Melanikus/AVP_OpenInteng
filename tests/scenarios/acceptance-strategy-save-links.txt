@@ -1,0 +1,55 @@
+# ACCEPTANCE (red first): Strategy Data's Save makes every switch's Links again before it writes, HIS PATH (Vasquez 11-17; strategy-data.md S-K61-3: FUN_005282d0 0x528306 -> FUN_0052e000 ->
+# FUN_0052dc90 for every record's strategy, which rebuilds a Linked (61), Multi (66) or Area (68) switch's Links and writes them in; any other kind returns at once).
+# Genshd1 (read 11-17 by the game's loader, switch_survey): linktoeverything (61) holds NumLinks 4 (genlev02, genlev01, genlev03, genlev04: the records' order, as its view draws them), each a 66 whose one target is
+# linktoeverything (request 1). Shift + D on genlev02's only target row takes it out (FUN_005304a0); linktoeverything's view makes its Links again as it opens (S-K61-1): three. Then the bar's
+# Save (bar 2's Save, through the right button's pop-up, row 1): the saved file's linktoeverything must hold NumLinks 3 (before S-K61-3 ours wrote the 4 it was read with), genlev02 NumTargets 0, every other strategy the original's.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is genlev02
+expect-no-dialog
+key E
+wait 400
+picture 1
+expect-field-has strategyview 200@0:genlev02 : Multiple Target Switch
+expect-field-has strategyview 16@80:Targets :
+expect-field-has strategyview 80@96:linktoeverything
+# Shift + D with the pointer on row 0 (the view's y 96 is the window's y 104): the target taken out
+move-win 300 104
+key D shift
+wait 300
+picture 2
+expect-field-has strategyview 200@0:genlev02 : Multiple Target Switch
+expect-field-has strategyview 16@80:Targets :
+key Esc
+wait 300
+expect-screen Strategy Data
+# linktoeverything's view: its Links made again as it opens (genlev02 no longer targets it)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is linktoeverything
+expect-no-dialog
+key E
+wait 400
+picture 3
+expect-field-has strategyview 200@0:linktoeverything : Linked Switch
+expect-field-has strategyview 16@120:Links:
+# the three left, in the records' order, each a 66 ("ls" at 0x14, the name at the tab, 64)
+expect-field-has strategyview 20@136:ls|64@136:genlev01|20@152:ls|64@152:genlev03|20@168:ls|64@168:genlev04
+key Esc
+wait 300
+expect-screen Strategy Data
+# Strategy Data's own Save (bar 2's "Save", reached by the right button's pop-up, its row 1; FUN_005282d0): the repair pass, the Links, then the level (a hidden run writes its copy)
+click-win 120 500 right
+click-popup 1
+wait 1500
+expect-status Genshd1-edited.rif
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {exedir}AVP_OpenInteng\edited\Genshd1-edited.rif linktoeverything NumLinks 3 also genlev02 also area
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {exedir}AVP_OpenInteng\edited\Genshd1-edited.rif genlev02 NumTargets 0 also linktoeverything also area
+# the Save's repair pass (FUN_00536ad0) takes out "area"'s two dead targets (7 -> 5), as Find Errors does
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {exedir}AVP_OpenInteng\edited\Genshd1-edited.rif area NumTargets 5 also linktoeverything also genlev02

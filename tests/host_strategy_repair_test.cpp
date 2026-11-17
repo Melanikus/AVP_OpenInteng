@@ -27,6 +27,7 @@
 #include "level_store.h"
 #include "strategy_edit.h"   // LookUpStrategyBytes
 #include "strategy_repair.h"
+#include "strategy_views.h"   // StrategyRecordRef, for ListStrategyRecords (the Multi / Area Switch case)
 #include "virtual_object.h"
 #include "placed_hierarchy_strategy.h"
 #include "chunk_sound.hpp"   // Sound_Object_Chunk::CalculateID
@@ -557,6 +558,98 @@ static void HierarchyObjectCase(char const *path)
 	      std::to_string((unsigned long long)(read ? now.payload.size() : 0)) + " bytes)");
 }
 
+// THE MULTI / AREA SWITCH CASE (FUN_00530820, rows S-K66-12 / S-K68-12; Vasquez 11-17): the level's first strategy of that kind (66 or 68) gets four targets, U1, V1, U2, V2 (unknown IDs and
+// virtual objects), its Links and the words after them kept. The walk is 70's (FUN_00530820 0x530833-0x53087a): U1 rejected, V2 moved into its place and kept, V1 kept, U2 rejected and the last:
+// the targets are V2, V1 with their requests; the Links, pad and flags after the list as they were; a second pass changes nothing.
+static void MultiCase(char const *path, int32_t kind)
+{
+	std::string const label = "kind " + std::to_string((long long)kind) + ": ";
+	OpenLevelFile level;
+
+	if (level.Open(path) != LevelOpenResult::Opened || !level.Level())
+	{
+		Check(false, label + "the level opens: " + path);
+		return;
+	}
+
+	std::vector<host::VirtualObjectInfo> virtuals;
+	std::vector<host::StrategyRecordRef> records;
+
+	host::VirtualObject_List(&level, &virtuals);
+	host::ListStrategyRecords(level.Level(), &records);
+
+	host::StrategyRecordRef const *subject = nullptr;
+
+	for (host::StrategyRecordRef const &one : records)
+	{
+		if (one.kind == kind && one.payload.size() >= 40 && IntAt(one.payload, 36) >= 0 && (size_t)IntAt(one.payload, 36) <= (one.payload.size() - 40) / 12)
+		{
+			subject = &one;
+			break;
+		}
+	}
+
+	std::vector<uint8_t const *> others;
+
+	for (host::VirtualObjectInfo const &one : virtuals)
+	{
+		if (others.size() < 2 && (!subject || memcmp(one.id, subject->id.data(), 8) != 0))
+		{
+			others.push_back(one.id);
+		}
+	}
+
+	Check(subject != nullptr && others.size() == 2, label + "the level has one (and two virtual objects for targets): " + path);
+
+	if (!subject || others.size() != 2)
+	{
+		return;
+	}
+
+	std::vector<uint8_t> const before = subject->payload;
+	uint8_t id[8];
+	uint8_t unknown1[8], unknown2[8];
+
+	memcpy(id, subject->id.data(), 8);
+	memset(unknown1, 0xEE, 8);
+	memset(unknown2, 0xDD, 8);
+
+	int32_t const count = IntAt(before, 36);
+	size_t const rest = 40 + 12 * (size_t)count;   // the Links, pad and flags after the targets
+	std::vector<uint8_t> const u1 = Entry(unknown1, 1), v1 = Entry(others[0], 2), u2 = Entry(unknown2, 3), v2 = Entry(others[1], 1);
+	std::vector<uint8_t> planted(before.begin(), before.begin() + 40);
+	int32_t const four = 4;
+
+	memcpy(planted.data() + 36, &four, 4);
+
+	for (std::vector<uint8_t> const *entry : { &u1, &v1, &u2, &v2 })
+	{
+		planted.insert(planted.end(), entry->begin(), entry->end());
+	}
+
+	planted.insert(planted.end(), before.begin() + (std::ptrdiff_t)rest, before.end());
+
+	bool const put = host::SetStrategyBytes(&level, id, planted.data(), planted.size()) == host::ObjectEditResult::Done ||
+	                 host::VirtualObject_SetStrategyBytes(&level, id, planted.data(), planted.size()) == host::VirtualObjectResult::Done;
+
+	Check(put, label + "four targets are put in: unknown, virtual, unknown, virtual");
+
+	size_t const changed = host::StrategyRepair_Run(&level);
+	host::ObjectStrategy after;
+
+	Check(changed >= 1 && host::FindObjectStrategy(level.Level(), id, &after) == host::StrategyFound::Found && after.payload != planted, label + "the repair pass changes it (its own bytes, not only another record's)");
+	Check(IntAt(after.payload, 36) == 2, label + "two targets are left: " + std::to_string((long long)IntAt(after.payload, 36)));
+
+	std::vector<uint8_t> expected(v2);
+
+	expected.insert(expected.end(), v1.begin(), v1.end());
+	Check(after.payload.size() >= 40 + expected.size() && memcmp(after.payload.data() + 40, expected.data(), expected.size()) == 0, label + "the targets are V2 (moved into the first place), then V1, with their requests");
+	Check(after.payload.size() == 40 + 24 + (before.size() - rest) && memcmp(after.payload.data() + 64, before.data() + rest, before.size() - rest) == 0,
+		label + "the Links, pad and flags after the targets are as they were");
+	Check(memcmp(after.payload.data(), before.data(), 36) == 0, label + "the words before the list are as they were");
+	Check(host::StrategyRepair_Run(&level) == 0, label + "a second pass changes nothing");
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 3)
@@ -670,6 +763,8 @@ int main(int argc, char **argv)
 	Check(reopened.Level() && MissionBytes(reopened, subject, &reread) && reread == after, "the copy holds the repaired Mission Objective");
 
 	TrackCase(argv[1], 72);
+	MultiCase(argv[1], 66);
+	MultiCase(argv[1], 68);
 
 	if (argc >= 4)
 	{

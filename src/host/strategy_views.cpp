@@ -1880,6 +1880,42 @@ namespace host
 		return true;
 	}
 
+	bool StrategyView_WithLinks(int32_t kind, std::vector<uint8_t> const &payload, std::vector<std::array<uint8_t, 8>> const &links, std::vector<uint8_t> *out)
+	{
+		std::vector<std::array<uint8_t, 8>> old;
+
+		if (!out || !StrategyView_StoredLinks(kind, payload, &old) || links.size() > 0x7fffffff / kLinkBytes)
+		{
+			return false;
+		}
+
+		size_t at = kLinkedLinks;
+
+		if (kind == 66 || kind == 68)
+		{
+			size_t targets = 0;
+
+			MultiTargetCount(payload, &targets);   // read already, and good, in StrategyView_StoredLinks
+			at = kMultiTargets + 4 + targets * kMultiTargetBytes;
+		}
+
+		size_t const after = at + 4 + old.size() * kLinkBytes;   // within the payload: StrategyView_StoredLinks checked the old list fits
+		int32_t const n = (int32_t)links.size();
+		uint8_t count[4];
+
+		memcpy(count, &n, 4);
+		out->assign(payload.begin(), payload.begin() + (std::ptrdiff_t)at);
+		out->insert(out->end(), count, count + 4);
+
+		for (std::array<uint8_t, 8> const &id : links)
+		{
+			out->insert(out->end(), id.begin(), id.end());
+		}
+
+		out->insert(out->end(), payload.begin() + (std::ptrdiff_t)after, payload.end());
+		return true;
+	}
+
 	bool StrategyView_MultiTargets(std::vector<uint8_t> const &payload, std::vector<MultiTarget> *targets)
 	{
 		return MultiTargetsOf(payload, targets);

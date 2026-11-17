@@ -54,6 +54,12 @@ bool LevelObjects_Read(std::vector<host::LevelObject> *objects);
 // false, with *header as it was, when no level is open, no object has that ID, or the object has no header.
 bool LevelObjects_FindHeader(const uint8_t *id, host::ObjectHeader *header);
 
+// Every object of the open level whose shape is the shape of the object with that ID (Object_Chunk::get_assoc_shape, inteng's FUN_004d0fd0: its header's shape; the objects with
+// no header share none), that object too, in the level's own order, into *objects (emptied first). For Strategy Data's collector, Ctrl + click (FUN_00526bf0 0x526e3b, S-79). When
+// two objects share the ID, the first in the level's order is the one whose shape is taken. Gives back false, with none, when no level is open or no object of the level has that
+// ID (a virtual object has none). (Added 2026-11-17 by Frost.)
+bool LevelObjects_ShapeGroup(const uint8_t *id, std::vector<host::LevelObject> *objects);
+
 // The open level, as the game's chunk library holds it (the editor's own open's file chunk, level_file.h), for lookups that walk it
 // (strategy_lookup.h). Null when no level is open. It's good only while that level stays open.
 File_Chunk *LevelObjects_Level();

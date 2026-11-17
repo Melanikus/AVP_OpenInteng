@@ -1,0 +1,42 @@
+# ACCEPTANCE (red first): Copy Strategy's collector, Ctrl + click: every object of the level that uses the clicked object's SHAPE joins the targets (Frost, 2026-11-17; strategy-data.md S-79).
+# inteng's collector FUN_00526bf0 (0x526e3b-0x526ecc): with Ctrl held (0xd87a5f) and Shift not, a click on an object of the level (a record with an object, +0x154) takes its shape
+# (FUN_004d0fd0: Object_Chunk::get_assoc_shape) and adds every record whose object has that shape, in the level's order, when it is not in the list yet (RED). Ours took only the
+# clicked one (the Ctrl group was a NAMED gap).
+# Fall: the six screens (screen1..screen6, placed objects, Placed Object strategies of Type 9) share one shape, and nothing else uses it (kind-list, AvP-docs/tools/frost). His path:
+# Find Object pulse0 (a Placed Object of Type 2: the source), the pop-up's Copy Strategy, Ctrl + click on screen1, Return, Yes to All: all six get pulse0's copy, and the saved copy read
+# back through the game's loader has pulse0's Type 2 on screen1 and screen6 (they held 9). RED before: only screen1 is a target ("1 object(s)"), screen6 keeps Type 9.
+#ini ViewDistance=100000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Fall.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is pulse0
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 2
+expect-status Select objects to copy to
+
+# 1.5 m in front of screen1 (its place 40743 14607 5559), looking along z: Ctrl + click on it
+camera 40743 14607 4059 0
+wait 600
+picture 1
+click-view 0.5 0.5 ctrl
+wait 300
+picture 2
+key Enter
+
+expect-dialog-kind form
+click-button Yes_All
+expect-no-dialog
+expect-status Copy Strategy: 6 object(s) got the strategy
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Fall.RIF {copy} screen1 Type 2 also screen2 also screen3 also screen4 also screen5 also screen6
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Fall.RIF {copy} screen6 Type 2 also screen1 also screen2 also screen3 also screen4 also screen5

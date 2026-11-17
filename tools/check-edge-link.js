@@ -10,17 +10,23 @@
 // each with the object it came from, written "library:object" when that object came out of a library. This reads those library names.
 // A search for the words alone wouldn't do: the game's own names contain them ("DamageNetworkGhost" holds "enet").
 //
-// Usage: node tools/check-edge-link.js <the program's .map> <the program's .exe>
+// Usage, from the tree's root: node tools/check-edge-link.js <the program's .map> <the program's .exe>. Both must be inside the tree
+// (tree-path.js): win32/VS2026/Win32/Release/AVP_OpenInteng.map and .exe.
 // It answers 0 when every library is allowed, and 1 with the reasons when not.
 
 'use strict';
 const fs = require('fs');
+const { insideTree } = require('./tree-path.js');
 
-const [mapPath, exePath] = process.argv.slice(2);
-if (!mapPath || !exePath) {
-	console.error('usage: node tools/check-edge-link.js <program .map> <program .exe>');
+const [mapGiven, exeGiven] = process.argv.slice(2);
+if (!mapGiven || !exeGiven) {
+	console.error('usage: node tools/check-edge-link.js <program .map> <program .exe>, from the tree\'s root');
 	process.exit(2);
 }
+
+// Both are held inside the tree's root, the folder this is run from (tree-path.js says why)
+const mapPath = insideTree(mapGiven, 'The program\'s .map');
+const exePath = insideTree(exeGiven, 'The program\'s .exe');
 
 // Never, whatever else changes (R-INT-15): the editor never plays online. ws2_32 and wsock32 are Windows' own network sockets, which
 // nothing in the editor has a reason to use either.

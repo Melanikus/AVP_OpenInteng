@@ -3,7 +3,9 @@
 # SHPMORPH (the listing passes the record's object in ECX)). The pass (FUN_00536ad0) may only take out targets no such record answers to. Levels read 11-17 with repair_survey on the stock files:
 # before c94c6fa our pass took out 159 kept targets over the 63 stock levels (68 sounds, 50 particle generators, 29 generators / enemies, 12 morphing placed objects), c94c6fa alone 12 (Stat101_M's
 # lift and vent doors), with SHPMORPH none.
-# Derelict: nothing may change.
+# Derelict: only the dead target of "V destroying mirror01 light at START" (66, 2 -> 1).
+# The 66 / 68 list repair (FUN_00530820, 4d2c410) takes out the targets no record answers to; inteng does the same (its vtables 0x5af520 / 0x5af554 +0x1c), so those switches are named
+# below with their new counts (read 11-17 by repair_survey: every target they lose is an ID no record has).
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
 pictures on
 state
@@ -20,4 +22,5 @@ expect-no-dialog
 picture 1
 # the copy, read back by the game's loader
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF {copy} glass target_request 2
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF {copy} glass target_request 2 also "V destroying mirror01 light at START"
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF {copy} "V destroying mirror01 light at START" NumTargets 1 also glass

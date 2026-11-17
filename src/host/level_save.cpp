@@ -81,9 +81,17 @@ namespace host
 
 		DeleteFileA(temporary.c_str());
 
-		if (open->SaveAs(temporary.c_str()) != LevelSaveResult::Saved)
+		// the Windows error said with the refusal is the save's own: the delete above leaves "file not found" (2) when there was no ".saving", and a refusal that sets
+		// none (the level not held paired, the loader refusing the image) would carry it (Frost 11-17)
+		SetLastError(0);
+
+		LevelSaveResult const written = open->SaveAs(temporary.c_str());
+
+		if (written != LevelSaveResult::Saved)
 		{
-			*why = Reason("the level could not be written", temporary);
+			*why = Reason(written == LevelSaveResult::NothingOpen ? "the level could not be written (the level held is not paired with its bytes)" :
+			              written == LevelSaveResult::GameWouldRefuse ? "the level could not be written (the game's loader refused it)" :
+			              "the level could not be written", temporary);
 			DeleteFileA(temporary.c_str());
 			return LevelSaveOver::WriteFailed;
 		}

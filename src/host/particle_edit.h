@@ -9,6 +9,7 @@
 //   (18, 180, 10 letters) "%.2f" (0x5e8f80) of speed x 0.01 and "Speed (m/s) (0-600)" (118, 180).
 // - Type (control 2) opens "Select Particle Generator Type" (FUN_004e6950: the list Intermittent Sparks, Steam, Black smoke, Flame, FUN_004d42f0) and shows the pick's name; the window stays.
 //   Remove Sound (6) takes the sound away ("None"); the window stays. Sound (4): no sound: a new one is made (FUN_004ebc80(0, 1)); a sound: its Sound Edit (FUN_004ebd60); either way the window ENDS.
+//   (Both BUILT 11-17 by Drake, OP-135: editor_main.cpp ParticleWindowShow, the record's window sound_edit.h SoundEdit_IndexedRecord, the INDSOUND special_objects_edit.cpp.)
 //   Ok (1) ends it. Return and Escape end it too, and EVERY way out keeps what the window holds (FUN_004e7750 reads the controls whatever FUN_0057c800 answered).
 // - What is kept (FUN_004e7750): flag bit 0 = NOT Active; the frequency read by sscanf "%f" (0x5d3f10), kept when 0 <= v < 6000.0: time = ftol(v x 10); the speed alike, 0 <= v < 600.0: speed = ftol(v x 100);
 //   the probability kept when 0 .. 100, the quantity when 1 .. 1000; then by the type: 0 -> speed and quantity 0; 1 .. 3 -> probability and time 0.

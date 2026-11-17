@@ -74,6 +74,14 @@ namespace host
 		float turn[4] = { 0, 0, 0, 1 };      // x y z w
 		bool hasSound = false;               // a particle generator's INDSOUND child
 		std::string particleSoundWav;        // that INDSOUND's wav name (chunk_sound.cpp Indexed_Sound_Chunk: the index, then the name), empty when none (the particle window shows it, particle_edit.h)
+		// The rest of that INDSOUND, read whole (OP-135, Drake 11-17): inteng keeps it as a sound record (FUN_004ebb80) and its save makes the INDSOUND again from the record
+		// (FUN_004e6dd0 0x4e70b9-0x4e70dd, FUN_004ec1b0). particleSoundRead is false when the INDSOUND could not be read whole: then it is written back as it was, never remade.
+		bool particleSoundRead = false;
+		int32_t particleSoundIndex = 0;
+		uint32_t particleSoundInner = 0, particleSoundOuter = 0;   // millimetres, as the file holds them
+		int32_t particleSoundVolume = 0, particleSoundPitch = 0;   // 0..127; 1/1536ths of an octave
+		int32_t particleSoundFlags = 0;                             // bit 0: the sound loops (IndexedSoundFlag_Loop)
+		std::vector<int32_t> particleSoundExtra;                    // its extra words: none in any stock level (op-save-survey); kept (NAMED: inteng's remake drops them)
 		// AVPGENEX > GENEXSET, the generator's own settings: a SIBLING of the AVPGENER in SPECLOBJ, found by the name in its AVPGENNM child (avp_chunk.cpp:136-166). hasSettings is
 		// true when the object's flag 0x8000000 is set and such a chunk holds settings; writing an object with hasSettings makes or replaces it.
 		bool hasSettings = false;
@@ -145,8 +153,8 @@ namespace host
 	// name is taken here too. *number gets its place among the objects of its kind. AVPGENER chunks are told apart by their type: 0 is a generator, any other a Bad Guy (ASSUMED).
 	SpecialResult SpecialObject_Create(OpenLevelFile *file, SpecialKind kind, SpecialPlace const &where, double levelScale, std::string const &name, size_t *number);
 
-	// Writes an object over the one of the same kind and number (Edit): the chunk is made again from the fields, children it has beyond what this module knows (an AVPGENEX, an ALTLOCAT, an
-	// INDSOUND) are kept as they are
+	// Writes an object over the one of the same kind and number (Edit): the chunk is made again from the fields, children it has beyond what this module knows (an AVPGENEX, an ALTLOCAT) are
+	// kept as they are; a particle generator's INDSOUND is made again from its fields and put last, as inteng's save does (OP-135), or left out when it has no sound
 	SpecialResult SpecialObject_Write(OpenLevelFile *file, SpecialObject const &object);
 
 	// Takes the object away (Delete)

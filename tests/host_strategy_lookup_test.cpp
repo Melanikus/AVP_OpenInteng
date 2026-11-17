@@ -391,6 +391,12 @@ static void TestNothingToFind()
 	Check(FindObjectStrategy(&level.file, emptyId, &found) == StrategyFound::NoStrategyBytes && found.chunk == 0,
 	      "a strategy chunk holding no strategy gives NoStrategyBytes, and the lookup doesn't fall over");
 	Check(FindObjectStrategy(&level.file, doorId, &found) == StrategyFound::Found, "and the door is still found after all of those");
+
+	// the two chunks this test made by hand are freed by it, the child first: each chunk takes itself out of its parent's list as it
+	// goes (Chunk::~Chunk), so the level's own end, which frees every chunk still in its tree, never frees them a second time
+	delete emptyStrategy;
+	delete emptyData;
+	Check(empty->lookup_single_child("OBJPRJDT") == 0, "and once freed, they are out of the object's tree");
 }
 
 static void TestTwoObjectsOneName()

@@ -257,6 +257,11 @@ namespace model
 	// *length to the payload's size.
 	bool MakeNewStrategy(int32_t number, uint8_t *buffer, size_t capacity, size_t *length);
 
+	// Writes the payload Copy Strategy gives a target, as the old editor's copy of each kind makes it (the kind's own copy, method +0xc; see
+	// strategy_rules.cpp): the kinds it can copy are 50, 52, 61, 62, 64, 66 and 68. Gives back false, writing nothing, for any other kind,
+	// for a source whose size isn't right for its kind, or when capacity is too small; otherwise sets *length to the copy's size.
+	bool CopyStrategyAsTheOldEditor(uint8_t const *source, size_t sourceLength, uint8_t *buffer, size_t capacity, size_t *length);
+
 	// Where a field starts in this payload, for the field's anchor, or false if it would fall outside the payload.
 	bool FieldPlace(StrategyKind const &kind, Field const &field, uint8_t const *payload, size_t length, size_t *place);
 

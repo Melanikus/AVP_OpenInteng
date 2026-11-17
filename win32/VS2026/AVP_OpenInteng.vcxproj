@@ -306,6 +306,10 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <ClCompile Include="..\..\src\host\acoustic_mode.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="..\..\src\host\module_data_edit.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -828,6 +832,10 @@
     </ClCompile>
     <!-- The save path (the phase 2 plan, F7): opening a level to edit, and writing it back as it was read -->
     <ClCompile Include="..\..\src\io\level_file.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <!-- A screenshot's context inside its PNG (GitHub #78, png_meta.h): written as one iTXt chunk, read back as hostile input -->
+    <ClCompile Include="..\..\src\io\png_meta.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <ClCompile Include="..\..\src\host\pick_centre.cpp">

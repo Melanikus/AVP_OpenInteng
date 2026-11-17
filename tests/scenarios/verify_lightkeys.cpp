@@ -20,6 +20,8 @@
 #include "level_file.h"
 #include "light_edit.h"
 
+#include "arg_number.h"
+
 static int checksFailed = 0;
 
 static void Check(bool good, std::string const &what)
@@ -92,8 +94,16 @@ int main(int argc, char **argv)
 	}
 
 	OpenLevelFile before, after;
-	size_t const target = (size_t)atoi(argv[3]);
-	size_t const made = (size_t)atoi(argv[4]);
+	// the light and the count are bounded before they are used (arg_number.h)
+	long targetNumber = 0, madeNumber = 0;
+
+	if (!ArgNumber("the light", argv[3], 0, 100000, &targetNumber) || !ArgNumber("how many lights were made", argv[4], 0, 100000, &madeNumber))
+	{
+		return 2;
+	}
+
+	size_t const target = (size_t)targetNumber;
+	size_t const made = (size_t)madeNumber;
 
 	Check(before.Open(argv[1]) == LevelOpenResult::Opened && before.Level(), "the game's loader takes the level the editor opened");
 	Check(after.Open(argv[2]) == LevelOpenResult::Opened && after.Level(), "the game's loader takes the editor's copy");

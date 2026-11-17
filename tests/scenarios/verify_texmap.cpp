@@ -33,6 +33,8 @@
 #include "uv_edit.h"
 #include "uv_project.h"
 
+#include "arg_number.h"
+
 HANDLE avp_CreateFile(const char *n, DWORD a, DWORD s, LPSECURITY_ATTRIBUTES sa, DWORD c, DWORD f, HANDLE m) { return CreateFileA(n, a, s, sa, c, f, m); }
 DWORD avp_GetFileAttributes(const char *n) { return GetFileAttributesA(n); }
 void avp_MessageBox(const char *m, int) { printf("  the game's code says: %s\n", m ? m : ""); }
@@ -519,7 +521,15 @@ int main(int argc, char **argv)
 	}
 	else if ((step == "flipx" || step == "flipy") && argc >= 6)
 	{
-		int32_t const w = atoi(argv[4]), h = atoi(argv[5]);
+		// the picture's size is bounded before it is used (arg_number.h)
+		long width = 0, height = 0;
+
+		if (!ArgNumber("the picture's width", argv[4], 1, 65536, &width) || !ArgNumber("the picture's height", argv[5], 1, 65536, &height))
+		{
+			return 2;
+		}
+
+		int32_t const w = (int32_t)width, h = (int32_t)height;
 		model::TextureWindow const window = { 0, 0, w, h, w, h };
 		size_t right = 0;
 
@@ -565,7 +575,15 @@ int main(int argc, char **argv)
 	}
 	else if ((step == "wrap" || step == "tile") && argc >= 6)
 	{
-		int32_t const w = atoi(argv[4]), h = atoi(argv[5]);
+		// the picture's size is bounded before it is used (arg_number.h)
+		long width = 0, height = 0;
+
+		if (!ArgNumber("the picture's width", argv[4], 1, 65536, &width) || !ArgNumber("the picture's height", argv[5], 1, 65536, &height))
+		{
+			return 2;
+		}
+
+		int32_t const w = (int32_t)width, h = (int32_t)height;
 		double const scale = argc >= 7 ? atof(argv[6]) : 1.0;
 		// the texture window's four corner nodes, as the editor keeps them: the picture's corners at the start, then every X-Flip (x), Y-Flip (y), Turn A (a) and Turn B (b) done since, in order, which move the nodes as they move the polygons (inteng's FUN_00570f40 does the same to its corner points)
 		std::string const flips = argc >= 8 ? argv[7] : "";

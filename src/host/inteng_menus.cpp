@@ -1652,12 +1652,25 @@ namespace host
 		// 20: Acoustic, a stand-in for a menu inteng builds in code
 		IntengItem const kItems20_0[] =
 		{
-			{ "Exit", 0x150000, 0x0, IntengTag::None, IntengWork::ExitMode, -1, -1 },
-			{ "Menu being mapped from inteng", 0x150001, 0x0, IntengTag::Wip, IntengWork::None, -1, -1 },
+			{ "Exit", 0x150001, 0xa, IntengTag::None, IntengWork::AcousticCommand, -1, 0 },
+		};
+		IntengItem const kItems20_1[] =
+		{
+			{ "Acoustic type", 0x150002, 0xbb8, IntengTag::None, IntengWork::AcousticCommand, -1, 0 },
+			{ "Reverb", 0x150003, 0xbb9, IntengTag::None, IntengWork::AcousticCommand, -1, 0 },
+			{ "Set To Default Acoustic Type", 0x150004, 0xbba, IntengTag::None, IntengWork::AcousticCommand, -1, -1 },
+			{ "Set To Default Reverb", 0x150005, 0xbbb, IntengTag::None, IntengWork::AcousticCommand, -1, -1 },
+		};
+		IntengItem const kItems20_2[] =
+		{
+			{ "Acoustic type", 0x150006, 0xbbc, IntengTag::None, IntengWork::AcousticCommand, -1, 0 },
+			{ "Reverb", 0x150007, 0xbbd, IntengTag::None, IntengWork::AcousticCommand, -1, 0 },
 		};
 		IntengMenu const kMenus20[] =
 		{
-			{ "Mode", kItems20_0, 2, -1 },
+			{ "Mode", kItems20_0, 1, -1 },
+			{ "Module", kItems20_1, 4, 0 },
+			{ "Default", kItems20_2, 2, 0 },
 		};
 
 		// 21: Flag View, a stand-in for a menu inteng builds in code
@@ -2054,7 +2067,7 @@ namespace host
 		{ "Path", "", kMenus17_1_0, 2, kMenus17_2_0, 6, kPages17, 2 },
 		{ "Hierarchy", "", kMenus18_1_0, 7, kMenus18_2_0, 7, kPages18, 2 },
 		{ "Strategy Data", "", kMenus19_1_0, 4, kMenus19_2_0, 8, kPages19, 6 },
-		{ "Acoustic", "", kMenus20, 1, nullptr, 0, nullptr, 0 },
+		{ "Acoustic", "", kMenus20, 3, nullptr, 0, nullptr, 0 },
 		{ "Flag View", "", kMenus21, 1, nullptr, 0, nullptr, 0 },
 		{ "Texture Map", "", kMenus22_1_0, 6, kMenus22_2_0, 11, kPages22, 7 },
 	};

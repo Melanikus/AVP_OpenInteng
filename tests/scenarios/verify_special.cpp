@@ -4,7 +4,8 @@
 //
 // USAGE: verify_special <the saved copy> <check> [<check> ...]; a check is  <kind>|<name>|<field>=<value>|...   with kind generator, badguy, start, sound or particle (a start has no name: give *),
 // fields: for a sound wav, volume, pitch, soundflags, probability; for generator and badguy type, subtype, texture, extra1, extra2, flagson (hex bits that must be set), flagsoff (hex bits that must be
-// clear), rate, increase, limit, weight0 .. weight14; for a particle ptype, time, pprob, speed, quantity, pflagson, pflagsoff. A check with only a name passes when the object is there. It passes
+// clear), rate, increase, limit, weight0 .. weight14; for a particle ptype, time, pprob, speed, quantity, pflagson, pflagsoff, and its sound (OP-135) psound (0 / 1), psoundwav, psoundindex,
+// psoundinner, psoundouter (mm), psoundvolume, psoundpitch, psoundflags. A check with only a name passes when the object is there. It passes
 // (exit 0) when every check does; the lines say what was found.
 
 #include <stdio.h>
@@ -105,6 +106,15 @@ static bool Value(SpecialObject const &o, std::string const &field, long long *o
 	if (field == "pprob") { *out = o.particleProbability; return true; }
 	if (field == "speed") { *out = o.speed; return true; }
 	if (field == "quantity") { *out = o.quantity; return true; }
+	// a particle generator's sound, its INDSOUND (OP-135, added 11-17 by Drake): psound 1 when it has one
+	if (field == "psound") { *out = o.hasSound ? 1 : 0; return true; }
+	if (field == "psoundwav") { *text = o.particleSoundWav; return true; }
+	if (field == "psoundindex") { *out = o.particleSoundIndex; return true; }
+	if (field == "psoundinner") { *out = o.particleSoundInner; return true; }
+	if (field == "psoundouter") { *out = o.particleSoundOuter; return true; }
+	if (field == "psoundvolume") { *out = o.particleSoundVolume; return true; }
+	if (field == "psoundpitch") { *out = o.particleSoundPitch; return true; }
+	if (field == "psoundflags") { *out = o.particleSoundFlags; return true; }
 
 	if (field.compare(0, 6, "weight") == 0)
 	{
@@ -212,9 +222,9 @@ int main(int argc, char **argv)
 				continue;
 			}
 
-			if (field == "wav")
+			if (field == "wav" || field == "psoundwav")
 			{
-				Check(text == want, parts[0] + " " + parts[1] + ": wav is " + text + ", wanted " + want);
+				Check(text == want, parts[0] + " " + parts[1] + ": " + field + " is " + text + ", wanted " + want);
 			}
 			else
 			{

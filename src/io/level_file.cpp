@@ -15,7 +15,7 @@
 #include "chunk.hpp"
 #include "mishchnk.hpp"
 #include "huffman.hpp"
-#include "md5.h"
+#include "sha256_stream.h"
 #include "level_file_sum.h"
 
 void LogErrorStringC(const char *errorString);   // the game's log (avpx logstring.h; the tests give their own)
@@ -63,27 +63,29 @@ bool HoldsChunks(Chunk * chunk)
 	return dynamic_cast<Chunk_With_Children *>(chunk) != 0 && !chunk->r_u_miscellaneous();
 }
 
-struct Md5
+struct Sha256
 {
-	unsigned char sum[16];
+	unsigned char sum[32];
 };
 
-Md5 Md5Of(std::vector<char> const & bytes)
+// The SHA-256 of some bytes, by the same code the game's loader sums its reads with (avpx 3dc/sha256_stream.h)
+Sha256 Sha256Of(std::vector<char> const & bytes)
 {
-	MD5Context context;
-	MD5Init(&context);
-	MD5Update(&context, (md5byte const *)bytes.data(), (unsigned)bytes.size());
+	Sha256Stream stream;
+	Sha256_Start(&stream);
+	Sha256_Add(&stream, bytes.data(), bytes.size());
 
-	Md5 result;
-	MD5Final(result.sum, &context);
+	Sha256 result;
+	Sha256_Finish(&stream, result.sum);
 	return result;
 }
 
-// Whether the game's loader, loading a file, read exactly these bytes: the same count, and the same MD5 sum
+// Whether the game's loader, loading a file, read exactly these bytes: the same count, and the same SHA-256 (the loader's MD5 is for the
+// game's log; a proof needs SHA-256, as two files can be made with one MD5. Changed 2026-11-17 by Melanikus: it compared MD5 sums)
 bool LoaderReadThese(File_Chunk const & loaded, std::vector<char> const & bytes)
 {
-	Md5 const sum = Md5Of(bytes);
-	return loaded.file_sum.bytes == bytes.size() && memcmp(loaded.file_sum.md5, sum.sum, sizeof(sum.sum)) == 0;
+	Sha256 const sum = Sha256Of(bytes);
+	return loaded.file_sum.bytes == bytes.size() && memcmp(loaded.file_sum.sha256, sum.sum, sizeof(sum.sum)) == 0;
 }
 
 // Whether an open file is a plain file on a disk with one name only: not a device, a pipe or a folder, not a link (a reparse point),
@@ -801,7 +803,7 @@ LevelOpenResult OpenLevelFile::OpenUnguarded(const char * path)
 	}
 
 	// The game's own loader, as the game loads a level, given a private copy of the bytes read above (PrivateCopy) instead of the
-	// picked file, so it reads those very bytes. The MD5 sum it keeps of what it read is still asked to be the sum of those bytes: if it
+	// picked file, so it reads those very bytes. The SHA-256 it keeps of what it read is still asked to be the sum of those bytes: if it
 	// isn't, the copy changed in between, and the two can't be trusted together. The level keeps the copy's name, which is gone once
 	// it's loaded; the editor never uses that name, and never asks the library to save the level. (Changed 2026-11-14 by Melanikus
 	// (Drake), F7 L9; it was the picked file, read by name a second time.)
@@ -876,7 +878,7 @@ LevelOpenResult OpenLevelFile::ReplaceLevelUnguarded(std::vector<char> const & i
 	}
 
 	// The new level is read and paired in a second OpenLevelFile, as Open does for the first, so the level held now is not touched until the
-	// new one is whole. The game's loader is given a private copy of the bytes (PrivateCopy), and its MD5 sum of what it read has to be the
+	// new one is whole. The game's loader is given a private copy of the bytes (PrivateCopy), and its SHA-256 of what it read has to be the
 	// sum of those bytes (LoaderReadThese), as in Open.
 	PrivateCopy const forTheLoader(image, leftBehind);
 
@@ -1490,7 +1492,11 @@ LevelSaveResult OpenLevelFile::SaveAsUnguarded(const char * path)
 		return LevelSaveResult::CantBuild;
 	}
 
-	// inteng's own save prepares the whole tree before it writes it, with nothing changed too (the version numbers go up): so does this
+	// inteng's own save prepares the whole tree before it writes it, with nothing changed too (the version numbers go up): so does this. What is prepared is a tree of its
+	// own, read from the image; the editor's tree is not touched. The image as built (heldImage) is kept: the editor's chunks pair with it when they don't with the prepared
+	// bytes (step 6)
+	std::vector<char> heldImage;
+
 	{
 		std::vector<char> prepared;
 
@@ -1501,6 +1507,7 @@ LevelSaveResult OpenLevelFile::SaveAsUnguarded(const char * path)
 			return made;
 		}
 
+		heldImage.swap(newLevel);
 		newLevel.swap(prepared);
 	}
 
@@ -1701,8 +1708,13 @@ LevelSaveResult OpenLevelFile::SaveAsUnguarded(const char * path)
 	// The ".saving" file is the picked file now, so it's no longer this save's to delete
 	savingMade.clear();
 
-	// The level now stands for the file just written. Its chunks are paired with the new bytes, so that the next save writes back what
-	// this one wrote. If that can't be done, no more saves are made from it.
+	// 6. The level now stands for the file just written. Its chunks are paired with the prepared bytes, the level in the file (inteng's own tree is the prepared one after
+	// its save), so that the next save writes back what this one wrote and prepares it once more. The preparing was done on a tree of its own, and it can change which
+	// chunks the level holds: once an object has been taken out of the level (Object Placement's Delete) the editor's tree doesn't pair with them. Then its chunks are
+	// paired with the image they were built into (heldImage: the level as the editor holds it, every edit so far in it), so later edits and saves are still made; until
+	// 2026-11-17 the level was left unpaired there, and every later edit (ReplaceLevel) and save was refused as NothingOpen. INTENG DIFFERENCE, NAMED (that case only): the
+	// next save prepares the level as held, not a prepared one, so its headers' version numbers go up once less than inteng's would (version_no is read only by the
+	// library's "older than" checks of shapes taken from shape files). If neither pairs, no more saves are made from it. (Fixed 2026-11-17 by Frost: Bishop's report from F-1.)
 	fileBytes.swap(newFile);
 	levelBytes.swap(newLevel);
 	changed.clear();
@@ -1712,6 +1724,12 @@ LevelSaveResult OpenLevelFile::SaveAsUnguarded(const char * path)
 	try
 	{
 		paired = PairLevel();
+
+		if (!paired)
+		{
+			levelBytes.swap(heldImage);
+			paired = PairLevel();
+		}
 	}
 	catch (std::bad_alloc const &)
 	{

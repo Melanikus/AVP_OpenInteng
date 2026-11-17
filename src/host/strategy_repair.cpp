@@ -320,23 +320,27 @@ namespace host
 		// FUN_005335f0 (row S-K70-R of reassess/strategy-data-kinds.md, SKD-70-7 of strategy-kinds-dietrich.md): a Mission Objective's alterations, the count at +40 and 12 bytes each from +44 (the target's ID, its word). Each
 		// entry whose target FUN_005219f0 rejects is removed: the count goes down and, when the entry was not the last, the LAST entry is moved into its place and looked at in turn (so the
 		// order changes); a kept entry moves the walk on. The list is shrunk (or freed at 0). The request-target list after it is not checked (inteng does not). True when it changed.
-		bool RepairMissionList(OpenLevelFile *open, std::map<std::string, size_t> const &index, std::vector<Record> const &records, Record const &record)
+		// The same walk, read on dump-full-3 11-17 (Vasquez), is FUN_00530820, the Multiple Target (66) and Area (68) Switch's repair (S-K66-12, S-K68-12): the targets' count at +36
+		// (the strategy's +0x24), 12 bytes each from +40 (the ID, the request), the Links / pad / flags after them kept. countAt: 40 for 70, 36 for 66 / 68; the entries follow it
+		bool RepairEntryList(OpenLevelFile *open, std::map<std::string, size_t> const &index, std::vector<Record> const &records, Record const &record, size_t countAt)
 		{
 			std::vector<uint8_t> const &payload = record.payload;
 
-			if (payload.size() < 44)
+			size_t const entriesAt = countAt + 4;
+
+			if (payload.size() < entriesAt)
 			{
 				return false;
 			}
 
-			int32_t const count = IntAt(payload, 40);
+			int32_t const count = IntAt(payload, countAt);
 
-			if (count <= 0 || (size_t)count > (payload.size() - 44) / 12)
+			if (count <= 0 || (size_t)count > (payload.size() - entriesAt) / 12)
 			{
 				return false;   // no list, or a count the bytes do not hold (a hostile file): left as it is
 			}
 
-			std::vector<uint8_t> entries(payload.begin() + 44, payload.begin() + 44 + 12 * (size_t)count);
+			std::vector<uint8_t> entries(payload.begin() + (std::ptrdiff_t)entriesAt, payload.begin() + (std::ptrdiff_t)(entriesAt + 12 * (size_t)count));
 			int32_t kept = count;
 			int32_t at = 0;
 
@@ -363,11 +367,11 @@ namespace host
 				return false;
 			}
 
-			std::vector<uint8_t> bytes(payload.begin(), payload.begin() + 44);
+			std::vector<uint8_t> bytes(payload.begin(), payload.begin() + (std::ptrdiff_t)entriesAt);
 
-			memcpy(bytes.data() + 40, &kept, 4);
+			memcpy(bytes.data() + countAt, &kept, 4);
 			bytes.insert(bytes.end(), entries.begin(), entries.begin() + 12 * (size_t)kept);
-			bytes.insert(bytes.end(), payload.begin() + 44 + 12 * (size_t)count, payload.end());
+			bytes.insert(bytes.end(), payload.begin() + (std::ptrdiff_t)(entriesAt + 12 * (size_t)count), payload.end());
 			return WriteBytes(open, record.id, bytes);
 		}
 
@@ -528,7 +532,12 @@ namespace host
 			}
 			else if (record.kind == 70)
 			{
-				changed += RepairMissionList(open, index, records, record) ? 1 : 0;   // FUN_005335f0
+				changed += RepairEntryList(open, index, records, record, 40) ? 1 : 0;   // FUN_005335f0
+				continue;
+			}
+			else if (record.kind == 66 || record.kind == 68)
+			{
+				changed += RepairEntryList(open, index, records, record, 36) ? 1 : 0;   // FUN_00530820 (S-K66-12, S-K68-12)
 				continue;
 			}
 			else if (record.kind == 72 || record.kind == 76 || record.kind == 80)

@@ -127,10 +127,13 @@ void Sound_ForgetAddressesInside(const void *, size_t)
 // What every block from new holds before anyone writes in it
 static unsigned char const Unwritten = 0xA5;
 
+// The blocks come from the process's own Windows heap, and every delete gives its block back there once (HeapFree). One allocator of the
+// test's own for every new and delete, so nothing here pairs with the C library's malloc / free (Snyk Code read the four deletes, each
+// calling free, as a possible double free, 2026-11-17).
 void * operator new(size_t bytes)
 {
 	size_t const asked = bytes ? bytes : 1;
-	void * const block = malloc(asked);
+	void * const block = HeapAlloc(GetProcessHeap(), 0, asked);
 
 	if (!block)
 	{
@@ -141,11 +144,19 @@ void * operator new(size_t bytes)
 	return block;
 }
 
+static void GiveBack(void * block) noexcept
+{
+	if (block)
+	{
+		HeapFree(GetProcessHeap(), 0, block);
+	}
+}
+
 void * operator new[](size_t bytes) { return operator new(bytes); }
-void operator delete(void * block) noexcept { free(block); }
-void operator delete[](void * block) noexcept { free(block); }
-void operator delete(void * block, size_t) noexcept { free(block); }
-void operator delete[](void * block, size_t) noexcept { free(block); }
+void operator delete(void * block) noexcept { GiveBack(block); }
+void operator delete[](void * block) noexcept { GiveBack(block); }
+void operator delete(void * block, size_t) noexcept { GiveBack(block); }
+void operator delete[](void * block, size_t) noexcept { GiveBack(block); }
 
 // ---- Making level files
 

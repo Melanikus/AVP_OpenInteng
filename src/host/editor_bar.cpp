@@ -779,6 +779,9 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 		case host::IntengWork::HierarchyCommand:
 			host->hierarchyCommand = item->command;
 			break;
+		case host::IntengWork::AcousticCommand:
+			host->acousticCommand = item->command;
+			break;
 		case host::IntengWork::PlacedHierarchy:
 			host->placedHierarchyCommand = item->command;
 			break;

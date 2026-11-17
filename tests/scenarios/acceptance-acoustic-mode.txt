@@ -1,0 +1,95 @@
+# ACCEPTANCE (red first): Object Placement's ACOUSTIC MODE on his path (Vasquez 11-17; reassess/object-placement.md section 2, AC-1 .. AC-9, read on dump-full-3 and listing-all-3).
+# Mode > Acoustic Mode shows inteng's menu page 7 (Mode / Module / Default). The frame's text (FUN_004f57b0 0x4f5b7f-0x4f5cda) at x 16: "Default Type : %s" and "Default Reverb : %.2f" (rows 2, 3),
+# then for the module under the pointer its name, "Type : %s" or "Type : Default", "Reverb : %.2f" or "Reverb : Default" (rows 4 .. 6). A left click picks the module under the pointer (drawn red),
+# Shift + click lets go of it, L lets go of every one. Module > Acoustic type / Reverb write every picked module's record (made when missing), Default > Acoustic type / Reverb the level's.
+# Mode > Exit goes back to Object Placement (FUN_004f56c0). Invasion, read 11-17 through the game's loader: gARAGDOR (under the view's middle from the start camera) and APCmod (at 0.2 0.2) hold type 9
+# (Arena) and reverb -1.0 (Default); the level's record holds type 0 (Generic), reverb 2.0.
+# The copy is read back through the game's own chunk classes (verify_acoustic): gARAGDOR type 7 (Concert Hall), reverb 0.5; the level type 10 (Hangar), reverb 0.25; every other module's record the
+# original's (APCmod's too: it was picked, then let go of with Shift before the writes). INTENG BUG, FIXED: a typed reverb that is no number (FUN_00474a10 returns a float it never set) changes nothing.
+# RED on b58fe7a: the Acoustic screen is a stand-in (Mode: Exit, "Menu being mapped from inteng"): its bar, its text and every write fail.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+#ini ViewDistance=100000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+# AC-1: Mode > Acoustic Mode (0x10): inteng's page 7, and the level's lines
+click-bar Mode > Acoustic Mode
+expect-screen Acoustic
+expect-bar1 Mode|Module|Default
+wait 300
+expect-field hierarchylines 2@16:Default Type : Generic|3@16:Default Reverb : 2.00
+picture 1
+# AC-2: the click picks gARAGDOR (red); the pointer's lines
+click-view 0.5 0.5
+wait 400
+expect-field hierarchylines 2@16:Default Type : Generic|3@16:Default Reverb : 2.00|4@16:gARAGDOR|5@16:Type : Arena|6@16:Reverb : Default
+picture 2
+# its red (the editor's module tint, over the texture): at least a tenth of the view changed since picture 1
+expect-pixels-changed-since 1 picture 0 0 1008 700 0.1
+# APCmod picked, then let go of by Shift + click
+click-view 0.2 0.2
+click-view 0.2 0.2 shift
+# AC-3: Module > Acoustic type: the list "Select Module Acoustics Type", Concert Hall (7)
+click-bar Module > Acoustic type
+expect-dialog Select Module Acoustics Type
+click-choice-is Concert Hall
+expect-no-dialog
+move-win 504 364
+wait 400
+expect-field-has hierarchylines 4@16:gARAGDOR|5@16:Type : Concert Hall|6@16:Reverb : Default
+# APCmod was let go of: its record unchanged
+move-win 201 145
+wait 400
+expect-field-has hierarchylines 4@16:APCmod|5@16:Type : Arena|6@16:Reverb : Default
+# AC-4: Module > Reverb: the window starts at 2 (no picked record has a reverb but -1.0), 0.5 typed
+click-bar Module > Reverb
+expect-dialog-kind form
+expect-dialog-text 2
+key Back
+type 0.5
+key Enter
+expect-no-dialog
+move-win 504 364
+wait 400
+expect-field-has hierarchylines 4@16:gARAGDOR|5@16:Type : Concert Hall|6@16:Reverb : 0.50
+picture 3
+# AC-6: Default > Acoustic type: "Select Environment Acoustics Type", Hangar (10)
+click-bar Default > Acoustic type
+expect-dialog Select Environment Acoustics Type
+click-choice-is Hangar
+expect-no-dialog
+wait 400
+expect-field-has hierarchylines 2@16:Default Type : Hangar|3@16:Default Reverb : 2.00
+# AC-7: Default > Reverb: a word that is no number changes nothing (the bug fixed), then 0.25
+click-bar Default > Reverb
+expect-dialog-kind form
+expect-dialog-text 2
+key Back
+type abc
+key Enter
+expect-no-dialog
+wait 400
+expect-field-has hierarchylines 2@16:Default Type : Hangar|3@16:Default Reverb : 2.00
+click-bar Default > Reverb
+expect-dialog-kind form
+key Back
+type 0.25
+key Enter
+expect-no-dialog
+wait 400
+expect-field-has hierarchylines 2@16:Default Type : Hangar|3@16:Default Reverb : 0.25
+picture 4
+# L lets go of every pick: Module > Acoustic type then opens nothing (FUN_004f5cf0 needs a pick)
+key L
+wait 300
+click-bar Module > Acoustic type
+wait 300
+expect-no-dialog
+# AC-8: Mode > Exit: back to Object Placement
+click-bar Mode > Exit
+expect-screen Object Placement
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_acoustic/verify_acoustic.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} module gARAGDOR 7 0.5 level 10 0.25

@@ -1,0 +1,59 @@
+# ACCEPTANCE (red first): Object Placement's Object > Edit / E of a PLACED SHAPE, edobtype's "Edit object properties" (dialog 129) in the simple object's mode, 1:1 (A-8, reassess/object-placement.md
+# OP-130; simple_object_edit.h; Drake, 2026-11-17, section 14 re-read of the 11-16 code). His path on Genshd1 (a read-only stock copy), the file opened as a double click:
+# 1. A LIFT (liftcar01, a placed object with a Platform Lift, kind 54, 44 bytes, flags 0). inteng's load marks an object whose strategy is not a simple object (nor none / 53) so that its save
+#    never writes the strategy (FUN_004e0ed0 0x4e0bc0, FUN_004e1f90 0x4e2808): Edit and OK keep the lift, whatever the window was given. The window shows Explosion's four radio buttons and NO check box:
+#    Game mode and Difficulty are hidden in this mode (resource 129's style has no WS_VISIBLE; FUN_10003de0 never shows them), as for the bad guy.
+# 2. A SIMPLE OBJECT (med02L, kind 62): Key, and its list's every row as edobtype's table 0x1001fb68 holds it, the last "Pass 31 (Never used)" (31) picked.
+# Object > Find's "Select Object" pages hold 133 names each: both objects are on the second (click-choice-is presses Next itself). The copy is read back by the game's loader (verify_strategy): liftcar01 still its
+# 44-byte lift, med02L Type 6 (Key) and ExtraData 31.
+# RED on 8b7079a: ten boxes shown (the six game mode / difficulty boxes too), no "Pass 31 (Never used)" row, and liftcar01's lift replaced by a 52-byte simple object.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- 1. the lift: Edit, everything changed, OK
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is liftcar01
+expect-no-dialog
+wait 400
+key E
+expect-dialog Edit object properties
+expect-dialog-kind form
+expect-dialog-checks on,off,off,off
+picture 1
+click-combo 1
+click-combo-row Weapon
+click-combo 2
+click-combo-row Sadar
+click-check 3
+expect-dialog-checks off,off,on,off
+click-button OK
+expect-no-dialog
+wait 300
+
+# ---- 2. the simple object: Key, the list's last row
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is med02L
+expect-no-dialog
+wait 400
+key E
+expect-dialog Edit object properties
+click-combo 1
+click-combo-row Key
+click-combo 2
+expect-dialog-combo-rows Data log,Pass 1,Pass 2,Pass 3,Pass 4,Pass 5,Pass 6,Pass 7,Pass 8,Pass 9,Pass 10,Pass 11,Pass 12,Pass 13,Pass 14,Pass 15,Pass 16,Pass 17,Pass 18,Pass 19,Pass 20,Pass 30 (Special),Pass 31 (Never used)
+picture 2
+click-combo-row Pass 31 (Never used)
+expect-dialog-text Key|Pass 31 (Never used)
+picture 3
+click-button OK
+expect-no-dialog
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} liftcar01 size 44 flags 0 also med02L
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} med02L Type 6 ExtraData 31 also liftcar01

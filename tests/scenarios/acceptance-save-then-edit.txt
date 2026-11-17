@@ -1,0 +1,32 @@
+# ACCEPTANCE (red first): an edit made AFTER a save is made, and a second save is written (Frost, 2026-11-17; found through close-out F-1, Bishop's order). Since b71b4d9 the save
+# prepared a tree of its own and then paired the EDITOR's tree with those prepared bytes; once an object had been taken out of the level (Object Placement's Delete; Delete Multiple
+# Strategies' Pickups once F-1 makes them take the object) the prepared bytes no longer paired, the level was left unpaired, and every later edit that rebuilds the level and every later
+# save was refused: "the level could not be put together", then "Not saved ... could not be written" (with a stale "Windows error 2"). The fix keeps the editor's tree paired with the
+# image it was built into (level_file.cpp SaveAsUnguarded step 6).
+# His path: Fall, Object Placement, Pboost0 picked (row 243 of the object list), Object > Delete, Save; pulse0 picked (row 266, 265 once Pboost0 is out), Object > Delete (it must
+# delete), Save again; the copy read back through the game's loader has neither. RED on aaf69b1 (the second Delete: "the level could not be put together"; the second save: "Not saved");
+# GREEN with the fix.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Fall.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+# an edit that takes an object out of the level, then a save
+select-row 243
+expect-selected 1
+click-bar Object > Delete
+wait 300
+expect-status Object deleted
+save-copy
+# an edit after the save: it is made
+select-row 265
+expect-selected 1
+click-bar Object > Delete
+wait 300
+expect-status Object deleted
+expect-status-not could not be put together
+# and the second save is written, and read back through the game's loader
+save-copy
+expect-status-not Not saved
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_objects.exe {copy} gone Pboost0 gone pulse0

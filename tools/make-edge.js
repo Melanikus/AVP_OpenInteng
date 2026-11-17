@@ -11,8 +11,9 @@
 //   - the film decoders' and the music libraries' calls: by hand, in src/host/edge_media.cpp, which step 8 checks name for name.
 //
 // HOW, so a stranger can redo it at every pin move:
-//   1. Build win32/VS2026/AVP_OpenInteng.vcxproj with /p:NoEdge=true, which leaves the whole edge out, and keep the build's log.
-//   2. node tools/make-edge.js <that log> <avpx folder> src/host/edge
+//   1. Build win32/VS2026/AVP_OpenInteng.vcxproj with /p:NoEdge=true, which leaves the whole edge out, and keep the build's log inside
+//      the tree: win32/VS2026/Win32/ is build output, never committed.
+//   2. From the tree's root: node tools/make-edge.js <that log> avpx src/host/edge. All three must be inside the tree (tree-path.js).
 //   3. git diff src/host/edge, review every change, and build again without NoEdge: it must link.
 //
 // What it reads:
@@ -26,11 +27,18 @@
 const fs = require('fs');
 const path = require('path');
 
-const [logPath, avpxDir, outPath] = process.argv.slice(2);
-if (!logPath || !avpxDir || !outPath) {
-	console.error('usage: node make-edge.js <link log of a NoEdge build> <avpx folder> <src/host/edge folder>');
+const { insideTree } = require('./tree-path.js');
+
+const [logGiven, avpxGiven, outGiven] = process.argv.slice(2);
+if (!logGiven || !avpxGiven || !outGiven) {
+	console.error('usage: node tools/make-edge.js <link log of a NoEdge build> <avpx folder> <src/host/edge folder>, from the tree\'s root');
 	process.exit(2);
 }
+
+// All three are held inside the tree's root, the folder this is run from (tree-path.js says why)
+const logPath = insideTree(logGiven, 'The link log');
+const avpxDir = insideTree(avpxGiven, 'The avpx folder');
+const outPath = insideTree(outGiven, 'The edge folder');
 
 // The game's network files: the ones the editor doesn't compile, whose functions get loud stand-ins.
 const networkFiles = [

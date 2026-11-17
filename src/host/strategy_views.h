@@ -111,6 +111,10 @@ namespace host
 	// The Links a 61 / 66 / 68 strategy holds (its NumLinks and the 8-byte IDs after it); false when the kind has none or the payload is too short for them
 	bool StrategyView_StoredLinks(int32_t kind, std::vector<uint8_t> const &payload, std::vector<std::array<uint8_t, 8>> *links);
 
+	// The payload with its Links list replaced by links (S-K61-3: FUN_0052dc90 writes the list it makes into the switch, NumLinks then the IDs); the bytes before the list and after the old one
+	// kept. False (out untouched) when StrategyView_StoredLinks can't read the old list
+	bool StrategyView_WithLinks(int32_t kind, std::vector<uint8_t> const &payload, std::vector<std::array<uint8_t, 8>> const &links, std::vector<uint8_t> *out);
+
 	// What the end of an object pick does (S-KC-5 and each kind's pick row, reassess/strategy-data-kinds.md)
 	enum StrategyPickRow
 	{

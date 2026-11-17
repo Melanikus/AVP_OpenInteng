@@ -18,6 +18,8 @@
 #include "waypoint_model.h"
 #include "waypoint_mode.h"
 
+#include "arg_number.h"
+
 static int checksFailed = 0;
 
 static void Check(bool good, std::string const &what)
@@ -160,7 +162,15 @@ int main(int argc, char **argv)
 		return 2;
 	}
 
-	size_t const gained = (size_t)atoi(argv[3]);
+	// the count is bounded before it is used (arg_number.h)
+	long gainedNumber = 0;
+
+	if (!ArgNumber("how many links the current module gained", argv[3], 0, 100000, &gainedNumber))
+	{
+		return 2;
+	}
+
+	size_t const gained = (size_t)gainedNumber;
 	OpenLevelFile before, after;
 
 	Check(before.Open(argv[1]) == LevelOpenResult::Opened && before.Level(), "the game's loader takes the level the editor opened");

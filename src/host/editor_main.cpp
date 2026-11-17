@@ -183,6 +183,7 @@
 #include "module_site.h"
 #include "shape_soften_edit.h"
 #include "module_data_edit.h"
+#include "acoustic_mode.h"
 #include "shape_merge_edit.h"
 #include "poly_edit.h"
 #include "module_overlaps.h"
@@ -584,6 +585,7 @@ static bool pickInBox = false;   // the pick is a click in the 3D view's quarter
 static bool pickWithS = false;   // S was held at the press on the Strategy Data screen (inteng's S + click: select by texture)
 static bool pickDelete = false;   // the Delete key was held at the press (Module Linking's un-pick, row ML-M-61)
 static bool pickShift = false;   // Shift was held at the press: the click adds to the selection or takes out (inteng's Shift+LMB)
+static bool pickCtrl = false;    // Ctrl was held at the press: Strategy Data's collector adds the clicked object's whole shape group (FUN_00526bf0 0x526e3b, S-79)
 static int pickX = 0;
 static int pickY = 0;
 
@@ -900,6 +902,7 @@ static std::string lightMessage;      // an on-screen message of Light Sourcing 
 static int lightSavePending = 0;      // frames before Save Intensities does its work (the message is seen first)
 static bool lightSaveTools = false;
 static void SaveTheCopy();
+static void StrategySave();   // Strategy Data's Save (FUN_005282d0): every switch's Links made again, then SaveTheCopy (below, with the switches)
 static void LoadTheObjectListAgain();
 static bool OnALightScreen();
 static bool PickAnEntryMarker(int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight);
@@ -1680,6 +1683,28 @@ namespace
 	std::string particleSoundName;
 }
 
+static void SoundEditWindowOpen(host::SoundEditRecord const &record, std::string const &folder, std::string const &soundDirectory, std::function<void(host::SoundEditRecord const &)> const &done);
+
+// The particle window has ended (any way out): what it held is kept (FUN_004e7750 whatever FUN_0057c800 answered), and the generator's sound with it (OP-135)
+static void ParticleWindowKeep()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !open->Level())
+	{
+		return;
+	}
+
+	unsigned const generation = open->Generation();
+
+	SpecialShow(host::SpecialMode_FormWrite(open, &specialMode, host::Particle_Ok(specialMode.draft, particleNow)));
+
+	if (open->Generation() != generation)
+	{
+		LoadTheObjectListAgain();
+	}
+}
+
 static void ParticleWindowShow()
 {
 	host::DialogFormSpec spec;
@@ -1746,33 +1771,76 @@ static void ParticleWindowShow()
 			return;
 		}
 
-		if (answer == kParticleSound || answer == kParticleRemoveSound)
+		if (answer == kParticleRemoveSound)
 		{
-			// NAMED, OWED (the next step): the particle's sound (FUN_004ebc80 a new one, FUN_004ebd60 its Sound Edit, FUN_004ebd20 Remove) needs its INDSOUND written; the window answers as inteng's
-			// Remove (it stays) and Sound (it ends) do, without the sound's change
-			if (answer == kParticleRemoveSound)
-			{
-				ParticleWindowShow();
-				return;
-			}
-		}
-
-		// every way out keeps what the window holds (FUN_004e7750 whatever FUN_0057c800 answered)
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-		if (!open || !open->Level())
-		{
+			// REMOVE SOUND (FUN_004e79b0 case 6, FUN_004ebd20): the record destroyed, the label "None" (0x5d126c); the window stays, redrawn. Its INDSOUND goes when the window ends.
+			specialMode.draft.hasSound = false;
+			specialMode.draft.particleSoundRead = false;
+			specialMode.draft.particleSoundWav.clear();
+			specialMode.draft.particleSoundExtra.clear();
+			particleSoundName = host::Particle_Shown(specialMode.draft).soundName;
+			ParticleWindowShow();
 			return;
 		}
 
-		unsigned const generation = open->Generation();
-
-		SpecialShow(host::SpecialMode_FormWrite(open, &specialMode, host::Particle_Ok(specialMode.draft, particleNow)));
-
-		if (open->Generation() != generation)
+		if (answer == kParticleSound)
 		{
-			LoadTheObjectListAgain();
+			// SOUND (FUN_004e79b0 case 4, 0x4e7a0d-0x4e7a6f; reassess/object-placement.md OP-135): with no sound a record is made (FUN_004ebc80(0, 1): "Not Set" (0x5e3f5c), inner 500000 and
+			// outer 4000000 in inteng's memory (x 1e-5 m), volume 127, pitch 0, flags 1, its loops box live); a sound read from the file is the record FUN_004ebb80 makes of it (the
+			// ranges x DAT_00607bd8 = 100 x the level's scale, its loops box live too: 0x4e6849). Either way its Sound Edit (FUN_004ebd60) runs, and then the particle window ENDS and
+			// keeps what it holds. Cancel in Sound Edit keeps the record as it was (a new one as made). The INDSOUND is made from the record (FUN_004ec1b0: the ranges / DAT_00607bd8).
+			host::SpecialObject &draft = specialMode.draft;
+
+			if (draft.hasSound && !draft.particleSoundRead)
+			{
+				// HOSTILE INPUT: an INDSOUND this editor could not read whole is never remade from guesses; it stays as the file holds it
+				Answer("Sound: this generator's sound could not be read whole, so it is kept as the file holds it");
+				ParticleWindowShow();
+				return;
+			}
+
+			double const unit = 100.0 * (local_scale > 0.0 ? local_scale : 1.0);
+			auto const ftol = [](double v) { return !(v == v) ? 0 : (v >= 2147483647.0 ? 2147483647 : (v <= -2147483648.0 ? (int32_t)-2147483647 - 1 : (int32_t)v)); };
+			bool const made = !draft.hasSound;
+			uint32_t const memInner = made ? 500000u : (uint32_t)ftol((double)draft.particleSoundInner * unit);
+			uint32_t const memOuter = made ? 4000000u : (uint32_t)ftol((double)draft.particleSoundOuter * unit);
+
+			if (made)
+			{
+				draft.hasSound = true;
+				draft.particleSoundRead = true;
+				draft.particleSoundIndex = 0;
+				draft.particleSoundWav = "Not Set";
+				draft.particleSoundVolume = 127;
+				draft.particleSoundPitch = 0;
+				draft.particleSoundFlags = 1;
+				draft.particleSoundExtra.clear();
+			}
+
+			host::SoundEditRecord const record = host::SoundEdit_IndexedRecord(draft.particleSoundWav, memInner, memOuter, draft.particleSoundPitch, draft.particleSoundVolume, draft.particleSoundFlags, true);
+			OpenLevelFile *const open = LevelObjects_OpenForEdit();
+			std::string const soundDirectory = host::TrackLevelSoundDirectory(open);
+			std::string const folder = std::string(theGameFolder) + "\\sound\\" + soundDirectory + "\\";
+
+			SoundEditWindowOpen(record, folder, soundDirectory, [unit, ftol](host::SoundEditRecord const &back)
+			{
+				host::SpecialObject &now = specialMode.draft;
+				int32_t inner = 0, outer = 0, pitch = 0, volume = 0, flags = 0;
+
+				host::SoundEdit_IndexedBack(back, now.particleSoundFlags, &inner, &outer, &pitch, &volume, &flags);
+				now.particleSoundWav = back.name;
+				now.particleSoundInner = (uint32_t)ftol((double)(uint32_t)inner / unit);
+				now.particleSoundOuter = (uint32_t)ftol((double)(uint32_t)outer / unit);
+				now.particleSoundPitch = pitch;
+				now.particleSoundVolume = volume;
+				now.particleSoundFlags = flags;
+				ParticleWindowKeep();
+			});
+			return;
 		}
+
+		// every other way out keeps what the window holds (FUN_004e7750 whatever FUN_0057c800 answered)
+		ParticleWindowKeep();
 	});
 }
 
@@ -2059,9 +2127,13 @@ static void SimpleEditShow()
 	integrityBox.text = simpleEdit.integrityText;
 	spec.widgets.push_back(integrityBox);
 
-	// 8 label "Game mode", 9-11 Marine Alien Predator, 12 label "Difficulty", 13-15 Easy Medium Hard
+	// 8 label "Game mode", 9-11 Marine Alien Predator, 12 label "Difficulty", 13-15 Easy Medium Hard: ALL HIDDEN, as inteng hides them (resource 129's style 0x48010003 / 0x48000007 has no
+	// WS_VISIBLE, and the simple object's init FUN_10003de0 never shows them; Bishop's ruling for the same boxes of the bad guy, 11-16). Their ticks stay in the widgets, so OK gives the
+	// flags back as they were. (Fixed 11-17 by Drake: they were shown and could be changed.)
 	label("Game mode", 165, 95);
+	spec.widgets.back().visible = false;
 	label("Difficulty", 230, 95);
+	spec.widgets.back().visible = false;
 
 	char const *const modeWords[3] = { "Marine", "Alien", "Predator" };
 	char const *const difficultyWords[3] = { "Easy", "Medium", "Hard" };
@@ -2074,6 +2146,7 @@ static void SimpleEditShow()
 		check.text = i < 3 ? modeWords[i] : difficultyWords[i - 3];
 		check.box = { dx(i < 3 ? 171 : 235), dy(105 + (i % 3) * 10) + 8, 14, 14 };
 		check.group = -1;
+		check.visible = false;   // hidden as inteng (above)
 
 		for (host::SimpleFormItem const &one : items)
 		{
@@ -2090,6 +2163,7 @@ static void SimpleEditShow()
 		words.type = host::DialogWidgetType::Label;
 		words.text = check.text;
 		words.box = { check.box.x + 18, check.box.y, 90, 16 };
+		words.visible = false;
 		spec.widgets.push_back(words);
 	}
 
@@ -5083,6 +5157,17 @@ static size_t ScreenOfTable(char const *table)
 	return host::kIntengScreenCount;
 }
 
+// Object Placement's Acoustic Mode (its menu page 7 in inteng): the screen "Acoustic" (reassess/object-placement.md AC-1 .. AC-9)
+static bool IsTheAcousticScreen(size_t screen)
+{
+	return screen < host::kIntengScreenCount && strcmp(host::kIntengScreens[screen].name, "Acoustic") == 0;
+}
+
+static bool OnAcousticScreen()
+{
+	return IsTheAcousticScreen(barScreen);
+}
+
 static bool OnTheTrackScreen()
 {
 	return barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Track Editing") == 0;
@@ -6042,7 +6127,7 @@ static void StrategyViewClickAt(int32_t x, int32_t y);   // below, with the view
 // COPY STRATEGY (FUN_00528340 with the collector FUN_00526bf0): the object to copy from is the current one; then the collector runs: a click adds the object under the pointer to the list (when it is not in it), Shift + click takes it out, L empties the list,
 // Return or the right button ends; the screen draws "Press return when finished" at (16, 0) and the names from the third row on (rows of 16; DAT_00914928 is incremented twice before the first name), and "Select objects to copy to" along the foot (200, height - 20).
 // Then each target in the list is dealt with in order: the source itself and a target whose class cannot take the kind are passed; one that has a strategy FUN_00521860 does not call replaceable gets the four-answer question (CopyQuestion, FUN_00529f30: Yes All / Yes / No / No All; Escape replaces); a copy that fails says "Unable to copy this strategy" and the rest is abandoned.
-// NAMED: the Ctrl + click that adds a whole group (the objects that share the clicked one's FUN_004d0fd0 group) is not built.
+// Ctrl + click (S-79, 0x526e3b-0x526ecc) adds every object of the level that uses the clicked object's shape (CopyCollectShapeGroup).
 struct CopyTarget { uint8_t id[8]; };
 static bool copyCollecting = false;
 static int32_t copyPurpose = 0;   // what the collector's list is for: 0 Copy Strategy's targets, 1 a Lift's positions (FUN_0052b360, the Lift view's positions block)
@@ -6152,7 +6237,7 @@ static void RunExitSavePrompt(std::string const &typed)
 
 	if (lower == "yes" || lower == "y")
 	{
-		SaveTheCopy();
+		StrategySave();   // FUN_00524d00: Yes -> FUN_005282d0 (the Links made again, S-K61-3)
 		LeaveTheMode(savedWords.c_str(), !back, target);
 	}
 	else if (lower == "no" || lower == "n")
@@ -6611,6 +6696,17 @@ static std::string screenTextNow;   // every screen's top-left text of the frame
 static std::string pathLinesNow;    // the Path screen's drawn rows of the frame being drawn (FUN_004f9d10 0x4f9f70), lines joined by '|' (the state line says them as pathlines)
 static void PlacementFrame();
 static void PlacementFlyStop();
+static void AcousticEnter();
+static void AcousticLeave();
+static void AcousticCommand(int32_t command);
+static void AcousticClick(host::PickReport const &used, bool shift);
+static void AcousticPointerFrame(int32_t viewWidth, int32_t viewHeight);
+static void AcousticTextLines(std::vector<HierarchyTextLine> *out);
+// Acoustic Mode's state (the functions are after PickedModules)
+static std::vector<std::array<uint8_t, 8>> acousticPicks;   // the picked modules (inteng's list DAT_008f4af0), in pick order, by their objects' IDs
+static int acousticPointerX = -1, acousticPointerY = -1;       // the pointer on the view, kept from the last move (FUN_00559720 picks under it every frame)
+static bool acousticPointerOn = false;                          // a module is under the pointer: acousticPointerId
+static uint8_t acousticPointerId[8];
 static void PlacementTextLines(std::vector<HierarchyTextLine> *out);
 static model::AltLocations const *PlacementAltShown(OpenLevelFile *open, uint8_t const *id);
 
@@ -8008,10 +8104,12 @@ static void PlacedHierarchyCommand(int32_t command)
 // OBJECT PLACEMENT'S FRAME, called every frame (OP-80, OP-4 (5)): on its screen, H / N held change the view distance (the shared DAT_005fd678, `viewDistance`: the key flags are set on key-down and cleared
 // on key-up, FUN_0058c010 / 0x58c74b, and 0x4d9f64-0x4d9f81 does not clear them, so it changes every frame a key is held; never below 0); FUN_004dd2f0 then hides every block whose distance from the camera
 // less its radius is not below the distance, except the current object's (LevelView_HideBeyond / HideBeyondKeep; the special objects' icons by the same rule in SpecialIconTriangles). Off its screen the
-// rule is taken away. NAMED: inteng's Track Editing state 5 and Acoustic Mode frames skip FUN_004dd2f0 (the blocks keep the hiding they had); here those screens show everything.
+// rule is taken away. NAMED: inteng's Track Editing state 5 frame skips FUN_004dd2f0 (the blocks keep the hiding they had); here that screen shows everything. Acoustic Mode's frame
+// (FUN_004f57b0 0x4f5b6a / 0x4f5b6f) runs FUN_004dd2f0 and FUN_004dd3c0 (the hiding, the placed sounds) but not the keys of FUN_004d9af0 (it returns at 0x4d9b69): H / N do nothing there.
 static void PlacementFrame()
 {
-	bool const here = barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Object Placement") == 0;
+	bool const acoustic = OnAcousticScreen();
+	bool const here = acoustic || (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Object Placement") == 0);
 
 	// OP-40 / OP-111: making ANOTHER object current stops the flight (FUN_004d64a0 calls FUN_004df090(0) for the old one), and so does leaving the screen (Acoustic Mode AC-1, the chooser, Exit). NAMED: Track
 	// Editing (inteng's state 3 of this screen) keeps it here as inteng does; its pivot edit (TE-5) stops it there.
@@ -8051,7 +8149,7 @@ static void PlacementFrame()
 		return;
 	}
 
-	if (!AMenuIsOpen() && !host::Dialogs_IsOpen() && (keyDown['H'] || keyDown['N']))
+	if (!acoustic && !AMenuIsOpen() && !host::Dialogs_IsOpen() && (keyDown['H'] || keyDown['N']))
 	{
 		int64_t const next = (int64_t)viewDistance + (keyDown['H'] ? 500000 : 0) - (keyDown['N'] ? 500000 : 0);
 
@@ -16905,6 +17003,16 @@ static void RunAction(int32_t id)
 		host.screen = barScreen;   // Stop Track Edit may have shown another screen already
 	}
 
+	// Acoustic Mode's items: Exit (0xa, FUN_004f56c0) goes back to Object Placement (the screen change below lets go of the picks: AcousticLeave); the others are AcousticCommand's
+	if (host.acousticCommand == 0xa)
+	{
+		host.screen = ScreenOfName("Object Placement");
+	}
+	else if (host.acousticCommand != 0)
+	{
+		AcousticCommand(host.acousticCommand);
+	}
+
 	// OP-47 (V-21): the alternate-location commands 0x64, 0x65, 0x66, 0x67, 0x68 (0x4dc235-0x4dc28d), Move relative 0x1c and Replace 0x1d need Gravity off (FUN_004d9af0 0x4dc1fe); with it on, nothing
 	if (host.altLocation != 0 && !PlacementGravityOn())
 	{
@@ -16941,10 +17049,17 @@ static void RunAction(int32_t id)
 		TakeAScreenshot();
 	}
 
-	// Save a copy (S3d): says where it went itself
+	// Save a copy (S3d): says where it went itself. On Strategy Data (its bar's Save, the flag pages' too: FUN_00524e90 / FUN_00525700 -> FUN_005282d0) every switch's Links first (S-K61-3)
 	if (host.saveCopy)
 	{
-		SaveTheCopy();
+		if (OnStrategyScreen())
+		{
+			StrategySave();
+		}
+		else
+		{
+			SaveTheCopy();
+		}
 	}
 
 	// The level's settings in the field panel (L)
@@ -17340,6 +17455,16 @@ static void RunAction(int32_t id)
 		else if (!OnTheTrackScreen() && trackEd.state != host::TrackState::Off)
 		{
 			TrackEditLeftByOtherWay();
+		}
+
+		// Acoustic Mode: entered (AC-1, FUN_004f5620), or left by its Exit or any other way (AC-8, FUN_004f56c0: the picks let go of)
+		if (IsTheAcousticScreen(barScreen) && !IsTheAcousticScreen(wasScreen))
+		{
+			AcousticEnter();
+		}
+		else if (!IsTheAcousticScreen(barScreen) && IsTheAcousticScreen(wasScreen))
+		{
+			AcousticLeave();
 		}
 	}
 
@@ -18620,6 +18745,11 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					{
 						// Strategy Data's page 0 (and a kind's view) reads no L (strategy-data.md S-58): nothing
 					}
+					else if (wParam == 'L' && OnAcousticScreen())
+					{
+						// Acoustic Mode's L (slot 0xd87a8c, FUN_004f57b0 0x4f5a86): every pick let go of, its red cleared
+						AcousticLeave();
+					}
 					else if (wParam == 'L' && !shiftHeld)
 					{
 						// inteng's "L: Deselect all objects"
@@ -18881,6 +19011,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				{
 					pickAsked = true;
 					pickShift = ShiftDown() || (wParam & MK_SHIFT) != 0;
+					pickCtrl = KeyHeldNow(VK_CONTROL) || (wParam & MK_CONTROL) != 0;
 					pickDelete = KeyHeldNow(VK_DELETE);   // Module Linking: Delete + click takes a module off the picks (slot 0x55 = VK 0x2e, FUN_004c3880)
 					pickWithS = keyLayout == KeyLayout::Classic && keyDown['S'] && barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && strategyFlagPage;   // S + click is the flag page's (FUN_00525700 0x525dbf); page 0 takes it as a plain click (S-58)
 					pickX = GET_X_LPARAM(lParam);
@@ -19104,6 +19235,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 
 				textureChooserMouseX = over.x;
 				textureChooserMouseY = over.y;
+			}
+
+			if (OnAcousticScreen() && window == hWndMain)
+			{
+				acousticPointerX = GET_X_LPARAM(lParam);
+				acousticPointerY = GET_Y_LPARAM(lParam);
 			}
 
 			if (onTextureMap && textureFlagList && window == hWndMain)
@@ -21655,6 +21792,285 @@ static std::vector<int32_t> PickedModules()
 	}
 
 	return picked;
+}
+
+// ---- ACOUSTIC MODE (reassess/object-placement.md section 2, AC-1 .. AC-9; the data side is acoustic_mode.h). inteng's is Object Placement's menu page 7 with
+// DAT_008f4f30 = 1, so that FUN_004d9af0 runs only FUN_004f57b0 each frame; here it is the screen "Acoustic", entered by Mode > Acoustic Mode (0x10) and left by its
+// Mode > Exit (0xa) for Object Placement. Its bar is inteng's page 7 (menu-status.json's Acoustic stand-in: Mode, Module, Default).
+static void DialogLine(std::string const &title, std::string const &label, std::string const &initial, size_t most, int32_t editHeight, std::function<void(std::string const &)> const &ok);
+static int32_t GameModuleOfNumber(int32_t number);
+
+
+// The MODULE a pick found, by its object's ID (0x4f581e-0x4f5838: a block with a rif object whose definition is not a placed one, flag 0x400); anything else: false
+static bool AcousticModuleOfPick(host::PickReport const &used, uint8_t id[8])
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	int32_t index = -1;
+
+	if (!open || !open->Level())
+	{
+		return false;
+	}
+
+	if (used.found == host::PickFound::Module)
+	{
+		return ModuleObject(open, used.moduleIndex, id) && host::ModuleIndexOfId(open->Level(), id, &index);
+	}
+
+	if (used.found == host::PickFound::Object)
+	{
+		memcpy(id, used.objectId, 8);
+		return host::ModuleIndexOfId(open->Level(), id, &index);   // a module the game gave a strategy (a door) is picked as an object; a placed object is no module
+	}
+
+	return false;
+}
+
+// AC-1 (FUN_004f5620): a flying current object stops flying and none is current; the picks start empty
+static void AcousticEnter()
+{
+	if (flyOn)
+	{
+		PlacementFlyStop();
+	}
+
+	host::Selection_Clear();
+	specialMode.haveCurrent = false;
+	placedHierarchyCurrent = -1;
+	acousticPicks.clear();
+	acousticPointerOn = false;
+}
+
+// AC-8 (FUN_004f56c0) and any other way out: every pick let go of, its red with it
+static void AcousticLeave()
+{
+	acousticPicks.clear();
+	acousticPointerOn = false;
+}
+
+// AC-2, a LEFT press on the view (FUN_004f57b0 0x4f57fe-0x4f5a7b): the module under the pointer; without Shift it is added at the end when it is not picked yet (and drawn red),
+// with Shift it is taken out of the list (its red cleared); anything that is not a module: nothing
+static void AcousticClick(host::PickReport const &used, bool shift)
+{
+	std::array<uint8_t, 8> id;
+
+	if (!AcousticModuleOfPick(used, id.data()))
+	{
+		return;
+	}
+
+	std::vector<std::array<uint8_t, 8>>::iterator const at = std::find(acousticPicks.begin(), acousticPicks.end(), id);
+
+	if (shift)
+	{
+		if (at != acousticPicks.end())
+		{
+			acousticPicks.erase(at);
+		}
+	}
+	else if (at == acousticPicks.end())
+	{
+		acousticPicks.push_back(id);
+	}
+}
+
+// The module under the pointer, picked again every frame (FUN_004f57b0 0x4f5bd6: FUN_00559720 at the pointer), for the frame's lines
+static void AcousticPointerFrame(int32_t viewWidth, int32_t viewHeight)
+{
+	acousticPointerOn = acousticPointerX >= 0 && acousticPointerY >= 0 && AcousticModuleOfPick(PickGame_AtClick(acousticPointerX, acousticPointerY, viewWidth, viewHeight), acousticPointerId);
+}
+
+// AC-9: the mode's text, at x 16 from y 32 (rows of 16)
+static void AcousticTextLines(std::vector<HierarchyTextLine> *out)
+{
+	std::vector<host::AcousticLine> lines;
+
+	out->clear();
+	host::Acoustic_FrameLines(LevelObjects_OpenForEdit(), acousticPointerOn ? acousticPointerId : nullptr, &lines);
+
+	for (host::AcousticLine const &line : lines)
+	{
+		out->push_back({ line.x, line.y / 16, line.words });
+	}
+}
+
+// FUN_004747f0's start text for a number (0x4749e5): "%f", the zeros at its end taken off, then a point left alone
+static std::string AcousticShown(float value)
+{
+	char shown[64];
+
+	_snprintf_s(shown, sizeof(shown), _TRUNCATE, "%f", (double)value);
+
+	if (strchr(shown, '.'))
+	{
+		size_t length = strlen(shown);
+
+		while (length > 0 && shown[length - 1] == '0')
+		{
+			shown[--length] = 0;
+		}
+
+		if (length > 0 && shown[length - 1] == '.')
+		{
+			shown[--length] = 0;
+		}
+	}
+
+	return shown;
+}
+
+// The window's answer read as FUN_00474a10 reads it (sscanf "%f" of the edit's text). INTENG BUG, FIXED (MAPPING-ORDERS section 15): its float is never set before the
+// sscanf (0x474a10 PUSH ECX keeps the window's own address there), so a text that is no number gave that address's bits as the reverb; here such a text changes nothing
+static bool AcousticTyped(std::string const &typed, float *value)
+{
+	return sscanf_s(typed.c_str(), "%f", value) == 1;
+}
+
+// After a write: a level swapped for a new one (a record made) has its object list made again; a refusal is said
+static void AcousticAfter(host::AcousticResult result, unsigned generationBefore)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (open && open->Generation() != generationBefore)
+	{
+		LoadTheObjectListAgain();
+	}
+
+	if (result != host::AcousticResult::Done)
+	{
+		Answer(std::string("Acoustic Mode: ") + host::AcousticWords(result));
+	}
+}
+
+static void AcousticSetPicked(host::AcousticField field, int32_t type, float reverb, bool make)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || acousticPicks.empty())
+	{
+		return;
+	}
+
+	unsigned const before = open->Generation();
+
+	AcousticAfter(host::Acoustic_SetModules(open, acousticPicks, field, type, reverb, make, nullptr), before);
+}
+
+static void AcousticSetLevel(host::AcousticField field, int32_t type, float reverb)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open)
+	{
+		return;
+	}
+
+	unsigned const before = open->Generation();
+
+	AcousticAfter(host::Acoustic_SetLevel(open, field, type, reverb), before);
+}
+
+// The 26 names in their order: the list dialog shows them sorted, and answers with a name's place here, which is its type (FUN_004f5cf0's second list, 0..25)
+static std::vector<std::string> AcousticTypeRows()
+{
+	std::vector<std::string> rows;
+
+	for (int32_t type = 0; type < host::kAcousticTypeCount; type++)
+	{
+		rows.push_back(host::AcousticTypeName(type));
+	}
+
+	return rows;
+}
+
+// AC-3 .. AC-7: the items of the Module and Default menus (Exit is the screen change, in the frame)
+static void AcousticCommand(int32_t command)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !open->Level())
+	{
+		return;
+	}
+
+	switch (command)
+	{
+	case 0xbb8:
+		// Module > Acoustic type (FUN_004f5cf0): only with picked modules; the list "Select Module Acoustics Type" (0x5e95bc); a pick: every picked module's record (made when missing)
+		if (!acousticPicks.empty())
+		{
+			DialogList("Select Module Acoustics Type", AcousticTypeRows(), [](int32_t place)
+			{
+				if (place >= 0 && place < host::kAcousticTypeCount)
+				{
+					AcousticSetPicked(host::AcousticField::Type, place, 0.0f, true);
+				}
+			});
+		}
+
+		break;
+	case 0xbb9:
+		// Module > Reverb (FUN_004f63a0): only with picked modules; the number window starts at the first picked record's reverb that is not -1.0, else 2.0
+		if (!acousticPicks.empty())
+		{
+			DialogLine(std::string(), "Select reverb for module (>1 = default reverb)", AcousticShown(host::Acoustic_ModuleReverbStart(open, acousticPicks)), 200, 0x12, [](std::string const &typed)
+			{
+				float value = 0.0f;
+
+				if (AcousticTyped(typed, &value))
+				{
+					AcousticSetPicked(host::AcousticField::Reverb, 0, host::AcousticReverbKept(value), true);
+				}
+			});
+		}
+
+		break;
+	case 0xbba:
+		// Module > Set To Default Acoustic Type (0x4f58b8): each picked module that HAS a record, type -1; none is made
+		AcousticSetPicked(host::AcousticField::Type, -1, 0.0f, false);
+		break;
+	case 0xbbb:
+		// Module > Set To Default Reverb (0x4f592f): each picked module that has a record, reverb -1.0
+		AcousticSetPicked(host::AcousticField::Reverb, 0, -1.0f, false);
+		break;
+	case 0xbbc:
+		// Default > Acoustic type (FUN_004f6010): the list "Select Environment Acoustics Type" (0x5e95dc); a pick: the level's record (made when missing)
+		DialogList("Select Environment Acoustics Type", AcousticTypeRows(), [](int32_t place)
+		{
+			if (place >= 0 && place < host::kAcousticTypeCount)
+			{
+				AcousticSetLevel(host::AcousticField::Type, place, 0.0f);
+			}
+		});
+		break;
+	case 0xbbd:
+	{
+		// Default > Reverb (FUN_004f6560): the level's record made when missing BEFORE the window (0x4f657e), then the window at its reverb; Ok writes the kept number
+		unsigned const before = open->Generation();
+		host::AcousticResult const made = host::Acoustic_MakeLevelRecord(open);
+		host::AcousticRecord record;
+
+		AcousticAfter(made, before);
+
+		if (made != host::AcousticResult::Done || !host::Acoustic_LevelRecord(LevelObjects_OpenForEdit(), &record))
+		{
+			break;
+		}
+
+		DialogLine(std::string(), "Select reverb for environment (>1 = default reverb)", AcousticShown(record.reverb), 200, 0x12, [](std::string const &typed)
+		{
+			float value = 0.0f;
+
+			if (AcousticTyped(typed, &value))
+			{
+				AcousticSetLevel(host::AcousticField::Reverb, 0, host::AcousticReverbKept(value));
+			}
+		});
+		break;
+	}
+	default:
+		break;
+	}
 }
 
 // FUN_004c10c0's write (0x4c10e2-0x4c1430, menu-reads-4.txt) and Set Current's (FUN_004c1a90 0x4c2377-0x4c26a3, row ML-M-19): when the tree was changed and has a link, the current
@@ -24991,6 +25407,30 @@ static void UpdateModuleTints(bool onAdjacent)
 			return;
 		}
 
+		// Acoustic Mode's picks are RED (FUN_004f57b0 0x4f5a6f: the block's +0x64 bit 0x40000000, drawn 0xff0000 by FUN_004a7cd0 0x4a7eca)
+		if (open && OnAcousticScreen())
+		{
+			std::vector<int32_t> red;
+
+			for (std::array<uint8_t, 8> const &picked : acousticPicks)
+			{
+				int32_t number = 0;
+				int32_t const game = host::ModuleIndexOfId(open->Level(), picked.data(), &number) ? GameModuleOfNumber(number) : -1;
+
+				if (game >= 0)
+				{
+					red.push_back(game);
+				}
+			}
+
+			std::vector<uint32_t> const colours(red.size(), 0xFFFF0000u);
+
+			LevelView_SetObjectTints(nullptr, nullptr, 0);
+			LevelView_SetModuleTints(red.data(), colours.data(), red.size());
+			drawn = true;
+			return;
+		}
+
 		if (drawn)
 		{
 			LevelView_SetObjectTints(nullptr, nullptr, 0);
@@ -25808,8 +26248,8 @@ static void StabilityEnd()
 
 		LoadTheObjectListAgain();
 
-		// FUN_00527210 0x527329: Yes saves the level at once (FUN_005282d0); ours saves a COPY (the owner's rule), as Save does (strategy-data.md S-78)
-		SaveTheCopy();
+		// FUN_00527210 0x527329: Yes saves the level at once (FUN_005282d0, with every switch's Links made again: S-K61-3), as Save does (strategy-data.md S-78)
+		StrategySave();
 		strategyWords = std::string("Stability flags: the six faces are written into the module's shape; ") + savedWords;
 		statusWords = strategyWords.c_str();
 	});
@@ -25930,11 +26370,27 @@ static void CopyFinished()
 	copyTargets.clear();
 }
 
+static host::ObjectEditResult WriteStrategyBytes(OpenLevelFile *open, uint8_t const *id, std::vector<uint8_t> const &bytes);   // below, with the views
+
+// One target gets the copy (0x528567): the source kind's own copy (its +0xc; model::CopyStrategyAsTheOldEditor, close-out F-2: a Door, Placed Object or Light Object without the head's Type and
+// ExtraData, a switch's links emptied, a Linked Switch kept a Linked Switch, INTENG BUG, FIXED), made from the source's strategy as edited so far and written through WriteStrategyBytes, so a
+// VIRTUAL object (where most switches live) is a source or a target as a placed object or a module is (inteng's Copy takes any object that has a wrapper)
 static void CopyDo(size_t index)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	host::ObjectStrategy source;
+	std::vector<uint8_t> copy;
+	size_t length = 0;
+	bool made = false;
 
-	if (!open || host::CopyStrategy(open, copyFrom, copyTargets[index].id) != host::ObjectEditResult::Done)
+	if (open && host::LookUpStrategyBytes(LevelObjects_Level(), host::LevelStore(open), copyFrom, &source) == host::StrategyFound::Found)
+	{
+		copy.resize(source.payload.size());   // no kind's copy is longer than its source
+		made = model::CopyStrategyAsTheOldEditor(source.payload.data(), source.payload.size(), copy.data(), copy.size(), &length);
+		copy.resize(made ? length : 0);
+	}
+
+	if (!made || WriteStrategyBytes(open, copyTargets[index].id, copy) != host::ObjectEditResult::Done)
 	{
 		StrategyMessage("Unable to copy this strategy");   // 0x5ee194: the rest is given up
 		LoadTheObjectListAgain();
@@ -25957,14 +26413,22 @@ static void CopyNext(size_t index)
 			continue;
 		}
 
+		// the target's class's method +8 with the source's kind (0x52846a): it takes the chooser's kinds and more (KindsTheObjectCanTake's note): a Binary Switch 52 on a placed or a virtual object,
+		// 53 and 63 on a placed object, 60 on a module. The chooser's list says which class: only a virtual object takes a Mission Objective (70), only a placed object a Placed Object (62), only a
+		// module a Light Object (64)
 		int32_t kinds[16];
 		size_t const count = KindsTheObjectCanTake(id, kinds);
-		bool can = false;
+		bool can = false, isVirtual = false, isPlaced = false, isModule = false;
 
 		for (size_t k = 0; k < count; k++)
 		{
 			can = can || kinds[k] == copyKind;
+			isVirtual = isVirtual || kinds[k] == 70;
+			isPlaced = isPlaced || kinds[k] == 62;
+			isModule = isModule || kinds[k] == 64;
 		}
+
+		can = can || ((isVirtual || isPlaced) && copyKind == 52) || (isPlaced && (copyKind == 53 || copyKind == 63)) || (isModule && copyKind == 60);
 
 		if (!can)
 		{
@@ -25998,7 +26462,40 @@ static void CopyNext(size_t index)
 	CopyFinished();
 }
 
-static void CopyCollectClick(host::PickReport const &report, bool shift, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight)
+// The collector's Ctrl + click (FUN_00526bf0 0x526e3b-0x526ecc, S-79): only on an object of the level, a record with an object (+0x154); on anything else (a virtual object's icon, which has
+// none) the click does nothing at all (0x526e43), not even the plain click's add. The clicked object's shape is FUN_004d0fd0's (Object_Chunk::get_assoc_shape: the header's shape, none without
+// a header); every object of the level whose shape is that one (the record table 0x93d120 in its order, from the level's first record DAT_008f588c), the clicked one too, joins the list
+// when it is not in it, RED. Every such record has a wrapper (FUN_00521cb0 makes one for each record with an object), so each is a target the copy can deal with. The group is
+// LevelObjects_ShapeGroup's (level_objects.h); none (a virtual object's icon) adds nothing.
+static void CopyCollectShapeGroup(uint8_t const *clicked)
+{
+	std::vector<host::LevelObject> group;
+
+	if (!LevelObjects_ShapeGroup(clicked, &group))
+	{
+		return;
+	}
+
+	for (host::LevelObject const &member : group)
+	{
+		CopyTarget one = {};
+		bool listed = false;
+
+		memcpy(one.id, member.id, sizeof(one.id));
+
+		for (CopyTarget const &target : copyTargets)
+		{
+			listed = listed || memcmp(target.id, one.id, 8) == 0;
+		}
+
+		if (!listed)
+		{
+			copyTargets.push_back(one);
+		}
+	}
+}
+
+static void CopyCollectClick(host::PickReport const &report, bool shift, bool ctrl, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	CopyTarget one = {};
@@ -26027,6 +26524,13 @@ static void CopyCollectClick(host::PickReport const &report, bool shift, int32_t
 
 	if (!have)
 	{
+		return;
+	}
+
+	// Shift is read first (0x526d7c: Shift takes the clicked one out, whatever Ctrl is); then Ctrl (0x526e33) adds the shape group
+	if (!shift && ctrl)
+	{
+		CopyCollectShapeGroup(one.id);
 		return;
 	}
 
@@ -26272,6 +26776,89 @@ static bool MultiWrite(uint8_t const *subject, std::vector<uint8_t> const &paylo
 
 	// Drake's WriteStrategyBytes: a placed object or module through SetStrategyBytes, a VIRTUAL object (most Multi Switches: Temple's exitmultiswitch, Stat101's trigtospidgen) through its VIOBJECT
 	return WriteStrategyBytes(LevelObjects_OpenForEdit(), subject, bytes) == host::ObjectEditResult::Done;
+}
+
+// S-K61-3: FUN_005282d0 0x528306 -> FUN_0052e000 (dump-full-3, read 11-17): when the level saved is the one open (DAT_0060801c), every record's strategy (DAT_00914954[i] +0x14, its +0x30) goes
+// to FUN_0052dc90, which makes the Links of a Linked (0x3d), Multi (0x42) or Area (0x44) switch again (StrategyView_SwitchLinks) and writes them into it; any other kind returns at once (0x52dcc7).
+// So a switch whose target was changed or taken out since the level was read is in the saved file's Links of the switch it now names, and no longer in the one it named. Every switch is
+// made again from the records as they are BEFORE any of them is written (the Links are not what decides whether a strategy targets another). Gives back how many switches were written.
+static int StrategyLinksMakeAgain()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !LevelObjects_Level())
+	{
+		return 0;
+	}
+
+	std::vector<host::StrategyRecordRef> records;
+
+	host::ListStrategyRecords(LevelObjects_Level(), &records);
+
+	// each record's strategy as the open file holds it now (the edits' store, as every view reads it), so a write here never puts back older bytes
+	for (host::StrategyRecordRef &one : records)
+	{
+		int32_t kind = 0;
+		std::vector<uint8_t> payload;
+
+		if (StrategyOfObject(one.id.data(), &kind, &payload))
+		{
+			one.kind = kind;
+			one.payload = payload;
+		}
+	}
+
+	int written = 0;
+
+	for (host::StrategyRecordRef const &one : records)
+	{
+		std::vector<std::array<uint8_t, 8>> stored;
+
+		if ((one.kind != 61 && one.kind != 66 && one.kind != 68) || !host::StrategyView_StoredLinks(one.kind, one.payload, &stored))
+		{
+			continue;
+		}
+
+		std::vector<std::array<uint8_t, 8>> const links = host::StrategyView_SwitchLinks(one.kind, one.id.data(), records);
+		std::vector<uint8_t> bytes;
+
+		if (links != stored && host::StrategyView_WithLinks(one.kind, one.payload, links, &bytes))
+		{
+			if (WriteStrategyBytes(open, one.id.data(), bytes) == host::ObjectEditResult::Done)
+			{
+				written++;
+			}
+			else
+			{
+				LogString("strategy save: a switch's Links could not be written (its record was not found to write)");
+			}
+		}
+	}
+
+	if (written > 0)
+	{
+		LoadTheObjectListAgain();
+		LogString("strategy save: the Links of " + std::to_string(written) + " switch(es) made again (FUN_0052e000)");
+	}
+
+	return written;
+}
+
+// Strategy Data's Save (FUN_005282d0, F-3: the bar's Save, Mode > Exit's "Would you like to save first?" Yes, the Stability flags' Yes, the flag pages' Save), in inteng's order (dump-full-3, read
+// 11-17): FUN_0053bde0 -> FUN_0053bda0 runs the REPAIR PASS FUN_00536ad0 first (as Find Errors does), then asks each record for problems; its "Warning : %d strategies have errors..." (0x5f0410)
+// needs a count Find Errors' same walk leaves at 0, so it is not drawn (Bishop 11-17: a row, no code). Then FUN_0052e000, the Links; then the level written (FUN_004719e0; ours a copy in a hidden
+// run, else over the file with its .bak: SaveTheCopy)
+static void StrategySave()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (open && host::StrategyRepair_Run(open) > 0)
+	{
+		LoadTheObjectListAgain();
+	}
+
+	StrategyLinksMakeAgain();
+	SaveTheCopy();
 }
 
 static void MultiTargetsStart(uint8_t const *subject, std::vector<uint8_t> const &payload, int32_t index);   // below, with the collector
@@ -33406,6 +33993,9 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 	int32_t dropWidths[ui::kMenuMostMenus];
 	static int32_t cascadeWidths[ui::kMenuMostMenus * ui::kMenuMostItems];   // each item's cascade, as wide as its widest row (BAR-11)
 
+	// the state line's screentext is made again each frame: the screens' top-left text below adds to it (Strategy Data's current-object lines, the hub's, Module Linking's)
+	screenTextNow.clear();
+
 	// The menu bar: gray behind its titles only, as far as they go and a little past, and its drop-downs open over the level anywhere in the
 	// window below the bar
 	// (A drop-down starts at the top of its room, MenuBar::DropBox, so the room starts BELOW the bar: from the bar's foot to the window's
@@ -34176,6 +34766,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 				idLine.x = 16;
 				idLine.y = layout.view.y + 4 * 16;
 				lines[lineCount++] = idLine;
+				screenTextNow += (screenTextNow.empty() ? "" : "|") + nameLine.text + "|" + idLine.text;   // the state line's screentext: a test reads which object is current
 			}
 		}
 
@@ -34561,8 +35152,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 	// (10, 0x32) (FUN_00472720: the polygons of each shape the level places, then those times its uses) and the selected objects' lines (name, radius, flags, Location).
 	// FOR NOW ON THE HUB ONLY: inteng's rows 0 and 1 lie in the bar's band, where our text comes out as magenta boxes (fixed with the bar row H-5); drawn under the band they would sit
 	// on the other screens' own rows 2 and 3 (Object Placement, Path, Waypoint, Hierarchy: FUN_004d9af0 0x4dc74e "View Distance" at y 0x20), so until then only the hub, which
-	// has nothing on those rows, shows them.
-	screenTextNow.clear();
+	// has nothing on those rows, shows them. (screentext was cleared at the top of this function.)
 
 	// While a menu is up, neither: FUN_00471b60 runs after the mode's frame (0x58cfe3) and the hub draws its text after its command step (0x4452c5 before 0x447104), so no picture shown
 	// from inside the menu loop has them (BAR-6, BAR-8)
@@ -34790,6 +35380,11 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 	if (OnTheTrackScreen())
 	{
 		TrackTextLines(&hierarchyTextNow);
+	}
+	else if (OnAcousticScreen())
+	{
+		AcousticTextLines(&hierarchyTextNow);
+		textAfterTheCommand = true;   // FUN_004f57b0: its commands first (0x4f57ba), its text from 0x4f5b82
 	}
 	else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Waypoint") == 0)
 	{
@@ -40182,6 +40777,12 @@ int main(int, char **)
 			}
 		}
 
+		// Acoustic Mode: the module under the pointer, every frame (FUN_004f57b0 0x4f5bd6), for its lines
+		if (OnAcousticScreen())
+		{
+			AcousticPointerFrame(view.right - view.left, view.bottom - view.top);
+		}
+
 		if (onTextureMap && textureFlagList && textureHoverSet)
 		{
 			textureHoverSet = false;
@@ -40241,7 +40842,7 @@ int main(int, char **)
 			}
 			else if (copyCollecting && OnStrategyScreen())
 			{
-				CopyCollectClick(picked, pickShift, pickX, pickY, pickInBox ? threeMainBox.width : view.right - view.left, pickInBox ? threeMainBox.height : view.bottom - view.top);
+				CopyCollectClick(picked, pickShift, pickCtrl, pickX, pickY, pickInBox ? threeMainBox.width : view.right - view.left, pickInBox ? threeMainBox.height : view.bottom - view.top);
 			}
 			else if (strategyEditFan && OnStrategyScreen() && !strategyPickField.empty())
 			{
@@ -40298,7 +40899,11 @@ int main(int, char **)
 						used = PickTheNearestCentre(pickX, pickY, pickInBox ? threeMainBox.width : view.right - view.left, pickInBox ? threeMainBox.height : view.bottom - view.top);
 					}
 
-					if (OnModuleLinkingScreen())
+					if (OnAcousticScreen())
+					{
+						AcousticClick(picked, pickShift);   // AC-2: FUN_00559720, the block under the pointer, whatever the Options say
+					}
+					else if (OnModuleLinkingScreen())
 					{
 						LinkClick(used, pickShift, pickDelete);   // row ML-M-61
 					}

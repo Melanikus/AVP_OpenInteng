@@ -1,0 +1,38 @@
+# ACCEPTANCE (red first): a click takes only what is DRAWN, as inteng's one pick for every mode (FUN_00559750; Frost 2026-11-17, Bishop's order; pick_game.cpp, avpx los.cpp
+# FindDrawnPolygonInLineOfSight). inteng walks the polygons it drew last frame (DAT_00703cf4 / DAT_009ba168): a face turned away from the eye was culled, so it is not there to be clicked
+# (unless it is double-sided, iflag_no_bfc), and an iflag_notvis polygon never is. Ours used the game's line of sight, which takes every face from both sides ("KJL: treat all polys
+# as no bfc", los.cpp), so a click stopped on faces nobody sees. The Strategy half is acceptance-pick-drawn-faces-strategy.txt.
+# HIERARCHY, his MelPyth_MarHUD (the Shotgun, its reload frozen at its start; the camera 1 m in front of it, as acceptance-hierarchy-section-click): the section RArm's faces are turned
+# away from this camera (it sees through RArm), so the old pick said "RArm" on the left upper arm and on the right forearm; inteng takes the section that is drawn there.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+camera 365 530 -600 0 0
+move-win 504 600
+wait 400
+picture 1
+# the left upper arm, drawn in front: RArm01 (red: "RArm", seen through)
+click-win 250 520
+wait 300
+picture 2
+expect-status Hierarchy: section RArm01 selected
+# the right forearm, in the middle of the view: RForearm (red: "RArm")
+click-win 504 364
+wait 300
+picture 3
+expect-status Hierarchy: section RForearm selected
+# the Shotgun's body: ShotgunBody (red: "RArm")
+click-win 430 400
+wait 300
+picture 4
+expect-status Hierarchy: section ShotgunBody selected

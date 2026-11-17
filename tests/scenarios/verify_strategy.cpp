@@ -5,10 +5,13 @@
 // A <field> is a field of its strategy as the model names it, <value> what the copy must hold there; "holds <name>" checks that its strategy holds that object's 8-byte ID (a target in a list).
 // "also <name>": that object was changed by the scenario too (checked by its own verify line), so it is left out of the check that every other strategy is the original's.
 // "size <n>": the strategy is n bytes long; "nullid <field>": that object field holds the null ID (both added 2026-11-17 by Drake for the Find Errors repairs' read-back).
-// The object is looked for among the level's objects (modules and placed objects), its virtual objects and its enemies / generators, by its exact name; a value may be decimal or 0x hex.
+// A Multiple Target / Area Switch's list (66 / 68 only, read as the view reads it: host::StrategyView_MultiTargets; added 2026-11-17 for Vasquez's read-backs): "targets <n>": it holds n targets;
+// "target.<i> <name>": target i (from 0) is that object ("none": the null ID); "target_request.<i> <n>": target i's request word is n.
+// The object is looked for among the level's objects (modules and placed objects), its virtual objects, its enemies / generators and its placed hierarchies (added 2026-11-17), by its exact name; a value may be decimal or 0x hex.
 // CHECKS: both levels are read by the game's loader; the object holds a strategy in both; in the copy the field holds the value; every OTHER object's strategy is byte for byte the original's (the
 // scenario changed that one only). Gives back 0 only if every check passed.
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -133,6 +136,14 @@ static void Strategies(OpenLevelFile &level, std::map<std::string, Held> *out)
 	{
 		add(g.id, g.name);
 	}
+
+	std::vector<host::PlacedHierarchyRef> placed;
+	host::ListPlacedHierarchies(level.Level(), &placed);
+
+	for (host::PlacedHierarchyRef const &p : placed)
+	{
+		add(p.id, p.name);
+	}
 }
 
 int main(int argc, char **argv)
@@ -209,6 +220,52 @@ int main(int argc, char **argv)
 			continue;
 		}
 
+		if (field == "targets" || field.compare(0, 7, "target.") == 0 || field.compare(0, 15, "target_request.") == 0)
+		{
+			std::vector<host::MultiTarget> list;
+			bool const multi = now.hasStrategy && (now.kind == 66 || now.kind == 68) && host::StrategyView_MultiTargets(now.payload, &list);
+
+			if (field == "targets")
+			{
+				long long const wanted = strtoll(argv[a + 1], nullptr, 0);
+
+				Check(multi && (long long)list.size() == wanted, "in the copy its list holds " + std::to_string(wanted) + " targets (" + (multi ? std::to_string((unsigned long long)list.size()) :
+				      std::string("no 66 / 68 list read, kind ") + std::to_string((long long)now.kind)) + ")");
+				continue;
+			}
+
+			size_t const dot = field.find('.');
+			char *end = nullptr;
+			unsigned long const index = strtoul(field.c_str() + dot + 1, &end, 10);
+			bool const there = multi && end && *end == 0 && end != field.c_str() + dot + 1 && index < list.size();
+			std::string const which = "target " + field.substr(dot + 1);
+
+			if (field.compare(0, 7, "target.") == 0)
+			{
+				std::string target(8, 0);
+				bool known = std::string(argv[a + 1]) == "none";
+
+				for (auto const &one : after)
+				{
+					if (!known && one.second.name == argv[a + 1])
+					{
+						target = one.first;
+						known = true;
+					}
+				}
+
+				Check(there && known && memcmp(list[index].id.data(), target.data(), 8) == 0, "in the copy its " + which + " is \"" + std::string(argv[a + 1]) + "\"" +
+				      (!known ? " (no object has that name)" : !there ? " (the list has no such target)" : ""));
+				continue;
+			}
+
+			long long const wanted = strtoll(argv[a + 1], nullptr, 0);
+
+			Check(there && (long long)list[index].request == wanted, "in the copy its " + which + "'s request is " + std::to_string(wanted) + " (" +
+			      (there ? std::to_string((unsigned long long)list[index].request) : std::string("the list has no such target")) + ")");
+			continue;
+		}
+
 		if (field == "holds")
 		{
 			// the strategy holds the named object's ID (after its 12-byte header)
@@ -234,7 +291,21 @@ int main(int argc, char **argv)
 			continue;
 		}
 
-		int32_t const wanted = (int32_t)strtol(argv[a + 1], nullptr, 0);
+		// the wanted value: a number in any base strtoll takes, from -2147483648 to 4294967295, so a flags word with its top bit set can be given in hex ("0x80000002" is the
+		// field's -2147483646; strtol held it at 2147483647: Vasquez, 2026-11-17). A word that isn't such a number is a failed check, never a 0 or a clamped value.
+		char *wantedEnd = nullptr;
+
+		errno = 0;
+
+		long long const wantedNumber = strtoll(argv[a + 1], &wantedEnd, 0);
+
+		if (wantedEnd == argv[a + 1] || *wantedEnd != 0 || errno == ERANGE || wantedNumber < -2147483648LL || wantedNumber > 4294967295LL)
+		{
+			Check(false, "the value \"" + std::string(argv[a + 1]) + "\" for " + field + " is a whole number from -2147483648 to 4294967295 (0x prefix for hex)");
+			continue;
+		}
+
+		int32_t const wanted = (int32_t)(uint32_t)wantedNumber;
 		int32_t value = 0, was = 0;
 
 		// read first: the words below are made from the value (a call's arguments may be worked out in any order, so the words were made before the read and said 0)

@@ -13,8 +13,9 @@
 //   word <at> <number>          the 4 bytes at <at> (a multiple of 4, inside the payload) set to the number
 //   idat <at> <name>            the 8 bytes at <at> set to that object's ID
 //   noidat <at> <hex> <hex>     the 8 bytes at <at> set to an ID no object of the level has
+// An object is a level object (a module or a placed object), a virtual object or a placed hierarchy (its strategy is the PLACHIER's; added 2026-11-17 for S-K76-R's acceptance).
 // A step that can't be done stops the tool before anything is written, and says which and why. Each strategy must then be one the game's loader takes (model::CheckStrategySize); it is
-// written as the editor writes one (host::SetStrategyBytes, or host::VirtualObject_SetStrategyBytes for a virtual object), the level is saved to the new file, and the new file is read back by
+// written as the editor writes one (host::SetStrategyBytes, host::VirtualObject_SetStrategyBytes for a virtual object, host::PlacedHierarchyStrategy_Put for a placed hierarchy), the level is saved to the new file, and the new file is read back by
 // the game's own loader: each object must hold exactly the bytes made for it. A file already at the new name is replaced only when its name ends ".made.rif" (only this tool makes those).
 // Gives back 0 only when the level was made and read back.
 
@@ -34,6 +35,7 @@
 #include "field_model.h"
 #include "level_file.h"
 #include "object_edit.h"
+#include "placed_hierarchy_strategy.h"
 #include "strategy_lookup.h"
 #include "virtual_object.h"
 
@@ -67,16 +69,17 @@ void Sound_ForgetAddressesInside(const void *, size_t)
 {
 }
 
-static size_t const kMostBytes = 65536;   // SetStrategyBytes and VirtualObject_SetStrategyBytes refuse more
+static size_t const kMostBytes = 65536;   // SetStrategyBytes, VirtualObject_SetStrategyBytes and PlacedHierarchyStrategy_Put refuse more
 
 struct Named
 {
 	uint8_t id[8];
 	bool isVirtual;
 	bool isGenerator;
+	bool isHierarchy;
 };
 
-// every object with an ID, by its exact name: objects (modules and placed objects), virtual objects, enemies and generators; a name two of them have is refused when it is used
+// every object with an ID, by its exact name: objects (modules and placed objects), virtual objects, enemies and generators, placed hierarchies; a name two of them have is refused when it is used
 static void NamesOf(File_Chunk *level, std::map<std::string, std::vector<Named>> *out)
 {
 	out->clear();
@@ -117,6 +120,18 @@ static void NamesOf(File_Chunk *level, std::map<std::string, std::vector<Named>>
 		memcpy(one.id, g.id, 8);
 		one.isGenerator = true;
 		(*out)[g.name].push_back(one);
+	}
+
+	std::vector<host::PlacedHierarchyRef> placed;
+	host::ListPlacedHierarchies(level, &placed);
+
+	for (host::PlacedHierarchyRef const &p : placed)
+	{
+		Named one = {};
+
+		memcpy(one.id, p.id, 8);
+		one.isHierarchy = true;
+		(*out)[p.name].push_back(one);
 	}
 }
 
@@ -516,7 +531,7 @@ int main(int argc, char **argv)
 
 		if (job.who.isGenerator)
 		{
-			Fail("\"" + job.name + "\" is an enemy or a generator: this tool writes the strategies of objects and virtual objects only");
+			Fail("\"" + job.name + "\" is an enemy or a generator: this tool writes the strategies of objects, virtual objects and placed hierarchies only");
 			return 1;
 		}
 
@@ -558,6 +573,16 @@ int main(int argc, char **argv)
 			if (result != host::VirtualObjectResult::Done)
 			{
 				Fail("\"" + job.name + "\"'s strategy wasn't written: " + host::VirtualObjectWords(result));
+				return 1;
+			}
+		}
+		else if (job.who.isHierarchy)
+		{
+			host::PlacedHierarchyStrategyResult const result = host::PlacedHierarchyStrategy_Put(&level, job.who.id, job.payload.data(), job.payload.size());
+
+			if (result != host::PlacedHierarchyStrategyResult::Done)
+			{
+				Fail("\"" + job.name + "\"'s strategy wasn't written: " + host::PlacedHierarchyStrategyWords(result));
 				return 1;
 			}
 		}

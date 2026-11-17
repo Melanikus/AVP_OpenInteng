@@ -561,7 +561,11 @@
 		{ "name": "Path", "tag": "wip", "built": "Path" },
 		{ "name": "Hierarchy", "tag": "wip", "built": "Hierarchy" },
 		{ "name": "Strategy Data", "tag": "wip", "built": "Strategy Data" },
-		{ "name": "Acoustic", "tag": "wip" },
+		{ "name": "Acoustic", "tag": "wip", "menus": [
+			{ "title": "Mode", "items": [ { "name": "&Exit", "command": "0xa", "does": "acoustic" } ] },
+			{ "title": "&Module", "items": [ { "name": "&Acoustic type", "command": "0xbb8", "does": "acoustic" }, { "name": "&Reverb", "command": "0xbb9", "does": "acoustic" }, { "name": "Set To Default Acoustic Type", "command": "0xbba", "does": "acoustic" }, { "name": "Set To Default Reverb", "command": "0xbbb", "does": "acoustic" } ] },
+			{ "title": "&Default", "items": [ { "name": "&Acoustic type", "command": "0xbbc", "does": "acoustic" }, { "name": "&Reverb", "command": "0xbbd", "does": "acoustic" } ] }
+		] },
 		{ "name": "Flag View", "tag": "wip" },
 		{ "name": "Texture Map", "tag": "wip", "built": "Texture Map" }
 	]

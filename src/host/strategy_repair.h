@@ -11,8 +11,8 @@
 //
 // THE REPAIR (method +0x1c of each strategy class; every other class has the base class's, which does nothing: vtable +0x1c is 0x401b30). A target that no record answers to is reset to the null ID and its "turn on / off" number to 0:
 //   BinSwitch (52) and LinkSwitch (61) FUN_0052dc20: the Switch's target (ID at 36) and request (44);  Placed Object (62) FUN_005315b0: Event Target (ID at 44) and target_request (40);  Enemy (69) FUN_00531cd0: Death target (ID at 28)
-//   and request (24).  The repairs that take the dead entries out of a LIST and make the strategy shorter: Mission Objective 70 FUN_005335f0, the Track kinds 72 and 76 FUN_00534450, Track Destructable
-//   80 FUN_005354a0 (strategy_repair.cpp says how). NAMED, NOT DONE: MultiSwitch 66 and AreaSwitch 68 FUN_00530820 (Vasquez's rows S-K66 / S-K68). Neither Find Errors' answer nor Obsolete Switches
+//   and request (24).  The repairs that take the dead entries out of a LIST and make the strategy shorter: Mission Objective 70 FUN_005335f0, MultiSwitch 66 and AreaSwitch 68 FUN_00530820 (Vasquez 11-17: the same walk as 70's, RepairEntryList with the count at 36), the Track kinds 72 and 76 FUN_00534450, Track Destructable
+//   80 FUN_005354a0 (strategy_repair.cpp says how). Neither Find Errors' answer nor Obsolete Switches
 //   depends on them (a dead entry adds nothing to a closure either way). The cut-scene heads and traps are left out of the records (NAMED: the game's library does not read their chunks).
 //
 // OBSOLETE SWITCHES (FUN_00537030, which starts with the repair pass): for each VIRTUAL object whose strategy is a switch (kinds 52, 61, 66, 68: FUN_005218b0), the closure of the objects it switches is walked: the object itself, then, for

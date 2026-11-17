@@ -645,6 +645,101 @@ static void NewOnesStartAsTheOldEditorMadeThem()
 	Check(!MakeNewStrategy(50, small, sizeof(small), &length), "a buffer too small for a new strategy isn't written");
 }
 
+// A payload of that kind and size whose every word after the kind holds a different number (so a copied word shows where it came from)
+static std::vector<uint8_t> Numbered(int32_t kind, size_t size)
+{
+	std::vector<uint8_t> bytes = Payload(kind, size);
+
+	for (size_t at = 12; at + 4 <= size; at += 4)
+	{
+		PutInt(bytes, at, 1000 + (int32_t)at);
+	}
+
+	return bytes;
+}
+
+static std::vector<uint8_t> CopyOf(std::vector<uint8_t> const &source)
+{
+	std::vector<uint8_t> bytes(1024, 0xEE);
+	size_t length = 0;
+
+	if (!CopyStrategyAsTheOldEditor(source.data(), source.size(), bytes.data(), bytes.size(), &length))
+	{
+		return std::vector<uint8_t>();
+	}
+
+	bytes.resize(length);
+	return bytes;
+}
+
+static void CopiesAreEachKindsOwn()
+{
+	printf("Copy Strategy copies what each kind's own copy copies (close-out F-2)\n");
+
+	// 50, 62, 64: every field; the head's Type and ExtraData (+12, +16) are 0, as the new strategy's constructor leaves them
+	bool headZeroed = true;
+
+	for (int32_t const kind : { 50, 62, 64 })
+	{
+		StrategyKind const *const found = FindStrategyKind(kind);
+		std::vector<uint8_t> const source = Numbered(kind, found ? found->fixedBytes : 0);
+		std::vector<uint8_t> const copy = CopyOf(source);
+
+		headZeroed = headZeroed && copy.size() == source.size() && GetInt(copy, 8) == kind && GetInt(copy, 12) == 0 && GetInt(copy, 16) == 0 &&
+		             memcmp(copy.data() + 20, source.data() + 20, source.size() - 20) == 0 && GetInt(copy, 0) == GetInt(source, 0) && GetInt(copy, 4) == GetInt(source, 4);
+	}
+
+	Check(headZeroed, "a Door, a Placed Object and a Light Object copy every field, with the head's Type and ExtraData 0");
+
+	// 52: all of it
+	std::vector<uint8_t> const binary = Numbered(52, 48);
+	Check(CopyOf(binary) == binary, "a Binary Switch copies all of it, the head's Type and ExtraData too");
+
+	// 61: stays a 61 (INTENG BUG, FIXED: the old editor's copy made a 52), 52's words and the head, no links
+	std::vector<uint8_t> linked = Numbered(61, 52 + 2 * 8);
+	PutInt(linked, 48, 2);
+	std::vector<uint8_t> const linkedCopy = CopyOf(linked);
+	Check(linkedCopy.size() == 52 && GetInt(linkedCopy, 8) == 61 && memcmp(linkedCopy.data(), linked.data(), 48) == 0 && GetInt(linkedCopy, 48) == 0 &&
+	      SizeIsRight(linkedCopy),
+	      "a Linked Switch's copy stays a Linked Switch (INTENG BUG, FIXED: inteng's made it a 52), every word and the head copied, its links emptied");
+
+	// 66: the head, every field and the targets; NumLinks 0 and no links; pad1 and flags after them
+	std::vector<uint8_t> multi = Numbered(66, 52 + 2 * 12 + 3 * 8);
+	PutInt(multi, 36, 2);
+	PutInt(multi, 40 + 24, 3);
+	std::vector<uint8_t> const multiCopy = CopyOf(multi);
+	Check(multiCopy.size() == 52 + 2 * 12 && memcmp(multiCopy.data(), multi.data(), 64) == 0 && GetInt(multiCopy, 64) == 0 &&
+	      GetInt(multiCopy, 68) == GetInt(multi, multi.size() - 8) && GetInt(multiCopy, 72) == GetInt(multi, multi.size() - 4) && SizeIsRight(multiCopy),
+	      "a Multi Switch's copy keeps its head, fields and targets, and pad1 and flags, with its links emptied");
+
+	// 68: as 66, and the box after flags
+	std::vector<uint8_t> area = Numbered(68, 84 + 1 * 12 + 2 * 8);
+	PutInt(area, 36, 1);
+	PutInt(area, 40 + 12, 2);
+	std::vector<uint8_t> const areaCopy = CopyOf(area);
+	Check(areaCopy.size() == 84 + 12 && memcmp(areaCopy.data(), area.data(), 52) == 0 && GetInt(areaCopy, 52) == 0 &&
+	      memcmp(areaCopy.data() + 56, area.data() + area.size() - 40, 40) == 0 && SizeIsRight(areaCopy),
+	      "an Area Switch's copy keeps its head, fields, targets, pad1, flags and box, with its links emptied");
+
+	// what is not copied
+	Check(CopyOf(Numbered(51, 64)).empty() && CopyOf(Numbered(75, 36)).empty() && CopyOf(Numbered(70, 48)).empty(),
+	      "a kind the old editor can't copy (a Lift, a Fan, a Mission Objective) gives no copy");
+
+	std::vector<uint8_t> lying = Numbered(66, 52 + 12);
+	PutInt(lying, 36, 1);
+	PutInt(lying, 40 + 12, 100);
+	std::vector<uint8_t> negative = Numbered(66, 52);
+	PutInt(negative, 36, -1);
+	Check(CopyOf(lying).empty() && CopyOf(negative).empty() && CopyOf(Numbered(52, 44)).empty(),
+	      "a source whose counts or size don't match its bytes gives no copy (nothing is read past it)");
+
+	uint8_t small[40];
+	size_t length = 0;
+	Check(!CopyStrategyAsTheOldEditor(binary.data(), binary.size(), small, sizeof(small), &length) &&
+	      !CopyStrategyAsTheOldEditor(0, 48, small, sizeof(small), &length),
+	      "a buffer too small for the copy, or no source, isn't written");
+}
+
 static void SettersWriteOnlyTheirPart()
 {
 	printf("Setting a field changes that field and nothing else\n");
@@ -1463,6 +1558,7 @@ int main()
 	ValuesAreChecked();
 	OldFilesAreUpgraded();
 	NewOnesStartAsTheOldEditorMadeThem();
+	CopiesAreEachKindsOwn();
 	SettersWriteOnlyTheirPart();
 	FieldsOutsideThePayloadAreRefused();
 	LimitsAreTheirEnds();

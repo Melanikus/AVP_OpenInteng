@@ -81,6 +81,7 @@ wait 300
 save-copy
 # Find Errors repairs one of Stat101's own records too: the enemy minhard (69) has a null death target with request 1, and FUN_00531cd0 makes the request 0 (the enemies
 # are records since 2026-11-17, strategy-closeout-drake.md G)
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Stat101-tracks.made.rif {copy} crane size 60 holds falswire01 also vid10 also minhard
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Stat101-tracks.made.rif {copy} vid10 size 48 nullid targetID target_request 1 num_point_effects 0 also crane also minhard
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Stat101-tracks.made.rif {copy} minhard request 0 also crane also vid10
+# (Vasquez 11-17, 4d2c410) the pass also takes out the dead targets of the Multi / Area switches (FUN_00530820, as inteng: an ID no record has): todoor 1 -> 0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Stat101-tracks.made.rif {copy} crane size 60 holds falswire01 also vid10 also minhard also todoor
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Stat101-tracks.made.rif {copy} vid10 size 48 nullid targetID target_request 1 num_point_effects 0 also crane also minhard also todoor
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Stat101-tracks.made.rif {copy} minhard request 0 also crane also vid10 also todoor

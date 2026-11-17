@@ -349,17 +349,18 @@ static void DragWindow(Scenario *s, int x0, int y0, int x1, int y1)
 	Sleep(600);
 }
 
-static void ClickWindow(Scenario *s, int x, int y, bool right, bool shift, DWORD settle = 600)
+static void ClickWindow(Scenario *s, int x, int y, bool right, bool shift, DWORD settle = 600, bool control = false)
 {
 	HWND const target = TargetOf(s, &x, &y);
 
 	LPARAM const at = MAKELPARAM(x, y);
-	WPARAM const keys = (right ? MK_RBUTTON : MK_LBUTTON) | (shift ? MK_SHIFT : 0);
+	WPARAM const held = (shift ? MK_SHIFT : 0) | (control ? MK_CONTROL : 0);
+	WPARAM const keys = (right ? MK_RBUTTON : MK_LBUTTON) | held;
 
-	PostMessageW(target, WM_MOUSEMOVE, shift ? MK_SHIFT : 0, at);
+	PostMessageW(target, WM_MOUSEMOVE, held, at);
 	PostMessageW(target, right ? WM_RBUTTONDOWN : WM_LBUTTONDOWN, keys, at);
 	Sleep(60);
-	PostMessageW(target, right ? WM_RBUTTONUP : WM_LBUTTONUP, shift ? MK_SHIFT : 0, at);
+	PostMessageW(target, right ? WM_RBUTTONUP : WM_LBUTTONUP, held, at);
 	Sleep(settle);   // the frame that answers a pick is drawn after the press, so the state is asked after it
 }
 
@@ -1607,8 +1608,10 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	{
 		bool const right = std::find(w.begin(), w.end(), "right") != w.end();
 		bool const shift = std::find(w.begin(), w.end(), "shift") != w.end();
-		// "delete": the Delete key held over the click (Module Linking's un-pick, inteng's slot 0x55 = VK 0x2e): its key-down is posted before the press, its key-up after the release
+		// "delete": the Delete key held over the click (Module Linking's un-pick, inteng's slot 0x55 = VK 0x2e): its key-down is posted before the press, its key-up after the release.
+		// "ctrl": the Ctrl key held over the click the same way (Strategy Data's collector: Ctrl + click adds the clicked object's whole shape group, FUN_00526bf0 0x526e3b; the press carries MK_CONTROL too)
 		bool const held = std::find(w.begin(), w.end(), "delete") != w.end();
+		bool const ctrl = std::find(w.begin(), w.end(), "ctrl") != w.end();
 
 		AskState(s);   // the box's place now
 
@@ -1622,19 +1625,20 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		int const x = box[0] + (int)(atof(w[1].c_str()) * box[2]);
 		int const y = box[1] + (int)(atof(w[2].c_str()) * box[3]);
-		UINT const deleteScan = MapVirtualKeyW(VK_DELETE, MAPVK_VK_TO_VSC);
+		UINT const heldKey = held ? VK_DELETE : VK_CONTROL;
+		UINT const heldScan = MapVirtualKeyW(heldKey, MAPVK_VK_TO_VSC);
 
-		if (held)
+		if (held || ctrl)
 		{
-			PostMessageW(s->editor.window, WM_KEYDOWN, VK_DELETE, 1 | (deleteScan << 16));
+			PostMessageW(s->editor.window, WM_KEYDOWN, heldKey, 1 | (heldScan << 16));
 			Sleep(60);
 		}
 
-		ClickWindow(s, x, y, right, shift);
+		ClickWindow(s, x, y, right, shift, 600, ctrl);
 
-		if (held)
+		if (held || ctrl)
 		{
-			PostMessageW(s->editor.window, WM_KEYUP, VK_DELETE, 1 | (deleteScan << 16) | (1u << 30) | (1u << 31));
+			PostMessageW(s->editor.window, WM_KEYUP, heldKey, 1 | (heldScan << 16) | (1u << 30) | (1u << 31));
 			Sleep(200);
 		}
 
@@ -1855,15 +1859,21 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 			tail = tail.substr(2);   // the first step follows the first bar
 		}
 
-		size_t from = tail.empty() ? std::string::npos : 0;
+		// the steps between the bars, each cut off the front of what is left (no sum or difference of places in the line: Snyk Code, PR #79)
+		std::string left = tail;
+		bool more = !left.empty();
 
-		while (from != std::string::npos)
+		while (more)
 		{
-			size_t const bar = tail.find(" | ", from);
-			std::string part = tail.substr(from, bar == std::string::npos ? std::string::npos : bar - from);
+			size_t const bar = left.find(" | ");
 
-			subs.push_back(part);
-			from = bar == std::string::npos ? std::string::npos : bar + 3;
+			subs.push_back(left.substr(0, bar));
+			more = bar != std::string::npos;
+
+			if (more)
+			{
+				left = left.substr(bar).substr(3);
+			}
 		}
 
 		for (int round = 1; round <= most; round++)
@@ -2376,7 +2386,33 @@ int main(int argc, char **argv)
 	s.recordFolder = Widen(argv[2]);
 	CreateDirectoryW(s.recordFolder.c_str(), NULL);
 
-	std::ifstream file(argv[3]);
+	// The scenario file is named on the command line: its name may hold no "..", it is made a full path by Windows, and that path is read only when it ends in ".txt" and is a
+	// plain file (not a folder, not a link), so the name reaches that one scenario and nothing beside it (Snyk Code, PR #79)
+	if (strstr(argv[3], "..") != nullptr)
+	{
+		printf("drive_scenario: the scenario file isn't read: its name holds \"..\": %s\n", argv[3]);
+		return 2;
+	}
+
+	char scenarioFull[MAX_PATH];
+	DWORD const scenarioLength = GetFullPathNameA(argv[3], MAX_PATH, scenarioFull, NULL);
+
+	if (scenarioLength < 5 || scenarioLength >= MAX_PATH || _stricmp(scenarioFull + scenarioLength - 4, ".txt") != 0)
+	{
+		printf("drive_scenario: the scenario file isn't read: its full path must end in .txt and be shorter than %d letters: %s\n", MAX_PATH, argv[3]);
+		return 2;
+	}
+
+	std::string const scenarioPath = scenarioFull;
+	DWORD const scenarioAttributes = GetFileAttributesA(scenarioPath.c_str());
+
+	if (scenarioAttributes == INVALID_FILE_ATTRIBUTES || (scenarioAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0)
+	{
+		printf("drive_scenario: the scenario file isn't read: it isn't there, or it is a folder or a link: %s\n", argv[3]);
+		return 2;
+	}
+
+	std::ifstream file(scenarioPath);
 
 	if (!file)
 	{

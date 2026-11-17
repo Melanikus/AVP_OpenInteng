@@ -1,7 +1,9 @@
 // The test of Load from file's records turned into AutoLink's views (src/host/autolink_mlf.cpp MlfFindModule / MlfView; inteng's FUN_004c8be0, read on dump-full-2 64700).
 // Written 2026-11-16 by Melanikus (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
-// USE: host_autolink_file_test.exe <Invasion .rif> <a folder it may write into>. The level is only read; the folder gets a copy of it and a module file beside it.
+// USE: host_autolink_file_test.exe <Invasion .rif> [keep]. The level is only read. A copy of it and a module file beside it are written into a folder of the test's own,
+// autolink_file_test_<process id>, which it makes in the folder it runs in (it stops if that folder is already there), and deleted at the end; with "keep" they stay, for
+// acceptance-autolink-file (copied into dietrich-proofs\mlf). No path from the command line is ever written to.
 // THE CASES: (1) MlfView: the camera's place is the record's view x 100 (0x4c8dc3-0x4c8dd8) and its matrix the record's TRANSPOSED (FUN_004b3710, 0x4c8dd4); (2) on Invasion, a module file
 // of ONE record (gARAGDOR, at its place, with the first view AutoLink itself draws for it, written back the way FUN_004c8be0 reads it) beside a copy of the level, for
 // acceptance-autolink-file; read back through MlfReadFile / MlfParse, MlfFindModule finds gARAGDOR and MlfView gives the view again; (3) a record whose module MOVED is found and marked so.
@@ -103,11 +105,14 @@ int main(int argc, char **argv)
 		Check(!host::MlfView(record, &view), "a view whose place x 100 does not fit is refused");
 	}
 
-	if (argc < 3)
+	if (argc < 2)
 	{
-		printf("  FAILED  usage: host_autolink_file_test <Invasion .rif> <folder>\n");
+		printf("  FAILED  usage: host_autolink_file_test <Invasion .rif> [keep]\n");
 		return 1;
 	}
+
+	// "keep": the copy and its module file stay in the test's folder, for acceptance-autolink-file; anything else and they go at the end
+	bool const keep = argc >= 3 && strcmp(argv[2], "keep") == 0;
 
 	// ---- (2) a module file for gARAGDOR beside a copy of Invasion
 	OpenLevelFile level;
@@ -193,11 +198,16 @@ int main(int argc, char **argv)
 		PutInt(&bytes, first.place[i] / 100);
 	}
 
-	std::string const folder = argv[2];
+	// the test's own folder, in the folder it runs in, with names it makes itself: nothing from the command line says where it writes
+	std::string const folder = "autolink_file_test_" + std::to_string(GetCurrentProcessId());
 	std::string const copy = folder + "\\Invasion-mlf.rif", mlf = folder + "\\Invasion-mlf.mlf";
 
-	CreateDirectoryA(folder.c_str(), nullptr);
-	DeleteFileA(copy.c_str());
+	if (!CreateDirectoryA(folder.c_str(), nullptr))
+	{
+		printf("  FAILED  the test couldn't make its folder %s (is it there already?)\n", folder.c_str());
+		return 1;
+	}
+
 	Check(level.SaveAs(copy.c_str()) == LevelSaveResult::Saved, "a copy of the level: " + copy);
 
 	FILE *out = fopen(mlf.c_str(), "wb");
@@ -231,6 +241,17 @@ int main(int argc, char **argv)
 
 		shifted.place[0] += 5;
 		Check(host::MlfFindModule(records.scene, shifted, &found, &moved) && moved && found < 0, "a record whose module moved is found and marked moved (\"%s has moved since module file created\")");
+	}
+
+	if (keep)
+	{
+		printf("  (kept: %s and %s, for acceptance-autolink-file, which opens them from dietrich-proofs\\mlf)\n", copy.c_str(), mlf.c_str());
+	}
+	else
+	{
+		DeleteFileA(copy.c_str());
+		DeleteFileA(mlf.c_str());
+		RemoveDirectoryA(folder.c_str());
 	}
 
 	printf("%d checks failed\n", checksFailed);

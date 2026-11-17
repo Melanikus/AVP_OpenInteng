@@ -1,0 +1,71 @@
+# ACCEPTANCE (red first): the particle generator window's SOUND and REMOVE SOUND (A-8, reassess/object-placement.md OP-135; Drake 2026-11-17). His path on Vaults (a read-only stock copy, 286 particle
+# sounds in the stock levels, none with extra data: AvP-docs/tools/drake/op-save-survey), the file opened as a double click, Object Placement, Object > Find, E:
+# 1. SPARKS comm A (Ed_Spark01.wav, 1250 / 18750 mm, volume 63, flags 0): Sound opens its record's "Sound Edit" (FUN_004ebd60): Playing at Start greyed (the mask 2), Sound Loops live and
+#    unticked (the INDSOUND's bit 0 clear); Sound Loops ticked and Volume 80 %; OK, and the particle window ENDS too (FUN_004e79b0 case 4). The INDSOUND is made again from the record
+#    (FUN_004ec1b0): loops (flags 1), volume ftol((80 + 50/127) x 1.27) = 102, the rest as it was.
+# 2. SMOKE comm A (EdSteam.wav): Remove Sound: the label "None", the window STAYS (FUN_004ebd20); Ok: the generator has no INDSOUND.
+# 3. A new one (Create > Particle Generator, "ptS"): Sound makes inteng's record (FUN_004ebc80(0, 1): "Not Set", volume 127, pitch 0, loops) and Cancel keeps it as made.
+# The copy is read back by the game's loader (verify_special's particle sound fields). RED on 0f6a1db: Sound and Remove Sound change nothing (the window answers without the sound).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Vaults.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- 1. SPARKS comm A: its Sound Edit, Sound Loops ticked, Volume 80
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is SPARKS comm A
+expect-no-dialog
+wait 400
+key E
+expect-dialog Particle generator properties
+picture 1
+click-button Sound
+expect-dialog Sound Edit -
+# the record's numbers as metres at Vaults' scale 0.8 (1250 mm -> 1 m, 18750 -> 15), volume 63 -> 50 %; the wav row is the list's: CB_SELECTSTRING picks the first row that begins
+# with the name, any capitals, and OK reads the row (the list is the fastfiles' lower-case names here: Bishop's ruling 11-16, named in sound_edit.h)
+expect-dialog-text ed_spark01.wav|1|15|0|50
+expect-dialog-checks off,off
+picture 2
+click-check 2
+form-field 5 80
+expect-dialog-checks off,on
+click-button OK
+expect-no-dialog
+wait 300
+
+# ---- 2. SMOKE comm A: Remove Sound, the window stays and says None; Ok
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is SMOKE comm A
+expect-no-dialog
+wait 400
+key E
+expect-dialog Particle generator properties
+click-button Remove_Sound
+expect-dialog Particle generator properties
+picture 3
+click-button Ok
+expect-no-dialog
+wait 300
+
+# ---- 3. a new particle generator: Sound makes "Not Set"; Cancel keeps it
+click-bar Create > Particle Generator
+expect-dialog Name Object
+form-field 1 ptS
+click-button OK
+expect-no-dialog
+wait 300
+key E
+expect-dialog Particle generator properties
+click-button Sound
+expect-dialog Sound Edit -
+expect-dialog-checks off,on
+picture 4
+click-button Cancel
+expect-no-dialog
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_special.exe {copy} "particle|SPARKS comm A|psound=1|psoundwav=ed_spark01.wav|psoundflags=1|psoundvolume=102|psoundpitch=0|psoundinner=1250|psoundouter=18750" "particle|SMOKE comm A|psound=0" "particle|ptS|psound=1|psoundwav=Not Set|psoundvolume=127|psoundpitch=0|psoundflags=1"

@@ -82,6 +82,7 @@ struct EditorHostState
 	int32_t optionToggle;      // an Options switch was chosen: 1 Select by polygons, 2 Prefer .BMP over .RIM, 3 Use Polygon View Distance (editor_options.h), or 0
 	int32_t pathCommand;       // a Path mode item's command number (3 Add Module, 4 Delete Module, 5 Create Path, 6 Select Path, 7 Delete Path, 8 Keys, 9 Properties: path-menu-pairs.md), or 0 (path_mode.h)
 	int32_t trackCommand;      // a Track Edit item's command number (0x514 to 0x52b: track-menu-pairs.md), or 0 (track_editor.h)
+	int32_t acousticCommand;   // an Acoustic Mode item's command number (0xa Exit, 0xbb8 .. 0xbbd: reassess/object-placement.md AC-3 .. AC-8), or 0 (acoustic_mode.h)
 	int32_t strategyCommand;   // a Strategy mode item's command number (0xc Delete Strategy, ...: strategy-menu-pairs.md), or 0 (strategy_mode.h)
 	int32_t altLocation;       // an Alt Locations item's command number (0x64 to 0x69), or 0
 	int32_t hierarchyCommand;  // a Hierarchy mode item's command number (hierarchy_mode.h), or 0

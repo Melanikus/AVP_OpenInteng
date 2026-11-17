@@ -303,13 +303,25 @@ static void TestEveryItemWorksOrSaysWhy()
 			}
 			else
 			{
-				// A stand-in with menus of its own (the strategy mode's: the words inteng's strings give): the last is Mode, with Exit alone,
-				// and every item of the others says it isn't done yet, until the editor does what inteng does
+				// A stand-in with menus of its own (the words inteng's strings give): the last is Mode, with Exit alone, or its own menus
+				// hold inteng's own Exit, an item named Exit that does something (Acoustic's page 7: Mode > Exit, 0xa, back to Object
+				// Placement); every other item says it isn't done yet, or does something
 				const IntengMenu &mode = screen.menus[screen.count - 1];
+				bool ownExit = false;
 
-				standIns = standIns && mode.count == 1 && mode.items[0].work == IntengWork::ExitMode && strcmp(mode.title, "Mode") == 0;
+				for (size_t m = 0; m < screen.count; m++)
+				{
+					for (size_t i = 0; i < screen.menus[m].count; i++)
+					{
+						ownExit = ownExit || (strcmp(screen.menus[m].items[i].name, "Exit") == 0 && screen.menus[m].items[i].work != IntengWork::None);
+					}
+				}
 
-				for (size_t m = 0; m + 1 < screen.count; m++)
+				bool const oursLast = mode.count == 1 && mode.items[0].work == IntengWork::ExitMode && strcmp(mode.title, "Mode") == 0;
+
+				standIns = standIns && (oursLast || ownExit);
+
+				for (size_t m = 0; m < (oursLast ? screen.count - 1 : screen.count); m++)
 				{
 					for (size_t i = 0; i < screen.menus[m].count; i++)
 					{

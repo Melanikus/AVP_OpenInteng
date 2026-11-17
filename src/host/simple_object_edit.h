@@ -22,16 +22,23 @@
 // - OK (FUN_10005ae0 / FUN_10006220): for the five with a Mass and Integrity, each is read as a number (sscanf "%d"); a number that is not the same as its own low 16 bits (negative, or above 65535)
 //   is refused with a message "Mass value too big (>65535)" / "Integrity value too big (>65535)" (box title "Object Edit") and the window stays open. NOTE (inteng's own): text that is no number
 //   at all leaves the value that is there, which is the TYPE's number (the function's own parameter): Static gives 0, Furniture 1 ... Copied. For the lists the pick (if any) becomes the extra data.
-// - THE SAVE (FUN_004e1f90 0x4e22e-0x4e2c8c, run for the object when it is updated): the header's flags get the six bits of the game mode and difficulty and the three platform bits from the
-//   window's flags, and 0x4000 ON. The strategy: none, or one that is not a simple object (not 0x3e / 0x3eb): the strategy is REPLACED (made again) by a simple object (62) of the window's type,
-//   extra data, mass & 0xffff, integrity | 0x80000000, flags 1 and no target; a simple object is changed in place: type, extra data, mass (low 16 bits), integrity (high bit always on) and the
-//   explosion bits (0x30) of the flags word.
+// - THE SAVE (FUN_004e1f90 0x4e222e-0x4e2c8c, run for the object when it is updated): the header's flags get the six bits of the game mode and difficulty and the three platform bits from the
+//   window's flags, and 0x4000 ON. The strategy ONLY when the load marked the object (+0x5c, FUN_004e0ed0 0x4e0aaf-0x4e0bc0: no strategy, a legacy 53, a simple object 62 / 1003, the other
+//   game's 2000-2002; checked at 0x4e2521 / 0x4e2808): none or a 53 is REPLACED (made again) by a simple object (62) of the window's type, extra data, mass & 0xffff, integrity | 0x80000000,
+//   flags 1 and no target; a simple object (62 or 1003) is changed in place: type, extra data, mass (low 16 bits), integrity (high bit always on) and the explosion bits (0x30) of the flags
+//   word. ANY OTHER strategy (a door, a switch, a lift ...) is left as it is: Edit then changes the file's header flags only. (Re-read 11-17 by Drake: this said every other kind was
+//   replaced, and ours replaced a door's strategy by a simple object: OUR BUG, FIXED.)
+// - THE WINDOW'S PARTS AS THE RESOURCE HOLDS THEM (dialog 129, read 11-17): "Game mode" (Marine / Alien / Predator) and "Difficulty" (Easy / Medium / Hard) are HIDDEN in this mode, as for
+//   the bad guy (style 0x48010003 without WS_VISIBLE, never shown by FUN_10003de0; Bishop's ruling 11-16): their flags come back unchanged. "Explosion" is shown. The type combo is a
+//   drop-down list in the table's order (no CBS_SORT); "Enter type" (0x3e9) is an editable drop-down.
 // NAMED POINTS:
-//  - A strategy of another kind that other objects name (a door a switch opens) is NOT replaced: Edit says so and changes nothing (AssignStrategy refuses it, object_edit.h); inteng replaces it without asking.
 //  - inteng writes a new strategy's explosion only on the next update; here it is written at once (the end result after any save).
 //  - inteng writes the integrity word as (the window's number >> 16, arithmetic) | 0x80000000: a number of 32768 or more keeps junk in bits 16 to 30; here the word is (number & 0xffff) | 0x80000000.
-//  - The window's lists and radio buttons are typed words (the toolkit has no combo box): a name (any capitals) or its number picks, and a type change re-opens the window with what is shown for the
-//    new type, as the special objects' windows do.
+//  - INTENG BUG, FIXED: Armour's list is filled from the Armour table (0x1001fa48) but its current row is looked up in the Medikit table (FUN_10004520 0x10004a4f: 0x1001fa28), so inteng
+//    never shows an Armour object's row; here the Armour row is shown.
+//  - inteng's "Enter type" box takes typed letters, but OK reads only a PICKED row (FUN_10005a50: CB_GETCURSEL); here it is a drop-down list, so the extra data changes the same ways.
+//  - inteng keeps what the window was given in the object for the sitting even when its save will not write it (an object with another strategy); here such an object's window opens on
+//    the file's values again (nothing of it reaches the file in either).
 //  - The object's own chunks are changed in the editor's bytes (OpenLevelFile::SetPayload) and a replaced strategy is made by AssignStrategy (the loader reads the result first).
 #pragma once
 

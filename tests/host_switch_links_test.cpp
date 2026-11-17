@@ -189,6 +189,44 @@ static void TestRules()
 	Check(!StrategyView_StoredLinks(61, std::vector<uint8_t>(20, 0), &stored) && StrategyView_SwitchLinks(61, me.data(), { OneTarget(1, 52, me, 0) }).size() == 1, "a short payload: refused");
 }
 
+// S-K61-3: Strategy Data's Save writes each switch's Links made again (FUN_0052e000 -> FUN_0052dc90): StrategyView_WithLinks puts a new list in, the bytes around it kept
+static void TestWithLinks()
+{
+	puts("the Links written (S-K61-3, StrategyView_WithLinks):");
+
+	std::array<uint8_t, 8> const me = Id(9);
+	std::vector<uint8_t> out;
+	std::vector<std::array<uint8_t, 8>> stored;
+
+	// a Linked Switch with two links and four bytes after them: one link written
+	StrategyRecordRef linked = OneTarget(4, 61, me, 0);
+
+	linked.payload.resize(48);
+	Word(&linked.payload, 2);
+	linked.payload.insert(linked.payload.end(), me.begin(), me.end());
+	linked.payload.insert(linked.payload.end(), me.begin(), me.end());
+	Word(&linked.payload, 0x12345678);
+
+	Check(StrategyView_WithLinks(61, linked.payload, { Id(5) }, &out) && out.size() == linked.payload.size() - 8 && memcmp(out.data(), linked.payload.data(), 48) == 0 &&
+		StrategyView_StoredLinks(61, out, &stored) && stored.size() == 1 && stored[0] == Id(5) && memcmp(out.data() + out.size() - 4, linked.payload.data() + linked.payload.size() - 4, 4) == 0,
+		"a Linked Switch (61): NumLinks 2 -> 1 at 48, the new ID after it, the 48 bytes before and the 4 after kept");
+
+	// a Multi Switch with one target and no links: two links written after its targets, its pad and flags kept
+	StrategyRecordRef multi = Multi(3, 66, { { Id(7), 2 } }, {});
+
+	Check(StrategyView_WithLinks(66, multi.payload, { Id(1), Id(2) }, &out) && out.size() == multi.payload.size() + 16 && StrategyView_StoredLinks(66, out, &stored) && stored.size() == 2 &&
+		stored[0] == Id(1) && stored[1] == Id(2) && memcmp(out.data(), multi.payload.data(), 36 + 4 + 12) == 0 && memcmp(out.data() + out.size() - 8, multi.payload.data() + multi.payload.size() - 8, 8) == 0,
+		"a Multi Switch (66): the Links after its targets (0 -> 2), the targets before and the pad / flags after kept");
+
+	Check(StrategyView_WithLinks(68, Multi(5, 68, { { me, 2 } }, { Id(1) }).payload, {}, &out) && StrategyView_StoredLinks(68, out, &stored) && stored.empty(), "an Area Switch (68): its Links emptied");
+
+	// hostile: a payload whose old list can't be read is refused and out is left as it was
+	out.assign(3, 0xab);
+	linked.payload.resize(52);
+	Check(!StrategyView_WithLinks(61, linked.payload, { Id(1) }, &out) && out.size() == 3 && !StrategyView_WithLinks(52, OneTarget(1, 52, me, 0).payload, {}, &out),
+		"a link count past the bytes, or a kind with no Links (52): refused, nothing written");
+}
+
 static void TestLevel(char const *path)
 {
 	OpenLevelFile level;
@@ -231,6 +269,7 @@ int main(int argc, char **argv)
 {
 	setvbuf(stdout, 0, _IONBF, 0);
 	TestRules();
+	TestWithLinks();
 
 	if (argc < 2)
 	{

@@ -3,17 +3,21 @@
 // A save with NOTHING changed on a stock level is therefore not the file's bytes: it is what inteng would write. Written 2026-11-15 by Melanikus (Drake) for AVP_OpenInteng.
 // AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
-// USE: host_save_prepared_test.exe <a level .rif> <a folder it may write its copies into>. With no arguments it says so and passes. The level is only read; the copies are the only files written.
+// USE: host_save_prepared_test.exe <a level .rif> <a folder it may write its copies into> [<a second level> <an object in it> <another object in it>]. With no arguments it says so
+// and passes. The levels are only read; the copies are the only files written.
 // CHECKS: a save of the level with nothing changed (as a COPY) is exactly what the game's own library writes after prepare_for_output() (done here straight on the library, not through
-// level_file.cpp); it differs from the file (the version numbers went up: at least one byte for every object header); the game's loader takes the copy and it holds the same objects;
-// a second save of the copy is the library's prepare of the copy again (the numbers go up once more); the opened file is byte for byte what it was.
+// level_file.cpp); it differs from the file (the version numbers went up: at least one byte for every object header); after the save the level is built as the file just written, and
+// an edit's rebuild of it is taken; the game's loader takes the copy and it holds the same objects; a second save of the copy is the library's prepare of the copy again (the numbers
+// go up once more); the opened file is byte for byte what it was. With the second level: one object taken out, a save, the other taken out, a save again, all made (Frost, 2026-11-17).
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
 
+#include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -24,6 +28,7 @@
 #include "mishchnk.hpp"
 #include "huffman.hpp"
 #include "level_file.h"
+#include "object_edit.h"
 
 static int checksFailed = 0;
 
@@ -177,6 +182,186 @@ static size_t HeadersIn(OpenLevelFile &level)
 	return count;
 }
 
+// Is bytes [from, to) a run of chunks end to end (each an 8-character printable name, then a size that fits)? Then the chunk it is the inside of holds chunks.
+static bool HoldsChunks(std::vector<char> const &bytes, size_t from, size_t to)
+{
+	if (to - from < 12)
+	{
+		return false;
+	}
+
+	for (size_t at = from; at < to; )
+	{
+		if (to - at < 12)
+		{
+			return false;
+		}
+
+		for (int c = 0; c < 8; c++)
+		{
+			unsigned char const letter = (unsigned char)bytes[at + c];
+
+			if (letter < 0x20 || letter > 0x7e)
+			{
+				return false;
+			}
+		}
+
+		int32_t size;
+		memcpy(&size, &bytes[at + 8], 4);
+
+		if (size < 12 || (size_t)size > to - at)
+		{
+			return false;
+		}
+
+		at += (size_t)size;
+	}
+
+	return true;
+}
+
+// Where two levels' chunk trees differ in which chunks they hold: for each holder, the count of each name, then the n-th chunk of a name in one against the n-th in the
+// other. Each difference is printed as an info line (the first `most`), as "<path>: <name> held <n>, prepared <m>".
+static void ChunkCountsDiffer(std::vector<char> const &held, size_t heldFrom, size_t heldTo, std::vector<char> const &prepared, size_t preparedFrom, size_t preparedTo,
+	std::string const &path, int *most)
+{
+	std::map<std::string, std::vector<std::pair<size_t, size_t> > > inHeld, inPrepared;
+
+	for (size_t at = heldFrom; at + 12 <= heldTo; )
+	{
+		int32_t size;
+		memcpy(&size, &held[at + 8], 4);
+		inHeld[std::string(&held[at], 8)].push_back(std::make_pair(at, at + (size_t)size));
+		at += (size_t)size;
+	}
+
+	for (size_t at = preparedFrom; at + 12 <= preparedTo; )
+	{
+		int32_t size;
+		memcpy(&size, &prepared[at + 8], 4);
+		inPrepared[std::string(&prepared[at], 8)].push_back(std::make_pair(at, at + (size_t)size));
+		at += (size_t)size;
+	}
+
+	std::set<std::string> names;
+
+	for (auto const &one : inHeld)
+	{
+		names.insert(one.first);
+	}
+
+	for (auto const &one : inPrepared)
+	{
+		names.insert(one.first);
+	}
+
+	for (std::string const &name : names)
+	{
+		std::vector<std::pair<size_t, size_t> > const &a = inHeld[name], &b = inPrepared[name];
+
+		if (a.size() != b.size())
+		{
+			if (*most > 0)
+			{
+				printf("  info  %s: %s held %zu, prepared %zu\n", path.c_str(), name.c_str(), a.size(), b.size());
+				(*most)--;
+			}
+
+			continue;
+		}
+
+		for (size_t i = 0; i < a.size(); i++)
+		{
+			if (HoldsChunks(held, a[i].first + 12, a[i].second) && HoldsChunks(prepared, b[i].first + 12, b[i].second))
+			{
+				ChunkCountsDiffer(held, a[i].first + 12, a[i].second, prepared, b[i].first + 12, b[i].second, path + "/" + name + "#" + std::to_string(i), most);
+			}
+			else if (a[i].second - a[i].first != b[i].second - b[i].first && *most > 0)
+			{
+				// a chunk of numbers whose size the preparing changed: the editor's (held) chunk no longer pairs with the prepared bytes (level_file.cpp Pair: size_chunk() != bytes)
+				printf("  info  %s/%s#%zu: held %zu bytes, prepared %zu bytes\n", path.c_str(), name.c_str(), i, a[i].second - a[i].first, b[i].second - b[i].first);
+				(*most)--;
+			}
+		}
+	}
+}
+
+// The ID of the level's object of that name (the first in the level's order); false when none has it
+static bool IdNamed(OpenLevelFile &level, char const *name, uint8_t id[8])
+{
+	List<Object_Chunk *> all;
+	level.Level()->list_objects(&all);
+
+	for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
+	{
+		if (each() && each()->object_data.o_name && strcmp(each()->object_data.o_name, name) == 0)
+		{
+			memcpy(id, &each()->object_data.ID, 8);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// An object taken out of the level, a save, a second object taken out, a save again: both edits and both saves are made, and the second copy has neither object. Until
+// 2026-11-17 the save paired the editor's tree with the prepared bytes only; once an object was taken out they no longer paired, the level was left unpaired, and the second
+// delete and the second save were refused. The info lines say where the prepared level's chunks differ from the level as held. (Added 2026-11-17 by Frost, Bishop's report
+// from close-out F-1.)
+static void DeletedThenSaved(char const *levelPath, char const *first, char const *second)
+{
+	puts("an object taken out, a save, another taken out, a save again");
+
+	OpenLevelFile work;
+	uint8_t id[8];
+
+	Check(work.Open(levelPath) == LevelOpenResult::Opened && work.Level(), std::string("the game's loader takes ") + levelPath);
+
+	if (!work.Level() || !IdNamed(work, first, id))
+	{
+		Check(false, std::string("the level has an object named ") + first);
+		return;
+	}
+
+	Check(host::DeleteObject(&work, id) == host::ObjectEditResult::Done, std::string(first) + " is taken out");
+
+	std::vector<char> held;
+
+	if (work.BuildLevel(held))
+	{
+		std::vector<char> const prepared = AsIntengWritesIt(held);
+		int most = 12;
+
+		if (prepared.size() >= 12)
+		{
+			ChunkCountsDiffer(held, 12, held.size(), prepared, 12, prepared.size(), "level", &most);
+		}
+
+		printf("  info  held %zu bytes, prepared %zu bytes%s\n", held.size(), prepared.size(), most == 12 ? ", the same chunks in each holder, each the same size" : "");
+	}
+
+	std::string const firstSave = scratchFolder + "save-prepared-deleted-1.rif", secondSave = scratchFolder + "save-prepared-deleted-2.rif";
+
+	DeleteFileA(firstSave.c_str());
+	DeleteFileA(secondSave.c_str());
+	Check(work.SaveAs(firstSave.c_str()) == LevelSaveResult::Saved, "the level is saved as a COPY");
+	Check(IdNamed(work, second, id) && host::DeleteObject(&work, id) == host::ObjectEditResult::Done, std::string("after the save, ") + second + " is taken out too");
+	Check(work.SaveAs(secondSave.c_str()) == LevelSaveResult::Saved, "and the level is saved again");
+
+	OpenLevelFile back;
+	uint8_t ignore[8];
+
+	Check(back.Open(secondSave.c_str()) == LevelOpenResult::Opened && back.Level() && !IdNamed(back, first, ignore) && !IdNamed(back, second, ignore),
+		std::string("the game's loader takes the second copy, and it has neither ") + first + " nor " + second);
+
+	for (std::string const &path : { firstSave, secondSave })
+	{
+		DeleteFileA(path.c_str());
+		DeleteFileA((path + ".bak").c_str());
+	}
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 3)
@@ -255,6 +440,13 @@ int main(int argc, char **argv)
 	Check(copy != built && differing >= headers, "it is not the file's bytes: the version numbers went up, at least one byte for every object header");
 	printf("  info  level %zu bytes, copy %zu bytes, %zu bytes differ, %zu object headers\n", original.size(), copy.size(), differing, headers);
 
+	// After the save the level IS the file just written (inteng's own tree is the prepared one after its save), and an edit's rebuild (ReplaceLevel) of it is taken
+	{
+		std::vector<char> again;
+		Check(level.BuildLevel(again) && again == copy, "after the save the level is built as the file just written (the prepared bytes)");
+		Check(level.ReplaceLevel(again) == LevelOpenResult::Opened, "an edit's rebuild of the level (ReplaceLevel) is taken after the save");
+	}
+
 	OpenLevelFile reopened;
 	Check(reopened.Open(copyPath.c_str()) == LevelOpenResult::Opened && reopened.Level(), "the game's loader takes the copy");
 
@@ -275,6 +467,12 @@ int main(int argc, char **argv)
 
 	DeleteFileA(copyPath.c_str());
 	DeleteFileA((copyPath + ".bak").c_str());
+
+	// a second level and two of its objects (the .runargs: Fall, Pboost0, pulse0, the objects acceptance-save-then-edit deletes)
+	if (argc >= 6)
+	{
+		DeletedThenSaved(argv[3], argv[4], argv[5]);
+	}
 
 	std::vector<char> originalAfter;
 	Check(ReadWholeFile(argv[1], &originalAfter) && originalAfter == original, "the opened file is byte for byte what it was");

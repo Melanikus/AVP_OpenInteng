@@ -5,7 +5,9 @@
 # lift and vent doors), with SHPMORPH none.
 # Genshd1: before the fix the pass changed 14 strategies here: among them radar01 (72) lost its four point effects (their target is the sound "satsound") and med09G (62) its target (the
 # generator "facehug"). With the 66 / 68 list repair (FUN_00530820, the next hash) on the old rule, immediatesrt (66) also lost 2 of its 3 targets. Now NOTHING may change: immediatesrt holds
-# its 3 targets and every other strategy is the original's, byte for byte.
+# its 3 targets and every other strategy is the original's, byte for byte, but for:
+# - the 66 / 68 list repair (FUN_00530820, 4d2c410) takes out the targets no record answers to; inteng does the same (its vtables 0x5af520 / 0x5af554 +0x1c), so those switches are named
+# below with their new counts (read 11-17 by repair_survey: every target they lose is an ID no record has).
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
 pictures on
 state
@@ -22,4 +24,5 @@ expect-no-dialog
 picture 1
 # the copy, read back by the game's loader
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} immediatesrt NumTargets 3
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} immediatesrt NumTargets 3 also area
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} area NumTargets 5 also immediatesrt

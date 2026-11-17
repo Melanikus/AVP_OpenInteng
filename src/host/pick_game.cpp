@@ -7,7 +7,7 @@
 #include "strategy_def.h"
 #include "gamedef.h"         // Player
 #include "view.h"            // Global_VDB_Ptr
-#include "los.h"             // FindPolygonInLineOfSight, LOS_ObjectHitPtr, LOS_Lambda
+#include "los.h"             // FindDrawnPolygonInLineOfSight, LOS_ObjectHitPtr, LOS_Lambda
 #include "dynamics.h"        // ColPolyTag, SetupPolygonAccess: the game's own walk through a shape's polygons
 #include "d3_func.h"         // d3d.matProjection
 
@@ -130,9 +130,13 @@ host::PickReport PickGame_AtClick(int32_t clickX, int32_t clickY, int32_t viewWi
 
 	// The game's line of sight, over only what was on screen this frame (its 1), and never the player itself. It's handed copies: its
 	// own notes say it may change what it's given.
+	// ONLY THE POLYGONS THAT ARE DRAWN count, as in inteng's one pick for every mode (FUN_00559750: it walks the polygons it drew last frame,
+	// DAT_00703cf4 / DAT_009ba168, never one with item flag 1, iflag_notvis): a face seen from behind is culled, so it is not there to be clicked
+	// unless it is double-sided (iflag_no_bfc). The game's own line of sight takes every face from both sides ("treat all polys as no bfc",
+	// los.cpp), which stopped our clicks on faces nobody sees (a Hierarchy click on the left arm gave RArm, a section seen through).
 	VECTORCH direction = { ray.direction[0], ray.direction[1], ray.direction[2] };
 	VECTORCH from = { ray.from[0], ray.from[1], ray.from[2] };
-	FindPolygonInLineOfSight(&direction, &from, 1, Player);
+	FindDrawnPolygonInLineOfSight(&direction, &from, 1, Player);
 
 	DISPLAYBLOCK const *const hit = LOS_ObjectHitPtr;
 

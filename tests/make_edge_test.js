@@ -30,8 +30,9 @@ function check(good, what) {
 	if (!good) failed++;
 }
 
-// One made-up game with one Hudson hook, run through the script. Gives back its answer, what it said, and the files it wrote.
-function run(hookSource, hookSignature, hookDecorated) {
+// One made-up game with one Hudson hook, run through the script. Gives back its answer, what it said, and the files it wrote. given, when
+// there, is the script's three paths instead of the made-up game's own.
+function run(hookSource, hookSignature, hookDecorated, given) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'make-edge-test-'));
 	try {
 		const avpx = path.join(root, 'avpx');
@@ -50,7 +51,8 @@ function run(hookSource, hookSignature, hookDecorated) {
 		fs.writeFileSync(log,
 			'a.obj : error LNK2019: unresolved external symbol "void __cdecl Net_Something(void)" (?Net_Something@@YAXXZ) referenced in function x\n' +
 			'b.obj : error LNK2019: unresolved external symbol "' + hookSignature + '" (' + hookDecorated + ') referenced in function y\n');
-		const result = spawnSync(process.execPath, [script, log, avpx, path.join(host, 'edge')], { encoding: 'utf8' });
+		// run from the made-up game's folder, as the script is run from the tree's root: it takes only paths inside the folder it runs in
+		const result = spawnSync(process.execPath, [script, ...(given || ['link.log', 'avpx', 'host/edge'])], { cwd: root, encoding: 'utf8' });
 		const written = fs.readdirSync(path.join(host, 'edge'));
 		const asleep = written.includes('asleep_hudson.cpp') ? fs.readFileSync(path.join(host, 'edge', 'asleep_hudson.cpp'), 'utf8') : '';
 		return { status: result.status, said: (result.stdout || '') + (result.stderr || ''), written, asleep };
@@ -62,6 +64,16 @@ function run(hookSource, hookSignature, hookDecorated) {
 // First the control: a hook of a shape the script reads, so the made-up game itself is known to work and a refusal below is the hook's
 const good = run('int Hudson_Good()\n{\n\treturn HudsonRunIsOn ? 1 : 2;\n}', 'int __cdecl Hudson_Good(void)', '?Hudson_Good@@YAHXZ');
 check(good.status === 0 && /return 2;/.test(good.asleep), 'the control: a hook of a shape the script reads is written asleep, answering 2');
+
+// A path that leads out of the folder the script runs in is refused before anything is read or written (tools/tree-path.js): the
+// same made-up game, its log named through "..", and the edge folder as an absolute path somewhere else
+const goodHook = ['int Hudson_Good()\n{\n\treturn HudsonRunIsOn ? 1 : 2;\n}', 'int __cdecl Hudson_Good(void)', '?Hudson_Good@@YAHXZ'];
+const upAndOut = run(...goodHook, ['../link.log', 'avpx', 'host/edge']);
+check(upAndOut.status === 2 && upAndOut.said.includes('The link log') && upAndOut.written.length === 0,
+	'refused, naming the log, with nothing written: a log named through ".."');
+const elsewhere = run(...goodHook, ['link.log', 'avpx', path.join(os.tmpdir(), 'edge')]);
+check(elsewhere.status === 2 && elsewhere.said.includes('The edge folder') && elsewhere.written.length === 0,
+	'refused, naming the edge folder, with nothing written: an edge folder outside the folder it runs in');
 
 const cases = [
 	{

@@ -63,6 +63,15 @@ namespace host
 	// Back into inteng's memory numbers, after OK or Cancel alike (0x4ed20c-0x4ed290)
 	void SoundEdit_Back(SoundEditRecord const &record, int32_t *inner, int32_t *outer, int32_t *pitch, int32_t *volume, uint32_t *flags, int32_t *probability);
 
+	// A SOUND RECORD's window (FUN_004ebd60: a particle generator's sound, OP-135; added 11-17 by Drake). The numbers go as a placed sound's (the same constants, 0x4ebe12-0x4ebe91), but the
+	// flags are handed over as ((NOT the record's bit 0) << 1) with the mask 2 when the record's "loops box" word (+0x18) is set, else 0: "Playing at Start" is shown unticked and greyed
+	// (a box off the mask is never set from the flags, 0x10006c60), and "Sound Loops" is the record's bit 0 (IndexedSoundFlag_Loop), live only under the mask. The probability is 0. inner / outer are inteng's memory numbers (x 1e-5 m).
+	SoundEditRecord SoundEdit_IndexedRecord(std::string const &name, uint32_t inner, uint32_t outer, int32_t pitch, int32_t volume, int32_t recordFlags, bool loopsLive);
+
+	// After OK or Cancel alike (0x4ebf13-0x4ebf78): the numbers as a placed sound's; the record's bit 0 set when Sound Loops is ticked (the window's bit 1 clear), cleared when not; the
+	// record's other bits kept.
+	void SoundEdit_IndexedBack(SoundEditRecord const &record, int32_t recordFlags, int32_t *inner, int32_t *outer, int32_t *pitch, int32_t *volume, int32_t *newFlags);
+
 	// Play's frequency (the file's own x 2^(pitch / 12); the file's when the pitch is 0) and its loudness in hundredths of a dB (0 at 100%)
 	int32_t SoundEdit_PlayFrequency(int32_t fileFrequency, float pitch);
 	int32_t SoundEdit_PlayVolume(float volume);
