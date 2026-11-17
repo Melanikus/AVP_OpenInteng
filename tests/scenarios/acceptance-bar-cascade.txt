@@ -1,0 +1,29 @@
+# ACCEPTANCE: inteng's CASCADE in the bar on Melanikus's path (Drake, 2026-11-16; reassess/dialog-look-drake.md BAR-10..12; Melanikus, his screenshot of the hub's Mode: "Strategy texture/notexture
+# is a sub menu"). inteng's table holds "&Strategy Data" (kind 1, 0x38) with "&Normal" (0x39) and "No &Textures" (0x3a) under it (kind 2): the drop-down shows ONE row "Strategy Data" with the sub-menu
+# mark (glyph 2), and pointing at it shows the two rows in a box of their own, right of the drop-down, its top on the row (FUN_004b6f70 0x4b7176-0x4b71c5); the row itself picks nothing
+# (FUN_004b7dd0 0x4b821e-0x4b8248); each of the two enters its screen. RED on the build before (the drop-down had two flat rows, "Strategy Data: Normal" and "Strategy Data: No Textures", and no
+# "Strategy Data" row to point at).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode
+expect-field-has dropboxes |Strategy Data~
+expect-field-has dropboxes |Hierarchy~
+picture 1
+# the pointer on "Strategy Data": its cascade shows, its two rows named "<item>: <row>" in the state line
+point-bar Strategy Data
+expect-field-has dropboxes |Strategy Data: Normal~
+expect-field-has dropboxes |Strategy Data: No Textures~
+picture 2
+key Esc
+wait 300
+# each row enters its screen (click-bar points at the item, then clicks the cascade's row)
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Mode > Exit
+expect-screen Construction
+click-bar Mode > Strategy Data: No Textures
+expect-screen Strategy Data
+picture 3

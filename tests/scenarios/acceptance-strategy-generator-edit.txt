@@ -1,7 +1,7 @@
 # ACCEPTANCE (red first): Strategy Data's Edit Strategy on a generator and on the objects round it (Melanikus 11-16 on the Tools build: "the main edit strategy [on generators is] not working (just show a grey
 # useless parameter up/down)"; strategy-data-kinds.md S-K79-1..5, S-K69, S-K66-1, S-K68-1, S-KC-6; Vasquez). FOUND (11-16): the generator (kind 79) and the enemy (kind 69) open their views on every route; the grey
 # panel is our stand-in for the two kinds with no view yet, the Multi Switch (66) and the Area Switch (68): the big green V in front of Stat101's generator02 is the virtual object trigtospidgen, a Multi Switch
-# that switches the generator on. Routes: the bar's Edit Strategy (command 0x7), the key E, the pop-up's Edit Strategy (third row), a click on the figure; red until the 66 (Frost) and 68 (Vasquez) views.
+# that switches the generator on. Routes: the bar's Edit Strategy (command 0x7), the key E, the pop-up's Edit Strategy (third row), each after Find Object; red until the 66 (Frost) and 68 (Vasquez) views.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF
 pictures on
 state
@@ -33,8 +33,11 @@ wait 400
 expect-field-has strategyview 200@0:generator02 : Generator
 key Esc
 wait 300
-# (4) a left click on an enemy's figure (sentry02, in front after Find Object generator02), then the bar's Edit Strategy: its kind 69 view
-click-win 665 380
+# (4) an enemy (sentry02, the figure in front of generator02), then the bar's Edit Strategy: its kind 69 view (picked by Find Object: a click's place depends on the camera)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is sentry02
+expect-no-dialog
 wait 300
 item 0x7
 wait 400
@@ -44,7 +47,10 @@ key Esc
 wait 300
 # (5) WHERE HE GOT THE GREY PANEL: the big green V in front is not the generator but the VIRTUAL OBJECT trigtospidgen (it switches the generator on): a Multi Switch (kind 66), whose view is not built
 # yet, so Edit Strategy gives our stand-in, the field panel. inteng: FUN_0052f700, "%s : Multiple Target Switch" (0x5ef130) at (200, 0) (S-K66-1; Frost's 66 view)
-click-win 548 60
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is trigtospidgen
+expect-no-dialog
 wait 300
 item 0x7
 wait 400

@@ -190,6 +190,60 @@ try {
 
 check(notJson.includes('isn\'t JSON'), `a file that isn't JSON is refused (refused: "${notJson}")`);
 
+// The status file's additions (items of OURS put into one of inteng's tables, each named by its note): read as the rest of the status file is, each refusal on a file made wrong in one way
+function statusRefusal(change) {
+	const status = JSON.parse(statusBytes.toString('utf8'));
+
+	change(status);
+
+	try {
+		tool.build(menus, tool.readStatus(Buffer.from(JSON.stringify(status, null, '\t')), menus), built);
+		return '';
+	} catch (e) {
+		if (!(e instanceof tool.Refused)) {
+			throw e;
+		}
+
+		return e.message;
+	}
+}
+
+function statusRefusedFor(change, words, what) {
+	const why = statusRefusal(change);
+
+	check(why.includes(words), `${what} (refused: "${why}")`);
+}
+
+console.log('The status file\'s additions:');
+const hubFile = screens[0].menus.find((m) => m.title === 'File');
+const hubSave = hubFile && hubFile.items[1];
+
+check(hubSave && hubFile.items[0].name === 'Quit' && hubSave.name === 'Save' && hubSave.action === 0x1ff01 && hubSave.command === 0 && hubSave.work === 'savecopy' && hubSave.access === 0 && !hubSave.level,
+	"the hub's Save (the owner's addition) is File's second item, after Quit: our number 0x1ff01, no inteng command, SaveCopy, its S underlined");
+check(written.includes('\t\t\t// OURS, NAMED (docs/inteng/menu-status.json, additions): THE OWNER\'S ADDITION') && written.includes('{ "Save", 0x1ff01, 0x0, IntengTag::None, IntengWork::SaveCopy, -1, 0 },'),
+	'the C++ carries its note as a comment over it');
+check(statusRefusal(() => {}) === '', 'a status file with nothing wrong is taken');
+statusRefusedFor((f) => { f.additions = {}; }, 'additions are not a list', 'additions that are not a list');
+statusRefusedFor((f) => { f.additions[0].extra = 1; }, 'its fields are', 'an addition with a field too many');
+statusRefusedFor((f) => { delete f.additions[0].note; }, 'its fields are', 'an addition with no note (every addition is named)');
+statusRefusedFor((f) => { f.additions[0].table = '0x123456'; }, 'no table 0x123456', 'an addition to a table that is not one of the 16');
+statusRefusedFor((f) => { f.additions[0].title = 'Nowhere'; }, 'has no menu "Nowhere"', 'an addition under a menu its table has not');
+statusRefusedFor((f) => { f.additions[0].after = 'Nothing'; }, 'with an item "Nothing"', 'an addition after an item its menu has not');
+statusRefusedFor((f) => { f.additions[0].table = '0x5ced30'; f.additions[0].title = 'Mode'; f.additions[0].after = 'Normal'; }, 'outside a cascade', "an addition after a cascade's row (it would split the cascade)");
+statusRefusedFor((f) => { f.additions[0].words = '&Sa&ve'; }, 'more than one "&"', "an addition's words with two \"&\"");
+statusRefusedFor((f) => { f.additions[0].words = 'Sa\x01ve'; }, 'outside 0x20 to 0x7E', "a control letter in an addition's words");
+statusRefusedFor((f) => { f.additions[0].words = 'S'.repeat(65); }, 'longer than', "an addition's words too long for the bar");
+statusRefusedFor((f) => { f.additions[0].action = '0x10001'; }, 'is not one of ours', "an addition with the number of one of inteng's records (Quit's)");
+statusRefusedFor((f) => { f.additions[0].action = '0x2ff01'; }, 'is not one of ours', "an addition with another table's number");
+statusRefusedFor((f) => { f.additions[0].action = 65281; }, 'not a number written 0x', "an addition's number of the wrong type");
+statusRefusedFor((f) => { f.additions.push(JSON.parse(JSON.stringify(f.additions[0]))); }, 'is already an item\'s', 'two additions with one number');
+statusRefusedFor((f) => { f.additions[0].does = 'none'; }, 'it does none', 'an addition that does nothing');
+statusRefusedFor((f) => { f.additions[0].does = 'format'; }, 'it does format', 'an addition that does what the editor has not');
+statusRefusedFor((f) => { f.additions[0].note = 'a note ending in \\'; }, 'holds a "\\" or "??"', "a note with a \"\\\" (a comment line ending in one takes the next line in)");
+statusRefusedFor((f) => { f.additions[0].note = 'what??/'; }, 'holds a "\\" or "??"', 'a note with "??" (a trigraph)');
+statusRefusedFor((f) => { f.additions[0].note = 'line one\nline two'; }, 'outside 0x20 to 0x7E', 'a note of two lines (the second would be C++, not comment)');
+statusRefusedFor((f) => { f.additions[0].note = 'N'.repeat(401); }, 'longer than 400', 'a note longer than 400 letters');
+
 console.log('The C++ written can\'t be broken out of:');
 check(tool.cpp('a"b') === '"a\\"b"', 'a double quote is escaped');
 check(tool.cpp('a\\b') === '"a\\\\b"', 'a backslash is escaped');

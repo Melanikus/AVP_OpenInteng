@@ -74,6 +74,9 @@ namespace host
 	// OK: every control's text in the order of the items is applied to the draft (a text out of range stops at that control: the step says which, the form opens again with the draft as it stands), then the object is written
 	SpecialStep SpecialMode_FormAnswer(OpenLevelFile *file, SpecialMode *mode, std::vector<std::string> const &values);
 
+	// OK of a window that works the object out itself (the Bad Guy's, bad_guy_edit.h): the object is written as it is given (no form rules applied) and the Edit ends, as FormAnswer's end does
+	SpecialStep SpecialMode_FormWrite(OpenLevelFile *file, SpecialMode *mode, SpecialObject const &object);
+
 	bool SpecialMode_Does(int32_t command);
 
 	SpecialStep SpecialMode_Command(OpenLevelFile *file, SpecialMode *mode, int32_t command);

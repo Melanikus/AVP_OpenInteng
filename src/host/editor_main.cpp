@@ -150,6 +150,8 @@
 #include "strategy_repair.h"
 #include "special_mode.h"
 #include "generator_settings.h"
+#include "bad_guy_edit.h"
+#include "particle_edit.h"
 #include "simple_object_edit.h"
 #include "editor_icons.h"
 #include "inteng_exe.h"
@@ -1273,6 +1275,8 @@ static bool specialPromptFresh = false;
 static void SpecialFormOpen();
 static void SpecialTypedAnswer(std::string const &typed);
 static void GeneratorSettingsWindowShow(host::GeneratorSettingsTyped const &typed);   // a generator's Edit: edobtype's "Generator Settings" (below)
+static void ParticleWindowOpen();   // a particle generator's Edit: inteng's own "Particle generator properties" (below)
+static void BadGuyWindowShow();   // a bad guy's Edit: edobtype's "Edit object properties" in the AvP mode (below)
 
 static void SpecialShow(host::SpecialStep const &step)
 {
@@ -1314,7 +1318,8 @@ static void SpecialShow(host::SpecialStep const &step)
 	{
 		// a generator's: edobtype's "Generator Settings" as its resource 133 lays it out (A-8, OP-131); the other kinds: the form of their fields
 		std::function<void()> const open = specialMode.draft.kind == host::SpecialKind::Generator ? std::function<void()>([]() { GeneratorSettingsWindowShow(host::GeneratorSettings_Shown(specialMode.draft)); })
-			: std::function<void()>([]() { SpecialFormOpen(); });
+			: specialMode.draft.kind == host::SpecialKind::BadGuy ? std::function<void()>([]() { BadGuyWindowShow(); })
+			: specialMode.draft.kind == host::SpecialKind::ParticleGenerator ? std::function<void()>([]() { ParticleWindowOpen(); }) : std::function<void()>([]() { SpecialFormOpen(); });
 
 		if (!step.answer.empty())
 		{
@@ -1657,6 +1662,317 @@ static void GeneratorSettingsWindowShow(host::GeneratorSettingsTyped const &type
 		unsigned const generation = open->Generation();
 
 		SpecialShow(host::SpecialMode_FormAnswer(open, &specialMode, values));
+
+		if (open->Generation() != generation)
+		{
+			LoadTheObjectListAgain();
+		}
+	});
+}
+
+// THE PARTICLE GENERATOR'S WINDOW, 1:1 (A-8, reassess/object-placement.md OP-134; particle_edit.h has the numbers): inteng's own "Particle generator properties" (FUN_004e7310, 400 x 250, its parts at their
+// pixels), Type opens "Select Particle Generator Type" and the window stays; every way out keeps what it holds (FUN_004e7750). Added 2026-11-16 by Melanikus (Vasquez).
+namespace
+{
+	int32_t const kParticleType = 102, kParticleSound = 104, kParticleRemoveSound = 106, kParticleOk = 2;   // the buttons' answers: 100 + their control number; Ok answers 2 (FUN_004e79b0)
+
+	host::ParticleTyped particleNow;   // what the window holds (kept while the Type list is open)
+	std::string particleSoundName;
+}
+
+static void ParticleWindowShow()
+{
+	host::DialogFormSpec spec;
+
+	spec.title = "Particle generator properties";   // 0x5e8f60
+	spec.width = 400;
+	spec.height = 0xfa;
+
+	auto const add = [&spec](host::DialogWidgetType kind, std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h, int32_t answer, size_t most)
+	{
+		host::DialogWidget one;
+
+		one.type = kind;
+		one.text = words;
+		one.box = { x, y, w, h };
+		one.answer = answer;
+		one.most = most;
+		spec.widgets.push_back(one);
+	};
+
+	add(host::DialogWidgetType::Button, "Ok", 0xaf, 0xe1, 0x50, 0x12, kParticleOk, 0);                                      // 1
+	add(host::DialogWidgetType::Button, "Type", 0x12, 0x28, 0x46, 0x12, kParticleType, 0);                                  // 2
+	add(host::DialogWidgetType::Label, host::Particle_TypeName(particleNow.type), 100, 0x28, 0x118, 0x12, 0, 0);            // 3
+	add(host::DialogWidgetType::Button, "Sound", 0x12, 0x3c, 0x46, 0x12, kParticleSound, 0);                                // 4
+	add(host::DialogWidgetType::Label, particleSoundName, 100, 0x3c, 0x118, 0x12, 0, 0);                                    // 5
+	add(host::DialogWidgetType::Button, "Remove Sound", 0x12, 0x50, 0x78, 0x12, kParticleRemoveSound, 0);                   // 6
+	add(host::DialogWidgetType::Label, "Active", 0x28, 100, 100, 0x12, 0, 0);                                                 // 7
+	add(host::DialogWidgetType::Check, std::string(), 0x12, 100, 16, 16, 0, 0);                                               // 8
+	spec.widgets.back().checked = particleNow.active;
+	add(host::DialogWidgetType::Edit, particleNow.frequency, 0x12, 0x78, 100, 0x12, 0, 10);                                 // 9 (FUN_0057d8e0, 10 letters)
+	add(host::DialogWidgetType::Label, "Frequency (seconds) (0-6000)", 0x76, 0x78, 0x118, 0x12, 0, 0);                      // 10
+	add(host::DialogWidgetType::Edit, std::to_string((long long)particleNow.probability), 0x12, 0x8c, 100, 0x12, 0, 10);   // 11 (FUN_0057de30, a number box)
+	add(host::DialogWidgetType::Label, "Probability(0-100)", 0x76, 0x8c, 200, 0x12, 0, 0);                                  // 12
+	add(host::DialogWidgetType::Edit, std::to_string((long long)particleNow.quantity), 0x12, 0xa0, 100, 0x12, 0, 10);      // 13
+	add(host::DialogWidgetType::Label, "Quantity(1-1000)", 0x76, 0xa0, 200, 0x12, 0, 0);                                    // 14
+	add(host::DialogWidgetType::Edit, particleNow.speed, 0x12, 0xb4, 100, 0x12, 0, 10);                                     // 15
+	add(host::DialogWidgetType::Label, "Speed (m/s) (0-600)", 0x76, 0xb4, 200, 0x12, 0, 0);                                 // 16
+
+	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &w)
+	{
+		if (w.size() < 16)
+		{
+			return;
+		}
+
+		particleNow.active = w[7].checked;
+		particleNow.frequency = w[8].text;
+		particleNow.probability = host::HierarchyMode_EditNumber(w[10].text);   // FUN_0057d620
+		particleNow.quantity = host::HierarchyMode_EditNumber(w[12].text);
+		particleNow.speed = w[14].text;
+
+		if (answer == kParticleType)
+		{
+			// FUN_004e6950: "Select Particle Generator Type"; the window stays, showing the pick's name
+			DialogList("Select Particle Generator Type", { host::Particle_TypeName(0), host::Particle_TypeName(1), host::Particle_TypeName(2), host::Particle_TypeName(3) }, [](int32_t place)
+			{
+				if (place >= 0 && place < 4)
+				{
+					particleNow.type = place;
+				}
+
+				ParticleWindowShow();
+			});
+			return;
+		}
+
+		if (answer == kParticleSound || answer == kParticleRemoveSound)
+		{
+			// NAMED, OWED (the next step): the particle's sound (FUN_004ebc80 a new one, FUN_004ebd60 its Sound Edit, FUN_004ebd20 Remove) needs its INDSOUND written; the window answers as inteng's
+			// Remove (it stays) and Sound (it ends) do, without the sound's change
+			if (answer == kParticleRemoveSound)
+			{
+				ParticleWindowShow();
+				return;
+			}
+		}
+
+		// every way out keeps what the window holds (FUN_004e7750 whatever FUN_0057c800 answered)
+		OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+		if (!open || !open->Level())
+		{
+			return;
+		}
+
+		unsigned const generation = open->Generation();
+
+		SpecialShow(host::SpecialMode_FormWrite(open, &specialMode, host::Particle_Ok(specialMode.draft, particleNow)));
+
+		if (open->Generation() != generation)
+		{
+			LoadTheObjectListAgain();
+		}
+	});
+}
+
+static void ParticleWindowOpen()
+{
+	host::ParticleShown const shown = host::Particle_Shown(specialMode.draft);
+
+	particleNow = host::ParticleTyped();
+	particleNow.type = specialMode.draft.particleType;
+	particleNow.active = shown.active;
+	particleNow.frequency = shown.frequency;
+	particleNow.probability = shown.probability;
+	particleNow.quantity = shown.quantity;
+	particleNow.speed = shown.speed;
+	particleSoundName = shown.soundName;
+	ParticleWindowShow();
+}
+
+// THE BAD GUY'S "Edit object properties" WINDOW, 1:1 (A-8, reassess/object-placement.md OP-132; bad_guy_edit.h has the numbers): edobtype's resource 129 in the AvP mode (302 x 231 dialog units under the
+// caption), the parts the bad-guy class shows: "Type of Object" and its combo, the type's own controls on the left (1001 combo / 1003 edit under 1004's words) and on the right (1018 combo / 1020 edit under
+// 1017's), "Texturing ID" and its combo (live for a Marine), "Starts Inactive", OK, Cancel. A pick in the type combo shows that type's controls at once (FUN_10005400). Game mode and Difficulty are hidden as
+// inteng hides them (Bishop's ruling 11-16) and their flags come back unchanged. Added 2026-11-16 by Melanikus (Vasquez).
+namespace
+{
+	// the window's parts by place (BadGuyWindowShow adds them in this order)
+	enum BadGuyPart : size_t
+	{
+		kBgOk, kBgCancel, kBgTypeLabel, kBgType, kBgLeftLabel, kBgLeftCombo, kBgLeftEdit, kBgRightLabel, kBgRightCombo, kBgRightEdit, kBgTextureLabel, kBgTexture, kBgInactive, kBgInactiveLabel, kBgParts
+	};
+
+	host::BadGuyControls badGuyShown;   // what the window shows now (its combos' numbers)
+
+	// THE NEW-BAD-GUY DEFAULTS (OP-132): after every Edit of a bad guy, OK or Cancel alike, its type, subtype, texture and extras become the next new one's (0x4e5e96-0x4e5eb5: DAT_005e7a48 the type,
+	// DAT_008f4f94 / 95 / 96 / 97 the subtype, extra 1, extra 2, texture), which Create > AVP Bad Guy takes (FUN_004dd600 0x4dd65e-0x4dd692; the flags are 0x3801 always). Before any Edit: type 1, the rest 0.
+	struct BadGuyDefaults
+	{
+		bool set = false;
+		int32_t type = 1;
+		uint8_t subType = 0, extra1 = 0, extra2 = 0, texture = 0;
+	};
+
+	BadGuyDefaults badGuyDefaults;
+
+	void BadGuyDefaultsFrom(host::SpecialObject const &one)
+	{
+		badGuyDefaults.set = true;
+		badGuyDefaults.type = one.type;
+		badGuyDefaults.subType = one.subType;
+		badGuyDefaults.extra1 = one.extra1;
+		badGuyDefaults.extra2 = one.extra2;
+		badGuyDefaults.texture = one.texture;
+	}
+}
+
+// The type's controls into the window's parts (at the opening, and after a pick in the type combo)
+static void BadGuyPartsFor(std::vector<host::DialogWidget> &w, host::BadGuyControls const &c)
+{
+	auto const names = [](host::BadGuyChoices const &choices)
+	{
+		std::vector<std::string> out;
+
+		for (auto const &one : choices)
+		{
+			out.push_back(one.first);
+		}
+
+		return out;
+	};
+
+	auto const combo = [&](size_t part, host::BadGuyChoices const &choices, int32_t pick, bool shown, bool live)
+	{
+		w[part].items = names(choices);
+		w[part].selected = pick;
+		w[part].text = pick >= 0 && (size_t)pick < choices.size() ? choices[(size_t)pick].first : std::string();
+		w[part].visible = shown;
+		w[part].enabled = live;
+		w[part].listOpen = false;
+	};
+
+	w[kBgLeftLabel].text = c.leftLabel;
+	w[kBgLeftLabel].visible = !c.leftLabel.empty();
+	w[kBgRightLabel].text = c.rightLabel;
+	w[kBgRightLabel].visible = !c.rightLabel.empty();
+	combo(kBgLeftCombo, c.leftChoices, c.leftPick, c.leftCombo, true);
+	combo(kBgRightCombo, c.rightChoices, c.rightPick, c.rightCombo, true);
+	combo(kBgTexture, c.textures, c.texturePick, true, c.textureLive);
+	w[kBgLeftEdit].text = c.leftText;
+	w[kBgLeftEdit].visible = c.leftEdit;
+	w[kBgRightEdit].text = c.rightText;
+	w[kBgRightEdit].visible = c.rightEdit;
+}
+
+static void BadGuyWindowShow()
+{
+	auto const dx = [](int32_t u) { return (int32_t)(u * 3 / 2); };
+	auto const dy = [](int32_t u) { return (int32_t)(u * 13 / 8); };
+	int32_t const clientTop = 18;   // the dialog units start under the caption (the toolkit's title band)
+	host::DialogFormSpec spec;
+
+	badGuyShown = host::BadGuy_Controls(specialMode.draft, specialMode.draft.type);
+	spec.title = "Edit object properties";   // resource 129's caption
+	spec.width = dx(302) + 10;
+	spec.height = dy(231) + 10 + clientTop;
+	spec.widgets.resize(kBgParts);
+
+	auto const put = [&](size_t part, host::DialogWidgetType kind, std::string const &words, int32_t x, int32_t y, int32_t width, int32_t height, int32_t answer)
+	{
+		host::DialogWidget &one = spec.widgets[part];
+
+		one.type = kind;
+		one.text = words;
+		one.box = { dx(x), dy(y) + clientTop, width, height };
+		one.answer = answer;
+		one.most = 63;
+	};
+
+	put(kBgOk, host::DialogWidgetType::Button, "OK", 55, 190, dx(50), dy(14), host::kDialogOk);
+	put(kBgCancel, host::DialogWidgetType::Button, "Cancel", 170, 190, dx(50), dy(14), host::kDialogEscape);
+	put(kBgTypeLabel, host::DialogWidgetType::Label, "Type of Object", 10, 10, dx(100), 16, 0);      // 1016
+	put(kBgType, host::DialogWidgetType::Combo, std::string(), 10, 24, dx(115), 18, 0);              // 1002
+	put(kBgLeftLabel, host::DialogWidgetType::Label, std::string(), 10, 45, dx(114), 16, 0);         // 1004
+	put(kBgLeftCombo, host::DialogWidgetType::Combo, std::string(), 10, 60, dx(115), 18, 0);         // 1001
+	put(kBgLeftEdit, host::DialogWidgetType::Edit, std::string(), 10, 60, dx(105), dy(12) + 2, 0);   // 1003
+	put(kBgRightLabel, host::DialogWidgetType::Label, std::string(), 165, 45, dx(110), 16, 0);       // 1017
+	put(kBgRightCombo, host::DialogWidgetType::Combo, std::string(), 165, 60, dx(115), 18, 0);       // 1018
+	put(kBgRightEdit, host::DialogWidgetType::Edit, std::string(), 165, 60, dx(105), dy(12) + 2, 0); // 1020
+	put(kBgTextureLabel, host::DialogWidgetType::Label, "Texturing ID", 10, 85, dx(70), 16, 0);      // 1019
+	put(kBgTexture, host::DialogWidgetType::Combo, std::string(), 10, 95, dx(115), 18, 0);           // 1022
+	put(kBgInactive, host::DialogWidgetType::Check, std::string(), 10, 130, 12, 12, 0);              // 1008 "Starts Inactive"
+	spec.widgets[kBgInactive].checked = badGuyShown.startsInactive;
+	put(kBgInactiveLabel, host::DialogWidgetType::Label, "Starts Inactive", 10, 130, dx(104), 16, 0);
+	spec.widgets[kBgInactiveLabel].box.x += 16;
+	spec.widgets[kBgInactiveLabel].box.y -= 2;
+
+	{
+		std::vector<std::string> types;
+
+		for (auto const &one : badGuyShown.types)
+		{
+			types.push_back(one.first);
+		}
+
+		spec.widgets[kBgType].items = types;
+		spec.widgets[kBgType].selected = badGuyShown.typePick;
+		spec.widgets[kBgType].text = badGuyShown.typePick >= 0 ? badGuyShown.types[(size_t)badGuyShown.typePick].first : std::string();
+	}
+
+	BadGuyPartsFor(spec.widgets, badGuyShown);
+
+	// a pick in the type combo: that type's controls at once (FUN_10005400 with the new type; the subtype and the numbers are the bad guy's)
+	spec.onChange = [](std::vector<host::DialogWidget> &w, size_t part)
+	{
+		if (part != kBgType || w[kBgType].selected < 0 || (size_t)w[kBgType].selected >= badGuyShown.types.size())
+		{
+			return;
+		}
+
+		host::BadGuyChoices const types = badGuyShown.types;
+		int32_t const typePick = w[kBgType].selected;
+
+		badGuyShown = host::BadGuy_Controls(specialMode.draft, types[(size_t)typePick].second);
+		BadGuyPartsFor(w, badGuyShown);
+	};
+
+	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &w)
+	{
+		if (answer != host::kDialogOk || w.size() < kBgParts)
+		{
+			BadGuyDefaultsFrom(specialMode.draft);     // 0x4e5e96: the next new bad guy's, after Cancel too
+			host::SpecialMode_Cancel(&specialMode);   // Cancel or Escape: nothing kept
+			return;
+		}
+
+		auto const valueOf = [](host::BadGuyChoices const &choices, host::DialogWidget const &part) -> int32_t
+		{
+			return part.visible && part.selected >= 0 && (size_t)part.selected < choices.size() ? choices[(size_t)part.selected].second : -1;
+		};
+
+		host::BadGuyTyped typed;
+
+		typed.type = w[kBgType].selected >= 0 && (size_t)w[kBgType].selected < badGuyShown.types.size() ? badGuyShown.types[(size_t)w[kBgType].selected].second : specialMode.draft.type;
+		typed.leftPick = valueOf(badGuyShown.leftChoices, w[kBgLeftCombo]);
+		typed.rightPick = valueOf(badGuyShown.rightChoices, w[kBgRightCombo]);
+		typed.texturePick = valueOf(badGuyShown.textures, w[kBgTexture]);
+		typed.leftText = w[kBgLeftEdit].text;
+		typed.rightText = w[kBgRightEdit].text;
+		typed.startsInactive = w[kBgInactive].checked;
+
+		OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+		if (!open || !open->Level())
+		{
+			return;
+		}
+
+		unsigned const generation = open->Generation();
+		host::SpecialObject const kept = host::BadGuy_Ok(specialMode.draft, typed);
+
+		BadGuyDefaultsFrom(kept);   // 0x4e5e96-0x4e5eb5: the next new bad guy's
+		SpecialShow(host::SpecialMode_FormWrite(open, &specialMode, kept));
 
 		if (open->Generation() != generation)
 		{
@@ -2183,6 +2499,29 @@ static void SpecialRunCommand(int32_t command, bool soundsScreen)
 	if (create)
 	{
 		host::Selection_Clear();
+	}
+
+	// a NEW bad guy takes the new-bad-guy defaults the last Edit of a bad guy made (OP-132, FUN_004dd600 0x4dd65e-0x4dd692)
+	if (command == 0x35 && badGuyDefaults.set && open->Generation() != generation && specialMode.haveCurrent && specialMode.kind == host::SpecialKind::BadGuy)
+	{
+		std::vector<host::SpecialObject> all;
+
+		if (host::SpecialObjects_Read(open, &all) == host::SpecialResult::Done)
+		{
+			for (host::SpecialObject &one : all)
+			{
+				if (one.kind == host::SpecialKind::BadGuy && one.number == specialMode.number)
+				{
+					one.type = badGuyDefaults.type;
+					one.subType = badGuyDefaults.subType;
+					one.extra1 = badGuyDefaults.extra1;
+					one.extra2 = badGuyDefaults.extra2;
+					one.texture = badGuyDefaults.texture;
+					host::SpecialObject_Write(open, one);
+					break;
+				}
+			}
+		}
 	}
 
 	// a NEW sound takes the new-sound defaults when P has set them (OP-26)
@@ -3259,6 +3598,7 @@ static bool strategyFromPlacement = false;   // Strategy mode was entered from O
 static bool strategyMarkedChanged = false;   // inteng's "changed" mark DAT_00914950 for what changes no bytes (an Edit view opened: FUN_005286b0 0x5286cc): Exit asks "Would you like to save first?"; Save (0x52831b) and leaving the screen clear it
 static uint32_t strategyViewBit = 0;   // Strategy mode's View Flag (FUN_0052f680 sets DAT_00914944 to the bit, FUN_00522650 colours the modules that hold it): 0 is none
 static unsigned copySavedGeneration = ~0u;   // defined with the mode's Exit below: the level's generation at the opening, then at each Save a copy
+static host::LevelSaveSitting levelSaveSitting;   // this run's saves: the first save of the level keeps it as .bak, later ones leave that .bak alone (level_save.h, Bishop's ruling B)
 
 // STRATEGY DATA'S "CHANGED" (strategy-data.md S-10, S-5; reassess/strategy-data-verify-frost.md W-3): inteng's mark DAT_00914950 is cleared on EVERY entry of the mode (FUN_00522ab0 0x522ae2,
 // Object Placement's Tab included) and by its Save (FUN_005282d0 0x52831b), and set only by the mode's own edits (its 30 writers, all in 0x5286b0-0x53b7a9). So a change made before the mode
@@ -3385,7 +3725,8 @@ static void SaveTheCopy()
 	}
 
 	// THE OWNER'S RULING (Melanikus 2026-11-16, through Bishop: "Overwrite, with backup"; it replaces owner-intent 7's save-a-copy): Save writes the level OVER the file it was opened from,
-	// the one before kept beside it as "<file>.bak" (level_save.h: a temporary file, read back through the game's loader, then put in place; on any failure the file is untouched). The file
+	// the one before kept beside it as "<file>.bak" (level_save.h: a temporary file, read back through the game's loader, then put in place; on any failure the file is untouched); ONE .bak A
+	// SITTING (Bishop's ruling B): the run's first save keeps the level as it was opened, later saves leave that .bak alone (levelSaveSitting). The file
 	// it was opened from: the one named on the command line when the game's level is its copy in avp_rifs\OpenedByEditor (open_with.h), else the game folder's own (avp_rifs\<name>.rif, or a
 	// model's avp_huds\<name>.rif). A HIDDEN TEST RUN (-picture) never writes a file that was opened: its stand-in is the copy in its own folder for copies, as before (save_copy.h), first
 	// filled from the opened file so its .bak is real, and its words are the old "Saved a copy: <path>" (the harness reads them).
@@ -3478,10 +3819,10 @@ static void SaveTheCopy()
 
 		target = copyPath;
 
-		// the stand-in starts as the opened file, so the first save's .bak is the level as it was opened
-		if (GetFileAttributesA(target.c_str()) == INVALID_FILE_ATTRIBUTES && !openedFile.empty())
+		// the stand-in starts the sitting as the opened file (one from an earlier run replaced), so the sitting's .bak is the level as it was opened
+		if (!levelSaveSitting.SavedBefore(target.c_str()) && !openedFile.empty())
 		{
-			CopyFileA(openedFile.c_str(), target.c_str(), TRUE);
+			CopyFileA(openedFile.c_str(), target.c_str(), FALSE);
 		}
 	}
 	else
@@ -3497,7 +3838,7 @@ static void SaveTheCopy()
 	}
 
 	std::string backup, overWhy;
-	host::LevelSaveOver const result = host::LevelSave_Over(open, target.c_str(), &backup, &overWhy);
+	host::LevelSaveOver const result = levelSaveSitting.Save(open, target.c_str(), &backup, &overWhy);   // the sitting's first save keeps the file as .bak, later ones leave it (ruling B)
 
 	if (result != host::LevelSaveOver::Saved)
 	{
@@ -3515,7 +3856,7 @@ static void SaveTheCopy()
 	{
 		size_t const slash = backup.find_last_of('\\');
 
-		savedWords = "Saved: " + target + (backup.empty() ? std::string(" | there was no file before it") : " | the one before kept as " + backup.substr(slash == std::string::npos ? 0 : slash + 1));
+		savedWords = "Saved: " + target + (backup.empty() ? std::string(" | there was no file before it") : " | the level as you opened it is kept as " + backup.substr(slash == std::string::npos ? 0 : slash + 1));
 	}
 
 	statusWords = savedWords.c_str();
@@ -3531,7 +3872,18 @@ static void SaveTheCopy()
 		}
 	}
 	StrategyCleanNow();   // FUN_005282d0 0x52831b: DAT_00914950 = 0 (W-3)
-	LogString("save: " + target + (backup.empty() ? std::string() : ", the one before kept as " + backup));
+	LogString("save: " + target + (backup.empty() ? std::string() : ", the level as it was opened kept as " + backup));
+}
+
+// INTENG'S SAVE AT ITS OWN POINTS (Bishop's ruling 2026-11-16 23:3x, rule 10d "like inteng did"): inteng writes the level file (FUN_004719e0) with no question at Module Linking's Exit
+// when the tree changed (0x4c3ea3 / 0x4c3f5e), at Set Current (0x4c2634), at the follow's make-current with a write pending (0x4c16c2), at the ends of AutoLink (0x4c8acd), Delete Links
+// (0x4c8bbf), Load from file (0x4c909d), Add Reverse Links (0x4c8903) and the link clean (0x4c9338), at every mode's Exit (ExitTheMode) and when the hub is left with the hub changed
+// (FUN_004476d0 0x4476e3; Quit goes through it); a window closed writes nothing. Ours saves at the same points with SaveTheCopy (over the opened file, the level as it was opened kept as .bak at
+// the run's first save; a hidden run's stand-in). Gives the save's words, for the command's own words to carry.
+static std::string SaveAtIntengsPoint()
+{
+	SaveTheCopy();
+	return savedWords;   // the save's own words, "Not saved: ..." with the path and the reason when it was not (b3d3e16)
 }
 
 // ---- Light Sourcing (M-3): a click on the view picks a light, and its numbers are typed in the field panel ----
@@ -6741,24 +7093,31 @@ static void HierarchyPutSequencesOnTheFloor()
 	hierarchyAnswerUntil = GetTickCount() + 5000;
 }
 
+// Ctrl+R and Ctrl+F (the key translator's Ctrl words, FUN_0048cde0 0x48cdfd-0x48ce18). They are read WITH Ctrl held, so the window's key step calls this one where Ctrl is held. They
+// were in HierarchyModeKey, which is reached only through the keys that want NO Ctrl (the window's "!ctrlHeld" step): there Ctrl+R never arrived from the real keyboard, and a scenario's
+// posted Ctrl got through only while ctrlHeld read the real keyboard and this read the key table (until 2f4e9ff made both read the table). True when the key was one of them.
+static bool HierarchyCtrlKey(WPARAM key)
+{
+	if (!onHierarchy || ShiftDown() || !KeyHeldNow(VK_CONTROL) || (key != 'R' && key != 'F'))
+	{
+		return false;
+	}
+
+	if (key == 'R')
+	{
+		HierarchyTurnTheSequence();
+	}
+	else
+	{
+		HierarchyPutSequencesOnTheFloor();
+	}
+
+	return true;
+}
+
 static bool HierarchyModeKey(WPARAM key)
 {
 	bool const shift = ShiftDown();
-
-	// Ctrl+R and Ctrl+F (the key translator's Ctrl words, FUN_0048cde0 0x48cdfd-0x48ce18)
-	if (onHierarchy && !shift && KeyHeldNow(VK_CONTROL) && (key == 'R' || key == 'F'))
-	{
-		if (key == 'R')
-		{
-			HierarchyTurnTheSequence();
-		}
-		else
-		{
-			HierarchyPutSequencesOnTheFloor();
-		}
-
-		return true;
-	}
 
 	// Dietrich's HierarchyKey (below) has the keys of the model's time, sequences, key frames, sounds, the turret and the delta variants; this one takes only the keys it lacks: T, W, C and Return
 	// U / I (Alter detail level) and Shift+D (Set distance for current detail level, FUN_00479a80) are this one's too
@@ -16940,9 +17299,15 @@ static void RunAction(int32_t id)
 
 		barScreen = host.screen;
 
-		// leaving the hub for a mode: the hub's selection lists are freed (FUN_004476d0) and the mode builds its own (SEL-2): nothing selected in the hub is current in the mode
+		// leaving the hub for a mode: the hub's selection lists are freed (FUN_004476d0) and the mode builds its own (SEL-2): nothing selected in the hub is current in the mode. First, with the
+		// hub's changes not yet in the file (DAT_00631264), the level FILE is written (FUN_004719e0 at 0x4476e3)
 		if (wasScreen == host::kIntengHub)
 		{
+			if (LevelChangedSinceSave())
+			{
+				SaveAtIntengsPoint();
+			}
+
 			host::Selection_Clear();
 		}
 
@@ -17007,9 +17372,45 @@ static void RunAction(int32_t id)
 
 	if (!host.running)
 	{
+		// the hub's Quit (DAT_0091c01c, the main loop's end 0x58d07d): the hub is left (FUN_004476d0), so the level FILE is written when it changed. A window closed writes nothing (inteng:
+		// WM_CLOSE goes to DefWindowProc, WM_DESTROY quits)
+		if (barScreen == host::kIntengHub && LevelChangedSinceSave())
+		{
+			SaveAtIntengsPoint();
+		}
+
 		running = false;
 		bRunning = false;
 	}
+}
+
+// The action of the menu's item whose inteng command number is command, or 0: a cascade's rows are searched too (BAR-10: "Choose" under Object Placement's "Choose/Selected" is command
+// 0x32), and an item that opens a cascade is passed over (it picks nothing, FUN_004b7dd0 0x4b821e-0x4b8248)
+static int32_t MenuActionOfCommand(ui::Menu const &menu, int32_t command)
+{
+	for (size_t i = 0; i < menu.count; i++)
+	{
+		ui::MenuItem const &entry = menu.items[i];
+
+		for (size_t k = 0; k < entry.subCount; k++)
+		{
+			host::IntengItem const *const row = host::IntengMenus_Find(entry.subItems[k].action);
+
+			if (row && row->command == command)
+			{
+				return entry.subItems[k].action;
+			}
+		}
+
+		host::IntengItem const *const item = entry.subCount == 0 ? host::IntengMenus_Find(entry.action) : nullptr;
+
+		if (item && item->command == command)
+		{
+			return entry.action;
+		}
+	}
+
+	return 0;
 }
 
 // The action of the item of the bars whose inteng command number is command (the first bar is searched, then the second), or 0
@@ -17021,34 +17422,14 @@ static int32_t BarActionOfCommand(int32_t command)
 	{
 		for (size_t m = 0; m < barRows.menuCount[row] && !found; m++)
 		{
-			ui::Menu const &menu = barRows.menus[row][m];
-
-			for (size_t i = 0; i < menu.count && !found; i++)
-			{
-				host::IntengItem const *const item = host::IntengMenus_Find(menu.items[i].action);
-
-				if (item && item->command == command)
-				{
-					found = menu.items[i].action;
-				}
-			}
+			found = MenuActionOfCommand(barRows.menus[row][m], command);
 		}
 	}
 
 	// then the right-click pop-up's table (method +0x14, FUN_004b8350): its items are the same commands (FUN_004b7c50 returns the pick to the screen's command switch)
 	for (size_t m = 0; m < barRows.logical[1].menuCount && !found; m++)
 	{
-		ui::Menu const &menu = barRows.logical[1].menus[m];
-
-		for (size_t i = 0; i < menu.count && !found; i++)
-		{
-			host::IntengItem const *const item = host::IntengMenus_Find(menu.items[i].action);
-
-			if (item && item->command == command)
-			{
-				found = menu.items[i].action;
-			}
-		}
+		found = MenuActionOfCommand(barRows.logical[1].menus[m], command);
 	}
 
 	return found;
@@ -17057,25 +17438,7 @@ static int32_t BarActionOfCommand(int32_t command)
 // The scenario harness's item (kHarnessItem): the item of the bars whose inteng command number is command, done as a click on it is. The first bar is searched, then the second.
 static void HarnessRunItem(int32_t command)
 {
-	int32_t found = BarActionOfCommand(command);
-
-	for (size_t row = 0; row < barRowCount && !found; row++)
-	{
-		for (size_t m = 0; m < barRows.menuCount[row] && !found; m++)
-		{
-			ui::Menu const &menu = barRows.menus[row][m];
-
-			for (size_t i = 0; i < menu.count && !found; i++)
-			{
-				host::IntengItem const *const item = host::IntengMenus_Find(menu.items[i].action);
-
-				if (item && item->command == command)
-				{
-					found = menu.items[i].action;
-				}
-			}
-		}
-	}
+	int32_t const found = BarActionOfCommand(command);   // a cascade's rows included (BAR-10)
 
 	if (!found)
 	{
@@ -17756,7 +18119,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 
 			// a Multiple Target Switch's keys (FUN_0052f700 0x52fbda-0x52feb0; S-K66-3..7), each on the target row under the POINTER (StrategyView_MultiTargetAt): S flips its request's bit 0 (slot 0xd87a93),
 			// D duplicates it, Shift + D removes it (0xd87a84, FUN_00530430 / FUN_005304a0), T flies to it and opens the targets' collector (0xd87a94, FUN_0052ff10), P the form (0xd87a90); E is the common E
-			if (strategyEditFan && strategyEditKind == 66 && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && (wParam == 'S' || wParam == 'D' || wParam == 'T' || wParam == 'P'))
+			if (strategyEditFan && (strategyEditKind == 66 || strategyEditKind == 68) && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && (wParam == 'S' || wParam == 'D' || wParam == 'T' || wParam == 'P'))
 			{
 				if (wParam == 'P')
 				{
@@ -17772,7 +18135,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			}
 
 			// a Multiple Target Switch's Space (slot 0xd87a5d, 0x52fdbc-0x52fdcf): the next page of 15 targets, back to the first past the last
-			if (strategyEditFan && strategyEditKind == 66 && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && wParam == VK_SPACE)
+			if (strategyEditFan && (strategyEditKind == 66 || strategyEditKind == 68) && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && wParam == VK_SPACE)
 			{
 				MultiNextPage();
 				return 0;
@@ -17928,6 +18291,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				{
 					RunAction(action->id);
 				}
+			}
+
+			// Hierarchy's Ctrl+R / Ctrl+F: the keys below want no Ctrl, so these are read here, with Ctrl held (HierarchyCtrlKey)
+			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && ctrlHeld)
+			{
+				HierarchyCtrlKey(wParam);
 			}
 
 			// The camera's speed keys (above): ] and [ as typed, so they are the ones on the keyboard's own layout; Space; and Classic's Shift+A and
@@ -22192,18 +22561,24 @@ static void LinkSetCurrent()
 		return;
 	}
 
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	unsigned const before = open ? open->Generation() : 0;
+
 	if (!LinkMakeCurrent(picked[0]))
 	{
 		return;
 	}
 
+	// 0x4c2604-0x4c2634: the old current tree, changed, was written into the level, and then the level FILE (FUN_004719e0)
+	std::string const saved = open && open->Generation() != before ? SaveAtIntengsPoint() : std::string();
+
 	LinkPicksLetGo();
-	Answer("Current module: " + ModuleNameOfIndex(picked[0]) + " (" + std::to_string(linkTree->Count()) + " links)");
+	Answer("Current module: " + ModuleNameOfIndex(picked[0]) + " (" + std::to_string(linkTree->Count()) + " links)" + (saved.empty() ? std::string() : "; " + saved));
 }
 
 // AutoLink > Add Reverse Links: Module (0x12c, FUN_004c86b0 with the picked modules) and Environment (0x12d, FUN_004c86b0(0): every module). The rules and what
 // is named are in reverse_links.h; here the current module's links are written first (the first make-current does that) and the current module is made
-// current again at the end (0x4c88e9). The links are kept in the editor's bytes until Save a copy.
+// current again at the end (0x4c88e9). Then the level FILE is written (FUN_004719e0 at 0x4c8903; SaveAtIntengsPoint).
 static void MakeTheCurrentModuleCurrentAgain(int32_t current)
 {
 	// the module that was current is made current again: its tree is loaded from what was written
@@ -22269,8 +22644,11 @@ static void AddReverseLinksCommand(bool all)
 
 	MakeTheCurrentModuleCurrentAgain(current);
 	LoadTheObjectListAgain();
+
+	std::string const saved = SaveAtIntengsPoint();   // FUN_004c86b0's end, 0x4c8903: the level FILE written
+
 	Answer("Add Reverse Links: " + std::to_string(counts.walked) + " modules walked, " + std::to_string(counts.linksAdded) + " links added in " + std::to_string(counts.changed) + " modules" +
-		(counts.skipped > 0 ? ", " + std::to_string(counts.skipped) + " with no module data skipped (inteng makes it)" : std::string()) + " (kept in the editor's bytes until Save a copy)");
+		(counts.skipped > 0 ? ", " + std::to_string(counts.skipped) + " with no module data skipped (inteng makes it)" : std::string()) + "; " + saved);
 }
 
 // AutoLink > Module (0xa1), Environment (0xa2), Module (delete old) (0xa5), Environment (delete old) (0xa6): FUN_004c8930 (a copy of the picks, or 0 for every module; delete old 0 or 1),
@@ -22301,6 +22679,7 @@ static void ModuleLinkingCleanTheLinks()
 	if (done.modules > 0)
 	{
 		LoadTheObjectListAgain();
+		SaveAtIntengsPoint();   // FUN_004719e0 at 0x4c9338: anything dropped, the level FILE written
 	}
 }
 
@@ -22419,18 +22798,19 @@ static void AutoLinkFrame()
 		return;
 	}
 
+	// FUN_004719e0 at 0x4c8acd (AutoLink) / 0x4c909d (Load from file): the level FILE is written, as inteng's run always ends
+	std::string const saved = SaveAtIntengsPoint();
+
 	if (autoLinkFromFile)
 	{
 		Answer("Load from file: " + std::to_string(counts.modules) + " views drawn" + autoLinkFileWords + ", " + std::to_string(counts.pictures) + " pictures, " +
-			std::to_string(counts.linksAdded) + " links added, " + std::to_string(counts.written) + " modules written" + (why.empty() ? std::string() : " (" + why + ")") +
-			" (kept in the editor's bytes until Save a copy)");
+			std::to_string(counts.linksAdded) + " links added, " + std::to_string(counts.written) + " modules written" + (why.empty() ? std::string() : " (" + why + ")") + "; " + saved);
 		return;
 	}
 
 	Answer("AutoLink: " + std::to_string(counts.modules) + " modules run, " + std::to_string(counts.pictures) + " pictures, " + std::to_string(counts.linksAdded) + " links added, " +
 		std::to_string(counts.written) + " modules written" + (counts.badPictures > 0 ? ", " + std::to_string(counts.badPictures) + " pictures with an unexpected colour" : std::string()) +
-		(counts.skipped > 0 ? ", " + std::to_string(counts.skipped) + " with no module data skipped" : std::string()) + (why.empty() ? std::string() : " (" + why + ")") +
-		" (kept in the editor's bytes until Save a copy)");
+		(counts.skipped > 0 ? ", " + std::to_string(counts.skipped) + " with no module data skipped" : std::string()) + (why.empty() ? std::string() : " (" + why + ")") + "; " + saved);
 }
 
 // Waypoint mode's command (waypoint_mode.h): the module picked in the view is the one the mode works with; what it says goes on the status line; a menu page it asks for is shown on
@@ -22915,6 +23295,12 @@ static void LinkFollowPass(bool onModuleLinking)
 	// which stopped working when Module Linking got its own picks, e6ef0b4). NAMED: inteng takes the FIRST module in its order whose box holds the camera (FUN_004a6f30); here the view's
 	// own LevelView_ModuleAt (row ML-M-66)
 	LinkMakeCurrent(index);
+
+	// FUN_004c10c0 with the follow (param_3) and a write pending (DAT_0070438c, 0x4c16a5-0x4c16c2): the level FILE is written
+	if (LevelChangedSinceSave())
+	{
+		SaveAtIntengsPoint();
+	}
 }
 
 // Light Sourcing's S and X (FUN_004aab60 0x4aad37 / 0x4aad57: FUN_004ac240(the selected light, 1 / 0)): the selected light on or off, the editor's state only
@@ -23150,12 +23536,13 @@ static void LinkExit()
 		return;
 	}
 
-	bool const wrote = linkTree && linkTree->Count() > 0;
+	// FUN_004c3b90 0x4c3ea3 (the tree written) and FUN_004c3f40 0x4c3f5e (a write pending, DAT_0070438c): the level FILE is written when anything changed since it last was
+	std::string const saved = LevelChangedSinceSave() ? SaveAtIntengsPoint() : std::string();
 
 	// FUN_004c3f40: the current module 0 and EVERY PICK let go (0x4c3f71-0x4c3fff, row ML-E-4): back in the screen nothing is picked
 	linkTree.reset();
 	LinkPicksLetGo();
-	Answer(wrote ? "Module Linking left: the current module's links are kept in the editor's bytes until Save a copy" : "Module Linking left");
+	Answer(saved.empty() ? std::string("Module Linking left") : "Module Linking left: " + saved);
 }
 
 // AutoLink > Delete Links: Module (0xa7, FUN_004c8af0 with the picked modules; menu-reads-1-full.txt:9028-9090 and menu-reads-2.txt) and Environment (0xa8,
@@ -23290,12 +23677,15 @@ static void DeleteLinksFrame()
 		}
 	}
 
-	// the end (0x4c8bbf): the object list drawn again; the last module done stays current
+	// the end (0x4c8bbf): the level FILE written (FUN_004719e0); the last module done stays current
 	run.on = false;
 	AutoLinkShow_End();
 	LoadTheObjectListAgain();
+
+	std::string const saved = SaveAtIntengsPoint();
+
 	Answer("Delete Links: " + std::to_string(run.done) + " module" + (run.done == 1 ? "" : "s") + ", " + std::to_string(run.withLinks) + " had links" +
-		(cancelled ? ", cancelled by a right press" : std::string()) + (stopped.empty() ? std::string() : " (stopped: " + stopped + ")") + " (kept in the editor's bytes until Save a copy)");
+		(cancelled ? ", cancelled by a right press" : std::string()) + (stopped.empty() ? std::string() : " (stopped: " + stopped + ")") + "; " + saved);
 }
 
 // Normal Link (0x32), Branch Link (0x34), Delete Link (0x36) and Close Branch (0x40): each works on the picked modules, and all of them are
@@ -25894,7 +26284,7 @@ static void MultiKeyUnderPointer(int key, bool shift)
 	std::vector<uint8_t> payload;
 	std::vector<host::MultiTarget> targets;
 
-	if (!StrategyOfObject(strategyEditId, &kind, &payload) || kind != 66 || !host::StrategyView_MultiTargets(payload, &targets))
+	if (!StrategyOfObject(strategyEditId, &kind, &payload) || (kind != 66 && kind != 68) || !host::StrategyView_MultiTargets(payload, &targets))
 	{
 		return;
 	}
@@ -27296,7 +27686,7 @@ static void MultiTargetsEnd()
 	std::vector<uint8_t> payload;
 	std::vector<host::MultiTarget> old, now;
 
-	if (!StrategyOfObject(subject, &kind, &payload) || kind != 66 || !host::StrategyView_MultiTargets(payload, &old))
+	if (!StrategyOfObject(subject, &kind, &payload) || (kind != 66 && kind != 68) || !host::StrategyView_MultiTargets(payload, &old))
 	{
 		return;
 	}
@@ -27629,7 +28019,7 @@ static void SwitchPropertiesWindow(uint8_t const *subject, int32_t kind, std::ve
 	host::StrategyView_FieldNumber(kind, payload, "RestState", &restWord);
 
 	// 4 Rest state on: 52 / 61 bit 0 of +0x14 (FUN_0052e7f0); a Multiple Target Switch's whole +0x14 word (FUN_0052ea70 0x52eac7)
-	add(host::DialogWidgetType::Check, "", 0xf0, 0xb4, 16, 16, -1, kind == 66 ? restWord != 0 : (bits & 1u) != 0, 0, 0);
+	add(host::DialogWidgetType::Check, "", 0xf0, 0xb4, 16, 16, -1, kind == 66 || kind == 68 ? restWord != 0 : (bits & 1u) != 0, 0, 0);
 	add(host::DialogWidgetType::Edit, seconds, 0x84, 0x28, 100, 0x12, -1, false, 0, 0x32);                              // 5 the seconds (FUN_0057d8e0, 50 letters)
 	add(host::DialogWidgetType::Label, "Timer", 0x20, 0x28, 100, 0x12, -1, false, 0, 0);                               // 0x5eef8c
 	add(host::DialogWidgetType::Label, "Wait", 0x20, 100, 100, 0x12, -1, false, 0, 0);                                 // 0x5eef84
@@ -27697,9 +28087,9 @@ static void SwitchPropertiesWindow(uint8_t const *subject, int32_t kind, std::ve
 		}
 
 		// 52 / 61: Rest is bit 0 of +0x14 (0x52e98f-0x52e9a9); 66: +0x14 is the box's value, a whole word, and the flags (+0x38) keep their bit 0 (FUN_0052ea70 0x52ebf2-0x52ebfd)
-		uint32_t bits = kind == 66 ? (uint32_t)flags : (widgets[3].checked ? ((uint32_t)flags | 1u) : ((uint32_t)flags & ~1u));
+		uint32_t bits = kind == 66 || kind == 68 ? (uint32_t)flags : (widgets[3].checked ? ((uint32_t)flags | 1u) : ((uint32_t)flags & ~1u));
 
-		if (kind == 66)
+		if (kind == 66 || kind == 68)
 		{
 			StrategyViewApply(who.data(), kind, "RestState", widgets[3].checked ? 1.0 : 0.0);
 		}
@@ -28347,7 +28737,7 @@ static void StrategyRequestE()
 			return;
 		}
 	}
-	else if (kind == 66)
+	else if (kind == 66 || kind == 68)
 	{
 		// 66's E (slot 0xd87a85, 0x52fc24-0x52fc72): the target row under the POINTER, FUN_00529b30(its ID, &its request) (S-K66-6)
 		std::vector<host::MultiTarget> targets;
@@ -28391,7 +28781,7 @@ static void StrategyRequestE()
 		{
 			StrategyViewApply(strategyEditId, kind, field.c_str(), (double)(word & 1));
 		}
-		else if (kind == 66)
+		else if (kind == 66 || kind == 68)
 		{
 			std::vector<host::MultiTarget> targets;
 
@@ -28472,11 +28862,11 @@ static void RequestPageEnd(bool escaped)
 			StrategyViewApply(strategyEditId, kind, requestPageField.c_str(), (double)word);
 		}
 	}
-	else if (strategyEditKind == 66)
+	else if (strategyEditKind == 66 || strategyEditKind == 68)
 	{
 		std::vector<host::MultiTarget> targets;
 
-		if (StrategyOfObject(strategyEditId, &kind, &payload) && kind == 66 && host::StrategyView_MultiTargets(payload, &targets) && requestPageRow >= 0 && (size_t)requestPageRow < targets.size())
+		if (StrategyOfObject(strategyEditId, &kind, &payload) && (kind == 66 || kind == 68) && host::StrategyView_MultiTargets(payload, &targets) && requestPageRow >= 0 && (size_t)requestPageRow < targets.size())
 		{
 			targets[(size_t)requestPageRow].request = (uint32_t)word;
 			MultiWrite(strategyEditId, payload, targets);
@@ -32255,8 +32645,8 @@ static void VolumeBegin()
 		return;
 	}
 
-	// a Volume of Death: V is read by its Edit view only (FUN_00535970 0x535b20); on page 0 it does nothing (strategy-data.md S-59). The Area Switch keeps V on the screen until its view is built (NAMED stand-in)
-	if (kind == 77 && !(strategyEditFan && strategyEditKind == 77))
+	// a Volume of Death and an Area Switch: V is read by their Edit views only (FUN_00535970 0x535b20; FUN_0052f700 0x52fd91 -> FUN_00530900, S-K68-10); on page 0 it does nothing (strategy-data.md S-59)
+	if ((kind == 77 || kind == 68) && !(strategyEditFan && strategyEditKind == kind))
 	{
 		return;
 	}
@@ -33014,6 +33404,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 	size_t boxCount = 0;
 	int32_t titleWidths[ui::kMenuMostMenus];
 	int32_t dropWidths[ui::kMenuMostMenus];
+	static int32_t cascadeWidths[ui::kMenuMostMenus * ui::kMenuMostItems];   // each item's cascade, as wide as its widest row (BAR-11)
 
 	// The menu bar: gray behind its titles only, as far as they go and a little past, and its drop-downs open over the level anywhere in the
 	// window below the bar
@@ -33025,8 +33416,9 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 	for (size_t row = 0; row < barRowCount; row++)
 	{
-		host::MenuPaint_Measure(barRows.menus[row], barRows.menuCount[row], PanelPass_MenuWidth, titleWidths, dropWidths);
+		host::MenuPaint_Measure(barRows.menus[row], barRows.menuCount[row], PanelPass_MenuWidth, titleWidths, dropWidths, cascadeWidths);
 		BarRow(row).LayOut(place.bar[row], place.dropRoom[row], titleWidths, dropWidths, host::MenuPaint_ItemHeight(kPanelPassLineHeight));
+		BarRow(row).SetCascadeWidths(cascadeWidths);
 		titlesEnd[row] = layout.toolbar.x;
 
 		for (size_t m = 0; m < barRows.menuCount[row]; m++)
@@ -33189,8 +33581,11 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 		ui::Box const popBar = { popupAt.x, top, windowRight - popupAt.x > 0 ? windowRight - popupAt.x : 0, 0 };
 		ui::Box const popRoom = { 0, top, windowRight, windowBottom - top > 0 ? windowBottom - top : 0 };
 
-		host::MenuPaint_Measure(popupRoom.menus, 1, PanelPass_MenuWidth, popTitle, popDrop);
+		static int32_t popCascades[ui::kMenuMostMenus * ui::kMenuMostItems];
+
+		host::MenuPaint_Measure(popupRoom.menus, 1, PanelPass_MenuWidth, popTitle, popDrop, popCascades);
 		popupBar.LayOut(popBar, popRoom, popTitle, popDrop, rowH);
+		popupBar.SetCascadeWidths(popCascades);
 
 		size_t popLines = 0;
 		size_t popBoxes = 0;
@@ -33851,7 +34246,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 			world.trackSections = TrackSectionsOf;
 			world.species = EnemySpeciesOf;
 			world.path = LevelPathNamed;
-			world.page = strategyEditKind == 66 ? multiPage : trackPage;
+			world.page = strategyEditKind == 66 || strategyEditKind == 68 ? multiPage : trackPage;
 			world.links = &strategyViewLinks;
 			world.strategyKind = [](uint8_t const *one)
 			{
@@ -34663,6 +35058,34 @@ static bool PressTheBarItem(char const *words)
 	if (colon)
 	{
 		std::string const menuWords(words, (size_t)(colon - words));
+
+		// "Item: Row": a cascade's row (BAR-10), named by the item that opens its cascade ("Strategy Data: Normal", "Create Virtual Object: Here")
+		for (size_t row = 0; row < barRowCount; row++)
+		{
+			for (size_t m = 0; m < barRows.menuCount[row]; m++)
+			{
+				ui::Menu const &menu = barRows.menus[row][m];
+
+				for (size_t i = 0; i < menu.count; i++)
+				{
+					ui::MenuItem const &entry = menu.items[i];
+
+					if (!entry.name || menuWords != entry.name)
+					{
+						continue;
+					}
+
+					for (size_t k = 0; k < entry.subCount; k++)
+					{
+						if (entry.subItems[k].name && strcmp(entry.subItems[k].name, colon + 2) == 0)
+						{
+							RunAction(entry.subItems[k].action);
+							return true;
+						}
+					}
+				}
+			}
+		}
 
 		for (size_t row = 0; row < barRowCount; row++)
 		{
@@ -40144,6 +40567,27 @@ int main(int, char **)
 						if (rowBar.IsChecked((size_t)rowBar.OpenMenu(), rowBar.FirstShownItem() + k))
 						{
 							dropTickedWord += (dropTickedWord.empty() ? "" : "|") + std::string(openMenu.items[rowBar.FirstShownItem() + k].name);
+						}
+					}
+
+					// the shown CASCADE's rows (BAR-11), each named "<its item>: <the row>" (the name the bar had for it before the cascades, so a scenario's click-bar keeps working)
+					int const owner = rowBar.CascadeOf();
+
+					if (owner >= 0)
+					{
+						ui::Box const c = rowBar.CascadeBox();
+						ui::MenuItem const &holder = openMenu.items[owner];
+
+						for (size_t k = 0; k < holder.subCount && c.height > 0; k++)
+						{
+							std::string const name = std::string(holder.name) + ": " + holder.subItems[k].name;
+
+							dropBoxesWord += "|" + name + "~" + std::to_string(c.x) + " " + std::to_string(c.y + (int32_t)k * rowBar.ItemHeight()) + " " + std::to_string(c.width) + " " + std::to_string(rowBar.ItemHeight());
+
+							if (rowBar.IsCascadeChecked(k))
+							{
+								dropTickedWord += (dropTickedWord.empty() ? "" : "|") + name;
+							}
 						}
 					}
 				}

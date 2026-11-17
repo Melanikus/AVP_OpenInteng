@@ -18,6 +18,8 @@
 #include "md5.h"
 #include "level_file_sum.h"
 
+void LogErrorStringC(const char *errorString);   // the game's log (avpx logstring.h; the tests give their own)
+
 namespace
 {
 
@@ -118,7 +120,32 @@ bool ReadWhole(const char * path, std::vector<char> & bytes, bool plainOnly, boo
 	bytes.clear();
 
 	DWORD const how = plainOnly ? (FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT) : FILE_ATTRIBUTE_NORMAL;
-	HANDLE const file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, how, 0);
+	HANDLE file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, how, 0);
+
+	// A FAULT GUARD (Vasquez 11-16, Bishop's (a)): the game's own loader opens a level for reading with no sharing (avpx mishchnk.cpp:137 / 868), so while it, or another editor, reads the same file
+	// this open is refused with a sharing violation. It is tried again, every 100 ms, for 2 seconds at most; one line says so in the log, and one names the file when it gives up.
+	if (file == INVALID_HANDLE_VALUE && (GetLastError() == ERROR_SHARING_VIOLATION || GetLastError() == ERROR_LOCK_VIOLATION))
+	{
+		std::string const name = path ? path : "";
+
+		LogErrorStringC(("level file: another program is reading " + name + " (a sharing violation): trying again for 2 seconds").c_str());
+
+		for (int attempt = 0; attempt < 20 && file == INVALID_HANDLE_VALUE; attempt++)
+		{
+			Sleep(100);
+			file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, how, 0);
+
+			if (file == INVALID_HANDLE_VALUE && GetLastError() != ERROR_SHARING_VIOLATION && GetLastError() != ERROR_LOCK_VIOLATION)
+			{
+				break;
+			}
+		}
+
+		if (file == INVALID_HANDLE_VALUE)
+		{
+			LogErrorStringC(("level file: gave up reading " + name + ": another program still holds it").c_str());
+		}
+	}
 
 	if (file == INVALID_HANDLE_VALUE)
 	{

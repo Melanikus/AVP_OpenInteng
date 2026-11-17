@@ -169,6 +169,55 @@ static bool PopupMenusOf(size_t screen, const host::IntengMenu **menus, size_t *
 	return *menus != nullptr && *count > 0;
 }
 
+// One inteng menu's items as rows of the room, from items[*used]: an item of level 1 opens a CASCADE (inteng's kind 1 with kind-2 records under it, BAR-10), its rows the level-2 items after it, put in
+// room->subItems from *subUsed; a level-2 item is taken only so. *added counts the rows. False when the room, or a cascade, would hold more than it can.
+static bool AddIntengItems(EditorBarRoom *room, const host::IntengItem *items, size_t count, size_t most, size_t *used, size_t *subUsed, size_t *added)
+{
+	for (size_t i = 0; i < count; i++)
+	{
+		const host::IntengItem &item = items[i];
+
+		if (item.level == 2)
+		{
+			continue;   // a cascade's row: taken with the level-1 item above it
+		}
+
+		if (*used >= most)
+		{
+			return false;
+		}
+
+		ui::MenuItem shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag), item.access };
+
+		if (item.level == 1)
+		{
+			size_t const from = *subUsed;
+
+			for (size_t k = i + 1; k < count && items[k].level == 2; k++)
+			{
+				if (*subUsed >= kEditorBarMostItems || *subUsed - from >= ui::kMenuMostSubItems)
+				{
+					return false;
+				}
+
+				ui::MenuItem const row = { items[k].name, nullptr, items[k].action, host::IntengMenus_TagWords(items[k].tag), items[k].access };
+
+				room->subItems[(*subUsed)++] = row;
+			}
+
+			shown.tag = nullptr;
+			shown.subMenu = *subUsed > from;
+			shown.subItems = *subUsed > from ? room->subItems + from : nullptr;
+			shown.subCount = *subUsed - from;
+		}
+
+		room->items[(*used)++] = shown;
+		(*added)++;
+	}
+
+	return true;
+}
+
 bool EditorBar_MakePopupLevel(size_t screen, int32_t group, EditorBarRoom *room)
 {
 	const host::IntengMenu *menus = nullptr;
@@ -190,17 +239,11 @@ bool EditorBar_MakePopupLevel(size_t screen, int32_t group, EditorBarRoom *room)
 			return false;
 		}
 
-		for (size_t i = 0; i < menus[group].count; i++)
+		size_t subUsed = 0, added = 0;
+
+		if (!AddIntengItems(room, menus[group].items, menus[group].count, ui::kMenuMostItems, &used, &subUsed, &added))
 		{
-			if (used >= ui::kMenuMostItems)
-			{
-				return false;
-			}
-
-			const host::IntengItem &item = menus[group].items[i];
-			ui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag), item.access };
-
-			room->items[used++] = shown;
+			return false;
 		}
 
 		room->menus[0].title = menus[group].title;
@@ -266,9 +309,9 @@ bool EditorBar_Make(size_t screen, KeyLayout layout, EditorBarRoom *room)
 		return false;
 	}
 
-	size_t used = 0;
+	size_t used = 0, subUsed = 0;
 
-	// inteng's own menus, each item with its tag's words
+	// inteng's own menus, each item with its tag's words, and each cascade with its rows (BAR-10)
 	for (size_t m = 0; m < inteng.count; m++)
 	{
 		ui::Menu &menu = room->menus[m];
@@ -278,18 +321,9 @@ bool EditorBar_Make(size_t screen, KeyLayout layout, EditorBarRoom *room)
 		menu.items = room->items + used;
 		menu.count = 0;
 
-		for (size_t i = 0; i < inteng.menus[m].count; i++)
+		if (!AddIntengItems(room, inteng.menus[m].items, inteng.menus[m].count, kEditorBarMostItems, &used, &subUsed, &menu.count))
 		{
-			if (used >= kEditorBarMostItems)
-			{
-				return false;
-			}
-
-			const host::IntengItem &item = inteng.menus[m].items[i];
-			ui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag), item.access };
-
-			room->items[used++] = shown;
-			menu.count++;
+			return false;
 		}
 	}
 
@@ -321,7 +355,7 @@ bool EditorBar_MakeSecond(size_t screen, EditorBarRoom *room)
 		return false;
 	}
 
-	size_t used = 0;
+	size_t used = 0, subUsed = 0;
 
 	for (size_t m = 0; m < inteng.secondRowCount; m++)
 	{
@@ -332,18 +366,9 @@ bool EditorBar_MakeSecond(size_t screen, EditorBarRoom *room)
 		menu.items = room->items + used;
 		menu.count = 0;
 
-		for (size_t i = 0; i < inteng.secondRow[m].count; i++)
+		if (!AddIntengItems(room, inteng.secondRow[m].items, inteng.secondRow[m].count, kEditorBarMostItems, &used, &subUsed, &menu.count))
 		{
-			if (used >= kEditorBarMostItems)
-			{
-				return false;
-			}
-
-			const host::IntengItem &item = inteng.secondRow[m].items[i];
-			ui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag), item.access };
-
-			room->items[used++] = shown;
-			menu.count++;
+			return false;
 		}
 	}
 

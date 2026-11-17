@@ -319,7 +319,20 @@ namespace host
 			}
 
 			o->name.assign(first, (size_t)(zero - first));
-			o->hasSound = FirstNamed(b, parts, "INDSOUND") != parts.size();
+
+			size_t const sound = FirstNamed(b, parts, "INDSOUND");
+
+			o->hasSound = sound != parts.size();
+
+			// its wav name: after the index (4 bytes), to the first 0 inside the chunk (a name with no 0 in the chunk is not taken)
+			if (o->hasSound && parts[sound].size >= kHeadingBytes + 5)
+			{
+				char const *const wav = b.data() + parts[sound].at + kHeadingBytes + 4;
+				char const *const end = (char const *)memchr(wav, 0, parts[sound].size - kHeadingBytes - 4);
+
+				o->particleSoundWav = end ? std::string(wav, (size_t)(end - wav)) : std::string();
+			}
+
 			o->kind = SpecialKind::ParticleGenerator;
 			return true;
 		}

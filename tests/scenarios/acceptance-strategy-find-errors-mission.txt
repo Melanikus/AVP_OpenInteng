@@ -2,6 +2,8 @@
 # FUN_005335f0). No stock level has a Mission Objective with an alteration, so it is made as in acceptance-strategy-mission-alterations (Breakout: MO2 into "end"'s list); then MO2 is destroyed
 # (Destroy Virtual Object: "nothing that names its ID is checked", so "end" still names it) and Find Errors (0x44) runs the strategies' repairs: the alteration whose target no object has goes.
 # "No Errors Found" is inteng's answer after its repairs (0x5f04a0). The copy holds no alteration. RED without the kind-70 repair (the copy keeps the alteration naming the destroyed object).
+# inteng's icons are read from inteng.exe in his Tools folder (without it the icons are our plain boxes, and (442 330), the V's left stroke, is left of MO2's box: Bishop's run on 1bb873d)
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF
 pictures on
 state
@@ -100,4 +102,7 @@ wait 300
 save-copy
 # Find Errors repairs Breakout's own dangling targets too: the Placed Objects storelit, fanlit07, ligfhtlift02, tunlit01, lightinliftish, trainlit02, grillit01 (62) and the switch
 # linktofanoffmess (61) name IDs that appear nowhere else in the level (AvP-docs/tools/drake/id-where: only in their own AVPSTRAT), so FUN_005219f0 finds no wrapper and inteng resets them as ours does
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF {copy} end num_mission_targets 0 also storelit also fanlit07 also ligfhtlift02 also tunlit01 also lightinliftish also trainlit02 also grillit01 also linktofanoffmess
+# and the enemies scientist, firetrouble and firstpred (69) have a null death target with request 1: their repair FUN_00531cd0 makes the request 0 (FUN_005219f0 of the null ID is no; the
+# enemies are records since 2026-11-17, strategy-closeout-drake.md G: before, ours never looked at an enemy)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF {copy} end num_mission_targets 0 also storelit also fanlit07 also ligfhtlift02 also tunlit01 also lightinliftish also trainlit02 also grillit01 also linktofanoffmess also scientist also firetrouble also firstpred
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF {copy} scientist request 0 also end also storelit also fanlit07 also ligfhtlift02 also tunlit01 also lightinliftish also trainlit02 also grillit01 also linktofanoffmess also firetrouble also firstpred

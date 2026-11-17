@@ -46,6 +46,7 @@ namespace ui
 	size_t const kMenuNameMost = 64;   // was 48: "Repeating Texture Options: Select Number of Repeats" is 51 letters and the tag after it 6
 	size_t const kMenuKeysMost = 24;
 	size_t const kMenuTagMost = 24;   // the longest tag after an item's name, " [unfinished in inteng]" being 23 (Added 2026-11-15, A6; raised from 12 for it)
+	size_t const kMenuMostSubItems = 16;   // the most rows in one cascade (inteng's tables: 6 at most, "Above" .. "Right")
 
 	struct MenuItem
 	{
@@ -58,6 +59,10 @@ namespace ui
 		                             // (Frost), A6.)
 		int32_t access = -1;         // the place in name of the letter drawn underlined (inteng's '&': FUN_0046ce70 0x46ceac, view-state-table.md H-5c), -1 for none
 		bool subMenu = false;        // the item opens a menu of its own: its row shows inteng's sub-menu mark (glyph 2 of the menu font, FUN_004b6f70 0x4b71c5; H-5b)
+		// A CASCADE (reassess/dialog-look-drake.md BAR-10..12; Melanikus 11-16 "Strategy texture/notexture is a sub menu"): the rows the item opens beside the drop-down, inteng's kind-2 records under its
+		// kind-1 one; null for none. 1 to kMenuMostSubItems rows, each a plain item (no cascade of its own). An item with them shows the mark and picks nothing itself (BAR-12).
+		const MenuItem *subItems = nullptr;
+		size_t subCount = 0;
 	};
 
 	struct Menu
@@ -134,6 +139,15 @@ namespace ui
 
 		bool IsEnabled(size_t menu, size_t item) const;
 
+		// THE CASCADE (BAR-11, BAR-12): the open menu's lit item, when it has sub-items, shows them in a box of their own beside the drop-down: to its right, its top on the item's row, or to
+		// its left when the room's right edge is in the way. Pointing at one of its rows lights that row; a press, or the release that ends the press which opened the menu, on it picks it.
+		// The widths are the view's, as the drop-downs': [menu * kMenuMostItems + item], each cascade's widest row (null: none; a cascade with no width shows nothing).
+		void SetCascadeWidths(const int32_t *widths);
+		int CascadeOf() const;          // the open menu's item whose cascade is shown, or -1
+		int CascadeLit() const { return subLit; }   // the cascade's lit row, or -1
+		Box CascadeBox() const;         // the shown cascade's box, empty when none
+		bool IsCascadeChecked(size_t row) const;   // the shown cascade's row is on (SetChecked by its action)
+
 		// For the view: a title's box, the open drop-down's box (empty when none is open or the room has no size), and which of its items
 		// show in it: ShownItems of them, from FirstShownItem
 		Box TitleBox(size_t menu) const;
@@ -164,5 +178,9 @@ namespace ui
 		int32_t titleWidths[kMenuMostMenus];
 		int32_t dropWidths[kMenuMostMenus];
 		int32_t itemHeight;
+		int subLit;   // the shown cascade's lit row, or -1
+		int32_t cascadeWidths[kMenuMostMenus][kMenuMostItems];
+		bool subChecked[kMenuMostMenus][kMenuMostItems][kMenuMostSubItems];
+		MenuAnswer PickInCascade(int32_t x, int32_t y, bool *inCascade);
 	};
 }

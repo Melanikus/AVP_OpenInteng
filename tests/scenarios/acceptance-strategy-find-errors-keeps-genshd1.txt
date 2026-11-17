@@ -1,0 +1,25 @@
+# ACCEPTANCE (red first): Find Errors keeps every target inteng keeps, HIS PATH (Vasquez 11-17; strategy-data-kinds.md S-K62-R; FUN_005219f0: a target exists when the FIRST record with its ID
+# (FUN_00529570) is not a plain placed object (type +8 not 0: virtual, generator / enemy, sound, placed hierarchy, particle generator), or is one with a strategy, or one with none whose OWN shape has
+# SHPMORPH (the listing passes the record's object in ECX)). The pass (FUN_00536ad0) may only take out targets no such record answers to. Levels read 11-17 with repair_survey on the stock files:
+# before c94c6fa our pass took out 159 kept targets over the 63 stock levels (68 sounds, 50 particle generators, 29 generators / enemies, 12 morphing placed objects), c94c6fa alone 12 (Stat101_M's
+# lift and vent doors), with SHPMORPH none.
+# Genshd1: before the fix the pass changed 14 strategies here: among them radar01 (72) lost its four point effects (their target is the sound "satsound") and med09G (62) its target (the
+# generator "facehug"). With the 66 / 68 list repair (FUN_00530820, the next hash) on the old rule, immediatesrt (66) also lost 2 of its 3 targets. Now NOTHING may change: immediatesrt holds
+# its 3 targets and every other strategy is the original's, byte for byte.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+# Find Errors (bar 1): the repair pass, then inteng's answer
+click-bar Find Errors
+expect-dialog-kind message
+expect-dialog No Errors Found
+click-button Ok
+expect-no-dialog
+picture 1
+# the copy, read back by the game's loader
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} immediatesrt NumTargets 3

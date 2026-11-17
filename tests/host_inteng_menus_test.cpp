@@ -133,23 +133,27 @@ static void TestTheTablesAreInteng()
 	puts("The tables are inteng's:");
 
 	const char *const hubTitles[] = { "File", "Mode", "Object", "Shape", "Miscellaneous", "Options" };
-	size_t const hubCounts[] = { 5, 10, 9, 2, 4, 3 };
-
 	// File holds inteng's 4 and the owner's Save, second (Melanikus 2026-11-16, "Let's put a save on the hub": named, not inteng's)
-	Check(MenusAre(0, hubTitles, hubCounts, 6), "construction's bar is inteng's with the owner's Save: File 5 (Quit, Save, Write C, Write Asc, Write Asc doors closed), Mode 10, Object 9, Shape 2, Miscellaneous 4, Options 3 items");
+	size_t const hubCounts[] = { 5, 11, 10, 3, 4, 3 };
+
+	Check(MenusAre(0, hubTitles, hubCounts, 6), "construction's bar is inteng's with the owner's Save: File 5 (Quit, Save, Write C, Write Asc, Write Asc doors closed), Mode 11, Object 10, Shape 3, Miscellaneous 4, Options 3 records (a cascade's item and its rows each one)");
 
 	IntengMenu const *const file = &kIntengScreens[0].menus[0];
 
 	Check(file && file->count == 5 && strcmp(file->items[0].name, "Quit") == 0 && strcmp(file->items[1].name, "Save") == 0 && file->items[1].work == IntengWork::SaveCopy &&
 		file->items[1].command == 0 && strcmp(file->items[2].name, "Write C File") == 0, "the hub's Save is second, after Quit, does Object Placement's Save (SaveCopy), and has no inteng command");
-	Check(kIntengScreens[0].menus[1].count == 10 && strcmp(kIntengScreens[0].menus[1].items[8].name, "Strategy Data: Normal") == 0
-		&& strcmp(kIntengScreens[0].menus[1].items[9].name, "Strategy Data: No Textures") == 0,
-		"a sub-item is shown as its menu's words and its own (Mode, Strategy Data > Normal and No Textures)");
+	Check(kIntengScreens[0].menus[1].count == 11 && strcmp(kIntengScreens[0].menus[1].items[8].name, "Strategy Data") == 0 && kIntengScreens[0].menus[1].items[8].level == 1 &&
+	      strcmp(kIntengScreens[0].menus[1].items[9].name, "Normal") == 0 && kIntengScreens[0].menus[1].items[9].level == 2 &&
+	      strcmp(kIntengScreens[0].menus[1].items[10].name, "No Textures") == 0 && kIntengScreens[0].menus[1].items[10].level == 2,
+		"a CASCADE (BAR-10, inteng's kind 1 with kind-2 records): Mode's Strategy Data is level 1, its Normal and No Textures level 2 right after it, each with its own words");
+	Check(kIntengScreens[0].menus[1].items[9].work == IntengWork::ToScreen && kIntengScreens[0].menus[1].items[10].work == IntengWork::ToScreenNoTextures &&
+	      kIntengScreens[0].menus[1].items[8].work == IntengWork::None,
+		"its rows do what they did (Strategy Data's screen, with and without textures); the cascade's own item does nothing (BAR-12)");
 
 	const char *const placementTitles[] = { "Mode", "Object", "Create", "Alt Locations", "Misc" };
-	size_t const placementCounts[] = { 3, 10, 7, 6, 7 };
+	size_t const placementCounts[] = { 3, 10, 8, 6, 7 };
 
-	Check(MenusAre(6, placementTitles, placementCounts, 5), "object placement's bar is inteng's: Mode 3, Object 10, Create 7, Alt Locations 6, Misc 7 items");
+	Check(MenusAre(6, placementTitles, placementCounts, 5), "object placement's bar is inteng's: Mode 3, Object 10, Create 8, Alt Locations 6, Misc 7 records (a cascade's item and its rows each one)");
 	Check(kIntengScreens[4].count == 9, "module linking's bar has its 9 titles");
 
 	bool blankGone = ItemNamed(4, "") == nullptr;
@@ -251,12 +255,14 @@ static void TestEveryItemWorksOrSaysWhy()
 			{
 				const IntengItem &item = kIntengScreens[s].menus[m].items[i];
 
-				sound = sound && ((item.tag == IntengTag::None) == (item.work != IntengWork::None)) && (item.tag == IntengTag::None) == (IntengMenus_Why(item.tag) == nullptr);
+				// a cascade's own item (level 1, BAR-12) does nothing and says nothing: its rows do and say
+				sound = sound && (item.level == 1 ? item.tag == IntengTag::None && item.work == IntengWork::None :
+				                  ((item.tag == IntengTag::None) == (item.work != IntengWork::None)) && (item.tag == IntengTag::None) == (IntengMenus_Why(item.tag) == nullptr));
 				targets = targets && (item.work != IntengWork::ToScreen || (item.toScreen > 0 && (size_t)item.toScreen < kIntengScreenCount));
 
 				if (s == 7 || s == 9 || s == 10)
 				{
-					noAvp = noAvp && (item.tag == IntengTag::NoAvp || (item.work == IntengWork::ExitMode && strcmp(item.name, "Exit") == 0));
+					noAvp = noAvp && (item.level == 1 || item.tag == IntengTag::NoAvp || (item.work == IntengWork::ExitMode && strcmp(item.name, "Exit") == 0));
 				}
 			}
 		}

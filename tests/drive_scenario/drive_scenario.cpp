@@ -12,6 +12,9 @@
 // THE SCENARIO FILE: one step a line; a line starting with # and an empty line do nothing.
 //   screen <Name>               first: the editor starts on that screen's bar (-screen), as the Screens menu names it ("Waypoint", "Module Linking", "Path")
 //   level <a .rif path>         the level the editor's settings open (for verify's {orig})
+//   make-level <command>        before the editor starts: a TEST TOOL makes a level the scenario then opens (tests/scenarios/make_strategy_level.cpp: a stock copy with the strategy bytes a
+//                               kind no stock level holds needs); {exedir} and {scenariodir} as in start-args. It runs fresh every run; an exit other than 0 fails the scenario and the
+//                               editor is not started. (Added 2026-11-17 by Drake, strategy-closeout-drake.md E-5: made levels are made by a tool, never by hand.)
 //   pictures on|off             a picture after each step that changes something (on by default)
 //   item <command>              does the item of the bars (first bar, then second) with that inteng command number, as a click on it does (decimal or 0x hex); FAILED if no item has it
 //   expect-selected <n>         how many objects are selected (the set, with Shift+click or select-rows)
@@ -27,7 +30,7 @@
 //   camera <x> <y> <z> <turn>   puts the camera there (millimetres; turn 0 looks along z, 1024 along x) (kHarnessCamera)
 //   face-light <n>              Light Sourcing: selects light n (counting from 1) and turns the camera on the spot to face it (kHarnessFaceLight)
 //   repeat <most> <key> <hold ms> <status_words> | <step> | <step>   the steps, again with the key held between, until the status holds the words (_ is a space): picks that depend on the camera
-//   wait <milliseconds>
+//   wait <milliseconds>; wait-status <most milliseconds> <words>: the state asked every half second until the status line holds the words (FAILED if it never does in that time)
 //   picture <n>                 a picture now (1 to 999); the automatic ones are numbered from 101
 //   expect-pixels-changed <screen|panels|picture> <x> <y> <w> <h> [share]   the newest picture against the one before: at least that share
 //                               (default 0.05) of the box changed (a dialog appeared, a gun moved); expect-pixels-same ... [share]: at most
@@ -1029,6 +1032,20 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		if (!item.empty())
 		{
+			// A CASCADE's row ("Strategy Data: Normal", reassess/dialog-look-drake.md BAR-10..12): its item is pointed at first (no press), which shows the cascade, and the state line then names the
+			// cascade's rows "<item>: <row>"; the click is on that row
+			size_t const colon = item.find(": ");
+
+			if (!boxOf(Field(s->last, "dropboxes"), item, box) && colon != std::string::npos && boxOf(Field(s->last, "dropboxes"), item.substr(0, colon), box))
+			{
+				int px = box[0] + box[2] / 2, py = box[1] + box[3] / 2;
+				HWND const target = TargetOf(s, &px, &py);
+
+				PostMessageW(target, WM_MOUSEMOVE, 0, MAKELPARAM(px, py));
+				Sleep(400);
+				AskState(s);
+			}
+
 			if (!boxOf(Field(s->last, "dropboxes"), item, box))
 			{
 				Check(false, label + " (no item \"" + item + "\" in the drop-down: " + Field(s->last, "dropboxes") + ")");
@@ -1041,6 +1058,46 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		Check(true, label);
 		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		PictureAfter(s, line);
+		return true;
+	}
+
+	// point-bar <row>: with a drop-down open, the pointer moves (no button) to the middle of the row of that name the state line lists in dropboxes, as a person points at it (a CASCADE's item
+	// shows its cascade so, BAR-12); FAILED when the open drop-down has no row of that name
+	if (verb == "point-bar" && w.size() >= 2)
+	{
+		std::string const wanted = Rest(line, 1);
+
+		AskState(s);
+
+		std::string const list = Field(s->last, "dropboxes");
+		size_t from = 0;
+		int box[4] = {};
+		bool found = false;
+
+		while (!found && from <= list.size())
+		{
+			size_t const to = list.find('|', from);
+			std::string const entry = list.substr(from, to == std::string::npos ? std::string::npos : to - from);
+			size_t const tilde = entry.rfind('~');
+
+			found = tilde != std::string::npos && entry.substr(0, tilde) == wanted && sscanf_s(entry.c_str() + tilde + 1, "%d %d %d %d", &box[0], &box[1], &box[2], &box[3]) == 4;
+			from = to == std::string::npos ? list.size() + 1 : to + 1;
+		}
+
+		if (!found)
+		{
+			Check(false, label + " (no row \"" + wanted + "\" in the open drop-down: " + list.substr(0, 300) + ")");
+			return true;
+		}
+
+		int px = box[0] + box[2] / 2, py = box[1] + box[3] / 2;
+		HWND const target = TargetOf(s, &px, &py);
+
+		PostMessageW(target, WM_MOUSEMOVE, 0, MAKELPARAM(px, py));
+		Sleep(400);
+		AskState(s);
+		Check(true, label);
 		PictureAfter(s, line);
 		return true;
 	}
@@ -2016,6 +2073,35 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		return true;
 	}
 
+	if (verb == "wait-status" && w.size() >= 3)
+	{
+		// wait-status <most ms> <words>: the state is asked every half second until the status line holds the words, at most that long (a run that takes its own time, as AutoLink's or
+		// Delete Links', is read at its end on a busy machine too: a fixed wait read the words while it still ran)
+		DWORD const most = (DWORD)atoi(w[1].c_str()), start = GetTickCount();
+		std::string const wanted = Rest(line, 2);
+
+		for (;;)
+		{
+			AskState(s);
+
+			if (Field(s->last, "status").find(wanted) != std::string::npos)
+			{
+				Check(true, label + " (after " + std::to_string(GetTickCount() - start) + " ms: the status says \"" + Field(s->last, "status") + "\")");
+				return true;
+			}
+
+			if (GetTickCount() - start >= most)
+			{
+				break;
+			}
+
+			Sleep(500);
+		}
+
+		Check(false, label + " (the status never said \"" + wanted + "\" in " + std::to_string(most) + " ms; it says \"" + Field(s->last, "status") + "\")");
+		return false;
+	}
+
 	if (verb == "picture" && w.size() >= 2)
 	{
 		int const n = atoi(w[1].c_str());
@@ -2301,6 +2387,7 @@ int main(int argc, char **argv)
 	std::vector<std::string> steps;
 	std::string line;
 	std::wstring startArguments;
+	std::vector<std::string> makeLevels;   // make-level commands, run before the editor starts
 
 	while (std::getline(file, line))
 	{
@@ -2342,6 +2429,27 @@ int main(int argc, char **argv)
 			words = Replace(words, "{exedir}", folderOfEditor);
 			words = Replace(words, "{scenariodir}", folderOfScenario);
 			startArguments += L" " + Widen(words);
+			continue;
+		}
+
+		if (w[0] == "make-level" && w.size() >= 2 && steps.empty())
+		{
+			// a test tool makes a level before the editor starts (added 2026-11-17 by Drake): the folders as start-args gives them, with backslashes (a program may take a / for a switch)
+			std::string command = Rest(line, 1);
+			std::string folderOfEditor = Narrow(exe.substr(0, exe.find_last_of(L"\\/") + 1));
+			char wholeScenario[MAX_PATH] = "";
+			DWORD const wholeLength = GetFullPathNameA(argv[3], sizeof(wholeScenario), wholeScenario, nullptr);
+			std::string const scenarioWhole = wholeLength > 0 && wholeLength < sizeof(wholeScenario) ? std::string(wholeScenario) : std::string(argv[3]);
+			std::string const folderOfScenario = scenarioWhole.substr(0, scenarioWhole.find_last_of("\\/") + 1);
+
+			for (char &letter : folderOfEditor)
+			{
+				letter = letter == '/' ? '\\' : letter;
+			}
+
+			command = Replace(command, "{exedir}", folderOfEditor);
+			command = Replace(command, "{scenariodir}", folderOfScenario);
+			makeLevels.push_back(command);
 			continue;
 		}
 
@@ -2393,7 +2501,24 @@ int main(int argc, char **argv)
 		}
 	}
 
-	bool const started = StartTheEditor(exe, s.recordFolder, &s.editor, startArguments);
+	// the made levels first, fresh every run: one that isn't made stops the scenario before the editor starts
+	bool made = true;
+
+	for (std::string const &command : makeLevels)
+	{
+		std::vector<std::string> lines;
+		int const code = RunProgram(command, &lines);
+
+		for (std::string const &text : lines)
+		{
+			printf("    | %s\n", text.c_str());
+		}
+
+		Check(code == 0, "make-level " + command + " -> exit " + std::to_string(code));
+		made = made && code == 0;
+	}
+
+	bool const started = made && StartTheEditor(exe, s.recordFolder, &s.editor, startArguments);
 
 	Check(started, "the editor starts, with -picture" + Narrow(startArguments) + ", and its window and view are found");
 

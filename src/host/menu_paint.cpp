@@ -52,11 +52,30 @@ namespace host
 		return line + 2 * kPaintMarginDown;
 	}
 
-	void MenuPaint_Measure(const ui::Menu *menus, size_t count, PaintLetterWidth widthOf, int32_t *titleWidths, int32_t *dropWidths)
+	void MenuPaint_Measure(const ui::Menu *menus, size_t count, PaintLetterWidth widthOf, int32_t *titleWidths, int32_t *dropWidths, int32_t *cascadeWidths)
 	{
 		if (!menus || !titleWidths || !dropWidths)
 		{
 			return;
+		}
+
+		// each cascade as wide as its widest row (FUN_004b6f70 0x4b6fb9-0x4b6fff: the widest words + 2 x the margin, BAR-11)
+		for (size_t m = 0; cascadeWidths && m < ui::kMenuMostMenus; m++)
+		{
+			for (size_t i = 0; i < ui::kMenuMostItems; i++)
+			{
+				int32_t widest = 0;
+
+				for (size_t k = 0; m < count && i < menus[m].count && k < menus[m].items[i].subCount && menus[m].items[i].subItems; k++)
+				{
+					ui::MenuItem const &row = menus[m].items[i].subItems[k];
+					int32_t const words = HeldToMostSide((int64_t)TextWidth(row.name, widthOf) + TextWidth(row.tag, widthOf));
+
+					widest = words > widest ? words : widest;
+				}
+
+				cascadeWidths[m * ui::kMenuMostItems + i] = widest > 0 ? HeldToMostSide((int64_t)widest + 2 * kPaintMarginAcross) : 0;
+			}
 		}
 
 		for (size_t m = 0; m < count; m++)
@@ -246,6 +265,41 @@ namespace host
 				mark.colour = words;
 				mark.menuFont = menuGlyphs;
 				lines[(*lineCount)++] = mark;
+			}
+		}
+
+		// THE CASCADE (BAR-11, BAR-12): the lit item's rows in a box of their own beside the drop-down, drawn as a drop-down is (blue, the lit row orange, an "on" row's words yellow, the
+		// underlined letter); it is drawn after the drop-down, as inteng blits it after (FUN_004b6a00 at 0x4b82bd)
+		int const owner = bar.CascadeOf();
+		ui::Box const cascade = bar.CascadeBox();
+
+		if (owner < 0 || cascade.height <= 0)
+		{
+			return;
+		}
+
+		ui::MenuItem const &holder = menus[open].items[owner];
+
+		AddBox(cascade, kMenuBlueColour, boxes, mostBoxes, boxCount);
+
+		for (size_t row = 0; row < holder.subCount && (int64_t)(row + 1) * itemHeight <= cascade.height; row++)
+		{
+			ui::MenuItem const &entry = holder.subItems[row];
+			ui::Box const rowBox = { cascade.x, (int32_t)((int64_t)cascade.y + (int64_t)row * itemHeight), cascade.width, itemHeight };
+
+			if ((int)row == bar.CascadeLit())
+			{
+				AddBox(rowBox, kMenuPointedColour, boxes, mostBoxes, boxCount);
+			}
+
+			size_t const firstLine = *lineCount;
+
+			AddLine(entry.name, rowBox, widthOf, lineHeight, lines, mostLines, lineCount);
+
+			if (*lineCount > firstLine)
+			{
+				lines[firstLine].colour = bar.IsCascadeChecked(row) ? kMenuOnColour : 0xFFFFFFFFu;
+				AddUnderline(lines[firstLine], entry.access, widthOf, lineHeight, boxes, mostBoxes, boxCount);
 			}
 		}
 	}

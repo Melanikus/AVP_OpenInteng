@@ -1,8 +1,10 @@
 # ACCEPTANCE: the hub's File > Save, and Save written OVER the opened file with a backup (Dietrich, 2026-11-16). THE OWNER'S ADDITION and RULING, named (Melanikus: "How do I save my
 # linking? ... when I close it's not overwritten?", "Let's put a save on the hub", then "Overwrite, with backup"): inteng's hub File has Quit / Write C / Write Asc only; Save sits second,
 # after Quit, and does what every screen's Save does: the level, with everything in memory (Module Linking's trees included, written at its Exit), written over the file it was opened
-# from, the one before kept as "<file>.bak" (level_save.h: a temporary file read back through the game's loader, then put in place). A HIDDEN RUN never writes an opened file: its stand-in
-# is <its folder>\AVP_OpenInteng\edited\Invasion-edited.rif, first filled from the opened file, so the same steps and the same .bak are checked there.
+# from (level_save.h: a temporary file read back through the game's loader, then put in place). ONE .bak A SITTING (Bishop's ruling B): the run's FIRST save keeps the level as it was
+# opened as "<file>.bak" and later saves leave it alone. Here AutoLink's end is that first save (inteng's own save point, FUN_004719e0 at 0x4c8acd) and File > Save the second, so the
+# .bak must still be the level as it was opened, not the AutoLinked one. A HIDDEN RUN never writes an opened file: its stand-in is <its folder>\AVP_OpenInteng\edited\Invasion-edited.rif,
+# started as the opened file, so the same steps and the same .bak are checked there.
 # His path: Invasion, Module Linking, gARAGDOR, AutoLink > Module (delete old), Exit, File > Save; read back through the game's loader: the file holds the run's links (the same modules and
 # door branch as the stock: verify_autolink same-branches) and the .bak is the level as it was opened, item for item.
 #ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools

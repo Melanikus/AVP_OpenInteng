@@ -1,7 +1,8 @@
 # ACCEPTANCE: AutoLink > Delete Links: Environment (0xa8) on his path (Dietrich, 2026-11-16; FUN_004c8af0, dump-full-2 64648; rows ML-M-41 / ML-M-42 of
 # AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md). The confirm "Delete all module linking for this level?", then the loop: "Right click to cancel" at (200, 220), each module in
 # record order made current with its links thrown away (FUN_004c10c0(i, 1, 0)), the counter "%03d" at (230, 180); a right press read at the top of each module ends it early; the last module
-# done stays current. Ours runs one module a frame on AutoLink's display. Level: Invasion (its links held in the editor's bytes only; nothing is saved).
+# done stays current. Ours runs one module a frame on AutoLink's display. Level: Invasion. At the run's end the level file is written, as inteng's (FUN_004719e0 at 0x4c8bbf): a hidden run
+# writes only its stand-in, never the opened file.
 #ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 #ini ViewDistance=100000000
 screen Construction
@@ -25,9 +26,8 @@ expect-colour-at-most picture 230 180 24 16 808080 0.0001 100
 expect-colour picture 200 220 140 16 ffffff 0.1 8
 expect-colour picture 200 220 140 16 000000 0.3 8
 expect-colour-at-most picture 200 220 140 16 808080 0.0001 100
-wait 15000
-state
-wait 15000
+# ---- the run's end, however long a busy machine makes it (the status says "running" until then; fixed waits read it too early)
+wait-status 180000 Delete Links: 310 modules
 expect-status Delete Links: 310 modules, 308 had links
 expect-status-not cancelled
 # ---- the last module done is the current one, with no link; gARAGDOR, made current, has none either
@@ -39,9 +39,8 @@ expect-status Current module: gARAGDOR (0 links)
 click-bar AutoLink > Delete Links: Environment
 expect-dialog Delete all module linking for this level?
 click-button Yes
-wait 300
+wait-status 20000 Delete Links: running
 click-win 500 300 right
-wait 2000
-expect-status cancelled by a right press
+wait-status 60000 cancelled by a right press
 expect-number status Delete_Links: 1 309
 expect-no-dialog

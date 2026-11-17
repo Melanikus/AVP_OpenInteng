@@ -1,0 +1,86 @@
+# ACCEPTANCE: FIND ERRORS on the two Track kinds (72, 80) on Melanikus's path, on a MADE level, the saved copy read back through the game's own loader (Drake, 2026-11-17;
+# reassess/strategy-closeout-drake.md E-5; reassess/strategy-data-kinds.md S-K72-R, S-K80-R: FUN_00534450, FUN_005354a0). No stock level holds a Track whose targets name nothing, and inteng
+# cannot make one, so the level is MADE fresh by the run, by a test tool (make_strategy_level; never by hand): a copy of Stat101 where
+#   crane (72) has one point effect, point 3, with two targets: falswire01 (a placed object with a strategy) and an ID no object has (76 bytes);
+#   vid10 (80) has one point effect, point 5, whose one target is an ID no object has, and its destruct target is another such ID, request 1 (76 bytes).
+# His path: the made file opened as a double click, the bar, Find Object, Edit Strategy (the main page: "Point 3 : 2 targets", "Point 5 : 1 targets"), Escape, the bar's Find Errors (the repairs,
+# then "No Errors Found", 0x5f04a0), the views again, File > Save a copy. The repairs: crane's dead target goes (one left: 60 bytes, falswire01 kept); vid10's dead target goes, its effect,
+# left with none, goes too (48 bytes), and its destruct target becomes the null ID (its request word stays 1). RED without the repairs: both strategies keep their 76 bytes and vid10 its target.
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/make_strategy_level.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF {exedir}Stat101-tracks.made.rif crane insert 24 44 word 20 1 word 24 3 word 32 2 idat 36 falswire01 word 44 1 word 48 3 noidat 52 0x13572468 0x2468ace0 word 60 1 word 64 3 then vid10 insert 24 28 word 20 1 word 24 5 word 32 1 noidat 36 0x13572468 0x2468ace1 word 44 1 word 48 3 targetID noid 0x13572468 0x2468ace2 target_request 1
+start-args {exedir}Stat101-tracks.made.rif
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+# ---- before: the made records as the views show them
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is crane
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 200@0:crane : Track
+expect-field-has strategyview 16@32:Point Effects :|32@48:Point 3 : 2 targets
+picture 1
+key Esc
+wait 300
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is vid10
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 200@0:vid10 : Track (Destructable)
+expect-field-has strategyview 16@32:Point Effects :|32@48:Point 5 : 1 targets
+picture 2
+key Esc
+wait 300
+
+# ---- Find Errors: the repairs, then inteng's answer
+click-bar Find Errors
+expect-dialog-kind message
+expect-dialog No Errors Found
+picture 3
+click-button Ok
+expect-no-dialog
+wait 300
+
+# ---- after: crane keeps one target; vid10 has no effect left
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is crane
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 16@32:Point Effects :|32@48:Point 3 : 1 targets
+picture 4
+key Esc
+wait 300
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is vid10
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 16@32:Point Effects :|32@48:None
+picture 5
+key Esc
+wait 300
+save-copy
+# Find Errors repairs one of Stat101's own records too: the enemy minhard (69) has a null death target with request 1, and FUN_00531cd0 makes the request 0 (the enemies
+# are records since 2026-11-17, strategy-closeout-drake.md G)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Stat101-tracks.made.rif {copy} crane size 60 holds falswire01 also vid10 also minhard
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Stat101-tracks.made.rif {copy} vid10 size 48 nullid targetID target_request 1 num_point_effects 0 also crane also minhard
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Stat101-tracks.made.rif {copy} minhard request 0 also crane also vid10

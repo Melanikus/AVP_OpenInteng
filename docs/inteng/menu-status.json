@@ -553,6 +553,9 @@
 		{ "table": "0x5e51b8", "command": "0x52d", "does": "pastetrackrel" }
 	],
 	"extras": [],
+	"additions": [
+		{ "table": "0x5ced30", "title": "File", "after": "Quit", "words": "&Save", "action": "0x1ff01", "does": "savecopy", "note": "THE OWNER'S ADDITION (Melanikus 2026-11-16, through Bishop: \"Let's put a save on the hub\"): inteng's hub File has no Save. It sits second, after Quit, where every other screen keeps its Save, and does what Object Placement's Save does (SaveCopy). Its number is ours; it has no inteng command" }
+	],
 	"standIns": [
 		{ "name": "Waypoint", "tag": "wip", "built": "Waypoint" },
 		{ "name": "Path", "tag": "wip", "built": "Path" },

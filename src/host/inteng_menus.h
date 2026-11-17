@@ -171,6 +171,8 @@ namespace host
 		IntengWork work;
 		int32_t toScreen;     // for ToScreen: the screen shown, as a place in kIntengScreens; otherwise -1
 		int32_t access;       // the place in name of the letter inteng underlines (the one after its "&", FUN_0046ce70 0x46ceac), -1 for none
+		int32_t level = 0;    // 0 an item; 1 an item that opens a CASCADE (inteng's kind 1 with kind-2 records under it: picks nothing, reassess/dialog-look-drake.md BAR-10..12);
+		                      // 2 a row of that cascade (kind 2), listed right after its level-1 item
 	};
 
 	struct IntengMenu

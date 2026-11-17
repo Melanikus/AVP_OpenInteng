@@ -352,6 +352,110 @@ static void TestSmallRooms()
 	Check(far.x == INT32_MAX - 10 && far.width >= 0, "a bar at the far end of the numbers doesn't wrap round");
 }
 
+// THE CASCADE (reassess/dialog-look-drake.md BAR-10..12; Melanikus 11-16 "Strategy texture/notexture is a sub menu"): the hub's Mode has "Strategy Data", whose kind-2 rows Normal and No Textures
+// open beside the drop-down when the pointer is on it
+static const MenuItem kStrategyRows[] = { { "Normal", 0, 41 }, { "No Textures", 0, 42 } };
+
+static void TestCascade()
+{
+	puts("The cascade (BAR-10..12):");
+
+	MenuItem modeItems[] = { { "Construction", 0, 40 }, { "Strategy Data", 0, 43 } };
+
+	modeItems[1].subMenu = true;
+	modeItems[1].subItems = kStrategyRows;
+	modeItems[1].subCount = 2;
+
+	Menu const modeBar[] = { { "Mode", modeItems, 2 }, { "Help", kHelp, 2 } };
+	MenuBar bar;
+	Box const toolbar = { 0, 0, 1024, 32 };
+	Box const room = { 0, 32, 1024, 716 };
+	int32_t const titles[] = { 50, 50 };
+	int32_t const drops[] = { 160, 120 };
+	static int32_t widths[kMenuMostMenus * kMenuMostItems] = {};
+
+	widths[0 * kMenuMostItems + 1] = 110;   // Mode's item 1, Strategy Data: its cascade 110 wide
+
+	Check(bar.Load(modeBar, 2), "a bar with a cascade loads");
+	bar.LayOut(toolbar, room, titles, drops, 20);
+	bar.SetCascadeWidths(widths);
+
+	bar.Press(5, 10);
+	Check(bar.CascadeOf() == -1 && BoxIs(bar.CascadeBox(), 0, 0, 0, 0), "Mode open, nothing lit: no cascade");
+	Check(bar.PointAt(10, 32 + 25) && bar.LitItem() == 1 && bar.CascadeOf() == 1 && bar.CascadeLit() == -1,
+		"the pointer on Strategy Data lights it and shows its cascade, no row of it lit (BAR-5 / BAR-12: inteng opens it as the pointer comes on the item)");
+	Check(BoxIs(bar.CascadeBox(), 160, 32 + 20, 110, 40), "the cascade: right of the drop-down (x 0 + 160), its top on the item's row (32 + 20), 2 rows of 20 (BAR-11, FUN_004b6f70 0x4b7176)");
+	Check(bar.PointAt(200, 32 + 20 + 25) && bar.CascadeLit() == 1 && bar.LitItem() == 1, "the pointer on its second row lights it; Strategy Data stays lit");
+	Check(bar.Release(10, 32 + 25) == MenuAnswer::Nothing && bar.IsOpen(), "letting go on Strategy Data picks nothing (0x4b821e-0x4b8248: not pickable)");
+	Check(bar.Press(200, 32 + 20 + 25) == MenuAnswer::Picked && bar.Picked() == 42 && !bar.IsOpen(), "a press on No Textures picks it");
+
+	// the release that ends the press which opened the menu, on a row of the cascade, picks it
+	bar.Press(5, 10);
+	bar.PointAt(10, 32 + 25);
+	Check(bar.Release(200, 32 + 20 + 5) == MenuAnswer::Picked && bar.Picked() == 41, "press on Mode, along to Strategy Data, let go on Normal: it picks Normal");
+
+	// a press on the item itself shows its cascade, and picks nothing
+	bar.Press(5, 10);
+	Check(bar.Press(10, 32 + 25) == MenuAnswer::Moved && bar.CascadeOf() == 1 && bar.IsOpen(), "a press on Strategy Data lights it and shows the cascade, nothing picked");
+	Check(bar.Handle(KeyEvent(Key::Enter)) == MenuAnswer::Nothing && bar.IsOpen(), "Enter on it picks nothing either");
+	Check(bar.PointAt(10, 32 + 5) && bar.CascadeOf() == -1 && BoxIs(bar.CascadeBox(), 0, 0, 0, 0), "the pointer on Construction: the cascade goes");
+	bar.Handle(KeyEvent(Key::Escape));
+
+	// to the LEFT when the room's right edge is in the way and it fits there (0x4b7003-0x4b7028): Mode's title at 150 .. 200, its drop-down 150 .. 270, the room ends at 300
+	Menu const shiftedBar[] = { { "Help", kHelp, 2 }, { "Mode", modeItems, 2 } };
+	static int32_t shiftedWidths[kMenuMostMenus * kMenuMostItems] = {};
+	int32_t const shiftedTitles[] = { 150, 50 };
+	int32_t const shiftedDrops[] = { 120, 120 };
+	Box const narrowBar = { 0, 0, 300, 32 };
+	Box const narrow = { 0, 32, 300, 716 };
+
+	shiftedWidths[1 * kMenuMostItems + 1] = 110;
+	Check(bar.Load(shiftedBar, 2), "the bar with Mode second loads");
+	bar.LayOut(narrowBar, narrow, shiftedTitles, shiftedDrops, 20);
+	bar.SetCascadeWidths(shiftedWidths);
+	bar.Press(160, 10);
+	bar.PointAt(160, 32 + 25);
+	Check(BoxIs(bar.CascadeBox(), 150 - 110, 32 + 20, 110, 40), "right of the drop-down it would pass 300: it goes to the left, x = the drop-down's x - its width (BAR-11)");
+	bar.Handle(KeyEvent(Key::Escape));
+
+	// checked rows, by their action
+	bar.Load(modeBar, 2);
+	bar.LayOut(toolbar, room, titles, drops, 20);
+	bar.SetCascadeWidths(widths);
+	bar.SetChecked(41, true);
+	bar.Press(5, 10);
+	bar.PointAt(10, 32 + 25);
+	Check(bar.IsCascadeChecked(0) && !bar.IsCascadeChecked(1) && !bar.IsCascadeChecked(5), "SetChecked by a row's action: Normal is on, No Textures not, a row past the end not");
+	bar.Handle(KeyEvent(Key::Escape));
+
+	// what Load refuses, each for its reason
+	MenuItem nested[] = { { "Inner", 0, 50 } };
+	MenuItem outerRows[] = { { "Row", 0, 51 } };
+	MenuItem bad[] = { { "Strategy Data", 0, 43 } };
+	Menu const badBar[] = { { "Mode", bad, 1 } };
+
+	outerRows[0].subItems = nested;
+	outerRows[0].subCount = 1;
+	bad[0].subItems = outerRows;
+	bad[0].subCount = 1;
+	Check(!bar.Load(badBar, 1), "refused: a cascade's row with a cascade of its own");
+	bad[0].subItems = nullptr;
+	bad[0].subCount = 2;
+	Check(!bar.Load(badBar, 1), "refused: a count with no rows");
+	bad[0].subItems = kStrategyRows;
+	bad[0].subCount = 0;
+	Check(!bar.Load(badBar, 1), "refused: rows with no count");
+	bad[0].subCount = kMenuMostSubItems + 1;
+	Check(!bar.Load(badBar, 1), "refused: more rows than kMenuMostSubItems");
+
+	MenuItem sameAction[] = { { "Normal", 0, 41 }, { "Strategy Data", 0, 44 } };
+	Menu const sameBar[] = { { "Mode", sameAction, 2 } };
+
+	sameAction[1].subItems = kStrategyRows;
+	sameAction[1].subCount = 2;
+	Check(!bar.Load(sameBar, 1), "refused: a cascade's row with an action the bar already has (41)");
+}
+
 int main()
 {
 	TestLoading();
@@ -359,6 +463,7 @@ int main()
 	TestOff();
 	TestMouse();
 	TestSmallRooms();
+	TestCascade();
 
 	printf("%s\n", checksFailed ? "SOME CHECKS FAILED" : "All checks passed");
 	return checksFailed ? 1 : 0;

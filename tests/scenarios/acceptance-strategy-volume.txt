@@ -5,8 +5,8 @@
 # The manual (qa.txt, "death volumes"): "Press V to edit the volume ... Left Click: Selects a module. S: ... X: ... Shift + Left Click (on the volume cube): Selects a face on the cube. The face is shown as green. +/- : Moves
 # the selected face in or out. Right click, or press enter when finished."
 # By his path: open the file, bar to Strategy Data, right-click > Create Virtual Object > Here, click its V, right-click > Assign Strategy > Area Switch, V, click the room, S, Shift + click a wall, hold +, Return.
-# NAMED STAND-IN (the entry only): inteng reads V inside the kind's own Edit view (Area Switch: FUN_0052f700 "V : Change Trigger Volume" -> FUN_00530900; Volume of Death: FUN_00535970 slot 0xd87a96 "V : Edit Volume"),
-# and those views are not built yet, so here V is pressed on the Strategy screen with the object current. The editor itself (FUN_005277c0) is inteng's. E (entrance side) never shows for an AvP kind: both AvP
+# The entry (Vasquez 11-16): V is read inside the kind's own Edit view only, as inteng (Area Switch: FUN_0052f700 "V : Change Trigger Volume" -> FUN_00530900; Volume of Death: FUN_00535970 slot
+# 0xd87a96 "V : Edit Volume"); the editor ends back in that view. The editor itself (FUN_005277c0) is inteng's. E (entrance side) never shows for an AvP kind: both AvP
 # callers pass a null third argument (0x5309a1, 0x535bc6); only kind 2006 (NOT AVP, 0x4cf4f0) passes one.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
@@ -34,7 +34,8 @@ expect-dialog Select Strategy
 click-button Area_Switch
 expect-no-dialog
 expect-status The object has a new strategy
-key Esc
+# the new Area Switch's Edit view is open (Assign's last call, FUN_00528830 0x529141): V there (S-K68-10, FUN_0052f700 0x52fd91 -> FUN_00530900; Vasquez 11-16: the view is built, V on the screen is gone)
+expect-field-has strategyview : Area Switch|100@609:V : Change Trigger Volume
 # V: the volume editor takes the screen: the six lines of text, no field panel
 picture 1
 key V
@@ -89,6 +90,10 @@ expect-field volumemodule -1
 # the right button ends the editor too (FUN_005277c0 0x527d70: _DAT_00d8806a & 2; the buttons are cleared at 0x527d88, so no pop-up opens)
 click-win 640 300 right
 expect-status The volume is written into the strategy
+# back in the Area Switch's view (FUN_00530900 returns to FUN_0052f700's loop): Escape ends it
+expect-field-has strategyview : Area Switch
+key Esc
+wait 300
 # ---- VOLUME OF DEATH (77, FUN_00535970 0x535b20-0x535c52): the same editor on volume_min / volume_max (+0x14 / +0x20 of the record); Assign again: the replace confirm (0x5ee2b4), Yes
 click-win 504 364 right
 click-popup 4

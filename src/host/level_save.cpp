@@ -2,6 +2,7 @@
 // AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 #include "level_save.h"
 
+#include <ctype.h>
 #include <string.h>
 
 #include <windows.h>
@@ -40,7 +41,7 @@ namespace host
 		return "not saved";
 	}
 
-	LevelSaveOver LevelSave_Over(OpenLevelFile *open, char const *targetPath, std::string *backupPath, std::string *why)
+	LevelSaveOver LevelSave_Over(OpenLevelFile *open, char const *targetPath, bool keepTheOneBefore, std::string *backupPath, std::string *why)
 	{
 		std::string ignored;
 
@@ -99,8 +100,17 @@ namespace host
 			}
 		}
 
-		// 3. into place: the file that was there becomes the .bak in the same step
-		if (exists)
+		// 3. into place: the file that was there becomes the .bak in the same step (the sitting's first save), or is replaced with any .bak left alone (a later one)
+		if (exists && !keepTheOneBefore)
+		{
+			if (!ReplaceFileA(target.c_str(), temporary.c_str(), nullptr, REPLACEFILE_IGNORE_MERGE_ERRORS, nullptr, nullptr))
+			{
+				*why = Reason("the level file could not be replaced (it is as it was)", target);
+				DeleteFileA(temporary.c_str());
+				return LevelSaveOver::ReplaceFailed;
+			}
+		}
+		else if (exists)
 		{
 			if (!ReplaceFileA(target.c_str(), temporary.c_str(), backup.c_str(), REPLACEFILE_IGNORE_MERGE_ERRORS, nullptr, nullptr))
 			{
@@ -129,5 +139,53 @@ namespace host
 
 		why->clear();
 		return LevelSaveOver::Saved;
+	}
+
+	namespace
+	{
+		// the whole path, lower case: the sitting's key for a file
+		std::string SittingKey(char const *path)
+		{
+			char whole[MAX_PATH * 2] = "";
+			DWORD const got = path ? GetFullPathNameA(path, (DWORD)sizeof(whole), whole, nullptr) : 0;
+			std::string key = got > 0 && got < sizeof(whole) ? whole : (path ? path : "");
+
+			for (char &letter : key)
+			{
+				letter = letter == '/' ? '\\' : (char)tolower((unsigned char)letter);
+			}
+
+			return key;
+		}
+	}
+
+	bool LevelSaveSitting::SavedBefore(char const *targetPath) const
+	{
+		return saved.count(SittingKey(targetPath)) > 0;
+	}
+
+	LevelSaveOver LevelSaveSitting::Save(OpenLevelFile *open, char const *targetPath, std::string *backupPath, std::string *why)
+	{
+		std::string const key = SittingKey(targetPath);
+		bool const first = saved.count(key) == 0;
+		std::string written;
+		LevelSaveOver const result = LevelSave_Over(open, targetPath, first, &written, why);
+
+		if (result == LevelSaveOver::Saved)
+		{
+			saved.insert(key);
+
+			if (first && !written.empty())
+			{
+				kept.insert(key);
+			}
+		}
+
+		if (backupPath)
+		{
+			*backupPath = result == LevelSaveOver::Saved && kept.count(key) ? std::string(targetPath) + ".bak" : std::string();
+		}
+
+		return result;
 	}
 }

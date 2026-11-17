@@ -1674,6 +1674,7 @@ namespace host
 			{ 52, BinaryLines, BinaryClick },
 			{ 61, LinkedLines, BinaryClick },
 			{ 66, MultiLines, MultiClick },
+			{ 68, MultiLines, MultiClick },   // FUN_0052f700 with kind 0x44: " : Area Switch" and its V line (S-K68-1)
 			{ 50, DoorLines, DoorClick },
 			{ 51, LiftLines, LiftClick },
 			{ 54, PlatformLines, PlatformClick },

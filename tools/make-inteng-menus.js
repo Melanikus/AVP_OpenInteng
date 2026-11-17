@@ -334,8 +334,53 @@ function readStatus(bytes, menus) {
 		refuse('the status file isn\'t JSON');
 	}
 
-	// "extras" is optional: items of OURS on a built page that inteng has no record for (Track Editing's Turn End)
-	exactKeys(status, 'extras' in status ? ['screens', 'items', 'standIns', 'extras'] : ['screens', 'items', 'standIns'], 'the status file');
+	// "extras" is optional: items of OURS on a built page that inteng has no record for (Track Editing's Turn End). "additions" is optional too: items of OURS put into one of
+	// inteng's tables (the hub's File > Save, the owner's), each NAMED by its note, which the C++ carries as a comment over the item
+	exactKeys(status, ['screens', 'items', 'standIns'].concat('extras' in status ? ['extras'] : [], 'additions' in status ? ['additions'] : []), 'the status file');
+
+	if ('additions' in status) {
+		if (!Array.isArray(status.additions)) {
+			refuse('the status file\'s additions are not a list');
+		}
+
+		status.additions.forEach((addition, i) => {
+			const at = `status addition ${i}`;
+
+			exactKeys(addition, ['table', 'title', 'after', 'words', 'action', 'does', 'note'], at);
+
+			const s = menus.tables.findIndex((t) => t.address === addition.table);
+
+			if (s < 0) {
+				refuse(`${at}: no table ${addition.table}`);
+			}
+
+			text(addition.title, `${at}'s title`);
+			text(addition.after, `${at}'s after`);
+			words(addition.words, `${at}'s words`);
+
+			if (shown(addition.words).length > kNameMost) {
+				refuse(`${at}: its words are longer than ${kNameMost} letters`);
+			}
+
+			// its number is OURS: its table's, past every record (0xff00 to 0xffff), so it can never be one of inteng's
+			const action = hex(addition.action, `${at}'s action`);
+
+			if (Math.floor(action / 0x10000) !== s + 1 || action % 0x10000 < 0xff00) {
+				refuse(`${at}: its action ${addition.action} is not one of ours for table ${addition.table} (0x${(s + 1).toString(16)}ff00 to 0x${(s + 1).toString(16)}ffff)`);
+			}
+
+			if (!Object.keys(kWorkCpp).includes(addition.does) || addition.does === 'none') {
+				refuse(`${at}: it does ${addition.does}`);
+			}
+
+			// the note becomes a C++ comment: plain letters, no "\" (a line ending in one would take the next line into the comment) and no "??" (a trigraph)
+			text(addition.note, `${at}'s note`);
+
+			if (addition.note.length > 400 || addition.note.includes('\\') || addition.note.includes('??')) {
+				refuse(`${at}: its note is longer than 400 letters or holds a "\\" or "??"`);
+			}
+		});
+	}
 
 	if ('extras' in status) {
 		if (!Array.isArray(status.extras)) {
@@ -680,8 +725,9 @@ function build(menus, status, built) {
 		const screen = { name: status.screens[s].name, table: table.address, menus: [] };
 		const records = table.records;
 
-		const addItem = (menu, name, r, command, words) => {
-			const said = itemOf(table.address, command);
+		// level: 0 an item, 1 an item that opens a CASCADE (inteng's kind 1 with kind 2 records under it; reassess/dialog-look-drake.md BAR-10), 2 a row of that cascade (kind 2)
+		const addItem = (menu, name, r, command, words, level = 0) => {
+			const said = level === 1 ? [] : itemOf(table.address, command);
 
 			if (said.length > 1) {
 				refuse(`table ${table.address}: the status file names command ${command} more than once`);
@@ -703,11 +749,15 @@ function build(menus, status, built) {
 				work = 'exitmode';
 			}
 
+			if (level === 1) {
+				tag = 'none';   // a cascade's own row picks nothing (BAR-12): no tag, no work
+			}
+
 			if (name.length + kTagWords[tag].length > kNameMost) {
 				refuse(`table ${table.address}, record ${r}: "${name}${kTagWords[tag]}" is longer than ${kNameMost} letters`);
 			}
 
-			menu.items.push({ name, action: (s + 1) * 0x10000 + r, command, tag, work, toScreen, access: accessIn(name, words) });
+			menu.items.push({ name, action: (s + 1) * 0x10000 + r, command, tag, work, toScreen, access: accessIn(name, words), level });
 		};
 
 		records.forEach((record, r) => {
@@ -728,27 +778,40 @@ function build(menus, status, built) {
 				const next = records[r + 1];
 
 				if (record.kind === 1 && next && next.kind === 2) {
-					return;   // its items follow, each shown as "its words: theirs"
+					addItem(menu, shown(record.words), r, command, record.words, 1);   // a cascade's own row (BAR-10); its kind-2 rows follow it, level 2
+					return;
 				}
 
 				if (record.words === '') {
 					return;   // a blank line: the bar has no separators yet (ours until run 1), so it's left out
 				}
 
-				let name = shown(record.words);
-
-				if (record.kind === 2) {
-					let parent = r - 1;
-
-					while (records[parent].kind === 2) {
-						parent--;
-					}
-
-					name = `${shown(records[parent].words)}: ${name}`;
-				}
-
-				addItem(menu, name, r, command, record.words);
+				addItem(menu, shown(record.words), r, command, record.words, record.kind === 2 ? 2 : 0);
 			}
+		});
+
+		// Our items put into this table (status "additions"), each after the item it names, in its menu
+		(status.additions || []).forEach((addition, i) => {
+			if (addition.table !== table.address) {
+				return;
+			}
+
+			const at = `status addition ${i}`;
+			const menu = screen.menus.find((m) => m.title === addition.title);
+			const after = menu ? menu.items.findIndex((item) => item.name === addition.after && !item.level) : -1;
+			const action = parseInt(addition.action, 16);
+
+			if (after < 0) {
+				refuse(`${at}: table ${table.address} has no menu "${addition.title}" with an item "${addition.after}" outside a cascade`);
+			}
+
+			if (screen.menus.some((m) => m.items.some((item) => item.action === action))) {
+				refuse(`${at}: its action ${addition.action} is already an item's`);
+			}
+
+			const name = shown(addition.words);
+
+			menu.items.splice(after + 1, 0, { name, action, command: 0, tag: 'none', work: addition.does, toScreen: -1, access: accessIn(name, addition.words), note: addition.note });
 		});
 
 		if (screen.menus.length > kMostMenus - kOursMenus) {
@@ -859,7 +922,11 @@ function emit(screens) {
 			}
 
 			for (const item of menu.items) {
-				out.push(`\t\t\t{ ${cpp(item.name)}, 0x${item.action.toString(16)}, 0x${item.command.toString(16)}, IntengTag::${kTagCpp[item.tag]}, IntengWork::${kWorkCpp[item.work]}, ${item.toScreen}, ${'access' in item ? item.access : -1} },`);
+				if (item.note) {
+					out.push(`\t\t\t// OURS, NAMED (docs/inteng/menu-status.json, additions): ${item.note}`);
+				}
+
+				out.push(`\t\t\t{ ${cpp(item.name)}, 0x${item.action.toString(16)}, 0x${item.command.toString(16)}, IntengTag::${kTagCpp[item.tag]}, IntengWork::${kWorkCpp[item.work]}, ${item.toScreen}, ${'access' in item ? item.access : -1}${item.level ? `, ${item.level}` : ''} },`);
 			}
 
 			out.push('\t\t};');

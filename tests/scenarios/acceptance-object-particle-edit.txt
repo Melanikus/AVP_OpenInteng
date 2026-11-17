@@ -1,0 +1,48 @@
+# ACCEPTANCE (red first): Object Placement's Edit of a PARTICLE GENERATOR opens inteng's own "Particle generator properties" 1:1 (A-8, reassess/object-placement.md OP-134; particle_edit.h): FUN_004e7310's
+# parts at their pixels (Ok; Type and the type's name; Sound, its name or "None", Remove Sound; Active; the Frequency edit "%.1f"; the Probability and Quantity number boxes; the Speed edit "%.2f"); Type
+# opens "Select Particle Generator Type" and the window stays; every way out keeps what it holds (FUN_004e7750), the type rules after (1 .. 3: probability and time 0). The copy is read back.
+# INTENG BUGS, FIXED (named in particle_edit.h): 2.3 s and 1.15 m/s are kept as 23 and 115, not truncated to 22 and 114.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0xcc
+expect-screen Object Placement
+# Create > Particle Generator (0x39): "Name Object"; the new one is current (type 0, time 50, probability 50, speed 0, quantity 0, Active)
+item 0x39
+expect-dialog Name Object
+form-field 1 ptV
+click-button OK
+expect-no-dialog
+# Object > Edit (0x18): the window DRAWN, its four edits and its one box
+item 0x18
+expect-dialog Particle generator properties
+expect-pixels-changed panels 0 0 1000 700 0.05
+expect-dialog-text 5.0|50|0|0.00
+expect-dialog-checks on
+picture 1
+# Type: the list, Steam picked: the window again, as it was typed
+form-field 1 2.3
+click-button Type
+expect-dialog Select Particle Generator Type
+click-choice-is Steam
+expect-dialog Particle generator properties
+expect-dialog-text 2.3|50|0|0.00
+form-field 2 70
+form-field 3 500
+form-field 4 1.15
+click-check 1
+expect-dialog-checks off
+picture 2
+click-button Ok
+expect-no-dialog
+# Edit again: Steam (1) takes the probability and the time away; 1.15 m/s kept as 115 (shown 1.15), the quantity 500, Active off; Escape keeps it all again
+item 0x18
+expect-dialog Particle generator properties
+expect-dialog-text 0.0|0|500|1.15
+expect-dialog-checks off
+key Esc
+expect-no-dialog
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_special/verify_special.exe {copy} "particle|ptV|ptype=1|time=0|pprob=0|speed=115|quantity=500|pflagson=1"

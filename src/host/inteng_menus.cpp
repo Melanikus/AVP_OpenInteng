@@ -17,10 +17,8 @@ namespace host
 		IntengItem const kItems0_0[] =
 		{
 			{ "Quit", 0x10001, 0xa, IntengTag::None, IntengWork::Quit, -1, 0 },
-			// THE OWNER'S ADDITION (Melanikus 2026-11-16, through Bishop: "Let's put a save on the hub"), NAMED: inteng's hub File has no Save. It sits second, after Quit, where every
-			// other screen keeps its Save, and does what Object Placement's Save does (SaveCopy: the copy in <Documents>\AVP_OpenInteng\edited, never the opened file). Its number is
-			// ours (0x1ff01: no record of inteng's table 0x5ced30); its command 0 (inteng has none)
-			{ "Save", 0x1ff01, 0, IntengTag::None, IntengWork::SaveCopy, -1, 0 },
+			// OURS, NAMED (docs/inteng/menu-status.json, additions): THE OWNER'S ADDITION (Melanikus 2026-11-16, through Bishop: "Let's put a save on the hub"): inteng's hub File has no Save. It sits second, after Quit, where every other screen keeps its Save, and does what Object Placement's Save does (SaveCopy). Its number is ours; it has no inteng command
+			{ "Save", 0x1ff01, 0x0, IntengTag::None, IntengWork::SaveCopy, -1, 0 },
 			{ "Write C File", 0x10002, 0xc, IntengTag::Wip, IntengWork::None, -1, -1 },
 			{ "Write Asc File", 0x10003, 0xe, IntengTag::None, IntengWork::WriteAsc, -1, -1 },
 			{ "Write Asc File (Doors closed)", 0x10004, 0x10, IntengTag::None, IntengWork::WriteAscDoorsClosed, -1, -1 },
@@ -35,16 +33,18 @@ namespace host
 			{ "Waypoint", 0x1000b, 0xcd, IntengTag::None, IntengWork::ToScreen, 16, 0 },
 			{ "Path", 0x1000c, 0xce, IntengTag::None, IntengWork::ToScreen, 17, 0 },
 			{ "Hierarchy", 0x1000d, 0xcf, IntengTag::None, IntengWork::ToScreen, 18, 0 },
-			{ "Strategy Data: Normal", 0x1000f, 0x39, IntengTag::None, IntengWork::ToScreen, 19, 15 },
-			{ "Strategy Data: No Textures", 0x10010, 0x3a, IntengTag::None, IntengWork::ToScreenNoTextures, 19, 18 },
+			{ "Strategy Data", 0x1000e, 0x38, IntengTag::None, IntengWork::None, -1, 0, 1 },
+			{ "Normal", 0x1000f, 0x39, IntengTag::None, IntengWork::ToScreen, 19, 0, 2 },
+			{ "No Textures", 0x10010, 0x3a, IntengTag::None, IntengWork::ToScreenNoTextures, 19, 3, 2 },
 		};
 		IntengItem const kItems0_2[] =
 		{
 			{ "Find Object", 0x10012, 0x52, IntengTag::None, IntengWork::FindObject, -1, 0 },
 			{ "Find Small Modules", 0x10013, 0x2bd, IntengTag::None, IntengWork::FindSmallModules, -1, 0 },
 			{ "Set Base Module", 0x10014, 0x140, IntengTag::None, IntengWork::SetBaseModule, -1, 4 },
-			{ "Change Object Type: Module", 0x10016, 0x12d, IntengTag::None, IntengWork::ChangeToModule, -1, 20 },
-			{ "Change Object Type: Placed", 0x10017, 0x12e, IntengTag::None, IntengWork::ChangeToPlaced, -1, 20 },
+			{ "Change Object Type", 0x10015, 0x12c, IntengTag::None, IntengWork::None, -1, 0, 1 },
+			{ "Module", 0x10016, 0x12d, IntengTag::None, IntengWork::ChangeToModule, -1, 0, 2 },
+			{ "Placed", 0x10017, 0x12e, IntengTag::None, IntengWork::ChangeToPlaced, -1, 0, 2 },
 			{ "Delete Module's Data", 0x10018, 0x50, IntengTag::None, IntengWork::DeleteModuleData, -1, 0 },
 			{ "Merge Objects", 0x10019, 0x58, IntengTag::None, IntengWork::MergeObjects, -1, -1 },
 			{ "Fix tears between Objects (Selected)", 0x1001a, 0x5a, IntengTag::None, IntengWork::FixTearsSelected, -1, -1 },
@@ -52,8 +52,9 @@ namespace host
 		};
 		IntengItem const kItems0_3[] =
 		{
-			{ "Recentre Shape: Move centre to top", 0x1001e, 0x14a, IntengTag::None, IntengWork::MoveCentreTop, -1, -1 },
-			{ "Recentre Shape: Move centre to bottom", 0x1001f, 0x14b, IntengTag::None, IntengWork::MoveCentreBottom, -1, -1 },
+			{ "Recentre Shape", 0x1001d, 0x0, IntengTag::None, IntengWork::None, -1, -1, 1 },
+			{ "Move centre to top", 0x1001e, 0x14a, IntengTag::None, IntengWork::MoveCentreTop, -1, -1, 2 },
+			{ "Move centre to bottom", 0x1001f, 0x14b, IntengTag::None, IntengWork::MoveCentreBottom, -1, -1, 2 },
 		};
 		IntengItem const kItems0_4[] =
 		{
@@ -70,10 +71,10 @@ namespace host
 		};
 		IntengMenu const kMenus0[] =
 		{
-			{ "File", kItems0_0, 5, 0 },   // inteng's 4 and the owner's Save
-			{ "Mode", kItems0_1, 10, 0 },
-			{ "Object", kItems0_2, 9, 0 },
-			{ "Shape", kItems0_3, 2, 0 },
+			{ "File", kItems0_0, 5, 0 },
+			{ "Mode", kItems0_1, 11, 0 },
+			{ "Object", kItems0_2, 10, 0 },
+			{ "Shape", kItems0_3, 3, 0 },
 			{ "Miscellaneous", kItems0_4, 4, 6 },
 			{ "Options", kItems0_5, 3, -1 },
 		};
@@ -215,13 +216,15 @@ namespace host
 			{ "Module", 0x50001, 0xa1, IntengTag::None, IntengWork::AutoLinkModule, -1, 0 },
 			{ "Environment", 0x50002, 0xa2, IntengTag::None, IntengWork::AutoLinkEnvironment, -1, 0 },
 			{ "Set Visiblity", 0x50003, 0xa4, IntengTag::None, IntengWork::SetVisibility, -1, 0 },
-			{ "Add Reverse Links: Environment", 0x50005, 0x12d, IntengTag::None, IntengWork::ReverseLinksAll, -1, 19 },
-			{ "Add Reverse Links: Module", 0x50006, 0x12c, IntengTag::None, IntengWork::ReverseLinksPicked, -1, 19 },
+			{ "Add Reverse Links", 0x50004, 0x0, IntengTag::None, IntengWork::None, -1, 0, 1 },
+			{ "Environment", 0x50005, 0x12d, IntengTag::None, IntengWork::ReverseLinksAll, -1, 0, 2 },
+			{ "Module", 0x50006, 0x12c, IntengTag::None, IntengWork::ReverseLinksPicked, -1, 0, 2 },
 			{ "Load from file", 0x50007, 0xa3, IntengTag::None, IntengWork::AutoLinkLoadFile, -1, 0 },
 			{ "Module (delete old)", 0x50008, 0xa5, IntengTag::None, IntengWork::AutoLinkModuleNew, -1, -1 },
 			{ "Environment (delete old)", 0x50009, 0xa6, IntengTag::None, IntengWork::AutoLinkEnvironmentNew, -1, -1 },
-			{ "Delete Links: Module", 0x5000c, 0xa7, IntengTag::None, IntengWork::DeleteLinksPicked, -1, 14 },
-			{ "Delete Links: Environment", 0x5000d, 0xa8, IntengTag::None, IntengWork::DeleteLinksAll, -1, -1 },
+			{ "Delete Links", 0x5000b, 0x0, IntengTag::None, IntengWork::None, -1, 0, 1 },
+			{ "Module", 0x5000c, 0xa7, IntengTag::None, IntengWork::DeleteLinksPicked, -1, 0, 2 },
+			{ "Environment", 0x5000d, 0xa8, IntengTag::None, IntengWork::DeleteLinksAll, -1, -1, 2 },
 		};
 		IntengItem const kItems4_1[] =
 		{
@@ -276,7 +279,7 @@ namespace host
 		};
 		IntengMenu const kMenus4[] =
 		{
-			{ "AutoLink", kItems4_0, 10, 0 },
+			{ "AutoLink", kItems4_0, 12, 0 },
 			{ "Link", kItems4_1, 3, 0 },
 			{ "Branch", kItems4_2, 4, 0 },
 			{ "View Mode", kItems4_3, 6, 0 },
@@ -354,8 +357,9 @@ namespace host
 		};
 		IntengItem const kItems6_2[] =
 		{
-			{ "With shape: Choose", 0x70011, 0x32, IntengTag::None, IntengWork::ChooserStartCreate, -1, 12 },
-			{ "With shape: Selected", 0x70012, 0x33, IntengTag::None, IntengWork::CreateLikeSelected, -1, 12 },
+			{ "With shape", 0x70010, 0x6, IntengTag::None, IntengWork::None, -1, 0, 1 },
+			{ "Choose", 0x70011, 0x32, IntengTag::None, IntengWork::ChooserStartCreate, -1, 0, 2 },
+			{ "Selected", 0x70012, 0x33, IntengTag::None, IntengWork::CreateLikeSelected, -1, 0, 2 },
 			{ "AVP generator", 0x70013, 0x34, IntengTag::None, IntengWork::SpecialCommand, -1, 4 },
 			{ "AVP Bad Guy", 0x70014, 0x35, IntengTag::None, IntengWork::SpecialCommand, -1, 4 },
 			{ "Player starting position", 0x70015, 0x3a, IntengTag::None, IntengWork::SpecialCommand, -1, -1 },
@@ -385,7 +389,7 @@ namespace host
 		{
 			{ "Mode", kItems6_0, 3, 0 },
 			{ "Object", kItems6_1, 10, 0 },
-			{ "Create", kItems6_2, 7, 0 },
+			{ "Create", kItems6_2, 8, 0 },
 			{ "Alt Locations", kItems6_3, 6, 0 },
 			{ "Misc", kItems6_4, 7, 1 },
 		};
@@ -412,8 +416,9 @@ namespace host
 		};
 		IntengItem const kItems7_2[] =
 		{
-			{ "With shape: Choose", 0x80011, 0x32, IntengTag::NoAvp, IntengWork::None, -1, 12 },
-			{ "With shape: Selected", 0x80012, 0x33, IntengTag::NoAvp, IntengWork::None, -1, 12 },
+			{ "With shape", 0x80010, 0x6, IntengTag::None, IntengWork::None, -1, 0, 1 },
+			{ "Choose", 0x80011, 0x32, IntengTag::NoAvp, IntengWork::None, -1, 0, 2 },
+			{ "Selected", 0x80012, 0x33, IntengTag::NoAvp, IntengWork::None, -1, 0, 2 },
 			{ "Generator", 0x80013, 0x34, IntengTag::NoAvp, IntengWork::None, -1, 0 },
 			{ "Bad Guy", 0x80014, 0x35, IntengTag::NoAvp, IntengWork::None, -1, 0 },
 			{ "Player starting position", 0x80015, 0x3a, IntengTag::NoAvp, IntengWork::None, -1, -1 },
@@ -435,7 +440,7 @@ namespace host
 		{
 			{ "Mode", kItems7_0, 3, 0 },
 			{ "Object", kItems7_1, 10, 0 },
-			{ "Create", kItems7_2, 7, 0 },
+			{ "Create", kItems7_2, 8, 0 },
 			{ "Misc", kItems7_3, 8, 1 },
 		};
 
@@ -1031,20 +1036,21 @@ namespace host
 		};
 		IntengItem const kItems13_1[] =
 		{
-			{ "Create: Above", 0xe0004, 0x46, IntengTag::Unfinished, IntengWork::None, -1, 8 },
-			{ "Create: Under", 0xe0005, 0x47, IntengTag::Unfinished, IntengWork::None, -1, 8 },
-			{ "Create: In Front", 0xe0006, 0x48, IntengTag::Unfinished, IntengWork::None, -1, 8 },
-			{ "Create: Behind", 0xe0007, 0x49, IntengTag::Unfinished, IntengWork::None, -1, 8 },
-			{ "Create: Left", 0xe0008, 0x4a, IntengTag::Unfinished, IntengWork::None, -1, 8 },
-			{ "Create: Right", 0xe0009, 0x4b, IntengTag::Unfinished, IntengWork::None, -1, 8 },
-			{ "Create: On Camera", 0xe000a, 0x4c, IntengTag::Unfinished, IntengWork::None, -1, 8 },
+			{ "Create", 0xe0003, 0x7, IntengTag::None, IntengWork::None, -1, 0, 1 },
+			{ "Above", 0xe0004, 0x46, IntengTag::Unfinished, IntengWork::None, -1, 0, 2 },
+			{ "Under", 0xe0005, 0x47, IntengTag::Unfinished, IntengWork::None, -1, 0, 2 },
+			{ "In Front", 0xe0006, 0x48, IntengTag::Unfinished, IntengWork::None, -1, 0, 2 },
+			{ "Behind", 0xe0007, 0x49, IntengTag::Unfinished, IntengWork::None, -1, 0, 2 },
+			{ "Left", 0xe0008, 0x4a, IntengTag::Unfinished, IntengWork::None, -1, 0, 2 },
+			{ "Right", 0xe0009, 0x4b, IntengTag::Unfinished, IntengWork::None, -1, 0, 2 },
+			{ "On Camera", 0xe000a, 0x4c, IntengTag::Unfinished, IntengWork::None, -1, 0, 2 },
 			{ "Move", 0xe000b, 0x32, IntengTag::Unfinished, IntengWork::None, -1, 0 },
 			{ "Delete", 0xe000c, 0x34, IntengTag::Unfinished, IntengWork::None, -1, 0 },
 		};
 		IntengMenu const kMenus13[] =
 		{
 			{ "Track Edit", kItems13_0, 1, 0 },
-			{ "Point", kItems13_1, 9, 0 },
+			{ "Point", kItems13_1, 10, 0 },
 		};
 
 		// 14: Shape Morph, inteng's table at 0x5e3cd0

@@ -35,6 +35,7 @@ struct EditorBarRoom
 	ui::MenuItem items[kEditorBarMostItems];
 	EditorKeyWords words[kEditorBarMostItems];
 	size_t menuCount;
+	ui::MenuItem subItems[kEditorBarMostItems];   // the cascades' rows (inteng's kind-2 records, reassess/dialog-look-drake.md BAR-10): each cascade item's subItems point in here
 };
 
 // THE RIGHT-CLICK POP-UP (inteng's second menu table of a screen, opened by the RIGHT mouse button at the pointer; Vasquez's read, board 03:04,

@@ -1,0 +1,50 @@
+# ACCEPTANCE (red first): Strategy Data's 68 AREA SWITCH, HIS PATH (Vasquez 11-16; strategy-data.md S-K68-1, S-K68-10, S-K66-1..8 through the same view FUN_0052f700 with kind 0x44; and the owed
+# S-K76-E acceptance: E on a target row that is a PLACED HIERARCHY opens its page FUN_0053b830). Invasion's dropswitch (68): Rest State off, Mode 4 (Time Delay 5 s), one target, the placed hierarchy
+# "dropship ken", its request 1 (on). The view: " : Area Switch" and "V : Change Trigger Volume" at h - 0x78 over 66's foot; E with the pointer on the target row: "Target  -  dropship ken : Placed
+# hierarchy" and "Sequence index %d" (the word's byte 1); a press on that line: "Select Sequence Index" (the hierarchy's sequences: one, 0); Escape back to the view.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is dropswitch
+expect-no-dialog
+wait 400
+key E
+wait 400
+picture 1
+expect-field-has strategyview 200@0:dropswitch : Area Switch|100@609:V : Change Trigger Volume
+expect-field-has strategyview 16@32:Rest State : Off|16@48:Mode : Time Delay -5.000 seconds|16@80:Targets :|0@96:(on)|80@96:dropship ken
+# E with the pointer on the target row (y 96, the window's y 104): the placed hierarchy's page
+move-win 300 104
+key E
+wait 400
+picture 2
+expect-field-has strategyview 100@0:Target  -  dropship ken : Placed hierarchy|16@16:Sequence index 0
+# a press on the sequence line: the list "Select Sequence Index" (dropship ken has one sequence, index 0); picking it keeps the word
+click-win 300 24
+expect-dialog Select Sequence Index
+expect-dialog-rows 0
+click-row 1
+expect-no-dialog
+wait 300
+expect-field-has strategyview 100@0:Target  -  dropship ken : Placed hierarchy|16@16:Sequence index 0
+key Esc
+wait 300
+expect-field-has strategyview 200@0:dropswitch : Area Switch
+expect-field-has strategyview 0@96:(on)|80@96:dropship ken
+picture 3
+# P: the Switch Properties form (FUN_0052ea70: Rest from RestState, the switch-off bits in the flags); Time Delay ticked, "5"
+key P
+wait 300
+expect-dialog Switch Properties
+expect-dialog-checks off,off,off,off,on,off,on,off,off
+expect-dialog-text 5|0
+click-button Cancel
+expect-no-dialog
+key Esc
+wait 300
+expect-screen Strategy Data

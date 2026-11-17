@@ -11,12 +11,16 @@
 
 #include "chunk.hpp"
 #include "chunk_object.hpp"   // Object_Chunk
+#include "chunk_shape.hpp"    // Shape_Chunk (its SHPMORPH child: FUN_005219f0's last case)
 #include "mishchnk.hpp"       // File_Chunk::list_objects
+#include "chunk_sound.hpp"    // Sound_Object_Chunk::CalculateID
+#include "avp_chunk.hpp"      // AVP_Particle_Generator_Data_Chunk
 
 #include "field_edit.h"
 #include "level_file.h"
 #include "level_store.h"
 #include "object_edit.h"   // SetStrategyBytes
+#include "placed_hierarchy_strategy.h"   // PlacedHierarchyStrategy_Put
 #include "strategy_edit.h"
 #include "strategy_lookup.h"
 #include "virtual_object.h"
@@ -32,6 +36,9 @@ namespace host
 			bool hasStrategy;
 			int32_t kind;
 			std::vector<uint8_t> payload;
+			bool other = false;  // a record of another class: an enemy or a generator (types 3, 2), a sound (5), a placed hierarchy (7), a particle generator (8)
+			bool placedHierarchy = false;   // type 7: its strategy (kind 76) is the PLACHIER's AVPSTRAT
+			bool morph = false;  // a placed object (type 0) whose OWN shape has a SHPMORPH chunk (FUN_005219f0 0x521a28-0x521a43: ECX = the record's +0x28, its object; OBJHEAD1 +0x4c, the shape)
 		};
 
 		std::string Key(uint8_t const *id)
@@ -104,6 +111,11 @@ namespace host
 					record.payload = now.payload;
 				}
 
+				// FUN_005219f0's last case: with no strategy, the object is a target that exists when its own shape morphs (FUN_004d0fd0 on the record's object: its OBJHEAD1's shape, +0x4c;
+				// then FUN_00431a00 "SHPMORPH"). get_assoc_shape is that header's associated_shape; a shape the library kept as plain bytes is none
+				Shape_Chunk *const shape = object->get_assoc_shape();
+
+				record.morph = shape && !shape->r_u_miscellaneous() && shape->lookup_single_child("SHPMORPH") != nullptr;
 				out->push_back(record);
 			}
 
@@ -131,9 +143,97 @@ namespace host
 					out->push_back(record);
 				}
 			}
+
+			// The records inteng makes for the level's OTHER objects (FUN_00521cb0, after the virtual objects; each constructor's record type read 2026-11-17): the enemies and generators
+			// (AVPGENER: FUN_0053a7a0 type 3, FUN_00539ff0 type 2), the sounds (SOUNDOB2, AvP's game number: FUN_0053ac30 type 5), the placed hierarchies (PLACHIER: FUN_0053b5a0 type 7) and the
+			// particle generators (PARGENER: FUN_0053afa0 type 8). FUN_005219f0 answers YES for a target naming any record whose type is not 0, so a target that names one of these is never
+			// a dead one; and the repair pass runs the strategy of each that holds one (an enemy's 69, a placed hierarchy's 76). Until 2026-11-17 these were left out, so a switch whose
+			// target was a generator, a sound, a placed hierarchy or a particle generator lost it to Find Errors, and an enemy's death target was never looked at.
+			// NAMED, left out: the cut-scene heads (CUTSHEAD, type 9) and traps (MUMMTRAP, type 10) of Rebellion's other games, which the game's library does not read.
+			auto const addOther = [&](uint8_t const *id, bool placed)
+			{
+				Record record;
+				ObjectStrategy now;
+
+				memcpy(record.id, id, 8);
+				record.virt = false;
+				record.other = true;
+				record.placedHierarchy = placed;
+				record.hasStrategy = false;
+				record.kind = 0;
+
+				if (LookUpStrategyBytes(level, LevelStore(open), record.id, &now) == StrategyFound::Found && now.payload.size() >= 12)
+				{
+					record.hasStrategy = true;
+					record.kind = IntAt(now.payload, 8);
+					record.payload = now.payload;
+				}
+
+				out->push_back(record);
+			};
+
+			std::vector<GeneratorRef> generators;
+			ListGenerators(level, &generators);
+
+			for (GeneratorRef const &one : generators)
+			{
+				addOther(one.id, false);
+			}
+
+			std::vector<PlacedHierarchyRef> placed;
+			ListPlacedHierarchies(level, &placed);
+
+			for (PlacedHierarchyRef const &one : placed)
+			{
+				addOther(one.id, true);
+			}
+
+			// the sounds' and the particle generators' IDs, as the game's library makes and reads them (Sound_Object_Chunk::CalculateID: md5 of its name, the eighth byte 0, as inteng's
+			// FUN_0051b770; a particle generator's PARGENDA holds its own); a chunk the library kept as plain bytes is none
+			try
+			{
+				Chunk *const env = level->lookup_single_child("REBENVDT");
+				Chunk *const spec = env && !env->r_u_miscellaneous() ? ((Chunk_With_Children *)env)->lookup_single_child("SPECLOBJ") : nullptr;
+
+				if (spec && !spec->r_u_miscellaneous())
+				{
+					List<Chunk *> sounds;
+					((Chunk_With_Children *)spec)->lookup_child("SOUNDOB2", sounds);
+
+					for (LIF<Chunk *> each(&sounds); !each.done(); each.next())
+					{
+						Sound_Object_Chunk *const sound = (Sound_Object_Chunk *)each();
+
+						if (sound && !sound->r_u_miscellaneous() && sound->snd_name)
+						{
+							ObjectID const id = sound->CalculateID();
+							addOther((uint8_t const *)&id, false);
+						}
+					}
+
+					List<Chunk *> particles;
+					((Chunk_With_Children *)spec)->lookup_child("PARGENER", particles);
+
+					for (LIF<Chunk *> each(&particles); !each.done(); each.next())
+					{
+						Chunk *const generator = each();
+						Chunk *const data = generator && !generator->r_u_miscellaneous() ? ((Chunk_With_Children *)generator)->lookup_single_child("PARGENDA") : nullptr;
+
+						if (data && !data->r_u_miscellaneous())
+						{
+							addOther((uint8_t const *)&((AVP_Particle_Generator_Data_Chunk *)data)->id, false);
+						}
+					}
+				}
+			}
+			catch (std::exception const &)
+			{
+			}
 		}
 
-		// FUN_005219f0 (without its last branch, see the header): a target ID that a record answers to
+		// FUN_005219f0: a target ID that a record answers to (the first with the ID, FUN_00529570): any record whose type is not 0 (virtual, enemy, generator, sound, placed hierarchy, particle
+		// generator), a placed object with a strategy, or one with none whose own shape has SHPMORPH (OUR BUG, FIXED 11-17, Vasquez: the last case was read as the SELECTED object's; the
+		// listing passes the record's object in ECX)
 		bool Exists(std::map<std::string, size_t> const &index, std::vector<Record> const &records, uint8_t const *id)
 		{
 			if (IsNull(id))
@@ -143,7 +243,7 @@ namespace host
 
 			auto const found = index.find(Key(id));
 
-			return found != index.end() && (records[found->second].virt || records[found->second].hasStrategy);
+			return found != index.end() && (records[found->second].virt || records[found->second].other || records[found->second].hasStrategy || records[found->second].morph);
 		}
 
 		bool IsSwitch(int32_t kind)
@@ -195,13 +295,26 @@ namespace host
 	namespace
 	{
 		// A strategy's whole bytes written: a placed object's or a module's through SetStrategyBytes; a virtual object's (every stock Mission Objective) through VirtualObject_SetStrategyBytes,
-		// which SetStrategyBytes cannot reach (it answers NoSuchObject for an ID that is not a placed object or a module)
+		// which SetStrategyBytes cannot reach (it answers NoSuchObject for an ID that is not a placed object or a module); a placed hierarchy's through PlacedHierarchyStrategy_Put
 		bool WriteBytes(OpenLevelFile *open, uint8_t const *id, std::vector<uint8_t> const &bytes)
 		{
 			ObjectEditResult const placed = SetStrategyBytes(open, id, bytes.data(), bytes.size());
 
-			return placed == ObjectEditResult::Done ||
-			       (placed == ObjectEditResult::NoSuchObject && VirtualObject_SetStrategyBytes(open, id, bytes.data(), bytes.size()) == VirtualObjectResult::Done);
+			if (placed == ObjectEditResult::Done)
+			{
+				return true;
+			}
+
+			if (placed != ObjectEditResult::NoSuchObject)
+			{
+				return false;
+			}
+
+			VirtualObjectResult const virt = VirtualObject_SetStrategyBytes(open, id, bytes.data(), bytes.size());
+
+			// a placed hierarchy's (its 76): the PLACHIER's AVPSTRAT, which neither of the two reaches (added 2026-11-17)
+			return virt == VirtualObjectResult::Done ||
+			       (virt == VirtualObjectResult::NotFound && PlacedHierarchyStrategy_Put(open, id, bytes.data(), bytes.size()) == PlacedHierarchyStrategyResult::Done);
 		}
 
 		// FUN_005335f0 (row S-K70-R of reassess/strategy-data-kinds.md, SKD-70-7 of strategy-kinds-dietrich.md): a Mission Objective's alterations, the count at +40 and 12 bytes each from +44 (the target's ID, its word). Each
@@ -386,7 +499,7 @@ namespace host
 
 		for (size_t i = 0; i < records.size(); i++)
 		{
-			index[Key(records[i].id)] = i;
+			index.emplace(Key(records[i].id), i);   // the FIRST record with an ID answers (FUN_00529570 walks the records from the start)
 		}
 
 		size_t changed = 0;
@@ -418,8 +531,9 @@ namespace host
 				changed += RepairMissionList(open, index, records, record) ? 1 : 0;   // FUN_005335f0
 				continue;
 			}
-			else if (record.kind == 72 || record.kind == 80)
+			else if (record.kind == 72 || record.kind == 76 || record.kind == 80)
 			{
+				// 76 (a placed hierarchy's Hierarchy Object) has 72's method +0x1c, FUN_00534450 (vtable 0x5af6f4 +0x1c, read from the exe 2026-11-17): its flag effects are the point effects
 				changed += RepairTrackEffects(open, index, records, record, record.kind == 80) ? 1 : 0;   // FUN_00534450; 80: FUN_005354a0
 				continue;
 			}
@@ -460,7 +574,7 @@ namespace host
 
 		for (size_t i = 0; i < records.size(); i++)
 		{
-			index[Key(records[i].id)] = i;
+			index.emplace(Key(records[i].id), i);   // the FIRST record with an ID answers (FUN_00529570 walks the records from the start)
 		}
 
 		std::set<size_t> gone;

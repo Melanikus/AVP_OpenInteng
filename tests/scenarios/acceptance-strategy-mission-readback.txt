@@ -1,0 +1,62 @@
+# ACCEPTANCE: EVERY LINE of a MISSION OBJECTIVE (70) above its alterations on Melanikus's path, the saved copy read back through the game's own loader (Drake, 2026-11-17;
+# reassess/strategy-closeout-drake.md E-3; reassess/strategy-data-kinds.md S-K70-1..6; the alterations are acceptance-strategy-mission-alterations). Breakout (a read-only stock copy) holds "end", a
+# VIRTUAL object's Mission Objective: Description 0, Completed 0, Order 0, flags 3 (shown, possible), Special 1 (complete level), no alterations (kind-survey). His path: the file opened as a double
+# click, the bar, Find Object, the right button's Edit Strategy, each line clicked, Escape, File > Save a copy. The rows move as the numbers change (S-K70-1, MissionRowsOf): Description 5 gives the
+# (empty) text row, so Completed moves to row 3; Completed 9 gives its own, so Order moves to row 5 and the rest after it. The copy must hold Description 5, Completed 9, Order 7, flags 0, Special 0,
+# and every other strategy byte for byte. RED without the clicks: the stock values fail all five.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is end
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field strategyview 200@0:end : Mission Objective|100@689:P : Toggle 'Make Possible' setting for mission target|100@709:V : Toggle 'Make Visible' setting for mission target|16@16:Description :0|16@32:Completed Message :0|16@48:Order Number :0|16@64:Shown at start|16@80:Possible at start|16@96:Special :Complete level|16@112:Mission alterations upon completion :|32@128:None
+picture 1
+# "Description :0" (y 16): the text window; 5
+click-win 300 24
+expect-dialog-kind form
+form-field 1 5
+click-button Ok
+expect-no-dialog
+wait 300
+expect-field-has strategyview 16@16:Description :5|16@48:Completed Message :0|16@64:Order Number :0
+# "Completed Message :0" (now y 48): the text window; 9
+click-win 300 56
+expect-dialog-kind form
+form-field 1 9
+click-button Ok
+expect-no-dialog
+wait 300
+expect-field strategyview 200@0:end : Mission Objective|100@689:P : Toggle 'Make Possible' setting for mission target|100@709:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :9|16@80:Order Number :0|16@96:Shown at start|16@112:Possible at start|16@128:Special :Complete level|16@144:Mission alterations upon completion :|32@160:None
+picture 2
+# "Order Number" (y 80): the number dialog; 7
+click-win 300 88
+expect-dialog Mission Order Number
+expect-dialog-text 0
+key Back
+type 7
+key Enter
+expect-no-dialog
+wait 300
+# Shown (y 96, bit 1), Possible (y 112, bit 2), Special (y 128: (1 + 1) % 2 = 0)
+click-win 300 104
+wait 300
+click-win 300 120
+wait 300
+click-win 300 136
+wait 300
+expect-field strategyview 200@0:end : Mission Objective|100@689:P : Toggle 'Make Possible' setting for mission target|100@709:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :9|16@80:Order Number :7|16@96:Hidden at start |16@112:Not possible at start|16@128:Special :Nothing|16@144:Mission alterations upon completion :|32@160:None
+picture 3
+key Esc
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF {copy} end mission_description_string 5 mission_complete_string 9 mission_number 7 flags 0 mission_completion_effect 0

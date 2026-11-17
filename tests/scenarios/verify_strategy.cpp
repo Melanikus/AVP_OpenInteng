@@ -4,6 +4,7 @@
 // USE: verify_strategy.exe <the level the editor opened> <the copy it saved> <an object's name> <field> <value> [<field> <value> | holds <another object's name> | also <another object's name>] ...
 // A <field> is a field of its strategy as the model names it, <value> what the copy must hold there; "holds <name>" checks that its strategy holds that object's 8-byte ID (a target in a list).
 // "also <name>": that object was changed by the scenario too (checked by its own verify line), so it is left out of the check that every other strategy is the original's.
+// "size <n>": the strategy is n bytes long; "nullid <field>": that object field holds the null ID (both added 2026-11-17 by Drake for the Find Errors repairs' read-back).
 // The object is looked for among the level's objects (modules and placed objects), its virtual objects and its enemies / generators, by its exact name; a value may be decimal or 0x hex.
 // CHECKS: both levels are read by the game's loader; the object holds a strategy in both; in the copy the field holds the value; every OTHER object's strategy is byte for byte the original's (the
 // scenario changed that one only). Gives back 0 only if every check passed.
@@ -180,6 +181,32 @@ int main(int argc, char **argv)
 		if (field == "also")
 		{
 			continue;   // another object the scenario changed too: left out of the byte-for-byte check below
+		}
+
+		if (field == "size")
+		{
+			// the strategy's whole size (the AVPSTRAT payload): a list repair that takes items out makes it shorter (added 2026-11-17, strategy-closeout-drake.md E-5)
+			long long const wanted = strtoll(argv[a + 1], nullptr, 0);
+
+			Check(now.hasStrategy && (long long)now.payload.size() == wanted, "in the copy its strategy is " + std::to_string(wanted) + " bytes (it is " +
+			      (now.hasStrategy ? std::to_string((unsigned long long)now.payload.size()) : std::string("not there")) + ")");
+			continue;
+		}
+
+		if (field == "nullid")
+		{
+			// an object field holds the null ID (a repair reset a target no object has; added 2026-11-17). The reader gives back false for the null ID too, after writing its 8 zero
+			// bytes; a field it can't read leaves the bytes as they were, and they start as a non-null pattern here
+			uint8_t id[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+			uint8_t const none[8] = {};
+
+			if (now.hasStrategy)
+			{
+				host::StrategyView_FieldObject(now.kind, now.payload, argv[a + 1], id);
+			}
+
+			Check(now.hasStrategy && memcmp(id, none, 8) == 0, "in the copy its " + std::string(argv[a + 1]) + " is the null ID");
+			continue;
 		}
 
 		if (field == "holds")

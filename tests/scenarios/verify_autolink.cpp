@@ -2,10 +2,11 @@
 // AvP-docs\engine\inteng\reassess\module-linking-map-dietrich.md). Written 2026-11-16 by Melanikus (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt,
 // "AVP_OpenInteng's own code". (verify_links is the hand-made links' check: this one is AutoLink's.)
 //
-// USE: verify_autolink.exe <the level the editor opened> <the copy it saved> <a module's name> <same-set | same-branches | same-items>
+// USE: verify_autolink.exe <the level the editor opened> <the copy it saved> <a module's name> <same-set | same-branches | same-items | changed>
 // Prints the module's links in both (pre-order, "name/branch_no" as FUN_004c46c0 writes them), what only one holds, and whether the items are the same one for one. CHECKS: both levels are
 // read by the game's loader; the module is in both; with same-set, the copy's links hold exactly the modules the original's do (the order and the branches may differ, and are printed); with
-// same-branches, that and each module with a branch (a door: the modules seen through it) holds the same modules in its branch; with same-items, the items are the same, one for one; every
+// same-branches, that and each module with a branch (a door: the modules seen through it) holds the same modules in its branch; with same-items, the items are the same, one for one; with changed,
+// the items are NOT the original's one for one (whatever the run made of them: the file holds the run's links, not the level as it was opened; the auto-save's check); every
 // OTHER module's links are item for item the original's (the scenario ran that one module). Gives back 0 only if every check passed.
 
 #include <stdio.h>
@@ -154,15 +155,15 @@ int main(int argc, char **argv)
 {
 	if (argc < 5)
 	{
-		printf("verify_autolink: <original> <copy> <module name> <same-set | same-branches | same-items>\n");
+		printf("verify_autolink: <original> <copy> <module name> <same-set | same-branches | same-items | changed>\n");
 		return 2;
 	}
 
 	std::string const name = argv[3], mode = argv[4];
 
-	if (mode != "same-set" && mode != "same-items" && mode != "same-branches" && !(name == "*" && (mode == "report" || mode == "clean")))
+	if (mode != "same-set" && mode != "same-items" && mode != "same-branches" && mode != "changed" && !(name == "*" && (mode == "report" || mode == "clean")))
 	{
-		printf("verify_autolink: the mode is same-set, same-branches or same-items (or * report, * clean), not %s\n", mode.c_str());
+		printf("verify_autolink: the mode is same-set, same-branches, same-items or changed (or * report, * clean), not %s\n", mode.c_str());
 		return 2;
 	}
 
@@ -370,6 +371,12 @@ int main(int argc, char **argv)
 	if (mode == "same-items")
 	{
 		Check(itemsSame, "the copy's items are the original's, one for one");
+	}
+	else if (mode == "changed")
+	{
+		// the auto-save's check: the file holds the run's own links, not the level as it was opened (AutoLink's likeness to the stock is the autolink acceptances' measure, not this one's)
+		Check(!itemsSame, "the items are not the original's one for one: the copy holds the run's links, not the level as it was opened (" + std::to_string(was.size()) + " links then, " +
+			std::to_string(now.size()) + " now)");
 	}
 	else
 	{

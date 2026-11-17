@@ -14,11 +14,14 @@ expect-dialog Type name for new virtual object
 type MO1
 key Enter
 expect-no-dialog
-hold Z 1500
-wait 400
-click-win 378 300
+# picked by NAME (Find Object), not by a click on the view: a click there could take a module, whose Select Strategy lists Lift / Door / Airlock ... (Bishop, red on 3eb0487)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is MO1
+expect-no-dialog
 expect-selected 1
-click-win 378 300 right
+wait 400
+click-win 500 300 right
 click-popup 4
 expect-dialog Select Strategy
 click-button Mission_Objective

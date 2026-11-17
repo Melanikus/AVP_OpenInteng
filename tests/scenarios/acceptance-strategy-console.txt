@@ -1,0 +1,55 @@
+# ACCEPTANCE: the CONSOLE (63) on Melanikus's path, on a MADE level, the saved copy read back through the game's own loader (Drake, 2026-11-17; reassess/strategy-closeout-drake.md E-5;
+# reassess/strategy-data-kinds.md S-K63-1). No stock level holds a Console and the Select Strategy window offers none (S-K63-0), so inteng can only edit one a level already holds: the level is
+# MADE fresh by the run, by a test tool (make_strategy_level: a copy of Genshd1 whose placed objects med02L and med02K hold Consoles numbered 1 and 2; never by hand). His path: the made file opened
+# as a double click, the bar, Find Object, the right button's Edit Strategy: the "Console Number" window (400 x 200: the number box, Ok, Cancel). 2 is refused, "This number is used by another
+# console", and nothing changes (FUN_0052f1d0); 7 is stored. The copy must hold ConsoleNum 7 on med02L and every other strategy of the made level byte for byte. RED without the edit: 1.
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/make_strategy_level.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {exedir}Genshd1-console.made.rif med02L kind 63 ConsoleNum 1 then med02K kind 63 ConsoleNum 2
+start-args {exedir}Genshd1-console.made.rif
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is med02L
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog Console Number
+expect-dialog-kind form
+expect-dialog-text 1
+picture 1
+# 2 is the other console's: refused, nothing changes
+form-field 1 2
+click-button Ok
+expect-dialog This number is used by another console
+picture 2
+click-button Ok
+expect-no-dialog
+wait 300
+# Edit again: still 1; 7 is stored
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog Console Number
+expect-dialog-text 1
+picture 3
+form-field 1 7
+click-button Ok
+expect-no-dialog
+wait 300
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog Console Number
+expect-dialog-text 7
+picture 4
+click-button Cancel
+expect-no-dialog
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Genshd1-console.made.rif {copy} med02L ConsoleNum 7

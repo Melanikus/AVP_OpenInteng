@@ -19,13 +19,18 @@
 
 #include "chunk.hpp"
 #include "chunk_object.hpp"
+#include "chunk_shape.hpp"   // Shape_Chunk: its SHPMORPH child (the morphing target case)
 #include "mishchnk.hpp"
 #include "level_file.h"
 #include "object_edit.h"
 #include "strategy_lookup.h"
 #include "level_store.h"
+#include "strategy_edit.h"   // LookUpStrategyBytes
 #include "strategy_repair.h"
 #include "virtual_object.h"
+#include "placed_hierarchy_strategy.h"
+#include "chunk_sound.hpp"   // Sound_Object_Chunk::CalculateID
+#include "avp_chunk.hpp"     // AVP_Particle_Generator_Data_Chunk
 
 static int checksFailed = 0;
 
@@ -276,6 +281,282 @@ static void TrackCase(char const *path, int32_t kind)
 	Check(host::StrategyRepair_Run(&level) == 0, label + "a second pass changes nothing");
 }
 
+// THE OTHER RECORDS (FUN_00521cb0, FUN_005219f0; added 2026-11-17 by Drake): inteng keeps a record for each enemy and generator, sound, placed hierarchy and particle generator, and a target that
+// names one EXISTS (its record type is not 0). A Placed Object (62) of the level is given each such target in turn, with its request word 1; the repair pass must keep both. RED before: the
+// repair knew objects and virtual objects only, and reset each of these targets to the null ID (a switch's generator, sound, dropship or particle generator lost to Find Errors).
+static void OtherRecordsCase(char const *path)
+{
+	OpenLevelFile level;
+
+	if (level.Open(path) != LevelOpenResult::Opened || !level.Level())
+	{
+		Check(false, "other records: the level opens: " + std::string(path));
+		return;
+	}
+
+	// a placed object holding a Placed Object (62): its Event Target is the ID at 44, its request word at 40
+	List<Object_Chunk *> objects;
+	level.Level()->list_objects(&objects);
+
+	uint8_t subject[8] = { 0 };
+	std::vector<uint8_t> before;
+
+	for (LIF<Object_Chunk *> each(&objects); !each.done() && before.empty(); each.next())
+	{
+		host::ObjectStrategy strategy;
+		uint8_t id[8];
+
+		if (!each())
+		{
+			continue;
+		}
+
+		memcpy(id, &each()->object_data.ID, 8);
+
+		if (host::FindObjectStrategy(level.Level(), id, &strategy) == host::StrategyFound::Found && strategy.payload.size() >= 52 && IntAt(strategy.payload, 8) == 62)
+		{
+			memcpy(subject, id, 8);
+			before = strategy.payload;
+		}
+	}
+
+	// the targets: the first of each kind of record the level has, with the ID the game's library gives it
+	struct Named
+	{
+		std::string what;
+		uint8_t id[8];
+	};
+
+	std::vector<Named> targets;
+	std::vector<host::GeneratorRef> generators;
+	std::vector<host::PlacedHierarchyRef> placed;
+
+	host::ListGenerators(level.Level(), &generators);
+	host::ListPlacedHierarchies(level.Level(), &placed);
+
+	if (!generators.empty())
+	{
+		Named one = { "an enemy or generator (" + generators[0].name + ")" };
+		memcpy(one.id, generators[0].id, 8);
+		targets.push_back(one);
+	}
+
+	if (!placed.empty())
+	{
+		Named one = { "a placed hierarchy (" + placed[0].name + ")" };
+		memcpy(one.id, placed[0].id, 8);
+		targets.push_back(one);
+	}
+
+	Chunk *const env = level.Level()->lookup_single_child("REBENVDT");
+	Chunk *const spec = env && !env->r_u_miscellaneous() ? ((Chunk_With_Children *)env)->lookup_single_child("SPECLOBJ") : nullptr;
+
+	if (spec && !spec->r_u_miscellaneous())
+	{
+		List<Chunk *> sounds, particles;
+
+		((Chunk_With_Children *)spec)->lookup_child("SOUNDOB2", sounds);
+		((Chunk_With_Children *)spec)->lookup_child("PARGENER", particles);
+
+		if (sounds.size() && !sounds.first_entry()->r_u_miscellaneous() && ((Sound_Object_Chunk *)sounds.first_entry())->snd_name)
+		{
+			Sound_Object_Chunk *const sound = (Sound_Object_Chunk *)sounds.first_entry();
+			ObjectID const id = sound->CalculateID();
+			Named one = { std::string("a sound (") + sound->snd_name + ")" };
+
+			memcpy(one.id, &id, 8);
+			targets.push_back(one);
+		}
+
+		if (particles.size() && !particles.first_entry()->r_u_miscellaneous())
+		{
+			Chunk *const data = ((Chunk_With_Children *)particles.first_entry())->lookup_single_child("PARGENDA");
+
+			if (data && !data->r_u_miscellaneous())
+			{
+				Named one = { "a particle generator" };
+
+				memcpy(one.id, &((AVP_Particle_Generator_Data_Chunk *)data)->id, 8);
+				targets.push_back(one);
+			}
+		}
+	}
+
+	// FUN_005219f0's last case (Vasquez 11-17): a placed object with NO strategy whose own shape has SHPMORPH is a target that exists (kept); one with no strategy and a shape that does not morph is
+	// not (the second control below). RED before: the morphing one was reset (strategy_repair.h read the case as the SELECTED object's)
+	uint8_t plain[8] = { 0 };
+	bool havePlain = false;
+
+	for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+	{
+		Object_Chunk *const object = each();
+		host::ObjectStrategy strategy;
+		uint8_t id[8];
+
+		if (!object)
+		{
+			continue;
+		}
+
+		memcpy(id, &object->object_data.ID, 8);
+
+		if (host::FindObjectStrategy(level.Level(), id, &strategy) == host::StrategyFound::Found)
+		{
+			continue;
+		}
+
+		Shape_Chunk *const shape = object->get_assoc_shape();
+		bool const morph = shape && !shape->r_u_miscellaneous() && shape->lookup_single_child("SHPMORPH") != nullptr;
+
+		if (morph && targets.size() < 5)
+		{
+			Named one = { std::string("a placed object with no strategy whose shape morphs (") + object->object_data.o_name + ")" };
+
+			memcpy(one.id, id, 8);
+			targets.push_back(one);
+		}
+		else if (!morph && !havePlain && shape)
+		{
+			memcpy(plain, id, 8);
+			havePlain = true;
+		}
+	}
+
+	Check(havePlain, "other records: the level has a placed object with no strategy and a shape that does not morph (the second control)");
+	Check(!before.empty() && targets.size() >= 4, "other records: the level has a Placed Object (62) and at least four kinds of other records (" + std::to_string((unsigned long long)targets.size()) + ")");
+
+	if (before.empty())
+	{
+		return;
+	}
+
+	// the control: a target no record has IS reset (the null ID, request 0), so the case can tell
+	{
+		std::vector<uint8_t> bytes = before;
+		int32_t const request = 1;
+
+		memset(bytes.data() + 44, 0xA7, 8);
+		memcpy(bytes.data() + 40, &request, 4);
+
+		bool const put = host::SetStrategyBytes(&level, subject, bytes.data(), bytes.size()) == host::ObjectEditResult::Done;
+
+		host::StrategyRepair_Run(&level);
+
+		host::ObjectStrategy now;
+		uint8_t const none[8] = {};
+		bool const read = put && host::LookUpStrategyBytes(level.Level(), host::LevelStore(&level), subject, &now) == host::StrategyFound::Found && now.payload.size() >= 52;   // as the store holds it: a field edit waits there for the save
+
+		Check(read && memcmp(now.payload.data() + 44, none, 8) == 0 && IntAt(now.payload, 40) == 0, "other records: the control, a target no record has, is reset (the null ID, request 0)");
+	}
+
+	// the second control: a placed object with no strategy whose shape does not morph is no target that exists (FUN_005219f0 answers no): reset
+	if (havePlain)
+	{
+		std::vector<uint8_t> bytes = before;
+		int32_t const request = 1;
+
+		memcpy(bytes.data() + 44, plain, 8);
+		memcpy(bytes.data() + 40, &request, 4);
+
+		bool const put = host::SetStrategyBytes(&level, subject, bytes.data(), bytes.size()) == host::ObjectEditResult::Done;
+
+		host::StrategyRepair_Run(&level);
+
+		host::ObjectStrategy now;
+		uint8_t const none[8] = {};
+		bool const read = put && host::LookUpStrategyBytes(level.Level(), host::LevelStore(&level), subject, &now) == host::StrategyFound::Found && now.payload.size() >= 52;
+
+		Check(read && memcmp(now.payload.data() + 44, none, 8) == 0 && IntAt(now.payload, 40) == 0, "other records: the second control, a placed object with no strategy and no SHPMORPH, is reset");
+	}
+
+	for (Named const &target : targets)
+	{
+		std::vector<uint8_t> bytes = before;
+		int32_t const request = 1;
+
+		memcpy(bytes.data() + 44, target.id, 8);
+		memcpy(bytes.data() + 40, &request, 4);
+
+		bool const put = host::SetStrategyBytes(&level, subject, bytes.data(), bytes.size()) == host::ObjectEditResult::Done;
+
+		host::StrategyRepair_Run(&level);
+
+		host::ObjectStrategy now;
+		bool const read = put && host::LookUpStrategyBytes(level.Level(), host::LevelStore(&level), subject, &now) == host::StrategyFound::Found && now.payload.size() >= 52;   // as the store holds it: a field edit waits there for the save
+
+		Check(read && memcmp(now.payload.data() + 44, target.id, 8) == 0 && IntAt(now.payload, 40) == 1, "other records: a target naming " + target.what + " is kept, its request word too");
+	}
+}
+
+// THE HIERARCHY OBJECT (76; vtable 0x5af6f4 +0x1c = FUN_00534450, 72's repair, read from inteng.exe 2026-11-17; row S-K76-R): a placed hierarchy's flag effects are 72's point effects. The
+// level's first placed hierarchy holding a 76 gets one more target in its first effect, an ID no object has; the repair pass takes it out again: the bytes are as they were. RED before: the
+// placed hierarchies were no records and 76 had no repair.
+static void HierarchyObjectCase(char const *path)
+{
+	OpenLevelFile level;
+
+	if (level.Open(path) != LevelOpenResult::Opened || !level.Level())
+	{
+		Check(false, "kind 76: the level opens: " + std::string(path));
+		return;
+	}
+
+	std::vector<host::PlacedHierarchyRef> placed;
+	host::ListPlacedHierarchies(level.Level(), &placed);
+
+	uint8_t subject[8] = { 0 };
+	std::vector<uint8_t> before;
+
+	for (host::PlacedHierarchyRef const &one : placed)
+	{
+		host::ObjectStrategy strategy;
+
+		if (before.empty() && host::FindObjectStrategy(level.Level(), one.id, &strategy) == host::StrategyFound::Found && strategy.payload.size() >= 36 &&
+		    IntAt(strategy.payload, 8) == 76 && IntAt(strategy.payload, 20) >= 1)
+		{
+			memcpy(subject, one.id, 8);
+			before = strategy.payload;
+		}
+	}
+
+	Check(!before.empty(), "kind 76: the level has a placed hierarchy holding a Hierarchy Object with a flag effect");
+
+	if (before.empty())
+	{
+		return;
+	}
+
+	// the first effect: its flag, a pad word, its target count at 24 + 8, then 16 bytes per target; one more target goes after its last
+	int32_t const count = IntAt(before, 32);
+
+	Check(count >= 0 && 36 + 16 * (size_t)count <= before.size(), "kind 76: its first effect's targets are read (" + std::to_string((long long)count) + ")");
+
+	if (count < 0 || 36 + 16 * (size_t)count > before.size())
+	{
+		return;
+	}
+
+	std::vector<uint8_t> bytes = before;
+	std::vector<uint8_t> dead(16, 0);
+	int32_t const more = count + 1, request = 1, direction = 3;
+
+	memset(dead.data(), 0xBB, 8);
+	memcpy(dead.data() + 8, &request, 4);
+	memcpy(dead.data() + 12, &direction, 4);
+	bytes.insert(bytes.begin() + (std::ptrdiff_t)(36 + 16 * (size_t)count), dead.begin(), dead.end());
+	memcpy(bytes.data() + 32, &more, 4);
+
+	Check(host::PlacedHierarchyStrategy_Put(&level, subject, bytes.data(), bytes.size()) == host::PlacedHierarchyStrategyResult::Done, "kind 76: the dead target is put in (" +
+	      std::to_string((unsigned long long)bytes.size()) + " bytes)");
+
+	size_t const changed = host::StrategyRepair_Run(&level);
+	host::ObjectStrategy now;
+	bool const read = host::FindObjectStrategy(level.Level(), subject, &now) == host::StrategyFound::Found;
+
+	Check(changed >= 1 && read && now.payload == before, "kind 76: the repair takes the dead target out: the bytes are the level's own again (" +
+	      std::to_string((unsigned long long)(read ? now.payload.size() : 0)) + " bytes)");
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 3)
@@ -398,6 +679,9 @@ int main(int argc, char **argv)
 	{
 		Check(false, "a level with a Track Object (Destructable) is named (the third argument, {LEVEL:Area52})");
 	}
+
+	OtherRecordsCase(argv[1]);
+	HierarchyObjectCase(argv[1]);
 
 	printf("%d checks failed\n", checksFailed);
 	return checksFailed ? 1 : 0;

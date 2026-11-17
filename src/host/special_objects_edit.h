@@ -73,6 +73,7 @@ namespace host
 		uint8_t parentId[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 		float turn[4] = { 0, 0, 0, 1 };      // x y z w
 		bool hasSound = false;               // a particle generator's INDSOUND child
+		std::string particleSoundWav;        // that INDSOUND's wav name (chunk_sound.cpp Indexed_Sound_Chunk: the index, then the name), empty when none (the particle window shows it, particle_edit.h)
 		// AVPGENEX > GENEXSET, the generator's own settings: a SIBLING of the AVPGENER in SPECLOBJ, found by the name in its AVPGENNM child (avp_chunk.cpp:136-166). hasSettings is
 		// true when the object's flag 0x8000000 is set and such a chunk holds settings; writing an object with hasSettings makes or replaces it.
 		bool hasSettings = false;
