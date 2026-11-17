@@ -31,7 +31,7 @@ picture 5
 # Object > Move relative (0x1c) on Track Editing's own bar: the same handler as Object Placement's (the selected placed object's place as an offset from its module; Enter keeps the numbers shown)
 select-row 2
 item 0x1c
-expect-prompt 45
+expect-dialog RelMove Shape
 picture 6
 key Enter
 expect-status Moved

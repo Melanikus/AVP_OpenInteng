@@ -1,0 +1,45 @@
+# ACCEPTANCE (red first): Object Placement's Copy Track / Paste Track Absolute, their three messages and the paste onto an object with NO track (Frost, 2026-11-17; A-12, object-placement.md
+# OP-20 / OP-21). inteng: Copy Track (FUN_004f2ff0) on an object with no track (no OBJTRAK2): "Object doesn't have a track" (Ok), the clipboard as it was. Paste Track (FUN_004f3330) asks
+# only whether the object has its level object (the record's +0x154: "Please use Mode->Save and try again" for a new object not yet saved; every object here has one) and then for the
+# clipboard: nothing copied, "Use copy track first" (Ok). Otherwise the object's own track, if any, is taken out, the copied one made, and Track Editing starts on it. OUR BUG, FIXED:
+# since 60ae1e5 ours asked the object pasted on for a track of its own and refused one with none ("Please use Mode->Save and try again"): a track could not be pasted onto an object
+# that had none. RED on 406f11e: step 1 and the last paste say "Please use Mode->Save and try again".
+# Invasion, read from a copy: smrtam010 (row 5, no track), switch6 (row 6, a track); kind-list -1 (AvP-docs/tools/frost) marks the tracks.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Object Placement
+# 1. Paste Track Absolute with nothing copied, on smrtam010 (no track): "Use copy track first"
+select-row 5
+expect-selected 1
+click-bar Object > Paste Track Absolute
+wait 300
+picture 1
+expect-dialog Use copy track first
+click-button Ok
+expect-no-dialog
+expect-screen Object Placement
+# 2. Copy Track on smrtam010: "Object doesn't have a track"
+click-bar Object > Copy Track
+wait 300
+expect-dialog Object doesn't have a track
+click-button Ok
+expect-no-dialog
+# 3. Copy Track on switch6 (a track): no message, the screen as it was
+select-row 6
+expect-selected 1
+click-bar Object > Copy Track
+wait 300
+expect-no-dialog
+expect-screen Object Placement
+# 4. Paste Track Absolute on smrtam010: taken, and Track Editing starts on it
+select-row 5
+expect-selected 1
+click-bar Object > Paste Track Absolute
+wait 600
+picture 2
+expect-no-dialog
+expect-screen Track Editing
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_objects/verify_objects.exe {copy} track smrtam010 track switch6

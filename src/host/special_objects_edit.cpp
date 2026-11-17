@@ -271,6 +271,7 @@ namespace host
 				o->wav.assign(b.data() + wavAt, wavZero ? (size_t)(wavZero - (b.data() + wavAt)) : end - wavAt);
 			}
 
+			SoundObjectId(o->name, o->id);   // the ID a strategy names it by (the chunk holds none; nothing writes this back)
 			o->kind = SpecialKind::Sound;
 			return true;
 		}
@@ -786,6 +787,15 @@ namespace host
 		char digest[16];
 
 		md5_buffer(text.c_str(), (unsigned int)text.size(), digest);
+		memcpy(id, digest, 8);
+		id[7] = 0;
+	}
+
+	void SoundObjectId(std::string const &name, uint8_t id[8])
+	{
+		char digest[16];
+
+		md5_buffer(name.c_str(), (unsigned int)name.size(), digest);
 		memcpy(id, digest, 8);
 		id[7] = 0;
 	}

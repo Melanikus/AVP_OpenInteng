@@ -32,7 +32,6 @@ namespace host
 		NoSuchObject,      // no object of the level has that ID
 		NoTrack,           // Copy: the object has no OBJTRAK2 ("Object doesn't have a track", inteng's words)
 		ClipboardEmpty,    // Paste: nothing was copied ("Use copy track first", inteng's words)
-		TargetNoTrack,     // Paste: the object pasted ON has no OBJTRAK2 ("Please use Mode->Save and try again", inteng's words, FUN_004f3330 0x4f3373; checked BEFORE the clipboard)
 		CantBuild,         // the level couldn't be put together from the bytes
 		LoaderRefused,     // the game's loader wouldn't take the changed level, so nothing was changed
 	};

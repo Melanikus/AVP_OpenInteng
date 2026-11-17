@@ -52,6 +52,7 @@ key Esc
 wait 300
 save-copy
 # Find Errors repairs one of Invasion's own records too, as inteng does: light08 (62) names an ID no record has, so its target becomes the null ID (Vasquez's
-# acceptance-strategy-find-errors-keeps-invasion names the same one)
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Invasion-hierarchy.made.rif {copy} "dropship ken" size 60 num_point_effects 1 also light08
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Invasion-hierarchy.made.rif {copy} light08 nullid targetID also "dropship ken"
+# acceptance-strategy-find-errors-keeps-invasion names the same one), and the 66 / 68 list repair (FUN_00530820, Vasquez 10776bb) takes the dead targets out of four of its switches as inteng
+# does: lighttimeswitch4, swi59, switch5, "area switch to turn the lights on." (every target they lose is an ID no record has: repair_survey, the keeps-invasion acceptance names them too)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Invasion-hierarchy.made.rif {copy} "dropship ken" size 60 num_point_effects 1 also light08 also lighttimeswitch4 also swi59 also switch5 also "area switch to turn the lights on."
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Invasion-hierarchy.made.rif {copy} light08 nullid targetID also "dropship ken" also lighttimeswitch4 also swi59 also switch5 also "area switch to turn the lights on."

@@ -48,3 +48,48 @@ expect-no-dialog
 key Esc
 wait 300
 expect-screen Strategy Data
+
+# ---- THE COPY, read back through the game's own loader (Vasquez 11-17, the 68 read-back: S-K68-1 / S-K66-3..7 through the same view, each line changed and kept in the file).
+# dropswitch's view again: S on row 0 (request 1 -> 0), D (a copy of it after it: two targets, both off), S on row 1 (-> 1); P: the seconds 7.5, Security 2, Timer, None, Rest on, Ok.
+# The copy must hold RestState 1, Mode 0, Time 491520 (ftol(7.5 x 65536)), Security 2, flags 0x80000004 (None: & 4), 2 targets both "dropship ken" with requests 0 and 1, NumLinks 0; every
+# other strategy byte for byte the original's. RED on the stock file read as the copy: RestState 0, Mode 4, Time 327680, Security 0, flags 0x80000000, 1 target.
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is dropswitch
+expect-no-dialog
+wait 400
+key E
+wait 400
+move-win 300 104
+key S
+wait 200
+expect-field-has strategyview |0@96:(off)|80@96:dropship ken
+key D
+wait 200
+expect-field-has strategyview |0@112:(off)|80@112:dropship ken
+move-win 300 120
+key S
+wait 200
+expect-field-has strategyview |0@112:(on)|80@112:dropship ken
+key P
+wait 300
+expect-dialog Switch Properties
+key Back
+type 7.5
+key Tab
+key Back
+type 2
+click-check 1
+click-check 9
+click-check 4
+expect-dialog-checks on,off,off,on,off,off,off,off,on
+expect-dialog-text 7.5|2
+click-button Ok
+expect-no-dialog
+wait 300
+expect-field-has strategyview |16@32:Rest State : On|16@48:Mode : Timer - reset after 7.500 seconds|16@64:Switch off message : None|16@80:Targets :
+picture 4
+key Esc
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} dropswitch RestState 1 Mode 0 Time 491520 Security 2 flags 0x80000004 targets 2 target.0 "dropship ken" target.1 "dropship ken" target_request.0 0 target_request.1 1 NumLinks 0

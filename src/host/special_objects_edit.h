@@ -165,4 +165,9 @@ namespace host
 
 	// The ID a particle generator holds for a name
 	void ParticleGeneratorId(std::string const &name, uint8_t id[8]);
+
+	// A sound's ID (SOUNDOB2 holds none): the MD5 of its name, its first 8 bytes with the 8th 0, as the game's library works it out (Sound_Object_Chunk::CalculateID,
+	// chunk_sound.cpp:120) and inteng's sound wrapper too (FUN_0053ac30 -> FUN_0051b770). A strategy that names a sound (a switch's target, a light's buzz) holds this.
+	// (Added 2026-11-17 by Frost, S-KC-12.)
+	void SoundObjectId(std::string const &name, uint8_t id[8]);
 }

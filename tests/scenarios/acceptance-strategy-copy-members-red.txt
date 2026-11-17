@@ -1,0 +1,33 @@
+# ACCEPTANCE (red first): the collector's members are drawn RED while it runs (Frost, 2026-11-17; strategy-data.md S-62). inteng's collector FUN_00526bf0 marks every object it adds
+# with FUN_00529470 (the block's 0x40000000, drawn 0xff0000 by FUN_004a7cd0 0x4a7eca), and takes the mark off each at its end; Copy Strategy took the SOURCE's red off before it
+# (FUN_00528340 0x5283a5) and gives it back after (0x5285bd). Ours drew the members in their strategy's green, and the source stayed red.
+# His path: Fall, Strategy Data, Find Object pulse0, the pop-up's Copy Strategy, a click on screen1 (1.5 m in front of it, it fills the view's middle): screen1 is RED, not green.
+#ini ViewDistance=100000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Fall.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is pulse0
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 2
+expect-status Select objects to copy to
+
+camera 40743 14607 4059 0
+wait 600
+picture 1
+# before the click screen1 is green (it holds a strategy, S-61)
+expect-colour picture 260 150 480 400 00ff00 0.25 110
+click-view 0.5 0.5
+wait 300
+picture 2
+# a member of the collector: RED (its frame and glass, the view's middle)
+expect-colour picture 260 150 480 400 ff0000 0.25 110
+expect-colour-at-most picture 260 150 480 400 00ff00 0.05 110

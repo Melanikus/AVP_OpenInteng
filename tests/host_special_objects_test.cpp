@@ -17,6 +17,7 @@
 #include "mishchnk.hpp"
 #include "level_file.h"
 #include "special_objects_edit.h"
+#include "chunk_sound.hpp"
 #include "crash_guard.h"
 
 static int checksFailed = 0;
@@ -107,6 +108,43 @@ static void TestFile(std::string const & path, std::string const & folder)
 	std::vector<SpecialObject> all;
 
 	Check(SpecialObjects_Read(&file, &all) == SpecialResult::Done, "the special objects are read");
+
+	// Each sound's ID is the one the game's own library works out for it (Sound_Object_Chunk::CalculateID: what a strategy that names the sound holds, S-KC-12), the sounds in the
+	// SPECLOBJ's order. (Added 2026-11-17 by Frost: the reader left a sound's ID 0.)
+	{
+		Chunk_With_Children *const environment = file.Level() ? (Chunk_With_Children *)file.Level()->lookup_single_child("REBENVDT") : nullptr;
+		Chunk_With_Children *const special = environment ? (Chunk_With_Children *)environment->lookup_single_child("SPECLOBJ") : nullptr;
+		List<Chunk *> sounds;
+		size_t matched = 0, read = 0;
+
+		if (special)
+		{
+			special->lookup_child("SOUNDOB2", sounds);
+		}
+
+		LIF<Chunk *> each(&sounds);
+
+		for (SpecialObject const &one : all)
+		{
+			if (one.kind != SpecialKind::Sound)
+			{
+				continue;
+			}
+
+			read++;
+
+			if (!each.done())
+			{
+				ObjectID const id = ((Sound_Object_Chunk *)each())->CalculateID();
+
+				matched += memcmp(&id, one.id, 8) == 0 && one.name == ((Sound_Object_Chunk *)each())->snd_name ? 1 : 0;
+				each.next();
+			}
+		}
+
+		Check(read == (size_t)sounds.size() && matched == read, "every sound's ID is the game library's own (Sound_Object_Chunk::CalculateID): " + std::to_string((unsigned long long)matched) + " of " +
+			std::to_string((unsigned long long)read));
+	}
 
 	std::vector<char> original;
 

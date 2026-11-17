@@ -13,6 +13,10 @@
 
 #include <string.h>
 
+// the frame's list of what is on screen, which the game's line of sight walks (los.cpp declares them the same way)
+extern int NumOnScreenBlocks;
+extern DISPLAYBLOCK *OnScreenBlockList[];
+
 #include "pick_ray.h"
 #include "pick_game.h"
 #include "hierarchy_view.h"   // ModelObjects_IdOfBlock: the objects of a file with no modules
@@ -116,6 +120,11 @@ bool PickGame_RayAtClick(int32_t clickX, int32_t clickY, int32_t viewWidth, int3
 
 host::PickReport PickGame_AtClick(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight)
 {
+	return PickGame_AtClickLeavingOut(clickX, clickY, viewWidth, viewHeight, nullptr);
+}
+
+host::PickReport PickGame_AtClickLeavingOut(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight, void const *leaveOut)
+{
 	host::PickReport report;
 	memset(&report, 0, sizeof(report));
 	report.found = host::PickFound::NoLine;
@@ -136,7 +145,30 @@ host::PickReport PickGame_AtClick(int32_t clickX, int32_t clickY, int32_t viewWi
 	// los.cpp), which stopped our clicks on faces nobody sees (a Hierarchy click on the left arm gave RArm, a section seen through).
 	VECTORCH direction = { ray.direction[0], ray.direction[1], ray.direction[2] };
 	VECTORCH from = { ray.from[0], ray.from[1], ray.from[2] };
+	// The block leaveOut (the live Snap To Vertex's copy of the moving object) is taken out of the frame's list of what is on screen for this one search, and put back
+	// in its place after it: inteng leaves the moving block out of its pick the same way (FUN_004f7000 0x4f7020, block +0x64 bit 0x10000000)
+	int leftOutAt = -1;
+
+	for (int i = 0; leaveOut && i < NumOnScreenBlocks && leftOutAt < 0; i++)
+	{
+		leftOutAt = OnScreenBlockList[i] == (DISPLAYBLOCK const *)leaveOut ? i : -1;
+	}
+
+	if (leftOutAt >= 0)
+	{
+		OnScreenBlockList[leftOutAt] = OnScreenBlockList[NumOnScreenBlocks - 1];
+		OnScreenBlockList[NumOnScreenBlocks - 1] = (DISPLAYBLOCK *)leaveOut;
+		NumOnScreenBlocks--;
+	}
+
 	FindDrawnPolygonInLineOfSight(&direction, &from, 1, Player);
+
+	if (leftOutAt >= 0)
+	{
+		NumOnScreenBlocks++;
+		OnScreenBlockList[NumOnScreenBlocks - 1] = OnScreenBlockList[leftOutAt];
+		OnScreenBlockList[leftOutAt] = (DISPLAYBLOCK *)leaveOut;
+	}
 
 	DISPLAYBLOCK const *const hit = LOS_ObjectHitPtr;
 

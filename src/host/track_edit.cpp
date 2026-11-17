@@ -249,13 +249,16 @@ namespace host
 			return TrackEditResult::Done;
 		}
 
-		// inteng's FUN_004f3330 asks the object it pastes on for a track first (0x4f336f, "Please use Mode->Save and try again"), then the clipboard (0x4f33c4, "Use copy track first")
+		// inteng's FUN_004f3330 asks first whether the object it pastes on has its level object (the record's +0x154, 0x4f335c-0x4f336f: "Please use Mode->Save and try again" when it has
+		// none, a new object not yet saved), then for the clipboard (0x4f33c4, "Use copy track first"). Every object of a level open here is in the level's chunks, so the first refusal
+		// can't come (NAMED, track_edit.h): the object only has to be there. It does NOT have to hold a track: its own, if it has one, is taken out (0x4f3431). (Fixed 2026-11-17 by
+		// Frost: since 60ae1e5 a track was asked of it, read from 0x4f336f, and a paste onto an object with none was refused: OUR BUG, FIXED.)
 		TrackEditResult PasteTargetCheck(OpenLevelFile *file, uint8_t const *id)
 		{
-			TrackClip scratch;
-			TrackEditResult const has = Copy(file, id, &scratch);
+			Bytes image;
+			Piece object = { 0, 0 };
 
-			return has == TrackEditResult::NoTrack ? TrackEditResult::TargetNoTrack : has;
+			return Find(file, id, &image, &object);
 		}
 
 		// The object's own track chunks replaced by the clip's (clip null: taken out, nothing put in: Delete Track)
@@ -332,7 +335,6 @@ namespace host
 		case TrackEditResult::NoSuchObject: return "the level has no object with that name";
 		case TrackEditResult::NoTrack: return "Object doesn't have a track";
 		case TrackEditResult::ClipboardEmpty: return "Use copy track first";
-		case TrackEditResult::TargetNoTrack: return "Please use Mode->Save and try again";
 		case TrackEditResult::CantBuild: return "the level could not be put together";
 		case TrackEditResult::LoaderRefused: return "the game would not take the level that way, so nothing was changed";
 		}
@@ -628,7 +630,9 @@ namespace host
 	{
 		try
 		{
-			return PasteTargetCheck(file, id) == TrackEditResult::Done;
+			TrackClip scratch;
+
+			return Copy(file, id, &scratch) == TrackEditResult::Done;   // the object holds an OBJTRAK2 (Copy Track would take it)
 		}
 		catch (std::exception const &)
 		{

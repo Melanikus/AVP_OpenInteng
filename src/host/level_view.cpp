@@ -959,6 +959,11 @@ void LevelView_FlyPut(const int32_t world[3], const float quat[4])
 	TransposeMatrixCH(&flyCopy->ObMat);
 }
 
+void const *LevelView_FlyCopyBlock()
+{
+	return flyOn ? flyCopy : nullptr;
+}
+
 void LevelView_FlyEnd()
 {
 	if (!flyOn)

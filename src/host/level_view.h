@@ -259,6 +259,8 @@ void LevelView_DrawObjectsOutsideModules(bool on);
 bool LevelView_FlyBegin(const uint8_t *id);
 void LevelView_FlyPut(const int32_t world[3], const float quat[4]);
 void LevelView_FlyEnd();
+// The flying copy's display block, for a pick that leaves it out (PickGame_AtClickLeavingOut); null when nothing flies
+void const *LevelView_FlyCopyBlock();
 bool LevelView_FlyActive();
 
 // Where the live copy is, as the game holds it (its ObWorld), its radius and whether the game has it among the blocks it is drawing this frame (for the scenario's state line); false when none flies

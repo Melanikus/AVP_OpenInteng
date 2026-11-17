@@ -1,0 +1,21 @@
+# ACCEPTANCE (red first): a view names a SOUND and a PARTICLE GENERATOR it targets as inteng does, "<name> - Sound" / "<name> - Particle Generator" (Frost, 2026-11-17;
+# strategy-data-kinds.md S-KC-12). inteng (FUN_00529eb0 -> FUN_00529b60): an object with no strategy is named with its wrapper's word, by the wrapper's +8 (0x529d90): 5 a sound
+# (SOUNDOB2, FUN_0053ac30), 8 a particle generator (PARGENER, FUN_0053afa0), 7 a placed hierarchy. Ours did not find sounds or particle generators by the ID a strategy holds
+# (a sound's is the MD5 of its name, Sound_Object_Chunk::CalculateID; our reader left it 0) and printed "(null)". 824 stock strategies name one (kind-list -3, AvP-docs/tools/frost).
+# His path: Fall, Strategy Data, Find Object sndoff (a virtual Multiple Target Switch: its targets are the sound m6 and the particle generator steam7), E: the view's target rows.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Fall.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is sndoff
+expect-no-dialog
+key E
+wait 400
+picture 1
+expect-field-has strategyview :m6 - Sound|
+expect-field-has strategyview :steam7 - Particle Generator

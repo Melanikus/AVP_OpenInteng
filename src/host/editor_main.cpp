@@ -2863,11 +2863,120 @@ static void SplitScreenCommand()
 
 // Object Placement > Object > Move relative (0x1c; FUN_004d9af0 calls the current object's slot +0x1c, which is FUN_004e1d70 for a placed SHAPE object only, a no-op in the special objects' classes): a dialog
 // (FUN_0057c800(100, 100)) with three fields shows (module place - object place) x 1e-5 per axis as "%-3.5f" metres, the module being the one the object is in (the +0x110 inteng's per-frame line "In Object %s -
-// radius %d" keeps); on OK the object's place becomes the module's minus what was typed. The editor takes the three numbers in one line; the module is the one the game's view puts the object's place in
-// (LevelView_ModuleAt) and its world place is MODULE.m_world (NAMED: assumed to be what inteng's +0x10..+0x18 of the module's record holds).
+// radius %d" keeps); on OK the object's place becomes the module's minus what was typed. The module is the one the game's view puts the object's place in (LevelView_ModuleAt) and its world place is
+// MODULE.m_world (NAMED: assumed to be what inteng's +0x10..+0x18 of the module's record holds).
+// THE WINDOW 1:1 (Vasquez 11-17, listing 0x4d5190-0x4d5358 and 0x4e1d70-0x4e1f87): "RelMove Shape", 400 x 200; "Type in the new coordinates." at (18, 18, 370 x 40); three fields at (30, 100 / 124 / 148),
+// 300 x 20, up to 200 letters, each the axis's offset in metres ("%-3.5f" of (module - object) x 1e-5, inteng's unit); Ok at (100, 180), Cancel at (200, 180), 50 x 16; Return is Ok. Ok (answer 2): each
+// field read by sscanf "%lf" (0x5e8af8), the object's place in inteng's unit = module's - ftol(value x 100000.0) (0x5ae598), then saved to the file cut toward 0 (FUN_004dfc70's __ftol).
+// INTENG BUG, FIXED (MAPPING-ORDERS section 15): a field that is no number left sscanf's double unset (stack bytes), so that axis went to a garbage place; here that axis stays where it was, as does
+// one whose number would not fit inteng's whole numbers.
 static bool SelectedObjectId(uint8_t *id);
 static int32_t moveRelModule = -1;
 static uint8_t moveRelModuleMover[8];
+
+// FUN_004e1d70's Ok on one axis: false (the axis kept) for a text that is no number or a value that does not fit
+static bool MoveRelativeAxis(std::string const &typed, int32_t moduleWorld, double scale, int32_t *file)
+{
+	double value = 0.0;
+
+	if (sscanf_s(typed.c_str(), "%lf", &value) != 1 || !(fabs(value * 100000.0) < 2147483647.0))
+	{
+		return false;
+	}
+
+	int64_t const offset = (int64_t)(value * 100000.0);                    // __ftol: toward 0
+	double const placeInteng = (double)moduleWorld * 100.0 - (double)offset;   // inteng's unit, 1e-5 m: the game's millimetres x 100
+	double const placeFile = placeInteng / (100.0 * scale);                 // FUN_004dfc70: back to the file's unit, cut toward 0
+
+	if (!(fabs(placeFile) < 2147483647.0))
+	{
+		return false;
+	}
+
+	*file = (int32_t)placeFile;
+	return true;
+}
+
+// FUN_004d5190's window, its fields filled by FUN_004e1d70 (0x4e1dab-0x4e1e81)
+static void MoveRelativeWindow(int32_t const place[3], int32_t const moduleWorld[3])
+{
+	double const scale = local_scale > 0.0 ? local_scale : 1.0;
+	host::DialogFormSpec spec;
+	host::DialogWidget label;
+
+	spec.title = "RelMove Shape";
+	spec.width = 400;
+	spec.height = 200;
+
+	label.type = host::DialogWidgetType::Label;
+	label.box = { 0x12, 0x12, 0x172, 0x28 };
+	label.text = "Type in the new coordinates.";
+	spec.widgets.push_back(label);
+
+	for (int axis = 0; axis < 3; axis++)
+	{
+		host::DialogWidget field;
+		char shown[64];
+
+		_snprintf_s(shown, sizeof(shown), _TRUNCATE, "%-3.5f", ((double)moduleWorld[axis] - (double)place[axis] * scale) / 1000.0);   // (module - object) in 1e-5 m, x 1e-5
+		field.type = host::DialogWidgetType::Edit;
+		field.box = { 0x1e, 0x64 + 0x18 * axis, 0x12c, 0x14 };
+		field.text = shown;
+		field.most = 0xc8;
+		spec.widgets.push_back(field);
+	}
+
+	host::DialogWidget okButton;
+
+	okButton.type = host::DialogWidgetType::Button;
+	okButton.box = { 0x64, 0xb4, 0x32, 0x10 };
+	okButton.text = "Ok";
+	okButton.answer = host::kDialogOk;
+	spec.widgets.push_back(okButton);
+
+	host::DialogWidget cancelButton;
+
+	cancelButton.type = host::DialogWidgetType::Button;
+	cancelButton.box = { 0xc8, 0xb4, 0x32, 0x10 };
+	cancelButton.text = "Cancel";
+	cancelButton.answer = host::kDialogEscape;
+	spec.widgets.push_back(cancelButton);
+
+	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &widgets)
+	{
+		OpenLevelFile *const open = LevelObjects_OpenForEdit();
+		int32_t moduleNow[3], placeNow[3];
+		double const scaleNow = local_scale > 0.0 ? local_scale : 1.0;
+
+		if (answer != host::kDialogOk || !open || !open->Level() || moveRelModule < 0 || !LevelView_ModuleWorld(moveRelModule, moduleNow) ||
+			host::ObjectPlace_Get(open, open->Level(), moveRelModuleMover, placeNow) != host::MoveRelPolyEditResult::Done)
+		{
+			return;
+		}
+
+		int axis = 0;
+
+		for (host::DialogWidget const &w : widgets)
+		{
+			if (w.type == host::DialogWidgetType::Edit && axis < 3)
+			{
+				MoveRelativeAxis(w.text, moduleNow[axis], scaleNow, &placeNow[axis]);
+				axis++;
+			}
+		}
+
+		host::MoveRelPolyEditResult const result = host::ObjectPlace_Set(open, open->Level(), moveRelModuleMover, placeNow);
+
+		if (result != host::MoveRelPolyEditResult::Done)
+		{
+			Answer(std::string("Not moved: ") + host::MoveRelPolyEdit_Words(result));
+			return;
+		}
+
+		Answer("Moved: the object's place is the module's place less what was typed");
+		LoadTheObjectListAgain();
+	});
+}
 
 static void MoveRelativeModuleStart()
 {
@@ -2901,74 +3010,7 @@ static void MoveRelativeModuleStart()
 
 	memcpy(moveRelModuleMover, id, 8);
 	moveRelModule = module;
-	OpenAPrompt(kPromptMoveRelModule);
-}
-
-// the offsets shown and typed: metres, (module - object) per axis, three numbers
-static std::string MoveRelativeModuleDefault()
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	int32_t place[3], moduleWorld[3];
-
-	if (!open || moveRelModule < 0 || host::ObjectPlace_Get(open, open->Level(), moveRelModuleMover, place) != host::MoveRelPolyEditResult::Done || !LevelView_ModuleWorld(moveRelModule, moduleWorld))
-	{
-		return std::string();
-	}
-
-	double const scale = local_scale > 0.0 ? local_scale : 1.0;
-	char shown[96];
-
-	_snprintf_s(shown, sizeof(shown), _TRUNCATE, "%-3.5f %-3.5f %-3.5f", (moduleWorld[0] - place[0] * scale) / 1000.0, (moduleWorld[1] - place[1] * scale) / 1000.0, (moduleWorld[2] - place[2] * scale) / 1000.0);
-	return shown;
-}
-
-static void MoveRelativeModuleDo(std::string const &typed)
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	double value[3];
-	char const *at = typed.c_str();
-
-	for (int i = 0; i < 3; i++)
-	{
-		char *end = nullptr;
-
-		value[i] = strtod(at, &end);
-
-		if (end == at || value[i] != value[i] || fabs(value[i]) > 1e9)
-		{
-			Answer("Move relative wants three numbers of metres, such as 1.5 0 -2");
-			return;
-		}
-
-		at = end;
-	}
-
-	int32_t moduleWorld[3];
-
-	if (!open || !open->Level() || moveRelModule < 0 || !LevelView_ModuleWorld(moveRelModule, moduleWorld))
-	{
-		Answer("Move relative: the module is gone");
-		return;
-	}
-
-	double const scale = local_scale > 0.0 ? local_scale : 1.0;
-	int32_t place[3];
-
-	for (int axis = 0; axis < 3; axis++)
-	{
-		place[axis] = (int32_t)((moduleWorld[axis] - value[axis] * 1000.0) / scale);
-	}
-
-	host::MoveRelPolyEditResult const result = host::ObjectPlace_Set(open, open->Level(), moveRelModuleMover, place);
-
-	if (result != host::MoveRelPolyEditResult::Done)
-	{
-		Answer(std::string("Not moved: ") + host::MoveRelPolyEdit_Words(result));
-		return;
-	}
-
-	Answer("Moved: the object's place is the module's place less what was typed");
-	LoadTheObjectListAgain();
+	MoveRelativeWindow(place, moduleWorld);
 }
 
 // Object Placement > Misc > Toggle Gravity (0x58, FUN_004d9af0 0x4dc67c-0x4dc6e0): DAT_008f4f50 flips (only when DAT_008f4f44 == 0), the menu tick follows, and every object of inteng's list gets its vtable
@@ -2997,14 +3039,22 @@ static void GravityToggleCommand()
 
 // Object Placement > Misc > Snap To Vertex (0x4e2; FUN_004dd280 starts it with the current object, FUN_004f7000 does it under the mouse): the current object (the special object just made or found, else the
 // selected one) goes onto the vertex of the clicked object's shape that is nearest the click (its own vertex nearest that one is the one that lands on it; a special object is a point, so its place does).
-// NAMED: inteng follows the mouse every frame and keeps the place on a left click; here the click does it once.
+// A PLACED object snaps live, as inteng's (SnapLiveStart, after PlacementFlyStop). NAMED: a special object (a sound, a generator: a point here) keeps this click, which snaps it once.
 static bool SelectedObjectId(uint8_t *id);
 static bool ModuleObject(OpenLevelFile *open, int32_t moduleIndex, uint8_t id[8]);
 static const int32_t kClickSnapVertex = 0x4e2;
 static bool snapWaiting = false;
 
+static bool SnapLiveStart();
+
 static void SnapToVertexStart()
 {
+	// a placed object snaps LIVE, as inteng's (SnapLiveStart); a special object (a point) keeps the click's snap below (NAMED)
+	if (SnapLiveStart())
+	{
+		return;
+	}
+
 	bool const haveSpecial = specialMode.haveCurrent && host::Selection_Get().kind != host::SelectedKind::Object;
 	bool const haveObject = host::Selection_Get().kind == host::SelectedKind::Object;
 
@@ -5060,7 +5110,7 @@ static void PasteTheTrackAbsolute()
 
 	host::TrackEditResult const result = host::TrackPasteAbsolute(LevelObjects_OpenForEdit(), selected.objectId, trackClipboard);
 
-	if (result == host::TrackEditResult::TargetNoTrack || result == host::TrackEditResult::ClipboardEmpty)
+	if (result == host::TrackEditResult::ClipboardEmpty)
 	{
 		DialogMessage(host::TrackEditWords(result));   // inteng: FUN_00474030 + FUN_0057c800 (FUN_004f3330 0x4f3373 / 0x4f33cc)
 	}
@@ -5091,7 +5141,7 @@ static void PasteTheTrackRelative()
 
 	host::TrackEditResult const result = host::TrackPasteRelative(LevelObjects_OpenForEdit(), selected.objectId, trackClipboard);
 
-	if (result == host::TrackEditResult::TargetNoTrack || result == host::TrackEditResult::ClipboardEmpty)
+	if (result == host::TrackEditResult::ClipboardEmpty)
 	{
 		DialogMessage(host::TrackEditWords(result));   // inteng: FUN_00474030 + FUN_0057c800 (FUN_004f3330 0x4f3373 / 0x4f33cc)
 	}
@@ -6250,8 +6300,8 @@ static void RunExitSavePrompt(std::string const &typed)
 	}
 }
 
-// Move rel. to poly (0x51, inteng FUN_00564b60 + FUN_005633e0): the selected object is the one that moves. The item waits for a click on a polygon of ANOTHER object
-// (the right button gives it up), then asks the distance from the polygon in metres, its default the last distance used, and puts the object there (move_rel_poly_edit.h).
+// Move rel. to poly (0x51, inteng FUN_00564b60 + FUN_005633e0): the item waits for a click on a polygon of ANOTHER object (the right button gives it up), then asks the distance
+// from the polygon in metres in inteng's number window, its start the last distance used, and puts the mover there (move_rel_poly_edit.h): the flying object, or the camera (StartMoveRelPoly).
 extern double local_scale;   // the level's scale, as the game's loader left it (chunk_load.cpp:63)
 
 // The object of the level file that a module of the game is (polygon_items.h PolygonItems_ModuleObject): by the name and the world place the game keeps for the module
@@ -6273,22 +6323,84 @@ static int32_t moveRelPolygon = -1;
 static int32_t moveRelHit[3];
 static int32_t moveRelLastDistance = 0;   // inteng keeps the last distance and offers it again (FUN_00564b60)
 
+// WHAT MOVES (OP-42; listing-all-3 0x4da1d5-0x4da214, read by Vasquez 11-17): the current object when it is FLYING and the camera is not linked to it (DAT_008f4f44, DAT_005e78bc == 0: FUN_00564b60 of its
+// block); otherwise the CAMERA's own block (DAT_00962304 +0x68): the VIEW goes to the polygon. No selection is needed. (Until 11-17 ours moved the selected object in the file, flying or not.)
+static int moveRelMoverKind = 0;   // 1: the flying object (its live pose; the file gets it when the flight stops, as inteng's block); 2: the camera
+static bool PlacementFlyIsTheMover(uint8_t id[8]);                            // defined with the fly's state
+static void PlacementFlyTakePose(int32_t const world[3], float const turn[4]);   // defined with the fly's state
+static void DialogLine(std::string const &title, std::string const &label, std::string const &initial, size_t most, int32_t editHeight, std::function<void(std::string const &)> const &ok);
+static std::string AcousticShown(float value);
+static bool AcousticTyped(std::string const &typed, float *value);
+
 static void StartMoveRelPoly()
 {
-	host::Selected const selected = host::Selection_Get();
+	moveRelMoverKind = PlacementFlyIsTheMover(moveRelMover) ? 1 : 2;
 
-	if (selected.kind != host::SelectedKind::Object)
+	if (moveRelMoverKind == 2)
 	{
-		statusWords = "Move rel. to poly: select the object that is to move first";
+		memset(moveRelMover, 0, sizeof(moveRelMover));
+	}
+
+	// FUN_00564b60 0x564ba2-0x564bb0: "Move relative to which poly" at (200, 100) while it waits (drawn with the frame's text: MoveRelPolyWaitingLine)
+	moveRelWaiting = host::ClickMode_Start(kClickMoveRelPoly, host::ClickWants::Polygon, "Move relative to which poly");
+
+	if (!moveRelWaiting)
+	{
+		statusWords = "That command can't wait for a click";
+	}
+}
+
+// FUN_00564b60 0x564c5d-0x564ca0, the window's Ok: the typed metres read as FUN_00474a10 reads them (sscanf "%f"), times 100000.0 (the float at 0x5ac9a0) and cut toward 0 (__ftol): the distance,
+// kept as the next one offered (DAT_00914d2c); then FUN_005633e0's place and matrix put on the mover. INTENG BUG, FIXED (as Acoustic Mode's reverb): a word that is no number left FUN_00474a10's
+// float unset (the window's own address), so inteng moved to a garbage distance; here it does nothing.
+static void MoveRelPolyAnswer(std::string const &typed)
+{
+	float metres = 0.0f;
+
+	if (!AcousticTyped(typed, &metres) || !(fabs((double)metres * 100000.0) < 2147483647.0))
+	{
 		return;
 	}
 
-	memcpy(moveRelMover, selected.objectId, host::kSelectionIdBytes);
-	moveRelWaiting = host::ClickMode_Start(kClickMoveRelPoly, host::ClickWants::Polygon, "Move relative to which poly");
-	statusWords = moveRelWaiting ? "Move relative to which poly: click a polygon of another object (right button: cancel)" : "That command can't wait for a click";
-}
+	int32_t const distance = (int32_t)((double)metres * 100000.0);   // a float times a float, held by the x87 in more bits: the double gives the same product
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
-static void OpenAPrompt(int32_t kind);
+	moveRelLastDistance = distance;
+
+	if (!open || !open->Level())
+	{
+		return;
+	}
+
+	int32_t place[3], matrix[9];
+	std::string why;
+	host::MoveRelPolyEditResult const result = host::MoveRelPolyEdit_Pose(open, open->Level(), moveRelTarget, moveRelPolygon, distance, moveRelHit, local_scale > 0.0 ? local_scale : 1.0,
+		place, matrix, &why);
+
+	if (result != host::MoveRelPolyEditResult::Done)
+	{
+		Answer(std::string("Not moved: ") + host::MoveRelPolyEdit_Words(result));
+		return;
+	}
+
+	int32_t const world[3] = { place[0] / 100, place[1] / 100, place[2] / 100 };   // inteng's unit (1e-5 m) to the game's millimetres, cut toward 0
+
+	if (moveRelMoverKind == 1)
+	{
+		float turn[4];
+
+		host::MoveRelPolyEdit_MatrixToTurn(matrix, turn);
+		PlacementFlyTakePose(world, turn);
+	}
+	else if (theCamera)
+	{
+		host::CameraFileSlot slot;
+
+		memcpy(slot.place, world, sizeof(slot.place));
+		memcpy(slot.matrix, matrix, sizeof(slot.matrix));
+		*theCamera = CameraOfFileSlot(slot);   // the camera's block +0x38 and +0x10, as a camera position is kept (camera_file.h)
+	}
+}
 
 // The click that names the polygon: the object under it, then which of the object's FILE polygons the click's line meets (file_pick.h), then the prompt for the distance
 static void MoveRelPolyClicked(host::PickReport const &report)
@@ -6315,11 +6427,9 @@ static void MoveRelPolyClicked(host::PickReport const &report)
 		return;
 	}
 
-	if (memcmp(target, moveRelMover, 8) == 0)
+	if (moveRelMoverKind == 1 && memcmp(target, moveRelMover, 8) == 0)
 	{
-		// inteng refuses the object's own polygon and asks again
-		statusWords = "Move relative to which poly: not the object's own polygon - click another";
-		moveRelWaiting = host::ClickMode_Start(kClickMoveRelPoly, host::ClickWants::Polygon, "Move relative to which poly");
+		// the moving block's own polygon ENDS it, nothing moved (0x564c12-0x564c1c -> 0x564ce2)
 		return;
 	}
 
@@ -6346,7 +6456,12 @@ static void MoveRelPolyClicked(host::PickReport const &report)
 	memcpy(moveRelTarget, target, 8);
 	moveRelPolygon = hit.polygon;
 	memcpy(moveRelHit, hit.point, sizeof(moveRelHit));
-	OpenAPrompt(kPromptMoveRelPoly);
+
+	// 0x564c22-0x564c53: FUN_004747f0's window "distance to move from the poly in metres :" (0x6013e0), its start the last distance x 1e-5 as a float (0x5ac358); FUN_0057c800, answer 3 is Ok
+	DialogLine(std::string(), "distance to move from the poly in metres :", AcousticShown((float)((double)moveRelLastDistance * 1e-05)), 200, 0x12, [](std::string const &typed)
+	{
+		MoveRelPolyAnswer(typed);
+	});
 }
 
 // Module Linking > Show All (0xca, FUN_004c1a90 0x4c1eda-0x4c2158): every module that has an object is painted by its polygon figure (module_poly_count.h: its own polygons plus those of the modules its
@@ -6689,6 +6804,7 @@ struct HierarchyTextLine
 	int32_t x;
 	int32_t row;
 	std::string text;
+	int32_t pixelY = -1;   // a line inteng places from the window's foot (Snap To Vertex's, at height - 60): drawn there, its row its place / 16 for the state line
 };
 
 static std::vector<HierarchyTextLine> hierarchyTextNow;   // the lines of the frame being drawn (the state line says them as hierarchylines)
@@ -6702,6 +6818,7 @@ static void AcousticCommand(int32_t command);
 static void AcousticClick(host::PickReport const &used, bool shift);
 static void AcousticPointerFrame(int32_t viewWidth, int32_t viewHeight);
 static void AcousticTextLines(std::vector<HierarchyTextLine> *out);
+static void SnapLiveEnd(bool keep);
 // Acoustic Mode's state (the functions are after PickedModules)
 static std::vector<std::array<uint8_t, 8>> acousticPicks;   // the picked modules (inteng's list DAT_008f4af0), in pick order, by their objects' IDs
 static int acousticPointerX = -1, acousticPointerY = -1;       // the pointer on the view, kept from the last move (FUN_00559720 picks under it every frame)
@@ -7491,12 +7608,61 @@ static size_t flyNumber = 0;
 static int flyTurnAcc[3] = { 0, 0, 0 };      // how far the turn keys have turned the flying object since F: turn, look and roll, in 4096ths of a turn
 // The ordinary object flies AS ITSELF (level_view.h LevelView_FlyBegin: a live copy of its display block, shared with Track Editing's end marker): its turn is the turn it had when F was pressed, turned with the camera
 static bool flyReal = false;                 // the live copy is there (false: a cube marks the object)
+// SNAP TO VERTEX, LIVE (OP-43): on (DAT_008f4f10); the moving object; its pose saved at the start (DAT_008f4b60.., DAT_008f4bb8..) and the one shown now (file units and the file's turn); the pointer;
+// the view's height of the last frame (the help lines are placed from it)
+static bool snapLive = false;
+static uint8_t snapId[8];
+static int32_t snapSavedPlace[3];
+static float snapSavedTurn[4];
+static int32_t snapNowPlace[3];
+static float snapNowTurn[4];
+static int snapPointerX = -1, snapPointerY = -1;
+static int32_t snapViewHeight = 0;
+
 static bool PlacementFlyHoldsTheCopy()
 {
-	return flyOn && flyReal;
+	return (flyOn && flyReal) || snapLive;   // (the live snap shows the object as the same live copy)
 }
 static float flyStartQuat[4] = { 0, 0, 0, 1 };
 static float flyTurnNow[4] = { 0, 0, 0, 1 };
+
+// Move rel. to poly's mover (OP-42): the current object flies and the camera is not linked to it; its ID (a special object's: all 0)
+static bool PlacementFlyIsTheMover(uint8_t id[8])
+{
+	if (!flyOn || cameraLinked)
+	{
+		return false;
+	}
+
+	if (flyReal)
+	{
+		memcpy(id, flyId, 8);
+	}
+	else
+	{
+		memset(id, 0, 8);
+	}
+
+	return true;
+}
+
+// The flying object put at a place (the game's millimetres) and turn (the file's four floats): its block, as FUN_005633e0 moves it; the file gets it when the flight stops (PlacementFlyStop)
+static void PlacementFlyTakePose(int32_t const world[3], float const turn[4])
+{
+	if (!flyOn)
+	{
+		return;
+	}
+
+	memcpy(flyWorld, world, sizeof(flyWorld));
+
+	if (flyReal)
+	{
+		memcpy(flyStartQuat, turn, sizeof(flyStartQuat));
+		memcpy(flyTurnNow, turn, sizeof(flyTurnNow));
+		flyTurnAcc[0] = flyTurnAcc[1] = flyTurnAcc[2] = 0;
+	}
+}
 // X: "Toggle movement relative to axes" and B: "Toggle bounding box increase" (FUN_004d9af0 0x4dc59f-0x4dc5f1, only while an object flies, DAT_005e78c4): X flips DAT_00914af8 ("Move Rel to Axes" in the flying
 // object's text, FUN_004e9b10), read by the engine's key movement of the flying object (0x53e123: its movement keys then go along the world's axes, not the object's own); B widens the flying object's bounds
 // by 2000 each way (FUN_004df1e0, and back with FUN_004df2d0, DAT_008f4f08, "Inc Bounding Box"), for its collisions. OURS: the switches and their words only (here the object takes the camera's place and flies
@@ -8139,6 +8305,9 @@ static void PlacementFrame()
 			placementHideOn = false;
 		}
 
+		// the screen left: a live Snap To Vertex ends with the object where it was
+		SnapLiveEnd(false);
+
 		// the screen left: its sounds stop and are let go (placed_sounds_game.h)
 		if (placedSoundsOpen)
 		{
@@ -8318,6 +8487,21 @@ static std::string PlacementDifficulty(uint32_t notBits)
 static void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 {
 	out->clear();
+
+	// the live Snap To Vertex's words (0x5e8364, three lines) at x 20, y = the window's height - 60 (0x4dc6f9-0x4dc73f), a new line the letters' height (16) down
+	if (snapLive && snapViewHeight > 60)
+	{
+		static char const *const kSnapWords[3] = { "Press LMB to snap to vertex", "Hold shift to align to polygon", "Press escape to cancel (and return to original position)" };
+
+		for (int i = 0; i < 3; i++)
+		{
+			int32_t const y = snapViewHeight - 60 + 16 * i;
+			HierarchyTextLine line = { 20, y / 16, kSnapWords[i] };
+
+			line.pixelY = y;
+			out->push_back(line);
+		}
+	}
 
 	if (!placementText)
 	{
@@ -8771,6 +8955,131 @@ static void PlacementFlyStop()
 		Answer(result == host::MoveRelPolyEditResult::Done ? "Fly selected object: off, the object is where it flew to" : std::string("Fly selected object: not moved: ") + host::MoveRelPolyEdit_Words(result));
 		LoadTheObjectListAgain();
 	}
+}
+
+// SNAP TO VERTEX, LIVE (reassess/object-placement.md OP-43 and V-10; read 11-17 on dump-full-3 / listing-all-3): FUN_004dd280 starts it with the current object, FUN_004d9af0 0x4da855-0x4da944 runs
+// it every frame, FUN_004f7000 snaps under the pointer. The start stops a flight (FUN_004df090(0)) and saves the object's place and turn; every frame the object is put back to them, then
+// snapped: with ANOTHER object under the pointer (the moving one left out of the pick), that object's vertex nearest the point under the pointer is T, and the moving object's own vertex
+// nearest T lands on it, the object first turned to the hit polygon's normal and squared up when Shift is held (host::SnapToVertex_Pose). A LEFT press keeps what is shown (written into
+// the level); Esc puts the saved pose back, nothing written. While it is on, a click picks nothing else (FUN_004d6520 is skipped). Here the object is shown as the fly's live copy.
+
+// the pose drawn: the live copy at the place (file units times the level's scale, as the fly's) and turn
+static void SnapLiveShow(int32_t const place[3], float const turn[4])
+{
+	double const scale = local_scale > 0.0 ? local_scale : 1.0;
+	int32_t const world[3] = { (int32_t)floor((double)place[0] * scale + 0.5), (int32_t)floor((double)place[1] * scale + 0.5), (int32_t)floor((double)place[2] * scale + 0.5) };
+
+	LevelView_FlyPut(world, turn);
+}
+
+// Esc (keep false: the saved pose stays, nothing written) or the left press (keep true: the pose shown is written, OBJHEAD1's place and turn)
+static void SnapLiveEnd(bool keep)
+{
+	if (!snapLive)
+	{
+		return;
+	}
+
+	snapLive = false;
+	LevelView_FlyEnd();
+
+	if (!keep || (memcmp(snapNowPlace, snapSavedPlace, sizeof(snapNowPlace)) == 0 && memcmp(snapNowTurn, snapSavedTurn, sizeof(snapNowTurn)) == 0))
+	{
+		return;
+	}
+
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	host::TrackEditResult const result = open ? host::TrackSetObjectPose(open, snapId, snapNowPlace, snapNowTurn) : host::TrackEditResult::NothingOpen;
+
+	if (result != host::TrackEditResult::Done)
+	{
+		Answer(std::string("Snap To Vertex: not moved: ") + host::TrackEditWords(result));
+		return;
+	}
+
+	LoadTheObjectListAgain();
+}
+
+// The start (FUN_004dd280) for a placed object: false when the current object is none of those (a special object keeps the click's snap)
+static bool SnapLiveStart()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	uint8_t id[8];
+
+	if (!open || !open->Level() || host::Selection_Get().kind != host::SelectedKind::Object || !SelectedObjectId(id))
+	{
+		return false;
+	}
+
+	SnapLiveEnd(false);
+
+	if (flyOn)
+	{
+		PlacementFlyStop();
+	}
+
+	if (host::ObjectPose_Get(open, open->Level(), id, snapSavedPlace, snapSavedTurn) != host::MoveRelPolyEditResult::Done || !LevelView_FlyBegin(id))
+	{
+		Answer("Snap To Vertex: the object's place and turn couldn't be read");
+		return true;
+	}
+
+	memcpy(snapId, id, sizeof(snapId));
+	memcpy(snapNowPlace, snapSavedPlace, sizeof(snapNowPlace));
+	memcpy(snapNowTurn, snapSavedTurn, sizeof(snapNowTurn));
+	snapLive = true;
+	SnapLiveShow(snapNowPlace, snapNowTurn);
+	return true;
+}
+
+// Every frame while it is on, after the frame was drawn (its list of what is on screen is the pick's): the saved pose, then the snap under the pointer
+static void SnapLiveFrame(int32_t viewWidth, int32_t viewHeight)
+{
+	if (!snapLive)
+	{
+		return;
+	}
+
+	snapViewHeight = viewHeight;
+	memcpy(snapNowPlace, snapSavedPlace, sizeof(snapNowPlace));   // 0x4da865-0x4da89b: back to the saved place and matrix first
+	memcpy(snapNowTurn, snapSavedTurn, sizeof(snapNowTurn));
+
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (open && open->Level() && snapPointerX >= 0 && snapPointerY >= 0)
+	{
+		host::PickReport const pick = PickGame_AtClickLeavingOut(snapPointerX, snapPointerY, viewWidth, viewHeight, LevelView_FlyCopyBlock());
+		uint8_t target[8];
+		bool found = false;
+
+		if (pick.hasHit && pick.found == host::PickFound::Object)
+		{
+			memcpy(target, pick.objectId, sizeof(target));
+			found = true;
+		}
+		else if (pick.hasHit && pick.found == host::PickFound::Module)
+		{
+			found = ModuleObject(open, pick.moduleIndex, target);
+		}
+
+		// another object under the pointer, and the point on it (FUN_00473680); nothing hit: nothing moves (0x4f72be)
+		if (found && memcmp(target, snapId, sizeof(target)) != 0)
+		{
+			double const scale = local_scale > 0.0 ? local_scale : 1.0;
+			double const point[3] = { (double)pick.hitPoint[0] / scale, (double)pick.hitPoint[1] / scale, (double)pick.hitPoint[2] / scale };
+			bool const align = keyDown[VK_SHIFT] || (GetKeyState(VK_SHIFT) & 0x8000) != 0;   // 0x4da8a4: DAT_00d87a5e, the Shift slot
+			int32_t place[3];
+			float turn[4];
+
+			if (host::SnapToVertex_Pose(open, open->Level(), snapId, target, point, pick.polygonNumber, align, place, turn) == host::MoveRelPolyEditResult::Done)
+			{
+				memcpy(snapNowPlace, place, sizeof(snapNowPlace));
+				memcpy(snapNowTurn, turn, sizeof(snapNowTurn));
+			}
+		}
+	}
+
+	SnapLiveShow(snapNowPlace, snapNowTurn);
 }
 
 static bool PlacementKey(WPARAM key, bool shift)
@@ -18152,6 +18461,13 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		case WM_SYSKEYDOWN:
 		case WM_CHAR:
 		{
+			// the live Snap To Vertex: Escape (slot 0xd87a45) puts the object back where it was, nothing written (0x4da8ef-0x4da941)
+			if (snapLive && message == WM_KEYDOWN && wParam == VK_ESCAPE)
+			{
+				SnapLiveEnd(false);
+				return 0;
+			}
+
 			// Module Linking's Show All is let go by Escape (slot 0x45, FUN_004c1a90 0x4c1aff), which does nothing else (row ML-M-3)
 			if (showAllHeld && OnModuleLinkingScreen() && message == WM_KEYDOWN && wParam == VK_ESCAPE)
 			{
@@ -19235,6 +19551,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 
 				textureChooserMouseX = over.x;
 				textureChooserMouseY = over.y;
+			}
+
+			if (snapLive && window == hWndMain)
+			{
+				snapPointerX = GET_X_LPARAM(lParam);
+				snapPointerY = GET_Y_LPARAM(lParam);
 			}
 
 			if (OnAcousticScreen() && window == hWndMain)
@@ -25296,6 +25618,31 @@ static void FlagViewTints(OpenLevelFile *open)
 	// (blocks with a strategy block), so a module's red is given here: the volume editor's picked module; on page 0 the current module; on the flag page every module in its list. Not while a kind's
 	// Edit view runs (0x5286d7) nor on the Stability page (0x527379: the current's red is cleared first)
 	std::vector<int32_t> redModules;
+	// THE COLLECTOR'S MEMBERS (FUN_00526bf0: every object added is FUN_00529470'd, RED; at its end each is FUN_00529480'd): Copy's targets, a Lift's positions, a switch's, a track
+	// point's or a mission's targets. Copy takes the source's own red off before it (0x5283a5) and gives it back after (0x5285bd): the selection is not red while it runs.
+	std::vector<uint8_t> redObjects;
+
+	if (OnStrategyScreen() && copyCollecting)
+	{
+		for (CopyTarget const &target : copyTargets)
+		{
+			int32_t number = 0;
+
+			if (host::ModuleIndexOfId(LevelObjects_Level(), target.id, &number))
+			{
+				int32_t const game = GameModuleOfNumber(number);
+
+				if (game >= 0 && redModules.size() < 64)
+				{
+					redModules.push_back(game);
+				}
+			}
+			else if (redObjects.size() < 64 * 8)
+			{
+				redObjects.insert(redObjects.end(), target.id, target.id + 8);
+			}
+		}
+	}
 
 	if (volume.on && volume.module >= 0)
 	{
@@ -25339,6 +25686,16 @@ static void FlagViewTints(OpenLevelFile *open)
 		// the object the volume editor picked is RED (FUN_00529470: block flag 0x40000000), over its green
 		std::vector<uint8_t> withObject(volume.object, volume.object + 8);
 		std::vector<uint32_t> withColour(1, 0xFFFF0000u);
+
+		withObject.insert(withObject.end(), objectIds.begin(), objectIds.end());
+		withColour.insert(withColour.end(), objectColours.begin(), objectColours.end());
+		LevelView_SetObjectTints(withObject.data(), withColour.data(), withColour.size());
+	}
+	else if (!redObjects.empty())
+	{
+		// the collector's placed members RED, first so they win over their green
+		std::vector<uint8_t> withObject = redObjects;
+		std::vector<uint32_t> withColour(redObjects.size() / 8, 0xFFFF0000u);
 
 		withObject.insert(withObject.end(), objectIds.begin(), objectIds.end());
 		withColour.insert(withColour.end(), objectColours.begin(), objectColours.end());
@@ -26590,6 +26947,47 @@ static void CopyCollectEnd()
 // THE EDIT VIEWS (Edit Strategy 0x7 -> FUN_005286b0 -> the strategy's own method +0x14, one per kind: strategy_views.h). A view is NOT a dialog: it DRAWS lines of text (the first "%s : <Kind>" at (200, 0)) and waits; a left click on a line flips a
 // bit or asks for a number in a text dialog (FUN_00474340 reads a whole number; an answer outside what the view takes leaves the number as it was), the Escape key (slot 0xd87a45) or the right button ends it. A new strategy opens its view at once
 // (FUN_00528830's last call).
+// The level's sounds and particle generators (special_objects_edit.h), read again when the level changes: objects a strategy names (a switch's target, a light's buzz) that have no
+// object chunk; inteng makes each a wrapper of its own (FUN_00521cb0: SOUNDOB2 -> FUN_0053ac30, type 5; PARGENER -> FUN_0053afa0, type 8). (Added 2026-11-17 by Frost, S-KC-12.)
+static std::vector<host::SpecialObject> const &StrategySpecialObjects()
+{
+	static std::vector<host::SpecialObject> held;
+	static OpenLevelFile *heldOpen = nullptr;
+	static unsigned heldFor = ~0u;
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !open->Level())
+	{
+		held.clear();
+		heldOpen = nullptr;
+		return held;
+	}
+
+	if (heldOpen != open || heldFor != open->Generation())
+	{
+		held.clear();
+		host::SpecialObjects_Read(open, &held);
+		heldOpen = open;
+		heldFor = open->Generation();
+	}
+
+	return held;
+}
+
+// The sound or particle generator whose ID that is, or null
+static host::SpecialObject const *StrategySpecialObjectOf(uint8_t const *id)
+{
+	for (host::SpecialObject const &one : StrategySpecialObjects())
+	{
+		if ((one.kind == host::SpecialKind::Sound || one.kind == host::SpecialKind::ParticleGenerator) && memcmp(one.id, id, 8) == 0)
+		{
+			return &one;
+		}
+	}
+
+	return nullptr;
+}
+
 // the name of the object whose ID a strategy holds ("Associated door :" and the like show it)
 static bool StrategyViewNameOf(uint8_t const *id, std::string *name)
 {
@@ -26636,6 +27034,13 @@ static bool StrategyViewNameOf(uint8_t const *id, std::string *name)
 	if (host::FindPlacedHierarchy(LevelObjects_Level(), id, &placedHierarchy))
 	{
 		*name = placedHierarchy.name;
+		return true;
+	}
+
+	// a sound (its SOUNDOB2's name, the wrapper's +4) or a particle generator (its PARGENDA's name) (S-KC-12)
+	if (host::SpecialObject const *const special = StrategySpecialObjectOf(id))
+	{
+		*name = special->name;
 		return true;
 	}
 
@@ -26909,9 +27314,10 @@ static void MultiKeyUnderPointer(int key, bool shift)
 }
 
 // S-KC-12 (FUN_00529eb0 / FUN_00529b60): the words a view shows for an object it names (the null ID is the caller's "None"): an ID no object has prints the null name, "(null)"; else the name and, with a strategy,
-// its kind's word (" - type '%d'" for a kind with none: 52 Binary Switch, 53, 63 Console, 67 Teleport, 79 Generator ...); with no strategy a module, placed object (wrapper +8 = 0) or virtual object (+8 = 1) shows the
-// name alone. NAMED: ours finds modules, placed objects and virtual objects; an enemy, generator, sound, light, placed hierarchy, particle generator or cut-scene head named by a target shows "(null)" (inteng: " - Enemy",
-// " - Generator", " - Light", " - Sound", " - Hierarchy", " - Particle Generator", " - Cutscene" by the wrapper's +8, or its strategy's word)
+// its kind's word (" - type '%d'" for a kind with none: 52 Binary Switch, 53, 63 Console, 67 Teleport, 79 Generator ...); with no strategy, by the wrapper's +8 (0x529d90): a module, placed object (0) or virtual
+// object (1) the name alone, an enemy (2) " - Enemy", a generator (3) " - Generator", a sound (5) " - Sound", a placed hierarchy (7) " - Hierarchy", a particle generator (8) " - Particle Generator" (S-KC-12, 11-17).
+// Never reached here: 4 " - Light" (FUN_00521cb0 makes no wrapper of type 4), 6 (MUMSOUND) and 10 (MUMMTRAP), the other games' (FUN_0057aa00(4)). NAMED: a cut-scene head (CUTSHEAD, 9 " - Cutscene") is not
+// read by ours, and shows "(null)".
 static std::string StrategyTargetWords(uint8_t const *id)
 {
 	std::string name;
@@ -26928,9 +27334,22 @@ static std::string StrategyTargetWords(uint8_t const *id)
 	{
 		host::GeneratorRef generator;
 
+		// an AVPGENER is an enemy (2) when its +0x38 is not 0, else a generator (3) (FUN_00521cb0 0x521f01: FUN_00539ff0 / FUN_0053a7a0)
 		if (LevelObjects_Level() && host::FindGenerator(LevelObjects_Level(), id, &generator))
 		{
-			return name + (generator.type != 0 ? " - Enemy" : " - Generator");   // by the wrapper's +8 (0x5ee318; the generator's word: to read, NAMED)
+			return name + (generator.type != 0 ? " - Enemy" : " - Generator");   // 0x5ee318 / 0x5ee34c
+		}
+
+		host::PlacedHierarchyRef placedHierarchy;
+
+		if (LevelObjects_Level() && host::FindPlacedHierarchy(LevelObjects_Level(), id, &placedHierarchy))
+		{
+			return name + " - Hierarchy";   // 7: 0x5ee324
+		}
+
+		if (host::SpecialObject const *const special = StrategySpecialObjectOf(id))
+		{
+			return name + (special->kind == host::SpecialKind::Sound ? " - Sound" : " - Particle Generator");   // 5: 0x5ee334, 8: 0x5ee300
 		}
 
 		return name;
@@ -32420,36 +32839,9 @@ static void OpenAPrompt(int32_t kind)
 	promptFor = kind;
 	promptText.clear();
 
-	if (kind == kPromptMoveRelModule)
-	{
-		promptText = MoveRelativeModuleDefault();
-	}
-
 	if (kind == kPromptTears)
 	{
 		promptText = std::to_string((int)tearTolerance);   // the last number is the default (DAT_005ced28)
-	}
-
-	if (kind == kPromptMoveRelPoly)
-	{
-		// the last distance is the default (inteng offers it): metres, without the trailing zeros
-		char shown[48];
-
-		_snprintf_s(shown, sizeof(shown), _TRUNCATE, "%.5f", host::MoveRelPoly_MetresFromDistance(moveRelLastDistance));
-
-		size_t length = strlen(shown);
-
-		while (length > 1 && shown[length - 1] == '0' && strchr(shown, '.'))
-		{
-			shown[--length] = 0;
-		}
-
-		if (length > 1 && shown[length - 1] == '.')
-		{
-			shown[--length] = 0;
-		}
-
-		promptText = shown;
 	}
 }
 
@@ -32559,9 +32951,6 @@ static void PromptWords(std::string *title, std::string *hint)
 		case kPromptAltIndex:
 			*title = "Select alternate location index for all objects";
 			break;
-		case kPromptMoveRelPoly:
-			*title = "Move relative to poly: distance to move from the poly in metres :";
-			break;
 		case kPromptCreateName:
 			*title = "Name Object: type the name of the new object (a name no other object has)";
 			break;
@@ -32570,9 +32959,6 @@ static void PromptWords(std::string *title, std::string *hint)
 			break;
 		case kPromptSpecial:
 			*title = specialTitle;
-			break;
-		case kPromptMoveRelModule:
-			*title = "Move relative: the module's place less the object's, in metres, x y z (type the new offset)";
 			break;
 		case kPromptTears:
 			*title = tearAll ? "Fixing tears for ALL objects - type in tolerance level for tear fixing (in mm)" : "Fixing tears for selected objects - type in tolerance level for tear fixing (in mm)";
@@ -32774,12 +33160,6 @@ static void RunThePrompt()
 		return;
 	}
 
-	if (kind == kPromptMoveRelModule)
-	{
-		MoveRelativeModuleDo(typed);
-		return;
-	}
-
 	if (kind == kPromptTextureMap)
 	{
 		TextureMapTypedAnswer(typed);
@@ -32884,57 +33264,6 @@ static void RunThePrompt()
 			AltAssignGroup(number);
 		}
 
-		return;
-	}
-
-	if (kind == kPromptMoveRelPoly)
-	{
-		std::string number = typed;
-
-		for (char &letter : number)
-		{
-			if (letter == ',')
-			{
-				letter = '.';   // a decimal comma is a point
-			}
-		}
-
-		char *end = nullptr;
-		double const metres = strtod(number.c_str(), &end);
-
-		while (end && (*end == ' ' || *end == '\t'))
-		{
-			end++;
-		}
-
-		if (number.empty() || !end || *end != '\0')
-		{
-			Answer("Move relative to poly wants a number of metres, such as 1.5");
-			return;
-		}
-
-		int32_t const distance = host::MoveRelPoly_DistanceFromMetres(metres);
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-		if (!open || !open->Level())
-		{
-			Answer("No level is held to work on");
-			return;
-		}
-
-		host::MoveRelPolyEditResult const result = host::MoveRelPolyEdit_Do(open, open->Level(), moveRelMover, moveRelTarget, moveRelPolygon, distance, moveRelHit,
-			local_scale > 0.0 ? local_scale : 1.0, &why);
-
-		if (result != host::MoveRelPolyEditResult::Done)
-		{
-			Answer(std::string("Not moved: ") + host::MoveRelPolyEdit_Words(result));
-			return;
-		}
-
-		moveRelLastDistance = distance;
-		LoadTheObjectListAgain();
-		ShowTheSelected(host::Selection_Get());
-		Answer("Moved onto polygon " + std::to_string(moveRelPolygon) + " of the other object, " + std::to_string(metres) + " m from it (kept in the editor's bytes; the view shows the level as it was opened)");
 		return;
 	}
 
@@ -33671,6 +34000,25 @@ static void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint
 
 	double const scale = local_scale > 0.0 ? local_scale : 1.0;
 	bool const soundsOnly = !strategy && strcmp(host::kIntengScreens[barScreen].name, "Object Placement") != 0;
+	// Which icon is RED (S-62): the current one; but while Strategy Data's collector runs, its members are and the current is not (FUN_00526bf0 FUN_00529470 on each member;
+	// Copy took the source's red off first, 0x5283a5)
+	auto const isRed = [strategy](bool current, uint8_t const *id)
+	{
+		if (!(strategy && copyCollecting))
+		{
+			return current;
+		}
+
+		for (CopyTarget const &target : copyTargets)
+		{
+			if (memcmp(target.id, id, 8) == 0)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	};
 	// the triangle hook takes 65536 at most (avpx editor-world-triangles): the objects NEAREST the camera are given first, each whole
 	struct Piece { double away; int group; uint8_t id[8]; std::vector<host::IconWorldTriangle> triangles; };
 	std::vector<Piece> pieces;
@@ -33725,8 +34073,6 @@ static void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint
 			}
 		}
 
-		uint32_t const flash = current ? 0xFFFF0000u : 0u;   // the current object steady RED (OP-106: 0x4e4f40 sets block +0x64 bit 0x40000000, drawn 0xff0000 by FUN_004a7cd0 0x4a7eca)
-
 		Piece piece;
 
 		piece.group = (int)markerAt;   // the triangle group is the marker's place in the list: its label asks LevelView_TriangleGroupPixels with the same number
@@ -33742,6 +34088,9 @@ static void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint
 				memcpy(piece.id, generatorIdsByName[o.name].data(), sizeof(piece.id));
 			}
 		}
+
+		uint32_t const flash = isRed(current, piece.id) ? 0xFFFF0000u : 0u;   // the current object steady RED (OP-106: 0x4e4f40 sets block +0x64 bit 0x40000000, drawn 0xff0000 by FUN_004a7cd0 0x4a7eca)
+
 		piece.away = (place[0] - eye[0]) * (place[0] - eye[0]) + (place[1] - eye[1]) * (place[1] - eye[1]) + (place[2] - eye[2]) * (place[2] - eye[2]);
 		host::EditorIcon_Add(shape, place, haveAxes ? axes : nullptr, flash, &piece.triangles);
 		pieces.push_back(piece);
@@ -33781,7 +34130,7 @@ static void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint
 			piece.group = -1;
 			memcpy(piece.id, one.id, sizeof(piece.id));
 			piece.away = (place[0] - eye[0]) * (place[0] - eye[0]) + (place[1] - eye[1]) * (place[1] - eye[1]) + (place[2] - eye[2]) * (place[2] - eye[2]);
-			host::EditorIcon_Add(4, place, haveAxes ? axes : nullptr, current ? 0xFFFF0000u : 0u, &piece.triangles);
+			host::EditorIcon_Add(4, place, haveAxes ? axes : nullptr, isRed(current, piece.id) ? 0xFFFF0000u : 0u, &piece.triangles);
 			pieces.push_back(piece);
 		}
 	}
@@ -33801,7 +34150,7 @@ static void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint
 				// a virtual object's record is coloured as every record of the screen (S-61 / S-62): the CURRENT one red (+0x64 0x40000000 -> FUN_004a7cd0 0x4a7eca item 0x80 -> FUN_004980f0
 				// 0xff0000), else one holding a strategy green (FUN_00522680 0x522935 0x2000000 -> item 0x100 -> 0x00ff00), else its own colours
 				bool const current = selected.kind == host::SelectedKind::Object && memcmp(selected.objectId, v.id, sizeof(v.id)) == 0;
-				uint32_t const tint = current ? 0xFFFF0000u : (v.hasStrategy ? 0xFF00FF00u : 0u);
+				uint32_t const tint = isRed(current, v.id) ? 0xFFFF0000u : (v.hasStrategy ? 0xFF00FF00u : 0u);
 
 				Piece piece;
 
@@ -35405,6 +35754,15 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 	// While the bar or the pop-up is up, inteng's frame is stopped inside its menu loop (FUN_004b7c50 -> FUN_004b7dd0, modal) at the mode's command step: a mode that draws its text after that
 	// step has none of it on the screen then (reassess/dialog-look-drake.md BAR-6, BAR-8, BAR-9: as render state 0 shows it). NOT MAPPED YET: Track Editing (Object Placement's sub-state; its
 	// text may come from FUN_00501080, which runs before FUN_004d9af0), whose text is kept until its order is read
+	// Move rel. to poly waiting for its click: "Move relative to which poly" at (200, 100) (FUN_00564b60 0x564ba2-0x564bb0, every screen that has the item)
+	if (moveRelWaiting)
+	{
+		HierarchyTextLine line = { 200, 100 / 16, "Move relative to which poly" };
+
+		line.pixelY = 100;
+		hierarchyTextNow.push_back(line);
+	}
+
 	if (textAfterTheCommand && MenuLoopUp())
 	{
 		hierarchyTextNow.clear();
@@ -35421,7 +35779,7 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 		text.text = one.text;
 		text.x = layout.view.x + one.x;   // inteng's x, a line at 0 on the window's left edge exactly (panel_pass.cpp AddLines)
-		text.y = one.row * 16;
+		text.y = one.pixelY >= 0 ? one.pixelY : one.row * 16;
 		lines[lineCount++] = text;
 	}
 
@@ -40353,7 +40711,8 @@ int main(int, char **)
 
 			// Module Linking draws no selection colour: only the tree's colours (FUN_004c0720) and its picks 0x7f007f (FUN_004c17a0 0x4c18b2). Our selection's green went to a picked DOOR
 			// (an object by its ID) before the pick's colour, and the first colour given to a block wins: the door showed green, not 0x7f007f (Dietrich 11-16)
-			LevelView_SetSelectedColour(OnModuleLinkingScreen() || (OnStrategyScreen() && strategyEditFan) ? 0u :
+			// Copy Strategy's collector: the source (the selection) is not red while it runs (FUN_00528340 0x5283a5 FUN_00529480; back at 0x5285bd); its members are (FlagViewTints)
+			LevelView_SetSelectedColour(OnModuleLinkingScreen() || (OnStrategyScreen() && (strategyEditFan || copyCollecting)) ? 0u :
 				(OnAPlacementScreen() || OnStrategyScreen() ? 0xFFFF0000u : (onTheHub ? hubSelection : 0xFF00FF00u)));
 
 			bool const iconsWanted = !OnALightScreen() && !(stabilityActive && OnStrategyScreen()) && (OnAPlacementScreen() || OnStrategyScreen()) && !placementSplit && !(strategyEditFan && OnStrategyScreen() && strategyPickField.empty() && !copyCollecting && !volume.on);   // an Edit view's black screen shows no icons (S-KC-1)
@@ -40777,6 +41136,9 @@ int main(int, char **)
 			}
 		}
 
+		// the live Snap To Vertex: the snap under the pointer, every frame (FUN_004d9af0 0x4da855-0x4da8ce)
+		SnapLiveFrame(view.right - view.left, view.bottom - view.top);
+
 		// Acoustic Mode: the module under the pointer, every frame (FUN_004f57b0 0x4f5bd6), for its lines
 		if (OnAcousticScreen())
 		{
@@ -40796,7 +41158,12 @@ int main(int, char **)
 				: PickGame_AtClick(pickX, pickY, view.right - view.left, view.bottom - view.top);
 
 			// A command waiting for its click (P4) takes this one, and the click then doesn't change the selection
-			if (host::ClickMode_Waiting())
+			// the live Snap To Vertex: the left press keeps the pose shown, and picks nothing else (FUN_004d9af0 0x4da8d6: DAT_008f4f10 = 0; FUN_004d6520 skipped)
+			if (snapLive)
+			{
+				SnapLiveEnd(true);
+			}
+			else if (host::ClickMode_Waiting())
 			{
 				host::ClickAnswer const answer = host::ClickMode_Click(picked);
 
@@ -41228,6 +41595,14 @@ int main(int, char **)
 			if (theCamera)
 			{
 				printf("AVP_OpenInteng: scenario camera: %d %d %d turn %d look %d after %ld frames\n", theCamera->x, theCamera->y, theCamera->z, theCamera->turn, theCamera->look, frames);
+				fflush(stdout);
+			}
+
+			// the live Snap To Vertex, for a run that snaps: the place and turn shown now (file units, the file's turn) and the saved ones
+			if (snapLive)
+			{
+				printf("AVP_OpenInteng: scenario snap: now %d %d %d turn %.4f %.4f %.4f %.4f; saved %d %d %d\n", snapNowPlace[0], snapNowPlace[1], snapNowPlace[2], (double)snapNowTurn[0], (double)snapNowTurn[1],
+					(double)snapNowTurn[2], (double)snapNowTurn[3], snapSavedPlace[0], snapSavedPlace[1], snapSavedPlace[2]);
 				fflush(stdout);
 			}
 

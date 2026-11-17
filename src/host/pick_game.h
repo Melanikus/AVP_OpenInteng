@@ -28,3 +28,7 @@ bool PickGame_Camera(int32_t viewWidth, int32_t viewHeight, host::PickCamera *ca
 bool PickGame_RayAtClick(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight, host::PickRay *ray);
 
 host::PickReport PickGame_AtClick(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight);
+
+// The same, the display block leaveOut (one LevelView gave: LevelView_FlyCopyBlock) left out of the line of sight (taken out of the frame's on-screen list for that one search): what
+// lies behind it is hit instead. inteng's Snap To Vertex leaves the moving block out of its pick the same way (FUN_004f7000 0x4f7020: block +0x64 bit 0x10000000). Null: the same as PickGame_AtClick.
+host::PickReport PickGame_AtClickLeavingOut(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight, void const *leaveOut);

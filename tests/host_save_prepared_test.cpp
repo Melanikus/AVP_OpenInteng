@@ -468,6 +468,58 @@ int main(int argc, char **argv)
 	DeleteFileA(copyPath.c_str());
 	DeleteFileA((copyPath + ".bak").c_str());
 
+	// 11-17 (Drake): an object COPIED (Object Placement's Create Duplicate of a shape with no outside file, CreateObjectLike). Preparing the level grows the shape's header (the list
+	// of the objects that use it), so the tree held stopped pairing with the bytes the first save wrote and every later save was refused (NothingOpen): Object Placement's Exit
+	// saves, so his Save a copy after it failed. Frost's 657abcb pairs the level with the image it holds when the prepared bytes do not pair: this is the P path's red-first case.
+	{
+		OpenLevelFile edited;
+		uint8_t like[8] = {};
+		bool haveLike = false;
+
+		if (edited.Open(argv[1]) == LevelOpenResult::Opened && edited.Level())
+		{
+			List<Object_Chunk *> all;
+
+			edited.Level()->list_objects(&all);
+
+			for (LIF<Object_Chunk *> each(&all); !each.done() && !haveLike; each.next())
+			{
+				if (each() && each()->get_header() && (each()->get_header()->flags & 0x400) != 0)
+				{
+					memcpy(like, &each()->object_data.ID, 8);
+					haveLike = true;
+				}
+			}
+		}
+
+		uint8_t madeId[8] = {};
+		int32_t const place[3] = { 1000, 2000, 3000 };
+
+		Check(haveLike && host::CreateObjectLike(&edited, like, "savePairA", place, madeId) == host::ObjectEditResult::Done, "a placed object is copied (CreateObjectLike)");
+
+		std::string const firstPath = scratchFolder + "save-prepared-dup1.rif", againPath = scratchFolder + "save-prepared-dup2.rif", thirdPath = scratchFolder + "save-prepared-dup3.rif";
+		DeleteFileA(firstPath.c_str());
+		DeleteFileA(againPath.c_str());
+		DeleteFileA(thirdPath.c_str());
+		Check(edited.SaveAs(firstPath.c_str()) == LevelSaveResult::Saved, "the level with the copied object is saved");
+
+		LevelSaveResult const again = edited.SaveAs(againPath.c_str());
+
+		Check(again == LevelSaveResult::Saved, "and saved AGAIN in the same sitting (it was refused, NothingOpen: SaveAs answered " +
+			std::to_string((int)again) + ")");
+		Check(edited.SaveAs(thirdPath.c_str()) == LevelSaveResult::Saved, "and a third time");
+
+		OpenLevelFile back;
+
+		Check(back.Open(thirdPath.c_str()) == LevelOpenResult::Opened && back.Level(), "the game's loader takes the third save");
+
+		for (std::string const &path : { firstPath, againPath, thirdPath })
+		{
+			DeleteFileA(path.c_str());
+			DeleteFileA((path + ".bak").c_str());
+		}
+	}
+
 	// a second level and two of its objects (the .runargs: Fall, Pboost0, pulse0, the objects acceptance-save-then-edit deletes)
 	if (argc >= 6)
 	{

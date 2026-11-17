@@ -59,16 +59,44 @@ namespace host
 	MoveRelPolyEditResult MoveRelPolyEdit_Do(OpenLevelFile *store, File_Chunk *level, uint8_t const *movingId, uint8_t const *targetId, int32_t polygon, int32_t distance,
 		int32_t const *hitFile, double scale, std::string *why);
 
+	// FUN_005633e0's sums alone, for a mover that is not an object of the file (OP-42: the flying object's live pose, or the camera): the new place in inteng's unit (1e-5 m,
+	// the game's millimetres x 100) and matrix (16.16, inteng's order), from the polygon numbered polygon of targetId's shape, as MoveRelPolyEdit_Do's. Nothing is written.
+	MoveRelPolyEditResult MoveRelPolyEdit_Pose(OpenLevelFile *store, File_Chunk *level, uint8_t const *targetId, int32_t polygon, int32_t distance, int32_t const *hitFile, double scale,
+		int32_t place[3], int32_t matrix[9], std::string *why);
+
 	// SNAP TO VERTEX (Object Placement, 0x4e2; FUN_004f7000, read by Vasquez 2026-11-15, AvP-docs/engine/inteng/object-placement-reads.md): the vertex of the object targetId's shape
 	// (in the world: its points turned by its turn and moved by its place) NEAREST to point (file units) is the target T. The moving object's own vertex nearest T is found the same way,
-	// and the object is moved by T minus that vertex. Gives T in *vertex (file units). Nothing is changed unless the answer is Done. NAMED: inteng does this each frame under the mouse and
-	// keeps the result on a left click (Esc puts the object back); here the click names the object and the point, once. inteng also turns the object to the polygon's normal when a fourth
-	// argument is set; what sets it is not read (the call pushes three), so the turn is left alone.
+	// and the object is moved by T minus that vertex. Gives T in *vertex (file units). Nothing is changed unless the answer is Done.
 	MoveRelPolyEditResult SnapToVertex_Target(OpenLevelFile *store, File_Chunk *level, uint8_t const *targetId, double const point[3], int32_t vertex[3]);
 	MoveRelPolyEditResult SnapToVertex_MoveObject(OpenLevelFile *store, File_Chunk *level, uint8_t const *movingId, int32_t const vertex[3]);
+
+	// SNAP TO VERTEX, LIVE as inteng's (reassess/object-placement.md OP-43; read 11-17 on dump-full-3 and listing-all-3). Each frame inteng puts the object back to the place and matrix
+	// saved at the start, then FUN_004f7000(pointer, block, align): align is the Shift key (0x4da89d-0x4da8b5: DAT_008f4f14 is 0 in AvP; the call pushes FOUR arguments; an older note here
+	// said three, wrongly). With ANOTHER block under the pointer: T = that block's world vertex nearest the point under the pointer; with align the moving matrix M becomes
+	// SquareUp(M x Nt) x N, N = NormalMatrix of the hit polygon's world normal (0x4f7139-0x4f71e4, FUN_004b34b0's order: out = second x first); then V = the moving block's own vertex
+	// (turned by M, moved by its place) nearest T, and its place moves by T - V. The left press keeps that; Esc puts the saved one back.
+	// SnapToVertex_Pose does it on the moving object's pose as the store holds it now (the live preview never writes it): the new place (file units) and turn (the file's four floats).
+	// Without align the turn is the store's, unchanged. Nothing is written. NAMED: the nearest-vertex sums are in doubles in file units (inteng: whole numbers in its own unit, 1e-5 m),
+	// so a vertex at the same distance from two others may be chosen differently.
+	MoveRelPolyEditResult SnapToVertex_Pose(OpenLevelFile *store, File_Chunk *level, uint8_t const *movingId, uint8_t const *targetId, double const point[3], int32_t polygon, bool align,
+		int32_t place[3], float turn[4]);
+
+	// FUN_004f6ee0: the matrix (16.16, nine whole numbers in inteng's order) whose row 1 is the normal n: the axis is the world axis on which n is SMALLEST (x when |x| < |y| and |x| < |z|,
+	// else y when |y| < |z|, else z); row 2 = (axis x n) made length 65536, row 0 = (n x row 2) made length 65536 (FUN_004b5650: each product >> 16; FUN_004fd750)
+	void SnapVertex_NormalMatrix(int32_t const n[3], int32_t m[9]);
+
+	// FUN_0053d1e0: row 0 becomes the axis it is most along (+-65536 on it, 0 elsewhere; the sign + only for a part of 1 or more), row 1 the axis it is most along of the other two (the
+	// same rule), row 2 their cross product (FUN_004fd620). Ties go as the code's comparisons go.
+	void SnapVertex_SquareUp(int32_t m[9]);
+
+	// FUN_004f7000's align, on the moving matrix m: m = SquareUp(m x Nt) x N, N = SnapVertex_NormalMatrix(n). A zero normal leaves m alone (ours: inteng's would divide by 0).
+	void SnapVertex_Align(int32_t const n[3], int32_t m[9]);
 
 	// An object's place as its header holds it (file units), and set again: for Move relative (Object Placement 0x1c, FUN_004e1d70: the placed shape object's place typed as an offset from the module it is in).
 	// Nothing changes unless the answer is Done.
 	MoveRelPolyEditResult ObjectPlace_Get(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, int32_t place[3]);
+
+	// An object's place (file units) and turn (the file's four floats) as its header holds them now: Snap To Vertex's saved pose (FUN_004dd280: DAT_008f4b60.., DAT_008f4bb8..)
+	MoveRelPolyEditResult ObjectPose_Get(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, int32_t place[3], float turn[4]);
 	MoveRelPolyEditResult ObjectPlace_Set(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, int32_t const place[3]);
 }

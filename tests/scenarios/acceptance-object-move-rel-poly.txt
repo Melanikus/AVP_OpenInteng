@@ -1,0 +1,69 @@
+# ACCEPTANCE (red first): Misc > Move rel. to poly on his path (Vasquez 11-17; reassess/object-placement.md OP-42, read on listing-all-3 0x4da1d5-0x4da214 and listing-all-4 0x564b60-0x564cf5).
+# WHAT MOVES: the current object when it FLIES and the camera is not linked to it; otherwise the CAMERA (DAT_00962304 +0x68): the view. FUN_00564b60 writes "Move relative to which poly" at (200, 100),
+# waits for a left press on a polygon of another block, then FUN_004747f0's window "distance to move from the poly in metres :" starting at the last distance (DAT_00914d2c x 1e-5); Ok (Return):
+# the typed metres (FUN_00474a10, sscanf "%f") x 100000.0, cut toward 0, kept as the next start, and FUN_005633e0 puts the mover on the polygon, that far back along its normal, facing it.
+# Invasion, the camera before switch3; the left window frame's polygon under (300, 300): a word that is no number changes nothing (INTENG BUG, FIXED: FUN_00474a10's float was unset, a garbage
+# distance) and the window starts at 0 again; 2 m: the VIEW goes to -29416 -14550 91144, turned 2048 (it faces the polygon). Then switch3 clicked, F (it flies): the window starts at 2 (the last
+# distance), 1 m: switch3 moves, the view does not; F stops the flight (the place written). The copy read back by the game's loader (verify_snap place): switch3 at -29416 -14550 90144 (1 m from
+# the same polygon), its turn changed (along the polygon's normal), the 538 other objects where they were.
+# RED on b58fe7a: Move rel. to poly needed a selected object, moved it in the file whether it flew or not, and asked the distance as a typed prompt (no words at (200, 100), no window).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+# nothing flies: the camera is the mover; the words while it waits
+click-bar Misc > Move rel. to poly
+wait 300
+expect-field-has hierarchylines 6@200:Move relative to which poly
+picture 1
+click-win 300 300
+wait 300
+expect-dialog-kind form
+expect-dialog-text 0
+# a word that is no number: nothing moves
+key Back
+type abc
+key Enter
+wait 500
+expect-no-dialog
+expect-field camera -27851 -14055 85500 0 0
+# 2 m: the view goes to the polygon
+click-bar Misc > Move rel. to poly
+click-win 300 300
+wait 300
+expect-dialog-kind form
+expect-dialog-text 0
+key Back
+type 2
+key Enter
+wait 1000
+expect-no-dialog
+expect-field camera -29416 -14550 91144 2048 0
+picture 2
+# switch3 flies: it is the mover, the window starts at the last distance (2)
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+key F
+wait 300
+click-bar Misc > Move rel. to poly
+click-win 300 300
+wait 300
+expect-dialog-kind form
+expect-dialog-text 2
+key Back
+type 1
+key Enter
+wait 1000
+expect-no-dialog
+expect-field camera -27851 -14055 85500 0 0
+picture 3
+# F stops the flight: the place and turn written
+key F
+wait 500
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_snap/verify_snap.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} switch3 place -29416 -14550 90144 turned
