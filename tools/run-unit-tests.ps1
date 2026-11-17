@@ -10,13 +10,27 @@ A test whose tests/<name>.runargs asks for the game's own levels or models ({LEV
 which a public machine must never hold. It is not run here and never counted as passed: it is listed by name, as one that runs on a
 machine where the game is installed (the team runs every one of them there before each hand-over).
 
-Usage: tools/run-unit-tests.ps1 [-OutFolder <folder for the objects and programs>] [-Only <test name>]
+A test whose tests/<name>.args includes the libraries vcpkg builds (vcpkg_installed/) needs them built first. -Libraries says which
+tests run: all (the default), without (only those that don't need them; the others are listed by name, for a run that has them) or
+with (only those that do). GitHub runs "without" in its Unit tests job, beside the build, and "with" in the build job, after vcpkg.
+
+-Part <n> -Parts <count> runs only every count-th test of the sorted list, starting at the n-th, so several machines can share the tests
+(GitHub runs 4 parts side by side). Every test is in exactly one part.
+
+Usage: tools/run-unit-tests.ps1 [-OutFolder <folder>] [-Only <test name>] [-Libraries all|without|with] [-Part <n> -Parts <count>]
 Written 2026-11-17 by Melanikus for AVP_OpenInteng.
 #>
 param(
     [string]$OutFolder = (Join-Path ([IO.Path]::GetTempPath()) 'avp-openinteng-tests'),
-    [string]$Only = ''
+    [string]$Only = '',
+    [ValidateSet('all', 'without', 'with')]
+    [string]$Libraries = 'all',
+    [ValidateRange(1, 16)]
+    [int]$Part = 1,
+    [ValidateRange(1, 16)]
+    [int]$Parts = 1
 )
+if ($Part -gt $Parts) { throw "-Part $Part is more than -Parts $Parts" }
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repository = Split-Path -Parent $PSScriptRoot
@@ -38,12 +52,20 @@ Set-Content -LiteralPath $noInput -Value '' -NoNewline
 $passed = New-Object System.Collections.Generic.List[string]
 $failed = New-Object System.Collections.Generic.List[string]
 $needsGame = New-Object System.Collections.Generic.List[string]
+$elsewhere = New-Object System.Collections.Generic.List[string]
 $tests = @(Get-ChildItem -LiteralPath (Join-Path $repository 'tests') -Filter '*.args' | Where-Object { -not $Only -or $_.BaseName -ceq $Only } | Sort-Object Name)
 if ($tests.Count -eq 0) { throw "No test found in tests/ (named '$Only')" }
+$tests = @(for ($i = 0; $i -lt $tests.Count; $i++) { if ($i % $Parts -eq $Part - 1) { $tests[$i] } })
+"Part $Part of ${Parts}: $($tests.Count) tests"
 
 foreach ($test in $tests) {
     $name = $test.BaseName
     if ($name -cnotmatch '^[A-Za-z0-9_]+$') { $failed.Add("$name (a test's name is letters, digits and _ only)"); continue }
+
+    # Whether it needs the libraries vcpkg builds, and whether this run is the one for it
+    $needsLibraries = [System.IO.File]::ReadAllText($test.FullName).Contains('vcpkg_installed')
+    if ($Libraries -ceq 'without' -and $needsLibraries) { $elsewhere.Add($name); continue }
+    if ($Libraries -ceq 'with' -and -not $needsLibraries) { continue }
 
     # The time a test gets, and whether it needs the game's own files: its tests/<name>.runargs says
     $seconds = 120
@@ -107,6 +129,7 @@ foreach ($test in $tests) {
 
 ''
 "Run on a machine with the game's own files ($($needsGame.Count), not counted as passed): $($needsGame -join ', ')"
+if ($Libraries -ceq 'without') { "Run where the libraries are built (-Libraries with; $($elsewhere.Count), not counted here): $($elsewhere -join ', ')" }
 "$($passed.Count) passed, $($failed.Count) failed"
 foreach ($line in $failed) { "::error::$line" }
 if ($failed.Count -gt 0 -or $passed.Count -eq 0) { exit 1 }

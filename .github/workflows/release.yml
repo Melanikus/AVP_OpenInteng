@@ -58,7 +58,7 @@ jobs:
           if ($tip -cne $env:GITHUB_SHA) { throw "main has moved on to $tip, so this commit is no longer its tip" }
 
           # Every check a pull request into main runs has to have passed on this very commit, by name, each once at least, and none failed.
-          $required = 'Build the editor', 'Unit tests', 'Snyk Code (SAST)', 'No precompiled code, no scanner told to look away', 'The AvPx pin', "inteng's menus are what their two files make"
+          $required = 'Build the editor', 'Unit tests (1 of 4)', 'Unit tests (2 of 4)', 'Unit tests (3 of 4)', 'Unit tests (4 of 4)', 'Snyk Code (SAST)', 'No precompiled code, no scanner told to look away', 'The AvPx pin', "inteng's menus are what their two files make"
           $runs = gh api "repos/$env:GITHUB_REPOSITORY/commits/$env:GITHUB_SHA/check-runs?per_page=100" --jq '.check_runs[] | [.name, .status, .conclusion] | @tsv'
           if ($LASTEXITCODE -ne 0) { throw 'Could not read the checks of this commit' }
           $runs = @($runs | Where-Object { $_ })
@@ -93,12 +93,31 @@ jobs:
           persist-credentials: false
           submodules: true
 
+      # What main's own CI (build.yml, on a push to main) kept of vcpkg's builds and downloads, only read here, never written. GitHub
+      # gives a run on main only main's caches, never a pull request's. vcpkg takes a kept build only when its hash (port, version,
+      # triplet, compiler, dependencies) is exactly what it would build, and checks each source archive's SHA-512 before using it;
+      # anything else it builds from source.
+      - name: Take main's kept vcpkg builds and downloads
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}\vcpkg-archives
+            ${{ runner.temp }}\vcpkg-downloads
+          key: vcpkg-x86-windows-vs2026-${{ hashFiles('avpx/vcpkg.json', 'avpx/vcpkg-configuration.json', 'avpx/vcpkg-overlay-ports/**', 'avpx/vcpkg-overlay-triplets/**') }}
+          restore-keys: vcpkg-x86-windows-vs2026-
+
       # AvPx's own script, as AvPx's every pull request runs it: the libraries by vcpkg at its baseline, the game, and its package, with
-      # each library's licence and OpenAL Soft's source. The editor takes its runtime files and their licences from that package.
+      # each library's licence and OpenAL Soft's source (from the downloads above, or downloaded again). The editor takes its runtime
+      # files and their licences from that package.
       - name: Build AvPx's libraries and package with AvPx's own script
         shell: pwsh
         working-directory: avpx
-        run: ./tools/build-and-package.ps1 -OutFolder "$env:RUNNER_TEMP\avpx-package"
+        env:
+          VCPKG_BINARY_SOURCES: clear;files,${{ runner.temp }}\vcpkg-archives,read
+          VCPKG_DOWNLOADS: ${{ runner.temp }}\vcpkg-downloads
+        run: |
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\vcpkg-archives", $env:VCPKG_DOWNLOADS | Out-Null
+          ./tools/build-and-package.ps1 -OutFolder "$env:RUNNER_TEMP\avpx-package"
 
       - name: Build the editor
         shell: pwsh

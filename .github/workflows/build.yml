@@ -1,15 +1,21 @@
 # Builds the editor and runs its unit tests on a clean machine, and scans its code with Snyk, for every pull request into main and every
 # push to it. A failing job stops the merge, for everyone (Tao 1: security is paramount).
 #
-# Three jobs, side by side:
-#   - Build the editor: AvPx's libraries built from source by vcpkg, at the commit AvPx's vcpkg.json names (as AvPx's own build does),
-#     then the editor with the same MSBuild settings the team builds with.
-#   - Unit tests: every tests/<name>.args, built and run by tools/run-unit-tests.ps1. A test that needs the game's own levels or models
-#     can't run here (Rebellion's files never go on a public machine): it is listed by name and never counted as passed, and the team
-#     runs it where the game is installed.
+# Six jobs, side by side:
+#   - Build the editor: AvPx's libraries by vcpkg, at the commit AvPx's vcpkg.json names (as AvPx's own build does), then the editor
+#     with the same MSBuild settings the team builds with, then the unit tests that need those libraries.
+#   - Unit tests (1 of 4 .. 4 of 4): every other tests/<name>.args, built and run by tools/run-unit-tests.ps1, a quarter each. A test that
+#     needs the game's own levels or models can't run here (Rebellion's files never go on a public machine): it is listed by name and never
+#     counted as passed, and the team runs it where the game is installed.
 #   - Snyk Code (SAST): this repository's own code. avpx/ is scanned in AvPx itself, and so are the libraries (its "Snyk on the vcpkg
 #     libraries"). The editor has no package list of its own, so there is nothing for Snyk Open Source here.
 # Take-outs aren't here: they run by hand before a release (the owner's ruling R-BLD-11).
+#
+# vcpkg keeps what it builds, and the source archives it downloads, in GitHub's cache, so the next run takes them in about a minute.
+# vcpkg names each built library by a hash of everything that goes into it (its port, its version, the triplet, the compiler, and what it
+# depends on), so a kept build is used only when it is exactly what this run would build: anything changed is built from source again.
+# Each source archive is checked by vcpkg against the SHA-512 its port names before it's used. A pull request's cache is its own: it can't
+# reach main's runs or the release (GitHub keeps caches apart by branch).
 # Written 2026-11-17 by Melanikus for AVP_OpenInteng.
 name: Build and tests
 
@@ -32,7 +38,7 @@ jobs:
   build:
     name: Build the editor
     runs-on: windows-2025-vs2026   # pinned: Windows Server 2025 with Visual Studio 2026, the compiler we build with
-    timeout-minutes: 120           # the libraries are built from source, so this takes a while, but it mustn't sit forever if something hangs
+    timeout-minutes: 120           # the libraries may be built from source, so this can take a while, but it mustn't sit forever
     steps:
       - name: Check out the repository and AvPx at its pinned commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -40,11 +46,26 @@ jobs:
           persist-credentials: false
           submodules: true
 
+      # The key is AvPx's library list and its own ports and triplets. When it changes, the newest older cache is still taken, and vcpkg
+      # uses from it only what its hashes match.
+      - name: Take vcpkg's kept builds and downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}\vcpkg-archives
+            ${{ runner.temp }}\vcpkg-downloads
+          key: vcpkg-x86-windows-vs2026-${{ hashFiles('avpx/vcpkg.json', 'avpx/vcpkg-configuration.json', 'avpx/vcpkg-overlay-ports/**', 'avpx/vcpkg-overlay-triplets/**') }}
+          restore-keys: vcpkg-x86-windows-vs2026-
+
       # The registry commit is the builtin-baseline in AvPx's vcpkg.json, so the library versions never drift, and AvPx's own
       # vcpkg-configuration.json brings its overlay ports and triplets. bootstrap-vcpkg checks the signature of the vcpkg it downloads.
       - name: Build AvPx's libraries with vcpkg, at its manifest's baseline
         shell: pwsh
+        env:
+          VCPKG_BINARY_SOURCES: clear;files,${{ runner.temp }}\vcpkg-archives,readwrite
+          VCPKG_DOWNLOADS: ${{ runner.temp }}\vcpkg-downloads
         run: |
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\vcpkg-archives", $env:VCPKG_DOWNLOADS | Out-Null
           $baseline = (Get-Content avpx/vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
           if ("$baseline" -cnotmatch '^[0-9a-f]{40}$') { throw "avpx/vcpkg.json's builtin-baseline isn't a commit's full hash: $baseline" }
           $root = Join-Path $env:RUNNER_TEMP 'vcpkg'
@@ -75,10 +96,20 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           "Built $exe, $((Get-Item -LiteralPath $exe).Length) bytes, SHA-256 $hash"
 
+      # The unit tests that include the libraries vcpkg built (vcpkg_installed/, at the repository's root as their .args say) run here,
+      # where those libraries are. The Unit tests jobs run every other one.
+      - name: The unit tests that need the libraries
+        shell: pwsh
+        run: ./tools/run-unit-tests.ps1 -OutFolder "$env:RUNNER_TEMP\tests" -Libraries with
+
   unit-tests:
-    name: Unit tests
+    name: Unit tests (${{ matrix.part }} of 4)
     runs-on: windows-2025-vs2026   # pinned, as above
-    timeout-minutes: 90            # a test that hangs is stopped by the runner after its own time; this is for the whole job
+    timeout-minutes: 45            # a test that hangs is stopped by the runner script after its own time; this is for the whole job
+    strategy:
+      fail-fast: false             # every part reports, so one red part doesn't hide another
+      matrix:
+        part: [1, 2, 3, 4]
     steps:
       - name: Check out the repository and AvPx at its pinned commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -86,9 +117,10 @@ jobs:
           persist-credentials: false
           submodules: true
 
-      - name: Build and run every unit test
+      # A quarter of the unit tests, all but those that need the libraries vcpkg builds, which the build job runs once it has them
+      - name: Build and run this part's unit tests
         shell: pwsh
-        run: ./tools/run-unit-tests.ps1 -OutFolder "$env:RUNNER_TEMP\tests"
+        run: ./tools/run-unit-tests.ps1 -OutFolder "$env:RUNNER_TEMP\tests" -Libraries without -Part ${{ matrix.part }} -Parts 4
 
   snyk-code:
     name: Snyk Code (SAST)
