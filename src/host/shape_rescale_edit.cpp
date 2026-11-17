@@ -64,9 +64,13 @@ namespace host
 		return "the shape could not be rescaled";
 	}
 
-	ShapeRescaleResult ShapeRescale_ByValue(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, double typed, double levelScale, double *factorOut,
+	// THE WORK of FUN_004e1340 (the placed shape's +0x14): factorGiven false: value is the typed scale and the factor is worked out as FUN_004e1a80 does (Rescale, OP-13);
+	// factorGiven true: value IS the factor (the '=' and '-' keys, OP-14: 10/7 and 0.7)
+	static ShapeRescaleResult Rescale(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, bool factorGiven, double value, double levelScale, double *factorOut,
 		std::string *why)
 	{
+		double const typed = value;
+
 		if (factorOut)
 		{
 			*factorOut = 0.0;
@@ -77,8 +81,9 @@ namespace host
 			return ShapeRescaleResult::BadCall;
 		}
 
-		// inteng's compare is 0.0 <= value <= 1,000,000.0 (0x4e1b10); a typed 0 is refused here
-		if (!(typed > 0.0) || !(typed <= kRescaleMost) || !isfinite(levelScale) || !(levelScale > 0.0))
+		// inteng's compare is 0.0 <= value <= 1,000,000.0 (0x4e1b10); a typed 0 is refused here. A given factor must be above 0 and at most the same 1,000,000 (inteng's keys
+		// push only 10/7 and 0.7; the bound is ours, as plain compares, because isfinite is not to be trusted under the build's /fp:fast: an infinity got past it)
+		if (factorGiven ? !(value > 0.0 && value <= kRescaleMost) : (!(typed > 0.0) || !(typed <= kRescaleMost) || !isfinite(levelScale) || !(levelScale > 0.0)))
 		{
 			return ShapeRescaleResult::BadValue;
 		}
@@ -128,7 +133,7 @@ namespace host
 
 			// FUN_004e1a80 0x4e1c69: typed / (_DAT_00607bd8 x _DAT_005ac438 x rescale), _DAT_00607bd8 = 100.0 x the level's scale
 			double const denominator = ((100.0 * levelScale) * kRescaleHundredth) * rescale;
-			double const factor = typed / denominator;
+			double const factor = factorGiven ? value : typed / denominator;
 
 			if (!isfinite(factor) || !(factor > 0.0))
 			{
@@ -219,5 +224,16 @@ namespace host
 		{
 			return ShapeRescaleResult::BadShape;
 		}
+	}
+
+	ShapeRescaleResult ShapeRescale_ByValue(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, double typed, double levelScale, double *factorOut,
+		std::string *why)
+	{
+		return Rescale(store, level, id, false, typed, levelScale, factorOut, why);
+	}
+
+	ShapeRescaleResult ShapeRescale_ByFactor(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, double factor, std::string *why)
+	{
+		return Rescale(store, level, id, true, factor, 1.0, nullptr, why);
 	}
 }

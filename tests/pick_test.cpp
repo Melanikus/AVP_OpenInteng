@@ -553,6 +553,14 @@ static void TestWords()
 	Check(Words(shortName) == "Picked: module 0 (A), 0.0 m away" && Words(noName) == "Picked: module 5 (no name), 0.9 m away",
 		"a name stops at its first 0, and one with no letters says so");
 
+	PickReport level = { PickFound::Module, 16, { 'g', 'A', 'R', 'A', 'G', 'D', 'O', 'R' }, { 0 }, 22600 };
+	Check(Words(level) == "Picked: module 16 (gARAGDOR), 22.6 m away", "a module's name as the level gives it, longer than the game's 5 bytes (the owner's \"(?)\", 11-17)");
+
+	PickReport longest = { PickFound::Module, 2147483647, { 0 }, { 0 }, 10000000 };
+	memset(longest.moduleName, 'L', sizeof(longest.moduleName));
+	Check(Words(longest) == "Picked: module 2147483647 (" + std::string(kSelectionModuleNameBytes, 'L') + "), 10000.0 m away",
+		"a name filling all its bytes with no 0 ends there, and the longest words still fit");
+
 	PickReport object = { PickFound::Object, 0, { 0 }, { 0x01, 0xAB, 0x00, 0xFF, 0x10, 0x20, 0x7F, 0x80 }, 10000000 };
 	Check(Words(object) == "Picked: object 01AB00FF10207F80, 10000.0 m away", "an object: its ID as 16 hex digits");
 

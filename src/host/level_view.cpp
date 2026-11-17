@@ -816,6 +816,59 @@ bool LevelView_SetItemFlagBits(const LevelViewShapeOf &shape, int32_t item, int3
 	return true;
 }
 
+bool LevelView_ScaleObjectShape(const LevelViewShapeOf &shape, double factor)
+{
+	DISPLAYBLOCK *const block = const_cast<DISPLAYBLOCK *>(BlockOfShape(shape));
+	SHAPEHEADER *const header = block && block->ObShape >= 0 ? GetShapeData(block->ObShape) : nullptr;
+
+	// plain compares (the build's /fp:fast does not keep isfinite): a factor above 0 and at most 1,000,000; a shape with points the game holds
+	if (!header || !header->points || !header->points[0] || header->numpoints <= 0 || header->numpoints > (1 << 20) || !(factor > 0.0 && factor <= 1000000.0))
+	{
+		return false;
+	}
+
+	int *const numbers = header->points[0];   // 3 ints a point
+	size_t const count = (size_t)header->numpoints * 3;
+	int *const extents[] = { &header->shaperadius, &header->shapemaxx, &header->shapeminx, &header->shapemaxy, &header->shapeminy, &header->shapemaxz, &header->shapeminz };
+	auto const fits = [factor](int v) { double const product = (double)v * factor; return product < 2147483648.0 && product > -2147483649.0; };
+
+	// every product checked before anything is changed
+	for (size_t i = 0; i < count; i++)
+	{
+		if (!fits(numbers[i]))
+		{
+			return false;
+		}
+	}
+
+	for (int *const one : extents)
+	{
+		if (!fits(*one))
+		{
+			return false;
+		}
+	}
+
+	for (size_t i = 0; i < count; i++)
+	{
+		numbers[i] = (int)((double)numbers[i] * factor);
+	}
+
+	for (int *const one : extents)
+	{
+		*one = (int)((double)*one * factor);
+	}
+
+	block->ObRadius = header->shaperadius;
+	block->ObMaxX = header->shapemaxx;
+	block->ObMinX = header->shapeminx;
+	block->ObMaxY = header->shapemaxy;
+	block->ObMinY = header->shapeminy;
+	block->ObMaxZ = header->shapemaxz;
+	block->ObMinZ = header->shapeminz;
+	return true;
+}
+
 bool LevelView_SetItemUv(const LevelViewShapeOf &shape, int32_t item, const int32_t *uv, int count)
 {
 	int32_t texture = 0;
@@ -970,6 +1023,277 @@ void LevelView_FlyPut(const int32_t world[3], const float quat[4])
 void const *LevelView_FlyCopyBlock()
 {
 	return flyOn ? flyCopy : nullptr;
+}
+
+bool LevelView_FlyMatrix(int32_t matrix[9])
+{
+	if (!flyOn || !flyCopy)
+	{
+		return false;
+	}
+
+	MATRIXCH const &m = flyCopy->ObMat;
+	int32_t const each[9] = { m.mat11, m.mat12, m.mat13, m.mat21, m.mat22, m.mat23, m.mat31, m.mat32, m.mat33 };
+
+	memcpy(matrix, each, sizeof(each));
+	return true;
+}
+
+void LevelView_OrbitOf(const int32_t blockPlace[3], const int32_t blockMatrix[9], int pitch, int yaw, int32_t distance, int32_t place[3], int32_t matrix[9])
+{
+	EULER aroundY = { 0, yaw & wrap360, 0 };
+	EULER aroundX = { pitch & wrap360, 0, 0 };
+	MATRIXCH turnY, turnX, c;
+
+	CreateEulerMatrix(&aroundY, &turnY);
+	CreateEulerMatrix(&aroundX, &turnX);
+	c.mat11 = blockMatrix[0]; c.mat12 = blockMatrix[1]; c.mat13 = blockMatrix[2];
+	c.mat21 = blockMatrix[3]; c.mat22 = blockMatrix[4]; c.mat23 = blockMatrix[5];
+	c.mat31 = blockMatrix[6]; c.mat32 = blockMatrix[7]; c.mat33 = blockMatrix[8];
+
+	// FUN_00580a40 0x580a9c-0x580ad2: the block's matrix copied, then multiplied by the yaw's, then by the pitch's (MatrixMultiply(m1, m2, m3) is m2 x m1)
+	MatrixMultiply(&c, &turnY, &c);
+	MatrixMultiply(&c, &turnX, &c);
+
+	// 0x580ae0-0x580b13: the camera at the block's place, then (0, 0, -distance) turned by C added
+	VECTORCH back = { 0, 0, -distance };
+
+	RotateVector(&back, &c);
+	place[0] = blockPlace[0] + back.vx;
+	place[1] = blockPlace[1] + back.vy;
+	place[2] = blockPlace[2] + back.vz;
+
+	int32_t const each[9] = { c.mat11, c.mat12, c.mat13, c.mat21, c.mat22, c.mat23, c.mat31, c.mat32, c.mat33 };
+
+	memcpy(matrix, each, sizeof(each));
+}
+
+static bool viewMatrixOn = false;   // LevelView_SetViewMatrix's: PutTheEyes takes viewMatrix whole
+static MATRIXCH viewMatrix;
+
+void LevelView_SetViewMatrix(const int32_t *matrix)
+{
+	viewMatrixOn = matrix != nullptr;
+
+	if (matrix)
+	{
+		viewMatrix.mat11 = matrix[0]; viewMatrix.mat12 = matrix[1]; viewMatrix.mat13 = matrix[2];
+		viewMatrix.mat21 = matrix[3]; viewMatrix.mat22 = matrix[4]; viewMatrix.mat23 = matrix[5];
+		viewMatrix.mat31 = matrix[6]; viewMatrix.mat32 = matrix[7]; viewMatrix.mat33 = matrix[8];
+	}
+}
+
+void LevelView_AnglesOfMatrix(const int32_t matrix[9], int *turn, int *look, int *roll)
+{
+	// The view is P(look) x E(0, turn, roll) (UpdateCamera: MatrixMultiply(ObMat, pan) = pan x ObMat; ObMat = CreateEulerMatrix(0, turn, roll), PutTheEyes). Written out, with y the turn, z the roll
+	// and x the look: row 1 = (cy cz, -cy sz, sy); m23 = -sx cy; m33 = cx cy. The sign of cy is taken so that cx >= 0 (the look within a quarter turn).
+	double const one = 65536.0;
+	double const m11 = matrix[0] / one, m12 = matrix[1] / one, m13 = matrix[2] / one;
+	double const m21 = matrix[3] / one, m22 = matrix[4] / one, m23 = matrix[5] / one, m33 = matrix[8] / one;
+	double const sign = m33 < 0.0 ? -1.0 : 1.0;
+	double const cy = sign * sqrt(m23 * m23 + m33 * m33);
+	double const toUnits = 4096.0 / (2.0 * 3.14159265358979323846);
+	double y = atan2(m13, cy), x = 0.0, z = 0.0;
+
+	if (fabs(cy) > 1e-6)
+	{
+		x = atan2(-m23 * sign, m33 * sign);
+		z = atan2(-m12 * sign, m11 * sign);
+	}
+	else
+	{
+		// facing straight along the y axis: the look and the roll turn about the same axis, so the look is 0 and the roll takes it all (row 2 = (sin z, cos z, 0))
+		z = atan2(m21, m22);
+	}
+
+	// the look kept SIGNED, -1024 .. 1024, as the camera holds it (FlyCamera_Hold: a quarter turn either way); a look wrapped to 0 .. 4095 (3640 for -456) was held to 1024, straight
+	// down, at the next frame the camera's own mover ran (after the orbit let it go)
+	*turn = (int)floor(y * toUnits + 0.5) & wrap360;
+	*look = (int)floor(x * toUnits + 0.5);
+	*roll = (int)floor(z * toUnits + 0.5) & wrap360;
+}
+
+void MatToQuat(MATRIXCH *m, QUAT *quat);   // the game's (hmodel.cpp), declared there only
+
+namespace
+{
+	MATRIXCH MatrixOf(const int32_t m[9])
+	{
+		MATRIXCH out;
+
+		out.mat11 = m[0]; out.mat12 = m[1]; out.mat13 = m[2];
+		out.mat21 = m[3]; out.mat22 = m[4]; out.mat23 = m[5];
+		out.mat31 = m[6]; out.mat32 = m[7]; out.mat33 = m[8];
+		return out;
+	}
+
+	void PutMatrix(const MATRIXCH &m, int32_t out[9])
+	{
+		int32_t const each[9] = { m.mat11, m.mat12, m.mat13, m.mat21, m.mat22, m.mat23, m.mat31, m.mat32, m.mat33 };
+
+		memcpy(out, each, sizeof(each));
+	}
+}
+
+void LevelView_TurnSpeedsOfKeys(bool numpad4, bool numpad6, bool numpad7, bool numpad9, bool numpad8, bool numpad2, int speeds[3])
+{
+	// 10 degrees as the exe holds it: 65536 x the cosine and the sine of 10 degrees, rounded (64540, 11380)
+	int const c = 64540, s = 11380;
+	int32_t const turns[6][9] = {
+		{ c, 0, -s, 0, 65536, 0, s, 0, c },   // numpad 4, 0x5f0568
+		{ c, 0, s, 0, 65536, 0, -s, 0, c },   // numpad 6, 0x5f0540
+		{ c, s, 0, -s, c, 0, 0, 0, 65536 },   // numpad 7, 0x5f0608
+		{ c, -s, 0, s, c, 0, 0, 0, 65536 },   // numpad 9, 0x5f05e0
+		{ 65536, 0, 0, 0, c, s, 0, -s, c },   // numpad 8, 0x5f0590
+		{ 65536, 0, 0, 0, c, -s, 0, s, c },   // numpad 2, 0x5f05b8
+	};
+	bool const held[6] = { numpad4, numpad6, numpad7, numpad9, numpad8, numpad2 };
+	MATRIXCH m;
+
+	m.mat11 = 65536; m.mat12 = 0; m.mat13 = 0;
+	m.mat21 = 0; m.mat22 = 65536; m.mat23 = 0;
+	m.mat31 = 0; m.mat32 = 0; m.mat33 = 65536;
+
+	for (int k = 0; k < 6; k++)
+	{
+		if (held[k])
+		{
+			MATRIXCH turn = MatrixOf(turns[k]);
+
+			MatrixMultiply(&m, &turn, &m);   // FUN_004b34b0(&local, &turn, &local)
+		}
+	}
+
+	EULER e;
+
+	MatrixToEuler(&m, &e);
+	speeds[0] = e.EulerX > 0x800 ? e.EulerX - 0x1000 : e.EulerX;
+	speeds[1] = e.EulerY > 0x800 ? e.EulerY - 0x1000 : e.EulerY;
+	speeds[2] = e.EulerZ > 0x800 ? e.EulerZ - 0x1000 : e.EulerZ;
+}
+
+void LevelView_TurnMatrix(int32_t matrix[9], const int angles[3])
+{
+	EULER e = { angles[0] & wrap360, angles[1] & wrap360, angles[2] & wrap360 };
+	MATRIXCH turn, m = MatrixOf(matrix);
+
+	CreateEulerMatrix(&e, &turn);
+	MatrixMultiply(&m, &turn, &m);
+	MNormalise(&m);
+	PutMatrix(m, matrix);
+}
+
+void LevelView_FlyPutMatrix(const int32_t world[3], const int32_t matrix[9])
+{
+	if (!flyOn || !flyCopy)
+	{
+		return;
+	}
+
+	flyCopy->ObWorld.vx = world[0];
+	flyCopy->ObWorld.vy = world[1];
+	flyCopy->ObWorld.vz = world[2];
+	flyCopy->ObMat = MatrixOf(matrix);
+	MatrixToEuler(&flyCopy->ObMat, &flyCopy->ObEuler);
+}
+
+void LevelView_LevelMatrix(int32_t matrix[9])
+{
+	if (matrix[6] == 0 && matrix[8] == 0)
+	{
+		int32_t const identity[9] = { 65536, 0, 0, 0, 65536, 0, 0, 0, 65536 };
+
+		memcpy(matrix, identity, sizeof(identity));
+		return;
+	}
+
+	VECTORCH zero = { 0, 0, 0 };
+	VECTORCH down = { 0, 65536, 0 };
+	VECTORCH forward = { matrix[6], 0, matrix[8] };
+	VECTORCH right;
+
+	Normalise(&forward);
+	MakeNormal(&zero, &down, &forward, &right);
+
+	int32_t const levelled[9] = { right.vx, right.vy, right.vz, down.vx, down.vy, down.vz, forward.vx, forward.vy, forward.vz };
+
+	memcpy(matrix, levelled, sizeof(levelled));
+}
+
+void LevelView_SquareMatrix(int32_t m[9])
+{
+	// +-65536 by the sign: ((v < 1) - 1 & 0x20000) - 0x10000, so 0 counts as negative (FUN_0053d1e0's own way)
+	auto const one = [](int32_t v) { return v > 0 ? 65536 : -65536; };
+	auto const size = [](int32_t v) { return v < 1 ? -v : v; };
+
+	// row 0: x, unless y or z is larger (0x53d202-0x53d232)
+	int rowZeroAxis;
+
+	if (size(m[0]) < size(m[1]) || size(m[0]) < size(m[2]))
+	{
+		rowZeroAxis = size(m[1]) < size(m[2]) ? 2 : 1;
+	}
+	else
+	{
+		rowZeroAxis = 0;
+	}
+
+	int32_t const rowZero = one(m[rowZeroAxis]);
+
+	m[0] = m[1] = m[2] = 0;
+	m[rowZeroAxis] = rowZero;
+
+	// row 1: the larger of the two axes row 0 did not take (the first of the two when they are the same size)
+	int const first = rowZeroAxis == 0 ? 1 : 0;
+	int const second = rowZeroAxis == 2 ? 1 : 2;
+	int const rowOneAxis = size(m[3 + first]) < size(m[3 + second]) ? second : first;
+	int32_t const rowOne = one(m[3 + rowOneAxis]);
+
+	m[3] = m[4] = m[5] = 0;
+	m[3 + rowOneAxis] = rowOne;
+
+	// row 2: their normal (0x53d349)
+	VECTORCH zero = { 0, 0, 0 };
+	VECTORCH r0 = { m[0], m[1], m[2] };
+	VECTORCH r1 = { m[3], m[4], m[5] };
+	VECTORCH r2;
+
+	MakeNormal(&zero, &r0, &r1, &r2);
+	m[6] = r2.vx;
+	m[7] = r2.vy;
+	m[8] = r2.vz;
+}
+
+void LevelView_MatrixOfTurn(const float quat[4], int32_t matrix[9])
+{
+	QUAT q;
+	MATRIXCH m;
+	EULER euler;
+
+	// as LevelView_FlyPut: the turn as the game's add_default_object reads it
+	q.quatx = (int)-(quat[0] * ONE_FIXED);
+	q.quaty = (int)-(quat[1] * ONE_FIXED);
+	q.quatz = (int)-(quat[2] * ONE_FIXED);
+	q.quatw = (int)(quat[3] * ONE_FIXED);
+	QuatToMat(&q, &m);
+	MatrixToEuler(&m, &euler);
+	CreateEulerMatrix(&euler, &m);
+	TransposeMatrixCH(&m);
+	PutMatrix(m, matrix);
+}
+
+void LevelView_TurnOfMatrix(const int32_t matrix[9], float quat[4])
+{
+	MATRIXCH m = MatrixOf(matrix);
+	QUAT q;
+
+	MatToQuat(&m, &q);
+
+	// FlyPut takes the file's turn with x y z negated (add_default_object's way): so back
+	quat[0] = -(float)q.quatx / (float)ONE_FIXED;
+	quat[1] = -(float)q.quaty / (float)ONE_FIXED;
+	quat[2] = -(float)q.quatz / (float)ONE_FIXED;
+	quat[3] = (float)q.quatw / (float)ONE_FIXED;
 }
 
 void LevelView_FlyEnd()
@@ -1247,6 +1571,13 @@ static void PutTheEyes(const FlyCamera &camera)
 {
 	EULER turn = { 0, camera.turn & wrap360, camera.roll & wrap360 };
 	CreateEulerMatrix(&turn, &Player->ObMat);
+
+	// the orbit's matrix whole, when the editor gives one (LevelView_SetViewMatrix): the look is then 0, so the view is that matrix (UpdateCamera multiplies by the look's turn)
+	if (viewMatrixOn)
+	{
+		Player->ObMat = viewMatrix;
+	}
+
 	PLAYER_STATUS *const playerStatus = (PLAYER_STATUS *)(Player->ObStrategyBlock->SBdataptr);
 
 	// The game puts its eyes ABOVE the player: UpdateCamera/InteriorType_Body (view.cpp:448-501) adds the marine's eye height (CollisionExtents StandingTop, about 1750 mm up, plus 200 and the vertical speed over 16, which is 0 for
@@ -1263,7 +1594,7 @@ static void PutTheEyes(const FlyCamera &camera)
 	Player->ObWorld.vx = camera.x - eyeOffset.vx;
 	Player->ObWorld.vy = camera.y - eyeOffset.vy;
 	Player->ObWorld.vz = camera.z - eyeOffset.vz;
-	playerStatus->ViewPanX = camera.look & wrap360;
+	playerStatus->ViewPanX = viewMatrixOn ? 0 : camera.look & wrap360;
 }
 
 bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*addToFrame)(void *context), void *context)

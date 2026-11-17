@@ -1,21 +1,29 @@
-# MODULE LINKING's main job, in the running editor (hidden run, Invasion): pick the module the camera is in by a click, make it the current module (Base > Set Current), move the camera (key A held) and
+# MODULE LINKING's main job, in the running editor (hidden run, Invasion): pick the module the camera is in by a click, make it the current module (Base > Set Current), move the camera (the camera verb) and
 # pick a module by a click, Link > Normal; pick another, Link > Branch; Mode > Exit (the links are written into the level); Save a copy; read the copy back with the library (verify_links).
-# The camera moves by time, and how far depends on the machine's frame rate, so each pick is repeated (the camera moved on) until the link takes: a module already in the tree or the current one is not linked.
+# The camera is put with the camera verb, not moved by holding A: a held key's distance is timing (71ef9fa9), and since 15a7a33d the editor starts at inteng's slot 10, the origin, as inteng does
+# (startup-trace.md section 6), so the walk from the level's start no longer happened. The places are the ones a grid of clicks found (Vasquez 11-17): APCmod (module 38) at the level's start, module 21
+# (not in APCmod's tree) for Normal, module 76 for Branch, the same three the scenario linked on 11-15 by walking.
 # Run: drive_scenario <the editor's exe in a copy of the run folder> <out folder> tests/scenarios/module-linking-main-job.txt
 screen Module Linking
 level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
 state
 expect-screen Module Linking
+camera -7764 2852 10527 0 0
 click-view 0.5 0.5
 expect-status Picked: module
 item 0xc8
-expect-status Current module
-hold A 1500
-hold A 1500
-repeat 8 A 700 Normal_Link:_1_of_1 | click-view 0.15 0.3 | item 0x32
-hold A 1500
-repeat 8 A 700 Branch_Link_made | click-view 0.85 0.3 | item 0x34
+expect-status Current module: APCmod
+camera -7764 2852 25527 1024 0
+click-view 0.85 0.3
+expect-status Picked: module 21
+item 0x32
+expect-status Normal Link: 1 of 1
+camera 2236 2852 25527 3072 0
+click-view 0.15 0.3
+expect-status Picked: module 76
+item 0x34
+expect-status Branch Link made
 item 0x64
 expect-screen Construction
 save-copy

@@ -1,0 +1,55 @@
+# ACCEPTANCE: V-17, R's link and hold C (Dietrich, 2026-11-17; reassess/object-placement.md OP-114, OP-115, V-17; reassess/op-moving-dietrich.md). While an object flies, R gives inteng's camera object
+# kind 1 (0x4dc4e8), whose frame code FUN_00580a40 puts the camera at the object's place plus (0, 0, -distance) turned by C = the object's matrix x rotY(yaw) x rotX(pitch), facing as C does; hold C
+# (0x4dc390-0x4dc49f, every frame): numpad 8 / 2 the pitch +50 / -50, numpad 4 / 6 the yaw -50 / +50 (in 0 .. 4095), A / Z the distance -50000 / +50000 of inteng's units (500 mm), never below 0. R again lets
+# go of it: the camera stays where the orbit put it (0x4dc534-0x4dc593). Ours set the camera back along its OWN facing, swung it with its own turn keys, and changed the distance at the camera speed.
+# His path: Invasion, Object Placement, switch3 picked with the mouse, F, R, then C held with the keys. The orbit is the state line's "orbit" (pitch, yaw, distance in mm). The ranges take one frame or more (a hidden run draws about 17 a second: 100 ms held was once one frame).
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+wait 300
+key F
+expect-status Fly selected object: on
+key R
+expect-status Camera link to object: on
+expect-number orbit pitch_ 0 0
+expect-number orbit yaw_ 0 0
+# linked, the object keeps its mover: numpad 4 (no C) turns the OBJECT (its own matrix changes), and the camera swings round with it (C is the object's matrix turned)
+remember-field flymatrix
+remember-field camera
+hold Numpad4 300
+expect-field-changed flymatrix
+expect-field-changed camera
+# hold C: numpad 8 turns the orbit's pitch by 50 a frame, and the camera goes round the object
+remember-field camera
+hold C+Numpad8 300
+expect-number orbit pitch_ 50 3000
+expect-field-changed camera
+# numpad 4 turns its yaw by -50 a frame, kept in 0 .. 4095
+hold C+Numpad4 300
+expect-number orbit yaw_ 1000 4046
+# A brings the camera 500 mm nearer a frame, and never past the object
+hold C+A 1500
+expect-number orbit distance_ 0 0
+# Z takes it 500 mm farther a frame
+hold C+Z 300
+expect-number orbit distance_ 500 30000
+# numpad 2 turns the pitch the other way, past 0, so the camera looks the other way up
+hold C+Numpad2 600
+# R again: the link let go of, and the camera stays where the orbit put it
+remember-field camera
+key R
+expect-status Camera link to object: off
+expect-field-same camera
+# F again lets the object go where it is; the camera's own mover runs again, and the camera still looks where the orbit left it (its look kept a quarter turn either way, signed)
+wait 300
+key F
+expect-status Fly selected object: off
+wait 300
+expect-field-same camera

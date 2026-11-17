@@ -1,0 +1,47 @@
+# ACCEPTANCE: A-5, the flown object's mover (Dietrich, 2026-11-17; reassess/object-placement.md OP-112, V-14; reassess/camera-mover-trace.md). inteng gives the flown object the camera's own LIVE mover
+# FUN_0053db40 (strategy slot 2 at 0x4df0b7), so: Shift with a movement key takes no step (0x53e080); Shift+A adds 100000 to the object's glide each frame (0x53e0b9) and the object goes on moving when the keys are
+# let go (FUN_0053c7d0, along its own forward axis); Space stops the glide (0x53e54d); any plain move key stops it too (0x53e216-0x53e362); C held moves nothing that frame (0x53dc0e). Ours stepped the object
+# with Shift held, had no glide, and moved it with C held. His path: Invasion, Object Placement, switch3 picked with the mouse, F, then the keys held. The flying object's place is the state line's flyat.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+wait 300
+key F
+expect-status Fly selected object: on
+# Shift with a movement key: no step (the direct step is skipped while Shift is held)
+remember-field flyat
+hold Shift+Numpad3 400
+expect-field-same flyat
+# Shift+A: the glide; the keys let go, the object goes on moving by itself
+hold Shift+A 300
+remember-field flyat
+wait 600
+expect-field-changed flyat
+# Space: the glide stops, and the object stays where it is
+hold Space 100
+remember-field flyat
+wait 600
+expect-field-same flyat
+# a plain move key stops a glide too: glide again, one step with Numpad3, then nothing moves
+hold Shift+A 300
+hold Numpad3 100
+remember-field flyat
+wait 600
+expect-field-same flyat
+# C held: the mover does nothing that frame, so C with Numpad3 held leaves the object where it is
+remember-field flyat
+hold C+Numpad3 400
+expect-field-same flyat
+# the camera stayed where it was all along (the keys move the object, not the view)
+expect-field camera -27851 -14055 85500 0 0
+# F again lets it go where it flew
+wait 300
+key F
+expect-status Fly selected object: off

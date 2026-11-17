@@ -20,8 +20,9 @@ namespace host
 	// An object's ID: SB_NAME_LENGTH bytes (strategy_def.h:188, "DO NOT CHANGE THIS!")
 	size_t const kSelectionIdBytes = 8;
 
-	// A module's own short name: the game's MODULE.m_name, 5 bytes, with no 0 at the end promised (module.h:205)
-	size_t const kSelectionModuleNameBytes = 5;
+	// A module's name as a pick reports it: the level's name for it (MODULE.name, module.h:258), cut to 48 bytes, with no 0 at the end promised (pick_game.cpp; the game's 5-byte
+	// MODULE.m_name only when the module has no name)
+	size_t const kSelectionModuleNameBytes = 48;
 
 	// The longest the status line's words for a pick can be, with their 0
 	size_t const kSelectionMostWords = 96;

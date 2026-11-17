@@ -476,6 +476,13 @@ static UINT KeyOf(std::string const &name)
 	if (name == "Numpad9") return VK_NUMPAD9;
 	if (name == "Add") return VK_ADD;
 	if (name == "Subtract") return VK_SUBTRACT;
+	// and the turn keys 4 6 (turn), 8 2 (look), the orbit's with C held (Object Placement's R link), and '*' (level; Shift: square) and '/'
+	if (name == "Numpad2") return VK_NUMPAD2;
+	if (name == "Numpad4") return VK_NUMPAD4;
+	if (name == "Numpad6") return VK_NUMPAD6;
+	if (name == "Numpad8") return VK_NUMPAD8;
+	if (name == "Multiply") return VK_MULTIPLY;
+	if (name == "Divide") return VK_DIVIDE;
 	// one letter or digit is its own key (the Hierarchy view's P O N M, the key frame flags 0 to 9, Q)
 	if (name.size() == 1 && ((name[0] >= 'A' && name[0] <= 'Z') || (name[0] >= '0' && name[0] <= '9'))) return (UINT)name[0];
 	return 0;

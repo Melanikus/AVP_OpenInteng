@@ -1,0 +1,47 @@
+# ACCEPTANCE (red first): Object Placement's '=' and '-' keys scale the current placed shape EVERY FRAME they are held (OP-14; Drake 2026-11-17; FUN_004d9af0 0x4dc2c3-0x4dc308: with a
+# current object, the keys live and Gravity off, '=' (slot 0xd87afb) calls the object's +0x14 with 10/7 and '-' (0xd87afd) with 0.7, the slots never cleared by this code; a placed shape
+# whose shape has an outside file is scaled by FUN_004e1340: its points, extents, radius and its SHPEXTFN's rescale, and the drawn shape at once). His path on Invasion (a read-only stock
+# copy, the file opened as a double click): Object Placement, Object > Find smart1 (a pickup whose shape has an outside file and no other user), '=' held: the status says how much it
+# grew and that the view's own shape was scaled at once ("drawn so now": the game's block for smart1 was found and its shape scaled, LevelView_ScaleObjectShape; smart1 is not in this
+# view's pictures, so the words are the proof); File > Save a copy: the game's loader reads smart1's points as the original's times one ratio above 1, every other object's points as they were.
+# Then '-' held longer: a second copy, smart1 smaller than the original. (How many frames a hold covers decides the ratio, so the copy is checked for one ratio, not a number.)
+# switch3, whose shape has no outside file: '=' does nothing (inteng's FUN_004e1340 does nothing then).
+# RED on 25ef467d: '=' and '-' do nothing in Object Placement.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- a shape with no outside file: nothing
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+expect-hierarchy-text switch3
+hold Plus 300
+wait 300
+expect-status-not Scaled
+
+# ---- smart1: '=' held
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is smart1
+expect-no-dialog
+wait 400
+picture 1
+hold Plus 100
+wait 300
+expect-status drawn so now
+picture 2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_shapes.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} scaled smart1 bigger
+
+# ---- '-' held longer: smaller than the original
+hold Minus 300
+wait 300
+expect-status drawn so now
+picture 3
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_shapes.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} scaled smart1 smaller

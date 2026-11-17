@@ -533,6 +533,158 @@ static void ModuleFlag(std::string const &levelPath, std::string const &copyFold
 	DeleteFileA(copyPath.c_str());
 }
 
+// THE '=' AND '-' KEYS (OP-14, FUN_004d9af0 0x4dc2c3-0x4dc308: the current placed shape's +0x14 with 10/7, then with 0.7; host::ShapeRescale_ByFactor): the points, extents and radius
+// times each factor in turn (each integer cut toward zero), the first SHPEXTFN's rescale double times both, saved as a copy and read back by the game's loader; a factor that is not
+// a number above 0, a shared shape and a shape with no SHPEXTFN are refused and change nothing. Added 2026-11-17 by Drake (red: ShapeRescale_ByFactor did not exist).
+static void KeyScale(std::string const &levelPath, std::string const &copyFolder)
+{
+	printf("THE '=' AND '-' KEYS\n");
+
+	OpenLevelFile before;
+
+	if (before.Open(levelPath.c_str()) != LevelOpenResult::Opened || !before.Level())
+	{
+		Check(false, "the game's loader takes the level");
+		return;
+	}
+
+	List<Object_Chunk *> all;
+
+	before.Level()->list_objects(&all);
+
+	uint8_t chosen[8] = { 0 };
+	uint8_t shared[8] = { 0 };
+	uint8_t noExternal[8] = { 0 };
+	bool haveChosen = false, haveShared = false, haveNoExternal = false;
+
+	for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
+	{
+		Object_Chunk *const object = each();
+		model::ShapeModel probe;
+		size_t users = 0;
+		std::string why;
+
+		if (!object || !object->get_assoc_shape() || host::ShapeEdit_Read(before.Level(), &before, (uint8_t const *)&object->object_data.ID, &probe, &users, &why) != host::ShapeEditResult::Done
+			|| probe.points.size() < 4 || probe.polygons.size() < 1)
+		{
+			continue;
+		}
+
+		bool const external = ExternalNameOf(object) != nullptr && RescaleOf(before, object) > 0.0;
+
+		if (!external && !haveNoExternal)
+		{
+			memcpy(noExternal, &object->object_data.ID, 8);
+			haveNoExternal = true;
+		}
+
+		if (external && users > 1 && !haveShared)
+		{
+			memcpy(shared, &object->object_data.ID, 8);
+			haveShared = true;
+		}
+
+		if (external && users == 1 && !haveChosen)
+		{
+			memcpy(chosen, &object->object_data.ID, 8);
+			haveChosen = true;
+		}
+	}
+
+	Check(haveChosen, "the level has an object with a one-user shape that has a SHPEXTFN");
+
+	if (!haveChosen)
+	{
+		return;
+	}
+
+	{
+		Object_Chunk *const named = FindObject(before, chosen);
+
+		printf("  --  the object scaled: %s\n", named && named->object_data.o_name ? named->object_data.o_name : "(no name)");
+	}
+
+	Check(host::kScaleKeyUp == 10.0 / 7.0 && host::kScaleKeyDown == 0.7, "the two factors are inteng's doubles (10/7 for '=', 0.7 for '-')");
+
+	model::ShapeModel shapeBefore;
+	std::string why;
+
+	Check(host::ShapeEdit_Read(before.Level(), &before, chosen, &shapeBefore, nullptr, &why) == host::ShapeEditResult::Done, "the shape is read before");
+
+	double const rescaleBefore = RescaleOf(before, FindObject(before, chosen));
+	std::vector<char> imageBefore;
+
+	Check(before.BuildLevel(imageBefore), "the level as the next save would write it is made (before)");
+
+	// 0. refusals: nothing changes
+	{
+		std::vector<char> now;
+		double const bad[] = { 0.0, -0.7, NAN, INFINITY };
+
+		for (double const one : bad)
+		{
+			Check(host::ShapeRescale_ByFactor(&before, before.Level(), chosen, one, &why) == host::ShapeRescaleResult::BadValue && before.BuildLevel(now) && SameBytes(now, imageBefore),
+				"the factor " + std::to_string(one) + " is refused as BadValue and the level is as it was");
+		}
+
+		if (haveShared)
+		{
+			Check(host::ShapeRescale_ByFactor(&before, before.Level(), shared, host::kScaleKeyUp, &why) == host::ShapeRescaleResult::SharedShape && before.BuildLevel(now) && SameBytes(now, imageBefore),
+				"an object whose shape other objects use too is refused as SharedShape and the level is as it was");
+		}
+
+		if (haveNoExternal)
+		{
+			Check(host::ShapeRescale_ByFactor(&before, before.Level(), noExternal, host::kScaleKeyUp, &why) == host::ShapeRescaleResult::NoExternal && before.BuildLevel(now) && SameBytes(now, imageBefore),
+				"an object whose shape has no SHPEXTFN is refused as NoExternal and the level is as it was");
+		}
+	}
+
+	// 1. '=' then '-'
+	host::ShapeRescaleResult const up = host::ShapeRescale_ByFactor(&before, before.Level(), chosen, host::kScaleKeyUp, &why);
+	host::ShapeRescaleResult const down = host::ShapeRescale_ByFactor(&before, before.Level(), chosen, host::kScaleKeyDown, &why);
+
+	Check(up == host::ShapeRescaleResult::Done && down == host::ShapeRescaleResult::Done, std::string("'=' and then '-' are done") + (up == host::ShapeRescaleResult::Done && down == host::ShapeRescaleResult::Done ? "" : ": " + why));
+
+	if (up != host::ShapeRescaleResult::Done || down != host::ShapeRescaleResult::Done)
+	{
+		return;
+	}
+
+	std::string const copyPath = CopyPathIn(copyFolder, "scale-keys-test-copy.rif");
+
+	CreateDirectoryA(copyFolder.c_str(), NULL);
+	DeleteFileA(copyPath.c_str());
+	Check(before.SaveAs(copyPath.c_str()) == LevelSaveResult::Saved, "the level is saved as a COPY: " + copyPath);
+
+	OpenLevelFile after;
+	model::ShapeModel shapeAfter;
+
+	Check(after.Open(copyPath.c_str()) == LevelOpenResult::Opened && after.Level(), "the game's loader takes the copy");
+
+	if (!after.Level() || host::ShapeEdit_Read(after.Level(), &after, chosen, &shapeAfter, nullptr, &why) != host::ShapeEditResult::Done)
+	{
+		Check(false, "the shape is read after the reload");
+		return;
+	}
+
+	auto const twice = [](int32_t v) { return (int32_t)((double)(int32_t)((double)v * host::kScaleKeyUp) * host::kScaleKeyDown); };
+	bool pointsRight = shapeAfter.points.size() == shapeBefore.points.size();
+
+	for (size_t i = 0; pointsRight && i < shapeBefore.points.size(); i++)
+	{
+		pointsRight = shapeAfter.points[i].x == twice(shapeBefore.points[i].x) && shapeAfter.points[i].y == twice(shapeBefore.points[i].y) && shapeAfter.points[i].z == twice(shapeBefore.points[i].z);
+	}
+
+	Check(pointsRight, "every point is the old coordinate x 10/7, cut toward zero, then x 0.7, cut toward zero: " + std::to_string(shapeAfter.points.size()) + " points");
+	Check(shapeAfter.extents.maxX == twice(shapeBefore.extents.maxX) && shapeAfter.extents.minZ == twice(shapeBefore.extents.minZ), "the extents the same way");
+
+	double const rescaleAfter = RescaleOf(after, FindObject(after, chosen));
+	double const wanted = rescaleBefore * host::kScaleKeyUp * host::kScaleKeyDown;
+
+	Check(fabs(rescaleAfter - wanted) <= fabs(wanted) * 1e-12, "the first SHPEXTFN's rescale is the old one x 10/7 x 0.7: " + std::to_string(rescaleAfter) + " (was " + std::to_string(rescaleBefore) + ")");
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 3)
@@ -553,6 +705,7 @@ int main(int argc, char **argv)
 	}
 
 	Rescale(levelPath, copyFolder, original);
+	KeyScale(levelPath, copyFolder);
 	ModuleFlag(levelPath, copyFolder);
 
 	std::vector<char> originalEnd;

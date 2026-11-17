@@ -1,13 +1,14 @@
 # ACCEPTANCE: the OBJECT PLACEMENT close-out's fourth chain (AvP-docs/director/strategy-100/PLAN.md THEN; Drake 2026-11-17): a FAN placed, given its strategy (75), its lines
 # changed, saved and read back, on his path on Invasion (a read-only stock copy, the file opened as a double click):
-# 1. Object Placement: Object > Find Fan1 (the level's fan), P (Create > With shape > Selected, OP-26): "chainF" made at the view; Fan1's shape has no outside file name, so P copies
-#    the whole object, its Fan and track with it (the status line says so; picture 1). Mode > Exit (saves).
+# 1. Object Placement: Object > Find Fan1 (the level's fan), the view put 5 m ahead of the start view, P (Create > With shape > Selected, OP-26): "chainF" made at the view;
+#    Fan1's shape has no outside file name, so P copies the whole object, its Fan and track with it (the status line says so; picture 1). Then Find switch3, the view 6.5 m ahead
+#    of chainF's, P: "chainFs". Mode > Exit (saves).
 # 2. Strategy Data: Find Object chainF, the right button's Assign Strategy: "Object already has a strategy. Would you like to replace it?" Yes (S-38), Fan: its view opens with
 #    the creation values (10 s, 10 s, wind 100; S-K75-0); each line clicked: speed up 5 s, slow down 7 s, wind -250 (S-K75-2 / -3).
 # 3. File > Save a copy; the game's loader reads the copy: chainF a Fan (75) with speed_up_time 5, slow_down_time 7, fan_wind_strength -250, every other strategy byte for byte.
 # NO OP EDIT STEP: Object Placement's Edit of a placed shape edits its Simple Object properties (OP-130), which live in a 62; a fan has a 75, so a fan's edit is its view's.
-# NAMED, THE VIEW GAP (the "targeted by a switch" step): a switch's T pick picks from the view's objects, and an object made in this sitting is not in the view yet (chain 2,
-# acceptance-op-chain-generator). When the view takes new objects, this chain adds chainF to a switch's targets.
+# 4. Targeted by a switch: Find Object chainFs (the camera at the start view), Assign Strategy (Yes) > Multi Switch, T, a click on chainF's blade, Return: chainF is its target, on
+#    (new objects are drawn since Dietrich's view-gap fix 075ee904). The copy: chainFs holds chainF, on.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
 state
@@ -15,12 +16,15 @@ click-bar Mode > Object Placement
 expect-screen Object Placement
 wait 400
 
-# ---- 1. placed
+# ---- 1. placed: chainF 5 m ahead of Invasion's start view (camera 0 0 0), and a switch chainFs (P from switch3) 6.5 m ahead of it, so that Strategy Data's
+# Find Object > chainFs puts the camera back at the start view with chainF in front of it
 click-bar Object > Find
 expect-dialog Select Object
 click-choice-is Fan1
 expect-no-dialog
 wait 400
+camera 0 0 5000 0 0
+wait 300
 key P
 expect-dialog Name Object
 form-field 1 chainF
@@ -28,9 +32,21 @@ click-button OK
 expect-no-dialog
 expect-status Object chainF made at the view
 picture 1
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is switch3
+expect-no-dialog
+wait 400
+camera 0 0 6553 0 0
+wait 300
+key P
+expect-dialog Name Object
+form-field 1 chainFs
+click-button OK
+expect-no-dialog
+expect-status Object chainFs made at the view
 click-bar Mode > Exit
 wait 400
-
 # ---- 2. given its strategy, its lines changed
 click-bar Mode > Strategy Data: Normal
 expect-screen Strategy Data
@@ -84,5 +100,37 @@ picture 3
 key Esc
 wait 300
 
+# ---- the switch: a Multi Switch whose target is chainF, picked in the view
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is chainFs
+expect-no-dialog
+wait 400
+expect-field camera 0 0 0 0 0
+click-win 500 300 right
+click-popup 4
+expect-dialog-kind confirm
+expect-dialog Object already has a strategy.
+click-button Yes
+expect-dialog Select Strategy
+click-button Multi_Switch
+expect-no-dialog
+wait 400
+expect-field-has strategyview 200@0:chainFs : Multiple Target Switch|
+key T
+wait 400
+expect-status Select targets for switch
+# T with no target yet: the camera stays; chainF's upper blade (500 200; the switch's own red marker is in the middle)
+click-win 500 200
+wait 400
+expect-screen-text chainF
+picture 6
+key Enter
+wait 400
+expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:chainF - Fan
+picture 7
+key Esc
+wait 300
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} chainF speed_up_time 5 slow_down_time 7 fan_wind_strength -250
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} chainF speed_up_time 5 slow_down_time 7 fan_wind_strength -250 also chainFs
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} chainFs targets 1 target.0 chainF target_request.0 1 also chainF

@@ -56,4 +56,12 @@ namespace host
 	// _DAT_00607bd8 is then 100.0). *factorOut (when not null) gets the factor used. *why gets the model's words on BadShape or Refused.
 	ShapeRescaleResult ShapeRescale_ByValue(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, double typed, double levelScale, double *factorOut,
 		std::string *why);
+
+	// The '=' and '-' keys of Object Placement (OP-14, FUN_004d9af0 0x4dc2c3-0x4dc308): the same work with the factor given (10/7 for '=', 0.7 for '-'): the points, extents and radius
+	// times the factor and the first SHPEXTFN's rescale double times it, as ShapeRescale_ByValue does after working its factor out. The same refusals (NoExternal, SharedShape ...).
+	ShapeRescaleResult ShapeRescale_ByFactor(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, double factor, std::string *why);
+
+	// The two factors inteng pushes (0x3ff6db6db6db6db7 = 10/7, 0x3fe6666666666666 = 0.7)
+	double const kScaleKeyUp = 10.0 / 7.0;
+	double const kScaleKeyDown = 0.7;
 }

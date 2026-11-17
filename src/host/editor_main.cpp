@@ -554,12 +554,13 @@ static UINT const kHarnessPickPoly = WM_APP + 13;
 void TexturePolygonClicked(OpenLevelFile *open, uint8_t const *target, bool isModule, int32_t moduleIndex, int32_t polygon, bool deselect, bool copyNow);
 static void HarnessLocate(int32_t index);
 // - kHarnessPickModule, wParam a module's object number (the number the level file gives its object, as the Adjacent Modules screen counts them): that module is picked, as a click on it would (on the Path screen by
-//   the game's module number, as that screen's click does). A line "AVP_OpenInteng: pick-module: ..." says what was done. Only in a -picture run.
+//   the game's module number, as that screen's click does; on Module Linking into the screen's own picks, as its plain click, LinkClick). A line "AVP_OpenInteng: pick-module: ..." says what was done. Only in a -picture run.
 static UINT const kHarnessPickModule = WM_APP + 11;
 // - kHarnessPickMarker, wParam an entry point marker's number from 0 (Waypoint, AI modules): that marker is picked, as a click on its cube would (the click's own rule is light_pick.h's, tested there). A line
 //   "AVP_OpenInteng: pick-marker: ..." says what was done. Only in a -picture run.
 static UINT const kHarnessPickMarker = WM_APP + 12;
 static void HarnessPickModule(int32_t index);
+static void LinkClick(host::PickReport const &used, bool shift, bool held);
 static bool harnessScenarioAsked = false;
 static void HarnessRunItem(int32_t command);
 int harnessPictureAsked = 0;
@@ -916,6 +917,32 @@ static bool DeleteLinksRunning();
 static void ShowTheWorkingBytes();   // the view gap: the game's view loads the editor's working bytes at a screen change (defined after Delete Links' run)
 static void AutoLinkLoadFileCommand();
 static void GenerateAdjacency(bool newOnly);
+
+// MODULE LINKING'S ADJACENCY MESSAGE (module-linking-closeout-vasquez.md ML-T1; Vasquez 11-17): Exit + New Adjacencies puts "Calculating new module adjacency" (0x5e3a9c) and Exit + All
+// Adjacencies, after its Yes, "Calculating adjacency data" (0x5e3a0c) on the screen at (200, 100) (FUN_0057bd40, 0x4c1e56 / 0x4c1eb1) BEFORE FUN_004c5a30 works the data out, so they stay
+// while it works. Ours: the words are drawn, and the work is done two frames later (as Light Sourcing's save, lightSavePending); linkMessageShown is the last one drawn (the state line's
+// linkmessage, for the harness: the words are gone when the work is done).
+static std::string linkMessage;
+static std::string linkMessageShown;
+static int linkAdjacencyPending = 0;
+static bool linkAdjacencyNewOnly = false;
+
+static void AdjacencyWithMessage(bool newOnly)
+{
+	linkMessage = newOnly ? "Calculating new module adjacency" : "Calculating adjacency data";
+	linkAdjacencyNewOnly = newOnly;
+	linkAdjacencyPending = 2;
+}
+
+static void AdjacencyEveryFrame()
+{
+	if (linkAdjacencyPending > 0 && --linkAdjacencyPending == 0)
+	{
+		GenerateAdjacency(linkAdjacencyNewOnly);
+		linkMessage.clear();
+	}
+}
+
 static void DoWaypointCommand(int32_t command, EditorHostState &host);
 static int waypointDragMask = 0;   // the three-view quarter (its axes) a face of a waypoint's box was taken in; the drag only follows the mouse in that quarter
 static int64_t waypointViewCentre[3] = { 0, 0, 0 };   // Edit Extents' views' centre in the world (DAT_0091bee8: the master's place, moved by Shift + right drag)
@@ -4254,6 +4281,20 @@ static void HarnessPickModule(int32_t index)
 				return;
 			}
 		}
+	}
+
+	// On Module Linking the picks are the screen's own list (linkPicks, FUN_004c0cb0), which the selection alone never fills: the pick is made by the screen's plain click with the module's
+	// object, as LinkClick takes a door's (found by module-linking-keys: since e6ef0b4 every S / N / B after a pick-module said "pick a module first")
+	if (OnModuleLinkingScreen())
+	{
+		host::PickReport used = {};
+
+		used.found = host::PickFound::Object;
+		memcpy(used.objectId, id, host::kSelectionIdBytes);
+		LinkClick(used, false, false);
+		printf("AVP_OpenInteng: pick-module: module %d picked (%s), as a click on Module Linking picks it\n", (int)index, ModuleNameOfIndex(index).c_str());
+		fflush(stdout);
+		return;
 	}
 
 	picked.kind = host::SelectedKind::Object;
@@ -7868,7 +7909,26 @@ bool PressTheBarItem(char const *words);
 static bool Held(EditorMove move);
 static FlyCamera cameraDrawn = { 0, 0, 0, 0, 0 };   // the camera as the last frame had it (the link takes its offset from it)
 static bool cameraLinked = false;
-static int32_t cameraLinkDistance = 0;     // mm from the object's centre, back along the way the camera looks (inteng: 2 x the object's radius, or 0 with Shift+R: FUN_004d9af0 0x4dc3d8-0x4dc41e)
+static int32_t cameraLinkDistance = 0;     // the camera object's +0x7c: mm from the object's centre, back along the orbit's forward (inteng: 2 x the object's radius, or 0 with Shift+R: FUN_004d9af0 0x4dc3d8-0x4dc41e)
+static int cameraOrbitPitch = 0;           // the camera object's +0x74 (hold C: numpad 8 / 2), 4096ths
+static int cameraOrbitYaw = 0;             // its +0x78 (hold C: numpad 4 / 6)
+
+// THE LINK LET GO (V-17): R again (0x4dc534-0x4dc593) and the fly's stop (FUN_004df090 0x4df11a-0x4df18b): the camera block takes the camera object's place and matrix, which ours already has (UpdateCameraLink
+// puts the orbit's place and its angles in the camera each frame), and the orbit's angles are 0 again; R also makes the distance 0 (the stop leaves it: it is set again by the next R). NAMED: the camera keeps the
+// orbit's view as its turn, look and roll in 4096ths (LevelView_AnglesOfMatrix), where inteng keeps the matrix itself.
+static void PlacementCameraUnlink(bool byR)
+{
+	cameraLinked = false;
+	cameraOrbitPitch = 0;
+	cameraOrbitYaw = 0;
+
+	if (byR)
+	{
+		cameraLinkDistance = 0;
+	}
+
+	LevelView_SetViewMatrix(nullptr);
+}
 // F: "Fly selected object" (FUN_004def60 = slot +0x48 of the current object, DAT_008f4f44): the object takes the camera's place as it moves, and the camera is let go of it when F is pressed again. The object
 // keeps the offset from the camera it had when F was pressed; its place is written when F is pressed again (the editor draws no live copy of an ordinary object: a cube marks where it is meanwhile).
 static bool flyOn = false;
@@ -7889,6 +7949,30 @@ static int flyCameraSpeedKept = 6;
 static host::SpecialKind flyKind = host::SpecialKind::Generator;   // the flying special object (the current one when F was pressed)
 static size_t flyNumber = 0;
 static int flyTurnAcc[3] = { 0, 0, 0 };      // how far the turn keys have turned the flying object since F: turn, look and roll, in 4096ths of a turn
+// THE FLOWN OBJECT'S GLIDE (A-5, OP-112): inteng gives the flown object the camera's own mover (FUN_0053db40, strategy slot 2 at 0x4df0b7; the camera gets slot 0), so the object's block +0x168 glides it as
+// the camera's glides the camera: Shift+A / Shift+Z add or take 100000 a frame, any plain move key or Space stops it, and it carries the object along its own forward axis by glide x the frame's time (MoveTheFlyingObject).
+// Neither the start (FUN_004df090 0x4df0b1-0x4df0fb) nor the stop (0x4df104-0x4df1c7) touches +0x168, so an object let go while it glides glides on when it is flown again. NAMED: inteng keeps it in the object's block,
+// which lasts until the level is loaded again (the hub's entry, FUN_0046e700); ours keeps it by the object until Object Placement (with its Track and Acoustic pages) is left, which in inteng goes through the hub.
+static int32_t flyGlide = 0;                         // the flying object's
+static std::map<std::string, int32_t> flyGlides;     // every object flown since Object Placement was entered, by FlyGlideKey: its glide when it was let go
+static double flyGlideCarry[3] = { 0.0, 0.0, 0.0 };  // the part of a millimetre the glide has not moved it yet
+
+// Which object flies, as flyGlides keeps it: a special object by its kind and number, a placed one by its ID
+static std::string FlyGlideKey()
+{
+	char key[40];
+
+	if (flyIsSpecial)
+	{
+		snprintf(key, sizeof(key), "special %d %zu", (int)flyKind, flyNumber);
+	}
+	else
+	{
+		snprintf(key, sizeof(key), "object %02x%02x%02x%02x%02x%02x%02x%02x", flyId[0], flyId[1], flyId[2], flyId[3], flyId[4], flyId[5], flyId[6], flyId[7]);
+	}
+
+	return key;
+}
 // The ordinary object flies AS ITSELF (level_view.h LevelView_FlyBegin: a live copy of its display block, shared with Track Editing's end marker): its turn is the turn it had when F was pressed, turned with the camera
 static bool flyReal = false;                 // the live copy is there (false: a cube marks the object)
 // SNAP TO VERTEX, LIVE (OP-43): on (DAT_008f4f10); the moving object; its pose saved at the start (DAT_008f4b60.., DAT_008f4bb8..) and the one shown now (file units and the file's turn); the pointer;
@@ -7908,6 +7992,10 @@ static bool PlacementFlyHoldsTheCopy()
 }
 static float flyStartQuat[4] = { 0, 0, 0, 1 };
 static float flyTurnNow[4] = { 0, 0, 0, 1 };
+// A-7 (OP-113): the flown object's own matrix (its block's +0x38, the game's ObMat), which the turn keys turn about its own axes each frame as inteng's mover does (MoveTheFlyingObject), and the part of
+// a 4096th of each axis' turn not turned yet (the block's +0x1b8 / +0x1bc / +0x1c0, FUN_0053c6c0). The file's turn (flyTurnNow) is taken from the matrix when the object is let go.
+static int32_t flyMatrix[9] = { 65536, 0, 0, 0, 65536, 0, 0, 0, 65536 };
+static int flyTurnCarry[3] = { 0, 0, 0 };
 
 // Move rel. to poly's mover (OP-42): the current object flies and the camera is not linked to it; its ID (a special object's: all 0)
 static bool PlacementFlyIsTheMover(uint8_t id[8])
@@ -7944,6 +8032,9 @@ static void PlacementFlyTakePose(int32_t const world[3], float const turn[4])
 		memcpy(flyStartQuat, turn, sizeof(flyStartQuat));
 		memcpy(flyTurnNow, turn, sizeof(flyTurnNow));
 		flyTurnAcc[0] = flyTurnAcc[1] = flyTurnAcc[2] = 0;
+
+		// the flown object's own matrix is its turn's (A-7: the frame draws the copy from flyMatrix, and the stop takes the file's turn from it)
+		LevelView_MatrixOfTurn(turn, flyMatrix);
 	}
 }
 // X: "Toggle movement relative to axes" and B: "Toggle bounding box increase" (FUN_004d9af0 0x4dc59f-0x4dc5f1, only while an object flies, DAT_005e78c4): X flips DAT_00914af8 ("Move Rel to Axes" in the flying
@@ -8550,6 +8641,75 @@ static void PlacedHierarchyCommand(int32_t command)
 	}
 }
 
+// THE '=' AND '-' KEYS (OP-14, FUN_004d9af0 0x4dc2c3-0x4dc308): with a current object, the keys live and Gravity off (0x4dc1ea), the main keyboard's '=' (slot 0xd87afb) calls the current
+// object's +0x14 with 10/7 and '-' (0xd87afd) with 0.7, EVERY FRAME the key is held (the slots are set on key-down and cleared on key-up, never by this code; both held: '=' first). A placed shape
+// whose shape has an outside file (SHPEXTFL) is scaled (FUN_004e1340): the file's bytes by ShapeRescale_ByFactor (the points, extents, radius and the SHPEXTFN's rescale), the drawn shape
+// at once by LevelView_ScaleObjectShape. Every other kind's +0x14 does nothing, and so does a shape with no outside file. NAMED (shape_rescale_edit.h): a shape other objects use too is
+// refused here. The status line says how much the shape has been scaled since the key went down; inteng says nothing. Added 2026-11-17 by Drake.
+static double scaleKeysTotal = 1.0;   // the product of the factors since the keys were last both up
+static bool scaleKeysDrawn = true;     // every step since then scaled the view's own shape too
+static std::string scaleKeysWords;
+
+static void ScaleKeysFrame(bool up, bool down)
+{
+	host::Selected const current = host::Selection_Get();
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!up && !down)
+	{
+		scaleKeysTotal = 1.0;
+		scaleKeysDrawn = true;
+		return;
+	}
+
+	// a placed shape that is THE current object (a special object current has the +0x14 that does nothing)
+	if (specialMode.haveCurrent || current.kind != host::SelectedKind::Object || !open || !LevelObjects_Level())
+	{
+		return;
+	}
+
+	double const factors[2] = { host::kScaleKeyUp, host::kScaleKeyDown };
+	bool const held[2] = { up, down };
+
+	for (int k = 0; k < 2; k++)
+	{
+		if (!held[k])
+		{
+			continue;
+		}
+
+		std::string why;
+		host::ShapeRescaleResult const result = host::ShapeRescale_ByFactor(open, LevelObjects_Level(), current.objectId, factors[k], &why);
+
+		if (result == host::ShapeRescaleResult::NoExternal)
+		{
+			return;   // inteng: nothing
+		}
+
+		if (result != host::ShapeRescaleResult::Done)
+		{
+			scaleKeysWords = std::string("Scale: ") + host::ShapeRescaleWords(result) + (why.empty() ? std::string() : " (" + why + ")");
+			Answer(scaleKeysWords);
+			return;
+		}
+
+		LevelViewShapeOf drawn = {};
+
+		drawn.isModule = false;
+		memcpy(drawn.objectId, current.objectId, 8);
+		scaleKeysDrawn = LevelView_ScaleObjectShape(drawn, factors[k]) && scaleKeysDrawn;
+		scaleKeysTotal *= factors[k];
+	}
+
+	char words[240];
+
+	// the words say whether the view's own shape was scaled too (the game holds a block for the object), else the next screen change shows it
+	_snprintf_s(words, sizeof(words), _TRUNCATE, "Scaled: the shape is %.4g times its size when the key went down, %s (kept in the editor's bytes until Save a copy)", scaleKeysTotal,
+		scaleKeysDrawn ? "drawn so now" : "drawn so at the next screen change");
+	scaleKeysWords = words;
+	Answer(scaleKeysWords);
+}
+
 // OBJECT PLACEMENT'S FRAME, called every frame (OP-80, OP-4 (5)): on its screen, H / N held change the view distance (the shared DAT_005fd678, `viewDistance`: the key flags are set on key-down and cleared
 // on key-up, FUN_0058c010 / 0x58c74b, and 0x4d9f64-0x4d9f81 does not clear them, so it changes every frame a key is held; never below 0); FUN_004dd2f0 then hides every block whose distance from the camera
 // less its radius is not below the distance, except the current object's (LevelView_HideBeyond / HideBeyondKeep; the special objects' icons by the same rule in SpecialIconTriangles). Off its screen the
@@ -8606,6 +8766,12 @@ static void PlacementFrame()
 		int64_t const next = (int64_t)viewDistance + (keyDown['H'] ? 500000 : 0) - (keyDown['N'] ? 500000 : 0);
 
 		viewDistance = ViewDistanceHeld(next);
+	}
+
+	// OP-14: '=' / '-' held scale the current placed shape every frame (Gravity off; Acoustic Mode's frame does not run these keys)
+	if (!acoustic && !AMenuIsOpen() && !host::Dialogs_IsOpen() && !PlacementGravityOn())
+	{
+		ScaleKeysFrame(keyDown[VK_OEM_PLUS], keyDown[VK_OEM_MINUS]);
 	}
 
 	host::Selected const selectedNow = host::Selection_Get();
@@ -9127,49 +9293,51 @@ static void UpdateCameraLink(FlyCamera *camera)
 		}
 	}
 
-	// F: the flying object is drawn where the keys have taken it (MoveTheFlyingObject): the camera stays where it is, unless R links it
+	// F: the flying object is drawn where the keys have taken it and turned as they have turned it (MoveTheFlyingObject: its own matrix, A-7): the camera stays where it is, unless R links it
 	if (flyOn && flyReal)
 	{
-		auto const degrees = [](int turned) { int d = turned & 4095; return (double)(d > 2048 ? d - 4096 : d) * 360.0 / 4096.0; };
-		float turned[4];
-
-		if (host::TrackPlay_TurnedBy(flyStartQuat, degrees(flyTurnAcc[0]), degrees(flyTurnAcc[1]), degrees(flyTurnAcc[2]), turned))
-		{
-			memcpy(flyTurnNow, turned, sizeof(turned));
-		}
-
-		LevelView_FlyPut(flyWorld, flyTurnNow);
+		LevelView_FlyPutMatrix(flyWorld, flyMatrix);
 	}
 
 	if (!cameraLinked)
 	{
+		LevelView_SetViewMatrix(nullptr);
 		return;
 	}
 
 	if (!LinkedObjectWorld(world))
 	{
-		cameraLinked = false;
+		PlacementCameraUnlink(true);
 		return;
 	}
 
-	// the camera sits back from the object along the way it looks (the camera's turn keys swing it round the object); with C held the forward and back keys change how far back
-	int forward[3] = { 0, 0, 0 };
-	int right[3] = { 0, 0, 0 };
-
+	// THE ORBIT (V-17): hold C, while it flies and the camera is linked (FUN_004d9af0 0x4dc390-0x4dc49f, every frame C is held; C also stops the object's mover, MoveTheFlyingObject): numpad 8 / 2 turn the
+	// orbit's pitch (+0x74) by +50 / -50, numpad 4 / 6 its yaw (+0x78) by -50 / +50, each kept in 0 .. 4095; A / Z bring the camera 50000 of inteng's units (500 mm) nearer / farther (+0x7c), never past the object
 	if (keyDown['C'])
 	{
-		int const step = StepAtTheSpeed();
+		cameraOrbitPitch = (cameraOrbitPitch + (keyDown[VK_NUMPAD8] ? 50 : 0) - (keyDown[VK_NUMPAD2] ? 50 : 0)) & 4095;
+		cameraOrbitYaw = (cameraOrbitYaw - (keyDown[VK_NUMPAD4] ? 50 : 0) + (keyDown[VK_NUMPAD6] ? 50 : 0)) & 4095;
 
-		cameraLinkDistance += (Held(EditorMove::Back) ? step : 0) - (Held(EditorMove::Forward) ? step : 0);
-		cameraLinkDistance = cameraLinkDistance < 0 ? 0 : (cameraLinkDistance > 1000000 ? 1000000 : cameraLinkDistance);
+		long long distance = (long long)cameraLinkDistance - (keyDown['A'] ? 500 : 0) + (keyDown['Z'] ? 500 : 0);
+
+		cameraLinkDistance = (int32_t)(distance < 1 ? 0 : (distance > kFlyCameraMostPlace ? kFlyCameraMostPlace : distance));
 	}
 
-	if (LevelView_CameraAxes(forward, right))
+	// the camera object of kind 1 (FUN_00580a40): the object's matrix (the live copy's, as drawn; a special object's is the world's), turned by the yaw and the pitch, and the camera that far back along it
+	int32_t blockMatrix[9] = { 65536, 0, 0, 0, 65536, 0, 0, 0, 65536 };
+	int32_t place[3], matrix[9];
+
+	if (flyReal)
 	{
-		camera->x = world[0] - (int)(((int64_t)forward[0] * cameraLinkDistance) / 65536);
-		camera->y = world[1] - (int)(((int64_t)forward[1] * cameraLinkDistance) / 65536);
-		camera->z = world[2] - (int)(((int64_t)forward[2] * cameraLinkDistance) / 65536);
+		LevelView_FlyMatrix(blockMatrix);
 	}
+
+	LevelView_OrbitOf(world, blockMatrix, cameraOrbitPitch, cameraOrbitYaw, cameraLinkDistance, place, matrix);
+	camera->x = place[0];
+	camera->y = place[1];
+	camera->z = place[2];
+	LevelView_AnglesOfMatrix(matrix, &camera->turn, &camera->look, &camera->roll);
+	LevelView_SetViewMatrix(matrix);
 }
 
 // X and B while an object flies: the words are inteng's ("Move Rel to Axes", "Inc Bounding Box", FUN_004e9b10)
@@ -9201,11 +9369,13 @@ static void PlacementFlyStop()
 	int32_t place[3] = { (int32_t)(flyWorld[0] / scale), (int32_t)(flyWorld[1] / scale), (int32_t)(flyWorld[2] / scale) };
 
 	flyOn = false;
-	cameraLinked = false;
+	PlacementCameraUnlink(false);
 	flyRelAxes = false;
 	flyIncBox = false;
 	flySpeedUnits = speedUnits;
 	speedUnits = flyCameraSpeedKept;
+	flyGlides[FlyGlideKey()] = flyGlide;   // the stop leaves the block's +0x168 as it is (THE FLOWN OBJECT'S GLIDE)
+	flyGlide = 0;
 
 	if (!open || !open->Level())
 	{
@@ -9223,7 +9393,9 @@ static void PlacementFlyStop()
 	}
 	else if (flyReal)
 	{
-		// the real object: its place AND turn are written (OBJHEAD1), then the live copy is taken away and the real block shows where the level's bytes put it
+		// the real object: its place AND turn are written (OBJHEAD1), the turn the file's of its own matrix (A-7), then the live copy is taken away and the real block shows where the level's bytes put it
+		LevelView_TurnOfMatrix(flyMatrix, flyTurnNow);
+
 		host::TrackEditResult const result = host::TrackSetObjectPose(open, flyId, place, flyTurnNow);
 
 		flyReal = false;
@@ -9401,7 +9573,7 @@ static bool PlacementKey(WPARAM key, bool shift)
 
 		if (cameraLinked)
 		{
-			cameraLinked = false;
+			PlacementCameraUnlink(true);
 			Answer("Camera link to object: off");
 		}
 		else
@@ -9417,7 +9589,8 @@ static bool PlacementKey(WPARAM key, bool shift)
 			{
 				cameraLinked = true;
 				cameraLinkDistance = shift ? 0 : radius * 2;
-				Answer(shift ? "Camera link to object: on, the camera at the centre of the object" : "Camera link to object: on, 2 radii back (turn to swing round it; hold C and the forward and back keys to change how far)");
+				Answer(shift ? "Camera link to object: on, the camera at the centre of the object" :
+					"Camera link to object: on, 2 radii back (the camera turns with the object; hold C: numpad 8 / 2 and 4 / 6 swing it round, A / Z bring it nearer or farther)");
 			}
 		}
 
@@ -9461,6 +9634,11 @@ static bool PlacementKey(WPARAM key, bool shift)
 				flyWorld[1] = world[1];
 				flyWorld[2] = world[2];
 
+				// its glide is the one it had when it was last let go (the block's +0x168: the start leaves it as it is)
+				auto const glided = flyGlides.find(FlyGlideKey());
+
+				flyGlide = glided == flyGlides.end() ? 0 : glided->second;
+				flyGlideCarry[0] = flyGlideCarry[1] = flyGlideCarry[2] = 0.0;
 				flyReal = false;
 
 				if (!special)
@@ -9472,6 +9650,10 @@ static bool PlacementKey(WPARAM key, bool shift)
 					{
 						flyReal = true;
 						memcpy(flyTurnNow, flyStartQuat, sizeof(flyTurnNow));
+
+						// its own matrix, as the game holds it (the live copy's ObMat is the object's: LevelView_FlyBegin), and no part of a turn carried yet (A-7)
+						LevelView_FlyMatrix(flyMatrix);
+						flyTurnCarry[0] = flyTurnCarry[1] = flyTurnCarry[2] = 0;
 					}
 				}
 
@@ -10169,7 +10351,7 @@ void RunAction(int32_t id)
 		// Exit + New Adjacencies (0x66, FUN_004c1a90 0x4c1e3f-0x4c1e76): the current module's links are written (FUN_004c3b90), the adjacency is worked out for the modules with none,
 		// the screen's state is let go of. Ours: the exit first (LinkExit writes the links and lets go), then the work.
 		LinkExit();
-		GenerateAdjacency(true);
+		AdjacencyWithMessage(true);   // "Calculating new module adjacency" (0x4c1e56), then FUN_004c5a30(1)
 	}
 	else if (host.linkOp == kLinkExitAll)
 	{
@@ -10330,6 +10512,19 @@ void RunAction(int32_t id)
 		}
 
 		barScreen = host.screen;
+
+		// Object Placement left (its Track Editing and Acoustic pages are its own): every flown object's glide is let go of, as inteng's are when the hub loads the level again (THE FLOWN OBJECT'S GLIDE)
+		{
+			auto const placementFamily = [](size_t screen) {
+				return screen < host::kIntengScreenCount && (strcmp(host::kIntengScreens[screen].name, "Object Placement") == 0 || strcmp(host::kIntengScreens[screen].name, "Placement mode 1 (sounds)") == 0 ||
+					strcmp(host::kIntengScreens[screen].name, "Track Editing") == 0);
+			};
+
+			if (placementFamily(wasScreen) && !placementFamily(barScreen))
+			{
+				flyGlides.clear();
+			}
+		}
 
 		// leaving the hub for a mode: the hub's selection lists are freed (FUN_004476d0) and the mode builds its own (SEL-2): nothing selected in the hub is current in the mode. First, with the
 		// hub's changes not yet in the file (DAT_00631264), the level FILE is written (FUN_004719e0 at 0x4476e3)
@@ -12713,44 +12908,168 @@ static void MoveTheCamera(FlyCamera *camera, bool moves = true)
 	FlyCamera_Hold(camera);
 }
 
-// F, the flying object's keys. inteng (FUN_004d9af0 0x4dc38b-0x4dc5f1, the engine's key movement 0x53e123-0x53e368): while an object flies, the movement keys move IT (one step along one of its three axes per key,
-// forward and back, left and right, up and down; with X, "Move Rel to Axes", along the world's axes instead) and the camera stays where it is; the turn keys turn the object (0x53e403-0x53e51a), unless the camera is linked to it
-// (R), when they swing the camera round it. NAMED: which of the object's axes a key pair takes (the engine reads the matrix's three rows, one per key pair; here forward and back go along the object's way, left and right
-// across, up and down along its down) is the editor's own. The step is the engine's at the FLY speed (OP-112: F swaps it into speedUnits, OP-110, so StepAtTheSpeed gives it).
+// F, the flying object's keys: inteng's LIVE mover FUN_0053db40 on the flown object's block (slot 2, 0x4df0b7; THE CAMERA'S MOVER above, the same code), each frame in its order (A-5, OP-112):
+//  - C held: nothing moves this frame, the glide neither (0x53dc0e: JNZ 0x53e58b, past the glide at 0x53e582); the speed keys [ ] have been read before it (0x53db60-0x53dbc2);
+//  - the turn keys turn the object (0x53dc1e-0x53dd11), unless the camera is linked to it (R), when they swing the camera round it;
+//  - Shift NOT held (0x53e080): one step per key along a row of the object's matrix (the game's, QuatToMat: row 0 right, row 1 down, row 2 forward, the block's +0x38 / +0x44 / +0x50): Left or numpad 1 -row 0,
+//    Right or numpad 3 +row 0, Up or numpad '-' -row 1, Down or numpad '+' +row 1, A +row 2, Z -row 2 (0x53e216-0x53e362); with X ("Move Rel to Axes", DAT_00914af8) along the world's axes (0x53e139-0x53e208).
+//    Every one of them stops the glide. The step is the engine's at the FLY speed (F swaps it into speedUnits, OP-110, so StepAtTheSpeed gives it);
+//  - Shift HELD (0x53e088-0x53e0f6): no step at all (Shift with an arrow does nothing); Shift+A adds 100000 to the glide each frame, Shift+Z takes 100000 off (an int: it wraps, as inteng's does);
+//  - Space held: the glide stops (0x53e54d);
+//  - THE GLIDE (FUN_0053c7d0, 0x53e582): along the object's OWN forward axis (+0x50, with X too), glide x the frame's time (not held to 0.1 s), 100 to the millimetre.
+// INTENG BUG FIXED, NAMED (section 15): with X, Down adds 0x3e87360 to the world y where every other key adds 0x10000 (0x53e1c6: 81 c1 60 73 e8 03, ADD ECX,0x3e87360; the exe's bytes read), so Down went
+// about 1000 times as far as Up; ours steps once, as Up does.
+// NOT HERE: Space's turn speeds +0x190.. (always 0 for a flown object: no joystick). The turn keys' +0x1ac.. are worked out again each frame from the keys (A-7), so Space zeroing them changes nothing.
 static void MoveTheFlyingObject(bool turns)
 {
-	int const step = StepAtTheSpeed();   // (the named Shift x4 is gone: inteng's Shift is the glide, THE CAMERA'S MOVER; the flown object's glide is Vasquez's, he is told)
-	int const turnStep = 24;
-
-	if (turns)
+	// C held: nothing moves, the glide neither
+	if (keyDown['C'])
 	{
-		flyTurnAcc[0] -= (Held(EditorMove::TurnRight) ? turnStep : 0) - (Held(EditorMove::TurnLeft) ? turnStep : 0) + mouseTurn;
-		flyTurnAcc[1] -= (Held(EditorMove::LookDown) ? turnStep : 0) - (Held(EditorMove::LookUp) ? turnStep : 0) + mouseLook;
-		flyTurnAcc[2] -= (Held(EditorMove::RollRight) ? turnStep : 0) - (Held(EditorMove::RollLeft) ? turnStep : 0);
 		mouseTurn = 0;
 		mouseLook = 0;
+		return;
+	}
+
+	int const step = StepAtTheSpeed();
+
+	// A-7 (OP-113), THE TURN (0x53dc1a-0x53df8d): the held turn keys' speeds (LevelView_TurnSpeedsOfKeys: a 10 degree matrix a key, in inteng's order, its Euler angles: 4096ths a second); this frame's share of
+	// each (FUN_0053c6c0: the speed x the frame's time in 65536ths of a second, the part of a 4096th carried to the next frame, the sign put back), x 6 (0x53dd78), and when the frame took over 0.1 s each over 80
+	// held to 81 (0x53dda4-0x53ddeb); the object's own matrix then turned by those angles about its own axes (LevelView_TurnMatrix). NAMED: the mouse's turn and look are added to the frame's y and x (inteng's
+	// mouse look is not read here). A special object (no live copy) is not turned, as before.
+	if (turns && flyReal)
+	{
+		int speeds[3];
+
+		LevelView_TurnSpeedsOfKeys(Held(EditorMove::TurnLeft), Held(EditorMove::TurnRight), Held(EditorMove::RollLeft), Held(EditorMove::RollRight), Held(EditorMove::LookDown), Held(EditorMove::LookUp), speeds);
+
+		int const frameTime = (int)(frameSeconds * 65536.0);
+		int angles[3];
 
 		for (int i = 0; i < 3; i++)
 		{
-			flyTurnAcc[i] &= 4095;
+			int const product = speeds[i] * frameTime;
+			bool const negative = product < 0;
+			unsigned const size = negative ? 0u - (unsigned)product : (unsigned)product;
+			int whole = (int)(size >> 16);
+
+			flyTurnCarry[i] -= (int)(size & 0xffff);
+
+			if (flyTurnCarry[i] < 0)
+			{
+				whole++;
+				flyTurnCarry[i] += 0x10000;
+			}
+
+			int angle = (negative ? -whole : whole) * 6;
+
+			if (frameTime > 0x1999)
+			{
+				angle = angle > 0x50 ? 0x51 : (angle < -0x50 ? -0x51 : angle);
+			}
+
+			angles[i] = angle;
+		}
+
+		angles[0] -= mouseLook;
+		angles[1] -= mouseTurn;
+		mouseTurn = 0;
+		mouseLook = 0;
+
+		// the turned angles kept as before: turn (y), look (x), roll (z), for the scenario's state lines only
+		flyTurnAcc[0] = (flyTurnAcc[0] + angles[1]) & 4095;
+		flyTurnAcc[1] = (flyTurnAcc[1] + angles[0]) & 4095;
+		flyTurnAcc[2] = (flyTurnAcc[2] + angles[2]) & 4095;
+
+		// every frame, a turn or none (inteng multiplies and squares the matrix again each frame: 0x53df7b-0x53df88)
+		LevelView_TurnMatrix(flyMatrix, angles);
+	}
+	else if (turns)
+	{
+		mouseTurn = 0;
+		mouseLook = 0;
+	}
+
+	// the object's own axes (right, down, forward: the rows of its matrix, turned by this frame's keys first: the mover turns before it moves); a special object (no turn of its own here) has the world's
+	double own[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+
+	if (flyReal)
+	{
+		for (int i = 0; i < 9; i++)
+		{
+			own[i] = (double)flyMatrix[i] / 65536.0;
 		}
 	}
 
-	// the object's axes (right, down, forward: rows of its matrix), or the world's with X
-	double axes[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+	// the keys' axes: the object's own, or the world's with X
+	double const world[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+	double const *const axes = flyRelAxes ? world : own;
 
-	if (flyReal && !flyRelAxes)
+	if (!ShiftDown())
 	{
-		host::TrackPlay_QuatAxes(flyTurnNow, axes);
+		double const forward = (Held(EditorMove::Forward) ? step : 0) - (Held(EditorMove::Back) ? step : 0);
+		double const sideways = (Held(EditorMove::Right) ? step : 0) - (Held(EditorMove::Left) ? step : 0);
+		double const down = (Held(EditorMove::Down) ? step : 0) - (Held(EditorMove::Up) ? step : 0);
+
+		if (Held(EditorMove::Forward) || Held(EditorMove::Back) || Held(EditorMove::Left) || Held(EditorMove::Right) || Held(EditorMove::Up) || Held(EditorMove::Down))
+		{
+			flyGlide = 0;
+		}
+
+		for (int k = 0; k < 3; k++)
+		{
+			flyWorld[k] = FlyCamera_HeldTo((long long)flyWorld[k] + (long long)floor(forward * axes[6 + k] + sideways * axes[k] + down * axes[3 + k] + 0.5), kFlyCameraMostPlace);
+		}
+	}
+	else
+	{
+		if (Held(EditorMove::Forward))
+		{
+			flyGlide = (int32_t)((uint32_t)flyGlide + (uint32_t)kGlidePerFrame);
+		}
+
+		if (Held(EditorMove::Back))
+		{
+			flyGlide = (int32_t)((uint32_t)flyGlide - (uint32_t)kGlidePerFrame);
+		}
 	}
 
-	double const forward = (Held(EditorMove::Forward) ? step : 0) - (Held(EditorMove::Back) ? step : 0);
-	double const sideways = (Held(EditorMove::Right) ? step : 0) - (Held(EditorMove::Left) ? step : 0);
-	double const down = (Held(EditorMove::Down) ? step : 0) - (Held(EditorMove::Up) ? step : 0);
-
-	for (int k = 0; k < 3; k++)
+	// A-7b, numpad '*' (0x53e403, the held key: every frame it is held), after the steps and before the glide: levelled, or with Shift snapped to right angles (FUN_0053d1e0); the glide then goes along the new forward
+	if (flyReal && keyDown[VK_MULTIPLY])
 	{
-		flyWorld[k] = FlyCamera_HeldTo((long long)flyWorld[k] + (long long)floor(forward * axes[6 + k] + sideways * axes[k] + down * axes[3 + k] + 0.5), kFlyCameraMostPlace);
+		if (ShiftDown())
+		{
+			LevelView_SquareMatrix(flyMatrix);
+		}
+		else
+		{
+			LevelView_LevelMatrix(flyMatrix);
+		}
+
+		for (int i = 0; i < 9; i++)
+		{
+			own[i] = (double)flyMatrix[i] / 65536.0;
+		}
+	}
+
+	if (keyDown[VK_SPACE])
+	{
+		flyGlide = 0;
+	}
+
+	// THE GLIDE: along the object's own forward axis, glide x the frame's time, 100 to the millimetre; the part of a millimetre left over is carried to the next frame
+	if (flyGlide != 0)
+	{
+		double const millimetres = (double)flyGlide * frameSeconds / 100.0;
+
+		for (int k = 0; k < 3; k++)
+		{
+			flyGlideCarry[k] += millimetres * own[6 + k];
+
+			double const whole = flyGlideCarry[k] < 0.0 ? ceil(flyGlideCarry[k]) : floor(flyGlideCarry[k]);
+
+			flyGlideCarry[k] -= whole;
+			flyWorld[k] = FlyCamera_HeldTo((long long)flyWorld[k] + (long long)whole, kFlyCameraMostPlace);
+		}
 	}
 }
 
@@ -22468,7 +22787,7 @@ void RunThePrompt()
 	{
 		if (_stricmp(typed.c_str(), "yes") == 0 || _stricmp(typed.c_str(), "y") == 0)
 		{
-			GenerateAdjacency(false);
+			AdjacencyWithMessage(false);   // "Calculating adjacency data" (0x4c1eb1), then FUN_004c5a30(0)
 		}
 		else
 		{
@@ -24023,7 +24342,9 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 
 	// inteng has no status line: the Hierarchy screen draws only its own text (HierarchyTextLines) and the dialogs; the words are still kept (the state line's status) for the harness
 	// The hub draws no status words either (FUN_004452b0 draws only the view, the bar and its dialogs: its strings are all prompts): the words are still kept for the harness' state line
-	texts.status = (onHierarchy || (OnTheTrackScreen() && trackEd.state != host::TrackState::Off) || (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Waypoint") == 0) || barScreen == host::kIntengHub || textPanelText || polyScreenOpen || chooserActive || (strategyEditFan && OnStrategyScreen())) ? "" : (statusWords ? statusWords : "");
+	// Neither does MODULE LINKING (module-linking-closeout-vasquez.md ML-T2; Vasquez 11-17): FUN_004c1a90 draws only its own rows (the legend, the picks, the counts, the view distance, the follow) and
+	// its link commands say nothing (ML-M-27); the words are kept for the state line
+	texts.status = (onHierarchy || (OnTheTrackScreen() && trackEd.state != host::TrackState::Off) || (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Waypoint") == 0) || barScreen == host::kIntengHub || OnModuleLinkingScreen() || textPanelText || polyScreenOpen || chooserActive || (strategyEditFan && OnStrategyScreen())) ? "" : (statusWords ? statusWords : "");
 	hitStatus = ui::Box{ 0, 0, 0, 0 };
 
 	size_t const statusCount = host::PanelPaint_Plan(layout, texts, PanelPass_MenuWidth, kPanelPassLineHeight, statusLines, 4);
@@ -24892,6 +25213,18 @@ static PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText 
 		message.x = 200;
 		message.y = layout.toolbar.y + layout.toolbar.height + 100;
 		lines[lineCount++] = message;
+	}
+
+	// Module Linking's adjacency message (ML-T1, AdjacencyWithMessage): FUN_0057bd40(200, 100) while the data is worked out
+	if (!linkMessage.empty() && lineCount < kPanelPassMostExtras)
+	{
+		host::PaintText message;
+
+		message.text = linkMessage;
+		message.x = layout.view.x + 200;
+		message.y = layout.view.y + 100;
+		lines[lineCount++] = message;
+		linkMessageShown = linkMessage;
 	}
 
 	// "Camera position saved" (FUN_004704d0 -> FUN_0057bd40(200, 100): onto the screen at once, from the window's top, gone with the next frame): this frame only
@@ -26127,13 +26460,9 @@ int main(int, char **)
 		}
 		else if (flyOn)
 		{
-			// F: the keys move the flying object and the camera stays; linked (R), the turn keys swing the camera round the object instead
-			if (cameraLinked)
-			{
-				MoveTheCamera(&camera, false);
-			}
-
-			MoveTheFlyingObject(!cameraLinked);
+			// F: the keys move and turn the flying object, linked or not: it has the mover (slot 2), the camera block slot 0 (0x4df0b1-0x4df0b7); linked (R), the camera follows it in UpdateCameraLink,
+			// the orbit's C turned with the object's matrix (V-17)
+			MoveTheFlyingObject(true);
 
 		}
 		else
@@ -26465,6 +26794,7 @@ int main(int, char **)
 
 			RefreshTheEntryMarkers();
 			LightKeysEveryFrame();
+			AdjacencyEveryFrame();
 
 			PathTintsEveryFrame();
 
@@ -27434,8 +27764,24 @@ int main(int, char **)
 			std::string const windowWord = std::to_string(windowClient.right - windowClient.left) + " " + std::to_string(windowClient.bottom - windowClient.top) +
 				((GetWindowLongA(editorWindow, GWL_STYLE) & WS_POPUP) ? " popup" : " window");
 
-			printf("AVP_OpenInteng: scenario: screen \"%s\"; bar1 \"%s\"; bar2 \"%s\"; selection \"%s\"; prompt %d; status \"%s\"; selected \"%zu\"; modelbox \"%s\"; choices \"%s\"; dialog \"%s\"; dialogrows \"%s\"; dialogrow1 \"%s\"; dialogkind \"%s\"; dialogbuttons \"%s\"; dialogtext \"%s\"; dialogchecks \"%s\"; dialogfields \"%s\"; dialogcombos \"%s\"; dialogcomborows \"%s\"; popup \"%s\"; popuprow1 \"%s\"; popupstep \"%s\"; viewmode \"%s\"; camera \"%d %d %d %d %d\"; level \"%s\"; levelbytes \"%lld\"; hierarchylines \"%s\"; barshown \"%d\"; stability \"%s\"; camspeed \"%d\"; barboxes \"%s\"; dropboxes \"%s\"; strategyview \"%s\"; volume \"%s\"; volumeface \"%d\"; volumemodule \"%d\"; screentext \"%s\"; viewdistance \"%d\"; dropticked \"%s\"; textscreen \"%s\"; linktree \"%s\"; placedsounds \"%s\"; pathlines \"%s\"; camerasaved \"%u\"; camerasaveddrawn \"%u\"; window \"%s\"; selectedat \"%s\"\n", barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : "?", titles1.c_str(), titles2.c_str(),
-				selectedWords.c_str(), (int)promptFor, statusWords ? statusWords : "", host::Selection_SetCount(), modelBox.c_str(), choiceBoxes.c_str(), dialogTitle.c_str(), dialogRows.c_str(), dialogRow1.c_str(), dialogKindWord.c_str(), dialogNow.buttons.c_str(), dialogNow.text.c_str(), dialogNow.checks.c_str(), dialogNow.fields.c_str(), dialogNow.combos.c_str(), dialogNow.comborows.c_str(), popupEntries.c_str(), popupRow1.c_str(), popupStep.c_str(), scenarioViewMode, camera.x, camera.y, camera.z, camera.turn, camera.look, openLevelName.c_str(), scenarioLevelBytes, hierarchyLinesWord.c_str(), barVisible ? 1 : 0, stabilityWord.c_str(), speedUnits, barBoxesWord.c_str(), dropBoxesWord.c_str(), strategyViewWord.c_str(), volumeWord.c_str(), volume.on ? volume.face : -1, volume.on ? volume.module : -1, screenTextNow.c_str(), (int)(viewDistance / 500000), dropTickedWord.c_str(), textScreenWord.c_str(), LinkTreeStateWords().c_str(), placedSoundsWord.c_str(), pathLinesNow.c_str(), cameraSavedCount, cameraSavedDrawn, windowWord.c_str(), selectedAt.c_str());
+			// the flying object's place while one flies (MoveTheFlyingObject: the world's millimetres), else empty
+			std::string const flyAtWords = flyOn ? "x " + std::to_string(flyWorld[0]) + " y " + std::to_string(flyWorld[1]) + " z " + std::to_string(flyWorld[2]) : std::string();
+
+			// the orbit while the camera is linked to the flying object (V-17: pitch and yaw in 4096ths, the distance in mm), else empty
+			std::string const orbitWords = flyOn && cameraLinked ? std::string("pitch ") + std::to_string(cameraOrbitPitch) + " yaw " + std::to_string(cameraOrbitYaw) + " distance " + std::to_string(cameraLinkDistance) : std::string();
+
+			// the flying object's turn since F and its own matrix by rows (A-7), while it flies as itself; else empty
+			std::string flyTurnedWords, flyMatrixWords;
+
+			if (flyOn && flyReal)
+			{
+				flyTurnedWords = "x " + std::to_string(flyTurnAcc[1]) + " y " + std::to_string(flyTurnAcc[0]) + " z " + std::to_string(flyTurnAcc[2]);
+				flyMatrixWords = "right " + std::to_string(flyMatrix[0]) + " " + std::to_string(flyMatrix[1]) + " " + std::to_string(flyMatrix[2]) + " down " + std::to_string(flyMatrix[3]) + " " +
+					std::to_string(flyMatrix[4]) + " " + std::to_string(flyMatrix[5]) + " forward " + std::to_string(flyMatrix[6]) + " " + std::to_string(flyMatrix[7]) + " " + std::to_string(flyMatrix[8]);
+			}
+
+			printf("AVP_OpenInteng: scenario: screen \"%s\"; bar1 \"%s\"; bar2 \"%s\"; selection \"%s\"; prompt %d; status \"%s\"; selected \"%zu\"; modelbox \"%s\"; choices \"%s\"; dialog \"%s\"; dialogrows \"%s\"; dialogrow1 \"%s\"; dialogkind \"%s\"; dialogbuttons \"%s\"; dialogtext \"%s\"; dialogchecks \"%s\"; dialogfields \"%s\"; dialogcombos \"%s\"; dialogcomborows \"%s\"; popup \"%s\"; popuprow1 \"%s\"; popupstep \"%s\"; viewmode \"%s\"; camera \"%d %d %d %d %d\"; level \"%s\"; levelbytes \"%lld\"; hierarchylines \"%s\"; barshown \"%d\"; stability \"%s\"; camspeed \"%d\"; barboxes \"%s\"; dropboxes \"%s\"; strategyview \"%s\"; volume \"%s\"; volumeface \"%d\"; volumemodule \"%d\"; screentext \"%s\"; viewdistance \"%d\"; dropticked \"%s\"; textscreen \"%s\"; linktree \"%s\"; placedsounds \"%s\"; pathlines \"%s\"; camerasaved \"%u\"; camerasaveddrawn \"%u\"; linkmessage \"%s\"; window \"%s\"; selectedat \"%s\"; flyat \"%s\"; orbit \"%s\"; flyturned \"%s\"; flymatrix \"%s\"\n", barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : "?", titles1.c_str(), titles2.c_str(),
+				selectedWords.c_str(), (int)promptFor, statusWords ? statusWords : "", host::Selection_SetCount(), modelBox.c_str(), choiceBoxes.c_str(), dialogTitle.c_str(), dialogRows.c_str(), dialogRow1.c_str(), dialogKindWord.c_str(), dialogNow.buttons.c_str(), dialogNow.text.c_str(), dialogNow.checks.c_str(), dialogNow.fields.c_str(), dialogNow.combos.c_str(), dialogNow.comborows.c_str(), popupEntries.c_str(), popupRow1.c_str(), popupStep.c_str(), scenarioViewMode, camera.x, camera.y, camera.z, camera.turn, camera.look, openLevelName.c_str(), scenarioLevelBytes, hierarchyLinesWord.c_str(), barVisible ? 1 : 0, stabilityWord.c_str(), speedUnits, barBoxesWord.c_str(), dropBoxesWord.c_str(), strategyViewWord.c_str(), volumeWord.c_str(), volume.on ? volume.face : -1, volume.on ? volume.module : -1, screenTextNow.c_str(), (int)(viewDistance / 500000), dropTickedWord.c_str(), textScreenWord.c_str(), LinkTreeStateWords().c_str(), placedSoundsWord.c_str(), pathLinesNow.c_str(), cameraSavedCount, cameraSavedDrawn, linkMessageShown.c_str(), windowWord.c_str(), selectedAt.c_str(), flyAtWords.c_str(), orbitWords.c_str(), flyTurnedWords.c_str(), flyMatrixWords.c_str());
 			fflush(stdout);
 
 			// the camera, for a run that moves it (hold Z, a turn): where it is, in the game's millimetres, and the frames drawn so far

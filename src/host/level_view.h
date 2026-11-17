@@ -255,6 +255,12 @@ bool LevelView_SetItemUv(const LevelViewShapeOf &shape, int32_t item, const int3
 // The game's item takes (on) or loses (not on) these bits of its flags (iflag_notvis 1, iflag_nolight 2, iflag_transparent 0x10, iflag_no_bfc 0x20, iflag_mirror 0x1000, ...) at once, so the view shows the flag now; the file's polygon is not touched here. (Added 2026-11-15 by Melanikus (Dietrich), Texture Map flags.)
 bool LevelView_SetItemFlagBits(const LevelViewShapeOf &shape, int32_t item, int32_t mask, bool on);
 
+// THE LIVE SCALE of Object Placement's '=' and '-' keys (OP-14; inteng's FUN_004e1340 scales the game's own shape of the block each frame the key is held): every point of the
+// shape the game has loaded for this object, its radius and its six extents are multiplied by factor, each cut toward zero as inteng's __ftol; the block takes its extents
+// from the shape again (as map.cpp makes a block). Nothing is changed when the shape is not in play, a number would leave the 32-bit range, or factor is not above 0 and at
+// most 1,000,000. The file's bytes are the caller's (shape_rescale_edit.h); this is only what the view draws.
+bool LevelView_ScaleObjectShape(const LevelViewShapeOf &shape, double factor);
+
 // Objects that no module holds are drawn after the modules (the avpx hook R_SetEditorDrawObjectsOutsideModules): on for a file with no modules, whose objects the editor made display blocks of (hierarchy_view.h, ModelObjects_Build)
 void LevelView_DrawObjectsOutsideModules(bool on);
 
@@ -271,6 +277,47 @@ bool LevelView_FlyActive();
 
 // Where the live copy is, as the game holds it (its ObWorld), its radius and whether the game has it among the blocks it is drawing this frame (for the scenario's state line); false when none flies
 bool LevelView_FlyCopyState(int32_t world[3], int32_t *radius, bool *active);
+
+// The live copy's matrix as the game holds it (its ObMat: mat11 .. mat33, 16.16), false when none flies
+bool LevelView_FlyMatrix(int32_t matrix[9]);
+
+// THE ORBIT (V-17): inteng's camera object of kind 1 (FUN_00580a40, the kind R's link gives it), from the block it follows: C = the block's matrix turned by the orbit's yaw and then its pitch
+// (CreateEulerMatrix of (0, yaw, 0) and (pitch, 0, 0), MatrixMultiply: the game's own, as inteng's FUN_004b3370 and FUN_004b34b0 are), and the camera at the block's place plus C applied to
+// (0, 0, -distance) (RotateVector, AddVector: FUN_004b3860, FUN_004b3800), so it is that far back along C's forward and faces the way C does. The angles in 4096ths, the places in the world's units.
+void LevelView_OrbitOf(const int32_t blockPlace[3], const int32_t blockMatrix[9], int pitch, int yaw, int32_t distance, int32_t place[3], int32_t matrix[9]);
+
+// A view matrix in place of the camera's turn, look and roll for the draws that follow (the orbit's C: inteng's camera block takes it whole), or none again (nullptr). The camera's x y z stay its place.
+void LevelView_SetViewMatrix(const int32_t *matrix);
+
+// The camera's turn, look and roll whose view (the look about x after the turn and roll, as the game's UpdateCamera makes it) is this matrix, the look kept within a quarter turn either way; in 4096ths
+void LevelView_AnglesOfMatrix(const int32_t matrix[9], int *turn, int *look, int *roll);
+
+// A-7 (OP-113), THE TURN KEYS' SPEEDS as inteng's mover FUN_0053db40 makes them (0x53dc1a-0x53dd3c): a matrix that starts as the identity is multiplied by a 10 degree turn for each key held, in the order
+// numpad 4, 6, 7, 9, 8, 2 (the exe's matrices at 0x5f0568, 0x5f0540, 0x5f0608, 0x5f05e0, 0x5f0590, 0x5f05b8, read: cos 64540 and sin 11380 of 65536; 4 / 6 about y, 7 / 9 about z, 8 / 2 about x), and its
+// Euler angles (MatrixToEuler, FUN_004b3d90) are the speeds x, y, z, each past half a turn taken as the negative; in 4096ths of a turn a second
+void LevelView_TurnSpeedsOfKeys(bool numpad4, bool numpad6, bool numpad7, bool numpad9, bool numpad8, bool numpad2, int speeds[3]);
+
+// A matrix (the game's ObMat) turned by a frame's angles x, y, z about its own axes (0x53dea7-0x53df8d): M = CreateEulerMatrix of the angles, the matrix multiplied by M (MatrixMultiply(matrix, M, matrix),
+// FUN_004b34b0), then squared again (MNormalise, FUN_004b4030)
+void LevelView_TurnMatrix(int32_t matrix[9], const int angles[3]);
+
+// The live copy put at a place with a matrix as its ObMat (the flown object's own, A-7), its Euler from that matrix as the mover writes it (FUN_004b3d90 into +0x1c)
+void LevelView_FlyPutMatrix(const int32_t world[3], const int32_t matrix[9]);
+
+// The file's turn (x y z w, as LevelView_FlyPut takes it) whose ObMat this matrix is: FlyPut's the other way (MatToQuat, then the file's signs)
+void LevelView_TurnOfMatrix(const int32_t matrix[9], float quat[4]);
+
+// The ObMat LevelView_FlyPut gives the live copy for a file's turn (x y z w), the same steps (QuatToMat, MatrixToEuler, CreateEulerMatrix, TransposeMatrixCH): for a pose put on the flown object (Move rel.
+// to poly) while its own matrix is its state (A-7)
+void LevelView_MatrixOfTurn(const float quat[4], int32_t matrix[9]);
+
+// A-7b, numpad '*' (the mover 0x53e41b-0x53e51a): the matrix LEVELLED: row 2 the forward with no up or down (its y 0, Normalise: FUN_004b3280), row 1 straight down (0, 65536, 0), row 0 their normal
+// (MakeNormal(0, row 1, row 2): FUN_004fd620); a forward straight up or down (x and z both 0) gives the identity. NAMED: avpx's Normalise is our own rewrite (normalise.h), inteng's may round a unit apart.
+void LevelView_LevelMatrix(int32_t matrix[9]);
+
+// A-7b, Shift + numpad '*' (FUN_0053d1e0, at 0x53e532): the matrix SNAPPED to right angles: row 0's largest component (by size; the first of two the same) becomes +-65536 and its others 0, row 1 the
+// same among the two axes row 0 did not take, row 2 their normal (MakeNormal(0, row 0, row 1))
+void LevelView_SquareMatrix(int32_t matrix[9]);
 
 int32_t LevelView_ModuleCount();
 bool LevelView_ModuleName(int32_t moduleIndex, std::string *name);

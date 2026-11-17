@@ -1,0 +1,26 @@
+# ACCEPTANCE (red first): Module Linking's Exit + New / All Adjacencies put inteng's message on the screen while the data is worked out (module-linking-closeout-vasquez.md ML-T1; Vasquez
+# 2026-11-17). FUN_004c1a90 0x4c1e3f-0x4c1e76: Exit + New Adjacencies (0x66): FUN_0057bd40(200, 100, 0, "Calculating new module adjacency") before FUN_004c5a30(1); 0x4c1e77-0x4c1ed9: Exit +
+# All Adjacencies (0x65): the confirm box, and after its Yes "Calculating adjacency data" before FUN_004c5a30(0); both then go back to the hub. The state line's linkmessage is the last of these
+# messages drawn (they are gone once the work is done). RED before: no message (and no such field). His path: Invasion, the items on the bar.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+wait 400
+item 0x66
+wait 2000
+state
+expect-screen Construction
+expect-field-has linkmessage Calculating new module adjacency
+click-bar Mode > Module Linking
+expect-screen Module Linking
+wait 400
+item 0x65
+expect-dialog-kind confirm
+click-button Yes
+wait 3000
+state
+expect-screen Construction
+expect-field-has linkmessage Calculating adjacency data
