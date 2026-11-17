@@ -5,7 +5,9 @@ through BlendRIF). It rebuilds what Rebellion's own 2000 editor, "inteng", let a
 them their behaviour, light the level, set its acoustics, lay out the AI's paths and waypoints, and set the level-wide settings.
 
 **Aliens versus Predator was created by Rebellion, who own it.** The source code to Aliens vs Predator is copyright (c) 1999-2000
-Rebellion, and this editor compiles part of it. It may not be used, in full or in part, for commercial purposes. See `License.txt`.
+Rebellion, and this editor compiles part of it. It may not be used, in full or in part, for commercial purposes. A huge thank you to
+Rebellion for the most awesome game. AVP_OpenInteng's own code is MIT (it belongs to everyone who loves this game); the game's code and
+inteng's quoted words stay Rebellion's. See `License.txt`.
 
 ## Status
 
@@ -47,7 +49,7 @@ What happens to the file:
 - `docs/TAKING-OVER.md`: how to pick this up with nobody to ask. What each check proves, and what to do when a tool is gone.
 - `CODING-STANDARD.md`: the rules every change follows.
 - `docs/avpx-files.md`: every AvPx file the editor compiles, and why.
-- `License.txt`: Rebellion's terms, the notices of the code that came after, and ours.
+- `License.txt`: Rebellion's terms, the notices of the code that came after, and ours (MIT).
 
 ## Rules this project keeps
 
