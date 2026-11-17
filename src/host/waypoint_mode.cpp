@@ -146,7 +146,7 @@ namespace host
 		// FUN_00588b50: the master of a module's AI module; a module with no AIMODSLA is its own
 		int32_t MasterOf(std::map<int32_t, ModuleSnapshot> const &modules, int32_t module)
 		{
-			std::map<int32_t, ModuleSnapshot>::const_iterator const it = modules.find(module);
+			const std::map<int32_t, ModuleSnapshot>::const_iterator it = modules.find(module);
 
 			return it != modules.end() && it->second.masterIndex >= 0 ? it->second.masterIndex : module;
 		}
@@ -154,7 +154,7 @@ namespace host
 		// FUN_00581430: the module's MODULEDT holds a WAYPOINT
 		bool HoldsWaypoints(std::map<int32_t, ModuleSnapshot> const &modules, int32_t module)
 		{
-			std::map<int32_t, ModuleSnapshot>::const_iterator const it = modules.find(module);
+			const std::map<int32_t, ModuleSnapshot>::const_iterator it = modules.find(module);
 
 			return it != modules.end() && it->second.hasWaypoint;
 		}

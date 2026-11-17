@@ -20857,7 +20857,7 @@ static void HierarchyClicked(host::PickReport const &report)
 
 		for (int32_t const point : picked)
 		{
-			std::vector<int32_t>::iterator const at = std::find(hierarchyMode.vertices.begin(), hierarchyMode.vertices.end(), point);
+			const std::vector<int32_t>::iterator at = std::find(hierarchyMode.vertices.begin(), hierarchyMode.vertices.end(), point);
 
 			if (pickShift && at != hierarchyMode.vertices.end())
 			{

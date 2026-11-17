@@ -209,8 +209,8 @@ int main(int argc, char **argv)
 	int32_t const member = slave >= 0 ? slave : master;
 	{
 		std::map<int32_t, uint32_t> const entry = mode.ModulePaint(&level);
-		std::map<int32_t, uint32_t>::const_iterator const atMaster = entry.find(master);
-		std::map<int32_t, uint32_t>::const_iterator const atFree = entry.find(free);
+		const std::map<int32_t, uint32_t>::const_iterator atMaster = entry.find(master);
+		const std::map<int32_t, uint32_t>::const_iterator atFree = entry.find(free);
 
 		Check(atMaster != entry.end() && atMaster->second == host::kWaypointModuleGreen && atFree != entry.end() && atFree->second == host::kWaypointModuleWhite,
 			"on entry the AI module with waypoints is green and a module of none white (FUN_00581430 / FUN_00588e60)");
@@ -218,8 +218,8 @@ int main(int argc, char **argv)
 		mode.Click(&level, member);
 
 		std::map<int32_t, uint32_t> const clicked = mode.ModulePaint(&level);
-		std::map<int32_t, uint32_t>::const_iterator const red = clicked.find(member);
-		std::map<int32_t, uint32_t>::const_iterator const redMaster = clicked.find(master);
+		const std::map<int32_t, uint32_t>::const_iterator red = clicked.find(member);
+		const std::map<int32_t, uint32_t>::const_iterator redMaster = clicked.find(master);
 
 		Check(mode.PickedModule() == master && red != clicked.end() && red->second == host::kWaypointModuleRed && redMaster != clicked.end() && redMaster->second == host::kWaypointModuleRed,
 			"a click on a module of another AI module picks that AI module's MASTER and paints the whole AI module red (0x5841b5-0x5841e4)");
