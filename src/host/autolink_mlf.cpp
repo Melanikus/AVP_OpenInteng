@@ -254,7 +254,7 @@ namespace host
 
 		for (AutoLinkModule const &entry : scene.list)
 		{
-			std::map<int32_t, std::string>::const_iterator const name = scene.names.find(entry.number);
+			const std::map<int32_t, std::string>::const_iterator name = scene.names.find(entry.number);
 
 			if (name == scene.names.end() || name->second.size() != record.name.size() || _strnicmp(name->second.c_str(), record.name.c_str(), record.name.size()) != 0)
 			{
@@ -262,7 +262,7 @@ namespace host
 			}
 
 			// the first module of that name decides (0x4c8e5a): within 1 unit on each axis, as the level's file numbers or as memory units
-			std::map<int32_t, std::vector<int32_t> >::const_iterator const file = scene.fileLocations.find(entry.number);
+			const std::map<int32_t, std::vector<int32_t> >::const_iterator file = scene.fileLocations.find(entry.number);
 			bool inMemory = true, inFile = file != scene.fileLocations.end() && file->second.size() >= 3;
 
 			for (int axis = 0; axis < 3; axis++)

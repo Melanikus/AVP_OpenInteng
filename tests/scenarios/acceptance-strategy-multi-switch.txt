@@ -123,3 +123,10 @@ expect-field-has strategyview |0@112:(off)|80@112:
 expect-field-has strategyview |80@336:23 targets - press space for next page
 key Esc
 wait 300
+
+# ---- THE COPY, read back through the game's own loader (Vasquez 11-17, the 66 read-back: S-K66-3..7 on his path, each change above kept in the file). exitmultiswitch must hold
+# Rest State 0 and the switch-off bit 2 (P: Rest off, Same; flags 0x80000000 -> 0x80000002), Mode 1 (Wait) and its 4 targets in their stock order (D then Shift + D on row 0 left the same IDs;
+# read 11-17 by switch_survey on Temple: downdoor02, downdoor01, S363, "delay temple sealed sound"), rows 0 and 1 with request 0 (S, the press at x <= 0x31), rows 2 and 3 with request 1,
+# and its 4 links; every other strategy byte for byte the original's. RED on the stock file read as the copy: Rest State 1, flags 0x80000000, requests 1 and 1.
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Temple.RIF {copy} exitmultiswitch RestState 0 Mode 1 flags 0x80000002 targets 4 target.0 downdoor02 target.1 downdoor01 target.2 S363 target.3 "delay temple sealed sound" target_request.0 0 target_request.1 0 target_request.2 1 target_request.3 1 NumLinks 4

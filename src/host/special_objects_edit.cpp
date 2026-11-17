@@ -271,6 +271,7 @@ namespace host
 				o->wav.assign(b.data() + wavAt, wavZero ? (size_t)(wavZero - (b.data() + wavAt)) : end - wavAt);
 			}
 
+			SoundObjectId(o->name, o->id);   // the ID a strategy names it by (the chunk holds none; nothing writes this back)
 			o->kind = SpecialKind::Sound;
 			return true;
 		}
@@ -319,7 +320,51 @@ namespace host
 			}
 
 			o->name.assign(first, (size_t)(zero - first));
-			o->hasSound = FirstNamed(b, parts, "INDSOUND") != parts.size();
+
+			size_t const sound = FirstNamed(b, parts, "INDSOUND");
+
+			o->hasSound = sound != parts.size();
+
+			// its wav name: after the index (4 bytes), to the first 0 inside the chunk (a name with no 0 in the chunk is not taken)
+			if (o->hasSound && parts[sound].size >= kHeadingBytes + 5)
+			{
+				char const *const wav = b.data() + parts[sound].at + kHeadingBytes + 4;
+				char const *const end = (char const *)memchr(wav, 0, parts[sound].size - kHeadingBytes - 4);
+
+				o->particleSoundWav = end ? std::string(wav, (size_t)(end - wav)) : std::string();
+
+				// THE REST, as Indexed_Sound_Chunk reads it (chunk_sound.cpp:232): the name takes (length + 4) & ~3 bytes, then inner, outer, volume, pitch, flags, the count of extra words
+				// and the words. HOSTILE INPUT: every read is checked against the chunk's own end, and a count is taken only when that many words are there; anything short leaves
+				// particleSoundRead false (the INDSOUND is then written back as it was)
+				size_t const soundEnd = parts[sound].at + parts[sound].size;
+				size_t const afterName = end ? (size_t)(end - b.data()) - (parts[sound].at + kHeadingBytes + 4) : 0;
+				size_t at2 = parts[sound].at + kHeadingBytes + 4 + ((afterName + 4) & ~(size_t)3);
+
+				if (end && at2 <= soundEnd && soundEnd - at2 >= 24)
+				{
+					o->particleSoundIndex = IntAt(b, parts[sound].at + kHeadingBytes);
+					o->particleSoundInner = (uint32_t)IntAt(b, at2);
+					o->particleSoundOuter = (uint32_t)IntAt(b, at2 + 4);
+					o->particleSoundVolume = IntAt(b, at2 + 8);
+					o->particleSoundPitch = IntAt(b, at2 + 12);
+					o->particleSoundFlags = IntAt(b, at2 + 16);
+
+					int32_t const count = IntAt(b, at2 + 20);
+
+					at2 += 24;
+
+					if (count >= 0 && (size_t)count <= (soundEnd - at2) / 4)
+					{
+						for (int32_t i = 0; i < count; i++)
+						{
+							o->particleSoundExtra.push_back(IntAt(b, at2 + (size_t)i * 4));
+						}
+
+						o->particleSoundRead = true;
+					}
+				}
+			}
+
 			o->kind = SpecialKind::ParticleGenerator;
 			return true;
 		}
@@ -433,6 +478,10 @@ namespace host
 			{
 				Bytes p = MakeParticleData(o);
 
+				// its other children as they were, but the INDSOUND: inteng's save deletes it and makes it again from the sound record when there is one (FUN_004e6dd0 0x4e70b9-0x4e70dd,
+				// FUN_004ec1b0), so it comes last; no sound (Remove Sound), none. One that was never read whole is copied as it was.
+				bool const remade = o.hasSound && o.particleSoundRead;
+
 				if (image && old)
 				{
 					std::vector<Span> parts;
@@ -441,12 +490,43 @@ namespace host
 					{
 						for (Span const &part : parts)
 						{
-							if (!NameIs(*image, part.at, "PARGENDA"))
+							bool const isSound = NameIs(*image, part.at, "INDSOUND");
+
+							if (!NameIs(*image, part.at, "PARGENDA") && (!isSound || (o.hasSound && !remade)))
 							{
 								AddCopy(&p, *image, part);
 							}
 						}
 					}
+				}
+
+				if (remade)
+				{
+					Bytes s;
+
+					AddInt(&s, o.particleSoundIndex);
+					AddBytes(&s, o.particleSoundWav.c_str(), o.particleSoundWav.size() + 1);
+
+					while (s.size() % 4 != 0)
+					{
+						s.push_back(0);   // CHUNK_FILL_STRING: the name and its 0, to a whole 4 bytes ((length + 4) & ~3)
+					}
+
+					AddInt(&s, (int32_t)o.particleSoundInner);
+					AddInt(&s, (int32_t)o.particleSoundOuter);
+					AddInt(&s, o.particleSoundVolume);
+					AddInt(&s, o.particleSoundPitch);
+					AddInt(&s, o.particleSoundFlags);
+					AddInt(&s, (int32_t)o.particleSoundExtra.size());
+
+					for (int32_t const word : o.particleSoundExtra)
+					{
+						AddInt(&s, word);
+					}
+
+					Bytes const made = MakeChunk("INDSOUND", s);
+
+					p.insert(p.end(), made.begin(), made.end());
 				}
 
 				Bytes chunk(kHeadingBytes, 0);
@@ -707,6 +787,15 @@ namespace host
 		char digest[16];
 
 		md5_buffer(text.c_str(), (unsigned int)text.size(), digest);
+		memcpy(id, digest, 8);
+		id[7] = 0;
+	}
+
+	void SoundObjectId(std::string const &name, uint8_t id[8])
+	{
+		char digest[16];
+
+		md5_buffer(name.c_str(), (unsigned int)name.size(), digest);
 		memcpy(id, digest, 8);
 		id[7] = 0;
 	}

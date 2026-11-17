@@ -277,13 +277,22 @@ static void OneObject(OpenLevelFile *f, uint8_t const *id, std::string const &wh
 
 	Check(act.leave && host::TrackCopy(f, id, &none) == host::TrackEditResult::NoTrack, where + ": Delete Track took the OBJTRAK2 out");
 
-	// the object has no track now: a paste onto it says so BEFORE it looks at the clipboard (inteng FUN_004f3330 0x4f336f: "Please use Mode->Save and try again"), and nothing is changed
-	Check(!host::TrackExists(f, id) && host::TrackPasteAbsolute(f, id, none) == host::TrackEditResult::TargetNoTrack && host::TrackPasteRelative(f, id, none) == host::TrackEditResult::TargetNoTrack, where + ": a paste onto an object with no track is refused first");
+	// the object has no track now. inteng's FUN_004f3330 (0x4f335c-0x4f33c4) asks only whether the object has its level object ("Please use Mode->Save and try again" for a new one not
+	// yet saved: every object here has one) and then for the clipboard: with nothing copied, "Use copy track first", and nothing is changed. (OUR BUG, FIXED 2026-11-17 by Frost: since
+	// 60ae1e5 a paste asked the object for a track of its own first and refused an object with none, "Please use Mode->Save and try again".)
+	Check(!host::TrackExists(f, id) && host::TrackPasteAbsolute(f, id, none) == host::TrackEditResult::ClipboardEmpty && host::TrackPasteRelative(f, id, none) == host::TrackEditResult::ClipboardEmpty &&
+		!host::TrackExists(f, id), where + ": with nothing copied, a paste onto an object with no track says Use copy track first, and nothing is changed");
 
 	// an object with no track starts with the one-section default, and Stop Track Edit makes it
 	host::TrackLoaded def;
 
 	Check(host::TrackLoad(f, id, &def) == host::TrackEditResult::Done && !def.had && def.track.sections.size() == 1, where + ": an object with no track starts with one section");
+
+	// and a track pasted onto an object with no track is taken: it holds the copied track again (inteng: the object's own OBJTRAK2, if any, taken out at 0x4f3431, the clipboard's made)
+	host::TrackClip back;
+
+	Check(host::TrackPasteAbsolute(f, id, clip) == host::TrackEditResult::Done && host::TrackExists(f, id) && host::TrackCopy(f, id, &back) == host::TrackEditResult::Done && back.track == clip.track,
+		where + ": a track pasted onto an object with no track is taken, the copied one");
 }
 
 int main(int argc, char **argv)

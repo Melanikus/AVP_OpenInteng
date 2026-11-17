@@ -11,11 +11,12 @@
 // THE RULES (all of it is typed by a person, so it's checked as hostile; Tao 1 and 3):
 // - A place is held to FarthestPlace either way (2^24, chunk.hpp:492), as the game's loader holds it (CheckPlace), and the sums are done in 64
 //   bits, so no typed number can wrap round.
-// - A name has to pass the game's own file-name rule (level_file_name.h), be none already used by another object in the level (letters
-//   counted the same in capitals or not), and FIT the room the old name leaves in the chunk (its rounded size): a longer name would change the
-//   chunk's size, which an edit never does. The chunk keeps its size and the unused bytes are 0.
-// - An object's ID comes from its level's name and its own, so a new name is a new ID: the answer says it, and the object's name and ID in
-//   the library's own copy are made again, so the list and the lookups follow.
+// - A name has to pass the game's own file-name rule (level_file_name.h), be 1 to 63 letters, and be none already used by another object in
+//   the level (letters counted the same in capitals or not). Any length is taken, as inteng takes it: the rename makes the level again with the
+//   object's header at the size the game's library writes it for the new name (object_edit.h RenameObject; 2026-11-17, Drake: it used to have
+//   to fit the old name's room, which kept the header's size but left the library's chunk a different size, strategy-data.md S-35a).
+// - An object's ID comes from its level's name and its own, so a new name is a new ID: the answer says it. The level is made again (every
+//   Chunk * from before is gone), so the caller builds its lists again.
 // - Nothing is changed when an answer isn't Done.
 // - The level in the game's world isn't changed: what the view draws is what the file held when the level was opened. The edits are in the
 //   editor's bytes, for the field panel and for the save.

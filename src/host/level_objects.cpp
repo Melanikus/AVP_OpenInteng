@@ -186,6 +186,61 @@ bool LevelObjects_FindHeader(const uint8_t *id, host::ObjectHeader *header)
 	return false;
 }
 
+bool LevelObjects_ShapeGroup(const uint8_t *id, std::vector<host::LevelObject> *objects)
+{
+	if (objects)
+	{
+		objects->clear();
+	}
+
+	File_Chunk *const level = TheLevel();
+
+	if (!id || !objects || !level)
+	{
+		return false;
+	}
+
+	List<Object_Chunk *> found;
+
+	level->list_objects(&found);
+
+	// The first object with this ID is the clicked one (the list and a pick find it too); its shape is FUN_004d0fd0's (none without a header)
+	Object_Chunk *clicked = nullptr;
+
+	for (LIF<Object_Chunk *> each(&found); !each.done() && !clicked; each.next())
+	{
+		if (each() && memcmp(&each()->object_data.ID, id, host::kObjectIdBytes) == 0)
+		{
+			clicked = each();
+		}
+	}
+
+	if (!clicked)
+	{
+		return false;
+	}
+
+	Shape_Chunk *const shape = clicked->get_assoc_shape();
+
+	for (LIF<Object_Chunk *> each(&found); !each.done(); each.next())
+	{
+		Object_Chunk *const object = each();
+
+		if (!object || object->get_assoc_shape() != shape)
+		{
+			continue;
+		}
+
+		host::LevelObject row;
+
+		row.name = object->object_data.o_name;
+		memcpy(row.id, &object->object_data.ID, host::kObjectIdBytes);
+		objects->push_back(row);
+	}
+
+	return true;
+}
+
 File_Chunk *LevelObjects_Level()
 {
 	return TheLevel();

@@ -1,0 +1,40 @@
+# ACCEPTANCE (red first): the NEW-BAD-GUY DEFAULTS (reassess/object-placement.md OP-132): after every Edit of a bad guy, OK or Cancel alike, its type, subtype, texture and extras become the next new
+# one's (0x4e5e96-0x4e5eb5: DAT_005e7a48, DAT_008f4f94 .. 97), which Create > AVP Bad Guy takes (FUN_004dd600 0x4dd65e-0x4dd692; the flags 0x3801 always). On Invasion: bgA made and edited to a Marine
+# with a Sadar and the Original texture; bgB, made next, IS that at once; the copy read back.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0xcc
+expect-screen Object Placement
+item 0x35
+expect-dialog Name Object
+form-field 1 bgA
+click-button OK
+expect-no-dialog
+item 0x18
+expect-dialog Edit object properties
+expect-dialog-text Alien|Alien|Random
+click-combo 1
+click-combo-row Marine
+click-combo 2
+click-combo-row Sadar
+click-combo 3
+click-combo-row Original
+click-button OK
+expect-no-dialog
+# bgB: made as the last Edit left bgA
+item 0x35
+expect-dialog Name Object
+form-field 1 bgB
+click-button OK
+expect-no-dialog
+item 0x18
+expect-dialog Edit object properties
+expect-dialog-text Marine|Sadar|Original
+picture 1
+click-button Cancel
+expect-no-dialog
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_special/verify_special.exe {copy} "badguy|bgB|type=7|subtype=60|texture=1|flagson=3801" "badguy|bgA|type=7|subtype=60|texture=1"

@@ -5,6 +5,8 @@
 # which reaches placed objects and modules only: on a virtual object the collector's end and P / V changed nothing (RED on that build: num_mission_targets stays 0).
 # The camera is put at known places (the harness's camera verb, so the V's place on the screen does not hang on how long a key was held): MO2 is made at 0 0 0, then the camera steps 3 m back
 # along z, looking along z, so MO2's V stands in the middle of the view; the pick is by the icon's triangles (StrategyIconUnderClick), so the click is on the V's left stroke (442 330).
+# inteng's icons are read from inteng.exe in his Tools folder (without it the icons are our plain boxes, and (442 330) is left of MO2's box: Frost, his lane-T4 runner)
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF
 pictures on
 state

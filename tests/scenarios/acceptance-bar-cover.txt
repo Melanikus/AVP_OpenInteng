@@ -23,8 +23,9 @@ picture 3
 # font: 207 wide in inteng's font16, 163 in the game's font when no IntengTools is set (a run with no menu font)
 expect-colour panels 40 34 110 14 0000ff 0.99 16
 # BAR-5: with File's drop-down open, the pointer moved onto Mode (no press) opens Mode's drop-down (inteng's menu loop opens the item under the pointer: 0x4b81de-0x4b82da)
+# (Mode's row "Strategy Data", the item that opens its cascade, BAR-10: before the cascade the drop-down held the flat row "Strategy Data: Normal")
 move-win 50 10
-expect-field-has dropboxes Strategy Data: Normal
+expect-field-has dropboxes |Strategy Data~
 picture 5
 key Esc
 # the pointer leaves the bar (BAR-3): the bar goes, the text is drawn again (BAR-7)

@@ -14,6 +14,7 @@
 #include "file_pick.h"
 #include "move_rel_poly.h"
 #include "shape_edit.h"       // ShapeEdit_Read
+#include "shape_maths.h"      // RotateByTurn
 #include "shape_model.h"
 
 namespace host
@@ -243,23 +244,17 @@ namespace host
 		return false;
 	}
 
-	MoveRelPolyEditResult MoveRelPolyEdit_Do(OpenLevelFile *store, File_Chunk *level, uint8_t const *movingId, uint8_t const *targetId, int32_t polygon, int32_t distance,
-		int32_t const *hitFile, double scale, std::string *why)
+	MoveRelPolyEditResult MoveRelPolyEdit_Pose(OpenLevelFile *store, File_Chunk *level, uint8_t const *targetId, int32_t polygon, int32_t distance, int32_t const *hitFile, double scale,
+		int32_t place[3], int32_t matrix[9], std::string *why)
 	{
-		if (!store || !level || !movingId || !targetId || NotANumber(scale) || !(scale > 0.0))
+		if (!store || !level || !targetId || !place || !matrix || NotANumber(scale) || !(scale > 0.0))
 		{
 			return MoveRelPolyEditResult::BadCall;
 		}
 
-		if (memcmp(movingId, targetId, 8) == 0)
-		{
-			return MoveRelPolyEditResult::SameObject;
-		}
-
-		Object_Chunk *const moving = ObjectWithId(level, movingId);
 		Object_Chunk *const target = ObjectWithId(level, targetId);
 
-		if (!moving || !target)
+		if (!target)
 		{
 			return MoveRelPolyEditResult::NoObject;
 		}
@@ -277,9 +272,9 @@ namespace host
 			return MoveRelPolyEditResult::BadPolygon;
 		}
 
-		Header movingHeader, targetHeader;
+		Header targetHeader;
 
-		if (!ReadHeader(store, moving, &movingHeader) || !ReadHeader(store, target, &targetHeader))
+		if (!ReadHeader(store, target, &targetHeader))
 		{
 			return MoveRelPolyEditResult::NoShape;
 		}
@@ -378,6 +373,48 @@ namespace host
 		if (!MoveRelPoly_Make(sums, distance, hitFile ? hit : nullptr, &result))
 		{
 			return MoveRelPolyEditResult::BadPolygon;
+		}
+
+		memcpy(place, result.place, sizeof(result.place));
+		memcpy(matrix, result.matrix, sizeof(result.matrix));
+		return MoveRelPolyEditResult::Done;
+	}
+
+	MoveRelPolyEditResult MoveRelPolyEdit_Do(OpenLevelFile *store, File_Chunk *level, uint8_t const *movingId, uint8_t const *targetId, int32_t polygon, int32_t distance,
+		int32_t const *hitFile, double scale, std::string *why)
+	{
+		if (!store || !level || !movingId || !targetId || NotANumber(scale) || !(scale > 0.0))
+		{
+			return MoveRelPolyEditResult::BadCall;
+		}
+
+		if (memcmp(movingId, targetId, 8) == 0)
+		{
+			return MoveRelPolyEditResult::SameObject;
+		}
+
+		Object_Chunk *const moving = ObjectWithId(level, movingId);
+		Object_Chunk *const target = ObjectWithId(level, targetId);
+
+		if (!moving || !target)
+		{
+			return MoveRelPolyEditResult::NoObject;
+		}
+
+		Header movingHeader;
+
+		if (!ReadHeader(store, moving, &movingHeader))
+		{
+			return MoveRelPolyEditResult::NoShape;
+		}
+
+		double const unit = 100.0 * scale;   // file units to inteng's
+		MoveRelPolyResult result;
+		MoveRelPolyEditResult const made = MoveRelPolyEdit_Pose(store, level, targetId, polygon, distance, hitFile, scale, result.place, result.matrix, why);
+
+		if (made != MoveRelPolyEditResult::Done)
+		{
+			return made;
 		}
 
 		// back to the file: the place cut toward 0, the matrix to four floats
@@ -529,6 +566,347 @@ namespace host
 			return MoveRelPolyEditResult::Refused;
 		}
 
+		return MoveRelPolyEditResult::Done;
+	}
+
+	namespace
+	{
+		// ((v < 1) - 1 & 0x20000) - 0x10000 (FUN_0053d1e0): +65536 for a part of 1 or more, else -65536 (0 too)
+		int32_t AxisSign(int32_t v)
+		{
+			return v < 1 ? -65536 : 65536;
+		}
+
+		// the code's absolute value: v < 1 then -v
+		int64_t Size(int32_t v)
+		{
+			return v < 1 ? -(int64_t)v : (int64_t)v;
+		}
+
+		// FUN_004b5650: out = a x b, each product >> 16 (FUN_00499b30), the differences wrapping as the code's
+		void CrossFixed(int32_t const a[3], int32_t const b[3], int32_t out[3])
+		{
+			out[0] = (int32_t)((uint32_t)MoveRelPoly_Multiply(a[1], b[2]) - (uint32_t)MoveRelPoly_Multiply(a[2], b[1]));
+			out[1] = (int32_t)((uint32_t)MoveRelPoly_Multiply(a[2], b[0]) - (uint32_t)MoveRelPoly_Multiply(a[0], b[2]));
+			out[2] = (int32_t)((uint32_t)MoveRelPoly_Multiply(a[0], b[1]) - (uint32_t)MoveRelPoly_Multiply(a[1], b[0]));
+		}
+
+		// FUN_004fd750: an int vector scaled to length 65536 (65536.0 x part / length), each rounded to nearest, ties to even (the x87's mode), as move_rel_poly.cpp's
+		// ScaleTo65536; only ever called here on a vector that is not 0
+		void ScaleTo65536(int32_t v[3])
+		{
+			double const length = sqrt((double)v[0] * v[0] + (double)v[1] * v[1] + (double)v[2] * v[2]);
+
+			for (int axis = 0; axis < 3; axis++)
+			{
+				v[axis] = (int32_t)nearbyint(65536.0 * v[axis] / length);
+			}
+		}
+
+		bool AllZero(int32_t const v[3])
+		{
+			return v[0] == 0 && v[1] == 0 && v[2] == 0;
+		}
+
+		// FUN_004b34b0(first, second, out): out = second x first, row by row, through its own sums (the call may write over either)
+		void TimesFixed(int32_t const first[9], int32_t const second[9], int32_t out[9])
+		{
+			int32_t sum[9];
+
+			for (int r = 0; r < 3; r++)
+			{
+				for (int c = 0; c < 3; c++)
+				{
+					sum[r * 3 + c] = Mul(second[r * 3], first[c]) + Mul(second[r * 3 + 1], first[3 + c]) + Mul(second[r * 3 + 2], first[6 + c]);
+				}
+			}
+
+			memcpy(out, sum, sizeof(sum));
+		}
+
+		// FUN_004b3710
+		void TransposeFixed(int32_t m[9])
+		{
+			int32_t t;
+
+			t = m[1]; m[1] = m[3]; m[3] = t;
+			t = m[2]; m[2] = m[6]; m[6] = t;
+			t = m[5]; m[5] = m[7]; m[7] = t;
+		}
+	}
+
+	void SnapVertex_NormalMatrix(int32_t const n[3], int32_t m[9])
+	{
+		int32_t axis[3] = { 0, 0, 0 };
+		int64_t const x = Size(n[0]), y = Size(n[1]), z = Size(n[2]);
+
+		if (x < y && x < z)
+		{
+			axis[0] = 65536;
+		}
+		else if (y < z)
+		{
+			axis[1] = 65536;
+		}
+		else
+		{
+			axis[2] = 65536;
+		}
+
+		int32_t third[3], first[3];
+
+		CrossFixed(axis, n, third);          // FUN_004b5650(&axis, &n, &local_30)
+
+		if (!AllZero(third))
+		{
+			ScaleTo65536(third);             // FUN_004fd750 (a zero normal gives zeros here: inteng's would divide by 0)
+		}
+
+		CrossFixed(n, third, first);         // FUN_004b5650(&n, &local_30, &axis)
+
+		if (!AllZero(first))
+		{
+			ScaleTo65536(first);
+		}
+
+		int32_t const out[9] = { first[0], first[1], first[2], n[0], n[1], n[2], third[0], third[1], third[2] };
+
+		memcpy(m, out, sizeof(out));
+	}
+
+	void SnapVertex_SquareUp(int32_t m[9])
+	{
+		// row 0 onto its largest part, then row 1 onto its larger of the two left (0x53d1ea-0x53d336)
+		if (!(Size(m[0]) < Size(m[1])) && !(Size(m[0]) < Size(m[2])))
+		{
+			int32_t const r1y = m[4], r1z = m[5];
+
+			m[0] = AxisSign(m[0]);
+			m[1] = 0;
+			m[2] = 0;
+			m[3] = 0;
+
+			if (Size(r1y) < Size(r1z))
+			{
+				m[4] = 0;
+				m[5] = AxisSign(r1z);
+			}
+			else
+			{
+				m[5] = 0;
+				m[4] = AxisSign(r1y);
+			}
+		}
+		else if (Size(m[1]) < Size(m[2]))
+		{
+			int32_t const r1x = m[3], r1y = m[4];
+
+			m[2] = AxisSign(m[2]);
+			m[0] = 0;
+			m[1] = 0;
+			m[5] = 0;
+
+			if (Size(r1x) < Size(r1y))
+			{
+				m[3] = 0;
+				m[4] = AxisSign(r1y);
+			}
+			else
+			{
+				m[4] = 0;
+				m[3] = AxisSign(r1x);
+			}
+		}
+		else
+		{
+			int32_t const r1x = m[3], r1z = m[5];
+
+			m[1] = AxisSign(m[1]);
+			m[0] = 0;
+			m[2] = 0;
+
+			if (Size(r1x) < Size(r1z))
+			{
+				m[4] = 0;
+				m[3] = 0;
+				m[5] = AxisSign(r1z);
+			}
+			else
+			{
+				m[5] = 0;
+				m[4] = 0;
+				m[3] = AxisSign(r1x);
+			}
+		}
+
+		// row 2 = row 0 x row 1 made length 65536 (FUN_004fd620): the two rows are axes, so the product is one too
+		int32_t third[3];
+
+		CrossFixed(m, m + 3, third);
+
+		if (!AllZero(third))
+		{
+			ScaleTo65536(third);
+		}
+
+		m[6] = third[0];
+		m[7] = third[1];
+		m[8] = third[2];
+	}
+
+	void SnapVertex_Align(int32_t const n[3], int32_t m[9])
+	{
+		if (AllZero(n))
+		{
+			return;
+		}
+
+		int32_t frame[9];
+
+		SnapVertex_NormalMatrix(n, frame);
+		TransposeFixed(frame);               // 0x4f71a6
+		TimesFixed(frame, m, m);             // 0x4f71c7: m = m x Nt
+		TransposeFixed(frame);               // 0x4f71d3
+		SnapVertex_SquareUp(m);              // 0x4f71de
+		TimesFixed(frame, m, m);             // 0x4f71e4: m = m x N
+	}
+
+	MoveRelPolyEditResult SnapToVertex_Pose(OpenLevelFile *store, File_Chunk *level, uint8_t const *movingId, uint8_t const *targetId, double const point[3], int32_t polygon, bool align,
+		int32_t place[3], float turn[4])
+	{
+		if (!store || !level || !movingId || !targetId || !point || !place || !turn || memcmp(movingId, targetId, 8) == 0)
+		{
+			return MoveRelPolyEditResult::BadCall;
+		}
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			if (NotANumber(point[axis]))
+			{
+				return MoveRelPolyEditResult::BadCall;
+			}
+		}
+
+		// T: the target's world vertex nearest the point under the pointer (0x4f70a1-0x4f7124)
+		model::ShapeModel targetShape;
+		std::vector<int32_t> targetPoints, targetNormals;
+		FilePickResult const readTarget = FilePick_World(store, level, targetId, &targetShape, &targetPoints, &targetNormals);
+		int32_t vertex[3];
+
+		if (readTarget == FilePickResult::NoObject)
+		{
+			return MoveRelPolyEditResult::NoObject;
+		}
+
+		if (readTarget != FilePickResult::Done || !NearestWorldPoint(targetPoints, point, vertex))
+		{
+			return MoveRelPolyEditResult::NoShape;
+		}
+
+		Object_Chunk *const moving = ObjectWithId(level, movingId);
+		Header header;
+		model::ShapeModel movingShape;
+		std::vector<int32_t> movingPoints, movingNormals;
+
+		if (!moving)
+		{
+			return MoveRelPolyEditResult::NoObject;
+		}
+
+		if (!ReadHeader(store, moving, &header) || FilePick_World(store, level, movingId, &movingShape, &movingPoints, &movingNormals) != FilePickResult::Done)
+		{
+			return MoveRelPolyEditResult::NoShape;
+		}
+
+		float newTurn[4];
+
+		memcpy(newTurn, header.turn, sizeof(newTurn));
+
+		// the align (0x4f7139-0x4f71e4): the hit polygon's normal in the world, the moving matrix turned to it and squared up; the moving points turned by the new turn
+		if (align && polygon >= 0 && (size_t)polygon * 3 + 2 < targetNormals.size())
+		{
+			int32_t const normal[3] = { targetNormals[(size_t)polygon * 3], targetNormals[(size_t)polygon * 3 + 1], targetNormals[(size_t)polygon * 3 + 2] };
+			int32_t matrix[9];
+
+			MoveRelPolyEdit_TurnToMatrix(header.turn, matrix);
+			SnapVertex_Align(normal, matrix);
+			MoveRelPolyEdit_MatrixToTurn(matrix, newTurn);
+
+			movingPoints.clear();
+
+			for (model::ShapePoint const &local : movingShape.points)
+			{
+				model::ShapePoint turned;
+
+				if (model::RotateByTurn(newTurn, local, &turned) != model::ShapeMathsResult::Ok)
+				{
+					return MoveRelPolyEditResult::NoShape;
+				}
+
+				int32_t const parts[3] = { turned.x, turned.y, turned.z };
+
+				// as FilePick_World puts a point in the world: the turned point plus the place
+				for (int axis = 0; axis < 3; axis++)
+				{
+					double const world = (double)parts[axis] + (double)header.place[axis];
+
+					if (fabs(world) >= (double)kFarthestPlace)
+					{
+						return MoveRelPolyEditResult::TooFar;
+					}
+
+					movingPoints.push_back((int32_t)world);
+				}
+			}
+		}
+
+		// V: the moving object's own world vertex nearest T; the place moves by T - V (0x4f71f2-0x4f72b0)
+		double const target[3] = { (double)vertex[0], (double)vertex[1], (double)vertex[2] };
+		int32_t own[3];
+
+		if (!NearestWorldPoint(movingPoints, target, own))
+		{
+			return MoveRelPolyEditResult::NoShape;
+		}
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			double const moved = (double)header.place[axis] + ((double)vertex[axis] - (double)own[axis]);
+
+			if (NotANumber(moved) || fabs(moved) >= (double)kFarthestPlace)
+			{
+				return MoveRelPolyEditResult::TooFar;
+			}
+
+			place[axis] = (int32_t)moved;
+		}
+
+		memcpy(turn, newTurn, sizeof(newTurn));
+		return MoveRelPolyEditResult::Done;
+	}
+
+	MoveRelPolyEditResult ObjectPose_Get(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, int32_t place[3], float turn[4])
+	{
+		if (!store || !level || !id || !place || !turn)
+		{
+			return MoveRelPolyEditResult::BadCall;
+		}
+
+		Object_Chunk *const object = ObjectWithId(level, id);
+		Header header;
+
+		if (!object)
+		{
+			return MoveRelPolyEditResult::NoObject;
+		}
+
+		if (!ReadHeader(store, object, &header))
+		{
+			return MoveRelPolyEditResult::NoShape;
+		}
+
+		memcpy(place, header.place, sizeof(header.place));
+		memcpy(turn, header.turn, sizeof(header.turn));
 		return MoveRelPolyEditResult::Done;
 	}
 

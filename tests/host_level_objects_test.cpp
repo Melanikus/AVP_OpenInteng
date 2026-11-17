@@ -9,7 +9,7 @@
 //   read it: every object, in the file's own order, each with its name and the 8-byte ID the game works out from the level's name and
 //   its own (chunk_object.cpp:368-382, worked out again here with the game's own MD5); a header by its ID, the first of two objects
 //   that share one; nothing for an ID the level doesn't have.
-// - The chunks it reads are the chunks of the bytes held: the file's size and MD5 sum, which the game's loader worked out from what it
+// - The chunks it reads are the chunks of the bytes held: the file's size and SHA-256, which the game's loader worked out from what it
 //   read, are those of the file the test wrote.
 // - A second level held in the same OpenLevelFile replaces the first: the lookups read the new one, and none of the old one is found.
 // - A level the loader refuses, a file that isn't there, and a path the game side doesn't have each give back why, and leave no level held
@@ -40,6 +40,7 @@
 #include "chunk_object.hpp"
 #include "mishchnk.hpp"
 #include "md5.h"
+#include "sha256_stream.h"
 #include "level_file.h"
 #include "level_objects.h"
 #include "level_view.h"
@@ -299,6 +300,9 @@ static void TestNothingHeld()
 	Check(!LevelObjects_FindHeader(someId, &header) && header.name == "kept" && header.flags == 7, "no header is found, and the one asked into stays as it was");
 	Check(LevelObjects_Level() == nullptr, "there's no level");
 
+	std::vector<host::LevelObject> group(2);
+	Check(!LevelObjects_ShapeGroup(someId, &group) && group.empty(), "no shape group is found (Ctrl + click, S-79), and what was in the list is gone");
+
 	OpenLevelFile open;
 
 	gamePath.clear();
@@ -361,6 +365,22 @@ static void TestAHeldLevel(OpenLevelFile *open)
 	Check(!LevelObjects_FindHeader(unknown, &header) && header.name == "kept" && header.flags == 7,
 		"an ID the level doesn't have finds nothing, and leaves the header as it was");
 	Check(!LevelObjects_FindHeader(nullptr, &header), "no ID finds nothing");
+
+	// Strategy Data's collector, Ctrl + click (S-79): the objects whose shape is the clicked one's (get_assoc_shape). This made level's objects have no shape (no shape chunk names
+	// them), so all five share "none": the group is every object, in the file's order, the clicked one too. (Shapes that differ: acceptance-strategy-copy-ctrl-group, on Fall.)
+	std::vector<host::LevelObject> group(2);   // two rows that aren't this level's, to see them emptied
+	bool inOrder = rows.size() == 5;
+
+	Check(LevelObjects_ShapeGroup(wall, &group) && group.size() == 5, "a shape group is found for an object's ID: the 5 objects that share its shape (it has " + std::to_string(group.size()) + ")");
+
+	for (size_t i = 0; inOrder && i < group.size() && i < rows.size(); i++)
+	{
+		inOrder = memcmp(group[i].id, rows[i].id, 8) == 0;
+	}
+
+	Check(inOrder && group.size() == 5, "in the file's own order, the clicked one among them");
+	Check(!LevelObjects_ShapeGroup(unknown, &group) && group.empty(), "an ID the level doesn't have (a virtual object's, say) has no group, and the list is emptied");
+	Check(!LevelObjects_ShapeGroup(nullptr, &group), "no ID has no group");
 }
 
 static void TestTheSameBytes(OpenLevelFile *open)
@@ -375,16 +395,17 @@ static void TestTheSameBytes(OpenLevelFile *open)
 		return;
 	}
 
-	// The sum the game's loader worked out from the very reads that made these chunks (level_file_sum.h), against the file the test wrote
-	struct MD5Context context;
-	unsigned char expected[16];
+	// The SHA-256 the game's loader worked out from the very reads that made these chunks (level_file_sum.h), against the file the test
+	// wrote (the proof the editor relies on: LoaderReadThese compares this sum, not the MD5 the game keeps for its log)
+	Sha256Stream stream;
+	unsigned char expected[32];
 
-	MD5Init(&context);
-	MD5Update(&context, (md5byte const *)bytesA.data(), (unsigned)bytesA.size());
-	MD5Final(expected, &context);
+	Sha256_Start(&stream);
+	Sha256_Add(&stream, bytesA.data(), bytesA.size());
+	Sha256_Finish(&stream, expected);
 
 	Check(level->file_sum.bytes == bytesA.size(), "the loader read as many bytes as the file the test wrote");
-	Check(memcmp(level->file_sum.md5, expected, 16) == 0, "and their MD5 sum is that file's");
+	Check(memcmp(level->file_sum.sha256, expected, 32) == 0, "and their SHA-256 is that file's");
 }
 
 static void TestAnotherLevelReplacesIt(OpenLevelFile *open)

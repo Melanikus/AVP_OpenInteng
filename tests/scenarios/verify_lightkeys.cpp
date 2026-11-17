@@ -3,8 +3,8 @@
 //
 // USE: verify_lightkeys.exe <the level the editor opened> <the copy it saved> <the light (from 0) that was copied, changed and pasted> <how many lights were made>
 // CHECKS: both levels are read by the game's loader; the copy has that many lights more; every light but the chosen one is as it was; the chosen light's spread is larger (the + key held on Spread), its range, brightness,
-// colour and place are as they were and its changed flag (4) is in; the last light made is a PASTE of the chosen light as it was (brightness, spread, range, colour, engine flags) at the place of the one before it (both
-// were made at the camera). Gives back 0 only if every check passed.
+// colour and place are as they were and its changed flag (4) is in; the last light made is a PASTE of the chosen light (brightness, spread, range, colour, engine flags) at the place of the one before it (both
+// were made at the camera). The paste is of the light as it is when V is pressed (inteng's clipboard is the light, 0x4ad4b4), so with the larger spread. Gives back 0 only if every check passed.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +19,8 @@
 #include "mishchnk.hpp"
 #include "level_file.h"
 #include "light_edit.h"
+
+#include "arg_number.h"
 
 static int checksFailed = 0;
 
@@ -92,8 +94,16 @@ int main(int argc, char **argv)
 	}
 
 	OpenLevelFile before, after;
-	size_t const target = (size_t)atoi(argv[3]);
-	size_t const made = (size_t)atoi(argv[4]);
+	// the light and the count are bounded before they are used (arg_number.h)
+	long targetNumber = 0, madeNumber = 0;
+
+	if (!ArgNumber("the light", argv[3], 0, 100000, &targetNumber) || !ArgNumber("how many lights were made", argv[4], 0, 100000, &madeNumber))
+	{
+		return 2;
+	}
+
+	size_t const target = (size_t)targetNumber;
+	size_t const made = (size_t)madeNumber;
 
 	Check(before.Open(argv[1]) == LevelOpenResult::Opened && before.Level(), "the game's loader takes the level the editor opened");
 	Check(after.Open(argv[2]) == LevelOpenResult::Opened && after.Level(), "the game's loader takes the editor's copy");
@@ -134,8 +144,10 @@ int main(int argc, char **argv)
 		host::LightData const pasted = Light(&after, now - 1);
 		host::LightData const dropped = Light(&after, now - 2);
 
-		Check(At(pasted, 52) == At(was1, 52) && At(pasted, 56) == At(was1, 56) && At(pasted, 60) == At(was1, 60) && At(pasted, 64) == At(was1, 64) && At(pasted, 68) == At(was1, 68),
-			"the last light made is a paste of the chosen light as it was copied");
+		// inteng's clipboard is the light itself (DAT_00703e50 = its record, 0x4ad4b4): V pastes its numbers as they are when V is pressed, the spread made larger after C too
+		// (changed 2026-11-17 by Frost, with the clipboard: it compared with the light as it was at C)
+		Check(At(pasted, 52) == At(now1, 52) && At(pasted, 56) == At(now1, 56) && At(pasted, 60) == At(now1, 60) && At(pasted, 64) == At(now1, 64) && At(pasted, 68) == At(now1, 68),
+			"the last light made is a paste of the chosen light as it is when V is pressed (its spread the larger one)");
 
 		if (argc >= 11)
 		{

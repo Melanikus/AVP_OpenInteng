@@ -235,6 +235,10 @@ namespace host
 	// numbers each, in the hierarchy's space. The Hierarchy view's vertex selection (V) shows them at the model's place.
 	HierarchyEditResult HierarchyEdit_SkinPoints(OpenLevelFile *file, std::string const &objectName, std::vector<int32_t> *points);
 
+	// The polygons of that shape (its SHPPOLYS), four point numbers each (the fourth -1 for a triangle; a number of no point ends a polygon, one of fewer than three is left out): what the
+	// vertex selection's click must be on (FUN_00485290: FUN_00559720 gives the object under the pointer by its polygons; vertex_pick.h). Vasquez 2026-11-17.
+	HierarchyEditResult HierarchyEdit_SkinFaces(OpenLevelFile *file, std::string const &objectName, std::vector<int32_t> *faces);
+
 	// Shift + V (Add selected vertices to selected bone, inteng's FUN_0047acf0 -> FUN_0041f8c0): each point is taken out of the bone that holds it and put at the end of that bone's points (the bone is made
 	// when the shape's attachment has none of that name). Refused, with *why, when the shape is not attached to the hierarchy; BadCall for a point the shape does not have or a bone the hierarchy has no section of.
 	// *moved gets how many points changed bone (one already in that bone stays where it is and is not counted).

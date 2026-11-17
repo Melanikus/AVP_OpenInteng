@@ -3,6 +3,7 @@
 /Isrc/host /Isrc/ui /Isrc/io /Isrc/model /Iavpx/3dc /Iavpx/3dc/video /Iavpx/3dc/avp /Iavpx/3dc/avp/support /Iavpx/3dc/avp/win95 /Iavpx/3dc/avp/win95/frontend /Iavpx/3dc/avp/win95/gadgets /Iavpx/3dc/include /Iavpx/3dc/win95 /Iavpx/win32
 tests/host_strategy_repair_test.cpp
 src/host/strategy_repair.cpp
+src/host/placed_hierarchy_strategy.cpp
 src/host/virtual_object.cpp
 src/host/strategy_edit.cpp
 src/host/strategy_lookup.cpp

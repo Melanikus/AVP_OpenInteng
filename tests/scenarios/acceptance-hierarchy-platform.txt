@@ -1,0 +1,31 @@
+# ACCEPTANCE (red first): Hierarchy's PLATFORM FLOOR (hierarchy-closeout-frost.md TB-4; Vasquez 2026-11-17). inteng: FUN_0048d230 makes the floor at the mode's start (0x4887e0), one polygon
+# 2 m wide (x -1 .. 1 m) and 20 m long (z -10 .. 10 m) at y 0, textured with "Platform.rim" or, when that is not found (his Tools folder has none), flat WHITE (0x48d30e); FUN_0048d5c0 (every
+# frame, 0x48a976) shows it while Platform > Toggle on/off has the platform on and hides it when off. RED before: ours showed only the words "Platform speed ...", no floor.
+# His file MelPyth_MarHUD, the Shotgun frozen at its reload's start; the camera 1 m above the floor's level (y is down) and 3 m back, looking along z: the floor is the lower half's white.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+expect-screen Construction
+camera 0 -1000 -3000 0 0
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+wait 600
+picture 1
+expect-colour-at-most picture 0 420 1000 300 ffffff 0.05 8
+# Platform > Toggle on/off: the floor
+click-bar Platform > Toggle on/off
+wait 400
+picture 2
+expect-colour picture 0 420 1000 300 ffffff 0.20 8
+# and off again: gone
+click-bar Platform > Toggle on/off
+wait 400
+picture 3
+expect-colour-at-most picture 0 420 1000 300 ffffff 0.05 8

@@ -1,0 +1,49 @@
+# ACCEPTANCE: the TELEPORT (67) on Melanikus's path, on a MADE level, the saved copy read back through the game's own loader (Drake, 2026-11-17; reassess/strategy-closeout-drake.md E-5;
+# reassess/strategy-data-kinds.md S-K67-1..3). No stock level holds a Teleport and no class takes 67 (S-K67-0: Assign never makes one), so inteng can only edit one a level already holds: the
+# level is MADE fresh by the run, by a test tool (make_strategy_level: a copy of Genshd1 whose placed object med02J holds a new Teleport: no target, Type 0; never by hand). His path: the made
+# file opened as a double click, the bar, Find Object, the right button's Edit Strategy: "Teleport to :not selected", "Teleports all"; the Type line twice ((Type + 1) % 4: marine, then alien);
+# "Teleport to" (y 16): the object pick ("Select teleport position"), a click at 700 350 on med09 (the object there, read from a first run), Return: the target is med09, and med09, which
+# held no strategy, gets a new Teleport naming med02J with med02J's Type (FUN_00530ce0 0x530df6). Escape; File > Save a copy. RED on the made level: Type 0 and no target.
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/make_strategy_level.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {exedir}Genshd1-teleport.made.rif med02J kind 67
+start-args {exedir}Genshd1-teleport.made.rif
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is med02J
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field strategyview 200@0:med02J : Teleport|16@16:Teleport to :not selected|16@32:Teleports all
+picture 1
+# the Type line (y 32 to 48): all -> marine -> alien
+click-win 300 40
+wait 300
+expect-field strategyview 200@0:med02J : Teleport|16@16:Teleport to :not selected|16@32:Teleports marine
+click-win 300 40
+wait 300
+expect-field strategyview 200@0:med02J : Teleport|16@16:Teleport to :not selected|16@32:Teleports alien
+# "Teleport to" (y 16): the pick
+click-win 300 24
+wait 600
+expect-field-has strategyview 200@709:Select teleport position
+picture 2
+click-win 700 350
+wait 400
+expect-field-has strategyview 16@80:med09
+picture 3
+key Enter
+wait 600
+expect-field strategyview 200@0:med02J : Teleport|16@16:Teleport to :med09|16@32:Teleports alien
+picture 4
+key Esc
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Genshd1-teleport.made.rif {copy} med02J Type 2 also med09
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Genshd1-teleport.made.rif {copy} med09 Type 2 holds med02J also med02J

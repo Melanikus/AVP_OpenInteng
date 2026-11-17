@@ -10,12 +10,19 @@ click-view 0.5 0.5
 expect-status Picked: module
 item 0x19
 expect-status AI module 54
+# inteng's Show Waypoints opens the PICKED module's AI module and Edit Module let the pick go (FUN_00583b40, 0x583e80: waypoint-closeout-vasquez.md W-8): a click again
+click-view 0.5 0.5
 item 3
 expect-status alien list of
 item 5
 expect-status made at
+# inteng's Create Waypoint goes into Edit Extents with an EMPTY box to size (W-5): a drag in the top view sizes x and y, one in the side view z; Finish Extent Edit is mode 1 again
+drag-face current top right 20 20
+drag-face current side right 20 20
+item 0x13
 item 7
-click-wp 0 top
+# mode 1 is the 3D view (W-2): the click is on waypoint 0's box there
+click-wp 0 3d
 item 8
 picture 501
 item 0x14

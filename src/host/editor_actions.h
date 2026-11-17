@@ -82,6 +82,7 @@ struct EditorHostState
 	int32_t optionToggle;      // an Options switch was chosen: 1 Select by polygons, 2 Prefer .BMP over .RIM, 3 Use Polygon View Distance (editor_options.h), or 0
 	int32_t pathCommand;       // a Path mode item's command number (3 Add Module, 4 Delete Module, 5 Create Path, 6 Select Path, 7 Delete Path, 8 Keys, 9 Properties: path-menu-pairs.md), or 0 (path_mode.h)
 	int32_t trackCommand;      // a Track Edit item's command number (0x514 to 0x52b: track-menu-pairs.md), or 0 (track_editor.h)
+	int32_t acousticCommand;   // an Acoustic Mode item's command number (0xa Exit, 0xbb8 .. 0xbbd: reassess/object-placement.md AC-3 .. AC-8), or 0 (acoustic_mode.h)
 	int32_t strategyCommand;   // a Strategy mode item's command number (0xc Delete Strategy, ...: strategy-menu-pairs.md), or 0 (strategy_mode.h)
 	int32_t altLocation;       // an Alt Locations item's command number (0x64 to 0x69), or 0
 	int32_t hierarchyCommand;  // a Hierarchy mode item's command number (hierarchy_mode.h), or 0
@@ -156,7 +157,7 @@ int32_t const kAdjShowAll = 5;   // Base > Show All: modules with an ADJMDLEP bl
 
 int32_t const kPromptAsc = 5;        // Write Asc File: the name of the file to write, without ".asc" (inteng: "Type filename (without .asc extension)")
 int32_t const kPromptAscDoors = 6;   // Write Asc File (Doors closed)
-int32_t const kPromptMoveRelPoly = 10; // Move rel. to poly: the distance from the polygon, in metres (inteng: "distance to move from the poly in metres :")
+int32_t const kPromptMoveRelPoly = 10; // Move rel. to poly: the distance from the polygon, in metres (inteng: "distance to move from the poly in metres :") (unused since 2026-11-17: the distance is inteng's number window; the number stays taken)
 
 int32_t const kPromptName = 3;       // a new name for the selected object
 int32_t const kPromptAltGroup = 4;   // Alt Locations, Assign Group Number: the group number (0 means no group)
@@ -194,7 +195,7 @@ int32_t const kPromptTypeLinks = 13;  // Change Object Type: Placed: "<name> has
 int32_t const kPromptRescale = 14;   // Rescale: the new size of the selected object's shape (shape_rescale_edit.h)
 int32_t const kPromptChooserPick = 15;   // the Shape Chooser's "Select shape from list": a place in the list or part of a name (registry number 15)
 int32_t const kPromptTears = 44;   // Fix tears (0x5a / 0x5b): the tolerance in mm ("Type in tolerance level for tear fixing (in mm)"). Taken 2026-11-15
-int32_t const kPromptMoveRelModule = 45;   // Move relative (0x1c): the three offsets in metres. Taken 2026-11-15
+int32_t const kPromptMoveRelModule = 45;   // Move relative (0x1c): the three offsets in metres. Taken 2026-11-15 (unused since 2026-11-17: Move relative is inteng's RelMove Shape window; the number stays taken)
 int32_t const kPromptSpecial = 42;   // Object Placement's special-object dialogs (special_mode.h): one number for all, which field is open is the mode's. Taken 2026-11-15
 int32_t const kPromptTextureMap = 43;   // Texture Map mode's typed answers (Select by Angle, the arrow step sizes, ...): which one is open is the mode's (taken on the board 2026-11-15)
 int32_t const kPromptHierarchy = 30;   // Hierarchy mode's questions (hierarchy_mode.h); one number for all, which one is open is the mode's. Taken on the board 2026-11-15

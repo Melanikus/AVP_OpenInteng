@@ -1,0 +1,46 @@
+# ACCEPTANCE (red first): Hierarchy's VERTEX SELECTION click (V) as inteng's (hierarchy-closeout-frost.md TB-2; FUN_004889d0 0x489dd4-0x489efa, FUN_00485290; Vasquez 2026-11-17). With
+# Vertex Selection Mode on, a click must be ON the skin object (FUN_00559720 gives it), else nothing; then the point nearest on the screen and every point within 1 of it on each axis (its
+# duplicates) are ADDED to the selection; with Shift they are TAKEN OFF. RED before: ours toggled the one nearest point wherever the click was (a click on nothing selected a point).
+# His file: ShotgunBot (MelPyth) given the reference sequence Attach needs (Dietrich's prepared copy, dietrich-proofs\tb3, as acceptance-hierarchy-bone-offsets): Attach shape to bones, the
+# hierarchy "Marine with Shotgun" with the object L1#chest, a section clicked (the pelvis: the bone), V. The click on the chest's polygons (505, 415 in this window, read 11-17 from picture 2: its
+# points' crosses; pinned) takes point 3, Shift takes it off; a click at (60, 650) is on nothing. Red on vh-4 (4 failed: the click on nothing selected point 14), green on vh-5 (40 ok).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/tb3/ShotgunBot.RIF
+pictures on
+state
+expect-screen Construction
+camera 0 -600 -2500 0 0
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-bar Hierarchy > Attach shape to bones
+expect-dialog Select object to attach to bones
+click-choice-is L1#chest
+expect-dialog Attach to which hierarchy?
+click-choice-is Marine with Shotgun
+# the attachment chooses the hierarchy, and its sequence is asked for
+expect-dialog Select Sequence
+click-row 1
+expect-no-dialog
+wait 600
+picture 1
+# a section (the bone the points would go to), then V
+click-win 500 340
+wait 300
+expect-status Hierarchy: section
+key V
+wait 300
+expect-status Vertex selection: on
+picture 2
+# a click on nothing (the view's top left corner): no point
+click-win 60 650
+wait 300
+expect-status the click is not on
+# a click on the skin: the nearest point and its duplicates added
+click-win 505 415
+wait 300
+expect-status points added
+picture 3
+# Shift + the same click: taken off again
+click-win 505 415 shift
+wait 300
+expect-status points taken off
+expect-status 0 selected

@@ -109,6 +109,7 @@ static void TestFile(std::string const & path)
 	}
 
 	int done = 0;
+	std::vector<size_t> snapped;   // the pairs the click's snap moved, for the live snap below
 
 	for (size_t k = 0; k + 1 < ids.size() && done < 6; k += 2)
 	{
@@ -172,7 +173,58 @@ static void TestFile(std::string const & path)
 		}
 
 		Check(onIt, "one of the moved object's own vertices lies on the target vertex");
+		snapped.push_back(k);
 		done++;
+	}
+
+	// THE LIVE SNAP (SnapToVertex_Pose, OP-43): for each pair the click's snap moved, from where it put the second object, the same point snaps it nowhere new (its vertex is on T already) and leaves
+	// its turn; with align on the target's first polygon the turn is a whole turn (a quaternion of length 1); nothing is written either way
+	for (size_t const k : snapped)
+	{
+		model::ShapeModel shape;
+		std::vector<int32_t> targetPoints, normals;
+
+		FilePick_World(&file, level, ids[k].data(), &shape, &targetPoints, &normals);
+
+		double const point[3] = { targetPoints[0] + 50.0, targetPoints[1] - 30.0, targetPoints[2] + 10.0 };
+		int32_t before[3], place[3];
+		float turn[4];
+
+		if (ObjectPlace_Get(&file, level, ids[k + 1].data(), before) != MoveRelPolyEditResult::Done)
+		{
+			continue;
+		}
+
+		MoveRelPolyEditResult const plain = SnapToVertex_Pose(&file, level, ids[k + 1].data(), ids[k].data(), point, 0, false, place, turn);
+
+		if (plain == MoveRelPolyEditResult::TooFar)
+		{
+			continue;
+		}
+
+		Check(plain == MoveRelPolyEditResult::Done && place[0] == before[0] && place[1] == before[1] && place[2] == before[2], "the live snap from the snapped place moves nothing");
+
+		MoveRelPolyEditResult const aligned = SnapToVertex_Pose(&file, level, ids[k + 1].data(), ids[k].data(), point, 0, true, place, turn);
+
+		if (aligned != MoveRelPolyEditResult::TooFar)
+		{
+			double const length = sqrt((double)turn[0] * turn[0] + (double)turn[1] * turn[1] + (double)turn[2] * turn[2] + (double)turn[3] * turn[3]);
+
+			Check(aligned == MoveRelPolyEditResult::Done && fabs(length - 1.0) < 0.001, "the live snap with align gives a whole turn");
+		}
+
+		int32_t after[3];
+
+		Check(ObjectPlace_Get(&file, level, ids[k + 1].data(), after) == MoveRelPolyEditResult::Done && memcmp(after, before, sizeof(after)) == 0, "and writes nothing");
+	}
+
+	{
+		double const origin[3] = { 0.0, 0.0, 0.0 };
+		int32_t place[3];
+		float turn[4];
+
+		Check(SnapToVertex_Pose(&file, level, ids[0].data(), ids[0].data(), origin, 0, false, place, turn) == MoveRelPolyEditResult::BadCall,
+			"the live snap onto the object itself is refused (FUN_004f7000 0x4f7043: another block)");
 	}
 
 	// an object's place read and set again
@@ -197,9 +249,65 @@ static void TestFile(std::string const & path)
 	Check(!built.empty(), "the level still builds after the moves");
 }
 
+// FUN_0053d1e0, FUN_004f6ee0 and the align of FUN_004f7000, worked by hand from the code (no level needed)
+static void TestSnapMaths()
+{
+	int32_t const one = 65536;
+	int32_t const identity[9] = { one, 0, 0, 0, one, 0, 0, 0, one };
+	int32_t m[9];
+
+	memcpy(m, identity, sizeof(m));
+	SnapVertex_SquareUp(m);
+	Check(memcmp(m, identity, sizeof(m)) == 0, "SquareUp leaves the identity alone");
+
+	int32_t const nearly[9] = { 65000, 3000, -2000, -2500, 64000, 7000, 2000, -7000, 64500 };
+
+	memcpy(m, nearly, sizeof(m));
+	SnapVertex_SquareUp(m);
+	Check(memcmp(m, identity, sizeof(m)) == 0, "SquareUp makes a slightly turned matrix the identity");
+
+	int32_t zeros[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+	int32_t const zerosSquared[9] = { -one, 0, 0, 0, -one, 0, 0, 0, one };
+
+	SnapVertex_SquareUp(zeros);
+	Check(memcmp(zeros, zerosSquared, sizeof(zeros)) == 0, "SquareUp of zeros: row 0 x (a 0 is -1), row 1 y (-1), row 2 their product (the code's ties)");
+
+	int32_t const up[3] = { 0, one, 0 };
+	int32_t const upFrame[9] = { 0, 0, one, 0, one, 0, -one, 0, 0 };
+
+	SnapVertex_NormalMatrix(up, m);
+	Check(memcmp(m, upFrame, sizeof(m)) == 0, "NormalMatrix of up: (0, 0, 1), the normal, (-1, 0, 0) (the axis z: x and z tie at 0, z is taken)");
+
+	memcpy(m, identity, sizeof(m));
+	SnapVertex_Align(up, m);
+	Check(memcmp(m, identity, sizeof(m)) == 0, "an unturned object aligned to a floor stays unturned");
+
+	int32_t const down[3] = { 0, -one, 0 };
+
+	memcpy(m, identity, sizeof(m));
+	SnapVertex_Align(down, m);
+	Check(memcmp(m, identity, sizeof(m)) == 0, "and to a ceiling");
+
+	int32_t const slope[3] = { 0, 46341, 46341 };
+	int32_t slopeFrame[9];
+
+	SnapVertex_NormalMatrix(slope, slopeFrame);
+	memcpy(m, identity, sizeof(m));
+	SnapVertex_Align(slope, m);
+	Check(memcmp(m, slopeFrame, sizeof(m)) == 0 && m[3] == 0 && m[4] == 46341 && m[5] == 46341, "aligned to a 45 degree slope it takes the slope's frame: its row 1 is the normal");
+
+	int32_t const none[3] = { 0, 0, 0 };
+
+	memcpy(m, nearly, sizeof(m));
+	SnapVertex_Align(none, m);
+	Check(memcmp(m, nearly, sizeof(m)) == 0, "a zero normal changes nothing (inteng's would divide by 0)");
+}
+
 int main(int argc, char ** argv)
 {
 	setvbuf(stdout, 0, _IONBF, 0);
+
+	TestSnapMaths();
 
 	if (argc < 2)
 	{

@@ -200,6 +200,28 @@ namespace host
 		if (probability) *probability = record.probability;
 	}
 
+	SoundEditRecord SoundEdit_IndexedRecord(std::string const &name, uint32_t inner, uint32_t outer, int32_t pitch, int32_t volume, int32_t recordFlags, bool loopsLive)
+	{
+		// FUN_004ebd60 0x4ebe12-0x4ebe91: the four numbers as the placed sound's; 0x4ebe2b: flags ((char)~bit 0 & 1) << 1; 0x4ebe3b: mask -(loops box != 0) & 2; 0x4ebe2e: probability 0
+		SoundEditRecord r = SoundEdit_Record(name, inner, outer, pitch, volume, 0, 0);
+
+		r.flags = ((~(uint32_t)recordFlags) & 1u) << 1;
+		r.mask = loopsLive ? 2u : 0u;
+		r.probability = 0;
+		return r;
+	}
+
+	void SoundEdit_IndexedBack(SoundEditRecord const &record, int32_t recordFlags, int32_t *inner, int32_t *outer, int32_t *pitch, int32_t *volume, int32_t *newFlags)
+	{
+		SoundEdit_Back(record, inner, outer, pitch, volume, nullptr, nullptr);
+
+		// 0x4ebf67-0x4ebf78: the window's bit 1 clear (Sound Loops ticked) sets the record's bit 0, set clears it
+		if (newFlags)
+		{
+			*newFlags = (record.flags & 2u) == 0 ? (recordFlags | 1) : (recordFlags & ~1);
+		}
+	}
+
 	int32_t SoundEdit_PlayFrequency(int32_t fileFrequency, float pitch)
 	{
 		// 0x100072df-0x10007364: only when the pitch is not 0; base x 2^(pitch x 0.0833333358 (0x1001a9b0))

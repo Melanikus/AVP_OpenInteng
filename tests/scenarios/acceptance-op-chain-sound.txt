@@ -1,0 +1,76 @@
+# ACCEPTANCE: the OBJECT PLACEMENT close-out's seventh chain (AvP-docs/director/strategy-100/PLAN.md THEN, "sounds a strategy starts"; Drake 2026-11-17): a SOUND placed, edited
+# to wait for a switch, targeted by a switch, saved and read back, on his path on Stat101 (a read-only stock copy, the file opened as a double click):
+# 1. Object Placement: Object > Find generator02, the view put 3 m ahead of where trigtospidgen's target pick looks from, Create > Sound, "Name Object" chainS (made at the view, OP-30).
+# 2. Object > Edit (E, OP-133): "Sound Edit", the inner range 7.5 m, the volume 50 %, Playing at Start OFF (the switch starts it); Mode > Exit (saves).
+# 3. Targeted by a switch: Strategy Data, trigtospidgen's Edit view, T ("Select targets for switch"), a click on chainS's red S (a sound's editor wrapper takes no strategy of its own,
+#    S-KC-6, but a switch may name it: FUN_005219f0 keeps a special wrapper's target), Return: its targets are generator02 and chainS, on.
+# 4. File > Save a copy; the game's loader reads the copy: chainS a sound with volume 63 (ftol((50 + 50/127) x 0.01 x 127), OP-133) and Playing at Start off; trigtospidgen holds
+#    2 targets, the second chainS with request 1; every other strategy byte for byte.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- 1. placed
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is generator02
+expect-no-dialog
+wait 400
+camera 2302 -183228 -8000 0 0
+wait 300
+click-bar Create > Sound
+expect-dialog Name Object
+form-field 1 chainS
+click-button OK
+expect-no-dialog
+picture 1
+
+# ---- 2. edited: 7.5 m, 50 %, Playing at Start off
+key E
+expect-dialog Sound Edit -
+expect-dialog-checks on,on
+form-field 2 7.5
+form-field 5 50
+click-check 1
+expect-dialog-checks off,on
+click-button OK
+expect-no-dialog
+expect-hierarchy-text chainS i_r 7.500000 o_r 10.000000
+wait 300
+click-bar Mode > Exit
+wait 400
+
+# ---- 3. targeted by a switch
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is trigtospidgen
+expect-no-dialog
+wait 400
+key E
+wait 400
+expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:generator02 - type '79'
+key T
+wait 400
+expect-status Select targets for switch
+picture 2
+# the S's middle stroke crosses its centre: a click there takes it (the collector's list names it, as inteng's wrapper +4 does)
+click-win 508 357
+wait 400
+expect-screen-text chainS
+picture 3
+key Enter
+wait 400
+expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:generator02 - type '79'|0@112:(on)|80@112:chainS - Sound
+picture 4
+key Esc
+wait 300
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_special.exe {copy} "sound|chainS|volume=63|soundflags=1"
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF {copy} trigtospidgen targets 2 target.0 generator02 target.1 chainS target_request.1 1

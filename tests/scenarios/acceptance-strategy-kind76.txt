@@ -63,3 +63,7 @@ wait 300
 expect-field-same strategyview
 key Esc
 wait 300
+# READ-BACK (Vasquez 11-17, Drake's effect verbs 27026c6b): the saved copy must hold effect 0 = flag 0 with its one target turned off (request 0) and Forward only (direction 1), the flag 5
+# effect gone again (num_point_effects 1), every other strategy byte for byte. RED on the stock file read as the copy: request 1, direction 3.
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} "dropship ken" effect.0.flag 0 effect.0.targets 1 effect.0.target_request.0 0 effect.0.target_direction.0 1 num_point_effects 1

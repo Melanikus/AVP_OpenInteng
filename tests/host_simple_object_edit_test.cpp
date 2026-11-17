@@ -303,19 +303,40 @@ static void TestLevel(char const *path, std::string const &folder)
 		Check(madeNone != host::SimpleObjectResult::Done || (bytes.size() >= 52 && (Int32At(bytes, 36) & 1) == 1), "and has the creation flag bit");
 	}
 
-	// ANOTHER STRATEGY: replaced by a simple object (inteng's own)
+	// ANOTHER STRATEGY (a door, a switch ...): KEPT byte for byte, only the header's flags written. inteng's load marks such an object +0x5c = 0 (FUN_004e0ed0 0x4e0bc0) and its save then
+	// leaves the strategy alone (FUN_004e1f90 0x4e2808). Corrected 2026-11-17 (Drake): this case said "replaced by a simple object", which lost the door (OUR BUG, FIXED).
 	if (other)
 	{
 		uint8_t id[8];
 
 		memcpy(id, other->id, 8);
-		host::SimpleObjectResult const madeOther = host::SimpleObject_Write(&f, f.Level(), id, other->draft);
 
-		Check(madeOther == host::SimpleObjectResult::Done, std::string("an object with another strategy is written, named by others or not (inteng replaces it): ") + host::SimpleObjectWords(madeOther) + " (kind " + std::to_string(other->draft.strategyKind) + ")");
+		std::vector<unsigned char> before, after;
 
-		host::SimpleObjectDraft back;
+		StrategyBytes(&f, id, &before);
 
-		Check(madeOther != host::SimpleObjectResult::Done || (host::SimpleObject_Read(&f, f.Level(), id, &back) == host::SimpleObjectResult::Done && back.strategyKind == 62), "and its strategy is now a simple object (inteng replaces it)");
+		host::SimpleObjectDraft draft = other->draft;
+
+		draft.type = 2;   // what the window was given: none of it may reach the strategy
+		draft.extra = 0x16;
+		draft.mass = 77;
+		draft.explosion = 3;
+
+		host::SimpleObjectResult const madeOther = host::SimpleObject_Write(&f, f.Level(), id, draft);
+
+		Check(madeOther == host::SimpleObjectResult::Done, std::string("an object with another strategy is written: ") + host::SimpleObjectWords(madeOther) + " (kind " + std::to_string(other->draft.strategyKind) + ")");
+		StrategyBytes(&f, id, &after);
+		Check(!before.empty() && before == after, "and its strategy (kind " + std::to_string(other->draft.strategyKind) + ") is KEPT byte for byte, as inteng's save keeps it (" + std::to_string(before.size()) + " bytes before, " +
+		      std::to_string(after.size()) + " after)");
+		Check((HeaderFlags(&f, id) & 0x4000) != 0, "its header has platform load set (the header's flags are still written)");
+	}
+
+	// the Key list holds edobtype's every row, the last "Pass 31 (Never used)" = 31 too (0x1001fb68 read 11-17: it was missing)
+	{
+		host::SimpleChoice const *keys = nullptr;
+		size_t const count = host::SimpleExtraChoices(6, &keys);
+
+		Check(count == 23 && keys && std::string(keys[22].name) == "Pass 31 (Never used)" && keys[22].value == 31, "the Key list has its 23 rows, the last \"Pass 31 (Never used)\" = 31 (" + std::to_string(count) + " rows)");
 	}
 
 	// the changed level is taken by the game's loader as a copy

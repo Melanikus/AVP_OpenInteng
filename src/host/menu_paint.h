@@ -46,7 +46,8 @@ namespace host
 	// panels' margin each side; a drop-down is its widest item's words with the margin each side, then, if any item has keys, the gap
 	// and its widest keys with the margin each side, as the plan draws the words and the keys in boxes of their own. Each is held to
 	// ui::kPanelMostSide. titleWidths and dropWidths have room for count numbers.
-	void MenuPaint_Measure(const ui::Menu *menus, size_t count, PaintLetterWidth widthOf, int32_t *titleWidths, int32_t *dropWidths);
+	// cascadeWidths (when not null, ui::kMenuMostMenus x ui::kMenuMostItems): each item's cascade as wide as its widest row's words and tag with the margin each side (BAR-11), 0 for an item with none
+	void MenuPaint_Measure(const ui::Menu *menus, size_t count, PaintLetterWidth widthOf, int32_t *titleWidths, int32_t *dropWidths, int32_t *cascadeWidths = nullptr);
 
 	// What the bar shows this frame: every title's line, in its box; and with a menu open, the band behind its title, its drop-down's
 	// background, the band behind its lit item, and each shown item's words at the left of its row and its keys at the right. Gives back

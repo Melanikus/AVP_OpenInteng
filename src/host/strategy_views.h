@@ -81,15 +81,15 @@ namespace host
 	// What a view needs to know of the level beyond its own bytes (the Lift's radius and start; null where not needed)
 	struct StrategyViewWorld
 	{
-		std::function<bool(uint8_t const *id, double *radius)> radius;   // FUN_00529850: false when the object is not in the level (1.0 then)
-		std::function<bool(uint8_t const *id)> liftStartsHere;          // the object's strategy is a Lift (0x33) with flag 1
-		std::function<std::string(uint8_t const *id)> targetWords;      // S-KC-12 (FUN_00529eb0): "<name> - <its kind's word>" for an ID that is not the null ID
-		std::function<int32_t(uint8_t const *id)> trackSections;        // the object's OBJTRAK2 +0x28, 0 when it has none (a Track Object's view)
-		std::function<int32_t(uint8_t const *id)> species;              // an enemy's species (its AVPGENER's type, inteng's record +0x38: 7 marine, 2 predator ...), -1 when none
+		std::function<bool(const uint8_t *id, double *radius)> radius;   // FUN_00529850: false when the object is not in the level (1.0 then)
+		std::function<bool(const uint8_t *id)> liftStartsHere;          // the object's strategy is a Lift (0x33) with flag 1
+		std::function<std::string(const uint8_t *id)> targetWords;      // S-KC-12 (FUN_00529eb0): "<name> - <its kind's word>" for an ID that is not the null ID
+		std::function<int32_t(const uint8_t *id)> trackSections;        // the object's OBJTRAK2 +0x28, 0 when it has none (a Track Object's view)
+		std::function<int32_t(const uint8_t *id)> species;              // an enemy's species (its AVPGENER's type, inteng's record +0x38: 7 marine, 2 predator ...), -1 when none
 		std::function<bool(int32_t number, std::string *name)> path;    // the level's path with that number (FUN_004fbaf0: SPECLOBJ > AVPPATH2 +0x34) and its name; false when none has it
 		int32_t page = -1;                                              // the page of a view with pages (a Track Object's point page: the point), -1 its main page
 		std::vector<std::array<uint8_t, 8>> const *links = nullptr;     // a Linked / Multi / Area switch's Links as FUN_0052dc90 made them again when its view opened (StrategyView_SwitchLinks)
-		std::function<int32_t(uint8_t const *id)> strategyKind;         // the kind of the strategy of the object with that ID (FUN_00529820's record +4), 0 when it has none
+		std::function<int32_t(const uint8_t *id)> strategyKind;         // the kind of the strategy of the object with that ID (FUN_00529820's record +4), 0 when it has none
 	};
 
 	// ---- THE SWITCHES' LINKS (strategy-data.md S-K61-1, S-K61-3, S-K66-2; FUN_0052dc90 with FUN_005218b0 / FUN_005218e0; Vasquez 11-16). Checked on every stock level: for all 1852 Linked,
@@ -111,6 +111,10 @@ namespace host
 	// The Links a 61 / 66 / 68 strategy holds (its NumLinks and the 8-byte IDs after it); false when the kind has none or the payload is too short for them
 	bool StrategyView_StoredLinks(int32_t kind, std::vector<uint8_t> const &payload, std::vector<std::array<uint8_t, 8>> *links);
 
+	// The payload with its Links list replaced by links (S-K61-3: FUN_0052dc90 writes the list it makes into the switch, NumLinks then the IDs); the bytes before the list and after the old one
+	// kept. False (out untouched) when StrategyView_StoredLinks can't read the old list
+	bool StrategyView_WithLinks(int32_t kind, std::vector<uint8_t> const &payload, std::vector<std::array<uint8_t, 8>> const &links, std::vector<uint8_t> *out);
+
 	// What the end of an object pick does (S-KC-5 and each kind's pick row, reassess/strategy-data-kinds.md)
 	enum StrategyPickRow
 	{
@@ -124,7 +128,7 @@ namespace host
 	};
 
 	// Where the view finds the name of an object, by its ID (the 8 bytes a strategy holds): false when the level has no such object
-	typedef std::function<bool(uint8_t const *id, std::string *name)> StrategyViewNames;
+	typedef std::function<bool(const uint8_t *id, std::string *name)> StrategyViewNames;
 
 	// Whether the kind has a view built
 	bool StrategyView_Has(int32_t kind);

@@ -3707,6 +3707,70 @@ namespace host
 		return HierarchyEditResult::Done;
 	}
 
+	HierarchyEditResult HierarchyEdit_SkinFaces(OpenLevelFile *file, std::string const &objectName, std::vector<int32_t> *faces)
+	{
+		Image image;
+		Span root;
+
+		if (!faces)
+		{
+			return HierarchyEditResult::BadCall;
+		}
+
+		faces->clear();
+
+		HierarchyEditResult const opened = Open(file, &image, &root);
+
+		if (opened != HierarchyEditResult::Done)
+		{
+			return opened;
+		}
+
+		ObjectShape object;
+		HierarchyEditResult const found = FindObjectShape(image, root, objectName, &object);
+
+		if (found != HierarchyEditResult::Done)
+		{
+			return found;
+		}
+
+		Span vertices, polygons;
+		bool walkable = false;
+
+		if (!FirstChild(image, object.shape, "SHPRAWVT", &vertices, &walkable) || !FirstChild(image, object.shape, "SHPPOLYS", &polygons, &walkable))
+		{
+			return walkable ? HierarchyEditResult::Refused : HierarchyEditResult::BadLevelBytes;
+		}
+
+		// SHPPOLYS (chunk_shape.cpp Shape_Polygon_Chunk::fill_data_block): 36 bytes a polygon: engine type, normal, flags, colour, then five point numbers ended by -1. HOSTILE: a number that is
+		// no point of the shape ends the polygon there; a polygon of fewer than three is left out.
+		int64_t const pointCount = (int64_t)((vertices.size - kHeadingBytes) / 12);
+		size_t const polygonCount = (polygons.size - kHeadingBytes) / 36;
+
+		for (size_t p = 0; p < polygonCount; p++)
+		{
+			int32_t corner[5];
+			int used = 0;
+
+			memcpy(corner, image.data() + polygons.at + kHeadingBytes + p * 36 + 16, sizeof(corner));
+
+			while (used < 4 && corner[used] >= 0 && corner[used] < pointCount)
+			{
+				used++;
+			}
+
+			if (used >= 3)
+			{
+				faces->push_back(corner[0]);
+				faces->push_back(corner[1]);
+				faces->push_back(corner[2]);
+				faces->push_back(used == 4 ? corner[3] : -1);
+			}
+		}
+
+		return HierarchyEditResult::Done;
+	}
+
 	HierarchyEditResult HierarchyEdit_MovePointsToBone(OpenLevelFile *file, std::string const &objectName, std::string const &hierarchy, std::string const &bone, std::vector<int32_t> const &points, char const **why, size_t *moved)
 	{
 		Image image;

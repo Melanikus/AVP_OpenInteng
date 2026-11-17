@@ -7,11 +7,15 @@
 #include "strategy_def.h"
 #include "gamedef.h"         // Player
 #include "view.h"            // Global_VDB_Ptr
-#include "los.h"             // FindPolygonInLineOfSight, LOS_ObjectHitPtr, LOS_Lambda
+#include "los.h"             // FindDrawnPolygonInLineOfSight, LOS_ObjectHitPtr, LOS_Lambda
 #include "dynamics.h"        // ColPolyTag, SetupPolygonAccess: the game's own walk through a shape's polygons
 #include "d3_func.h"         // d3d.matProjection
 
 #include <string.h>
+
+// the frame's list of what is on screen, which the game's line of sight walks (los.cpp declares them the same way)
+extern int NumOnScreenBlocks;
+extern DISPLAYBLOCK *OnScreenBlockList[];
 
 #include "pick_ray.h"
 #include "pick_game.h"
@@ -116,6 +120,11 @@ bool PickGame_RayAtClick(int32_t clickX, int32_t clickY, int32_t viewWidth, int3
 
 host::PickReport PickGame_AtClick(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight)
 {
+	return PickGame_AtClickLeavingOut(clickX, clickY, viewWidth, viewHeight, nullptr);
+}
+
+host::PickReport PickGame_AtClickLeavingOut(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight, void const *leaveOut)
+{
 	host::PickReport report;
 	memset(&report, 0, sizeof(report));
 	report.found = host::PickFound::NoLine;
@@ -130,9 +139,36 @@ host::PickReport PickGame_AtClick(int32_t clickX, int32_t clickY, int32_t viewWi
 
 	// The game's line of sight, over only what was on screen this frame (its 1), and never the player itself. It's handed copies: its
 	// own notes say it may change what it's given.
+	// ONLY THE POLYGONS THAT ARE DRAWN count, as in inteng's one pick for every mode (FUN_00559750: it walks the polygons it drew last frame,
+	// DAT_00703cf4 / DAT_009ba168, never one with item flag 1, iflag_notvis): a face seen from behind is culled, so it is not there to be clicked
+	// unless it is double-sided (iflag_no_bfc). The game's own line of sight takes every face from both sides ("treat all polys as no bfc",
+	// los.cpp), which stopped our clicks on faces nobody sees (a Hierarchy click on the left arm gave RArm, a section seen through).
 	VECTORCH direction = { ray.direction[0], ray.direction[1], ray.direction[2] };
 	VECTORCH from = { ray.from[0], ray.from[1], ray.from[2] };
-	FindPolygonInLineOfSight(&direction, &from, 1, Player);
+	// The block leaveOut (the live Snap To Vertex's copy of the moving object) is taken out of the frame's list of what is on screen for this one search, and put back
+	// in its place after it: inteng leaves the moving block out of its pick the same way (FUN_004f7000 0x4f7020, block +0x64 bit 0x10000000)
+	int leftOutAt = -1;
+
+	for (int i = 0; leaveOut && i < NumOnScreenBlocks && leftOutAt < 0; i++)
+	{
+		leftOutAt = OnScreenBlockList[i] == (DISPLAYBLOCK const *)leaveOut ? i : -1;
+	}
+
+	if (leftOutAt >= 0)
+	{
+		OnScreenBlockList[leftOutAt] = OnScreenBlockList[NumOnScreenBlocks - 1];
+		OnScreenBlockList[NumOnScreenBlocks - 1] = (DISPLAYBLOCK *)leaveOut;
+		NumOnScreenBlocks--;
+	}
+
+	FindDrawnPolygonInLineOfSight(&direction, &from, 1, Player);
+
+	if (leftOutAt >= 0)
+	{
+		NumOnScreenBlocks++;
+		OnScreenBlockList[NumOnScreenBlocks - 1] = OnScreenBlockList[leftOutAt];
+		OnScreenBlockList[leftOutAt] = (DISPLAYBLOCK *)leaveOut;
+	}
 
 	DISPLAYBLOCK const *const hit = LOS_ObjectHitPtr;
 

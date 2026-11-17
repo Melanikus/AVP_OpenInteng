@@ -40,4 +40,4 @@ picture 802
 item 0xa
 expect-screen Construction
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_lightkeys/verify_lightkeys.exe {orig} {copy} 4 2 5000 -300 9000 6000 -300 9500
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_lightkeys/verify_lightkeys.exe {orig} {copy} 4 2 5000 -300 9000 6000 -300 9500

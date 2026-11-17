@@ -1074,6 +1074,20 @@ namespace host
 		return Answer(done == SpecialResult::Done ? words + " saved" : words + ": " + SpecialWords(done));
 	}
 
+	SpecialStep SpecialMode_FormWrite(OpenLevelFile *file, SpecialMode *mode, SpecialObject const &object)
+	{
+		if (mode->ask != SpecialAsk::Field)
+		{
+			return Answer(std::string());
+		}
+
+		SpecialResult const done = SpecialObject_Write(file, object);
+		std::string const words = GeneratorName(object.kind) + (object.name.empty() ? "" : " (" + object.name + ")");
+
+		SpecialMode_Cancel(mode);
+		return Answer(done == SpecialResult::Done ? words + " saved" : words + ": " + SpecialWords(done));
+	}
+
 	SpecialStep SpecialMode_Typed(OpenLevelFile *file, SpecialMode *mode, std::string const &typed)
 	{
 		if (mode->ask == SpecialAsk::PickObject)

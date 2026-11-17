@@ -114,6 +114,10 @@ const char *LevelView_StartWords()
 	return startWords;
 }
 
+// The name LevelView_Open was given: the file the level was OPENED from. LevelView_ShowFile loads the working bytes' copy under another LevelName and keeps this one
+static char openedName[MAX_PATH] = "";
+static bool showingAFile = false;   // LevelView_ShowFile is opening: openedName stays
+
 bool LevelView_FilePath(char *path, size_t size)
 {
 	if (!path || !size)
@@ -128,10 +132,9 @@ bool LevelView_FilePath(char *path, size_t size)
 		return false;
 	}
 
-	// system.cpp's LoadTheLevel builds the level's path just so: the folder, a slash, the level's name (LevelName, which LevelView_Open
-	// made the level to load) and the extension. A path that doesn't fit is given back as none, never as a name cut short, which could
-	// name another file.
-	if (_snprintf_s(path, size, _TRUNCATE, "%s/%s%s", GameDataDirName, LevelName, FileNameExtension) < 0)
+	// system.cpp's LoadTheLevel builds the level's path just so: the folder, a slash, the level's name (the one LevelView_Open was given: openedName, which LevelView_ShowFile keeps
+	// while the game's LevelName is the working bytes' copy) and the extension. A path that doesn't fit is given back as none, never as a name cut short, which could name another file.
+	if (_snprintf_s(path, size, _TRUNCATE, "%s/%s%s", GameDataDirName, openedName, FileNameExtension) < 0)
 	{
 		path[0] = '\0';
 		return false;
@@ -198,6 +201,11 @@ bool LevelView_Open(const char *levelName, FlyCamera *startHere, char *why, size
 	ResetFrameCounter();
 	levelIsOpen = true;
 	doorsClosedInView = false;   // a level starts with its doors as the file holds them (open)
+
+	if (!showingAFile)
+	{
+		strcpy_s(openedName, sizeof(openedName), levelName);   // the file the level was opened from (LevelView_FilePath)
+	}
 
 	// Where the level put the player, looking straight ahead (camera_start.h): the player's body, its dynamics block's Position, which
 	// InitPlayer takes from the level's own start (player.cpp:340). The player's display block, Player->ObWorld, only follows the body once
@@ -959,6 +967,11 @@ void LevelView_FlyPut(const int32_t world[3], const float quat[4])
 	TransposeMatrixCH(&flyCopy->ObMat);
 }
 
+void const *LevelView_FlyCopyBlock()
+{
+	return flyOn ? flyCopy : nullptr;
+}
+
 void LevelView_FlyEnd()
 {
 	if (!flyOn)
@@ -1063,6 +1076,33 @@ void LevelView_ActiveObjectIds(std::vector<std::vector<uint8_t>> *ids)
 		if (block && block->ObStrategyBlock)
 		{
 			ids->push_back(std::vector<uint8_t>(block->ObStrategyBlock->SBname, block->ObStrategyBlock->SBname + 8));
+		}
+	}
+}
+
+extern DISPLAYBLOCK *OnScreenBlockList[];   // view.cpp:45, maxdisplayblocks (system.h: 2048) long
+extern int NumOnScreenBlocks;
+
+void LevelView_DrawnModules(std::vector<int32_t> *moduleIndex)
+{
+	if (!moduleIndex)
+	{
+		return;
+	}
+
+	moduleIndex->clear();
+
+	int const kOnScreenMost = 2048;   // the list's length (maxdisplayblocks)
+	int const count = NumOnScreenBlocks < 0 ? 0 : (NumOnScreenBlocks < kOnScreenMost ? NumOnScreenBlocks : kOnScreenMost);
+
+	for (int i = 0; i < count; i++)
+	{
+		DISPLAYBLOCK const *const block = OnScreenBlockList[i];
+		MODULE const *const room = block ? block->ObMyModule : nullptr;
+
+		if (room && room->m_dptr == block && room->m_index >= 0 && std::find(moduleIndex->begin(), moduleIndex->end(), (int32_t)room->m_index) == moduleIndex->end())
+		{
+			moduleIndex->push_back((int32_t)room->m_index);
 		}
 	}
 }
@@ -1655,6 +1695,10 @@ void LevelView_Close()
 		return;
 	}
 
+	// what this file keeps of the level's own memory goes first: a flying object's copy, the blocks given to hide (the level is loaded again by LevelView_ShowFile, its blocks new)
+	LevelView_FlyEnd();
+	hiddenBlocksAsGiven.clear();
+
 	// winmain.cpp:1213-1231, without the steps that write the player's key settings, stop sound and music, or end a network game. Nor
 	// does it let go of the player's image in a mirror (winmain.cpp:1217): the editor never makes one (src/host/edge_own.cpp).
 	ReleaseAllFMVTextures();
@@ -1664,6 +1708,33 @@ void LevelView_Close()
 	ExitGame();
 	ClearMemoryPool();
 	levelIsOpen = false;
+}
+
+bool LevelView_ShowFile(const char *levelName, char *why, size_t whySize)
+{
+	if (!levelIsOpen || !openedName[0])
+	{
+		Say(why, whySize, "no level is open");
+		return false;
+	}
+
+	FlyCamera ignored;   // the camera stays the editor's own
+
+	showingAFile = true;
+	bool const shown = LevelView_Open(levelName, &ignored, why, whySize);
+
+	if (!shown)
+	{
+		// the game's loader refused the working bytes' copy: the opened file again, so the view has a level
+		char said[400] = "";
+
+		snprintf(said, sizeof(said), "%s", why ? why : "");
+		LevelView_Open(openedName, &ignored, nullptr, 0);
+		Say(why, whySize, said);
+	}
+
+	showingAFile = false;
+	return shown;
 }
 
 size_t LevelView_SetBakedColours(const std::vector<LevelViewBaked> &modules, double scale)

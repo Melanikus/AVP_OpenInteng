@@ -61,7 +61,7 @@ namespace host
 		{
 			{ "Data log", 0 }, { "Pass 1", 1 }, { "Pass 2", 2 }, { "Pass 3", 3 }, { "Pass 4", 4 }, { "Pass 5", 5 }, { "Pass 6", 6 }, { "Pass 7", 7 }, { "Pass 8", 8 }, { "Pass 9", 9 },
 			{ "Pass 10", 10 }, { "Pass 11", 11 }, { "Pass 12", 12 }, { "Pass 13", 13 }, { "Pass 14", 14 }, { "Pass 15", 15 }, { "Pass 16", 16 }, { "Pass 17", 17 }, { "Pass 18", 18 },
-			{ "Pass 19", 19 }, { "Pass 20", 20 }, { "Pass 30 (Special)", 30 },
+			{ "Pass 19", 19 }, { "Pass 20", 20 }, { "Pass 30 (Special)", 30 }, { "Pass 31 (Never used)", 31 },   // the last row was missing (edobtype 0x1001fb68, read 11-17)
 		};
 
 		SimpleChoice const explosionChoices[] = { { "None", 0 }, { "Small", 1 }, { "Big", 2 }, { "Molotov", 3 } };
@@ -446,53 +446,64 @@ namespace host
 			kind = bytes.size() >= kKindAt + 4 ? Read32(bytes.data() + kKindAt) : 0;
 		}
 
-		if (!have || (kind != kKindSimple && kind != kKindR6Simple))
-		{
-			ObjectEditResult const made = AssignStrategy(store, id, kKindSimple);
+		// WHICH OBJECTS' STRATEGY THE EDIT WRITES. inteng's load (FUN_004e0ed0 0x4e0aaf-0x4e0bc0) sets the object's +0x5c, and its save (FUN_004e1f90 0x4e2521 / 0x4e2808) writes the
+		// strategy only when it is set: no strategy, a legacy 53, a simple object (62, 1003) and the other game's 2000 / 2001 / 2002 are given (or keep) a simple object; ANY OTHER strategy (a
+		// door, a switch, a lift ...) is left as it is, and only the header's flags are written. OUR BUG, FIXED 2026-11-17 (Drake): it was replaced by a simple object, so Edit and OK on a door
+		// made it stop being a door.
+		bool const writesStrategy = !have || kind == kKindSimple || kind == kKindR6Simple || kind == kKindLegacySimple || kind == 2000 || kind == 2001 || kind == 2002;
 
-			if (made != ObjectEditResult::Done)
+		if (writesStrategy)
+		{
+			if (!have || (kind != kKindSimple && kind != kKindR6Simple))
 			{
-				return made == ObjectEditResult::LoaderRefused ? SimpleObjectResult::LoaderRefused : made == ObjectEditResult::NotPlaced ? SimpleObjectResult::NotPlaced : SimpleObjectResult::CantBuild;
+				ObjectEditResult const made = AssignStrategy(store, id, kKindSimple);
+
+				if (made != ObjectEditResult::Done)
+				{
+					return made == ObjectEditResult::LoaderRefused ? SimpleObjectResult::LoaderRefused : made == ObjectEditResult::NotPlaced ? SimpleObjectResult::NotPlaced : SimpleObjectResult::CantBuild;
+				}
+
+				level = store->Level();
 			}
 
-			level = store->Level();
-		}
+			// the simple object's numbers, in place (a 1003 too: inteng's save changes both in place, 0x4e2914)
+			if (FindObjectStrategy(level, id, &strategy) != StrategyFound::Found)
+			{
+				return SimpleObjectResult::CantBuild;
+			}
 
-		// the simple object's numbers, in place
-		if (FindObjectStrategy(level, id, &strategy) != StrategyFound::Found)
-		{
-			return SimpleObjectResult::CantBuild;
-		}
+			std::vector<unsigned char> bytes;
 
-		std::vector<unsigned char> bytes;
+			if (!BytesOf(store, strategy.chunk, &bytes))
+			{
+				bytes.assign(strategy.payload.begin(), strategy.payload.end());
+			}
 
-		if (!BytesOf(store, strategy.chunk, &bytes))
-		{
-			bytes.assign(strategy.payload.begin(), strategy.payload.end());
-		}
+			int32_t const nowKind = bytes.size() >= kKindAt + 4 ? Read32(bytes.data() + kKindAt) : 0;
 
-		if (bytes.size() < kSimpleBytes || Read32(bytes.data() + kKindAt) != kKindSimple)
-		{
-			return SimpleObjectResult::CantBuild;
-		}
+			if (bytes.size() < kSimpleBytes || (nowKind != kKindSimple && nowKind != kKindR6Simple))
+			{
+				return SimpleObjectResult::CantBuild;
+			}
 
-		Write32(bytes.data() + kTypeAt, draft.type);
-		Write32(bytes.data() + kExtraAt, draft.extra);
-		Write32(bytes.data() + kMassAt, draft.mass & 0xffff);
-		Write32(bytes.data() + kIntegrityAt, (int32_t)(((uint32_t)draft.integrity & 0xffff) | 0x80000000u));
+			Write32(bytes.data() + kTypeAt, draft.type);
+			Write32(bytes.data() + kExtraAt, draft.extra);
+			Write32(bytes.data() + kMassAt, draft.mass & 0xffff);
+			Write32(bytes.data() + kIntegrityAt, (int32_t)(((uint32_t)draft.integrity & 0xffff) | 0x80000000u));
 
-		int32_t flagsWord = Read32(bytes.data() + kFlagsAt) & ~0x30;
+			int32_t flagsWord = Read32(bytes.data() + kFlagsAt) & ~0x30;
 
-		if (draft.explosion > 0 && draft.explosion < 4)
-		{
-			flagsWord |= draft.explosion << 4;
-		}
+			if (draft.explosion > 0 && draft.explosion < 4)
+			{
+				flagsWord |= draft.explosion << 4;
+			}
 
-		Write32(bytes.data() + kFlagsAt, flagsWord);
+			Write32(bytes.data() + kFlagsAt, flagsWord);
 
-		if (!store->SetPayload(strategy.chunk, bytes))
-		{
-			return SimpleObjectResult::CantBuild;
+			if (!store->SetPayload(strategy.chunk, bytes))
+			{
+				return SimpleObjectResult::CantBuild;
+			}
 		}
 
 		// the header's flags: the window's six bits and the three platform bits, and "platform load set" on

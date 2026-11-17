@@ -107,7 +107,8 @@ namespace host
 	size_t StrategyMode_Groups(StrategyGroup const **groups);
 
 	// DELETE MULTIPLE's groups that work on the live objects (FUN_005373e0, FUN_00536de0, FUN_005375d0), each giving how many it deleted:
-	//  - Marine / Predator Pickups: the Placed Object strategies (kind 62) whose "Type" is 2 or 3 (marines) or 15 (predators): their strategy goes
+	//  - Marine / Predator Pickups: the PLACED objects whose Placed Object strategy (kind 62) has "Type" 2 or 3 (marines) or 15 (predators) are deleted, strategy and all
+	//    (FUN_00538e70); a module with such a strategy keeps it, as inteng's record does nothing there
 	//  - Doors (Non-Lift): every Switch Door strategy (59) goes, and every Door strategy (50) except the door a Lift (51) names as its associated door
 	//  - the species groups: the AVPGENER special objects (Object Placement's generators and Bad Guys) whose type is in speciesMask (bit n = type n: 0 generator, 1 alien, 2 predator, 3 facehugger,
 	//    4 xenoborg, 5 predator-alien, 6 queen, 7 marine, 8 praetorian, 9 sentry gun) are taken away themselves (the record's own delete, method +0x14)

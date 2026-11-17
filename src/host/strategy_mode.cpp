@@ -13,6 +13,7 @@
 #include "field_model.h"
 #include "level_file.h"
 #include "level_image.h"
+#include "object_edit.h"           // DeleteObject: the pickups' objects go (FUN_00538e70)
 #include "special_objects_edit.h"
 #include "strategy_lookup.h"
 
@@ -925,12 +926,14 @@ namespace host
 			return false;
 		}
 
-		// The objects of the level with a strategy: the ID, the kind, the payload
+		// The objects of the level with a strategy: the ID, the kind, the payload, and whether the object is a PLACED one (OBJECT_FLAG_PLACED_OBJECT in its header:
+		// what inteng's record for it holds at +0x2c, FUN_005387b0 0x538814)
 		struct LiveStrategy
 		{
 			uint8_t id[8];
 			int32_t kind;
 			std::vector<uint8_t> payload;
+			bool placed;
 		};
 
 		void LiveStrategies(OpenLevelFile *file, std::vector<LiveStrategy> *out)
@@ -951,6 +954,7 @@ namespace host
 				}
 
 				memcpy(one.id, &object->object_data.ID, 8);
+				one.placed = object->get_header() && (object->get_header()->flags & OBJECT_FLAG_PLACED_OBJECT) != 0;
 
 				if (FindObjectStrategy(file->Level(), one.id, &now) == StrategyFound::Found && now.payload.size() >= 12)
 				{
@@ -1004,14 +1008,32 @@ namespace host
 		{
 			int32_t type = 0;
 
-			// FUN_005373e0: the Placed Object strategies (0x3e) whose type is above 1 and below 4 (marines) or 15 (predators)
-			if (one.kind == 62 && ReadStrategyNumber(one.payload, 62, "Type", &type) && type > 1 && ((type < 4 && marines) || (type == 15 && predators)))
+			// FUN_005373e0: the Placed Object strategies (0x3e) whose type is above 1 and below 4 (marines) or 15 (predators). For each it calls the object's record's
+			// delete (+0x14, 0x5374f5), FUN_00538e70: a PLACED object (+0x2c) is deleted, its strategy with it (+0x60 |= 1, as Object Placement's Delete 0x4e0480 marks it;
+			// its shape is left in the file); for any other object it does nothing, so a module keeps its strategy
+			if (one.placed && one.kind == 62 && ReadStrategyNumber(one.payload, 62, "Type", &type) && type > 1 && ((type < 4 && marines) || (type == 15 && predators)))
 			{
 				ids.push_back(std::vector<uint8_t>(one.id, one.id + 8));
 			}
 		}
 
-		return DeleteTheseStrategies(file, ids, deleted);
+		// one change after another, each read again by the game's loader before it is kept (object_edit.h DeleteObject)
+		for (std::vector<uint8_t> const &id : ids)
+		{
+			ObjectEditResult const result = DeleteObject(file, id.data());
+
+			if (result != ObjectEditResult::Done)
+			{
+				return result == ObjectEditResult::LoaderRefused ? StrategyModeResult::LoaderRefused : (result == ObjectEditResult::NoSuchObject ? StrategyModeResult::NoObject : StrategyModeResult::CantBuild);
+			}
+
+			if (deleted)
+			{
+				(*deleted)++;
+			}
+		}
+
+		return StrategyModeResult::Done;
 	}
 
 	StrategyModeResult StrategyMode_DeleteDoorsNonLift(OpenLevelFile *file, size_t *deleted)

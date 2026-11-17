@@ -3,6 +3,9 @@
 
 #include "menu_bar.h"
 
+#include <algorithm>
+#include <vector>
+
 #include "text_field.h"   // IsFontLetter: the font's letters, one rule for the whole kit
 
 namespace ui
@@ -58,7 +61,7 @@ namespace ui
 		return value < 0 ? 0 : value;
 	}
 
-	MenuBar::MenuBar() : menus(0), count(0), open(-1), lit(-1), first(0), picked(0), refused(0), openedByPress(false), itemHeight(0)
+	MenuBar::MenuBar() : menus(0), count(0), open(-1), lit(-1), first(0), picked(0), refused(0), openedByPress(false), itemHeight(0), subLit(-1)
 	{
 		Box const none = { 0, 0, 0, 0 };
 
@@ -73,6 +76,13 @@ namespace ui
 			for (size_t i = 0; i < kMenuMostItems; i++)
 			{
 				enabled[m][i] = true;
+				checked[m][i] = false;
+				cascadeWidths[m][i] = 0;
+
+				for (size_t k = 0; k < kMenuMostSubItems; k++)
+				{
+					subChecked[m][i][k] = false;
+				}
 			}
 		}
 	}
@@ -88,12 +98,20 @@ namespace ui
 		picked = 0;
 		refused = 0;
 
+		subLit = -1;
+
 		for (size_t m = 0; m < kMenuMostMenus; m++)
 		{
 			for (size_t i = 0; i < kMenuMostItems; i++)
 			{
 				enabled[m][i] = true;
 				checked[m][i] = false;
+				cascadeWidths[m][i] = 0;
+
+				for (size_t k = 0; k < kMenuMostSubItems; k++)
+				{
+					subChecked[m][i][k] = false;
+				}
 			}
 		}
 
@@ -101,6 +119,9 @@ namespace ui
 		{
 			return false;
 		}
+
+		// every action of the bar, the cascades' rows' too: each once (an action seen twice refuses the whole bar)
+		std::vector<int32_t> actions;
 
 		for (size_t m = 0; m < newCount; m++)
 		{
@@ -126,18 +147,31 @@ namespace ui
 					return false;
 				}
 
-				// Each action once in the whole bar: against every item before this one, in this menu and the ones before it
-				for (size_t earlierMenu = 0; earlierMenu <= m; earlierMenu++)
+				// Each action once in the whole bar: against every item before this one, in this menu and the ones before it, and their cascades' rows
+				if (std::find(actions.begin(), actions.end(), item.action) != actions.end())
 				{
-					size_t const earlierCount = earlierMenu < m ? newMenus[earlierMenu].count : i;
+					return false;
+				}
 
-					for (size_t j = 0; j < earlierCount; j++)
+				actions.push_back(item.action);
+
+				// A cascade (BAR-10): 1 to kMenuMostSubItems plain rows, as an item's own words, keys and tag; a row has no cascade of its own; null rows with a count, or rows with none, are refused
+				if ((item.subCount > 0) != (item.subItems != nullptr) || item.subCount > kMenuMostSubItems)
+				{
+					return false;
+				}
+
+				for (size_t k = 0; k < item.subCount; k++)
+				{
+					const MenuItem &row = item.subItems[k];
+
+					if (!IsWords(row.name, kMenuNameMost) || (row.keys && !IsWords(row.keys, kMenuKeysMost)) || row.action <= 0 || (row.tag && !IsWords(row.tag, kMenuTagMost)) ||
+					    row.subItems || row.subCount > 0 || std::find(actions.begin(), actions.end(), row.action) != actions.end())
 					{
-						if (newMenus[earlierMenu].items[j].action == item.action)
-						{
-							return false;
-						}
+						return false;
 					}
+
+					actions.push_back(row.action);
 				}
 			}
 		}
@@ -177,6 +211,14 @@ namespace ui
 				if (menus[m].items[i].action == action)
 				{
 					checked[m][i] = on;
+				}
+
+				for (size_t k = 0; k < menus[m].items[i].subCount; k++)
+				{
+					if (menus[m].items[i].subItems[k].action == action)
+					{
+						subChecked[m][i][k] = on;
+					}
 				}
 			}
 		}
@@ -225,6 +267,7 @@ namespace ui
 	{
 		open = menu;
 		lit = -1;
+		subLit = -1;
 		first = 0;
 		lit = NextEnabled(-1, 1);
 		KeepLitShown();
@@ -250,6 +293,22 @@ namespace ui
 			}
 		}
 
+		// the shown cascade (BAR-12): the pointer on one of its rows lights it, and the drop-down's lit item (its owner) stays lit
+		Box const cascade = CascadeBox();
+
+		if (BoxHolds(cascade, x, y))
+		{
+			int const row = (int)(((int64_t)y - cascade.y) / itemHeight);
+
+			if (row < 0 || (size_t)row >= menus[open].items[lit].subCount || row == subLit)
+			{
+				return false;
+			}
+
+			subLit = row;
+			return true;
+		}
+
 		Box const drop = DropBox();
 
 		if (!BoxHolds(drop, x, y))
@@ -265,6 +324,7 @@ namespace ui
 		}
 
 		lit = (int)item;
+		subLit = -1;   // another item: its cascade, if it has one, shows with no row lit (inteng opens it as the pointer comes on the item, BAR-5 / BAR-12)
 		return true;
 	}
 
@@ -282,6 +342,14 @@ namespace ui
 			return MenuAnswer::Nothing;
 		}
 
+		bool inCascade = false;
+		MenuAnswer const cascadeAnswer = PickInCascade(x, y, &inCascade);
+
+		if (inCascade)
+		{
+			return cascadeAnswer;
+		}
+
 		Box const drop = DropBox();
 
 		if (!BoxHolds(drop, x, y))
@@ -293,6 +361,12 @@ namespace ui
 		size_t const item = first + (size_t)(((int64_t)y - drop.y) / itemHeight);
 
 		if (item >= menus[open].count)
+		{
+			return MenuAnswer::Nothing;
+		}
+
+		// an item that opens a cascade is not pickable (FUN_004b7dd0 0x4b821e-0x4b8248, BAR-12): letting go on it picks nothing, the menu stays
+		if (menus[open].items[item].subCount > 0)
 		{
 			return MenuAnswer::Nothing;
 		}
@@ -314,6 +388,7 @@ namespace ui
 		openedByPress = false;
 		open = -1;
 		lit = -1;
+		subLit = -1;
 		first = 0;
 		return MenuAnswer::Closed;
 	}
@@ -425,6 +500,7 @@ namespace ui
 				}
 
 				lit = to;
+				subLit = -1;
 				KeepLitShown();
 				return MenuAnswer::Moved;
 			}
@@ -435,7 +511,8 @@ namespace ui
 			{
 				bool const picks = event.key != Key::Letter || (event.letter == ' ' && !event.ctrl);
 
-				if (!picks || lit < 0 || !enabled[open][lit])
+				// NAMED: inteng's keys in a cascade are not read; here a key never enters one, and an item that opens one is not pickable (BAR-12)
+				if (!picks || lit < 0 || !enabled[open][lit] || menus[open].items[lit].subCount > 0)
 				{
 					return MenuAnswer::Nothing;
 				}
@@ -564,6 +641,14 @@ namespace ui
 			return MenuAnswer::Nothing;
 		}
 
+		bool inCascade = false;
+		MenuAnswer const cascadeAnswer = PickInCascade(x, y, &inCascade);
+
+		if (inCascade)
+		{
+			return cascadeAnswer;
+		}
+
 		Box const drop = DropBox();
 
 		if (!BoxHolds(drop, x, y))
@@ -579,6 +664,19 @@ namespace ui
 			return MenuAnswer::Nothing;
 		}
 
+		// an item that opens a cascade picks nothing (BAR-12): the press lights it, so its cascade shows
+		if (menus[open].items[item].subCount > 0)
+		{
+			if ((int)item == lit)
+			{
+				return MenuAnswer::Nothing;
+			}
+
+			lit = (int)item;
+			subLit = -1;
+			return MenuAnswer::Moved;
+		}
+
 		// An item that's off is never picked: the menu stays open, and the editor is told which, to say why on the status line
 		if (!enabled[open][item])
 		{
@@ -587,6 +685,106 @@ namespace ui
 		}
 
 		picked = menus[open].items[item].action;
+		Close();
+		return MenuAnswer::Picked;
+	}
+
+	void MenuBar::SetCascadeWidths(const int32_t *widths)
+	{
+		for (size_t m = 0; m < kMenuMostMenus; m++)
+		{
+			for (size_t i = 0; i < kMenuMostItems; i++)
+			{
+				cascadeWidths[m][i] = widths && m < count ? (int32_t)NotBelowZero(widths[m * kMenuMostItems + i]) : 0;
+			}
+		}
+	}
+
+	int MenuBar::CascadeOf() const
+	{
+		if (!menus || open < 0 || lit < 0 || (size_t)lit >= menus[open].count || menus[open].items[lit].subCount == 0 || !enabled[open][lit])
+		{
+			return -1;
+		}
+
+		return lit;
+	}
+
+	// BAR-11 (FUN_004b6f70 0x4b6fff-0x4b7028, 0x4b7176-0x4b719a): to the right of the drop-down (x = its x + its width), its top on the item's row (y = the drop-down's y + the row x the item height);
+	// when its right side would pass the room's right edge and it fits left of the drop-down, to the LEFT (x = the drop-down's x - its width). NAMED: inteng does not move it up; here a cascade that
+	// would pass the room's bottom is moved up into it (the room is our window's, not inteng's 640 x 480).
+	Box MenuBar::CascadeBox() const
+	{
+		Box box = { 0, 0, 0, 0 };
+		int const owner = CascadeOf();
+
+		if (owner < 0 || itemHeight <= 0)
+		{
+			return box;
+		}
+
+		Box const drop = DropBox();
+		size_t const shown = ShownItems();
+		int64_t const width = cascadeWidths[open][owner] < room.width ? cascadeWidths[open][owner] : room.width;
+
+		if (drop.height <= 0 || width <= 0 || (size_t)owner < first || (size_t)owner >= first + shown)
+		{
+			return box;   // its owner's row is not shown, or the view measured no width for it
+		}
+
+		int64_t const height = (int64_t)menus[open].items[owner].subCount * itemHeight;
+		int64_t const roomRight = (int64_t)room.x + room.width;
+		int64_t const roomBottom = (int64_t)room.y + room.height;
+		int64_t x = (int64_t)drop.x + drop.width;
+		int64_t y = (int64_t)drop.y + (int64_t)(owner - (int)first) * itemHeight;
+
+		if (x + width > roomRight && width <= (int64_t)drop.x - room.x)
+		{
+			x = (int64_t)drop.x - width;
+		}
+
+		if (y + height > roomBottom)
+		{
+			y = roomBottom - height > room.y ? roomBottom - height : room.y;
+		}
+
+		box.x = Clamp32(x);
+		box.y = Clamp32(y);
+		box.width = Clamp32(width);
+		box.height = Clamp32(height < room.height ? height : room.height);
+		return box;
+	}
+
+	bool MenuBar::IsCascadeChecked(size_t row) const
+	{
+		int const owner = CascadeOf();
+
+		return owner >= 0 && row < menus[open].items[owner].subCount && row < kMenuMostSubItems && subChecked[open][owner][row];
+	}
+
+	// A press, or the release that ends the press which opened the menu, at x, y: on a row of the shown cascade it picks that row (FUN_004b7dd0 0x4b81a7-0x4b81cf: the lit pickable row's command)
+	MenuAnswer MenuBar::PickInCascade(int32_t x, int32_t y, bool *inCascade)
+	{
+		*inCascade = false;
+
+		Box const box = CascadeBox();
+
+		if (!BoxHolds(box, x, y))
+		{
+			return MenuAnswer::Nothing;
+		}
+
+		*inCascade = true;
+
+		int const owner = CascadeOf();
+		size_t const row = (size_t)(((int64_t)y - box.y) / itemHeight);
+
+		if (owner < 0 || row >= menus[open].items[owner].subCount)
+		{
+			return MenuAnswer::Nothing;
+		}
+
+		picked = menus[open].items[owner].subItems[row].action;
 		Close();
 		return MenuAnswer::Picked;
 	}

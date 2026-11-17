@@ -1,0 +1,181 @@
+# Builds the editor and runs its unit tests on a clean machine, and scans its code with Snyk, for every pull request into main and every
+# push to it. A failing job stops the merge, for everyone (Tao 1: security is paramount).
+#
+# Six jobs, side by side:
+#   - Build the editor: AvPx's libraries by vcpkg, at the commit AvPx's vcpkg.json names (as AvPx's own build does), then the editor
+#     with the same MSBuild settings the team builds with, then the unit tests that need those libraries.
+#   - Unit tests (1 of 4 .. 4 of 4): every other tests/<name>.args, built and run by tools/run-unit-tests.ps1, a quarter each. A test that
+#     needs the game's own levels or models can't run here (Rebellion's files never go on a public machine): it is listed by name and never
+#     counted as passed, and the team runs it where the game is installed.
+#   - Snyk Code (SAST): this repository's own code. avpx/ is scanned in AvPx itself, and so are the libraries (its "Snyk on the vcpkg
+#     libraries"). The editor has no package list of its own, so there is nothing for Snyk Open Source here.
+# Take-outs aren't here: they run by hand before a release (the owner's ruling R-BLD-11).
+#
+# vcpkg keeps what it builds, and the source archives it downloads, in GitHub's cache, so the next run takes them in about a minute.
+# vcpkg names each built library by a hash of everything that goes into it (its port, its version, the triplet, the compiler, and what it
+# depends on), so a kept build is used only when it is exactly what this run would build: anything changed is built from source again.
+# Each source archive is checked by vcpkg against the SHA-512 its port names before it's used. A pull request's cache is its own: it can't
+# reach main's runs or the release (GitHub keeps caches apart by branch).
+# Written 2026-11-17 by Melanikus for AVP_OpenInteng.
+name: Build and tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Read only. No job here can change the repository.
+permissions:
+  contents: read
+
+env:
+  SNYK_CLI_VERSION: v1.1308.3
+  SNYK_CLI_SHA256: 5f323f45885341ea1473639859271925912ece82a2f77bc146bb4468f9838840
+
+jobs:
+  build:
+    name: Build the editor
+    runs-on: windows-2025-vs2026   # pinned: Windows Server 2025 with Visual Studio 2026, the compiler we build with
+    timeout-minutes: 120           # the libraries may be built from source, so this can take a while, but it mustn't sit forever
+    steps:
+      - name: Check out the repository and AvPx at its pinned commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+
+      # The key is AvPx's library list and its own ports and triplets. When it changes, the newest older cache is still taken, and vcpkg
+      # uses from it only what its hashes match.
+      - name: Take vcpkg's kept builds and downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}\vcpkg-archives
+            ${{ runner.temp }}\vcpkg-downloads
+          key: vcpkg-x86-windows-vs2026-${{ hashFiles('avpx/vcpkg.json', 'avpx/vcpkg-configuration.json', 'avpx/vcpkg-overlay-ports/**', 'avpx/vcpkg-overlay-triplets/**') }}
+          restore-keys: vcpkg-x86-windows-vs2026-
+
+      # The registry commit is the builtin-baseline in AvPx's vcpkg.json, so the library versions never drift, and AvPx's own
+      # vcpkg-configuration.json brings its overlay ports and triplets. bootstrap-vcpkg checks the signature of the vcpkg it downloads.
+      - name: Build AvPx's libraries with vcpkg, at its manifest's baseline
+        shell: pwsh
+        env:
+          VCPKG_BINARY_SOURCES: clear;files,${{ runner.temp }}\vcpkg-archives,readwrite
+          VCPKG_DOWNLOADS: ${{ runner.temp }}\vcpkg-downloads
+        run: |
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\vcpkg-archives", $env:VCPKG_DOWNLOADS | Out-Null
+          $baseline = (Get-Content avpx/vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+          if ("$baseline" -cnotmatch '^[0-9a-f]{40}$') { throw "avpx/vcpkg.json's builtin-baseline isn't a commit's full hash: $baseline" }
+          $root = Join-Path $env:RUNNER_TEMP 'vcpkg'
+          git init -q $root
+          git -C $root fetch -q --depth 1 https://github.com/microsoft/vcpkg.git $baseline
+          git -C $root checkout -q FETCH_HEAD
+          if ((git -C $root rev-parse HEAD) -cne $baseline) { throw 'vcpkg is not at the manifest baseline' }
+          & (Join-Path $root 'bootstrap-vcpkg.bat') -disableMetrics
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $root 'vcpkg.exe'))) { throw 'vcpkg could not be set up' }
+          & (Join-Path $root 'vcpkg.exe') install --triplet x86-windows --x-manifest-root=avpx `
+            --x-install-root="$env:GITHUB_WORKSPACE/vcpkg_installed" --x-wait-for-lock --disable-metrics
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg could not build the libraries (exit $LASTEXITCODE)" }
+
+      # The team's settings (AvP-docs' build-editor.sh): release libraries only, nothing from a Directory.Build file, vcpkg not run by
+      # MSBuild (the step above ran it). The folder ends with a forward slash, so no backslash sits before a closing quote.
+      - name: Build the editor
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild was not found' }
+          & $msbuild win32\VS2026\AVP_OpenInteng.vcxproj /nologo /v:minimal /m /nodeReuse:false /p:Configuration=Release /p:Platform=Win32 `
+            /p:ImportDirectoryBuildProps=false /p:ImportDirectoryBuildTargets=false /p:VcpkgManifestInstall=false /p:VcpkgApplocalDeps=false `
+            "/p:VcpkgInstalledDir=$env:GITHUB_WORKSPACE/vcpkg_installed/" /p:VcpkgTriplet=x86-windows
+          if ($LASTEXITCODE -ne 0) { throw "The editor didn't build (MSBuild exit $LASTEXITCODE)" }
+          $exe = 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "MSBuild gave back 0 but made no $exe" }
+          $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "Built $exe, $((Get-Item -LiteralPath $exe).Length) bytes, SHA-256 $hash"
+
+      # The unit tests that include the libraries vcpkg built (vcpkg_installed/, at the repository's root as their .args say) run here,
+      # where those libraries are. The Unit tests jobs run every other one.
+      - name: The unit tests that need the libraries
+        shell: pwsh
+        run: ./tools/run-unit-tests.ps1 -OutFolder "$env:RUNNER_TEMP\tests" -Libraries with
+
+  unit-tests:
+    name: Unit tests (${{ matrix.part }} of 4)
+    runs-on: windows-2025-vs2026   # pinned, as above
+    timeout-minutes: 45            # a test that hangs is stopped by the runner script after its own time; this is for the whole job
+    strategy:
+      fail-fast: false             # every part reports, so one red part doesn't hide another
+      matrix:
+        part: [1, 2, 3, 4]
+    steps:
+      - name: Check out the repository and AvPx at its pinned commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+
+      # A quarter of the unit tests, all but those that need the libraries vcpkg builds, which the build job runs once it has them
+      - name: Build and run this part's unit tests
+        shell: pwsh
+        run: ./tools/run-unit-tests.ps1 -OutFolder "$env:RUNNER_TEMP\tests" -Libraries without -Part ${{ matrix.part }} -Parts 4
+
+  snyk-code:
+    name: Snyk Code (SAST)
+    runs-on: ubuntu-24.04   # pinned, so a runner-image migration never changes the security gate
+    permissions:
+      contents: read
+      security-events: write   # upload SARIF to code scanning, once the repository is public
+    steps:
+      - name: Check out the repository (avpx/ is scanned in AvPx itself)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned Snyk CLI
+        run: |
+          curl -fsSL "https://downloads.snyk.io/cli/$SNYK_CLI_VERSION/snyk-linux" -o "$RUNNER_TEMP/snyk"
+          echo "$SNYK_CLI_SHA256  $RUNNER_TEMP/snyk" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/snyk"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      # Exit 1 is findings, which fail at once. Exit 2 or more is an error, retried; it fails if it never clears.
+      - name: Snyk Code (SAST)
+        shell: bash
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          for attempt in 1 2 3; do
+            if snyk code test --sarif-file-output=snyk-code.sarif; then rc=0; else rc=$?; fi
+            if [ "$rc" -lt 2 ]; then break; fi
+            echo "Snyk Code error (exit $rc) on attempt $attempt"
+            sleep 30
+          done
+          exit "$rc"
+
+      # Snyk reports how many files it read in the SARIF. A file it could not parse is silently skipped and the scan still passes, so
+      # its count is compared with what git tracks. A missing report fails here too, and so does a count of zero.
+      - name: Fail if Snyk Code skipped any C/C++ file
+        if: ${{ !cancelled() }}
+        run: |
+          types='\.(c|cc|cpp|cxx|c\+\+|h|hh|hpp|hxx|h\+\+|inl|ipp|tpp|inc)$'
+          tracked=$(git ls-files | grep -ciE "$types" || true)
+          analysed=$(jq --arg types "$types" '[.runs[0].properties.coverage[]? | select(.type == "SUPPORTED" and (.lang | ascii_downcase | test($types))) | .files] | add // 0' snyk-code.sarif)
+          unparsed=$(jq '[.runs[0].properties.coverage[]? | select(.type != "SUPPORTED") | .files] | add // 0' snyk-code.sarif)
+          echo "C/C++ files tracked by git: $tracked, analysed by Snyk: $analysed, not analysed: $unparsed"
+          jq -c '.runs[0].properties.coverage' snyk-code.sarif
+          if [ "$tracked" -eq 0 ] || [ "$unparsed" != "0" ] || [ "$analysed" != "$tracked" ]; then
+            echo "::error::Snyk Code did not analyse every C/C++ file"
+            exit 1
+          fi
+
+      # Code scanning takes results only from a public repository (a private one without GitHub's paid scanning refuses even zero
+      # findings), so the upload waits until this one is public. The scan above gates the merge either way.
+      - name: Upload Snyk Code results
+        if: ${{ !cancelled() && !github.event.repository.private && hashFiles('snyk-code.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4.39.2
+        with:
+          sarif_file: snyk-code.sarif
+          category: snyk-code

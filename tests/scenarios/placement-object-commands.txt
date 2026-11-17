@@ -10,7 +10,7 @@ item 0x33
 expect-status Object created
 picture 1
 item 0x1c
-expect-prompt 45
+expect-dialog RelMove Shape
 picture 2
 key Enter
 expect-status Moved

@@ -1,0 +1,75 @@
+# ACCEPTANCE (red first): Copy Strategy runs each kind's own copy (Frost, 2026-11-17; Drake's close-out F-2, reassess/strategy-closeout-drake.md; strategy-data-kinds.md S-KC-7).
+# inteng's Copy (FUN_00528340) calls the source kind's +0xc on every target: a Linked Switch's (61's) is 52's (FUN_0052d630 -> FUN_0052d6a0), which makes the copy a BINARY SWITCH (52) and
+# leaves the links behind. INTENG BUG, FIXED: ours keeps the copy a Linked Switch, with 52's words and the head copied and the links emptied (as 66 and 68 copy theirs). A switch's links are
+# the switches that target it, made again when its view opens (and, with close-out F-3, when the level is saved). Most switches are VIRTUAL objects (107 of the 110 stock Linked Switches):
+# inteng's Copy takes any object that has a wrapper, so a virtual object is a source or a target as a placed object is. RED before: ours copied only between placed objects and modules, and
+# a virtual source said "Unable to copy this strategy".
+# Genshd1 (kind-list, AvP-docs/tools/frost): the virtual linktoeverything (61: Rest Off, Wait, Reversed, target the Multi Switch immediatesrt, four links) is copied to the placed opslevo5
+# (61, target trigtodrandmess, no links) and to the virtual link (61, target immediate, two links: control02A, glassbroken).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+# the source: the virtual object linktoeverything, by Find Object; Copy Strategy (the pop-up's 2)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is linktoeverything
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 2
+expect-status Select objects to copy to
+
+# the targets: the placed opslevo5 (a click on its lower bar), the virtual link (a click on its V); Return ends the list
+camera -32639 -17239 52000 0
+wait 600
+picture 1
+click-view 0.5 0.58
+camera -41700 -702 42300 0
+wait 600
+picture 2
+click-view 0.5 0.5
+key Enter
+
+# both hold a strategy: the replace question for the first, Yes All for both
+expect-dialog-kind form
+click-button Yes_All
+expect-no-dialog
+expect-status Copy Strategy: 2 object(s) got the strategy
+
+# opslevo5: still a Linked Switch, with linktoeverything's target; no switch targets it, so no links
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is opslevo5
+expect-no-dialog
+key E
+wait 400
+picture 3
+expect-field-has strategyview 200@0:opslevo5 : Linked Switch
+expect-field-has strategyview 16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Target : immediatesrt - Multi switch|16@120:Links:|32@136:None
+key Esc
+wait 300
+
+# link: still a Linked Switch, with linktoeverything's target (its links are the switches that target it, as before)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is link
+expect-no-dialog
+key E
+wait 400
+picture 4
+expect-field-has strategyview 200@0:link : Linked Switch
+expect-field-has strategyview 16@80:Target : immediatesrt - Multi switch|16@120:Links:
+key Esc
+wait 300
+expect-screen Strategy Data
+
+# the copy through the game's loader: opslevo5 a Linked Switch (NumLinks is a 61's field) with no links, waiting, its target immediatesrt; link waiting, its target immediatesrt; every other
+# strategy the original's (immediatesrt, trigtodrandmess and immediate are left out: their links change when F-3's Save makes every switch's links again)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} opslevo5 NumLinks 0 Mode 1 holds immediatesrt also link also immediatesrt also trigtodrandmess also immediate
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} link Mode 1 holds immediatesrt also opslevo5 also immediatesrt also trigtodrandmess also immediate

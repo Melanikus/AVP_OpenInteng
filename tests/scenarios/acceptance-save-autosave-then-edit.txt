@@ -1,0 +1,42 @@
+# ACCEPTANCE (red first): an edit made after one of inteng's OWN save points (no question: Object Placement's Exit, FUN_004d9820, FUN_004719e0 writes the level) is made, and the next
+# save is written (Frost, 2026-11-17; the auto-save version of acceptance-save-then-edit, Bishop's order). Since b71b4d9 a save after an object was taken out of the level left the level
+# unpaired, and every later edit that rebuilds the level and every later save was refused.
+# His path: Fall, Object Placement, Pboost0 picked (row 243 of the object list), Object > Delete, Mode > Exit (its exit writes the level); Object Placement again, pulse0 picked (row 265
+# now that Pboost0 is out), Object > Delete (it must delete), Mode > Exit (written again); the copy read back through the game's loader has neither. RED on aaf69b1; GREEN with the fix.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Fall.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+select-row 243
+expect-selected 1
+click-bar Object > Delete
+wait 300
+expect-status Object deleted
+# the Exit: inteng's own save point
+click-bar Mode > Exit
+wait 1500
+expect-screen Construction
+expect-status Saved a copy
+expect-status-not Not saved
+# Object Placement again, after that save: the Delete is made
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+select-row 265
+expect-selected 1
+click-bar Object > Delete
+wait 300
+expect-status Object deleted
+expect-status-not could not be put together
+# the Exit writes the level again
+click-bar Mode > Exit
+wait 1500
+expect-screen Construction
+expect-status Saved a copy
+expect-status-not Not saved
+expect-status-not could not
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_objects.exe {copy} gone Pboost0 gone pulse0

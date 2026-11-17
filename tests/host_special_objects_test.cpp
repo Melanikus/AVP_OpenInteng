@@ -17,6 +17,7 @@
 #include "mishchnk.hpp"
 #include "level_file.h"
 #include "special_objects_edit.h"
+#include "chunk_sound.hpp"
 #include "crash_guard.h"
 
 static int checksFailed = 0;
@@ -87,7 +88,9 @@ static bool Same(SpecialObject const & a, SpecialObject const & b)
 		a.subType == b.subType && a.extra1 == b.extra1 && a.extra2 == b.extra2 && memcmp(a.matrix, b.matrix, 36) == 0 && memcmp(a.module, b.module, 8) == 0 && a.inner == b.inner &&
 		a.outer == b.outer && a.volume == b.volume && a.pitch == b.pitch && a.soundFlags == b.soundFlags && a.probability == b.probability && a.wav == b.wav && a.particleType == b.particleType &&
 		a.particleFlags == b.particleFlags && a.time == b.time && a.particleProbability == b.particleProbability && a.speed == b.speed && a.quantity == b.quantity &&
-		memcmp(a.parentId, b.parentId, 8) == 0 && memcmp(a.turn, b.turn, 16) == 0 && a.hasSound == b.hasSound && a.hasSettings == b.hasSettings && a.genRate == b.genRate && a.genIncrease == b.genIncrease && a.genLimit == b.genLimit && memcmp(a.weights, b.weights, sizeof(a.weights)) == 0;
+		memcmp(a.parentId, b.parentId, 8) == 0 && memcmp(a.turn, b.turn, 16) == 0 && a.hasSound == b.hasSound && a.particleSoundWav == b.particleSoundWav && a.particleSoundRead == b.particleSoundRead && a.particleSoundIndex == b.particleSoundIndex &&
+		a.particleSoundInner == b.particleSoundInner && a.particleSoundOuter == b.particleSoundOuter && a.particleSoundVolume == b.particleSoundVolume && a.particleSoundPitch == b.particleSoundPitch &&
+		a.particleSoundFlags == b.particleSoundFlags && a.particleSoundExtra == b.particleSoundExtra && a.hasSettings == b.hasSettings && a.genRate == b.genRate && a.genIncrease == b.genIncrease && a.genLimit == b.genLimit && memcmp(a.weights, b.weights, sizeof(a.weights)) == 0;
 }
 
 static void TestFile(std::string const & path, std::string const & folder)
@@ -105,6 +108,43 @@ static void TestFile(std::string const & path, std::string const & folder)
 	std::vector<SpecialObject> all;
 
 	Check(SpecialObjects_Read(&file, &all) == SpecialResult::Done, "the special objects are read");
+
+	// Each sound's ID is the one the game's own library works out for it (Sound_Object_Chunk::CalculateID: what a strategy that names the sound holds, S-KC-12), the sounds in the
+	// SPECLOBJ's order. (Added 2026-11-17 by Frost: the reader left a sound's ID 0.)
+	{
+		Chunk_With_Children *const environment = file.Level() ? (Chunk_With_Children *)file.Level()->lookup_single_child("REBENVDT") : nullptr;
+		Chunk_With_Children *const special = environment ? (Chunk_With_Children *)environment->lookup_single_child("SPECLOBJ") : nullptr;
+		List<Chunk *> sounds;
+		size_t matched = 0, read = 0;
+
+		if (special)
+		{
+			special->lookup_child("SOUNDOB2", sounds);
+		}
+
+		LIF<Chunk *> each(&sounds);
+
+		for (SpecialObject const &one : all)
+		{
+			if (one.kind != SpecialKind::Sound)
+			{
+				continue;
+			}
+
+			read++;
+
+			if (!each.done())
+			{
+				ObjectID const id = ((Sound_Object_Chunk *)each())->CalculateID();
+
+				matched += memcmp(&id, one.id, 8) == 0 && one.name == ((Sound_Object_Chunk *)each())->snd_name ? 1 : 0;
+				each.next();
+			}
+		}
+
+		Check(read == (size_t)sounds.size() && matched == read, "every sound's ID is the game library's own (Sound_Object_Chunk::CalculateID): " + std::to_string((unsigned long long)matched) + " of " +
+			std::to_string((unsigned long long)read));
+	}
 
 	std::vector<char> original;
 
@@ -408,6 +448,120 @@ static void TestPlacedHierarchySequences(std::string const & path, std::string c
 	}
 }
 
+// OP-135 (Drake 11-17): a particle generator's sound, read whole (Indexed_Sound_Chunk's fields), taken away (Remove Sound), made new (Sound on a generator with none: inteng's record
+// "Not Set") and written back: each reads back as written, and the level with it is taken by the game's own loader
+static void TestParticleSound(std::string const & path, std::string const & folder)
+{
+	OpenLevelFile file;
+
+	if (file.Open(path.c_str()) != LevelOpenResult::Opened)
+	{
+		return;
+	}
+
+	std::vector<SpecialObject> all;
+
+	if (SpecialObjects_Read(&file, &all) != SpecialResult::Done)
+	{
+		return;
+	}
+
+	SpecialObject const *withSound = nullptr;
+
+	for (SpecialObject const & each : all)
+	{
+		withSound = !withSound && each.kind == SpecialKind::ParticleGenerator && each.hasSound ? &each : withSound;
+	}
+
+	if (!withSound)
+	{
+		return;
+	}
+
+	SpecialObject const original = *withSound;
+
+	printf("  (particle sound of %s: \"%s\" index %d, %u / %u mm, volume %d, pitch %d, flags 0x%x, %zu extra)\n", original.name.c_str(), original.particleSoundWav.c_str(), original.particleSoundIndex,
+		original.particleSoundInner, original.particleSoundOuter, original.particleSoundVolume, original.particleSoundPitch, original.particleSoundFlags, original.particleSoundExtra.size());
+	Check(original.particleSoundRead && !original.particleSoundWav.empty() && original.particleSoundVolume >= 0 && original.particleSoundVolume <= 127 && original.particleSoundOuter > 0,
+		"a particle generator's sound is read whole: its index, wav, ranges, volume, pitch and flags");
+
+	auto const reread = [&](SpecialObject *out)
+	{
+		std::vector<SpecialObject> again;
+
+		if (SpecialObjects_Read(&file, &again) != SpecialResult::Done)
+		{
+			return false;
+		}
+
+		for (SpecialObject const & each : again)
+		{
+			if (each.kind == SpecialKind::ParticleGenerator && each.number == original.number)
+			{
+				*out = each;
+				return true;
+			}
+		}
+
+		return false;
+	};
+
+	// Remove Sound: no INDSOUND
+	SpecialObject removed = original;
+
+	removed.hasSound = false;
+	removed.particleSoundRead = false;
+	removed.particleSoundWav.clear();
+
+	SpecialObject back;
+
+	Check(SpecialObject_Write(&file, removed) == SpecialResult::Done && reread(&back) && !back.hasSound && back.name == original.name && back.particleType == original.particleType,
+		"Remove Sound: the generator is written with no INDSOUND, the rest as it was");
+
+	// Sound on a generator with none: inteng's new record (FUN_004ebc80(0, 1): "Not Set", 500000 / 4000000 in memory, volume 127, pitch 0, flags 1), written as FUN_004ec1b0 makes it
+	SpecialObject made = removed;
+
+	made.hasSound = true;
+	made.particleSoundRead = true;
+	made.particleSoundIndex = 0;
+	made.particleSoundWav = "Not Set";
+	made.particleSoundInner = 5000;
+	made.particleSoundOuter = 40000;
+	made.particleSoundVolume = 127;
+	made.particleSoundPitch = 0;
+	made.particleSoundFlags = 1;
+	made.particleSoundExtra.clear();
+	Check(SpecialObject_Write(&file, made) == SpecialResult::Done && reread(&back) && back.hasSound && back.particleSoundRead && back.particleSoundWav == "Not Set" && back.particleSoundInner == 5000 &&
+		back.particleSoundOuter == 40000 && back.particleSoundVolume == 127 && back.particleSoundPitch == 0 && back.particleSoundFlags == 1 && back.particleSoundExtra.empty(),
+		"Sound on a generator with none: the new INDSOUND (\"Not Set\", 5000 / 40000 mm, 127, 0, loops) reads back as written");
+
+	// a name of every length up to 4 past a multiple of 4: the padding is right ((length + 4) & ~3) and the numbers after it read back
+	bool padding = true;
+
+	for (char const *name : { "a", "ab", "abc", "abcd", "abcde.wav" })
+	{
+		made.particleSoundWav = name;
+		made.particleSoundVolume = 33;
+		padding = padding && SpecialObject_Write(&file, made) == SpecialResult::Done && reread(&back) && back.particleSoundWav == name && back.particleSoundVolume == 33 && back.particleSoundRead;
+	}
+
+	Check(padding, "a wav name of 1 to 9 letters is padded as the game reads it, and the numbers after it read back");
+
+	// and back as it was: the same fields, and the level taken by the game's loader
+	Check(SpecialObject_Write(&file, original) == SpecialResult::Done && reread(&back) && Same(back, original), "written back as it was, the generator reads back the same");
+
+	std::string const saved = folder + "\\particle_sound.rif";
+
+	if (file.SaveAs(saved.c_str()) == LevelSaveResult::Saved)
+	{
+		OpenLevelFile second;
+
+		Check(second.Open(saved.c_str()) == LevelOpenResult::Opened, "the level with the remade INDSOUNDs is taken by the game's own loader");
+		DeleteFileA(saved.c_str());
+		DeleteFileA((saved + ".bak").c_str());
+	}
+}
+
 int main(int argc, char ** argv)
 {
 	setvbuf(stdout, 0, _IONBF, 0);
@@ -430,6 +584,7 @@ int main(int argc, char ** argv)
 	{
 		TestFile(argv[i], folder);
 		TestPlacedHierarchySequences(argv[i], folder);
+		TestParticleSound(argv[i], folder);
 	}
 
 	RemoveDirectoryA(folder.c_str());

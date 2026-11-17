@@ -1,0 +1,36 @@
+# ACCEPTANCE (red first): a NAME LONGER than the one an object had is taken, as inteng takes it (Drake, 2026-11-17; Bishop / Dietrich after cefa2e9c; strategy-data.md S-35a). His path on
+# Genshd1 (a read-only stock copy, the file opened as a double click): Object Placement, Object > Find locker02, P, the name "chainLockerNumberOne" (20 letters: the object is made from the
+# shape "Cabinet" as "Cabinet<n>", 8 letters, then renamed), File > Save a copy; the game's loader reads the copy: chainLockerNumberOne with its 62 (52 bytes, Type 1, locker02's).
+# The rename writes the header at the size the library writes it for the new name (object_edit.h RenameObject), so a name had no need to fit the old one's room any more.
+# RED on e20fd81e: the name is refused ("that name is longer than the room the old one leaves in the object's header") and the object keeps its made name.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is locker02
+expect-no-dialog
+wait 400
+key P
+expect-dialog Name Object
+form-field 1 chainLockerNumberOne
+click-button OK
+expect-no-dialog
+expect-status Object chainLockerNumberOne made at the view
+expect-status-not was refused
+picture 1
+# a name the game's file-name rule refuses (a colon) is refused after the object is made, and the status line quotes the name typed (it printed the words " + typed + " in its place until 11-17)
+key P
+expect-dialog Name Object
+form-field 1 bad:name
+click-button OK
+expect-no-dialog
+# (the state line gives the status between quotes, so it stops at the name's own opening quote: the check is that the words of the code are gone; picture 2 shows the line)
+expect-status Object Cabinet0 made at the view; the name
+expect-status-not + typed +
+picture 2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} chainLockerNumberOne size 52 Type 1

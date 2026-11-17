@@ -1,0 +1,58 @@
+# ACCEPTANCE: FIND ERRORS on a HIERARCHY OBJECT (76) on Melanikus's path, on a MADE level, the saved copy read back through the game's own loader (Drake, 2026-11-17;
+# reassess/strategy-closeout-drake.md E-5 / G; reassess/strategy-data-kinds.md S-K76-R: vtable +0x1c = FUN_00534450, the same as 72's). No stock level has a placed hierarchy whose targets name
+# nothing, and inteng cannot make one, so the level is MADE fresh by the run, by a test tool (make_strategy_level; never by hand): a copy of Invasion where the placed hierarchy "dropship ken" (its
+# one effect, flag 0, has one target) gets a second target on that effect, an ID no object has, on, both directions (76 bytes).
+# His path: the made file opened as a double click, the bar, Find Object, Edit Strategy (the main page: "Flag 0 : 2 targets"), Escape, the bar's Find Errors (the repairs, then "No Errors Found",
+# 0x5f04a0), the view again ("Flag 0 : 1 targets"), File > Save a copy. The repair: the dead target goes and dropship ken holds its 60 stock bytes again.
+# RED without the repair: dropship ken keeps its 76 bytes (verify_strategy on the made level itself fails "size 60").
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/make_strategy_level.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {exedir}Invasion-hierarchy.made.rif "dropship ken" insert 52 16 word 32 2 noidat 52 0x13572468 0x2468ace3 word 60 1 word 64 3
+start-args {exedir}Invasion-hierarchy.made.rif
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+# ---- before: the made record as the view shows it
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is dropship ken
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 200@0:dropship ken : Hierarchy
+expect-field-has strategyview 16@16:Key Frame Flag Effects :|32@32:Flag 0 : 2 targets
+picture 1
+key Esc
+wait 300
+
+# ---- Find Errors: the repairs, then inteng's answer
+click-bar Find Errors
+expect-dialog-kind message
+expect-dialog No Errors Found
+picture 2
+click-button Ok
+expect-no-dialog
+wait 300
+
+# ---- after: one target left
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is dropship ken
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 16@16:Key Frame Flag Effects :|32@32:Flag 0 : 1 targets
+picture 3
+key Esc
+wait 300
+save-copy
+# Find Errors repairs one of Invasion's own records too, as inteng does: light08 (62) names an ID no record has, so its target becomes the null ID (Vasquez's
+# acceptance-strategy-find-errors-keeps-invasion names the same one), and the 66 / 68 list repair (FUN_00530820, Vasquez 10776bb) takes the dead targets out of four of its switches as inteng
+# does: lighttimeswitch4, swi59, switch5, "area switch to turn the lights on." (every target they lose is an ID no record has: repair_survey, the keeps-invasion acceptance names them too)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Invasion-hierarchy.made.rif {copy} "dropship ken" size 60 num_point_effects 1 also light08 also lighttimeswitch4 also swi59 also switch5 also "area switch to turn the lights on."
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Invasion-hierarchy.made.rif {copy} light08 nullid targetID also "dropship ken" also lighttimeswitch4 also swi59 also switch5 also "area switch to turn the lights on."

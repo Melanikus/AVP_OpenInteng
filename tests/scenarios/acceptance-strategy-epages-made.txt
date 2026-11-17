@@ -1,0 +1,68 @@
+# ACCEPTANCE: E on a target that is a TRACK (72) and on one that is a MISSION OBJECTIVE (70) on Melanikus's path, on a MADE level, the saved copy read back through the game's own loader (Drake,
+# 2026-11-17; reassess/strategy-closeout-drake.md D; reassess/strategy-data-kinds.md S-K72-E (+0x18 0x535210), S-K70-E (+0x18 0x5333a0)). No stock level has a strategy whose target is a Track or a
+# Mission Objective (e-survey of the levels), so the level is MADE fresh by the run, by a test tool (make_strategy_level; never by hand): a copy of Breakout where the Placed Objects (62) storelit
+# and fanlit07 name the Track train1 and the Mission Objective "end", each with request 1. His path: the file opened as a double click, the bar, Find Object, the right button's Edit Strategy, the E
+# key, the page's lines clicked, Escape (the page alone ends: INTENG BUG, FIXED 9f63bf3), Escape, File > Save a copy.
+#   Track page: data = request >> 1 = 0, the marker (glyph 2) at (16, 16); a click on "Start track backward" (y 48-63) makes data 2; the word becomes (1 & 1) | 2 << 1 = 5.
+#   Mission page: data 0, three boxes (an X when clear; the third the other way round: a tick when its bit is clear); clicks on "Make objective possible" (y 64-79, bit 2) and "Complete mission"
+#   (y 80-95, bit 4) make data 6; the word becomes 1 | 6 << 1 = 13.
+# RED on the made level: both words 1.
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/make_strategy_level.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF {exedir}Breakout-epages.made.rif storelit targetID id train1 target_request 1 then fanlit07 targetID id end target_request 1
+start-args {exedir}Breakout-epages.made.rif
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+# ---- the Track's page
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is storelit
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview storelit :
+key E
+wait 300
+expect-field strategyview 100@0:Target  -  train1 : Track object|16@16:{2}|32@16:Start track|32@32:Start track forward|32@48:Start track backward
+picture 1
+click-win 300 56
+wait 300
+expect-field strategyview 100@0:Target  -  train1 : Track object|32@16:Start track|32@32:Start track forward|16@48:{2}|32@48:Start track backward
+picture 2
+key Esc
+wait 300
+expect-field-has strategyview storelit :
+key Esc
+wait 300
+
+# ---- the Mission Objective's page
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is fanlit07
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+key E
+wait 300
+expect-field strategyview 100@0:Target  -  end : Mission Objectives|200@32:Current effect of on message (off ignored):|32@48:Make objective visible|16@48:{3}|32@64:Make objective possible|16@64:{3}|32@80:Complete mission (if currently possible)|16@80:{1}
+picture 3
+click-win 300 72
+wait 300
+click-win 300 88
+wait 300
+expect-field strategyview 100@0:Target  -  end : Mission Objectives|200@32:Current effect of on message (off ignored):|32@48:Make objective visible|16@48:{3}|32@64:Make objective possible|16@64:{1}|32@80:Complete mission (if currently possible)|16@80:{3}
+picture 4
+key Esc
+wait 300
+expect-field-has strategyview fanlit07 :
+key Esc
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Breakout-epages.made.rif {copy} storelit target_request 5 holds train1 also fanlit07
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Breakout-epages.made.rif {copy} fanlit07 target_request 13 holds end also storelit

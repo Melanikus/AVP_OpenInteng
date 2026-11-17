@@ -1,0 +1,30 @@
+# ACCEPTANCE (red first): a click takes only what is DRAWN, as inteng's one pick for every mode (FUN_00559750; Frost 2026-11-17, Bishop's order; pick_game.cpp, avpx los.cpp
+# FindDrawnPolygonInLineOfSight). inteng walks the polygons it drew last frame (DAT_00703cf4 / DAT_009ba168): a face turned away from the eye was culled, so it is not there to be clicked
+# (unless it is double-sided, iflag_no_bfc), and an iflag_notvis polygon never is. Ours used the game's line of sight, which takes every face from both sides ("KJL: treat all polys
+# as no bfc", los.cpp), so a click stopped on faces nobody sees. The Hierarchy half is acceptance-pick-drawn-faces-hierarchy.txt.
+# STRATEGY DATA on the stock Derelict: the camera stands in the room COMM-01 (by the chair) and looks through its doorway into the corridor CORR-20. A click in the doorway, where
+# the corridor is drawn, makes CORR-20 current (red: COMM-01, a face of the room turned away from the camera there, which is not drawn); a click on the room's own wall still makes
+# COMM-01 current.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+camera 34430 -112 -60706 0 0
+move-win 504 700
+wait 400
+picture 1
+# the doorway: the corridor beyond it is what is drawn there (red: COMM-01)
+click-win 504 364
+wait 400
+picture 2
+expect-selected 1
+expect-screen-text CORR-20
+expect-screen-text-not COMM-01
+# the room's own wall, a face turned to the camera: COMM-01
+click-win 800 200
+wait 400
+picture 3
+expect-selected 1
+expect-screen-text COMM-01

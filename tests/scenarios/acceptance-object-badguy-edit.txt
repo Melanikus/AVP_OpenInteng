@@ -1,0 +1,53 @@
+# ACCEPTANCE (red first): Object Placement's Edit of a BAD GUY opens edobtype's "Edit object properties" in the AvP mode 1:1 (A-8, reassess/object-placement.md OP-132; bad_guy_edit.h). Resource 129 as
+# the bad-guy class shows it: "Type of Object" and its combo, the type's own controls, "Texturing ID" (live for a Marine), "Starts Inactive" - the ONLY box: Game mode and Difficulty are hidden as inteng
+# hides them (Bishop's ruling 11-16: resource style 0x48010003, OnInitDialog 0x10003de0 never shows them) and their flags must come back unchanged (the copy is read back). A pick in the type combo shows
+# that type's controls at once (FUN_10005400). The state line's dialogtext lists the shown combos' and edits' words in the window's order.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0xcc
+expect-screen Object Placement
+# Create > AVP Bad Guy (0x35): "Name Object", then the new bad guy is current (type 1 Alien, flags 0x3801: game modes Marine, Alien, Predator; every difficulty)
+item 0x35
+expect-dialog Name Object
+form-field 1 bgV
+click-button OK
+expect-no-dialog
+# Object > Edit (0x18): the window DRAWN; the type Alien, its one subtype, "Random"; one box only (Starts Inactive, off)
+item 0x18
+expect-dialog Edit object properties
+expect-pixels-changed panels 0 0 1000 700 0.05
+expect-dialog-text Alien|Alien|Random
+expect-dialog-checks off
+picture 1
+# the type Marine: its subtypes (0 = Pulse Rifle) and the Texturing ID live (Random, Original)
+click-combo 1
+click-combo-row Marine
+expect-dialog-text Marine|Pulse Rifle|Random
+click-combo 2
+click-combo-row Sadar
+click-combo 3
+expect-dialog-combo-rows Random,Original
+click-combo-row Original
+expect-dialog-text Marine|Sadar|Original
+click-check 1
+expect-dialog-checks on
+picture 2
+click-button OK
+expect-no-dialog
+# Edit again: what was kept; then Xenoborg shows its two numbers (Active Time, Module Range) and Cancel keeps nothing
+item 0x18
+expect-dialog Edit object properties
+expect-dialog-text Marine|Sadar|Original
+expect-dialog-checks on
+click-combo 1
+click-combo-row Xenoborg
+expect-dialog-text Xenoborg|0|0|Random
+picture 3
+click-button Cancel
+expect-no-dialog
+# the copy through the game's loader: type 7, Sadar (60), Original (1), Starts Inactive on, and the hidden game mode / difficulty flags exactly as made (0x3800 on, the NOT bits 0x700000 off)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_special/verify_special.exe {copy} "badguy|bgV|type=7|subtype=60|texture=1|flagson=80003800|flagsoff=700000"

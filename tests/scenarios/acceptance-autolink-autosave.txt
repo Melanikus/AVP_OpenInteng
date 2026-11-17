@@ -1,0 +1,35 @@
+# ACCEPTANCE: inteng's own save points (Dietrich, 2026-11-16; Bishop's ruling, rule 10d "like inteng did": the editor saves AUTOMATICALLY at exactly inteng's points, each one written over
+# the opened file with LevelSave_Over). His path: Genshd1, Module Linking, shedent03 made current, AutoLink > Module (delete old), Exit, and the level FILE holds the run's links with NO Save
+# pressed. inteng: the end of FUN_004c8930 (AutoLink) writes the level file (FUN_004719e0 at 0x4c8acd, no question), and Module Linking's Exit writes it again only when something changed
+# since (FUN_004c3b90 0x4c3ea3, FUN_004c3f40 0x4c3f5e). ONE .bak A SITTING (Bishop's ruling B): the run's first save keeps the level as it was opened as "<file>.bak". A HIDDEN RUN never
+# writes an opened file: its file is the stand-in <its folder>\AVP_OpenInteng\edited\Genshd1-edited.rif, started as the opened file, so the same save and the same .bak are checked there.
+# (What AutoLink makes of shedent03 against the stock is the autolink acceptances' measure, not this one's: here only that the file holds what the run made.)
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+#ini ViewDistance=100000000
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+# no file from an earlier run may be read in place of this one's
+verify cmd /c del /q "{exedir}AVP_OpenInteng\edited\Genshd1-edited.rif" "{exedir}AVP_OpenInteng\edited\Genshd1-edited.rif.bak" 2>nul & exit 0
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+click-view 0.5 0.5
+key S
+expect-status Current module: shedent03 (25 links)
+click-view 0.5 0.5
+# ---- AutoLink: at its end the level file is written (the words say where), no Save pressed
+click-bar AutoLink > Module (delete old)
+wait-status 60000 AutoLink: 1 modules run
+expect-status Genshd1-edited.rif
+# ---- Exit: nothing changed since that save, so nothing more is written; no Save anywhere
+item 0x64
+wait 800
+state
+expect-screen Construction
+expect-status-not NOT saved
+# ---- the file, read back through the game's loader: shedent03's links are the run's, not the level's as it was opened; every other module's are the opened level's
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_autolink/verify_autolink.exe {orig} {exedir}AVP_OpenInteng\edited\Genshd1-edited.rif shedent03 changed
+# ---- the .bak: the level as it was opened, item for item
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_autolink/verify_autolink.exe {orig} {exedir}AVP_OpenInteng\edited\Genshd1-edited.rif.bak shedent03 same-items

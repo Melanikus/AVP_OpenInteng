@@ -1,0 +1,27 @@
+# ACCEPTANCE (red first): Light Sourcing, C on a PLACED light and V at the camera make a NEW PLACED OBJECT with that light, as inteng's FUN_004ac080 -> FUN_004abb00 does (Frost, 2026-11-17;
+# Melanikus: "isn't sure creating works"; the map: AvP-docs/engine/inteng/reassess/light-create-frost.md). inteng: the Name Object box with "Light<n>" (the first number no object's name has),
+# then an object of that name, the copied object's shape, at the camera's place turned as the camera, a Placed Object strategy (Type / ExtraData / mass copied, integrity with bit 31, flags 1),
+# and a PLOBJLIT with the copied light's 15 numbers (its local flags with 4, changed, in). INTENG BUG, FIXED: inteng's header had the placed bit alone (0x400), so the game never loaded the new lamp; here it takes the copied
+# lamp's load bits. RED before: ours couldn't copy a placed light ("Copy: pick a light first"), so V made nothing.
+# Invasion: the placed light "light" (object NUMBER 422, which pick-module takes, as light-placed.txt does). Light0 is the first free name.
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+pick-module 422
+key C
+expect-status placed light copied
+camera 5000 -300 9000 0
+wait 400
+key V
+expect-dialog Name Object
+expect-dialog-text Light0
+click-button OK
+expect-no-dialog
+expect-status Placed light pasted at the camera: Light0
+picture 1
+click-bar Mode > Exit
+wait 1500
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_pastedlight/verify_pastedlight.exe {orig} {copy} light Light0 5000 -300 9000

@@ -1,0 +1,78 @@
+# ACCEPTANCE: the OBJECT PLACEMENT close-out's third chain (AvP-docs/director/strategy-100/PLAN.md THEN; Drake 2026-11-17): an ENEMY placed, edited, given its strategy (69),
+# its Mission set, saved and read back, on his path on Stat101 (a read-only stock copy, the file opened as a double click):
+# 1. Object Placement: Object > Find mar7 (a marine of the level), Create > AVP Bad Guy, "Name Object" chainE (made at the view; type Alien, OP-28).
+# 2. Object > Edit (E, OP-132): "Edit object properties", the type Marine with the Smartgun (subtype 10); Mode > Exit (saves).
+# 3. Strategy Data: Find Object chainE, the right button's Assign Strategy > Enemy: its view opens ("chainE : Enemy", a marine's Mission line); the Mission line, Local Guard (4).
+# 4. File > Save a copy; the game's loader reads the copy: chainE a bad guy of type Marine (7), Smartgun (10) (verify_special), its strategy an Enemy (69) on Local Guard (MissionType 4), its request 1 (the Death Target line On) and ExtraMissionData 0 as inteng makes a new Enemy (S-K69-0),
+#    every other strategy byte for byte.
+# The Mission line needs the Marine: an Alien's view has the one line "Mission : Wait then wander (Only option)" (S-K69-1), so the edit comes first, as on his path.
+# NAMED, THE VIEW GAP (the "targeted by a switch" step): a switch's T pick picks from the view's objects, and an object made in this sitting is not in the view yet (chain 2,
+# acceptance-op-chain-generator). When the view takes new objects, this chain adds chainE to a switch's targets.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- 1. placed
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is mar7
+expect-no-dialog
+wait 400
+click-bar Create > AVP Bad Guy
+expect-dialog Name Object
+form-field 1 chainE
+click-button OK
+expect-no-dialog
+expect-status chainE
+picture 1
+
+# ---- 2. edited
+key E
+expect-dialog Edit object properties
+expect-dialog-text Alien|Alien|Random
+click-combo 1
+click-combo-row Marine
+click-combo 2
+click-combo-row Smartgun
+expect-dialog-text Marine|Smartgun|Random
+click-button OK
+expect-no-dialog
+wait 300
+click-bar Mode > Exit
+wait 400
+
+# ---- 3. given its strategy
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is chainE
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 4
+expect-dialog Select Strategy
+picture 2
+click-button Enemy
+expect-no-dialog
+wait 400
+expect-field-has strategyview 200@0:chainE : Enemy
+expect-field-has strategyview 16@16:Mission : Wait then wander (default)|16@32:Turn Death Target On|16@48:Death Target : None
+# y 16: the Mission, Local Guard
+click-win 300 24
+expect-dialog Select Mission Type
+click-button Local_Guard
+expect-no-dialog
+wait 300
+expect-field-has strategyview 16@16:Mission : Local Guard
+picture 3
+key Esc
+wait 300
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF {copy} chainE MissionType 4 request 1 ExtraMissionData 0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_special.exe {copy} "badguy|chainE|type=7|subtype=10"

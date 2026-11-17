@@ -83,7 +83,13 @@ const char *LevelView_StartWords();
 // name, the level's name and its extension, with the game's own slash, from the folder the editor runs in. The editor opens the level to
 // look things up in and to edit by this same path (level_objects.h), so that the picture and the objects are of one file. Gives back
 // false, with path empty, when no level is open or the path doesn't fit in size. (Added 2026-11-15 by Melanikus (Dietrich).)
+// It is always the file the level was OPENED from (LevelView_Open), also after LevelView_ShowFile has loaded the editor's working bytes from another.
 bool LevelView_FilePath(char *path, size_t size);
+
+// THE VIEW GAP (Bishop 2026-11-16: "on every screen entry the game view must load OUR working bytes, never the opened file"): loads the level with this name (a file in the game's
+// avp_rifs folder, without ".rif": the editor's own copy of its working bytes) in place of the one open, the camera left to the caller. LevelView_FilePath goes on naming the file the level
+// was opened from. When the game's loader refuses it, the opened file is loaded again (so a level is always open) and false is given back with why.
+bool LevelView_ShowFile(const char *levelName, char *why, size_t whySize);
 
 // Draws one frame of the open level, as seen from camera. With savePictureTo, the finished frame is also saved there as a PNG picture
 // before it's shown: that's how a run proves what it drew, with nobody watching. Gives back false only if a picture was asked for and
@@ -259,6 +265,8 @@ void LevelView_DrawObjectsOutsideModules(bool on);
 bool LevelView_FlyBegin(const uint8_t *id);
 void LevelView_FlyPut(const int32_t world[3], const float quat[4]);
 void LevelView_FlyEnd();
+// The flying copy's display block, for a pick that leaves it out (PickGame_AtClickLeavingOut); null when nothing flies
+void const *LevelView_FlyCopyBlock();
 bool LevelView_FlyActive();
 
 // Where the live copy is, as the game holds it (its ObWorld), its radius and whether the game has it among the blocks it is drawing this frame (for the scenario's state line); false when none flies
@@ -272,6 +280,10 @@ bool LevelView_ModuleWorld(int32_t moduleIndex, int32_t world[3]);   // where th
 
 // The 8-byte IDs of the objects the game has in play that have a strategy block (what the file's objects are found by), for a proof run
 void LevelView_ActiveObjectIds(std::vector<std::vector<uint8_t>> *ids);
+
+// The modules the last frame drew (#78; added 2026-11-17 by Drake): the game's own list of what was on screen (OnScreenBlockList, which AVPGetInViewVolumeList fills as the frame is
+// made), each module's index once, in that list's order. A module's own block only (its m_dptr), not the objects inside it.
+void LevelView_DrawnModules(std::vector<int32_t> *moduleIndex);
 
 // HIDDEN OBJECTS: the objects with these 8-byte IDs are not drawn at all (up to kLevelViewMostHidden), and with everyObject true neither is any object the level file places (the modules still are).
 // Every call REPLACES what was hidden before; count 0 and everyObject false shows everything again. An ID of no object in play is left out. Editor-only: avpx R_SetEditorHiddenBlocks.

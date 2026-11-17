@@ -159,6 +159,7 @@ namespace host
 		ReplaceShape,     // placement's Replace shape: a prompt for the new shape's name, then the selected object is given it (FUN_004e2e10, shape_replace_edit.h)
 		ModuleOverlaps,   // Construction, Miscellaneous, Module Overlaps (0x56, FUN_00445110 / FUN_004476d0, module_overlaps.h): a switch, the overlapping modules are tinted
 		RecalculateNormals, // Construction, Miscellaneous, Recalculate Normals and Extents (FUN_0044baa0, shape_recalc_edit.h): every shape of the level
+		AcousticCommand,  // Object Placement's Acoustic Mode (its menu page 7, FUN_004f57b0: Exit 0xa, Module 0xbb8..0xbbb, Default 0xbbc / 0xbbd): the item's command is handed to the editor (acoustic_mode.h)
 		PlacedHierarchy,  // the current placed hierarchy's pop-up (page 6 of FUN_004d68e0, commands 0x7d0-0x7db): the item's command is handed to the editor (reassess/object-placement.md PH-2..PH-13)
 	};
 
@@ -171,6 +172,8 @@ namespace host
 		IntengWork work;
 		int32_t toScreen;     // for ToScreen: the screen shown, as a place in kIntengScreens; otherwise -1
 		int32_t access;       // the place in name of the letter inteng underlines (the one after its "&", FUN_0046ce70 0x46ceac), -1 for none
+		int32_t level = 0;    // 0 an item; 1 an item that opens a CASCADE (inteng's kind 1 with kind-2 records under it: picks nothing, reassess/dialog-look-drake.md BAR-10..12);
+		                      // 2 a row of that cascade (kind 2), listed right after its level-1 item
 	};
 
 	struct IntengMenu

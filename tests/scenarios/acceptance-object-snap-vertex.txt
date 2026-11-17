@@ -1,0 +1,45 @@
+# ACCEPTANCE (red first): Snap To Vertex LIVE on his path (Vasquez 11-17; reassess/object-placement.md OP-43 and V-10, read on dump-full-3 / listing-all-3: FUN_004dd280 starts it,
+# FUN_004d9af0 0x4da855-0x4da944 runs it every frame, FUN_004f7000 snaps). Invasion's switch3 (in front of the camera, as acceptance-object-fly has it) is clicked, then V: the words
+# "Press LMB to snap to vertex", "Hold shift to align to polygon", "Press escape to cancel (and return to original position)" at x 20 from the window's height - 60 (0x5e8364,
+# 0x4dc6f9-0x4dc73f). The switch then follows the pointer: over the left window frame it sits on that frame's vertex nearest the pointer, with no click (the view changes); Escape puts
+# it back (the view as before V) and the words go. V again, the pointer on the frame, a LEFT press: the pose is kept and the words go. The copy read back by the game's loader
+# (verify_snap): switch3 moved, its turn the original's (no Shift), one of its world vertices ON another object's vertex, every other object where it was.
+# RED on b58fe7a: V waited for a click (the one-click stand-in, V-10): no words, the switch does not follow the pointer.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+wait 300
+picture 1
+# V: the snap starts, its words at the window's foot
+key V
+wait 400
+expect-field-has hierarchylines 41@20:Press LMB to snap to vertex|42@20:Hold shift to align to polygon|43@20:Press escape to cancel (and return to original position)
+# the pointer over the left window frame: the switch follows it, no click
+move-win 300 300
+wait 500
+picture 2
+expect-pixels-changed-since 1 picture 0 0 1008 640 0.01
+# Escape: back where it was, the words gone
+key Esc
+wait 500
+picture 3
+expect-pixels-same-since 1 picture 0 0 1008 640 0.002
+expect-field hierarchylines 2@16:View Distance :2|3@16:Num Objects :301|4@16:Difficulty (EMH)|5@16:switch3|6@16:Has Track|7@16:In Object Control01 - radius 927400|8@16:Visible polygons 1045
+# V again, the pointer on the frame, a LEFT press: kept, the words gone
+key V
+wait 300
+move-win 300 300
+wait 500
+click-win 300 300
+wait 500
+picture 4
+expect-pixels-changed-since 1 picture 0 0 1008 640 0.01
+expect-field hierarchylines 2@16:View Distance :2|3@16:Num Objects :301|4@16:Difficulty (EMH)|5@16:switch3|6@16:Has Track|7@16:In Object Control01 - radius 927400|8@16:Visible polygons 1045
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_snap/verify_snap.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} switch3

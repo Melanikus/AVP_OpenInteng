@@ -82,6 +82,9 @@ int main()
 		Check(tree.Open(1), "Open Branch on 1");
 		// FUN_004c43d0: 1 is met with a branch that was closed: open, not closed, and every node after it (3 and its branch) closed (FUN_004c4560 on its next, 0x4c4420)
 		Check(Walked(tree) == "100 1 2 5 3", "1's branch opened, 3's closed: " + Walked(tree));
+		Check(tree.OpenBranches() == std::vector<int32_t>({ 1 }), "the open branches a screenshot names (#78): 1 only, 3's closed one is not shown");
+		tree.Hide(1);
+		Check(tree.OpenBranches().empty(), "after Hide on 1: no branch is shown open");
 	}
 
 	// ML-V-12, Add Reverse Links' body (FUN_004c60a0 0x4c60ef-0x4c626e, listing-all-2): a path element found WITH a branch moves into the branch and leaves the

@@ -979,4 +979,90 @@ namespace model
 		*length = size;
 		return true;
 	}
+
+	// Copy Strategy's copy (the old editor's FUN_00528340 calls the source kind's method +0xc for each target; reassess/strategy-data-kinds.md
+	// S-KC-7 and the S-K<kind>-C rows, close-out F-2). Each kind's copy makes a new strategy on the target and copies some of the source:
+	//   50 Door (FUN_0052cfb0), 62 Placed Object (FUN_00530e70) and 64 Lighting (FUN_0052f080 -> FUN_0052f0f0): every field after the first
+	//      20 bytes; the head's Type and ExtraData (payload +12, +16) are left 0 by the new strategy's constructor (FUN_0052b120).
+	//   52 Binary Switch (FUN_0052d630 -> FUN_0052d6a0): the seven words after the head, and the head's Type and ExtraData: all of it.
+	//   61 Linked Switch: the old editor's 61 has 52's copy, which makes the copy a KIND 52 and leaves its links behind. INTENG BUG, FIXED: the
+	//      copy stays a 61 (52's words, Type and ExtraData), with no links (NumLinks 0), as 66 and 68 copy theirs.
+	//   66 Multi Switch (FUN_005306d0 -> FUN_00530740) and 68 Area Switch (FUN_00530a40 -> FUN_00530ab0): every field, the targets and the
+	//      head's Type and ExtraData; the LINKS are emptied (NumLinks 0, no link IDs). A switch's links are the switches that target it, made
+	//      again when its view opens and when the level is saved (S-K61-3).
+	// The payload's first two words (the chunk's index and spare2) are not in the old editor's strategy record; the copy keeps the source's
+	// (every strategy of the 38 stock levels has 0 in both).
+	bool CopyStrategyAsTheOldEditor(uint8_t const *source, size_t sourceLength, uint8_t *buffer, size_t capacity, size_t *length)
+	{
+		if (!source || !buffer || !length || sourceLength < 20 || !StrategySizeIsRight(source, sourceLength))
+		{
+			return false;
+		}
+
+		int32_t const number = LoadInt32(source + 8);
+		size_t keep = sourceLength;    // the source's bytes copied as they are, from the start
+		size_t tail = sourceLength;    // and from here to the end, after a NumLinks of 0 (66 and 68)
+		bool zeroHead = false;
+		bool emptyLinks = false;
+
+		switch (number)
+		{
+		case 50:
+		case 62:
+		case 64:
+			zeroHead = true;
+			break;
+
+		case 52:
+			break;
+
+		case 61:
+			keep = 48;   // NumLinks is at 48, the links after it
+			tail = sourceLength;
+			emptyLinks = true;
+			break;
+
+		case 66:
+		case 68:
+			{
+				// the targets' count at 36 (12 bytes each), then NumLinks and the links (8 bytes each), then the rest; the size check above has
+				// measured both lists against the payload
+				int32_t const targets = LoadInt32(source + 36);
+				size_t const linksAt = 40 + (size_t)targets * 12;
+				int32_t const links = LoadInt32(source + linksAt);
+
+				keep = linksAt;
+				tail = linksAt + 4 + (size_t)links * 8;
+				emptyLinks = true;
+			}
+			break;
+
+		default:
+			return false;   // the old editor's +0x10 says "Copying not supported for this strategy"
+		}
+
+		size_t const size = emptyLinks ? keep + 4 + (sourceLength - tail) : sourceLength;
+
+		if (keep > sourceLength || tail > sourceLength || size > capacity)
+		{
+			return false;
+		}
+
+		memcpy(buffer, source, keep);
+
+		if (emptyLinks)
+		{
+			StoreInt32(buffer + keep, 0);
+			memcpy(buffer + keep + 4, source + tail, sourceLength - tail);
+		}
+
+		if (zeroHead)
+		{
+			StoreInt32(buffer + 12, 0);
+			StoreInt32(buffer + 16, 0);
+		}
+
+		*length = size;
+		return true;
+	}
 }

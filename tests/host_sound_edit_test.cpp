@@ -205,6 +205,41 @@ static void TestWavNamesFromFiles()
 	Check(SoundEdit_WavNamesFromFiles("sound/d/", deep).empty(), "a name more than 32 folders deep is left out");
 }
 
+// OP-135 (Drake 11-17): a SOUND RECORD's window (FUN_004ebd60, a particle generator's sound): Playing at Start shown unticked and greyed, Sound Loops is the record's bit 0 and live under
+// the mask 2; back, Sound Loops ticked sets bit 0, unticked clears it, every other bit kept
+static void TestIndexed()
+{
+	SoundEditRecord const loops = SoundEdit_IndexedRecord("EdSteam.wav", 125000, 1875000, -512, 63, 1, true);
+	SoundEditShown const shownLoops = SoundEdit_Shown(loops);
+
+	Check(loops.flags == 0 && loops.mask == 2 && loops.probability == 0, "a looping record: the window's flags 0 (bit 1 clear), mask 2, probability 0");
+	Check(shownLoops.loops && shownLoops.loopsLive && !shownLoops.playingAtStart && !shownLoops.playingAtStartLive, "Sound Loops ticked and live; Playing at Start unticked and greyed (off the mask)");
+	Check(shownLoops.fields[0] == "1.25" && shownLoops.fields[1] == "18.75" && shownLoops.fields[2] == "-4", "its numbers as a placed sound's: 1.25 m, 18.75 m, -4 semitones");
+
+	SoundEditRecord const still = SoundEdit_IndexedRecord("Ed_Spark01.wav", 125000, 1875000, 0, 50, 0, true);
+
+	Check(still.flags == 2 && !SoundEdit_Shown(still).loops, "a record with bit 0 clear: Sound Loops not ticked (the window's bit 1 set)");
+	Check(SoundEdit_IndexedRecord("x.wav", 0, 0, 0, 0, 1, false).mask == 0, "with its loops box word 0, neither box is live (mask 0)");
+
+	int32_t inner = 0, outer = 0, pitch = 0, volume = 0, flags = 0;
+	SoundEditRecord r = loops;
+	float const values[4] = { 2.0f, 20.0f, 0.0f, 50.0f };
+
+	SoundEdit_Ok(&r, "EdSteam.wav", values, true, false);
+	SoundEdit_IndexedBack(r, 0x10 | 1, &inner, &outer, &pitch, &volume, &flags);
+	Check(flags == 0x10 && inner == 200000 && outer == 2000000 && volume == 63, "Sound Loops unticked: bit 0 cleared, bit 4 kept; 200000, 2000000, 63");
+
+	r = still;
+	SoundEdit_Ok(&r, "Ed_Spark01.wav", values, true, true);
+	SoundEdit_IndexedBack(r, 0x20, &inner, &outer, &pitch, &volume, &flags);
+	Check(flags == 0x21, "Sound Loops ticked: bit 0 set, bit 5 kept");
+
+	SoundEditRecord const cancelled = SoundEdit_IndexedRecord("Not Set", 500000, 4000000, 0, 127, 1, true);
+
+	SoundEdit_IndexedBack(cancelled, 1, &inner, &outer, &pitch, &volume, &flags);
+	Check(flags == 1 && inner == 500000 && outer == 4000000 && volume == 127 && pitch == 0, "Cancel on a new record: \"Not Set\" 500000 / 4000000, 127, 0, loops, as made");
+}
+
 int main()
 {
 	setvbuf(stdout, 0, _IONBF, 0);
@@ -212,6 +247,7 @@ int main()
 	TestShown();
 	TestRead();
 	TestBack();
+	TestIndexed();
 	TestPlay();
 	TestWavNames();
 	TestWavNamesFromFiles();

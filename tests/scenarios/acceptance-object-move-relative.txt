@@ -1,0 +1,61 @@
+# ACCEPTANCE (red first): Object > Move relative on his path (Vasquez 11-17; reassess/object-placement.md OP-15, read on listing-all-2 0x4d5190-0x4d5358 and listing-all-3 0x4e1d70-0x4e1f87).
+# inteng's window "RelMove Shape" (FUN_004d5190: 400 x 200, "Type in the new coordinates.", three fields of 200 letters, Ok, Cancel) holds the object's offset FROM its module per axis, in metres
+# ("%-3.5f" of (module - object) x 1e-5); Ok reads each field (sscanf "%lf") and puts the object at module - ftol(value x 100000.0), saved to the file cut toward 0. Invasion's switch3 (file place
+# -27851 -14055 88656, in module Control01; the level's scale 1) shows -0.16200, -0.39000, -3.60300: module x -28013, z 85053. Typed: x 1.25, y "abc", z -2. The copy read back by the game's loader
+# (verify_snap place): x = (-2801300 - 125000) / 100 = -29263; y kept, -14055 (INTENG BUG, FIXED: a field that is no number left sscanf's double unset, so inteng moved that axis to a garbage
+# place); z = (8505300 + 200000) / 100 = 87053; its turn and every other object where they were.
+# RED on b58fe7a: Move relative was a one-line typed prompt (no window "RelMove Shape").
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+click-bar Object > Move relative
+expect-dialog RelMove Shape
+expect-dialog-kind form
+expect-dialog-text -0.16200|-0.39000|-3.60300
+picture 1
+# x: 1.25
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+type 1.25
+# y: a word that is no number (the bug fixed: the axis stays)
+key Tab
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+type abc
+# z: -2
+key Tab
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+type -2
+expect-dialog-text 1.25|abc|-2
+picture 2
+# Return is Ok
+key Enter
+expect-no-dialog
+expect-status Moved
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_snap/verify_snap.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} switch3 place -29263 -14055 87053

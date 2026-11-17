@@ -127,10 +127,13 @@ void Sound_ForgetAddressesInside(const void *, size_t)
 // What every block from new holds before anyone writes in it
 static unsigned char const Unwritten = 0xA5;
 
+// The blocks come from the process's own Windows heap, and every delete gives its block back there once (HeapFree). One allocator of the
+// test's own for every new and delete, so nothing here pairs with the C library's malloc / free (Snyk Code read the four deletes, each
+// calling free, as a possible double free, 2026-11-17).
 void * operator new(size_t bytes)
 {
 	size_t const asked = bytes ? bytes : 1;
-	void * const block = malloc(asked);
+	void * const block = HeapAlloc(GetProcessHeap(), 0, asked);
 
 	if (!block)
 	{
@@ -141,11 +144,19 @@ void * operator new(size_t bytes)
 	return block;
 }
 
+static void GiveBack(void * block) noexcept
+{
+	if (block)
+	{
+		HeapFree(GetProcessHeap(), 0, block);
+	}
+}
+
 void * operator new[](size_t bytes) { return operator new(bytes); }
-void operator delete(void * block) noexcept { free(block); }
-void operator delete[](void * block) noexcept { free(block); }
-void operator delete(void * block, size_t) noexcept { free(block); }
-void operator delete[](void * block, size_t) noexcept { free(block); }
+void operator delete(void * block) noexcept { GiveBack(block); }
+void operator delete[](void * block) noexcept { GiveBack(block); }
+void operator delete(void * block, size_t) noexcept { GiveBack(block); }
+void operator delete[](void * block, size_t) noexcept { GiveBack(block); }
 
 // ---- Making level files
 
@@ -985,6 +996,54 @@ static void TestFileHeldByAnotherProgram()
 	Check(Read(path + ".bak") == original, "and the .bak made on the way is the file as it was");
 }
 
+// A level the game's loader is reading in another program (it opens with no sharing, avpx mishchnk.cpp:137): the open waits for it, every 100 ms for 2 seconds at most (level_file.cpp, Vasquez 11-16:
+// two editors' runs on one stock level broke each other, "the level's file couldn't be read whole")
+static DWORD WINAPI LetGoAfter(void *handle)
+{
+	Sleep(400);
+	CloseHandle((HANDLE)handle);
+	return 0;
+}
+
+static void TestOpenWaitsForAReader()
+{
+	std::string const room = Room("reader");
+	std::string const path = room + "\\level.rif";
+
+	Make(path, BaseLevel().Make());
+
+	HANDLE const held = CreateFileA(path.c_str(), GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+
+	Check(held != INVALID_HANDLE_VALUE, "another program reads the level with nobody else let in, as the game's loader does");
+
+	HANDLE const letter = CreateThread(0, 0, LetGoAfter, held, 0, 0);
+	ULONGLONG const started = GetTickCount64();
+	OpenLevelFile opened;
+	LevelOpenResult const result = opened.Open(path.c_str());
+	ULONGLONG const waited = GetTickCount64() - started;
+
+	if (letter)
+	{
+		WaitForSingleObject(letter, 5000);
+		CloseHandle(letter);
+	}
+
+	Check(result == LevelOpenResult::Opened && waited >= 300, "held for 0.4 s: the open waits and the level opens (it took " + std::to_string((unsigned long long)waited) + " ms)");
+
+	HANDLE const keeps = CreateFileA(path.c_str(), GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+	ULONGLONG const began = GetTickCount64();
+	OpenLevelFile refused;
+	LevelOpenResult const gaveUp = refused.Open(path.c_str());
+	ULONGLONG const tried = GetTickCount64() - began;
+
+	if (keeps != INVALID_HANDLE_VALUE)
+	{
+		CloseHandle(keeps);
+	}
+
+	Check(gaveUp != LevelOpenResult::Opened && tried >= 1900 && tried < 4000, "held the whole time: the open gives up after about 2 s (" + std::to_string((unsigned long long)tried) + " ms)");
+}
+
 // A folder at the path picked, and a level too big for the game, each stop the save before anything is written
 static void TestFolderAndTooBig()
 {
@@ -1461,6 +1520,7 @@ int main()
 	TestSavingFileInTheWay();
 	TestReadOnlyFile();
 	TestFileHeldByAnotherProgram();
+	TestOpenWaitsForAReader();
 	TestFolderAndTooBig();
 	TestSaveAsANewName();
 	TestLaterSavesBuildOnEarlierOnes();

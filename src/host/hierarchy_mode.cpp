@@ -892,7 +892,7 @@ namespace host
 			for (size_t i = 0; i < sequences.size(); i++)
 			{
 				int32_t frame = -1;
-				std::map<int64_t, int32_t>::const_iterator const held = mode->deltaFrameHeld.find((int64_t)sequences[i].number * 65536 + sequences[i].subNumber);
+				const std::map<int64_t, int32_t>::const_iterator held = mode->deltaFrameHeld.find((int64_t)sequences[i].number * 65536 + sequences[i].subNumber);
 
 				if (held != mode->deltaFrameHeld.end())
 				{

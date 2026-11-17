@@ -1,0 +1,36 @@
+# ACCEPTANCE (red first): Delete Multiple Strategies > Predator Pickups / Marine Pickups DELETE THE PICKUP OBJECTS, not only their strategies (Frost 2026-11-17, Drake's close-out F-1,
+# reassess/strategy-closeout-drake.md). inteng (FUN_005380d0 -> FUN_005373e0): every object with a Placed Object strategy (kind 62) whose Type is 2-3 (Marine Pickups) or 15 (Predator
+# Pickups) has its record's delete called (+0x14, 0x5374f5), FUN_00538e70, which deletes the object when it is a PLACED one (record +0x2c, the object's flag 0x400) and does nothing
+# for a module. Ours took only their strategies off and kept the objects (strategy_mode.cpp StrategyMode_DeletePickups).
+# The stock Fall holds eight Predator pickups (Pboost0..Pboost7, Type 15) and one Marine pickup (pulse0, Type 2), all placed objects (pickup-survey, AvP-docs/tools/frost). His path: the
+# Strategy screen's pop-up (a right click), Delete Multiple Strategies, the box, Ok; then the saved copy, read back through the game's loader (verify_objects), has no such object.
+# Bishop's path: Predator Pickups, Save, Marine Pickups (it must delete), Save, the loader's read-back. The save between needs the save fix (657abcb): before it, an edit after a save
+# that had taken objects out was refused ("the level could not be put together"). RED on 6a287c0 (the objects are kept); GREEN with this commit.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Fall.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+# Predator Pickups only (the tenth box): the eight Pboost objects go, pulse0 stays
+click-win 640 300 right
+click-popup 8
+expect-dialog-kind form
+click-check 10
+click-button Ok
+expect-no-dialog
+expect-status 8 more deleted (Predator Pickups)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_objects.exe {copy} gone Pboost0 gone Pboost1 gone Pboost2 gone Pboost3 gone Pboost4 gone Pboost5 gone Pboost6 gone Pboost7 kept pulse0
+# Marine Pickups (the ninth box): pulse0 goes too
+click-win 640 300 right
+click-popup 8
+expect-dialog-kind form
+click-check 9
+click-button Ok
+expect-no-dialog
+expect-status 1 more deleted (Marine Pickups)
+expect-status-not could not be put together
+save-copy
+expect-status-not Not saved
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_objects.exe {copy} gone Pboost0 gone Pboost1 gone Pboost2 gone Pboost3 gone Pboost4 gone Pboost5 gone Pboost6 gone Pboost7 gone pulse0

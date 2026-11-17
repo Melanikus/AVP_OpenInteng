@@ -59,11 +59,26 @@ jobs:
           fi
           echo "No scanner suppressions found."
 
+      # Snyk Code's C++ parser skips a WHOLE file it can't read, and the scan then passes on what it did read. Two declarations it can't
+      # read (found 2026-11-17, when it skipped 13 files): a template's nested type with const after it ("std::vector<int>::iterator const
+      # found") and an east-const pointer inside a std::function's signature ("std::function<bool(uint8_t const *id)>"). Written
+      # const-first they mean the same and Snyk reads them, so this says which line, at once, before the scan's coverage check would.
+      - name: Fail on a declaration Snyk Code can't parse
+        run: |
+          # the first in any C++ file; the second only in headers, where Snyk failed on it (in .cpp files it reads it)
+          found=$( (git grep -n -E '>::[A-Za-z_]+ const [A-Za-z_]' -- '*.cpp' '*.h' ':!avpx'; git grep -n -E 'std::function<[^>]*[A-Za-z0-9_] const \*' -- '*.h' ':!avpx') || true)
+          if [ -n "$found" ]; then
+            echo "$found"
+            echo "::error::Snyk Code skips a file with these declarations: write them const-first (const T name), which means the same"
+            exit 1
+          fi
+          echo "No declaration Snyk Code can't parse."
+
   avpx-pin:
     name: The AvPx pin
     runs-on: ubuntu-24.04   # pinned, as above
     steps:
-      - name: Check out the repository (the submodule itself isn't fetched: only its pinned commit id is read)
+      - name: Check out the repository (the submodule itself isn't fetched, only its pinned commit id is read)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
