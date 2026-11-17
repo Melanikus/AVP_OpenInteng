@@ -27,6 +27,7 @@
 //   click-wp <index|current> <top|side|front> [right] [shift]   a click on the middle of that waypoint's box in that one of the three views (the editor says where it is: kHarnessLocate)
 //   drag-win <x0> <y0> <x1> <y1>        press at the first place, move to the second in steps, let go
 //   type <text>                 the characters, one WM_CHAR each, to the editor's window (into an open prompt); key <Enter|Esc|Back|Tab|Left|Right|Up|Down|Space>
+//                               (F1 to F12 and PrintScreen too); key-up <k>: only the key's letting go, as Windows hands Print Screen to a window
 //   camera <x> <y> <z> <turn>   puts the camera there (millimetres; turn 0 looks along z, 1024 along x) (kHarnessCamera)
 //   face-light <n>              Light Sourcing: selects light n (counting from 1) and turns the camera on the spot to face it (kHarnessFaceLight)
 //   repeat <most> <key> <hold ms> <status_words> | <step> | <step>   the steps, again with the key held between, until the status holds the words (_ is a space): picks that depend on the camera
@@ -45,7 +46,7 @@
 //   expect-dialog-kind <list|message|confirm|text> / click-button <label> / expect-dialog-text <words>   message, confirm and text dialogs
 //                               (fields dialogkind, dialogbuttons, dialogtext; contract at expect-dialog-kind); a button is clicked, never keyed
 //   save-copy                   Save a copy, as File > Save a copy does; the copy's path is {copy} from here on
-//   verify <program> [arguments]   runs a program (its path, then its words; {orig}, {prev} (the copy before the last one, or the level), {copy}, {exedir} (the editor's folder, with its closing backslash) and {save1} to {save9} (the first to the ninth Save a copy of the run) are replaced by the level's and the copies' paths); its exit code 0 is a pass, and its lines are shown
+//   verify <program> [arguments]   runs a program (its path, then its words; {orig}, {prev} (the copy before the last one, or the level), {copy}, {exedir} (the editor's folder, with its closing backslash), {record} (the run's record folder, its pictures, likewise) and {save1} to {save9} (the first to the ninth Save a copy of the run) are replaced by the level's and the copies' paths); its exit code 0 is a pass, and its lines are shown
 // A step the editor doesn't answer within its time fails, and the editor is closed.
 
 #define DRIVE_EDITOR_PARTS_ONLY
@@ -457,6 +458,10 @@ static UINT KeyOf(std::string const &name)
 	// F1 to F9: the camera slots' keys (Shift+F1 saves slot 0, F1 restores it)
 	if (name.size() == 2 && name[0] == 'F' && name[1] >= '1' && name[1] <= '9') return VK_F1 + (UINT)(name[1] - '1');
 	if (name == "F10") return VK_F10;
+	// F11 and F12 restore camera slots 10 and 11; with Shift they save nothing (FUN_004705a0); Print Screen takes the editor's screenshot (#78) (all three added 2026-11-17 by Drake)
+	if (name == "F11") return VK_F11;
+	if (name == "F12") return VK_F12;
+	if (name == "PrintScreen") return VK_SNAPSHOT;
 	if (name == "End") return VK_END;
 	if (name == "PageDown") return VK_NEXT;
 	if (name == "PageUp") return VK_PRIOR;
@@ -1814,6 +1819,28 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		return true;
 	}
 
+	if (verb == "key-up" && w.size() >= 2)
+	{
+		// key-up <k>: only the key's letting go is posted, no press: the way Windows hands Print Screen to a window (WM_KEYUP with VK_SNAPSHOT; added 2026-11-17 by Drake for #78)
+		UINT const key = KeyOf(w[1]);
+
+		if (!key)
+		{
+			Check(false, label + " (a key the scenario doesn't know)");
+			return false;
+		}
+
+		UINT const scan = MapVirtualKeyW(key, MAPVK_VK_TO_VSC);
+
+		PostMessageW(s->editor.window, WM_KEYUP, key, 1 | (scan << 16) | (1u << 30) | (1u << 31));
+		Sleep(200);
+		AskState(s);
+		Check(true, label);
+		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		PictureAfter(s, line);
+		return true;
+	}
+
 	if (verb == "key" && w.size() >= 2)
 	{
 		// key <k> shift: the key with Shift held down (a chord: Shift goes down, the key is pressed and let go, Shift goes up); Ctrl the same way: key <k> ctrl
@@ -2348,6 +2375,9 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 			command = Replace(command, "{exedir}", folder);
 		}
+
+		// the run's record folder, where its pictures are (picture-<n>.png), with its closing backslash (added 2026-11-17 by Drake: #78's check compares the screenshot with them)
+		command = Replace(command, "{record}", Narrow(s->recordFolder) + "\\");
 
 		for (size_t n = 0; n < s->saves.size() && n < 9; n++)
 		{

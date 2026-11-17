@@ -1,0 +1,69 @@
+# ACCEPTANCE (red first): the editor's SCREENSHOT KEY on Melanikus's path (GitHub #78, the owner's addition: "a system to show my map, position on it, selected module, mode I was in", for
+# the manual's pictures and as a bug report; Drake, 2026-11-17, Bishop's brief AvP-docs/director/brief-screenshot-key.md; shot_context.h, png_meta.h by Dietrich). inteng has no such key:
+# Print Screen's slot is never read, and Shift+F12 saves nothing (FUN_004705a0 saves camera slots with Shift + F1 to F10 only).
+# Print Screen (Windows hands it to a window as a key-UP only: posted that way here) and Shift+F12 save the frame AS SHOWN into Documents\AVP_OpenInteng\shots (a hidden run: the run's own
+# AVP_OpenInteng\shots) as <map>-<YYYYMMDD>-<HHMMSS>.png, with the context as JSON in the PNG's iTXt "AVP_OpenInteng". They are taken before any menu or dialog and CHANGE NOTHING: an open
+# drop-down stays open on the same pointed row, a dialog stays with its question; a lone Shift changes nothing either. verify_shot reads the context back through png_meta's hostile reader
+# (the newest Invasion-*.png: the name holds the time) and compares the shot's pixels with the harness's own picture of the same screen.
+# RED on drake-path a9b4ea42 (bishop-int cdd8455e merged; no key): no "Screenshot saved", no file.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+wait 400
+
+# ---- 1. A drop-down open, a cascade row pointed at: Print Screen, Shift+F12 and a lone Shift change nothing, and the shot shows the drop-down
+click-bar Mode
+point-bar Strategy Data
+expect-field-has dropboxes |Strategy Data: Normal~
+remember-field dropboxes
+picture 1
+key-up PrintScreen
+wait 600
+expect-field-same dropboxes
+expect-status Screenshot saved: AVP_OpenInteng\shots\Invasion-
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_shot.exe {exedir}AVP_OpenInteng\shots\Invasion-*.png is map Invasion.RIF is screen Construction same-box {record}picture-1.png 0 0 1008 700
+remember-field status
+wait 1200
+key F12 shift
+wait 600
+expect-field-same dropboxes
+expect-field-changed status
+expect-status Screenshot saved: AVP_OpenInteng\shots\Invasion-
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_shot.exe {exedir}AVP_OpenInteng\shots\Invasion-*.png is screen Construction same-box {record}picture-1.png 0 0 1008 700
+key Shift
+wait 300
+expect-field-same dropboxes
+key Esc
+wait 300
+
+# ---- 2. Module Linking, gARAGDOR picked: the context names the map (the file opened, not the editor's copy of it), the screen and the module, and nothing personal (no folder, no user);
+# then S makes it the current module (and clears the pick): the next shot names it as the base
+click-bar Mode > Module Linking
+expect-screen Module Linking
+wait 400
+click-view 0.5 0.5
+expect-field-has screentext gARAGDOR
+wait 400
+key-up PrintScreen
+wait 600
+expect-status Screenshot saved: AVP_OpenInteng\shots\Invasion-
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_shot.exe {exedir}AVP_OpenInteng\shots\Invasion-*.png is map Invasion.RIF is screen Module_Linking in selected gARAGDOR no C: no Users no Melanikus no AvP-builds-excluded no avp_rifs no OpenedByEditor
+key S
+expect-status Current module: gARAGDOR
+wait 1200
+key-up PrintScreen
+wait 600
+expect-status Screenshot saved: AVP_OpenInteng\shots\Invasion-
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_shot.exe {exedir}AVP_OpenInteng\shots\Invasion-*.png is map Invasion.RIF is screen Module_Linking is base gARAGDOR
+
+# ---- 3. A dialog open (Delete Links' question): Print Screen leaves it as it was, and No still answers it
+click-bar AutoLink > Delete Links: Environment
+expect-dialog Delete all module linking for this level?
+wait 300
+key-up PrintScreen
+wait 600
+expect-dialog Delete all module linking for this level?
+expect-status Screenshot saved: AVP_OpenInteng\shots\Invasion-
+click-button No
+expect-no-dialog

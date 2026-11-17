@@ -281,6 +281,10 @@ bool LevelView_ModuleWorld(int32_t moduleIndex, int32_t world[3]);   // where th
 // The 8-byte IDs of the objects the game has in play that have a strategy block (what the file's objects are found by), for a proof run
 void LevelView_ActiveObjectIds(std::vector<std::vector<uint8_t>> *ids);
 
+// The modules the last frame drew (#78; added 2026-11-17 by Drake): the game's own list of what was on screen (OnScreenBlockList, which AVPGetInViewVolumeList fills as the frame is
+// made), each module's index once, in that list's order. A module's own block only (its m_dptr), not the objects inside it.
+void LevelView_DrawnModules(std::vector<int32_t> *moduleIndex);
+
 // HIDDEN OBJECTS: the objects with these 8-byte IDs are not drawn at all (up to kLevelViewMostHidden), and with everyObject true neither is any object the level file places (the modules still are).
 // Every call REPLACES what was hidden before; count 0 and everyObject false shows everything again. An ID of no object in play is left out. Editor-only: avpx R_SetEditorHiddenBlocks.
 size_t const kLevelViewMostHidden = 20000;

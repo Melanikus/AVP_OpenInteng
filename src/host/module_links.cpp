@@ -756,6 +756,33 @@ namespace host
 		return modules;
 	}
 
+	std::vector<int32_t> LinkTree::OpenBranches() const
+	{
+		std::vector<int32_t> modules;
+		std::vector<Node const *> todo;
+
+		todo.push_back(root->next);
+
+		while (!todo.empty())
+		{
+			Node const *node = todo.back();
+
+			todo.pop_back();
+
+			for (; node; node = node->next)
+			{
+				// shown open: FUN_004c0720 draws a branch while it is open, a closed one that was viewed again too (red)
+				if (node->branch && node->open)
+				{
+					modules.push_back(node->module);
+					todo.push_back(node->branch);
+				}
+			}
+		}
+
+		return modules;
+	}
+
 	size_t LinkTree::Count() const
 	{
 		return (size_t)CountChain(root->next);

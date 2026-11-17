@@ -1080,6 +1080,33 @@ void LevelView_ActiveObjectIds(std::vector<std::vector<uint8_t>> *ids)
 	}
 }
 
+extern DISPLAYBLOCK *OnScreenBlockList[];   // view.cpp:45, maxdisplayblocks (system.h: 2048) long
+extern int NumOnScreenBlocks;
+
+void LevelView_DrawnModules(std::vector<int32_t> *moduleIndex)
+{
+	if (!moduleIndex)
+	{
+		return;
+	}
+
+	moduleIndex->clear();
+
+	int const kOnScreenMost = 2048;   // the list's length (maxdisplayblocks)
+	int const count = NumOnScreenBlocks < 0 ? 0 : (NumOnScreenBlocks < kOnScreenMost ? NumOnScreenBlocks : kOnScreenMost);
+
+	for (int i = 0; i < count; i++)
+	{
+		DISPLAYBLOCK const *const block = OnScreenBlockList[i];
+		MODULE const *const room = block ? block->ObMyModule : nullptr;
+
+		if (room && room->m_dptr == block && room->m_index >= 0 && std::find(moduleIndex->begin(), moduleIndex->end(), (int32_t)room->m_index) == moduleIndex->end())
+		{
+			moduleIndex->push_back((int32_t)room->m_index);
+		}
+	}
+}
+
 static std::vector<std::vector<uint8_t>> hiddenIds;
 static bool hideEveryObject = false;
 static std::vector<int32_t> hiddenModules;

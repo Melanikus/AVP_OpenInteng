@@ -1,0 +1,30 @@
+# ACCEPTANCE (red first): Shift+F11 and Shift+F12 save NO camera position, as in inteng (Drake, 2026-11-17; inteng-help-keys.md "Shift+F-Keys", strategy-data.md S-56). FUN_004705a0 (dump-full-2)
+# walks inteng's key codes 8 to 0x13 (F1 to F12): without Shift a pressed one restores slot code - 8; with Shift only codes below 0x12 (F1 to F10, 0x4705c8) save, and F11 / F12 do nothing.
+# Slot 10 (F11) is the one every mode's Exit saves and every mode's start restores (FUN_004704d0(10)), so a Shift+F11 that saved there moved his camera at the next mode change.
+# Shift+F12 becomes the editor's screenshot key later (#78); here it only must save nothing.
+# RED on 54f5954: "Camera position saved (F11)" / "(F12)", and F11 then puts the camera back at 1000 2000 3000.
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-field camera 0 0 0 0 0
+camera 1000 2000 3000 512
+key F11 shift
+wait 200
+expect-status-not Camera position saved
+key F12 shift
+wait 200
+expect-status-not Camera position saved
+# the camera moved away: F11 has nothing of Shift's to give back (nothing saved slot 10 yet in this run)
+camera 0 0 0 0
+key F11
+wait 200
+expect-status-not Camera position restored
+expect-field camera 0 0 0 0 0
+# Shift+F10 still saves (slot 9), and F10 gives it back: the fix took nothing from F1 to F10
+camera 1000 2000 3000 512
+key F10 shift
+expect-status Camera position saved (F10)
+camera 0 0 0 0
+key F10
+expect-status Camera position restored (F10)
+picture 1

@@ -133,6 +133,10 @@ namespace host
 		void ClearChanged();
 		bool HasLinks() const;
 
+		// The modules whose branch is shown open (FUN_004c0720 draws a branch while its node's "open" is on, a closed one viewed again too), in the walk's order: what a
+		// screenshot names as the open branches (#78; added 2026-11-17 by Drake). A branch inside one not shown is not looked into.
+		std::vector<int32_t> OpenBranches() const;
+
 		// The modules in the tree besides the root, in pre-order, closed branches too (for drawing them)
 		std::vector<int32_t> Modules() const;
 
