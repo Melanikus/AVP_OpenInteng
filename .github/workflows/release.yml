@@ -1,0 +1,430 @@
+# Makes a release of the editor, only when the owner asks for it ("Run workflow", on main, with a version number such as 1.0.0, or an
+# alpha or beta of one such as 1.0.0-alpha.0, which makes a pre-release). Written 2026-11-17 by Melanikus for AVP_OpenInteng, after AvPx's
+# own release.yml, whose steps and reasons it keeps.
+#
+# It never publishes anything. It ends with a draft release that only people with write access can see, and the owner reads that and
+# presses Publish. Until then there's no tag either: GitHub makes the tag when the draft is published.
+#
+# Why it's started by hand, and not by pushing a tag: a workflow comes from the commit it runs on, so a tag could point at a commit with
+# these checks taken out. Started from main, this file comes from main, where changing it has to get past the same checks as anything else.
+#
+# The zip holds the editor, the runtime files it needs beside it, and their licences. Those runtime files (OpenAL Soft and fmt, Microsoft's
+# D3DX and its shader compiler, and Microsoft's C++ runtime) come from AvPx's own package, built here by AvPx's own script at the commit
+# avpx/ is pinned to, so each one comes with the licence text, and OpenAL Soft with the source, that AvPx's package gives it.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version: three numbers such as 1.0.0, or an alpha or beta of one such as 1.0.0-alpha.0, which makes a pre-release"
+        required: true
+        type: string
+
+# Nothing by default: each job says what it needs, and only the last one can write anything.
+permissions: {}
+
+# One at a time, so that two runs can't be checking the same version at once.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check this commit may be released
+    runs-on: ubuntu-24.04   # pinned, so a runner-image migration never changes the gate
+    timeout-minutes: 10
+    permissions:
+      contents: read   # to read the code, and which tags there are
+      checks: read     # to read the checks of this commit
+    outputs:
+      tag: ${{ steps.refuse.outputs.tag }}
+      prerelease: ${{ steps.refuse.outputs.prerelease }}
+    steps:
+      # The version comes in through a setting and is never written into the command, because a person types it.
+      - name: Refuse anything that may not be released
+        id: refuse
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ($env:GITHUB_REF -cne 'refs/heads/main') { throw 'A release is made only from main' }
+          $isPre = $env:VERSION -cmatch '^(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})-(alpha|beta)\.(0|[1-9][0-9]{0,3})\z'
+          if (-not $isPre -and $env:VERSION -cnotmatch '^(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\z') { throw 'The version is not three numbers, or an alpha or beta of them' }
+
+          $tip = gh api "repos/$env:GITHUB_REPOSITORY/commits/main" --jq .sha
+          if ($LASTEXITCODE -ne 0) { throw 'Could not read the tip of main' }
+          if ($tip -cne $env:GITHUB_SHA) { throw "main has moved on to $tip, so this commit is no longer its tip" }
+
+          # Every check a pull request into main runs has to have passed on this very commit, by name, each once at least, and none failed.
+          $required = 'Build the editor', 'Unit tests', 'Snyk Code (SAST)', 'No precompiled code, no scanner told to look away', 'The AvPx pin', "inteng's menus are what their two files make"
+          $runs = gh api "repos/$env:GITHUB_REPOSITORY/commits/$env:GITHUB_SHA/check-runs?per_page=100" --jq '.check_runs[] | [.name, .status, .conclusion] | @tsv'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not read the checks of this commit' }
+          $runs = @($runs | Where-Object { $_ })
+          foreach ($name in $required) {
+            $mine = @($runs | Where-Object { ($_ -split "`t")[0] -ceq $name })
+            if ($mine.Count -eq 0) { throw "The check '$name' never ran on this commit" }
+            foreach ($run in $mine) {
+              $null, $status, $conclusion = $run -split "`t"
+              if ($status -cne 'completed' -or $conclusion -cne 'success') { throw "The check '$name' is $status, $conclusion on this commit" }
+            }
+          }
+
+          $tag = "v$env:VERSION"
+          $tags = gh api "repos/$env:GITHUB_REPOSITORY/tags?per_page=100" --jq '.[].name'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not read the tags' }
+          if (@($tags) -ccontains $tag) { throw "$tag is already a tag" }
+          $noMark = New-Object System.Text.UTF8Encoding $false
+          [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "tag=$tag`nprerelease=$(if ($isPre) { 'true' } else { 'false' })`n", $noMark)
+          "$tag may be released: every check passed on $env:GITHUB_SHA"
+
+  build:
+    name: Build the package
+    needs: check
+    runs-on: windows-2025-vs2026   # pinned: Windows Server 2025 with Visual Studio 2026, the compiler we build with
+    timeout-minutes: 120           # the libraries are built from source, so this takes a while
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the repository and AvPx at its pinned commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+
+      # AvPx's own script, as AvPx's every pull request runs it: the libraries by vcpkg at its baseline, the game, and its package, with
+      # each library's licence and OpenAL Soft's source. The editor takes its runtime files and their licences from that package.
+      - name: Build AvPx's libraries and package with AvPx's own script
+        shell: pwsh
+        working-directory: avpx
+        run: ./tools/build-and-package.ps1 -OutFolder "$env:RUNNER_TEMP\avpx-package"
+
+      - name: Build the editor
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild was not found' }
+          & $msbuild win32\VS2026\AVP_OpenInteng.vcxproj /nologo /v:minimal /m /nodeReuse:false /p:Configuration=Release /p:Platform=Win32 `
+            /p:ImportDirectoryBuildProps=false /p:ImportDirectoryBuildTargets=false /p:VcpkgManifestInstall=false /p:VcpkgApplocalDeps=false `
+            "/p:VcpkgInstalledDir=$env:GITHUB_WORKSPACE/avpx/vcpkg_installed/" /p:VcpkgTriplet=x86-windows
+          if ($LASTEXITCODE -ne 0) { throw "The editor didn't build (MSBuild exit $LASTEXITCODE)" }
+          if (-not (Test-Path -LiteralPath 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe')) { throw 'MSBuild gave back 0 but made no AVP_OpenInteng.exe' }
+
+      # The package: the editor, and every file of AvPx's bin it asks for (and what those ask for in turn), read from the programs' own
+      # import lists by dumpbin. A file that isn't in AvPx's bin is Windows' own. Then the licences of exactly those files, with AvPx's
+      # words for each, and the editor's own License.txt, notices and README.
+      - name: Make the package
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          $from = "$env:RUNNER_TEMP\avpx-package"
+          $package = "$env:RUNNER_TEMP\package"
+          New-Item -ItemType Directory -Force $package | Out-Null
+          Copy-Item 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe' $package
+
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $visualStudio = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $dumpbin = Get-ChildItem (Join-Path $visualStudio 'VC\Tools\MSVC\*\bin\Hostx64\x86\dumpbin.exe') | Select-Object -Last 1
+          if (-not $dumpbin) { throw 'dumpbin was not found' }
+          $avpxBin = @{}
+          Get-ChildItem -LiteralPath "$from\bin" -File -Filter '*.dll' | ForEach-Object { $avpxBin[$_.Name.ToLowerInvariant()] = $_.FullName }
+          do {
+            $copied = 0
+            foreach ($binary in @(Get-ChildItem -LiteralPath $package -File | Where-Object { $_.Extension -in '.exe', '.dll' })) {
+              $output = & $dumpbin.FullName /nologo /dependents $binary.FullName
+              if ($LASTEXITCODE -ne 0) { throw "dumpbin could not read $($binary.Name)" }
+              foreach ($name in @($output | Where-Object { $_ -match '^\s+\S+\.dll\s*$' } | ForEach-Object { $_.Trim().ToLowerInvariant() })) {
+                if (-not $avpxBin.ContainsKey($name) -or (Test-Path -LiteralPath (Join-Path $package $name))) { continue }
+                Copy-Item -LiteralPath $avpxBin[$name] -Destination (Join-Path $package $name)
+                "$name, because $($binary.Name) needs it"
+                $copied++
+              }
+            }
+          } while ($copied -gt 0)
+          # D3DX loads its shader compiler by name while the editor runs, so no import list names it
+          if (-not (Test-Path -LiteralPath (Join-Path $package 'd3dx9_43.dll'))) { throw 'The editor no longer asks for d3dx9_43.dll: check the package by hand' }
+          if (-not $avpxBin.ContainsKey('d3dcompiler_43.dll')) { throw "AvPx's package has no D3DCompiler_43.dll" }
+          Copy-Item -LiteralPath $avpxBin['d3dcompiler_43.dll'] -Destination (Join-Path $package 'D3DCompiler_43.dll')
+
+          # AvPx's words for each of those files, from its licences/README.txt ("bin/<name>: ..."), and every licence file those words name.
+          # Its links to source point at AvPx's repository, which holds that source.
+          $about = @(Get-Content -LiteralPath "$from\licences\README.txt")
+          $licenceFolder = Join-Path $package 'licences'
+          New-Item -ItemType Directory -Force $licenceFolder | Out-Null
+          $lines = @()
+          foreach ($binary in @(Get-ChildItem -LiteralPath $package -File -Filter '*.dll' | Sort-Object Name)) {
+            $line = @($about | Where-Object { $_.ToLowerInvariant().StartsWith("bin/$($binary.Name.ToLowerInvariant()):") })
+            if ($line.Count -ne 1) { throw "AvPx's licences/README.txt doesn't have one line for $($binary.Name)" }
+            $text = $line[0].Substring($line[0].IndexOf(':') + 1).Trim() -replace [regex]::Escape("github.com/$env:GITHUB_REPOSITORY/"), 'github.com/Melanikus/AvP/'
+            $lines += "$($binary.Name): $text"
+            foreach ($named in @([regex]::Matches($text, 'licences/([A-Za-z0-9._-]+\.txt)') | ForEach-Object { $_.Groups[1].Value })) {
+              if (-not (Test-Path -LiteralPath "$from\licences\$named")) { throw "AvPx's package has no licences/$named" }
+              Copy-Item -LiteralPath "$from\licences\$named" -Destination $licenceFolder -Force
+            }
+          }
+          # OpenAL Soft's source goes with it, as in AvPx's package
+          if (Test-Path -LiteralPath (Join-Path $package 'openal32.dll')) {
+            Copy-Item -Recurse -LiteralPath "$from\licences\sources" -Destination (Join-Path $licenceFolder 'sources')
+          }
+          $readme = @(
+            "The runtime files the editor needs beside it, and each one's licence, as AvPx's own package gives them. Each line names a file,"
+            'says what it is and which licences go with it, and, for the ones under the GNU licences, where their source is.'
+            ''
+          ) + $lines
+          [System.IO.File]::WriteAllLines((Join-Path $licenceFolder 'README.txt'), [string[]]$readme)
+
+          Copy-Item License.txt, README.md $package
+          Copy-Item -Recurse notices (Join-Path $package 'notices')
+          "AVP_OpenInteng $env:VERSION, commit $env:GITHUB_SHA, AvPx $(git -C avpx rev-parse HEAD)" | Out-File -Encoding ascii (Join-Path $package 'BUILD.txt')
+
+          Push-Location $package
+          $hashes = Get-ChildItem -Recurse -File | Resolve-Path -Relative | ForEach-Object {
+            '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_).Hash.ToLower(), ($_ -replace '^\.\\', '' -replace '\\', '/')
+          }
+          $hashes | Out-File -Encoding ascii SHA256SUMS.txt
+          Pop-Location
+          Get-Content (Join-Path $package 'SHA256SUMS.txt')
+
+      - name: Zip the package, and work out its hash
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          $folder = "$env:RUNNER_TEMP\release"
+          New-Item -ItemType Directory -Force $folder | Out-Null
+          $name = "AVP_OpenInteng-$env:VERSION-windows-x86.zip"
+          Compress-Archive -Path "$env:RUNNER_TEMP\package\*" -DestinationPath (Join-Path $folder $name)
+          $hash = (Get-FileHash -Algorithm SHA256 (Join-Path $folder $name)).Hash.ToLower()
+          "$hash  $name" | Out-File -Encoding ascii (Join-Path $folder 'SHA256SUMS')
+          Get-Content (Join-Path $folder 'SHA256SUMS')
+
+      - name: Keep the package for the next jobs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-package
+          path: ${{ runner.temp }}/release
+          retention-days: 1
+          if-no-files-found: error
+
+  # VirusTotal runs about 70 virus scanners on a file. The zip is looked up there by its hash, sent if VirusTotal hasn't seen it, and the
+  # analysis waited for. What comes back is from outside our code, so AvPx's tools/check-virustotal.ps1 (at the pinned commit) reads every
+  # answer before anything here believes it (Tao 3). The owner's ruling, 2026-11-08: if any scanner flags it, the draft is still made, its
+  # text starts by saying so, and the run ends red. The key is in the release environment, and only this job reads it; it can write nothing.
+  scan:
+    name: Scan the package on VirusTotal
+    needs: build
+    runs-on: ubuntu-24.04   # pinned, so a runner-image migration never changes the gate
+    timeout-minutes: 30     # the free key takes 4 questions a minute, and an analysis takes a few minutes
+    environment: release    # where the VirusTotal key is kept
+    permissions:
+      contents: read
+    outputs:
+      sha256: ${{ steps.ask.outputs.sha256 }}
+      malicious: ${{ steps.ask.outputs.malicious }}
+      suspicious: ${{ steps.ask.outputs.suspicious }}
+      answered: ${{ steps.ask.outputs.answered }}
+    steps:
+      - name: Check out the repository and AvPx at its pinned commit (for its VirusTotal checker)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+
+      - name: Get the package
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-package
+          path: release
+
+      # The key reaches only this step, and is taken out of its environment before anything starts. This step starts one program only,
+      # the checker, and the key is only ever sent in the x-apikey header to www.virustotal.com. A redirect isn't followed.
+      - name: Ask VirusTotal about the package
+        id: ask
+        shell: pwsh
+        env:
+          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          $key = $env:VIRUSTOTAL_API_KEY
+          if (-not $key) { throw 'The VIRUSTOTAL_API_KEY secret is missing from the release environment' }
+          Remove-Item Env:VIRUSTOTAL_API_KEY
+          $headers = @{ 'x-apikey' = $key }
+
+          $isPre = $env:VERSION -cmatch '^(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})-(alpha|beta)\.(0|[1-9][0-9]{0,3})\z'
+          if (-not $isPre -and $env:VERSION -cnotmatch '^(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\z') { throw 'The version is not one this workflow makes' }
+          $sums = @(Get-Content release/SHA256SUMS)
+          if ($sums.Count -ne 1) { throw 'SHA256SUMS should have one line, for the zip' }
+          $sha, $name = $sums[0] -split '  ', 2
+          if ($sha -cnotmatch '^[0-9a-f]{64}\z') { throw 'The hash in SHA256SUMS is not a SHA-256' }
+          if ($name -cne "AVP_OpenInteng-$env:VERSION-windows-x86.zip") { throw 'SHA256SUMS names a file that is not the zip this version makes' }
+          $zip = "release/$name"
+          $answers = Join-Path $env:RUNNER_TEMP 'virustotal'
+          New-Item -ItemType Directory -Force $answers | Out-Null
+          $giveUp = (Get-Date).AddMinutes(25)
+
+          function Ask-Checker([string[]]$arguments)
+          {
+            $said = @(& pwsh -NoProfile -File ./avpx/tools/check-virustotal.ps1 -Sha256 $sha @arguments)
+            $code = $LASTEXITCODE
+            $said | ForEach-Object { Write-Host $_ }
+            if ($code -ne 0) { exit 1 }
+            $answer = @($said | Where-Object { $_.StartsWith('ANSWER: ') })
+            if ($answer.Count -ne 1) { throw 'The VirusTotal checker gave no answer' }
+            return $answer[0].Substring('ANSWER: '.Length)
+          }
+
+          $script:lastAsked = [datetime]::MinValue
+          function Ask-VirusTotal([string]$method, [string]$path, [string]$saveAs, $form)
+          {
+            while ($true)
+            {
+              if ((Get-Date) -gt $giveUp) { throw 'VirusTotal had not answered in time' }
+              $wait = 20 - ((Get-Date) - $script:lastAsked).TotalSeconds
+              if ($wait -gt 0) { Start-Sleep -Seconds ([math]::Ceiling($wait)) }
+              $script:lastAsked = Get-Date
+              $asking = @{ Uri = "https://www.virustotal.com/api/v3/$path"; Method = $method; Headers = $headers; OutFile = $saveAs; TimeoutSec = 300; MaximumRedirection = 0; SkipHttpErrorCheck = $true; StatusCodeVariable = 'answeredWith' }
+              if ($form) { $asking.Form = $form }
+              Invoke-RestMethod @asking
+              if ($answeredWith -ne 429) { return $answeredWith }
+              Write-Host 'VirusTotal says the key has asked too often. Waiting a minute.'
+              Start-Sleep -Seconds 60
+            }
+          }
+
+          if ((Ask-Checker @('-Package', $zip)) -cne 'ready') { throw 'The zip is not ready to send' }
+          $status = Ask-VirusTotal 'Get' "files/$sha" "$answers/lookup.json"
+          if ($status -eq 200) { $answer = Ask-Checker @('-Answer', "$answers/lookup.json", '-Kind', 'lookup') }
+          elseif ($status -eq 404) { 'VirusTotal has never seen this zip.'; $answer = 'not-analysed' }
+          else { throw "VirusTotal answered the question about the zip with HTTP $status" }
+
+          if ($answer -ceq 'not-analysed')
+          {
+            $status = Ask-VirusTotal 'Post' 'files' "$answers/upload.json" @{ file = Get-Item -LiteralPath $zip }
+            if ($status -ne 200) { throw "VirusTotal answered the upload with HTTP $status" }
+            $answer = Ask-Checker @('-Answer', "$answers/upload.json", '-Kind', 'upload')
+            if ($answer -cnotmatch '^analysis [A-Za-z0-9+/=]{1,200}\z') { throw 'The upload gave no analysis' }
+            $id = $answer.Substring('analysis '.Length)
+            $answer = 'waiting'
+            while ($answer -ceq 'waiting')
+            {
+              Start-Sleep -Seconds 10
+              $status = Ask-VirusTotal 'Get' "analyses/$([uri]::EscapeDataString($id))" "$answers/analysis.json"
+              if ($status -ne 200) { throw "VirusTotal answered the question about the analysis with HTTP $status" }
+              $answer = Ask-Checker @('-Answer', "$answers/analysis.json", '-Kind', 'analysis', '-AnalysisId', $id)
+            }
+          }
+
+          if ($answer -cmatch '^counted (0|[1-9][0-9]{0,3}) (0|[1-9][0-9]{0,3}) ([1-9][0-9]{0,3})\z')
+          {
+            $noMark = New-Object System.Text.UTF8Encoding $false
+            [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "sha256=$sha`nmalicious=$($Matches[1])`nsuspicious=$($Matches[2])`nanswered=$($Matches[3])`n", $noMark)
+          }
+          else
+          {
+            throw 'The VirusTotal checker gave no count'
+          }
+
+  publish:
+    name: Make the draft release
+    needs: [check, build, scan]
+    runs-on: ubuntu-24.04   # pinned, so a runner-image migration never changes the gate
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: write       # to make the draft. The only job here that can write to the repository
+      id-token: write       # to prove to the attestation service which workflow this is
+      attestations: write   # to record how the package was built
+    # This job runs no code from the repository, and doesn't have a copy of it.
+    steps:
+      - name: Get the package
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-package
+          path: release
+
+      - name: Refuse if anything has changed since the checks
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+          TAG: ${{ needs.check.outputs.tag }}
+          PRERELEASE: ${{ needs.check.outputs.prerelease }}
+          SCAN_SHA256: ${{ needs.scan.outputs.sha256 }}
+          SCAN_MALICIOUS: ${{ needs.scan.outputs.malicious }}
+          SCAN_SUSPICIOUS: ${{ needs.scan.outputs.suspicious }}
+          SCAN_ANSWERED: ${{ needs.scan.outputs.answered }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tip = gh api "repos/$env:GITHUB_REPOSITORY/commits/main" --jq .sha
+          if ($LASTEXITCODE -ne 0) { throw 'Could not read the tip of main' }
+          if ($tip -cne $env:GITHUB_SHA) { throw "main has moved on to $tip since this was checked" }
+          $isPre = $env:VERSION -cmatch '^(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})-(alpha|beta)\.(0|[1-9][0-9]{0,3})\z'
+          if (-not $isPre -and $env:VERSION -cnotmatch '^(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\z') { throw 'The version is not one this workflow makes' }
+          if ($env:TAG -cne "v$env:VERSION") { throw 'The tag from the checks is not the one this version makes' }
+          if ($env:PRERELEASE -cne $(if ($isPre) { 'true' } else { 'false' })) { throw 'Whether this is a pre-release does not match the version' }
+          $releases = gh release list --repo $env:GITHUB_REPOSITORY --limit 1000 --json tagName --jq '.[].tagName'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not read the list of releases' }
+          if (@($releases) -ccontains $env:TAG) { throw "There is already a release of $env:TAG, maybe a draft" }
+          $sums = @(Get-Content release/SHA256SUMS)
+          if ($sums.Count -ne 1) { throw 'SHA256SUMS should have one line, for the zip' }
+          $wanted, $name = $sums[0] -split '  ', 2
+          if ($wanted -cnotmatch '^[0-9a-f]{64}\z') { throw 'The hash in SHA256SUMS is not a SHA-256' }
+          if ($name -cne "AVP_OpenInteng-$env:VERSION-windows-x86.zip") { throw 'SHA256SUMS names a file that is not the zip this version makes' }
+          if ((Get-FileHash -Algorithm SHA256 "release/$name").Hash.ToLower() -cne $wanted) { throw 'The package is not what the build made' }
+          if ($env:SCAN_SHA256 -cne $wanted) { throw 'The scan on VirusTotal was of a different zip' }
+          if ($env:SCAN_MALICIOUS -cnotmatch '^(0|[1-9][0-9]{0,3})\z' -or $env:SCAN_SUSPICIOUS -cnotmatch '^(0|[1-9][0-9]{0,3})\z') { throw 'A count from the scan is not a whole number' }
+          if ($env:SCAN_ANSWERED -cnotmatch '^[1-9][0-9]{0,3}\z' -or [int]$env:SCAN_ANSWERED -lt 20) { throw 'The scan did not count enough scanners' }
+
+      - name: Record how the package was built
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: release/SHA256SUMS
+
+      - name: Make the draft
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+          TAG: ${{ needs.check.outputs.tag }}
+          PRERELEASE: ${{ needs.check.outputs.prerelease }}
+          SCAN_MALICIOUS: ${{ needs.scan.outputs.malicious }}
+          SCAN_SUSPICIOUS: ${{ needs.scan.outputs.suspicious }}
+          SCAN_ANSWERED: ${{ needs.scan.outputs.answered }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:TAG
+          $preRelease = $env:PRERELEASE -ceq 'true'
+          $sums = @(Get-Content release/SHA256SUMS)
+          if ($sums.Count -ne 1) { throw 'SHA256SUMS should have one line, for the zip' }
+          $hash, $name = $sums[0] -split '  ', 2
+          if ($hash -cnotmatch '^[0-9a-f]{64}\z') { throw 'The hash in SHA256SUMS is not a SHA-256' }
+          if ($name -cne "AVP_OpenInteng-$env:VERSION-windows-x86.zip") { throw 'SHA256SUMS names a file that is not the zip this version makes' }
+
+          $report = "https://www.virustotal.com/gui/file/$hash"
+          $flagged = [int]$env:SCAN_MALICIOUS + [int]$env:SCAN_SUSPICIOUS
+          $warning = "VirusTotal: $flagged of $env:SCAN_ANSWERED engines flagged this zip, so don't publish before reading $report"
+          $scanned = if ($flagged -gt 0) { "VirusTotal: $env:SCAN_MALICIOUS malicious, $env:SCAN_SUSPICIOUS suspicious, of $env:SCAN_ANSWERED engines: $report" } else { "VirusTotal: none of $env:SCAN_ANSWERED engines flagged this zip: $report" }
+          $first = if ($flagged -gt 0) { @("**$warning**", '') } else { @() }
+          @($first + @(
+            "Built from commit $env:GITHUB_SHA by run $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID.",
+            '',
+            "SHA-256 of ${name}: $hash",
+            '',
+            $scanned,
+            '',
+            "To check that this file is what that run built: gh attestation verify $name --repo $env:GITHUB_REPOSITORY",
+            '',
+            'The owner writes what changed here before publishing.'
+          )) | Out-File -Encoding utf8 notes.md
+
+          $alsoSay = @()
+          if ($preRelease) { $alsoSay += '--prerelease' }
+          gh release create $tag "release/$name" release/SHA256SUMS --repo $env:GITHUB_REPOSITORY --draft --target $env:GITHUB_SHA --title "AVP_OpenInteng $tag" --notes-file notes.md @alsoSay
+          if ($LASTEXITCODE -ne 0) { throw 'The draft could not be made' }
+          $made = gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,isPrerelease,targetCommitish | ConvertFrom-Json
+          if (-not $made.isDraft) { throw 'The release is not a draft' }
+          if ($made.isPrerelease -ne $preRelease) { throw "The draft's pre-release mark is $($made.isPrerelease), and it should be $preRelease" }
+          if ($made.targetCommitish -cne $env:GITHUB_SHA) { throw "The draft points at $($made.targetCommitish), not at the commit that was checked" }
+          if ($flagged -gt 0) { throw "The draft of $tag is made, but $warning" }
+          "The draft of $tag is ready for the owner to read and publish."
