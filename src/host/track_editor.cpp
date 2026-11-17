@@ -465,6 +465,8 @@ namespace host
 
 		case 0x524: case 0x528: case 0x52a:   // Sound / Start Sound / End Sound > Edit
 		{
+			// 0x4dce2b..0x4dcf75: the track's sound of that kind, or (none) a new one made by FUN_004f2a60: "Not Set", volume 127, pitch 0, flags 1 (it loops), and its ranges 500000 / 1000000 in
+			// inteng's OWN units (the file's x 100 x the scale): the editor puts those into the window as they are (TrackAction::soundNew). Then FUN_004f2bf0, edobtype's Sound Edit window.
 			int const index = command == 0x524 ? 0 : (command == 0x528 ? 1 : 2);
 			TrackSound const *have = FindSound(&loaded, index);
 			TrackSound now;
@@ -475,13 +477,14 @@ namespace host
 			}
 			else
 			{
-				now.wav.clear();   // inteng's "Not Set" is no name a person can type: the field starts empty
+				now.flags = 1;   // FUN_004f2a60 0x4f2ad0
 			}
 
+			now.index = index;
 			action->prompt = TrackPrompt::Sound;
 			action->soundIndex = index;
-			action->promptDefault = now.wav + "\t" + std::to_string(now.innerRange) + " " + std::to_string(now.outerRange) + " " + std::to_string(now.maxVolume) + " " + std::to_string(now.pitch) + " " +
-				((now.flags & 1) ? "1" : "0");
+			action->sound = now;
+			action->soundNew = have == nullptr;
 			action->words = std::string(SoundWords(index));
 			return;
 		}
@@ -822,6 +825,52 @@ namespace host
 		if (have)
 		{
 			*FindSound(&loaded, soundIndex) = sound;
+		}
+		else
+		{
+			loaded.sounds.push_back(sound);
+		}
+
+		// the sounds go in the order middle, start, end (inteng saves them in that order: FUN_004f1300)
+		std::sort(loaded.sounds.begin(), loaded.sounds.end(), [](TrackSound const &a, TrackSound const &b) { return a.index < b.index; });
+
+		if (Store(file, ed, loaded, action))
+		{
+			action->words = std::string(SoundWords(soundIndex)) + ": " + sound.wav + ", ranges " + std::to_string(sound.innerRange) + " to " + std::to_string(sound.outerRange) +
+				", volume " + std::to_string(sound.maxVolume);
+		}
+	}
+
+	void TrackEdit_SetSound(OpenLevelFile *file, TrackEditor *ed, int soundIndex, TrackSound const &given, TrackAction *action)
+	{
+		*action = TrackAction();
+
+		TrackLoaded loaded;
+
+		if (!ed || ed->state == TrackState::Off || soundIndex < 0 || soundIndex > 2 || !Load(file, ed, &loaded, action))
+		{
+			if (action->words.empty())
+			{
+				action->words = "Not editing a track";
+			}
+
+			return;
+		}
+
+		// the TRAKSOUN's name ends at its first zero and the game copies it whole (CopyNameFromChunk): a longer one or one with a zero inside is never written
+		if (given.wav.empty() || given.wav.size() > kTrackSoundNameMost || given.wav.find('\0') != std::string::npos)
+		{
+			action->words = std::string(SoundWords(soundIndex)) + ": the file name must be 1 to " + Number(kTrackSoundNameMost) + " letters";
+			return;
+		}
+
+		TrackSound sound = given;
+
+		sound.index = soundIndex;
+
+		if (TrackSound *const have = FindSound(&loaded, soundIndex))
+		{
+			*have = sound;
 		}
 		else
 		{

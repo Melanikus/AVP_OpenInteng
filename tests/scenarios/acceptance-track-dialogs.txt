@@ -1,6 +1,7 @@
 # ACCEPTANCE: Track Editing's questions are inteng's dialogs, made by the toolkit (dialogs.h), none a typed prompt (Frost, 2026-11-16, Bishop's order). Hidden run, Invasion, object 5 (a track).
 #   Properties > Section (0x51b): inteng's text dialog "Time for section" (FUN_00474bc0, string 0x5e9340): one edit, Ok / Cancel; Ok sets the time.
-#   Start Sound > Edit (0x528): the sound dialog as a FORM: five edits (file, inner range, outer range, volume, pitch), a Loop box, Ok / Cancel.
+#   Start Sound > Edit (0x528): edobtype's Sound Edit window, as inteng's FUN_004f2bf0 (Vasquez 11-17, T-1; it was our own gray form "Start Sound" before): object 5 has no start sound, so the
+#   window shows FUN_004f2a60's new one ("Not Set", 5 m / 10 m, pitch 0, 100 %, Sound Loops ticked); acceptance-track-sound-edit.txt checks the numbers and the save.
 #   Delete > Track (0x520): the Yes / No confirm (FUN_00474a40); No keeps the track.
 # Every control is clicked where it is drawn; the editor's prompt stays 0 while a dialog is open.
 screen Object Placement
@@ -35,7 +36,8 @@ click-button Ok
 expect-no-dialog
 item 0x528
 expect-dialog-kind form
-expect-dialog Start Sound
+expect-dialog Sound Edit -
+expect-dialog-text Not Set|5|10|0|100
 expect-prompt 0
 picture 821
 click-button Cancel

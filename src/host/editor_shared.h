@@ -389,3 +389,480 @@ void RunTheModelProof(long frame);
 void RunTheSClickProof(long frame);
 void RunTheExitProof(long frame);
 void RunTheMovementProof(long frame);
+
+// ---- THE SECOND SPLIT (2026-11-17, Dietrich): Snyk Code reads a file only up to about 1 MiB, and editor_main.cpp had grown past it again. These are
+// the names light_screen.cpp, construction_modes_screen.cpp, editor_screen_keys.cpp, strategy_data_screen.cpp, path_screen.cpp, editor_panels.cpp share with the other files: the same rules as above.
+
+// made in editor_main.cpp
+extern bool bRunning;
+extern ui::MenuBar menuBar;
+extern ui::MenuBar lowerBar[kEditorBarMostRows - 1];
+extern size_t barRowCount;
+extern EditorBarRows barRows;
+extern size_t barScreen;
+extern char cutOffWords[160];
+extern const char *statusWords;
+extern KeyLayout keyLayout;
+extern char layoutSettingsFile[MAX_PATH];
+extern host::EditorOptions editorOptions;
+bool LoadTheMenus();
+extern bool keyDown[256];
+bool KeyHeldNow(int vk);
+bool ShiftDown();
+extern int speedUnits;
+extern bool running;
+extern ui::MenuBar popupBar;
+extern EditorBarRoom popupRoom;
+extern POINT popupAt;
+extern host::ToolButton toolButtons[host::kToolButtonMost];
+extern host::ToolButton panelButtons[host::kToolButtonMost];
+extern ui::Box toolBoxes[host::kToolButtonMost];
+extern ui::Box panelBoxes[host::kToolButtonMost];
+extern size_t toolPlaced;
+extern size_t panelPlaced;
+extern bool trackDirty;
+extern host::WaypointMode waypointMode;
+bool OnWaypointScreen();
+bool WaypointWorldOn();
+extern bool texturesSaved;
+ui::MenuBar &BarRow(size_t row);
+bool ALowerMenuIsOpen();
+bool AMenuIsOpen();
+
+// made in light_screen.cpp
+void HarnessFaceLight(size_t light);
+void HarnessPickModule(int32_t index);
+
+// made in editor_main.cpp
+void LinkClick(host::PickReport const &used, bool shift, bool held);
+extern bool harnessPanelAsked;
+extern host::ObjectList objectList;
+extern uint32_t listSawChanges;
+
+static int32_t const kListMostRows = 48;
+
+// made in editor_main.cpp
+extern host::FieldPanelHost fieldHost;
+extern uint32_t fieldsSawChanges;
+extern bool fieldsHaveKeys;
+extern char theCopiesFolder[MAX_PATH];
+extern char theGameFolder[MAX_PATH];
+std::string MakeTheCopiesFolder();
+extern double local_scale;
+
+// made in light_screen.cpp
+bool OnALightScreen();
+
+// made in editor_main.cpp
+void LetGoOfTheFieldPanel();
+void ShowTheSelected(const host::Selected &selected);
+extern uint32_t openClock;
+extern uint32_t listOpenedAt;
+extern uint32_t fieldsOpenedAt;
+extern ui::Box hitLower[kEditorBarMostRows - 1];
+extern ui::Box hitBar;
+extern ui::Box hitList;
+extern ui::Box hitFields;
+extern ui::Box hitStatus;
+extern int32_t promptFor;
+extern std::string promptText;
+extern ui::Box hitPrompt;
+extern int32_t barPointerY;
+extern bool barVisible;
+bool MenuLoopUp();
+extern std::string adjacentBoo;
+void DialogList(std::string const &title, std::vector<std::string> const &rows, std::function<void(int32_t)> const &then, std::function<void(int32_t)> const &onRight);
+extern FlyCamera *theCamera;
+extern OpenLevelFile *editedLevel;
+extern const char *textPanelText;
+extern const char *textPanelNext;
+void OpenAPrompt(int32_t kind);
+extern bool onHierarchy;
+extern int hierarchySaveAsked;
+extern std::string openLevelName;
+extern host::HierarchyMode hierarchyMode;
+bool IsTheHierarchyScreen(size_t screen);
+void LeaveHierarchy();
+void NameObjectBox(std::string const &start, std::function<void(std::string const &)> const &named);
+
+// Every editor object's icon as it is drawn, with the object's id, for Strategy Data's click (an icon is a thing the click can land on, as inteng's display blocks are)
+struct IconForPick { uint8_t id[8]; std::vector<host::IconWorldTriangle> triangles; };
+
+// made in editor_main.cpp
+void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t frame, bool strategy, std::vector<IconForPick> *forPick = nullptr);
+extern std::vector<std::string> promptList;
+
+// made in construction_modes_screen.cpp
+void AdjacentEdit(int32_t what);
+
+// made in editor_main.cpp
+extern bool chooserActive;
+extern std::string chooserText;
+
+// made in construction_modes_screen.cpp
+void ShapeChooserCommand(int32_t what, size_t *screen);
+
+// made in editor_main.cpp
+void CameraPositionSaved(int slot);
+
+// made in construction_modes_screen.cpp
+bool ShapeChooserKey(WPARAM key);
+void ShapeChooserPick(std::string const &typed);
+
+// made in editor_screen_keys.cpp
+void LinkExit();
+void DeleteModuleLinks(bool all);
+
+// made in construction_modes_screen.cpp
+void AddReverseLinksCommand(bool all);
+void AutoLinkCommand(bool all, bool deleteOld);
+bool AutoLinkRunning();
+void AutoLinkFrame();
+void ModuleLinkingCleanTheLinks();
+
+// made in editor_main.cpp
+extern std::wstring levelSourcePath;
+
+// made in editor_screen_keys.cpp
+void DeleteLinksFrame();
+bool DeleteLinksRunning();
+void ShowTheWorkingBytes();
+void AutoLinkLoadFileCommand();
+void GenerateAdjacency(bool newOnly);
+
+// made in editor_main.cpp
+extern std::string linkMessage;
+extern std::string linkMessageShown;
+
+// made in construction_modes_screen.cpp
+void DoWaypointCommand(int32_t command, EditorHostState &host);
+void MakeTheCurrentModuleCurrentAgain(int32_t current);
+
+// made in editor_main.cpp
+extern int32_t visibleDistance;
+
+// made in construction_modes_screen.cpp
+void DeleteTheModuleData();
+void MergeTheSelectedObjects();
+void LinkSetCurrent();
+
+// made in editor_screen_keys.cpp
+void LinkFollowOff();
+bool RunScreenKey(uint8_t key, bool shift);
+
+// made in light_screen.cpp
+bool RunLightKey(int32_t command);
+void LightKeysEveryFrame();
+
+// made in editor_main.cpp
+extern std::string lightMessage;
+extern int lightSavePending;
+extern bool lightSaveTools;
+void SaveTheCopy();
+void LoadTheObjectListAgain();
+
+// made in construction_modes_screen.cpp
+bool PickAnEntryMarker(int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight);
+void StopFlyingTheEntryPoint(char const *why);
+void FlyTheEntryPoint();
+void RefreshTheEntryMarkers();
+void EntryMarkerLines(std::vector<host::TrackLine> *lines);
+
+// made in editor_main.cpp
+extern bool entryFlying;
+extern std::vector<host::EntryMarker> entryMarkers;
+extern int entryMarkerPicked;
+extern int32_t entryFlyPlace[3];
+
+// made in editor_screen_keys.cpp
+void LinkFollowPass(bool onModuleLinking);
+
+// made in strategy_data_screen.cpp
+void LinkEdit(int32_t what);
+void HideObjectsCommand(int32_t what);
+
+// made in editor_screen_keys.cpp
+std::vector<uint8_t> PickedModuleIdBytes();
+
+// made in strategy_data_screen.cpp
+bool OnModuleLinkingScreen();
+bool OnAdjacentModulesScreen();
+host::PickReport PickTheNearestCentre(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight, bool placedOnly = false);
+
+// made in editor_main.cpp
+void Answer(const std::string &words);
+
+// made in strategy_data_screen.cpp
+void PolyCountsCommand();
+
+// made in editor_main.cpp
+extern bool polyScreenOpen;
+
+// made in strategy_data_screen.cpp
+void PolyScreenPage(int32_t direction);
+void PolyScreenPress(int32_t x, int32_t y, bool right);
+
+// made in editor_main.cpp
+bool WriteTheLinks();
+extern std::vector<int32_t> showAllModules;
+extern std::vector<uint32_t> showAllColours;
+extern bool showAllHeld;
+void ShowAllRelease();
+extern bool viewDistanceOn;
+extern bool adjacentViewDistanceOn;
+extern int32_t viewDistance;
+int32_t ViewDistanceHeld(int64_t next);
+extern bool onlyDrawLinked;
+extern std::vector<int32_t> linkedGameModules;
+extern std::string viewWords;
+int32_t ActionOfCommand(char const *table, int32_t command);
+int32_t HierarchyBarAction(int32_t command);
+
+// made in strategy_data_screen.cpp
+void UpdateModuleTints(bool onAdjacent);
+
+// made in construction_modes_screen.cpp
+bool WriteTheAdjacentList();
+
+// made in editor_main.cpp
+std::string ModuleNameOfIndex(int32_t index);
+
+// made in strategy_data_screen.cpp
+void ToggleModuleOverlaps();
+void UpdateHiddenModules();
+
+// made in path_screen.cpp
+void PathModeCommand(int32_t command);
+bool OnThePathScreen();
+void RunPathPrompt(int32_t kind, std::string const &typed);
+
+// made in editor_main.cpp
+extern host::SpecialMode specialMode;
+extern int placedHierarchyCurrent;
+bool ModuleObject(OpenLevelFile *open, int32_t moduleIndex, uint8_t id[8]);
+bool SelectedObjectId(uint8_t *id);
+extern std::string quickCreateWords;
+void ViewFilePlace(int32_t out[3]);
+void MakePlacedObjectCurrent(uint8_t const *id);
+extern std::string savedWords;
+extern std::string cameraWords;
+extern bool cameraSavedDraw;
+extern unsigned cameraSavedDrawn;
+extern bool strategyFromPlacement;
+extern bool strategyMarkedChanged;
+extern uint32_t strategyViewBit;
+std::string SaveAtIntengsPoint();
+
+// made in light_screen.cpp
+extern bool clickPicksLights;
+extern std::string lightWords;
+bool IsALightScreen(size_t screen);
+void RelightTheView();
+void LightStateOfThisLevel();
+void EnterLightSourcing();
+void LeaveLightSourcing();
+extern host::LightState lightState;
+extern int32_t lightContributionOff;
+
+// made in editor_main.cpp
+void HierarchyShow(host::HierarchyStep const &step);
+OpenLevelFile *HierarchyFile();
+
+// made in light_screen.cpp
+extern int lightAttribute;
+extern bool lightFlying;
+bool PlacedColourDown(uint8_t const *id);
+bool SelectedPlacedLight(uint8_t id[8]);
+bool SelectedLight(size_t *index);
+
+// made in editor_main.cpp
+void NameInUseBox(std::string const &typed, std::function<void(std::string const &)> const &named);
+
+// made in light_screen.cpp
+void RunLightWork(int32_t work);
+
+// made in construction_modes_screen.cpp
+size_t LightMarkerUnderPointer(host::PickCamera const &camera, int32_t x, int32_t y, double *distance);
+
+// made in light_screen.cpp
+void PickTheLight(host::PickReport const &under, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight);
+void PickTheLightScreenObject(int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight);
+extern std::string screenshotPending;
+extern std::string screenshotWords;
+bool ScreenshotNameTaken(std::string const &name, void *folder);
+void TakeAScreenshot();
+
+// made in editor_main.cpp
+extern std::string shotPending;
+extern std::string shotWords;
+extern bool shotPrintScreenSeen;
+extern bool shotHintGiven;
+extern bool shotFromShiftF12;
+std::string ShotShownPlace(std::string const &name);
+extern host::TrackEditor trackEd;
+size_t ScreenOfTable(char const *table);
+bool OnAcousticScreen();
+bool OnTheTrackScreen();
+extern std::vector<FormRow> formRows;
+
+// made in strategy_data_screen.cpp
+bool OnStrategyScreen();
+
+// made in editor_main.cpp
+void ConfirmAs(int32_t kind, std::string const &text);
+void TextAs(int32_t kind, std::string const &text, std::string const &initial);
+void FormLines(std::string const &title, std::vector<std::string> *words);
+
+// made in path_screen.cpp
+void ExitCleanup(size_t screen);
+
+// made in editor_main.cpp
+bool LevelChangedSinceSave();
+extern bool strategyFlagPage;
+extern bool strategyPanelOn;
+extern VolumeEditor volume;
+extern int32_t strategyViewTop;
+extern int32_t textAreaTop;
+extern std::string strategyViewWord;
+extern std::string strategyPickField;
+extern std::string strategyViewPickWords;
+extern int32_t strategyEditKind;
+extern std::vector<std::array<uint8_t, 8>> strategyViewLinks;
+extern bool strategyEditFan;
+extern uint8_t strategyEditId[8];
+extern bool strategyPickHave;
+extern uint8_t strategyPickId[8];
+extern int32_t trackPage;
+extern int32_t multiPage;
+extern bool requestPageOn;
+extern host::RequestPageState requestPage;
+extern bool copyCollecting;
+extern int32_t copyPurpose;
+extern std::vector<CopyTarget> copyTargets;
+extern bool stabilityActive;
+extern std::string strategyMessage;
+extern ULONGLONG strategyMessageAt;
+extern bool moveRelWaiting;
+extern bool placementPolyCounts;
+extern bool onTextureMap;
+extern std::string textureWords;
+bool IsTheTextureMapScreen(size_t screen);
+void LeaveTextureMap();
+extern int32_t hierarchyShownPlace[3];
+extern std::vector<int32_t> hierarchySkin;
+extern bool hierarchyBones;
+
+// THE HIERARCHY VIEW'S TEXT, as inteng draws it (FUN_004889d0 0x48a07a to 0x48a96b, every frame, FUN_0057b1b0(font, x, y, format, ...)): lines at x 0, y = 16 * row, the row starting at 3 and going down by one per line
+// (the first, at 200, doesn't count). The order and the words are the exe's: "(Text off)" when T has turned the text off, then, as each applies, "Play commands affect all sequences" (x 200), "Vertex Selection Mode", Offset / Rel Quat
+// of the selected section, "Platform speed %.3f m/s (%.3f)", "Poly Count %d", "Use Camera Root", "Detail level %d", "Detail distance %.3fm", "Current distance %.3fm", the main sequence's name, its flags (FUN_0047dc80:
+// Upper / Lower Sequence, No Interpolation, 1/2 Frame Rate), the frame flags and sounds (FUN_00478bb0: "Flag %s at 3,7", "Sound %d at %d"; the names FUN_00478f00), "Key frame :%d" (FUN_004790a0), "Timer :%d" (the
+// player's position, 0 to 65535: FUN_0047dbc0 adds the frame time to it while it runs and wraps it), "Seq. Time :%.1f sec" or "... sec  (%.1f)" with its OBASEQTM time, "(Saving Seq. Times)".
+// NOT A GAP (Vasquez 11-17, hierarchy-closeout-frost.md TB-5): "Variant %d of %s" (0x48a0e0-0x48a124) is drawn only when FUN_0057aa00(4) says the game kind DAT_00915104 is 4, and AvP's inteng
+// only ever sets it to 0 (FUN_0057a850 0x57a918): never in AvP. NAMED GAPS (not built, the lines are missing when they would show): the delta-state lines of the other game's mode; Poly Count shows 0 (the exe's hierarchy code only ever sets it to 0). The selected section's
+// Offset / Rel Quat are the constants the exe's own code leaves in them (0 and the identity: FUN_0047ef70 writes them each frame); the order of the delta players' blocks is the game's list order (newest first).
+struct HierarchyTextLine
+{
+	int32_t x;
+	int32_t row;
+	std::string text;
+	int32_t pixelY = -1;   // a line inteng places from the window's foot (Snap To Vertex's, at height - 60): drawn there, its row its place / 16 for the state line
+};
+
+// made in editor_main.cpp
+extern std::vector<HierarchyTextLine> hierarchyTextNow;
+extern std::string screenTextNow;
+extern std::string pathLinesNow;
+void AcousticTextLines(std::vector<HierarchyTextLine> *out);
+extern std::vector<std::array<uint8_t, 8>> acousticPicks;
+void PlacementTextLines(std::vector<HierarchyTextLine> *out);
+void TrackTextLines(std::vector<HierarchyTextLine> *out);
+void WaypointTextLines(std::vector<HierarchyTextLine> *out);
+void HierarchyTextLines(std::vector<HierarchyTextLine> *out);
+void RunAction(int32_t id);
+int32_t BarActionOfCommand(int32_t command);
+extern int zoomStage;
+extern int zoomCentre[2];
+extern int zoomHalf;
+extern ui::Box zoomViewBox;
+host::PaintBox GrayBehind(int32_t x, int32_t y, int32_t width, int32_t height);
+std::string HexOf(const uint8_t *id);
+extern std::unique_ptr<host::LinkTree> linkTree;
+extern std::vector<int32_t> linkPicks;
+void LinkPicksLetGo();
+std::vector<int32_t> PickedModules();
+
+// made in path_screen.cpp
+int32_t GameModuleOfNumber(int32_t number);
+
+// made in construction_modes_screen.cpp
+extern std::vector<host::ShapeChoice> chooserList;
+extern size_t chooserAt;
+extern int32_t chooserCameraZ;
+bool ObjectNameInUse(std::string const &name);
+void CreateNamedAtTheView(std::string const &typed);
+extern std::unique_ptr<host::AdjacentList> adjacentList;
+extern bool adjacentShowAllPaint;
+bool LinkMakeCurrent(int32_t module);
+extern host::AutoLinkRunner autoLinkRun;
+extern int32_t autoLinkKept;
+extern bool autoLinkFromFile;
+extern std::string autoLinkFileWords;
+extern std::string lightSpinWord;
+void LightMarkerTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t frame);
+void WaypointBoxClick(int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight);
+int32_t WaypointPickedObject(OpenLevelFile *open);
+
+// made in editor_screen_keys.cpp
+extern bool linkFollowCamera;
+extern unsigned viewGeneration;
+extern size_t strategyTextureCount;
+
+// made in strategy_data_screen.cpp
+bool StrategyIconUnderClick(int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight, int32_t levelDistance, uint8_t id[8]);
+void StrategyListClick(host::PickReport const &report, bool shift, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight);
+void StrategySelectByTexture(host::PickReport const &report);
+extern bool hiddenModulesStale;
+void ShotFinish(bool drawn, FlyCamera const &camera, bool levelDrawn, int windowWidth, int windowHeight);
+
+// OBJECT PLACEMENT'S CLICK (reassess/object-placement.md OP-120; FUN_004d9af0 0x4da83b-0x4da957 calls FUN_004d6520 on a left press in state 0 when not snapping): every object of the PLACEMENT LIST that has a
+// block not hidden is a candidate: the placed shapes AND the special objects (generators, bad guys, sounds, player starts, particle generators); FUN_0046ddb0 gives each the pixel distance from the pointer
+// to its CENTRE projected on the screen (-1.0 behind the camera); the smallest with 0.0 <= d wins wherever it is (the best starts at 100000000.0, no nearest-enough limit); FUN_004d64a0 makes it THE current
+// object (one object: no Shift, no set). No candidate in front of the view: FUN_004d64a0(0), none current. The "select by polygons" option of the Construction screen is not read here.
+struct PlacementPick
+{
+	int what = 0;                    // 0 none, 1 a placed shape (report), 2 a special object (kind, number), 3 a placed hierarchy (number)
+	host::PickReport report;
+	host::SpecialKind kind = host::SpecialKind::Generator;
+	size_t number = 0;
+	std::string name;
+};
+
+// made in strategy_data_screen.cpp
+PlacementPick PlacementClickPick(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight);
+void PlacementClickUse(PlacementPick const &pick);
+extern std::vector<host::PolyCountRow> polyRows;
+extern size_t polyPage;
+
+static size_t const polyRowsPerPage = 50;
+
+// made in strategy_data_screen.cpp
+extern bool moduleOverlapsOn;
+void UpdateDummyObject();
+void WaypointHidePass();
+void WriteTheAsc(std::string const &typed, bool doorsClosed);
+
+// made in path_screen.cpp
+extern int32_t pathNumber;
+extern std::string pathName;
+extern std::vector<host::PathNode> pathNodes;
+void PathTintsEveryFrame();
+
+// made in editor_main.cpp
+void PromptWords(std::string *title, std::string *hint);
+void AddSpecialMarkers(const ui::PanelLayout &layout, host::PaintText *lines, size_t *lineCount, host::PaintBox *boxes, size_t *boxCount);
+
+// made in editor_panels.cpp
+PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines, host::PaintBox *boxes, ui::Box *titleBoxes);
+
+// made in editor_main.cpp
+int main(int, char **);

@@ -79,14 +79,14 @@ namespace host
 		return sqrt(dy * dy + dx * dx);
 	}
 
-	int PickCentre_Nearest(PickCamera const &camera, int32_t clickX, int32_t clickY, PickCentre const *candidates, size_t count, bool zeroTaken)
+	int PickCentre_Nearest(PickCamera const &camera, int32_t clickX, int32_t clickY, PickCentre const *candidates, size_t count, bool zeroTaken, double farthest)
 	{
 		if (!candidates)
 		{
 			return -1;
 		}
 
-		double best = kPickCentreFarthest;
+		double best = farthest;
 		int taken = -1;
 
 		for (size_t i = 0; i < count; i++)

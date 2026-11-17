@@ -1,0 +1,216 @@
+# ACCEPTANCE (red first; Drake 11-17, OP close-out OP-50..OP-72): the right button's Quick-create Lists on Object Placement (inteng's table 0x5e7108, page 0's pop-up), every item, on his path
+# (Invasion, the file opened as a double click). Each item is FUN_004de260(shape name): a shape the level holds is placed at the VIEW with the first free name "<shape><n>" (FUN_004d5620,
+# "%s%d") and made current, no dialog; one it does not hold asks "%s is not in this file.\nWould you like to have it imported?" (FUN_00474a40 Yes / No): No changes nothing; Yes looks for the
+# shape's file, and none: the message "Failed to find the file containing that shape". The pop-up's 4 lists are Create Weapon (8), Create Ammo (8), Create Light (3), Create Other (3). Invasion
+# holds 11 of the 22 shapes (pulse, smart, flame, pistol, skeeter, smrtam01, flam01, Simple, Mine, armour01, medbox01). File > Save a copy: the game's loader reads the 11 made objects back.
+# RED on bishop-int 056fed50: a shape the level does not hold gave a status line ("shape not in this level"), not inteng's confirm.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-win 500 300 right
+wait 200
+click-popup 1
+wait 200
+click-popup 1
+wait 400
+expect-no-dialog
+expect-status Object pulse9 made at the view
+click-win 500 300 right
+wait 200
+click-popup 1
+wait 200
+click-popup 2
+wait 400
+expect-no-dialog
+expect-status Object smart0 made at the view
+click-win 500 300 right
+wait 200
+click-popup 1
+wait 200
+click-popup 3
+wait 400
+expect-no-dialog
+expect-status Object flame2 made at the view
+click-win 500 300 right
+wait 200
+click-popup 1
+wait 200
+click-popup 4
+wait 400
+expect-dialog sadar is not in this file.
+expect-dialog-kind confirm
+picture 1
+click-button Yes
+expect-dialog Failed to find the file containing that shape
+picture 2
+key Enter
+expect-no-dialog
+click-win 500 300 right
+wait 200
+click-popup 1
+wait 200
+click-popup 5
+wait 400
+expect-dialog grenade is not in this file.
+expect-dialog-kind confirm
+click-button No
+expect-no-dialog
+click-win 500 300 right
+wait 200
+click-popup 1
+wait 200
+click-popup 6
+wait 400
+expect-dialog minigun is not in this file.
+expect-dialog-kind confirm
+click-button No
+expect-no-dialog
+click-win 500 300 right
+wait 200
+click-popup 1
+wait 200
+click-popup 7
+wait 400
+expect-no-dialog
+expect-status Object pistol3 made at the view
+click-win 500 300 right
+wait 200
+click-popup 1
+wait 200
+click-popup 8
+wait 400
+expect-no-dialog
+expect-status Object skeeter1 made at the view
+click-win 500 300 right
+wait 200
+click-popup 2
+wait 200
+click-popup 1
+wait 400
+expect-dialog pulam is not in this file.
+expect-dialog-kind confirm
+click-button No
+expect-no-dialog
+click-win 500 300 right
+wait 200
+click-popup 2
+wait 200
+click-popup 2
+wait 400
+expect-dialog Grenband is not in this file.
+expect-dialog-kind confirm
+click-button No
+expect-no-dialog
+click-win 500 300 right
+wait 200
+click-popup 2
+wait 200
+click-popup 3
+wait 400
+expect-no-dialog
+expect-status Object smrtam012 made at the view
+click-win 500 300 right
+wait 200
+click-popup 2
+wait 200
+click-popup 4
+wait 400
+expect-no-dialog
+expect-status Object flam015 made at the view
+click-win 500 300 right
+wait 200
+click-popup 2
+wait 200
+click-popup 5
+wait 400
+expect-dialog rocam01 is not in this file.
+expect-dialog-kind confirm
+click-button No
+expect-no-dialog
+click-win 500 300 right
+wait 200
+click-popup 2
+wait 200
+click-popup 6
+wait 400
+expect-dialog grenbx01 is not in this file.
+expect-dialog-kind confirm
+click-button No
+expect-no-dialog
+click-win 500 300 right
+wait 200
+click-popup 2
+wait 200
+click-popup 7
+wait 400
+expect-dialog miniamo is not in this file.
+expect-dialog-kind confirm
+click-button No
+expect-no-dialog
+click-win 500 300 right
+wait 200
+click-popup 2
+wait 200
+click-popup 8
+wait 400
+expect-dialog 6spears is not in this file.
+expect-dialog-kind confirm
+click-button No
+expect-no-dialog
+click-win 500 300 right
+wait 200
+click-popup 3
+wait 200
+click-popup 1
+wait 400
+expect-dialog Bulb is not in this file.
+expect-dialog-kind confirm
+click-button No
+expect-no-dialog
+click-win 500 300 right
+wait 200
+click-popup 3
+wait 200
+click-popup 2
+wait 400
+expect-no-dialog
+expect-status Object Simple0 made at the view
+click-win 500 300 right
+wait 200
+click-popup 3
+wait 200
+click-popup 3
+wait 400
+expect-no-dialog
+expect-status Object Mine0 made at the view
+click-win 500 300 right
+wait 200
+click-popup 4
+wait 200
+click-popup 1
+wait 400
+expect-no-dialog
+expect-status Object armour015 made at the view
+click-win 500 300 right
+wait 200
+click-popup 4
+wait 200
+click-popup 2
+wait 400
+expect-no-dialog
+expect-status Object medbox019 made at the view
+click-win 500 300 right
+wait 200
+click-popup 4
+wait 200
+click-popup 3
+wait 400
+expect-dialog Pboost is not in this file.
+expect-dialog-kind confirm
+click-button No
+expect-no-dialog
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} kept pulse9 kept smart0 kept flame2 kept pistol3 kept skeeter1 kept smrtam012 kept flam015 kept Simple0 kept Mine0 kept armour015 kept medbox019

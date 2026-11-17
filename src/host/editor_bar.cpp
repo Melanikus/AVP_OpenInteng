@@ -759,19 +759,8 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 			host->changeType = 2;
 			break;
 		case host::IntengWork::AltLocation:
-			// Assign Group Number and Change shown location ask for a number; the others act at once
-			if (item->command == 0x66)
-			{
-				host->prompt = kPromptAltGroup;
-			}
-			else if (item->command == 0x69)
-			{
-				host->prompt = kPromptAltIndex;
-			}
-			else
-			{
-				host->altLocation = item->command;
-			}
+			// every item goes to AltLocationCommand; Assign Group Number (0x66) and Change shown location (0x69) open inteng's number window there (OP-36, OP-38)
+			host->altLocation = item->command;
 			break;
 		case host::IntengWork::QuickCreate:
 			host->quickCreate = item->command;

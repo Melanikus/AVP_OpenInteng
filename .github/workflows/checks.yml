@@ -74,6 +74,18 @@ jobs:
           fi
           echo "No declaration Snyk Code can't parse."
 
+      # Snyk Code also skips, without saying so, a file over about 1 MiB: src/host/editor_main.cpp was left out at 1,057,726 bytes (read at
+      # 1,027,933), found 2026-11-17, twice. This fails at 900 KB, before Snyk would skip the file, and names it, so it's split in time.
+      - name: Fail on a source file too big for Snyk Code to read
+        run: |
+          found=$(git ls-files -- '*.cpp' '*.c' '*.h' '*.hpp' ':!avpx' | while IFS= read -r f; do s=$(stat -c %s "$f"); if [ "$s" -gt 921600 ]; then echo "$f: $s bytes"; fi; done)
+          if [ -n "$found" ]; then
+            echo "$found"
+            echo "::error::Snyk Code skips a source file over about 1 MiB without saying so: split it (this check stops at 900 KB, to leave room)"
+            exit 1
+          fi
+          echo "Every source file is under 900 KB."
+
   avpx-pin:
     name: The AvPx pin
     runs-on: ubuntu-24.04   # pinned, as above

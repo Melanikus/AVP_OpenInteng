@@ -1,0 +1,25 @@
+# ACCEPTANCE (red first): Light Sourcing's START takes every light's changed flag (4) out (Frost, 2026-11-17; light-closeout-frost.md TB-L8). inteng's start makes each light's record with its chunk's local
+# flags WITHOUT 4 (FUN_004ae5d0 0x4aedb8 for a light of the set, 0x4aeaa8 for a placed one), and the Exit's write-back writes the record's: a light changed in one visit is saved with 4, and after the next
+# visit (nothing changed in it) without. On Invasion, light 5's spread is made larger (> to Spread, +): it is changed; Exit saves it; Light Sourcing again; Exit. The copy (verify_lightstart): light 5's
+# spread is the larger one, and its local flags are the opened level's, WITHOUT 4.
+# RED before (41a5864c): the 4 stayed in the file for good.
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+face-light 5
+key Period
+expect-status Spread
+hold Plus 600
+expect-status Spread
+item 0xa
+expect-screen Construction
+click-bar Mode > Light Sourcing
+expect-screen Light Sourcing (with Doors)
+wait 600
+picture 1
+item 0xa
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_lightstart/verify_lightstart.exe {orig} {copy} 5

@@ -1,0 +1,90 @@
+# ACCEPTANCE (red first; Drake 11-17, OP close-out): the single rows of Object Placement on his path (Invasion, the file opened as a double click), each block named by its row.
+# OP-29 Create > Player starting position (FUN_004216d0: no name dialog, made at the view, current); FUN_00422110 then names every player start "Player Start %d" in order (0x5cd1e0),
+#   which its text line shows. OP-136: E on it does nothing (its +0x38 is RET 0x401b30; ours says so on the status line).
+# OP-11 Object > Delete (no confirm): a placed object (switch3) and a special (a generator) gone at once; the copy read back without them.
+# OP-41 Misc > Keys: the keys text (0x5e853c) on a full text screen that a key does not close, only a MOUSE press ("Click to continue.", FUN_004724f0).
+# OP-48 Misc > Show Polygon Counts: every module painted by its figure (FUN_004d5e60), one with no link data by its own (Invasion: 2 of 310 have none), so none is white.
+# OP-84 keys 8 / 7: wireframe / polygons (inteng: bit 0x20000000 on every active block; ours: the view's draw mode, the same picture).
+# OP-7 Mode > Save: the level written (ours: a copy, the ruling), the screen stays. OP-6 Mode > Exit: the level written, the hub.
+# RED on 68626089: the player start was "Default name"; Show Polygon Counts' words had no counts.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+
+# ---- OP-29 / OP-136: a player start, and E on it
+click-bar Create > Player starting position
+expect-no-dialog
+wait 300
+expect-status Player starting position made at the view
+expect-field-has hierarchylines Player Start
+key E
+wait 300
+expect-no-dialog
+expect-status has no settings to edit
+
+# ---- OP-11: Delete a placed object, then a special
+click-win 504 364
+expect-selected 1
+expect-hierarchy-text switch3
+click-bar Object > Delete
+expect-no-dialog
+wait 300
+expect-status Object deleted
+click-bar Create > AVP generator
+expect-dialog Name Object
+form-field 1 genDel
+click-button OK
+expect-no-dialog
+expect-status (genDel)
+click-bar Object > Delete
+expect-no-dialog
+wait 300
+expect-status AVP generator deleted
+
+# ---- OP-41: Misc > Keys: a key leaves it, a press closes it
+click-bar Misc > Keys
+wait 300
+expect-field-has textscreen Backspace Deselect object
+picture 1
+key T
+wait 300
+expect-field-has textscreen Backspace Deselect object
+click-win 500 300
+wait 300
+expect-field-empty textscreen
+
+# ---- OP-48: Misc > Show Polygon Counts: every module painted by its figure, none white
+click-bar Misc > Show Polygon Counts
+wait 300
+expect-status Show Polygon Counts: on: 310 modules painted by polygon count:
+expect-status 0 white (no data)
+picture 3
+click-bar Misc > Show Polygon Counts
+wait 300
+expect-status Show Polygon Counts: off
+
+# ---- OP-84: 8 / 7
+key 8
+wait 300
+expect-field viewmode polyline+unlit
+picture 2
+key 7
+wait 300
+expect-field viewmode polygon+unlit
+
+# ---- OP-7: Mode > Save, the screen stays
+click-bar Mode > Save
+wait 600
+expect-status Saved a copy:
+expect-screen Object Placement
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} gone switch3 gone genDel
+
+# ---- OP-6: Mode > Exit, the hub
+click-bar Mode > Exit
+wait 600
+expect-screen Construction

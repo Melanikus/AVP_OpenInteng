@@ -167,12 +167,15 @@ static void TakeGeometry(Scenario *s)
 	}
 }
 
-static bool AskState(Scenario *s)
+// waitMs: how long the editor has to answer. 10 seconds after a step; the first ask, just after the editor starts, gets longer (see where
+// it's called): the editor answers only once its level is loaded, and with several editors starting at once (run-shards.sh) a big level
+// took longer than 10 seconds, so the run failed at its first check although every step after it passed (Bishop, 2026-11-17).
+static bool AskState(Scenario *s, DWORD waitMs = 10000)
 {
 	Drain(s);
 	PostMessageW(s->editor.window, WM_APP + 6, 0, 0);
 
-	std::string const line = WaitForLine(&s->editor, "AVP_OpenInteng: scenario: ", 10000);
+	std::string const line = WaitForLine(&s->editor, "AVP_OpenInteng: scenario: ", waitMs);
 
 	if (line.empty())
 	{
@@ -2598,7 +2601,7 @@ int main(int argc, char **argv)
 	if (started)
 	{
 		s.editor.keepLines = true;
-		Check(AskState(&s), "the editor says its state");
+		Check(AskState(&s, 60000), "the editor says its state");
 		printf("  (%s)\n", s.last.empty() ? "no state line" : s.last.substr(s.last.find("scenario: ")).c_str());
 
 		for (size_t i = 0; i < steps.size(); i++)

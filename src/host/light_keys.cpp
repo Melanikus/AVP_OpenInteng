@@ -392,6 +392,44 @@ namespace host
 		return file->SetPayload(chunk, payload) ? LightEditResult::Done : LightEditResult::LoaderRefused;
 	}
 
+	LightEditResult LightCopyOver(OpenLevelFile *file, LightKeyRef const &target, LightKeyRef const &source, bool sourceDown)
+	{
+		if (!file || !file->Level())
+		{
+			return LightEditResult::NothingOpen;
+		}
+
+		Chunk *fromChunk = nullptr, *toChunk = nullptr;
+		std::vector<unsigned char> from, to;
+		bool const haveFrom = source.placed ? ReadPlaced(file, source.objectId, &fromChunk, &from) : Read(file, source.light, &fromChunk, &from);
+		bool const haveTo = target.placed ? ReadPlaced(file, target.objectId, &toChunk, &to) : Read(file, target.light, &toChunk, &to);
+
+		if (!haveFrom || !haveTo)
+		{
+			return LightEditResult::NoSuchLight;
+		}
+
+		// the colour: the copied light's up or down one by its [5]; into the same one of a placed target, whose [5] becomes the copied one's (a light of the set's [5] is 0: the up colour)
+		bool const down = source.placed && sourceDown;
+		Layout const &fromAt = source.placed ? (down ? kPlacedDown : kPlacedUp) : kStd;
+		Layout const &toAt = target.placed ? (down ? kPlacedDown : kPlacedUp) : kStd;
+
+		// both placed: the copied PLOBJLIT's 15 numbers first (Placed_Object_Light_Data, 60 bytes), the target's extra words kept
+		if (source.placed && target.placed)
+		{
+			memcpy(to.data(), from.data(), 60);
+		}
+
+		Put(&to, toAt.brightness, Get(from, fromAt.brightness));
+		Put(&to, toAt.spread, Get(from, fromAt.spread));
+		Put(&to, toAt.range, Get(from, fromAt.range));
+		Put(&to, toAt.colour, Get(from, fromAt.colour));
+		Put(&to, toAt.engine, Get(from, fromAt.engine));
+		Put(&to, toAt.local, (int32_t)((uint32_t)Get(from, fromAt.local) | kLocalChanged));
+
+		return file->SetPayload(toChunk, to) ? LightEditResult::Done : LightEditResult::LoaderRefused;
+	}
+
 	LightEditResult Ambience_Change(OpenLevelFile *file, int steps, int *percent)
 	{
 		if (!file || !file->Level())
@@ -529,6 +567,106 @@ namespace host
 
 					count++;
 				}
+			}
+		}
+		catch (std::exception const &)
+		{
+			return LightEditResult::CantBuild;
+		}
+
+		if (changed)
+		{
+			*changed = count;
+		}
+
+		return LightEditResult::Done;
+	}
+
+	LightEditResult LightsAtStart(OpenLevelFile *file, size_t *changed)
+	{
+		size_t count = 0;
+
+		if (changed)
+		{
+			*changed = 0;
+		}
+
+		if (!file || !file->Level())
+		{
+			return LightEditResult::NothingOpen;
+		}
+
+		size_t const kPlacedLocalFlags = 24, kPlacedFlags = 56;   // PLOBJLIT: the local flags (7th number), the flags word (15th)
+		uint32_t const kNoSpecularPlaced = 0x4, kNoSpecularEngine = 0x800;   // PlacedLightFlag_NoSpecular, LFlag_NoSpecular
+
+		try
+		{
+			File_Chunk *const level = file->Level();
+
+			// the set's lights: the record's local flags are the chunk's & ~4 (0x4aedb8)
+			for (size_t i = 0; Chunk *const chunk = FindLightChunk(level, i); i++)
+			{
+				std::vector<unsigned char> payload;
+
+				if (!file->PayloadOf(chunk, &payload) || payload.size() < 84)
+				{
+					continue;
+				}
+
+				uint32_t const local = (uint32_t)Get(payload, kLocalFlags);
+
+				if ((local & kLocalChanged) != 0)
+				{
+					Put(&payload, kLocalFlags, (int32_t)(local & ~kLocalChanged));
+
+					if (!file->SetPayload(chunk, payload))
+					{
+						return LightEditResult::LoaderRefused;
+					}
+
+					count++;
+				}
+			}
+
+			// the placed lights: NoSpecular moved (0x4aea2e), then the record's local flags & ~4 (0x4aeaa8)
+			::List<Object_Chunk *> objects;
+
+			level->list_objects(&objects);
+
+			for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+			{
+				Object_Chunk *const object = each();
+				Chunk *const placed = object ? FindPlacedLightChunk(level, (uint8_t const *)&object->object_data.ID) : nullptr;
+				std::vector<unsigned char> payload;
+
+				if (!placed || !file->PayloadOf(placed, &payload) || payload.size() < kPlacedFlags + 4)
+				{
+					continue;
+				}
+
+				uint32_t const flags = (uint32_t)Get(payload, kPlacedFlags);
+				uint32_t const local = (uint32_t)Get(payload, kPlacedLocalFlags);
+				bool const moveSpecular = (flags & kNoSpecularPlaced) != 0;
+
+				if (!moveSpecular && (local & kLocalChanged) == 0)
+				{
+					continue;
+				}
+
+				if (moveSpecular)
+				{
+					Put(&payload, kPlacedFlags, (int32_t)(flags & ~kNoSpecularPlaced));
+					Put(&payload, kPlacedEngineFlags, (int32_t)((uint32_t)Get(payload, kPlacedEngineFlags) | kNoSpecularEngine));
+				}
+
+				Put(&payload, kPlacedLocalFlags, (int32_t)(local & ~kLocalChanged));
+
+				if (!file->SetPayload(placed, payload))
+				{
+					return LightEditResult::LoaderRefused;
+				}
+
+				count++;
 			}
 		}
 		catch (std::exception const &)

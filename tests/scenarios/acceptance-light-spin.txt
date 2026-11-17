@@ -1,0 +1,39 @@
+# ACCEPTANCE (red first): Light Sourcing turns the marker of every CHANGED light (Frost, 2026-11-17; light-closeout-frost.md TB-L6). inteng's frame (FUN_004ab670) gives each light of the set with the
+# changed flag (4), but the one flying with L, the turn rate 300 about its own axis and turns its block (FUN_004ab670 -> FUN_0053c4f0): its marker spins, a turn in about 13.7 seconds; a light not
+# changed stands still. INTENG BUG, FIXED: inteng's write-back took a light's turn from its turned block, so a changed light was saved turned; here the light's own turn is saved.
+# On Invasion: no light turns at first; light 5's spread made larger (> to Spread, +): its marker turns (the state line's lightspin "5:<tenths of a degree>", changing as time goes); U takes the changed
+# flag out: it stops; + again: it turns; after a while Exit and a copy: light 5's spread is the larger one and its turn the opened level's (verify_lightturn).
+# RED before (8a09314d): no marker turned (no lightspin at all).
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+expect-field-empty lightspin
+face-light 5
+key Period
+expect-status Spread
+hold Plus 600
+expect-status Spread
+wait 500
+state
+expect-field-has lightspin 5:
+remember-field lightspin
+picture 1
+wait 1500
+state
+expect-field-changed lightspin
+picture 2
+key U
+expect-status updated
+wait 300
+state
+expect-field-empty lightspin
+key Plus
+wait 2500
+state
+expect-field-has lightspin 5:
+item 0xa
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_lightturn/verify_lightturn.exe {orig} {copy} 5

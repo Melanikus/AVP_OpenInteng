@@ -160,8 +160,8 @@ int32_t const kPromptAscDoors = 6;   // Write Asc File (Doors closed)
 int32_t const kPromptMoveRelPoly = 10; // Move rel. to poly: the distance from the polygon, in metres (inteng: "distance to move from the poly in metres :") (unused since 2026-11-17: the distance is inteng's number window; the number stays taken)
 
 int32_t const kPromptName = 3;       // a new name for the selected object
-int32_t const kPromptAltGroup = 4;   // Alt Locations, Assign Group Number: the group number (0 means no group)
-int32_t const kPromptAltIndex = 7;   // Alt Locations, Change shown location: the index for every object
+int32_t const kPromptAltGroup = 4;   // Alt Locations, Assign Group Number (unused since 2026-11-17: inteng's number window, OP-36; the number stays taken)
+int32_t const kPromptAltIndex = 7;   // Alt Locations, Change shown location (unused since 2026-11-17: inteng's number window, OP-38; the number stays taken)
 int32_t const kPromptSmallLimit = 8;  // Find Small Modules: the limit, in metres
 int32_t const kPromptSmallPick = 9;   // Find Small Modules: which of the small modules to go to (a number from the list)
 int32_t const kPromptVisibility = 17;   // AutoLink > Set Visibility (0xa4): the visible distance in whole metres (0 keeps every module) (registry number 17)

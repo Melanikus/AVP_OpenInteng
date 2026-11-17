@@ -238,6 +238,55 @@ static void OneObject(OpenLevelFile *f, uint8_t const *id, std::string const &wh
 	host::TrackEdit_AnswerSound(f, &ed, 2, "x.wav 500 100", &act);
 	Check(!act.changed, where + ": ranges the wrong way round are refused");
 
+	// T-1: Sound > Edit hands the sound to edobtype's Sound Edit window (FUN_004f2bf0): the track's own, or (none) inteng's new one (FUN_004f2a60: "Not Set", flags 1, made in the editor's units)
+	host::TrackEdit_Command(f, &ed, 0x528, place, &act);
+	Check(act.prompt == host::TrackPrompt::Sound && act.soundIndex == 1 && !act.soundNew && act.sound.wav == "door_open.wav" && act.sound.innerRange == 100 && act.sound.outerRange == 200,
+		where + ": Start Sound > Edit hands over the start sound as the track holds it");
+	host::TrackEdit_Command(f, &ed, 0x52b, place, &act);
+	host::TrackEdit_Command(f, &ed, 0x52a, place, &act);
+	Check(act.prompt == host::TrackPrompt::Sound && act.soundIndex == 2 && act.soundNew && act.sound.wav == "Not Set" && act.sound.flags == 1 && act.sound.maxVolume == 127 && act.sound.pitch == 0,
+		where + ": End Sound > Edit with no end sound hands over inteng's new one (Not Set, loops, volume 127, pitch 0)");
+
+	// what the window gives back is taken whole, as inteng's __ftol takes it: "Not Set" (a Cancel on a new one), ranges the wrong way round
+	{
+		host::TrackSound back;
+
+		back.wav = "Not Set";
+		back.innerRange = 6250;
+		back.outerRange = 3125;
+		back.maxVolume = 101;
+		back.pitch = -128;
+		back.flags = 1;
+		host::TrackEdit_SetSound(f, &ed, 2, back, &act);
+		Check(act.changed, where + ": the window's sound is set whatever its numbers: " + act.words);
+
+		host::TrackLoaded now;
+		bool endIs = false;
+
+		if (ed.working)
+		{
+			now = *ed.working;
+		}
+
+		for (host::TrackSound const &s : now.sounds)
+		{
+			endIs = endIs || (s.index == 2 && s.wav == "Not Set" && s.innerRange == 6250 && s.outerRange == 3125 && s.maxVolume == 101 && s.pitch == -128 && s.flags == 1);
+		}
+
+		Check(endIs, where + ": the end sound in memory is the window's");
+
+		// HOSTILE: a name longer than the file's bound or with a zero inside is never written (the game copies the name to its first zero)
+		back.wav = std::string(host::kTrackSoundNameMost + 1, 'a');
+		host::TrackEdit_SetSound(f, &ed, 2, back, &act);
+		Check(!act.changed, where + ": a name longer than " + std::to_string(host::kTrackSoundNameMost) + " letters is refused");
+		back.wav = std::string("a\0b.wav", 7);
+		host::TrackEdit_SetSound(f, &ed, 2, back, &act);
+		Check(!act.changed, where + ": a name with a zero inside is refused");
+		back.wav.clear();
+		host::TrackEdit_SetSound(f, &ed, 2, back, &act);
+		Check(!act.changed, where + ": an empty name is refused");
+	}
+
 	host::TrackLoaded fin;
 
 	if (ed.working)

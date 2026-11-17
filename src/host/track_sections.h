@@ -106,7 +106,8 @@ namespace host
 
 	struct TrackSound
 	{
-		uint32_t innerRange = 500000;   // inteng's defaults for a new one (FUN_004f2a60 0x4f2a9d..0x4f2ad0)
+		uint32_t innerRange = 500000;   // the FILE's units here. inteng's new one (FUN_004f2a60 0x4f2a9d..0x4f2ad0) holds 500000 / 1000000 in ITS units (the file's x 100 x the scale) and flags 1:
+		                                // the Sound Edit window's path makes a new one from those (track_editor.h TrackAction::soundNew, editor_main.cpp TrackSoundWindow)
 		uint32_t outerRange = 1000000;
 		int32_t maxVolume = 127;
 		int32_t pitch = 0;

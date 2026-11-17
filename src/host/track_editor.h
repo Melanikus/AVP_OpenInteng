@@ -79,7 +79,9 @@ namespace host
 		int32_t cursor[3] = { 0, 0, 0 };
 		TrackPrompt prompt = TrackPrompt::None;
 		int soundIndex = 0;
-		std::string promptDefault;    // what the prompt starts with (a sound: the name, a tab, then the numbers separated by spaces)
+		std::string promptDefault;    // what the prompt starts with
+		TrackSound sound;             // a sound's Edit: the sound as the track holds it (the file's units), for edobtype's Sound Edit window (FUN_004f2bf0)
+		bool soundNew = false;        // the track had no such sound: inteng made one (FUN_004f2a60), its ranges in inteng's own units (500000 / 1000000)
 		TrackData playData;
 		std::vector<TrackSound> playSounds;   // the track's sounds, played with it (the game's sound code)
 	};
@@ -112,6 +114,10 @@ namespace host
 	void TrackEdit_AnswerTime(OpenLevelFile *file, TrackEditor *editor, std::string const &typed, TrackAction *action);
 	void TrackEdit_AnswerFlags(OpenLevelFile *file, TrackEditor *editor, std::string const &typed, TrackAction *action);
 	void TrackEdit_AnswerSound(OpenLevelFile *file, TrackEditor *editor, int soundIndex, std::string const &typed, TrackAction *action);
+
+	// The sound back from the Sound Edit window (FUN_004f2bf0, after OK or Cancel alike): it becomes the track's sound of that index (0 the track's own, 1 start, 2 end), made if the track had none,
+	// whatever its numbers (inteng takes the window's floats through __ftol and checks none). Its name is bound as the file's: 1 to kTrackSoundNameMost letters, no zero inside.
+	void TrackEdit_SetSound(OpenLevelFile *file, TrackEditor *editor, int soundIndex, TrackSound const &sound, TrackAction *action);
 	void TrackEdit_AnswerDelete(OpenLevelFile *file, TrackEditor *editor, std::string const &typed, TrackAction *action);
 
 	// The play has reached the end of a track that does not loop (the game's code set playing to 0): back to state 2 as Stop (0x515) does

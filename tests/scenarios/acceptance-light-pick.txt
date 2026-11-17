@@ -1,0 +1,33 @@
+# ACCEPTANCE (red first): Light Sourcing's two clicks (Frost, 2026-11-17; light-closeout-frost.md TB-L3 / TB-L4).
+# Select: Light (0x46, the screen's start; FUN_004ab2c0): the light whose block is under the pointer (a placed light's OBJECT, or an ordinary light's marker), else the light, ordinary OR PLACED, whose
+# centre is nearest the pointer on the screen. Select: Object (0x48; FUN_004ab200): the object whose centre is nearest the pointer on the screen; in that mode there is no current light, so the light
+# keys find none. On Invasion the camera is put 4039 mm in front of the placed light lighth (number 423, at -44359 -19700 44039), looking at it, and the view's middle is clicked:
+#   Light mode: lighth is picked, and P opens its "Light properties" (a placed light's window);
+#   Object mode: the click picks lighth as an OBJECT; P opens nothing and C says there is no light.
+# RED before (77737ed9): ours picked only ordinary lights in Light mode (nearest the click's line), so P said "pick an object that has a placed light"; Object mode took the general click and the keys
+# worked on the object as a light.
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+camera -44359 -19700 40000 0
+wait 600
+click-view 0.5 0.5
+expect-status Picked: the placed light
+key P
+expect-dialog Light properties
+picture 1
+key Enter
+expect-no-dialog
+item 0x48
+expect-status picks an object
+click-view 0.5 0.5
+expect-status Picked: lighth
+key P
+expect-no-dialog
+key C
+expect-status Copy: pick a light first
+picture 2
+item 0x46
+expect-status picks a light

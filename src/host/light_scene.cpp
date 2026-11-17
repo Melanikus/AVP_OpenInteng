@@ -167,6 +167,7 @@ namespace host
 			marker.matrix[3] = (int32_t)d.orientation.mat21; marker.matrix[4] = (int32_t)d.orientation.mat22; marker.matrix[5] = (int32_t)d.orientation.mat23;
 			marker.matrix[6] = (int32_t)d.orientation.mat31; marker.matrix[7] = (int32_t)d.orientation.mat32; marker.matrix[8] = (int32_t)d.orientation.mat33;
 			marker.hidden = (d.local_light_flags & 0x20) != 0;   // LOFlag_Invisible
+			marker.changed = (d.local_light_flags & 0x4) != 0;   // LOFlag_Changed
 
 			// what the editor's own bytes say now (Hide All, the I key and Fly light change them with SetPayload, which the parsed chunk does not see): the place (@4), the 3 x 3 (@16) and the local flags (@72) of the 84 bytes
 			std::vector<unsigned char> bytes;
@@ -183,6 +184,7 @@ namespace host
 				}
 
 				marker.hidden = (at(72) & 0x20) != 0;
+				marker.changed = (at(72) & 0x4) != 0;
 			}
 			out->push_back(marker);
 		}

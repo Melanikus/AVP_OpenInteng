@@ -1,0 +1,32 @@
+# ACCEPTANCE (red first): Light Sourcing's T is the SELECTED placed light's own (Frost, 2026-11-17; light-closeout-frost.md TB-L5). inteng's record of each light has its own [5] (FUN_004acf30 0x4ad4bf
+# flips the selected one's; the screen's start makes it 0, the up colour), and the colour keys work on the colour it chose. On Invasion: T on the placed light lighth (number 423), the attribute Red (eight
+# presses of > from Brightness), + on it: its DOWN colour's red goes up; then the placed light light21 (number 410), + again: ITS UP colour's red goes up (its own T was not pressed). Exit, a copy read
+# back by the game's loader (verify_placedcolour).
+# RED before (822ab201): one T for every placed light, so light21's DOWN colour changed and its up colour did not.
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+pick-module 423
+key T
+expect-status DOWN colour
+key Period
+key Period
+key Period
+key Period
+key Period
+key Period
+key Period
+key Period
+expect-status Red
+key Plus
+expect-status Red
+pick-module 410
+key Plus
+expect-status Red
+picture 1
+item 0xa
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_placedcolour/verify_placedcolour.exe {orig} {copy} lighth light21

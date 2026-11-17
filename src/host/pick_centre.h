@@ -42,5 +42,9 @@ namespace host
 
 	// The index of the candidate the click takes, or -1 for none: the smallest distance above 0.0 (zeroTaken: 0.0 or above) and below kPickCentreFarthest, the first on a tie.
 	// zeroTaken: Object Placement's click (FUN_004d6520 0x4d66c1: DAT_005ab360 (0.0) <= d < best); Module Linking's Select With Centres takes only above 0.0.
-	int PickCentre_Nearest(PickCamera const &camera, int32_t clickX, int32_t clickY, PickCentre const *candidates, size_t count, bool zeroTaken = false);
+	// farthest: where the best starts (Light Sourcing's light and object clicks, FUN_004ab2c0 / FUN_004ab200: 1,000,000.0, kPickCentreLightFarthest).
+	int PickCentre_Nearest(PickCamera const &camera, int32_t clickX, int32_t clickY, PickCentre const *candidates, size_t count, bool zeroTaken = false, double farthest = kPickCentreFarthest);
+
+	// Light Sourcing's start for the best distance (FUN_004ab2c0 0x4ab2d3, FUN_004ab200 0x4ab21a: 1,000,000.0 pixels)
+	double const kPickCentreLightFarthest = 1000000.0;
 }
