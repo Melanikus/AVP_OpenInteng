@@ -3,7 +3,10 @@
 // (A's "upper" slot, starts as A's maximum), S10 = local_98[10..12] (A's "lower" slot, starts as A's minimum), S13 = local_98[13..15] (B's upper, starts as B's maximum), S7 =
 // local_98[7..9] (B's lower, starts as B's minimum).
 
+// CHECKED line by line on dump-full-2 (61547-62369) by Vasquez 2026-11-16: every step matches (reassess/autolink-meet-vasquez.md AM-1..AM-9); its numbers are autolink_rules.h's.
+
 #include "autolink_portal.h"
+#include "autolink_rules.h"
 
 #include <math.h>
 
@@ -11,9 +14,9 @@ namespace host
 {
 	namespace
 	{
-		int32_t const kWide = 29999;       // 0x4c48c1: an overlap above this is "wide" (30 m)
-		int32_t const kNearPlane = 1000;   // 0x4c4a94: a point within 0x3e9 - 1 of the contact plane
-		int32_t const kFacing = 10000;     // 0x4c4d5c, 0x4c4d81: a normal component beyond +-10000 (of 65536)
+		int32_t const kWide = autolink_rules::kMeetWide;           // 0x4c48c1: an overlap above this is "wide" (30 m)
+		int32_t const kNearPlane = autolink_rules::kPlaneNear;     // 0x4c4a94 / 0x4c4b83: a point within 0x3e9 - 1 of the contact plane
+		int32_t const kFacing = autolink_rules::kNormalAlong;      // 0x4c4d5c, 0x4c4d81: a normal component beyond +-10000 (of 65536)
 		int32_t const kMostCorners = 4;    // inteng's slots are 4 (named in the header)
 
 		int32_t Abs(int64_t value)
@@ -209,7 +212,7 @@ namespace host
 			}
 		}
 
-		if (wide < 2 || least < -1000)
+		if (wide < autolink_rules::kMeetWideAxes || least < autolink_rules::kMeetGap)
 		{
 			return false;
 		}
@@ -310,8 +313,9 @@ namespace host
 					continue;
 				}
 
-				int64_t pMin[3] = { 1000000000, 1000000000, 1000000000 };
-				int64_t pMax[3] = { -1000000000, -1000000000, -1000000000 };
+				int64_t const box = autolink_rules::kCornerBoxStart;
+				int64_t pMin[3] = { box, box, box };
+				int64_t pMax[3] = { -box, -box, -box };
 
 				for (size_t s = 0; s < corners; s++)
 				{
@@ -337,7 +341,7 @@ namespace host
 				}
 
 				int best = -1;
-				double bestRatio = 2.0;
+				double bestRatio = autolink_rules::kNarrowRatioStart;
 				int64_t clipMin[3] = { 0, 0, 0 };
 				int64_t clipMax[3] = { 0, 0, 0 };
 
@@ -420,7 +424,7 @@ namespace host
 			s4[i] = upper;
 			s10[i] = lower;
 
-			if ((int64_t)lower - 1000 <= upper)
+			if ((int64_t)lower - autolink_rules::kPortalWide <= upper)
 			{
 				return false;
 			}

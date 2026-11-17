@@ -1,0 +1,49 @@
+# ACCEPTANCE (red first): "Camera position saved" wherever inteng's FUN_004704d0 runs (Bishop's ruling 11-16 on OX-SC (4): "1:1, everywhere FUN_004704d0 runs"; reassess/camera-saved-vasquez.md CS-1 .. CS-18).
+# FUN_004704d0(slot) saves the camera in the slot and writes "Camera position saved" (0x5d3d54) at once at (200, 100) of the window (FUN_0057bd40, straight onto the screen: gone with the next frame). The state
+# line's camerasaved counts how many times it ran (the words are on the screen for one frame only, so a picture cannot catch them: camerasaveddrawn counts the frames that drew them, one per save). His path, on Invasion opened as by a double click:
+# Shift + F1 (FUN_004705a0 0x4705ca, CS-1); Construction left for Object Placement (the hub's leave FUN_004476d0 0x447804, CS-2); Create > With shape > Choose (the chooser's start FUN_004dd910 0x4dd913, CS-4); its
+# Escape (no save: FUN_004ddad0 / FUN_004d68e0 do not call it); Object Placement's Exit (FUN_004d9820 0x4d9925, CS-5); Module Overlaps on and off (FUN_00445110 0x445115 / FUN_00445270 -> FUN_004476d0, CS-3);
+# F1 restores (FUN_00470550: no save).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-field camerasaved 0
+expect-field camerasaveddrawn 0
+key F1 shift
+wait 200
+expect-field camerasaved 1
+expect-field camerasaveddrawn 1
+key F1
+wait 200
+expect-field camerasaved 1
+expect-field camerasaveddrawn 1
+click-bar Mode > Object Placement
+wait 300
+expect-screen Object Placement
+expect-field camerasaved 2
+expect-field camerasaveddrawn 2
+item 0x32
+wait 300
+expect-screen Shape Chooser
+expect-field camerasaved 3
+expect-field camerasaveddrawn 3
+key Esc
+wait 300
+expect-screen Object Placement
+expect-field camerasaved 3
+expect-field camerasaveddrawn 3
+click-bar Mode > Exit
+wait 300
+expect-screen Construction
+expect-field camerasaved 4
+expect-field camerasaveddrawn 4
+click-bar Miscellaneous > Module Overlaps
+wait 300
+expect-field camerasaved 5
+expect-field camerasaveddrawn 5
+click-bar Miscellaneous > Module Overlaps
+wait 300
+expect-field camerasaved 6
+expect-field camerasaveddrawn 6
+picture 1

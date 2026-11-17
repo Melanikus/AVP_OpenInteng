@@ -401,6 +401,26 @@ namespace host
 					{
 						field(w.box, w.text, i == box.Focus());
 					}
+					else if (w.type == DialogWidgetType::Group)
+					{
+						// the frame's four edges (BS_GROUPBOX, whose top edge runs through the middle of its words' line), then the words on black over the top edge
+						int32_t const top = w.box.y + fontHeight / 2;
+						DialogRect const edges[4] = { { w.box.x, top, w.box.width, 1 }, { w.box.x, w.box.y + w.box.height - 1, w.box.width, 1 }, { w.box.x, top, 1, w.box.y + w.box.height - top },
+						                              { w.box.x + w.box.width - 1, top, 1, w.box.y + w.box.height - top } };
+
+						for (DialogRect const &edge : edges)
+						{
+							fill(edge, kDialogWhite);
+						}
+
+						if (!w.text.empty())
+						{
+							DialogRect const behind = { w.box.x + 6, w.box.y, (int32_t)w.text.size() * (fontHeight / 2) + 4, fontHeight };
+
+							fill(behind, kDialogBlack);
+							text(w.text, w.box.x + 8, w.box.y - 1);
+						}
+					}
 					else if (w.type == DialogWidgetType::Check)
 					{
 						framed(w.box, w.enabled ? kDialogWhite : kDialogBlue, kDialogBlack);
@@ -528,6 +548,15 @@ namespace host
 					{
 						s.combos += (s.combos.empty() ? "" : "|") + Word(w.text.empty() ? std::string("-") : w.text, w.box);
 						s.text += (edits++ ? "|" : "") + w.text;
+
+						// an editable combo also takes letters as a field does (its box left of the arrow): form-field counts it, in the form's order (Vasquez 11-16)
+						if (w.editable)
+						{
+							DialogRect typedPart = w.box;
+
+							typedPart.width = w.box.width > 16 ? w.box.width - 16 : w.box.width;
+							s.fields += (s.fields.empty() ? "" : "|") + Word("field", typedPart);
+						}
 
 						if (w.listOpen)
 						{

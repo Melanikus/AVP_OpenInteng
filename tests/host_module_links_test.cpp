@@ -111,6 +111,130 @@ int main()
 		Check(Items(tree) == "1/4 2/0 5/4 6/0", "an element after a found branch is looked for along the branch's chain: " + Items(tree));
 	}
 
+	// ML-A-7, AutoLink's insertion (FUN_004c6fb0): NOT Normal's walk. R(100) -> 1 (branch 2, not closed) -> 3
+	{
+		host::LinkTree tree(100);
+
+		tree.Normal(1);
+		tree.Branch(2);   // 1 -> [2], open
+		tree.Close(1);
+		tree.Normal(3);   // after 1
+		tree.View(1);     // 1's branch open again, still marked closed: open it fully with Open
+		tree.Open(1);     // 1's branch not closed; 3 (after it) closed: it has no branch, so nothing changes for it
+		Check(Items(tree) == "1/2 2/0 3/0", "the tree to start from: 1 -> [2], then 3: " + Items(tree));
+
+		host::LinkTree::AutoLinkPicture picture = tree.AutoLinkBegin(-1);
+		// the walk goes along the whole chain (1, 3) first: 3 is met, so it is not added again (Normal would go into 1's branch first, miss 3, and add it a second time)
+		Check(!tree.AutoLinkAdd(&picture, 3), "a module on the walked chain is not added again");
+		// a new one goes after the end of the last not-closed branch's chain: 2, inside 1's branch
+		Check(tree.AutoLinkAdd(&picture, 4), "a new module is added");
+		tree.AutoLinkEnd(picture);
+		Check(Items(tree) == "1/3 2/0 4/0 3/0", "it went after 2, inside 1's branch: " + Items(tree));
+	}
+
+	// ML-A-7 (c), a DOOR's second picture: R(100) -> 1 -> 5 (the door) -> 6; the new modules become 5's branch, which is opened, then closed at the end (inteng's red / green door)
+	{
+		host::LinkTree tree(100);
+
+		tree.Normal(1);
+		tree.Normal(5);
+		tree.Normal(6);
+		host::LinkTree::AutoLinkPicture picture = tree.AutoLinkBegin(5);
+		Check(tree.AutoLinkAdd(&picture, 7), "the first module seen through the door is added");
+		Check(tree.AutoLinkAdd(&picture, 8), "and the next");
+		Check(!tree.AutoLinkAdd(&picture, 6), "a module already on the chain is not added again");
+		tree.AutoLinkEnd(picture);
+		Check(Items(tree) == "1/0 5/4 7/0 8/0 6/0", "they became the door's branch, in order: " + Items(tree));
+
+		bool red = false;
+
+		for (host::LinkTree::Tint const &one : tree.Tints())
+		{
+			red = red || (one.module == 5 && one.rgb == 0xFF0000);
+		}
+
+		Check(red, "the door's branch is closed at the end: the door is drawn red");
+	}
+
+	// ML-A-7, NESTED door pictures (FUN_004c6fb0 calls itself at 0x4c785c after its own insertions and BEFORE its own Close at 0x4c7952): R(100) -> 1 -> 5 (door A); A's second picture
+	// sees 7 and door B (9); B's second picture (inside A's) sees 11. Each picture keeps its own door node and branch flag, so B's Close does not end A's, and A closes last.
+	{
+		host::LinkTree tree(100);
+
+		tree.Normal(1);
+		tree.Normal(5);
+
+		host::LinkTree::AutoLinkPicture a = tree.AutoLinkBegin(5);
+
+		tree.AutoLinkAdd(&a, 7);
+		tree.AutoLinkAdd(&a, 9);   // the door B, seen through A, goes into A's branch
+
+		host::LinkTree::AutoLinkPicture b = tree.AutoLinkBegin(9);
+
+		Check(tree.AutoLinkAdd(&b, 11), "the module seen through B is added");
+		tree.AutoLinkEnd(b);
+		// FUN_004c46c0's numbers: an item with a branch holds the place of the first item after it (5 at place 2 with 7, 9, 11 under it: 5; 9 at place 4 with 11: 5)
+		Check(Items(tree) == "1/0 5/5 7/0 9/5 11/0", "11 is B's branch, inside A's: " + Items(tree));
+		Check(a.door == 5 && a.branchMade, "A's own state is kept while B's picture runs");
+		tree.AutoLinkEnd(a);
+
+		bool fiveRed = false, green = false;
+
+		for (host::LinkTree::Tint const &one : tree.Tints())
+		{
+			fiveRed = fiveRed || (one.module == 5 && one.rgb == 0xFF0000);
+			green = green || ((one.module == 5 || one.module == 9) && one.rgb == 0x00FF00);
+		}
+
+		Check(fiveRed && !green, "A's branch is closed at the end, after B's: 5 red, neither door green");
+	}
+
+	// ML-A-7, a door picture that REUSES the door's branch: AutoLinkBegin un-closes and opens it (0x4c7023) and counts it as made, so AutoLinkEnd closes it again. (A bad pixel
+	// leaves inteng's FUN_004c6fb0 before its Close, 0x4c729a, so inteng left it open: INTENG BUG, FIXED in AutoLinkTreeWriter, host_autolink_run_test.)
+	{
+		host::LinkTree tree(100);
+
+		tree.Normal(1);
+		tree.Normal(5);
+		tree.Branch(6);   // 5 -> [6]
+		tree.Close(5);
+
+		host::LinkTree::AutoLinkPicture again = tree.AutoLinkBegin(5);
+
+		Check(again.branchMade, "the door's branch is reused");
+
+		bool green = false;
+
+		for (host::LinkTree::Tint const &one : tree.Tints())
+		{
+			green = green || (one.module == 5 && one.rgb == 0x00FF00);
+		}
+
+		Check(green, "it is open while the picture runs (green)");
+	}
+
+	// ML-A-7, INTENG BUG, FIXED (MAPPING-ORDERS section 15): an OPEN branch BEFORE the door on the chain. inteng finds the door by Normal's walk (0x4c6fe8-0x4c702e: into the FIRST open
+	// branch, never back), so it walks into 1's branch, misses 2, and hangs what is seen through door 2 on 11. The door is now found by the insertion's own walk (each whole chain first).
+	// R(100) -> 1 -> 2; door 1's picture is still running (its branch [11] open), and inside it door 2's picture sees 22.
+	{
+		host::LinkTree tree(100);
+
+		tree.Normal(1);
+		tree.Normal(2);
+
+		host::LinkTree::AutoLinkPicture one = tree.AutoLinkBegin(1);
+
+		tree.AutoLinkAdd(&one, 11);   // 1 -> [11], open (Open Branch from 1)
+
+		host::LinkTree::AutoLinkPicture two = tree.AutoLinkBegin(2);
+
+		Check(two.doorNode != nullptr && tree.AutoLinkAdd(&two, 22), "the module seen through door 2 is added");
+		// FUN_004c46c0's numbers: 1 at place 1 with [11]: 2; 2 at place 3 with [22]: 4 (inteng's walk would give 1/3 11/3 22/0 2/0: 22 under 11)
+		Check(Items(tree) == "1/2 11/0 2/4 22/0", "22 is door 2's branch, not 11's: " + Items(tree));
+		tree.AutoLinkEnd(two);
+		tree.AutoLinkEnd(one);
+	}
+
 	printf("%d checks failed\n", checksFailed);
 	return checksFailed ? 1 : 0;
 }

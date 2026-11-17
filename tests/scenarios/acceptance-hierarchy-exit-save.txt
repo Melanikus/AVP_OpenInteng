@@ -1,7 +1,9 @@
 # ACCEPTANCE: Hierarchy's EXIT SAVES a changed file, and the collections' text file (Frost, 2026-11-16; reassess/hierarchy-play-frost.md HP-1 / HP-29; Bishop's ruling: beside the saved copy).
 # inteng: Exit (case 0x2, FUN_004888d0 0x488967): when the hierarchy code marked the file changed (DAT_00637134: FUN_0047da50 sets it when + writes OBASEQTM) it saves the file with no question
 # (FUN_004719e0) and then FUN_0048cac0 writes one line per shape-set collection, "%d\t%s\n" (number, name), into a text file named ".txt" (DAT_0091506c "." + RIFFNAME cut at the first '.').
-# Ours: the saved COPY (Melanikus's rule: never his file) in the editor's folder for copies, and ".txt" beside it.
+# Ours: the saved COPY (Melanikus's rule: never his file) in the editor's folder for copies, and the text file beside it. Its name: INTENG BUG, FIXED (MAPPING-ORDERS section 15,
+# HP-29): the cut at the first '.' (_strchr 0x48cbed) falls on DAT_0091506c's own ".", so inteng's file is always ".txt"; it meant the RIFFNAME without its extension: ShotgunBot's
+# REBENVDT RIFFNAME is "hnpcmarine" (read from its bytes), so "hnpcmarine.txt".
 # By his path: open his ShotgunBot (start-args: the double-click; one hierarchy, eight HSETCOLL collections: officer, marine2, marine3, cap, officer3, hat, Smart Gunner, Shotgun Marine 2),
 # Mode > Hierarchy, Select Hierarchy (one: no dialog, FUN_0048b8a0 0x48b931), a sequence, Hierarchy > Save changes to sequence times, +, then Mode > Exit.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/ShotgunBot.RIF
@@ -22,9 +24,9 @@ click-bar Hierarchy > Save changes to sequence times
 key Plus
 wait 300
 
-# Exit: saved with no question (a copy), the hub, and the collections' lines in ".txt" beside the copy (each "%d<tab>%s" ends with LF alone, as inteng writes it: findstr's $ is not used)
+# Exit: saved with no question (a copy), the hub, and the collections' lines in "hnpcmarine.txt" beside the copy (each "%d<tab>%s" ends with LF alone, as inteng writes it: findstr's $ is not used)
 click-bar Mode > Exit
 expect-screen Construction
 expect-status Saved a copy:
-verify findstr /R /C:"^[0-9][0-9]*.officer" {exedir}AVP_OpenInteng\edited\.txt
-verify findstr /R /C:"^[0-9][0-9]*.Smart.Gunner" {exedir}AVP_OpenInteng\edited\.txt
+verify findstr /R /C:"^[0-9][0-9]*.officer" {exedir}AVP_OpenInteng\edited\hnpcmarine.txt
+verify findstr /R /C:"^[0-9][0-9]*.Smart.Gunner" {exedir}AVP_OpenInteng\edited\hnpcmarine.txt

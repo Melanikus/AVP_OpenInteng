@@ -133,9 +133,15 @@ static void TestTheTablesAreInteng()
 	puts("The tables are inteng's:");
 
 	const char *const hubTitles[] = { "File", "Mode", "Object", "Shape", "Miscellaneous", "Options" };
-	size_t const hubCounts[] = { 4, 10, 9, 2, 4, 3 };
+	size_t const hubCounts[] = { 5, 10, 9, 2, 4, 3 };
 
-	Check(MenusAre(0, hubTitles, hubCounts, 6), "construction's bar is inteng's: File 4, Mode 10, Object 9, Shape 2, Miscellaneous 4, Options 3 items");
+	// File holds inteng's 4 and the owner's Save, second (Melanikus 2026-11-16, "Let's put a save on the hub": named, not inteng's)
+	Check(MenusAre(0, hubTitles, hubCounts, 6), "construction's bar is inteng's with the owner's Save: File 5 (Quit, Save, Write C, Write Asc, Write Asc doors closed), Mode 10, Object 9, Shape 2, Miscellaneous 4, Options 3 items");
+
+	IntengMenu const *const file = &kIntengScreens[0].menus[0];
+
+	Check(file && file->count == 5 && strcmp(file->items[0].name, "Quit") == 0 && strcmp(file->items[1].name, "Save") == 0 && file->items[1].work == IntengWork::SaveCopy &&
+		file->items[1].command == 0 && strcmp(file->items[2].name, "Write C File") == 0, "the hub's Save is second, after Quit, does Object Placement's Save (SaveCopy), and has no inteng command");
 	Check(kIntengScreens[0].menus[1].count == 10 && strcmp(kIntengScreens[0].menus[1].items[8].name, "Strategy Data: Normal") == 0
 		&& strcmp(kIntengScreens[0].menus[1].items[9].name, "Strategy Data: No Textures") == 0,
 		"a sub-item is shown as its menu's words and its own (Mode, Strategy Data > Normal and No Textures)");

@@ -1,0 +1,43 @@
+# ACCEPTANCE (red first): the trip through the Shape Chooser, with inteng's bugs FIXED and named (MAPPING-ORDERS section 15, Melanikus 11-16 "Fix all inteng bugs"; reassess/object-placement.md OP-5a / OP-5b /
+# OP-5c, Frost's OX-SC; Vasquez).
+# (1) inteng's chooser start FUN_004dd910 drops the current object (DAT_008f4f3c = 0, 0x4dd9b5): ours drops it too, and PROPERLY (INTENG BUG, FIXED: inteng skips the unselect FUN_004d64a0 / +0x2c, so the old
+#     object stays drawn red as selected with nothing current, 0x4e2fa0 / 0x4e2fb0). Back from the chooser nothing is current.
+# (2) INTENG BUG, FIXED: inteng half-stops a flight there (0x4dd98d-0x4dd9ad: the flag, the axes and the speeds only, not FUN_004df090), and its dynamics FUN_0046da10 run on every screen (WinMain 0x58ced3),
+#     so in the chooser and after it the arrows move the hidden object and not the camera. Ours stops the flight fully and the chooser takes every key: inside it the arrows move nothing; after it they
+#     move the CAMERA.
+# (3) INTENG BUG, FIXED (a fault guard): inteng's chooser clears the split flag only (DAT_008f4f60 = 0 without FUN_004d5d80), so the four views stay and each later S makes three more; ours takes the split down.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+select-row 0
+expect-selected 1
+# (1) Replace shape, then Escape: the object is no longer current, inside the chooser and back
+item 0x1d
+expect-screen Shape Chooser
+expect-selected 0
+key Esc
+wait 300
+expect-screen Object Placement
+expect-selected 0
+picture 1
+# (2) fly the object (F), open the chooser while it flies (Replace shape works while flying, 0x4dc30e), hold an arrow inside: the view does not move
+select-row 0
+expect-selected 1
+key F
+wait 200
+item 0x1d
+expect-screen Shape Chooser
+remember-field camera
+hold Up 400
+wait 200
+expect-field-same camera
+key Esc
+wait 300
+expect-screen Object Placement
+# back: nothing flies, the arrows move the CAMERA (inteng: the hidden object, with the camera stuck)
+remember-field camera
+hold Up 400
+wait 200
+expect-field-changed camera
+picture 2

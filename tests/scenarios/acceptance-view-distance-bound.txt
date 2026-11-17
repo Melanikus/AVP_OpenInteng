@@ -1,0 +1,14 @@
+# ACCEPTANCE: the view distance's ONE upper bound (Dietrich, 2026-11-16; row ML-E-8 of AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md; Bishop's ruling: 2,147,000,000 everywhere,
+# the largest multiple of 500,000 below 2^31, a named FAULT GUARD: inteng's keys have no bound and a held key wraps its signed int). His path: his saved distance, the hub's H held.
+# A saved ViewDistance= above the old cap of 100,000,000 is kept as it is ("View Distance :%d" is the distance / 500,000), and H takes it past 100,000,000.
+#ini ViewDistance=150000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+# ---- 150,000,000 / 500,000 = 300 (the old cap made it 200)
+expect-number screentext View_Distance_: 300 300
+# ---- H held for a second: it goes on growing past 100,000,000, never past the bound (4294)
+hold H 1000
+wait 300
+expect-number screentext View_Distance_: 301 4294

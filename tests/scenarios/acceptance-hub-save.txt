@@ -1,0 +1,34 @@
+# ACCEPTANCE: the hub's File > Save, and Save written OVER the opened file with a backup (Dietrich, 2026-11-16). THE OWNER'S ADDITION and RULING, named (Melanikus: "How do I save my
+# linking? ... when I close it's not overwritten?", "Let's put a save on the hub", then "Overwrite, with backup"): inteng's hub File has Quit / Write C / Write Asc only; Save sits second,
+# after Quit, and does what every screen's Save does: the level, with everything in memory (Module Linking's trees included, written at its Exit), written over the file it was opened
+# from, the one before kept as "<file>.bak" (level_save.h: a temporary file read back through the game's loader, then put in place). A HIDDEN RUN never writes an opened file: its stand-in
+# is <its folder>\AVP_OpenInteng\edited\Invasion-edited.rif, first filled from the opened file, so the same steps and the same .bak are checked there.
+# His path: Invasion, Module Linking, gARAGDOR, AutoLink > Module (delete old), Exit, File > Save; read back through the game's loader: the file holds the run's links (the same modules and
+# door branch as the stock: verify_autolink same-branches) and the .bak is the level as it was opened, item for item.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+#ini ViewDistance=100000000
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+# no file from an earlier run may be read in place of this one's
+verify cmd /c del /q "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif" "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif.bak" 2>nul & exit 0
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+click-view 0.5 0.5
+key S
+expect-status Current module: gARAGDOR (7 links)
+click-view 0.5 0.5
+click-bar AutoLink > Module (delete old)
+wait 3000
+expect-status AutoLink: 1 modules run
+# ---- Exit, then the hub's File > Save
+item 0x64
+expect-screen Construction
+click-bar File > Save
+wait 1500
+expect-status Invasion-edited.rif
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_autolink/verify_autolink.exe {orig} {exedir}AVP_OpenInteng\edited\Invasion-edited.rif gARAGDOR same-branches
+# ---- the one before, kept: the level as it was opened, gARAGDOR's stock links item for item
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_autolink/verify_autolink.exe {orig} {exedir}AVP_OpenInteng\edited\Invasion-edited.rif.bak gARAGDOR same-items

@@ -1,0 +1,60 @@
+# ACCEPTANCE (red first): Object Placement's Edit of a GENERATOR opens edobtype's "Generator Settings" 1:1 (A-8, reassess/object-placement.md OP-131; generator_settings.h; Melanikus 11-16 on the Tools
+# build: "both sub menus for object placement ... just show a grey useless parameter up/down"). Resource 133 as the DLL lays it out: the edits in the resource's order (1027 .. 1032 Marine, 1033 .. 1036 / 1038
+# Civilian, 1039 .. 1041 Alien, 1042 / 1043 the rates, 1049 Marine Pistol, 1051 Max NPCs), the boxes (1047, 1044 .. 1046, 1048, 1052, 1059, 1009 .. 1011); the rates shown as MFC's float text ("0", not
+# "0.00"); OK reads the controls in DoDataExchange's order (Alien 1039 before Pulse Rifle 1027) and the first refused says MFC's words; the copy is read back by the game's loader (verify_special).
+# INTENG BUGS, FIXED (named in generator_settings.h): Use global generator times / Use own max npc setting each written on the bit read; a rate rounded, not truncated (0.29 stays 0.29).
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0xcc
+expect-screen Object Placement
+# Create > AVP generator (0x34): "Name Object", then the new generator is current (flags 0x3801: Marine, Alien, Predator; no settings yet)
+item 0x34
+expect-dialog Name Object
+form-field 1 genV
+click-button OK
+expect-no-dialog
+# Object > Edit (0x18): the window, every edit 0, every box as the flags say (Use global generator times: 0x4000000 clear; Easy / Medium / Hard: their NOT bits clear)
+item 0x18
+expect-dialog Generator Settings
+# the window is DRAWN (at 64 boxes and lines a frame it was not, and its keys still went to it)
+expect-pixels-changed panels 0 0 1000 700 0.05
+expect-dialog-text 0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0
+expect-dialog-checks on,on,on,on,off,off,off,on,on,on
+picture 1
+# Pulse Rifle (the 1st edit) 2000 and Alien (the 12th) abc: the DLL reads Alien first: "Please enter an integer.", and the window stays as typed
+form-field 1 2000
+form-field 12 abc
+click-button OK
+expect-dialog Please enter an integer.
+key Enter
+expect-dialog Generator Settings
+expect-dialog-text 2000|0|0|0|0|0|0|0|0|0|0|abc|0|0|0|0|0|0
+# Alien 7: now Pulse Rifle's range: "Please enter an integer between 0 and 1000."
+form-field 12 7
+click-button OK
+expect-dialog Please enter an integer between 0 and 1000.
+key Enter
+expect-dialog Generator Settings
+# Pulse Rifle 5, the rate 0.29 (the 15th edit), Max NPCs 200 (the 18th); Use own max npc setting on (the 6th box), Medium off (the 9th): OK
+form-field 1 5
+form-field 15 0.29
+form-field 18 200
+click-check 6
+click-check 9
+expect-dialog-checks on,on,on,on,off,on,off,on,off,on
+click-button OK
+expect-no-dialog
+# Edit again: what was kept (0.29 stays 0.29: the rate rounded, not truncated)
+item 0x18
+expect-dialog Generator Settings
+expect-dialog-text 5|0|0|0|0|0|0|0|0|0|0|7|0|0|0.29|0|0|200
+expect-dialog-checks on,on,on,on,off,on,off,on,off,on
+picture 2
+click-button Cancel
+expect-no-dialog
+# the copy through the game's loader: the weights, the rate, Max NPCs, the flags (0x8000000 advanced, 0x2000000 own max, 0x200000 NOT Medium on; 0x4000000 own rate, NOT Easy / Hard, inactive, multiplayer off)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_special/verify_special.exe {copy} "generator|genV|weight0=5|weight11=7|rate=29|increase=0|limit=200|flagson=a203800|flagsoff=c4500000"

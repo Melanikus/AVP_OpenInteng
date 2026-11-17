@@ -102,6 +102,7 @@ namespace host
 		int32_t polygonNumber;        // which polygon of the hit shape, counting from 0 in the order the game walks them; -1 if it isn't known
 		bool hasCorner;               // true: nearestCorner below was found. Not for the parts of a hierarchical model (a body, a pickup's arm)
 		int32_t nearestCorner[3];     // the corner of that polygon nearest the hit point, in the world, in millimetres
+		void const *hierarchySection; // the part of a hierarchical model whose polygons the line met (the game's SECTION_DATA, LOS_HModel_Section), or null; only compared, never read
 	};
 
 	// What the status line says about report, written into words: at most size - 1 letters, always ending in 0, nothing at all if size

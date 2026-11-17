@@ -38,6 +38,7 @@ namespace host
 		NoEnvironment,  // the level has no REBENVDT
 		CantBuild,      // the level couldn't be put together from its bytes
 		LoaderRefused,  // the game's own loader wouldn't take the changed level, so nothing was changed
+		BadBytes,       // strategy bytes shorter than a strategy's header (12) or longer than 65536
 	};
 
 	char const *VirtualObjectWords(VirtualObjectResult result);
@@ -78,6 +79,10 @@ namespace host
 	// Gives the virtual object with that ID a new strategy of that kind (model::MakeNewStrategy: every field at its creation value), in place of the AVPSTRAT its VIOBJECT holds, if any (FUN_00528830
 	// on a virtual object: the class takes Binary / Linked / Multi / Area Switch, Mission Objective, Message, Volume of Death, Self Destruct). The strategy goes last in the VIOBJECT, after its VOBJPROP.
 	VirtualObjectResult VirtualObject_AssignStrategy(OpenLevelFile *file, uint8_t const *id, int32_t kind);
+
+	// Puts these strategy bytes (the AVPSTRAT's payload) in place of the strategy of the virtual object with that ID, as AssignStrategy does: object_edit.h's SetStrategyBytes reaches placed objects and
+	// modules only, so a Mission Objective's alterations (S-K70-7, -8, -R), all on virtual objects in the stock levels, are written through this. BadBytes for under 12 or over 65536 bytes.
+	VirtualObjectResult VirtualObject_SetStrategyBytes(OpenLevelFile *file, uint8_t const *id, uint8_t const *payload, size_t length);
 
 	// The place (file units) and the shape's min and max points of the object with that ID: false when there is no such object or it has no shape
 	bool VirtualObject_Geometry(File_Chunk *level, uint8_t const *id, int64_t place[3], int64_t min[3], int64_t max[3]);

@@ -12,6 +12,9 @@
 #   B4  Play Track plays the track's start, middle and end sounds, by the GAME's own sound code (track.cpp Start_Track_Sound / Update_Track_Sound, psnd.cpp, OpenAL), found under the level's SOUNDDIR as the
 #       game finds them; a loop sound sounds only within its outer range of the listener (the game's rule), so the camera is put at the track's start. The sound system must start, the game must load the
 #       track's sounds and at least one must be sounding; Stop track play lets them go. (A run with no sound device says SKIPPED, not ok.)
+#   SILENCE  These runs are HIDDEN (-picture): nobody is at the screen, so nothing may be heard (Melanikus 11-16: "been hearing them all afternoon"). The output volume, OpenAL's listener gain, is read on
+#       every frame from Play to the check and must never be above the game's volume 0 (0.00001, openal_audio.cpp vol_to_gain_table[0]): SoundSys_Management sets the volume back to the effects' volume
+#       on every call (psnd.cpp:133-139), so the silence must hold the effects' volume at 0 too.
 #
 # HOW: the editor's own hidden proof runs (-trackposeproof, -tracksoundproof, through the bar and the pop-up the way a user does it, on the stock levels that have tracks).
 #
@@ -34,10 +37,13 @@ done
 for level in Temple Escape Area52 Invasion; do
   LANE_FILE=$lane bash "$runner" "$exe" acc-sound "$level" -picture 500 -tracksoundproof > /dev/null 2>&1
   out=$proofs/acc-sound/$level/run.txt
-  if grep -aq "Track sounds: WORKS in the running editor" "$out" && grep -aq "the sounds are let go: yes" "$out"; then
-    echo "  ok      $level sounds: $(grep -a 'sound system' "$out" | sed 's/.*track proof: //' | cut -c1-160)"
-  elif grep -aq "NOT PROVEN here" "$out"; then
+  if grep -aq "NOT PROVEN here" "$out"; then
     echo "  SKIPPED $level sounds: no sound device in this run"
+  elif ! grep -aq "SILENT on every frame (a hidden run)" "$out"; then
+    echo "  FAILED  $level silence: $(grep -a 'output volume' "$out" | sed 's/.*track proof: //' | cut -c1-200)"
+    bad=1
+  elif grep -aq "Track sounds: WORKS in the running editor" "$out" && grep -aq "the sounds are let go: yes" "$out"; then
+    echo "  ok      $level sounds: $(grep -a 'sound system' "$out" | sed 's/.*track proof: //' | cut -c1-160); $(grep -a 'output volume' "$out" | sed 's/.*track proof: //' | cut -c1-120)"
   else
     echo "  FAILED  $level sounds: $(grep -a 'Track sounds' "$out" | tail -n 1 | cut -c1-200)"
     bad=1

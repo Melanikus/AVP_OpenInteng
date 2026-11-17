@@ -1,0 +1,47 @@
+# ACCEPTANCE: AutoLink > Delete Links: Environment (0xa8) on his path (Dietrich, 2026-11-16; FUN_004c8af0, dump-full-2 64648; rows ML-M-41 / ML-M-42 of
+# AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md). The confirm "Delete all module linking for this level?", then the loop: "Right click to cancel" at (200, 220), each module in
+# record order made current with its links thrown away (FUN_004c10c0(i, 1, 0)), the counter "%03d" at (230, 180); a right press read at the top of each module ends it early; the last module
+# done stays current. Ours runs one module a frame on AutoLink's display. Level: Invasion (its links held in the editor's bytes only; nothing is saved).
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+#ini ViewDistance=100000000
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+# ---- every module's links thrown away: the words and the counter while it runs
+click-bar AutoLink > Delete Links: Environment
+expect-dialog Delete all module linking for this level?
+click-button Yes
+expect-status Delete Links: running
+wait 500
+picture 1
+# white letters on black cells, nothing in between (opaque, crisp): Frost's display, not the wireframe behind
+expect-colour picture 230 180 24 16 ffffff 0.1 8
+expect-colour picture 230 180 24 16 000000 0.3 8
+expect-colour-at-most picture 230 180 24 16 808080 0.0001 100
+expect-colour picture 200 220 140 16 ffffff 0.1 8
+expect-colour picture 200 220 140 16 000000 0.3 8
+expect-colour-at-most picture 200 220 140 16 808080 0.0001 100
+wait 15000
+state
+wait 15000
+expect-status Delete Links: 310 modules, 308 had links
+expect-status-not cancelled
+# ---- the last module done is the current one, with no link; gARAGDOR, made current, has none either
+expect-number linktree links 0 0
+click-view 0.5 0.5
+key S
+expect-status Current module: gARAGDOR (0 links)
+# ---- again, cancelled by a right press soon after it begins
+click-bar AutoLink > Delete Links: Environment
+expect-dialog Delete all module linking for this level?
+click-button Yes
+wait 300
+click-win 500 300 right
+wait 2000
+expect-status cancelled by a right press
+expect-number status Delete_Links: 1 309
+expect-no-dialog

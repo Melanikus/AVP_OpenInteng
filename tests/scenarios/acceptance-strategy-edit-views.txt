@@ -143,11 +143,14 @@ expect-dialog Type name for new virtual object
 type VOSD
 key Enter
 expect-no-dialog
-# a new virtual object is NOT made the current one (FUN_005396d0 / FUN_005393c0 / FUN_00539ee0 never write the current-object globals, FUN_00524e90 0x5251e2 clears them): the camera steps back from where it stands and a click on the V picks it
-hold Z 1500
+# a new virtual object is NOT made the current one (FUN_005396d0 / FUN_005393c0 / FUN_00539ee0 never write the current-object globals, FUN_00524e90 0x5251e2 clears them): it is selected
+# through Find Object (a click on its V hung on how far the camera stepped back while Z was held: timing, red on a busy machine; S-KC-6 offers 78 only to a virtual object)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is VOSD
+expect-no-dialog
+expect-selected 1
 wait 400
-click-win 378 300
-wait 300
 item 0x8
 expect-dialog Select Strategy
 click-button Self_Destruct

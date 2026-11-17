@@ -1,0 +1,90 @@
+# ACCEPTANCE (red first): Strategy Data's 61 LINKED SWITCH and the switches' E, HIS PATH (Vasquez 11-16; strategy-data.md S-K61-1, S-K52-5, S-K52-6; MAPPING-ORDERS section 14).
+# 61's view is code 0x52dfd0: FUN_0052dc90 makes its Links again (every switch strategy, 52 / 61 / 66 / 68, that targets it, in the records' order), then FUN_0052d700 draws 52's lines with
+# "%s : Linked Switch" and, from (0x10, 0x78), "Links:" and each link at (0x14, 0x88 + 16 i): "bs\t%s" for a Binary Switch, "ls\t%s" otherwise (the tab puts the name at 64); none: (0x20, 0x88) "None".
+# Its P form is 52's, but Ok makes a mode of 3 or 4 (Time Delay) into 0 (Timer) (0x52e967-0x52e97a). E on 52 / 61 (slot 0xd87a85, 0x52da16-0x52da29) opens the target's page (FUN_00529b30).
+# Genshd1 (read 11-16 by the game's loader): linktoeverything (61, Wait, Rest off, Reversed, target the Multi Switch immediatesrt) is targeted by genlev02, genlev01, genlev03, genlev04 (66s,
+# that order: the records' order, not the names'); opslevo5 (61) by none; opslev01 (52) targets the Multi Switch tolink04.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+camera 0 0 0 0 0
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is linktoeverything
+expect-no-dialog
+key E
+wait 400
+picture 1
+expect-field strategyview 200@0:linktoeverything : Linked Switch|100@669:E : Edit extra message data for target|100@689:P : Change Properties|100@709:T : Change Target (+Ctrl to choose environment)|16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Target : immediatesrt - Multi switch|16@120:Links:|20@136:ls|64@136:genlev02|20@152:ls|64@152:genlev01|20@168:ls|64@168:genlev03|20@184:ls|64@184:genlev04
+
+# P: 52's form, filled the same way (Wait, Reversed). Time Delay (Autoexec), mode 5, is kept: "Mode : Time Delay -0.000 seconds (starts immediately)", and modes 3 to 5 have no switch-off line
+key P
+wait 300
+expect-dialog Switch Properties
+expect-dialog-checks off,on,off,off,off,off,on,off,off
+click-check 6
+click-button Ok
+expect-no-dialog
+wait 300
+expect-field-has strategyview 16@48:Mode : Time Delay -0.000 seconds (starts immediately)|16@80:Target : immediatesrt - Multi switch
+# Time Delay, mode 4, is made into 0 for a Linked Switch: "Mode : Timer - reset after 0.000 seconds", and the switch-off line is back
+key P
+wait 300
+expect-dialog-checks off,off,off,off,off,on,on,off,off
+click-check 5
+expect-dialog-checks off,off,off,off,on,off,on,off,off
+click-button Ok
+expect-no-dialog
+wait 300
+picture 2
+expect-field-has strategyview 16@48:Mode : Timer - reset after 0.000 seconds|16@64:Switch off message : Reversed (default)|16@80:Target : immediatesrt - Multi switch|16@120:Links:
+
+# E: the target's page (the Multi Switch's, S-84: "Part of link switch set", the request's bit 1, off); Escape ends the page only
+key E
+wait 300
+picture 3
+expect-field-has strategyview 100@0:Target  -  immediatesrt : Switch|32@48:Part of link switch set
+key Esc
+wait 300
+expect-field-has strategyview 200@0:linktoeverything : Linked Switch
+key Esc
+wait 300
+expect-screen Strategy Data
+
+# a Linked Switch no switch targets: "None" at (0x20, 0x88)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is opslevo5
+expect-no-dialog
+key E
+wait 400
+picture 4
+expect-field-has strategyview 200@0:opslevo5 : Linked Switch
+expect-field-has strategyview 16@80:Target : trigtodrandmess - Multi switch|16@120:Links:|32@136:None
+key Esc
+wait 300
+
+# a Binary Switch's E: its target's page (tolink04, a Multi Switch)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is opslev01
+expect-no-dialog
+key E
+wait 400
+expect-field-has strategyview 200@0:opslev01 : Binary Switch
+key E
+wait 300
+picture 5
+expect-field-has strategyview 100@0:Target  -  tolink04 : Switch|32@48:Part of link switch set
+key Esc
+wait 300
+key Esc
+wait 300
+expect-screen Strategy Data
+
+# the copy, read back through the game's own loader: linktoeverything's mode 0, every other strategy as the original's
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} linktoeverything Mode 0

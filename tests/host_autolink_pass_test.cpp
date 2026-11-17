@@ -27,6 +27,9 @@
 #include "level_store.h"
 #include "shape_edit.h"
 #include "autolink_pass.h"
+#include "autolink_render.h"
+#include "autolink_scene.h"
+#include "autolink_views.h"
 
 static int checksFailed = 0;
 
@@ -242,6 +245,127 @@ int main(int argc, char **argv)
 		storedTotal ? 100.0 * (double)found / (double)storedTotal : 0.0, seenTotal, extra, seenTotal ? 100.0 * (double)extra / (double)seenTotal : 0.0);
 
 	Check(tested > 0 && withLinks > 0, "modules with stored links were tested");
+
+	// THE SAME MODULES DRAWN BY DIRECT3D 9 (autolink_render.h: the pictures the editor will use, Bishop's plan 2026-11-16): the views of every portal (AutoLink_ViewsFor), each picture on the card,
+	// read back by AutoLink_Seen. Reported beside the software rasteriser's: RECALL / EXTRA against the stock links, how many modules both passes see alike, and the time per picture. NOT A CHECK
+	// but the device opening and the pictures reading back (a display held by another program is said, and passes: it is no fault of the code).
+	{
+		host::AutoLinkScene scene;
+
+		scene.list = list;
+
+		host::AutoLinkRenderer renderer;
+		std::string why;
+		size_t leftOut = 0;
+
+		if (!renderer.Open(&why) || !renderer.Load(scene, &leftOut, &why))
+		{
+			printf("  --  NO DEVICE for the Direct3D pictures: %s\n", why.c_str());
+		}
+		else
+		{
+			std::vector<uint8_t> const shown(list.size(), 1);
+			size_t gpuStored = 0, gpuFound = 0, gpuSeen = 0, gpuExtra = 0, alike = 0, compared = 0, pictures = 0, bad = 0;
+			LARGE_INTEGER frequency, from, to;
+			long long pictureTicks = 0;
+
+			QueryPerformanceFrequency(&frequency);
+			QueryPerformanceCounter(&from);
+
+			for (size_t at = 0; at < list.size(); at += step ? step : 1)
+			{
+				std::vector<host::LinkItem> items;
+				std::set<int32_t> stored, seen, raster;
+
+				if (host::ReadModuleLinks(level.Level(), list[at].number, &items))
+				{
+					for (host::LinkItem const &item : items)
+					{
+						stored.insert(item.objectIndex);
+					}
+				}
+
+				for (size_t b = 0; b < list.size(); b++)
+				{
+					host::Portal portal;
+
+					if (b == at || !host::AutoLink_ModulesMeet(list[at].module, list[b].module, &portal))
+					{
+						continue;
+					}
+
+					std::vector<host::AutoLinkView> views;
+
+					host::AutoLink_ViewsFor(portal, &views);
+
+					for (host::AutoLinkView const &view : views)
+					{
+						std::vector<uint32_t> pixels;
+						std::vector<int32_t> numbers;
+						LARGE_INTEGER pictureFrom, pictureTo;
+
+						QueryPerformanceCounter(&pictureFrom);
+
+						bool const drawn = renderer.Picture(view, shown, &pixels, &why);
+						bool const read = drawn && host::AutoLink_Seen(pixels, (int32_t)list.size(), &numbers);
+
+						QueryPerformanceCounter(&pictureTo);
+						pictureTicks += pictureTo.QuadPart - pictureFrom.QuadPart;
+
+						if (!drawn)
+						{
+							printf("  FAILED  a picture: %s\n", why.c_str());
+							checksFailed++;
+							b = list.size();
+							break;
+						}
+
+						pictures++;
+
+						if (!read)
+						{
+							bad++;
+							continue;
+						}
+
+						for (int32_t const n : numbers)
+						{
+							seen.insert(list[(size_t)n].number);
+						}
+					}
+				}
+
+				seen.erase(list[at].number);
+				pass.SeenFrom(at, &raster, nullptr, nullptr);
+				compared++;
+				alike += seen == raster ? 1 : 0;
+				gpuStored += stored.size();
+				gpuSeen += seen.size();
+
+				for (int32_t const link : stored)
+				{
+					gpuFound += seen.count(link) ? 1 : 0;
+				}
+
+				for (int32_t const one : seen)
+				{
+					gpuExtra += stored.count(one) ? 0 : 1;
+				}
+			}
+
+			QueryPerformanceCounter(&to);
+
+			double const ms = 1000.0 * (double)(to.QuadPart - from.QuadPart) / (double)frequency.QuadPart;
+
+			double const pictureMs = 1000.0 * (double)pictureTicks / (double)frequency.QuadPart;
+
+			printf("  --  DIRECT3D: %zu pictures, %.2f ms a picture (draw, read-back and 3 x 3 scan; the whole loop with the meet tests and the software pass beside it: %.0f ms), %zu with an unexpected colour; "
+			       "%zu polygons' points left out\n", pictures, pictures ? pictureMs / (double)pictures : 0.0, ms, bad, leftOut);
+			printf("  --  DIRECT3D MATCH: RECALL %.1f%% (%zu of %zu stored links), EXTRA %.1f%% of %zu seen; the same modules seen as the software rasteriser for %zu of %zu modules\n",
+				gpuStored ? 100.0 * (double)gpuFound / (double)gpuStored : 0.0, gpuFound, gpuStored, gpuSeen ? 100.0 * (double)gpuExtra / (double)gpuSeen : 0.0, gpuSeen, alike, compared);
+			Check(pictures > 0 && bad == 0, "the Direct3D pictures read back with no unexpected colour");
+		}
+	}
 
 	// A third argument ("full"): EVERY module is run, and the stored links are also counted as found when the OTHER module's pass sees this one (the links may have been made with Add Reverse Links,
 	// FUN_004c86b0, whose result is symmetric): RECALL (own pass) against RECALL (own or the other's)

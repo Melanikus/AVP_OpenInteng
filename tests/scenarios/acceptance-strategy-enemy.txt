@@ -9,14 +9,10 @@ state
 click-bar Mode > Strategy Data: Normal
 expect-screen Strategy Data
 wait 400
-# ---- the MARINE marine20 (no strategy yet): Find Object, page 5 of the list
+# ---- the MARINE marine20 (no strategy yet): Find Object, chosen by its NAME (click-choice-is pages on until the row shows: the list sorts byte-wise, uppercase first, and lists each record once since Frost 3ddc33e, so a page number moves)
 click-bar Find Object
 expect-dialog Select Object
-click-button Next
-click-button Next
-click-button Next
-click-button Next
-click-choice marine20
+click-choice-is marine20
 expect-no-dialog
 expect-selected 1
 wait 400
@@ -60,12 +56,10 @@ wait 400
 expect-field strategyview 200@0:marine20 : Enemy|100@709:E : Edit extra message data for target|16@16:Mission : Path follower|16@32:Path - 1  genpath01|16@48:Turn Death Target Off|16@64:Death Target : None
 key Esc
 wait 400
-# ---- the GENERATOR generator02: page 3
+# ---- the GENERATOR generator02: chosen by its name (click-choice-is pages on until the row shows)
 click-bar Find Object
 expect-dialog Select Object
-click-button Next
-click-button Next
-click-choice generator02
+click-choice-is generator02
 expect-no-dialog
 wait 400
 click-win 500 300 right

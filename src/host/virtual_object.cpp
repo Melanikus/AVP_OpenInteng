@@ -70,6 +70,7 @@ namespace host
 			case VirtualObjectResult::NoEnvironment: return "the level has no environment data";
 			case VirtualObjectResult::CantBuild: return "the level couldn't be put together from its bytes";
 			case VirtualObjectResult::LoaderRefused: return "the game's own loader wouldn't take the changed level, so nothing was changed";
+			case VirtualObjectResult::BadBytes: return "a strategy is 12 to 65536 bytes";
 		}
 
 		return "unknown answer";
@@ -300,21 +301,9 @@ namespace host
 		return result == LevelOpenResult::CantRead ? VirtualObjectResult::CantBuild : VirtualObjectResult::LoaderRefused;
 	}
 
-	VirtualObjectResult VirtualObject_AssignStrategy(OpenLevelFile *file, uint8_t const *id, int32_t kind)
+	// The VIOBJECT with that ID made again with these strategy bytes in place of its AVPSTRAT (if any), last after its VOBJPROP; the level replaced through the game's loader
+	static VirtualObjectResult PutStrategyBytes(OpenLevelFile *file, uint8_t const *id, uint8_t const *payload, size_t length)
 	{
-		if (!file || !file->Level() || !id)
-		{
-			return VirtualObjectResult::BadCall;
-		}
-
-		uint8_t payload[1024];
-		size_t length = 0;
-
-		if (!model::MakeNewStrategy(kind, payload, sizeof(payload), &length))
-		{
-			return VirtualObjectResult::BadKind;
-		}
-
 		Bytes image;
 		std::vector<Span> top, inside, special;
 		size_t envAt = 0, specAt = 0;
@@ -414,6 +403,40 @@ namespace host
 		}
 
 		return result == LevelOpenResult::CantRead ? VirtualObjectResult::CantBuild : VirtualObjectResult::LoaderRefused;
+	}
+
+	VirtualObjectResult VirtualObject_AssignStrategy(OpenLevelFile *file, uint8_t const *id, int32_t kind)
+	{
+		if (!file || !file->Level() || !id)
+		{
+			return VirtualObjectResult::BadCall;
+		}
+
+		uint8_t payload[1024];
+		size_t length = 0;
+
+		if (!model::MakeNewStrategy(kind, payload, sizeof(payload), &length))
+		{
+			return VirtualObjectResult::BadKind;
+		}
+
+		return PutStrategyBytes(file, id, payload, length);
+	}
+
+	VirtualObjectResult VirtualObject_SetStrategyBytes(OpenLevelFile *file, uint8_t const *id, uint8_t const *payload, size_t length)
+	{
+		if (!file || !file->Level() || !id || !payload)
+		{
+			return VirtualObjectResult::BadCall;
+		}
+
+		// the same bounds as object_edit.h's SetStrategyBytes: a strategy's header (12 bytes) at least, and no more than a strategy chunk the editor makes
+		if (length < 12 || length > 65536)
+		{
+			return VirtualObjectResult::BadBytes;
+		}
+
+		return PutStrategyBytes(file, id, payload, length);
 	}
 
 	bool VirtualObject_Geometry(File_Chunk *level, uint8_t const *id, int64_t place[3], int64_t min[3], int64_t max[3])

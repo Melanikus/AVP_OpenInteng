@@ -4,6 +4,9 @@
 //
 // THE OWNER'S RULING (owner-intent 7, through Bishop, 2026-11-15): a save NEVER overwrites the file that was opened, or anything in the
 // player's game folder. It writes "<name>-edited.rif" in a folder of the editor's own, and the status line says where.
+// REPLACED FOR THE LEVEL'S SAVE (Melanikus 2026-11-16 23:1x, through Bishop: "Overwrite, with backup"): Save writes over the file the level was opened from and keeps the one before
+// as "<file>.bak" (level_save.h). This file's place is still the EXPORTS' (Write Asc File, the hierarchy's collections text, the screenshots) and a HIDDEN TEST RUN's stand-in for the
+// opened file (editor_main.cpp SaveTheCopy: a test never writes a file it opened).
 //
 // THE FOLDER FOR COPIES (Melanikus, 2026-11-16 ~11:2x, through Bishop): the editor is now installed in the game's own Tools folder, as inteng was
 // (<AvP>\Tools\), so the program's folder is inside the game's and nothing may be saved there. Every copy (and every export and screenshot made by

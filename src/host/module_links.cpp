@@ -427,6 +427,128 @@ namespace host
 		return true;
 	}
 
+	// ---- AUTOLINK'S INSERTION: FUN_004c6fb0 (row ML-A-7 of reassess/module-linking-map-dietrich.md, read on dump-full-2 / listing-all-2 2026-11-16) ----
+
+	// 0x4c75f5-0x4c7642: the walk from the root along each chain to its end, remembering the LAST node on it whose branch is not closed, then down that branch and again
+	LinkTree::Node *LinkTree::AutoLinkWalk(int32_t module, Node **last) const
+	{
+		Node *start = root;
+		Node *node = root;
+
+		while (start)
+		{
+			Node *branchSeen = nullptr;
+
+			node = start;
+
+			for (;;)
+			{
+				Node *const next = node->next;
+
+				if (!next && !(node->branch && !node->closed))
+				{
+					break;
+				}
+
+				if (node->module == module)
+				{
+					return node;   // 0x4c7622
+				}
+
+				if (node->branch && !node->closed)
+				{
+					branchSeen = node->branch;   // 0x4c762a: the latest one on the chain
+				}
+
+				if (!next)
+				{
+					break;
+				}
+
+				node = next;
+			}
+
+			if (node->module == module)
+			{
+				return node;   // 0x4c7642
+			}
+
+			start = branchSeen;
+		}
+
+		*last = node;
+		return nullptr;
+	}
+
+	// The door's node (local_438). inteng (0x4c6fe8-0x4c702e) walks from the root by NORMAL's rule: into the FIRST branch that is not closed, never back to the chain it left, until
+	// the door or a node with no next. INTENG BUG, FIXED (MAPPING-ORDERS section 15): the insertion puts the door after the LAST open branch (0x4c75f5), so with an open branch before
+	// it on a chain inteng's walk missed the door and the modules seen through it went under the end of that other branch. Here the door is found by the insertion's own walk
+	// (AutoLinkWalk). The rest is inteng's: a node found with a branch gets it un-closed and opened and the branch counts as made (0x4c7023-0x4c702e, bVar5), so the picture's new
+	// modules go inside it; not found, the last node walked is kept (0x4c7001), and one ending in a closed branch counts as found (0x4c7006). The door being the root: the root itself.
+	LinkTree::AutoLinkPicture LinkTree::AutoLinkBegin(int32_t door)
+	{
+		AutoLinkPicture picture;
+
+		picture.door = door;
+
+		if (door < 0)
+		{
+			return picture;
+		}
+
+		Node *last = root;
+		Node *const found = AutoLinkWalk(door, &last);
+		Node *const node = found ? found : last;
+
+		picture.doorNode = node;
+
+		if (node->branch && (found || node->closed))
+		{
+			node->closed = 0;   // 0x4c7023-0x4c702e
+			node->open = 1;
+			picture.branchMade = true;
+		}
+
+		return picture;
+	}
+
+	// 0x4c75f5-0x4c76b8 (and 0x4c7537-0x4c75a6 for a door seen): the module met on AutoLinkWalk's path: nothing. Else a new node (FUN_004c41a0, its root flag then cleared): after the
+	// last node walked, unless this is a door picture with no branch made yet: then it becomes the door node's branch, Open Branch runs FROM THAT NODE on the door (FUN_004c43c0 with
+	// ECX = local_438, 0x4c758b-0x4c75a1), and later new nodes of the picture go after the last node walked (which is now inside that branch).
+	bool LinkTree::AutoLinkAdd(AutoLinkPicture *picture, int32_t module)
+	{
+		Node *node = root;
+
+		if (AutoLinkWalk(module, &node))
+		{
+			return false;
+		}
+
+		Node *const made = new Node(module);   // root flag 0 (FUN_004c41a0 sets it, 0x4c76b8 clears it)
+
+		if (picture->door < 0 || picture->branchMade || !picture->doorNode)
+		{
+			node->next = made;   // 0x4c76b5: the last node walked has no next
+			return true;
+		}
+
+		FreeChain(picture->doorNode->branch);   // none: a reused branch set branchMade in AutoLinkBegin
+		picture->doorNode->branch = made;   // 0x4c7684
+		OpenBranchOf(picture->doorNode, picture->door);   // 0x4c768a: FUN_004c43c0, ECX = the door node
+		picture->branchMade = true;
+		return true;
+	}
+
+	// 0x4c7952-0x4c7963: a door picture that made or reused a branch: Close Branch on the door (FUN_004c4350, ECX = the tree). Also after a bad pixel (INTENG BUG, FIXED: inteng left at
+	// 0x4c729a, before it, and a branch it had re-opened stayed open).
+	void LinkTree::AutoLinkEnd(AutoLinkPicture const &picture)
+	{
+		if (picture.door >= 0 && picture.branchMade)
+		{
+			Close(picture.door);
+		}
+	}
+
 	namespace
 	{
 		// FUN_004c4590 on one node (row ML-V-7, verified on listing-all-2 0x4c4590-0x4c463f): its (open) branch is searched, then its next chain; the node found is cut out with what hangs off it

@@ -35,6 +35,9 @@ namespace host
 	// A hidden run makes NO NOISE (somebody may be asleep at the machine): the game still makes and starts the sounds, but the sound system's volume is 0
 	void TrackPlay_UseSilence(bool silent);
 
+	// The sound system's output volume now: OpenAL's listener gain (0.00001 at the game's volume 0, 1 at its 127, openal_audio.cpp vol_to_gain_table); -1 with no sound system
+	float TrackPlay_OutputGain();
+
 	bool TrackPlay_SoundsAvailable();
 
 	// The level's sound directory for the sounds Start is given (the game's Rif_Sound_Directory while it loads them); empty: none

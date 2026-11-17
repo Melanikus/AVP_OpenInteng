@@ -1,0 +1,11 @@
+# ACCEPTANCE (red first): IntengOptions.ini IS HOSTILE INPUT (reassess/startup-screen-frost.md SS-3, SS-5, SS-9; MAPPING-ORDERS section 15). The file in start-size-hostile:
+# - "SCREEN WIDTH = 99999" is the first width line: inteng compares the key without case (_strnicmp, FUN_00591640) and the FIRST line with the key and '=' decides, so the later
+#   "Screen Width = 800" is never read. 99999 is bounded to the monitor (Bishop's ruling 11-16, "bounded to the desktop").
+# - The first height line's value is 303 characters long. INTENG BUG, FIXED (SS-5, FUN_0057a410 0x57a4ce-0x57a4ed): inteng copied it into a 200-byte stack buffer with no limit. Here it is
+#   not a number: the height stays inteng's 480, and the later "Screen Height = 600" is never read (the first line decides).
+# So the size is the monitor's width by 480; its framed window can't fit the work area, so the editor starts as inteng's full screen: a popup over the whole monitor (SS-8; not topmost and
+# no display mode change, SS-10). Red on d30df8c (no -options: the editor refuses the command line).
+start-args -options {scenariodir}start-size-hostile
+state
+expect-screen Construction
+expect-field-has window popup

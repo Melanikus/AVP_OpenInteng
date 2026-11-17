@@ -21,12 +21,14 @@ click-popup 1
 type ZoneVO
 key Enter
 expect-no-dialog
-hold Z 1500
+# (the camera verb, not "hold Z 1500": how far a held key steps back is timing, and on a busy run the click below took a module; Drake 11-16. From 1450 mm behind it the new object's light
+# blue icon is a square round the middle of the view, about 405..600 x 265..465: the clicks are at its middle, (504, 364))
+camera 0 0 -1450 0
 wait 400
-click-win 378 300
+click-win 504 364
 expect-selected 1
 # Assign Strategy > Area Switch (kind 68): a switch that fires when the player is inside its volume
-click-win 378 300 right
+click-win 504 364 right
 click-popup 4
 expect-dialog Select Strategy
 click-button Area_Switch
@@ -88,12 +90,13 @@ expect-field volumemodule -1
 click-win 640 300 right
 expect-status The volume is written into the strategy
 # ---- VOLUME OF DEATH (77, FUN_00535970 0x535b20-0x535c52): the same editor on volume_min / volume_max (+0x14 / +0x20 of the record); Assign again: the replace confirm (0x5ee2b4), Yes
-click-win 378 300 right
+click-win 504 364 right
 click-popup 4
-expect-dialog Select Strategy
-click-button Volume_of_Death
+# Assign asks FIRST when the object has a strategy (FUN_00528830 0x528874-0x52889d, Drake's 4ed6ac4); Yes opens "Select Strategy" (0x5288db)
 expect-dialog-kind confirm
 click-button Yes
+expect-dialog Select Strategy
+click-button Volume_of_Death
 expect-no-dialog
 expect-status The object has a new strategy
 wait 300

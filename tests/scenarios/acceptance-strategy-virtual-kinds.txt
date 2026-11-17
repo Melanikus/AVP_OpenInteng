@@ -1,0 +1,104 @@
+# ACCEPTANCE: the virtual objects' kinds 73 Message, 77 Volume of Death and 78 Self Destruct on Melanikus's path, on objects a stock level holds, the saved copy read back by the game's loader
+# (Drake, 2026-11-16; reassess/strategy-data-kinds.md S-K73-1..3, S-K77-1..3, S-K78-1..2, and -C of each). Vaults (a read-only stock copy) holds all three: Vmessage077 (a Message, String 25,
+# starts activated), Vdeathduct (a Volume of Death: starts active, only harmful on collision, infinite damage) and Vmessagedest194 (a Self Destruct, time 0). For each: Find Object; Copy Strategy
+# (the right button's 2) is refused, "Copying not supported for this strategy" (S-KC-7: the kind's +0x10 is 0x404550); Edit Strategy (the right button's 3) and its lines clicked. RED without
+# the clicks (a copy saved untouched): the three verify lines fail on the stock values.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Vaults.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+# ---- 73 MESSAGE Vmessage077 (S-K73-1..3, S-K73-C)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is Vmessage077
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 2
+expect-status Copying not supported for this strategy
+wait 900
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field strategyview 200@0:Vmessage077 : Message|16@16:Message starts activated|16@32:String :25
+picture 1
+# line 1 (y 16): the start flag; the String rows (from y 32): the 500 x 400 window "Message", its number box
+click-win 300 24
+wait 300
+click-win 300 40
+expect-dialog-kind form
+form-field 1 120
+click-button Ok
+expect-no-dialog
+wait 300
+expect-field strategyview 200@0:Vmessage077 : Message|16@16:Message starts deactivated|16@32:String :120
+picture 2
+key Esc
+wait 400
+
+# ---- 77 VOLUME OF DEATH Vdeathduct (S-K77-1..3, S-K77-C)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is Vdeathduct
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 2
+expect-status Copying not supported for this strategy
+wait 900
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field strategyview 200@0:Vdeathduct : Volume of Death|16@16:Starts Active|16@32:Only harmful on collision.|16@48:Damage : Infinite (instant death)|100@709:V : Edit Volume
+picture 3
+# line 2 (y 32): flags bit 2; the Damage line (y 48): the whole-number dialog
+click-win 300 40
+wait 300
+click-win 300 56
+expect-dialog Type in the damage per second.
+type 40
+key Enter
+wait 300
+expect-field strategyview 200@0:Vdeathduct : Volume of Death|16@16:Starts Active|16@32:Collision not required.|16@48:Damage : 40/second|100@709:V : Edit Volume
+picture 4
+key Esc
+wait 400
+
+# ---- 78 SELF DESTRUCT Vmessagedest194 (S-K78-1..2, S-K78-C)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is Vmessagedest194
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 2
+expect-status Copying not supported for this strategy
+wait 900
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field strategyview 200@0:Vmessagedest194 : Self Destruct|16@16:Time : 0
+picture 5
+click-win 300 24
+expect-dialog Time until destruction (seconds)
+expect-dialog-text 0
+key Back
+type 90
+key Enter
+wait 300
+expect-field strategyview 200@0:Vmessagedest194 : Self Destruct|16@16:Time : 90
+picture 6
+key Esc
+wait 400
+
+save-copy
+# the copy through the game's loader: each object's fields; every strategy but these three as it was
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Vaults.RIF {copy} Vmessage077 message_string 120 flags 1 also Vdeathduct also Vmessagedest194
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Vaults.RIF {copy} Vdeathduct flags 3 damage 40 also Vmessage077 also Vmessagedest194
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Vaults.RIF {copy} Vmessagedest194 timer 90 also Vmessage077 also Vdeathduct

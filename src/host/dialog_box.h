@@ -47,6 +47,7 @@ namespace host
 		Check,
 		Button,
 		Combo,   // a drop-down list (a combo box of the DLL's dialogs): the box shows the picked item's words; a press opens the list under it, a press on a row picks it
+		Group,   // a group box of the DLL's dialogs (BS_GROUPBOX): a 1-pixel frame with its words over its top edge; it takes no press (Vasquez 11-16, "Generator Settings")
 	};
 
 	struct DialogWidget
@@ -61,6 +62,8 @@ namespace host
 		std::vector<std::string> items; // a combo: the rows, in the order given (the DLL's combo boxes are not sorted)
 		int32_t selected = -1;          // a combo: the row picked (-1 none, the box then shows no words)
 		bool listOpen = false;          // a combo: its list is open under it
+		bool editable = false;          // a combo whose box takes letters (MFC's CBS_DROPDOWN, e.g. edobtype's Sound Edit wav name): a press on its arrow (the right 16 pixels) opens the
+		                                // list, a press elsewhere puts the letters there; typing makes no row picked (selected -1) (Vasquez 11-16)
 		bool visible = true;            // a part that is not visible is not drawn, not pressed and not given to the harness
 		bool enabled = true;            // a part that is off (a greyed MFC control, EnableWindow FALSE) is drawn darker and a press on it does nothing
 	};

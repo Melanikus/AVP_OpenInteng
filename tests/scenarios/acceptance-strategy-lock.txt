@@ -1,0 +1,31 @@
+# ACCEPTANCE: LOCK / UNLOCK of a door on Melanikus's path, the saved copy read back through the game's loader (Drake, 2026-11-16; reassess/strategy-data-kinds.md LK-1..6, S-K50-7). Genshd1 (a read-only stock
+# copy) has two proximity doors that START LOCKED, medoor01 and medoor02 (DoorFlags 0x3: DoorFlag_Proximity 2 | DoorFlag_Locked 1; AvP-docs\tools\drake\kind-survey). The Door's view line "Door is
+# locked" (y 32, S-K50-7: bit 1 flips) makes it start UNLOCKED; the game then reads DoorFlags & 1 as its starting lock (avpx object_setup.cpp add_prox_door: door_is_locked) and a switch's request
+# bit 0 unlocks (1) or locks (0) it (bh_types.cpp RequestState, LK-1). His path: the file opened as a double click, the bar, Find Object, the right button's Edit Strategy, the line clicked, Escape,
+# File > Save a copy; the copy is read back by the game's own loader (verify_strategy: DoorFlags 0x2, every other strategy unchanged).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is medoor01
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview medoor01 : Door|16@16:Proximity door|16@32:Door is locked
+picture 1
+# the lock line (y 32, clicked at window y 40): the door starts unlocked
+click-win 300 40
+wait 300
+expect-field-has strategyview 16@32:Door is not locked
+picture 2
+key Esc
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} medoor01 DoorFlags 0x2

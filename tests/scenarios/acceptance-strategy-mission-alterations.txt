@@ -1,0 +1,73 @@
+# ACCEPTANCE: a Mission Objective's alterations on Melanikus's path, the saved copy read back by the game's loader (Drake, 2026-11-16; reassess/strategy-data-kinds.md S-K70-7, S-K70-8).
+# Breakout (a read-only stock copy) has one Mission Objective, "end", a VIRTUAL object, as every stock level's is, with no alterations. A second one, MO2, is made (Create Virtual Object > Here:
+# the camera's place) and given a Mission Objective (Assign Strategy); "end"'s alterations block is clicked (the collector, foot "Select mission objectives"), MO2's V is clicked into it, Return
+# ends it (MO2 added with the word 3: make visible and make possible), and P over MO2's row flips bit 2 (S-K70-8). Until 2026-11-16 every write of a whole strategy went to SetStrategyBytes,
+# which reaches placed objects and modules only: on a virtual object the collector's end and P / V changed nothing (RED on that build: num_mission_targets stays 0).
+# The camera is put at known places (the harness's camera verb, so the V's place on the screen does not hang on how long a key was held): MO2 is made at 0 0 0, then the camera steps 3 m back
+# along z, looking along z, so MO2's V stands in the middle of the view; the pick is by the icon's triangles (StrategyIconUnderClick), so the click is on the V's left stroke (442 330).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+camera 0 0 0 0
+# Create Virtual Object (the right button's 6) > Here (1): at the camera's place
+click-win 640 300 right
+click-popup 6
+click-popup 1
+expect-dialog Type name for new virtual object
+type MO2
+key Enter
+expect-no-dialog
+# MO2 is selected through Find Object and gets a Mission Objective (the right button's 4, Assign Strategy)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is MO2
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Mission_Objective
+wait 400
+expect-field-has strategyview 200@0:MO2 : Mission Objective
+key Esc
+wait 300
+# "end": Find Object, the right button's Edit Strategy (3)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is end
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 16@112:Mission alterations upon completion :|32@128:None
+picture 1
+# the alterations block (its "None" row at y 128, clicked at window y 136): the collector, the camera 3 m behind MO2, MO2's V clicked, Return
+click-win 300 136
+wait 400
+camera 0 0 -3000 0
+wait 400
+picture 2
+click-win 442 330
+wait 300
+picture 3
+key Enter
+wait 400
+expect-field-has strategyview 16@112:Mission alterations upon completion :|32@128:MO2 (make visible)(make possible)
+picture 4
+# P with the pointer over MO2's row (y 128 to 143): bit 2 (make possible) flips
+move-win 300 136
+key P
+wait 300
+expect-field-has strategyview 32@128:MO2 (make visible)
+expect-field-has strategyview |100@689:P
+picture 5
+key Esc
+wait 300
+save-copy
+# the copy through the game's loader: "end" holds one alteration, MO2's ID; every other strategy as it was (MO2 is new, not in the original)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF {copy} end num_mission_targets 1 holds MO2

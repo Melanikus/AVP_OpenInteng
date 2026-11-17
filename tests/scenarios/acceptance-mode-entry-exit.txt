@@ -34,3 +34,26 @@ expect-screen Texture Map
 wait 400
 click-view 0.5 0.5
 expect-status 1 selected
+
+# THE SELECTION ACROSS MODES. inteng's hub starts with nothing selected: its lists are freed when it is left (FUN_004476d0) and its entry FUN_00447550 builds the menu and reloads the level;
+# a mode's Exit frees its own list (Object Placement: FUN_004d9af0 0x4d9d58-0x4d9e99, the list emptied, object-placement.md OP-6). So an object picked in Object Placement is not selected in
+# the hub after Exit, and one picked in the hub is not current in the mode entered next (Strategy Data's entry: current = FUN_005294f0 of the null ID = none, strategy-data.md S-1).
+click-bar Mode > Exit
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-view 0.5 0.5
+expect-selected 1
+click-bar Mode > Exit
+expect-screen Construction
+expect-selected 0
+# the hub's own pick (its Object > Find Object, 0x52: FUN_004452b0 0x446636-0x44696e selects the object chosen), then Mode > Strategy Data: Normal: nothing is current there
+click-bar Object > Find Object
+expect-dialog Select Object
+click-row 1
+expect-no-dialog
+expect-selected 1
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+expect-selected 0

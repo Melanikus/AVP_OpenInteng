@@ -1,0 +1,25 @@
+# ACCEPTANCE: a save that cannot be written SAYS SO AND NAMES THE PATH, and an Exit says Save's own words (Frost, 2026-11-16; reassess/mode-entry-exit-frost.md HUB-E2, Bishop's ruling:
+# ours never writes the opened level, so inteng's "This file is read only" is left out; when the COPY can't be written, Save says so, by name).
+# The run's Documents folder is a FILE (the editor itself: -documents {exedir}AVP_OpenInteng.exe), so the folder for copies, <it>\AVP_OpenInteng\, cannot be made.
+# By his path: Invasion, Object Placement, an object flown a little (a change), Mode > Exit: Object Placement's Exit writes its copy (FUN_004719e0 then the hub) and here cannot.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF -documents {exedir}AVP_OpenInteng.exe
+pictures on
+state
+expect-screen Construction
+camera -27851 -14055 85500 0 0
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-win 504 364
+expect-selected 1
+key F
+hold A 800
+key F
+wait 300
+click-bar Mode > Exit
+expect-screen Construction
+# the Exit's words are Save's own: not saved, why, and the folder by its path (ours said "the level was NOT saved (see the log)", the folder "Documents\AVP_OpenInteng" by no path)
+expect-status Not saved: the folder for copies can't be used: the editor couldn't make
+expect-status AVP_OpenInteng.exe\AVP_OpenInteng
+expect-status-not see the log
+expect-status-not Saved a copy

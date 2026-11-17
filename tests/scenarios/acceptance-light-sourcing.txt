@@ -5,6 +5,8 @@
 # HOW THE PICTURE LINES READ: a picture is taken before the action (picture N); the action takes its own picture after it; expect-pixels-changed compares that newest picture with the one before. In a hidden run only the "picture" (the 3D view) and "panels" (the editor's overlays and text) pictures exist.
 # Run: AvP-docs\tools\drake\drive-scenario-t6.sh <tree> <this file> lightacc verify_lightkeys
 # EXPECTED TODAY: RED where marked in the commit that fixes it. Finished = every line ok.
+# the light markers are inteng's built-in shape 2, read from HIS inteng.exe (1000707): this run reads it from his Tools folder, as a run on his machine does
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
@@ -101,12 +103,13 @@ wait 300
 expect-pixels-changed picture 0 0 2000 2000 0.0003
 
 # ---- L5 VIEW DISTANCE AND AMBIENCE (FUN_004aab60 0x4aac17-0x4aac49 and 0x4ab020-0x4ab0f0): H (slot 0xd87a88) adds 500000 to the view distance each frame it is held, N (0xd87a8e) takes 500000 off down to 0; Shift + '+' adds 0x28f to the ambience (at most 0x10000), Shift + '-' takes it off (at least 0); both are DRAWN as text (the view distance in 500000s, the ambience in percent)
+# (the boxes hold the number only, 90..170 x 60..84: in inteng's crisp font a digit that changes, 9 -> 3, moves about 12 pixels, under 0.0008 of the whole text's box; Frost 11-16, after f6d1641)
 picture 20
 hold H 300
-expect-pixels-changed panels 0 40 300 60 0.0008
+expect-pixels-changed panels 90 60 80 24 0.003
 picture 21
 hold N 300
-expect-pixels-changed panels 0 40 300 60 0.0008
+expect-pixels-changed panels 90 60 80 24 0.003
 
 # ---- L6 KEYS BUILT BEFORE (FUN_004aab60 / FUN_004acf30; drake-lighting-facts.md): the selected light's attribute and value are DRAWN (FUN_004acf30), < and > choose the attribute (slots 0xbc / 0xbe), + and - change it, C copies, D drops at the camera (FUN_00580580's headlight numbers), V pastes, R removes, O copies the clipboard over, I toggles visibility, U takes the changed flag out, L flies the light
 face-light 62

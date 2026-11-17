@@ -16,6 +16,7 @@
 #include "field_edit.h"
 #include "level_file.h"
 #include "level_store.h"
+#include "object_edit.h"   // SetStrategyBytes
 #include "strategy_edit.h"
 #include "strategy_lookup.h"
 #include "virtual_object.h"
@@ -96,7 +97,7 @@ namespace host
 				record.hasStrategy = false;
 				record.kind = 0;
 
-				if (FindObjectStrategy(level, record.id, &now) == StrategyFound::Found && now.payload.size() >= 12)
+				if (LookUpStrategyBytes(level, LevelStore(open), record.id, &now) == StrategyFound::Found && now.payload.size() >= 12)
 				{
 					record.hasStrategy = true;
 					record.kind = IntAt(now.payload, 8);
@@ -120,7 +121,7 @@ namespace host
 					record.hasStrategy = false;
 					record.kind = 0;
 
-					if (FindObjectStrategy(level, record.id, &now) == StrategyFound::Found && now.payload.size() >= 12)
+					if (LookUpStrategyBytes(level, LevelStore(open), record.id, &now) == StrategyFound::Found && now.payload.size() >= 12)
 					{
 						record.hasStrategy = true;
 						record.kind = IntAt(now.payload, 8);
@@ -191,6 +192,190 @@ namespace host
 		}
 	}
 
+	namespace
+	{
+		// A strategy's whole bytes written: a placed object's or a module's through SetStrategyBytes; a virtual object's (every stock Mission Objective) through VirtualObject_SetStrategyBytes,
+		// which SetStrategyBytes cannot reach (it answers NoSuchObject for an ID that is not a placed object or a module)
+		bool WriteBytes(OpenLevelFile *open, uint8_t const *id, std::vector<uint8_t> const &bytes)
+		{
+			ObjectEditResult const placed = SetStrategyBytes(open, id, bytes.data(), bytes.size());
+
+			return placed == ObjectEditResult::Done ||
+			       (placed == ObjectEditResult::NoSuchObject && VirtualObject_SetStrategyBytes(open, id, bytes.data(), bytes.size()) == VirtualObjectResult::Done);
+		}
+
+		// FUN_005335f0 (row S-K70-R of reassess/strategy-data-kinds.md, SKD-70-7 of strategy-kinds-dietrich.md): a Mission Objective's alterations, the count at +40 and 12 bytes each from +44 (the target's ID, its word). Each
+		// entry whose target FUN_005219f0 rejects is removed: the count goes down and, when the entry was not the last, the LAST entry is moved into its place and looked at in turn (so the
+		// order changes); a kept entry moves the walk on. The list is shrunk (or freed at 0). The request-target list after it is not checked (inteng does not). True when it changed.
+		bool RepairMissionList(OpenLevelFile *open, std::map<std::string, size_t> const &index, std::vector<Record> const &records, Record const &record)
+		{
+			std::vector<uint8_t> const &payload = record.payload;
+
+			if (payload.size() < 44)
+			{
+				return false;
+			}
+
+			int32_t const count = IntAt(payload, 40);
+
+			if (count <= 0 || (size_t)count > (payload.size() - 44) / 12)
+			{
+				return false;   // no list, or a count the bytes do not hold (a hostile file): left as it is
+			}
+
+			std::vector<uint8_t> entries(payload.begin() + 44, payload.begin() + 44 + 12 * (size_t)count);
+			int32_t kept = count;
+			int32_t at = 0;
+
+			do
+			{
+				if (!Exists(index, records, entries.data() + 12 * (size_t)at))
+				{
+					kept--;
+
+					if (at < kept)
+					{
+						memcpy(entries.data() + 12 * (size_t)at, entries.data() + 12 * (size_t)kept, 12);
+					}
+				}
+				else
+				{
+					at++;
+				}
+			}
+			while (at < kept);
+
+			if (kept == count)
+			{
+				return false;
+			}
+
+			std::vector<uint8_t> bytes(payload.begin(), payload.begin() + 44);
+
+			memcpy(bytes.data() + 40, &kept, 4);
+			bytes.insert(bytes.end(), entries.begin(), entries.begin() + 12 * (size_t)kept);
+			bytes.insert(bytes.end(), payload.begin() + 44 + 12 * (size_t)count, payload.end());
+			return WriteBytes(open, record.id, bytes);
+		}
+
+		// FUN_00534450 (rows S-K72-R, and S-K80-R through FUN_005354a0; dump-full-3 0x534456-0x534590): a Track Object's point effects, the count at +20, then each effect's point, a pad word,
+		// its target count and 16 bytes per target (the ID, the request word, the direction word), then the kind's own words. In each effect every target FUN_005219f0 rejects is removed as
+		// in the Mission Objective's list (the LAST target moved into its place and looked at in turn); then an effect with NO targets is deleted, whether or not one was removed (its count
+		// is read after the walk, 0x5344d9: an effect that had none goes too), and the effects after it close up IN ORDER (0x534534) and that place is looked at again. With destruct (80,
+		// FUN_005354a0 0x5354a8-0x5354ca) the destruct target, the last 8 bytes, becomes the null ID when FUN_005219f0 rejects it; its request word is left as it is. True when it changed.
+		bool RepairTrackEffects(OpenLevelFile *open, std::map<std::string, size_t> const &index, std::vector<Record> const &records, Record const &record, bool destruct)
+		{
+			std::vector<uint8_t> const &payload = record.payload;
+
+			if (payload.size() < 24)
+			{
+				return false;
+			}
+
+			int32_t const count = IntAt(payload, 20);
+
+			if (count < 0 || (size_t)count > (payload.size() - 24) / 12)
+			{
+				return false;   // a count the bytes do not hold (a hostile file): left as it is
+			}
+
+			struct Effect
+			{
+				std::vector<uint8_t> head;      // the point and the pad word
+				std::vector<uint8_t> targets;   // 16 bytes each
+			};
+
+			std::vector<Effect> effects;
+			size_t at = 24;
+
+			for (int32_t i = 0; i < count; i++)
+			{
+				if (payload.size() - at < 12)
+				{
+					return false;
+				}
+
+				int32_t const targets = IntAt(payload, at + 8);
+
+				if (targets < 0 || (size_t)targets > (payload.size() - at - 12) / 16)
+				{
+					return false;   // a target count the bytes do not hold: left as it is
+				}
+
+				Effect one;
+
+				one.head.assign(payload.begin() + (std::ptrdiff_t)at, payload.begin() + (std::ptrdiff_t)(at + 8));
+				one.targets.assign(payload.begin() + (std::ptrdiff_t)(at + 12), payload.begin() + (std::ptrdiff_t)(at + 12 + 16 * (size_t)targets));
+				effects.push_back(one);
+				at += 12 + 16 * (size_t)targets;
+			}
+
+			std::vector<uint8_t> tail(payload.begin() + (std::ptrdiff_t)at, payload.end());
+
+			for (size_t e = 0; e < effects.size();)
+			{
+				std::vector<uint8_t> &targets = effects[e].targets;
+				size_t kept = targets.size() / 16;
+
+				for (size_t t = 0; t < kept;)
+				{
+					if (!Exists(index, records, targets.data() + 16 * t))
+					{
+						kept--;
+
+						if (t < kept)
+						{
+							memcpy(targets.data() + 16 * t, targets.data() + 16 * kept, 16);
+						}
+					}
+					else
+					{
+						t++;
+					}
+				}
+
+				targets.resize(16 * kept);
+
+				if (kept == 0)
+				{
+					effects.erase(effects.begin() + (std::ptrdiff_t)e);
+				}
+				else
+				{
+					e++;
+				}
+			}
+
+			if (destruct && tail.size() >= 8 && !Exists(index, records, tail.data() + tail.size() - 8))
+			{
+				memset(tail.data() + tail.size() - 8, 0, 8);   // the null ID (DAT_00914930 / 34)
+			}
+
+			std::vector<uint8_t> bytes(payload.begin(), payload.begin() + 24);
+			int32_t const left = (int32_t)effects.size();
+
+			memcpy(bytes.data() + 20, &left, 4);
+
+			for (Effect const &one : effects)
+			{
+				int32_t const targets = (int32_t)(one.targets.size() / 16);
+
+				bytes.insert(bytes.end(), one.head.begin(), one.head.end());
+				bytes.insert(bytes.end(), (uint8_t const *)&targets, (uint8_t const *)&targets + 4);
+				bytes.insert(bytes.end(), one.targets.begin(), one.targets.end());
+			}
+
+			bytes.insert(bytes.end(), tail.begin(), tail.end());
+
+			if (bytes == payload)
+			{
+				return false;
+			}
+
+			return WriteBytes(open, record.id, bytes);
+		}
+	}
+
 	size_t StrategyRepair_Run(OpenLevelFile *open)
 	{
 		std::vector<Record> records;
@@ -227,6 +412,16 @@ namespace host
 			else if (record.kind == 69)
 			{
 				idAt = 28; requestAt = 24; idField = "DeathTarget"; requestField = "request";   // FUN_00531cd0
+			}
+			else if (record.kind == 70)
+			{
+				changed += RepairMissionList(open, index, records, record) ? 1 : 0;   // FUN_005335f0
+				continue;
+			}
+			else if (record.kind == 72 || record.kind == 80)
+			{
+				changed += RepairTrackEffects(open, index, records, record, record.kind == 80) ? 1 : 0;   // FUN_00534450; 80: FUN_005354a0
+				continue;
 			}
 			else
 			{

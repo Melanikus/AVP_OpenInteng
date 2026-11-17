@@ -14,6 +14,8 @@
 #include "mishchnk.hpp"       // File_Chunk::list_objects
 #include "strategy_chunk.hpp" // AVP_Strategy_Chunk
 #include "avp_chunk.hpp"      // AVP_Generator_Chunk, AVP_Generator_Extra_Data_Chunk
+#include "strategy_views.h"   // StrategyRecordRef
+#include "hierplace.hpp"      // Placed_Hierarchy_Chunk, Placed_Hierarchy_Data_Chunk (a chunk the library keeps as plain bytes, when hierplace.cpp is not in the program, is skipped)
 
 // An object's ID is the game's ObjectID, two ints: the 8 bytes a pick compares (selection.h)
 static_assert(sizeof(ObjectID) == host::kSelectionIdBytes, "an ObjectID is the 8 bytes a pick in the view compares");
@@ -174,6 +176,21 @@ namespace host
 				return CopyPayload((AVP_Strategy_Chunk *)held, out);
 			}
 
+			// a placed hierarchy: its PLACHIER's AVPSTRAT (none: no strategy)
+			PlacedHierarchyRef placed;
+
+			if (FindPlacedHierarchy(level, id, &placed))
+			{
+				Chunk *const held = ((Chunk_With_Children *)placed.placed)->lookup_single_child("AVPSTRAT");
+
+				if (!held || held->r_u_miscellaneous())
+				{
+					return StrategyFound::NoStrategy;
+				}
+
+				return CopyPayload((AVP_Strategy_Chunk *)held, out);
+			}
+
 			return StrategyFound::NoSuchObject;
 		}
 	}
@@ -234,6 +251,162 @@ namespace host
 		catch (std::exception const &)
 		{
 			out->clear();
+		}
+	}
+
+	void ListPlacedHierarchies(File_Chunk *level, std::vector<PlacedHierarchyRef> *out)
+	{
+		out->clear();
+
+		if (!level)
+		{
+			return;
+		}
+
+		try
+		{
+			Chunk *const env = level->lookup_single_child("REBENVDT");
+
+			if (!env || env->r_u_miscellaneous())
+			{
+				return;
+			}
+
+			Chunk *const spec = ((Chunk_With_Children *)env)->lookup_single_child("SPECLOBJ");
+
+			if (!spec || spec->r_u_miscellaneous())
+			{
+				return;
+			}
+
+			List<Chunk *> found;
+
+			((Chunk_With_Children *)spec)->lookup_child("PLACHIER", found);
+
+			for (LIF<Chunk *> each(&found); !each.done() && out->size() < kMostPlacedHierarchies; each.next())
+			{
+				Chunk *const one = each();
+
+				// a chunk the library kept as plain bytes is no placed hierarchy; nor one with no PLACHIDT, or no name in it
+				if (!one || one->r_u_miscellaneous())
+				{
+					continue;
+				}
+
+				Chunk *const data = ((Chunk_With_Children *)one)->lookup_single_child("PLACHIDT");
+
+				if (!data || data->r_u_miscellaneous() || !((Placed_Hierarchy_Data_Chunk *)data)->name)
+				{
+					continue;
+				}
+
+				Placed_Hierarchy_Data_Chunk const *const held = (Placed_Hierarchy_Data_Chunk *)data;
+				PlacedHierarchyRef ref;
+
+				ref.name = held->name;
+				memcpy(ref.id, &held->id, kSelectionIdBytes);
+				ref.place[0] = held->location.x;
+				ref.place[1] = held->location.y;
+				ref.place[2] = held->location.z;
+				ref.placed = one;
+				out->push_back(ref);
+			}
+		}
+		catch (std::exception const &)
+		{
+			out->clear();
+		}
+	}
+
+	bool FindPlacedHierarchy(File_Chunk *level, uint8_t const *id, PlacedHierarchyRef *out)
+	{
+		if (!id || !out)
+		{
+			return false;
+		}
+
+		std::vector<PlacedHierarchyRef> all;
+
+		ListPlacedHierarchies(level, &all);
+
+		for (PlacedHierarchyRef const &one : all)
+		{
+			if (memcmp(one.id, id, kSelectionIdBytes) == 0)
+			{
+				*out = one;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	void ListStrategyRecords(File_Chunk *level, std::vector<StrategyRecordRef> *out)
+	{
+		if (!out)
+		{
+			return;
+		}
+
+		out->clear();
+
+		if (!level)
+		{
+			return;
+		}
+
+		auto add = [&](uint8_t const *id)
+		{
+			StrategyRecordRef one;
+			ObjectStrategy found;
+
+			memcpy(one.id.data(), id, 8);
+
+			if (FindObjectStrategy(level, id, &found) == StrategyFound::Found && found.payload.size() >= 12)
+			{
+				memcpy(&one.kind, found.payload.data() + 8, 4);   // the payload's third word is the kind
+				one.payload = found.payload;
+			}
+
+			out->push_back(one);
+		};
+
+		List<Object_Chunk *> objects;
+
+		level->list_objects(&objects);
+
+		for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+		{
+			if (each())
+			{
+				uint8_t id[8];
+
+				memcpy(id, &each()->object_data.ID, 8);
+				add(id);
+			}
+		}
+
+		std::vector<VirtualObjectRef> virtuals;
+		std::vector<GeneratorRef> generators;
+		std::vector<PlacedHierarchyRef> hierarchies;
+
+		ListVirtualObjects(level, &virtuals);
+		ListGenerators(level, &generators);
+		ListPlacedHierarchies(level, &hierarchies);
+
+		for (VirtualObjectRef const &v : virtuals)
+		{
+			add(v.id);
+		}
+
+		for (GeneratorRef const &g : generators)
+		{
+			add(g.id);
+		}
+
+		for (PlacedHierarchyRef const &h : hierarchies)
+		{
+			add(h.id);
 		}
 	}
 

@@ -1,0 +1,41 @@
+# ACCEPTANCE: AutoLink's DISPLAY (Frost, 2026-11-16; reassess/autolink-display-frost.md AD-2..AD-8; AvP-docs/director/autolink-plan-2026-11-16.md, the display part).
+# inteng (FUN_004c8930, dump-full-2:64559): "Right click to cancel" at (200, 220) and the counter "%03d" of the record made current at (230, 180), both OPAQUE: each letter white in its font
+# (font16.fnt) on its black cell (view-state-table.md H-1e); a right press ends the run (0x4c899c). Its pictures were never shown (Melanikus: "Just a counter"): THE GRID IS THE OWNER'S
+# RULING, named: 320 x 240 tiles, unscaled, in the view's bottom-right corner, the first bottom-right, then leftwards, then the row above, round-robin; columns = clamp(W / 640, 2, 4),
+# rows = clamp(H / 480, 2, 3): the harness' 1008 x 729 view holds 2 x 2: slot 0 at (688, 489), slot 1 (368, 489), slot 2 (688, 249), slot 3 (368, 249).
+# The AutoLink DRIVER (Dietrich's) is not in yet: -autolinkshowfeed stands in for it, as it will call the display: Begin, the counter at record 7, five pictures of stripes of IDs 1..6 (the fifth
+# goes round into slot 0), a picture of the wrong size (refused); the right press is the real one, through the window. ID 1 is shown as 3070ff (autolink_show.cpp's colours, for the eye only).
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+screen Module Linking
+# (after the screen line: the harness starts its command line again at "screen")
+start-args -autolinkshowfeed
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Module Linking
+wait 500
+expect-status AutoLink display: 5 pictures, counter 007; a picture of 100 pixels refused
+picture 1
+# each of the four tiles holds a picture: ID 1's stripe (3070ff) in each, at least one stripe of eight
+expect-colour picture 688 489 320 240 3070ff 0.1 4
+expect-colour picture 368 489 320 240 3070ff 0.1 4
+expect-colour picture 688 249 320 240 3070ff 0.1 4
+expect-colour picture 368 249 320 240 3070ff 0.1 4
+# nothing of them outside the grid (the view's top-left)
+expect-colour-at-most picture 0 0 360 240 3070ff 0.002 4
+# the counter "007" at (230, 180): white letters on black cells, nothing in between (opaque, crisp)
+expect-colour picture 230 180 24 16 ffffff 0.1 8
+expect-colour picture 230 180 24 16 000000 0.3 8
+expect-colour-at-most picture 230 180 24 16 808080 0.0001 100
+# "Right click to cancel" at (200, 220), the same way
+expect-colour picture 200 220 140 16 ffffff 0.1 8
+expect-colour picture 200 220 140 16 000000 0.3 8
+expect-colour-at-most picture 200 220 140 16 808080 0.0001 100
+# a right press in the view ends the run (the driver asks AutoLinkShow_Cancelled before each step): the display goes, and no pop-up opens
+click-win 500 300 right
+wait 400
+expect-status AutoLink display: ended by a right press
+expect-no-dialog
+picture 2
+expect-colour-at-most picture 688 489 320 240 3070ff 0.01 4
+expect-colour-at-most picture 368 249 320 240 3070ff 0.01 4

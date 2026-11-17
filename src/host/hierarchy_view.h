@@ -123,10 +123,13 @@ struct HierarchyViewSection
 
 bool HierarchyView_Sections(std::vector<HierarchyViewSection> *sections);
 
-// The selected section (a place in that list; -1 none): drawn again in yellow over the model. A pick is the section nearest along a ray (from, direction, game units) whose bounding sphere the ray crosses, the game's own PointInHModel test; false when none.
+// The selected section (a place in that list; -1 none): drawn again in yellow over the model. A click picks it by its POLYGONS (HierarchyView_SectionOfHit below), never by a bounding sphere.
 void HierarchyView_SelectSection(int index);
 int HierarchyView_SelectedSection();
-bool HierarchyView_PickSection(const int32_t from[3], const int32_t direction[3], int *index);
+
+// The section a click's polygon pick met (PickReport::hierarchySection, the game's SECTION_DATA): its place in the list above; false when it is not a section of the hierarchy shown (inteng's
+// FUN_00559720 then FUN_00479da0 / FUN_0047f880: hierarchy-closeout-frost.md TB-1)
+bool HierarchyView_SectionOfHit(void const *sectionData, int *index);
 
 // The box of the sections' places (not of their shapes), and moving the whole model to another place (its root's), posed again
 bool HierarchyView_Extent(int32_t mins[3], int32_t maxs[3]);

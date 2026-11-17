@@ -153,6 +153,7 @@ host::PickReport PickGame_AtClick(int32_t clickX, int32_t clickY, int32_t viewWi
 	report.hitNormal[1] = LOS_ObjectNormal.vy;
 	report.hitNormal[2] = LOS_ObjectNormal.vz;
 	report.polygonNumber = LOS_PolygonNumber;
+	report.hierarchySection = LOS_HModel_Section;   // the posed part of a hierarchical model whose polygons were met (Hierarchy's section click, hierarchy-closeout-frost.md TB-1)
 
 	if (!LOS_HModel_Section)
 	{

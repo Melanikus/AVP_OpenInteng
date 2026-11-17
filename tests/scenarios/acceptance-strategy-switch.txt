@@ -38,3 +38,82 @@ wait 400
 picture 5
 expect-screen Strategy Data
 expect-not-empty
+
+# THE "Switch Properties" FORM (Vasquez 11-16, from Frost's hand-over; strategy-data.md S-K52-3 / S-K52-6; FUN_0052e1a0 builds it, FUN_0052e7f0 fills it and keeps what Ok gave, the form's own
+# method FUN_0052ece0 (vtable 0x5af930) answers; re-read on f52e1a0.txt). opslev01 holds flags 0, Mode 1 (Wait), Time 0, Security 0 (read by the game's loader, verify_strategy).
+# P (slot 0xd87a90, 0x52da56): the form filled from the switch: Wait ticked; Rest off; Reversed ticked (neither & 2 nor & 4); the boxes in their order Timer, Wait, Toggle, Rest, Time Delay,
+# Time Delay (Autoexec), Reversed, Same, None; the seconds "%.3f" of Time / 65536 with the zeros and the point cut ("0"), then Security ("0")
+key E
+wait 400
+expect-field-has strategyview 200@0:opslev01 : Binary Switch
+key P
+wait 300
+expect-dialog Switch Properties
+expect-dialog-checks off,on,off,off,off,off,on,off,off
+expect-dialog-text 0|0
+picture 7
+# RETURN keeps nothing: the toolkit answers 3 for Return, the Ok button's method answers 2 (0x52ece0), and FUN_0052e7f0 keeps the form only on 2 (0x52e901)
+click-check 3
+expect-dialog-checks off,off,on,off,off,off,on,off,off
+key Enter
+expect-no-dialog
+wait 300
+expect-field-has strategyview 16@48:Mode : Wait
+# a left press on the view's y 0x20..0x4f (the Rest State / Mode / Switch off lines; 0x52da56) opens the form too, filled as the switch still is; Cancel (1) keeps nothing
+click-win 300 56
+wait 300
+expect-dialog Switch Properties
+expect-dialog-checks off,on,off,off,off,off,on,off,off
+click-check 2
+click-button Cancel
+expect-no-dialog
+wait 300
+expect-field-has strategyview 16@48:Mode : Wait
+# Ok: the seconds field (focused first) to 2.5, Security to 3, Timer, Same, Rest on: Mode 0, Security 3, flags 1 | 2, Time ftol(2.5 x 65536) = 163840
+key P
+wait 300
+expect-dialog Switch Properties
+key Back
+type 2.5
+key Tab
+key Back
+type 3
+click-check 1
+click-check 8
+click-check 4
+expect-dialog-checks on,off,off,on,off,off,off,on,off
+expect-dialog-text 2.5|3
+click-button Ok
+expect-no-dialog
+wait 300
+picture 8
+expect-field strategyview 200@0:opslev01 : Binary Switch|100@669:E : Edit extra message data for target|100@689:P : Change Properties|100@709:T : Change Target (+Ctrl to choose environment)|16@32:Rest State : On|16@48:Mode : Timer - reset after 2.500 seconds|16@64:Switch off message : Same|16@80:Target : tolink04 - Multi switch
+# the form again holds what was kept: Timer, Rest on, Same; "2.500" cut to "2.5"
+key P
+wait 300
+expect-dialog-checks on,off,off,on,off,off,off,on,off
+expect-dialog-text 2.5|3
+# Security below 0 (0x52ed8a, the Ok button only): "Security must be at least 0" (0x5eefb0), Ok, and the form stays as it was left; Cancel then keeps nothing more
+key Tab
+key Back
+type -1
+click-check 2
+click-button Ok
+expect-dialog Security must be at least 0
+key Enter
+expect-dialog Switch Properties
+expect-dialog-checks off,on,off,on,off,off,off,on,off
+expect-dialog-text 2.5|-1
+click-button Cancel
+expect-no-dialog
+wait 300
+expect-field-has strategyview 16@48:Mode : Timer - reset after 2.500 seconds
+key Esc
+wait 300
+expect-screen Strategy Data
+# the copy, read back through the game's own loader: opslev01's four fields, every other strategy as the original's
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} opslev01 Mode 0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} opslev01 Security 3
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} opslev01 flags 3
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} opslev01 Time 163840

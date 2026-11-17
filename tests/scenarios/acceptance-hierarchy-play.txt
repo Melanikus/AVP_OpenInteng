@@ -111,8 +111,8 @@ wait 200
 # ',' moved it BACK: at least one frame's step, at most a quarter of 1 s and one frame more (16384 + 4096); a move below 0 wraps (& 0xffff)
 expect-number-moved hierarchylines Timer_: -20480 -4000
 
-# INTENG'S OWN QUIRK, built as it is (Bishop's ruling 11-16, rule 10b): with Y's "Play commands affect all sequences" on, '.' held adds the step to a stopped DELTA's +0x28, its RUNNING word,
-# not to its timer (FUN_0047b9c0 0x47ba56 tests +0x28 == 0, then 0x47baa2 MOV EDX,[ECX+0x28] / 0x47baa8 ADD / 0x47baaa MOV [ECX+0x28],EDX): the first scrub frame makes the delta RUN, and it plays from then on.
+# A DELTA for the scrub below (HP-17): inteng's '.' with Y's "Play commands affect all sequences" on adds the step to a stopped delta's +0x28, its RUNNING word (FUN_0047b9c0 0x47ba56
+# tests +0x28 == 0, then 0x47baa2 MOV EDX,[ECX+0x28] / 0x47baa8 ADD / 0x47baaa MOV [ECX+0x28],EDX): an inteng bug, fixed (below).
 # A delta on his file (as Vasquez's acceptance-hierarchy-deltas): MarineHUD_Standard_Fire flagged "Deltas relative to middle frame", the main another sequence, Add delta > Standard_Fire
 click-win 500 300 right
 click-popup 2
@@ -168,10 +168,17 @@ picture 21
 expect-number hierarchylines Timer_: 0 0 1
 expect-number hierarchylines Timer_: 0 0 2
 
-# Y (on since the N / M block), '.' held a moment: the main moves a little and stays; the delta now RUNS: the picture keeps changing after the key is let go
+# Y (on since the N / M block), '.' held a moment. INTENG BUG, FIXED (MAPPING-ORDERS section 15, HP-17): inteng added the step to a stopped DELTA's +0x28, its RUNNING word
+# (FUN_0047b9c0 0x47baa2-0x47baaa; ',' the same, FUN_0047bb20 0x47bbfd), so the delta started to run and kept running after the key was let go (ours copied it under the 11-16 ruling:
+# 42a69a9). What it meant is the delta's timer, as the main's (+0x10) and the stopped turret's: the delta moves with the main and stays stopped, so the picture stays once the key is up
+remember-number hierarchylines Timer_: 2
 hold Period 300
 wait 300
-expect-moving picture 300 250 600 479 8 150 0.002
+expect-number-moved hierarchylines Timer_: 1 20480 2
+picture 30
+wait 400
+picture 31
+expect-pixels-same picture 300 250 600 479 0.001
 
 # A NEW player switches Y off (FUN_00477450 0x477603: +0x88 = 0): the row "Play commands affect all sequences" (x 200, row 3) is there, then another hierarchy is chosen (Select Hierarchy,
 # a different row: FUN_0048b550 makes a new player), Select Sequence answered with Escape: the row is gone

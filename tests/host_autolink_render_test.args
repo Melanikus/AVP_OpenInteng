@@ -1,0 +1,7 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DNDEBUG
+/Isrc/host /Isrc/model /Isrc/common
+tests/host_autolink_render_test.cpp
+src/host/autolink_render.cpp
+src/host/autolink_views.cpp
+d3d9.lib user32.lib

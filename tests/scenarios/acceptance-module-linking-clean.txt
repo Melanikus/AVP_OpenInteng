@@ -1,0 +1,17 @@
+# ACCEPTANCE: Module Linking's start takes out every link that names no module (Dietrich, 2026-11-16; row ML-E-12 of AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md).
+# FUN_004c3a00 calls FUN_004c90c0 first (0x4c3a15): for each module, an item whose object index names no module (a placed object, or an index the level does not have) is dropped,
+# the rest packed down and the branch numbers renumbered; with none kept the VMDARRAY goes. His path on a stock level: Caverns_A holds 9 such links in 3 modules (host_module_links_clean_test
+# counts them; no other stock level has any). Open it, enter Module Linking, leave, save a copy; verify_autolink "* clean" reads the copy back through the game's loader.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Caverns_A.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+wait 500
+item 0x64
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_autolink/verify_autolink.exe {orig} {copy} * clean

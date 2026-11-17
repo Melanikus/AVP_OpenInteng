@@ -17,6 +17,10 @@ namespace host
 		IntengItem const kItems0_0[] =
 		{
 			{ "Quit", 0x10001, 0xa, IntengTag::None, IntengWork::Quit, -1, 0 },
+			// THE OWNER'S ADDITION (Melanikus 2026-11-16, through Bishop: "Let's put a save on the hub"), NAMED: inteng's hub File has no Save. It sits second, after Quit, where every
+			// other screen keeps its Save, and does what Object Placement's Save does (SaveCopy: the copy in <Documents>\AVP_OpenInteng\edited, never the opened file). Its number is
+			// ours (0x1ff01: no record of inteng's table 0x5ced30); its command 0 (inteng has none)
+			{ "Save", 0x1ff01, 0, IntengTag::None, IntengWork::SaveCopy, -1, 0 },
 			{ "Write C File", 0x10002, 0xc, IntengTag::Wip, IntengWork::None, -1, -1 },
 			{ "Write Asc File", 0x10003, 0xe, IntengTag::None, IntengWork::WriteAsc, -1, -1 },
 			{ "Write Asc File (Doors closed)", 0x10004, 0x10, IntengTag::None, IntengWork::WriteAscDoorsClosed, -1, -1 },
@@ -66,7 +70,7 @@ namespace host
 		};
 		IntengMenu const kMenus0[] =
 		{
-			{ "File", kItems0_0, 4, 0 },
+			{ "File", kItems0_0, 5, 0 },   // inteng's 4 and the owner's Save
 			{ "Mode", kItems0_1, 10, 0 },
 			{ "Object", kItems0_2, 9, 0 },
 			{ "Shape", kItems0_3, 2, 0 },

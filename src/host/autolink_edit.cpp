@@ -374,4 +374,16 @@ namespace host
 			return AutoLinkResult::WriteFailed;
 		}
 	}
+
+	AutoLinkResult AutoLink_WriteTrees(OpenLevelFile *open, std::map<int32_t, std::unique_ptr<LinkTree> > const &trees, size_t *written, size_t *skipped, std::string *why)
+	{
+		size_t ignoredWritten = 0, ignoredSkipped = 0;
+
+		if (!open || !open->Level())
+		{
+			return AutoLinkResult::NothingOpen;
+		}
+
+		return WriteTrees(open, trees, written ? written : &ignoredWritten, skipped ? skipped : &ignoredSkipped, why);
+	}
 }

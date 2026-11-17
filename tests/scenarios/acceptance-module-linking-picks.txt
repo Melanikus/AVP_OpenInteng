@@ -36,3 +36,36 @@ click-view 0.1 0.5
 click-view 0.1 0.5 shift
 key D
 expect-number linktree links 2 2
+# ---- A DOOR (Melanikus 2026-11-16: "I can't select the doors to open/close branch anymore"). The game's pick reports a module it gave a strategy (a door, a lift) as an Object, by its SBname,
+# which is the module object's own ID (pick_game.cpp); FUN_004c3760 takes it as the module it is: it becomes the pick, and S makes it the current module. To the door: Strategy Data's Find
+# Object from the camera at the origin facing +z: DoorHanga is current and the camera 6553.6 game units behind it along the view (S-11, FUN_00529280); back in Module Linking the door is
+# ahead, edge-on, a thin upright strip in the middle: 0.5 0.6 is on it, 4.6 m away (0.5 0.5 looks past it to module 74).
+click-bar Mode > Exit
+wait 800
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+camera 0 0 0 0 0
+click-bar Find Object
+expect-dialog Select Object
+click-choice DoorHanga
+expect-no-dialog
+expect-selected 1
+wait 1500
+click-bar Mode > Exit
+wait 800
+state
+click-bar Mode > Module Linking
+expect-screen Module Linking
+wait 800
+state
+picture 3
+click-view 0.5 0.6
+expect-status Picked: object 5F2B47B298A67F00
+picture 4
+expect-pixels-changed-since 3 picture 0 0 1008 700 0.002
+# the picked door is drawn 0x7f007f as every pick (FUN_004c17a0 0x4c18b2), its lines ~0.2% of the picture; Module Linking draws no selection colour (only the tree's colours and the picks)
+expect-colour picture 0 0 1008 700 7f007f 0.001 40
+expect-colour-at-most picture 0 0 1008 700 00ff00 0.0002 40
+key S
+expect-status Current module: DoorHanga

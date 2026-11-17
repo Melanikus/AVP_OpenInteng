@@ -103,6 +103,8 @@ namespace host
 			lines->push_back(line);
 		}
 
+		void PutTabbed(std::vector<StrategyViewLine> *lines, int32_t x, int32_t y, std::string const &text);   // below
+
 		StrategyViewClick ToggleOf(char const *field, uint32_t mask)
 		{
 			StrategyViewClick click;
@@ -537,10 +539,18 @@ namespace host
 			return c.r.Object(field, id) && !(c.ownId && memcmp(id, c.ownId, 8) == 0) && c.names && c.names(id, &name) ? name : std::string();
 		}
 
-		// the glyphs the small font draws for the codes 1 and 3 (a ticked and an empty box): ours has none, so a box in letters (NAMED)
-		char const *Box(bool ticked)
+		// A flag's mark. inteng draws a view's words in its one text font, Tools\font16.fnt (FUN_0057be40 with the widths FUN_0057adb0 read: dialog-look-drake.md DL-3), and a flag as the letter code 1
+		// when it is set and 3 when it is clear (e.g. 0x530fd6-0x531036: [ESP + 0x10] = "\x01", [ESP + 0x12] = "\x03"). In his font16.fnt glyph 1 is a TICK, 2 a right-pointing triangle and 3 an X
+		// (W-2: read from the file 2026-11-16), so a clear flag shows an X, not an empty box. The codes are given as they are; the editor draws them in that font when it was read, letters otherwise
+		char const *Box(bool set)
 		{
-			return ticked ? "[x]" : "[ ]";
+			return set ? "\x01" : "\x03";
+		}
+
+		// The mark of the chosen line (code 2, the triangle): the Track and Enemy pages of E (0x53521d, 0x53a497)
+		char const *Marker()
+		{
+			return "\x02";
 		}
 
 
@@ -659,7 +669,7 @@ namespace host
 			Put(lines, 32, 32, (request & 1u) != 0 ? "Turn Target On" : "Turn Target Off");                   // 0x5ef32c, 0x5ef31c
 			Put(lines, 32, 48, (request & ~1u) != 0 ? Format("Event Target : %s    (Has extra message data)", target.c_str()) : Format("Event Target : %s", target.c_str()));   // 0x5ef2ec, 0x5ef2d8
 			Put(lines, 16, 64, "Events that cause target request to be sent to target :");                   // 0x5ef2a0
-			Put(lines, 16, 80, Box((flags & 1u) != 0));                                                       // glyph 1 (ticked) / 3 (empty)
+			Put(lines, 16, 80, Box((flags & 1u) != 0));                                                       // glyph 1 (a tick) when set / 3 (an X) when clear
 			Put(lines, 32, 80, "Object destroyed");                                                           // 0x5ef28c
 			Put(lines, 16, 96, Box((flags & 2u) != 0));
 			Put(lines, 32, 96, "Object picked up");                                                           // 0x5ef278
@@ -743,7 +753,9 @@ namespace host
 			int32_t const completed = r.N("mission_complete_string");
 			MissionRows rows;
 
-			rows.completed = description > 0 && completed <= 450 ? 32 / 16 + 1 : 2;   // 0x5328c4: the upper bound is read from the COMPLETED number (inteng's slip, kept)
+			// INTENG BUG, FIXED (section 15; S-K70-1, 0x5328c4): inteng tests the Description's upper bound on the COMPLETED number (+0x18 <= 450), so a Description above 450 with a small
+			// Completed number fetches that message's text past the 450 the table holds, and a Description of 1 to 450 with a Completed above 450 gets no text row. The bound is the Description's own.
+			rows.completed = description > 0 && description <= 450 ? 32 / 16 + 1 : 2;
 			rows.order = rows.completed + 1 + (completed > 0 && completed <= 450 ? 1 : 0);
 			rows.shown = rows.order + 1;
 			rows.possible = rows.order + 2;
@@ -857,7 +869,11 @@ namespace host
 				return true;
 			}
 
-			if (y >= 16 * rows.alterations)
+			// the alterations block: from its label to the row after its last row ("None" counts as one), 0x532b69 `y < iVar15 * 16` (row SKD-70-4 of strategy-kinds-dietrich.md): a click below it
+			// does nothing (until 2026-11-16 the block had no end here, so a click by the P / V lines at the foot started the target editor)
+			int32_t const blockEnd = 16 * (rows.alterations + 1 + (targets.empty() ? 1 : (int32_t)targets.size()));
+
+			if (y >= 16 * rows.alterations && y < blockEnd)
 			{
 				int32_t const a = 16 * rows.alterations;
 				int32_t const index = y >= a + 16 && !targets.empty() ? (y - a - 16) / 16 : -1;
@@ -1022,7 +1038,124 @@ namespace host
 			}
 		}
 
+		// ---- 76 Hierarchy Object: FUN_00533a40 (vtable 0x5af6f4 +0x14; S-K76-1..6, read on dump-orphans-3 11241-11498 by Vasquez 11-16). Its flag effects are kind 72's point effects in the file
+		// (TrackEffectsOf), each "point" a flag number (0 to 31). The title, E and P lines on both pages; the pages one row higher than kind 72's.
+		void HierarchyLines(Context const &c, std::vector<StrategyViewLine> *lines)
+		{
+			std::vector<TrackEffect> effects;
+			size_t end = 0;
+			int32_t const page = c.world ? c.world->page : -1;
+
+			TrackEffectsOf(c.r.payload, &effects, &end);
+			Put(lines, 200, 0, c.name + " : Hierarchy");                                      // 0x5efb4c
+			Put(lines, 100, c.areaHeight - 40, "E : Edit extra message data for target");   // 0x5eee60
+			Put(lines, 100, c.areaHeight - 20, "P : Add new key frame flag effect");        // 0x5efb28
+
+			TrackEffect const *const open = page >= 0 ? TrackEffectAt(effects, page) : nullptr;
+
+			if (open)
+			{
+				// the flag page (0x533cde-0x533e10): the targets from y 32, as kind 72's point page
+				Put(lines, 16, 16, Format("Flag %d targets :", open->point));   // 0x5efad4
+
+				if (open->targets.empty())
+				{
+					Put(lines, 32, 32, "None :");   // 0x5efa88
+				}
+
+				for (size_t j = 0; j < open->targets.size(); j++)
+				{
+					TrackTarget const &t = open->targets[j];
+					int32_t const y = 32 + 16 * (int32_t)j;
+					std::string const name = TrackTargetName(c, t.id.data());
+					uint32_t const d = (uint32_t)t.direction;
+
+					Put(lines, 0, y, (t.request & 1) != 0 ? "(on)" : "(off)");   // 0x5ef0d4, 0x5ef0cc
+					Put(lines, 50, y, (d & 1u) != 0 && (d & 2u) != 0 ? ((d & 4u) != 0 ? "(Opposite back)" : "(Both directions)") : ((d & 1u) != 0 ? "(Forward only)" : "(Backward only)"));   // 0x5efac4, 0x5efab0, 0x5efaa0, 0x5efa90
+					Put(lines, 190, y, ((uint32_t)t.request & ~1u) != 0 ? name + "  (Has extra message data)" : name);   // 0x5ef0ac
+				}
+
+				return;
+			}
+
+			// the main page (0x533ac3-0x533b32): "None", or a line per effect from y 32
+			Put(lines, 16, 16, "Key Frame Flag Effects :");   // 0x5efb0c
+
+			if (effects.empty())
+			{
+				Put(lines, 32, 32, "None");   // 0x5d126c
+			}
+
+			for (size_t i = 0; i < effects.size(); i++)
+			{
+				Put(lines, 32, 32 + 16 * (int32_t)i, Format("Flag %d : %d targets", effects[i].point, (int32_t)effects[i].targets.size()));   // 0x5efaf4
+			}
+		}
+
 		int32_t clickPage = -1;   // the page the click is on (StrategyView_Click's page)
+
+		// 76's clicks (FUN_00533a40): the main page 0x533b75-0x533cd9, the flag page 0x533e56-0x533f2f
+		bool HierarchyClick(Reader const &r, int32_t x, int32_t y, StrategyViewClick *out)
+		{
+			std::vector<TrackEffect> effects;
+			size_t end = 0;
+
+			TrackEffectsOf(r.payload, &effects, &end);
+
+			TrackEffect const *const open = clickPage >= 0 ? TrackEffectAt(effects, clickPage) : nullptr;
+
+			if (open)
+			{
+				// the row j = (y - 32) / 16 when y > 31 (0x533e6a), else none; a press at or below the end row (2 + targets, 3 with none) does nothing (0x533e0d)
+				int32_t const count = (int32_t)open->targets.size();
+				int32_t const limit = 16 * (count == 0 ? 3 : 2 + count);
+				int32_t const j = y > 31 ? (y - 32) / 16 : -1;
+
+				if (y >= limit)
+				{
+					return false;
+				}
+
+				// on a target row: x < 50 its on / off, 50 <= x < 190 its direction, x >= 190 the camera to it and the targets editor (FUN_00534030); off the rows: the targets editor
+				if (j >= 0 && j < count)
+				{
+					out->index = j;
+					out->pickRow = x < 50 ? kRunTrackRequest : (x < 190 ? kRunTrackDirection : kCollectTrackTargets);
+					out->action = out->pickRow == kCollectTrackTargets ? StrategyViewClick::Collect : StrategyViewClick::Run;
+					return true;
+				}
+
+				out->action = StrategyViewClick::Collect;
+				out->pickRow = kCollectTrackTargets;
+				out->index = -1;
+				return true;
+			}
+
+			// the main page: a press at 16 <= y < 16 x the end row (2 + effects, 3 with none; P presses y 16): index (y - 16) / 16; 1 .. effects opens that flag page, anything else asks
+			// "Which flag?" (0x5efae8)
+			int32_t const count = (int32_t)effects.size();
+			int32_t const rows = count == 0 ? 3 : 2 + count;
+
+			if (y < 16 || y >= 16 * rows)
+			{
+				return false;
+			}
+
+			int32_t const index = (y - 16) / 16;
+
+			out->action = StrategyViewClick::Window;
+
+			if (index < 1 || index > count)
+			{
+				out->pickRow = kWindowTrackPoint;
+				out->index = -1;
+				return true;
+			}
+
+			out->pickRow = kOpenTrackPage;
+			out->index = effects[(size_t)index - 1].point;
+			return true;
+		}
 
 		bool TrackClick(Reader const &r, int32_t x, int32_t y, StrategyViewClick *out)
 		{
@@ -1112,7 +1245,8 @@ namespace host
 
 		// ---- 52 Binary Switch: FUN_0052d700 (vtable +0x14; strategy-data.md S-K52-1, S-K52-2, S-K52-4, S-K52-8; re-read 11-16 on dump-full-3:64723 and listing-all-3 0x52d7d5-0x52d8aa).
 		// The words by FUN_0057bd90(x, y, 1, ...) each pass: the header, the editable foot (E, P, T at h - 0x3c / 0x28 / 0x14), Rest State, the mode, the switch-off line for modes 0-2, the target
-		void BinaryLines(Context const &c, std::vector<StrategyViewLine> *lines)
+		// (52 and 61 share it: 0x52d722 takes the Linked Switch's part when +4 is 0x3d)
+		void SwitchLines(Context const &c, std::vector<StrategyViewLine> *lines, char const *kindWords)
 		{
 			uint32_t const flags = (uint32_t)c.r.N("flags");                                             // +0x14
 			int32_t const mode = c.r.N("Mode");                                                          // +0x18
@@ -1120,7 +1254,7 @@ namespace host
 			uint32_t const request = (uint32_t)c.r.N("request");                                         // +0x2c
 			std::string const target = TargetWords(c, "Target");                                         // FUN_00529eb0 (S-KC-12)
 
-			Put(lines, 200, 0, c.name + " : Binary Switch");                                             // 0x5eee88
+			Put(lines, 200, 0, c.name + kindWords);                                                      // 0x5eee88 " : Binary Switch" / 0x5eee9c " : Linked Switch"
 			Put(lines, 100, c.areaHeight - 0x3c, "E : Edit extra message data for target");              // 0x5eee60
 			Put(lines, 100, c.areaHeight - 0x28, "P : Change Properties");                               // 0x5eee48
 			Put(lines, 100, c.areaHeight - 0x14, "T : Change Target (+Ctrl to choose environment)");     // 0x5eee18
@@ -1144,9 +1278,245 @@ namespace host
 			Put(lines, 16, 0x50, (request & ~1u) != 0 ? Format("Target : %s  (Has extra message data)", target.c_str()) : Format("Target : %s", target.c_str()));   // 0x5eecc0 / 0x5e4758
 		}
 
+		void BinaryLines(Context const &c, std::vector<StrategyViewLine> *lines)
+		{
+			SwitchLines(c, lines, " : Binary Switch");
+		}
+
+		// ---- 61 Linked Switch: code 0x52dfd0 = FUN_0052dc90 (the Links made again, once, as the view opens: the editor gives them as world->links) then FUN_0052d700 (S-K61-1; re-read 11-16 on
+		// Frost's f52d700.txt 0x52d8f0-0x52d989): 52's lines with " : Linked Switch", then (0x10, 0x78) "Links:" (0x5eecb8); no links: (0x20, 0x88) "None" (0x5d126c); else each link at
+		// (0x14, 0x88 + 16 i): "bs\t%s" (0x5eecb0) when its record's strategy is a Binary Switch (FUN_00529820 +4 == 0x34), "ls\t%s" (0x5eeca8) otherwise, the name by FUN_005297f0
+		void LinkedLines(Context const &c, std::vector<StrategyViewLine> *lines)
+		{
+			SwitchLines(c, lines, " : Linked Switch");
+			Put(lines, 0x10, 0x78, "Links:");
+
+			std::vector<std::array<uint8_t, 8>> const none;
+			std::vector<std::array<uint8_t, 8>> const &links = c.world && c.world->links ? *c.world->links : none;
+
+			if (links.empty())
+			{
+				Put(lines, 0x20, 0x88, "None");
+				return;
+			}
+
+			for (size_t i = 0; i < links.size(); i++)
+			{
+				std::string name;
+				int32_t const kind = c.world && c.world->strategyKind ? c.world->strategyKind(links[i].data()) : 0;
+
+				c.names(links[i].data(), &name);
+				PutTabbed(lines, 0x14, 0x88 + 16 * (int32_t)i, (kind == 52 ? "bs\t" : "ls\t") + name);
+			}
+		}
+
+		// ---- 66 Multiple Target Switch: FUN_0052f700 (dump-full-3:66247; vtable +0x14; strategy-data.md S-K66-1, S-K66-2; re-read 11-16 by Frost on the listing 0x52f840-0x52fb84). The Links
+		// are made again once as the view opens (FUN_0052dc90 0x52f725: the editor gives them as world->links). Each pass, by FUN_0057bd90(x, y, 1, ...): the header; the editable foot from
+		// the bottom (D at h - 100, E h - 0x50, P h - 0x3c, T h - 0x28, S h - 0x14); Rest State (+0x14 as a whole word, 0x52f840); the mode line at 0x30 (none for mode 3: the rows after move
+		// up one, 0x52f848 ESI = 3); the switch-off line for modes 0-2 from +0x38 (& 2 Same, & 4 None, else Reversed, 0x52f921-0x52f94a); "Targets :" (0x5ef0dc); the targets 15 to a page
+		// (the page from 0, Space the next, past the last back to 0, 0x52f98f-0x52f998): each "(on)" / "(off)" at x 0 by its request's bit 0 (0x52f9f2) and its name at 0x50, with
+		// "  (Has extra message data)" (0x5ef0ac) when the request has other bits; none: "None" (0x5d126c) at 0x50; more than 15: "%d targets - press space for next page" (0x5ef084);
+		// then, with links, "Links:" at x 0x10 and each link on the next rows at 0x14: "bs\t%s" (a Binary Switch, +4 0x34), "ls\t%s" (0x3d), "ms\t%s" (0x5ef07c) otherwise (0x52fb07)
+		// The targets of a 66 / 68: the count at payload 36, then 12 bytes each from 40 (an object, its request); false (and none) for a count the bytes do not hold (a hostile file)
+		bool MultiTargetsOf(std::vector<uint8_t> const &payload, std::vector<MultiTarget> *targets)
+		{
+			targets->clear();
+
+			if (payload.size() < 40)
+			{
+				return false;
+			}
+
+			int32_t count = 0;
+
+			memcpy(&count, payload.data() + 36, 4);
+
+			if (count < 0 || (size_t)count > (payload.size() - 40) / 12)
+			{
+				return false;
+			}
+
+			for (int32_t i = 0; i < count; i++)
+			{
+				MultiTarget one;
+
+				memcpy(one.id.data(), payload.data() + 40 + 12 * (size_t)i, 8);
+				memcpy(&one.request, payload.data() + 48 + 12 * (size_t)i, 4);
+				targets->push_back(one);
+			}
+
+			return true;
+		}
+
+		int32_t const kMultiPageRows = 15;   // 0x52f9d4: (page * 3 + 3) * 5
+
+		// The page of targets shown: the editor's (world->page, 0 when none), back to 0 when it is past the last target (0x52f98f-0x52f998)
+		int32_t MultiPageOf(Context const &c, size_t count)
+		{
+			int32_t const page = c.world && c.world->page > 0 ? c.world->page : 0;
+
+			return (int64_t)page * kMultiPageRows >= (int64_t)count ? 0 : page;
+		}
+
+		void MultiLines(Context const &c, std::vector<StrategyViewLine> *lines)
+		{
+			bool const area = c.r.kind == 68;
+			int32_t const mode = c.r.N("Mode");                                                          // +0x18
+			uint32_t const flags = (uint32_t)c.r.N("flags");                                             // +0x38
+			double const seconds = (double)((float)c.r.N("Time") * 1.5258789e-05f);                     // (float)+0x1c times 1 / 65536
+			std::vector<MultiTarget> targets;
+
+			MultiTargetsOf(c.r.payload, &targets);
+			Put(lines, 200, 0, c.name + (area ? " : Area Switch" : " : Multiple Target Switch"));        // 0x5ef14c / 0x5ef130
+
+			if (area)
+			{
+				Put(lines, 100, c.areaHeight - 0x78, "V : Change Trigger Volume");                       // 0x5e4138
+			}
+
+			Put(lines, 100, c.areaHeight - 100, "D : Duplicate target\t Shift D : Remove target");      // 0x5ef100 (the tab laid out as inteng's text routine does, by the editor)
+			Put(lines, 100, c.areaHeight - 0x50, "E : Edit extra message data for target");              // 0x5eee60
+			Put(lines, 100, c.areaHeight - 0x3c, "P : Change Properties");                               // 0x5eee48
+			Put(lines, 100, c.areaHeight - 0x28, "T : Change Target (+Ctrl to choose environment)");     // 0x5eee18
+			Put(lines, 100, c.areaHeight - 0x14, "S : Toggle Target State");                             // 0x5ef0e8
+			Put(lines, 0x10, 0x20, c.r.N("RestState") != 0 ? "Rest State : On" : "Rest State : Off");     // 0x5eedf8 / 0x5eede4
+
+			int32_t row = 3;
+
+			switch (mode)
+			{
+				case 0: Put(lines, 0x10, 0x30, Format("Mode : Timer - reset after %.3f seconds", seconds)); row = 4; break;                // 0x5eedbc
+				case 1: Put(lines, 0x10, 0x30, "Mode : Wait"); row = 4; break;                                                              // 0x5eedb0
+				case 2: Put(lines, 0x10, 0x30, "Mode : Toggle"); row = 4; break;                                                            // 0x5eeda0
+				case 4: Put(lines, 0x10, 0x30, Format("Mode : Time Delay -%.3f seconds", seconds)); row = 4; break;                        // 0x5eed80
+				case 5: Put(lines, 0x10, 0x30, Format("Mode : Time Delay -%.3f seconds (starts immediately)", seconds)); row = 4; break;   // 0x5eed48
+				default: break;                                                                                                              // 3: no line
+			}
+
+			if (mode == 0 || mode == 1 || mode == 2)
+			{
+				Put(lines, 0x10, row * 16, (flags & 2u) != 0 ? "Switch off message : Same" : ((flags & 4u) != 0 ? "Switch off message : None" : "Switch off message : Reversed (default)"));
+			}
+
+			Put(lines, 0x10, (row + 1) * 16, "Targets :");                                               // 0x5ef0dc
+
+			int32_t at = row + 2;
+
+			if (targets.empty())
+			{
+				Put(lines, 0x50, at * 16, "None");                                                       // 0x5d126c
+				at++;
+			}
+			else
+			{
+				int32_t const page = MultiPageOf(c, targets.size());
+
+				for (int32_t i = page * kMultiPageRows; i < (int32_t)targets.size() && i < (page + 1) * kMultiPageRows; i++, at++)
+				{
+					MultiTarget const &one = targets[(size_t)i];
+					std::string const name = c.world && c.world->targetWords ? c.world->targetWords(one.id.data()) : std::string("(null)");   // FUN_00529eb0
+
+					Put(lines, 0, at * 16, (one.request & 1u) != 0 ? "(on)" : "(off)");                   // 0x5ef0d4 / 0x5ef0cc
+					Put(lines, 0x50, at * 16, (one.request & ~1u) != 0 ? Format("%s  (Has extra message data)", name.c_str()) : name);   // 0x5ef0ac
+				}
+			}
+
+			if (targets.size() > (size_t)kMultiPageRows)
+			{
+				Put(lines, 0x50, at * 16, Format("%d targets - press space for next page", (int)targets.size()));   // 0x5ef084
+				at++;
+			}
+
+			std::vector<std::array<uint8_t, 8>> const none;
+			std::vector<std::array<uint8_t, 8>> const &links = c.world && c.world->links ? *c.world->links : none;
+
+			if (!links.empty())
+			{
+				Put(lines, 0x10, at * 16, "Links:");                                                     // 0x5eecb8
+
+				for (size_t i = 0; i < links.size(); i++)
+				{
+					std::string name;
+					int32_t const kind = c.world && c.world->strategyKind ? c.world->strategyKind(links[i].data()) : 0;
+
+					c.names(links[i].data(), &name);
+					at++;
+					PutTabbed(lines, 0x14, at * 16, (kind == 52 ? "bs\t" : (kind == 61 ? "ls\t" : "ms\t")) + name);   // 0x5eecb0 / 0x5eeca8 / 0x5ef07c
+				}
+			}
+		}
+
+		// The y of the "Targets :" line and the y just after the targets' rows (with "%d targets - press space..." when there are more than 15): FUN_0052f700's iVar4 / iVar7
+		void MultiArea(std::vector<uint8_t> const &payload, int32_t mode, int32_t page, int32_t *top, int32_t *end)
+		{
+			std::vector<MultiTarget> targets;
+
+			MultiTargetsOf(payload, &targets);
+
+			int32_t const row = (mode == 0 || mode == 1 || mode == 2 || mode == 4 || mode == 5) ? 4 : 3;   // 0x52f848: 3, 4 with a mode line
+			int32_t const count = (int32_t)targets.size();
+			int32_t const shown = page * kMultiPageRows >= count ? (count < kMultiPageRows ? count : kMultiPageRows) : ((count - page * kMultiPageRows) < kMultiPageRows ? count - page * kMultiPageRows : kMultiPageRows);
+			int32_t at = row + 2 + (count == 0 ? 1 : shown) + (count > kMultiPageRows ? 1 : 0);
+
+			*top = (row + 1) * 16;
+			*end = at * 16;
+		}
+
+		int32_t multiClickPage = 0;   // the page StrategyView_Click was given (66: the targets' page)
+
+		// 66's presses (FUN_0052f700 0x52fbda-0x52feb0, the left button, editable): on y 0x20 .. the Targets line, the "Switch Properties" form (P, S-K66-7); in the targets' rows, x <= 0x31 flips
+		// the row's request bit 0 (S, S-K66-3), x >= 0x50 the camera to the row's target and the targets' collector (T, S-K66-5); between, nothing
+		bool MultiClick(Reader const &r, int32_t x, int32_t y, StrategyViewClick *out)
+		{
+			int32_t top = 0, end = 0;
+
+			MultiArea(r.payload, r.N("Mode"), multiClickPage, &top, &end);
+
+			if (y >= 0x20 && y < top)
+			{
+				out->action = StrategyViewClick::Window;
+				out->pickRow = kWindowSwitchProperties;
+				return true;
+			}
+
+			if (y < top || y >= end)
+			{
+				return false;
+			}
+
+			size_t index = 0;
+			bool const onRow = StrategyView_MultiTargetAt(r.payload, multiClickPage, y, &index);
+
+			if (x >= 0x50)
+			{
+				out->action = StrategyViewClick::Collect;
+				out->pickRow = kCollectMultiTargets;
+				out->index = onRow ? (int32_t)index : -1;
+				return true;
+			}
+
+			if (x <= 0x31 && onRow)
+			{
+				out->action = StrategyViewClick::Run;
+				out->pickRow = kRunMultiToggle;
+				out->index = (int32_t)index;
+				return true;
+			}
+
+			return false;
+		}
+
 		// 0x52d9ee: T (slot 0xd87a94) or a left press on y 0x50..0x5f: the target pick FUN_0052db10 (S-K52-4, S-K52-7). (P / a press on y 0x20..0x4f: the Properties form, S-K52-3; E: S-K52-5)
 		bool BinaryClick(Reader const &, int32_t, int32_t y, StrategyViewClick *out)
 		{
+			// 0x52da56: P (slot 0xd87a90) or a left press on y 0x20..0x4f (editable): the "Switch Properties" form (S-K52-3)
+			if (y >= 0x20 && y < 0x50)
+			{
+				out->action = StrategyViewClick::Window;
+				out->pickRow = kWindowSwitchProperties;
+				return true;
+			}
+
 			if (y >= 0x50 && y <= 0x5f)
 			{
 				*out = PickOf("Target", "Select target for switch");   // 0x5eeec0 at (200, h - 0x14)
@@ -1302,6 +1672,8 @@ namespace host
 		KindView const kViews[] =
 		{
 			{ 52, BinaryLines, BinaryClick },
+			{ 61, LinkedLines, BinaryClick },
+			{ 66, MultiLines, MultiClick },
 			{ 50, DoorLines, DoorClick },
 			{ 51, LiftLines, LiftClick },
 			{ 54, PlatformLines, PlatformClick },
@@ -1310,6 +1682,7 @@ namespace host
 			{ 70, MissionLines, MissionClick },
 			{ 72, TrackLines, TrackClick },
 			{ 80, TrackLines, TrackClick },
+			{ 76, HierarchyLines, HierarchyClick },
 			{ 67, TeleportLines, TeleportClick },
 			{ 53, BaseLines, NoClick },
 			{ 75, FanLines, FanClick },
@@ -1373,6 +1746,206 @@ namespace host
 		}
 
 		out->insert(out->end(), payload.begin() + (std::ptrdiff_t)end, payload.end());
+		return true;
+	}
+
+	namespace
+	{
+		// The switches' places in a payload (the model's offsets, strategy_fields.cpp BinSwitch / LinkSwitch / MultiSwitch / AreaSwitch): 52 / 61 Target (8 bytes) at 36, its request at 44,
+		// 61's NumLinks at 48 and the links after it; 66 / 68 NumTargets at 36, the targets after it (an ID and a request each), then NumLinks and the links (8 bytes each)
+		size_t const kSwitchTarget = 36, kSwitchRequest = 44, kLinkedLinks = 48, kMultiTargets = 36, kMultiTargetBytes = 12, kLinkBytes = 8;
+
+		bool WordAt(std::vector<uint8_t> const &payload, size_t at, int32_t *value)
+		{
+			if (at > payload.size() || payload.size() - at < 4)
+			{
+				return false;
+			}
+
+			memcpy(value, payload.data() + at, 4);
+			return true;
+		}
+
+		// a 66 / 68's target count, when its targets are all inside the payload
+		bool MultiTargetCount(std::vector<uint8_t> const &payload, size_t *count)
+		{
+			int32_t n = 0;
+
+			if (!WordAt(payload, kMultiTargets, &n) || n < 0 || (size_t)n > (payload.size() - kMultiTargets - 4) / kMultiTargetBytes)
+			{
+				return false;
+			}
+
+			*count = (size_t)n;
+			return true;
+		}
+
+		// FUN_005218e0(other, this): whether other (a switch's strategy) targets ownId; multi: this is a 66 / 68, so the matching target's request must have bit 1
+		bool SwitchTargets(StrategyRecordRef const &other, uint8_t const *ownId, bool multi)
+		{
+			if (other.kind == 52 || other.kind == 61)
+			{
+				int32_t request = 0;
+
+				if (other.payload.size() < kSwitchTarget + 8 || memcmp(other.payload.data() + kSwitchTarget, ownId, 8) != 0 || !WordAt(other.payload, kSwitchRequest, &request))
+				{
+					return false;
+				}
+
+				return !multi || (request & 2) != 0;   // 0x52193d: (+0x2c & 2) >> 1
+			}
+
+			size_t count = 0;
+
+			if ((other.kind != 66 && other.kind != 68) || !MultiTargetCount(other.payload, &count))
+			{
+				return false;
+			}
+
+			for (size_t i = 0; i < count; i++)
+			{
+				size_t const at = kMultiTargets + 4 + i * kMultiTargetBytes;
+
+				if (memcmp(other.payload.data() + at, ownId, 8) == 0)
+				{
+					int32_t request = 0;
+
+					WordAt(other.payload, at + 8, &request);
+					return !multi || (request & 2) != 0;   // 0x5219c4: the first target with the ID decides
+				}
+			}
+
+			return false;
+		}
+	}
+
+	std::vector<std::array<uint8_t, 8>> StrategyView_SwitchLinks(int32_t ownKind, uint8_t const *ownId, std::vector<StrategyRecordRef> const &records)
+	{
+		std::vector<std::array<uint8_t, 8>> links;
+
+		if (!ownId || (ownKind != 61 && ownKind != 66 && ownKind != 68))
+		{
+			return links;
+		}
+
+		for (StrategyRecordRef const &one : records)
+		{
+			if (SwitchTargets(one, ownId, ownKind != 61))
+			{
+				links.push_back(one.id);
+			}
+		}
+
+		return links;
+	}
+
+	bool StrategyView_StoredLinks(int32_t kind, std::vector<uint8_t> const &payload, std::vector<std::array<uint8_t, 8>> *links)
+	{
+		links->clear();
+
+		size_t at = kLinkedLinks;
+
+		if (kind == 66 || kind == 68)
+		{
+			size_t targets = 0;
+
+			if (!MultiTargetCount(payload, &targets))
+			{
+				return false;
+			}
+
+			at = kMultiTargets + 4 + targets * kMultiTargetBytes;
+		}
+		else if (kind != 61)
+		{
+			return false;
+		}
+
+		int32_t n = 0;
+
+		if (!WordAt(payload, at, &n) || n < 0 || (size_t)n > (payload.size() - at - 4) / kLinkBytes)
+		{
+			return false;
+		}
+
+		for (int32_t i = 0; i < n; i++)
+		{
+			std::array<uint8_t, 8> id;
+
+			memcpy(id.data(), payload.data() + at + 4 + (size_t)i * kLinkBytes, 8);
+			links->push_back(id);
+		}
+
+		return true;
+	}
+
+	bool StrategyView_MultiTargets(std::vector<uint8_t> const &payload, std::vector<MultiTarget> *targets)
+	{
+		return MultiTargetsOf(payload, targets);
+	}
+
+	// FUN_0052f700 0x52fc2b-0x52fc72 (E), 0x52fca4-0x52fcef (D), 0x52fde7-0x52fe18 (S): the row (y - (the Targets line's row + 1) x 16 - 16) / 16, 0 to 14, page x 15 + row below the count, and for E
+	// and D only from 16 below the Targets line. S skips that last test (0x52fde7), so S, or a press at x <= 0x31, on the "Targets :" line itself flipped the FIRST target of the page:
+	// INTENG BUG, FIXED (MAPPING-ORDERS section 15): every key and press here takes a row only from 16 below the line, as E and D do
+	bool StrategyView_MultiTargetAt(std::vector<uint8_t> const &payload, int32_t page, int32_t y, size_t *index)
+	{
+		std::vector<MultiTarget> targets;
+
+		if (!index || !MultiTargetsOf(payload, &targets) || targets.empty())
+		{
+			return false;
+		}
+
+		int32_t mode = 0;
+
+		if (!StrategyView_FieldNumber(66, payload, "Mode", &mode))
+		{
+			return false;
+		}
+
+		int32_t const top = (((mode == 0 || mode == 1 || mode == 2 || mode == 4 || mode == 5) ? 4 : 3) + 1) * 16;
+		int32_t const shownPage = (int64_t)(page < 0 ? 0 : page) * kMultiPageRows >= (int64_t)targets.size() ? 0 : (page < 0 ? 0 : page);
+
+		if (y < top + 16)
+		{
+			return false;
+		}
+
+		int32_t const row = (y - top - 16) / 16;
+		int64_t const at = (int64_t)shownPage * kMultiPageRows + row;
+
+		if (row < 0 || row >= kMultiPageRows || at >= (int64_t)targets.size())
+		{
+			return false;
+		}
+
+		*index = (size_t)at;
+		return true;
+	}
+
+	bool StrategyView_MultiWith(std::vector<uint8_t> const &payload, std::vector<MultiTarget> const &targets, std::vector<uint8_t> *out)
+	{
+		std::vector<MultiTarget> old;
+
+		if (!out || !MultiTargetsOf(payload, &old) || targets.size() > (size_t)(INT32_MAX / 12))
+		{
+			return false;
+		}
+
+		size_t const after = 40 + 12 * old.size();   // the links' count, the links, pad and flags: kept as they are
+		std::vector<uint8_t> made(payload.begin(), payload.begin() + 36);
+		int32_t const count = (int32_t)targets.size();
+
+		made.insert(made.end(), (uint8_t const *)&count, (uint8_t const *)&count + 4);
+
+		for (MultiTarget const &one : targets)
+		{
+			made.insert(made.end(), one.id.begin(), one.id.end());
+			made.insert(made.end(), (uint8_t const *)&one.request, (uint8_t const *)&one.request + 4);
+		}
+
+		made.insert(made.end(), payload.begin() + (std::ptrdiff_t)after, payload.end());
+		*out = made;
 		return true;
 	}
 
@@ -1482,6 +2055,7 @@ namespace host
 	bool StrategyView_Click(int32_t kind, std::vector<uint8_t> const &payload, int32_t x, int32_t y, StrategyViewClick *out, int32_t page, int32_t species)
 	{
 		clickPage = page;
+		multiClickPage = page < 0 ? 0 : page;
 		clickSpecies = species;
 
 		KindView const *const view = ViewOf(kind);
@@ -1494,5 +2068,452 @@ namespace host
 		Reader const reader = { payload, kind };
 
 		return view->click(reader, x, y, out);
+	}
+
+	// ---- E: the target's extra request data (S-KC-8). The page chosen as FUN_00529b30 -> FUN_00529570 -> the wrapper's +0x10 choose it (strategy_views.h)
+	RequestPage StrategyView_RequestPageOf(bool found, bool enemy, int32_t species, bool hasStrategy, int32_t targetKind, bool placedHierarchy)
+	{
+		if (!found)
+		{
+			return RequestPage::Nothing;   // FUN_00529570 gives no wrapper (or the view's own object): FUN_00529b30 calls nothing
+		}
+
+		if (placedHierarchy)
+		{
+			return RequestPage::PlacedHierarchy;   // the wrapper 0x5afae0's +0x10 = FUN_0053b830, whatever strategy it holds (S-K76-E)
+		}
+
+		if (enemy)
+		{
+			return species == 7 ? RequestPage::Enemy : RequestPage::NotMarine;   // the enemy wrapper's FUN_0053a470 (0x53a4aa: record +0x38 == 7), whatever strategy it holds
+		}
+
+		if (!hasStrategy)
+		{
+			return RequestPage::Nothing;   // FUN_005393a0 0x5393a3-0x5393ac: no strategy, nothing
+		}
+
+		switch (targetKind)
+		{
+			case 62:
+				return RequestPage::PlacedObject;   // vtable 0x5ac3cc +0x18 = FUN_00531240
+			case 66:
+			case 68:
+				return RequestPage::Switch;         // vtables 0x5af520 / 0x5af554 +0x18 = FUN_00530510
+			case 70:
+				return RequestPage::Mission;        // 0x5333a0
+			case 72:
+			case 80:
+				return RequestPage::Track;          // 0x535210
+			case 73:
+				return RequestPage::Message;        // FUN_00533880
+			default:
+				return RequestPage::NotUsed;        // every other kind's +0x18 is FUN_0052b220 (its callers: the vtables 0x5adf58 .. 0x5af87x), a generator's 79 too
+		}
+	}
+
+	bool StrategyView_RequestOpen(RequestPage page, uint32_t word, std::string const &targetName, int32_t targetType, int32_t targetIntegrity, RequestPageState *state)
+	{
+		if (!state || page == RequestPage::Nothing || page == RequestPage::NotUsed || page == RequestPage::NotMarine)
+		{
+			return false;
+		}
+
+		state->page = page;
+		state->targetName = targetName;
+		state->low = word & 1u;                                // *word & 1 (0x531264, 0x5333c0, 0x535224, 0x533887, 0x53a4a5)
+		state->data = (uint32_t)((int32_t)word >> 1);          // SAR 1: the higher bits, the sign kept
+		state->targetType = targetType;
+		state->targetIntegrity = targetIntegrity;
+		state->drawn.clear();                                  // FUN_0057c200 once, before the page's loop (0x5333b1, 0x53051c)
+
+		// the placed hierarchy's page works on the whole word, not cut (FUN_0053b830: byte 1 shown, bits 8-15 set): data holds it all
+		if (page == RequestPage::PlacedHierarchy)
+		{
+			state->low = 0;
+			state->data = word;
+		}
+
+		// the Message page's first pass makes any data but 1 and 2 into 0 before anything can be clicked (0x5338f8-0x533904)
+		if (page == RequestPage::Message && state->data != 1u && state->data != 2u)
+		{
+			state->data = 0;
+		}
+
+		return true;
+	}
+
+	uint32_t StrategyView_RequestWord(RequestPageState const &state)
+	{
+		if (state.page == RequestPage::PlacedHierarchy)
+		{
+			return state.data;   // FUN_0053b830 writes the word itself (0x53bad8)
+		}
+
+		return state.low | (state.data << 1);   // *word | data * 2 (0x53157e, 0x5335ca, 0x535366, 0x5339e9, 0x53a688)
+	}
+
+	namespace
+	{
+		// a line with a tab: inteng's text drawer puts what follows a tab at the next multiple of four line heights from the window's left (FUN_0057be40 0x57bf7d: (x / (h * 4) + 1) * h * 4,
+		// h = 16): the words before it ("On :", "Off :") are narrower than 64 pixels in font16, so the rest goes at 64
+		void PutTabbed(std::vector<StrategyViewLine> *lines, int32_t x, int32_t y, std::string const &text)
+		{
+			size_t const tab = text.find('\t');
+
+			if (tab == std::string::npos)
+			{
+				Put(lines, x, y, text);
+				return;
+			}
+
+			Put(lines, x, y, text.substr(0, tab));
+			Put(lines, (x / 64 + 1) * 64, y, text.substr(tab + 1));
+		}
+
+		// a line the page's text list keeps: added once (the list is not emptied between passes, so a line drawn again lands on itself)
+		void Keep(std::vector<StrategyViewLine> *drawn, int32_t x, int32_t y, std::string const &text)
+		{
+			for (StrategyViewLine const &one : *drawn)
+			{
+				if (one.x == x && one.y == y && one.text == text)
+				{
+					return;
+				}
+			}
+
+			Put(drawn, x, y, text);
+		}
+	}
+
+	void StrategyView_RequestLines(RequestPageState *state, int32_t areaHeight, std::function<bool(int32_t number, std::string *name)> const &path, std::vector<StrategyViewLine> *lines)
+	{
+		if (!state || !lines)
+		{
+			return;
+		}
+
+		lines->clear();
+
+		uint32_t const data = state->data;
+		char const *const name = state->targetName.c_str();
+
+		switch (state->page)
+		{
+			case RequestPage::PlacedHierarchy:
+				// S-K76-E, FUN_0053b830 0x53b860-0x53b880: black, the title, the sequence index = the word's byte 1
+				Put(lines, 100, 0, Format("Target  -  %s : Placed hierarchy", name));   // 0x5f03d4
+				Put(lines, 16, 16, Format("Sequence index %d", (int32_t)((data >> 8) & 0xffu)));   // 0x5f03c0
+				break;
+
+			case RequestPage::PlacedObject:
+				// S-K62-E, FUN_00531240 0x53128a-0x531408: black, then
+				Put(lines, 100, 0, Format("Target  -  %s : Placed object", name));                              // 0x5ef420
+
+				if ((data & 1u) == 0)
+				{
+					Put(lines, 32, 16, "Set integrity");                                                         // 0x5ef3fc
+					Put(lines, 16, 16, Box(false));                                                              // local_56 = 3
+				}
+				else
+				{
+					Put(lines, 32, 16, Format("Set integrity to %d", (int32_t)((data >> 7) & 0xffu)));          // 0x5ef40c
+					Put(lines, 16, 16, Box(true));                                                               // local_58 = 1
+				}
+
+				if (state->targetType == 16)   // the target's +0x14 (0x53132b): a placed light
+				{
+					Put(lines, 32, 32, "Change type to standard");   // 0x5ef3e4
+					Put(lines, 16, 32, Box((data & 2u) != 0));
+					Put(lines, 32, 48, "Change type to flicker");    // 0x5ef3cc
+					Put(lines, 16, 48, Box((data & 8u) != 0));
+					Put(lines, 32, 64, "Change type to strobe");     // 0x5ef3b4
+					Put(lines, 16, 64, Box((data & 4u) != 0));
+					Put(lines, 32, 80, "Swap 'up' and 'down' colours");   // 0x5ef394
+					Put(lines, 16, 80, Box((data & 0x10u) != 0));
+				}
+
+				break;
+
+			case RequestPage::Switch:
+				// S-84, FUN_00530510 0x530527-0x5305bb: the three lines each pass; the mark is code 1 with the word's bit 2 (data bit 1), else 3. INTENG BUG, FIXED (section 15): inteng empties its
+				// text list once (0x53051c) and adds the lines every pass, so after a click the old mark stays drawn under the new one; here each pass draws only its own lines
+				state->drawn.clear();
+				Keep(&state->drawn, 100, 0, Format("Target  -  %s : Switch", name));   // 0x5ef1ac
+				Keep(&state->drawn, 32, 48, "Part of link switch set");               // 0x5ef194
+				Keep(&state->drawn, 16, 48, Box((data & 1u) != 0));
+				*lines = state->drawn;
+				break;
+
+			case RequestPage::Mission:
+				// S-K70-E, 0x5333c5-0x533500: the list (emptied once) gets these each pass. The third box is the other way round: code 3 when bit 4 is set, 1 when it is clear (0x5334cf-0x5334f5:
+				// [ESP + 0x10] is "\x03", [ESP + 0x12] "\x01", as for the first two boxes, but the JZ takes the "\x01" when the bit is CLEAR). INTENG BUG, FIXED (section 15): the list is emptied
+				// once (0x5333b1) and the lines added every pass, so an old box glyph stays drawn under the new one; here each pass draws only its own lines
+				state->drawn.clear();
+				Keep(&state->drawn, 100, 0, Format("Target  -  %s : Mission Objectives", name));        // 0x5ef930
+				Keep(&state->drawn, 200, 32, "Current effect of on message (off ignored):");             // 0x5ef904
+				Keep(&state->drawn, 32, 48, "Make objective visible");                                   // 0x5ef8ec
+				Keep(&state->drawn, 16, 48, Box((data & 1u) != 0));
+				Keep(&state->drawn, 32, 64, "Make objective possible");                                  // 0x5ef8d4
+				Keep(&state->drawn, 16, 64, Box((data & 2u) != 0));
+				Keep(&state->drawn, 32, 80, "Complete mission (if currently possible)");                 // 0x5ef8a8
+				Keep(&state->drawn, 16, 80, Box((data & 4u) == 0));
+				*lines = state->drawn;
+				break;
+
+			case RequestPage::Track:
+				// S-K72-E, 0x535232-0x5352cc: black; the mark (code 2) beside the data's line, none for data other than 0, 1, 2
+				Put(lines, 100, 0, Format("Target  -  %s : Track object", name));   // 0x5efce8
+
+				if (data == 0)
+				{
+					Put(lines, 16, 16, Marker());
+				}
+
+				Put(lines, 32, 16, "Start track");   // 0x5efcdc
+
+				if (data == 1)
+				{
+					Put(lines, 16, 32, Marker());
+				}
+
+				Put(lines, 32, 32, "Start track forward");   // 0x5efcc8
+
+				if (data == 2)
+				{
+					Put(lines, 16, 48, Marker());
+				}
+
+				Put(lines, 32, 48, "Start track backward");   // 0x5efcb0
+				break;
+
+			case RequestPage::Message:
+				// S-K73-E, FUN_00533880 0x53389c-0x53396f: the list emptied and filled each pass; any data but 1 and 2 is made 0
+				if (data != 1u && data != 2u)
+				{
+					state->data = 0;
+				}
+
+				Put(lines, 100, 0, Format("Target  -  %s : Message", name));          // 0x5efa70
+				Put(lines, 100, areaHeight - 20, "Left button : Cycle through options");   // 0x5efa4c (DAT_0091f6c4 - 0x14)
+				Put(lines, 200, 32, "Current effect of on/off message :");             // 0x5efa28
+
+				if (state->data == 1u)
+				{
+					PutTabbed(lines, 0, 48, "On :\tActivate message");                  // 0x5ef9a8
+					PutTabbed(lines, 0, 64, "Off :\tDeactivate message");               // 0x5ef9c0
+				}
+				else if (state->data == 2u)
+				{
+					PutTabbed(lines, 0, 48, "On :\tActivate and display message");      // 0x5ef9dc
+					PutTabbed(lines, 0, 64, "Off :\tDeactivate message");
+				}
+				else
+				{
+					PutTabbed(lines, 0, 48, "On :\tDisplay message");                   // 0x5efa10
+					PutTabbed(lines, 0, 64, "Off :\tIgnored");                          // 0x5efa00
+				}
+
+				break;
+
+			case RequestPage::Enemy:
+			{
+				// S-K69-E / S-82, FUN_0053a470 0x53a4c2-0x53a595 (a marine): black, the six lines, the mark (code 2) at the chosen one, the path of a path follower
+				Put(lines, 200, 0, Format("%s : Enemy", name));         // 0x5ef5c8
+				Put(lines, 16, 16, "No change");                         // 0x5f036c
+				Put(lines, 16, 32, "Change to Wait then wander");        // 0x5f0350
+				Put(lines, 16, 48, "Change to Wander");                  // 0x5f033c
+				Put(lines, 16, 64, "Change to Guard");                   // 0x5f032c
+				Put(lines, 16, 80, "Change to Local Guard");             // 0x5f0314
+				Put(lines, 16, 96, "Change to Path follower");           // 0x5f02fc
+
+				if ((data & 1u) == 0)
+				{
+					Put(lines, 0, 16, Marker());
+				}
+				else
+				{
+					int32_t const change = (int32_t)((data >> 7) & 0xffu);
+					std::string pathName;
+					int32_t const number = (int32_t)((data >> 15) & 0xffu);
+
+					Put(lines, 0, (change + 2) * 16, Marker());
+
+					if (change == 4 && path && path(number, &pathName))   // FUN_004fbaf0: the level's path of that number (+0x34) and its name (+0x30)
+					{
+						Put(lines, 16, 112, Format("Path - %d  %s", number, pathName.c_str()));   // 0x5ef504
+					}
+				}
+
+				break;
+			}
+
+			default:
+				break;
+		}
+	}
+
+	RequestAsk StrategyView_RequestClick(RequestPageState *state, int32_t y)
+	{
+		if (!state)
+		{
+			return RequestAsk::None;
+		}
+
+		uint32_t &data = state->data;
+
+		switch (state->page)
+		{
+			case RequestPage::PlacedHierarchy:
+				// 0x53b8c3-0x53b8ea: a left press at 16 <= y < 32 asks for a sequence; any other does nothing
+				return y > 15 && y < 32 ? RequestAsk::SelectSequence : RequestAsk::None;
+
+			case RequestPage::PlacedObject:
+				// 0x53145f-0x531561: the integrity line, then (a light only) standard 32, strobe 64, flicker 48, swap 80 (the rows of a target that is no light are at -100: never hit)
+				if (y >= 16 && y < 32)
+				{
+					if ((data & 1u) == 0)
+					{
+						return RequestAsk::Integrity;   // FUN_00474170("New integrity value", the target's +0x20 & 0xff)
+					}
+
+					data &= 0xffff807eu;   // 0x531476: the integrity and its bit cleared
+				}
+				else if (state->targetType == 16 && y >= 32 && y < 48)
+				{
+					data = (data & 0xfffffff1u) | ((data & 2u) == 0 ? 2u : 0u);   // standard: on unless it was on; flicker and strobe off
+				}
+				else if (state->targetType == 16 && y >= 64 && y < 80)
+				{
+					data = (data & 0xfffffff1u) | ((data & 4u) == 0 ? 4u : 0u);   // strobe
+				}
+				else if (state->targetType == 16 && y >= 48 && y < 64)
+				{
+					data = (data & 0xfffffff1u) | ((data & 8u) == 0 ? 8u : 0u);   // flicker
+				}
+				else if (state->targetType == 16 && y >= 80 && y < 96)
+				{
+					data ^= 0x10u;   // swap up and down
+				}
+
+				break;
+
+			case RequestPage::Switch:
+				if (y > 0x2f && y < 0x40)   // 0x5305ed-0x53061a: the word's bit 2 flips
+				{
+					data ^= 1u;
+				}
+
+				break;
+
+			case RequestPage::Mission:
+				// 0x53356a-0x5335ad: bit 1, 2 or 4 flips on its row
+				if (y >= 48 && y < 64)
+				{
+					data ^= 1u;
+				}
+				else if (y >= 64 && y < 80)
+				{
+					data ^= 2u;
+				}
+				else if (y >= 80 && y < 96)
+				{
+					data ^= 4u;
+				}
+
+				break;
+
+			case RequestPage::Track:
+				// 0x535318-0x535341
+				if (y >= 16 && y < 32)
+				{
+					data = 0;
+				}
+				else if (y >= 32 && y < 48)
+				{
+					data = 1;
+				}
+				else if (y >= 48 && y < 64)
+				{
+					data = 2;
+				}
+
+				break;
+
+			case RequestPage::Message:
+				// 0x5339c0-0x5339d2: any left click, the next option; the next pass makes 3 into 0
+				data = data + 1u;
+
+				if (data != 1u && data != 2u)
+				{
+					data = 0;
+				}
+
+				break;
+
+			case RequestPage::Enemy:
+				// 0x53a5f8-0x53a65c: y 16-31 no change (bit 1 off); y 32-111 the change (y - 32) / 16 with bit 1 on; the path follower's path asked
+				if (y >= 16 && y < 32)
+				{
+					data &= 0xfffffffeu;
+				}
+				else if (y >= 32 && y < 0x70)
+				{
+					uint32_t const change = (uint32_t)((y - 32) / 16);
+					uint32_t const kept = (data & 0xffff807fu) | (change << 7);
+
+					data = kept | 1u;
+
+					if (change == 4)
+					{
+						data = (kept & 0xff807fffu) | 1u;   // the path's bits cleared before the list asks
+						return RequestAsk::SelectPath;
+					}
+				}
+
+				break;
+
+			default:
+				break;
+		}
+
+		return RequestAsk::None;
+	}
+
+	void StrategyView_RequestIntegrity(RequestPageState *state, int64_t typed)
+	{
+		if (!state)
+		{
+			return;
+		}
+
+		// 0x5314bb-0x5314d6: below 1 is 0, above 254 is 255. NAMED: the box's number is read as 64 bits here, so a number past a 32-bit int is above 254, not one that wrapped
+		uint32_t const integrity = typed < 1 ? 0u : (typed > 254 ? 255u : (uint32_t)typed);
+
+		state->data = (integrity << 7) | (state->data & 0xffff807fu) | 1u;
+	}
+
+	void StrategyView_RequestPath(RequestPageState *state, int32_t number)
+	{
+		if (state)
+		{
+			state->data |= (uint32_t)number << 15;   // 0x53a65c: the path record's +0x34 << 15 (not masked: a path number above 255 reaches the higher bits, as inteng's)
+		}
+	}
+
+	void StrategyView_RequestSequence(RequestPageState *state, int32_t index)
+	{
+		if (state)
+		{
+			state->data = (state->data & 0xffff00ffu) | ((uint32_t)index << 8);   // 0x53bad8 (the index not masked: one above 255 reaches the higher bits, as inteng's)
+		}
+	}
+
+	// INTENG BUG, FIXED (section 15; S-K70-E 0x5335d3, S-K72-E 0x53535c, S-K73-E 0x5339f4): the Mission, Track and Message pages clear only the mouse at their end and leave the Escape slot
+	// set, so in inteng Escape on one of them ended the Edit view under it too; every other page clears the slot (the placed hierarchy's at 0x53bc02, the Placed Object's, the Switch's, the
+	// marine's), and Escape ends the page alone. Here no page's Escape ends the view under it.
+	bool StrategyView_RequestEscapeEndsView(RequestPage)
+	{
+		return false;
 	}
 }

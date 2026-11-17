@@ -1,0 +1,44 @@
+# ACCEPTANCE (red first): a CLICK ON A SECTION in Hierarchy mode, inteng's way (hierarchy-closeout-frost.md TB-1; HP-16; hierarchy.md row "LEFT click on a section ... NOT PROVEN").
+# inteng (FUN_004889d0 0x489f5d-0x489f74): FUN_00559720(x, y) gives the object whose POLYGONS are under the pointer (the nearest along the ray, FUN_00559750), then FUN_00479da0 lets the selected
+# section go (+0x48 = 0) and makes the section that object is (FUN_0047f880) the selected one. A click on no section, or on nothing, leaves NONE selected.
+# Ours until this test: the section whose BOUNDING SPHERE the ray crossed, and a click on nothing kept the selection ("the click found nothing to aim along"): red there.
+# His file MelPyth_MarHUD, the Shotgun (x 300..430, y 400..660, z 400..1990: Frost's read for acceptance-hierarchy-melpyth-marhud), its reload frozen at its start; the camera 1 m in front of it.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+camera 365 530 -600 0 0
+move-win 504 600
+wait 400
+picture 1
+# a click on the gun's polygons in the middle of the view: a section of the Shotgun is selected
+click-win 504 364
+wait 300
+picture 2
+expect-status Hierarchy: section
+expect-status selected
+# POLYGON, NOT SPHERE (Bishop 11-16): two clicks on polygons that lie inside RArm's bounding sphere but belong to other sections. inteng takes the section whose polygons are under the pointer:
+# RForearm (the right forearm's right side), then RArm01 (the left upper arm). Ours until this test took the section whose sphere centre is nearest along the ray: "RArm" for both (and for all
+# 20 spots of Frost's probe on b3d3e16).
+click-win 560 420
+wait 300
+picture 4
+expect-status Hierarchy: section RForearm selected
+click-win 220 500
+wait 300
+picture 5
+expect-status Hierarchy: section RArm01 selected
+# a click on the empty black corner, no polygon there: the section is let go (FUN_00479da0 with no object)
+click-win 40 690
+wait 300
+picture 3
+expect-status Hierarchy: no section under the click

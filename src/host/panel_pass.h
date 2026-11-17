@@ -29,8 +29,9 @@ uint32_t const kPanelPassBackground = 0xFF202428u;
 // The small menu font's lines, in pixels (HUD_FONT_HEIGHT, hud_layout.h, for the full game)
 int32_t const kPanelPassLineHeight = 15;
 
-// The most extra boxes, and the most extra lines, one frame draws
-size_t const kPanelPassMostExtras = 64;
+// The most extra boxes, and the most extra lines, one frame draws. 256 since 2026-11-16 (Vasquez): at 64 a window with many parts (edobtype's "Generator Settings": about 100 boxes and 80 lines) did not fit,
+// and a dialog that does not fit is not drawn at all (editor_main.cpp), so Melanikus saw no window while its keys still went to it. The letters stay well under the game's ortho buffer (4096 vertices, d3_func.cpp).
+size_t const kPanelPassMostExtras = 256;
 
 // What else the panels show this frame, besides each panel's own line: none when both counts are 0
 struct PanelExtras
@@ -62,8 +63,13 @@ namespace host { struct MenuFont; }
 bool PanelPass_SetMenuFont(const host::MenuFont &font);
 bool PanelPass_HasMenuFont();
 
-// A letter's width in the menu font when one is set, else the small font's (PanelPass_SmallWidth): the menus are measured with it
+// A letter's width in the menu font when one is set, else the small font's (PanelPass_SmallWidth): EVERY text is measured with it, as every text is drawn in inteng's font
+// once it was read (view-state-table.md H-1a..H-1i: inteng has one text font, its folder's font16.fnt, for the menus, the dialogs and every screen's words alike)
 int PanelPass_MenuWidth(int letter);
+
+// One line of words at (x, y) in pixels of the frame being drawn, made safe first: in inteng's font when it was read (each set bit one pixel, unfiltered, solid in the colour), else in the
+// game's small font. For the parts that draw inside the game's own frame (texture_window_paint.cpp); nothing at a place left of or above the window.
+void PanelPass_DrawText(const std::string &text, int32_t x, int32_t y, uint32_t colour);
 
 // The menu font's letters' height, 0 when none is set
 int32_t PanelPass_MenuFontHeight();

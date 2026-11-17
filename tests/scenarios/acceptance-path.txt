@@ -7,7 +7,9 @@ level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/In
 pictures on
 state
 picture 1
-expect-not-empty
+# the level drew (not what it shows): since 1d95ce8 the hub hides every module past the view distance each frame, as inteng's hub (FUN_00444b70, row ML-E-11), so at the
+# default distance this view is about 7% drawn (0.072 on e5f4679), under the verb's 10%; a blank view is near 0
+expect-not-empty 0.05
 # Construction > Mode > Path (0xce, entry FUN_004f9780): bar A = Mode > Exit, Keys; bar B = Add Module, Select Path, Properties, Delete Module, Create Path, Delete Path
 item 0xce
 expect-screen Path
@@ -28,8 +30,9 @@ expect-dialog Name of path (optional)
 type AcceptPath
 key Enter
 expect-no-dialog
-# the screen draws "View Distance :%d" then "Path :%d  %s" (0x5e9808: the working path's number and name) at x 0, rows of 16 from row 2 (FUN_004f9d10 0x4f9f70)
-expect-pixels-changed panels 0 40 420 120 0.001
+# the screen draws "View Distance :%d" then "Path :%d  %s" (0x5e9808: the working path's number and name) at x 0, rows of 16 from row 2 (FUN_004f9d10 0x4f9f70). The rows are checked by
+# their WORDS: the state line's pathlines holds the rows drawn in the frame, joined by '|' (Invasion has no path, so the new one is number 0)
+expect-field-has pathlines |Path :0  AcceptPath
 
 # ---- P2 ADD MODULE (FUN_004fa6a0; key L, slot 0xd87a8c): the picked module becomes a node; a click on a module picks it and FUN_004fa1c0 colours it; with a path that has nodes the modules between (FUN_004f8c10, breadth first over the ADJMDLEP graph FUN_004f8240) come too, flags|=1
 picture 12
@@ -38,29 +41,41 @@ click-win 504 364
 # (FUN_004f9780 loads with 0x483: no textures, every polygon 0xe | 2; view-state-table.md R-9), so the module's lines are the purple itself (about 0.056 of the box on Invasion)
 expect-pixels-changed picture 300 100 700 600 0.01
 expect-colour picture 300 100 700 600 7f007f 0.02 40
+# the picked module's name is drawn as a row under the path's (the click's module on Invasion is gARAGDOR, object number 54)
+expect-field-has pathlines |Path :0  AcceptPath|gARAGDOR
 picture 13
 key L
 # the module is a node: its name is drawn as a line under the path line, and the pick is gone (FUN_004fa6a0 clears it); the module turns from purple to the node colour (blue 0x0000ff, FUN_004fa1c0 0x4fa313)
-expect-pixels-changed panels 0 40 420 120 0.0005
+expect-status Path :0  AcceptPath (1 module(s))
+expect-field selection nothing
+expect-field-has pathlines |Path :0  AcceptPath|gARAGDOR
+remember-field pathlines
 # the module turns from purple to the node colour, blue 0x0000ff (FUN_004fa1c0 0x4fa313): on the white wire its lines are that blue (about 0.056 of the box)
 wait 400
 picture 18
 expect-colour picture 300 100 700 600 0000ff 0.02 40
-# the camera moves on, another module is picked and added: its route's modules between are added with it
-hold A 1500
-hold A 1500
+# another module is picked through the module list and added: its route's modules between are added with it. pick-module takes the module's object number and picks it as a click on it would
+# (AvP-docs/tools/drake/path-graph lists Invasion's modules, numbers and neighbours). Bend (57) is three steps from gARAGDOR on the only shortest route, gARAGDOR - Door - Corridor - Bend, so the
+# route brings Door and Corridor (flags bit 1: not drawn, path-mode-facts.md) and the path holds 4 modules, two drawn
 picture 14
-click-win 150 250
+pick-module 57
+expect-field-has pathlines |Path :0  AcceptPath|gARAGDOR|Bend
 key L
-expect-pixels-changed panels 0 40 420 200 0.0005
+expect-status Path :0  AcceptPath (4 module(s))
+expect-field selection nothing
+expect-field-has pathlines |Path :0  AcceptPath|gARAGDOR|Bend
 
 # ---- P3 DELETE MODULE (FUN_004fa950; key D in the Classic layout, slot 0xd87a84): the last node goes, then every earlier node put in by the route (flags & 1) until an explicit one
 picture 15
 item 4
-expect-pixels-changed panels 0 40 420 200 0.0003
-# the path is built up again for the saved copy to hold (a module picked and added: a path of one explicit node is made two by the route)
-click-win 150 250
+# Bend goes, then Corridor and Door (the route's), up to gARAGDOR: the rows are again the ones after the first Add Module
+expect-status Path :0  AcceptPath (1 module(s))
+expect-field-same pathlines
+# the path is built up again for the saved copy to hold (Bend picked and added again: the route brings Door and Corridor back)
+pick-module 57
 key L
+expect-status Path :0  AcceptPath (4 module(s))
+expect-field-has pathlines |Path :0  AcceptPath|gARAGDOR|Bend
 
 # ---- P4 VIEW KEYS 8 / 9 (FUN_004f9d10 after the switch): 8 Polyline, 9 Filled Polyline, on THIS screen. 8 makes every polygon 0xe | 2 (0x4f9ef6-0x4f9f13, R-10): the look the screen entered with,
 # so the picture does NOT change; 9 makes them 0x10 | 2, the white hidden-line look (0x4f9f2a-0x4f9f47)

@@ -37,6 +37,9 @@ namespace host
 
 	class LinkTree
 	{
+	private:
+		struct Node;
+
 	public:
 		// A tree with only the root: the module being edited
 		explicit LinkTree(int32_t rootModule);
@@ -84,6 +87,27 @@ namespace host
 		// False for the root's own module.
 		bool Close(int32_t module);
 
+		// AUTOLINK'S INSERTION (FUN_004c6fb0, row ML-A-7 of reassess/module-linking-map-dietrich.md): ONE picture's links put into this (the current) tree. AutoLinkBegin(-1) for a
+		// plain picture, AutoLinkBegin(door) for a door's second picture; AutoLinkAdd for each module the picture's event lists, in order (true: a node was made); AutoLinkEnd last.
+		// NOT Normal's walk: AutoLinkAdd walks each whole chain and goes into its LAST branch that is not closed (Normal goes into the FIRST); a module met on that path is not
+		// added again; a new node (root flag 0) goes after the last node walked, or, for a door picture's first new node, becomes the door node's branch (then Open Branch FROM
+		// THE DOOR NODE); a door picture that made or reused a branch ends with Close Branch on the door.
+		// Each picture keeps its OWN state (FUN_004c6fb0's locals param_1, local_438, bVar5): a door's second picture runs INSIDE the picture that met the door (0x4c785c), after that
+		// picture's insertions and before its Close (0x4c7952), so pictures nest. INTENG BUGS, FIXED (MAPPING-ORDERS section 15): (1) AutoLinkBegin finds the door by the
+		// insertion's own walk, not by Normal's (inteng's, 0x4c6fe8, enters the FIRST open branch and never comes back, so an open branch before the door on a chain hid the door and
+		// the modules seen through it went under the wrong node); (2) a picture with a bad pixel still ends with AutoLinkEnd (inteng leaves at 0x4c729a, before the Close, and a door
+		// branch it re-opened stayed open): AutoLinkTreeWriter calls it.
+		struct AutoLinkPicture
+		{
+			int32_t door = -1;            // param_1: -1 for a plain picture
+			Node *doorNode = nullptr;     // local_438: the node a door picture's branch hangs from
+			bool branchMade = false;      // bVar5: a branch was made or reused in this picture
+		};
+
+		AutoLinkPicture AutoLinkBegin(int32_t door);
+		bool AutoLinkAdd(AutoLinkPicture *picture, int32_t module);
+		void AutoLinkEnd(AutoLinkPicture const &picture);
+
 		// Delete Link (FUN_004c4590): the node of that module is taken out, with its own branch and chain, from inside an OPEN branch or the next
 		// chain. Gives what inteng gives: false when it was found in a next chain (a quirk of FUN_004c4590: it removes and then returns 0).
 		bool Delete(int32_t module);
@@ -125,9 +149,12 @@ namespace host
 		std::vector<Tint> Tints() const;
 
 	private:
-		struct Node;
-
 		static void FreeChain(Node *node);
+
+		// AutoLink's walk (FUN_004c6fb0 0x4c75f5-0x4c7642): each whole chain from the root, then down its LAST branch that is not closed, and again. The node of that module, or null
+		// with *last the last node walked.
+		Node *AutoLinkWalk(int32_t module, Node **last) const;
+
 		Node *root;
 	};
 }

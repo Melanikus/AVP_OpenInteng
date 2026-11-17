@@ -22,6 +22,8 @@
 #include <vector>
 
 #include "autolink_edit.h"
+#include "autolink_scene.h"
+#include "autolink_views.h"
 
 namespace host
 {
@@ -60,4 +62,14 @@ namespace host
 	// Runs the records on the open level: the module of each is made current (its old links kept), the view drawn, what it sees put in its tree, then every changed tree written at once
 	// (one image, one loader read). visibleDistance and levelScale as AutoLink_Run's.
 	AutoLinkResult AutoLink_FromMlf(OpenLevelFile *open, std::vector<MlfRecord> const &records, double levelScale, int32_t visibleDistance, MlfCounts *counts, std::string *why);
+
+	// FOR THE THREADED RUN (autolink_runner.h StartFromFile; Dietrich 2026-11-16). The module a record names (FUN_004c8be0 0x4c8e0c-0x4c8efa): the records are searched in their order
+	// (scene.list, the modules in the file's order) and the FIRST whose name is the record's decides (inteng breaks there): its place within 1 unit of the record's on each axis (the
+	// level's file numbers or memory units, as (5) above) and *object is it; else *moved is set ("%s has moved since module file created", 0x4c907d) and the record is skipped. False
+	// when no module has that name. Names are matched ignoring case, as (4) above.
+	bool MlfFindModule(AutoLinkScene const &scene, MlfRecord const &record, int32_t *object, bool *moved);
+
+	// The record's view as AutoLink's own views are: the camera's place = the record's view x 100 (0x4c8dc3-0x4c8dd8); its matrix = the record's nine numbers TRANSPOSED (FUN_004b3710
+	// swaps 1/3, 2/6, 5/7 before the camera's +0x38 takes them, 0x4c8dd4-0x4c8e02; AutoLinkView.turn is +0x38). False when the place x 100 does not fit 32 bits.
+	bool MlfView(MlfRecord const &record, AutoLinkView *view);
 }

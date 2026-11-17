@@ -12,7 +12,9 @@ state
 camera -27851 -14055 85500 0 0
 wait 300
 picture 1
-expect-not-empty
+# the level drew (not what it shows): since 1d95ce8 the hub hides every module past the view distance each frame, as inteng's hub (FUN_00444b70, row ML-E-11), so at the
+# default distance this view is about 9% drawn (0.093 on e5f4679), under the verb's 10%; a blank view is near 0
+expect-not-empty 0.05
 # Construction > Mode > Object Placement (0xcc; table 0x5e51b8 by FUN_004d68e0)
 item 0xcc
 expect-screen Object Placement

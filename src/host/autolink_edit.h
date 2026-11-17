@@ -15,8 +15,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <map>
+#include <memory>
 #include <string>
 #include <vector>
+
+#include "module_links.h"
 
 class OpenLevelFile;
 
@@ -44,4 +48,9 @@ namespace host
 
 	// sources: the modules (object numbers) to run, or null for every module. visibleDistance: DAT_00704378 (metres x 100000), 0 for no limit. levelScale: the level's scale (ENVSDSCL).
 	AutoLinkResult AutoLink_Run(OpenLevelFile *open, std::vector<int32_t> const *sources, bool deleteOld, double levelScale, int32_t visibleDistance, AutoLinkCounts *counts, std::string *why);
+
+	// The write at a run's end (the modules' trees by object number; FUN_004c10c0's write when each was left): every tree with a link in ONE new image and ONE loader read, then the
+	// module flag of each that went in. NAMED: a module left with no link is not written, also with "delete old" (a missing link can make a module vanish in game). Also used by
+	// autolink_runner.h (Dietrich's threaded driver, 2026-11-16).
+	AutoLinkResult AutoLink_WriteTrees(OpenLevelFile *open, std::map<int32_t, std::unique_ptr<LinkTree> > const &trees, size_t *written, size_t *skipped, std::string *why);
 }

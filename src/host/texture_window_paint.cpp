@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "texture_window_paint.h"
+#include "panel_pass.h"        // PanelPass_DrawText: the words in inteng's font
 
 namespace
 {
@@ -123,7 +124,7 @@ void TextureWindowPaint_Draw(int32_t windowWidth, int32_t windowHeight, const Te
 
 		memcpy(letters, lines[i], length);
 		letters[length] = '\0';
-		RenderSmallMenuText(letters, lineX, lineY + i * 15, ONE_FIXED, AVPMENUFORMAT_LEFTJUSTIFIED);
+		PanelPass_DrawText(letters, lineX, lineY + i * 15, 0xFFFFFFFFu);   // inteng's font when it was read (view-state-table.md H-1i)
 	}
 }
 
@@ -138,7 +139,7 @@ void TextureWindowPaint_Lines(int32_t windowWidth, int32_t windowHeight, const s
 
 		memcpy(letters, lines[i].data(), length);
 		letters[length] = '\0';
-		RenderSmallMenuText(letters, x, y + (int32_t)i * 15, ONE_FIXED, AVPMENUFORMAT_LEFTJUSTIFIED);
+		PanelPass_DrawText(letters, x, y + (int32_t)i * 15, 0xFFFFFFFFu);   // inteng's font when it was read (view-state-table.md H-1i)
 	}
 
 	(void)windowWidth;

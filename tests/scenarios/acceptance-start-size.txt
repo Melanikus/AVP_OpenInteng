@@ -1,0 +1,9 @@
+# ACCEPTANCE (red first): THE SIZE THE EDITOR STARTS AT (Bishop's order 11-16, from Melanikus: "Set my inteng to start at max resolution"; reassess/startup-screen-frost.md SS-1..SS-13).
+# Inteng (FUN_0058c9e0): 640 x 480, then the command line's -r<w>x<h> (0x58cc0d), then IntengOptions.ini's "Screen Width" / "Screen Height" (FUN_00493ce0, read LAST: the file wins), and
+# the window covers the screen at that size (FUN_0058bdf0). Ours bounds the size to the monitor; a size whose framed window fits the work area is a framed window whose client is that size.
+# A hidden run reads IntengOptions.ini only from -options <folder> (SS-13). Here the folder holds a file as inteng writes it (its nine keys), 1280 x 720, and -r800x600 is given too: the
+# file wins. Red on d30df8c (no -r, no -options: the editor refuses the command line).
+start-args -r800x600 -options {scenariodir}start-size-1280x720
+state
+expect-screen Construction
+expect-field-has window 1280 720 window

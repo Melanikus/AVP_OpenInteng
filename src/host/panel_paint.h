@@ -48,7 +48,7 @@ namespace host
 		int32_t x;
 		int32_t y;
 		uint32_t colour = 0xFFFFFFFFu;   // ARGB the letters are drawn in: white unless a part asks otherwise (an "on" menu item is yellow, H-5e)
-		bool menuFont = false;           // drawn in inteng's own menu font when one was read (panel_pass.h PanelPass_SetMenuFont): letters 0 to 127 as they are, solid in the colour
+		bool menuFont = false;           // a menu's line: its letters 0 to 127 as they are (glyph 1 a tick, 2 a sub-menu's mark); any other line is made safe first. Every line is drawn in inteng's font once it was read (panel_pass.h PanelPass_SetMenuFont; view-state-table.md H-1i), solid in the colour
 		bool overlay = false;            // drawn after every box and line of the screen itself (the bar, its drop-downs, the pop-up, a dialog: see PaintBox)
 	};
 

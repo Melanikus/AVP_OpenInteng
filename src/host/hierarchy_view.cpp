@@ -450,13 +450,14 @@ void HierarchyView_ScrubMain(int32_t step, bool all)
 		controller.sequence_timer = (controller.sequence_timer + step) & 0xffff;
 	}
 
-	// a stopped DELTA: inteng adds the step to its +0x28, the RUNNING word, not to its timer (FUN_0047b9c0 0x47baa2-0x47baaa, FUN_0047bb20 0x47bbfd): the first scrub frame makes it run, and it plays
-	// from then on; its timer is only wrapped (0x47bae5). inteng's own quirk, kept as it is (Bishop's ruling 11-16, rule 10b)
+	// a stopped DELTA: its timer moves by the step, as the main's does, and it stays stopped. INTENG BUG, FIXED (MAPPING-ORDERS section 15, HP-17): inteng adds the step to the delta's +0x28,
+	// its RUNNING word, not to its timer (FUN_0047b9c0 0x47baa2-0x47baaa, FUN_0047bb20 0x47bbfd), so the first scrub frame made it run, and it played from then on (copied in 42a69a9 under the
+	// 11-16 ruling); it meant the timer (+0x10), which it only wraps (0x47bae5)
 	for (DELTA_CONTROLLER *each = all ? controller.Deltas : nullptr; each; each = each->next_controller)
 	{
-		if (!each->Playing && step != 0)
+		if (!each->Playing)
 		{
-			each->Playing = 1;
+			each->timer = (each->timer + step) & 0xffff;
 		}
 	}
 
@@ -1006,51 +1007,31 @@ int HierarchyView_SelectedSection()
 	return shown ? selectedSection : -1;
 }
 
-bool HierarchyView_PickSection(const int32_t from[3], const int32_t direction[3], int *index)
+// inteng's click on a section (hierarchy-closeout-frost.md TB-1): FUN_00559720 gives the object whose POLYGONS are under the pointer (the nearest along the ray), FUN_00479da0 / FUN_0047f880 the section
+// that object is. Ours: the game's own line of sight over what was drawn (pick_game.cpp) reports the posed section whose polygons it met (LOS_HModel_Section); here it becomes a place in the
+// sections' list, only when it is a section of the hierarchy shown.
+bool HierarchyView_SectionOfHit(void const *sectionData, int *index)
 {
 	std::vector<SECTION_DATA *> flat;
 	std::vector<int> parents;
 
-	if (!from || !direction || !index)
+	if (!sectionData || !index || !shown)
 	{
 		return false;
 	}
 
 	FlatSections(&flat, &parents);
 
-	double const length = sqrt((double)direction[0] * direction[0] + (double)direction[1] * direction[1] + (double)direction[2] * direction[2]);
-
-	if (flat.empty() || !(length > 0.0))
-	{
-		return false;
-	}
-
-	double const d[3] = { direction[0] / length, direction[1] / length, direction[2] / length };
-	double bestT = 1e30;
-	int best = -1;
-
-	// the sections whose bounding sphere (the game's own test: PointInHModel's shaperadius about the section's place) the ray crosses; the nearest along the ray wins
 	for (size_t i = 0; i < flat.size(); i++)
 	{
-		if (!flat[i]->Shape)
+		if (flat[i] == sectionData)
 		{
-			continue;
-		}
-
-		double const c[3] = { (double)flat[i]->World_Offset.vx - from[0], (double)flat[i]->World_Offset.vy - from[1], (double)flat[i]->World_Offset.vz - from[2] };
-		double const t = c[0] * d[0] + c[1] * d[1] + c[2] * d[2];
-		double const miss2 = c[0] * c[0] + c[1] * c[1] + c[2] * c[2] - t * t;
-		double const radius = flat[i]->Shape->shaperadius;
-
-		if (t > 0.0 && miss2 <= radius * radius && t < bestT)
-		{
-			bestT = t;
-			best = (int)i;
+			*index = (int)i;
+			return true;
 		}
 	}
 
-	*index = best;
-	return best >= 0;
+	return false;
 }
 
 bool HierarchyView_Extent(int32_t mins[3], int32_t maxs[3])

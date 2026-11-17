@@ -74,10 +74,11 @@ expect-status Copy Strategy: 1 object(s) got the strategy
 click-win 120 500
 click-win 120 500 right
 click-popup 4
-expect-dialog Select Strategy
-click-button Lift
+# APCmod holds the Door: inteng asks first, then shows the window (FUN_00528830 0x528874-0x52889d, S-14)
 expect-dialog-kind confirm
 click-button Yes
+expect-dialog Select Strategy
+click-button Lift
 expect-no-dialog
 key Esc
 wait 400

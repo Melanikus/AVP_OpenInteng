@@ -1,0 +1,68 @@
+# ACCEPTANCE (red first): Object Placement's SOUNDS PLAYED BY THE GAME (A-10; reassess/object-placement.md OP-133b/c, OP-92a/b; placed_sounds_game.h), by Melanikus's path on Invasion
+# (read-only, opened as by a double click). This run's game folder has no raw sound folder, only the fastfiles, so by Bishop's ruling (11-16) Sound Edit's list is the wavs the game's loader
+# holds under sound/env/invasion/, in edobtype's finder order (the names compared in capitals; NAMED: inteng read only the raw folder), and Play and the placed sounds play through it.
+# inteng: a sound object made or edited is played at once when its flag bit 0 is clear ("nel", or "ne" when bit 1 is set: FUN_004ecd40 0x4ececd, 0x4ed2ac); every frame FUN_004ed7e0 stops one
+# whose OUTER range the camera is beyond and plays again one in range whose flags & 3 are 0, so one that does not loop is never played again by the frame. The state line's placedsounds field
+# says what the game's sound code holds ("current" is the current sound: 1 sounding). A hidden run is silent (the sound system's volume 0). Red before: no list (the folder is not there), no
+# Play, no sound played in the view.
+# His Tools folder's inteng.exe gives the editor's icons (without it the run draws the fallback boxes, and the new sound's box round the camera fills the picture with its red)
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+expect-number placedsounds device_ 1 1
+# a new sound (no wav yet: nothing loaded), made at the view
+remember-number placedsounds held_
+click-bar Create > Sound
+expect-dialog Name Object
+form-field 1 sndP
+click-button OK
+expect-no-dialog
+expect-number-moved placedsounds held_ 1 1
+expect-number placedsounds current_ 0 0
+remember-number placedsounds loaded_
+# E: the list is the fastfiles' wavs for Invasion, in the finder's order
+key E
+expect-dialog Sound Edit -
+click-combo 1
+# (the state line writes a space as _ and the check reads every _ back as a space, so the names' underscores are written here as spaces)
+expect-dialog-combo-rows alienpres11-8.wav,alwater.wav,ambgenmotor2.wav,ambie1.wav,ambie13.wav,ambie15.wav,ambie2.wav,ambie4.wav,ambie7.wav,ambiemidwindf.wav,bustlite.wav,dropship door.wav,edswitch.wav,emerlitingonline.wav,fan1.wav,fmvscreensmash.wav,generatoron.wav,glassthang.wav,hive1.wav,jet loop.wav,leverswitchf.wav,lightsoffecho.wav,litebreak.wav,litepoweronline.wav,medpackdestruct.wav,powerdn.wav,preddestruct 02wav.wav,sparks.wav,subsonicshipf.wav,thudstop.wav,toiletdooropen.wav,toiletflush.wav,turnswitch.wav,weapondestruct 01.wav,weapondestruct 02.wav,wil viro lift 01 end.wav,wil viro lift 01 mid lp.wav,wil viro lift 01 start.wav,wil viro lift 02 end.wav,wil viro lift 02 mid lp.wav,wil viro lift 02 start.wav,wil viro lift 03 end.wav,wil viro lift 03 mid lp.wav,wil viro lift 03 start.wav,wind2.wav,wind3.wav
+click-combo-row alwater.wav
+expect-dialog-text alwater.wav|5|10|0|100
+# Play: the picked wav plays (Sound Loops is ticked: it loops) and the window stays
+click-button Play
+expect-status Sound Edit: Play alwater.wav: playing
+expect-dialog Sound Edit -
+expect-number placedsounds preview_ 1 1
+picture 1
+# OK: the window closes and its Play stops; the sound's wav is loaded and, Playing at Start ticked, played at once, looping
+click-button OK
+expect-no-dialog
+expect-number placedsounds preview_ 0 0
+expect-number-moved placedsounds loaded_ 1 1
+expect-number placedsounds current_ 1 1
+# the camera 100 m away, beyond its outer range (10 m): the frame stops it; back within: the frame plays it again (flags & 3 are 0)
+camera 72149 -14055 85500 0 0
+wait 300
+expect-number placedsounds current_ 0 0
+camera -27851 -14055 85500 0 0
+wait 300
+expect-number placedsounds current_ 1 1
+# E, Sound Loops unticked (bit 1 set), OK: played once when edited ("ne"); away and back, the frame never plays it again
+key E
+expect-dialog Sound Edit -
+expect-dialog-checks on,on
+click-check 2
+click-button OK
+expect-no-dialog
+camera 72149 -14055 85500 0 0
+wait 300
+expect-number placedsounds current_ 0 0
+camera -27851 -14055 85500 0 0
+wait 300
+expect-number placedsounds current_ 0 0
+expect-number-moved placedsounds loaded_ 1 1

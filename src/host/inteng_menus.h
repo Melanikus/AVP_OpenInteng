@@ -132,7 +132,6 @@ namespace host
 		AdjacentSetCurrent, // Adjacent Modules, Base, Set Current: the picked module becomes the current one, its list loaded (FUN_004025d0)
 		AdjacentExit,     // Adjacent Modules, Mode, Exit: the list is written back into the module's ADJMDLEP when changed, then the hub (FUN_00404a20 command 10: FUN_00404040, FUN_004049d0)
 		AdjacentViewDistance, // Adjacent Modules, Base, Toggle View Distance (0x46, DAT_00606780): modules beyond the view distance are hidden; the keys J and M change it
-		AdjacentSelectPolygons, // Adjacent Modules, Select by polygons (0xca, DAT_00631268): a click picks the polygon under the pointer; off, the module whose centre is nearest the pointer
 		AdjacentShowAll,  // Adjacent Modules, Base, Show All (0x66): modules with an ADJMDLEP blue, the rest white
 		ViewPolygon,      // a screen's own View Mode item: every shape drawn Filled (FUN_0046db20 on each shape; the editor's draw mode Polygon, key 7)
 		ViewPolyline,     // ... Polyline (FUN_0046daa0, key 8)

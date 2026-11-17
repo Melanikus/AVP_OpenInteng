@@ -1,0 +1,23 @@
+# ACCEPTANCE: Melanikus's case, Stat101 (via Bishop 11-16: "generators show a grey useless parameter list"): the big green V in front of generator02 is the virtual object trigtospidgen, a
+# MULTIPLE TARGET SWITCH (66) that turns the generator on. Edit Strategy on it now shows inteng's view (FUN_0052f700, S-K66-1 / -2), not the grey field panel. Its bytes (read with Drake's
+# rif-read): Rest 0, Mode 1 (Wait), flags 0x80000000, one target, request 1, no links.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+camera 0 0 0 0 0
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is trigtospidgen
+expect-no-dialog
+key E
+wait 400
+picture 1
+expect-field-has strategyview 200@0:trigtospidgen : Multiple Target Switch|100@629:D : Duplicate target{9} Shift D : Remove target|100@649:E : Edit extra message data for target|100@669:P : Change Properties|100@689:T : Change Target (+Ctrl to choose environment)|100@709:S : Toggle Target State|16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Targets :|0@96:(on)|80@96:
+# no field panel: the view's words fill the screen (the grey panel's rows are not there)
+expect-field-has strategyview |80@96:
+key Esc
+wait 300

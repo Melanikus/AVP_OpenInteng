@@ -1,0 +1,101 @@
+# ACCEPTANCE: E, the target's extra request data, on Melanikus's path (Drake, 2026-11-16; reassess/strategy-data-kinds.md S-KC-8, S-K62-5, S-K62-E, S-K73-E; strategy-data.md S-84), and the views' flag
+# marks in inteng's font (W-2: font16's glyph 1 a tick, 3 an X; the state line writes a font code as {n}). The level is Derelict, a read-only stock copy: nothing is saved over it. Its targets (read by
+# AvP-docs\tools\drake\e-survey): glass (62) -> "V In emergency break glass message 113" (73, request 2), keeb01 (62) -> LIGHTcomm01c (62, request 17), TANK01 (62) -> "V fan off tank01" (66).
+# His path: the file opened as a double click, the bar clicked, Find Object, the right button's Edit Strategy, the E key, the page's lines clicked, a dialog answered by typing and Ok, Escape / the right button.
+# A view's line drawn at y = Y is clicked at window y = Y + 8.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+# ---- glass: a Placed Object whose target is a Message (S-K73-E, FUN_00533880)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is glass
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+# W-2: the flag marks are font16's glyphs 1 / 3 (0x530fd6-0x531036), not letters
+expect-field-has strategyview |16@80:{
+expect-field-has strategyview (Has extra message data)
+picture 1
+# E: the Message page; request 2 is data 1, "Activate message"
+key E
+wait 300
+expect-field strategyview 100@0:Target  -  V In emergency break glass message 113 : Message|100@709:Left button : Cycle through options|200@32:Current effect of on/off message :|0@48:On :|64@48:Activate message|0@64:Off :|64@64:Deactivate message
+expect-colour picture 300 250 600 300 000000 0.97 8
+picture 2
+# a left click anywhere: the next option (data 2)
+click-win 400 300
+wait 300
+expect-field-has strategyview 0@48:On :|64@48:Activate and display message|0@64:Off :|64@64:Deactivate message
+picture 3
+# Escape ends the Message page alone: glass's view is there again, and the word went back (data 2: word 4, "(Has extra message data)"). INTENG BUG, FIXED (section 15): inteng's
+# Message page leaves the Escape slot set (0x5339f4), so there the view under it ended too (RED on that build: the view gone)
+key Esc
+wait 300
+expect-field-has strategyview (Has extra message data)
+picture 40
+key Esc
+wait 300
+expect-field-empty strategyview
+
+# ---- keeb01: a Placed Object whose target is a placed light (S-K62-E, FUN_00531240); request 17 is data 8, flicker
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is keeb01
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+key E
+wait 300
+expect-field-has strategyview 100@0:Target  -  LIGHTcomm01c : Placed object|32@16:Set integrity|16@16:{3}
+picture 4
+# the integrity line: "New integrity value" holding the target's integrity; 7 typed, Ok
+click-win 300 24
+expect-dialog New integrity value
+key Back
+key Back
+key Back
+type 7
+click-button Ok
+wait 300
+expect-field-has strategyview 32@16:Set integrity to 7|16@16:{1}
+picture 5
+# the right button ends the page, not the view (0x531587-0x53158e clear the mouse word and the Escape slot)
+click-win 400 300 right
+wait 300
+expect-field-has strategyview keeb01 :
+expect-field-has strategyview (Has extra message data)
+key Esc
+wait 300
+
+# ---- TANK01: a Placed Object whose target is a Multi Switch (S-84, FUN_00530510): "Part of link switch set" flips the word's bit 2
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is TANK01
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+key E
+wait 300
+expect-field strategyview 100@0:Target  -  V fan off tank01 : Switch|32@48:Part of link switch set|16@48:{3}
+click-win 300 56
+wait 300
+expect-field-has strategyview 16@48:{1}
+picture 6
+# Escape ends this page only (0x530632 clears the slot): the view goes on
+key Esc
+wait 300
+expect-field-has strategyview TANK01 :
+key Esc
+wait 300
+expect-field-empty strategyview

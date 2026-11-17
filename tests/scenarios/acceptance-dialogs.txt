@@ -22,7 +22,9 @@ item 0xa
 item 0xc8
 item 0x65
 expect-dialog-kind confirm
-expect-pixels-changed panels 100 100 440 260
+# the window opened (not the level behind it): since 1d95ce8 the hub hides modules past the view distance (row ML-E-11), so its dark box covers fewer lines: 3.8% of the box
+# changed on 1d95ce8 (50% before), under the verb's 5%; no window is 0
+expect-pixels-changed panels 100 100 440 260 0.02
 click-button No
 expect-no-dialog
 item 0xc8

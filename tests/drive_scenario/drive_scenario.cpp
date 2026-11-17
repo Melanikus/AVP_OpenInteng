@@ -553,8 +553,10 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 	// click-choice <words>: a left click on the middle of the button of the list chooser (inteng's Genfunc list dialog, list_picker.h) whose words contain these (the editor's state line gives the buttons of the page
 	// shown as "choices"); FAILED when no button has them
-	if (verb == "click-choice" && w.size() >= 2)
+	// click-choice-is <words>: as click-choice, but the row's words must be exactly those (case aside): "glass" is not "V In emergency break glass message 113"
+	if ((verb == "click-choice" || verb == "click-choice-is") && w.size() >= 2)
 	{
+		bool const exact = verb == "click-choice-is";
 		bool fresh = AskState(s);
 		std::string const wanted = Rest(line, 1);
 		std::string choices = fresh ? Field(s->last, "choices") : std::string();
@@ -585,7 +587,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 			int x = 0, y = 0, bw = 0, bh = 0;
 
-			if (lowerWords.find(lowerWanted) != std::string::npos && sscanf_s(one.c_str() + at + 1, "%d,%d,%d,%d", &x, &y, &bw, &bh) == 4)
+			if ((exact ? lowerWords == lowerWanted : lowerWords.find(lowerWanted) != std::string::npos) && sscanf_s(one.c_str() + at + 1, "%d,%d,%d,%d", &x, &y, &bw, &bh) == 4)
 			{
 				ClickWindow(s, x + bw / 2, y + bh / 2, false, false);
 				Sleep(300);
@@ -1372,7 +1374,11 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 			if (parts.size() >= 5 && (row ? words == want : ++at == atoi(w[1].c_str())))
 			{
-				ClickWindow(s, atoi(parts[1].c_str()) + atoi(parts[3].c_str()) / 2, atoi(parts[2].c_str()) + atoi(parts[4].c_str()) / 2, false, false);
+				// a row is pressed in its middle; a combo on its ARROW (8 pixels in from its right side), as a person opens one: an editable combo's box takes letters left of its
+				// arrow (dialog_box.h), and a plain combo opens anywhere in its box (Vasquez 11-16)
+				int const x = row ? atoi(parts[1].c_str()) + atoi(parts[3].c_str()) / 2 : atoi(parts[1].c_str()) + atoi(parts[3].c_str()) - 8;
+
+				ClickWindow(s, x, atoi(parts[2].c_str()) + atoi(parts[4].c_str()) / 2, false, false);
 				clicked = true;
 			}
 
@@ -2324,10 +2330,17 @@ int main(int argc, char **argv)
 		{
 			// more words for the editor's command line, after -screen (for example "-viewmode headlight": the Hierarchy scenario's model is lit by it). {exedir} is the editor's folder,
 			// with its closing backslash: a scenario can open the copy an earlier run saved (<exedir>AVP_OpenInteng/edited/<level>-edited.rif). (Added 2026-11-16 by Vasquez.)
+			// {scenariodir} is the scenario file's own folder, whole and with its closing backslash: files a scenario needs travel with it in the repository, whichever worktree runs it
+			// (startup-screen-frost.md SS-13's IntengOptions.ini folders; added 2026-11-16 by Frost).
 			std::string words = Rest(line, 1);
 			std::string const folderOfEditor = Narrow(exe.substr(0, exe.find_last_of(L"\\/") + 1));
+			char wholeScenario[MAX_PATH] = "";
+			DWORD const wholeLength = GetFullPathNameA(argv[3], sizeof(wholeScenario), wholeScenario, nullptr);
+			std::string const scenarioWhole = wholeLength > 0 && wholeLength < sizeof(wholeScenario) ? std::string(wholeScenario) : std::string(argv[3]);
+			std::string const folderOfScenario = scenarioWhole.substr(0, scenarioWhole.find_last_of("\\/") + 1);
 
 			words = Replace(words, "{exedir}", folderOfEditor);
+			words = Replace(words, "{scenariodir}", folderOfScenario);
 			startArguments += L" " + Widen(words);
 			continue;
 		}

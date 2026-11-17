@@ -1,0 +1,23 @@
+# ACCEPTANCE: the HUB's view distance as inteng's (Dietrich, 2026-11-16; row ML-E-11 of AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md; Bishop's ruling: build it, rule 10b).
+# His path: his level opened, keys held, reading the picture. The hub's frame FUN_004452b0: H (slot 0xd87a88) adds 500,000 to the shared distance DAT_005fd678 each frame it is held,
+# N (0xd87a8e) takes 500,000 away, never below 0 (0x446ada-0x446af7); then EVERY frame, with no switch, FUN_00444b70 (LAB_00446c46) hides each record whose distance from the camera,
+# less its radius, is at least the distance (100 to the millimetre: the start value 1,000,000 is 10 m, row ML-E-7). "View Distance :%d" (the distance / 500,000) is the hub's row.
+#ini ViewDistance=1000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-screen-text View Distance :2
+picture 1
+# ---- H held: the distance grows each frame; modules farther than 10 m appear
+hold H 1000
+wait 300
+expect-number screentext View_Distance_: 3 4300
+picture 2
+expect-pixels-changed-since 1 picture 0 0 1008 700 0.02
+# ---- N held long enough: the distance goes down to 0 (never below): only what holds the camera is drawn, far less than at 10 m
+hold N 3000
+wait 300
+expect-screen-text View Distance :0
+picture 3
+expect-pixels-changed-since 1 picture 0 0 1008 700 0.005

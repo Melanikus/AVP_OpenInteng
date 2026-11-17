@@ -1,0 +1,27 @@
+# ACCEPTANCE: E on a target that is an enemy but no marine (Drake, 2026-11-16; reassess/strategy-data-kinds.md S-K69-E, strategy-data.md S-82): the enemy's wrapper FUN_0053a470 says "Only available for
+# marines/civilians" (0x5f02d4), Ok, and keeps the word. Genshd1 (read-only stock copy; e-survey): med02L (62) -> facehugga (an enemy of species 3, no strategy).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is med02L
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview med02L : Placed Object
+key E
+wait 300
+expect-dialog Only available for marines/civilians
+picture 1
+click-button Ok
+wait 300
+expect-no-dialog
+expect-field-has strategyview med02L : Placed Object
+key Esc
+wait 300

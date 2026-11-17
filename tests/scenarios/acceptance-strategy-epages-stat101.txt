@@ -1,0 +1,50 @@
+# ACCEPTANCE: E on a target whose strategy has no page of its own (Drake, 2026-11-16; reassess/strategy-data-kinds.md S-KC-8, strategy-data.md S-85): FUN_0052b220 cuts the request word to bit 0 and says
+# "The target strategy doesn't use extended request data" (0x5ee7c4), Ok. Stat101 (read-only stock copy; e-survey): liftor14 (62) -> liftM08 (a Door, 50), smartpatrol (an Enemy, 69) -> generator02 (79).
+# His path: the file opened as a double click, the bar, Find Object, the right button's Edit Strategy, the E key, the message's Ok.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+# ---- liftor14: its target is a Door
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is liftor14
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview liftor14 : Placed Object
+key E
+wait 300
+expect-dialog The target strategy doesn't use extended request data
+picture 1
+click-button Ok
+wait 300
+expect-no-dialog
+expect-field-has strategyview liftor14 : Placed Object
+key Esc
+wait 300
+
+# ---- smartpatrol (a marine): its death target is a Generator, whose 79 has no page either (its wrapper's +0x10 is the usual FUN_005393a0 -> FUN_0052b220)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is smartpatrol
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview smartpatrol : Enemy
+key E
+wait 300
+expect-dialog The target strategy doesn't use extended request data
+click-button Ok
+wait 300
+expect-no-dialog
+key Esc
+wait 300
+expect-field-empty strategyview

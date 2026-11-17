@@ -274,6 +274,13 @@ namespace host
 
 			if (w.type == DialogWidgetType::Combo)
 			{
+				// an editable combo's box (left of its arrow) takes the letters; its arrow, or a plain combo anywhere, opens the list
+				if (w.editable && x < w.box.x + w.box.width - 16)
+				{
+					focus = i;
+					continue;
+				}
+
 				w.listOpen = !w.items.empty();
 				continue;
 			}
@@ -333,6 +340,14 @@ namespace host
 			return;
 		}
 
+		if (open && kind == DialogKind::Form && focus < widgets.size() && widgets[focus].type == DialogWidgetType::Combo && widgets[focus].editable && (unsigned char)letter >= 32 &&
+			(unsigned char)letter <= 126 && widgets[focus].text.size() < widgets[focus].most)
+		{
+			widgets[focus].text += letter;
+			widgets[focus].selected = -1;
+			return;
+		}
+
 		if (open && kind == DialogKind::Text && focus < fields.size() && (unsigned char)letter >= 32 && (unsigned char)letter <= 126 && fields[focus].text.size() < kMostFieldLetters)
 		{
 			fields[focus].text += letter;
@@ -341,9 +356,16 @@ namespace host
 
 	void InDialog::Backspace()
 	{
-		if (open && kind == DialogKind::Form && focus < widgets.size() && widgets[focus].type == DialogWidgetType::Edit && !widgets[focus].text.empty())
+		if (open && kind == DialogKind::Form && focus < widgets.size() && (widgets[focus].type == DialogWidgetType::Edit || (widgets[focus].type == DialogWidgetType::Combo && widgets[focus].editable)) &&
+			!widgets[focus].text.empty())
 		{
 			widgets[focus].text.pop_back();
+
+			if (widgets[focus].type == DialogWidgetType::Combo)
+			{
+				widgets[focus].selected = -1;
+			}
+
 			return;
 		}
 

@@ -1,0 +1,59 @@
+# ACCEPTANCE: the light marker is read from HIS inteng.exe, never from our source (Drake, 2026-11-16; Melanikus's ruling via Bishop: inteng's binary data is read at run time). This run has NO inteng.exe
+# within reach (IntengTools names a folder that is not there, and none lies beside the program): the marker must be OUR OWN plain grey one, not inteng's colours. The same steps as
+# acceptance-light-sourcing.txt up to its marker check (which, with inteng.exe there, sees inteng's base colour 808000 on the same spot).
+#ini IntengTools=C:\Nowhere-AVP_OpenInteng-test
+
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+picture 1
+expect-not-empty 0.005
+
+item 0xca
+expect-screen Light Sourcing (with Doors)
+# the status line says why the markers are ours (the log has it too: settings\avp_log.txt "light markers: ...")
+expect-status light markers: inteng.exe not read
+expect-bar1 Mode
+expect-bar1 Doors
+expect-bar1 Lights
+expect-bar1 Select
+expect-bar1 Edge
+expect-bar1 Help
+expect-bar1 Screenshot
+expect-pixels-changed panels 0 40 300 60 0.01
+expect-field viewmode polygon
+
+face-light 62
+wait 600
+picture 40
+item 0x48
+expect-pixels-changed picture 0 0 2000 2000 0.003
+wait 600
+picture 41
+expect-pixels-same picture 0 0 2000 2000 0.002
+item 0x46
+face-light 62
+wait 600
+picture 42
+expect-pixels-changed picture 0 0 2000 2000 0.003
+
+picture 11
+item 0x6f
+expect-status is off
+wait 400
+picture 12
+expect-pixels-same picture 0 0 2000 2000 0.002
+key S
+expect-pixels-changed picture 0 0 2000 2000 0.0003
+picture 13
+key X
+expect-pixels-changed picture 0 0 2000 2000 0.0003
+picture 14
+key S
+wait 300
+
+# inteng's base colour is not there; our grey is
+expect-colour-at-most picture 270 270 40 40 808000 0.01 8
+expect-colour picture 270 270 40 40 808080 0.1 8
+picture 50

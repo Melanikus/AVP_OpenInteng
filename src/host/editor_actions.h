@@ -152,7 +152,6 @@ int32_t const kAdjDelete = 2;
 int32_t const kAdjSetCurrent = 3;
 int32_t const kAdjExit = 4;      // Mode > Exit: the list is written back, the screen's state is let go of (the item also goes to the hub)
 int32_t const kAdjViewDistance = 6;   // Base > Toggle View Distance
-int32_t const kAdjSelectPolygons = 7;  // Select by polygons (a tick)
 int32_t const kAdjShowAll = 5;   // Base > Show All: modules with an ADJMDLEP blue, the others white
 
 int32_t const kPromptAsc = 5;        // Write Asc File: the name of the file to write, without ".asc" (inteng: "Type filename (without .asc extension)")

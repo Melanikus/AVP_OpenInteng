@@ -110,9 +110,11 @@ namespace
 				continue;
 			}
 
-			if (line.menuFont && menuFontSet)
+			// inteng draws every text in its one font (view-state-table.md H-1a..H-1d): with it read, every line is drawn in it; a menu's line keeps its glyphs 1 and 2 (the tick, a
+			// sub-menu's mark), any other line is made safe first
+			if (menuFontSet)
 			{
-				DrawMenuFontLine(line.text, line.x, line.y, line.colour);
+				DrawMenuFontLine(line.menuFont ? line.text : host::PanelPaint_SafeText(line.text), line.x, line.y, line.colour);
 				continue;
 			}
 
@@ -136,10 +138,16 @@ namespace
 
 		// 2. Each panel's own line
 		host::PaintText lines[4];
-		size_t const count = host::PanelPaint_Plan(*frame->layout, *frame->texts, PanelPass_SmallWidth, kPanelPassLineHeight, lines, 4);
+		size_t const count = host::PanelPaint_Plan(*frame->layout, *frame->texts, PanelPass_MenuWidth, kPanelPassLineHeight, lines, 4);
 
 		for (size_t i = 0; i < count; i++)
 		{
+			if (menuFontSet)
+			{
+				DrawMenuFontLine(lines[i].text, lines[i].x, lines[i].y, 0xFFFFFFFFu);
+				continue;
+			}
+
 			DrawLine(lines[i].text, lines[i].x, lines[i].y);
 		}
 
@@ -237,6 +245,24 @@ int PanelPass_MenuWidth(int letter)
 int32_t PanelPass_MenuFontHeight()
 {
 	return menuFontSet ? menuFontHeight : 0;
+}
+
+void PanelPass_DrawText(const std::string &text, int32_t x, int32_t y, uint32_t colour)
+{
+	if (x < 0 || y < 0)
+	{
+		return;
+	}
+
+	std::string const safe = host::PanelPaint_SafeText(text);
+
+	if (menuFontSet)
+	{
+		DrawMenuFontLine(safe, x, y, colour);
+		return;
+	}
+
+	DrawLine(safe, x, y, colour);
 }
 
 int PanelPass_SmallWidth(int letter)

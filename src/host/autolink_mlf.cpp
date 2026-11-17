@@ -239,4 +239,92 @@ namespace host
 
 		return true;
 	}
+
+	bool MlfFindModule(AutoLinkScene const &scene, MlfRecord const &record, int32_t *object, bool *moved)
+	{
+		if (object)
+		{
+			*object = -1;
+		}
+
+		if (moved)
+		{
+			*moved = false;
+		}
+
+		for (AutoLinkModule const &entry : scene.list)
+		{
+			std::map<int32_t, std::string>::const_iterator const name = scene.names.find(entry.number);
+
+			if (name == scene.names.end() || name->second.size() != record.name.size() || _strnicmp(name->second.c_str(), record.name.c_str(), record.name.size()) != 0)
+			{
+				continue;
+			}
+
+			// the first module of that name decides (0x4c8e5a): within 1 unit on each axis, as the level's file numbers or as memory units
+			std::map<int32_t, std::vector<int32_t> >::const_iterator const file = scene.fileLocations.find(entry.number);
+			bool inMemory = true, inFile = file != scene.fileLocations.end() && file->second.size() >= 3;
+
+			for (int axis = 0; axis < 3; axis++)
+			{
+				int64_t const a = (int64_t)record.place[axis] - entry.module.place[axis];
+
+				inMemory = inMemory && a >= -1 && a <= 1;
+
+				if (inFile)
+				{
+					int64_t const b = (int64_t)record.place[axis] - file->second[(size_t)axis];
+
+					inFile = b >= -1 && b <= 1;
+				}
+			}
+
+			if (inMemory || inFile)
+			{
+				if (object)
+				{
+					*object = entry.number;
+				}
+			}
+			else if (moved)
+			{
+				*moved = true;
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+
+	bool MlfView(MlfRecord const &record, AutoLinkView *view)
+	{
+		if (!view)
+		{
+			return false;
+		}
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			int64_t const value = (int64_t)record.view[axis] * 100;
+
+			if (value < INT32_MIN || value > INT32_MAX)
+			{
+				return false;
+			}
+
+			view->place[axis] = (int32_t)value;
+		}
+
+		for (int r = 0; r < 3; r++)
+		{
+			for (int c = 0; c < 3; c++)
+			{
+				view->turn[r * 3 + c] = record.turn[c * 3 + r];
+			}
+		}
+
+		view->step = 0;
+		return true;
+	}
 }

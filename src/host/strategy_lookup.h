@@ -96,6 +96,31 @@ namespace host
 	// The enemy or generator with this ID (the first, as the game's name lookup takes the first); false when none has it
 	bool FindGenerator(File_Chunk *level, uint8_t const *id, GeneratorRef *out);
 
+	// THE LEVEL'S PLACED HIERARCHIES (PLACHIER in REBENVDT > SPECLOBJ, Object Placement's placed hierarchies), each one's name, ID and place as its PLACHIDT holds them (avpx hierplace.hpp), and the
+	// PLACHIER chunk. Its strategy is the PLACHIER's AVPSTRAT child (avpx hierplace.cpp: the game takes only kind 76 there). In inteng's Strategy Data each one is a strategy object of wrapper class
+	// 0x5afae0 (FUN_00521cb0; reassess/strategy-data-kinds.md S-KC-6, S-K76-W): its name the wrapper's +4 (FUN_0053b6b0: PLACHIDT +0x28), it takes kind 76 only (+8, FUN_0053b780). Vasquez 11-16.
+	struct PlacedHierarchyRef
+	{
+		std::string name;
+		uint8_t id[kSelectionIdBytes];
+		int32_t place[3];   // the PLACHIDT's location, in the file's units
+		Chunk *placed;      // the PLACHIER chunk
+	};
+
+	size_t const kMostPlacedHierarchies = 100000;
+
+	void ListPlacedHierarchies(File_Chunk *level, std::vector<PlacedHierarchyRef> *out);
+
+	// The placed hierarchy with this ID (the first); false when none has it
+	bool FindPlacedHierarchy(File_Chunk *level, uint8_t const *id, PlacedHierarchyRef *out);
+
+	// THE STRATEGY OBJECTS IN inteng's ORDER (its records DAT_00914954, FUN_00521cb0: each at its object's number, the level's objects first, then the objects it makes for the virtual objects
+	// (VIOBJECT), the enemies and generators (AVPGENER) and the placed hierarchies (PLACHIER), each list in the file's order), each with its strategy (kind 0 when none): what the switches' Links are
+	// made from (strategy_views.h StrategyView_SwitchLinks). The sounds, particle generators, cut-scenes and traps inteng also keeps hold no switch and are left out. Vasquez 11-16.
+	struct StrategyRecordRef;   // strategy_views.h
+
+	void ListStrategyRecords(File_Chunk *level, std::vector<StrategyRecordRef> *out);
+
 	// Looks for the object whose ID is the 8 bytes at id, in level, and gives its strategy in *out (emptied first, whatever happens).
 	StrategyFound FindObjectStrategy(File_Chunk *level, uint8_t const *id, ObjectStrategy *out);
 

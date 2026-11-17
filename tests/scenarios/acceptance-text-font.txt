@@ -1,0 +1,39 @@
+# ACCEPTANCE: every text in inteng's own font, crisp (Frost, 2026-11-16; view-state-table.md H-1a..H-1i; Melanikus: "from start we're using game fonts which are... foggy/hard to read
+# at high res? can't we use rendered letters/numbers like inteng"). inteng has ONE text font: its folder's font16.fnt when the screen is wider than 320 (FUN_0057adb0 0x57ae4e), every set bit of
+# a letter ONE white pixel (FUN_0057afd0 / FUN_0046ccb0), never scaled or smoothed; every text ends in FUN_0057be40 (H-1d). So a text on black holds black and white and NOTHING between:
+# the game's anti-aliased font (ours before) puts grey pixels at every letter's edge.
+# By his path: Invasion in Module Linking, Help (0xd2, FUN_004c0ed0 -> FUN_004724f0): the screen cleared black, the text from (0, 0) in white.
+# inteng's font for any runner (Bishop 11-16): his installed inteng's Tools folder, read only; the runner appends #ini lines to the clean ini
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+screen Module Linking
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Module Linking
+item 0xd2
+wait 300
+picture 1
+# the letters are there: white in the first lines' box
+expect-colour panels 0 0 600 160 ffffff 0.02 8
+# and nothing between black and white (each channel 0x1c..0xe4 counts as grey): the game's font's edges were grey
+expect-colour-at-most panels 0 0 600 160 808080 0.0005 100
+# H-1f, FUN_0057be40's layout (0x57bea5-0x57c1aa): a new line is the letters' height down (16), a tab goes to the next multiple of 4 x 16 = 64 from the screen's left. Line 2 "H, tab, tab, Hide object":
+# H at 0, the tabs to 64 and 128, so its words start at x 128, y 32, and nothing lies between 64 and 124 (ours put them 8 letters on, about x 58, and its lines 17 apart)
+expect-colour panels 128 34 60 12 ffffff 0.05 8
+expect-colour-at-most panels 64 34 60 12 ffffff 0.001 8
+# line 18 "Shift+S, tab, tab, Continously set base ..." is 16 x 18 = 288 down (ours put it 17 x 18 = 306 down): its letters at y 288..303, and nothing of it at 306..317
+expect-colour panels 0 290 50 12 ffffff 0.05 8
+expect-colour-at-most panels 0 306 120 12 ffffff 0.001 8
+# H-1j: FUN_004724f0 runs its OWN loop until the click (0x472575 / 0x472584), so nothing of the screen is drawn over its text: not Module Linking's "View Distance :2" at (10, 70) under the
+# bar, which ours drew over lines 6 and 7 (whose words start at 128: their 14..114 is empty); 0.1221 white there before the fix
+expect-colour-at-most panels 14 98 100 28 ffffff 0.001 8
+click-win 500 300 left
+wait 300
+# Show Poly Counts (0xcc, FUN_004c0950: FUN_0057bd90 lines on the cleared screen): the same, white letters and no grey
+item 0xcc
+wait 300
+picture 2
+expect-colour panels 0 0 600 160 ffffff 0.01 8
+expect-colour-at-most panels 0 0 600 160 808080 0.0005 100
+click-win 500 300 right
+wait 300

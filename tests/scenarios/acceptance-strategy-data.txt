@@ -31,7 +31,7 @@ expect-selected 1
 expect-pixels-changed panels 0 30 260 50 0.004
 picture 3
 # another object: the first one goes, there is still ONE
-click-win 504 364
+click-win 378 300
 expect-selected 1
 expect-pixels-changed panels 0 30 260 50 0.004
 picture 4
@@ -59,11 +59,10 @@ expect-selected 1
 picture 7
 key Esc
 expect-selected 1
-# Assign once more on an object that has a strategy now: the confirm "Object already has a strategy.\nWould you like to replace it?" (0x5ee2b4), Yes / No
+# Assign once more on an object that has a strategy now: the confirm "Object already has a strategy.\nWould you like to replace it?" (0x5ee2b4), Yes / No, asked FIRST
+# (FUN_00528830 0x528874-0x52889d: only Yes opens "Select Strategy", Drake's 4ed6ac4); No keeps the strategy
 click-win 120 500 right
 click-popup 4
-expect-dialog Select Strategy
-click-button Door
 expect-dialog-kind confirm
 expect-dialog Object already has a strategy.
 click-button No
@@ -128,7 +127,7 @@ expect-no-dialog
 # ---- S8 CREATE AND DESTROY A VIRTUAL OBJECT (FUN_005396d0 at 0x39 .. 0x3f; FUN_00539e00 at 0x525199). Create > Here asks the TEXT dialog "Type name for new virtual object" (0x5f02b0, FUN_00474bc0, Ok / Cancel) and puts the
 # object at the camera (DAT_00962308 + 0x10). It is NOT current afterwards (the code never sets DAT_0091496c): a click on its icon, the light blue V (shape 13, FUN_00539ee0 kind 0xd), makes it current. Destroy works
 # on the current object only when it is a virtual one (wrapper +8 == 1): with any other current object, or none, it does NOTHING. Then "Delete this object?" (0x5eddec) Yes / No; Yes destroys it and lets go of the current object.
-click-win 504 364
+click-win 378 300
 click-win 640 300 right
 click-popup 6
 expect-popup-rows Here|Above|Below|Left|Right|Front|Behind
@@ -139,7 +138,9 @@ type AcceptVO
 key Enter
 expect-no-dialog
 # the camera goes back so that the new object is in front of it, then a click in the middle of the view lands on its icon
-hold Z 1500
+# (the camera verb, not "hold Z 1500": how far a held key steps back is timing, and on a busy run the click below took a module; Drake 11-16. From 1450 mm behind it the new object's light
+# blue V fills the middle of the view, its left arm across (378, 300), where the clicks are; its middle, between the arms, is the module behind it)
+camera 0 0 -1450 0
 wait 400
 picture 10
 expect-colour picture 100 80 800 560 007fff 0.0005 40
@@ -161,7 +162,9 @@ expect-dialog-kind confirm
 expect-dialog Delete this object?
 click-button No
 expect-no-dialog
-expect-colour picture 100 80 800 560 007fff 0.0005 40
+# No keeps it AND keeps it CURRENT (FUN_00524e90 case 0x40, 0x525199-0x525202: only Yes (3) destroys it and sets DAT_0091496c = 0; strategy-data.md S-47), so it is drawn as the current
+# record: +0x64 0x40000000 -> FUN_004a7cd0 0x4a7eca item flag 0x80 -> FUN_004980f0 0xff0000, RED (S-62; reassess/strategy-data-verify-frost.md S-62). It was 007fff here before the current V was coloured
+expect-colour picture 100 80 800 560 ff0000 0.0005 40
 # Yes destroys it: the V is gone from the view
 click-win 378 300 right
 click-popup 7
@@ -173,7 +176,7 @@ picture 12
 expect-selected 0
 
 # ---- S9 STABILITY FLAGS (FUN_00527370 / 00527020 / 00527210): the current module's box in six faces, red (stable) / green (unstable); on leaving the confirm "Would you like to keep the changes?" (0x5ee000), Yes / No
-click-win 504 364
+click-win 378 300
 click-bar Mode > Stability flags
 picture 13
 expect-field stability gggggg
@@ -182,8 +185,8 @@ expect-dialog-kind confirm
 expect-dialog Would you like to keep the changes?
 click-button No
 expect-no-dialog
-# the camera goes forward again, back to where S8 moved it from, inside the level (from outside, the modules' faces are not drawn, so a module's flag colour could not be seen)
-hold A 1500
+# the camera goes forward again, back to where S8 moved it from, inside the level (from outside, the modules' faces are not drawn, so a module's flag colour could not be seen): the start, 0 0 0
+camera 0 0 0 0
 wait 400
 
 # ---- S10 THE FLAG PAGE (FUN_00525700: command 0x2 shows page 1; its Exit 0x5 shows page 0 again). The collector there adds picked modules (a click adds, Shift + click takes out, L empties the list)
@@ -295,13 +298,17 @@ expect-status Virtual object AboveVO is in the level
 
 # ---- S14 A VIRTUAL OBJECT TAKES ITS OWN KINDS (the manual: "The options available vary depending on what the object is"; Virtual Objects: Multi Switch, Linked Switch, Area Switch, Mission Objective, Message, Volume of Death, Self Destruct):
 # create one, click its V, Assign Strategy > Area Switch (kind 68), whose Edit view opens at once
+# made at the start's place (S8's), so its V is where S8's was once the camera stepped back
+camera 0 0 0 0
 click-win 640 300 right
 click-popup 6
 click-popup 1
 type KindsVO
 key Enter
 expect-no-dialog
-hold Z 1500
+# (the camera verb, not "hold Z 1500": how far a held key steps back is timing, and on a busy run the click below took a module; Drake 11-16. From 1450 mm behind it the new object's light
+# blue V fills the middle of the view, its left arm across (378, 300), where the clicks are; its middle, between the arms, is the module behind it)
+camera 0 0 -1450 0
 wait 400
 click-win 378 300
 expect-selected 1
@@ -310,7 +317,11 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Multi_Switch
 expect-no-dialog
-expect-status The object has a new strategy
+# a Multiple Target Switch has its view now (S-K66-1): FUN_00528830's last call opens it at once (0x529141), and Escape (or the right button) ends it, so a right press here would only end
+# the view and open no pop-up
+expect-status The object has a new strategy: its Edit view
+key Esc
+wait 300
 # with a strategy on it, Assign asks FIRST (FUN_00528830 0x528874-0x52889d: "Object already has a strategy. Would you like to replace it?"), and only Yes opens "Select Strategy" (0x5288db)
 click-win 378 300 right
 click-popup 4
@@ -319,6 +330,10 @@ click-button Yes
 expect-dialog Select Strategy
 click-button Linked_Switch
 expect-no-dialog
+# the Linked Switch's view (52) opens at once the same way: Escape ends it
+expect-status The object has a new strategy: its Edit view
+key Esc
+wait 300
 click-win 378 300 right
 click-popup 4
 expect-dialog-kind confirm

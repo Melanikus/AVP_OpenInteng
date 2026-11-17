@@ -1,0 +1,7 @@
+# ACCEPTANCE (red first): inteng's -w (FUN_0058c9e0 0x58cae5: a framed window; reassess/startup-screen-frost.md SS-1, Bishop's ruling 11-16: "always a framed window, even when the size
+# fills the monitor"). The file of acceptance-start-size-hostile asks for the monitor's width by 480 (its 99999 bounded, its 303-letter height not a number); with -w the window stays framed,
+# its client made narrower until the framed window fits the work area, and its height is the 480. Red on d30df8c (no -w, no -options: the editor refuses the command line).
+start-args -w -options {scenariodir}start-size-hostile
+state
+expect-screen Construction
+expect-field-has window  480 window

@@ -86,13 +86,90 @@ static double LevelScale(OpenLevelFile const &open)
 	return value > 0.0 ? value : 1.0;
 }
 
+// A room-like box for the boundary checks: its 8 corners from the extents (maxX, minX, maxY, minY, maxZ, minZ), its faces turned INWARD (a module is seen from inside), the face on
+// (openAxis, openSide) left out: the doorway. Added 2026-11-16 by Melanikus (Vasquez).
+static void OpenBox(int32_t const extents[6], int openAxis, int openSide, host::PortalShape *shape)
+{
+	for (int i = 0; i < 8; i++)
+	{
+		for (int axis = 0; axis < 3; axis++)
+		{
+			shape->points.push_back((i >> axis) & 1 ? extents[2 * axis] : extents[2 * axis + 1]);
+		}
+	}
+
+	for (int axis = 0; axis < 3; axis++)
+	{
+		for (int side = 0; side < 2; side++)   // 1: the max side
+		{
+			if (axis == openAxis && side == openSide)
+			{
+				continue;
+			}
+
+			std::vector<int32_t> corners;
+
+			for (int i = 0; i < 8; i++)
+			{
+				if (((i >> axis) & 1) == side)
+				{
+					corners.push_back(i);
+				}
+			}
+
+			shape->polygons.push_back(corners);
+
+			for (int n = 0; n < 3; n++)
+			{
+				shape->normals.push_back(n == axis ? (side ? -65536 : 65536) : 0);
+			}
+		}
+	}
+}
+
+// THE NUMBERS OF autolink_rules.h AT THEIR EDGES (reassess/autolink-meet-vasquez.md AM-4): two open boxes 10 m long and 40 m wide meeting on x, A open on its +x side, B on its -x side
+static void BoundaryChecks()
+{
+	int32_t const ext[6] = { 5000, -5000, 20000, -20000, 20000, -20000 };
+	host::PortalShape aShape, bShape;
+
+	OpenBox(ext, 0, 1, &aShape);
+	OpenBox(ext, 0, 0, &bShape);
+
+	auto const meet = [&](int32_t bx, int32_t by, host::Portal *portal)
+	{
+		host::PortalModule a, b;
+
+		memset(&a, 0, sizeof(a));
+		memset(&b, 0, sizeof(b));
+		memcpy(a.extents, ext, sizeof(ext));
+		memcpy(b.extents, ext, sizeof(ext));
+		a.shape = &aShape;
+		b.shape = &bShape;
+		b.place[0] = bx;
+		b.place[1] = by;
+		return host::AutoLink_ModulesMeet(a, b, portal);
+	};
+
+	host::Portal p;
+
+	Check(meet(10000, 0, &p) && p.axis == 0 && p.direction == 1 && p.lo[1] == -20000 && p.hi[1] == 20000 && p.lo[2] == -20000 && p.hi[2] == 20000,
+		"boxes touching on x meet: the contact axis x, B on A's upper side, the portal the whole 40 m x 40 m side");
+	Check(!meet(10000, 10001, &p), "the y overlap 29999: not wide (kMeetWide, `29999 < overlap`), one wide axis is too few (kMeetWideAxes 2): no meet");
+	Check(meet(10000, 10000, &p) && p.lo[1] == -10000 && p.hi[1] == 20000, "the y overlap 30000: wide: they meet, the portal the overlap on y");
+	Check(meet(11000, 0, &p) && p.planeA == 5000 && p.planeB == 6000, "1 m apart (the x overlap -1000, kMeetGap): they still meet, each module on its own contact plane");
+	Check(!meet(11001, 0, &p), "1001 apart (the x overlap -1001): no meet");
+}
+
 int main(int argc, char **argv)
 {
+	BoundaryChecks();
+
 	if (argc < 2)
 	{
-		printf("host_autolink_portal_test: give a level .rif; with none there is nothing to run.\n");
-		printf("passed host_autolink_portal_test (0 ok)\n");
-		return 0;
+		printf("host_autolink_portal_test: give a level .rif for the oracle; with none only the boundary checks ran.\n");
+		printf(checksFailed ? "FAILED host_autolink_portal_test (%d checks failed)\n" : "passed host_autolink_portal_test (%d failed)\n", checksFailed);
+		return checksFailed ? 1 : 0;
 	}
 
 	OpenLevelFile level;

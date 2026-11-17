@@ -1,0 +1,20 @@
+# ACCEPTANCE: AutoLink > Load from file (0xa3) on his path (Dietrich, 2026-11-16; FUN_004c8be0, dump-full-2 64700; autolink_mlf.h, autolink_runner.h StartFromFile).
+# The level's module file beside it (its name with ".mlf"): each record a module's name and place and a camera; the module is made current with its links kept, ONE picture is drawn from the
+# record's camera (with the doors' second pictures) and what it sees goes in the module's tree; "Right click to cancel" at (200, 200); at the end the LAST module done stays current (inteng
+# does not make the old one current again). THE LEVEL: a copy of Invasion with a one-record module file for gARAGDOR, its camera the first view AutoLink itself draws for it; both made by
+# host_autolink_file_test into dietrich-proofs/mlf (the original Invasion is only read).
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+#ini ViewDistance=100000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/mlf/Invasion-mlf.rif
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+click-bar AutoLink > Load from file
+wait 2000
+expect-status Load from file: 1 views drawn of 1 records
+expect-status-not named no module
+# ---- the record's module, gARAGDOR (object 54), is the current one at the end, its 7 links kept
+expect-field-has linktree module 54
+expect-number linktree links 7 1000

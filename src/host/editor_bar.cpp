@@ -987,9 +987,6 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 		case host::IntengWork::AdjacentViewDistance:
 			host->adjacentOp = kAdjViewDistance;
 			break;
-		case host::IntengWork::AdjacentSelectPolygons:
-			host->adjacentOp = kAdjSelectPolygons;
-			break;
 		case host::IntengWork::AdjacentShowAll:
 			host->adjacentOp = kAdjShowAll;
 			break;

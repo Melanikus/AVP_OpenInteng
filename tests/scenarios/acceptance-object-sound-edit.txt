@@ -1,0 +1,50 @@
+# ACCEPTANCE (red first): Object Placement's SOUND EDIT window 1:1 (A-10; reassess/object-placement.md OP-133a..c), by Melanikus's path: a sound made by Create > Sound, E, the window's fields typed.
+# inteng 0x4ed060 -> edobtype's edit_sound (resource 132): the wav name an EDITABLE combo (the sound folder's wavs; this run's game folder has none, so it is typed), the four numbers as MFC
+# shows floats ("%.6g": 5, 10, 0, and the volume rounded: 100), a field that is no number refused with MFC's "Please enter a number." and the window kept with what was typed; OK writes
+# inner = ftol(7.5 x 100000) and volume = ftol((50 + 50/127) x 0.01 x 127) = 63 (shown again as 50), Playing at Start off sets the flag bit 0. The sound's text line (OP-102,
+# "%s i_r %f o_r %f") shows the new range. Invasion, read-only, opened as by a double click. Red before the 1:1 window: ours was a form of its own (2 decimals, the volume a whole number).
+# His Tools folder's inteng.exe gives the editor's icons (without it the run draws the fallback boxes, and the new sound's box round the camera fills the picture with its red)
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-bar Create > Sound
+expect-dialog Name Object
+form-field 1 sndE
+click-button OK
+expect-no-dialog
+expect-hierarchy-text sndE i_r 5.000000 o_r 10.000000
+# E: the window, its numbers as MFC shows them; the new sound has no wav yet, and CB_SELECTSTRING with an empty name picks the list's FIRST row (here the fastfiles' first wav of Invasion)
+key E
+expect-dialog Sound Edit -
+expect-dialog-kind form
+expect-dialog-text alienpres11-8.wav|5|10|0|100
+expect-dialog-checks on,on
+picture 1
+# a wav name typed into the combo, and an inner range that is no number: MFC's words, then the window again with what was typed
+form-field 1 drip.wav
+form-field 2 abc
+click-button OK
+expect-dialog Please enter a number.
+click-button Ok
+expect-dialog Sound Edit -
+expect-dialog-text drip.wav|abc|10|0|100
+# 7.5 m, 50 %, Playing at Start off: OK writes them
+form-field 2 7.5
+form-field 5 50
+click-check 1
+click-button OK
+expect-no-dialog
+expect-hierarchy-text sndE i_r 7.500000 o_r 10.000000
+# E again: what the sound holds now, as the window shows it
+key E
+expect-dialog Sound Edit -
+expect-dialog-text drip.wav|7.5|10|0|50
+expect-dialog-checks off,on
+click-button Cancel
+expect-no-dialog
+expect-hierarchy-text sndE i_r 7.500000 o_r 10.000000

@@ -1,0 +1,40 @@
+# ACCEPTANCE: AutoLink > Environment on the whole level, his path (Dietrich, 2026-11-16; rows ML-A-1..7 of AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md).
+# FUN_004c8930(0, deleteOld): every module in number order made current, its pictures drawn and read, its links written. inteng shows "Right click to cancel" at (200, 220) and the counter
+# "%03d" at (230, 180) (Frost's display; the pictures in the bottom-right grid are the owner's ruling, named) and a right press, read at the top of each module (0x4c899c), ends the loop with
+# the links made so far kept. Ours runs on a worker thread: the view goes on. Level: Invasion (310 modules with a shape, 308 with module data), a copy saved; the original is only read.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+#ini ViewDistance=100000000
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+# ---- Environment (delete old): while it runs, the counter and the words in white on black, and the grid's tiles hold pictures (not the background)
+click-bar AutoLink > Environment (delete old)
+wait 800
+picture 1
+expect-colour picture 230 180 24 16 ffffff 0.05 8
+expect-colour picture 200 220 140 16 ffffff 0.05 8
+expect-colour-at-most picture 368 249 640 480 000000 0.8 8
+# ---- it ends: every module run, every module with module data written (the two without are skipped, as inteng makes MODULEDT for them)
+wait 10000
+state
+wait 10000
+expect-status AutoLink: 310 modules run
+expect-status 308 modules written
+expect-status-not cancelled
+# ---- Environment again, cancelled by a right press soon after it begins: the run ends early, its links kept, and no pop-up opens
+click-bar AutoLink > Environment
+wait 300
+click-win 500 300 right
+wait 3000
+expect-status cancelled by a right press
+expect-number status AutoLink: 1 309
+expect-no-dialog
+# ---- out, a copy saved and read back through the game's loader (the measure against the stock links is printed, not checked: his inteng-saved result is the oracle when it comes)
+item 0x64
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_autolink/verify_autolink.exe {orig} {copy} * report

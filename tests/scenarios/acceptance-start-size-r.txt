@@ -1,0 +1,6 @@
+# ACCEPTANCE (red first): inteng's -r<w>x<h> (FUN_0058c9e0 0x58cc0d, sscanf "%dx%d"; reassess/startup-screen-frost.md SS-1, Bishop's ruling 11-16). With no IntengOptions.ini to read (a
+# hidden run reads one only from -options <folder>, SS-13), -r1024x600 is the size: a framed window whose client is 1024 x 600. Red on d30df8c (no -r: the editor refuses the command line).
+start-args -r1024x600
+state
+expect-screen Construction
+expect-field-has window 1024 600 window

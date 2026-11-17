@@ -14,6 +14,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <AL/al.h>   // alGetListenerf: the output volume the sound system set, read back for the proofs
+
 #include "track_play_game.h"
 
 extern int NormalFrameTime;
@@ -22,6 +24,7 @@ extern void SoundSys_Start(void);             // avp/psnd.cpp
 extern void SoundSys_End(void);
 extern void SoundSys_ChangeVolume(int volume);   // avp/psnd.cpp
 extern void SoundSys_Management(void);        // avp/psnd.cpp: the frame's work for the sounds (the game's main loop calls it)
+extern int EffectsSoundVolume;                // avp/psnd.cpp:35: the volume SoundSys_Management puts back on EVERY call (MUL_FIXED(EffectsSoundVolume, the fade), psnd.cpp:133-139)
 extern double local_scale;
 extern char *Rif_Sound_Directory;             // avp/win95/projload.cpp: set while the game loads a rif, so a track's sounds are found under it
 LOADED_SOUND const *GetSoundForMainRif(const char *wavName);   // avp/win95/object_setup.cpp: the game's way to find a track's sound
@@ -39,6 +42,20 @@ namespace host
 		int soundsLoaded = 0;
 		std::string soundDirectory;
 		bool silent = false;
+		int keptEffectsVolume = -1;   // the effects' volume before a hidden run made it 0, given back if the silence ends; -1: none kept
+
+		// A HIDDEN RUN IS SILENT ON EVERY FRAME: the sound system's volume 0 AND the effects' volume 0. The volume alone (SoundSys_ChangeVolume(0)) lasted only to the next
+		// SoundSys_Management, which sets it back to the effects' volume on every call (psnd.cpp:133-139): a playing track's first frame (Vasquez 11-16). Nothing when not silent.
+		void Hush()
+		{
+			if (!silent)
+			{
+				return;
+			}
+
+			EffectsSoundVolume = 0;
+			SoundSys_ChangeVolume(0);   // VOLUME_MIN
+		}
 
 		// the sounds the game's code was given are stopped and let go (Deallocate_Track_Sound, but freed as we made them)
 		void LetGoOfSound(TRACK_SOUND *&ts)
@@ -190,7 +207,31 @@ namespace host
 
 	void TrackPlay_UseSilence(bool value)
 	{
+		if (value && !silent)
+		{
+			keptEffectsVolume = EffectsSoundVolume;
+			EffectsSoundVolume = 0;
+		}
+		else if (!value && silent && keptEffectsVolume >= 0)
+		{
+			EffectsSoundVolume = keptEffectsVolume;
+			keptEffectsVolume = -1;
+		}
+
 		silent = value;
+	}
+
+	float TrackPlay_OutputGain()
+	{
+		if (!SoundSwitchedOn)
+		{
+			return -1.0f;
+		}
+
+		ALfloat gain = -1.0f;
+
+		alGetListenerf(AL_GAIN, &gain);
+		return alGetError() == AL_NO_ERROR ? gain : -1.0f;
 	}
 
 	void TrackPlay_UseSoundDirectory(std::string const &directory)
@@ -252,10 +293,7 @@ namespace host
 
 			if (SoundSwitchedOn)
 			{
-				if (silent)
-				{
-					SoundSys_ChangeVolume(0);   // VOLUME_MIN: a hidden run is silent
-				}
+				Hush();   // a hidden run is silent
 
 				char *const keptDirectory = Rif_Sound_Directory;
 
@@ -672,10 +710,7 @@ namespace host
 			return false;
 		}
 
-		if (silent)
-		{
-			SoundSys_ChangeVolume(0);   // VOLUME_MIN: a hidden run is silent
-		}
+		Hush();   // a hidden run is silent
 
 		char *const keptDirectory = Rif_Sound_Directory;
 

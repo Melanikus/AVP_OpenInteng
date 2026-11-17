@@ -1,0 +1,103 @@
+# ACCEPTANCE: Find Errors on a Mission Objective's alterations on Melanikus's path, the saved copy read back by the game's loader (Drake, 2026-11-16; reassess/strategy-data-kinds.md S-K70-R,
+# FUN_005335f0). No stock level has a Mission Objective with an alteration, so it is made as in acceptance-strategy-mission-alterations (Breakout: MO2 into "end"'s list); then MO2 is destroyed
+# (Destroy Virtual Object: "nothing that names its ID is checked", so "end" still names it) and Find Errors (0x44) runs the strategies' repairs: the alteration whose target no object has goes.
+# "No Errors Found" is inteng's answer after its repairs (0x5f04a0). The copy holds no alteration. RED without the kind-70 repair (the copy keeps the alteration naming the destroyed object).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+camera 0 0 0 0
+# Create Virtual Object (the right button's 6) > Here (1): at the camera's place
+click-win 640 300 right
+click-popup 6
+click-popup 1
+expect-dialog Type name for new virtual object
+type MO2
+key Enter
+expect-no-dialog
+# MO2 is selected through Find Object and gets a Mission Objective (the right button's 4, Assign Strategy)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is MO2
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Mission_Objective
+wait 400
+expect-field-has strategyview 200@0:MO2 : Mission Objective
+key Esc
+wait 300
+# "end": Find Object, the right button's Edit Strategy (3)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is end
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 16@112:Mission alterations upon completion :|32@128:None
+picture 1
+# the alterations block (its "None" row at y 128, clicked at window y 136): the collector, the camera 3 m behind MO2, MO2's V clicked, Return
+click-win 300 136
+wait 400
+camera 0 0 -3000 0
+wait 400
+picture 2
+click-win 442 330
+wait 300
+picture 3
+key Enter
+wait 400
+expect-field-has strategyview 16@112:Mission alterations upon completion :|32@128:MO2 (make visible)(make possible)
+picture 4
+# P with the pointer over MO2's row (y 128 to 143): bit 2 (make possible) flips
+move-win 300 136
+key P
+wait 300
+expect-field-has strategyview 32@128:MO2 (make visible)
+expect-field-has strategyview |100@689:P
+picture 5
+key Esc
+wait 300
+# MO2 destroyed (Find Object, the right button's 7, "Delete this object?" Yes)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is MO2
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 7
+expect-dialog Delete this object?
+click-button Yes
+expect-no-dialog
+wait 400
+# Find Errors: the repairs, then inteng's answer
+item 0x44
+expect-dialog-kind message
+expect-dialog No Errors Found
+click-button Ok
+expect-no-dialog
+# "end"'s view: no alteration left
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is end
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 16@112:Mission alterations upon completion :|32@128:None
+picture 7
+key Esc
+wait 300
+save-copy
+# Find Errors repairs Breakout's own dangling targets too: the Placed Objects storelit, fanlit07, ligfhtlift02, tunlit01, lightinliftish, trainlit02, grillit01 (62) and the switch
+# linktofanoffmess (61) name IDs that appear nowhere else in the level (AvP-docs/tools/drake/id-where: only in their own AVPSTRAT), so FUN_005219f0 finds no wrapper and inteng resets them as ours does
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF {copy} end num_mission_targets 0 also storelit also fanlit07 also ligfhtlift02 also tunlit01 also lightinliftish also trainlit02 also grillit01 also linktofanoffmess
