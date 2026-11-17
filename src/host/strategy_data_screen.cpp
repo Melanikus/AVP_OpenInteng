@@ -1293,6 +1293,43 @@ bool moduleOverlapsOn = false;
 static std::vector<int32_t> overlapObjects;     // the object index of each overlapping module
 static std::vector<uint32_t> overlapColours;    // its colour, ARGB
 static unsigned overlapsFor = ~0u;              // the level generation they were worked out for
+static int32_t overlapsPicked = -1;             // the object index of the module a click picked while On (its overlaps only), or -1 (every module against every other)
+
+// A CLICK WHILE ON (TB-C11, construction-closeout-frost.md; FUN_00444750 0x44493f-0x4449aa with DAT_0063126c): every module plain again (0xf8), the picked one in the selection's colour
+// (0xfd: the hub's green), and FUN_00444c80(picked) colours each module that overlaps IT, by how much: the other modules stay plain
+static void WorkOutModuleOverlapsOfPicked(OpenLevelFile *open, std::vector<host::ModuleBox> const &boxes)
+{
+	size_t at = boxes.size();
+
+	for (size_t i = 0; i < boxes.size(); i++)
+	{
+		at = boxes[i].objectIndex == overlapsPicked ? i : at;
+	}
+
+	if (at == boxes.size())
+	{
+		statusWords = "Module Overlaps: the module picked has no box";
+		return;
+	}
+
+	size_t found = 0;
+
+	for (size_t i = 0; i < boxes.size(); i++)
+	{
+		host::OverlapSeverity const severity = i == at ? host::OverlapSeverity::None : host::ModuleOverlaps_Between(boxes[at], boxes[i]);
+
+		if (severity != host::OverlapSeverity::None)
+		{
+			overlapObjects.push_back(boxes[i].objectIndex);
+			overlapColours.push_back(0xFF000000u | host::ModuleOverlaps_Rgb(severity));
+			found++;
+		}
+	}
+
+	(void)open;
+	textureWords = "Module Overlaps: " + std::to_string((unsigned long long)found) + " module(s) overlap the one picked";
+	statusWords = textureWords.c_str();
+}
 
 static void WorkOutModuleOverlaps(OpenLevelFile *open)
 {
@@ -1302,6 +1339,12 @@ static void WorkOutModuleOverlaps(OpenLevelFile *open)
 	overlapColours.clear();
 	overlapsFor = open->Generation();
 	host::ModuleOverlaps_ReadBoxes(open, &boxes);
+
+	if (overlapsPicked >= 0)
+	{
+		WorkOutModuleOverlapsOfPicked(open, boxes);
+		return;
+	}
 
 	std::vector<host::OverlapSeverity> const worst = host::ModuleOverlaps_Worst(boxes);
 	size_t counts[5] = { 0, 0, 0, 0, 0 };
@@ -1347,6 +1390,38 @@ void ToggleModuleOverlaps()
 		return;
 	}
 
+	// the On lets go of the selection first (FUN_00445110 0x445124-0x445197), then every module against every other (FUN_00445070)
+	host::Selection_Clear();
+	overlapsPicked = -1;
+	WorkOutModuleOverlaps(open);
+}
+
+// While On, a click on the hub (TB-C11): the module picked, or none (a click on nothing leaves the colours: FUN_00444750 colours only with a module, 0x44491f)
+void ModuleOverlapsPicked(uint8_t const *id)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	int32_t index = -1;
+
+	if (!moduleOverlapsOn || !open || !open->Level() || !id || !host::ModuleIndexOfId(open->Level(), id, &index))
+	{
+		return;
+	}
+
+	overlapsPicked = index;
+	WorkOutModuleOverlaps(open);
+}
+
+// While On, L (FUN_004452b0 0x446acc -> FUN_00445070): every module against every other again
+void ModuleOverlapsAll()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!moduleOverlapsOn || !open || !open->Level())
+	{
+		return;
+	}
+
+	overlapsPicked = -1;
 	WorkOutModuleOverlaps(open);
 }
 

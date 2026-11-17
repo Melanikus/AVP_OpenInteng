@@ -64,7 +64,15 @@ namespace host
 		// turn, which carries the marker as the flying object is carried); the next Finish End Pos Edit (or the end edit being left: FUN_004f0cd0) makes it the section's end turn. markerAboutPivot: P.
 		double markerTurn[3] = { 0.0, 0.0, 0.0 };
 		bool markerAboutPivot = false;
+		// THE TURN THE MARKER IS TURNED FROM (markerTurn is counted from it): the current section's end turn, unless Jump To Start gave the marker a start's turn (markerBaseSet: inteng's 0x521 / 0x522
+		// copy the start marker's matrix into the end marker object as well as its place, 0x4dcda4 / 0x4dcdf5; T-3a). Let go when the marker's turn is taken or another section's end is edited.
+		float markerBase[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+		bool markerBaseSet = false;
+		size_t markerBaseSection = 0;   // the section whose end edit the jump was made in: markerBase counts only while that section is current
 	};
+
+	// The turn the end marker is turned from now (markerBase after a Jump To Start, else the current section's end turn), x y z w; false when no track is held or the section is not there
+	bool TrackEdit_MarkerBase(TrackEditor const &editor, float out[4]);
 
 	// What a command asks the editor to do besides what it already did to the level and the state
 	struct TrackAction
@@ -122,4 +130,11 @@ namespace host
 
 	// The play has reached the end of a track that does not loop (the game's code set playing to 0): back to state 2 as Stop (0x515) does
 	void TrackEdit_PlayEnded(TrackEditor *editor);
+
+	// SHIFT+T, "Updating track positions" (inteng's FUN_004efd50, object-placement.md OP-83), after its message box: a track being edited is let go first as Stop Track Edit lets it go (inteng's first
+	// FUN_004eff90(block, 0) writes it), then every object of the level that holds a track, in the list's order, has it loaded as Edit Track loads it (re-based onto where the object is now:
+	// FUN_004eff90(block, 0) -> FUN_004f0490) and let go as Stop Track Edit does (FUN_004f1300 writes it, FUN_004f0870 gives the object the track's start pose). An object with no track is passed
+	// over. INTENG BUG TB-T2, FIXED (Bishop's ruling 11-17): inteng's last FUN_004eff90(0, 0) lets the edited track go but leaves Track Editing on, with no track (its next command reads freed
+	// sections); here the editing is over (*editor Off) and action->leave says so. action->changed when any bytes changed; the words say how many tracks, and any that could not be written.
+	void TrackEdit_UpdatePositions(OpenLevelFile *file, TrackEditor *editor, TrackAction *action);
 }

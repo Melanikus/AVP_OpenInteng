@@ -7,8 +7,10 @@
 // new image of the level, put in through OpenLevelFile::ReplaceLevel, which reads it with the game's own loader and swaps it in only if the
 // loader takes it: nothing changes on any other answer. After a success every Chunk * the editor held is gone (object_edit.h says the same).
 //
-// A SUBSET, on purpose (AvP-docs\engine\inteng\p11-merge-host-plan.md): the shapes may have none of ANIMSEQU, TEXTANIM, SHPMRGDT, SHPMORPH,
-// SHPUVCRD, SHPTEXFN or SHPPCINF; everything else is refused with a plain message, until what inteng does with those chunks is read and built.
+// A SUBSET, on purpose (AvP-docs\engine\inteng\p11-merge-host-plan.md): the shapes may have none of ANIMSEQU, TEXTANIM, SHPMRGDT, SHPMORPH or
+// SHPPCINF; everything else is refused with a plain message, until what inteng does with those chunks is built (construction-closeout-frost.md TB-C8b..g).
+// TEXTURED SHAPES (TB-C8a, Frost 2026-11-17): the merged SHPUVCRD holds the first's lists, then the second's (FUN_00448cf0 0x448fc6-0x449029), the second's textured
+// polygons name their list + the first's count (0x448f57, the model's uvListsInFirst); SHPTEXFN is the first's, as inteng keeps the first's record (FUN_0042fc00).
 //
 // NAMED DEVIATIONS FROM INTENG (each one is security or crash safety, Tao 1; the card is in unfinished-in-inteng.md):
 // - The merge is REFUSED when any other object's chunk holds the second object's 8-byte ID (a switch's target, a door, a parent...): inteng

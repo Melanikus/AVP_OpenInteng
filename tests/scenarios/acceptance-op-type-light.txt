@@ -1,0 +1,30 @@
+# ACCEPTANCE (red first): Object Placement's Edit (E) of a placed shape, its Type made "Placed light", OK, then the mode's Exit: inteng's save of the object (FUN_004e1f90 0x4e2cd5-0x4e2dd8) gives an
+# object of Type 16 that has no light inteng's DEFAULT placed light (a PLOBJLIT): brightness 1.0, spread 0, range 1,000,000 / (100 x the level's scale), white up, black down, Omni, Runtime + No PreLight,
+# no times, Standard / Standard, Start on, no extra words (Frost, 2026-11-17; AvP-docs\engine\inteng\reassess\light-closeout-frost.md TB-L2: the second way inteng makes a light, the way the stock lamps
+# were made: all 2047 are Type 16 with spread 0). His path on Genshd1 (a read-only stock copy), the file opened as a double click; med02L is a simple object (kind 62, a Medikit) with no light.
+# Object > Find's "Select Object" pages hold 133 names each: med02L is on the second (click-choice-is presses Next itself). The copy is read back by the game's loader (verify_typelight).
+# RED before (490c12a6): med02L becomes Type 16 with no PLOBJLIT (a lamp with no light).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is med02L
+expect-no-dialog
+wait 400
+key E
+expect-dialog Edit object properties
+click-combo 1
+click-combo-row Placed light
+picture 1
+click-button OK
+expect-no-dialog
+wait 300
+click-bar Mode > Exit
+wait 1500
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_typelight/verify_typelight.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} med02L scale

@@ -45,4 +45,4 @@ picture 953
 item 0xa
 expect-screen Construction
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/lightplaced-1/verify_placedlight/verify_placedlight.exe {orig} {copy} 422
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_placedlight/verify_placedlight.exe {orig} {copy} 422

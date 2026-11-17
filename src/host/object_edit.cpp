@@ -31,6 +31,10 @@ namespace host
 		size_t const LockUserAt = 4;             // 16 bytes
 		size_t const PlaceAt = 20;               // three ints
 		size_t const IndexAt = 48;
+		size_t const ShapeIdAt = 56;             // in an object header's payload: the number of the shape it uses (shape_id_no)
+		size_t const ShapeNumberAt = 20;         // in a shape header's (SHPHEAD1) payload: the shape's own number (file_id_num)
+		size_t const ShapeNamesCountAt = 64;     // in a shape header's payload: how many names of objects follow the fixed part
+		size_t const ShapeFixedBytes = 68;       // in a shape header's payload: the numbers before the names
 		size_t const MostNameBytes = 63;         // OBJECT_NAME_BYTES (64) with its ending zero
 		int32_t const PlacedObjectFlag = 0x400;  // OBJECT_FLAG_PLACED_OBJECT (chunk_object.hpp)
 		int32_t const MostPlace = 1 << 24;       // CheckPlace (chunk.hpp): a place farther than 2^24 millimetres from the middle is refused
@@ -262,6 +266,108 @@ namespace host
 			return true;
 		}
 
+		// The number of the shape an object uses (its header's shape_id_no); false for an object whose header is too short to hold it
+		bool ShapeOfObject(Bytes const &image, ObjectInfo const &object, int32_t *shape)
+		{
+			for (Piece const &child : object.children)
+			{
+				if (NameIs(image, child.at, "OBJHEAD1") && child.size >= HeadingBytes + NameAt)
+				{
+					*shape = IntAt(image, child.at + HeadingBytes + ShapeIdAt);
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		// S-35a (Drake 2026-11-17): the header (SHPHEAD1) of the shape numbered `shape` made again with its list of object names as the library's save makes it
+		// (Shape_Header_Chunk::prepare_for_output: the names of the objects the loader gave the shape, every object whose header names that number, in the level's order:
+		// File_Chunk::post_input_processing), so after an object is added, renamed or taken out the level held still pairs with the bytes a save prepares, as inteng's own
+		// tree does after its save. Every other byte of the header is kept (its version too: the save adds one). The shape's chunk and the file's heading take the new size.
+		// False when the level's chunks can't be walked or no shape's first header has that number.
+		bool PutShapeNames(Bytes &image, int32_t shape)
+		{
+			std::vector<ObjectInfo> objects;
+
+			if (!ReadObjects(image, &objects))
+			{
+				return false;
+			}
+
+			std::vector<std::string> names;
+			size_t length = HeadingBytes + ShapeFixedBytes;
+
+			for (ObjectInfo const &object : objects)
+			{
+				int32_t number = 0;
+
+				if (ShapeOfObject(image, object, &number) && number == shape)
+				{
+					names.push_back(object.name);
+					length += object.name.size() + 1;
+				}
+			}
+
+			length += (4 - length % 4) % 4;
+
+			for (size_t at = HeadingBytes; at < image.size(); )
+			{
+				size_t size = 0;
+
+				if (!ChunkSizeAt(image, at, image.size(), &size))
+				{
+					return false;
+				}
+
+				for (size_t inner = at + HeadingBytes; NameIs(image, at, "REBSHAPE") && inner < at + size; )
+				{
+					size_t innerSize = 0;
+
+					if (!ChunkSizeAt(image, inner, at + size, &innerSize))
+					{
+						return false;
+					}
+
+					if (!NameIs(image, inner, "SHPHEAD1"))
+					{
+						inner += innerSize;
+						continue;
+					}
+
+					// the shape's first header is the one the library reads (lookup_single_child): another shape's number ends this shape's search
+					if (innerSize < HeadingBytes + ShapeFixedBytes || IntAt(image, inner + HeadingBytes + ShapeNumberAt) != shape)
+					{
+						break;
+					}
+
+					Bytes header(length, 0);
+
+					memcpy(header.data(), image.data() + inner, HeadingBytes + ShapeFixedBytes);
+					PutIntAt(header, 8, (int32_t)length);
+					PutIntAt(header, HeadingBytes + ShapeNamesCountAt, (int32_t)names.size());
+
+					size_t put = HeadingBytes + ShapeFixedBytes;
+
+					for (std::string const &name : names)
+					{
+						memcpy(header.data() + put, name.data(), name.size());   // its ending zero is already there
+						put += name.size() + 1;
+					}
+
+					image.erase(image.begin() + (std::ptrdiff_t)inner, image.begin() + (std::ptrdiff_t)(inner + innerSize));
+					image.insert(image.begin() + (std::ptrdiff_t)inner, header.begin(), header.end());
+					PutIntAt(image, at + 8, (int32_t)(size - innerSize + length));
+					PutIntAt(image, 8, (int32_t)image.size());
+					return true;
+				}
+
+				at += size;
+			}
+
+			return false;
+		}
+
 		bool IdIsAllZero(uint8_t const *id)
 		{
 			for (size_t i = 0; i < 8; i++)
@@ -436,12 +542,26 @@ namespace host
 				return ObjectEditResult::IsAModule;
 			}
 
+			int32_t shape = 0;
+
+			if (!ShapeOfObject(image, object, &shape))
+			{
+				return ObjectEditResult::CantBuild;
+			}
+
 			if (remove)
 			{
 				// inteng's Delete (OP 0x16, the placed object's method +0x24 at 0x4e0480) never asks who names the object, so neither does this: a name another object holds
 				// is left as it is, pointing at nothing (Melanikus's ruling 2026-11-15, relayed by Bishop: copy inteng). Merge Objects keeps its own refusal.
 				image.erase(image.begin() + (std::ptrdiff_t)object.whole.at, image.begin() + (std::ptrdiff_t)(object.whole.at + object.whole.size));
 				PutIntAt(image, 8, (int32_t)image.size());
+
+				// its shape's list of objects without it, as the save makes it (S-35a)
+				if (!PutShapeNames(image, shape))
+				{
+					return ObjectEditResult::CantBuild;
+				}
+
 				return FromLoader(file->ReplaceLevel(image));
 			}
 
@@ -548,6 +668,12 @@ namespace host
 
 			image.insert(image.begin() + (std::ptrdiff_t)(object.whole.at + object.whole.size), copy.begin(), copy.end());
 			PutIntAt(image, 8, (int32_t)image.size());
+
+			// the copy uses the same shape: its list of objects with the copy's name after the original's, as the save makes it (S-35a)
+			if (!PutShapeNames(image, shape))
+			{
+				return ObjectEditResult::CantBuild;
+			}
 
 			ObjectEditResult const done = FromLoader(file->ReplaceLevel(image));
 
@@ -1525,6 +1651,7 @@ namespace host
 		case ObjectEditResult::SameObject: return "that is the object's own strategy";
 		case ObjectEditResult::NotAModule: return "the object is not a module";
 		case ObjectEditResult::BadLinks: return "there are no links to write, or too many";
+		case ObjectEditResult::BadLight: return "those are not a placed light's numbers";
 		}
 
 		return "the object could not be changed";
@@ -1605,7 +1732,9 @@ namespace host
 				memcpy(whole.data() + start + HeadingBytes + NameAt, made.c_str(), made.size());
 			}
 
-			if (!headerSeen)
+			int32_t shape = 0;
+
+			if (!headerSeen || !ShapeOfObject(image, object, &shape))
 			{
 				return ObjectEditResult::CantBuild;
 			}
@@ -1614,6 +1743,12 @@ namespace host
 			image.erase(image.begin() + (std::ptrdiff_t)object.whole.at, image.begin() + (std::ptrdiff_t)(object.whole.at + object.whole.size));
 			image.insert(image.begin() + (std::ptrdiff_t)object.whole.at, whole.begin(), whole.end());
 			PutIntAt(image, 8, (int32_t)image.size());
+
+			// its shape's list of objects with the new name, as the save makes it (S-35a)
+			if (!PutShapeNames(image, shape))
+			{
+				return ObjectEditResult::CantBuild;
+			}
 
 			ObjectEditResult const done = FromLoader(file->ReplaceLevel(image));
 
@@ -1672,6 +1807,87 @@ namespace host
 		try
 		{
 			return EditStrategy(file, id, StrategyWhat::Replace, 0, 0, payload, length);
+		}
+		catch (std::exception const &)
+		{
+			return ObjectEditResult::CantBuild;
+		}
+	}
+
+	ObjectEditResult PutPlacedLight(OpenLevelFile *file, uint8_t const *id, uint8_t const *payload, size_t length)
+	{
+		// the 15 numbers and the count of extra words at least (Placed_Object_Light_Chunk, chunk_light.cpp), whole words, and as many extra words as the count says
+		if (payload)
+		{
+			int32_t extra = -1;
+
+			if (length >= 64)
+			{
+				memcpy(&extra, payload + 60, 4);
+			}
+
+			if (length < 64 || length > 65536 || length % 4 != 0 || extra < 0 || (size_t)extra != (length - 64) / 4)
+			{
+				return ObjectEditResult::BadLight;
+			}
+		}
+
+		try
+		{
+			Bytes image;
+			std::vector<ObjectInfo> objects;
+			size_t at = 0;
+			ObjectEditResult const prepared = Prepare(file, id, &image, &objects, &at);
+
+			if (prepared != ObjectEditResult::Done)
+			{
+				return prepared;
+			}
+
+			ObjectInfo const object = objects[at];
+
+			if (object.module || !(object.flags & PlacedObjectFlag))
+			{
+				return ObjectEditResult::NotPlaced;
+			}
+
+			// its first PLOBJLIT, directly inside it
+			Piece light = { 0, 0 };
+			bool has = false;
+
+			for (Piece const &child : object.children)
+			{
+				if (child.size >= HeadingBytes && memcmp(image.data() + child.at, "PLOBJLIT", 8) == 0)
+				{
+					light = child;
+					has = true;
+					break;
+				}
+			}
+
+			if (payload ? has : !has)
+			{
+				return ObjectEditResult::Done;   // it has one already / it has none to take out
+			}
+
+			if (payload)
+			{
+				Bytes chunk(HeadingBytes, 0);
+
+				memcpy(chunk.data(), "PLOBJLIT", 8);
+				chunk.insert(chunk.end(), payload, payload + length);
+				PutIntAt(chunk, 8, (int32_t)chunk.size());
+				image.insert(image.begin() + (std::ptrdiff_t)(object.whole.at + object.whole.size), chunk.begin(), chunk.end());
+				PutIntAt(image, object.whole.at + 8, (int32_t)(object.whole.size + chunk.size()));
+			}
+			else
+			{
+				image.erase(image.begin() + (std::ptrdiff_t)light.at, image.begin() + (std::ptrdiff_t)(light.at + light.size));
+				PutIntAt(image, object.whole.at + 8, (int32_t)(object.whole.size - light.size));
+			}
+
+			PutIntAt(image, 8, (int32_t)image.size());
+			return FromLoader(file->ReplaceLevel(image));
 		}
 		catch (std::exception const &)
 		{

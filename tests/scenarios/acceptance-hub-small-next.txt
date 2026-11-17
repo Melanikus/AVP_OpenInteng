@@ -1,0 +1,38 @@
+# ACCEPTANCE (TB-C4, reassess/construction-closeout-frost.md): Construction > Object > Find Small Modules keeps the small modules in ITS OWN LIST (FUN_0044be50: DAT_00631250, never the selection);
+# the one chosen in "Small Modules : Select one to go to" is selected ALONE (FUN_00444750(module, 0), 0x44c31f) with the view at its place; then the hub's G steps to the list's next one and
+# Shift+G back (FUN_004452b0 0x446b11-0x446c38), each selected alone, the view at its place. Red on bishop-int 056fed50 (every small module was selected; G did nothing), green on the hash with the list.
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-no-dialog
+item 0x2bd
+expect-dialog-kind form
+expect-dialog-text 0.5
+key Back
+key Back
+key Back
+type 4
+key Enter
+expect-dialog-kind list
+expect-dialog Small Modules : Select one to go to
+picture 1
+click-row 1
+expect-no-dialog
+expect-selected 1
+expect-status Small module
+remember-field status
+remember-field camera
+picture 2
+# G: the list's next small module, alone, the view at its place
+key G
+expect-selected 1
+expect-field-changed status
+expect-field-changed camera
+picture 3
+# Shift+G: back to the one chosen
+key G shift
+expect-selected 1
+expect-field-same status
+expect-field-same camera
+picture 4

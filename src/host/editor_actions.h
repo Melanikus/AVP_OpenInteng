@@ -58,6 +58,7 @@ struct EditorHostState
 	bool findNotDone;         // true: the modules without adjacent modules are listed (Adjacent Modules, Find Not Done)
 	bool recalcEntryPoints;    // true: every entry point between adjacent modules is worked out again (Adjacent Modules, Recalculate Entry Points)
 	bool showConstructionKeys; // true: Construction's controls are shown as a text over the level (Keys - Mode, inteng_help.h)
+	bool showMovementKeys;     // true: the camera keys' text is shown over the level (Construction's Keys - Movement 0x2be, FUN_005573c0: the words at 0x600394, TB-C6)
 	bool showPlacementKeys;    // true: Object Placement's Keys text (FUN_004d9af0 0x53: the string at 0x5e853c, FUN_004724f0) is shown over the level
 	bool showLinkHelp;         // true: Module Linking's Help text is shown over the level (inteng_help.h)
 	int32_t waypointCommand;   // an item of Waypoint mode's code-built menus was chosen: its inteng command number (waypoint_mode.h), or 0

@@ -145,8 +145,10 @@ static void TestPicks()
 	Check(EditorBar_Run(kActionBackToHub, &host) && host.screen == host::kIntengHub, "Back to Construction goes back to the hub");
 
 	host.statusWords = nullptr;
-	Check(EditorBar_Run(0x10021, &host) && Is(host.statusWords, EditorActions_KeysWords(KeyLayout::Classic)),
-		"construction's Keys - Movement lists the keys");
+	host.showMovementKeys = false;
+	// Construction's Keys - Movement shows the camera keys' text screen (FUN_005573c0; TB-C6): the bar asks for it, the hub draws no status words
+	Check(EditorBar_Run(0x10021, &host) && host.showMovementKeys && host.statusWords == nullptr,
+		"construction's Keys - Movement asks for the camera keys' text screen");
 	Check(EditorBar_Run(kActionViewPolygon, &host) && host.statusWords != nullptr && host.screen == host::kIntengHub,
 		"the editor's own items still do what they did");
 	Check(EditorBar_Run(0x10001, &host) && !host.running, "construction's Quit closes the editor");

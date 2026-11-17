@@ -1,0 +1,28 @@
+# ACCEPTANCE (TB-C5, reassess/construction-closeout-frost.md): the hub's R, "Rotate object 90 degrees" (the hub's key list 0x1cf54c; FUN_004452b0 0x4472aa-0x44750c): with an object selected, a
+# press of R turns the FIRST selected object's shape a quarter turn about y, (x, y, z) -> (-z, y, x), and writes it; the view shows the shape turned. The numbers, the extents (INTENG BUG,
+# FIXED) and the users' places are host_shape_turn_test's. Red on bishop-int 056fed50 (R did nothing on the hub), green on the hash with the turn.
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-no-dialog
+# nothing selected: R does nothing
+key R
+expect-status-not Rotate object 90 degrees
+# the module in the middle of the view, picked by a click (in view, so its turn shows)
+click-view 0.5 0.5
+expect-status Picked
+wait 300
+picture 1
+key R
+expect-status Rotate object 90 degrees: the selected object's shape is turned
+wait 300
+picture 2
+expect-pixels-changed-since 1 picture 0 0 2000 2000 0.0005
+# four turns: the shape as it was, the picture as before the first
+key R
+key R
+key R
+expect-status Rotate object 90 degrees: the selected object's shape is turned
+wait 300
+picture 3

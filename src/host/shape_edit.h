@@ -68,6 +68,16 @@ namespace host
 	// (when not null) gets how many objects were moved.
 	ShapeEditResult ShapeEdit_Recentre(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, bool top, size_t *users, std::string *why);
 
+	// Whether the object whose 8-byte ID is id has a shape with a SHPMORPH (inteng's FUN_00431a00 test at 0x4464f9: Move centre's "Recentreing not supported on
+	// morphing objects"). False for no level, no ID, no object or no shape.
+	bool ShapeEdit_HasMorph(File_Chunk *level, uint8_t const *id);
+
+	// Construction's R, "Rotate object 90 degrees" (FUN_004452b0 0x4472aa-0x44750c, the first selected object's shape, TB-C5): every point (x, y, z) becomes (-z, y, x), every point normal and
+	// polygon normal the same, the radius stays; then the shape is written (FUN_0050f570 + FUN_004bd8e0). The objects that use the shape keep their places and turns. The extents are turned the
+	// same way: max x = -min z, min x = -max z, max z = max x, min z = min x. INTENG BUG, FIXED: inteng turns the max triple and the min triple each by itself (max x = -max z, min x = -min z,
+	// 0x44738f-0x4473ce), so its x extents come out the wrong way round. NAMED: a shape with a SHPMORPH is refused (inteng turns only the base, and the morph's frames would no longer match it).
+	ShapeEditResult ShapeEdit_TurnQuarter(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, std::string *why);
+
 	// Texture Map, Recentre Shape (0xd6, FUN_00565bd0 + FUN_00473c20): the same move as above, with the CENTRE OF ONE POLYGON of the shape as the point that goes to the origin. The polygon's distinct
 	// corner points are added up and the offset is ftol(sum / -n) per axis (FUN_0042f9b0 divides, cutting toward 0), n the number of corners (inteng counts 3, or 4 for a merged pair; a file polygon holds
 	// the 4). Every user's place moves as in ShapeEdit_Recentre. A shape with a SHPMORPH is refused.

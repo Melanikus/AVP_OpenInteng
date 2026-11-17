@@ -1,0 +1,15 @@
+# ACCEPTANCE (TB-C10, reassess/construction-closeout-frost.md): when the hub starts with a level whose file can't be written, inteng says so: FUN_00447550 0x4476bd -> FUN_00444be0, the file's
+# attributes (FUN_0046c5c0: 2 = a file that can be written) and else the message box "This file is read only\n(Press escape to continue)" (0x5cf518). The level is a READ-ONLY COPY of Hangar
+# that make-level makes in the editor's folder (its read-only mark taken off first, so the next run can copy over it), opened as a double click opens it. (A writable level shows no box:
+# acceptance-hub-dialogs' first step.) Red on bishop-int (no box), green on the hash with the box.
+make-level cmd /c "attrib -r {exedir}ReadOnlyHangar.rif >nul 2>nul & copy /y C:\Users\Melanikus\source\AvP-builds-excluded\AvP-play-release\avp_rifs\Hangar.RIF {exedir}ReadOnlyHangar.rif >nul && attrib +r {exedir}ReadOnlyHangar.rif"
+start-args {exedir}ReadOnlyHangar.rif
+pictures on
+state
+expect-screen Construction
+expect-dialog-kind message
+expect-dialog This file is read only
+picture 1
+click-button Ok
+expect-no-dialog
+picture 2

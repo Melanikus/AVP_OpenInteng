@@ -1,0 +1,23 @@
+# ACCEPTANCE (the Adjacent Modules close-out's owed rows, reassess/adjacent-closeout-dietrich.md; Dietrich, 2026-11-17): Base > Find Not Done as inteng's FUN_00404a20
+# command 0x68 (0x404f09-0x405421): the current list written first (FUN_00404040), then the LIST dialog "Modules without adjacent modules"; a row moves the view to that
+# module (the camera's place, 0x405205-0x4052d8) and makes it the current module with its own list loaded (FUN_004045b0). His path: Invasion, Mode > Adjacent Modules,
+# Base > Find Not Done, the first row: the camera has moved and the status names the current module.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Adjacent Modules
+expect-screen Adjacent Modules
+wait 400
+state
+remember-field camera
+click-bar Base > Find Not Done
+expect-dialog-kind list
+expect-dialog Modules without adjacent modules
+click-row 1
+expect-no-dialog
+wait 400
+state
+expect-status Current module
+expect-field-changed camera

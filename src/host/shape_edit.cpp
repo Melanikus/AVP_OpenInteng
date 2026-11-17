@@ -267,6 +267,19 @@ namespace host
 		};
 	}
 
+	bool ShapeEdit_HasMorph(File_Chunk *level, uint8_t const *id)
+	{
+		if (!level || !id)
+		{
+			return false;
+		}
+
+		Object_Chunk *const object = ObjectWithId(level, id);
+		Shape_Chunk *const owned = object ? object->get_assoc_shape() : nullptr;
+
+		return owned && owned->lookup_single_child("SHPMORPH");
+	}
+
 	// polygon < 0: the extents' top or bottom (command 0x14a / 0x14b); polygon >= 0: the centre of that file polygon (Texture Map, Recentre Shape 0xd6, FUN_00565bd0)
 	static ShapeEditResult RecentreImpl(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, bool top, int32_t polygon, size_t *users, std::string *why)
 	{
@@ -457,6 +470,89 @@ namespace host
 	ShapeEditResult ShapeEdit_Recentre(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, bool top, size_t *users, std::string *why)
 	{
 		return RecentreImpl(store, level, id, top, -1, users, why);
+	}
+
+	ShapeEditResult ShapeEdit_TurnQuarter(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, std::string *why)
+	{
+		if (!store || !level || !id)
+		{
+			return ShapeEditResult::BadCall;
+		}
+
+		Object_Chunk *const object = ObjectWithId(level, id);
+
+		if (!object)
+		{
+			return ShapeEditResult::NoObject;
+		}
+
+		Shape_Chunk *const owned = object->get_assoc_shape();
+
+		if (!owned)
+		{
+			return ShapeEditResult::NoShape;
+		}
+
+		if (owned->lookup_single_child("SHPMORPH"))
+		{
+			Say(why, "a shape with a morph isn't turned (its morph's frames would not turn with it)");
+			return ShapeEditResult::Refused;
+		}
+
+		model::ShapeModel shape;
+		ShapeEditResult const read = ShapeEdit_Read(level, store, id, &shape, nullptr, why);
+
+		if (read != ShapeEditResult::Done)
+		{
+			return read;
+		}
+
+		// -z must be a number the file holds: only INT32_MIN has no negative (the file's own numbers are hostile)
+		auto const negatable = [](int32_t value) { return value != INT32_MIN; };
+
+		for (model::ShapePoint const &point : shape.points)
+		{
+			if (!negatable(point.z))
+			{
+				Say(why, "a point of the shape is too far out to turn");
+				return ShapeEditResult::Refused;
+			}
+		}
+
+		if (!negatable(shape.extents.minZ) || !negatable(shape.extents.maxZ))
+		{
+			Say(why, "the shape's extents are too far out to turn");
+			return ShapeEditResult::Refused;
+		}
+
+		// (x, y, z) -> (-z, y, x): a quarter turn about y (0x447341-0x44738d for the points and point normals, 0x4473e4-0x44740d for the polygon normals)
+		for (model::ShapePoint &point : shape.points)
+		{
+			int32_t const x = point.x;
+
+			point.x = -point.z;
+			point.z = x;
+		}
+
+		for (std::vector<model::ShapeNormal> *normals : { &shape.pointNormals, &shape.polygonNormals })
+		{
+			for (model::ShapeNormal &normal : *normals)
+			{
+				float const x = normal.x;
+
+				normal.x = -normal.z;
+				normal.z = x;
+			}
+		}
+
+		model::ShapeExtents const was = shape.extents;
+
+		shape.extents.maxX = -was.minZ;
+		shape.extents.minX = -was.maxZ;
+		shape.extents.maxZ = was.maxX;
+		shape.extents.minZ = was.minX;
+
+		return ShapeEdit_WriteSameCounts(store, level, id, shape, why);
 	}
 
 	ShapeEditResult ShapeEdit_RecentreOnPolygon(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, int32_t polygon, size_t *users, std::string *why)

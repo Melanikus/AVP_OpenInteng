@@ -1,0 +1,39 @@
+# ACCEPTANCE (the Adjacent Modules close-out's owed rows, reassess/adjacent-closeout-dietrich.md; Dietrich, 2026-11-17): Misc > Toggle View Distance and the keys J / M as
+# inteng's FUN_00404a20: 0x46 flips DAT_00606780 (0x405422); while it is on, J adds 500,000 to the distance each frame it is held and M takes 500,000 away, never below 0
+# (0x40555f-0x4055e7); while it is off, J and M do nothing; the line "View Distance :%d" (the distance / 500000) is drawn while it is on (AD-3). His path: Invasion,
+# Mode > Adjacent Modules, J held with the switch off, the switch on, J held, M held long, the switch off.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Adjacent Modules
+expect-screen Adjacent Modules
+wait 400
+state
+remember-field viewdistance
+expect-screen-text-not View Distance :
+# off: J does nothing
+hold J 300
+wait 200
+state
+expect-field-same viewdistance
+click-bar Misc > Toggle View Distance
+wait 300
+state
+expect-screen-text View Distance :
+# on: a held J raises it
+hold J 300
+wait 200
+state
+expect-field-changed viewdistance
+# M held long takes it down to 0 and no further
+hold M 3000
+wait 200
+state
+expect-field viewdistance 0
+expect-screen-text View Distance :0
+click-bar Misc > Toggle View Distance
+wait 300
+state
+expect-screen-text-not View Distance :

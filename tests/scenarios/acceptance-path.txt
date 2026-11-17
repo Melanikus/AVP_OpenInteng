@@ -124,4 +124,4 @@ item 2
 expect-screen Construction
 save-copy
 # the verifier (tests/scenarios/verify_path.cpp, built from drake-path) reads the copy with the library: the new path's name, its flags (2: go back and forth, from Properties), every node a module, each next to the one before it, and the route a shortest one by a breadth-first walk of its own
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/pacc/verify_path/verify_path.exe {orig} {copy} AcceptPath 2
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_path/verify_path.exe {orig} {copy} AcceptPath 2

@@ -187,8 +187,64 @@ namespace host
 			return false;
 		}
 
-		// A shape's chunk is one of these (the subset's refusals): none may be present on either shape
-		char const *const kRefusedChunks[] = { "ANIMSEQU", "TEXTANIM", "SHPMRGDT", "SHPMORPH", "SHPUVCRD", "SHPTEXFN", "SHPPCINF" };
+		// A shape's chunk is one of these (the subset's refusals): none may be present on either shape. SHPUVCRD and SHPTEXFN are merged (TB-C8a, below).
+		char const *const kRefusedChunks[] = { "ANIMSEQU", "TEXTANIM", "SHPMRGDT", "SHPMORPH", "SHPPCINF" };
+
+		// A shape's UV lists, SHPUVCRD's payload (chunk_shape.cpp): an int count, then each list: an int number of corners (0 to 4) and 8 bytes a corner. *count and the bytes after
+		// the count; a shape with no SHPUVCRD has none (count 0). False when the payload does not hold exactly what its count says (the game's loader refuses such a chunk too).
+		bool UvListsOf(OpenLevelFile *file, Shape_Chunk *shape, int32_t *count, Payload *lists)
+		{
+			*count = 0;
+			lists->clear();
+
+			Chunk *const chunk = shape->lookup_single_child("SHPUVCRD");
+
+			if (!chunk)
+			{
+				return true;
+			}
+
+			Payload bytes;
+
+			if (!file->PayloadOf(chunk, &bytes) || bytes.size() < 4)
+			{
+				return false;
+			}
+
+			int32_t lists_in = 0;
+
+			memcpy(&lists_in, bytes.data(), 4);
+
+			if (lists_in < 0 || (size_t)lists_in > (bytes.size() - 4) / 4)
+			{
+				return false;
+			}
+
+			size_t at = 4;
+
+			for (int32_t i = 0; i < lists_in; i++)
+			{
+				int32_t corners = 0;
+
+				if (at + 4 > bytes.size())
+				{
+					return false;
+				}
+
+				memcpy(&corners, bytes.data() + at, 4);
+
+				if (corners < 0 || corners > 4 || at + 4 + 8 * (size_t)corners > bytes.size())
+				{
+					return false;
+				}
+
+				at += 4 + 8 * (size_t)corners;
+			}
+
+			*count = lists_in;
+			lists->assign(bytes.begin() + 4, bytes.begin() + (std::ptrdiff_t)at);
+			return true;
+		}
 
 		bool HasRefusedChunk(Shape_Chunk *shape, std::string *why)
 		{
@@ -334,7 +390,18 @@ namespace host
 
 		// The numbers of the merged shape
 		model::ShapeMergeOutcome outcome;
-		model::ShapeMergeResult const merged = model::MergeShapes(&modelA, places[0], modelB, places[1], 0, false, &outcome);
+		// THE UV LISTS (TB-C8a, construction-closeout-frost.md; FUN_00448cf0 0x448f57-0x449029): the merged shape's lists are the first's, then the second's; each of the second's
+		// textured polygons takes its list number plus the first's count (the model does that); SHPTEXFN is the first's (FUN_0042fc00 copies the first's record)
+		int32_t uvCountA = 0, uvCountB = 0;
+		Payload uvListsA, uvListsB;
+
+		if (!UvListsOf(file, shapeA, &uvCountA, &uvListsA) || !UvListsOf(file, shapeB, &uvCountB, &uvListsB))
+		{
+			Say(why, "a shape's UV lists (SHPUVCRD) don't hold what their count says");
+			return ShapeMergeEditResult::Unsupported;
+		}
+
+		model::ShapeMergeResult const merged = model::MergeShapes(&modelA, places[0], modelB, places[1], (size_t)uvCountA, false, &outcome);
 
 		if (merged != model::ShapeMergeResult::Ok)
 		{
@@ -354,6 +421,20 @@ namespace host
 		}
 
 		// The new bytes of the shape's five chunks, each at its new size
+		// the merged SHPUVCRD's payload: the count of both, the first's lists, the second's (written only when either shape has lists)
+		bool const uvMerged = uvCountA + (int64_t)uvCountB > 0;
+		Payload uvBytes;
+
+		if (uvMerged)
+		{
+			int32_t const total = uvCountA + uvCountB;
+
+			uvBytes.resize(4);
+			memcpy(uvBytes.data(), &total, 4);
+			uvBytes.insert(uvBytes.end(), uvListsA.begin(), uvListsA.end());
+			uvBytes.insert(uvBytes.end(), uvListsB.begin(), uvListsB.end());
+		}
+
 		Payload pointsBytes(modelA.points.size() * model::kShapePointBytes);
 		Payload polygonBytes(modelA.polygons.size() * model::kShapePolygonBytes);
 		Payload polyNormalBytes(modelA.polygonNormals.size() * model::kShapeNormalBytes);
@@ -501,6 +582,7 @@ namespace host
 				bool done[5] = { false, false, false, false, false };
 				char const *const names[5] = { "SHPHEAD1", "SHPRAWVT", "SHPPOLYS", "SHPPNORM", "SHPVNORM" };
 				Payload const *const fresh[5] = { &headerBytes, &pointsBytes, &polygonBytes, &polyNormalBytes, &pointNormalBytes };
+				bool uvDone = false;
 
 				for (Span const &child : inside)
 				{
@@ -515,7 +597,12 @@ namespace host
 						}
 					}
 
-					if (which < 0)
+					if (which < 0 && uvMerged && !uvDone && NameIs(image, child.at, "SHPUVCRD"))
+					{
+						uvDone = true;
+						AppendChunk(&out, "SHPUVCRD", uvBytes);   // the first's lists, then the second's
+					}
+					else if (which < 0)
 					{
 						AppendBytes(&out, image, child.at, child.size);
 					}
@@ -524,6 +611,11 @@ namespace host
 						done[which] = true;
 						AppendChunk(&out, names[which], *fresh[which]);
 					}
+				}
+
+				if (uvMerged && !uvDone)
+				{
+					AppendChunk(&out, "SHPUVCRD", uvBytes);   // the first shape had no lists: the second's come in a chunk of their own
 				}
 
 				for (int n = 0; n < 5; n++)

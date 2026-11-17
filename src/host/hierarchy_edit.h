@@ -22,6 +22,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
 #include <string>
 #include <vector>
 
@@ -220,6 +221,7 @@ namespace host
 		bool present = false;
 		int32_t number = 0, subNumber = 0, points = 0;
 		std::vector<std::pair<std::string, std::vector<int32_t>>> bones;   // each bone's name and the points it holds, in the file's order
+		std::vector<std::vector<std::array<int32_t, 3>>> offsets;         // each of those points' place relative to its bone (the record's +4..+0xc: FUN_0041eae0), in the same order
 	};
 
 	// The attachment of the object's shape to the hierarchy (present = false when there is none)

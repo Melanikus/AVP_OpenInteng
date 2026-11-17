@@ -2,7 +2,7 @@
 // by Melanikus (Frost) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // USE: verify_objects.exe <the copy it saved> gone|kept|track|notrack <an object's name> [gone|kept|track|notrack <name>] ...
-//      ... tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>   ... notracksound <name>|<index>
+//      ... tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>   ... notracksound <name>|<index>   ... trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>   ... at <name>|<x>|<y>|<z>
 // CHECKS: the copy is read by the game's loader; for "gone <name>" no object of the copy (module or placed object) has that exact name; for "kept <name>" one has; for
 // "track <name>" the object of that name holds a track of its own (OBJTRAK2), for "notrack <name>" it holds none (added 2026-11-17 by Frost, OP-20 / OP-21).
 // For "alt <name>=<count>,<group>" the object's alternate locations (its ALTLOCAT, read by alt_locations_edit.cpp's loader from the copy the game's loader took) are that many, in that group
@@ -10,6 +10,8 @@
 // For "tracksound" the object of that name holds the track sound with that index (TRAKSOUN: 0 the sound, 1 the start sound, 2 the end sound) and it has exactly that wav name
 // and those numbers, as the file holds them (the ranges in the file's units). Added 2026-11-17 by Vasquez (Track Editing T-1: the Sound Edit window's OK reaches the save).
 // For "notracksound <name>|<index>" the object of that name exists and holds no track sound with that index (TB-T1: Cancel on a sound Edit made adds none).
+// For "trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>" the object's track has that section, its pivot from (sx sy sz) to (ex ey ez) (T-2: Shift+T moves a track onto its object).
+// For "at <name>|<x>|<y>|<z>" the object's place is exactly (x y z).
 // Gives back 0 only if every check passed.
 
 #include <limits.h>
@@ -163,6 +165,68 @@ static Object_Track_Sound_Chunk *TrackSoundOf(Object_Chunk *object, int index)
 	return nullptr;
 }
 
+// "at <name>|<x>|<y>|<z>": the object's place (OBJHEAD1, as the game's Object_Chunk holds it) is exactly that
+static void CheckAt(OpenLevelFile &level, std::string const &asked)
+{
+	std::vector<std::string> const fields = BarFields(asked, 4);
+	long long at[3] = {};
+	bool good = fields.size() == 4 && !fields[0].empty();
+
+	for (int i = 0; good && i < 3; i++)
+	{
+		good = WholeNumber(fields[(size_t)i + 1], INT_MIN, INT_MAX, &at[i]);
+	}
+
+	if (!good)
+	{
+		Check(false, "an at check as <name>|<x>|<y>|<z>, not \"" + asked + "\"");
+		return;
+	}
+
+	Object_Chunk *const object = ObjectNamed(level, fields[0].c_str());
+	std::string const held = object ? std::to_string(object->object_data.location.x) + " " + std::to_string(object->object_data.location.y) + " " +
+		std::to_string(object->object_data.location.z) : std::string("no object of that name");
+
+	Check(object && object->object_data.location.x == at[0] && object->object_data.location.y == at[1] && object->object_data.location.z == at[2],
+		"the copy's object \"" + fields[0] + "\" is at " + fields[1] + " " + fields[2] + " " + fields[3] + " (it is at: " + held + ")");
+}
+
+// "trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>": the object's track (OBJTRAK2) has that section, and the section's pivot starts and ends at those places (the file's units)
+static void CheckTrackPivot(OpenLevelFile &level, std::string const &asked)
+{
+	std::vector<std::string> const fields = BarFields(asked, 8);
+	long long section = 0, at[6] = {};
+	bool good = fields.size() == 8 && !fields[0].empty() && WholeNumber(fields[1], 0, INT_MAX, &section);
+
+	for (int i = 0; good && i < 6; i++)
+	{
+		good = WholeNumber(fields[(size_t)i + 2], INT_MIN, INT_MAX, &at[i]);
+	}
+
+	if (!good)
+	{
+		Check(false, "a trackpivot check as <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>, not \"" + asked + "\"");
+		return;
+	}
+
+	Object_Chunk *const object = ObjectNamed(level, fields[0].c_str());
+	Object_Track_Chunk2 *const track = object ? dynamic_cast<Object_Track_Chunk2 *>(object->lookup_single_child("OBJTRAK2")) : nullptr;
+	std::string held = object ? (track ? "no such section" : "no track") : "no object of that name";
+	bool same = false;
+
+	if (track && track->sections && section < (long long)track->num_sections)
+	{
+		ChunkTrackSection const &s = track->sections[section];
+
+		held = std::to_string(s.pivot_start.x) + "|" + std::to_string(s.pivot_start.y) + "|" + std::to_string(s.pivot_start.z) + "|" + std::to_string(s.pivot_end.x) + "|" +
+			std::to_string(s.pivot_end.y) + "|" + std::to_string(s.pivot_end.z);
+		same = s.pivot_start.x == at[0] && s.pivot_start.y == at[1] && s.pivot_start.z == at[2] && s.pivot_end.x == at[3] && s.pivot_end.y == at[4] && s.pivot_end.z == at[5];
+	}
+
+	Check(same, "the copy's object \"" + fields[0] + "\" has track section " + fields[1] + " from " + fields[2] + " " + fields[3] + " " + fields[4] + " to " + fields[5] + " " + fields[6] + " " +
+		fields[7] + " (it holds: " + held + ")");
+}
+
 // "notracksound <name>|<index>": the object is there and holds no track sound with that index
 static void CheckNoTrackSound(OpenLevelFile &level, std::string const &asked)
 {
@@ -219,7 +283,7 @@ int main(int argc, char **argv)
 {
 	if (argc < 4 || (argc - 2) % 2 != 0)
 	{
-		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [alt <name>=<count>,<group>]\n");
+		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [alt <name>=<count>,<group>]\n");
 		return 2;
 	}
 
@@ -286,9 +350,17 @@ int main(int argc, char **argv)
 		{
 			CheckNoTrackSound(copy, argv[a + 1]);
 		}
+		else if (what == "trackpivot")
+		{
+			CheckTrackPivot(copy, argv[a + 1]);
+		}
+		else if (what == "at")
+		{
+			CheckAt(copy, argv[a + 1]);
+		}
 		else
 		{
-			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound or alt), not \"" + what + "\"");
+			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, at or alt), not \"" + what + "\"");
 		}
 	}
 

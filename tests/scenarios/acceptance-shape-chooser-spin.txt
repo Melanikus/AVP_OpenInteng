@@ -1,0 +1,28 @@
+# ACCEPTANCE (red first; Drake 11-17, the Shape Chooser close-out SC-2): the chooser's preview TURNS by itself, on his path (Invasion, the file opened as a double click).
+# inteng's chooser frame FUN_004ddb60 (0x4ddba2-0x4ddbc2) puts 300 in the preview block's +0x1ac and 600 in its +0x1b4 every frame and runs FUN_0053c4f0 on it: the shape turns about its own x and
+# z at 300 and 600 4096ths of a turn a second (FUN_0053c6c0: speed x the frame's time, the rest carried), with no key held. The block is made once a visit (FUN_004dd870), so the turn goes on when
+# . shows the next shape. Ours stood still. A picture of the middle of the view, another 0.6 s later with nothing pressed: they differ; again after . (the next shape).
+# Invasion's first shape, Glass01, is one glass triangle that hardly shows (acceptance-shape-chooser-preview), so the spin is looked at on the next two: Smrtam01 and Flam01.
+# RED on bishop-int 90dfd209: the two pictures are the same.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Create > With shape: Choose
+expect-screen Shape Chooser
+key Period
+wait 600
+picture 1
+wait 600
+picture 2
+expect-pixels-changed-since 1 picture 254 115 500 500 0.01
+key Period
+wait 600
+picture 3
+wait 600
+picture 4
+expect-pixels-changed-since 3 picture 254 115 500 500 0.01
+key Esc
+expect-screen Object Placement

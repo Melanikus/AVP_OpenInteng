@@ -47,6 +47,7 @@ namespace host
 		SameObject,        // the strategy would be copied onto its own object
 		NotAModule,        // the object has no MODULEDT (links are a module's)
 		BadLinks,          // the links given are more than a VMDARRAY holds, or none
+		BadLight,          // the placed light's bytes are not 15 numbers and a count of extra words
 	};
 
 	// What an answer means, in plain words for the editor's status line: static text, never null
@@ -89,6 +90,12 @@ namespace host
 	// Puts these payload bytes (the AVPSTRAT chunk's, after its 12-byte heading) in place of the object's strategy, or in as its strategy: an edit whose size changes (a Lift's lists). The object keeps a
 	// strategy; the game's loader reads the result before it is swapped in, as for the others. Refused above 64 KB.
 	ObjectEditResult SetStrategyBytes(OpenLevelFile *file, uint8_t const *id, uint8_t const *payload, size_t length);
+
+	// A PLACED OBJECT'S LIGHT (its PLOBJLIT, a child of the RBOBJECT; Object Placement's save FUN_004e1f90 0x4e2cd5-0x4e2dd8, TB-L2 of reassess/light-closeout-frost.md). With payload
+	// (the chunk's bytes after its 12-byte heading: the 15 numbers of Placed_Object_Light_Data, the count of extra words and those words) the object is given a PLOBJLIT as its LAST child, as the
+	// library's Chunk constructor puts a new child (chunk.cpp:108-118), when it has none; one it has is left as it is. With a null payload its first PLOBJLIT (lookup_single_child, FUN_00431a00) is
+	// taken out. Nothing to do is Done with nothing changed. A placed object only (NotPlaced for a module). As for the strategy, the game's loader reads the result before it is swapped in.
+	ObjectEditResult PutPlacedLight(OpenLevelFile *file, uint8_t const *id, uint8_t const *payload, size_t length);
 
 	// THE LINKS OF A MODULE (Module Linking; P5): the module's VMDARRAY, inside its MODULEDT, is replaced by one holding these items (the file's order:
 	// object index, branch number, flags, spare), or put in when the module has none. As inteng writes it (FUN_004c10c0, menu-reads-4.txt): only

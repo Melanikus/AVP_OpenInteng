@@ -154,10 +154,26 @@ int main(int argc, char **argv)
 
 	for (size_t i = 0; i < list.size() && i < 4; i++)
 	{
-		printf(" '%s' (%d polys, %d verts)", list[i].name.c_str(), list[i].polygons, list[i].points);
+		printf(" '%s' (%d polys, %d verts, the game's name '%s')", list[i].name.c_str(), list[i].polygons, list[i].points, list[i].gameName.c_str());
 	}
 
 	printf("\n");
+
+	// 1b (Drake 11-17): each entry carries the name the game's loader keeps the shape by (EXTOBJNM "object@file", else RIFFNAME), which the chooser's preview finds the shape's
+	// place in the game's list with; an outside shape of the stock level always has one of the two
+	bool gameNamesRight = !list.empty();
+	std::string firstNoGameName;
+
+	for (host::ShapeChoice const &one : list)
+	{
+		if ((one.gameName.empty() || one.gameName.size() > 255) && gameNamesRight)
+		{
+			firstNoGameName = "'" + one.name + "'";
+			gameNamesRight = false;
+		}
+	}
+
+	Check(gameNamesRight, "every entry has the game's name for its shape (1 to 255 letters)" + (firstNoGameName.empty() ? std::string() : " (first without: " + firstNoGameName + ")"));
 
 	host::ShapeChooser_List(level.Level(), &level, &again);
 	Check(again.size() == list.size() && (list.empty() || (again[0].name == list[0].name && again.back().number == list.back().number)), "the list is the same twice");

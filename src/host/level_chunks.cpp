@@ -203,6 +203,37 @@ namespace host
 		return FindOne(level, name, out);
 	}
 
+	bool LevelRiffName(File_Chunk *level, size_t most, std::string *name)
+	{
+		if (!name)
+		{
+			return false;
+		}
+
+		name->clear();
+
+		Chunk *found = nullptr;
+
+		if (FindEnvironmentChild(level, "RIFFNAME", &found) != LevelChunkFound::Found || !found)
+		{
+			return false;
+		}
+
+		RIF_Name_Chunk const *const riff = dynamic_cast<RIF_Name_Chunk const *>(found);
+
+		if (!riff || !riff->rif_name)
+		{
+			return false;
+		}
+
+		for (char const *p = riff->rif_name; *p && name->size() < most; p++)
+		{
+			name->push_back(*p >= 0x20 && *p <= 0x7e ? *p : '_');
+		}
+
+		return !name->empty();
+	}
+
 	LevelChunkFound FindEnvironmentChildren(File_Chunk *level, char const *name, std::vector<Chunk *> *out)
 	{
 		if (!out)

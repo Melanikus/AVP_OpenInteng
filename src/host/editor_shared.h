@@ -847,6 +847,8 @@ static size_t const polyRowsPerPage = 50;
 
 // made in strategy_data_screen.cpp
 extern bool moduleOverlapsOn;
+void ModuleOverlapsPicked(uint8_t const *id);   // TB-C11: a click on the hub while Module Overlaps is on (the picked module's overlaps only)
+void ModuleOverlapsAll();                        // TB-C11: L on the hub while Module Overlaps is on (every module against every other)
 void UpdateDummyObject();
 void WaypointHidePass();
 void WriteTheAsc(std::string const &typed, bool doorsClosed);

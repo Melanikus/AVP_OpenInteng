@@ -869,6 +869,79 @@ bool LevelView_ScaleObjectShape(const LevelViewShapeOf &shape, double factor)
 	return true;
 }
 
+bool LevelView_TurnObjectShape(const LevelViewShapeOf &shape)
+{
+	DISPLAYBLOCK *const block = const_cast<DISPLAYBLOCK *>(BlockOfShape(shape));
+	SHAPEHEADER *const header = block && block->ObShape >= 0 ? GetShapeData(block->ObShape) : nullptr;
+
+	if (!header || !header->points || !header->points[0] || header->numpoints <= 0 || header->numpoints > (1 << 20) || header->numitems < 0 || header->numitems > (1 << 20))
+	{
+		return false;
+	}
+
+	int *const points = header->points[0];   // 3 ints a point
+	int *const itemNormals = header->sh_normals && header->sh_normals[0] ? header->sh_normals[0] : nullptr;     // 3 ints an item
+	int *const pointNormals = header->sh_vnormals && header->sh_vnormals[0] ? header->sh_vnormals[0] : nullptr; // 3 ints a point
+	int const minInt = -2147483647 - 1;
+
+	// every number that is negated must have a negative: checked before anything is changed
+	for (int i = 0; i < header->numpoints; i++)
+	{
+		if (points[3 * i + 2] == minInt || (pointNormals && pointNormals[3 * i + 2] == minInt))
+		{
+			return false;
+		}
+	}
+
+	for (int i = 0; itemNormals && i < header->numitems; i++)
+	{
+		if (itemNormals[3 * i + 2] == minInt)
+		{
+			return false;
+		}
+	}
+
+	if (header->shapeminz == minInt || header->shapemaxz == minInt)
+	{
+		return false;
+	}
+
+	auto const turn = [](int *xyz)
+	{
+		int const x = xyz[0];
+
+		xyz[0] = -xyz[2];
+		xyz[2] = x;
+	};
+
+	for (int i = 0; i < header->numpoints; i++)
+	{
+		turn(points + 3 * i);
+
+		if (pointNormals)
+		{
+			turn(pointNormals + 3 * i);
+		}
+	}
+
+	for (int i = 0; itemNormals && i < header->numitems; i++)
+	{
+		turn(itemNormals + 3 * i);
+	}
+
+	int const maxX = header->shapemaxx, minX = header->shapeminx, maxZ = header->shapemaxz, minZ = header->shapeminz;
+
+	header->shapemaxx = -minZ;
+	header->shapeminx = -maxZ;
+	header->shapemaxz = maxX;
+	header->shapeminz = minX;
+	block->ObMaxX = header->shapemaxx;
+	block->ObMinX = header->shapeminx;
+	block->ObMaxZ = header->shapemaxz;
+	block->ObMinZ = header->shapeminz;
+	return true;
+}
+
 bool LevelView_SetItemUv(const LevelViewShapeOf &shape, int32_t item, const int32_t *uv, int count)
 {
 	int32_t texture = 0;
@@ -1081,6 +1154,21 @@ void LevelView_SetViewMatrix(const int32_t *matrix)
 		viewMatrix.mat21 = matrix[3]; viewMatrix.mat22 = matrix[4]; viewMatrix.mat23 = matrix[5];
 		viewMatrix.mat31 = matrix[6]; viewMatrix.mat32 = matrix[7]; viewMatrix.mat33 = matrix[8];
 	}
+}
+
+void LevelView_MatrixOfAngles(int turn, int look, int roll, int32_t matrix[9])
+{
+	EULER eyes = { 0, turn & wrap360, roll & wrap360 };
+	EULER pan = { look & wrap360, 0, 0 };
+	MATRIXCH m, panMatrix;
+
+	CreateEulerMatrix(&eyes, &m);
+	CreateEulerMatrix(&pan, &panMatrix);   // UpdateCamera's look matrix: (1 0 0; 0 cos -sin; 0 sin cos), the same as this Euler's
+	MatrixMultiply(&m, &panMatrix, &m);
+
+	int32_t const each[9] = { m.mat11, m.mat12, m.mat13, m.mat21, m.mat22, m.mat23, m.mat31, m.mat32, m.mat33 };
+
+	memcpy(matrix, each, sizeof(each));
 }
 
 void LevelView_AnglesOfMatrix(const int32_t matrix[9], int *turn, int *look, int *roll)

@@ -21,7 +21,7 @@ click-button Ok
 expect-no-dialog
 expect-status 8 more deleted (Predator Pickups)
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_objects.exe {copy} gone Pboost0 gone Pboost1 gone Pboost2 gone Pboost3 gone Pboost4 gone Pboost5 gone Pboost6 gone Pboost7 kept pulse0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_objects/verify_objects.exe {copy} gone Pboost0 gone Pboost1 gone Pboost2 gone Pboost3 gone Pboost4 gone Pboost5 gone Pboost6 gone Pboost7 kept pulse0
 # Marine Pickups (the ninth box): pulse0 goes too
 click-win 640 300 right
 click-popup 8
@@ -33,4 +33,4 @@ expect-status 1 more deleted (Marine Pickups)
 expect-status-not could not be put together
 save-copy
 expect-status-not Not saved
-verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_objects.exe {copy} gone Pboost0 gone Pboost1 gone Pboost2 gone Pboost3 gone Pboost4 gone Pboost5 gone Pboost6 gone Pboost7 gone pulse0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_objects/verify_objects.exe {copy} gone Pboost0 gone Pboost1 gone Pboost2 gone Pboost3 gone Pboost4 gone Pboost5 gone Pboost6 gone Pboost7 gone pulse0

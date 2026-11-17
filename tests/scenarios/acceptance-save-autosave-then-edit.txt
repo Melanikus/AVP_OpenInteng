@@ -39,4 +39,4 @@ expect-status Saved a copy
 expect-status-not Not saved
 expect-status-not could not
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_objects.exe {copy} gone Pboost0 gone pulse0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_objects/verify_objects.exe {copy} gone Pboost0 gone pulse0

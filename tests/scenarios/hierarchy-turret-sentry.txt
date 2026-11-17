@@ -1,6 +1,7 @@
 # HIERARCHY TURRET preview (hidden run, Hangar): the sentry gun has no section named "dum turret" (no stock model has), so the run names its "pivot" section the turret (AVP_HV_TURRET=pivot, a proof-only choice).
 # Add a turret sequence (G, ours for Shift+T), turn the turret with L and K, restart with R. Run: AvP-docs\tools\dietrich\drive-scenario-hier.sh <tree> <this file> <name> with AVP_HV_TURRET=pivot
 screen Hierarchy
+env AVP_HV_TURRET pivot
 level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-try-run/data/avp_rifs/sentry.rif
 start-args -viewmode headlight
 pictures on

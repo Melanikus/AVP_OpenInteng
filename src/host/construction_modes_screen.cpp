@@ -223,6 +223,10 @@ void DeleteTheModuleData()
 // with its message "Cannot merge objects with morphing ...", when any selected object has a SHPMORPH (the host refuses those too). The host is Vasquez's
 // exact SUBSET (shape_merge_edit.h); Melanikus's ruling: it REFUSES when any other object's chunk names the second object (a named deviation,
 // carded). With nothing selected inteng's code asserts; with one selected it merges nothing: both are said in words here.
+// THE QUESTION FIRST (TB-C1, construction-closeout-frost.md): with more than one object selected inteng asks "Do you want to merge the selected objects?" (FUN_00474a40 at 0x445ce9,
+// the words at 0x5cf964, shown by FUN_0057c800(200, 100)); only Yes (3) merges (0x445cfe -> FUN_0044a950), No does nothing.
+static void MergeTheSelectedObjectsNow();
+
 void MergeTheSelectedObjects()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
@@ -235,6 +239,30 @@ void MergeTheSelectedObjects()
 	}
 
 	if (count < 2)
+	{
+		Answer("Merge Objects: select the objects to merge (Shift+click for more): the first one picked keeps the merged shape");
+		return;
+	}
+
+	DialogConfirm("Do you want to merge the selected objects?", [](bool yes)
+	{
+		if (yes)
+		{
+			MergeTheSelectedObjectsNow();
+		}
+		else
+		{
+			Answer("Merge Objects: nothing merged");
+		}
+	});
+}
+
+static void MergeTheSelectedObjectsNow()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	size_t const count = host::Selection_SetCount();
+
+	if (!open || count < 2)
 	{
 		Answer("Merge Objects: select the objects to merge (Shift+click for more): the first one picked keeps the merged shape");
 		return;
@@ -336,7 +364,9 @@ static void ShapeChooserShow()
 
 	host::ShapeChoice const &now = chooserList[chooserAt];
 
-	if (!ShapePreview_Show(now.number, &chooserCameraZ))
+	// The shape the text names, by its place in the game's list (found by the name the game loaded it by). now.number is the FILE's id for it, another numbering, and drew another
+	// shape (Drake 11-17: "Shape 'Glass01'" over a room piece). A shape the game's list does not hold draws nothing.
+	if (!ShapePreview_Show(ShapePreview_PlaceOf(now.gameName.c_str()), &chooserCameraZ))
 	{
 		chooserCameraZ = -4000;
 	}

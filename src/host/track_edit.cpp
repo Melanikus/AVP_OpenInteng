@@ -640,6 +640,37 @@ namespace host
 		}
 	}
 
+	std::vector<TrackObjectId> TrackObjectsWithTracks(OpenLevelFile *file)
+	{
+		std::vector<TrackObjectId> found;
+		File_Chunk *const level = file ? file->Level() : nullptr;
+
+		if (!level)
+		{
+			return found;
+		}
+
+		List<Object_Chunk *> objects;
+
+		level->list_objects(&objects);
+
+		// FUN_004efd50 0x4efda4-0x4efe46: the list in its order; an object counts when its level object holds an OBJTRAK2 (FUN_00431a00 "OBJTRAK2" on it)
+		for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+		{
+			Object_Chunk *const object = each();
+
+			if (object && object->lookup_single_child("OBJTRAK2"))
+			{
+				TrackObjectId id;
+
+				memcpy(id.bytes, &object->object_data.ID, sizeof(id.bytes));
+				found.push_back(id);
+			}
+		}
+
+		return found;
+	}
+
 	TrackEditResult TrackPasteRelative(OpenLevelFile *file, uint8_t const *id, TrackClip const &clip)
 	{
 		try

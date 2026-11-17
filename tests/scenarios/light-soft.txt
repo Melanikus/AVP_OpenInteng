@@ -12,9 +12,17 @@ click-view 0.5 0.5
 expect-status Picked
 picture 301
 item 0x50
-expect-prompt 41
+# the angle is asked by inteng's text dialog (FUN_004b0270: "Type in the maximum angle for soft edges ..."), no longer the typed prompt 41: its start text cleared, 0 typed, Enter
+expect-dialog-kind text
+expect-dialog Type in the maximum angle for soft edges
+key Back
+key Back
+key Back
+key Back
+key Back
 type 0
 key Enter
+expect-no-dialog
 expect-status Soft edges at 0 degrees
 picture 302
 save-copy

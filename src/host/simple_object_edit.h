@@ -28,6 +28,14 @@
 //   flags 1 and no target; a simple object (62 or 1003) is changed in place: type, extra data, mass (low 16 bits), integrity (high bit always on) and the explosion bits (0x30) of the flags
 //   word. ANY OTHER strategy (a door, a switch, a lift ...) is left as it is: Edit then changes the file's header flags only. (Re-read 11-17 by Drake: this said every other kind was
 //   replaced, and ours replaced a door's strategy by a simple object: OUR BUG, FIXED.)
+//   Then THE PLACED LIGHT BY THE TYPE (0x4e2cd5-0x4e2dd8, whatever the strategy is; Frost 11-17, reassess/light-closeout-frost.md TB-L2): Type 16 ("Placed light") and no PLOBJLIT gives the
+//   object inteng's default placed light (brightness 1.0, spread 0, range 1,000,000 / (100 x the scale), white up, black down, Omni, Runtime + No PreLight, Start on); any other Type takes a
+//   PLOBJLIT the object has away. This is how the stock lamps were made: all 2047 are Type 16 with spread 0.
+// - THE SAVE RUNS FOR EVERY PLACED SHAPE at Object Placement's Exit (0xa) and Save (0xe) (FUN_004d9af0 0x4d9d66 / 0x4d9eba: each object of the placement list, its +0xc; OP-130a), with the
+//   fields its load gave it: SimpleObject_SaveAll. On the stock levels it changes nothing (Drake's survey, OP-130a). NAMED: an object with no strategy keeps its header's game-mode and
+//   difficulty bits (inteng's load gives it 0xb800, so its save drops them); and the window's numbers for an object with another strategy (a door) are not kept for the sitting, so a
+//   door given Type "Placed light" by Edit gets the light at the OK and loses it at that sitting's Exit (inteng: at its Exit, and loses it at the next sitting's).
+//   Written only where the bytes differ, so a save that changes nothing leaves the level unchanged.
 // - THE WINDOW'S PARTS AS THE RESOURCE HOLDS THEM (dialog 129, read 11-17): "Game mode" (Marine / Alien / Predator) and "Difficulty" (Easy / Medium / Hard) are HIDDEN in this mode, as for
 //   the bad guy (style 0x48010003 without WS_VISIBLE, never shown by FUN_10003de0; Bishop's ruling 11-16): their flags come back unchanged. "Explosion" is shown. The type combo is a
 //   drop-down list in the table's order (no CBS_SORT); "Enter type" (0x3e9) is an editable drop-down.
@@ -84,6 +92,10 @@ namespace host
 
 	// The window's answer written into the object (above). Nothing is changed when the answer is not Done.
 	SimpleObjectResult SimpleObject_Write(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, SimpleObjectDraft const &draft);
+
+	// Object Placement's Exit and Save (OP-130a, above): every placed object (header flag 0x400) read as its load reads it and written by the save. *saved: how many were saved; *changed: how
+	// many of those had a byte changed. The first refusal stops it (the objects before it are saved).
+	SimpleObjectResult SimpleObject_SaveAll(OpenLevelFile *store, size_t *saved, size_t *changed);
 
 	// ---- the window
 	struct SimpleObjectEdit

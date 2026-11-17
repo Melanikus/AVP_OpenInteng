@@ -7754,9 +7754,83 @@ void SelectSomePolygonsForTheProof()
 // Construction > Shape > Move centre to top / bottom (0x14a / 0x14b, inteng FUN_004452b0 + FUN_00473c20): for EVERY selected object that has a shape,
 // the shape's origin moves to the middle of its extents on x and z and its top or bottom on y, and the place of every object that uses the shape moves
 // the opposite way, so the world stays where it was (ShapeEdit_Recentre, shape_edit.h). A shape with a SHPMORPH is refused as inteng refuses it; the
-// objects after a refused one are still done, as inteng's loop goes on. NAMED DEVIATIONS: inteng first asks to confirm (FUN_00474a40, its words not
-// read) and says something when nothing is selected (FUN_00474030, words not read): ours does it at once and says so in the status line; the change is in
-// the editor's bytes only, saved by Save a copy.
+// objects after a refused one are still done, as inteng's loop goes on. The change is in the editor's bytes, saved at inteng's save points.
+// INTENG'S WORDS (TB-C2, construction-closeout-frost.md; FUN_004452b0 0x44647f-0x446631, the words read from the exe's pushes): nothing selected: the message "Please select an
+// object first" (FUN_00474030 at 0x44660c, FUN_0057c800(100, 100)); else FIRST the question "Recentre selected shapes?" (FUN_00474a40 at 0x44649c) and only Yes (3) moves; a selected
+// object whose shape morphs (FUN_00431a00 "SHPMORPH" != 0) gets the message "Recentreing not supported on morphing objects" (0x446509) in its turn, and after its Ok the loop goes on.
+static std::vector<std::array<uint8_t, 8>> centreIds;   // the selection when Yes was pressed, in its order
+static bool centreTop = true;
+static size_t centreDone = 0;
+static size_t centreUsersMoved = 0;
+static size_t centreRefused = 0;
+static std::string centreFirstWhy;
+
+static void MoveTheCentreFrom(size_t from)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !open->Level())
+	{
+		statusWords = "Move centre: no level is open";
+		return;
+	}
+
+	for (size_t i = from; i < centreIds.size(); i++)
+	{
+		uint8_t const *const id = centreIds[i].data();
+
+		if (host::ShapeEdit_HasMorph(open->Level(), id))
+		{
+			if (centreDone != 0)
+			{
+				LoadTheObjectListAgain();
+			}
+
+			DialogMessage("Recentreing not supported on morphing objects", [i]()
+			{
+				MoveTheCentreFrom(i + 1);
+			});
+			return;
+		}
+
+		size_t users = 0;
+		std::string why;
+		host::ShapeEditResult const result = host::ShapeEdit_Recentre(open, open->Level(), id, centreTop, &users, &why);
+
+		if (result == host::ShapeEditResult::Done)
+		{
+			centreDone++;
+			centreUsersMoved += users;
+		}
+		else
+		{
+			centreRefused++;
+
+			if (centreFirstWhy.empty())
+			{
+				centreFirstWhy = why.empty() ? host::ShapeEditWords(result) : why;
+			}
+		}
+	}
+
+	static std::string centreWords;   // kept here so statusWords can point at it
+
+	centreWords = std::string("Move centre to ") + (centreTop ? "top" : "bottom") + ": " + std::to_string(centreDone) + " shape" + (centreDone == 1 ? "" : "s") +
+		" moved, " + std::to_string(centreUsersMoved) + " object place" + (centreUsersMoved == 1 ? "" : "s") + " kept in the world";
+
+	if (centreRefused != 0)
+	{
+		centreWords += "; " + std::to_string(centreRefused) + " refused (" + centreFirstWhy + ")";
+	}
+
+	statusWords = centreWords.c_str();
+
+	if (centreDone != 0)
+	{
+		LoadTheObjectListAgain();
+	}
+}
+
 void MoveTheCentre(bool top)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
@@ -7771,59 +7845,37 @@ void MoveTheCentre(bool top)
 	if (count == 0)
 	{
 		statusWords = "Move centre: select an object first";
+		DialogMessage("Please select an object first");
 		return;
 	}
 
-	size_t done = 0;
-	size_t usersMoved = 0;
-	size_t refused = 0;
-	std::string firstWhy;
-
-	for (size_t i = 0; i < count; i++)
+	DialogConfirm("Recentre selected shapes?", [top](bool yes)
 	{
-		uint8_t id[8];
-
-		if (!host::Selection_SetMember(i, id))
+		if (!yes)
 		{
-			continue;
+			statusWords = "Move centre: nothing moved";
+			return;
 		}
 
-		size_t users = 0;
-		std::string why;
-		host::ShapeEditResult const result = host::ShapeEdit_Recentre(open, open->Level(), id, top, &users, &why);
+		centreIds.clear();
 
-		if (result == host::ShapeEditResult::Done)
+		for (size_t i = 0; i < host::Selection_SetCount(); i++)
 		{
-			done++;
-			usersMoved += users;
-		}
-		else
-		{
-			refused++;
+			std::array<uint8_t, 8> id;
 
-			if (firstWhy.empty())
+			if (host::Selection_SetMember(i, id.data()))
 			{
-				firstWhy = why.empty() ? host::ShapeEditWords(result) : why;
+				centreIds.push_back(id);
 			}
 		}
-	}
 
-	static std::string centreWords;   // kept here so statusWords can point at it
-
-	centreWords = std::string("Move centre to ") + (top ? "top" : "bottom") + ": " + std::to_string(done) + " shape" + (done == 1 ? "" : "s") +
-		" moved, " + std::to_string(usersMoved) + " object place" + (usersMoved == 1 ? "" : "s") + " kept in the world";
-
-	if (refused != 0)
-	{
-		centreWords += "; " + std::to_string(refused) + " refused (" + firstWhy + ")";
-	}
-
-	statusWords = centreWords.c_str();
-
-	if (done != 0)
-	{
-		LoadTheObjectListAgain();
-	}
+		centreTop = top;
+		centreDone = 0;
+		centreUsersMoved = 0;
+		centreRefused = 0;
+		centreFirstWhy.clear();
+		MoveTheCentreFrom(0);
+	});
 }
 
 // Construction > Miscellaneous > Recalculate Normals and Extents (0x25b, inteng FUN_0044baa0): every shape of the level, through the edit store

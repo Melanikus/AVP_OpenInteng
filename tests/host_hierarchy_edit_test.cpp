@@ -13,6 +13,7 @@
 // HOW IT RUNS: tests/host_hierarchy_edit_test.args builds it; run it as host_hierarchy_edit_test <level file> [<level file> ...]. It gives back a non-zero result if any
 // check failed.
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,6 +32,70 @@
 #include "hierarchy_mode.h"
 
 static int checksFailed = 0;
+
+// TB-3 (FUN_0041eae0): a point's SHPBONDT offset is its place in its bone's own frame in the reference pose (the world point less the bone's place, turned by the bone's matrix transposed). A turn and a
+// move keep distances, so two points of one bone are as far apart in their offsets as in the world (HierarchyEdit_SkinPoints), each number cut toward zero: within 4 mm. Offsets left at 0, 0, 0 are not.
+// *pairs gets how many pairs were compared (neighbours in each bone's list, at most 200 a bone, both points apart by more than 8 mm in the world).
+static bool OffsetsKeepDistances(host::BoneAttachment const &attached, std::vector<int32_t> const &world, size_t *pairs, std::string *first)
+{
+	*pairs = 0;
+
+	if (attached.offsets.size() != attached.bones.size())
+	{
+		*first = "the offsets are not one list a bone";
+		return false;
+	}
+
+	for (size_t b = 0; b < attached.bones.size(); b++)
+	{
+		std::vector<int32_t> const &points = attached.bones[b].second;
+
+		if (attached.offsets[b].size() != points.size())
+		{
+			*first = attached.bones[b].first + ": not one offset a point";
+			return false;
+		}
+
+		for (size_t k = 1, compared = 0; k < points.size() && compared < 200; k++)
+		{
+			size_t const i = (size_t)points[k - 1], j = (size_t)points[k];
+
+			if (i * 3 + 2 >= world.size() || j * 3 + 2 >= world.size())
+			{
+				*first = attached.bones[b].first + ": a point past the shape's";
+				return false;
+			}
+
+			double worldSquared = 0.0, offsetSquared = 0.0;
+
+			for (int axis = 0; axis < 3; axis++)
+			{
+				double const w = (double)world[i * 3 + axis] - (double)world[j * 3 + axis];
+				double const o = (double)attached.offsets[b][k - 1][axis] - (double)attached.offsets[b][k][axis];
+
+				worldSquared += w * w;
+				offsetSquared += o * o;
+			}
+
+			if (sqrt(worldSquared) <= 8.0)
+			{
+				continue;
+			}
+
+			compared++;
+			(*pairs)++;
+
+			if (fabs(sqrt(worldSquared) - sqrt(offsetSquared)) > 4.0)
+			{
+				*first = attached.bones[b].first + ": points " + std::to_string((long long)i) + " and " + std::to_string((long long)j) + " are " + std::to_string((long long)sqrt(worldSquared)) +
+					" mm apart, their offsets " + std::to_string((long long)sqrt(offsetSquared));
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
 static int checksRun = 0;
 
 static void Check(bool good, std::string const & what)
@@ -1004,6 +1069,15 @@ static void TestFile(std::string const & path, std::string const & folder)
 
 							Check(HierarchyEdit_ReadBoneAttachment(&boneFile, object, hier, &first) == HierarchyEditResult::Done && first.present && first.number == 10000 && first.subNumber == 0, hier + "/" + object + ": the attachment is read back");
 
+							// TB-3: each point's offset is its place in its bone's reference frame (FUN_0041eae0 after Attach, 0x41f804)
+							std::vector<int32_t> skin;
+							size_t pairs = 0;
+							std::string wrong;
+							bool const kept = HierarchyEdit_SkinPoints(&boneFile, object, &skin) == HierarchyEditResult::Done && OffsetsKeepDistances(first, skin, &pairs, &wrong);
+
+							Check(kept && pairs > 0, hier + "/" + object + ": each point's offset is its place in its bone's frame: " + std::to_string((unsigned long long)pairs) + " pairs keep their distances" +
+								(wrong.empty() ? std::string() : " (not: " + wrong + ")"));
+
 							size_t total = 0;
 							std::vector<bool> seen((size_t)first.points, false);
 							bool sane = true;
@@ -1058,6 +1132,13 @@ static void TestFile(std::string const & path, std::string const & folder)
 								BoneAttachment after;
 
 								Check(HierarchyEdit_ReadBoneAttachment(&boneFile, object, hier, &after) == HierarchyEditResult::Done && after.present && after.points == first.points, hier + "/" + object + ": the moved attachment is read back");
+
+								// TB-3 after Shift + V (FUN_0041eae0 at 0x47ad94): every bone's offsets worked out again, the moved points' in their new bone's frame
+								size_t movedPairs = 0;
+								std::string movedWrong;
+
+								Check(OffsetsKeepDistances(after, skin, &movedPairs, &movedWrong) && movedPairs > 0, hier + "/" + object + ": after Shift + V too: " +
+									std::to_string((unsigned long long)movedPairs) + " pairs keep their distances" + (movedWrong.empty() ? std::string() : " (not: " + movedWrong + ")"));
 
 								size_t holder = after.bones.size();
 								size_t total2 = 0;

@@ -7,8 +7,10 @@
 #include <string.h>
 
 #include <algorithm>
+#include <array>
 
 #include "chunk_object.hpp"   // Object_Chunk, Object_Header_Chunk
+#include "environment_chunk.hpp"   // Environment_Scale_Chunk (ENVSDSCL): the default placed light's range
 #include "mishchnk.hpp"       // File_Chunk::list_objects
 #include "level_file.h"       // OpenLevelFile: PayloadOf and SetPayload
 #include "object_edit.h"      // AssignStrategy
@@ -26,6 +28,7 @@ namespace host
 		size_t const kKindAt = 8;
 		size_t const kTypeAt = 20, kExtraAt = 24, kMassAt = 28, kIntegrityAt = 32, kFlagsAt = 36;
 		size_t const kSimpleBytes = 40;   // the fields above end at 40
+		int32_t const kTypePlacedLight = 16;   // the Type "Placed light" (0x10): the save gives it a PLOBJLIT (FUN_004e1f90 0x4e2ce5)
 
 		// the header (OBJHEAD1) flag bits the window and the save touch (chunk_object.hpp)
 		uint32_t const kMarine = 0x800, kAlien = 0x1000, kPredator = 0x2000;
@@ -407,7 +410,156 @@ namespace host
 		return SimpleObjectResult::Done;
 	}
 
+	namespace
+	{
+		// The bytes into the store only when they are not the ones it holds (OP-130a: a save that changes nothing leaves the level unchanged, so nothing asks to be saved)
+		bool SetWhenOther(OpenLevelFile *store, Chunk *chunk, std::vector<unsigned char> const &bytes, bool *changed)
+		{
+			std::vector<unsigned char> now;
+
+			if (BytesOf(store, chunk, &now) && now == bytes)
+			{
+				return true;
+			}
+
+			if (!store->SetPayload(chunk, bytes))
+			{
+				return false;
+			}
+
+			if (changed)
+			{
+				*changed = true;
+			}
+
+			return true;
+		}
+
+		// inteng's DAT_00607bd8: 100 x the level's scale (the first REBENVDT's first ENVSDSCL), 100.0 when the level has none (camera_file.h). A scale that is not above 0 or is past 1,000,000
+		// (a hostile file: inteng would divide by it as it is) is taken as 1.
+		double HundredTimesScale(File_Chunk *level)
+		{
+			double scale = 1.0;
+			Chunk_With_Children *const envd = level ? dynamic_cast<Chunk_With_Children *>(level->lookup_single_child("REBENVDT")) : nullptr;
+			Environment_Scale_Chunk const *const scaleChunk = envd ? dynamic_cast<Environment_Scale_Chunk const *>(envd->lookup_single_child("ENVSDSCL")) : nullptr;
+
+			if (scaleChunk && scaleChunk->scale > 0.0 && scaleChunk->scale <= 1000000.0)
+			{
+				scale = scaleChunk->scale;
+			}
+
+			return 100.0 * scale;
+		}
+
+		// THE DEFAULT PLACED LIGHT of an object of Type 16 ("Placed light") that has none (FUN_004e1f90 0x4e2d09-0x4e2db6): the 15 numbers of Placed_Object_Light_Data and the count of extra
+		// words (the class's +0x64 / +0x68 left 0): brightness 0x10000 (1.0), spread 0, range = __ftol(1,000,000.0 (0x5ae590) / DAT_00607bd8) (cut toward 0: 10000 at the scale 1), up colour
+		// 0xffffff, down colour 0, engine flags 4 (Omni), local flags 0x50 (Runtime 0x10, No PreLight 0x40), fade up / fade down / up / down / start times 0, light type 0 (Standard), on/off
+		// type 0 (Standard), flags 1 (Start on); no extra words. The stock lamps (light-closeout-frost.md, the survey): all 2047 are Type 16, all with spread 0, 1983 with local flags 0x50.
+		// The range is kept to 1 .. 2^28, which the loader takes (a scale past 1,000,000 or below 1/26,843 would give one it refuses: NAMED, inteng has no limit).
+		std::vector<unsigned char> DefaultPlacedLight(File_Chunk *level)
+		{
+			double const range = 1000000.0 / HundredTimesScale(level);
+			int32_t const words[16] = { 0x10000, 0, range < 1.0 ? 1 : (range > (double)(1 << 28) ? (1 << 28) : (int32_t)range), 0xffffff, 0, 4, 0x50, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
+			std::vector<unsigned char> bytes(sizeof(words));
+
+			memcpy(bytes.data(), words, sizeof(words));
+			return bytes;
+		}
+
+		SimpleObjectResult WriteObject(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, SimpleObjectDraft const &draft, bool *changed);
+	}
+
 	SimpleObjectResult SimpleObject_Write(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, SimpleObjectDraft const &draft)
+	{
+		return WriteObject(store, level, id, draft, nullptr);
+	}
+
+	SimpleObjectResult SimpleObject_SaveAll(OpenLevelFile *store, size_t *saved, size_t *changed)
+	{
+		if (saved)
+		{
+			*saved = 0;
+		}
+
+		if (changed)
+		{
+			*changed = 0;
+		}
+
+		if (!store || !store->Level())
+		{
+			return SimpleObjectResult::BadCall;
+		}
+
+		// the placed objects by ID first: a save that rebuilds the level (a strategy made, a light put in or taken out) lets go of every chunk
+		std::vector<std::array<uint8_t, 8>> ids;
+		List<Object_Chunk *> objects;
+
+		store->Level()->list_objects(&objects);
+
+		for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+		{
+			Object_Chunk *const object = each();
+			std::vector<unsigned char> head;
+
+			// placed (0x400), as the store's bytes of its header say
+			if (object && BytesOf(store, object->get_header(), &head) && head.size() >= 4 && ((uint32_t)Read32(head.data()) & 0x400) != 0)
+			{
+				std::array<uint8_t, 8> id;
+
+				memcpy(id.data(), &object->object_data.ID, 8);
+				ids.push_back(id);
+			}
+		}
+
+		for (std::array<uint8_t, 8> const &id : ids)
+		{
+			SimpleObjectDraft draft;
+
+			// the fields its load gives it (FUN_004e0ed0); an object the load can't read is passed over, as it would not be in inteng's list
+			if (SimpleObject_Read(store, store->Level(), id.data(), &draft) != SimpleObjectResult::Done)
+			{
+				continue;
+			}
+
+			// NAMED (OP-130a (b), Bishop 11-17): an object with no strategy gets the simple object as inteng's, but its header keeps its own game-mode and difficulty bits (inteng's load gives it
+			// 0xb800, so its save would drop a difficulty bit and any game mode the header did not have)
+			if (draft.strategyKind == 0)
+			{
+				// the header's flags as the store holds them (an edit's bytes; the library's class is not made again after a payload is set)
+				Object_Chunk *const object = ObjectWithId(store->Level(), id.data());
+				std::vector<unsigned char> head;
+				uint32_t const own = object && BytesOf(store, object->get_header(), &head) && head.size() >= 4 ? (uint32_t)Read32(head.data()) : 0;
+				uint32_t const kept = kMarine | kAlien | kPredator | kDifficultyBits;
+
+				draft.flags = (draft.flags & ~kept) | (own & kept);
+			}
+
+			bool one = false;
+			SimpleObjectResult const result = WriteObject(store, store->Level(), id.data(), draft, &one);
+
+			if (result != SimpleObjectResult::Done)
+			{
+				return result;
+			}
+
+			if (saved)
+			{
+				(*saved)++;
+			}
+
+			if (one && changed)
+			{
+				(*changed)++;
+			}
+		}
+
+		return SimpleObjectResult::Done;
+	}
+
+	namespace
+	{
+	SimpleObjectResult WriteObject(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, SimpleObjectDraft const &draft, bool *changed)
 	{
 		if (!store || !level || !id)
 		{
@@ -464,6 +616,11 @@ namespace host
 				}
 
 				level = store->Level();
+
+				if (changed)
+				{
+					*changed = true;
+				}
 			}
 
 			// the simple object's numbers, in place (a 1003 too: inteng's save changes both in place, 0x4e2914)
@@ -500,7 +657,7 @@ namespace host
 
 			Write32(bytes.data() + kFlagsAt, flagsWord);
 
-			if (!store->SetPayload(strategy.chunk, bytes))
+			if (!SetWhenOther(store, strategy.chunk, bytes, changed))
 			{
 				return SimpleObjectResult::CantBuild;
 			}
@@ -520,12 +677,35 @@ namespace host
 		h = (h & ~kWriteBits) | (draft.flags & kWriteBits) | kPlatformSet;
 		Write32(head.data(), (int32_t)h);
 
-		if (!store->SetPayload(header2, head))
+		if (!SetWhenOther(store, header2, head, changed))
 		{
 			return SimpleObjectResult::NoHeader;
 		}
 
+		// THE PLACED LIGHT BY THE TYPE (FUN_004e1f90 0x4e2cd5-0x4e2dd8, after the header, whatever the strategy is; AvP only: FUN_0057aa00(0)): Type 16 ("Placed light", the object's +0x44) and no
+		// PLOBJLIT: the default one is made (DefaultPlacedLight), the object's last child; any other Type and a PLOBJLIT: it is deleted. (light-closeout-frost.md TB-L2: the second way inteng
+		// makes a light; Edit > Type "Placed light", then Exit or Save.)
+		Object_Chunk *const lit = ObjectWithId(store->Level(), id);
+		bool const hasLight = lit && lit->lookup_single_child("PLOBJLIT") != nullptr;
+
+		if ((draft.type == kTypePlacedLight) != hasLight)
+		{
+			std::vector<unsigned char> const light = DefaultPlacedLight(store->Level());
+			ObjectEditResult const put = draft.type == kTypePlacedLight ? PutPlacedLight(store, id, light.data(), light.size()) : PutPlacedLight(store, id, nullptr, 0);
+
+			if (put != ObjectEditResult::Done)
+			{
+				return put == ObjectEditResult::LoaderRefused ? SimpleObjectResult::LoaderRefused : put == ObjectEditResult::NotPlaced ? SimpleObjectResult::NotPlaced : SimpleObjectResult::CantBuild;
+			}
+
+			if (changed)
+			{
+				*changed = true;
+			}
+		}
+
 		return SimpleObjectResult::Done;
+	}
 	}
 
 	bool SimpleEdit_Begin(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, SimpleObjectEdit *edit)

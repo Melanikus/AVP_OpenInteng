@@ -50,4 +50,9 @@ namespace host
 
 	// inteng's row text: "%d\t%d m\t%s"
 	std::string PolyCountText(PolyCountRow const &row);
+
+	// The hub's "Polygon count : %d / %d" (FUN_00472720, run at every start of the hub, 0x4475ed; TB-C7 of construction-closeout-frost.md): over every shape of the level (its REBSHAPE
+	// list) that at least one object uses, *shapes adds the shape's count and *placed its count times the number of objects that use it (0x472811-0x472839). The count is count(shape)
+	// above with every polygon ONCE (FUN_004725b0 called with no record: bit 31 doesn't count twice; inteng's other games' branch, FUN_0057aa20(2), is not AvP's). False (both 0) with no level.
+	bool PolyCounts_Level(File_Chunk *level, int64_t *shapes, int64_t *placed);
 }

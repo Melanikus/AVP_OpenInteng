@@ -261,6 +261,12 @@ bool LevelView_SetItemFlagBits(const LevelViewShapeOf &shape, int32_t item, int3
 // most 1,000,000. The file's bytes are the caller's (shape_rescale_edit.h); this is only what the view draws.
 bool LevelView_ScaleObjectShape(const LevelViewShapeOf &shape, double factor);
 
+// THE LIVE QUARTER TURN of Construction's R (TB-C5; inteng FUN_004452b0 0x447474-0x447505 turns the game's own shape of the selected object as the file's): every point of the shape the
+// game has loaded for this module or object, every polygon normal and point normal, (x, y, z) -> (-z, y, x); the extents turned whole (max x = -min z, min x = -max z, max z = max x,
+// min z = min x: inteng's own turn of the loaded extents is wrong, the file's bug fixed the same way) and the block takes them. Nothing is changed when the shape is not in play or a
+// number has no negative (INT_MIN). The file's bytes are the caller's (ShapeEdit_TurnQuarter); this is only what the view draws.
+bool LevelView_TurnObjectShape(const LevelViewShapeOf &shape);
+
 // Objects that no module holds are drawn after the modules (the avpx hook R_SetEditorDrawObjectsOutsideModules): on for a file with no modules, whose objects the editor made display blocks of (hierarchy_view.h, ModelObjects_Build)
 void LevelView_DrawObjectsOutsideModules(bool on);
 
@@ -291,6 +297,9 @@ void LevelView_SetViewMatrix(const int32_t *matrix);
 
 // The camera's turn, look and roll whose view (the look about x after the turn and roll, as the game's UpdateCamera makes it) is this matrix, the look kept within a quarter turn either way; in 4096ths
 void LevelView_AnglesOfMatrix(const int32_t matrix[9], int *turn, int *look, int *roll);
+
+// The view's matrix of the camera's turn, look and roll, as the game's UpdateCamera makes it from PutTheEyes's player: pan(look) x CreateEulerMatrix(0, turn, roll) (MatrixMultiply(ObMat, pan))
+void LevelView_MatrixOfAngles(int turn, int look, int roll, int32_t matrix[9]);
 
 // A-7 (OP-113), THE TURN KEYS' SPEEDS as inteng's mover FUN_0053db40 makes them (0x53dc1a-0x53dd3c): a matrix that starts as the identity is multiplied by a 10 degree turn for each key held, in the order
 // numpad 4, 6, 7, 9, 8, 2 (the exe's matrices at 0x5f0568, 0x5f0540, 0x5f0608, 0x5f05e0, 0x5f0590, 0x5f05b8, read: cos 64540 and sin 11380 of 65536; 4 / 6 about y, 7 / 9 about z, 8 / 2 about x), and its

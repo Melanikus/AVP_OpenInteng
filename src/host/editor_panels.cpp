@@ -70,6 +70,7 @@
 #include "editor_actions.h"
 #include "hidden_objects.h"
 #include "poly_counts.h"
+#include "hub_text.h"
 #include "path_mode.h"
 #include "virtual_object.h"
 #include "strategy_edit.h"
@@ -1372,6 +1373,50 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 		if (barScreen == host::kIntengHub)
 		{
 			sayAt(0x20, "View Distance :" + std::to_string(viewDistance / 500000));
+
+			// THE HUB'S OWN LINES (TB-C7, hub_text.h): "Polygon count : %d / %d" at 0x32 and each selected object's name / radius line and Location line. The counts are FUN_00472720's, made
+			// at the hub's start (0x4475ed): here whenever the level's bytes are made again (NAMED: inteng keeps the start's numbers until the hub starts again; every hub command
+			// that changes a shape's polygons, Merge Objects, leaves and starts the hub, so the two agree)
+			static bool hubCountsMade = false;
+			static unsigned hubCountsGeneration = 0;
+			static File_Chunk *hubCountsLevel = nullptr;
+			static int64_t hubShapes = 0;
+			static int64_t hubPlaced = 0;
+			OpenLevelFile *const hubOpen = LevelObjects_OpenForEdit();
+
+			if (hubOpen && (!hubCountsMade || hubOpen->Generation() != hubCountsGeneration || LevelObjects_Level() != hubCountsLevel))
+			{
+				host::PolyCounts_Level(LevelObjects_Level(), &hubShapes, &hubPlaced);
+				hubCountsGeneration = hubOpen->Generation();
+				hubCountsLevel = LevelObjects_Level();
+				hubCountsMade = true;
+			}
+
+			std::vector<std::array<uint8_t, 8>> hubSelected;
+
+			for (size_t i = 0; i < host::Selection_SetCount(); i++)
+			{
+				std::array<uint8_t, 8> id;
+
+				if (host::Selection_SetMember(i, id.data()))
+				{
+					hubSelected.push_back(id);
+				}
+			}
+
+			std::vector<host::HubTextLine> hubLines;
+
+			host::HubText_Lines(LevelObjects_Level(), hubOpen, hubShapes, hubPlaced, hubSelected, local_scale, 16, &hubLines);
+
+			for (host::HubTextLine const &hubLine : hubLines)
+			{
+				if (lineCount >= kPanelPassMostExtras)
+				{
+					break;
+				}
+
+				sayAt(hubLine.y, hubLine.words);
+			}
 		}
 	}
 
@@ -1450,6 +1495,43 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 		if (linkFollowCamera)
 		{
 			sayAt(0x5a, "Setting base to current module");
+		}
+	}
+
+	// ADJACENT MODULES' TEXT (FUN_00404a20 every frame, FUN_0057b1b0 at x 10, white; AD-3 of reassess/adjacent-closeout-dietrich.md; inteng's y 0 under our bar band, as Module
+	// Linking's above): the picked module's name at (10, 0x32) ("%s" 0x5c39c4 of its record +0x154, +100) while a module is picked, and "View Distance :%d" (0x5c39b0, the
+	// distance / 500000) at (10, 0x22) while Toggle View Distance is on (0x4055f0-0x405638). Not while Show All's paint is held: inteng's hold returns before the text is drawn
+	// (DAT_00606784, the top of FUN_00404a20). (Added 2026-11-17 by Melanikus (Dietrich).)
+	if (!adjacentShowAllPaint && OnAdjacentModulesScreen() && LevelObjects_Level())
+	{
+		int32_t const base = layout.toolbar.y + layout.toolbar.height;
+
+		auto const sayAt = [&](int32_t y, std::string const &words)
+		{
+			if (lineCount >= kPanelPassMostExtras)
+			{
+				return;
+			}
+
+			host::PaintText line;
+
+			line.text = words;
+			line.x = 10;
+			line.y = base + y;
+			lines[lineCount++] = line;
+			screenTextNow += (screenTextNow.empty() ? "" : "|") + words;
+		};
+
+		std::vector<int32_t> const picked = PickedModules();
+
+		if (!picked.empty())
+		{
+			sayAt(0x32, ModuleNameOfIndex(picked[0]));
+		}
+
+		if (adjacentViewDistanceOn)
+		{
+			sayAt(0x22, "View Distance :" + std::to_string(viewDistance / 500000));
 		}
 	}
 

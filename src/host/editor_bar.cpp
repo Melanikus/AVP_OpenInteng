@@ -711,6 +711,13 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 			host->waypointAsked = true;
 			break;
 		case host::IntengWork::Keys:
+			// Construction's Keys - Movement (0x2be): inteng shows the camera keys' text screen, FUN_005573c0 (TB-C6); the hub draws no status words, so words alone showed nothing
+			if (item->command == 0x2be)
+			{
+				host->showMovementKeys = true;
+				break;
+			}
+
 			host->statusWords = EditorActions_KeysWords(host->layout);
 			break;
 		case host::IntengWork::DeleteObject:

@@ -15,6 +15,9 @@
 //   make-level <command>        before the editor starts: a TEST TOOL makes a level the scenario then opens (tests/scenarios/make_strategy_level.cpp: a stock copy with the strategy bytes a
 //                               kind no stock level holds needs); {exedir} and {scenariodir} as in start-args. It runs fresh every run; an exit other than 0 fails the scenario and the
 //                               editor is not started. (Added 2026-11-17 by Drake, strategy-closeout-drake.md E-5: made levels are made by a tool, never by hand.)
+//   env <AVP_NAME> <value>      before the editor starts: that variable in the editor's environment (it inherits the harness's), so a scenario carries the test hook it needs whatever runs it
+//                               (hierarchy-turret-sentry: AVP_HV_TURRET pivot, hierarchy_view.cpp). Only names that start with AVP_ are taken: a scenario never changes PATH or any
+//                               other variable of Windows. (Added 2026-11-17 by Frost: run-shards sets no variable, so the scenario went red in Bishop's round 1.)
 //   pictures on|off             a picture after each step that changes something (on by default)
 //   item <command>              does the item of the bars (first bar, then second) with that inteng command number, as a click on it does (decimal or 0x hex); FAILED if no item has it
 //   expect-selected <n>         how many objects are selected (the set, with Shift+click or select-rows)
@@ -2075,6 +2078,19 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		return true;
 	}
 
+	// camera-look <look> <roll>: the camera's look (4096ths, signed: plus is down, held to a quarter turn either way) and roll; "camera" sets the place and the turn only (kHarnessCamera parts 4 and 5)
+	if (verb == "camera-look" && w.size() >= 3)
+	{
+		Drain(s);
+		PostMessageW(s->editor.window, WM_APP + 10, (WPARAM)4, (LPARAM)strtol(w[1].c_str(), NULL, 0));
+		PostMessageW(s->editor.window, WM_APP + 10, (WPARAM)5, (LPARAM)strtol(w[2].c_str(), NULL, 0));
+
+		std::string const said = WaitForLine(&s->editor, "AVP_OpenInteng: camera: ", 10000);
+
+		Check(!said.empty() && said.find(" look ") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : said.substr(said.find("camera"))));
+		return true;
+	}
+
 	if (verb == "pick-module" && w.size() >= 2)
 	{
 		// Adjacent Modules: picks the module with that object number, as a click on it would (kHarnessPickModule)
@@ -2486,6 +2502,28 @@ int main(int argc, char **argv)
 		if (w[0] == "screen" && w.size() >= 2 && steps.empty())
 		{
 			startArguments = L" -screen \"" + Widen(Rest(line, 1)) + L"\"";   // a screen's name can have a space in it ("Module Linking")
+			continue;
+		}
+
+		if (w[0] == "env" && steps.empty())
+		{
+			// env <AVP_NAME> <value> (the usage above): only AVP_ names, letters, digits and _; the value is the rest of the line
+			bool plainName = w.size() >= 3 && w[1].size() > 4 && w[1].size() <= 64 && w[1].compare(0, 4, "AVP_") == 0;
+
+			for (size_t k = 0; plainName && k < w[1].size(); k++)
+			{
+				char const letter = w[1][k];
+
+				plainName = (letter >= 'A' && letter <= 'Z') || (letter >= '0' && letter <= '9') || letter == '_';
+			}
+
+			if (!plainName || !SetEnvironmentVariableA(w[1].c_str(), Rest(line, 2).c_str()))
+			{
+				printf("  FAILED  env: only \"env AVP_<NAME> <value>\" is taken (%s)\n", line.c_str());
+				return 1;
+			}
+
+			printf("  ok  env %s for the editor\n", w[1].c_str());
 			continue;
 		}
 

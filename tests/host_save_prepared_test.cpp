@@ -308,6 +308,17 @@ static bool IdNamed(OpenLevelFile &level, char const *name, uint8_t id[8])
 	return false;
 }
 
+// S-35a (Drake 11-17): after an edit that adds, renames or takes out an object, a save leaves the level held AS THE FILE IT WROTE, the prepared bytes, as inteng's own tree is after its
+// save: the edit kept the shape's header list of its objects' names as the save makes it (Shape_Header_Chunk::prepare_for_output), so the editor's tree pairs with the prepared
+// bytes. Before, it paired only with its own image (Frost's fallback), and the next save's version numbers went up once less than inteng's.
+static void HeldIsTheFileWritten(OpenLevelFile &level, std::string const &path, char const *edit)
+{
+	std::vector<char> file, held;
+
+	Check(ReadWholeFile(path, &file) && level.BuildLevel(held) && !held.empty() && held == LevelIn(file),
+		std::string("S-35a: after ") + edit + " and a save, the level held is the file just written (it pairs with the prepared bytes, not only with its own image)");
+}
+
 // An object taken out of the level, a save, a second object taken out, a save again: both edits and both saves are made, and the second copy has neither object. Until
 // 2026-11-17 the save paired the editor's tree with the prepared bytes only; once an object was taken out they no longer paired, the level was left unpaired, and the second
 // delete and the second save were refused. The info lines say where the prepared level's chunks differ from the level as held. (Added 2026-11-17 by Frost, Bishop's report
@@ -349,6 +360,7 @@ static void DeletedThenSaved(char const *levelPath, char const *first, char cons
 	DeleteFileA(firstSave.c_str());
 	DeleteFileA(secondSave.c_str());
 	Check(work.SaveAs(firstSave.c_str()) == LevelSaveResult::Saved, "the level is saved as a COPY");
+	HeldIsTheFileWritten(work, firstSave, "the delete");
 	Check(IdNamed(work, second, id) && host::DeleteObject(&work, id) == host::ObjectEditResult::Done, std::string("after the save, ") + second + " is taken out too");
 	Check(work.SaveAs(secondSave.c_str()) == LevelSaveResult::Saved, "and the level is saved again");
 
@@ -505,6 +517,7 @@ int main(int argc, char **argv)
 		DeleteFileA(againPath.c_str());
 		DeleteFileA(thirdPath.c_str());
 		Check(edited.SaveAs(firstPath.c_str()) == LevelSaveResult::Saved, "the level with the copied object is saved");
+		HeldIsTheFileWritten(edited, firstPath, "the copy (CreateObjectLike)");
 
 		LevelSaveResult const again = edited.SaveAs(againPath.c_str());
 
@@ -581,6 +594,11 @@ int main(int argc, char **argv)
 			LevelSaveResult const saved = edited.SaveAs(paths[round].c_str());
 
 			Check(saved == LevelSaveResult::Saved, "saved, round " + std::to_string(round + 1) + " of 3 (SaveAs answered " + std::to_string((int)saved) + "; the second was refused, NothingOpen)");
+
+			if (round == 0)
+			{
+				HeldIsTheFileWritten(edited, paths[0], "a make from a shape with an outside file and its rename (P)");
+			}
 		}
 
 		OpenLevelFile back;

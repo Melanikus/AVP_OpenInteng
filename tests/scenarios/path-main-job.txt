@@ -7,10 +7,13 @@ pictures on
 state
 expect-screen Path
 item 5
-expect-prompt 24
-type ScenarioPath
+# Create Path asks the name with inteng's text dialog "Name of path (optional)" (FUN_00474bc0, as acceptance-path); its edit takes as many letters as it shows (AcceptPath's ten), so the name is short
+expect-dialog-kind text
+expect-dialog Name of path (optional)
+type ScenPath
 key Enter
-expect-status ScenarioPath
+expect-no-dialog
+expect-status ScenPath
 click-view 0.5 0.5
 expect-status Picked: module
 item 3
@@ -20,4 +23,4 @@ click-view 0.15 0.3
 expect-status Picked: module
 item 3
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_path/verify_path.exe {orig} {copy} ScenarioPath
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_path/verify_path.exe {orig} {copy} ScenPath
