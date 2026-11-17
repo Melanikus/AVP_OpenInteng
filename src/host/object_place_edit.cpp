@@ -15,6 +15,7 @@
 #include "mishchnk.hpp"       // File_Chunk::list_objects
 #include "level_file.h"       // OpenLevelFile: PayloadOf and SetPayload
 #include "level_file_name.h"  // LevelFileName_WhyRefused: the game's rule for a name
+#include "object_edit.h"      // RenameObject: the rename as a structural edit (11-17)
 
 namespace host
 {
@@ -353,7 +354,6 @@ namespace host
 		}
 
 		size_t const length = strlen(name);
-		size_t const room = bytes.size() - kNameAt;
 
 		if (length == 0 || length > kObjectEditTextMost)
 		{
@@ -367,11 +367,8 @@ namespace host
 			return ObjectEditAnswer::Refused;
 		}
 
-		if (length + 1 > room)
-		{
-			Say(why, "that name is longer than the room the old one leaves in the object's header, and a header never changes its size");
-			return ObjectEditAnswer::Refused;
-		}
+		// A name longer than the old one is taken, as inteng takes it: the header is written at the size the library writes it for the new name (below). Until 2026-11-17
+		// (Drake, after cefa2e9c; Bishop / Dietrich) a name had to fit the room the old one left, a limit of ours only.
 
 		// No other object has the name already, in capitals or not
 		List<Object_Chunk *> all;
@@ -389,23 +386,18 @@ namespace host
 			}
 		}
 
-		memset(&bytes[kNameAt], 0, room);
-		memcpy(&bytes[kNameAt], name, length);
+		// The level made again with the object's header at the size the game's library writes it for the new name (object_edit.h RenameObject, a structural edit through
+		// ReplaceLevel: every Chunk * handed out before is gone, so the caller builds its lists again). Until 2026-11-17 the name was written into the old header's room
+		// (SetPayload) and the library's copy renamed: the header's bytes and the library's chunk were then of different sizes, and after a save the level paired with
+		// neither the prepared bytes nor its own image, so every later save was refused (strategy-data.md S-35a; Drake).
+		ObjectEditResult const result = RenameObject(store, id, name, newId);
 
-		if (!store->SetPayload(header, bytes))
+		if (result != ObjectEditResult::Done)
 		{
-			Say(why, "the editor's bytes for the object's header wouldn't take the change");
+			Say(why, (std::string("the level could not be made again with the new name: ") + ObjectEditWords(result)).c_str());
 			return ObjectEditAnswer::Refused;
 		}
 
-		// The library's own copy of the name and the ID that comes from it, so the list and the lookups follow (the header chunk's bytes
-		// are the editor's and are what a save writes)
-		ChunkObject renamed = object->object_data;
-
-		memset(renamed.o_name, 0, sizeof(renamed.o_name));
-		memcpy(renamed.o_name, name, length);
-		object->update_my_chunkobject(renamed);   // keeps its index, and makes its ID again from the new name (chunk_object.cpp:351)
-		memcpy(newId, &object->object_data.ID, 8);
 		return ObjectEditAnswer::Done;
 	}
 }

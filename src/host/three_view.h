@@ -57,6 +57,10 @@ namespace host
 	// size number; its scale is R / 100) is not read: this scale is ours.
 	void ThreeView_FitTrack(const int32_t maxAbs[3], ThreeViews *views);
 
+	// The three views about a centre in the world at a scale of whole world units a pixel (Waypoint's Edit Extents, FUN_005846b0: every view's offsets are the centre, each view's origin the
+	// middle of its quarter, as ThreeView_Fit puts them). Vasquez 2026-11-17.
+	void ThreeView_Centre(const int64_t centre[3], int32_t scale, ThreeViews *views);
+
 	// A click at (x, y) of the 640 by 480 screen: the cursor's numbers the clicked quarter shows are set (top left: x and y; top right: z and y; bottom
 	// left: x and z), the others left as they were. A click on the middle lines, or in the bottom right (the 3D view), sets none. Gives back true when
 	// the click was in one of the three views. A scale of 0 is never used (inteng would divide by it): the click is refused, false, nothing changed.

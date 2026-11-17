@@ -1,0 +1,53 @@
+# ACCEPTANCE: THE VIEW GAP (Dietrich, 2026-11-17; Bishop for Melanikus: "on every screen entry the game view must load OUR working bytes, never the opened file"). inteng draws the level it
+# holds in memory, so what a mode changed is in the next screen's picture. Ours draws through the game's renderer, loaded from the opened file once: a flown object is a copy, let go of when
+# the mode is left, and the object was drawn where it was opened when the mode came back (proven on f3d5f62: Invasion's switch3 back at its first place). Now, at a screen change with the
+# level changed, the working bytes go to the editor's own copy avp_rifs\OpenedByEditor\<name>.rif and the view loads it (editor_main.cpp ShowTheWorkingBytes).
+# His path: Genshd1, Object Placement, chair01 (Object > Find), flown (F, A held, F), Exit (the level saved: OP's own save point), back into Object Placement, chair01 found again: the view
+# draws it where it flew to, not where the file had it. "selectedat" is the middle of the selected object's block as the GAME'S VIEW holds it (the picture's own data, not the editor's bytes).
+# How far A carries it depends on the frame rate, so the check is "away from the opened place", not a number: chair01 is opened at x 17774 y 1364 z -2625; A carries it toward lower x.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice chair01
+expect-no-dialog
+wait 300
+state
+expect-status Selected: chair01
+# ---- where the file has it
+expect-number selectedat x 17770 17778
+expect-number selectedat y 1360 1368
+expect-number selectedat z -2629 -2621
+picture 1
+# ---- flown: A held, then F lets it go there
+key F
+hold A 800
+key F
+wait 300
+state
+expect-status the object is where it flew to
+# ---- Exit (the level is written: Object Placement's own save point), then back in
+click-bar Mode > Exit
+wait 800
+state
+expect-screen Construction
+expect-status-not NOT saved
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice chair01
+expect-no-dialog
+wait 300
+state
+expect-status Selected: chair01
+picture 2
+# ---- the view draws it where it flew to: away from the opened place, toward lower x, at the same height
+expect-number selectedat x -100000 17760
+expect-number selectedat y 1360 1368

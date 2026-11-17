@@ -355,8 +355,10 @@ namespace host
 			return false;
 		}
 
+		// parts (CreateObjectFromParts): shapeName is then the object's exact name, the shape is the one of parts->shapeNumber, and the header's flags, the strategy and the chunk after are the parts'
 		ObjectMakeResult MakeIn(OpenLevelFile *file, char const *shapeName, int32_t const *place, int32_t const *matrix, uint8_t *newId, std::string *newName,
-		                        char const *shapeFolder, std::string *importWhy, Bytes const *givenShape = nullptr, float const *givenTurn = nullptr, bool exactName = false)
+		                        char const *shapeFolder, std::string *importWhy, Bytes const *givenShape = nullptr, float const *givenTurn = nullptr, bool exactName = false,
+		                        ObjectParts const *parts = nullptr)
 		{
 			if (importWhy)
 			{
@@ -459,7 +461,29 @@ namespace host
 				}
 			}
 
-			for (size_t i = 0; !givenShape && i < info.shapes.size() && found == info.shapes.size(); i++)
+			// the parts' shape: by its number (a shape the level holds; nothing is imported)
+			if (parts)
+			{
+				for (size_t i = 0; i < info.shapes.size() && found == info.shapes.size(); i++)
+				{
+					if (info.shapes[i].fileId == parts->shapeNumber)
+					{
+						found = i;
+					}
+				}
+
+				if (found == info.shapes.size())
+				{
+					return ObjectMakeResult::NoSuchShape;
+				}
+
+				if (parts->strategy.size() != 52 || (!parts->after.empty() && (parts->after.size() < HeadingBytes || IntAt(parts->after, 8) != (int32_t)parts->after.size())))
+				{
+					return ObjectMakeResult::CantBuild;
+				}
+			}
+
+			for (size_t i = 0; !givenShape && !parts && i < info.shapes.size() && found == info.shapes.size(); i++)
 			{
 				if (!info.shapes[i].outsideName.empty() && SameName(info.shapes[i].outsideName.c_str(), info.shapes[i].outsideName.size(), base))
 				{
@@ -595,7 +619,7 @@ namespace host
 
 			Bytes header;
 
-			AddInt(header, (int32_t)NewObjectFlags);
+			AddInt(header, (int32_t)(parts ? parts->headerFlags : NewObjectFlags));
 			header.insert(header.end(), 16, 0);                     // the lock user: nobody (named gap)
 			for (int axis = 0; axis < 3; axis++)
 			{
@@ -637,6 +661,11 @@ namespace host
 			AddInt(strategy, 0);                                    // targetID, two numbers
 			AddInt(strategy, 0);
 
+			if (parts)
+			{
+				strategy = parts->strategy;                         // the caller's strategy (52 bytes, checked above)
+			}
+
 			Bytes object(HeadingBytes, 0);
 			Bytes const headChunk = MakeChunk("OBJHEAD1", header);
 			Bytes const interfaceChunk = MakeChunk("OBINTDT", interfaceData);
@@ -646,6 +675,13 @@ namespace host
 			object.insert(object.end(), headChunk.begin(), headChunk.end());
 			object.insert(object.end(), interfaceChunk.begin(), interfaceChunk.end());
 			object.insert(object.end(), projectChunk.begin(), projectChunk.end());
+
+			// the parts' chunk after the project data (a pasted placed light's PLOBJLIT: FUN_004abb00 makes it after the OBJPRJDT)
+			if (parts && !parts->after.empty())
+			{
+				object.insert(object.end(), parts->after.begin(), parts->after.end());
+			}
+
 			PutIntAt(object, 8, (int32_t)object.size());
 
 			// 4. the shape's header lists the names of the objects that use it: the new name goes last
@@ -834,6 +870,18 @@ namespace host
 		try
 		{
 			return MakeIn(file, objectBase, place, nullptr, newId, newName, nullptr, nullptr, &shapeChunk, turn, exactName);
+		}
+		catch (std::exception const &)
+		{
+			return ObjectMakeResult::CantBuild;
+		}
+	}
+
+	ObjectMakeResult CreateObjectFromParts(OpenLevelFile *file, char const *name, int32_t const *place, int32_t const *matrix, ObjectParts const &parts, uint8_t *newId, std::string *newName)
+	{
+		try
+		{
+			return MakeIn(file, name, place, matrix, newId, newName, nullptr, nullptr, nullptr, nullptr, true, &parts);
 		}
 		catch (std::exception const &)
 		{

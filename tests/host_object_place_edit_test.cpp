@@ -248,8 +248,8 @@ static void TestRename(OpenLevelFile *open)
 	Check(host::ObjectEdit_Rename(open, level, lamp.id, "wall", newId, &why) == ObjectEditAnswer::Refused && why == "The name of the object has already been used.",
 		"a name another object has is refused, in capitals or not, with the game's own words");
 	Check(host::ObjectEdit_Rename(open, level, lamp.id, "", newId, &why) == ObjectEditAnswer::Refused, "no name is refused");
-	Check(host::ObjectEdit_Rename(open, level, lamp.id, "bad/name", newId, &why) == ObjectEditAnswer::Refused, "a name the game's file-name rule refuses is refused");
-	Check(host::ObjectEdit_Rename(open, level, lamp.id, "LampLampLampLamp", newId, &why) == ObjectEditAnswer::Refused, "a name that doesn't fit the room the old one leaves is refused");
+	// (a colon: the rule allows / and \ as a path's separators, so "bad/name", the name here until 11-17, was refused only by the old-room limit, now gone)
+	Check(host::ObjectEdit_Rename(open, level, lamp.id, "bad:name", newId, &why) == ObjectEditAnswer::Refused, "a name the game's file-name rule refuses is refused");
 	Check(host::ObjectEdit_Rename(open, level, lamp.id, std::string(70, 'a').c_str(), newId, &why) == ObjectEditAnswer::Refused, "a name of more than 63 letters is refused");
 
 	FoundObject same;
@@ -258,13 +258,15 @@ static void TestRename(OpenLevelFile *open)
 
 	Check(host::ObjectEdit_Rename(open, level, lamp.id, "Torch", newId, &why) == ObjectEditAnswer::Done, "a free name that fits is done");
 
+	// the rename made the level again (RenameObject, 11-17): every Chunk * from before is gone, so the level is asked for again
+	File_Chunk *const renamedLevel = open->Level();
 	FoundObject torch;
 
-	Check(host::ObjectEdit_Find(level, open, "torch", &torch) && memcmp(torch.id, newId, 8) == 0 && memcmp(newId, lamp.id, 8) != 0, "it's found by its new name, with a new ID");
-	Check(!host::ObjectEdit_Find(level, open, "lamp", &same), "and no longer by the old one");
+	Check(host::ObjectEdit_Find(renamedLevel, open, "torch", &torch) && memcmp(torch.id, newId, 8) == 0 && memcmp(newId, lamp.id, 8) != 0, "it's found by its new name, with a new ID");
+	Check(!host::ObjectEdit_Find(renamedLevel, open, "lamp", &same), "and no longer by the old one");
 
 	List<Object_Chunk *> all;
-	level->list_objects(&all);
+	renamedLevel->list_objects(&all);
 	Object_Header_Chunk *head = nullptr;
 
 	for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
@@ -277,9 +279,83 @@ static void TestRename(OpenLevelFile *open)
 
 	std::vector<unsigned char> bytes;
 
-	Check(head && open->PayloadOf(head, &bytes) && bytes.size() == 72 - 12 + 8, "the header's bytes keep their size (60 and the 8 the old name's room was)");
+	Check(head && open->PayloadOf(head, &bytes) && bytes.size() == 72 - 12 + 8, "the header is the size the library writes for the name (60 and \"Torch\" with its 0, to a whole 4: 8)");
 	Check(bytes.size() == 68 && memcmp(&bytes[60], "Torch\0\0\0", 8) == 0, "with the new name and 0s after it");
-	Check(host::ObjectEdit_Rename(open, level, torch.id, "Lamp", newId, &why) == ObjectEditAnswer::Done, "a name can be given back");
+	Check(host::ObjectEdit_Rename(open, open->Level(), torch.id, "Lamp", newId, &why) == ObjectEditAnswer::Done, "a name can be given back");
+
+	// 11-17 (Drake, strategy-data.md S-35a): a SHORTER name than the room the old one had ("DoorHole", 8 letters: a 72-byte header, to "Dh": 64). The rename wrote the name
+	// into the old room, so the header's bytes (72) and the library's chunk (64) were of different sizes: after a save the level paired with nothing, and the next save was
+	// refused (NothingOpen). Now the header is written at the library's size, and the level is saved twice.
+	FoundObject door;
+	std::string const folder = "object_edit_test_rename_" + std::to_string(GetCurrentProcessId());
+	std::string const first = folder + "\\first.rif", second = folder + "\\second.rif";
+
+	CreateDirectoryA(folder.c_str(), 0);
+	Check(host::ObjectEdit_Find(open->Level(), open, "doorhole", &door) && host::ObjectEdit_Rename(open, open->Level(), door.id, "Dh", newId, &why) == ObjectEditAnswer::Done,
+		"a name shorter than the old room is done (DoorHole to Dh)");
+
+	Object_Header_Chunk *dh = nullptr;
+	List<Object_Chunk *> now;
+
+	open->Level()->list_objects(&now);
+
+	for (LIF<Object_Chunk *> each(&now); !each.done(); each.next())
+	{
+		dh = memcmp(&each()->object_data.ID, newId, 8) == 0 ? each()->get_header() : dh;
+	}
+
+	std::vector<unsigned char> dhBytes;
+	bool const dhRead = dh && open->PayloadOf(dh, &dhBytes);
+
+	Check(dhRead && dhBytes.size() == 64, "its header is the size the library writes for \"Dh\" (64 after the heading, it was 72): " + std::to_string(dhBytes.size()));
+	Check(open->SaveAs(first.c_str()) == LevelSaveResult::Saved, "the level is saved");
+
+	LevelSaveResult const again = open->SaveAs(second.c_str());
+
+	Check(again == LevelSaveResult::Saved, "and saved again (it was refused: SaveAs answered " + std::to_string((int)again) + ")");
+
+	OpenLevelFile back;
+
+	Check(back.Open(second.c_str()) == LevelOpenResult::Opened && back.Level() && host::ObjectEdit_Find(back.Level(), &back, "dh", &door), "the game's loader takes it, with Dh in it");
+
+	// 11-17 (Drake; Bishop / Dietrich after cefa2e9c): a name LONGER than the old one is taken, as inteng takes it ("Dh" to a 22-letter name: the header grows to the library's
+	// size, 72 + 23 to a whole 4 = 96, 84 after the heading). It was refused: the name had to fit the room the old one left, a limit of ours only.
+	std::string const longName = "TheLongestDoorHoleName";
+	std::string const third = folder + "\\third.rif";
+	FoundObject dhNow;
+
+	Check(host::ObjectEdit_Find(open->Level(), open, "dh", &dhNow) && host::ObjectEdit_Rename(open, open->Level(), dhNow.id, longName.c_str(), newId, &why) == ObjectEditAnswer::Done,
+		"a name longer than the old one is taken");
+
+	Object_Header_Chunk *longHeader = nullptr;
+	List<Object_Chunk *> afterLong;
+
+	open->Level()->list_objects(&afterLong);
+
+	for (LIF<Object_Chunk *> each(&afterLong); !each.done(); each.next())
+	{
+		longHeader = memcmp(&each()->object_data.ID, newId, 8) == 0 ? each()->get_header() : longHeader;
+	}
+
+	std::vector<unsigned char> longBytes;
+	bool const longRead = longHeader && open->PayloadOf(longHeader, &longBytes);
+
+	Check(longRead && longBytes.size() == 84, "its header grew to the size the library writes for it (84 after the heading): " + std::to_string(longBytes.size()));
+	Check(open->SaveAs(third.c_str()) == LevelSaveResult::Saved, "and the level is saved with it");
+
+	OpenLevelFile backLong;
+	FoundObject foundLong;
+
+	Check(backLong.Open(third.c_str()) == LevelOpenResult::Opened && backLong.Level() && host::ObjectEdit_Find(backLong.Level(), &backLong, "thelongestdoorholename", &foundLong) &&
+		foundLong.name == longName, "the game's loader takes it, with the long name in it");
+
+	for (std::string const &path : { first, second, third })
+	{
+		DeleteFileA(path.c_str());
+		DeleteFileA((path + ".bak").c_str());
+	}
+
+	RemoveDirectoryA(folder.c_str());
 }
 
 int main()

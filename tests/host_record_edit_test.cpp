@@ -66,7 +66,7 @@ public:
 
 	bool PayloadOf(Chunk *chunk, Bytes *payload) const override
 	{
-		std::map<Chunk *, Bytes>::const_iterator const found = held.find(chunk);
+		const std::map<Chunk *, Bytes>::const_iterator found = held.find(chunk);
 
 		if (found == held.end() || !payload)
 		{

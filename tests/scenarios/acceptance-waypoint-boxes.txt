@@ -1,0 +1,29 @@
+# ACCEPTANCE (red first): Waypoint's WAYPOINTS MODE (mode 1) as inteng draws and picks it (Vasquez 2026-11-17, reassess/waypoint-closeout-vasquez.md W-2 / W-3; FUN_00583b40, FUN_005890c0,
+# FUN_005876c0, FUN_005835a0, FUN_00586570, FUN_00584ee0 0x58542d-0x58555d, 0x585562-0x58566f). Show Alien Waypoints keeps the 3D view whole (no three views: those are Edit Extents' only, FUN_005846b0)
+# and draws only the AI module's modules; each waypoint is a wire box, white; each pair of linked waypoints one line of two halves, GREEN (red on the half a one-way link may not be gone along from).
+# A click picks the box whose centre is nearest the pointer on the screen: it is the current waypoint, its box RED, and the screen says "Waypoint :%d". RED before: mode 1 was the three views with
+# our own colours (white and cyan links, no green), and no click in the 3D view picked a box (the harness's locate had no "3d"). Invasion, read only.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Waypoint
+wait 600
+picture 1
+# a click on a module, Show Alien Waypoints: mode 1, no current waypoint yet
+click-view 0.5 0.5
+wait 400
+item 3
+wait 600
+picture 2
+expect-hierarchy-text Alien Mode
+expect-hierarchy-count 0 Waypoint :
+expect-colour picture 0 0 1000 700 00ff00 0.0005 40
+expect-pixels-changed-since 1 picture 0 0 1000 700 0.05
+# a click on waypoint 0's box in the 3D view: the current waypoint, red
+click-wp 0 3d
+wait 400
+picture 3
+expect-hierarchy-text Waypoint :
+expect-pixels-changed-since 2 picture 0 0 1000 700 0.0005
+expect-colour picture 0 0 1000 700 ff0000 0.0005 40

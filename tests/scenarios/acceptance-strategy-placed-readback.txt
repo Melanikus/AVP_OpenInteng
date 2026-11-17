@@ -1,8 +1,9 @@
 # ACCEPTANCE (red first): the 62 PLACED OBJECT's lines on his path, the saved copy read back through the game's own loader (Vasquez 11-17; reassess/strategy-data-kinds.md S-K62-1, -2, -4;
 # FUN_00530ee0's view and its clicks 0x5310a8-0x5310f9). Genshd1's med02L (read 11-17 by switch_survey): request 1 ("Turn Target On"), flags 1 (the target told when destroyed), target
 # facehugga. A click on "Turn Target On" (y 32) flips request bit 1; on "Object destroyed" (y 80) flags bit 1, on "Object picked up" (y 96) flags bit 2 (the view's y + 8 is the window's).
-# The copy must hold target_request 0 and flags 2 (picked up, not destroyed), every other strategy byte for byte. RED on the stock file read as the copy: request 1, flags 1.
-# OWED: the Event Target line (y 48: the object pick "Select target", the camera flown to the old target) is not changed here: which object a click then takes is not known before a run.
+# The Event Target line (y 48) first: the object pick "Select target" (S-K62-3, FUN_00531160: the camera flown to the old target, "Press return when finished", the object under the pointer
+# named); a click at (0.3, 0.6) of the view names med09 (read 11-17 from a run of this build: pinned, not derived), Return keeps it: "Event Target : med09". The copy must hold the target
+# med09, target_request 0 and flags 2 (picked up, not destroyed), every other strategy byte for byte. RED on the stock file read as the copy: facehugga, request 1, flags 1.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
 pictures on
 state
@@ -20,6 +21,16 @@ wait 400
 expect-field-has strategyview 200@0:med02L : Placed Object
 expect-field-has strategyview 32@32:Turn Target On|32@48:Event Target : facehugga
 picture 1
+# y 48: the Event Target, picked: med09
+click-win 300 56
+wait 1500
+expect-field-has strategyview Press return when finished
+click-view 0.3 0.6
+wait 600
+expect-field-has strategyview 16@80:med09
+key Enter
+wait 500
+expect-field-has strategyview 32@48:Event Target : med09
 # y 32: request bit 1 flips
 click-win 300 40
 wait 300
@@ -35,4 +46,4 @@ picture 2
 key Esc
 wait 300
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} med02L target_request 0 flags 2
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} med02L target_request 0 flags 2 holds med09

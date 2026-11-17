@@ -72,7 +72,7 @@ void Sound_ForgetAddressesInside(const void *, size_t)
 
 static std::string NameOf(std::map<int32_t, std::string> const &names, int32_t index)
 {
-	std::map<int32_t, std::string>::const_iterator const found = names.find(index);
+	const std::map<int32_t, std::string>::const_iterator found = names.find(index);
 
 	return found != names.end() ? found->second : "#" + std::to_string(index);
 }

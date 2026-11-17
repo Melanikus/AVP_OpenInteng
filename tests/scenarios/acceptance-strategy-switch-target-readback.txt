@@ -1,0 +1,31 @@
+# ACCEPTANCE (red first): a BINARY SWITCH (52)'s target changed on his path, the saved copy read back through the game's own loader (Vasquez 11-17; strategy-data.md S-K52-5: T, slot
+# 0xd87a94, 0x52d9ee -> FUN_0052db10, "Select target for switch", the camera to the old target, the pick loop FUN_00527540). Genshd1's opslev01 targets tolink04 (acceptance-strategy-switch).
+# T, then a click at (0.3, 0.6) of the view: the module MAIN03 under it becomes the target ("Target : MAIN03": read 11-17 from a run of this build, pinned, not derived); Return; Escape.
+# The copy must hold the target MAIN03 and request 0 (a new target's request), every other strategy byte for byte. RED on the stock file read as the copy: tolink04.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is opslev01
+expect-no-dialog
+key E
+wait 400
+expect-field-has strategyview 200@0:opslev01 : Binary Switch
+expect-field-has strategyview 16@80:Target : tolink04
+picture 1
+key T
+wait 600
+click-view 0.3 0.6
+wait 600
+key Enter
+wait 400
+expect-field-has strategyview 16@80:Target : MAIN03
+picture 2
+key Esc
+wait 400
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} opslev01 request 0 holds MAIN03

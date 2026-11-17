@@ -1,8 +1,26 @@
 /std:c++17 /EHsc /MD /J /we4834 /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
 /DUSE_D3D9 /D_WINDOWS /DUSE_OPENAL /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE /D_WIN32_WINNT=0x0602
-/Isrc/host /Isrc/ui /Isrc/io /Iavpx/3dc /Iavpx/3dc/video /Iavpx/3dc/avp /Iavpx/3dc/avp/support /Iavpx/3dc/avp/win95 /Iavpx/3dc/avp/win95/frontend /Iavpx/3dc/avp/win95/gadgets /Iavpx/3dc/include /Iavpx/3dc/win95 /Iavpx/win32
+/Isrc/host /Isrc/ui /Isrc/io /Isrc/model /Iavpx/3dc /Iavpx/3dc/video /Iavpx/3dc/avp /Iavpx/3dc/avp/support /Iavpx/3dc/avp/win95 /Iavpx/3dc/avp/win95/frontend /Iavpx/3dc/avp/win95/gadgets /Iavpx/3dc/include /Iavpx/3dc/win95 /Iavpx/win32
 tests/host_object_place_edit_test.cpp
 src/host/object_place_edit.cpp
+src/host/autolink_pass.cpp
+src/host/autolink_portal.cpp
+src/host/autolink_scene.cpp
+src/host/entry_points.cpp
+src/host/entry_recalc.cpp
+src/host/field_edit.cpp
+src/host/level_chunks.cpp
+src/host/module_links.cpp
+src/host/object_base.cpp
+src/host/object_edit.cpp
+src/host/shape_edit.cpp
+src/host/waypoint_model.cpp
+src/model/chunk_fields.cpp
+src/model/chunk_rules.cpp
+src/model/shape_maths.cpp
+src/model/shape_model.cpp
+src/model/strategy_fields.cpp
+src/model/strategy_rules.cpp
 src/io/level_file.cpp
 avpx/3dc/win95/chunk.cpp
 avpx/3dc/win95/chunk_light.cpp

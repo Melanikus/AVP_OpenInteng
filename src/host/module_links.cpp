@@ -199,7 +199,7 @@ namespace host
 					path->push_back(node->module);
 					WalkForReverse(node->branch, path, out);
 
-					std::vector<int32_t>::iterator const found = std::find(path->begin(), path->end(), node->module);
+					const std::vector<int32_t>::iterator found = std::find(path->begin(), path->end(), node->module);
 
 					if (found != path->end())
 					{

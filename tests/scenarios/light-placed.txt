@@ -29,7 +29,8 @@ expect-status View Distance
 hold N 200
 expect-status View Distance
 key P
-expect-status Light properties
+# P opens inteng's "Light properties" WINDOW (FUN_004b0470, be2f27c0), not a status line
+expect-dialog Light properties
 picture 952
 click-win 80 58
 key Back

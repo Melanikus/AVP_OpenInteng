@@ -162,3 +162,8 @@ void ViewToggles_Apply()
 	// switches.drawBackFaces goes to the game's DrawBackFaces once the editor's avpx carries R-BACKFACES-1; until then it's always 0, and
 	// there's nothing in the game to set
 }
+
+void ViewToggles_LevelOpenedAgain()
+{
+	appliedGamma = -1;   // LevelView_Open gave the game its own gamma (128): the next frame gives it the toggles' again
+}

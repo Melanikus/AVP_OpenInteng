@@ -1,0 +1,34 @@
+# ACCEPTANCE (red first): a GENERATOR (79)'s Mission on his path, the saved copy read back through the game's own loader (Vasquez 11-17; reassess/strategy-data-kinds.md S-K79-1, -2, -end:
+# FUN_00531d40's view, its click 0x531e93 -> FUN_005323c0's window, the end 0x531ef5-0x531f93). Stat101's generator02 is a path follower (MissionType 1, ExtraMissionData 0x010b0000: path 0 with
+# its step module's number above; read 11-17 by switch_survey). A click on the Mission line (y 16) opens "Select Mission Type"; Hunt sets the Mission to 0 and ExtraMissionData to 0; the view
+# says "Mission : Hunt (default)" with no path line; Escape ends it (a Mission that is not 1: ExtraMissionData = 0). The copy must hold MissionType 0, ExtraMissionData 0, every other strategy
+# byte for byte. RED on the stock file read as the copy: 1 and 17498112.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is generator02
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 200@0:generator02 : Generator|16@16:Mission : Path follower|16@32:Path - 0
+picture 1
+# y 16: "Select Mission Type", Hunt
+click-win 300 24
+wait 300
+expect-dialog Select Mission Type
+click-button Hunt
+expect-no-dialog
+wait 300
+expect-field strategyview 200@0:generator02 : Generator|16@16:Mission : Hunt (default)
+picture 2
+key Esc
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF {copy} generator02 MissionType 0 ExtraMissionData 0

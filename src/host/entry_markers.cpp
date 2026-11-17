@@ -29,7 +29,7 @@ namespace host
 		std::vector<int32_t> GroupOf(std::map<int32_t, ModuleSnapshot> const &modules, int32_t module)
 		{
 			std::vector<int32_t> out;
-			std::map<int32_t, ModuleSnapshot>::const_iterator const found = modules.find(module);
+			const std::map<int32_t, ModuleSnapshot>::const_iterator found = modules.find(module);
 
 			if (found == modules.end())
 			{
@@ -133,7 +133,7 @@ namespace host
 
 			for (int32_t const module : from)
 			{
-				std::map<int32_t, ModuleSnapshot>::const_iterator const found = modules.find(module);
+				const std::map<int32_t, ModuleSnapshot>::const_iterator found = modules.find(module);
 
 				if (found == modules.end() || !found->second.hasAdjacency)
 				{
@@ -193,7 +193,7 @@ namespace host
 
 			for (int32_t const module : from)
 			{
-				std::map<int32_t, ModuleSnapshot>::const_iterator const found = modules.find(module);
+				const std::map<int32_t, ModuleSnapshot>::const_iterator found = modules.find(module);
 
 				if (found == modules.end() || !found->second.hasAdjacency)
 				{
@@ -251,7 +251,7 @@ namespace host
 
 		for (int32_t const member : group)
 		{
-			std::map<int32_t, ModuleSnapshot>::const_iterator const found = modules.find(member);
+			const std::map<int32_t, ModuleSnapshot>::const_iterator found = modules.find(member);
 
 			if (found == modules.end() || !found->second.hasAdjacency)
 			{

@@ -83,7 +83,13 @@ const char *LevelView_StartWords();
 // name, the level's name and its extension, with the game's own slash, from the folder the editor runs in. The editor opens the level to
 // look things up in and to edit by this same path (level_objects.h), so that the picture and the objects are of one file. Gives back
 // false, with path empty, when no level is open or the path doesn't fit in size. (Added 2026-11-15 by Melanikus (Dietrich).)
+// It is always the file the level was OPENED from (LevelView_Open), also after LevelView_ShowFile has loaded the editor's working bytes from another.
 bool LevelView_FilePath(char *path, size_t size);
+
+// THE VIEW GAP (Bishop 2026-11-16: "on every screen entry the game view must load OUR working bytes, never the opened file"): loads the level with this name (a file in the game's
+// avp_rifs folder, without ".rif": the editor's own copy of its working bytes) in place of the one open, the camera left to the caller. LevelView_FilePath goes on naming the file the level
+// was opened from. When the game's loader refuses it, the opened file is loaded again (so a level is always open) and false is given back with why.
+bool LevelView_ShowFile(const char *levelName, char *why, size_t whySize);
 
 // Draws one frame of the open level, as seen from camera. With savePictureTo, the finished frame is also saved there as a PNG picture
 // before it's shown: that's how a run proves what it drew, with nobody watching. Gives back false only if a picture was asked for and

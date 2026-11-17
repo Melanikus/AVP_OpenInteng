@@ -79,4 +79,19 @@ namespace host
 	// users yet. It goes in after the level's last object and the object is made as above, named <objectBase><n> (the first no object has), at place (millimetres) and turned as turn (four floats, an object
 	// header's own), in the same one change. newId / newName as above.
 	ObjectMakeResult CreateObjectWithShapeChunk(OpenLevelFile *file, std::vector<char> const &shapeChunk, char const *objectBase, int32_t const *place, float const *turn, uint8_t *newId, std::string *newName, bool exactName = false);
+
+	// The parts of an object its caller has worked out: Light Sourcing's paste of a placed light (light_paste.h; inteng's FUN_004abb00). shapeNumber: the level's shape with that number (its SHPHEAD1's
+	// own), not a name; headerFlags: the OBJHEAD1's flags; strategy: the AVPSTRAT's bytes after its heading (52: a kind 62); after: one whole chunk, its heading and all, put after the project data
+	// (the PLOBJLIT). The header's other numbers and the notes are a new object's, as CreateObjectFromShape makes them. (Added 2026-11-17 by Frost.)
+	struct ObjectParts
+	{
+		int32_t shapeNumber = -1;
+		uint32_t headerFlags = 0;
+		std::vector<char> strategy;
+		std::vector<char> after;
+	};
+
+	// Makes the object of those parts, named `name` exactly (NoNameFree when an object has it), at place (the file's units) turned as matrix (nine 16.16 whole numbers, FUN_004de070), in one change.
+	// NoSuchShape when the level holds no shape of that number; CantBuild when a part isn't whole (the strategy not 52 bytes, the chunk after not a chunk). newId / newName as above.
+	ObjectMakeResult CreateObjectFromParts(OpenLevelFile *file, char const *name, int32_t const *place, int32_t const *matrix, ObjectParts const &parts, uint8_t *newId, std::string *newName);
 }

@@ -335,7 +335,7 @@ namespace host
 				int32_t const object = p.records.objectIndexOf[(size_t)message.record];
 				std::unique_ptr<LinkTree> tree(new LinkTree(object));
 				std::vector<LinkItem> items;
-				std::map<int32_t, std::unique_ptr<LinkTree> >::const_iterator const before = p.trees.find(object);
+				const std::map<int32_t, std::unique_ptr<LinkTree> >::const_iterator before = p.trees.find(object);
 				bool const have = before != p.trees.end() ? (items = before->second->Flatten(), true) : (!p.deleteOld && ReadModuleLinks(p.open->Level(), object, &items));
 
 				if (have)

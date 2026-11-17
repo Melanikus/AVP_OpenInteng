@@ -399,8 +399,33 @@ int main(int argc, char **argv)
 			return false;
 		}
 
+		// inteng's Show Waypoints opens the PICKED module's AI module and Edit Module let the pick go (FUN_00583b40, 0x583e80; waypoint-closeout-vasquez.md W-8): a click on the master again
+		mode.Click(&level, c.master);
 		mode.Command(showCommand, context);
 		return mode.Mode() == 1 && mode.List().size() == n;
+	};
+
+	// Create Waypoint as inteng (waypoint-closeout-vasquez.md W-5): an empty box at the master's place, into Edit Extents; a drag in the top view sizes x and y, one in the side view z (1000 each
+	// way from the place), then Finish Extent Edit back to mode 1
+	auto create = [&](host::WaypointMode &mode, host::WaypointContext const &context)
+	{
+		mode.Command(5, context);
+
+		if (mode.Mode() != 2 || mode.CurrentWaypoint() < 0)
+		{
+			return;
+		}
+
+		host::WaypointRec const fresh = mode.List()[(size_t)mode.CurrentWaypoint()];
+		int32_t const corner[3] = { fresh.min[0] + 1000, fresh.min[1] + 1000, fresh.min[2] + 1000 };
+
+		mode.BeginDrag(fresh.min, 3, 10);
+		mode.DragTo(corner);
+		mode.EndDrag(context);
+		mode.BeginDrag(fresh.min, 6, 10);
+		mode.DragTo(corner);
+		mode.EndDrag(context);
+		mode.Command(0x13, context);
 	};
 
 	// 1. Create Waypoint, Set Base (the current one is cleared), Step to the first waypoint of the list, Add Link
@@ -421,7 +446,7 @@ int main(int argc, char **argv)
 				return false;
 			}
 
-			mode.Command(5, context);
+			create(mode, context);
 			mode.Command(7, context);
 			mode.Step(1);
 			host::WaypointOutcome const out = mode.Command(8, context);
@@ -479,7 +504,7 @@ int main(int argc, char **argv)
 				return false;
 			}
 
-			mode.Command(5, context);
+			create(mode, context);
 
 			bool const grew = mode.List().size() == n + 1 && mode.CurrentWaypoint() == (int32_t)n;
 

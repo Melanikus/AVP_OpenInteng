@@ -1,0 +1,88 @@
+# ACCEPTANCE: the OBJECT PLACEMENT close-out's fourth chain (AvP-docs/director/strategy-100/PLAN.md THEN; Drake 2026-11-17): a FAN placed, given its strategy (75), its lines
+# changed, saved and read back, on his path on Invasion (a read-only stock copy, the file opened as a double click):
+# 1. Object Placement: Object > Find Fan1 (the level's fan), P (Create > With shape > Selected, OP-26): "chainF" made at the view; Fan1's shape has no outside file name, so P copies
+#    the whole object, its Fan and track with it (the status line says so; picture 1). Mode > Exit (saves).
+# 2. Strategy Data: Find Object chainF, the right button's Assign Strategy: "Object already has a strategy. Would you like to replace it?" Yes (S-38), Fan: its view opens with
+#    the creation values (10 s, 10 s, wind 100; S-K75-0); each line clicked: speed up 5 s, slow down 7 s, wind -250 (S-K75-2 / -3).
+# 3. File > Save a copy; the game's loader reads the copy: chainF a Fan (75) with speed_up_time 5, slow_down_time 7, fan_wind_strength -250, every other strategy byte for byte.
+# NO OP EDIT STEP: Object Placement's Edit of a placed shape edits its Simple Object properties (OP-130), which live in a 62; a fan has a 75, so a fan's edit is its view's.
+# NAMED, THE VIEW GAP (the "targeted by a switch" step): a switch's T pick picks from the view's objects, and an object made in this sitting is not in the view yet (chain 2,
+# acceptance-op-chain-generator). When the view takes new objects, this chain adds chainF to a switch's targets.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- 1. placed
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is Fan1
+expect-no-dialog
+wait 400
+key P
+expect-dialog Name Object
+form-field 1 chainF
+click-button OK
+expect-no-dialog
+expect-status Object chainF made at the view
+picture 1
+click-bar Mode > Exit
+wait 400
+
+# ---- 2. given its strategy, its lines changed
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is chainF
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 4
+expect-dialog-kind confirm
+expect-dialog Object already has a strategy.
+click-button Yes
+expect-dialog Select Strategy
+picture 2
+click-button Fan
+expect-no-dialog
+wait 400
+expect-field strategyview 200@0:chainF : Fan|16@16:speed up time : 10  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :100  (default is 100)
+# y 16: the speed-up time, 5
+click-win 300 24
+expect-dialog Speed up time (seconds)
+expect-dialog-text 10
+key Back
+key Back
+type 5
+key Enter
+wait 300
+# y 32: the slow-down time, 7
+click-win 300 40
+expect-dialog Slow down time (seconds)
+expect-dialog-text 10
+key Back
+key Back
+type 7
+key Enter
+wait 300
+# y 48: the wind, -250
+click-win 300 56
+expect-dialog Wind strength (-1000 to 1000)
+expect-dialog-text 100
+key Back
+key Back
+key Back
+type -250
+key Enter
+wait 300
+expect-field strategyview 200@0:chainF : Fan|16@16:speed up time : 5  seconds|16@32:slow down time :7  seconds|16@48:Wind strength :-250  (default is 100)
+picture 3
+key Esc
+wait 300
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} chainF speed_up_time 5 slow_down_time 7 fan_wind_strength -250

@@ -1,0 +1,35 @@
+# ACCEPTANCE: Hierarchy's View mode > ALIEN and > MARINE, the proof of a built row (hierarchy-closeout-frost.md TB-6, C-3c / C-3d; Vasquez 2026-11-17). inteng (FUN_004889d0 0x488e6e-0x488eb2): the
+# game's VIEWDESCRIPTORBLOCK's VDB_ProjX, VDB_ProjY and VDB_MaxProj all become 0xa0 for Alien and 0x140 for Marine: the alien's lens has half the marine's focal length (avpx vision.cpp:71 / 86),
+# so the same model from the same place fills about a quarter of the pixels with Alien, and Marine gives the first picture back. Ours: hierarchy_mode.cpp 0x3c / 0x3d -> viewKind ->
+# LevelView_SetProjectionScale(0.5 / 1.0). His path: his file MelPyth_MarHUD (the Shotgun, frozen at its reload's start, as acceptance-hierarchy-section-click), View mode clicked on the bar.
+# This row was built before its proof: there is no red build to run it on (the checks fail on a build whose Alien changes nothing, as the 0.5 taken out shows).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+camera 365 530 -600 0 0
+move-win 504 600
+wait 400
+picture 1
+# the model below the text (y 200 down) with Marine: 12.6% of the box not black (read 11-17 from a run: pinned with room, the lens's quarter is the point)
+expect-colour-at-most picture 0 200 1000 529 000000 0.90 8
+click-bar View mode > Alien
+wait 400
+picture 2
+# with Alien the same model from the same place: 3.5% (a quarter of the pixels, the focal length halved)
+expect-colour picture 0 200 1000 529 000000 0.95 8
+expect-pixels-changed-since 1 picture 0 0 1000 700 0.05
+click-bar View mode > Marine
+wait 400
+picture 3
+expect-colour-at-most picture 0 200 1000 529 000000 0.90 8
+expect-pixels-same-since 1 picture 0 0 1000 700 0.002

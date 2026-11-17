@@ -1,0 +1,74 @@
+# ACCEPTANCE: the OBJECT PLACEMENT close-out's sixth chain (AvP-docs/director/strategy-100/PLAN.md THEN, "lights a switch drives (64 Lighting Effects)"; Drake 2026-11-17): a room's
+# LIGHTING EFFECTS given, edited, driven by a switch, saved and read back, on his path on Stat101 (a read-only stock copy, the file opened as a double click):
+# 1. Strategy Data: bendrm02 (the room Stat101's Multiple Target Switch trigtospidgen stands in) made current by a click on its wall, the right button's Assign Strategy > Lighting Effects (S-38, a module's
+#    row; creation values S-K64-0: all 0): edobtype's "Light FX" opens at once (S-K64-1 / -2): Switch (type 2) and Down (the light starts off; with type 0 neither Up nor Down shows), Up fading 1.5 s, Down fading 0.75 s, OK, the
+#    "Radio num = 2" box's Ok (S-K64-3).
+# 2. Driven by a switch: trigtospidgen's Edit view, T ("Select targets for switch"), a click on the room's wall (350 300), Return: its targets are generator02 and bendrm02, on.
+# 3. File > Save a copy; the game's loader reads the copy: bendrm02 a Lighting Effects of type 2 (Switch), init_state 1 (Down), fade_up_speed 98304 (1.5 x 65536), fade_down_speed 49152
+#    (0.75 x 65536); trigtospidgen holds 2 targets, the second bendrm02 with request 1; every other strategy byte for byte.
+# (A light is a module's: the module's own polygons are lit by it, so "placed" here is the module being given the strategy; Object Placement places no modules.)
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+# ---- 1. given its strategy, edited
+# Find Object lists only what holds a strategy (S-11), so the room is made current by a click on its wall: Find Object > trigtospidgen puts the camera in the room first
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is trigtospidgen
+expect-no-dialog
+wait 400
+click-win 350 300
+wait 400
+expect-screen-text bendrm02
+click-win 500 300 right
+click-popup 4
+expect-dialog Select Strategy
+picture 1
+click-button Lighting_Effects
+wait 400
+expect-dialog Light FX
+# the creation values: Random Flicker, and neither Up nor Down (with type 0 neither radio is set, S-K64-2) (the type radios, then Up / Down)
+expect-dialog-checks on,off,off,off,off,off
+click-check 3
+click-check 6
+expect-dialog-checks off,off,on,off,off,on
+# the edits in the form's order: Up fading (1003), Up after fading (1004), Down fading (1005), Down after fading (1006)
+form-field 1 1.5
+form-field 3 0.75
+picture 2
+click-button OK
+expect-dialog Radio num = 2
+click-button Ok
+expect-no-dialog
+wait 300
+
+# ---- 2. driven by a switch
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is trigtospidgen
+expect-no-dialog
+wait 400
+key E
+wait 400
+expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:generator02 - type '79'
+key T
+wait 400
+expect-status Select targets for switch
+click-win 350 300
+wait 400
+expect-screen-text bendrm02
+picture 3
+key Enter
+wait 400
+expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:generator02 - type '79'|0@112:(on)|80@112:bendrm02
+picture 4
+key Esc
+wait 300
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF {copy} bendrm02 type 2 init_state 1 fade_up_speed 98304 fade_down_speed 49152 also trigtospidgen
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF {copy} trigtospidgen targets 2 target.0 generator02 target.1 bendrm02 target_request.1 1 also bendrm02

@@ -34,6 +34,12 @@ namespace host
 	// left as it is. *backupPath (when not null) gets the .bak written by this call (empty when none was).
 	LevelSaveOver LevelSave_Over(OpenLevelFile *open, char const *targetPath, bool keepTheOneBefore, std::string *backupPath, std::string *why);
 
+	// The view gap's copy (editor_main.cpp, ShowTheWorkingBytes): the open level's working bytes written over targetPath for the game's view to load, as the next save would build them
+	// (OpenLevelFile::BuildLevel: unpacked, and not prepared, as inteng's FUN_0046e700 loads its level from the tree in memory as it is), with the same temporary file, read-back and put in
+	// place as LevelSave_Over, and no .bak. It is NOT a save: the open level is left exactly as it was (still changed, still standing for the file it was opened from or last saved to, its
+	// tree still paired with its bytes), where a SaveAs would have taken the copy for the level's file and paired the tree with the copy's bytes.
+	LevelSaveOver LevelSave_ViewCopy(OpenLevelFile *open, char const *targetPath, std::string *why);
+
 	// One sitting's saves, as above. Save: LevelSave_Over keeping the one before only at the file's first save in the sitting (a refused save does not count); *backupPath gets the .bak this
 	// sitting kept for the file (written now or at its first save; empty when there was no file before the sitting's first save). SavedBefore: the file had a save in this sitting (the paths
 	// compared whole, whichever way the capitals are written).

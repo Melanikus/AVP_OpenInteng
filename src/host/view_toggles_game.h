@@ -15,6 +15,9 @@
 // on, its light is put on the player for this frame only, and the game takes it away when the frame is finished.
 void ViewToggles_Apply();
 
+// The level was opened again (LevelView_ShowFile, the view gap): what the game was given is forgotten, so the next ViewToggles_Apply gives it all again (the gamma included)
+void ViewToggles_LevelOpenedAgain();
+
 // Strategy Data started with flag 0x80 (Construction's Mode > Strategy Data: No Textures, 0x3a; FUN_00522ab0 -> FUN_0046e700(0x93)): no texture is loaded, so every textured polygon becomes a white unlit LINE (FUN_004ff010
 // 0x4ffc53) and every level shape is painted white (FUN_00522ab0 0x522bca): the same white wireframe as Module Linking's, until it is turned off again.
 void ViewToggles_SetPaintWhite(bool on);

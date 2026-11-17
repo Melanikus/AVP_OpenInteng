@@ -222,6 +222,28 @@ static void RunTheCases(std::string const &stock, std::string const &folder)
 
 	// ---- (2) another change, saved again in the same sitting: the .bak is still the level as it was opened
 	bool const cut5 = CutLinks(&open, garage, 5);
+
+	// ---- (1b) the view gap's copy of the working bytes (ShowTheWorkingBytes) between an edit and its save: written, loading with the edit, and NOT a save (the open level is as it was)
+	{
+		std::string const view = folder + "\\Viewed.rif";
+		std::vector<uint8_t> const fileBefore = Bytes(target);
+
+		DeleteFileA(view.c_str());
+		DeleteFileA((view + ".bak").c_str());
+		Check(open.HasChanges(), "before the view copy the open level has a change not saved");
+
+		host::LevelSaveOver const copied = host::LevelSave_ViewCopy(&open, view.c_str(), &why);
+		host::LevelSaveOver const again = host::LevelSave_ViewCopy(&open, view.c_str(), &why);
+
+		Check(copied == host::LevelSaveOver::Saved && again == host::LevelSaveOver::Saved, "the view copy is written, and written over again: " + why);
+		Check(LinksIn(view, garage) == 5, "the view copy loads with the edit: " + std::to_string(LinksIn(view, garage)) + " links");
+		Check(GetFileAttributesA((view + ".bak").c_str()) == INVALID_FILE_ATTRIBUTES && GetFileAttributesA((view + ".saving").c_str()) == INVALID_FILE_ATTRIBUTES,
+			"with no .bak and no temporary file");
+		Check(open.HasChanges(), "and the open level STILL has its change not saved (a view copy is not a save)");
+		Check(Bytes(target) == fileBefore, "the opened file is untouched by the view copy");
+		Check(host::LevelSave_ViewCopy(&open, (folder + "\\level.txt").c_str(), &why) == host::LevelSaveOver::BadTarget, "a view copy to a path that is not a .rif is refused");
+	}
+
 	std::string const sameCapitals = folder + "\\SAVED-OVER.RIF";   // the same file, written another way
 	host::LevelSaveOver const second = sitting.Save(&open, sameCapitals.c_str(), &backupPath, &why);
 

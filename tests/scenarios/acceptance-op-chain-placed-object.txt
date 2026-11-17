@@ -1,0 +1,87 @@
+# ACCEPTANCE: the OBJECT PLACEMENT close-out's first chain (AvP-docs/director/strategy-100/PLAN.md THEN; Drake 2026-11-17): a PLACED OBJECT (kind 62) placed, edited, its strategy shown,
+# a switch's target picked in the view, saved and read back, on his path on Genshd1 (a read-only stock copy, the file opened as a double click):
+# 1. Object Placement: Object > Find locker02 (a placed object, 62: its shape "Cabinet" has an outside file), the view put beside the line the switch's target pick will look along, P
+#    (Create > With shape > Selected, OP-26): "chainP" made at the view from the shape, with locker02's simple-object properties (its own 62, object_make.cpp).
+# 2. Object > Edit (E, OP-130): Key, "Pass 3". Then Mode > Exit, which saves (inteng's save point).
+# 3. Strategy Data: chainP's own Edit view shows its strategy.
+# 4. The Binary Switch opslev01 (52): E, T ("Select target for switch": the camera goes to the old target, tolink04, -22220 -17381 72240), a click on the placed object pulse5 on the floor
+#    ahead (510, 437), Return: its view says "Target : pulse5 - Placed object". NAMED, THE VIEW GAP: an object made in this sitting is not drawn in the view yet (the view shows the level
+#    as it was opened), so the pick cannot reach chainP itself; when the view draws new objects this step picks chainP.
+# 5. File > Save a copy (the second save of the sitting: it was refused before cefa2e9c, strategy-data.md S-35a); the game's loader reads the copy: chainP a 62 of Type 6 (Key) and
+#    ExtraData 3, and opslev01's strategy holds pulse5's ID.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- 1. placed: locker02 found, the view put 2.8 m in front of where T will put the camera (opslev01's target tolink04 at -22220 -17381 78793, less the camera's forward / 10: z 72240), P
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is locker02
+expect-no-dialog
+wait 400
+camera -23620 -17381 75500 0 0
+wait 300
+key P
+expect-dialog Name Object
+form-field 1 chainP
+click-button OK
+expect-no-dialog
+expect-status Object chainP made at the view
+picture 1
+
+# ---- 2. edited: Key, Pass 3
+key E
+expect-dialog Edit object properties
+click-combo 1
+click-combo-row Key
+click-combo 2
+click-combo-row Pass 3
+expect-dialog-text Key|Pass 3
+click-button OK
+expect-no-dialog
+wait 300
+click-bar Mode > Exit
+wait 400
+
+# ---- 3. its strategy, as Strategy Data shows it
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is chainP
+expect-no-dialog
+wait 400
+key E
+wait 400
+picture 2
+key Esc
+wait 300
+
+# ---- 4. a switch's target picked in the view: opslev01's T, a click on pulse5, Return
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is opslev01
+expect-no-dialog
+wait 400
+key E
+wait 400
+key T
+wait 400
+expect-field camera -22220 -17381 72240 0 0
+picture 3
+click-win 510 437
+wait 400
+picture 4
+key Enter
+wait 400
+expect-field-has strategyview 16@80:Target : pulse5 - Placed object
+picture 5
+key Esc
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} chainP Type 6 ExtraData 3 also opslev01
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} opslev01 holds pulse5 also chainP

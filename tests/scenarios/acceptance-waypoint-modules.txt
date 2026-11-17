@@ -1,0 +1,45 @@
+# ACCEPTANCE (red first): Waypoint's AI MODULES MODE as inteng draws and picks it (Vasquez 2026-11-17, reassess/waypoint-closeout-vasquez.md W-1 / W-8; FUN_00581650 0x58169b-0x581714,
+# FUN_00583d00 0x583df3-0x583e80 and 0x58402a-0x5841e4, FUN_00583b40, FUN_00583c10 0x583cbc). On entry every AI module is GREEN when its master's MODULEDT holds a WAYPOINT, else WHITE (the
+# white wire). A click on a module of an AI module picks that AI module's master and paints the whole AI module RED. Edit Module makes it the current AI module (0xffffffff, white) and lets the pick
+# go: no red. Show Ground Waypoints with nothing picked does Edit Module's work: no AI module is current, the screen stays in the AI modules mode and the AI module is green again. A click again,
+# Show Ground Waypoints: mode 1 ("Ground Mode"). Exit comes back with that AI module picked, RED. RED before: no green and no red on this screen (the white wire only), Show after Edit Module
+# went to mode 1. Invasion, read only.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Waypoint
+wait 600
+picture 1
+expect-hierarchy-text View Distance :
+expect-colour picture 0 0 1000 700 00ff00 0.001 40
+expect-colour-at-most picture 0 0 1000 700 ff0000 0.0002 40
+# a click on a module: its AI module red
+click-view 0.5 0.5
+wait 400
+picture 2
+expect-colour picture 0 0 1000 700 ff0000 0.001 40
+# Edit Module: the current AI module, white; the pick let go, so no red
+item 0x19
+wait 400
+picture 3
+expect-colour-at-most picture 0 0 1000 700 ff0000 0.0002 40
+# Show Ground Waypoints with nothing picked: Edit Module's work, still the AI modules mode (no "Ground Mode")
+item 4
+wait 400
+picture 4
+expect-hierarchy-text View Distance :
+expect-hierarchy-count 0 Ground Mode
+# a click again, then Show Ground Waypoints opens that AI module's waypoints
+click-view 0.5 0.5
+wait 400
+item 4
+wait 400
+picture 5
+expect-hierarchy-text Ground Mode
+# Exit: back to the AI modules with that AI module picked, red
+item 2
+wait 400
+picture 6
+expect-hierarchy-text View Distance :
+expect-colour picture 0 0 1000 700 ff0000 0.001 40

@@ -1,0 +1,31 @@
+# ACCEPTANCE (red first): Save a copy after Object Placement's P (Create Duplicate) of a placed object whose shape HAS an outside file, then Object Placement's Exit (inteng's own save point:
+# it saves), on his path (Drake, 2026-11-17; AvP-docs/engine/inteng/reassess/strategy-data.md S-35a). Genshd1 (a read-only stock copy), the file opened as a double click: Object > Find
+# locker02 (a locker: its shape "Cabinet" has an outside file), P, the name "chainQ" (the object is made from the shape as "Cabinet<n>", then renamed), Mode > Exit (saves), File > Save a copy.
+# The rename wrote the name into the old header's room, so the header's bytes and the library's chunk were of different sizes; after the Exit's save the level paired with nothing and the
+# Save a copy was refused ("the level held is not paired with its bytes"). Now the rename makes the level again with the header at the library's size (object_edit.h RenameObject).
+# The copy holds chainQ with its 62 of 52 bytes, Type 1 (Furniture): P gives the new object the current one's simple-object properties (OP-26).
+# RED on b072410: the Save a copy is refused.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is locker02
+expect-no-dialog
+wait 400
+key P
+expect-dialog Name Object
+form-field 1 chainQ
+click-button OK
+expect-no-dialog
+expect-status Object chainQ made at the view
+picture 1
+click-bar Mode > Exit
+wait 600
+expect-screen Construction
+expect-status Saved a copy:
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} chainQ size 52 Type 1

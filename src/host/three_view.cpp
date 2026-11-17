@@ -69,6 +69,15 @@ namespace host
 		ThreeView_Fit(mins, maxs, views);   // an extent either side of 0: its middle is 0
 	}
 
+	void ThreeView_Centre(const int64_t centre[3], int32_t scale, ThreeViews *views)
+	{
+		int32_t const s = scale < 1 ? 1 : scale;
+
+		views->top = OrthoView{ 160, 120, s, s, Held(centre[0]), Held(centre[1]), Held(centre[2]) };
+		views->side = OrthoView{ 480, 120, s, s, Held(centre[0]), Held(centre[1]), Held(centre[2]) };
+		views->front = OrthoView{ 160, 360, s, s, Held(centre[0]), Held(centre[1]), Held(centre[2]) };
+	}
+
 	bool ThreeView_Click(const ThreeViews &views, int32_t x, int32_t y, int32_t cursor[3])
 	{
 		if (x < kHalfWidth && y < kHalfHeight)

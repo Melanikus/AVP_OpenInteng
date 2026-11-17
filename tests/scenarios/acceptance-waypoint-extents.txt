@@ -1,0 +1,41 @@
+# ACCEPTANCE (red first): Waypoint's CREATE WAYPOINT and EDIT EXTENTS as inteng (Vasquez 2026-11-17, reassess/waypoint-closeout-vasquez.md W-5; FUN_00584ee0 0x584f8f-0x5850f2, FUN_005846b0,
+# FUN_00585750 0x585778-0x5858c3 and 0x5862d2-0x58637a). Create Waypoint makes an EMPTY box at the AI module's master's place and goes straight into Edit Extents (the three views, centred on
+# the master, 50 mm a pixel); until a drag in two views has sized the box no menu command is read (Finish Extent Edit does nothing); the screen shows the box's size on each axis in millimetres
+# ("%d" of (max - min) / 100 of inteng's units). A drag in the top view sizes x and y, one in the side view z; then Finish Extent Edit is mode 1 again ("Alien Mode", "Waypoint :"). RED before:
+# Create stayed in mode 1 ("Alien Mode" at once) with a box of our own size. Invasion, read only.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Waypoint
+wait 600
+click-view 0.5 0.5
+wait 400
+item 3
+wait 400
+expect-hierarchy-text Alien Mode
+# Create Waypoint: Edit Extents (mode 2) at once, the new box empty
+item 5
+wait 400
+picture 1
+expect-hierarchy-count 0 Alien Mode
+expect-hierarchy-count 3 0
+# no menu command is read while the box is sized
+item 0x13
+wait 300
+expect-hierarchy-count 0 Alien Mode
+# the top view sizes x and y, the side view z
+drag-face current top right 20 20
+wait 300
+drag-face current side right 20 20
+wait 300
+picture 2
+# the sizes now: x 600, y 700, z 600 mm (read 11-17 from a run of this build: the 20-pixel drags at 50 mm a pixel; pinned, not derived)
+expect-hierarchy-count 2 600
+expect-hierarchy-count 1 700
+# sized: Finish Extent Edit goes back to mode 1
+item 0x13
+wait 400
+picture 3
+expect-hierarchy-text Alien Mode
+expect-hierarchy-text Waypoint :

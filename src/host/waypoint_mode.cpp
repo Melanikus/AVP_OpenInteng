@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <exception>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -110,10 +111,191 @@ namespace host
 		highlight = 0;
 		centreEdit = false;
 		minimised = false;
-		zoomSteps = 0;
+		viewScale = 5000;   // FUN_00581650 0x582d0f
+		viewsMade = 0;
+		viewCentre[0] = viewCentre[1] = viewCentre[2] = 0;
+		axisFixed[0] = axisFixed[1] = axisFixed[2] = true;
+		sizingMask = 0;
 		lastOpen = nullptr;
 		dragFaces = 0;
 		group.clear();
+		picked = -1;
+		lastSeenPick = -1;
+		paint.clear();
+		paintMade = false;
+		droppedModuleLinks = 0;
+	}
+
+	// FUN_005846b0: the three views of Edit Extents, centred on the picked module's place (after Show Waypoints the AI module's master: DAT_0091bed4 +0x10..+0x18)
+	void WaypointMode::MakeViews(OpenLevelFile *open)
+	{
+		int32_t place[3] = { 0, 0, 0 };
+
+		if (open && open->Level() && NameAndPlace(open, current, nullptr, place))
+		{
+			viewCentre[0] = place[0];
+			viewCentre[1] = place[1];
+			viewCentre[2] = place[2];
+		}
+
+		viewsMade++;
+	}
+
+	namespace
+	{
+		// FUN_00588b50: the master of a module's AI module; a module with no AIMODSLA is its own
+		int32_t MasterOf(std::map<int32_t, ModuleSnapshot> const &modules, int32_t module)
+		{
+			std::map<int32_t, ModuleSnapshot>::const_iterator const it = modules.find(module);
+
+			return it != modules.end() && it->second.masterIndex >= 0 ? it->second.masterIndex : module;
+		}
+
+		// FUN_00581430: the module's MODULEDT holds a WAYPOINT
+		bool HoldsWaypoints(std::map<int32_t, ModuleSnapshot> const &modules, int32_t module)
+		{
+			std::map<int32_t, ModuleSnapshot>::const_iterator const it = modules.find(module);
+
+			return it != modules.end() && it->second.hasWaypoint;
+		}
+	}
+
+	// FUN_00588e60(module, colour): the master of the module's AI module and every module whose AIMODSLA names it, one colour
+	void WaypointMode::PaintAiModule(OpenLevelFile *open, int32_t module, uint32_t colour)
+	{
+		std::map<int32_t, ModuleSnapshot> modules;
+
+		if (module < 0 || !Snapshots(open, &modules))
+		{
+			return;
+		}
+
+		int32_t const master = MasterOf(modules, module);
+
+		paint[master] = colour;
+
+		for (std::map<int32_t, ModuleSnapshot>::const_iterator it = modules.begin(); it != modules.end(); ++it)
+		{
+			if (it->second.masterIndex == master)
+			{
+				paint[it->first] = colour;
+			}
+		}
+	}
+
+	// FUN_00581650 0x58169b-0x581714: every AI module green when its master's MODULEDT holds a WAYPOINT, else white
+	void WaypointMode::MakeEntryPaint(OpenLevelFile *open)
+	{
+		std::map<int32_t, ModuleSnapshot> modules;
+
+		paint.clear();
+		paintMade = open && open->Level() && Snapshots(open, &modules);
+
+		if (!paintMade)
+		{
+			return;
+		}
+
+		for (std::map<int32_t, ModuleSnapshot>::const_iterator it = modules.begin(); it != modules.end(); ++it)
+		{
+			int32_t const master = MasterOf(modules, it->first);
+
+			paint[it->first] = HoldsWaypoints(modules, master) ? kWaypointModuleGreen : kWaypointModuleWhite;
+		}
+	}
+
+	std::map<int32_t, uint32_t> const &WaypointMode::ModulePaint(OpenLevelFile *open)
+	{
+		if (!paintMade)
+		{
+			MakeEntryPaint(open);
+		}
+
+		return paint;
+	}
+
+	// The click of the AI modules mode (FUN_00583d00 0x58402a-0x5841e4)
+	void WaypointMode::Click(OpenLevelFile *open, int32_t module)
+	{
+		lastSeenPick = module;
+
+		if (mode != 0 || !open || !open->Level())
+		{
+			return;
+		}
+
+		ModulePaint(open);
+
+		std::map<int32_t, ModuleSnapshot> modules;
+
+		if (!Snapshots(open, &modules))
+		{
+			return;
+		}
+
+		// the pick let go of: one module of the current AI module back to the current's colour; another AI module (its master) back to green or white
+		if (picked >= 0)
+		{
+			if (MasterOf(modules, picked) == current)
+			{
+				paint[picked] = kWaypointModuleCurrent;
+			}
+			else
+			{
+				PaintAiModule(open, picked, HoldsWaypoints(modules, picked) ? kWaypointModuleGreen : kWaypointModuleWhite);
+			}
+		}
+
+		picked = -1;
+
+		if (module < 0 || !modules.count(module))
+		{
+			return;
+		}
+
+		int32_t const master = MasterOf(modules, module);
+
+		if (master == current)
+		{
+			picked = module;
+			paint[module] = kWaypointModuleRed;
+		}
+		else
+		{
+			picked = master;
+			PaintAiModule(open, master, kWaypointModuleRed);
+		}
+	}
+
+	// Edit Module (0x19, FUN_00583d00 0x583df3-0x583e80): the current AI module back to green or white, the picked one's AI module current (0xffffffff), the pick let go
+	WaypointOutcome WaypointMode::EditModule(OpenLevelFile *open)
+	{
+		std::map<int32_t, ModuleSnapshot> modules;
+
+		Snapshots(open, &modules);
+
+		if (current >= 0)
+		{
+			PaintAiModule(open, current, HoldsWaypoints(modules, current) ? kWaypointModuleGreen : kWaypointModuleWhite);
+		}
+
+		current = -1;
+		group.clear();
+
+		if (picked < 0)
+		{
+			return Said("Edit Module: nothing picked, so no AI module is current");
+		}
+
+		current = MasterOf(modules, picked);
+		picked = -1;
+		PaintAiModule(open, current, kWaypointModuleCurrent);
+		RefreshGroup(open);
+
+		WaypointOutcome out = Said("");
+
+		out.say = "Edit Module: " + Words();
+		return out;
 	}
 
 	std::vector<WaypointRec> &WaypointMode::Active()
@@ -172,6 +354,44 @@ namespace host
 		wpCurrent = -1;
 		wpBase = -1;
 		RefreshGroup(open);
+
+		// W-6 (Bishop 11-17: copy inteng's drop 1:1): FUN_005867c0 0x58694b-0x586a5e keeps only the module links whose name is a module's of the level (the bytes compared exactly); the others
+		// are dropped when the list is read, and the write-back of the mode's Exit (FUN_00583c10 -> FUN_00587210) leaves them out of the file. The 63 stock levels hold no module link.
+		std::set<std::string> names;
+		::List<Object_Chunk *> all;
+
+		open->Level()->list_objects(&all);
+
+		for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
+		{
+			Object_Chunk *const object = each();
+
+			if (object && modules.count((int32_t)object->object_data.index_num))
+			{
+				size_t length = 0;
+
+				while (length < sizeof(object->object_data.o_name) && object->object_data.o_name[length] != 0)
+				{
+					length++;
+				}
+
+				names.insert(std::string(object->object_data.o_name, length));
+			}
+		}
+
+		droppedModuleLinks = 0;
+
+		for (std::vector<WaypointRec> *each : { &set.alien, &set.ground })
+		{
+			for (WaypointRec &wp : *each)
+			{
+				size_t const had = wp.moduleLinks.size();
+
+				wp.moduleLinks.erase(std::remove_if(wp.moduleLinks.begin(), wp.moduleLinks.end(), [&](WaypointModuleLink const &named) { return !names.count(named.name); }), wp.moduleLinks.end());
+				droppedModuleLinks += had - wp.moduleLinks.size();
+			}
+		}
+
 		return true;
 	}
 
@@ -203,6 +423,18 @@ namespace host
 			return false;
 		}
 
+		return true;
+	}
+
+	bool WaypointMode::PickBox(int32_t index)
+	{
+		// mode 1's click, and Edit Extents' press in the 3D quarter (FUN_00585750 0x585cff-0x585e3f; nothing while a new box is being sized, 0x585cff of the sizing branch)
+		if ((mode != 1 && !(mode == 2 && !Sizing())) || index < 0 || (size_t)index >= List().size() || index == wpCurrent || index == wpBase)
+		{
+			return false;
+		}
+
+		wpCurrent = index;
 		return true;
 	}
 
@@ -295,17 +527,20 @@ namespace host
 		{
 			std::map<int32_t, ModuleSnapshot> modules;
 
-			// the module the editor picked, and the master of its AI module (itself when it has none)
-			int32_t picked = context.pickedModule;
+			// a pick the editor made since the last one seen is a click (mode 0)
+			ModulePaint(open);
+
+			if (mode == 0 && context.pickedModule != lastSeenPick)
+			{
+				Click(open, context.pickedModule);
+			}
+
+			// the picked module (inteng's DAT_0091bed4) and the master of its AI module (itself when it has none)
 			int32_t pickedMaster = -1;
 
 			if (Snapshots(open, &modules) && picked >= 0 && modules.count(picked))
 			{
-				pickedMaster = modules[picked].masterIndex >= 0 ? modules[picked].masterIndex : picked;
-			}
-			else
-			{
-				picked = -1;
+				pickedMaster = MasterOf(modules, picked);
 			}
 
 			WaypointOutcome out = Said("");
@@ -320,11 +555,23 @@ namespace host
 					return out;
 				}
 
-				// FUN_00583c10: back to the AI modules (the waypoints are in the level already: named)
+				// FUN_00583c10 -> FUN_00587210: the write-back; ours has written each change already (named), so only a list that lost module links when it was read (W-6) is written here
+				if (droppedModuleLinks > 0)
+				{
+					out.levelChanged = Write(open, &why);
+					droppedModuleLinks = 0;
+				}
+
+				// FUN_00583c10: back to the AI modules (the waypoints are in the level already: named), with no AI module current and the one whose waypoints were shown picked, RED (0x583cbc)
 				mode = 0;
 				wpCurrent = -1;
 				wpBase = -1;
 				set = WaypointSet();
+				picked = current;
+				current = -1;
+				group.clear();
+				lastSeenPick = context.pickedModule;
+				PaintAiModule(open, picked, kWaypointModuleRed);
 				out.page = 0;
 				out.say = "AI modules: " + Words();
 				return out;
@@ -351,57 +598,59 @@ namespace host
 					return Said("Fly (entry points): not built yet: the entry-point markers and the write-back of a moved one are not read");
 
 				case 0x19:   // Edit Module
-					if (picked < 0)
-					{
-						return Said("Edit Module: pick a module in the view first");
-					}
+					return EditModule(open);
 
-					current = pickedMaster;
-					RefreshGroup(open);
-					out.say = "Edit Module: " + Words();
-					return out;
-
-				case 0x1a:   // Add Module: another AI module's master brings its whole AI module
+				case 0x1a:   // Add Module (0x583e9b): the picked module (another AI module's master brings its whole AI module) joins the current one, which is painted 0xffffffff; the pick let go
 				{
 					if (current < 0)
 					{
 						return Said("Add Module: Edit Module first (the AI module to add to)");
 					}
 
-					if (picked < 0)
+					if (picked < 0 || picked == current)
 					{
 						return Said("Add Module: pick the module to add in the view");
 					}
 
-					int32_t const target = pickedMaster != current ? pickedMaster : picked;
+					int32_t const target = picked;
 					AiModulesCounts counts;
 					AiModulesResult const result = AiModules_Add(open, current, target, &counts, &why);
+
+					picked = -1;
+					PaintAiModule(open, current, kWaypointModuleCurrent);
 
 					if (result != AiModulesResult::Done)
 					{
 						return Said((std::string("Add Module: ") + AiModulesWords(result) + (why.empty() ? std::string() : " (" + why + ")")).c_str());
 					}
 
+					PaintAiModule(open, current, kWaypointModuleCurrent);   // the joined modules too, read from the new level
 					RefreshGroup(open);
 					out.levelChanged = true;
 					out.say = "Add Module: " + std::to_string(1 + counts.slavesMoved) + " modules joined, " + std::to_string(counts.waypointsMoved) + " waypoints moved; " + Words();
 					return out;
 				}
 
-				case 0x1b:   // Remove Module: a module of the current AI module
+				case 0x1b:   // Remove Module (0x583ef9): a module of the current AI module goes; it is painted green or white by its own WAYPOINT and the pick is let go
 				{
 					if (current < 0 || picked < 0 || pickedMaster != current || picked == current)
 					{
 						return Said("Remove Module: pick a module of the current AI module (not its master)");
 					}
 
-					AiModulesResult const result = AiModules_Remove(open, picked, nullptr, &why);
+					int32_t const removed = picked;
+					AiModulesResult const result = AiModules_Remove(open, removed, nullptr, &why);
 
 					if (result != AiModulesResult::Done)
 					{
 						return Said((std::string("Remove Module: ") + AiModulesWords(result) + (why.empty() ? std::string() : " (" + why + ")")).c_str());
 					}
 
+					std::map<int32_t, ModuleSnapshot> after;
+
+					Snapshots(open, &after);
+					picked = -1;
+					paint[removed] = HoldsWaypoints(after, removed) ? kWaypointModuleGreen : kWaypointModuleWhite;
 					RefreshGroup(open);
 					out.levelChanged = true;
 					out.say = "Remove Module done; " + Words();
@@ -443,20 +692,23 @@ namespace host
 				}
 
 				case 3:
-				case 4:      // Show Alien / Ground Waypoints (FUN_00583b40)
+				case 4:      // Show Alien / Ground Waypoints (FUN_00583b40): the PICKED module's AI module; with nothing picked, Edit Module's work (0x583daf / 0x583dd4 -> 0x583df3)
 				{
-					int32_t const master = current >= 0 ? current : pickedMaster;
-
-					if (master < 0)
+					if (picked < 0)
 					{
-						return Said("Show Waypoints: pick a module in the view (or Edit Module) first");
+						return EditModule(open);
 					}
+
+					int32_t const master = pickedMaster;
 
 					if (!Load(open, master, &why))
 					{
 						return Said(("The waypoints could not be read: " + why).c_str());
 					}
 
+					// 0x583b95-0x583bba: the pick becomes the master, painted white (the other modules are hidden in mode 1: W-2)
+					picked = master;
+					PaintAiModule(open, master, kWaypointModuleWhite);
 					mode = 1;
 					alien = command == 3;
 					out.page = 1;
@@ -492,13 +744,14 @@ namespace host
 				{
 					std::string name;
 					int32_t place[3];
+					int32_t const linkPick = context.pickedModule >= 0 && modules.count(context.pickedModule) ? context.pickedModule : -1;   // mode 3's own click (FUN_00584d80: FUN_00559720)
 
 					if (wpBase < 0 || (size_t)wpBase >= List().size())
 					{
 						return Said("Linking: there is no base waypoint");
 					}
 
-					if (picked < 0 || !NameAndPlace(open, picked, &name, place) || name.empty() || name.size() > 62)
+					if (linkPick < 0 || !NameAndPlace(open, linkPick, &name, place) || name.empty() || name.size() > 62)
 					{
 						return Said("Linking: pick a module in the view first");
 					}
@@ -555,12 +808,17 @@ namespace host
 			// mode 2: EXTENTS
 			if (mode == 2)
 			{
+				// while the new box is being sized inteng reads no menu (FUN_00585750 0x585778: the sizing jumps past the switch)
+				if (Sizing())
+				{
+					return Said("");
+				}
+
 				if (command == 0x13)   // Finish Extent Edit (FUN_00584af0)
 				{
 					mode = 1;
 					dragFaces = 0;
 					centreEdit = false;
-					zoomSteps = 0;
 					out.page = 1;
 					out.say = "Edit Extents finished: " + Words();
 					return out;
@@ -576,7 +834,7 @@ namespace host
 				if (command == 0x20 || command == 0x21)
 				{
 					Zoom(command == 0x20 ? 1 : -1);   // 0x20 takes 1000 units off a pixel (zoom in), 0x21 adds them (zoom out)
-					out.say = "Zoom: " + std::to_string(zoomSteps);
+					out.say = "Zoom: " + std::to_string(viewScale) + " a pixel";
 					return out;
 				}
 
@@ -605,11 +863,14 @@ namespace host
 						return Said("Edit Extents: pick a waypoint first");
 					}
 
+					// 0x58510f-0x585173: the three axes fixed (no sizing), the base let go, the views made
 					mode = 2;
 					dragFaces = 0;
+					sizingMask = 0;
+					axisFixed[0] = axisFixed[1] = axisFixed[2] = true;
 					centreEdit = false;
-					zoomSteps = 0;
 					wpBase = -1;
+					MakeViews(open);
 					out.page = 4;
 					out.say = "Edit Extents of waypoint " + std::to_string(cur) + ": left click and drag on a side; Shift snaps; < > zoom";
 					return out;
@@ -635,6 +896,8 @@ namespace host
 
 				case 5:   // Create Waypoint
 				{
+					// FUN_00584ee0 0x584f8f-0x5850f2 (mode 1) and FUN_00585750 0x585800-0x585929 (mode 2): an EMPTY box at the picked module's place (the AI module's master), its three axes free for
+					// the sizing; from mode 1 the base is let go and Edit Extents' views are made (FUN_005846b0). It is written when its sizing is done (EndDrag).
 					int32_t place[3];
 					std::string name;
 
@@ -643,10 +906,32 @@ namespace host
 						return Said("Create Waypoint: the AI module's master is not in the level");
 					}
 
-					wpCurrent = Waypoints_Create(&list, place);
-					out.say = "Waypoint " + std::to_string(wpCurrent) + " made at " + name + "'s place";
-					changed = true;
-					break;
+					WaypointRec made;
+
+					for (int c = 0; c < 3; c++)
+					{
+						made.min[c] = made.max[c] = made.centre[c] = place[c];
+					}
+
+					made.flags = 0;
+					made.spare2 = 0;
+					list.push_back(made);
+					wpCurrent = (int32_t)list.size() - 1;
+					axisFixed[0] = axisFixed[1] = axisFixed[2] = false;
+					sizingMask = 0;
+					dragFaces = 0;
+
+					if (mode == 1)
+					{
+						mode = 2;
+						centreEdit = false;
+						wpBase = -1;
+						MakeViews(open);
+						out.page = 4;
+					}
+
+					out.say = "Waypoint " + std::to_string(wpCurrent) + " made at " + name + "'s place: drag in two of the views to size it";
+					return out;
 				}
 
 				case 6:   // Delete Waypoint
@@ -927,30 +1212,50 @@ namespace host
 	bool WaypointMode::BeginDrag(int32_t const place[3], int axisMask, int32_t pixelFile)
 	{
 		dragFaces = 0;
+		sizingMask = 0;
 
 		if (mode != 2 || wpCurrent < 0 || (size_t)wpCurrent >= List().size() || pixelFile <= 0)
 		{
 			return false;
 		}
 
-		WaypointRec const &wp = List()[(size_t)wpCurrent];
+		WaypointRec &wp = Active()[(size_t)wpCurrent];
 
-		// Centre Edit (the flag the "R" item flips): the press takes the aim point of the axes the pane shows (FUN_00585750 0x585ac2-0x585bb8: bits 0x40 / 0x80 / 0x100)
+		// SIZING the new box (FUN_00585750 0x585795-0x58582d): the free axes the pane shows get min, max and the aim point on the place; the hold then moves max (DragTo)
+		if (Sizing())
+		{
+			for (int axis = 0; axis < 3; axis++)
+			{
+				if ((axisMask & (1 << axis)) && !axisFixed[axis])
+				{
+					wp.min[axis] = wp.max[axis] = wp.centre[axis] = place[axis];
+				}
+			}
+
+			sizingMask = axisMask;
+			return true;
+		}
+
+		// Centre Edit (the flag the "R" key flips): the press puts the aim point's shown axes on the place, the user's aim point (0x585e7e-0x585ee6); no drag. EndDrag writes it.
 		if (centreEdit)
 		{
+			dragBackup = set;
+
 			for (int axis = 0; axis < 3; axis++)
 			{
 				if (axisMask & (1 << axis))
 				{
-					dragFaces |= 0x40 << axis;
+					wp.centre[axis] = place[axis];
 				}
 			}
 
-			dragBackup = set;
-			return dragFaces != 0;
+			wp.flags |= kWaypointFlagCentreByUser;
+			dragFaces = 0x200;   // ours: a press that waits for its release to be written
+			return false;
 		}
 
-		// FUN_00585750 0x585e74-0x585fd0: on each axis the pane shows, the lowest face when it is within 3 pixels, else the highest
+		// FUN_00585750 0x585e74-0x585fd0: for x, then y, then z of the axes the pane shows, the low face when it is within 3 pixels, else the high face; inteng ASSIGNS _DAT_0091bf48, so the
+		// last axis that matched is the one face taken
 		for (int axis = 0; axis < 3; axis++)
 		{
 			if (!(axisMask & (1 << axis)))
@@ -963,11 +1268,11 @@ namespace host
 
 			if ((nearLow < 0 ? -nearLow : nearLow) / pixelFile < 3)
 			{
-				dragFaces |= 1 << (2 * axis);
+				dragFaces = 1 << (2 * axis);
 			}
 			else if ((nearHigh < 0 ? -nearHigh : nearHigh) / pixelFile < 3)
 			{
-				dragFaces |= 2 << (2 * axis);
+				dragFaces = 2 << (2 * axis);
 			}
 		}
 
@@ -981,12 +1286,36 @@ namespace host
 
 	void WaypointMode::DragTo(int32_t const place[3])
 	{
-		if (dragFaces == 0 || mode != 2 || wpCurrent < 0 || (size_t)wpCurrent >= List().size())
+		if (mode != 2 || wpCurrent < 0 || (size_t)wpCurrent >= List().size())
 		{
 			return;
 		}
 
 		WaypointRec &wp = Active()[(size_t)wpCurrent];
+
+		// the sizing hold (0x58586a-0x5858c3 of the decompile's order: 0x585ff5's else): max of the free axes the pane shows follows; the aim point with it (FUN_00586e90)
+		if (sizingMask != 0)
+		{
+			for (int axis = 0; axis < 3; axis++)
+			{
+				if ((sizingMask & (1 << axis)) && !axisFixed[axis])
+				{
+					wp.max[axis] = place[axis];
+
+					if (!(wp.flags & kWaypointFlagCentreByUser))
+					{
+						wp.centre[axis] = (int32_t)(((int64_t)wp.min[axis] + wp.max[axis]) / 2);
+					}
+				}
+			}
+
+			return;
+		}
+
+		if (dragFaces == 0 || dragFaces == 0x200)
+		{
+			return;
+		}
 
 		for (int axis = 0; axis < 3; axis++)
 		{
@@ -1080,31 +1409,108 @@ namespace host
 
 	void WaypointMode::DragToSnapped(int32_t const place[3])
 	{
+		// the sizing does not snap (FUN_00588ac0 is only in the face drag, 0x585afe)
+		if (sizingMask != 0)
+		{
+			DragTo(place);
+			return;
+		}
+
 		int32_t snapped[3] = { SnapTo(0, place[0]), SnapTo(1, place[1]), SnapTo(2, place[2]) };
 
 		DragTo(snapped);
 	}
 
+	// 0x20 (FUN_00585750 0x585a5f): 1000 off while above 1000; 0x21 (0x585a7f): 1000 more; FUN_005880e0 makes the views again with it
 	void WaypointMode::Zoom(int delta)
 	{
-		if (mode == 2)
+		if (mode != 2 || Sizing())   // the keys are menu commands too: none is read while a new box is sized
 		{
-			zoomSteps = zoomSteps + delta > 8 ? 8 : (zoomSteps + delta < -8 ? -8 : zoomSteps + delta);
+			return;
+		}
+
+		if (delta > 0)
+		{
+			if (viewScale > 1000)
+			{
+				viewScale -= 1000;
+			}
+		}
+		else if (delta < 0 && viewScale <= INT32_MAX - 1000)
+		{
+			viewScale += 1000;
 		}
 	}
 
 	WaypointOutcome WaypointMode::EndDrag(WaypointContext const &context)
 	{
-		if (dragFaces == 0 || mode != 2 || wpCurrent < 0 || (size_t)wpCurrent >= List().size())
+		if ((dragFaces == 0 && sizingMask == 0) || mode != 2 || wpCurrent < 0 || (size_t)wpCurrent >= List().size())
 		{
 			dragFaces = 0;
+			sizingMask = 0;
 			return Said("");
 		}
 
-		dragFaces = 0;
-
 		OpenLevelFile *const open = context.open;
 		WaypointRec &wp = Active()[(size_t)wpCurrent];
+
+		// the sizing's release (FUN_00585750 0x585839-0x5858c3 of the decompile's order): the pane's axes are fixed and put in order; when all three are fixed the new box is written. NAMED: a box
+		// the game's loader refuses then (an axis with no room) gets its three axes free again, to be sized anew (inteng writes the box when the mode is left, whatever it is)
+		if (sizingMask != 0)
+		{
+			for (int axis = 0; axis < 3; axis++)
+			{
+				if (sizingMask & (1 << axis))
+				{
+					axisFixed[axis] = true;
+
+					if (wp.max[axis] < wp.min[axis])
+					{
+						std::swap(wp.min[axis], wp.max[axis]);
+					}
+				}
+			}
+
+			sizingMask = 0;
+
+			if (Sizing())
+			{
+				return Said(("Waypoint " + std::to_string(wpCurrent) + ": size it in another view").c_str());
+			}
+
+			std::string why;
+
+			if (!open || !open->Level() || !Write(open, &why))
+			{
+				axisFixed[0] = axisFixed[1] = axisFixed[2] = false;
+				return Said(("The new box could not be written (" + (open && open->Level() ? why : std::string("no level")) + "): size it again").c_str());
+			}
+
+			WaypointOutcome made = Said(("Waypoint " + std::to_string(wpCurrent) + " made").c_str());
+
+			made.levelChanged = true;
+			return made;
+		}
+
+		bool const centreOnly = dragFaces == 0x200;
+
+		dragFaces = 0;
+
+		if (centreOnly)
+		{
+			std::string why;
+
+			if (!open || !open->Level() || !Write(open, &why))
+			{
+				set = dragBackup;
+				return Said(("The aim point could not be written: " + (open && open->Level() ? why : std::string("no level"))).c_str());
+			}
+
+			WaypointOutcome aimed = Said(("Waypoint " + std::to_string(wpCurrent) + ": the aim point is set").c_str());
+
+			aimed.levelChanged = true;
+			return aimed;
+		}
 
 		// when the drag ends each axis is put in order (0x58607a-0x586100), then the aim point follows the box unless it is the user's (FUN_00586e90)
 		for (int axis = 0; axis < 3; axis++)

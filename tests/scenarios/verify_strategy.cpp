@@ -7,7 +7,9 @@
 // "size <n>": the strategy is n bytes long; "nullid <field>": that object field holds the null ID (both added 2026-11-17 by Drake for the Find Errors repairs' read-back).
 // A Multiple Target / Area Switch's list (66 / 68 only, read as the view reads it: host::StrategyView_MultiTargets; added 2026-11-17 for Vasquez's read-backs): "targets <n>": it holds n targets;
 // "target.<i> <name>": target i (from 0) is that object ("none": the null ID); "target_request.<i> <n>": target i's request word is n.
-// The object is looked for among the level's objects (modules and placed objects), its virtual objects, its enemies / generators and its placed hierarchies (added 2026-11-17), by its exact name; a value may be decimal or 0x hex.
+// A point-effect list (72 / 80 a track's points, 76 a placed hierarchy's key frame flags; host::StrategyView_TrackEffects; added 2026-11-17 for Vasquez's 76 read-back): "effect.<i>.flag <n>"
+// (or .point), "effect.<i>.targets <n>", "effect.<i>.target.<j> <name|none>", "effect.<i>.target_request.<j> <n>", "effect.<i>.target_direction.<j> <n>".
+// The object is looked for among the level's objects (modules and placed objects), its virtual objects, its enemies / generators, its placed hierarchies (added 2026-11-17) and its sounds and particle generators (added 2026-11-17 by Drake: a switch may name a sound), by its exact name; a value may be decimal or 0x hex.
 // CHECKS: both levels are read by the game's loader; the object holds a strategy in both; in the copy the field holds the value; every OTHER object's strategy is byte for byte the original's (the
 // scenario changed that one only). Gives back 0 only if every check passed.
 
@@ -27,6 +29,7 @@
 #include "chunk_object.hpp"
 #include "mishchnk.hpp"
 #include "level_file.h"
+#include "special_objects_edit.h"
 #include "strategy_lookup.h"
 #include "strategy_views.h"
 
@@ -143,6 +146,20 @@ static void Strategies(OpenLevelFile &level, std::map<std::string, Held> *out)
 	for (host::PlacedHierarchyRef const &p : placed)
 	{
 		add(p.id, p.name);
+	}
+
+	// a sound (its SOUNDOB2, the ID the game makes from its name: Sound_Object_Chunk::CalculateID) or a particle generator: a switch may name either (FUN_005219f0 keeps a special wrapper's target)
+	std::vector<host::SpecialObject> specials;
+
+	if (host::SpecialObjects_Read(&level, &specials) == host::SpecialResult::Done)
+	{
+		for (host::SpecialObject const &s : specials)
+		{
+			if (s.kind == host::SpecialKind::Sound || s.kind == host::SpecialKind::ParticleGenerator)
+			{
+				add(s.id, s.name);
+			}
+		}
 	}
 }
 
@@ -263,6 +280,76 @@ int main(int argc, char **argv)
 
 			Check(there && (long long)list[index].request == wanted, "in the copy its " + which + "'s request is " + std::to_string(wanted) + " (" +
 			      (there ? std::to_string((unsigned long long)list[index].request) : std::string("the list has no such target")) + ")");
+			continue;
+		}
+
+		// A point-effect list (72 / 80 a track's points, 76 a placed hierarchy's key frame flags; read as the views read it: host::StrategyView_TrackEffects; added 2026-11-17 by
+		// Drake for Vasquez's 76 read-back): "effect.<i>.flag <n>" (or .point: the effect's flag / point number), "effect.<i>.targets <n>", "effect.<i>.target.<j> <name|none>",
+		// "effect.<i>.target_request.<j> <n>" (the on / off word), "effect.<i>.target_direction.<j> <n>" (bit 1 forward, 2 backward, 4 opposite back)
+		if (field.compare(0, 7, "effect.") == 0)
+		{
+			std::vector<host::TrackEffect> effects;
+			bool const read = now.hasStrategy && (now.kind == 72 || now.kind == 76 || now.kind == 80) && host::StrategyView_TrackEffects(now.payload, &effects);
+			char *end = nullptr;
+			unsigned long const e = strtoul(field.c_str() + 7, &end, 10);
+			bool const effectThere = read && end && *end == '.' && end != field.c_str() + 7 && e < effects.size();
+			std::string const rest = end && *end == '.' ? std::string(end + 1) : std::string();
+			std::string const whose = "effect " + std::to_string((unsigned long long)e);
+
+			if (!effectThere)
+			{
+				Check(false, "in the copy its " + field + " (" + (read ? "the list has no such effect" : "no 72 / 76 / 80 effect list read, kind " + std::to_string((long long)now.kind)) + ")");
+				continue;
+			}
+
+			host::TrackEffect const &effect = effects[e];
+
+			if (rest == "flag" || rest == "point" || rest == "targets")
+			{
+				long long const wanted = strtoll(argv[a + 1], nullptr, 0);
+				long long const have = rest == "targets" ? (long long)effect.targets.size() : (long long)effect.point;
+
+				Check(have == wanted, "in the copy its " + whose + "'s " + rest + " is " + std::to_string(wanted) + " (" + std::to_string(have) + ")");
+				continue;
+			}
+
+			size_t const dot = rest.find('.');
+			std::string const part = dot == std::string::npos ? rest : rest.substr(0, dot);
+			char *tEnd = nullptr;
+			unsigned long const t = dot == std::string::npos ? 0 : strtoul(rest.c_str() + dot + 1, &tEnd, 10);
+			bool const targetThere = dot != std::string::npos && tEnd && *tEnd == 0 && tEnd != rest.c_str() + dot + 1 && t < effect.targets.size();
+			std::string const which = whose + "'s target " + std::to_string((unsigned long long)t);
+
+			if (part == "target")
+			{
+				std::string target(8, 0);
+				bool known = std::string(argv[a + 1]) == "none";
+
+				for (auto const &one : after)
+				{
+					if (!known && one.second.name == argv[a + 1])
+					{
+						target = one.first;
+						known = true;
+					}
+				}
+
+				Check(targetThere && known && memcmp(effect.targets[t].id.data(), target.data(), 8) == 0, "in the copy its " + which + " is \"" + std::string(argv[a + 1]) + "\"" +
+				      (!known ? " (no object has that name)" : !targetThere ? " (the effect has no such target)" : ""));
+				continue;
+			}
+
+			if (part == "target_request" || part == "target_direction")
+			{
+				long long const wanted = strtoll(argv[a + 1], nullptr, 0);
+				long long const have = !targetThere ? 0 : part == "target_request" ? (long long)effect.targets[t].request : (long long)effect.targets[t].direction;
+
+				Check(targetThere && have == wanted, "in the copy its " + which + "'s " + part.substr(7) + " is " + std::to_string(wanted) + " (" +
+				      (targetThere ? std::to_string(have) : std::string("the effect has no such target")) + ")");
+				continue;
+			}
+
+			Check(false, "an effect field this tool doesn't know: " + field);
 			continue;
 		}
 
