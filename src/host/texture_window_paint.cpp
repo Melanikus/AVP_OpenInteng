@@ -18,6 +18,7 @@
 
 #include "texture_window_paint.h"
 #include "panel_pass.h"        // PanelPass_DrawText: the words in inteng's font
+#include "text_scale.h"        // the editor's own pixels to the window's (the owner's text scale; nothing changes at 1.0)
 #include "texture_window.h"    // model::WindowDots: inteng's dotted line
 
 namespace
@@ -52,7 +53,9 @@ namespace
 			height = windowHeight - y;
 		}
 
-		DrawQuad((uint32_t)x, (uint32_t)y, (uint32_t)width, (uint32_t)height, NO_TEXTURE, colour, TRANSLUCENCY_OFF);
+		int32_t boxX = 0, boxY = 0, boxWidth = 0, boxHeight = 0;
+		host::TextScale_BoxToWindow(x, y, width, height, &boxX, &boxY, &boxWidth, &boxHeight);   // cut in the editor's own pixels, drawn in the window's
+		DrawQuad((uint32_t)boxX, (uint32_t)boxY, (uint32_t)boxWidth, (uint32_t)boxHeight, NO_TEXTURE, colour, TRANSLUCENCY_OFF);
 	}
 
 	// A line as a row of 2 by 2 boxes, one every 2 pixels along its longer side (at most 1500)
@@ -283,7 +286,9 @@ void TextureChooserPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t
 
 		if (cell.x >= 0 && cell.y >= 0 && cell.width > 0 && cell.height > 0 && cell.x + cell.width <= windowWidth && cell.y + cell.height <= windowHeight)
 		{
-			DrawQuad((uint32_t)cell.x, (uint32_t)cell.y, (uint32_t)cell.width, (uint32_t)cell.height, (texID_t)cell.texture, 0xFFFFFFFFu, TRANSLUCENCY_OFF);
+			int32_t cellX = 0, cellY = 0, cellWidth = 0, cellHeight = 0;
+			host::TextScale_BoxToWindow(cell.x, cell.y, cell.width, cell.height, &cellX, &cellY, &cellWidth, &cellHeight);   // in the window's pixels (text_scale.h)
+			DrawQuad((uint32_t)cellX, (uint32_t)cellY, (uint32_t)cellWidth, (uint32_t)cellHeight, (texID_t)cell.texture, 0xFFFFFFFFu, TRANSLUCENCY_OFF);
 		}
 
 		if ((int32_t)i == hovered)

@@ -1,0 +1,30 @@
+# ACCEPTANCE (Drake 11-18, red first): THE TEXT SIZES in Construction's Options (the owner's addition, text_scale.h): Text size 2 takes effect at once (fontpx 32, the bar laid out
+# again), is kept as FontScale=2 in AVP_OpenInteng.ini, and Text size 1 brings inteng's size back, kept as FontScale=1. The owner's 2560 x 1440 window. At 2 the harness clicks
+# in the window's pixels: the state line's boxes (the editor's own) times 2.
+# RED on bishop-int 25e25a0c: Options has no Text size items.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+start-args -r2560x1440
+pictures on
+state
+expect-field fontpx 16
+click-bar Options > Text size 2
+wait 400
+expect-field fontpx 32
+expect-status Text size 2 (kept as FontScale=2
+verify cmd /c findstr /x "FontScale=2" "{exedir}AVP_OpenInteng.ini"
+picture 1
+move-win 650 1
+wait 300
+click-win 650 32
+wait 400
+expect-field-has dropboxes Text size 1
+picture 2
+# Text size 1 is the editor's own 295 89 196 19 in the drop-down (dropboxes), so its middle is 786,196 in the window's pixels at 2
+click-win 786 196
+wait 400
+expect-field fontpx 16
+expect-status Text size 1 (kept as FontScale=1
+verify cmd /c findstr /x "FontScale=1" "{exedir}AVP_OpenInteng.ini"
+picture 3

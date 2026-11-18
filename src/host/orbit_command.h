@@ -8,7 +8,8 @@
 // (Drake) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // THE TEXT IS HOSTILE: at most 256 bytes of printable ASCII, the name 1 to 64 bytes, each number a plain decimal within its bound: around -3600 to 3600 degrees, up -89 to 89, distance 0 (the
-// default) to a kilometre. The subject by its name: a placed object in play (its box: LevelView_ObjectBox), else a module (LevelView_ModuleBox).
+// default) to a kilometre. The subject by its name: a placed object in play (its box: LevelView_ObjectBox), else a module (LevelView_ModuleBox), else "light <n>": the level's light n,
+// counted from 1, its marker's box (LightMarkerBox); camera-corner keeps the spot from which the middle of the view meets that marker with nothing nearer (Light Sourcing's pick).
 
 #pragma once
 

@@ -14,6 +14,7 @@
 #include "autolink_show.h"
 #include "autolink_show_draw.h"
 #include "panel_pass.h"     // the words in inteng's font, measured with its widths
+#include "text_scale.h"     // the editor's own pixels to the window's (the owner's text scale; nothing changes at 1.0)
 
 namespace
 {
@@ -187,7 +188,9 @@ void AutoLinkShow_Draw(int32_t viewWidth, int32_t viewHeight)
 
 		if (tileShown[slot] && tileMade[slot] && host::AutoLinkShow_TilePlace(viewWidth, viewHeight, slot, nullptr, &x, &y))
 		{
-			DrawQuadSharp((uint32_t)x, (uint32_t)y, (uint32_t)host::kAutoLinkTileWidth, (uint32_t)host::kAutoLinkTileHeight, tiles[slot], 0xFFFFFFFFu, TRANSLUCENCY_OFF);
+			int32_t tileX = 0, tileY = 0, tileWidth = 0, tileHeight = 0;
+			host::TextScale_BoxToWindow(x, y, host::kAutoLinkTileWidth, host::kAutoLinkTileHeight, &tileX, &tileY, &tileWidth, &tileHeight);   // in the window's pixels (text_scale.h)
+			DrawQuadSharp((uint32_t)tileX, (uint32_t)tileY, (uint32_t)tileWidth, (uint32_t)tileHeight, tiles[slot], 0xFFFFFFFFu, TRANSLUCENCY_OFF);
 		}
 	}
 

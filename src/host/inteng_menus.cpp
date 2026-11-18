@@ -68,6 +68,14 @@ namespace host
 			{ "Select by polygons", 0x10026, 0x1f4, IntengTag::None, IntengWork::SelectByPolygons, -1, 0 },
 			{ "Prefer .BMP over .RIM", 0x10027, 0x1f5, IntengTag::None, IntengWork::PreferBmp, -1, 0 },
 			{ "Use Polygon View Distance", 0x10028, 0x1f6, IntengTag::None, IntengWork::PolygonViewDistance, -1, 0 },
+			// OURS, NAMED (docs/inteng/menu-status.json, additions): THE OWNER'S ADDITION (Melanikus 2026-11-16, 16 px too small at 2560 x 1440; Bishop 11-18): the text scale's first step, 1, inteng's own size (text_scale.h). Ticked while it is the scale; kept as FontScale= in AVP_OpenInteng.ini. Its number is ours; it has no inteng command
+			{ "Text size 1", 0x1ff02, 0x0, IntengTag::None, IntengWork::TextScale, -1, -1 },
+			// OURS, NAMED (docs/inteng/menu-status.json, additions): THE OWNER'S ADDITION: the text scale's step 1.25 (text_scale.h): every letter, bar, row and dialog a quarter bigger, at once. Its number is ours; it has no inteng command
+			{ "Text size 1.25", 0x1ff03, 0x0, IntengTag::None, IntengWork::TextScale, -1, -1 },
+			// OURS, NAMED (docs/inteng/menu-status.json, additions): THE OWNER'S ADDITION: the text scale's step 1.5 (text_scale.h). Its number is ours; it has no inteng command
+			{ "Text size 1.5", 0x1ff04, 0x0, IntengTag::None, IntengWork::TextScale, -1, -1 },
+			// OURS, NAMED (docs/inteng/menu-status.json, additions): THE OWNER'S ADDITION: the text scale's step 2 (text_scale.h); FontScale= takes up to 3 by hand. Its number is ours; it has no inteng command
+			{ "Text size 2", 0x1ff05, 0x0, IntengTag::None, IntengWork::TextScale, -1, -1 },
 		};
 		IntengMenu const kMenus0[] =
 		{
@@ -76,7 +84,7 @@ namespace host
 			{ "Object", kItems0_2, 10, 0 },
 			{ "Shape", kItems0_3, 3, 0 },
 			{ "Miscellaneous", kItems0_4, 4, 6 },
-			{ "Options", kItems0_5, 3, -1 },
+			{ "Options", kItems0_5, 7, -1 },
 		};
 
 		// 1: Adjacent Modules, inteng's table at 0x5c3508

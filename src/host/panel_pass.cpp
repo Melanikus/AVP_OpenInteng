@@ -17,6 +17,7 @@
 #include "draw_chain.h"
 #include "panel_pass.h"
 #include "menu_font.h"
+#include "text_scale.h"       // the editor's own pixels to the window's (the owner's text scale; nothing changes at 1.0)
 #include "TextureManager.h"   // Tex_Create / Tex_Lock: one texture a letter of inteng's menu font
 
 // The game's small font string at a place (menu_gfx.cpp): the same drawing RenderSmallMenuText ends in, without its debug-only assert that x is above 0, so a line at inteng's x 0 lands on the window's left edge exactly
@@ -45,9 +46,14 @@ namespace
 				continue;   // the font has 128 letters: anything past them is not drawn
 			}
 
-			if (at >= 0 && at < 16384)
+			// the letter's cell in the window's pixels (text_scale.h): inteng's own at 1.0; at another scale each of its pixels a block of that size, the cell's edges rounded so the
+			// letters meet as they did
+			int32_t cellX = 0, cellY = 0, cellWidth = 0, cellHeight = 0;
+			host::TextScale_BoxToWindow((int32_t)(at < 16384 ? at : 16384), y, menuFontCell, menuFontHeight, &cellX, &cellY, &cellWidth, &cellHeight);
+
+			if (at >= 0 && at < 16384 && cellX < 16384)
 			{
-				DrawQuadSharp((uint32_t)at, (uint32_t)y, (uint32_t)menuFontCell, (uint32_t)menuFontHeight, menuFontLetters[letter], colour, TRANSLUCENCY_NORMAL);
+				DrawQuadSharp((uint32_t)cellX, (uint32_t)cellY, (uint32_t)cellWidth, (uint32_t)cellHeight, menuFontLetters[letter], colour, TRANSLUCENCY_NORMAL);
 			}
 
 			at += menuFontWidths[letter];
@@ -77,7 +83,8 @@ namespace
 		int const green = (int)(((colour >> 8) & 0xFFu) * (uint32_t)ONE_FIXED / 255u);
 		int const blue = (int)((colour & 0xFFu) * (uint32_t)ONE_FIXED / 255u);
 
-		RenderSmallFontString(letters, x, y, ONE_FIXED, red, green, blue);
+		// (the game's small font has its own fixed size: only its place follows the text scale, text_scale.h; it is drawn only when inteng's font16.fnt isn't found)
+		RenderSmallFontString(letters, host::TextScale_ToWindow(x), host::TextScale_ToWindow(y), ONE_FIXED, red, green, blue);
 	}
 
 	// The extra boxes of one layer (0 the screen's own, 1 the overlay, 2 the top: PanelPaint_LayerOf), each cut to the window: plain colour, no picture, as the game's own scope draws its bars (weapon_scope.cpp)
@@ -91,7 +98,10 @@ namespace
 
 			if (host::PanelPaint_LayerOf(extras.boxes[i]) == layer && host::PanelPaint_CutBox(extras.boxes[i], width, height, &cut))
 			{
-				DrawQuad((uint32_t)cut.x, (uint32_t)cut.y, (uint32_t)cut.width, (uint32_t)cut.height, NO_TEXTURE, cut.colour, TRANSLUCENCY_OFF);
+				// cut in the editor's own pixels (the window's size divided by the text scale), drawn in the window's (text_scale.h)
+				int32_t boxX = 0, boxY = 0, boxWidth = 0, boxHeight = 0;
+				host::TextScale_BoxToWindow(cut.x, cut.y, cut.width, cut.height, &boxX, &boxY, &boxWidth, &boxHeight);
+				DrawQuad((uint32_t)boxX, (uint32_t)boxY, (uint32_t)boxWidth, (uint32_t)boxHeight, NO_TEXTURE, cut.colour, TRANSLUCENCY_OFF);
 			}
 		}
 	}

@@ -1,0 +1,26 @@
+# ACCEPTANCE (red first): SCROLL LOCK'S ROTATION CENTRE PICK IN TEXTURE MAP TOO (camera-closeout-drake.md CAM-8, its TO CHECK settled). inteng's frame loop FUN_0058c9e0 reads the Scroll Lock
+# byte (0xd880c2) at 0x58d009 and calls FUN_004720c0 after EVERY mode's frame, Texture Map's (mode 2, FUN_00543fa0) included, and Texture Map's key tables give Scroll Lock no command of
+# their own (the Bible's "Misc > Screenshot (Scroll Lock)" is the menu row 0xb6 alone: Dietrich's Q11 read, acceptance-texture-map-screenshot). Ours left Texture Map out until that was read.
+# Invasion, Texture Map from the start's camera: Scroll Lock waits with inteng's two lines; Esc alone does nothing; a left press in the middle of the view puts the centre on what it hits
+# (the module the hub's pick takes there too, acceptance-camera-orbit).
+# Red on exe-cache/00cc0d05.exe (Scroll Lock did nothing in Texture Map), green with it.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+item 0x46
+expect-screen Texture Map
+expect-number rotcentre waiting 0 0
+expect-number rotcentre x -7577 -7573
+key ScrollLock
+expect-number rotcentre waiting 1 1
+expect-field-has hierarchylines 6@200:Choose object for centre of rotation
+expect-field-has hierarchylines 7@200:RMB or escape to cancel
+picture 1
+key Esc
+expect-number rotcentre waiting 1 1
+click-view 0.5 0.5
+wait 300
+expect-number rotcentre waiting 0 0
+expect-number rotcentre x 2061 2065
+picture 2

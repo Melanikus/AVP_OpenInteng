@@ -176,6 +176,7 @@
 
 #include "editor_shared.h"
 #include "state_line.h"
+#include "text_scale.h"   // the Options text sizes' ticks (the owner's addition)
 
 // A Strategy Edit view's box in the window (the owner's addition, 11-17): half the window each way, never under inteng's 640 x 480 page (the size every view was laid out for), never over the
 // window, centred in it
@@ -238,7 +239,7 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	{
 		statusWords = cutOffWords;
 	}
-	else if (statusWords == cutOffWords)
+	else if (statusWords.From(cutOffWords))
 	{
 		statusWords = nullptr;
 	}
@@ -317,6 +318,7 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 			bar.SetChecked(ActionOfCommand("0x5c3508", 0xca), editorOptions.selectByPolygons);
 			bar.SetChecked(ActionOfCommand("0x5ced30", 0x1f5), editorOptions.preferBmp);
 			bar.SetChecked(ActionOfCommand("0x5ced30", 0x1f6), editorOptions.polygonViewDistance);
+			for (int32_t step = 0; step < 4; step++) { bar.SetChecked(0x1ff02 + step, host::TextScale_Get() == host::kTextScaleSteps[step]); }   // the text sizes (inteng_menus.cpp additions)
 
 			// Module Linking's two switches: ticked while on
 			bar.SetChecked(ActionOfCommand("0x5e2e38", 0x49), viewDistanceOn);
@@ -1763,27 +1765,6 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	// While the bar or the pop-up is up, inteng's frame is stopped inside its menu loop (FUN_004b7c50 -> FUN_004b7dd0, modal) at the mode's command step: a mode that draws its text after that
 	// step has none of it on the screen then (reassess/dialog-look-drake.md BAR-6, BAR-8, BAR-9: as render state 0 shows it). NOT MAPPED YET: Track Editing (Object Placement's sub-state; its
 	// text may come from FUN_00501080, which runs before FUN_004d9af0), whose text is kept until its order is read
-	// Move rel. to poly waiting for its click: "Move relative to which poly" at (200, 100) (FUN_00564b60 0x564ba2-0x564bb0, every screen that has the item)
-	if (moveRelWaiting)
-	{
-		HierarchyTextLine line = { 200, 100 / 16, "Move relative to which poly" };
-
-		line.pixelY = 100;
-		hierarchyTextNow.push_back(line);
-	}
-
-	// Scroll Lock's pick of the rotation centre waiting (CAM-8): FUN_004720c0 0x4720fa / 0x47210c writes "Choose object for centre of rotation" at (200, 100) and "RMB or escape to cancel" at (200, 0x74)
-	if (rotationPickWaiting)
-	{
-		HierarchyTextLine first = { 200, 100 / 16, "Choose object for centre of rotation" };
-		HierarchyTextLine second = { 200, 0x74 / 16, "RMB or escape to cancel" };
-
-		first.pixelY = 100;
-		second.pixelY = 0x74;
-		hierarchyTextNow.push_back(first);
-		hierarchyTextNow.push_back(second);
-	}
-
 	// Insert's zoom waiting for its centre: FUN_00471cb0 0x471ccb writes "Zoom... Choose centre" at (200, 100) (FUN_0057bd40); the status line keeps saying it too. It shows on every screen, the volume
 	// editor's too, where the status line is blank (a review of S-VOL-11, 11-17: nothing showed there)
 	if (zoomStage == 1)
@@ -1797,6 +1778,31 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	if (textAfterTheCommand && MenuLoopUp())
 	{
 		hierarchyTextNow.clear();
+	}
+
+	// Move rel. to poly waiting for its click: "Move relative to which poly" at (200, 100) (FUN_00564b60 0x564ba2-0x564bb0, every screen that has the item). After the menu loop's rule
+	// above, as CAM-8's lines below: the command writes it once and then waits in its own loop (FUN_0058b700 until a press), never as the mode's text inside its menu loop, so the bar
+	// being up (Texture Map draws it always) takes nothing away from it (acceptance-texture-map-move-rel-poly; Frost's find, 11-18)
+	if (moveRelWaiting)
+	{
+		HierarchyTextLine line = { 200, 100 / 16, "Move relative to which poly" };
+
+		line.pixelY = 100;
+		hierarchyTextNow.push_back(line);
+	}
+
+	// Scroll Lock's pick of the rotation centre waiting (CAM-8): FUN_004720c0 0x4720fa / 0x47210c writes "Choose object for centre of rotation" at (200, 100) and "RMB or escape to cancel" at (200, 0x74).
+	// After the menu loop's rule above: these are the wait's own lines, drawn by its own loop from WinMain (0x58d009), never the mode's text inside its menu loop, so the bar being up (Texture Map
+	// draws it always) takes nothing away from them (acceptance-camera-scroll-lock-texture-map)
+	if (rotationPickWaiting)
+	{
+		HierarchyTextLine first = { 200, 100 / 16, "Choose object for centre of rotation" };
+		HierarchyTextLine second = { 200, 0x74 / 16, "RMB or escape to cancel" };
+
+		first.pixelY = 100;
+		second.pixelY = 0x74;
+		hierarchyTextNow.push_back(first);
+		hierarchyTextNow.push_back(second);
 	}
 
 	for (HierarchyTextLine const &one : hierarchyTextNow)

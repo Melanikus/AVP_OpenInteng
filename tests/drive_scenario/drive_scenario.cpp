@@ -48,6 +48,7 @@
 //                               is the subject is kept; none: the first, said. Both are sent as WM_COPYDATA text and answered with the camera line; the state line's camera field reads it.
 //                               <object> is the rest of the line ("camera-corner ppump palm"), camera-orbit's last 1 to 3 plain numbers aside; a name in double quotes for one that ends in
 //                               a number ("camera-orbit "door 2" 90 30"). A name not in play fails with the editor's words ("no object or module named ... is in play").
+//                               "light <n>" (from 1) is the level's light n when no object or module has that name: "camera-corner light 123" (Light Sourcing's marker pick).
 //   face-light <n>              Light Sourcing: selects light n (counting from 1) and turns the camera on the spot to face it (kHarnessFaceLight)
 //   repeat <most> <key> <hold ms> <status_words> | <step> | <step>   the steps, again with the key held between, until the status holds the words (_ is a space): picks that depend on the camera
 //   wait <milliseconds>; wait-status <most milliseconds> <words>: the state asked every half second until the status line holds the words (FAILED if it never does in that time)
@@ -424,6 +425,14 @@ static std::vector<std::string> Words(std::string const &line)
 	return words;
 }
 
+// The line from these words on, or the whole line when they are not in it (the substr of a find that fails throws std::out_of_range; Bishop 11-18)
+static std::string From(std::string const &line, char const *words)
+{
+	size_t const at = line.find(words);
+
+	return at == std::string::npos ? line : line.substr(at);
+}
+
 static std::string Rest(std::string const &line, size_t wordsToSkip)
 {
 	size_t at = 0;
@@ -622,6 +631,7 @@ static UINT KeyOf(std::string const &name)
 	if (name == "F11") return VK_F11;
 	if (name == "F12") return VK_F12;
 	if (name == "PrintScreen") return VK_SNAPSHOT;
+	if (name == "Pause") return VK_PAUSE;           // inteng's screenshot key in every mode (FUN_0058c010 case 0x13; bible-check.md M-1, Frost 11-18)
 	if (name == "End") return VK_END;
 	if (name == "PageDown") return VK_NEXT;
 	if (name == "PageUp") return VK_PRIOR;
@@ -711,7 +721,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		std::string const said = WaitForLine(&s->editor, "AVP_OpenInteng: item ", 10000);
 
-		Check(said.find(" done:") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : said.substr(said.find("item "))));
+		Check(said.find(" done:") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : From(said, "item ")));
 
 		// the state line the item itself asked for comes with the next frame, then its geometry line
 		std::string const state = WaitForLine(&s->editor, "AVP_OpenInteng: scenario: ", 10000);
@@ -724,7 +734,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		s->last = state;
 		TakeGeometry(s);
-		printf("  (%s)\n", s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -1284,7 +1294,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		Sleep(400);
 		AskState(s);
 		Check(true, label);
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		return true;
 	}
 
@@ -1367,7 +1377,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		}
 
 		Check(true, label);
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -1460,7 +1470,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		AskState(s);
 		Check(true, label + " at " + std::to_string(box[0] + atoi(w[1].c_str())) + "," + std::to_string(box[1] + atoi(w[2].c_str())));
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -1493,7 +1503,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		Sleep(600);
 		AskState(s);
 		Check(true, label);
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -1626,7 +1636,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		AskState(s);
 		Check(true, label);
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -1729,7 +1739,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		AskState(s);
 		Check(true, label);
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -1779,7 +1789,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		AskState(s);
 		Check(true, label);
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 
 		if (!quick)
 		{
@@ -1989,7 +1999,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		ClickWindow(s, box[0] + column * step[0] + box[2] / 2, box[1] + row * step[1] + box[3] / 2, false, false);
 		AskState(s);
 		Check(true, label);
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -2036,7 +2046,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		AskState(s);
 		Check(true, label + " at " + std::to_string(x) + "," + std::to_string(y));
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -2066,11 +2076,11 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 			return false;
 		}
 
-		printf("  (%s)\n", said.substr(said.find("locate")).c_str());
+		printf("  (%s)\n", From(said, "locate").c_str());
 		ClickWindow(s, x, y, right, shift);
 		AskState(s);
 		Check(true, label + " at " + std::to_string(x) + "," + std::to_string(y));
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -2123,11 +2133,11 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 			y0 = maxY;
 		}
 
-		printf("  (%s)\n", said.substr(said.find("locate")).c_str());
+		printf("  (%s)\n", From(said, "locate").c_str());
 		DragWindow(s, x0, y0, x0 + atoi(w[4].c_str()), y0 + atoi(w[5].c_str()));
 		AskState(s);
 		Check(true, label + " from " + std::to_string(x0) + "," + std::to_string(y0));
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -2141,7 +2151,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		DragWindow(s, atoi(w[1].c_str()), atoi(w[2].c_str()), atoi(w[3].c_str()), atoi(w[4].c_str()), right, control);
 		AskState(s);
 		Check(true, label);
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -2191,7 +2201,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		AskState(s);
 		Check(true, label + " (the window's top left " + std::to_string(win[0]) + "," + std::to_string(win[1]) + ")");
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -2277,7 +2287,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		Sleep(200);
 		AskState(s);
 		Check(true, label);
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -2301,7 +2311,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		HoldAKey(&s->editor, key, 120);   // three of inteng's frames (25 a second, the editor's frame cap): a shorter press can be let go of within one frame and never be seen held
 		AskState(s);
 		Check(true, label);
-		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -2449,7 +2459,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		s->last = state;
 		TakeGeometry(s);
 		Check(true, label);
-		printf("  (%s)\n", s->last.substr(s->last.find("scenario: ")).c_str());
+		printf("  (%s)\n", From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;
 	}
@@ -2531,7 +2541,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		std::string const said = WaitForLine(&s->editor, "AVP_OpenInteng: camera: ", 10000);
 
-		Check(!said.empty(), label + " -> " + (said.empty() ? "no answer" : said.substr(said.find("camera"))));
+		Check(!said.empty(), label + " -> " + (said.empty() ? "no answer" : From(said, "camera")));
 		return true;
 	}
 
@@ -2580,8 +2590,9 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		{
 			std::vector<std::string> const words = Words(name);
 			size_t keep = words.size();
+			size_t const least = words.size() >= 2 && words[0] == "light" && plainNumber(words[1]) ? 2 : 1;   // "light <n>" is one name: its numbers come after it
 
-			while (keep > 1 && words.size() - keep < 3 && plainNumber(words[keep - 1]))
+			while (keep > least && words.size() - keep < 3 && plainNumber(words[keep - 1]))
 			{
 				keep--;
 				name.erase(name.find_last_of(" \t"));
@@ -2625,7 +2636,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		// no camera line: the editor's own words, from the status line ("camera-orbit: no object or module named ... is in play")
 		std::string const why = said.empty() && AskState(s) ? Field(s->last, "status") : std::string();
 
-		Check(answer == TRUE && !said.empty(), label + " -> " + (!said.empty() ? said.substr(said.find("camera")) : "no camera line: the editor says \"" + why + "\""));
+		Check(answer == TRUE && !said.empty(), label + " -> " + (!said.empty() ? From(said, "camera") : "no camera line: the editor says \"" + why + "\""));
 		return true;
 	}
 
@@ -2637,7 +2648,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		std::string const said = WaitForLine(&s->editor, "AVP_OpenInteng: camera: ", 10000);
 
-		Check(!said.empty() && said.find(" look ") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : said.substr(said.find("camera"))));
+		Check(!said.empty() && said.find(" look ") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : From(said, "camera")));
 		return true;
 	}
 
@@ -2649,7 +2660,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		std::string const said = WaitForLine(&s->editor, "AVP_OpenInteng: pick-module: ", 10000);
 
-		Check(said.find("picked") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : said.substr(said.find("pick-module"))));
+		Check(said.find("picked") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : From(said, "pick-module")));
 		PictureAfter(s, line);
 		return true;
 	}
@@ -2663,7 +2674,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		std::string const said = WaitForLine(&s->editor, "AVP_OpenInteng: pick-marker: ", 10000);
 
-		Check(said.find("picked") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : said.substr(said.find("pick-marker"))));
+		Check(said.find("picked") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : From(said, "pick-marker")));
 		PictureAfter(s, line);
 		return true;
 	}
@@ -2676,7 +2687,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		std::string const said = WaitForLine(&s->editor, "AVP_OpenInteng: face-light: ", 10000);
 
-		Check(said.find("selected") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : said.substr(said.find("face-light"))));
+		Check(said.find("selected") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : From(said, "face-light")));
 		return true;
 	}
 
@@ -3250,7 +3261,7 @@ int main(int argc, char **argv)
 	{
 		s.editor.keepLines = true;
 		Check(AskState(&s, 60000), "the editor says its state");
-		printf("  (%s)\n", s.last.empty() ? "no state line" : s.last.substr(s.last.find("scenario: ")).c_str());
+		printf("  (%s)\n", s.last.empty() ? "no state line" : From(s.last, "scenario: ").c_str());
 
 		for (size_t i = 0; i < steps.size(); i++)
 		{

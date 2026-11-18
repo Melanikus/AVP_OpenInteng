@@ -162,6 +162,7 @@ namespace host
 		ModuleOverlaps,   // Construction, Miscellaneous, Module Overlaps (0x56, FUN_00445110 / FUN_004476d0, module_overlaps.h): a switch, the overlapping modules are tinted
 		RecalculateNormals, // Construction, Miscellaneous, Recalculate Normals and Extents (FUN_0044baa0, shape_recalc_edit.h): every shape of the level
 		AcousticCommand,  // Object Placement's Acoustic Mode (its menu page 7, FUN_004f57b0: Exit 0xa, Module 0xbb8..0xbbb, Default 0xbbc / 0xbbd): the item's command is handed to the editor (acoustic_mode.h)
+		TextScale,        // Construction's Options, Text size 1 / 1.25 / 1.5 / 2 (the owner's addition, text_scale.h): the step is the last byte of the addition's action number less one (0x1ff02 .. 0x1ff05)
 		PlacedHierarchy,  // the current placed hierarchy's pop-up (page 6 of FUN_004d68e0, commands 0x7d0-0x7db): the item's command is handed to the editor (reassess/object-placement.md PH-2..PH-13)
 	};
 

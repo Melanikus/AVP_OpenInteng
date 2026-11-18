@@ -2772,6 +2772,12 @@ namespace host
 		size_t const kUsersCountAt = 64;
 		size_t const kUsersHeadBytes = 68;
 		size_t const kObjectShapeNumberAt = 56;
+		// the rest of the 68 bytes a copy's fresh header sets (CloneShapeChunk): flags at 0, the lock user's 16 bytes at 4, the version at 60
+		size_t const kHeadFlagsAt = 0;
+		size_t const kHeadLockUserAt = 4;
+		size_t const kHeadLockUserBytes = 16;
+		size_t const kHeadVersionAt = 60;
+		int32_t const kGeneralFlagLocked = 0x1;   // chunk.hpp GENERAL_FLAG_LOCKED
 
 		bool CloneShapeChunk(OpenLevelFile *file, int32_t oldNumber, NewChunk const *chunks, size_t chunkCount, Payload *header, int32_t knownHighest, int32_t *newNumber, Image *out,
 			PointRemap const *remap = nullptr);   // below, with Split
@@ -3005,7 +3011,7 @@ namespace host
 	namespace
 	{
 		// A whole new REBSHAPE chunk made from the shape numbered oldNumber: its chunks named in `chunks` are made from their payloads (a null payload leaves the chunk out), the others are copied; the new shape's number
-		// (one more than the highest the level has) is put in the header payload (the chunk named SHPHEAD1 in `chunks`), whose list of users is left empty. *newNumber says it. remap (none by default): the
+		// (one more than the highest the level has) is put in the header payload (the chunk named SHPHEAD1 in `chunks`), whose list of users is left empty and which is made a fresh header (version 0, no lock user, no lock flag: FUN_0050e880). *newNumber says it. remap (none by default): the
 		// copy's points are a renumbering of the old shape's, so its bone attachments follow (TM-C H1; the copy has no user yet, so no vertex colours: FUN_00435c80 finds none on inteng's copy)
 		bool CloneShapeChunk(OpenLevelFile *file, int32_t oldNumber, NewChunk const *chunks, size_t chunkCount, Payload *header, int32_t knownHighest, int32_t *newNumber, Image *out, PointRemap const *remap)
 		{
@@ -3106,6 +3112,19 @@ namespace host
 			memcpy(header->data() + kShapeNumberAt, newNumber, 4);
 			memset(header->data() + 64, 0, 4);   // no users yet: the object made around the shape adds its name
 			header->resize(68);
+
+			// a FRESH header, as inteng's FUN_0050e880 makes for both copies (Merge on a shared shape, FUN_0055aa50; Split, FUN_00564300): version 0 (the save makes it 1) and no lock user.
+			// Differences from inteng, both fixed: inteng's flags are 0, which loses the shape's own flags, so ours keeps them less the lock flag; and inteng never writes the lock
+			// user, so ours clears it. The same rule as shape_merge_edit.cpp FreshHead (Merge Objects' copy). SHPHEAD1's payload: flags at 0, the lock user's 16 bytes at 4, the
+			// version at 60 (avpx chunk_shape.cpp Shape_Header_Chunk::fill_data_block).
+			int32_t flags = 0;
+			int32_t const version = 0;
+
+			memcpy(&flags, header->data() + kHeadFlagsAt, 4);
+			flags &= ~kGeneralFlagLocked;
+			memcpy(header->data() + kHeadFlagsAt, &flags, 4);
+			memset(header->data() + kHeadLockUserAt, 0, kHeadLockUserBytes);
+			memcpy(header->data() + kHeadVersionAt, &version, 4);
 
 			std::vector<Span> inside;
 

@@ -80,6 +80,14 @@ jobs:
             echo "::error::Snyk Code skips a file with a for loop whose variable is named 'in': rename the variable"
             exit 1
           fi
+          # A fourth, found 2026-11-18 (bisected by commit and by variant: src/host/poly_edit.cpp skipped whole from 490a70a2, PR #80): a lambda's
+          # trailing return type written east-const with a pointer ("-> model::UvList const *"). Const-first ("-> const model::UvList *") means the same.
+          trailing=$(git grep -n -E -e '->[[:space:]]*[A-Za-z_][A-Za-z0-9_:<>]*[[:space:]]+const[[:space:]]*\*' -- '*.cpp' '*.h' ':!avpx' || true)
+          if [ -n "$trailing" ]; then
+            echo "$trailing"
+            echo "::error::Snyk Code skips a file with a return type written '-> T const *': write it const-first, '-> const T *'"
+            exit 1
+          fi
           echo "No declaration Snyk Code can't parse."
 
       # Snyk Code also skips, without saying so, a file over about 1 MiB: src/host/editor_main.cpp was left out at 1,057,726 bytes (read at

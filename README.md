@@ -1,8 +1,9 @@
 # AVP_OpenInteng
 
-A new map editor for **Aliens versus Predator**, for everything in a level except its geometry and textures (those are Blender's,
-through BlendRIF). It rebuilds what Rebellion's own 2000 editor, "inteng", let a mapper do: place objects, NPCs and generators, give
-them their behaviour, light the level, set its acoustics, lay out the AI's paths and waypoints, and set the level-wide settings.
+The first public alpha of AVP_OpenInteng: a remake of **inteng**, Rebellion's own level editor for **Aliens versus Predator**, now
+open source. Like inteng, it works on a level once its geometry is built: place objects, NPCs and generators, give them their
+behaviour, map textures onto the polygons, light the level, set its sounds and acoustics, lay out the AI's paths and waypoints, link
+its modules, and set the level-wide settings. It works exactly like inteng, minus bugs and... you can move the camera with your mouse.
 
 **Aliens versus Predator was created by Rebellion, who own it.** The source code to Aliens vs Predator is copyright (c) 1999-2000
 Rebellion, and this editor compiles part of it. It may not be used, in full or in part, for commercial purposes. A huge thank you to
@@ -11,8 +12,8 @@ inteng's quoted words stay Rebellion's. See `License.txt`.
 
 ## Status
 
-**Pre-release.** Its home is https://github.com/Melanikus/AVP_OpenInteng (private for now). Nothing is pushed there until the first
-milestone. The first release will be `v1.0.0-beta.0`.
+**Pre-release.** Its home is https://github.com/Melanikus/AVP_OpenInteng, a public repository. The first release is `v1.0.0-alpha.0`
+(2026-11-18).
 
 ## How it's built
 

@@ -1,0 +1,35 @@
+# ACCEPTANCE (Drake 11-18, red first): THE TEXT SCALE at 2, the owner's addition (Melanikus 11-16: "16px" too small at 2560 x 1440; Bishop 11-18). FontScale= in AVP_OpenInteng.ini (text_scale.h):
+# the panels are laid out in the editor's own pixels (the window's divided by the scale) and drawn times the scale, so inteng's 16-pixel letters are 32 window pixels tall (the
+# state line's fontpx) and every bar, row and dialog grows with them. A 2560 x 1440 window, his. The pictures are the whole window: the hub, its Options drop-down, Object Placement, its Name Object form.
+# (The harness clicks in the window's pixels at the state line's boxes, which are the editor's own: at a scale other than 1 this scenario drives by items and keys only.)
+# RED on bishop-int 25e25a0c: no fontpx field.
+# (Not Object > Find's list here: at 2560 x 1440 it has more cells than one frame draws, at every scale; Drake's finding to Bishop 11-18.)
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+#ini FontScale=2
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+start-args -r2560x1440
+pictures on
+state
+expect-field fontpx 32
+picture 1
+# the bar shows with the pointer at the window's top; Options is the editor's own x 295 to 356, y 0 to 32 (barboxes), so 650,32 in the window's pixels
+move-win 650 1
+wait 300
+click-win 650 32
+wait 400
+expect-field-has dropboxes Prefer
+picture 2
+key Esc
+wait 300
+item 0xcc
+expect-screen Object Placement
+wait 400
+picture 3
+item 0x34
+expect-dialog-kind form
+expect-dialog Name Object
+wait 400
+picture 4
+key Esc
+expect-no-dialog

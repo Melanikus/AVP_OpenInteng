@@ -1,0 +1,32 @@
+# ACCEPTANCE (red first): Construction > Miscellaneous > Module Overlaps OFF as inteng's (row "00448440, 004484c0" of reassess/construction-closeout-frost.md; Dietrich 2026-11-18).
+# inteng's Off is FUN_00445270: the hub is LEFT (FUN_004476d0) and STARTED again (FUN_00447550). The leave writes the level file when the hub changed it (DAT_00631264, 0x4476d0-0x4476eb:
+# FUN_004719e0), empties Find Small Modules' list (0x4476f1), turns the overlaps off (FUN_00448440 at 0x44777b) and saves the camera (0x447804); the start puts the rotation centre on the
+# objects' average and looks at the file again (the read-only box, acceptance-hub-read-only). Ours turned the colours off and put the centre back, and wrote nothing.
+# Here: Off with nothing changed writes no file; R (TB-C5: the shape turned, the level changed), then On and Off: the level file is written (ours: the copy, Invasion-edited.rif).
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+verify cmd /c del /q "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif" "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif.bak" 2>nul & exit 0
+pictures on
+state
+expect-screen Construction
+expect-no-dialog
+# On and Off with nothing changed: nothing is written
+item 0x56
+expect-status Module Overlaps on
+item 0x56
+expect-status Module Overlaps off
+expect-status-not Saved
+verify cmd /c if exist "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif" (exit 1) else (exit 0)
+# a change: R turns the picked object's shape (the level changed)
+click-view 0.5 0.5
+expect-status Picked
+key R
+expect-status Rotate object 90 degrees: the selected object's shape is turned
+# On and Off: the hub is left with the level changed, so the level file is written
+item 0x56
+expect-status Module Overlaps on
+item 0x56
+expect-status Module Overlaps off
+expect-status Invasion-edited.rif
+expect-status-not Not saved
+verify cmd /c if exist "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif" (exit 0) else (exit 1)
+picture 1

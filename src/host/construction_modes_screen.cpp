@@ -1760,6 +1760,48 @@ size_t LightMarkerUnderPointer(host::PickCamera const &camera, int32_t x, int32_
 	return best;
 }
 
+// The box of light n's marker (n from 0, the set's order, as LightMarkerUnderPointer numbers them) as it is drawn now, in the camera's units: every corner of its triangles at its turn
+// (LightMarkerAxes / LightMarkerFace, the same as the drawing and the click), so its middle is the marker's body (the light's place is the pyramid's point). For the harness's
+// camera-orbit / camera-corner "light <n>" (orbit_command.cpp; Dietrich 2026-11-18, Bishop: an ordinary light has no name). False when the level has no such light.
+bool LightMarkerBox(size_t light, int32_t mins[3], int32_t maxs[3])
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	std::vector<host::LightMarker> markers;
+
+	if (!open || !host::LightScene_Markers(open, &markers) || light >= markers.size())
+	{
+		return false;
+	}
+
+	host::LightMarker const &m = markers[light];
+	double const scale = local_scale > 0.0 ? local_scale : 1.0;
+	double axes[9];
+	double angle = 0.0;
+	bool any = false;
+
+	LightMarkerAxes(m, light, GetTickCount64(), axes, &angle);
+
+	for (host::IntengShapeTriangle const &face : LightMarkerShape())
+	{
+		int32_t world[3][3];
+
+		LightMarkerFace(m, axes, scale, face, world);
+
+		for (int corner = 0; corner < 3; corner++)
+		{
+			for (int a = 0; a < 3; a++)
+			{
+				mins[a] = !any || world[corner][a] < mins[a] ? world[corner][a] : mins[a];
+				maxs[a] = !any || world[corner][a] > maxs[a] ? world[corner][a] : maxs[a];
+			}
+
+			any = true;
+		}
+	}
+
+	return any;
+}
+
 // Waypoint mode's waypoints (mode 1): a click in the 3D view (FUN_00584ee0 0x58542d-0x58555d): FUN_0046ddb0 measures, for each box of the shown list, the pixels from the pointer to its block's centre
 // on the screen (-1 behind the view); the least above 0.0 (from 100,000,000.0) is the one; it becomes the current waypoint unless it is the current one or the base (pick_centre.h does the sums)
 void WaypointBoxClick(int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight)

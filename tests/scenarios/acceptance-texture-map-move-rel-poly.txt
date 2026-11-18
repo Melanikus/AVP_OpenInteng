@@ -11,6 +11,9 @@ expect-screen Texture Map
 remember-field camera
 item 0xca
 wait 300
+# the wait's own line at (200, 100) (FUN_00564b60 0x564ba2-0x564bb0, then its own loop, FUN_0058b700, until a press): Texture Map's bar is always up, and the line is the wait's, not the
+# mode's text inside the menu loop, so the bar takes nothing away from it (Frost's find, 11-18; as CAM-8's Scroll Lock lines)
+expect-field-has hierarchylines 6@200:Move relative to which poly
 click-view 0.50 0.60
 wait 400
 expect-dialog-kind form

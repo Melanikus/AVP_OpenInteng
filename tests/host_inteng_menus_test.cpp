@@ -133,10 +133,11 @@ static void TestTheTablesAreInteng()
 	puts("The tables are inteng's:");
 
 	const char *const hubTitles[] = { "File", "Mode", "Object", "Shape", "Miscellaneous", "Options" };
-	// File holds inteng's 4 and the owner's Save, second (Melanikus 2026-11-16, "Let's put a save on the hub": named, not inteng's)
-	size_t const hubCounts[] = { 5, 11, 10, 3, 4, 3 };
+	// File holds inteng's 4 and the owner's Save, second (Melanikus 2026-11-16, "Let's put a save on the hub": named, not inteng's); Options inteng's 3 and the owner's four text
+	// sizes after them (Melanikus 11-16 / Bishop 11-18: text_scale.h, named, not inteng's)
+	size_t const hubCounts[] = { 5, 11, 10, 3, 4, 7 };
 
-	Check(MenusAre(0, hubTitles, hubCounts, 6), "construction's bar is inteng's with the owner's Save: File 5 (Quit, Save, Write C, Write Asc, Write Asc doors closed), Mode 11, Object 10, Shape 3, Miscellaneous 4, Options 3 records (a cascade's item and its rows each one)");
+	Check(MenusAre(0, hubTitles, hubCounts, 6), "construction's bar is inteng's with the owner's Save: File 5 (Quit, Save, Write C, Write Asc, Write Asc doors closed), Mode 11, Object 10, Shape 3, Miscellaneous 4, Options 7 (its 3, then Text size 1, 1.25, 1.5, 2) (a cascade's item and its rows each one)");
 
 	IntengMenu const *const file = &kIntengScreens[0].menus[0];
 

@@ -1,0 +1,28 @@
+# ACCEPTANCE (red first; Bishop 11-18, light-closeout-frost.md TB-L4 and section B's 0046db60 / 0046db90): Light Sourcing draws the object it picks RED, as inteng.
+# inteng's Object mode click FUN_004ab200 (dump-full-2) takes the item flag 0x80 off the last object it picked (FUN_0046db90) and puts it on the new one (FUN_0046db60); Light mode's click marks the
+# picked block 0x40000000 (0x4aaeb0), which FUN_004a7eca makes item flag 0x80; FUN_004980f0 draws a 0x80 item 0xff0000, RED, as in Object Placement and Strategy Data (level_view.h). Select > Light
+# (0x46, 0x4aac7a) takes the object's flag off. Ours drew the picked object GREEN on the light screens (the editor's colour elsewhere). The state line's selectedcolour is the colour the selected
+# objects are drawn in, and picture 1 shows it: chair1 (Invasion, a simple object), seen from its orbit, red.
+# RED before the fix (vph-r1, the field without the change): selectedcolour 00ff00, and chair1 green in picture 1.
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+camera-orbit chair1
+wait 600
+
+# Select > Object, a click at the middle: chair1, drawn red
+item 0x48
+expect-status picks an object
+click-view 0.5 0.5
+wait 400
+expect-status Picked: chair1
+expect-field selectedcolour ff0000
+picture 1
+expect-colour picture 460 190 120 250 ff0000 0.3 120
+
+# Select > Light lets go of it (0x4aac7a): nothing is selected, so nothing is drawn red
+item 0x46
+expect-status picks a light
+expect-selected 0

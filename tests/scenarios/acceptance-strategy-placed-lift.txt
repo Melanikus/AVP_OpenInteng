@@ -1,0 +1,43 @@
+# ACCEPTANCE (Bishop 11-18 package, strategy-data.md's lift recipe, its OPEN part: the PLACED variant, all by the menus on his path; Invasion, as a double click). The recipe (qa.txt): a lift is
+# assigned Platform Lift; a PLACED lift needs the Object Placement path first, Change Object Type > Placed. inteng's Construction > Object > Change Object Type: Placed (0x12e, FUN_00448530,
+# object_type_edit.h): a module with linking data asks "%s has module linking data. Do you want to delete it?"; yes: the MODULEDT goes, the object gets a Placed Object strategy (62) and the
+# header's placed flag 0x400 (the copy: flags 0x3c00, strategy 62, verify_list_objects). Strategy Data's Assign Strategy then offers the placed kinds, Platform Lift among them
+# (KindsTheObjectCanTake, editor_prompts.cpp), with no replace question (a 62 of Type 0 / ExtraData 0, FUN_00521860). Every step was built (4961c957 / dcff7110 Change Object Type; 555f7dbc
+# Platform Lift's view); no scenario chained them. TopLiftS01: a lift shaft module.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+
+# ---- the hub: Find Object, then Object > Change Object Type: Placed
+item 0x52
+expect-dialog Select Object
+click-choice-is TopLiftS01
+expect-no-dialog
+expect-selected 1
+item 0x12e
+expect-dialog-kind confirm
+expect-dialog TopLiftS01 has module linking data
+click-button Yes
+expect-no-dialog
+picture 1
+
+# ---- Strategy Data: Find Object, the right button's Assign Strategy: the replace question, then Platform Lift
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is TopLiftS01
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 4
+# no replace question: the strategy the conversion made is a Placed Object (62) with Type 0 and ExtraData 0, which FUN_00521860 replaces without asking (FUN_00528830 0x528859-0x5288cb)
+expect-dialog Select Strategy
+click-button Platform_Lift
+wait 300
+expect-field-has strategyview TopLiftS01 : Platform Lift
+picture 2
+key Esc
+wait 300
+expect-field-empty strategyview

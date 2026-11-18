@@ -5,6 +5,9 @@
 
 #include <string.h>
 
+#include <set>
+#include <string>
+
 #include <windows.h>          // MAX_PATH
 
 #include "chunk_object.hpp"   // Object_Chunk
@@ -100,10 +103,10 @@ bool LevelObjects_Read(std::vector<host::LevelObject> *objects)
 
 	host::ListVirtualObjects(level, &virtuals);
 
-	static std::vector<std::string> names;   // the rows point at their names, kept until the next read
-
-	names.clear();
-	names.reserve(virtuals.size());
+	// The rows point at their names. A set never moves or frees a name it holds, so a row keeps its name however many reads come after it (another level's, or another
+	// feature's in the middle of a walk over these rows); it holds each name seen once, so reading again adds nothing. (Before 2026-11-18 one vector was emptied and filled
+	// again by every read: the rows of the read before pointed at the next read's names, or at freed memory. tests/host_level_objects_names_test.cpp.)
+	static std::set<std::string> names;
 
 	for (host::VirtualObjectRef const &one : virtuals)
 	{
@@ -112,11 +115,9 @@ bool LevelObjects_Read(std::vector<host::LevelObject> *objects)
 			break;
 		}
 
-		names.push_back(one.name);
-
 		host::LevelObject row;
 
-		row.name = names.back().c_str();
+		row.name = names.insert(one.name).first->c_str();
 		memcpy(row.id, one.id, host::kObjectIdBytes);
 		objects->push_back(row);
 	}
