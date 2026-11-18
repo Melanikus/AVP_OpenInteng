@@ -23,14 +23,14 @@ wait 400
 expect-field strategyview 200@0:med02J : Teleport|16@16:Teleport to :not selected|16@32:Teleports all
 picture 1
 # the Type line (y 32 to 48): all -> marine -> alien
-click-win 300 40
+click-box 300 40
 wait 300
 expect-field strategyview 200@0:med02J : Teleport|16@16:Teleport to :not selected|16@32:Teleports marine
-click-win 300 40
+click-box 300 40
 wait 300
 expect-field strategyview 200@0:med02J : Teleport|16@16:Teleport to :not selected|16@32:Teleports alien
 # "Teleport to" (y 16): the pick
-click-win 300 24
+click-box 300 24
 wait 600
 expect-field-has strategyview 200@709:Select teleport position
 picture 2

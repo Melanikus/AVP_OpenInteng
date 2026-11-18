@@ -49,7 +49,7 @@ wait 400
 expect-field-has strategyview 16@112:Mission alterations upon completion :|32@128:None
 picture 1
 # the alterations block (its "None" row at y 128, clicked at window y 136): the collector, the camera 3 m behind MO2, MO2's V clicked, Return
-click-win 300 136
+click-box 300 136
 wait 400
 camera 0 0 -3000 0
 wait 400
@@ -62,11 +62,11 @@ wait 400
 expect-field-has strategyview 16@112:Mission alterations upon completion :|32@128:MO2 (make visible)(make possible)
 picture 4
 # P with the pointer over MO2's row (y 128 to 143): bit 2 (make possible) flips
-move-win 300 136
+move-box 300 136
 key P
 wait 300
 expect-field-has strategyview 32@128:MO2 (make visible)
-expect-field-has strategyview |100@689:P
+expect-field-has strategyview |100@440:P
 picture 5
 key Esc
 wait 300

@@ -3,6 +3,8 @@
 
 #include "shape_import.h"
 
+#include "level_file_name.h"   // LevelFileName_PartIsDevice: CON, PRN, AUX, NUL, COM1-9, LPT1-9
+
 #include <stdio.h>
 #include <string.h>
 
@@ -41,7 +43,9 @@ namespace host
 
 		bool NameIsPlain(std::string const &name)
 		{
-			if (name.empty() || name.size() > kMostNameBytes)
+			// the file opened is <folder>\<name>.rif, and Windows opens a DEVICE for "COM1.rif" or "nul.rif" in any folder (level_file_name.h): such a name is refused before anything is
+			// opened (OP-141 (a); the GetFileAttributes test of the outside-shape update never sees a device). Found by the 11-17 review (open-path-2).
+			if (name.empty() || name.size() > kMostNameBytes || LevelFileName_PartIsDevice(name.c_str(), name.size()))
 			{
 				return false;
 			}

@@ -7,6 +7,71 @@
 // after what it uses. This header is included after the editor's own includes (each of the files has editor_main.cpp's list).
 #pragma once
 
+// WHAT THIS HEADER USES, so a file can include it first and alone (tests/host_editor_shared_test builds a file that does just that, and fails
+// when a name is missing). A name the header only names (a pointer, a reference, an extern variable, a function's argument or answer) is
+// declared ahead here, with its header beside it; a name it needs whole (an array's size, a member of a struct made here, an enum used by
+// value) comes from its header. A new name used further down goes here too.
+#include <windows.h>   // HWND, UINT, WPARAM, DWORD, ULONGLONG, POINT, MAX_PATH
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include <array>
+#include <functional>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "editor_bar.h"             // kEditorBarMostRows (an array's size); EditorBarRows, EditorBarRoom
+#include "editor_icons.h"           // host::IconWorldTriangle (IconForPick's triangles)
+#include "key_layout.h"             // KeyLayout (an enum, used by value)
+#include "object_edit.h"            // host::ObjectEditResult (an enum, used by value)
+#include "selection.h"              // host::PickReport (PlacementPick's report); host::Selected
+#include "special_objects_edit.h"   // host::SpecialKind (PlacementPick's kind, and its value Generator)
+#include "tool_buttons.h"           // host::kToolButtonMost (an array's size); host::ToolButton
+
+class OpenLevelFile;        // src/io/level_file.h
+struct EditorHostState;     // editor_actions.h
+struct FlyCamera;           // level_view.h
+struct LevelViewTriangle;   // level_view.h
+struct PanelExtras;         // panel_pass.h
+
+namespace host
+{
+	class AdjacentList;         // adjacent_list.h
+	class AutoLinkRunner;       // autolink_runner.h
+	class FieldPanelHost;       // field_panel_host.h
+	class LightState;           // light_state.h
+	class LinkTree;             // module_links.h
+	class ObjectList;           // object_list.h
+	class WaypointMode;         // waypoint_mode.h
+	struct DialogField;         // dialog_box.h
+	struct EditorOptions;       // editor_options.h
+	struct EntryMarker;         // entry_markers.h
+	struct HierarchyMode;       // hierarchy_mode.h
+	struct HierarchyStep;       // hierarchy_mode.h
+	struct PaintBox;            // panel_paint.h
+	struct PaintText;           // panel_paint.h
+	struct PathNode;            // path_mode.h
+	struct PickCamera;          // pick_ray.h
+	struct PolyCountRow;        // poly_counts.h
+	struct PolyVertexList;      // poly_edit.h
+	struct RequestPageState;    // strategy_views.h
+	struct ShapeChoice;         // shape_chooser.h
+	struct SpecialMode;         // special_mode.h
+	struct TrackEditor;         // track_editor.h
+	struct TrackLine;           // track_view.h
+	struct TrackPose;           // track_play_game.h
+	struct VirtualObjectInfo;   // virtual_object.h
+}
+
+namespace ui
+{
+	class MenuBar;        // menu_bar.h
+	struct Box;           // panel_layout.h
+	struct PanelLayout;   // panel_layout.h
+}
+
 // made in editor_main.cpp
 extern bool bRunning;
 extern HWND editorWindow;
@@ -42,6 +107,7 @@ extern uint32_t fieldsOpenedAt;
 extern int32_t promptFor;
 extern std::string promptText;
 extern int32_t barPointerY;
+extern int32_t barPointerX;
 void DialogMessage(std::string const &text, std::function<void()> const &then = nullptr);
 void DialogConfirm(std::string const &text, std::function<void(bool)> const &then);
 void DialogText(std::string const &text, std::vector<host::DialogField> const &fields, std::function<void(int32_t, std::vector<std::string> const &)> const &then);
@@ -153,6 +219,10 @@ struct VolumeEditor
 extern VolumeEditor volume;
 void VolumeBegin();
 extern int32_t strategyViewTop;
+extern int32_t strategyViewLeft;
+extern int32_t strategyViewBox[4];
+// Every screen change, a bar pick's or a mode's own Exit / Tab (ShowTheScreen): was -> now, once, with barScreen already now. A mode's start and leave hooks go in it (editor_main.cpp).
+void OnScreenChanged(size_t was, size_t now);
 extern std::string strategyPickField;
 extern std::string strategyViewPickWords;
 extern int32_t strategyEditKind;
@@ -292,6 +362,19 @@ extern double textureGotoDistance;
 void TextureMapEdit(int32_t command);
 void TextureMapStepPicture(int step);
 extern bool textureWindowOn;
+extern int textureSubMode;
+// made in texture_submodes.cpp
+bool TextureWindowCommand(int32_t command);
+struct LevelViewTriangle;
+bool TextureMergeOn();
+bool TextureMergeHoldsTheExit();
+bool TextureFakeMergeOn();
+void TextureMergeEnter();
+void TextureMergeLeave();
+bool TextureMergeKey(uint8_t key);
+void TextureMergeClicked(uint8_t const *id, bool isModule, int32_t moduleIndex, int32_t polygon);
+bool TextureMergeFrame(std::vector<LevelViewTriangle> *triangles);
+void TextureMergeLines(std::vector<std::pair<int32_t, std::string>> *lines);
 extern int textureWinScale;
 bool TextureWindowLoad();
 void TextureWindowApply();
@@ -470,6 +553,7 @@ extern int32_t promptFor;
 extern std::string promptText;
 extern ui::Box hitPrompt;
 extern int32_t barPointerY;
+extern int32_t barPointerX;
 extern bool barVisible;
 bool MenuLoopUp();
 extern std::string adjacentBoo;
@@ -619,6 +703,7 @@ extern std::vector<int32_t> linkedGameModules;
 extern std::string viewWords;
 int32_t ActionOfCommand(char const *table, int32_t command);
 bool PlacementGravityOn();   // Object Placement's Misc > Toggle Gravity (DAT_008f4f50; editor_main.cpp): off at every start of the mode but the Shape Chooser's return (V-24)
+bool PlacementLightingOn();   // Object Placement's Misc > Lighting (DAT_008f4f0c; editor_main.cpp): the placed objects with baked colours lit; off when the editor starts, then kept (OP-44)
 int32_t HierarchyBarAction(int32_t command);
 
 // made in strategy_data_screen.cpp
@@ -731,6 +816,10 @@ extern bool strategyFlagPage;
 extern bool strategyPanelOn;
 extern VolumeEditor volume;
 extern int32_t strategyViewTop;
+extern int32_t strategyViewLeft;
+extern int32_t strategyViewBox[4];
+// Every screen change, a bar pick's or a mode's own Exit / Tab (ShowTheScreen): was -> now, once, with barScreen already now. A mode's start and leave hooks go in it (editor_main.cpp).
+void OnScreenChanged(size_t was, size_t now);
 extern int32_t textAreaTop;
 extern std::string strategyViewWord;
 extern std::string strategyPickField;

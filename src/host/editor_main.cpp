@@ -185,6 +185,8 @@
 #include "editor_options.h"
 #include "shape_chooser.h"
 #include "shape_rescale_edit.h"
+#include "shape_import.h"
+#include "shape_update.h"
 #include "module_site.h"
 #include "shape_soften_edit.h"
 #include "module_data_edit.h"
@@ -223,6 +225,10 @@
 #include "window_events.h"
 #include "open_with.h"
 #include "editor_shared.h"   // what this file shares with the files moved out of it (editor_shared.h names them)
+#include "placement_lighting.h"   // Object Placement's lighting (OP-3, OP-44)
+#include "state_line.h"   // the state line's fields added by their owners (StateLine_Add)
+#include "placement_special_alt.h"   // Alt Locations on the current special object (OP-34..38, OP-91; V-28)
+#include "placement_hierarchy_fly.h"   // F on a placed hierarchy (V-6)
 
 extern HWND hWndMain;                   // win_proj.cpp:78: the window the game's renderer draws into: here, the view's child window
 extern bool bRunning;                   // win_proj.cpp:82: the game's own "keep going", which its waits look at
@@ -681,6 +687,7 @@ static void SelectTheChosenObject()
 // (Dietrich), F3.)
 host::FieldPanelHost fieldHost;
 static host::FieldRecord shownRecord;
+static unsigned fieldsGeneration = 0;   // V-30b: the level generation (OpenLevelFile::Generation) the field panel's record, and the chunks it holds, are of
 uint32_t fieldsSawChanges = 0;
 
 // What the shown record writes to when a field is changed (S3d): the chunk and its kind, empty when the record has nothing to edit. And whether
@@ -765,6 +772,7 @@ void ShowTheSelected(const host::Selected &selected)
 	}
 
 	shownRecord = std::move(next);
+	fieldsGeneration = LevelObjects_OpenForEdit() ? LevelObjects_OpenForEdit()->Generation() : 0;   // V-30b
 
 	ui::FieldListProblem problem = { 0, ui::FieldListRefusal::None };
 
@@ -799,6 +807,7 @@ ui::Box hitPrompt = { 0, 0, 0, 0 };
 // (VK 0x11, DAT_00d87a5f) is held; method +8 then keeps it up while the pointer stays inside the bar's height or Control stays down, and a left press in it picks; FUN_004b6a00 draws the bar and is called nowhere else, so nothing
 // draws it at any other time). barPointerY is the pointer's y in the panels' pixels from the last mouse message; barVisible is decided each frame (BarDecide).
 int32_t barPointerY = -1;
+int32_t barPointerX = -1;   // and its x (the Strategy view box's pointer keys, strategy_screen.cpp PointerRowInBox)
 bool barVisible = false;
 // inteng's menu loop is up: FUN_004b7c50 runs the bar (FUN_004b7dd0) while the bar shows, and the pop-up (+0xc) while it is open, modally, from the mode's command step; what the mode
 // draws after that step is not on the screen meanwhile (reassess/dialog-look-drake.md BAR-6, BAR-8)
@@ -1296,6 +1305,7 @@ static void ShowTheLevelSettings()
 	}
 
 	shownRecord = std::move(next);
+	fieldsGeneration = LevelObjects_OpenForEdit() ? LevelObjects_OpenForEdit()->Generation() : 0;   // V-30b
 
 	ui::FieldListProblem problem = { 0, ui::FieldListRefusal::None };
 
@@ -1326,6 +1336,15 @@ void ShowTheFieldsAgain()
 
 // The object list made again from the level the editor holds now, and what the field panel showed of the old one let go of. For after an
 // edit that swaps the level (object_edit.h), which leaves no Chunk * of the old level alive. (Added 2026-11-15 by Melanikus (Drake), S5.)
+// V-30b, for the scenario line (fieldsfresh): the field panel holds no record, or one of the level held now. A swap (ReplaceLevel) leaves the old level's chunks gone, so a record
+// of an older generation points at nothing: the edit that swaps must let go of it (LoadTheObjectListAgain).
+static bool FieldsFresh()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	return (shownRecord.title.empty() && shownRecord.list.empty()) || !open || fieldsGeneration == open->Generation();
+}
+
 void LoadTheObjectListAgain()
 {
 	std::vector<host::LevelObject> found;
@@ -1856,7 +1875,8 @@ static void ParticleWindowShow()
 			// SOUND (FUN_004e79b0 case 4, 0x4e7a0d-0x4e7a6f; reassess/object-placement.md OP-135): with no sound a record is made (FUN_004ebc80(0, 1): "Not Set" (0x5e3f5c), inner 500000 and
 			// outer 4000000 in inteng's memory (x 1e-5 m), volume 127, pitch 0, flags 1, its loops box live); a sound read from the file is the record FUN_004ebb80 makes of it (the
 			// ranges x DAT_00607bd8 = 100 x the level's scale, its loops box live too: 0x4e6849). Either way its Sound Edit (FUN_004ebd60) runs, and then the particle window ENDS and
-			// keeps what it holds. Cancel in Sound Edit keeps the record as it was (a new one as made). The INDSOUND is made from the record (FUN_004ec1b0: the ranges / DAT_00607bd8).
+			// keeps what it holds. Cancel in Sound Edit keeps the record as it was. INTENG BUG, FIXED (Bishop's ruling Q1 11-17, as PH-8's and TB-T1): inteng keeps a record it made for this
+			// window on Cancel too, leaving a "Not Set" sound on the generator; ours adds nothing on Cancel. The INDSOUND is made from the record (FUN_004ec1b0: the ranges / DAT_00607bd8).
 			host::SpecialObject &draft = specialMode.draft;
 
 			if (draft.hasSound && !draft.particleSoundRead)
@@ -1890,9 +1910,19 @@ static void ParticleWindowShow()
 			std::string const soundDirectory = host::TrackLevelSoundDirectory(open);
 			std::string const folder = std::string(theGameFolder) + "\\sound\\" + soundDirectory + "\\";
 
-			SoundEditWindowOpen(record, folder, soundDirectory, [unit, ftol](host::SoundEditRecord const &back, bool)
+			SoundEditWindowOpen(record, folder, soundDirectory, [unit, ftol, made](host::SoundEditRecord const &back, bool ok)
 			{
 				host::SpecialObject &now = specialMode.draft;
+
+				if (made && !ok)
+				{
+					// the named fix above: the record made for this window goes, and the generator keeps no sound
+					now.hasSound = false;
+					now.particleSoundRead = false;
+					now.particleSoundWav.clear();
+					ParticleWindowKeep();
+					return;
+				}
 				int32_t inner = 0, outer = 0, pitch = 0, volume = 0, flags = 0;
 
 				host::SoundEdit_IndexedBack(back, now.particleSoundFlags, &inner, &outer, &pitch, &volume, &flags);
@@ -2434,7 +2464,8 @@ static void PlacedSoundEdit();
 
 // Object > Find (0x19) on Object Placement (OP-10; FUN_004d9af0 0x4da22b-0x4da528): inteng's list dialog FUN_00475bf0 titled "Select Object" (0x5cf744) holds the name of EVERY object of the placement list, in the
 // list's order (OP-2: the placed objects in the level's order, then the SPECLOBJ children in the file's order); Escape: nothing. A pick: the VIEW jumps to the object's place (the camera block's place, its turn
-// kept) and the object is made current (FUN_004d64a0, OP-40). NAMED: a placed hierarchy (PLACHIER) has no object of ours, so none is listed.
+// kept) and the object is made current (FUN_004d64a0, OP-40). The placed hierarchies are listed too (since 35cc2522; inteng's list holds them, FUN_004d68e0 0x4d8e96 / 0x4d8eec); NAMED: ours lists them after
+// every special object, inteng's between the sounds and the particle generators (the dialog sorts its rows, so only two of one name could show it). (Note made current 11-17 by Drake, OP-10.)
 static std::string placementFindWords;
 
 static void PlacementFind()
@@ -3095,6 +3126,8 @@ bool PlacementGravityOn()
 {
 	return placementGravity;
 }
+
+// Object Placement's LIGHTING (OP-3, OP-44): placement_lighting.h
 
 static void GravityToggleCommand()
 {
@@ -4488,7 +4521,10 @@ static void ShowTheScreen(size_t screen)
 {
 	if (screen < host::kIntengScreenCount && screen != barScreen)
 	{
+		size_t const was = barScreen;
+
 		barScreen = screen;
+		OnScreenChanged(was, screen);
 
 		if (strcmp(host::kIntengScreens[screen].name, "Strategy Data") == 0)
 		{
@@ -5493,7 +5529,9 @@ static void VolumeEnd();
 void VolumeBegin();
 static bool VolumeKey(WPARAM key);
 static void VolumeClick(host::PickReport const &report, bool shift, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight);
-int32_t strategyViewTop = 0;   // the y of the window's top in the panels' pixels: an Edit view's lines and clicks are measured from it (inteng's FUN_0057bd90 y 0 is the window's top)
+int32_t strategyViewTop = 0;   // the y of the Edit view's box's top in the panels' pixels: the view's lines and clicks are measured from it (inteng's FUN_0057bd90 y 0 is its screen's top)
+int32_t strategyViewLeft = 0;  // and its left (the owner's box, 11-17: the views are drawn in a centred box; the object pick stays the whole window, from 0)
+int32_t strategyViewBox[4] = { 0, 0, 0, 0 };   // the Edit view's box as drawn (x, y, width, height), all 0 when none is up or the pick runs: the state line's strategybox
 int32_t textAreaTop = 0;   // where inteng's text area starts under the menu bars (the lowest bottom of the bars), set each frame by the drawing code
 std::string strategyViewWord;           // the lines of the Edit view of the frame, "x@y:text|..." (the state line's strategyview)
 std::string strategyPickField;       // the object field a Pick line waits to fill (the next click on an object in the view fills it), empty for none
@@ -5607,6 +5645,11 @@ void ExitTheMode()
 	if (barScreen >= host::kIntengScreenCount || barScreen == host::kIntengHub)
 	{
 		return;
+	}
+
+	if (onTextureMap && TextureMergeHoldsTheExit())
+	{
+		return;   // Texture Map's Merge asks its save question first (texture_submodes.cpp)
 	}
 
 	// OP-6: Object Placement's Exit saves every object (its block's place): the places Gravity moved them go into the level first, then every placed shape is saved
@@ -5988,6 +6031,8 @@ void LeaveTextureMap()
 		return;
 	}
 
+	TextureMergeLeave();   // Merge (sub-mode 2) lets its view and picks go (texture_submodes.cpp)
+
 	TexturePolyApplyRemoved();   // inteng takes the flagged polygons out when the mode is left (FUN_0054bfd0 -> FUN_00563d90)
 	onTextureMap = false;
 	texturePolygons.clear();   // FUN_0054bfd0 "delete poly list": DAT_00914dcc freed (TM-X2)
@@ -6209,6 +6254,7 @@ static int acousticPointerX = -1, acousticPointerY = -1;       // the pointer on
 static bool acousticPointerOn = false;                          // a module is under the pointer: acousticPointerId
 static uint8_t acousticPointerId[8];
 void PlacementTextLines(std::vector<HierarchyTextLine> *out);
+static void CurrentObjectTextLines(std::function<void(std::string const &)> const &put, bool trackEditing);
 static model::AltLocations const *PlacementAltShown(OpenLevelFile *open, uint8_t const *id);
 
 static std::string HierarchyFlagName(int bit)
@@ -6227,7 +6273,8 @@ static std::string HierarchyFloat(char const *format, double a, double b = 0.0)
 	return text;
 }
 
-// TRACK EDITING DRAWS THIS AND NOTHING ELSE (FUN_004d9af0's frame, FUN_0057b1b0 at x 0x10, y 16 x row; the rows count from 2: 0x4dc742-0x4dc79f): "View Distance :%d" (DAT_005fd678 over 500,000), "Num Objects :%d", then from row 4 the state's
+// TRACK EDITING DRAWS THIS (FUN_004d9af0's frame, FUN_0057b1b0 at x 0x10, y 16 x row; the rows count from 2: 0x4dc742-0x4dc79f): "View Distance :%d" (DAT_005fd678 over 500,000), "Num Objects :%d", the current
+// object's lines (CurrentObjectTextLines, 0x4dc7be: T-4, 11-17), then the state's
 // header ("Track Edit" in state 2, "Track Edit : Edit Section End" in 3, "Playing" in 4), "Section %d/%d" (the current section's number from 0 and the count: DAT_008f4b90 / DAT_008f4b7c, 0x4dcf86-0x4dcfac), "Has Sound"
 // or "Has Sound (looped)" when the track has a middle sound (0x4dcfb1-0x4dcffe) and "Using pivot point" when the turn is about the pivot (0x4dd001-0x4dd029). NAMED GAPS: "Visible polygons %d" (inteng draws it with the
 // polygon counts switch on), and the text drawn while an object flies (0x4dc6f9-0x4dc73f). Our field panel and status line are not drawn on these screens.
@@ -6246,7 +6293,9 @@ void TrackTextLines(std::vector<HierarchyTextLine> *out)
 
 	put("View Distance :" + std::to_string((long long)(viewDistance / 500000)));
 	put("Num Objects :" + std::to_string((unsigned long long)trackObjectCount));
-	row = 4;
+
+	// the current object's lines (0x4dc7be), then the state's header: inteng's line counter runs on, so the header comes after them (until 11-17 it was held at row 4)
+	CurrentObjectTextLines(put, true);
 
 	if (trackEd.state == host::TrackState::Playing)
 	{
@@ -7017,6 +7066,9 @@ static bool PlacementIsFlying()
 }
 
 static bool flyIsSpecial = false;
+static bool flyIsHierarchy = false;   // the flying object is a placed hierarchy (V-6: F flies its block +4; placement_hierarchy_fly.h)
+static int flyHierarchy = -1;         // which (its place in placementHierarchies)
+static bool linkedWasHierarchy = false;   // LinkedObjectWorldInFile's last answer was a placed hierarchy's
 static uint8_t flyId[8];
 static int32_t flyWorld[3] = { 0, 0, 0 };
 // OP-110 / OP-111: the FLY SPEED. F puts it in the camera speed's place (DAT_005f071c = DAT_005e51b4, 2 at start, 0x4def60-0x4defc5), keeping the camera speed (DAT_008f4e88), so the speed keys change the fly
@@ -7040,7 +7092,11 @@ static std::string FlyGlideKey()
 {
 	char key[40];
 
-	if (flyIsSpecial)
+	if (flyIsHierarchy)
+	{
+		snprintf(key, sizeof(key), "hierarchy %d", flyHierarchy);
+	}
+	else if (flyIsSpecial)
 	{
 		snprintf(key, sizeof(key), "special %d %zu", (int)flyKind, flyNumber);
 	}
@@ -7167,6 +7223,53 @@ static bool PlacementCurrentCollides()
 
 	return !key.empty() && placementNoCollide.count(key) == 0;
 }
+
+// EVERY SCREEN CHANGE, whoever makes it: a bar pick (the frame's screen change, RunAction) or a mode's own Exit or Tab (LeaveTheMode -> ShowTheScreen, which sets barScreen itself and so
+// never reached the frame's screen change: the view gap Dietrich found, the lighting look Drake found, 11-17). Called once per change, with barScreen already the new one. A mode's own
+// start and leave hooks go here, one line each. (Added 2026-11-17 by Drake: Bishop's ruling, a shared API, editor_shared.h.)
+void OnScreenChanged(size_t was, size_t now)
+{
+	if (was == now)
+	{
+	return;
+	}
+
+	// Object Placement left (its Track Editing and Acoustic pages are its own): every flown object's glide is let go of, as inteng's are when the hub loads the level again (THE FLOWN OBJECT'S GLIDE),
+	// and Gravity's places are written and its blocks given back. The Shape Chooser is the mode's own too: inteng comes back from it through its entry with DAT_008f4f38 = 1, which keeps Gravity
+	// (0x4d83b3 skips 0x4d83fe) and loads no level, so the blocks stay where they fell (V-24; the chooser's screen runs no Gravity step, PlacementFrame)
+	auto const placementFamily = [](size_t screen) {
+		return screen < host::kIntengScreenCount && (strcmp(host::kIntengScreens[screen].name, "Object Placement") == 0 || strcmp(host::kIntengScreens[screen].name, "Placement mode 1 (sounds)") == 0 ||
+			strcmp(host::kIntengScreens[screen].name, "Track Editing") == 0 || strcmp(host::kIntengScreens[screen].name, "Shape Chooser") == 0);
+	};
+
+	if (placementFamily(was) && !placementFamily(now))
+	{
+		PlacementGravityLeave();
+		flyGlides.clear();
+	}
+
+	// Object Placement STARTED (V-24, OP-1): inteng's entry FUN_004d68e0, called only by the hub (FUN_004452b0) and by the Shape Chooser's return, sets DAT_008f4f50 = 0 (0x4d83fe)
+	// unless it comes back from the chooser (DAT_008f4f38 = 1: 0x4d83b3 skips it; our chooser's return does not come through here); the Misc item 0x58 is ticked by it (0x4d8422-0x4d842c,
+	// the panels' loop: editor_panels.cpp). Its own pages (Track Editing, the sounds' page) are no new start.
+	auto const placementAny = [](size_t screen) {
+		if (screen >= host::kIntengScreenCount)
+		{
+			return false;
+		}
+
+		char const *const name = host::kIntengScreens[screen].name;
+
+		return strncmp(name, "Object Placement", 16) == 0 || strncmp(name, "Placement mode", 14) == 0 || strcmp(name, "Track Editing") == 0 || strcmp(name, "Shape Chooser") == 0;
+	};
+
+	if (placementAny(now) && !placementAny(was))
+	{
+		placementGravity = false;
+		placementNoCollide.clear();   // and every block collides again (0x4d847d: +0x5c bit 0x2000 cleared; V-7)
+		PlacementLighting_Start();   // the modules unlit, the objects as Lighting says (OP-3)
+	}
+}
+
 
 // OBJECT PLACEMENT'S TEXT (reassess/object-placement.md OP-100..OP-105, OP-80, OP-83). inteng draws, every frame, at x 16 (FUN_004d9af0 0x4dc74e-0x4dc832): "View Distance :%d" (0x5c39b0) at y 32,
 // "Num Objects :%d" (0x5e8354, the placement list's count) at y 48, then from y 64 the CURRENT object's lines (its +0x4c), then "Visible polygons %d" (0x5e8340) when the camera's target is in a module.
@@ -7623,8 +7726,197 @@ static void PlacedHierarchyEditWindow(host::PlacedHierarchySequence draft)
 	});
 }
 
-// The current placed hierarchy's pop-up items (page 6): Play (0x7d0, FUN_004e9f70), Stop (0x7d1, FUN_004ea210), and the Sequence items (0x7d2 / 0x7db / 0x7d9 / 0x7da). Sounds and Sound Timing
-// are later steps.
+// PH-11 / PH-12 (reassess/ph8-13-map-vasquez.json): the current record's timing number `timing` written back as `edited`, the record kept current
+static void PlacedHierarchyWriteTiming(size_t timing, host::PlacedHierarchyTimedSound const &edited)
+{
+	if (placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size())
+	{
+		return;
+	}
+
+	std::vector<host::PlacedHierarchySequence> records = placementHierarchies[(size_t)placedHierarchyShown].sequences;
+	size_t const record = placedHierarchyRecord;
+
+	if (record >= records.size() || timing >= records[record].sounds.size())
+	{
+		return;
+	}
+
+	records[record].sounds[timing] = edited;
+
+	if (PlacedHierarchyWriteRecords(records))
+	{
+		PlacedHierarchyMakeCurrent(record);
+	}
+}
+
+// PH-11 / PH-12, inteng's "Edit sound times" window (FUN_004ec790, vtable 0x5ae738, run by FUN_004eca00): 600 x 400; "Sound index %d" a BUTTON at 18,20 (370 x 18) that opens the sound
+// chooser "Use which sound?" over it (FUN_004eca40 control 1 -> FUN_004eac40; with no sound inteng's message box "Please add a sound first"); "Start time" and "End time " with a number
+// field each (18,40 / 18,60, 100 x 18); OK at 200,350. WHATEVER ends it (OK, Return, Escape: there is no Cancel), the fields are read back, each taken when 0 or more
+// (PlacedHierarchy_TimingFromFields). Ours closes the window for the chooser and opens it again (NAMED, as PH-4's sequence button: our forms end on any button). `timing` is the
+// timing's place in the current record's list.
+static void PlacedHierarchyTimingWindow(size_t timing, host::PlacedHierarchyTimedSound draft)
+{
+	host::DialogFormSpec spec;
+	host::DialogWidget soundButton, startLabel, startEdit, endLabel, endEdit, ok;
+
+	spec.title = "Edit sound times";
+	spec.width = 600;
+	spec.height = 400;
+	soundButton.type = host::DialogWidgetType::Button;
+	soundButton.text = "Sound index " + std::to_string(draft.soundIndex);
+	soundButton.box = { 18, 20, 370, 18 };
+	soundButton.answer = 10;
+	startLabel.type = host::DialogWidgetType::Label;
+	startLabel.text = "Start time";
+	startLabel.box = { 118, 40, 100, 18 };
+	startEdit.type = host::DialogWidgetType::Edit;
+	startEdit.text = std::to_string(draft.start);
+	startEdit.box = { 18, 40, 100, 18 };
+	endLabel.type = host::DialogWidgetType::Label;
+	endLabel.text = "End time ";
+	endLabel.box = { 118, 60, 200, 17 };
+	endEdit.type = host::DialogWidgetType::Edit;
+	endEdit.text = std::to_string(draft.end);
+	endEdit.box = { 18, 60, 100, 18 };
+	ok.type = host::DialogWidgetType::Button;
+	ok.text = "OK";
+	ok.box = { 200, 350, 100, 18 };
+	ok.answer = host::kDialogOk;
+
+	for (host::DialogWidget const &part : { soundButton, startLabel, startEdit, endLabel, endEdit, ok })
+	{
+		spec.widgets.push_back(part);
+	}
+
+	host::Dialogs_Form(spec, [timing, draft](int32_t answer, std::vector<host::DialogWidget> const &widgets)
+	{
+		host::PlacedHierarchyTimedSound edited = draft;
+
+		host::PlacedHierarchy_TimingFromFields(widgets[2].text, widgets[4].text, &edited);
+
+		if (answer == 10)
+		{
+			std::vector<host::PlacedHierarchySound> sounds;
+
+			if (placedHierarchyShown >= 0 && (size_t)placedHierarchyShown < placementHierarchies.size())
+			{
+				sounds = placementHierarchies[(size_t)placedHierarchyShown].sounds;
+			}
+
+			if (sounds.empty())
+			{
+				DialogMessage("Please add a sound first", [timing, edited]() { PlacedHierarchyTimingWindow(timing, edited); });
+				return;
+			}
+
+			std::vector<std::string> rows;
+
+			for (host::PlacedHierarchySound const &sound : sounds)
+			{
+				rows.push_back(host::PlacedHierarchy_SoundRow(sound));
+			}
+
+			DialogList("Use which sound?", rows, [timing, edited, sounds](int32_t picked)
+			{
+				host::PlacedHierarchyTimedSound again = edited;
+
+				if (picked >= 0 && (size_t)picked < sounds.size())
+				{
+					again.soundIndex = sounds[(size_t)picked].index;
+				}
+
+				PlacedHierarchyTimingWindow(timing, again);
+			});
+			return;
+		}
+
+		PlacedHierarchyWriteTiming(timing, edited);
+	});
+}
+
+// PH-8..10: the shown placed hierarchy's sounds written (PlacedHierarchy_WriteSounds); the list holds them until the level is read again (PlacementFrame, on a new generation)
+static bool PlacedHierarchyWriteSounds(std::vector<host::PlacedHierarchySound> const &sounds)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size())
+	{
+		return false;
+	}
+
+	host::SpecialResult const done = open ? host::PlacedHierarchy_WriteSounds(open, (size_t)placedHierarchyShown, sounds) : host::SpecialResult::BadCall;
+
+	if (done != host::SpecialResult::Done)
+	{
+		Answer(std::string("The placed hierarchy's sounds were not changed: ") + host::SpecialWords(done));
+		return false;
+	}
+
+	placementHierarchies[(size_t)placedHierarchyShown].sounds = sounds;
+	return true;
+}
+
+// PH-8 / PH-9: a sound of the shown placed hierarchy in edobtype's Sound Edit window (FUN_004ebd60 -> edit_sound, the window the track sounds and the particle generators open). In: the name;
+// the ranges in inteng's units (the file's x DAT_00607bd8, 100 x the level scale: FUN_004ebb80 0x4ebbc6) x 1e-5 m; pitch x 1/128; volume x 100 x 0.007874016 %; Sound Loops live (the
+// record's +0x18: FUN_004ebc80(index, 1) and the load FUN_004ebb80(chunk, 1)). Back, OK or Cancel alike (FUN_004ebd60 writes back whatever edit_sound answers), in the file's units again
+// (FUN_004ec1b0 0x4ec221: ftol(units / DAT_00607bd8)). INTENG BUG, FIXED (Bishop's ruling Q1 11-17, as TB-T1): Add makes the sound before the window and keeps it on Cancel, leaving a
+// "Not Set" sound in the level; ours adds nothing on Cancel.
+static void PlacedHierarchySoundWindow(host::PlacedHierarchySound sound, bool isNew)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	double const unit = 100.0 * (local_scale > 0.0 ? local_scale : 1.0);
+	auto const ftol = [](double v) { return !(v == v) ? 0 : (v >= 2147483647.0 ? 2147483647 : (v <= -2147483648.0 ? (int32_t)-2147483647 - 1 : (int32_t)v)); };
+	uint32_t const memInner = isNew ? 500000u : (uint32_t)ftol((double)sound.inner * unit);
+	uint32_t const memOuter = isNew ? 4000000u : (uint32_t)ftol((double)sound.outer * unit);
+	host::SoundEditRecord const record = host::SoundEdit_IndexedRecord(sound.wav, memInner, memOuter, sound.pitch, sound.volume, sound.flags, true);
+	std::string const soundDirectory = host::TrackLevelSoundDirectory(open);
+	std::string const folder = std::string(theGameFolder) + "\\sound\\" + soundDirectory + "\\";
+
+	SoundEditWindowOpen(record, folder, soundDirectory, [sound, isNew, unit, ftol](host::SoundEditRecord const &back, bool ok)
+	{
+		if ((isNew && !ok) || placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size())
+		{
+			return;
+		}
+
+		host::PlacedHierarchySound now = sound;
+		int32_t inner = 0, outer = 0, pitch = 0, volume = 0, flags = 0;
+
+		host::SoundEdit_IndexedBack(back, sound.flags, &inner, &outer, &pitch, &volume, &flags);
+		now.wav = back.name;
+		now.inner = (uint32_t)ftol((double)(uint32_t)inner / unit);
+		now.outer = (uint32_t)ftol((double)(uint32_t)outer / unit);
+		now.pitch = pitch;
+		now.volume = volume;
+		now.flags = flags;
+		now.read = true;
+		now.raw.clear();
+		now.extra.clear();   // FUN_004ec1b0 makes the chunk again with no extra words
+
+		std::vector<host::PlacedHierarchySound> sounds = placementHierarchies[(size_t)placedHierarchyShown].sounds;
+		bool placed = false;
+
+		for (size_t i = 0; i < sounds.size() && !isNew && !placed; i++)
+		{
+			if (sounds[i].index == sound.index)
+			{
+				sounds[i] = now;
+				placed = true;
+			}
+		}
+
+		if (!placed)
+		{
+			sounds.push_back(now);   // Add: at the END of the list (FUN_004eab10 0x4eabd6)
+		}
+
+		PlacedHierarchyWriteSounds(sounds);
+	});
+}
+
+// The current placed hierarchy's pop-up items (page 6): Play (0x7d0, FUN_004e9f70), Stop (0x7d1, FUN_004ea210), the Sequence items (0x7d2 / 0x7db / 0x7d9 / 0x7da), the Sounds items
+// (0x7d3 / 0x7d4 / 0x7d5, PH-8..10) and the Sound Timing items (0x7d6 / 0x7d7 / 0x7d8, PH-11..13).
 static void PlacedHierarchyCommand(int32_t command)
 {
 	// FUN_004d9af0 0x4db540-0x4db75c: each needs a current object of kind 5
@@ -7757,6 +8049,157 @@ static void PlacedHierarchyCommand(int32_t command)
 		HierarchyView_Play(false, true, false);
 		PlacedHierarchyEditWindow(one.sequences[placedHierarchyRecord]);
 	}
+	else if (command == 0x7d6)
+	{
+		// PH-11 Sound Timing > Add (FUN_004eb0f0): Stop FIRST, then a current record is needed (0x4eb10b, 0x4eb110: with none nothing more, no message); a new timing (FUN_004ebb60) at
+		// the END of its list, then the window on it. There is no Cancel: the timing stays however the window is closed.
+		if (HierarchyView_IsShown() && HierarchyView_IsPlaying())
+		{
+			HierarchyView_Play(false, true, false);
+		}
+
+		if (placedHierarchyRecord >= one.sequences.size())
+		{
+			return;
+		}
+
+		std::vector<host::PlacedHierarchySequence> records = one.sequences;
+		size_t const record = placedHierarchyRecord;
+		host::PlacedHierarchyTimedSound const fresh = host::PlacedHierarchy_NewTiming();
+
+		records[record].sounds.push_back(fresh);
+
+		size_t const timing = records[record].sounds.size() - 1;
+
+		if (PlacedHierarchyWriteRecords(records))
+		{
+			PlacedHierarchyMakeCurrent(record);
+			PlacedHierarchyTimingWindow(timing, fresh);
+		}
+	}
+	else if (command == 0x7d7 || command == 0x7d8)
+	{
+		// PH-12 Sound Timing > Edit (FUN_004eb1f0) / PH-13 > Remove (FUN_004eb270): a current record is needed BEFORE Stop (0x4eb20b / 0x4eb274: with none nothing at all happens); Stop;
+		// the timing chooser (FUN_004eb340: "Select sound to edit" / "Remove which sound?", the rows "%d start %d , end %d"; no timing: nothing, no message). Edit: the window on the
+		// pick, edited in place. Remove: the pick taken out, no question asked.
+		if (placedHierarchyRecord >= one.sequences.size())
+		{
+			return;
+		}
+
+		if (HierarchyView_IsShown() && HierarchyView_IsPlaying())
+		{
+			HierarchyView_Play(false, true, false);
+		}
+
+		std::vector<host::PlacedHierarchyTimedSound> const timings = one.sequences[placedHierarchyRecord].sounds;
+
+		if (timings.empty())
+		{
+			return;
+		}
+
+		std::vector<std::string> rows;
+
+		for (host::PlacedHierarchyTimedSound const &timing : timings)
+		{
+			rows.push_back(host::PlacedHierarchy_TimingRow(timing));
+		}
+
+		bool const remove = command == 0x7d8;
+
+		DialogList(remove ? "Remove which sound?" : "Select sound to edit", rows, [remove, timings](int32_t picked)
+		{
+			if (picked < 0 || (size_t)picked >= timings.size() || placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size())
+			{
+				return;
+			}
+
+			if (!remove)
+			{
+				PlacedHierarchyTimingWindow((size_t)picked, timings[(size_t)picked]);
+				return;
+			}
+
+			std::vector<host::PlacedHierarchySequence> records = placementHierarchies[(size_t)placedHierarchyShown].sequences;
+			size_t const record = placedHierarchyRecord;
+
+			if (record < records.size() && (size_t)picked < records[record].sounds.size())
+			{
+				records[record].sounds.erase(records[record].sounds.begin() + picked);
+
+				if (PlacedHierarchyWriteRecords(records))
+				{
+					PlacedHierarchyMakeCurrent(record);
+				}
+			}
+		});
+	}
+	else if (command == 0x7d3)
+	{
+		// PH-8 Sounds > Add (FUN_004eab10): Stop; a new sound (FUN_004ebc80(index, 1): the lowest unused index, "Not Set", 5 m / 40 m (500000 / 4000000 inteng units), volume 127, pitch 0,
+		// Sound Loops on and live) in the Sound Edit window first; at the end of the list on OK (Cancel adds nothing: the named fix above)
+		if (HierarchyView_IsShown() && HierarchyView_IsPlaying())
+		{
+			HierarchyView_Play(false, true, false);
+		}
+
+		host::PlacedHierarchySound fresh;
+
+		fresh.index = host::PlacedHierarchy_FreeSoundIndex(one.sounds);
+		fresh.wav = "Not Set";
+		fresh.volume = 127;
+		fresh.pitch = 0;
+		fresh.flags = 1;
+		fresh.read = true;
+		PlacedHierarchySoundWindow(fresh, true);
+	}
+	else if (command == 0x7d4 || command == 0x7d5)
+	{
+		// PH-9 Sounds > Edit (FUN_004eafe0) / PH-10 > Remove (FUN_004eb010): Stop; the sound chooser (FUN_004eac40: "Select sound to edit" / "Delete which sound?", "%d %s" rows; with no
+		// sound inteng's message box "Please add a sound first"). Edit: the Sound Edit window on the pick. Remove: the pick taken out, no question asked; the timings that name it keep its
+		// index (and play nothing until a sound takes the index again)
+		if (HierarchyView_IsShown() && HierarchyView_IsPlaying())
+		{
+			HierarchyView_Play(false, true, false);
+		}
+
+		std::vector<host::PlacedHierarchySound> const sounds = one.sounds;
+
+		if (sounds.empty())
+		{
+			DialogMessage("Please add a sound first");
+			return;
+		}
+
+		std::vector<std::string> rows;
+
+		for (host::PlacedHierarchySound const &sound : sounds)
+		{
+			rows.push_back(host::PlacedHierarchy_SoundRow(sound));
+		}
+
+		bool const remove = command == 0x7d5;
+
+		DialogList(remove ? "Delete which sound?" : "Select sound to edit", rows, [remove, sounds](int32_t picked)
+		{
+			if (picked < 0 || (size_t)picked >= sounds.size())
+			{
+				return;
+			}
+
+			if (!remove)
+			{
+				PlacedHierarchySoundWindow(sounds[(size_t)picked], false);
+				return;
+			}
+
+			std::vector<host::PlacedHierarchySound> left = sounds;
+
+			left.erase(left.begin() + picked);
+			PlacedHierarchyWriteSounds(left);
+		});
+	}
 }
 
 // THE '=' AND '-' KEYS (OP-14, FUN_004d9af0 0x4dc2c3-0x4dc308): with a current object, the keys live and Gravity off (0x4dc1ea), the main keyboard's '=' (slot 0xd87afb) calls the current
@@ -7797,7 +8240,13 @@ static void ScaleKeysFrame(bool up, bool down)
 		}
 
 		std::string why;
+		unsigned const generation = open->Generation();
 		host::ShapeRescaleResult const result = host::ShapeRescale_ByFactor(open, LevelObjects_Level(), current.objectId, factors[k], &why);
+
+		if (open->Generation() != generation)
+		{
+			LoadTheObjectListAgain();   // V-30b: the SHPCENTR was made by putting the level together again (the first frame of a shape that had none)
+		}
 
 		if (result == host::ShapeRescaleResult::NoExternal)
 		{
@@ -7850,7 +8299,8 @@ static void PlacementFrame()
 	{
 		host::Selected const flyingNow = host::Selection_Get();
 		// the current object as F takes it (LinkedObjectWorldInFile: a selected placed object first, else the current special object)
-		bool const sameObject = flyIsSpecial ? flyingNow.kind != host::SelectedKind::Object && specialMode.haveCurrent && specialMode.kind == flyKind && specialMode.number == flyNumber
+		bool const sameObject = flyIsHierarchy ? placedHierarchyCurrent == flyHierarchy
+			: flyIsSpecial ? flyingNow.kind != host::SelectedKind::Object && specialMode.haveCurrent && specialMode.kind == flyKind && specialMode.number == flyNumber
 			: flyingNow.kind == host::SelectedKind::Object && memcmp(flyingNow.objectId, flyId, 8) == 0;
 		bool const onTrack = barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Track Editing") == 0;
 
@@ -8099,45 +8549,14 @@ static std::string PlacementDifficulty(uint32_t notBits)
 	return text + ")";
 }
 
-void PlacementTextLines(std::vector<HierarchyTextLine> *out)
+// THE CURRENT OBJECT'S LINES: its class's +0x4c, which FUN_004d9af0 calls at 0x4dc7be on DAT_008f4f3c whenever the frame draws text: in Object Placement AND in Track Editing's
+// states 2, 3 and 4 (DAT_008f4f2c; the object whose track is edited stays current, and entering Track Editing never clears it). Traced twice, independently, 11-17 (T-4 of
+// reassess/track-editing-closeout-vasquez.md: the close-out had Track Editing draw its own lines only, WRONG). For a placed shape (FUN_004e3600) only "In Object %s - radius %d"
+// (and the module's own "Has Track", not drawn here: a NAMED gap of OP-102) wait for state 0. Moved here from PlacementTextLines unchanged but for that one test.
+static void CurrentObjectTextLines(std::function<void(std::string const &)> const &put, bool trackEditing)
 {
-	out->clear();
-
-	// the live Snap To Vertex's words (0x5e8364, three lines) at x 20, y = the window's height - 60 (0x4dc6f9-0x4dc73f), a new line the letters' height (16) down
-	if (snapLive && snapViewHeight > 60)
-	{
-		static char const *const kSnapWords[3] = { "Press LMB to snap to vertex", "Hold shift to align to polygon", "Press escape to cancel (and return to original position)" };
-
-		for (int i = 0; i < 3; i++)
-		{
-			int32_t const y = snapViewHeight - 60 + 16 * i;
-			HierarchyTextLine line = { 20, y / 16, kSnapWords[i] };
-
-			line.pixelY = y;
-			out->push_back(line);
-		}
-	}
-
-	if (!placementText)
-	{
-		return;
-	}
-
-	int32_t row = 2;
-	auto put = [&](std::string const &text) { out->push_back({ 16, row++, text }); };
 	char line[300];
 	double const scale = local_scale > 0.0 ? local_scale : 1.0;
-	size_t placedCount = 0;
-
-	for (host::PolyCountRow const &one : placementRows)
-	{
-		placedCount += one.placed ? 1 : 0;
-	}
-
-	snprintf(line, sizeof(line), "View Distance :%d", viewDistance / 500000);   // 0x4dc746-0x4dc768: DAT_005fd678 / 500000 (the multiply by 0x431bde83, shift 49)
-	put(line);
-	snprintf(line, sizeof(line), "Num Objects :%d", (int)(placedCount + placementSpecials.size() + placementHierarchies.size()));
-	put(line);
 
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	host::Selected const selected = host::Selection_Get();
@@ -8185,7 +8604,9 @@ void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 
 	if (placedHierarchyCurrent >= 0 && (size_t)placedHierarchyCurrent < placementHierarchies.size())
 	{
-		// FUN_004e9b60 (the class 0x5ae6c4's +0x4c): while it flies the fly lines (it cannot fly here yet: NAMED), "Colliding" when its block collides, then (PH-15) "Sequence %d" (the current
+		flyLines(flyOn && flyIsHierarchy && flyHierarchy == placedHierarchyCurrent);   // V-6
+
+		// FUN_004e9b60 (the class 0x5ae6c4's +0x4c): while it flies the fly lines, "Colliding" when its block collides, then (PH-15) "Sequence %d" (the current
 		// record's index, 0x4e9c24) when there is a current record, and "Timer %d" (the main player's +0x10) and "Frame %d" (FUN_004790a0) when the player has a main sequence: no name line and none
 		// of FUN_004df3c0's common lines
 		if (PlacementCurrentCollides())
@@ -8241,6 +8662,11 @@ void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 				{
 					put("Sound :" + o.wav);
 				}
+			}
+
+			for (std::string const &one : SpecialAlt_ShownLines(LevelObjects_OpenForEdit(), (int)o.kind, o.number))   // "Location %d/%d", "Location group %d" (FUN_004df3c0 0x4df3cb-0x4df40e)
+			{
+				put(one);
 			}
 
 			if (o.kind != host::SpecialKind::BadGuy)
@@ -8313,7 +8739,8 @@ void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 			std::string module;
 			int32_t radius = 0;
 
-			if (moduleNameAt(one.place, &module, &radius))
+			// only when no track is edited (FUN_004e3600 0x4e3ba7: DAT_008f4f2c != 0 skips it; the module is still kept in +0x110)
+			if (!trackEditing && moduleNameAt(one.place, &module, &radius))
 			{
 				snprintf(line, sizeof(line), "In Object %s - radius %d", module.c_str(), radius * 100);
 				put(line);
@@ -8322,6 +8749,49 @@ void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 			break;
 		}
 	}
+}
+
+void PlacementTextLines(std::vector<HierarchyTextLine> *out)
+{
+	out->clear();
+
+	// the live Snap To Vertex's words (0x5e8364, three lines) at x 20, y = the window's height - 60 (0x4dc6f9-0x4dc73f), a new line the letters' height (16) down
+	if (snapLive && snapViewHeight > 60)
+	{
+		static char const *const kSnapWords[3] = { "Press LMB to snap to vertex", "Hold shift to align to polygon", "Press escape to cancel (and return to original position)" };
+
+		for (int i = 0; i < 3; i++)
+		{
+			int32_t const y = snapViewHeight - 60 + 16 * i;
+			HierarchyTextLine line = { 20, y / 16, kSnapWords[i] };
+
+			line.pixelY = y;
+			out->push_back(line);
+		}
+	}
+
+	if (!placementText)
+	{
+		return;
+	}
+
+	int32_t row = 2;
+	auto put = [&](std::string const &text) { out->push_back({ 16, row++, text }); };
+	char line[300];
+	double const scale = local_scale > 0.0 ? local_scale : 1.0;
+	size_t placedCount = 0;
+
+	for (host::PolyCountRow const &one : placementRows)
+	{
+		placedCount += one.placed ? 1 : 0;
+	}
+
+	snprintf(line, sizeof(line), "View Distance :%d", viewDistance / 500000);   // 0x4dc746-0x4dc768: DAT_005fd678 / 500000 (the multiply by 0x431bde83, shift 49)
+	put(line);
+	snprintf(line, sizeof(line), "Num Objects :%d", (int)(placedCount + placementSpecials.size() + placementHierarchies.size()));
+	put(line);
+
+	CurrentObjectTextLines(put, false);
 
 	// the module the camera's target is in (FUN_004d63b0) and its count (FUN_004d5e60, Module Linking's figure)
 	if (theCamera)
@@ -8357,6 +8827,8 @@ static bool LinkedObjectWorldInFile(int32_t out[3], int32_t *radius, bool *speci
 	{
 		*special = false;
 	}
+
+	linkedWasHierarchy = false;
 
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	double const scale = local_scale > 0.0 ? local_scale : 1.0;
@@ -8418,6 +8890,13 @@ static bool LinkedObjectWorldInFile(int32_t out[3], int32_t *radius, bool *speci
 				}
 			}
 		}
+	}
+
+	// a current placed hierarchy: its block +4's place (V-6: F flies it, 0x4def60; V-23: the split views go round it, FUN_004d5980 / FUN_004d58e0); R's radius stays the icon's 1000 (NAMED)
+	if (placedHierarchyCurrent >= 0 && PlacedHierarchyFly_World(open, (size_t)placedHierarchyCurrent, scale, out))
+	{
+		linkedWasHierarchy = true;
+		return true;
 	}
 
 	return false;
@@ -8504,6 +8983,11 @@ static void UpdateCameraLink(FlyCamera *camera)
 	if (flyOn && flyReal)
 	{
 		LevelView_FlyPutMatrix(flyWorld, flyMatrix);
+	}
+
+	if (flyOn && flyIsHierarchy)
+	{
+		HierarchyView_MoveTo(flyWorld);   // the model follows its block (FUN_004e9cb0 -> FUN_0047ef70 lays it out from block +4 each frame)
 	}
 
 	if (!cameraLinked)
@@ -8599,6 +9083,11 @@ static void PlacementFlyStop()
 	if (!open || !open->Level())
 	{
 		Answer("Fly selected object: no level");
+	}
+	else if (flyIsHierarchy)
+	{
+		Answer(PlacedHierarchyFly_Stop(open, (size_t)flyHierarchy, place));   // its PLACHIDT's place (Vasquez's writer; the turn kept); the list is read again on the level's change
+		flyIsHierarchy = false;
 	}
 	else if (flyIsSpecial)
 	{
@@ -8870,7 +9359,7 @@ static bool PlacementKey(WPARAM key, bool shift)
 	{
 		uint8_t id[8];
 
-		if (!SelectedObjectId(id))
+		if (!SelectedObjectId(id) && !specialMode.haveCurrent)   // a current special object's too (OP-91: +0x34 of every class but the player start and the hierarchy)
 		{
 			return false;
 		}
@@ -8948,6 +9437,8 @@ static bool PlacementKey(WPARAM key, bool shift)
 			{
 				flyOn = true;
 				flyIsSpecial = special;
+				flyIsHierarchy = linkedWasHierarchy;   // a placed hierarchy (V-6): no live copy of a placed object (flyId is not its)
+				flyHierarchy = placedHierarchyCurrent;
 				flyKind = specialMode.kind;
 				flyNumber = specialMode.number;
 				flyCameraSpeedKept = speedUnits;   // OP-110: DAT_008f4e88 = DAT_005f071c; DAT_005f071c = DAT_005e51b4; the link off (DAT_005e78bc = 0)
@@ -8967,7 +9458,7 @@ static bool PlacementKey(WPARAM key, bool shift)
 				flyGlideCarry[0] = flyGlideCarry[1] = flyGlideCarry[2] = 0.0;
 				flyReal = false;
 
-				if (!special)
+				if (!special && !flyIsHierarchy)
 				{
 					OpenLevelFile *const flyOpen = LevelObjects_OpenForEdit();
 					int32_t startPlace[3];
@@ -9254,9 +9745,10 @@ static bool HierarchyKey(WPARAM key)
 		hierarchyMode.position = HierarchyView_Position();
 		HierarchyRunCommand(key == 'Q' ? (shift ? 0x51 : 0x50) : (shift ? 0x26 : 0x15) + (int32_t)(key - '0'));
 	}
-	else if (!shift && (key == 'D' || key == 'F'))
+	else if (inMode && !shift && (key == 'D' || key == 'F'))
 	{
-		// D / F: the previous / next sequence (FUN_0048cde0: D -> 0x40, F -> 0x3f; reassess/hierarchy-play-frost.md HP-11 / HP-12)
+		// D / F: the previous / next sequence (FUN_0048cde0: D -> 0x40, F -> 0x3f; reassess/hierarchy-play-frost.md HP-11 / HP-12), on the Hierarchy screen. DECIDED PH-14 (Drake 11-18): in Object
+		// Placement a placed hierarchy's frame (FUN_004e9cb0) reads only ',' and '.', so there D re-centres the split screen (0x4da131) and F flies it (0x4dc14f, V-6): the keys go on to the mode
 		HierarchyStepSequence(key == 'F' ? 1 : -1);
 	}
 	else if (key == VK_HOME || key == VK_END)
@@ -9636,6 +10128,10 @@ void RunAction(int32_t id)
 	// A screen's own View Mode items (Module Linking 0x46 / 0x47 / 0x48, Adjacent Modules 0xc8 / 0xc9): the draw mode every shape is drawn in. inteng calls
 	// FUN_0046daa0 / FUN_0046dae0 / FUN_0046db20 on each shape of its table, and (Module Linking) lets go of its Mixed colouring first; the editor's
 	// draw modes are global and the status line and the buttons follow them (view_toggles.h).
+	// Object Placement's Misc > Lighting (0x54, OP-44; only Object Placement's and Track Editing's tables hold it): DAT_008f4f0c flips (0x4d9f31-0x4d9f5f), the objects follow at the next frame
+	// (LevelView_PlacementLighting) and the item is ticked by it (editor_panels.cpp). inteng says nothing; the status words are ours. Was: the whole level's Gouraud switch
+	host.viewMode = host.viewMode == 4 && PlacementLighting_Flip(&statusWords) ? 0 : host.viewMode;
+
 	if (host.viewMode != 0)
 	{
 		host::ViewToggle const which = host.viewMode == 1 ? host::ViewToggle::Polygon : host.viewMode == 2 ? host::ViewToggle::Polyline : host.viewMode == 4 ? host::ViewToggle::GouraudSwitch : host::ViewToggle::FilledPolyline;
@@ -9878,41 +10374,7 @@ void RunAction(int32_t id)
 
 		barScreen = host.screen;
 
-		// Object Placement left (its Track Editing and Acoustic pages are its own): every flown object's glide is let go of, as inteng's are when the hub loads the level again (THE FLOWN OBJECT'S GLIDE),
-		// and Gravity's places are written and its blocks given back. The Shape Chooser is the mode's own too: inteng comes back from it through its entry with DAT_008f4f38 = 1, which keeps Gravity
-		// (0x4d83b3 skips 0x4d83fe) and loads no level, so the blocks stay where they fell (V-24; the chooser's screen runs no Gravity step, PlacementFrame)
-		{
-			auto const placementFamily = [](size_t screen) {
-				return screen < host::kIntengScreenCount && (strcmp(host::kIntengScreens[screen].name, "Object Placement") == 0 || strcmp(host::kIntengScreens[screen].name, "Placement mode 1 (sounds)") == 0 ||
-					strcmp(host::kIntengScreens[screen].name, "Track Editing") == 0 || strcmp(host::kIntengScreens[screen].name, "Shape Chooser") == 0);
-			};
-
-			if (placementFamily(wasScreen) && !placementFamily(barScreen))
-			{
-				PlacementGravityLeave();
-				flyGlides.clear();
-			}
-
-			// Object Placement STARTED (V-24, OP-1): inteng's entry FUN_004d68e0, called only by the hub (FUN_004452b0) and by the Shape Chooser's return, sets DAT_008f4f50 = 0 (0x4d83fe)
-			// unless it comes back from the chooser (DAT_008f4f38 = 1: 0x4d83b3 skips it; our chooser's return does not come through here); the Misc item 0x58 is ticked by it (0x4d8422-0x4d842c,
-			// the panels' loop: editor_panels.cpp). Its own pages (Track Editing, the sounds' page) are no new start.
-			auto const placementAny = [](size_t screen) {
-				if (screen >= host::kIntengScreenCount)
-				{
-					return false;
-				}
-
-				char const *const name = host::kIntengScreens[screen].name;
-
-				return strncmp(name, "Object Placement", 16) == 0 || strncmp(name, "Placement mode", 14) == 0 || strcmp(name, "Track Editing") == 0 || strcmp(name, "Shape Chooser") == 0;
-			};
-
-			if (placementAny(barScreen) && !placementAny(wasScreen))
-			{
-				placementGravity = false;
-				placementNoCollide.clear();   // and every block collides again (0x4d847d: +0x5c bit 0x2000 cleared; V-7)
-			}
-		}
+		OnScreenChanged(wasScreen, barScreen);   // every mode's start and leave hooks (also run by ShowTheScreen, a mode's own Exit or Tab)
 
 		// leaving the hub for a mode: the hub's selection lists are freed (FUN_004476d0) and the mode builds its own (SEL-2): nothing selected in the hub is current in the mode. First, with the
 		// hub's changes not yet in the file (DAT_00631264), the level FILE is written (FUN_004719e0 at 0x4476e3)
@@ -10660,6 +11122,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 	if (message == WM_MOUSEMOVE || message == WM_LBUTTONDOWN || message == WM_LBUTTONUP || message == WM_RBUTTONDOWN || message == WM_RBUTTONUP)
 	{
 		barPointerY = InThePanels(window, lParam).y;
+		barPointerX = InThePanels(window, lParam).x;
 	}
 
 	// an open menu's row under the pointer is the pointed one, orange (FUN_004b7dd0 -> FUN_004b7590, view-state-table.md H-5d)
@@ -11085,6 +11548,13 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				HierarchyCtrlKey(wParam);
 			}
 
+			// The Texture Map's Ctrl keys (TM-A2): inteng's key table gives them as it gives the others (FUN_00557ea0 0x557ee7; texture_map_screen.cpp TextureMapKeyCommandRun),
+			// read here because the keys below want no Ctrl
+			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && ctrlHeld && onTextureMap && !textureChooserOn && wParam <= 0xFF && !(lParam & (1 << 30)))
+			{
+				TextureMapKeyCommandRun((uint8_t)wParam, shiftHeld, true);
+			}
+
 			// The camera's speed keys (above): ] and [ as typed, so they are the ones on the keyboard's own layout; Space; and Classic's Shift+A and
 			// Shift+Z, on a key's first press
 			if (!typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !ctrlHeld)
@@ -11445,7 +11915,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 
 			// The camera's keys are held only while no menu is open
 			// (in Texture Map the mode's own keys win over the camera's: texture_keys.h)
-			if (message == WM_KEYDOWN && !typingHere && !AMenuIsOpen() && !(onTextureMap && host::TextureMapKeys_Own((uint8_t)(wParam & 0xFF), textureWindowOn)))
+			if (message == WM_KEYDOWN && !typingHere && !AMenuIsOpen() && !(onTextureMap && host::TextureMapKeys_OwnInSubMode((uint8_t)(wParam & 0xFF), textureSubMode)))
 			{
 				keyDown[wParam & 0xFF] = true;
 			}
@@ -15476,6 +15946,19 @@ static void AltLocationCommand(int32_t command)
 		return;
 	}
 
+	int64_t specialGroup = 0;   // a current special object's own items (placement_special_alt.cpp; inteng's current object DAT_008f4f3c is the special one first)
+
+	if (command == 0x66 && SpecialAlt_CurrentGroup(&specialGroup))
+	{
+		DialogLine(std::string(), "Select alternate location group number\n(0 means no group)", std::to_string((long long)specialGroup), 10, 0x12, [](std::string const &typed) { int64_t number = 0; if (AltTypedWhole(typed, &number)) { AltAssignGroup(number); } });
+		return;
+	}
+
+	if (command != 0x66 && SpecialAlt_Command(command))
+	{
+		return;
+	}
+
 	if (!open || !SelectedObjectId(id))
 	{
 		statusWords = "Alt Locations: select an object first";
@@ -15577,6 +16060,11 @@ static void AltLocationCommand(int32_t command)
 // Assign Group Number: the typed number, taken when it is 0 or more (FUN_004dfa60)
 static void AltAssignGroup(int64_t typed)
 {
+	if (SpecialAlt_AssignGroup(typed))   // the current special object's (placement_special_alt.cpp)
+	{
+		return;
+	}
+
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	uint8_t id[8];
 	model::AltLocations *list = nullptr;
@@ -15648,6 +16136,7 @@ static void AltChangeShown(int64_t typed)
 		changed++;
 	}
 
+	changed += SpecialAlt_ChangeShown(open, typed);   // and the special objects' (placement_special_alt.cpp)
 	altWords = "Alt Locations: " + std::to_string((unsigned long long)changed) + " objects show their location " + std::to_string((long long)typed);
 	statusWords = altWords.c_str();
 }
@@ -17786,8 +18275,274 @@ static bool OpenAsDialog(int32_t kind)
 // FUN_004e1a80 opens inteng's "Rescale Shape" window FUN_004d4f80: 400 x 240, the words "Type in the new scale of the shape." at 18,18 (370 x 40), an EMPTY edit at 30,100 (300 x 35, up to 200 letters),
 // OK at 100,150 and Cancel at 200,150 (50 x 16), "Take scale from shape rif" at 75,200 (200 x 16); Return is OK. The answers (0x4d5150): OK 2, Cancel 1, Take scale 3. OK: the text is read by
 // sscanf "%lf" (0x5e8af8: a number at its start; nothing read, nothing done) and taken when it is 0 to 1,000,000 and the shape has an outside file: the shape made that size (shape_rescale_edit.h, with
-// its named deviations). Take scale (FUN_004e1970) reads the scale from the shape's own .rif: NOT BUILT (NAMED: the editor opens no outside shape file here); it says so.
+// its named deviations). Take scale (FUN_004e1970) brings the shape up to date from its own .rif, forced (OutsideShapesUpdate, OP-137..OP-141), then rescales it by new / old (FUN_004e1340).
 static std::string rescaleWords;
+
+// THE OUTSIDE SHAPES' UPDATE (inteng FUN_00512fc0; reassess/object-placement.md section 7, OP-137..OP-141; shape_update.h). Added 2026-11-16 by Melanikus (Vasquez).
+// Every outside shape of the held level (forced false: inteng does it at every load, silently), or the one the named object uses (forced true: Take scale), is brought up to date from its own
+// file in the shape folder (shapeFolder, F-IMPORT-FOLDER: [Editor] ShapeFolder= or shape_rifs beside the program; agreed with Frost). A file not there changes nothing, as in inteng. Each
+// refusal goes to the log with the file's name and why, and keeps the level's own copy (OP-141 (g)). All the changes go to the game's own loader at once (OpenLevelFile::ReplaceLevel), which
+// refuses the lot or takes it. The file must be a plain file, not a folder, a link or a device (OP-141 (b)); ShapeImport_Read (Frost's) holds the name to plain letters and the size to 4 MB.
+// Gives how many shapes changed; *before / *after get the last changed shape's rescale.
+static size_t const kOutsideMostLevelBytes = 32u << 20;   // what the game's loader takes, unpacked (OpenLevelFile's MostUnpackedBytes, level_file.cpp)
+
+static int OutsideShapesUpdateUnguarded(OpenLevelFile *open, bool forced, std::string const &onlyObject, double *before, double *after, std::vector<std::string> *names)
+{
+	using namespace host::shape_chunks;
+
+	std::vector<char> image;
+	std::vector<Span> top;
+	size_t total = 0;
+
+	if (!open || shapeFolder.empty() || !open->BuildLevel(image) || image.size() < kHeadingBytes || !NameIs(image, 0, "REBINFF2") || !ChunkSizeAt(image, 0, image.size(), &total) ||
+		!Children(image, kHeadingBytes, total, &top))
+	{
+		return 0;
+	}
+
+	std::vector<std::vector<char>> made(top.size());
+	int changed = 0;
+	std::vector<int32_t> users;   // how many of the level's objects each shape has (FUN_004bf1d0's tie), for the scale's "no object uses it" test
+
+	host::ShapeUpdate_LevelUsers(image, &users);
+	size_t wouldBe = image.size();   // the level as it would be put together with the shapes made so far
+
+	for (size_t i = 0; i < top.size(); i++)
+	{
+		if (!NameIs(image, top[i].at, "REBSHAPE"))
+		{
+			continue;
+		}
+
+		std::vector<char> const chunk(image.begin() + (std::ptrdiff_t)top[i].at, image.begin() + (std::ptrdiff_t)(top[i].at + top[i].size));
+		std::string name;
+
+		if ((!onlyObject.empty() && !host::ShapeUpdate_UsedBy(chunk, onlyObject)) || !host::ShapeUpdate_FileName(chunk, &name))
+		{
+			continue;
+		}
+
+		std::string path = shapeFolder;
+
+		if (path.back() != '\\' && path.back() != '/')
+		{
+			path += '\\';
+		}
+
+		path += name + ".rif";
+
+		DWORD const what = GetFileAttributesA(path.c_str());
+
+		if (what == INVALID_FILE_ATTRIBUTES)
+		{
+			continue;   // not in the folder: nothing, as inteng (0x5130ad)
+		}
+
+		if (what & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DEVICE))
+		{
+			LogString("outside shape " + name + ": refused, the file there is a folder, a link or a device; the level's own copy is kept");
+			continue;
+		}
+
+		std::vector<char> bytes;
+		host::ShapeImportResult const read = host::ShapeImport_Read(shapeFolder.c_str(), name, &bytes, nullptr);
+
+		if (read == host::ShapeImportResult::NotFound)
+		{
+			continue;
+		}
+
+		if (read != host::ShapeImportResult::Done)
+		{
+			LogString("outside shape " + name + ": refused, " + host::ShapeImportWords(read) + "; the level's own copy is kept");
+			continue;
+		}
+
+		std::string why;
+		host::ShapeUpdateResult const result = host::ShapeUpdate_Build(chunk, bytes, forced, i < users.size() ? users[i] : 0, &made[i], &why, before, after);
+
+		if (result == host::ShapeUpdateResult::Done || result == host::ShapeUpdateResult::NameOnly)
+		{
+			// HOSTILE INPUT: many shapes can name one big file, and every made shape is kept until the level is put together, so the level as it would be is measured as each one
+			// is made, and the lot is refused as soon as it passes what the game's loader takes, before the next one is made (hostile-input-1 of the 11-17 review: it ran the 32-bit
+			// editor out of memory while a level opened)
+			wouldBe = wouldBe - top[i].size + made[i].size();
+
+			if (wouldBe > kOutsideMostLevelBytes)
+			{
+				LogString("outside shapes: the level would be bigger than the game's loader takes (" + std::to_string(kOutsideMostLevelBytes >> 20) + " MB) with them; its own shapes are kept");
+
+				if (names)
+				{
+					names->clear();
+				}
+
+				return 0;
+			}
+
+			changed++;
+
+			if (names)
+			{
+				names->push_back(name);
+			}
+		}
+		else if (result != host::ShapeUpdateResult::NotOutside)
+		{
+			made[i].clear();
+			LogString("outside shape " + name + ": refused, " + host::ShapeUpdateWords(result) + (why.empty() ? std::string() : " (" + why + ")") + "; the level's own copy is kept");
+		}
+	}
+
+	if (changed == 0)
+	{
+		return 0;
+	}
+
+	std::vector<char> level(image.begin(), image.begin() + (std::ptrdiff_t)kHeadingBytes);
+
+	for (size_t i = 0; i < top.size(); i++)
+	{
+		if (!made[i].empty())
+		{
+			level.insert(level.end(), made[i].begin(), made[i].end());
+		}
+		else
+		{
+			AddCopy(&level, image, top[i]);
+		}
+	}
+
+	if (level.size() > 0x7fffffff)
+	{
+		LogString("outside shapes: the level would be too big; its own shapes are kept");
+		return 0;
+	}
+
+	PutIntAt(&level, 8, (int32_t)level.size());
+
+	if (open->ReplaceLevel(level) != LevelOpenResult::Opened)
+	{
+		LogString("outside shapes: the game's own loader refused the level with them; its own shapes are kept");
+		return 0;
+	}
+
+	LogString("outside shapes: " + std::to_string(changed) + " brought up to date from " + shapeFolder);
+	return changed;
+}
+
+// The update, with running out of memory on a hostile level refused like any other refusal: the level is as it was (hostile-input-1)
+static int OutsideShapesUpdate(OpenLevelFile *open, bool forced, std::string const &onlyObject, double *before, double *after, std::vector<std::string> *names = nullptr)
+{
+	try
+	{
+		return OutsideShapesUpdateUnguarded(open, forced, onlyObject, before, after, names);
+	}
+	catch (std::bad_alloc const &)
+	{
+		LogString("outside shapes: not enough memory to bring them up to date; the level's own shapes are kept");
+
+		if (names)
+		{
+			names->clear();
+		}
+
+		return 0;
+	}
+}
+
+// OP-137a (inteng: the SHPEXTFL's post_input_processing FUN_005149e0 -> FUN_00512fc0(0) runs WHILE THE RIF IS READ, vtable 0x5aeb9c +0x24, so nothing is ever drawn with the file's old
+// outside shapes): the refresh of a whole level FILE, for the open path to call on the editor's OWN copy (avp_rifs\OpenedByEditor\...) before the game loads it for the view (agreed with
+// Frost 11-16: the open path is his). The file is opened by the game's hardened loader (OpenLevelFile::Open: hostile input), every outside shape is brought up to date (OutsideShapesUpdate,
+// not forced), and only when one changed is the file written again, over THAT path (SaveAs: the game's loader checks the new bytes first). Never called with his own file. Silent as in
+// inteng (OP-139): each refusal goes to the log only. *why (when given) says what happened. Added 2026-11-16 by Melanikus (Vasquez).
+enum class OutsideRefresh
+{
+	Changed,     // at least one outside shape changed, and the file was written with them
+	Unchanged,   // nothing to change (no outside shape, none in the folder, or every one refused: the log says which)
+	Refused,     // the file couldn't be opened by the game's loader, or the new file couldn't be written: it is as it was
+};
+
+static std::string outsideShapesWords;   // OP-140: the open's refresh, for the status line (empty: nothing changed)
+
+// OP-140's words for the shapes an update brought up to date (the file names OutsideShapesUpdate gives): each file once, in the level's order, with how many of its shapes when more than one;
+// at most 8, so the line stays readable
+static std::string OutsideShapesWordsOf(std::vector<std::string> const &refreshed)
+{
+	std::string words;
+
+	std::vector<std::pair<std::string, int>> named;
+
+	for (std::string const &one : refreshed)
+	{
+		auto const same = std::find_if(named.begin(), named.end(), [&one](std::pair<std::string, int> const &n) { return n.first == one; });
+
+		if (same == named.end())
+		{
+			named.push_back(std::make_pair(one, 1));
+		}
+		else
+		{
+			same->second++;
+		}
+	}
+
+	words = "Outside shapes brought up to date from their own files:";
+
+	for (size_t i = 0; i < named.size() && i < 8; i++)
+	{
+		words += (i ? ", " : " ") + named[i].first + (named[i].second > 1 ? " (" + std::to_string(named[i].second) + " shapes)" : std::string());
+	}
+
+	if (named.size() > 8)
+	{
+		words += " and " + std::to_string(named.size() - 8) + " more files";
+	}
+
+	return words;
+}
+
+
+static OutsideRefresh OutsideShapes_RefreshFile(const char *rifPath, std::string *why)
+{
+	std::string words;
+	OutsideRefresh result = OutsideRefresh::Unchanged;
+	OpenLevelFile file;
+	std::vector<std::string> refreshed;
+	LevelOpenResult const opened = rifPath && rifPath[0] ? file.Open(rifPath) : LevelOpenResult::NoPath;
+
+	if (opened != LevelOpenResult::Opened)
+	{
+		result = OutsideRefresh::Refused;
+		words = std::string("outside shapes: the level file wasn't refreshed, ") + NotHeldWords(opened);
+	}
+	else if (OutsideShapesUpdate(&file, false, std::string(), nullptr, nullptr, &refreshed) == 0)
+	{
+		words = "outside shapes: nothing to bring up to date";
+	}
+	else if (file.SaveAs(rifPath) != LevelSaveResult::Saved)
+	{
+		result = OutsideRefresh::Refused;
+		words = "outside shapes: the refreshed level couldn't be written; the file is as it was";
+	}
+	else
+	{
+		result = OutsideRefresh::Changed;
+		words = OutsideShapesWordsOf(refreshed);   // OP-140 (Bishop's ruling 11-17): inteng's refresh is silent; ours says which shapes it brought up to date
+	}
+
+	if (result != OutsideRefresh::Unchanged)
+	{
+		LogString(words);
+	}
+
+	if (why)
+	{
+		*why = words;
+	}
+
+	return result;
+}
 
 static void RescaleShapeBox()
 {
@@ -17834,7 +18589,51 @@ static void RescaleShapeBox()
 	{
 		if (answer == 4)
 		{
-			Answer("Take scale from shape rif: not built (inteng reads the scale from the shape's own .rif file, FUN_004e1970)");
+			// Take scale from shape rif (FUN_004e1970): the shape brought up to date from its own file, FORCED (FUN_00512fc0(1): rescale 1.0, then the file's ENVSDSCL when it has one), then every
+			// placed object of the shape rescaled by new / old (its +0x14 = FUN_004e1340, here Drake's ShapeRescale_ByValue with the value that gives that factor; NAMED there: a shape other
+			// objects use too is refused, where inteng scales it once per object)
+			std::vector<host::LevelObject> objects;
+			std::string name;
+
+			if (LevelObjects_Read(&objects))
+			{
+				for (host::LevelObject const &one : objects)
+				{
+					if (memcmp(one.id, object.data(), 8) == 0 && one.name)
+					{
+						name = one.name;
+					}
+				}
+			}
+
+			double before = 0.0, after = 0.0;
+
+			if (name.empty() || OutsideShapesUpdate(LevelObjects_OpenForEdit(), true, name, &before, &after) == 0)
+			{
+				rescaleWords = "Take scale from shape rif: the shape's own file is not in the shape folder, or was refused (the log says why); nothing changed";
+				Answer(rescaleWords);
+				return;
+			}
+
+			// the update put the level together again (ReplaceLevel): every Chunk * of the old one is gone, so the list and the field panel let go of them (open-path-1 of the 11-17 review)
+			LoadTheObjectListAgain();
+
+			// FUN_004e1970: +0x14 (FUN_004e1340) with new / old, the rescale read before and after FUN_00512fc0(1): the FACTOR is checked and used (ShapeRescale_ByFactor), not a typed size made from
+			// it, whose own 1,000,000 bound refused factors inteng takes (open-path-4). The RIFFNAME-only update gives the same rescale twice: a factor of 1.0, as inteng.
+			OpenLevelFile *const open = LevelObjects_OpenForEdit();
+			double const factor = before > 0.0 ? after / before : 0.0;
+			std::string reason;
+			unsigned const generation = open ? open->Generation() : 0;
+			host::ShapeRescaleResult const result = before > 0.0 && open ? host::ShapeRescale_ByFactor(open, LevelObjects_Level(), object.data(), factor, &reason) : host::ShapeRescaleResult::BadShape;
+
+			if (open && open->Generation() != generation)
+			{
+				LoadTheObjectListAgain();   // the rescale made a SHPCENTR by putting the level together again (V-30a)
+			}
+
+			rescaleWords = "Take scale from shape rif: the shape is its file's again at scale " + std::to_string(after) + (result == host::ShapeRescaleResult::Done ?
+				", then " + std::to_string(factor) + " times that (new / old)" : std::string(", but the rescale by new / old was not done: ") + host::ShapeRescaleWords(result));
+			Answer(rescaleWords);
 			return;
 		}
 
@@ -17869,7 +18668,15 @@ static void RescaleShapeBox()
 			return;
 		}
 
+		unsigned const generation = open->Generation();
 		host::ShapeRescaleResult const result = host::ShapeRescale_ByValue(open, LevelObjects_Level(), object.data(), value, local_scale > 0.0 ? local_scale : 1.0, &factor, &reason);
+
+		// V-30b: a shape with no SHPCENTR gets one by the level being put together again (V-30a's ReplaceLevel): every Chunk * of the old level is gone, so the list and the field panel
+		// let go of them, as every other edit that swaps the level does
+		if (open->Generation() != generation)
+		{
+			LoadTheObjectListAgain();
+		}
 
 		if (result != host::ShapeRescaleResult::Done)
 		{
@@ -18670,7 +19477,7 @@ void VolumeBegin()
 		int32_t view[9];
 
 		// the camera's OWN forward (inteng's +0x50..+0x58: its live matrix's third row), from its angles: not LevelView_CameraAxes, which reads the last DRAWN frame, and V is pressed in
-		// a kind's Edit view, which draws no level (editViewBlack), so a turn made there would be missed (a skeptic's correction to the brief, 11-17)
+		// a kind's Edit view, which drew no level (before the owner's box) and still need not have drawn the turn, so a turn made there would be missed (a skeptic's correction to the brief, 11-17)
 		LevelView_MatrixOfAngles(theCamera->turn, theCamera->look, theCamera->roll, view);
 		theCamera->x = (int)((lo[0] + hi[0]) / 2) - view[6] / 10;
 		theCamera->y = (int)((lo[1] + hi[1]) / 2) - view[7] / 10;
@@ -20009,6 +20816,20 @@ int main(int, char **)
 		return Stop((std::string("can't open that file: ") + why).c_str());
 	}
 
+	// OP-137 / OP-137a (inteng FUN_005149e0 -> FUN_00512fc0(0) while the rif is read, so nothing is drawn with a file's old outside shapes): the outside shapes of the editor's OWN copy
+	// (avp_rifs\OpenedByEditor\, OpenWith_TakeLevel's) are brought up to date from their files in the shape folder ([Editor] ShapeFolder=, else shape_rifs beside the program: Bishop's
+	// ruling OP-137) BEFORE the game loads it for the view, so the view and the held level read the same bytes. A level opened by its name from the data folder is never written.
+	if (!levelFile.empty())
+	{
+		std::string const ownCopy = std::string(dataFolder) + "\\avp_rifs\\" + levelName + ".rif";
+		std::string refreshWords;
+
+		if (OutsideShapes_RefreshFile(ownCopy.c_str(), &refreshWords) == OutsideRefresh::Changed)
+		{
+			outsideShapesWords = refreshWords;
+		}
+	}
+
 	levelSourcePath = levelFile;   // where the level really is (Load from file reads the module file beside it, as inteng reads it beside the level it opened)
 
 	// The windows (view_surface.h). The editor's own window holds the panels, and the level's view is a child window over the view's
@@ -20128,6 +20949,8 @@ int main(int, char **)
 		return Stop(why);
 	}
 
+	statusWords = LevelView_SayMissingPictures(statusWords);   // MISSING PICTURES: the user is told how many (level_view.h)
+
 	// THE FIRST FRAME, as inteng's: the hub (FUN_00447550) ends with FUN_00470550(10), the camera from slot 10, which holds the origin (0, 0, 0) and the identity turn (DAT_00636f90 + 0x78,
 	// DAT_005d3b38 + 0x168: nothing but a camera file beside the level, <RIFFNAME>.cam, written by inteng's own Exit, fills them in, and the level's CAMORIGN adds its offset to every slot
 	// at FUN_00470950: both still to be read, the camera file by this editor never being written), and the Gouraud switch is OFF (lighting starts off: FUN_004d67f0's DAT_008f4f0c = 0). Every
@@ -20166,8 +20989,24 @@ int main(int, char **)
 	std::unique_ptr<OpenLevelFile> openLevel(new OpenLevelFile);
 	const char *const notHeldWords = NotHeldWords(LevelObjects_Hold(openLevel.get()));
 	editedLevel = openLevel.get();
+
+	// OP-137 / OP-137a (inteng FUN_005149e0 -> FUN_00512fc0(0) while the rif is read): the open path refreshes the editor's own copy of the file with OutsideShapes_RefreshFile BEFORE the
+	// game loads it for the view, so the view and this held level are both read from the refreshed bytes (the call is just after OpenWith_TakeLevel; the refresh itself is not done here).
 	copySavedChanges = openLevel->Changes();   // Move relative and Name object change its bytes (M-1)
 	viewChanges = openLevel->Changes();               // the game's view is of these bytes (ShowTheWorkingBytes)
+
+	// OP-137b (Bishop's ruling Q2, 11-17: EVERY open path, as inteng refreshes at every load, FUN_005149e0): a level opened by its NAME from the data folder (Level=, no file on the command
+	// line) is never written, so its outside shapes are brought up to date on the HELD level, in memory (ReplaceLevel). Its Changes() then differs from the view's, so the view loads those
+	// working bytes on the next frame (ShowTheWorkingBytes); a save writes them, to the copy the user picks. The double-click path did it on the editor's own copy, above.
+	if (levelFile.empty() && !notHeldWords)
+	{
+		std::vector<std::string> refreshed;
+
+		if (OutsideShapesUpdate(openLevel.get(), false, std::string(), nullptr, nullptr, &refreshed) > 0)
+		{
+			outsideShapesWords = OutsideShapesWordsOf(refreshed);
+		}
+	}
 
 	// THE CAMERA FILE (inteng, FUN_00470950): the eleven saved camera places of this level, from <RIFFNAME>.cam, read after the first frame's camera is set (so they are used from the next F key or mode start). Ours is read from and
 	// written to the editor's own folder (camera_file.h says what is named); written when the program ends (FUN_00470610).
@@ -20260,6 +21099,19 @@ int main(int, char **)
 		}
 	}
 
+	// OP-140 (Bishop's ruling 11-17, a named difference): which outside shapes the open brought up to date; after the start's Gouraud words, and a level not held says so over it
+	if (!outsideShapesWords.empty())
+	{
+		// whatever the start put on the line stays after them: the inteng.exe warning (IntengExeStart), a -viewmode's words (open-path-6), how many pictures are missing
+		// (LevelView_SayMissingPictures, which hands back words of its own, so the warning can't be told by its pointer: 11-18, after bishop-int's ad73774b)
+		if (statusWords && statusWords[0])
+		{
+			outsideShapesWords += std::string(" - ") + statusWords;
+		}
+
+		statusWords = outsideShapesWords.c_str();
+	}
+
 	if (notHeldWords)
 	{
 		statusWords = notHeldWords;
@@ -20319,6 +21171,8 @@ int main(int, char **)
 	ui::Box drawnTitles[ui::kMenuMostMenus] = {};
 	while (running)
 	{
+		StateLine_NewFrame();   // the state line's added fields are this frame's (state_line.h)
+
 		// With nobody at the screen, the editor's window must never become the one with the keyboard (nobody_watching.h). If it ever
 		// does, the run says so and fails, so that's never missed. (It's the editor's own window that could: the view is its child.)
 		if (pictureAfter && GetForegroundWindow() == editorWindow)
@@ -20770,7 +21624,7 @@ int main(int, char **)
 			LevelView_SetSelectedColour(OnModuleLinkingScreen() || (OnStrategyScreen() && ((strategyEditFan && strategyPickField.empty()) || copyCollecting)) ? 0u :
 				(OnAPlacementScreen() || OnStrategyScreen() ? 0xFFFF0000u : (onTheHub ? hubSelection : 0xFF00FF00u)));
 
-			bool const iconsWanted = !OnALightScreen() && !(stabilityActive && OnStrategyScreen()) && (OnAPlacementScreen() || OnStrategyScreen()) && !placementSplit && !(strategyEditFan && OnStrategyScreen() && strategyPickField.empty() && !copyCollecting && !volume.on);   // an Edit view's black screen shows no icons (S-KC-1)
+			bool const iconsWanted = !OnALightScreen() && !(stabilityActive && OnStrategyScreen()) && (OnAPlacementScreen() || OnStrategyScreen()) && !placementSplit;   // (inteng's Edit view's black screen showed none, S-KC-1; the owner's box draws the level, its icons too, round the view's box, which covers what is behind it)
 
 			// HIERARCHY'S PLATFORM FLOOR (hierarchy-closeout-frost.md TB-4; Vasquez 11-17): FUN_0048d230 makes it at the mode's start (0x4887e0), one polygon of four points 100,000 of inteng's units
 			// either side across x and 1,000,000 along z at y 0 (1 m and 10 m of the world's), the texture "Platform.rim" (FUN_0057a850 0x57a978: DAT_00915078) loaded through CL_LoadImageOnce,
@@ -20778,8 +21632,10 @@ int main(int, char **)
 			// when it is off, scrolling the texture's v by the speed. His Tools folder (and the tools' own install) has no Platform.rim, so inteng draws the white floor: ours draws that.
 			// NAMED: a Platform.rim is never looked for here (no textured floor, so no scrolling).
 			bool const platformWanted = onHierarchy && hierarchyMode.platformOn;
+			std::vector<LevelViewTriangle> mergeTriangles;
+			bool const mergeWanted = TextureMergeFrame(&mergeTriangles);   // Texture Map's Merge viewing: the shape's polygons in their colours (texture_submodes.cpp)
 
-			if (trianglesShown && !OnALightScreen() && !(stabilityActive && OnStrategyScreen()) && !iconsWanted && !platformWanted)
+			if (trianglesShown && !OnALightScreen() && !(stabilityActive && OnStrategyScreen()) && !iconsWanted && !platformWanted && !mergeWanted)
 			{
 				LevelView_WorldTriangles(nullptr, 0);
 				trianglesShown = false;
@@ -20806,7 +21662,12 @@ int main(int, char **)
 				LevelView_WorldTriangles(floor, 2);
 			}
 
-			if (OnALightScreen())
+			if (mergeWanted)
+			{
+				trianglesShown = true;
+				LevelView_WorldTriangles(mergeTriangles.data(), mergeTriangles.size());
+			}
+			else if (OnALightScreen())
 			{
 				static uint32_t markerFrame = 0;
 				std::vector<LevelViewTriangle> lightTriangles;
@@ -21174,19 +22035,18 @@ int main(int, char **)
 
 		AnimPlayTick();
 
-		// A strategy's Edit view (each kind's method +0x14) fills the WHOLE window black every pass (FUN_00418b80(&DAT_0091f6c0, 0), e.g. FUN_0052cbb0 0x52cbe7) and draws
-		// only its own lines: the level is not drawn while it is up (reassess/strategy-data-kinds.md S-KC-1). An object pick of a view line shows the screen again (S-KC-5).
-		// the volume editor (FUN_005277c0, Volume of Death's view) draws the level with its red cube and the picked module red (strategy-data.md S-VOL-1): not black
-		// [S-KC-1] an Edit view's pass: FUN_00418b80(&DAT_0091f6c0, 0) fills the whole window black (no level, no icons), its lines in inteng's font, FUN_004cac80 shows it (FUN_0052cbb0 0x52cbe7-0x52cd42);
-		// a pick or the Lift's collector draws the screen as usual
-		bool const editViewBlack = strategyEditFan && OnStrategyScreen() && strategyPickField.empty() && !copyCollecting && !volume.on;
+		// A strategy's Edit view (each kind's method +0x14) fills the WHOLE window black every pass in inteng (FUN_00418b80(&DAT_0091f6c0, 0), e.g. FUN_0052cbb0 0x52cbe7) and draws only its own lines:
+		// the level is not drawn while it is up (reassess/strategy-data-kinds.md S-KC-1). THE OWNER'S BOX (11-17, NAMED): ours draws the view, its pages and E's pages in a black box centred in
+		// the window (editor_panels.cpp StrategyViewBoxIn) and the level round it, as round Generator Settings. A pick or the Lift's collector draws the screen as usual (S-KC-5); the volume
+		// editor (FUN_005277c0) draws the level with its red cube and the picked module red (S-VOL-1)
+		// Object Placement's look (OP-3 / OP-44): the call does only what changed since the last frame (the look's start or end, a Lighting flip, a level opened again)
+		PlacementLighting_Frame(barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : nullptr);
 		char const *const savedTo = askedPicture ? askedPicture : (screenshotTo ? screenshotTo : shotTo);
-		bool const drawn = editViewBlack ? LevelView_DrawNoLevel(savedTo, AddThePanels, &framePanels)
-		                                 : LevelView_Draw(camera, savedTo, AddThePanels, &framePanels);
+		bool const drawn = LevelView_Draw(camera, savedTo, AddThePanels, &framePanels);
 
 		if (shotTo)
 		{
-			ShotFinish(drawn, camera, !editViewBlack, windowWidth, windowHeight);
+			ShotFinish(drawn, camera, true, windowWidth, windowHeight);
 		}
 
 		if (screenshotTo)
@@ -21314,7 +22174,12 @@ int main(int, char **)
 			}
 			else if (strategyEditFan && OnStrategyScreen())
 			{
-				StrategyViewClickAt(pickX, pickY - strategyViewTop);
+				// from the box's top left (x too: the Track, Hierarchy and Multi pages read x bands, strategy_views.h). A left click outside the box does nothing: inteng's page was the whole screen,
+				// so it had no outside (NAMED, with the box); the right button ends the view anywhere, as before
+				if (strategyViewBox[2] <= 0 || (pickX >= strategyViewBox[0] && pickX < strategyViewBox[0] + strategyViewBox[2] && pickY >= strategyViewBox[1] && pickY < strategyViewBox[1] + strategyViewBox[3]))
+				{
+					StrategyViewClickAt(pickX - strategyViewLeft, pickY - strategyViewTop);
+				}
 			}
 			else if (OnStrategyScreen() && !pickWithS)
 			{
@@ -21804,8 +22669,8 @@ int main(int, char **)
 				}
 			}
 
-			printf("AVP_OpenInteng: scenario: screen \"%s\"; bar1 \"%s\"; bar2 \"%s\"; selection \"%s\"; prompt %d; status \"%s\"; selected \"%zu\"; modelbox \"%s\"; choices \"%s\"; dialog \"%s\"; dialogrows \"%s\"; dialogrow1 \"%s\"; dialogkind \"%s\"; dialogbuttons \"%s\"; dialogtext \"%s\"; dialogchecks \"%s\"; dialogfields \"%s\"; dialogcombos \"%s\"; dialogcomborows \"%s\"; popup \"%s\"; popuprow1 \"%s\"; popupstep \"%s\"; viewmode \"%s\"; camera \"%d %d %d %d %d\"; level \"%s\"; levelbytes \"%lld\"; hierarchylines \"%s\"; barshown \"%d\"; stability \"%s\"; camspeed \"%d\"; barboxes \"%s\"; dropboxes \"%s\"; strategyview \"%s\"; volume \"%s\"; volumeface \"%d\"; volumemodule \"%d\"; screentext \"%s\"; viewdistance \"%d\"; dropticked \"%s\"; textscreen \"%s\"; linktree \"%s\"; placedsounds \"%s\"; pathlines \"%s\"; camerasaved \"%u\"; camerasaveddrawn \"%u\"; lightspin \"%s\"; linkmessage \"%s\"; window \"%s\"; selectedat \"%s\"; flyat \"%s\"; orbit \"%s\"; flyturned \"%s\"; flymatrix \"%s\"; camangles \"%s\"; rotcentre \"%s\"; trackobjects \"%s\"\n", barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : "?", titles1.c_str(), titles2.c_str(),
-				selectedWords.c_str(), (int)promptFor, statusWords ? statusWords : "", host::Selection_SetCount(), modelBox.c_str(), choiceBoxes.c_str(), dialogTitle.c_str(), dialogRows.c_str(), dialogRow1.c_str(), dialogKindWord.c_str(), dialogNow.buttons.c_str(), dialogNow.text.c_str(), dialogNow.checks.c_str(), dialogNow.fields.c_str(), dialogNow.combos.c_str(), dialogNow.comborows.c_str(), popupEntries.c_str(), popupRow1.c_str(), popupStep.c_str(), scenarioViewMode, camera.x, camera.y, camera.z, camera.turn, camera.look, openLevelName.c_str(), scenarioLevelBytes, hierarchyLinesWord.c_str(), barVisible ? 1 : 0, stabilityWord.c_str(), speedUnits, barBoxesWord.c_str(), dropBoxesWord.c_str(), strategyViewWord.c_str(), volumeWord.c_str(), volume.on ? volume.face : -1, volume.on ? volume.module : -1, screenTextNow.c_str(), (int)(viewDistance / 500000), dropTickedWord.c_str(), textScreenWord.c_str(), LinkTreeStateWords().c_str(), placedSoundsWord.c_str(), pathLinesNow.c_str(), cameraSavedCount, cameraSavedDrawn, OnALightScreen() ? lightSpinWord.c_str() : "", linkMessageShown.c_str(), windowWord.c_str(), selectedAt.c_str(), flyAtWords.c_str(), orbitWords.c_str(), flyTurnedWords.c_str(), flyMatrixWords.c_str(), camAnglesWords.c_str(), rotCentreWords.c_str(), trackObjectsWords.c_str());
+			printf("AVP_OpenInteng: scenario: screen \"%s\"; bar1 \"%s\"; bar2 \"%s\"; selection \"%s\"; prompt %d; fieldsfresh \"%d\"; status \"%s\"; selected \"%zu\"; modelbox \"%s\"; choices \"%s\"; dialog \"%s\"; dialogrows \"%s\"; dialogrow1 \"%s\"; dialogkind \"%s\"; dialogbuttons \"%s\"; dialogtext \"%s\"; dialogchecks \"%s\"; dialogfields \"%s\"; dialogcombos \"%s\"; dialogcomborows \"%s\"; popup \"%s\"; popuprow1 \"%s\"; popupstep \"%s\"; viewmode \"%s\"; camera \"%d %d %d %d %d\"; level \"%s\"; levelbytes \"%lld\"; hierarchylines \"%s\"; barshown \"%d\"; stability \"%s\"; camspeed \"%d\"; barboxes \"%s\"; dropboxes \"%s\"; strategyview \"%s\"; volume \"%s\"; volumeface \"%d\"; volumemodule \"%d\"; screentext \"%s\"; viewdistance \"%d\"; dropticked \"%s\"; textscreen \"%s\"; linktree \"%s\"; placedsounds \"%s\"; pathlines \"%s\"; camerasaved \"%u\"; camerasaveddrawn \"%u\"; lightspin \"%s\"; linkmessage \"%s\"; window \"%s\"; selectedat \"%s\"; flyat \"%s\"; orbit \"%s\"; flyturned \"%s\"; flymatrix \"%s\"; camangles \"%s\"; rotcentre \"%s\"; trackobjects \"%s\"%s\n", barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : "?", titles1.c_str(), titles2.c_str(),
+				selectedWords.c_str(), (int)promptFor, FieldsFresh() ? 1 : 0, statusWords ? statusWords : "", host::Selection_SetCount(), modelBox.c_str(), choiceBoxes.c_str(), dialogTitle.c_str(), dialogRows.c_str(), dialogRow1.c_str(), dialogKindWord.c_str(), dialogNow.buttons.c_str(), dialogNow.text.c_str(), dialogNow.checks.c_str(), dialogNow.fields.c_str(), dialogNow.combos.c_str(), dialogNow.comborows.c_str(), popupEntries.c_str(), popupRow1.c_str(), popupStep.c_str(), scenarioViewMode, camera.x, camera.y, camera.z, camera.turn, camera.look, openLevelName.c_str(), scenarioLevelBytes, hierarchyLinesWord.c_str(), barVisible ? 1 : 0, stabilityWord.c_str(), speedUnits, barBoxesWord.c_str(), dropBoxesWord.c_str(), strategyViewWord.c_str(), volumeWord.c_str(), volume.on ? volume.face : -1, volume.on ? volume.module : -1, screenTextNow.c_str(), (int)(viewDistance / 500000), dropTickedWord.c_str(), textScreenWord.c_str(), LinkTreeStateWords().c_str(), placedSoundsWord.c_str(), pathLinesNow.c_str(), cameraSavedCount, cameraSavedDrawn, OnALightScreen() ? lightSpinWord.c_str() : "", linkMessageShown.c_str(), windowWord.c_str(), selectedAt.c_str(), flyAtWords.c_str(), orbitWords.c_str(), flyTurnedWords.c_str(), flyMatrixWords.c_str(), camAnglesWords.c_str(), rotCentreWords.c_str(), trackObjectsWords.c_str(), StateLine_Words().c_str());
 			fflush(stdout);
 
 			// the camera, for a run that moves it (hold Z, a turn): where it is, in the game's millimetres, and the frames drawn so far

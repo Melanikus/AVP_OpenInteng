@@ -74,6 +74,11 @@ bool LevelView_Start(char *why, size_t whySize);
 // Gives back false, with why, if the name is refused.
 bool LevelView_Open(const char *levelName, FlyCamera *startHere, char *why, size_t whySize);
 
+// The last level opened's MISSING PICTURES (the owner, 2026-11-17: users are told everything): how many of its pictures could not be loaded, or that it has no list
+// of pictures at all, and that their polygons are drawn as white lines, as inteng draws them, said in the log and given back for the status line. Gives back otherwise
+// when none is missing.
+const char *LevelView_SayMissingPictures(const char *otherwise);
+
 // Where the last level opened put things, in plain words for a run's report: the level's own start (its AVPSTART record), the player's
 // body, the player's display block, and the room the camera starts in. Empty until a level is open. (Added 2026-11-14 by Melanikus
 // (Dietrich), F3.)
@@ -254,6 +259,18 @@ bool LevelView_SetItemUv(const LevelViewShapeOf &shape, int32_t item, const int3
 
 // The game's item takes (on) or loses (not on) these bits of its flags (iflag_notvis 1, iflag_nolight 2, iflag_transparent 0x10, iflag_no_bfc 0x20, iflag_mirror 0x1000, ...) at once, so the view shows the flag now; the file's polygon is not touched here. (Added 2026-11-15 by Melanikus (Dietrich), Texture Map flags.)
 bool LevelView_SetItemFlagBits(const LevelViewShapeOf &shape, int32_t item, int32_t mask, bool on);
+
+// OBJECT PLACEMENT'S LIGHTING (OP-3, OP-44; added 2026-11-17 by Drake). on: the mode's look. Every item of every shape a module draws gets iflag_nolight, so the modules are drawn unlit (inteng's
+// entry FUN_004d68e0 0x4d84e6-0x4d8526), and the level's other shapes that hold baked colours (ShapeFlag_PreLit; FUN_004d67f0) are lit (objectsLit: the bit cleared) or unlit (set). Not on: every
+// item the look changed has its own bit back (inteng loads the level again when the mode ends). Each call does only what changed since the last, so it can be called every frame; a level opened in
+// between comes in with its own bits and is taken as new. inteng also swaps those items' types (5 <-> 6, 7 <-> 0x18); the game's loader has made every textured item of ours
+// I_ZB_Gouraud3dTexturedPolygon (post_process_shape, projload.cpp:3027-3080), so none holds those types and the bit is the whole of it for our renderer. NAMED: inteng's objects are its shapes from
+// DAT_008f588c on; ours are the level's shapes no module draws. Gives back how many items' bits it set or put back.
+int LevelView_PlacementLighting(bool on, bool objectsLit);
+
+// The look for a scenario's state line: "look <0|1> lit <0|1> modules <items> objects <items>", then " at x y z|..." for up to four blocks in play whose shape is an object's with baked
+// colours (the world's places: what a picture of the look can be aimed at). Empty when no level is open.
+std::string LevelView_PlacementLightingWords();
 
 // THE LIVE SCALE of Object Placement's '=' and '-' keys (OP-14; inteng's FUN_004e1340 scales the game's own shape of the block each frame the key is held): every point of the
 // shape the game has loaded for this object, its radius and its six extents are multiplied by factor, each cut toward zero as inteng's __ftol; the block takes its extents

@@ -1,0 +1,79 @@
+# ACCEPTANCE (PH-8..10, reassess/object-placement.md; reassess/ph8-13-map-vasquez.json): the current placed hierarchy's Sounds items. Edit (0x7d4, FUN_004eafe0) and Remove (0x7d5,
+# FUN_004eb010) choose a sound in inteng's list of "%d %s" rows (FUN_004eac40: "Select sound to edit" / "Delete which sound?"); Add (0x7d3, FUN_004eab10) makes a sound with the lowest
+# unused index (FUN_004ebc80(index, 1): "Not Set", 5 m / 40 m, pitch 0, 100 %, Sound Loops on and live) in edobtype's Sound Edit window first. INTENG BUG, FIXED (Bishop's ruling Q1,
+# 11-17, as TB-T1): inteng keeps the new sound on Cancel, leaving a "Not Set" sound in the level; ours adds nothing. OK puts it at the end of the list; Edit writes the window back;
+# Remove takes the pick out with no question. dropship ken (Invasion) has two sounds of its own: 0 jet loop.wav, 1 dropship door.wav.
+# Red before PH-8..10 (vph-1: the items do nothing); green with them.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera 72906 -27615 45151 0 0
+wait 400
+click-win 504 322
+wait 400
+expect-status Selected: dropship ken
+
+# ---- S1 Edit's chooser: the hierarchy's two sounds
+click-win 504 322 right
+click-popup 4
+expect-popup-rows Edit|Add|Remove
+click-popup 1
+expect-dialog Select sound to edit
+expect-dialog-rows 0 jet loop.wav|1 dropship door.wav
+key Esc
+expect-no-dialog
+
+# ---- S2 Add, then Cancel: the window on inteng's new sound; Cancel adds nothing (the named fix)
+click-win 504 322 right
+click-popup 4
+click-popup 2
+expect-dialog Sound Edit -
+expect-dialog-text Not Set|5|40|0|100
+click-button Cancel
+expect-no-dialog
+click-win 504 322 right
+click-popup 4
+click-popup 1
+expect-dialog-rows 0 jet loop.wav|1 dropship door.wav
+key Esc
+expect-no-dialog
+
+# ---- S3 Add, then OK: index 2 at the end of the list
+click-win 504 322 right
+click-popup 4
+click-popup 2
+expect-dialog Sound Edit -
+form-field 1 step.wav
+click-button OK
+expect-no-dialog
+click-win 504 322 right
+click-popup 4
+click-popup 1
+expect-dialog-rows 0 jet loop.wav|1 dropship door.wav|2 step.wav
+
+# ---- S4 Edit: the window on the pick, written back
+click-row 3
+expect-dialog Sound Edit -
+expect-dialog-text step.wav|5|40|0|100
+form-field 5 50
+click-button OK
+expect-no-dialog
+picture 1
+
+# ---- S5 Remove: the pick taken out, no question
+click-win 504 322 right
+click-popup 4
+click-popup 3
+expect-dialog Delete which sound?
+expect-dialog-rows 0 jet loop.wav|1 dropship door.wav|2 step.wav
+click-row 3
+expect-no-dialog
+click-win 504 322 right
+click-popup 4
+click-popup 1
+expect-dialog-rows 0 jet loop.wav|1 dropship door.wav
+key Esc
+expect-no-dialog
+picture 2

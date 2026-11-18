@@ -19,10 +19,10 @@ click-popup 3
 wait 400
 expect-field strategyview 200@0:liftplt : Platform Lift|16@16:Starts enabled|16@32:Once enabled , continues working until switched off
 picture 1
-click-win 300 24
+click-box 300 24
 wait 300
 expect-field strategyview 200@0:liftplt : Platform Lift|16@16:Starts disabled|16@32:Once enabled , continues working until switched off
-click-win 300 40
+click-box 300 40
 wait 300
 expect-field strategyview 200@0:liftplt : Platform Lift|16@16:Starts disabled|16@32:Becomes disabled after one use
 picture 2

@@ -64,6 +64,24 @@ int main()
 	Check(Lost(KeyLayout::Classic, true).empty(), "Classic's camera, on the keypad, loses nothing with the texture window on either");
 	Check(host::TextureMapKeys_CameraKeysLost(KeyLayout::ModernWasd, false, nullptr, 0) == 3, "asking with no room still counts the keys lost");
 
+	// D1 (Dietrich 2026-11-18): the ownership by inteng's sub-mode. 0 and 1 are the polygons' and the texture window's, key for key; 2 (Merge) takes what its table gives: Tab (2) and P (0x32)
+	// with no modifier (FUN_00557ea0 0x5582d6-0x558311), so the camera keeps A, D, F and the arrows; a sub-mode inteng does not have takes nothing
+	bool sameAsBefore = true;
+
+	for (int key = 1; key < 256; key++)
+	{
+		sameAsBefore = sameAsBefore && host::TextureMapKeys_OwnInSubMode((uint8_t)key, 0) == host::TextureMapKeys_Own((uint8_t)key, false) &&
+			host::TextureMapKeys_OwnInSubMode((uint8_t)key, 1) == host::TextureMapKeys_Own((uint8_t)key, true);
+	}
+
+	Check(sameAsBefore, "sub-modes 0 and 1 own every key as TextureMapKeys_Own does without and with the texture window");
+	Check(host::TextureMapKeys_OwnInSubMode(VK_TAB, 2) && host::TextureMapKeys_OwnInSubMode('P', 2), "Merge (sub-mode 2) takes Tab and P, its table's keys");
+	Check(!host::TextureMapKeys_OwnInSubMode('A', 2) && !host::TextureMapKeys_OwnInSubMode('D', 2) && !host::TextureMapKeys_OwnInSubMode('F', 2) && !host::TextureMapKeys_OwnInSubMode(VK_LEFT, 2),
+		"and leaves A, D, F and the arrows to the camera");
+	Check(!host::TextureMapKeys_OwnInSubMode('P', 4) && !host::TextureMapKeys_OwnInSubMode(VK_TAB, -1), "a sub-mode inteng does not have takes no key");
+	Check(host::TextureMapKeys_OwnInSubMode('M', 2) && host::TextureMapKeys_OwnInSubMode('X', 2) && host::TextureMapKeys_OwnInSubMode('B', 2) && !host::TextureMapKeys_OwnInSubMode('M', 3),
+		"Merge takes M, X and B, the keys its frame reads from the slots (FUN_005511f0 0x551368 / 0x551451 / 0x5514c2); multiple nodes does not take M");
+
 	printf("%s\n", checksFailed ? "SOME CHECKS FAILED" : "All checks passed");
 	return checksFailed ? 1 : 0;
 }

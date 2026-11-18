@@ -1,0 +1,29 @@
+# ACCEPTANCE (V-30b, reassess/object-placement.md OP-13 / V-30a): Rescale on an outside shape with NO SHPCENTR makes one as inteng's rebuild does (V-30a, FUN_0050f570 0x50fce0), by putting
+# the level together again (ReplaceLevel): every Chunk * of the old level is gone. The list and the field panel must let go of them, as every other edit that swaps the level does
+# (LoadTheObjectListAgain); until 11-18 the Rescale OK path and the '=' / '-' keys did not, so the panel kept the old level's chunks (an edit through it was refused, or could land in a
+# chunk of the new level that took the old address). The scenario line's "fieldsfresh" says whether the panel's record is of the level held now. No stock outside shape lacks a SHPCENTR:
+# verify_outside_shape strip-centre makes Invasion with smart1's shape (one user) without one. Red with the reloads taken out (v30b-red: fieldsfresh 0 after the Rescale); green with them.
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe strip-centre C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {exedir}Invasion-nocentre.made.rif smart1
+start-args {exedir}Invasion-nocentre.made.rif
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is smart1
+expect-no-dialog
+wait 400
+state
+expect-field fieldsfresh 1
+click-bar Object > Rescale
+expect-dialog Rescale Shape
+form-field 1 2.5
+click-button OK
+expect-no-dialog
+wait 400
+state
+expect-field fieldsfresh 1
+expect-hierarchy-text Object scale 2.500000
+picture 1

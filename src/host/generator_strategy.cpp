@@ -121,6 +121,7 @@ namespace host
 			}
 
 			Bytes extra;
+			bool placed = false;   // the new AVPSTRAT went where the old one stood (inteng keeps it there: its Assign deletes only the strategy inside the holder, FUN_00539d60)
 
 			if (extraAt != special.size())
 			{
@@ -138,6 +139,13 @@ namespace host
 				{
 					if (NameIs(image, part.at, "AVPSTRAT"))
 					{
+						// the first AVPSTRAT's place takes the new one (a delete puts none); a second one, the game never reads (get_extra_data_chunk takes the first), goes
+						if (!had)
+						{
+							extra.insert(extra.end(), strategy.begin(), strategy.end());
+							placed = true;
+						}
+
 						had = true;
 					}
 					else
@@ -161,7 +169,11 @@ namespace host
 				extra = MakeChunk("AVPGENEX", NameChunk(generator.name));
 			}
 
-			extra.insert(extra.end(), strategy.begin(), strategy.end());
+			if (!placed)
+			{
+				extra.insert(extra.end(), strategy.begin(), strategy.end());   // a holder with no AVPSTRAT yet, or a new one: last
+			}
+
 			PutIntAt(&extra, 8, (int32_t)extra.size());
 
 			// SPECLOBJ again: the AVPGENEX in its place, or at the end when it is new

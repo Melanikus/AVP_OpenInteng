@@ -22,7 +22,7 @@ click-button Switch_Door
 wait 400
 expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:None
 # the door lines: the object pick; in front of switch3, picked (red, S-62)
-click-win 300 24
+click-box 300 24
 wait 400
 camera -27851 -14055 85500 0 0
 wait 500

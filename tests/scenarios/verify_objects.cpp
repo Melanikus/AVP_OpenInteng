@@ -14,6 +14,8 @@
 // For "at <name>|<x>|<y>|<z>" the object's place is exactly (x y z).
 // For "near <name>|<x>|<y>|<z>|<within>" each of the object's three numbers is at most <within> from (x y z), for a place the engine's dynamics chose: they step by the frame's own
 // time (NormalFrameTime), so where a dropped object lands varies a little from run to run (added 2026-11-17 by Drake, OP-47: Gravity's landing place reaches the save).
+// For "nostrategy <name>" the copy has a holder of that exact name (a module or placed object, a virtual object, an enemy or generator, or a placed hierarchy: the first in that order, as the
+// strategy lookup finds them) and it holds no strategy: Delete Strategy took its AVPSTRAT and kept the holder (added 2026-11-17 by Bishop, S-39 on virtual objects and placed hierarchies).
 // Gives back 0 only if every check passed.
 
 #include <limits.h>
@@ -31,6 +33,7 @@
 #include "mishchnk.hpp"
 #include "level_file.h"
 #include "alt_locations_edit.h"
+#include "special_alt_edit.h"
 #include "strategy_lookup.h"
 
 static int checksFailed = 0;
@@ -354,11 +357,72 @@ static void CheckTrackSound(OpenLevelFile &level, std::string const &asked)
 		fields[7] + (object ? " (it holds: " + held + ")" : " (no object of that name)"));
 }
 
+// "nostrategy <name>": the first holder of that exact name, in the strategy lookup's order (the level's objects, its virtual objects, its enemies and generators, its placed hierarchies), is in the
+// copy and holds no strategy (FindObjectStrategy answers NoStrategy: no AVPSTRAT where its strategy would be)
+static void CheckNoStrategy(OpenLevelFile &copy, char const *name)
+{
+	uint8_t id[8] = { 0 };
+	bool found = false;
+	std::string what;
+	Object_Chunk *const object = ObjectNamed(copy, name);
+
+	if (object)
+	{
+		memcpy(id, &object->object_data.ID, 8);
+		found = true;
+		what = "object";
+	}
+
+	std::vector<host::VirtualObjectRef> virtuals;
+	std::vector<host::GeneratorRef> generators;
+	std::vector<host::PlacedHierarchyRef> hierarchies;
+
+	host::ListVirtualObjects(copy.Level(), &virtuals);
+	host::ListGenerators(copy.Level(), &generators);
+	host::ListPlacedHierarchies(copy.Level(), &hierarchies);
+
+	for (size_t i = 0; !found && i < virtuals.size(); i++)
+	{
+		if (virtuals[i].name == name)
+		{
+			memcpy(id, virtuals[i].id, 8);
+			found = true;
+			what = "virtual object";
+		}
+	}
+
+	for (size_t i = 0; !found && i < generators.size(); i++)
+	{
+		if (generators[i].name == name)
+		{
+			memcpy(id, generators[i].id, 8);
+			found = true;
+			what = "enemy or generator";
+		}
+	}
+
+	for (size_t i = 0; !found && i < hierarchies.size(); i++)
+	{
+		if (hierarchies[i].name == name)
+		{
+			memcpy(id, hierarchies[i].id, 8);
+			found = true;
+			what = "placed hierarchy";
+		}
+	}
+
+	host::ObjectStrategy held;
+	host::StrategyFound const answer = found ? host::FindObjectStrategy(copy.Level(), id, &held) : host::StrategyFound::NoSuchObject;
+
+	Check(found && answer == host::StrategyFound::NoStrategy, std::string("the copy has the ") + (found ? what : std::string("holder")) + " \"" + name + "\" and it holds no strategy (" +
+		(found ? host::StrategyFoundWords(answer) : "no holder of that name") + ")");
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 4 || (argc - 2) % 2 != 0)
 	{
-		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [trackendmoved <name>|<section>|<x>|<y>|<z>] [alt <name>=<count>,<group>] [virtualgone|virtualkept <name>]\n");
+		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [trackendmoved <name>|<section>|<x>|<y>|<z>] [alt <name>=<count>,<group>] [virtualgone|virtualkept <name>] [nostrategy <name>]\n");
 		return 2;
 	}
 
@@ -417,6 +481,33 @@ int main(int argc, char **argv)
 				std::to_string(group) + (!read ? " (the words are not <name>=<count>,<group>)" : !object ? " (no object of that name)" : !loaded ? " (its ALTLOCAT does not load)" : " (it has " +
 				std::to_string((unsigned long long)locations.list.size()) + " in group " + std::to_string(locations.group) + ")"));
 		}
+		else if (what == "specialalt")
+		{
+			// <name>=<count>,<group>: a SPECIAL object of that name (a generator, a bad guy, a sound, a particle generator), its ALTLOCAT where the game reads a special's (special_alt_edit.h;
+			// added 2026-11-17 by Drake, OP-34..38 for specials)
+			std::string const words = argv[a + 1];
+			size_t const equals = words.rfind('=');
+			int count = -1, group = -1;
+			bool const read = equals != std::string::npos && sscanf_s(words.c_str() + equals + 1, "%d,%d", &count, &group) == 2;
+			std::string const name = read ? words.substr(0, equals) : words;
+			std::vector<host::SpecialObject> specials;
+			host::SpecialObject const *found = nullptr;
+
+			if (read && host::SpecialObjects_Read(&copy, &specials) == host::SpecialResult::Done)
+			{
+				for (host::SpecialObject const &one : specials)
+				{
+					found = !found && one.name == name && one.kind != host::SpecialKind::PlayerStart ? &one : found;
+				}
+			}
+
+			model::AltLocations locations;
+			bool const loaded = found && host::SpecialAlt_Load(&copy, found->kind, found->number, &locations) == host::SpecialResult::Done;
+
+			Check(loaded && (int)locations.list.size() == count && locations.group == group, "the copy's special object \"" + name + "\" has " + std::to_string(count) + " alternate locations in group " +
+				std::to_string(group) + (!read ? " (the words are not <name>=<count>,<group>)" : !found ? " (no special object of that name)" : !loaded ? " (its ALTLOCAT does not load)" : " (it has " +
+				std::to_string((unsigned long long)locations.list.size()) + " in group " + std::to_string(locations.group) + ")"));
+		}
 		else if (what == "tracksound")
 		{
 			CheckTrackSound(copy, argv[a + 1]);
@@ -448,6 +539,10 @@ int main(int argc, char **argv)
 
 			Check(there == (what == "virtualkept"), std::string("the copy ") + (what == "virtualkept" ? "has" : "has no") + " virtual object named \"" + argv[a + 1] + "\"");
 		}
+		else if (what == "nostrategy")
+		{
+			CheckNoStrategy(copy, argv[a + 1]);
+		}
 		else if (what == "at")
 		{
 			CheckAt(copy, argv[a + 1]);
@@ -458,7 +553,7 @@ int main(int argc, char **argv)
 		}
 		else
 		{
-			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, trackendmoved, at, near, alt, virtualgone or virtualkept), not \"" + what + "\"");
+			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, trackendmoved, at, near, alt, specialalt, virtualgone, virtualkept or nostrategy), not \"" + what + "\"");
 		}
 	}
 

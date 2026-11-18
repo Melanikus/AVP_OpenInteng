@@ -1,0 +1,65 @@
+# ACCEPTANCE (red first): TM-B 2d, Merge's save of a SHARED shape (FUN_0055aa50 / FUN_0055b4c0; Dietrich, 2026-11-18; reassess/tm-b-merge-map.md). After the save question's Yes, a shape other
+# objects use too asks "The shape associated with %s / is used by some other objects. / Which of the other objects would you like the / changes applied to?" (600 x 400, Ok and All, a check
+# box per other user, unticked). Ok with any box unticked (here: all): the current object (and the ticked ones) get a COPY of the shape with the change; the others keep it as it was. All: every
+# user takes the change. Ours wrote the shared shape for every user. His path: Invasion, Mode > Texture Map, Mode > Merge, flam014 (row 0; its shape has four other users), M, 0 + 1 parted with
+# B, X, Yes, the box: Ok (nothing ticked): the saved copy has flam014's 0 and 1 parted on its own shape and flam013's as they were; then flam013 (row 1), the same with All: flam012 shares the
+# change.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+verify cmd /c del /q "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif" "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif.bak" 2>nul & exit 0
+state
+item 0x46
+expect-screen Texture Map
+item 0x4
+wait 300
+pick-poly 0 0
+wait 300
+key M
+wait 300
+pick-poly 0 0
+wait 300
+key B
+wait 300
+state
+expect-status 71 merged pairs
+key X
+wait 300
+expect-dialog-kind confirm
+click-button Yes
+wait 300
+state
+expect-dialog-kind form
+expect-field-has dialogbuttons All
+expect-field-has dialogchecks off
+click-button Ok
+expect-no-dialog
+wait 400
+state
+expect-status written on a copy of the shape for 1 objects
+expect-status Saved
+# the saved copy, read by the game's loader: flam014's own (new) shape has 0 and 1 parted; flam013 still uses the old shape, its pairing as it was
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_merge/verify_merge.exe {orig} {exedir}AVP_OpenInteng\edited\Invasion-edited.rif flam014 0 1 parted
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_merge/verify_merge.exe {orig} {exedir}AVP_OpenInteng\edited\Invasion-edited.rif flam013 0 1 same
+# All: every user of flam013's shape takes the change
+pick-poly 1 0
+wait 300
+key M
+wait 300
+pick-poly 1 0
+wait 300
+key B
+wait 300
+key X
+wait 300
+expect-dialog-kind confirm
+click-button Yes
+wait 300
+expect-dialog-kind form
+click-button All
+expect-no-dialog
+wait 400
+state
+expect-status merged polygons were written;
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_merge/verify_merge.exe {orig} {exedir}AVP_OpenInteng\edited\Invasion-edited.rif flam012 0 1 parted
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_merge/verify_merge.exe {orig} {exedir}AVP_OpenInteng\edited\Invasion-edited.rif flam014 0 1 parted

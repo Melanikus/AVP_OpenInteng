@@ -1,0 +1,32 @@
+# ACCEPTANCE: Adjacent Modules' write-back CHANGES NOTHING when nothing was changed (Dietrich, 2026-11-17; the Adjacent close-out's owed "change nothing" test, handbook chapter 20 principle 7).
+# inteng's FUN_00404040 writes only when there is a current module AND its list was changed (DAT_0060677c, set by Add and Delete only: 0x404079-0x40408c); otherwise it only unlocks the chunk
+# (FUN_004bd8e0(obj, file, 0) at 0x40452c): no write, no question, no save. His path: Caverns (which has pairs that don't touch, so a write would ask), Adjacent Modules, Set Current on
+# DR-CAVERNC, then on CAVERNA-02 (DR-CAVERNC's list unchanged), Find Not Done (CAVERNA-02's unchanged) and Esc on its list, Exit: no question anywhere, and the copy saved after it holds
+# every module's adjacency exactly as the opened level (lists, flags, points; read by the game's loader). NOT byte for byte: two Save a copy of the same untouched level already differ
+# (986,878 bytes from offset 8 on Caverns, tried 2026-11-17), so the bytes are no oracle here. What this does not cover: a list changed and changed back (Delete then Add of the same last member) is a CHANGE for inteng too: it is written and its
+# entries worked out again.
+screen Adjacent Modules
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Caverns.RIF
+pictures on
+state
+expect-screen Adjacent Modules
+pick-module 19
+item 0x64
+expect-no-dialog
+expect-status Current module: DR-CAVERNC
+pick-module 37
+item 0x64
+expect-no-dialog
+expect-status Current module: CAVERNA-02
+item 0x68
+expect-dialog-kind list
+key Esc
+expect-no-dialog
+item 0xa
+expect-no-dialog
+wait 800
+state
+expect-screen Construction
+save-copy
+# the saved copy, read by the game's loader: every module's adjacency as the opened level's
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_adjacent/verify_adjacent.exe {orig} {copy} same

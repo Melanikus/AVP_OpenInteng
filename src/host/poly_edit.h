@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "shape_model.h"
+#include "uv_model.h"
 
 class OpenLevelFile;
 
@@ -226,6 +227,31 @@ namespace host
 
 	// On the level: the shape's SHPMRGDT gets the pairs (same size: put in place; a shape that has none gets the chunk, as inteng's save writes it), the loader reads the level again. *joined: how many pairs.
 	PolyMergeResult PolyEdit_Merge(OpenLevelFile *file, uint8_t const *id, int32_t const *polygons, size_t count, size_t *joined, std::string *why);
+
+	// Texture Map's Merge sub-mode's save (FUN_0055b900, TM-B 2c): the shape's whole pairing written as `numbers` (one per polygon, the partner or -1), and the same numbers into each SUBSHAPE of
+	// its SHPMORPH / ASALTTEX whose counts are the shape's; the loader reads the level again. NoPolygon: a number that is no polygon of the shape. TM-B 2e: the pairs are checked first
+	// (PolyEdit_CheckMergedPairs, FUN_0055d500 at 0x55bb73): the parted ones are written parted, and the shape's polygons take the flags, types and colours the checks gave them. *parted (when not
+	// null): how many pairs the checks parted.
+	PolyMergeResult PolyEdit_SetMergeData(OpenLevelFile *file, uint8_t const *id, std::vector<int32_t> const &numbers, std::string *why, size_t *parted = nullptr);
+
+	// FUN_0055d500, Merge's save checking its pairs (TM-B 2e; reassess/tm-b-merge-map.md). For each pair, j the partner of i and j < i, in the order of i:
+	//  - flags (SHPPOLYS +8) that differ: each polygon gets the two OR'd;
+	//  - types, as Texture Map holds them (6 / 0x15 / 0x16 are 5, 0x17-0x19 are 7, a textured polygon with no list or an empty one is 2), that differ: an untextured one parts the pair; both
+	//    textured, i takes j's type;
+	//  - i untextured, or the pair parted: i takes j's colour, only when the file holds both untextured (INTENG BUG, FIXED: inteng copies a textured polygon's picture number as a colour, or a
+	//    colour as a picture number);
+	//  - both textured: another picture (colour & 0x7fff) or another place on it, in whole texels, at a corner they share (the same point) parts the pair.
+	// A parted pair is -1 both in *merge. *polygonsChanged (when not null): whether a polygon's flags, type or colour changed. Gives how many pairs were parted. lists: the shape's SHPUVCRD.
+	size_t PolyEdit_CheckMergedPairs(model::ShapeModel *model, std::vector<model::UvList> const &lists, std::vector<int32_t> *merge, bool *polygonsChanged);
+
+	// The names of the objects that use the shape of the object `id` (its SHPHEAD1's list, in order); false when it has none or the list can't be read
+	bool PolyEdit_ShapeUserNames(OpenLevelFile *file, uint8_t const *id, std::vector<std::string> *names);
+
+	// Merge's save of a SHARED shape that not all its users take (FUN_0055aa50's copy path, TM-B 2d): the objects named in `movers` (the current one first) get a COPY of the shape (FUN_0050e880:
+	// numbered one past the level's highest, the file's last chunk, its users the movers) holding `numbers` as its SHPMRGDT; the other users keep the shape as it was, less the movers' names. One
+	// new image, read by the game's loader; nothing changes on any other answer.
+	PolyMergeResult PolyEdit_SetMergeDataOnCopy(OpenLevelFile *file, uint8_t const *id, std::vector<std::string> const &movers, std::vector<int32_t> const &numbers, std::string *why,
+		size_t *parted = nullptr);
 
 	// ---- Split Object > As Placed Obj (0xc8, FUN_005746b0(1), carried out when the mode is left: FUN_00563d90's neighbour FUN_00575b60): the polygons named leave the object's shape and become a NEW SHAPE with a NEW PLACED OBJECT
 	// around it, at the old object's place and turn, so they stay where they are. The new shape is the old one made from those polygons only (points they use, normals, merge data, lists of texture coordinates, TEXTANIM, SHPCENTR,

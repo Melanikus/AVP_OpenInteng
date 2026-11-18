@@ -839,15 +839,15 @@ namespace host
 		};
 		IntengItem const kItems11_2_6_3[] =
 		{
-			{ "Edit", 0xc5808, 0x7d4, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Add", 0xc5809, 0x7d3, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Remove", 0xc580a, 0x7d5, IntengTag::Wip, IntengWork::None, -1, -1 },
+			{ "Edit", 0xc5808, 0x7d4, IntengTag::None, IntengWork::PlacedHierarchy, -1, -1 },
+			{ "Add", 0xc5809, 0x7d3, IntengTag::None, IntengWork::PlacedHierarchy, -1, -1 },
+			{ "Remove", 0xc580a, 0x7d5, IntengTag::None, IntengWork::PlacedHierarchy, -1, -1 },
 		};
 		IntengItem const kItems11_2_6_4[] =
 		{
-			{ "Edit", 0xc580c, 0x7d7, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Add", 0xc580d, 0x7d6, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Remove", 0xc580e, 0x7d8, IntengTag::Wip, IntengWork::None, -1, -1 },
+			{ "Edit", 0xc580c, 0x7d7, IntengTag::None, IntengWork::PlacedHierarchy, -1, -1 },
+			{ "Add", 0xc580d, 0x7d6, IntengTag::None, IntengWork::PlacedHierarchy, -1, -1 },
+			{ "Remove", 0xc580e, 0x7d8, IntengTag::None, IntengWork::PlacedHierarchy, -1, -1 },
 		};
 		IntengMenu const kMenus11_2_6[] =
 		{
@@ -1689,7 +1689,7 @@ namespace host
 		{
 			{ "Polygon", 0x170001, 0x2, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
 			{ "Texture", 0x170002, 0x3, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
-			{ "Merge", 0x170003, 0x4, IntengTag::Wip, IntengWork::None, -1, 0 },
+			{ "Merge", 0x170003, 0x4, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
 			{ "--------", 0x170004, 0x0, IntengTag::Wip, IntengWork::None, -1, -1 },
 			{ "Exit", 0x170005, 0x5, IntengTag::None, IntengWork::ExitMode, -1, 0 },
 		};
@@ -1809,7 +1809,7 @@ namespace host
 		IntengItem const kItems22_1_2_0[] =
 		{
 			{ "Polygon", 0x170801, 0x2, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
-			{ "Merge", 0x170802, 0x4, IntengTag::Wip, IntengWork::None, -1, 0 },
+			{ "Merge", 0x170802, 0x4, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
 			{ "--------", 0x170803, 0x0, IntengTag::Wip, IntengWork::None, -1, -1 },
 			{ "Exit", 0x170804, 0x5, IntengTag::None, IntengWork::ExitMode, -1, 0 },
 		};

@@ -21,6 +21,19 @@ namespace host
 		return windowOn && (key == VK_LEFT || key == VK_RIGHT || key == VK_UP || key == VK_DOWN || key == VK_OEM_PLUS || key == VK_OEM_MINUS || key == VK_ESCAPE);
 	}
 
+	bool TextureMapKeys_OwnInSubMode(uint8_t key, int subMode)
+	{
+		if (subMode == 0 || subMode == 1)
+		{
+			return TextureMapKeys_Own(key, subMode == 1);
+		}
+
+		TextureKeyState state = {};
+
+		// Merge's M, X and B are read straight from the key slots by FUN_005511f0 (0xd87a8d / 0xd87a98 / 0xd87a82), not through the table (TM-B 2a)
+		return (subMode == 2 || subMode == 3) && (TextureMapKeyCommand(subMode, key, false, false, state) != 0 || (subMode == 2 && (key == 'M' || key == 'X' || key == 'B')));
+	}
+
 	size_t TextureMapKeys_CameraKeysLost(KeyLayout layout, bool windowOn, uint8_t *keys, size_t room)
 	{
 		size_t count = 0;

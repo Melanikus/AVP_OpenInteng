@@ -39,6 +39,7 @@ namespace host
 		CantBuild,      // the level couldn't be put together from its bytes
 		LoaderRefused,  // the game's own loader wouldn't take the changed level, so nothing was changed
 		BadBytes,       // strategy bytes shorter than a strategy's header (12) or longer than 65536
+		NoStrategy,     // Delete Strategy: the virtual object holds no strategy (its VIOBJECT has no AVPSTRAT)
 	};
 
 	char const *VirtualObjectWords(VirtualObjectResult result);
@@ -83,6 +84,13 @@ namespace host
 	// Puts these strategy bytes (the AVPSTRAT's payload) in place of the strategy of the virtual object with that ID, as AssignStrategy does: object_edit.h's SetStrategyBytes reaches placed objects and
 	// modules only, so a Mission Objective's alterations (S-K70-7, -8, -R), all on virtual objects in the stock levels, are written through this. BadBytes for under 12 or over 65536 bytes.
 	VirtualObjectResult VirtualObject_SetStrategyBytes(OpenLevelFile *file, uint8_t const *id, uint8_t const *payload, size_t length);
+
+	// DELETE STRATEGY (command 0xc, FUN_00528790) on a virtual object. inteng's record for a virtual object (class 0x5af9e0, made by FUN_005393c0) holds at +0x14 the FIRST AVPSTRAT child of its
+	// VIOBJECT (0 when it has none); FUN_00528790 asks its question only when +0x14 is set and, on Yes, destroys that one chunk (its own destructor, flag 1) and clears +0x14. The VIOBJECT and its
+	// VOBJPROP stay (taking the object is Destroy Virtual Object, 0x40), and so does any other child, in its place; Strategy Data's Save (FUN_005282d0) writes the VIOBJECT so. Here: that first
+	// AVPSTRAT cut out of the first VIOBJECT whose VOBJPROP holds the ID, the level made again through the game's loader. NotFound when no virtual object has the ID, NoStrategy when its VIOBJECT holds
+	// no AVPSTRAT (the level is as it was in both). The question is the caller's.
+	VirtualObjectResult VirtualObject_DeleteStrategy(OpenLevelFile *file, uint8_t const *id);
 
 	// The place (file units) and the shape's min and max points of the object with that ID: false when there is no such object or it has no shape
 	bool VirtualObject_Geometry(File_Chunk *level, uint8_t const *id, int64_t place[3], int64_t min[3], int64_t max[3]);

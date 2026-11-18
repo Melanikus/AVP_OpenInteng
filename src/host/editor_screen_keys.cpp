@@ -255,6 +255,12 @@ bool RunScreenKey(uint8_t key, bool shift)
 		return false;
 	}
 
+	// Texture Map's Merge (sub-mode 2): M, X and B are FUN_005511f0's own (the key slots), so they win over the editor's keys (B is the editor's Gouraud otherwise): texture_submodes.cpp
+	if (onTextureMap && TextureMergeOn() && TextureMergeKey(key))
+	{
+		return true;
+	}
+
 	char const *const table = host::kIntengScreens[barScreen].table;
 	char const *const name = host::kIntengScreens[barScreen].name;
 	bool const onWaypoint = strcmp(name, "Waypoint") == 0;

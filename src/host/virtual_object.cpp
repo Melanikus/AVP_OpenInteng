@@ -71,6 +71,7 @@ namespace host
 			case VirtualObjectResult::CantBuild: return "the level couldn't be put together from its bytes";
 			case VirtualObjectResult::LoaderRefused: return "the game's own loader wouldn't take the changed level, so nothing was changed";
 			case VirtualObjectResult::BadBytes: return "a strategy is 12 to 65536 bytes";
+			case VirtualObjectResult::NoStrategy: return "the virtual object has no strategy";
 		}
 
 		return "unknown answer";
@@ -301,7 +302,8 @@ namespace host
 		return result == LevelOpenResult::CantRead ? VirtualObjectResult::CantBuild : VirtualObjectResult::LoaderRefused;
 	}
 
-	// The VIOBJECT with that ID made again with these strategy bytes in place of its AVPSTRAT (if any), last after its VOBJPROP; the level replaced through the game's loader
+	// The VIOBJECT with that ID made again with these strategy bytes in place of its AVPSTRAT (if any), last after its VOBJPROP; the level replaced through the game's loader. With no payload (Delete
+	// Strategy) only its FIRST AVPSTRAT goes and every other child stays where it is (NoStrategy when it has none)
 	static VirtualObjectResult PutStrategyBytes(OpenLevelFile *file, uint8_t const *id, uint8_t const *payload, size_t length)
 	{
 		Bytes image;
@@ -340,20 +342,45 @@ namespace host
 			return VirtualObjectResult::NotFound;
 		}
 
-		// the VIOBJECT made again: its children but an old AVPSTRAT, then the new one
+		// the VIOBJECT made again, each child where it was: the new AVPSTRAT where the old one stood (inteng keeps it there: its Assign deletes only the strategy inside the holder,
+		// FUN_00539d60), or last when it had none; any further AVPSTRAT (the game reads the first) goes. For a delete, its children but the first AVPSTRAT
 		Bytes viobject(image.begin() + (std::ptrdiff_t)special[goes].at, image.begin() + (std::ptrdiff_t)(special[goes].at + kHeadingBytes));
+		Bytes const strategy = payload ? MakeChunk("AVPSTRAT", Bytes((char const *)payload, (char const *)payload + length)) : Bytes();
+		bool cut = false;
+		bool placed = false;
 
 		for (Span const &part : parts)
 		{
-			if (!NameIs(image, part.at, "AVPSTRAT"))
+			bool const isStrategy = NameIs(image, part.at, "AVPSTRAT");
+
+			if (payload && isStrategy)
+			{
+				if (!placed)
+				{
+					viobject.insert(viobject.end(), strategy.begin(), strategy.end());
+					placed = true;
+				}
+			}
+			else if (payload ? !isStrategy : (!isStrategy || cut))
 			{
 				AddCopy(&viobject, image, part);
 			}
+			else if (!payload)
+			{
+				cut = true;
+			}
 		}
 
-		Bytes const strategy = MakeChunk("AVPSTRAT", Bytes((char const *)payload, (char const *)payload + length));
+		if (!payload && !cut)
+		{
+			return VirtualObjectResult::NoStrategy;
+		}
 
-		viobject.insert(viobject.end(), strategy.begin(), strategy.end());
+		if (payload && !placed)
+		{
+			viobject.insert(viobject.end(), strategy.begin(), strategy.end());
+		}
+
 		PutIntAt(&viobject, 8, (int32_t)viobject.size());
 
 		Bytes spec(image.begin() + (std::ptrdiff_t)inside[specAt].at, image.begin() + (std::ptrdiff_t)(inside[specAt].at + kHeadingBytes));
@@ -437,6 +464,16 @@ namespace host
 		}
 
 		return PutStrategyBytes(file, id, payload, length);
+	}
+
+	VirtualObjectResult VirtualObject_DeleteStrategy(OpenLevelFile *file, uint8_t const *id)
+	{
+		if (!file || !file->Level() || !id)
+		{
+			return VirtualObjectResult::BadCall;
+		}
+
+		return PutStrategyBytes(file, id, nullptr, 0);
 	}
 
 	bool VirtualObject_Geometry(File_Chunk *level, uint8_t const *id, int64_t place[3], int64_t min[3], int64_t max[3])

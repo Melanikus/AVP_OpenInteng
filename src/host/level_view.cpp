@@ -21,6 +21,7 @@
 #include "console.h"
 #include "language.h"
 #include "level_file_name.h"
+#include "logstring.h"
 #include "TextureManager.h"
 #include "renderer.h"
 #include "pvisible.h"
@@ -34,6 +35,7 @@
 #include <string.h>
 #include <math.h>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "level_view.h"
@@ -150,6 +152,10 @@ bool LevelView_Open(const char *levelName, FlyCamera *startHere, char *why, size
 		Say(why, whySize, "no level was named");
 		return false;
 	}
+
+	// each picture of the level that can't be loaded is named in the log and counted (LevelView_SayMissingPictures), once: the edited level shown again (LevelView_ShowFile)
+	// keeps the first open's count, and says nothing more
+	R_SetEditorCountMissingPictures(!showingAFile);
 
 	// The game's own rule for a level file's name (level_file_name.h), the one its -n switch is held to
 	const char *refused = LevelFileName_WhyRefused(levelName);
@@ -814,6 +820,189 @@ bool LevelView_SetItemFlagBits(const LevelViewShapeOf &shape, int32_t item, int3
 
 	header->items[item][2] = on ? (header->items[item][2] | mask) : (header->items[item][2] & ~mask);
 	return true;
+}
+
+// ---- OBJECT PLACEMENT'S LIGHTING (level_view.h: OP-3, OP-44; Drake 2026-11-17) ----
+extern int maxshapes;   // compiled_shapes.cpp:65: how many places mainshapelist has (system.h:98 declares it the same way)
+
+static bool placementLightOn = false;           // the mode's look is on the open level
+static bool placementLightObjectsLit = false;   // and the objects' part of it: lit or not
+static std::unordered_map<int *, bool> placementLightKept;   // every item flags word the look changed, and whether it held iflag_nolight before the look
+static int placementLightModuleItems = 0, placementLightObjectItems = 0;   // how many items the look made unlit (the modules') and set by Lighting (the objects'), at its last change
+
+// One item's iflag_nolight (2) set (drawn unlit) or clear; its own bit kept the first time the look touches it (a later emplace keeps the first)
+static void PlacementLightItem(int *flags, bool unlit)
+{
+	placementLightKept.emplace(flags, (*flags & iflag_nolight) != 0);
+	*flags = unlit ? (*flags | iflag_nolight) : (*flags & ~iflag_nolight);
+}
+
+// Which of the game's shapes a module draws (inteng: the shapes before DAT_008f588c, which its loader fills with the modules'): the module's display block's shape, else its map's
+static std::vector<bool> ShapesOfModules()
+{
+	std::vector<bool> isModule(maxshapes > 0 ? (size_t)maxshapes : 0, false);
+	SCENEMODULE *const scene = Global_ModulePtr ? Global_ModulePtr[Global_Scene] : nullptr;
+
+	for (int m = 0; scene && m < ModuleArraySize; m++)
+	{
+		MODULE *const room = scene->sm_marray[m];
+		int const shape = !room ? -1 : room->m_dptr ? room->m_dptr->ObShape : (room->m_mapptr ? room->m_mapptr->MapShape : -1);
+
+		if (shape >= 0 && shape < maxshapes)
+		{
+			isModule[(size_t)shape] = true;
+		}
+	}
+
+	return isModule;
+}
+
+int LevelView_PlacementLighting(bool on, bool objectsLit)
+{
+	if (!levelIsOpen || !mainshapelist || (on == placementLightOn && (!on || objectsLit == placementLightObjectsLit)))
+	{
+		return 0;
+	}
+
+	bool const modulesToo = on != placementLightOn;   // the modules change only as the look comes and goes; Lighting changes the objects alone
+	int changed = 0;
+
+	if (!on)
+	{
+		for (auto const &kept : placementLightKept)
+		{
+			*kept.first = kept.second ? (*kept.first | iflag_nolight) : (*kept.first & ~iflag_nolight);
+			changed++;
+		}
+
+		placementLightKept.clear();
+	}
+	else
+	{
+		std::vector<bool> const isModule = ShapesOfModules();
+		int moduleItems = 0, objectItems = 0;
+
+		// the level's shapes (the game's precompiled ones, before start_of_loaded_shapes, are none of the level's)
+		for (int s = start_of_loaded_shapes > 0 ? start_of_loaded_shapes : 0; s < maxshapes; s++)
+		{
+			SHAPEHEADER *const shape = mainshapelist[s];
+
+			if (!shape || !shape->items || shape->numitems <= 0)
+			{
+				continue;
+			}
+
+			bool const module = isModule[(size_t)s];
+
+			// a module: every item unlit, on the look's start only (0x4d84e6-0x4d8526); an object: only a shape with baked colours (shape flag 0x1000, FUN_004d67f0 0x4d681b / 0x4d687e)
+			if (module ? !modulesToo : !(shape->shapeflags & ShapeFlag_PreLit))
+			{
+				continue;
+			}
+
+			for (int i = 0; i < shape->numitems; i++)
+			{
+				if (shape->items[i])
+				{
+					PlacementLightItem(&shape->items[i][2], module || !objectsLit);
+					changed++;
+					(module ? moduleItems : objectItems)++;
+				}
+			}
+		}
+
+		if (modulesToo)
+		{
+			placementLightModuleItems = moduleItems;
+		}
+
+		placementLightObjectItems = objectItems;
+	}
+
+	if (!on)
+	{
+		placementLightModuleItems = placementLightObjectItems = 0;
+	}
+
+	placementLightOn = on;
+	placementLightObjectsLit = objectsLit;
+
+	// the modules' baked colours read the bit when the list is built (static_level.cpp BakedColour: an unlit textured polygon is 0x00FFFFFF); objects are drawn each frame from their items (kshape.cpp)
+	if (modulesToo)
+	{
+		StaticLevel_BuildThisLevel();
+	}
+
+	return changed;
+}
+
+std::string LevelView_PlacementLightingWords()
+{
+	if (!levelIsOpen || !mainshapelist)
+	{
+		return std::string();
+	}
+
+	std::string words = std::string("look ") + (placementLightOn ? "1" : "0") + " lit " + (placementLightObjectsLit ? "1" : "0") + " modules " + std::to_string(placementLightModuleItems) +
+		" objects " + std::to_string(placementLightObjectItems);
+
+	// the objects' baked colours, their average per channel over every point (0..255): lit by them, an object differs from its plain (full) look only where they are under 255
+	{
+		std::vector<bool> const modulesHere = ShapesOfModules();
+		long long sum[3] = { 0, 0, 0 }, points = 0;
+
+		for (int s = start_of_loaded_shapes > 0 ? start_of_loaded_shapes : 0; s < maxshapes; s++)
+		{
+			SHAPEHEADER const *const shape = mainshapelist[s];
+
+			if (!shape || modulesHere[(size_t)s] || !(shape->shapeflags & ShapeFlag_PreLit) || !shape->sh_extraitemdata)
+			{
+				continue;
+			}
+
+			for (int p = 0; p < shape->sh_numextraitems && p < shape->numpoints; p++)
+			{
+				uint32_t const packed = (uint32_t)shape->sh_extraitemdata[p].EID_VertexI;
+
+				sum[0] += (packed >> 16) & 255;
+				sum[1] += (packed >> 8) & 255;
+				sum[2] += packed & 255;
+				points++;
+			}
+		}
+
+		words += " baked " + (points ? std::to_string(sum[0] / points) + " " + std::to_string(sum[1] / points) + " " + std::to_string(sum[2] / points) : std::string("none"));
+	}
+
+	// the blocks DRAWN this frame (the game's OnScreenBlockList, made by AVPGetInViewVolumeList, view.cpp:657-692: not every block in play is drawn, kzsort.cpp:369-396) whose shape is an
+	// object's with baked colours: how many, and up to four of their places in the world: what a picture of the look can be aimed at (the state line is printed after the frame's draw)
+	extern DISPLAYBLOCK *OnScreenBlockList[];   // view.cpp:45
+	extern int NumOnScreenBlocks;
+	std::vector<bool> const isModule = ShapesOfModules();
+	int const drawnCount = NumOnScreenBlocks < 0 ? 0 : (NumOnScreenBlocks < 2048 ? NumOnScreenBlocks : 2048);   // maxdisplayblocks (system.h)
+	int drawn = 0;
+	std::string places;
+
+	for (int i = 0; i < drawnCount; i++)
+	{
+		DISPLAYBLOCK const *const block = OnScreenBlockList[i];
+		int const index = block ? block->ObShape : -1;
+
+		if (!block || block->ObMyModule || block->HModelControlBlock || index < start_of_loaded_shapes || index >= maxshapes || isModule[(size_t)index] || !mainshapelist[index] ||
+			!(mainshapelist[index]->shapeflags & ShapeFlag_PreLit))
+		{
+			continue;
+		}
+
+		if (drawn < 4)
+		{
+			places += (drawn == 0 ? " at " : "|") + std::to_string(block->ObWorld.vx) + " " + std::to_string(block->ObWorld.vy) + " " + std::to_string(block->ObWorld.vz);
+		}
+
+		drawn++;
+	}
+
+	return words + " drawn " + std::to_string(drawn) + places;
 }
 
 bool LevelView_ScaleObjectShape(const LevelViewShapeOf &shape, double factor)
@@ -2011,6 +2200,7 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 
 		R_SetEditorHighlightedPolygons(blocks.data(), items.data(), (int)blocks.size(), 0xFFFFFF00u);
 	}
+	R_SetEditorDrawPolylines(true);   // a polygon whose picture isn't known is drawn as a white line, as inteng draws it (the game leaves it out)
 	R_SetEditorFillFollowsWire(true);   // a wire draw mode is wire for every drawing of the frame, near polygons too (d3d_render.cpp)
 
 	// The editor shows the whole level from wherever the camera is, outside every room too (the game draws only what is visible from the
@@ -2254,6 +2444,8 @@ void LevelView_Close()
 	LevelView_SetGravity(false);   // the blocks Gravity chose go with the level
 	LevelView_GhostEnd();
 	hiddenBlocksAsGiven.clear();
+	placementLightKept.clear();   // Object Placement's lighting: its kept words go with the shapes (a level opened next comes in with its own bits)
+	placementLightOn = false;
 
 	// winmain.cpp:1213-1231, without the steps that write the player's key settings, stop sound and music, or end a network game. Nor
 	// does it let go of the player's image in a mirror (winmain.cpp:1217): the editor never makes one (src/host/edge_own.cpp).
@@ -2291,6 +2483,50 @@ bool LevelView_ShowFile(const char *levelName, char *why, size_t whySize)
 
 	showingAFile = false;
 	return shown;
+}
+
+const char *LevelView_SayMissingPictures(const char *otherwise)
+{
+	static std::string words;   // the status line points at it
+	int missing = 0, lines = 0, pastLimit = 0;
+	bool noList = false;
+
+	R_EditorMissingPictures(&missing, &lines, &noList, &pastLimit);
+
+	if (!noList && missing == 0 && lines == 0 && pastLimit == 0)
+	{
+		return otherwise;
+	}
+
+	if (noList)
+	{
+		words = "This level has no list of pictures (BMPNAMES): its " + std::to_string(lines) + " textured polygons are drawn as white lines, as inteng draws them; the file keeps "
+			"their picture numbers";
+	}
+	else if (missing == 0 && pastLimit == 0)
+	{
+		// every named picture loaded, but some polygons give a picture number the list does not have
+		words = std::to_string(lines) + " textured polygons give a picture number this level's list does not have: they are drawn as white lines, as inteng draws them; the "
+			"file keeps their numbers";
+	}
+	else if (missing > 0)
+	{
+		words = std::to_string(missing) + " of this level's pictures could not be loaded (each is named in the log): their " + std::to_string(lines) + " polygons are drawn as "
+			"white lines, as inteng draws them; the file keeps the names";
+	}
+	else
+	{
+		words = "This level's " + std::to_string(lines) + " polygons whose pictures were not loaded are drawn as white lines, as inteng draws them; the file keeps the names";
+	}
+
+	if (pastLimit > 0)
+	{
+		// the names past the 4096 one file may ask for (chunk_load.cpp): not loaded, and not named one by one
+		words += "; " + std::to_string(pastLimit) + " more names are past the 4096 pictures one level file may ask for, so they were not loaded (the log says so once)";
+	}
+
+	LogString(words);
+	return words.c_str();
 }
 
 size_t LevelView_SetBakedColours(const std::vector<LevelViewBaked> &modules, double scale)

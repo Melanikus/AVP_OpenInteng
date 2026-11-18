@@ -1,0 +1,31 @@
+# ACCEPTANCE (red first; Drake 11-18, object-placement.md OP-45 / OP-46 / V-23, reassess/placed-hierarchy-drake.md (b)): THE SPLIT SCREEN'S VIEWS GO ROUND A CURRENT PLACED HIERARCHY, on his
+# path (Invasion, the file opened as a double click). inteng: Toggle Split Screen's start (FUN_004d5980, 0x4da0e2) puts the three views round the current object's block +4 (DAT_008f4f3c[1]
+# +0x10..0x18), 500000 back along z, x and y (FUN_004d58e0); a placed hierarchy's block +4 is at its PLACHIDT's place. Ours asked LinkedObjectWorld, which had no placed hierarchy, so the
+# views went round the CAMERA. The main view is the bottom right quarter (the split's words); the three others are the views.
+# With the camera ON the hierarchy, the split's start: picture 1. The split ended, the camera 25 m away, the split's start again: picture 2. Round the hierarchy both times, the top right and
+# bottom left views are the same (the main camera decides which modules are drawn, so a few pixels may differ); round the camera they are not.
+# RED on bishop-int b7f8b540: the second start puts the views round the camera 25 m away.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is dropship ken
+expect-no-dialog
+wait 400
+expect-field camera 72906 -27615 50151 0 0
+click-bar Misc > Toggle Split Screen
+wait 800
+picture 1
+click-bar Misc > Toggle Split Screen
+wait 400
+camera 72906 -27615 25151 0
+wait 400
+click-bar Misc > Toggle Split Screen
+wait 800
+picture 2
+expect-pixels-same-since 1 picture 504 0 504 364 0.05
+expect-pixels-same-since 1 picture 0 364 504 364 0.05

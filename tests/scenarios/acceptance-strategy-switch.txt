@@ -19,7 +19,7 @@ expect-selected 1
 key E
 wait 400
 picture 2
-expect-field strategyview 200@0:opslev01 : Binary Switch|100@669:E : Edit extra message data for target|100@689:P : Change Properties|100@709:T : Change Target (+Ctrl to choose environment)|16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Target : tolink04 - Multi switch
+expect-field strategyview 200@0:opslev01 : Binary Switch|100@420:E : Edit extra message data for target|100@440:P : Change Properties|100@460:T : Change Target (+Ctrl to choose environment)|16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Target : tolink04 - Multi switch
 
 # T (slot 0xd87a94, 0x52d9ee -> FUN_0052db10): "Select target for switch" along the foot, the camera to the target (FUN_00529280(record, 0): its place, tolink04's VOBJPROP -22220 -17381 78793 at scale 1,
 # LESS the camera's forward (0, 0, 65536) / 10: z 72240), and the pick loop FUN_00527540 with the target red; Return ends it with nothing else picked: the target is kept (FUN_0042f5d0: unchanged, +0x2c kept)
@@ -30,7 +30,7 @@ expect-field camera -22220 -17381 72240 0 0
 key Enter
 wait 400
 picture 4
-expect-field strategyview 200@0:opslev01 : Binary Switch|100@669:E : Edit extra message data for target|100@689:P : Change Properties|100@709:T : Change Target (+Ctrl to choose environment)|16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Target : tolink04 - Multi switch
+expect-field strategyview 200@0:opslev01 : Binary Switch|100@420:E : Edit extra message data for target|100@440:P : Change Properties|100@460:T : Change Target (+Ctrl to choose environment)|16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Target : tolink04 - Multi switch
 
 # Escape (0x52dabb) ends the view: back to Strategy Data, the level drawn again (the view's black screen gone)
 key Esc
@@ -60,7 +60,7 @@ expect-no-dialog
 wait 300
 expect-field-has strategyview 16@48:Mode : Wait
 # a left press on the view's y 0x20..0x4f (the Rest State / Mode / Switch off lines; 0x52da56) opens the form too, filled as the switch still is; Cancel (1) keeps nothing
-click-win 300 56
+click-box 300 56
 wait 300
 expect-dialog Switch Properties
 expect-dialog-checks off,on,off,off,off,off,on,off,off
@@ -87,7 +87,7 @@ click-button Ok
 expect-no-dialog
 wait 300
 picture 8
-expect-field strategyview 200@0:opslev01 : Binary Switch|100@669:E : Edit extra message data for target|100@689:P : Change Properties|100@709:T : Change Target (+Ctrl to choose environment)|16@32:Rest State : On|16@48:Mode : Timer - reset after 2.500 seconds|16@64:Switch off message : Same|16@80:Target : tolink04 - Multi switch
+expect-field strategyview 200@0:opslev01 : Binary Switch|100@420:E : Edit extra message data for target|100@440:P : Change Properties|100@460:T : Change Target (+Ctrl to choose environment)|16@32:Rest State : On|16@48:Mode : Timer - reset after 2.500 seconds|16@64:Switch off message : Same|16@80:Target : tolink04 - Multi switch
 # the form again holds what was kept: Timer, Rest on, Same; "2.500" cut to "2.5"
 key P
 wait 300

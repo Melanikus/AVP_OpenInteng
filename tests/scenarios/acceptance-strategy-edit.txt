@@ -34,10 +34,11 @@ expect-status The object has a new strategy: its Edit view
 expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
 wait 400
 picture 3
-# the Edit view is up: the whole window is black every pass (FUN_0052cbb0 0x52cbe7 FUN_00418b80(&DAT_0091f6c0, 0); strategy-data-kinds.md S-KC-1): the level, its green and the current's red are not drawn; its lines are (light grey, the font's anti-aliased white)
-expect-colour-at-most picture 0 400 300 200 00ff00 0.001 70
-expect-colour-at-most picture 0 400 300 200 ff0000 0.001 70
-expect-colour picture 0 16 300 80 c0c0c0 0.03 64
+# the Edit view is up: inteng's whole window black every pass (FUN_0052cbb0 0x52cbe7 FUN_00418b80(&DAT_0091f6c0, 0); strategy-data-kinds.md S-KC-1); ours, the owner's box (11-17): black
+# inside the box at 184 124 640 480, the level round it. In the box no green and no red; its lines are drawn from its top left (light grey, the font's anti-aliased white)
+expect-colour-at-most picture 200 400 300 200 00ff00 0.001 70
+expect-colour-at-most picture 200 400 300 200 ff0000 0.001 70
+expect-colour picture 184 140 300 80 c0c0c0 0.03 64
 # Escape ends the view (the Door's 0x52ce0d): the module is red again (0x529151)
 key Esc
 wait 400

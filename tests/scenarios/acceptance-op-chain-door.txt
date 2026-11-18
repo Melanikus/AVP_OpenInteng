@@ -52,7 +52,7 @@ click-button Door
 expect-no-dialog
 wait 400
 expect-field strategyview 200@0:medoor01 : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
-click-win 300 24
+click-box 300 24
 wait 300
 expect-field-has strategyview 200@0:medoor01 : Door|16@16:Switch activated door ('lift door')|16@32:Closed|
 picture 1

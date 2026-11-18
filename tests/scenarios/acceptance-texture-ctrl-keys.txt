@@ -1,0 +1,22 @@
+# ACCEPTANCE (TM-A2, reassess/texture-map-closeout-frost.md; texture-map-closeout-drake.md section K-0): the Texture Map's CTRL keys, as inteng's key table gives them (FUN_00557ea0
+# 0x557ee7): Ctrl+T stops wrap / tile (0x30: DAT_00914d1c = 0, 0x54d50f), Ctrl+Z is "(The Mummy)" (0x144: NOT BUILT, the owner's ruling, and it says so), Ctrl+R does nothing in the
+# polygon screen (0x33 has no case in FUN_0054d260), Ctrl+X is Exit (0x5, FUN_0054bfd0: back to the hub).
+# Red on bishop-int (the editor read no Ctrl key in the Texture Map but its own Ctrl+B), green on the hash that reads them.
+# His path: the level opened, Mode > Texture Map, the keys pressed.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+key T
+expect-status Choose Polygon for plane
+key T ctrl
+expect-status wrap / tile stopped
+key Z ctrl
+expect-status The Mummy
+key R ctrl
+expect-status The Mummy
+picture 1
+key X ctrl
+expect-screen Construction

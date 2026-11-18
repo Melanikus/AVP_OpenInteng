@@ -1,0 +1,74 @@
+# ACCEPTANCE (red first; Drake 11-17, object-placement.md OP-3 / OP-44): OBJECT PLACEMENT DRAWS THE MODULES UNLIT, AND MISC > LIGHTING LIGHTS ITS OBJECTS, on his path (E3demoSP, the file opened as a double click).
+# inteng's entry FUN_004d68e0 (not from the chooser, 0x4d843e) gives every MODULE shape's items flag 2, iflag_nolight (0x4d84e6-0x4d8526), and calls FUN_004d67f0(DAT_008f4f0c): the OBJECT shapes
+# with baked colours (shape flag 0x1000) lit (DAT_008f4f0c 1: the flag cleared) or unlit (0: set); DAT_008f4f0c is 0 when inteng starts. Misc > Lighting (0x54, 0x4d9f31-0x4d9f5f) flips it, calls
+# FUN_004d67f0 again and ticks the item. The mode's end loads the level again, so the hub draws it as the file has it. Nothing of this reaches the file.
+# E3demoSP: a survey of the 63 stock levels (11-17) found its placed objects with baked colours drawn at the mode's start (Invasion has none: there Lighting changes nothing to see).
+# Ours drew Object Placement lit as the hub does, and Misc > Lighting was the whole level's Gouraud switch.
+# RED on bishop-int 9268f758 (the build ph3): no placementlight field, Lighting not ticked, its words the Gouraud switch's.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/E3demoSP.rif
+pictures on
+state
+expect-screen Construction
+wait 400
+picture 1
+# the hub's copy: the level's polygons as the file has them
+save-copy
+# the mode's start: every module item unlit, the objects unlit too (Lighting off)
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 800
+expect-field-has placementlight look 1 lit 0
+expect-number placementlight modules 1000 10000000
+expect-number placementlight objects 100 10000000
+# the objects with baked colours DRAWN this frame (the game's OnScreenBlockList): E3demoSP's start view draws about 100 of them (a survey of the 63 stock levels' start views, 11-18)
+expect-number placementlight drawn 1 100000
+picture 2
+click-bar Misc
+expect-drop-ticked none
+key Esc
+save-copy
+# Lighting: the objects with baked colours lit, the item ticked; the modules stay unlit. DECIDED OP-44 (Drake 11-18): no pixel is checked here. A lit placed object takes its baked
+# colour PLUS the level's own lights in range, clamped at 255 (kshape.cpp VertexIntensity_Standard_Opt; its block has no ObFlag3_PreLit, so view.cpp:273-274 lets those lights on), and
+# inteng is the same engine, so its lit objects do too. The ones drawn here sit at the level's lights: lit and plain are both 255 (no pixel changed, 11-17). A dark spot would show it.
+click-bar Misc > Lighting
+expect-status Lighting: on
+expect-field-has placementlight look 1 lit 1
+wait 400
+picture 3
+click-bar Misc
+expect-drop-ticked Lighting
+key Esc
+save-copy
+# the look is the game's memory only: the copy saved with the modules unlit holds the polygons' flags and types as the hub's copy, and the copy with Lighting on as the one without
+# (two saves are never the same bytes: each runs prepare_for_output, so their polygons are what is compared)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_polyflags.exe {save1} {save2}
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_polyflags.exe {save2} {save3}
+# Lighting off: the objects as at the start again
+click-bar Misc > Lighting
+expect-status Lighting: off
+expect-field-has placementlight look 1 lit 0
+wait 400
+picture 4
+expect-pixels-same-since 2 picture 0 120 1008 560 0.002
+# the mode's end: the level as the file has it again
+click-bar Mode > Exit
+wait 300
+expect-screen Construction
+wait 600
+expect-field-has placementlight look 0
+picture 5
+# Lighting is kept from one start to the next (DAT_008f4f0c is .bss, never reset): on, out, in again: still on, ticked
+click-bar Mode > Object Placement
+expect-screen Object Placement
+click-bar Misc > Lighting
+expect-status Lighting: on
+click-bar Mode > Exit
+wait 300
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+expect-field-has placementlight look 1 lit 1
+click-bar Misc
+expect-drop-ticked Lighting
+key Esc

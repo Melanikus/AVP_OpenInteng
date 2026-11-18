@@ -1,0 +1,10 @@
+# TWO SAVES OF A LEVEL WITH TWO-FRAME MORPHS ARE THE SAME, THE MORPH FRAMES TOO (2026-11-18, avpx facfb49c): Stat101_M has FRMMORPH chunks of two frames.
+# What it checks and why: level-same-morph-Sulaco.txt.
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101_M.rif
+pictures off
+state
+expect-screen Construction
+save-copy
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save2}
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {orig} {save1} --ignore AVPGENER --ignore AVPGENNM --ignore AVPPATH2 --ignore BMPLSTST --ignore BMPNAMES --ignore EXTOBJNM --ignore FRGSOUND --ignore FRGTYPDC --ignore FRGTYPSC --ignore GMODHEAD --ignore INDSOUND --ignore MATCHIMG --ignore OBJHEAD1 --ignore PARGENDA --ignore RIFCHILD --ignore RIFFNAME --ignore SETPALST --ignore SHBMPNAM --ignore SHPEXTFN --ignore SHPFNAME --ignore SHPFRGTP --ignore SHPHEAD1 --ignore SOUNDDIR --ignore SOUNDOB2 --ignore TLTCONFG --ignore TRAKSOUN --ignore VOBJPROP

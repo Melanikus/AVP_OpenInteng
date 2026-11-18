@@ -1,0 +1,82 @@
+# ACCEPTANCE (PH-11..13, reassess/object-placement.md; reassess/ph8-13-map-vasquez.json): the current placed hierarchy's Sound Timing items. Add (0x7d6, FUN_004eb0f0) puts a new timing
+# (sound 0, start 0, end 65536: FUN_004ebb60) at the end of the current record's list and opens inteng's "Edit sound times" window on it (FUN_004ec790: "Sound index %d", Start time, End
+# time, OK); whatever ends the window the fields are read back, each taken only when 0 or more (FUN_004eca00 with FUN_0057d620's number read: an empty field is 0, letters are 0, a negative
+# number keeps the old value). Edit (0x7d7) and Remove (0x7d8) choose a timing in a list of "%d start %d , end %d" rows (FUN_004eb340: "Select sound to edit" / "Remove which sound?");
+# with no timing nothing happens. The Sound index button opens the hierarchy's sounds ("Use which sound?", "%d %s"), or inteng's "Please add a sound first" when it has none.
+# Red before PH-11..13 (vph-0, bishop-int's: the items do nothing); green with them.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera 72906 -27615 45151 0 0
+wait 400
+click-win 504 322
+wait 400
+expect-status Selected: dropship ken
+expect-hierarchy-text Sequence 0
+
+# ---- T1 Add: the window on a new timing, as FUN_004ebb60 makes it
+click-win 504 322 right
+click-popup 5
+expect-popup-rows Edit|Add|Remove
+click-popup 2
+expect-dialog Edit sound times
+expect-dialog-text 0|65536
+form-field 1 100
+form-field 2 32768
+click-button OK
+expect-no-dialog
+state
+
+# (dropship ken's record 0 holds two timings of its own, "0 start 0 , end 65536" and "1 start 38000 , end 65536"; the list shows its rows in order, ours sorted: the new one is row 2)
+# ---- T2 Edit: the chooser lists it as written; the window's read-back keeps a negative start and reads letters as 0, on Escape too
+click-win 504 322 right
+click-popup 5
+click-popup 1
+expect-dialog Select sound to edit
+expect-dialog-rows 0 start 0 , end 65536|0 start 100 , end 32768|1 start 38000 , end 65536
+click-row 2
+expect-dialog Edit sound times
+expect-dialog-text 100|32768
+form-field 1 -5
+form-field 2 abc
+key Esc
+expect-no-dialog
+click-win 504 322 right
+click-popup 5
+click-popup 1
+expect-dialog Select sound to edit
+expect-dialog-rows 0 start 0 , end 65536|0 start 100 , end 0|1 start 38000 , end 65536
+click-row 2
+expect-dialog Edit sound times
+expect-dialog-text 100|0
+
+# ---- T3 the Sound index button: the hierarchy's sounds, or inteng's message with none
+click-button Sound_index_0
+expect-dialog Use which sound?
+expect-dialog-rows 0 jet loop.wav|1 dropship door.wav
+click-row 2
+expect-dialog Edit sound times
+expect-field-has dialogbuttons Sound_index_1
+expect-dialog-text 100|0
+click-button OK
+expect-no-dialog
+picture 1
+
+# ---- T4 Remove: the chooser; the pick taken out with no question; the two timings of its own stay
+click-win 504 322 right
+click-popup 5
+click-popup 3
+expect-dialog Remove which sound?
+expect-dialog-rows 0 start 0 , end 65536|1 start 100 , end 0|1 start 38000 , end 65536
+click-row 2
+expect-no-dialog
+click-win 504 322 right
+click-popup 5
+click-popup 1
+expect-dialog Select sound to edit
+expect-dialog-rows 0 start 0 , end 65536|1 start 38000 , end 65536
+key Esc
+expect-no-dialog
+picture 2

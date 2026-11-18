@@ -63,7 +63,7 @@ wait 400
 expect-field-has strategyview 200@0:chainE : Enemy
 expect-field-has strategyview 16@16:Mission : Wait then wander (default)|16@32:Turn Death Target On|16@48:Death Target : None
 # y 16: the Mission, Local Guard
-click-win 300 24
+click-box 300 24
 expect-dialog Select Mission Type
 click-button Local_Guard
 expect-no-dialog

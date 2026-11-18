@@ -16,9 +16,9 @@ expect-status Turn B done on 1 polygon
 key R
 expect-status Turn A done on 1 polygon
 key Q
-expect-status selecting as quads
-key Q
 expect-status selecting as triangles
+key Q
+expect-status selecting as quads
 key W
 expect-status Polys Shown:
 key B

@@ -29,6 +29,7 @@
 #include "level_file.h"
 #include "object_make.h"
 #include "quick_create.h"
+#include "shape_import.h"
 
 static int checksFailed = 0;
 
@@ -186,6 +187,31 @@ int main(int argc, char **argv)
 	{
 		Check(false, "the game's loader takes the level");
 		return 1;
+	}
+
+	// OP-141 (a), open-path-2 of the 11-17 review: a shape's name is the file <folder>\<name>.rif, and Windows opens a DEVICE for "NUL.rif" or "COM1.rif" in any folder. ShapeImport_Read
+	// refuses such a name (BadName) before anything is opened: NUL would open and read empty, COM1 would open a serial port. The copy folder is a plain folder with no such files.
+	{
+		char const *const devices[] = { "NUL", "nul", "CON", "PRN", "AUX", "COM1", "com9", "LPT1", "LPT9" };
+		bool allRefused = true;
+		std::string notRefused;
+
+		for (char const *const device : devices)
+		{
+			std::vector<char> bytes;
+
+			if (host::ShapeImport_Read(copyFolder.c_str(), device, &bytes, nullptr) != host::ShapeImportResult::BadName || !bytes.empty())
+			{
+				allRefused = false;
+				notRefused += std::string(" ") + device;
+			}
+		}
+
+		std::vector<char> none;
+
+		Check(allRefused, "a device's name (NUL, CON, PRN, AUX, COM1-9, LPT1-9, any capitals) is refused before a file is opened" + (notRefused.empty() ? std::string() : ": not" + notRefused));
+		Check(host::ShapeImport_Read(copyFolder.c_str(), "COM10", &none, nullptr) == host::ShapeImportResult::NotFound && host::ShapeImport_Read(copyFolder.c_str(), "NULL", &none, nullptr) ==
+			host::ShapeImportResult::NotFound, "names that only start like a device (COM10, NULL) are plain names: looked for, and not there");
 	}
 
 	size_t const objectsBefore = CountObjects(open);

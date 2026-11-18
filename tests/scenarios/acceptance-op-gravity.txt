@@ -15,7 +15,7 @@ expect-dialog Select Object
 click-choice-is smart1
 expect-no-dialog
 wait 400
-expect-field selectedat x -20296 y 8806 z 73693
+expect-field-has selectedat x -20296 y 8806 z 73693
 picture 1
 remember-field selectedat
 click-bar Misc > Toggle Gravity

@@ -69,7 +69,7 @@ expect-no-dialog
 wait 400
 picture 3
 # "Point Effects :" (y 32): "Which track point?", 0
-click-win 100 40
+click-box 100 40
 expect-dialog Which track point?
 key Enter
 expect-no-dialog
@@ -77,7 +77,7 @@ wait 300
 picture 4
 expect-field-has strategyview 16@32:Point 0 targets :|32@48:None :
 # past the rows (none: "None :" at y 48): the targets editor ("Select targets", "Press return when finished"; picture 5); a click on the APC on the left: the module APCmod
-click-win 100 56
+click-box 100 56
 wait 400
 picture 5
 click-win 150 520
@@ -87,7 +87,7 @@ key Enter
 wait 400
 expect-field-has strategyview 16@32:Point 0 targets :|0@48:(on)|50@48:(Both directions)|190@48:APCmod
 # its direction (x 50..189): Both directions -> Forward only (S-K72-5)
-click-win 100 56
+click-box 100 56
 wait 300
 expect-field-has strategyview 16@32:Point 0 targets :|0@48:(on)|50@48:(Forward only)|190@48:APCmod
 picture 7

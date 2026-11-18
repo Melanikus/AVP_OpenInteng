@@ -562,6 +562,208 @@ static void TestParticleSound(std::string const & path, std::string const & fold
 	}
 }
 
+// D14 (Bishop 11-17): a placed hierarchy's PLACHIDT written again. Its place and turn (a flown hierarchy, V-6) read back as written, with its name, hierarchy, ID, sequences and the other
+// special objects as they were; a new name reads back too; the refusals (past the end, a place past 2^24, a NaN turn, a bad name); and a saved copy is taken by the game's own loader.
+static void TestPlacedHierarchyData(std::string const & path, std::string const & folder)
+{
+	OpenLevelFile file;
+
+	if (file.Open(path.c_str()) != LevelOpenResult::Opened)
+	{
+		Check(false, "D14: the level opens: " + path);
+		return;
+	}
+
+	std::vector<PlacedHierarchyInfo> before, after;
+	std::vector<SpecialObject> objectsBefore, objectsAfter;
+
+	Check(PlacedHierarchies_Read(&file, &before) == SpecialResult::Done && SpecialObjects_Read(&file, &objectsBefore) == SpecialResult::Done, "D14: the placed hierarchies are read: " + path);
+
+	int32_t const place[3] = { 0, 0, 0 };
+	float const turn[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+	if (before.empty())
+	{
+		Check(PlacedHierarchy_WritePlace(&file, 0, place, turn) == SpecialResult::NotFound, "D14: a level with no placed hierarchy refuses the write as not found");
+		return;
+	}
+
+	PlacedHierarchyInfo const first = before[0];
+	int32_t const moved[3] = { first.place[0] + 100, first.place[1] - 200, first.place[2] + 300 };
+	float const turned[4] = { 0.0f, 0.6f, 0.0f, 0.8f };
+
+	Check(PlacedHierarchy_WritePlace(&file, before.size(), moved, turned) == SpecialResult::NotFound, "D14: a placed hierarchy past the list's end is not found");
+
+	int32_t const tooFar[3] = { (1 << 24) + 1, 0, 0 };
+	float nanTurn[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	uint32_t const nanBits = 0x7fc00000u;
+
+	memcpy(&nanTurn[1], &nanBits, 4);
+	Check(PlacedHierarchy_WritePlace(&file, 0, tooFar, turned) == SpecialResult::BadValue, "D14: a place farther than the game's 2^24 is refused");
+	Check(PlacedHierarchy_WritePlace(&file, 0, moved, nanTurn) == SpecialResult::BadValue, "D14: a turn that is not a real number is refused");
+
+	PlacedHierarchyInfo badName = first;
+
+	badName.name = std::string(80, 'n');
+	Check(PlacedHierarchy_WriteData(&file, 0, badName) == SpecialResult::BadValue, "D14: a name the game doesn't take is refused");
+
+	Check(PlacedHierarchy_WritePlace(&file, 0, moved, turned) == SpecialResult::Done, "D14: the place and turn are written");
+	Check(PlacedHierarchies_Read(&file, &after) == SpecialResult::Done && after.size() == before.size(), "D14: the level still holds as many placed hierarchies");
+	Check(SpecialObjects_Read(&file, &objectsAfter) == SpecialResult::Done && objectsAfter.size() == objectsBefore.size(), "D14: and as many other special objects");
+
+	if (after.empty())
+	{
+		return;
+	}
+
+	PlacedHierarchyInfo const &now = after[0];
+
+	Check(memcmp(now.place, moved, sizeof(moved)) == 0 && memcmp(now.turn, turned, sizeof(turned)) == 0, "D14: the place and turn read back as written");
+	bool soundsWhole = true;
+
+	for (PlacedHierarchyInfo const &one : before)
+	{
+		for (PlacedHierarchySound const &sound : one.sounds)
+		{
+			soundsWhole = soundsWhole && sound.read && !sound.wav.empty();
+		}
+	}
+
+	Check(soundsWhole, "PH-16: every sound (INDSOUND) of the level's placed hierarchies is read whole, with its wav name");
+	Check(now.sounds.size() == first.sounds.size(), "D14: its sounds are as they were");
+	Check(now.name == first.name && now.hierarchyIndex == first.hierarchyIndex && memcmp(now.id, first.id, 8) == 0 && now.sequences.size() == first.sequences.size(),
+		"D14: its name, hierarchy, ID and sequences are as they were");
+
+	// PH-8..10: the sounds written again, a new one at the end; then the first taken out; the refusals
+	std::vector<PlacedHierarchySound> sounds = now.sounds;
+	PlacedHierarchySound added;
+
+	added.index = PlacedHierarchy_FreeSoundIndex(sounds);
+	added.wav = "step.wav";
+	added.inner = 5000;
+	added.outer = 40000;
+	added.volume = 100;
+	added.pitch = 256;
+	added.flags = 1;
+	added.read = true;
+	sounds.push_back(added);
+
+	PlacedHierarchySound badIndex = added, badWav = added;
+
+	badIndex.index = 5000;
+	badWav.wav = std::string("bad\x01name");
+	Check(PlacedHierarchy_WriteSounds(&file, 0, { badIndex }) == SpecialResult::BadValue && PlacedHierarchy_WriteSounds(&file, 0, { badWav }) == SpecialResult::BadValue,
+		"PH-8: a sound index past the game's 4095, or a wav name with a letter outside 32..126, is refused");
+	Check(PlacedHierarchy_WriteSounds(&file, after.size(), sounds) == SpecialResult::NotFound, "PH-8: a placed hierarchy past the list's end is not found");
+	Check(PlacedHierarchy_WriteSounds(&file, 0, sounds) == SpecialResult::Done && PlacedHierarchies_Read(&file, &after) == SpecialResult::Done && !after.empty() &&
+		after[0].sounds.size() == sounds.size(), "PH-8: the sounds are written, the new one with them");
+
+	if (!after.empty() && !after[0].sounds.empty())
+	{
+		PlacedHierarchySound const &last = after[0].sounds.back();
+		bool sameOld = true;
+
+		for (size_t i = 0; i + 1 < after[0].sounds.size() && i < now.sounds.size(); i++)
+		{
+			sameOld = sameOld && after[0].sounds[i].index == now.sounds[i].index && after[0].sounds[i].wav == now.sounds[i].wav && after[0].sounds[i].inner == now.sounds[i].inner &&
+				after[0].sounds[i].volume == now.sounds[i].volume && after[0].sounds[i].flags == now.sounds[i].flags;
+		}
+
+		Check(last.read && last.index == added.index && last.wav == "step.wav" && last.inner == 5000 && last.outer == 40000 && last.volume == 100 && last.pitch == 256 && last.flags == 1 &&
+			last.extra.empty(), "PH-8: the new sound reads back last, field for field (an INDSOUND at the end of the PLACHIER, no extra words: FUN_004ec1b0)");
+		Check(sameOld, "PH-8: the sounds it had read back as they were, in their order");
+
+		std::vector<PlacedHierarchySound> fewer = after[0].sounds;
+
+		fewer.erase(fewer.begin());
+		Check(PlacedHierarchy_WriteSounds(&file, 0, fewer) == SpecialResult::Done && PlacedHierarchies_Read(&file, &after) == SpecialResult::Done && !after.empty() &&
+			after[0].sounds.size() == fewer.size() && !after[0].sounds.empty() && after[0].sounds.back().wav == "step.wav", "PH-10: the first sound taken out, the others kept");
+		Check(after[0].sequences.size() == now.sequences.size(), "PH-8..10: the sequences are as they were");
+	}
+
+	PlacedHierarchyInfo renamed = after.empty() ? now : after[0];
+
+	renamed.name = "phtest01";
+	Check(PlacedHierarchy_WriteData(&file, 0, renamed) == SpecialResult::Done && PlacedHierarchies_Read(&file, &after) == SpecialResult::Done && !after.empty() && after[0].name == "phtest01" &&
+		memcmp(after[0].place, moved, sizeof(moved)) == 0, "D14: a new name (a different length: the chunk changes size) reads back, the place kept");
+
+	std::string const saved = folder + "\\placed_hierarchy_data_saved.rif";
+
+	if (file.SaveAs(saved.c_str()) == LevelSaveResult::Saved)
+	{
+		OpenLevelFile second;
+		std::vector<PlacedHierarchyInfo> reread;
+
+		Check(second.Open(saved.c_str()) == LevelOpenResult::Opened && PlacedHierarchies_Read(&second, &reread) == SpecialResult::Done && !reread.empty() && reread[0].name == "phtest01" &&
+			memcmp(reread[0].place, moved, sizeof(moved)) == 0, "D14: a saved copy is taken by the game's own loader with the new place and name");
+		DeleteFileA(saved.c_str());
+		DeleteFileA((saved + ".bak").c_str());
+	}
+	else
+	{
+		Check(false, "D14: the level with the written PLACHIDT is saved");
+	}
+}
+
+// PH-11..13: the Sound Timing items' rules, as inteng has them (reassess/ph8-13-map-vasquez.json): the new timing (FUN_004ebb60), the chooser rows (0x5e907c, 0x5e9060) and the window's
+// write-back (FUN_004eca00 with FUN_0057d620's number read: only 0 or more is taken; an empty field is 0; anything not '-'-and-digits is 0)
+static void TestTimingRules()
+{
+	auto const indexes = [](std::vector<int32_t> const &numbers)
+	{
+		std::vector<PlacedHierarchySound> sounds;
+
+		for (int32_t const n : numbers)
+		{
+			PlacedHierarchySound one;
+
+			one.index = n;
+			sounds.push_back(one);
+		}
+
+		return PlacedHierarchy_FreeSoundIndex(sounds);
+	};
+
+	Check(indexes({}) == 0 && indexes({ 0, 1 }) == 2 && indexes({ 1 }) == 0 && indexes({ 2, 0, 1, 4 }) == 3, "PH-8: Add's index is the lowest one no sound has (FUN_004eab10)");
+
+	PlacedHierarchyTimedSound const fresh = PlacedHierarchy_NewTiming();
+
+	Check(fresh.soundIndex == 0 && fresh.start == 0 && fresh.end == 0x10000, "PH-11: a new timing is sound 0, start 0, end 0x10000 (FUN_004ebb60)");
+
+	PlacedHierarchyTimedSound shown;
+
+	shown.soundIndex = 3;
+	shown.start = 100;
+	shown.end = 65536;
+	Check(PlacedHierarchy_TimingRow(shown) == "3 start 100 , end 65536", "PH-12: the timing chooser's row is \"%d start %d , end %d\" of the raw numbers (0x5e907c)");
+
+	PlacedHierarchySound sound;
+
+	sound.index = 5;
+	sound.wav = "step.wav";
+	Check(PlacedHierarchy_SoundRow(sound) == "5 step.wav", "PH-11: the sound chooser's row is \"%d %s\" (0x5e9060)");
+
+	struct Case { char const *start; char const *end; int32_t wantStart; int32_t wantEnd; char const *what; };
+	Case const cases[] = {
+		{ "123", "456", 123, 456, "two numbers are taken" },
+		{ "", "", 0, 0, "an empty field stores 0" },
+		{ "-5", "7", 10, 7, "a negative number keeps the old value" },
+		{ "12a", "-", 0, 0, "anything not '-' and digits reads 0, and so does '-' alone" },
+		{ "9999999999", "999999999", 0, 999999999, "a number past an int reads 0 (a tenth digit inteng's field can't take); nine digits are taken" },
+	};
+
+	for (Case const &one : cases)
+	{
+		PlacedHierarchyTimedSound timing;
+
+		timing.soundIndex = 2;
+		timing.start = 10;
+		timing.end = 20;
+		PlacedHierarchy_TimingFromFields(one.start, one.end, &timing);
+		Check(timing.start == one.wantStart && timing.end == one.wantEnd && timing.soundIndex == 2, std::string("PH-11: the window's write-back: ") + one.what);
+	}
+}
+
 int main(int argc, char ** argv)
 {
 	setvbuf(stdout, 0, _IONBF, 0);
@@ -580,10 +782,13 @@ int main(int argc, char ** argv)
 		return 1;
 	}
 
+	TestTimingRules();
+
 	for (int i = 1; i < argc; i++)
 	{
 		TestFile(argv[i], folder);
 		TestPlacedHierarchySequences(argv[i], folder);
+		TestPlacedHierarchyData(argv[i], folder);
 		TestParticleSound(argv[i], folder);
 	}
 

@@ -174,6 +174,17 @@
 #include "open_with.h"
 
 #include "editor_shared.h"
+#include "state_line.h"
+
+// A Strategy Edit view's box in the window (the owner's addition, 11-17): half the window each way, never under inteng's 640 x 480 page (the size every view was laid out for), never over the
+// window, centred in it
+static ui::Box StrategyViewBoxIn(ui::Box const &window)
+{
+	int32_t const width = window.width / 2 > 640 ? window.width / 2 : (window.width > 640 ? 640 : window.width);
+	int32_t const height = window.height / 2 > 480 ? window.height / 2 : (window.height > 480 ? 480 : window.height);
+
+	return ui::Box{ window.x + (window.width - width) / 2, window.y + (window.height - height) / 2, width, height };
+}
 
 PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines, host::PaintBox *boxes, ui::Box *titleBoxes)
 {
@@ -320,6 +331,8 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 			// Object Placement's Misc > Toggle Gravity (0x58): ticked by DAT_008f4f50, at the mode's start (0x4d8422-0x4d842c) and at each flip (0x4dc67c-0x4dc6e0); Track Editing's page has it too (V-24)
 			bar.SetChecked(ActionOfCommand("0x5e51b8", 0x58), PlacementGravityOn());
 			bar.SetChecked(ActionOfCommand("0x5e6e98", 0x58), PlacementGravityOn());
+			bar.SetChecked(ActionOfCommand("0x5e51b8", 0x54), PlacementLightingOn());   // Misc > Lighting by DAT_008f4f0c (0x4d840f-0x4d8419 at the start, 0x4d9f58 at each flip; OP-44)
+			bar.SetChecked(ActionOfCommand("0x5e6e98", 0x54), PlacementLightingOn());
 		}
 
 		// The textures setting is kept in the editor's own settings file when it changes
@@ -990,6 +1003,9 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	}
 
 	// [S-KC-1] the view's lines (FUN_0057bd90(x, y, 1, ...): x, y from the window's top left)
+	strategyViewBox[0] = strategyViewBox[1] = strategyViewBox[2] = strategyViewBox[3] = 0;
+	strategyViewWord.clear();   // this frame's view lines only: no view drawn (the volume editor, a collector, the page), no lines on the state line (Bishop 11-18: it kept the last view's)
+
 	if (strategyEditFan && OnStrategyScreen() && !volume.on && !copyCollecting)
 	{
 		std::vector<uint8_t> payload;
@@ -999,8 +1015,6 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 
 		if (StrategyViewSubject(&payload, &name, &kind, id) && kind == strategyEditKind)
 		{
-			strategyViewTop = layout.view.y;   // inteng's lines are placed from the window's top, not under the bar (the bar, when it is shown, covers 0..32 over them as in inteng)
-
 			std::vector<host::StrategyViewLine> shown;
 
 			strategyViewWord.clear();
@@ -1008,6 +1022,24 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 			// while an object pick runs the screen's own frame is drawn (FUN_00529370): "View Distance :%d" (16, 32), "Press return when finished" (16, 48, 0x5edfe4), the picked object's name (16, 80),
 			// the row's words along the foot (200, height - 20); not the view's lines
 			bool const picking = !strategyPickField.empty();
+
+			// THE VIEW'S BOX (an OWNER'S ADDITION, 11-17, NAMED: inteng's views fill the whole screen black, FUN_00418b80 on every pass, S-KC-1): a view, its pages and E's pages are drawn in a box
+			// centred in the window, half its width and half its height but never under inteng's own 640 x 480 (so every line sits where inteng laid it out), with a white frame and no title band
+			// (inteng's views have none: the title is the (200, 0) line), and the level drawn round it. Its lines, its foot and its clicks are measured from the box's top left. The object pick
+			// stays the whole screen (its clicks are on the level, S-KC-5): its lines from the window's top left, as before. (Before this, the view's lines were from the window's top: the bar,
+			// when shown, covered 0..32 over them as in inteng.)
+			ui::Box const box = picking ? layout.view : StrategyViewBoxIn(layout.view);
+
+			strategyViewLeft = box.x;
+			strategyViewTop = box.y;
+
+			if (!picking)
+			{
+				strategyViewBox[0] = box.x;
+				strategyViewBox[1] = box.y;
+				strategyViewBox[2] = box.width;
+				strategyViewBox[3] = box.height;
+			}
 			// the Lift's lines read the level: an object's radius (FUN_00529850) and whether a position's Lift starts there (FUN_0052cb10)
 			host::StrategyViewWorld world;
 
@@ -1038,12 +1070,12 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 
 			if (requestPageOn && !picking)
 			{
-				host::StrategyView_RequestLines(&requestPage, layout.view.height, LevelPathNamed, &shown);   // E's page: its own black screen (S-KC-8)
+				host::StrategyView_RequestLines(&requestPage, box.height, LevelPathNamed, &shown);   // E's page: its own black screen (S-KC-8), in the box
 				haveLines = true;
 			}
 			else
 			{
-				haveLines = picking || host::StrategyView_Lines(kind, payload, name, layout.view.height, StrategyViewNameOf, id, &shown, &world);
+				haveLines = picking || host::StrategyView_Lines(kind, payload, name, box.height, StrategyViewNameOf, id, &shown, &world);
 			}
 
 			if (picking)
@@ -1068,9 +1100,16 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 				}
 
 				one.x = 200;
-				one.y = layout.view.height - 20;
+				one.y = layout.view.height - 20;   // the pick is the whole screen's: its foot is the window's
 				one.text = strategyViewPickWords;
 				shown.push_back(one);
+			}
+
+			// the box: a white frame one pixel wide, black inside (as the dialogs' windows, dialogs.cpp window(), without their red title band)
+			if (!picking && boxCount + 2 <= kPanelPassMostExtras)
+			{
+				boxes[boxCount++] = host::PaintBox{ box.x, box.y, box.width, box.height, 0xFFFFFFFFu };
+				boxes[boxCount++] = host::PaintBox{ box.x + 1, box.y + 1, box.width - 2, box.height - 2, 0xFF000000u };
 			}
 
 			if (haveLines)
@@ -1120,23 +1159,29 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 						}
 					}
 
-					line.x = one.x;
-					line.y = layout.view.y + one.y;
+					line.x = box.x + one.x;
+					line.y = box.y + one.y;
+
+					// a line whose letters would pass the box's bottom is cut, as inteng's 640 x 480 screen cut it and as a line with a tab stops there (IntengText_Layout); NAMED: a line past the
+					// box's right edge is not cut, as no letter is (a long name)
+					if (!picking && one.y + PanelPass_MenuFontHeight() > box.height)
+					{
+						continue;
+					}
 
 					if (intengFont && line.text.find('\t') != std::string::npos)
 					{
-						// a tab in a view's line ("D : Duplicate target\t Shift D : Remove target", 0x5ef100): FUN_0057be40 puts what follows at the next multiple of 4 x 16 from the screen's left (H-1f)
-						int32_t const screenW = layout.toolbar.width > 0 ? layout.toolbar.width : 1008;
-						int32_t const screenH = layout.status.y + layout.status.height > 0 ? layout.status.y + layout.status.height : 729;
-						std::vector<host::IntengTextPiece> const pieces = host::IntengText_Layout(line.text, line.x, line.y, screenW, screenH, PanelPass_MenuWidth, PanelPass_MenuFontHeight(), kPanelPassMostExtras - lineCount);
+						// a tab in a view's line ("D : Duplicate target\t Shift D : Remove target", 0x5ef100): FUN_0057be40 puts what follows at the next multiple of 4 x 16 from the screen's left (H-1f);
+						// laid out in the box's own pixels, so the stops are from the box's left as inteng's are from its screen's, and the line is wrapped at the box's edge
+						std::vector<host::IntengTextPiece> const pieces = host::IntengText_Layout(line.text, one.x, one.y, box.width, box.height, PanelPass_MenuWidth, PanelPass_MenuFontHeight(), kPanelPassMostExtras - lineCount);
 
 						for (host::IntengTextPiece const &piece : pieces)
 						{
 							host::PaintText part = line;
 
 							part.text = piece.text;
-							part.x = piece.x;
-							part.y = piece.y;
+							part.x = box.x + piece.x;
+							part.y = box.y + piece.y;
 							lines[lineCount++] = part;
 						}
 
@@ -1147,6 +1192,10 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 			}
 		}
 	}
+
+	// the view's box on the state line (the owner's box): x y width height in the window's client pixels, empty when none is up or the pick runs; a scenario's click-box clicks from it
+	StateLine_Add("strategybox", strategyViewBox[2] > 0 ? std::to_string(strategyViewBox[0]) + " " + std::to_string(strategyViewBox[1]) + " " + std::to_string(strategyViewBox[2]) + " " +
+		std::to_string(strategyViewBox[3]) : std::string());
 
 	// THE SELECTED LIGHT'S TEXT BLOCK (FUN_004ac430, called by FUN_004acf30 every frame; layout of the 16-pixel text lines, DAT_00915210 == 0x10; strings 0x5e2348..0x5e2204, read from inteng.exe's bytes): two columns at x 10 and 200, rows from 0x42 down in steps of 16
 	// Brightness / Spread, Range / Shadows, Atten / Spread Atten, Omni / Runtime, Red / Green, Blue / No PreLight, Specular, then "Light saved - no. %d" (or Up / Down colour for a placed-object light), then "Light Turned Off". The attribute < and > chose (DAT_00703e58) shows its VALUE ONLY on every third frame (DAT_00703e44 % 3 == 0): it flashes.
@@ -1258,6 +1307,30 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 				off.x = 10;
 				off.y = base + 0xc2;
 				lines[lineCount++] = off;
+			}
+		}
+	}
+
+	// TEXTURE MAP'S MERGE (sub-mode 2, FUN_005511f0 0x551826-0x55194e, FUN_0057b1b0 at x 0x10): the picked polygons' "%d	verts: %d,%d,%d" at 0x20 / 0x30 and the shape's name at 0x40
+	// (texture_submodes.cpp TextureMergeLines); the state line's screentext has them
+	if (onTextureMap && textureSubMode == 2 && !textPanelText)
+	{
+		std::vector<std::pair<int32_t, std::string>> mergeLines;
+		int32_t const base = layout.toolbar.y + layout.toolbar.height;
+
+		TextureMergeLines(&mergeLines);
+
+		for (std::pair<int32_t, std::string> const &one : mergeLines)
+		{
+			if (lineCount < kPanelPassMostExtras)
+			{
+				host::PaintText line;
+
+				line.text = one.second;
+				line.x = 0x10;
+				line.y = base + one.first;
+				lines[lineCount++] = line;
+				screenTextNow += (screenTextNow.empty() ? "" : "|") + one.second;
 			}
 		}
 	}

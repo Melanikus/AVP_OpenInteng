@@ -1,0 +1,23 @@
+# ACCEPTANCE (the owner's release check, 2026-11-17): a level with NO LIST OF PICTURES at all (no BMPNAMES: Hangar with the chunk taken out, verify_missing_pictures make ... drop),
+# as a map made elsewhere can be, opens, SHOWS ITS POLYGONS, says so, edits and saves, and the save keeps the polygons' picture numbers. Every textured polygon's picture is unknown, so
+# the game's loader makes it a white unlit line (I_Polyline), which the game never draws: before, the level was all black, in the hub and in Texture Map. The editor draws such a
+# polygon as a line, as inteng does (its kind 0xe). The loader's table of pictures is null for such a level: the conversion now looks before it reads (chunk_load.cpp).
+# Red on bishop-int (all black, nothing said), green on the hash with the missing pictures' handling.
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_missing_pictures/verify_missing_pictures.exe make C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {exedir}HangarNoPictureList.rif drop
+start-args {exedir}HangarNoPictureList.rif
+pictures on
+state
+expect-screen Construction
+expect-status This level has no list of pictures
+picture 1
+# the hub's view: the level's lines, white, where it was all black
+expect-colour picture 0 120 1008 609 ffffff 0.003 40
+item 0x46
+expect-screen Texture Map
+picture 2
+expect-colour picture 0 0 1008 700 ffffff 0.003 40
+click-view 0.50 0.60
+key X
+save-copy
+expect-status-not Not saved
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_missing_pictures/verify_missing_pictures.exe same {exedir}HangarNoPictureList.rif {copy}

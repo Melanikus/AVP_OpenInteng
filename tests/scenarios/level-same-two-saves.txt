@@ -1,0 +1,17 @@
+# TWO SAVES OF AN UNTOUCHED LEVEL ARE THE SAME LEVEL (Bishop, 2026-11-17): the scenario example of the shared change-nothing check, verify_level_same
+# (tests/scenarios/verify_level_same.cpp, tests/level_same.h). Every save runs inteng's prepare_for_output, which moves on every OBJHEAD1, SHPHEAD1, ENDTHEAD,
+# ENUMHEAD and ASPRHEAD version counter, so the two copies are never the same bytes (926 bytes apart on Invasion); verify_level_same compares them chunk by chunk,
+# every byte but those counters, and says SAME. A change-nothing check compares a save made BEFORE the action with one made after it ({save1} {save2}), never the
+# stock file ({orig}): the game's own files hold stray bytes after their names that every save writes as zeros (level_same.h says more).
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures off
+state
+expect-screen Construction
+save-copy
+# an action that changes nothing in the level: a selection made and taken away again
+select-rows 0 3 5
+expect-selected 3
+key L
+expect-selected 0
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save2}

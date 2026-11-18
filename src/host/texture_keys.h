@@ -14,6 +14,10 @@ namespace host
 	// true when the Texture Map takes this key (a VK_ number; letters are the capital letter) for itself; windowOn = the texture window (Tab) is on
 	bool TextureMapKeys_Own(uint8_t key, bool windowOn);
 
+	// The same by inteng's sub-mode (DAT_00914bf8: 0 the polygons, 1 the texture window, 2 Merge, 3 multiple nodes): 0 and 1 are TextureMapKeys_Own's; 2 and 3 take the keys their
+	// table gives a command (D1 of the TM-A / TM-B split; Dietrich 2026-11-18), and 2 also M, X and B, which its frame FUN_005511f0 reads straight from the key slots.
+	bool TextureMapKeys_OwnInSubMode(uint8_t key, int subMode);
+
 	// The camera's move keys of a layout that the Texture Map takes for itself, written into keys (at most room); returns how many. They are the keys the camera loses in the mode.
 	size_t TextureMapKeys_CameraKeysLost(KeyLayout layout, bool windowOn, uint8_t *keys, size_t room);
 

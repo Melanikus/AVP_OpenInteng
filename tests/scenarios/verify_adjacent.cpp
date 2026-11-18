@@ -230,6 +230,20 @@ int main(int argc, char **argv)
 		}
 	}
 
+	// same: nothing of the adjacency changed (every module's list, each entry's flags and point), with the chunk counts above: the "change nothing" check of the write-back (Dietrich, 2026-11-17)
+	if (strcmp(argv[3], "same") == 0)
+	{
+		Check(changed.empty(), "no module's adjacency changed (" + std::to_string(was.size()) + " objects compared, " + std::to_string(changed.size()) + " differ)");
+
+		for (size_t i = 0; i < changed.size() && i < 5; i++)
+		{
+			printf("  info  module %d's adjacency differs\n", (int)was[changed[i]].index);
+		}
+
+		printf("%s\n", checksFailed ? "SOME CHECKS FAILED" : "All checks passed");
+		return checksFailed ? 1 : 0;
+	}
+
 	if (moved)
 	{
 		// an entry point marker was moved (Waypoint, Fly): the entries between two AI modules got one point and the hand-set bit; the lists themselves (the modules, their order) are as they were

@@ -1,0 +1,15 @@
+# ACCEPTANCE (OP-137b, Bishop's ruling Q2 11-17: EVERY open path brings the outside shapes up to date, as inteng does at every load, FUN_005149e0 -> FUN_00512fc0(0)): a level opened by its
+# NAME from the data folder (Level=, as the editor's settings open it, no file on the command line). The data-folder original is never written: the update is made on the HELD level in
+# memory, the view loads those working bytes, and a saved copy holds them. verify_outside_shape make writes the level into {datadir} (run-shards: this run's private data folder, the ini's
+# DataFolder=) and {exedir}shape_rifs\OpenOutsideTest.rif with the shape twice as big. Red without the hook (vop-9: only the double-click open refreshed); green with it.
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe make C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {datadir}/avp_rifs/Hangar-byname.made.rif {exedir}shape_rifs
+screen Construction
+level {datadir}/avp_rifs/Hangar-byname.made.rif
+pictures on
+state
+expect-screen Construction
+expect-status Outside shapes brought up to date from their own files: OpenOutsideTest
+picture 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe check C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {copy}
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe check C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {orig} unchanged

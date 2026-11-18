@@ -20,7 +20,7 @@ expect-field-has strategyview 200@0:genlev02 : Multiple Target Switch
 expect-field-has strategyview 16@80:Targets :
 expect-field-has strategyview 80@96:linktoeverything
 # Shift + D with the pointer on row 0 (the view's y 96 is the window's y 104): the target taken out
-move-win 300 104
+move-box 300 104
 key D shift
 wait 300
 picture 2

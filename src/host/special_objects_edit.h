@@ -125,6 +125,19 @@ namespace host
 		std::vector<PlacedHierarchyTimedSound> sounds;
 	};
 
+	// One sound of a placed hierarchy: an INDSOUND child of its PLACHIER (avpx Indexed_Sound_Chunk: the index, the wav name to a whole 4 bytes, inner, outer, volume, pitch, flags, the
+	// count of extra words and the words; inteng's record of FUN_004ebb80 / FUN_004ebc80, its list +0x80). read is false when the chunk couldn't be read whole (it is then kept as it is).
+	struct PlacedHierarchySound
+	{
+		int32_t index = 0;
+		std::string wav;
+		uint32_t inner = 0, outer = 0;    // the file's units
+		int32_t volume = 127, pitch = 0, flags = 0;
+		std::vector<int32_t> extra;
+		bool read = false;
+		std::vector<char> raw;            // the chunk as the file holds it (written back as it is when it couldn't be read whole)
+	};
+
 	struct PlacedHierarchyInfo
 	{
 		size_t number = 0;                  // its place among the level's placed hierarchies, from 0, in the file's order
@@ -134,6 +147,7 @@ namespace host
 		float turn[4] = { 0, 0, 0, 1 };     // x y z w
 		uint8_t id[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 		std::vector<PlacedHierarchySequence> sequences;   // its PLHISEQU chunks, in the file's order (inteng's list +0x70)
+		std::vector<PlacedHierarchySound> sounds;         // its INDSOUND chunks, in the file's order (inteng's list +0x80)
 	};
 
 	// Every placed hierarchy of the level, in the file's order. A PLACHIER with no PLACHIDT, or one too short for its numbers, is left out (the game's reader refuses such a level).
@@ -144,6 +158,39 @@ namespace host
 	// (inteng's save FUN_004e96d0 0x4e98b1-0x4e9a80 with FUN_004eb9b0; no extra data). The other children are kept. BadValue for an index outside 0..4095 (the game's reader), a time of 0 or less,
 	// or more than 4096 records or sounds (reassess/object-placement.md PH-4..PH-7).
 	SpecialResult PlacedHierarchy_WriteSequences(OpenLevelFile *file, size_t number, std::vector<PlacedHierarchySequence> const &sequences);
+
+	// D14 (Bishop 11-17; Drake's V-6 flies a placed hierarchy, V-23 / OP-10 place views round it): placed hierarchy `number`'s PLACHIDT written again from data's name, hierarchy index, place
+	// (file units), turn (x y z w) and ID, as the game's writer lays it out (avpx hierplace.cpp Placed_Hierarchy_Data_Chunk::fill_data_block: the name, its 0, to a whole 4 bytes; the
+	// index; the place; the turn; the ID; the extra numbers). Its extra numbers are kept as the file has them, and the PLACHIER's other children (sequences, sounds) in their order.
+	// BadValue for a name SpecialName_Good refuses, a place farther than the game's 2^24 (chunk.hpp CheckPlace), or a turn that is not real numbers; NotFound past the list's end.
+	SpecialResult PlacedHierarchy_WriteData(OpenLevelFile *file, size_t number, PlacedHierarchyInfo const &data);
+
+	// PH-11..13, the Sound Timing items (FUN_004eb0f0 / FUN_004eb1f0 / FUN_004eb270; reassess/ph8-13-map-vasquez.json). A new timing as FUN_004ebb60 makes it: sound 0, start 0, end 0x10000.
+	PlacedHierarchyTimedSound PlacedHierarchy_NewTiming();
+
+	// The timing chooser's row (FUN_004eb340, 0x5e907c "%d start %d , end %d": the sound index, start and end as held, raw)
+	std::string PlacedHierarchy_TimingRow(PlacedHierarchyTimedSound const &timing);
+
+	// The sound chooser's row (FUN_004eac40, 0x5e9060 "%d %s": the sound's index and wav name)
+	std::string PlacedHierarchy_SoundRow(PlacedHierarchySound const &sound);
+
+	// The "Edit sound times" window's write-back, whatever ends the window (FUN_004eca00 0x4eca17-0x4eca36): each field read as inteng's number field reads it (FUN_0057d620: an optional
+	// '-' then decimal digits and nothing else; an empty field, "-" alone or anything else reads 0), and taken only when 0 or more (a negative one keeps the old value). NAMED: our field
+	// can hold a tenth digit inteng's can't type; a number past an int reads 0.
+	void PlacedHierarchy_TimingFromFields(std::string const &start, std::string const &end, PlacedHierarchyTimedSound *timing);
+
+	// PH-8 Sounds > Add's index (FUN_004eab10 0x4eab31-0x4eab8b): the lowest number, 0 or more, no sound of the list has
+	int32_t PlacedHierarchy_FreeSoundIndex(std::vector<PlacedHierarchySound> const &sounds);
+
+	// PH-8..10: placed hierarchy `number`'s sounds written again, as inteng's save writes them (FUN_004e96d0 0x4e9986-0x4e9ade): every INDSOUND child of its PLACHIER goes, and one per
+	// sound is made, in this order, at the END of the PLACHIER (FUN_004ec1b0 -> FUN_0051c090: the index, the wav name and its 0 to a whole 4 bytes, inner and outer in the file's units,
+	// volume, pitch, flags, and no extra words). A sound that wasn't read whole (read false) is written back as its chunk was (NAMED: hostile input is never made up). BadValue for an
+	// index outside 0..4095 (the game's reader), a wav name longer than 255 or with a letter outside 32..126 (inteng copies the name into 256 bytes with no check: NAMED), or more than
+	// 4096 sounds; NotFound past the list's end.
+	SpecialResult PlacedHierarchy_WriteSounds(OpenLevelFile *file, size_t number, std::vector<PlacedHierarchySound> const &sounds);
+
+	// The place and turn alone (a flown hierarchy, V-6: inteng's +0x48 is one function for every class, 0x4def60), everything else as the file has it
+	SpecialResult PlacedHierarchy_WritePlace(OpenLevelFile *file, size_t number, int32_t const place[3], float const turn[4]);
 
 	// What a new object of that kind is, before it has a name: inteng's constructor values (generator type 0, Bad Guy type 1, flags 0x3801; sound 5000 / 10000 mm at scale 1, volume 127;
 	// particle generator time 50, probability 50)
@@ -159,6 +206,14 @@ namespace host
 
 	// Takes the object away (Delete)
 	SpecialResult SpecialObject_Delete(OpenLevelFile *file, SpecialKind kind, size_t number);
+
+	// A special object's ALTERNATE LOCATIONS (Object Placement's Alt Locations and , / ., OP-34..38 and OP-91, for inteng's kinds 1, 2, 3 and 7): the payload of its ALTLOCAT (after the
+	// chunk's 12-byte heading; alt_locations.h reads and builds it), where the game reads it (get_alternate_locations_chunk: avp_chunk.cpp, chunk_sound.cpp) and inteng's saves write it
+	// (FUN_004dfc70 from 0x4e55ca, 0x4e5cb4, 0x4ed73a, 0x4e70b4): a generator's or bad guy's in the AVPGENEX named as it (its AVPGENNM), a sound's in the SOUNDEXD whose SOUNDNAM is its name,
+	// a particle generator's in its own PARGENER. A player start has none (BadCall). Read: *has false (payload empty) when there is none. Write: payload null takes it out; a holder that is
+	// not there yet is made (AVPGENEX / SOUNDEXD with the name chunk, at the end of SPECLOBJ, as SpecialObject_Write makes an AVPGENEX); every other child of the holder is kept.
+	SpecialResult SpecialObject_ReadAlt(OpenLevelFile *file, SpecialKind kind, size_t number, std::vector<uint8_t> *payload, bool *has);
+	SpecialResult SpecialObject_WriteAlt(OpenLevelFile *file, SpecialKind kind, size_t number, std::vector<uint8_t> const *payload);
 
 	// A name: 0 to 63 plain letters (32 to 126)
 	bool SpecialName_Good(std::string const &name);

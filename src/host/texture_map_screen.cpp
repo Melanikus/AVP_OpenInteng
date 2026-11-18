@@ -168,6 +168,8 @@
 #include "view_toggles_game.h"
 #include "window_events.h"
 #include "open_with.h"
+#include "texture_quad.h"
+#include "texture_shared.h"
 
 #include "editor_shared.h"
 
@@ -667,6 +669,10 @@ void TextureMapEdit(int32_t command);
 void TextureMapStepPicture(int step);
 static void TextureWindowRotateNodes(int quarters);
 bool textureWindowOn = false;
+// inteng's sub-mode (DAT_00914bf8, the menu object's +0x14, set by FUN_0054caf0): 0 the polygons, 1 the texture window, 2 Merge (FUN_005511f0), 3 multiple nodes (FUN_00552bb0). The key
+// table and the key ownership go by it, and TextureMapCommand hands a sub-mode's commands to its own switch first (TextureWindowCommand, texture_submodes.cpp). (D1 of the TM-A / TM-B
+// split, Bishop's ruling 11-17; added 2026-11-18 by Melanikus (Dietrich).)
+int textureSubMode = 0;
 int textureWinScale = 0;   // 0: fit
 bool TextureWindowLoad();
 void TextureWindowApply();
@@ -688,8 +694,11 @@ bool textureInvertPending = false;   // 0x101 was chosen: the next click names t
 
 // TEXTURE MAP's held states, cleared on entry and when it is left (reassess/mode-entry-exit-frost.md): FUN_00544510 0x544551 sets the selection mode DAT_00914d9c = 0 on every entry
 // (TM-E1); FUN_0054bfd0 frees everything of the mode on its Exit (TM-X2): no corners held, no plane or rectangle or invert waiting, no multiple copy half done
+extern int textureSelectAs;   // Select As, below
+
 void TextureModeStateReset()
 {
+	textureSelectAs = 4;   // TM-A3: Select As starts on Quad at every entry (FUN_00555fa0 0x556012, called at 0x54bc47)
 	textureSelectMode = 0;
 	host::PolyEdit_VertexClear(&polyVertices);
 	texturePlaneMode = 0;
@@ -722,13 +731,19 @@ size_t TextureSelectedIndex(uint8_t const *id, int32_t polygon)
 
 // Selects (or deselects) one polygon; false when the selection is full
 // Select As (Options > Select As > Triangle 0xe / Quad 0xf; FUN_0054d260 sets the state's +0x9c to 3 or 4): with Quad, a polygon that was merged with another (the file's merge data SHPMRGDT: a quad the game made of two triangles) is selected - and deselected - together with its partner
-// (FUN_0056db80 selects the partner, FUN_005734a0 does it for the selection already made when Quad is chosen). NAMED: inteng's own default of the state is not read; this editor starts with Triangle.
-static int textureSelectAs = 3;
+// (FUN_0056db80 selects the partner, FUN_005734a0 does it for the selection already made when Quad is chosen). It STARTS ON QUAD at every entry (TM-A3): the mode's state is made
+// again by FUN_00555fa0 (called at 0x54bc47), which sets +0x9c = 4 (0x556012); TextureModeStateReset does that here.
+int textureSelectAs = 4;
 
 // FAKE MERGE DATA (Options > Fake Merge Data 0x143; FUN_005677d0 on, FUN_00567950 off; the message "Fake merge data turned on" / "turned off"): the pairing of triangles into quads (the merge data SHPMRGDT: DAT_00914d3c) is swapped for an in-memory COPY (DAT_00914d44) that Merge and Unmerge change
 // without the file's chunk being written (FUN_00566d60 writes the pairing into SHPMRGDT only when it is off); turning it off puts the real pairing back, and a pair the copy has parted is parted in the real one too. HERE the pairing everything asks for is TexturePartnerOf: the file's while the
 // switch is off, the copy's (made from the file's on first use of a shape) while it is on; TextureFakePairSet is for Merge / Unmerge (the poly edit group) to change the copy. NAMED: until those two exist nothing changes the copy, so the switch changes nothing yet that can be seen.
 static bool textureFakeMerge = false;
+
+bool TextureFakeMergeOn()
+{
+	return textureFakeMerge;   // Merge's save (texture_submodes.cpp) asks nothing while it is on (FUN_0055b900 0x55b965)
+}
 static std::map<std::string, std::vector<int32_t>> textureFakePairs;
 
 static int32_t TexturePartnerOf(OpenLevelFile *open, uint8_t const *id, int32_t polygon)
@@ -777,6 +792,162 @@ static int32_t TexturePartnerOf(OpenLevelFile *open, uint8_t const *id, int32_t 
 	{
 		found->second[(size_t)polygon] = partner;
 	}
+}
+
+// The polygons of a shape as the game loaded them (the file's numbers to its items): what inteng's texture record of a polygon holds, its type and its picture
+struct TextureLoaded
+{
+	LevelViewShapeOf shape = {};
+	std::vector<int32_t> toItem;
+	bool inPlay = false;
+
+	// The game's texture number on polygon `polygon` (the global image number inteng's record keeps at +0x28: FUN_0055d770 0x55d995 takes it from the loaded
+	// item's colour); false when the game drew that polygon without a picture (inteng's record then says type 2, untextured: 0x55d89c-0x55d8d2), e.g. a picture
+	// that couldn't be loaded or an empty list of coordinates
+	bool Texture(int32_t polygon, int32_t *texture) const
+	{
+		return inPlay && polygon >= 0 && (size_t)polygon < toItem.size() && LevelView_ItemTexture(shape, toItem[(size_t)polygon], texture);
+	}
+};
+
+static TextureLoaded TextureLoadedOf(OpenLevelFile *open, uint8_t const *id, bool isModule, int32_t moduleIndex)
+{
+	TextureLoaded loaded;
+	model::ShapeModel model;
+	std::string why;
+	std::vector<uint8_t> corners;
+	std::vector<int32_t> numbers, firstFile;
+	bool hasMerge = false;
+
+	loaded.shape.isModule = isModule;
+	loaded.shape.moduleIndex = moduleIndex;
+	memcpy(loaded.shape.objectId, id, 8);
+	loaded.inPlay = host::ShapeEdit_Read(open->Level(), open, id, &model, nullptr, &why) == host::ShapeEditResult::Done && LevelView_ItemCorners(loaded.shape, &corners) &&
+		host::PolygonItems_ReadMergeData(open, open->Level(), id, &numbers, &hasMerge) &&
+		host::PolygonItems_Map(hasMerge ? numbers.data() : nullptr, numbers.size(), model.polygons.size(), corners.data(), corners.size(), &loaded.toItem, &firstFile) ==
+			host::PolygonItemResult::Ok;
+	return loaded;
+}
+
+// The width and height of the game's texture `texture` (its texture table)
+static bool TexturePictureSizeOf(int32_t texture, int32_t *width, int32_t *height)
+{
+	std::vector<LevelViewPicture> pictures;
+
+	if (!LevelView_Pictures(&pictures, 4096))
+	{
+		return false;
+	}
+
+	for (LevelViewPicture const &picture : pictures)
+	{
+		if (picture.texture == texture)
+		{
+			*width = picture.width;
+			*height = picture.height;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// FUN_00566b90 (texture_shared.h)
+TextureWrapResult TextureWrapPolygon(uint8_t const id[8], bool isModule, int32_t moduleIndex, int32_t polygon, std::string *why)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	std::string said;
+	model::PolygonUv own, other;
+	auto const refused = [&](std::string const &words) { if (why) *why = words; return TextureWrapResult::Refused; };
+
+	if (!id || !open || !open->Level())
+	{
+		return refused("no level is open");
+	}
+
+	if (host::UvEdit_ReadPolygon(open, open->Level(), id, polygon, &own, &said) != host::UvEditResult::Done)
+	{
+		return refused(said);
+	}
+
+	TextureLoaded const loaded = TextureLoadedOf(open, id, isModule, moduleIndex);
+	int32_t texture = -1, width = 0, height = 0;
+
+	if (!loaded.inPlay)
+	{
+		return TextureWrapResult::NoPicture;
+	}
+
+	if (!own.textured || !loaded.Texture(polygon, &texture))
+	{
+		return TextureWrapResult::NotTextured;   // 0x566bae: FUN_0042bce0 on the record's type, which is 2 for a polygon the game drew without a picture
+	}
+
+	if (!TexturePictureSizeOf(texture, &width, &height))
+	{
+		return TextureWrapResult::NoPicture;
+	}
+
+	// 0x566bcf-0x566c30: a partner that isn't textured (as the game drew it), or shows another of the game's pictures (+0x28 against +0x28), is parted from it
+	// (both -1, the merge data written again by FUN_00566d60)
+	int32_t const partner = TexturePartnerOf(open, id, polygon);
+	bool withPartner = false;
+
+	if (partner >= 0)
+	{
+		int32_t partnerTexture = -1;
+
+		withPartner = host::UvEdit_ReadPolygon(open, open->Level(), id, partner, &other, &said) == host::UvEditResult::Done && other.textured &&
+			loaded.Texture(partner, &partnerTexture) && partnerTexture == texture;
+
+		if (!withPartner && textureFakeMerge)
+		{
+			TextureFakePairSet(open, id, polygon, -1);
+			TextureFakePairSet(open, id, partner, -1);
+		}
+		else if (!withPartner)
+		{
+			size_t parted = 0;
+			std::string partWhy;
+
+			host::PolyEdit_Unmerge(open, id, &polygon, 1, &parted, &partWhy);
+		}
+	}
+
+	// 0x566c44-0x566d4f
+	bool moved = false;
+	model::UvModelResult const result = model::TextureWrapUv(&own.uv, own.cornerCount, withPartner ? &other.uv : nullptr, other.cornerCount, width, height, &moved);
+
+	if (result != model::UvModelResult::Ok)
+	{
+		return refused(model::UvModelWords(result));
+	}
+
+	if (!moved)
+	{
+		return TextureWrapResult::AlreadyOn;
+	}
+
+	std::vector<model::PolygonUv> both = { own };
+
+	if (withPartner)
+	{
+		both.push_back(other);
+	}
+
+	if (host::UvEdit_WritePolygons(open, open->Level(), id, both, &said) != host::UvEditResult::Done)
+	{
+		return refused(said);
+	}
+
+	TexturePolygon lead = {};
+
+	memcpy(lead.id, id, 8);
+	lead.polygon = polygon;
+	lead.isModule = isModule;
+	lead.moduleIndex = moduleIndex;
+	ShowTheNewUv(open, lead, both);
+	return TextureWrapResult::Moved;
 }
 
 static bool TextureSelectOne(uint8_t const *id, bool isModule, int32_t moduleIndex, int32_t polygon, bool select);
@@ -1141,8 +1312,17 @@ static void TextureWindowReset();
 
 void TextureMapCommand(int32_t command)
 {
+	// a sub-mode's own command switch first (the frames FUN_00551f80 / FUN_005511f0 / FUN_00552bb0 read the menu object's command themselves): what it does not take goes on below
+	if (textureSubMode != 0 && TextureWindowCommand(command))
+	{
+		return;
+	}
+
 	switch (command)
 	{
+		case 0x4:
+			TextureMergeEnter();   // Mode > Merge: sub-mode 2 (FUN_0054caf0(2), texture_submodes.cpp)
+			break;
 		case 0x9:
 			TextureWindowReset();   // the texture screen's Reset Source Rect
 			break;
@@ -1894,210 +2074,6 @@ void TextureMapEdit(int32_t command)
 	statusWords = textureWords.c_str();
 }
 
-// The Texture Map FLAG commands (FUN_0054d260, menu-reads-1-full.txt:9860-10175): each is up to three calls of FUN_0056fb70(mask, set) on every selected polygon, after FUN_00573570 (the undo
-// record). FUN_0056fb70 sets (set 1) or clears (set 0) the mask's bits in the polygon's flag word (the file's SHPPOLYS +8, the game's iflag_* bits: Vasquez's model::SetPolygonFlags, which refuses
-// setting 0x40000000, the one bit the game's loader refuses). The commands that only SHOW polygons with a flag (0x4f, 0x52, 0x55 ... the FUN_005428c0 ones) are not here: they colour the view. Commands
-// 0x7a (FUN_0056fd40), 0x90 (FUN_005676e0) and the undo record itself are not read and not here. NAMED: a polygon with no texture cannot be written by UvEdit_WritePolygons (its deviation 3), so a flag
-// command leaves it as it was and counts it; the undo record is not kept.
-struct TextureFlagStep
-{
-	int32_t mask;
-	bool set;
-};
-
-struct TextureFlagCommand
-{
-	int32_t command;
-	TextureFlagStep steps[3];
-	int stepCount;
-};
-
-static const TextureFlagCommand kTextureFlagCommands[] =
-{
-	{ 0x4d, { { 0x40000, false }, { 0x400, false }, { 0x4000000, true } }, 3 },
-	{ 0x4e, { { 0x4000000, false } }, 1 },
-	{ 0x50, { { 0x4000000, false }, { 0x40000, true }, { 0x400, false } }, 3 },
-	{ 0x51, { { 0x40000, false } }, 1 },
-	{ 0x94, { { 0x40000, false } }, 1 },
-	{ 0x53, { { 0x40000, false }, { 0x4000000, false }, { 0x400, true } }, 3 },
-	{ 0x84, { { 0x400, true } }, 1 },
-	{ 0x54, { { 0x400, false } }, 1 },
-	{ 0x85, { { 0x400, false } }, 1 },
-	{ 0x56, { { 4, true } }, 1 },
-	{ 0x57, { { 4, false } }, 1 },
-	{ 0x59, { { 8, true } }, 1 },
-	{ 0x5a, { { 8, false } }, 1 },
-	{ 0x5c, { { 0x80, true } }, 1 },
-	{ 0x8d, { { 0x80, true } }, 1 },
-	{ 0x5d, { { 0x80, false } }, 1 },
-	{ 0x8e, { { 0x80, false } }, 1 },
-	{ 0x5f, { { 0x40, true } }, 1 },
-	{ 0x60, { { 0x40, false } }, 1 },
-	{ 0x62, { { 0x100, true } }, 1 },
-	{ 0x7e, { { 0x100, true } }, 1 },
-	{ 0x63, { { 0x100, false } }, 1 },
-	{ 0x7f, { { 0x100, false } }, 1 },
-	{ 0x65, { { 0x200, true } }, 1 },
-	{ 0x81, { { 0x200, true } }, 1 },
-	{ 0x66, { { 0x200, false } }, 1 },
-	{ 0x82, { { 0x200, false } }, 1 },
-	{ 0x68, { { 0x20000000, true } }, 1 },
-	{ 0x69, { { 0x20000000, false } }, 1 },
-	{ 0x7b, { { 0x20000000, false } }, 1 },
-	{ 0x6b, { { 0x400000, true } }, 1 },
-	{ 0x6c, { { 0x400000, false } }, 1 },
-	{ 0x6e, { { 2, true } }, 1 },
-	{ 0x6f, { { 2, false } }, 1 },
-	{ 0x71, { { 1, true } }, 1 },
-	{ 0x72, { { 1, false } }, 1 },
-	{ 0x74, { { 0x20, true } }, 1 },
-	{ 0x75, { { 0x20, false } }, 1 },
-	{ 0x77, { { 0x10, true } }, 1 },
-	{ 0x78, { { 0x10, false } }, 1 },
-	{ 0x87, { { 0x800, true } }, 1 },
-	{ 0x88, { { 0x800, false } }, 1 },
-	{ 0x8a, { { 0x1000, true } }, 1 },
-	{ 0x99, { { 0x1000, true } }, 1 },
-	{ 0x8b, { { 0x1000, false } }, 1 },
-	{ 0x9a, { { 0x1000, false } }, 1 },
-	{ 0x91, { { 0x3e000, false } }, 1 },
-	{ 0x93, { { 0x40000, true } }, 1 },
-};
-
-// FUN_0056fb70 on one polygon: the mask's bits set or cleared in its flag word. Setting 0x40000000 is refused (the game's loader refuses a level with it, chunk_shape.cpp:1051). (model::SetPolygonFlags is
-// declared in uv_model.h but defined nowhere yet, so the rule is here.)
-static bool ApplyFlagStep(model::PolygonUv *uv, int32_t mask, bool set)
-{
-	if (set && (mask & 0x40000000))
-	{
-		return false;
-	}
-
-	uv->flags = set ? (uv->flags | mask) : (uv->flags & ~mask);
-	return true;
-}
-
-static void TextureMapFlags(int32_t command)
-{
-	TextureDropImported();
-	TextureFlagCommand const *which = nullptr;
-
-	for (TextureFlagCommand const &known : kTextureFlagCommands)
-	{
-		if (known.command == command)
-		{
-			which = &known;
-			break;
-		}
-	}
-
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-	if (!which || !open || !open->Level())
-	{
-		statusWords = "Texture Map: no such flag command, or no level is open";
-		return;
-	}
-
-	if (texturePolygons.empty())
-	{
-		statusWords = "Texture Map: nothing is selected";
-		return;
-	}
-
-	size_t changed = 0, notTextured = 0, left = 0;
-	std::string firstWhy;
-	std::vector<bool> done(texturePolygons.size(), false);
-
-	for (size_t first = 0; first < texturePolygons.size(); first++)
-	{
-		if (done[first])
-		{
-			continue;
-		}
-
-		TexturePolygon const lead = texturePolygons[first];
-		std::vector<model::PolygonUv> polygons;
-
-		for (size_t i = first; i < texturePolygons.size(); i++)
-		{
-			TexturePolygon const &one = texturePolygons[i];
-
-			if (done[i] || memcmp(one.id, lead.id, 8) != 0)
-			{
-				continue;
-			}
-
-			done[i] = true;
-
-			model::PolygonUv uv;
-			std::string readWhy;
-
-			if (host::UvEdit_ReadPolygon(open, open->Level(), lead.id, one.polygon, &uv, &readWhy) != host::UvEditResult::Done)
-			{
-				left++;
-				continue;
-			}
-
-			if (!uv.textured)
-			{
-				notTextured++;
-				continue;
-			}
-
-			bool ok = true;
-
-			for (int k = 0; ok && k < which->stepCount; k++)
-			{
-				ok = ApplyFlagStep(&uv, which->steps[k].mask, which->steps[k].set);
-			}
-
-			if (!ok)
-			{
-				left++;
-				continue;
-			}
-
-			polygons.push_back(uv);
-		}
-
-		if (polygons.empty())
-		{
-			continue;
-		}
-
-		std::string writeWhy;
-		host::UvEditResult const written = host::UvEdit_WritePolygons(open, open->Level(), lead.id, polygons, &writeWhy);
-
-		if (written == host::UvEditResult::Done)
-		{
-			changed += polygons.size();
-		}
-		else
-		{
-			left += polygons.size();
-			firstWhy = firstWhy.empty() ? (writeWhy.empty() ? host::UvEditWords(written) : writeWhy) : firstWhy;
-		}
-	}
-
-	static char hex[32];
-
-	_snprintf_s(hex, sizeof(hex), _TRUNCATE, "0x%x", (unsigned)command);
-	textureWords = std::string("Texture Map: flag command ") + hex + " done on " + std::to_string(changed) + " polygon" + (changed == 1 ? "" : "s");
-
-	if (notTextured)
-	{
-		textureWords += ", " + std::to_string(notTextured) + " not textured (left as they were)";
-	}
-
-	if (left)
-	{
-		textureWords += ", " + std::to_string(left) + " refused" + (firstWhy.empty() ? "" : " (" + firstWhy + ")");
-	}
-
-	statusWords = textureWords.c_str();
-}
-
 // TEXTURE MAP: SET TEXTURE (FUN_00555dd0 sets the window's current texture and, at its end, FUN_00570360(texture) puts it on every selected polygon; Next Texture 0xa and Prev Texture 0xb step the
 // current texture by one and wrap between the smallest and the largest; the colour word of the written polygon, FUN_00572440: bits 0-11 = the picture's index (DAT_00914d34[the engine's texture number]), the
 // UV list number's top four bits in bits 12-15 and its low 16 bits above, nothing else; p11-shape-handlers.md sections 54 and 68). The stock levels' shapes name NO pictures of their own (SHPTEXFN is empty
@@ -2686,6 +2662,7 @@ void TextureWindowToggle()
 	if (textureWindowOn)
 	{
 		textureWindowOn = false;
+		textureSubMode = 0;
 		textureWinDrag = false;
 		TextureWindowBars(false);
 		statusWords = "Texture Map: back to the level";
@@ -2699,6 +2676,7 @@ void TextureWindowToggle()
 	}
 
 	textureWindowOn = true;
+	textureSubMode = 1;
 	TextureWindowBars(true);
 	textureWords = "Texture Map: the texture window (1-4 pick a node, arrows move it, Shift 10, Ctrl all; = - scale; Tab leaves)";
 	statusWords = textureWords.c_str();
@@ -6976,6 +6954,13 @@ static void TexturePolyCreate()
 // What a click on polygon `polygon` of the object `target` does in the mode now (a plane for wrap or tile, the animation to select or copy, Copy Texturing, the selection): the click's own work after the polygon is known - and what the harness's pick-poly does, by number
 void TexturePolygonClicked(OpenLevelFile *open, uint8_t const *target, bool isModule, int32_t moduleIndex, int32_t polygon, bool deselect, bool copyNow)
 {
+	// Merge (sub-mode 2) picks its own way (texture_submodes.cpp): a click and the harness's pick-poly both come here
+	if (textureSubMode == 2)
+	{
+		TextureMergeClicked(target, isModule, moduleIndex, polygon);
+		return;
+	}
+
 	if (textureCopyObject)
 	{
 		TextureCopyObjectClicked(target);   // Copy Texturing > Object takes the object of the polygon (the click path does this before it finds the polygon; pick-poly comes here)
@@ -7451,48 +7436,6 @@ void RunTheFlipProof()
 		}
 	}
 
-	// the FLAG commands: set bit 4 on the selection (0x56), clear it (0x57), then the exclusive trio (0x4d: clears 0x40000 and 0x400, sets 0x4000000), each read back; every other bit must stay
-	{
-		std::vector<model::PolygonUv> before, withFour, withoutFour, trio;
-
-		read(&before);
-		TextureMapFlags(0x56);
-		read(&withFour);
-		TextureMapFlags(0x57);
-		read(&withoutFour);
-		TextureMapFlags(0x4d);
-		read(&trio);
-
-		size_t same = before.size() == withFour.size() && before.size() == withoutFour.size() && before.size() == trio.size() ? before.size() : 0;
-		size_t setRight = 0, clearRight = 0, trioRight = 0, othersKept = 0;
-
-		for (size_t p = 0; p < same; p++)
-		{
-			setRight += (withFour[p].flags & 4) == 4 ? 1 : 0;
-			clearRight += (withoutFour[p].flags & 4) == 0 ? 1 : 0;
-			trioRight += (trio[p].flags & 0x40000) == 0 && (trio[p].flags & 0x400) == 0 && (trio[p].flags & 0x4000000) == 0x4000000 ? 1 : 0;
-			othersKept += (trio[p].flags & ~(4 | 0x40000 | 0x400 | 0x4000000)) == (before[p].flags & ~(4 | 0x40000 | 0x400 | 0x4000000)) ? 1 : 0;
-		}
-
-		// then through the loader: the level as the editor holds it is built and read again, and the flags must still be there
-		std::vector<char> image;
-		bool const built = open->BuildLevel(image);
-		bool const taken = built && open->ReplaceLevel(image) == LevelOpenResult::Opened;
-		std::vector<model::PolygonUv> reloaded;
-
-		read(&reloaded);
-
-		size_t kept = 0;
-
-		for (size_t p = 0; p < reloaded.size() && p < trio.size(); p++)
-		{
-			kept += reloaded[p].flags == trio[p].flags ? 1 : 0;
-		}
-
-		printf("AVP_OpenInteng: flag proof: %zu textured polygons: set 4 right in %zu, cleared right in %zu, the trio right in %zu, every other bit kept in %zu; the loader takes the level %s, and %zu of %zu polygons hold the same flags after it\n",
-			same, setRight, clearRight, trioRight, othersKept, taken ? "yes" : "NO", kept, trio.size());
-	}
-
 	// the texture chooser's data: every picture the level's shapes use
 	{
 		std::vector<LevelViewPicture> pictures;
@@ -7919,7 +7862,19 @@ bool TextureMapKeyCommandRun(uint8_t key, bool shift, bool ctrl)
 	state.texturedShown = ViewToggles_Now().textured;
 	state.flagViewOn = false;   // TO BUILD with F / Shift+F: the View's Add / Remove pair (DAT_00914d88 / d8c)
 
-	int32_t const command = host::TextureMapKeyCommand(textureWindowOn ? 1 : 0, key, shift, ctrl, state);
+	int32_t const command = host::TextureMapKeyCommand(textureSubMode, key, shift, ctrl, state);
+
+	// Merge (sub-mode 2): its table's commands go to its own switch (Tab = Polygon, P), Ctrl+X exits below; a key the table gives nothing may be one FUN_005511f0 reads from the slots (M, X, B)
+	if (textureSubMode == 2 && command != 0x5)
+	{
+		if (command != 0)
+		{
+			TextureMapCommand(command);
+			return true;
+		}
+
+		return TextureMergeKey(key);
+	}
 
 	switch (command)
 	{
@@ -7928,8 +7883,27 @@ bool TextureMapKeyCommandRun(uint8_t key, bool shift, bool ctrl)
 		case 0x3: case 0x2:
 			TextureWindowToggle();
 			return true;
-		case 0x3b: case 0x3c: case 0x3d: case 0xcd:
-			return false;   // 7 / 8 / 9 and B: the editor's own View keys do it (draw modes, Gouraud: editor_actions.h), before this is asked; doing it here too would undo it
+		case 0x3b: case 0x3c: case 0x3d: case 0xcd: case 0x13e:
+			return false;   // 7 / 8 / 9, B and Ctrl+B: the editor's own View keys do it (draw modes, Gouraud, headlight: editor_actions.h), before this is asked; doing it here too would undo it
+		// THE CTRL KEYS (TM-A2; FUN_00557ea0 0x557ee7)
+		case 0x5:
+			ExitTheMode();   // Ctrl+X: Exit, as the menu's (FUN_0054bfd0; its save question FUN_0055c070(1) is TO BUILD)
+			return true;
+		case 0x30:
+			texturePlaneMode = 0;   // Ctrl+T: the wrap / tile mode ends (0x54d50f: DAT_00914d1c = 0)
+			statusWords = "Texture Map: wrap / tile stopped";
+			return true;
+		case 0x33:
+			if (!textureWindowOn)
+			{
+				return true;   // Ctrl+R in the polygon screen: FUN_0054d260 has no case for 0x33, so inteng does nothing (its help names it for the window)
+			}
+
+			TextureMapCommand(command);
+			return true;
+		case 0x144:
+			statusWords = "Texture Map: Ctrl+Z, texture counts by zone (The Mummy), is not built (the owner's ruling)";
+			return true;
 		case 0xbd: case 0xbe:
 			if (textureFound.empty())
 			{

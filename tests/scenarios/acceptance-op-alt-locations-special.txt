@@ -1,0 +1,74 @@
+# ACCEPTANCE (red first; Drake 11-17, object-placement.md OP-34..OP-38 and OP-91 for SPECIAL objects, V-28): Alt Locations on a GENERATOR, on his path (Invasion, the file opened as a double click).
+# inteng's alternate locations are every class's (FUN_004df820 Add new, FUN_004df6b0 Delete Current, FUN_004df8c0 Next, FUN_004df990 Prev, FUN_004dfa60 Assign Group Number, FUN_004dfb90
+# Change shown location), kinds 0, 1, 2, 3 and 7; the current object (DAT_008f4f3c) is the special one just made or found first. A generator's list is written into the AVPGENEX named as it
+# (FUN_004dfc70 from its save 0x4e55ca), where the game reads it (avp_chunk.cpp get_alternate_locations_chunk); with no locations the ALTLOCAT is taken out (V-28).
+# Ours answered "select an object first" for any special object.
+# RED on bishop-int 1efb6f89: Add new on the new generator says "Alt Locations: select an object first"; the copy's altG has no alternate locations.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+# a new generator, altG: the current object
+click-bar Create > AVP generator
+expect-dialog Name Object
+form-field 1 altG
+click-button OK
+expect-no-dialog
+expect-status (altG)
+
+# ---- OP-34 Add new: 2 locations (location 0 where it is, a new one appended and current)
+click-bar Alt Locations > Add new
+wait 300
+expect-status Location added: 2 locations
+expect-field-has hierarchylines Location 1/2
+
+# ---- where it is (F shows its place in flyat), then flown a step away
+key F
+expect-status Fly selected object: on
+remember-field flyat
+hold Numpad3 400
+expect-field-changed flyat
+key F
+
+# ---- OP-91: ',' = Prev: the current location takes the place now, the generator goes back to location 0, where it was made
+key Comma
+wait 300
+expect-field-has hierarchylines Location 0/2
+key F
+expect-field-same flyat
+key F
+# '.' = Next: to location 1, the place it was flown to
+key Period
+wait 300
+expect-field-has hierarchylines Location 1/2
+
+# ---- OP-36: Assign Group Number, inteng's number window starting at the group (0); 3
+click-bar Alt Locations > Assign Group Number
+expect-dialog-kind form
+expect-dialog-text 0
+key Back
+type 3
+key Enter
+expect-no-dialog
+wait 300
+expect-field-has hierarchylines Location group 3
+
+# ---- OP-38: Change shown location (all objects), 0: altG back at location 0
+click-bar Alt Locations > Change shown location (all objects)
+expect-dialog-kind form
+key Enter
+expect-no-dialog
+wait 300
+expect-field-has hierarchylines Location 0/2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} specialalt altG=2,3
+
+# ---- OP-35: Delete Current: the next location put on the object, the current one taken out; a list left with one is emptied (FUN_004df6b0), so the ALTLOCAT is taken out (V-28)
+click-bar Alt Locations > Delete Current
+wait 300
+expect-status Location deleted: 0 locations
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} specialalt altG=0,0

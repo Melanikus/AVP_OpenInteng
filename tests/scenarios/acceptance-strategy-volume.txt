@@ -35,7 +35,7 @@ click-button Area_Switch
 expect-no-dialog
 expect-status The object has a new strategy
 # the new Area Switch's Edit view is open (Assign's last call, FUN_00528830 0x529141): V there (S-K68-10, FUN_0052f700 0x52fd91 -> FUN_00530900; Vasquez 11-16: the view is built, V on the screen is gone)
-expect-field-has strategyview : Area Switch|100@609:V : Change Trigger Volume
+expect-field-has strategyview : Area Switch|100@360:V : Change Trigger Volume
 # V: the volume editor takes the screen: the six lines of text, no field panel
 picture 1
 key V

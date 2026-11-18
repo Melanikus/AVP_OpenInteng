@@ -24,7 +24,7 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Area_Switch
 expect-no-dialog
-expect-field-has strategyview : Area Switch|100@609:V : Change Trigger Volume
+expect-field-has strategyview : Area Switch|100@360:V : Change Trigger Volume
 key V
 expect-status Edit Volume
 # S-VOL-3: the row at (16, 32)

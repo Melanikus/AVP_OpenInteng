@@ -356,6 +356,26 @@ static void DragWindow(Scenario *s, int x0, int y0, int x1, int y1)
 	Sleep(600);
 }
 
+// A window-pixel click or move made while a Strategy Edit view is up (the state asked now: a step like wait asks none): a NOTE, as a view's lines are measured from the view's box
+// (click-box / move-box) since the owner's box (11-17), so a scenario written for the whole-window page meant a view line, at the same numbers from the box's top left. A view is up when
+// the state line's strategybox holds a box; on a build from before the box (no strategybox field at all) when its strategyview holds lines and they are not the object pick's (which is the
+// whole window, its clicks on the level: "Press return when finished"). So a run of the old scenarios on an OLD build, which follows each one's own path, names exactly the clicks to move.
+static void WarnWindowClickInBox(Scenario *s, char const *verb, int x, int y)
+{
+	AskState(s);
+
+	bool const boxKnown = s->last.find("strategybox \"") != std::string::npos;
+	std::string const boxWords = Field(s->last, "strategybox");
+	std::string const viewWords = Field(s->last, "strategyview");
+	bool const viewUp = boxKnown ? !boxWords.empty() : (!viewWords.empty() && viewWords.find("Press return when finished") == std::string::npos);
+
+	if (viewUp)
+	{
+		printf("  NOTE  %s at %d,%d while an Edit view is up (strategybox \"%s\"): a view line's click is click-box / move-box, from the box's top left\n", verb, x, y, boxWords.c_str());
+	}
+}
+
+
 static void ClickWindow(Scenario *s, int x, int y, bool right, bool shift, DWORD settle = 600, bool control = false)
 {
 	HWND const target = TargetOf(s, &x, &y);
@@ -1137,9 +1157,67 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		return true;
 	}
 
+	// STRATEGY'S EDIT VIEW BOX (the owner's addition, 11-17: a kind's Edit view, its pages and E's pages are drawn in a box centred in the window, at least inteng's 640 x 480, so its lines sit
+	// where inteng laid them out from the box's top left): the state line carries strategybox "<x> <y> <w> <h>" (the window's client pixels, empty with no box).
+	//   click-box <x> <y> [right] [shift]   a click at (x, y) from the box's top left: the numbers inteng's 640 x 480 page used
+	//   move-box <x> <y>                    the pointer moved there (a view that reads the pointer's row: the Mission's P / V, the Multi switch's rows)
+	//   expect-box-centred <least w> <least h>   a box is up, centred in the window (within a pixel), at least that big, half the window or more each way and never past it
+	if ((verb == "click-box" || verb == "move-box") && w.size() >= 3)
+	{
+		AskState(s);
+
+		std::string const boxWords = Field(s->last, "strategybox");
+		int box[4] = {};
+
+		if (sscanf_s(boxWords.c_str(), "%d %d %d %d", &box[0], &box[1], &box[2], &box[3]) != 4 || box[2] < 8 || box[3] < 8)
+		{
+			Check(false, label + " (no Edit view box is up: strategybox \"" + boxWords + "\")");
+			return false;
+		}
+
+		int x = box[0] + atoi(w[1].c_str()), y = box[1] + atoi(w[2].c_str());
+
+		if (verb == "click-box")
+		{
+			ClickWindow(s, x, y, std::find(w.begin(), w.end(), "right") != w.end(), std::find(w.begin(), w.end(), "shift") != w.end());
+		}
+		else
+		{
+			HWND const target = TargetOf(s, &x, &y);
+
+			PostMessageW(target, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+			Sleep(600);
+		}
+
+		AskState(s);
+		Check(true, label + " at " + std::to_string(box[0] + atoi(w[1].c_str())) + "," + std::to_string(box[1] + atoi(w[2].c_str())));
+		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		PictureAfter(s, line);
+		return true;
+	}
+
+	if (verb == "expect-box-centred" && w.size() >= 3)
+	{
+		AskState(s);
+
+		std::string const boxWords = Field(s->last, "strategybox");
+		int box[4] = {};
+		int const leastW = atoi(w[1].c_str()), leastH = atoi(w[2].c_str());
+		int const windowW = s->view[2], windowH = s->view[3];   // the level's view is the whole client area (L-1)
+		bool const have = sscanf_s(boxWords.c_str(), "%d %d %d %d", &box[0], &box[1], &box[2], &box[3]) == 4;
+		bool const centred = have && abs(box[0] * 2 + box[2] - windowW) <= 1 && abs(box[1] * 2 + box[3] - windowH) <= 1;
+		bool const sized = have && box[2] >= leastW && box[3] >= leastH && box[2] * 2 >= windowW - 1 && box[3] * 2 >= windowH - 1 && box[2] <= windowW && box[3] <= windowH;
+
+		Check(centred && sized, label + " (strategybox \"" + boxWords + "\" in a window " + std::to_string(windowW) + " x " + std::to_string(windowH) + ")");
+		return true;
+	}
+
 	if (verb == "move-win" && w.size() >= 3)
 	{
 		int x = atoi(w[1].c_str()), y = atoi(w[2].c_str());
+
+		WarnWindowClickInBox(s, "move-win", x, y);
+
 		HWND const target = TargetOf(s, &x, &y);
 
 		PostMessageW(target, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
@@ -1252,6 +1330,11 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	{
 		bool const right = std::find(w.begin(), w.end(), "right") != w.end();
 		bool const shift = std::find(w.begin(), w.end(), "shift") != w.end();
+
+		if (!right)
+		{
+			WarnWindowClickInBox(s, "click-win", atoi(w[1].c_str()), atoi(w[2].c_str()));   // a right press ends the view anywhere, so only a left click is noted
+		}
 
 		// "s": the S key held over the click (Strategy Data's flag page: S + click selects by texture, FUN_00525700 0x525db2; Drake 11-17, S-69): its key-down is posted before the press, its
 		// key-up after the release, as click-view's "delete" / "ctrl" / "esc"
