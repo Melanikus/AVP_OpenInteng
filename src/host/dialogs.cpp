@@ -292,6 +292,7 @@ namespace host
 	{
 		bool const inteng = PanelPass_HasMenuFont();
 		int32_t const fontHeight = inteng ? PanelPass_MenuFontHeight() : kPanelPassLineHeight;
+		bool onTop = false;   // the open drop-down list's boxes and words: the panel pass's top layer, over every word of the window (PanelPaint_LayerOf)
 
 		auto const text = [&](std::string const &words, int32_t x, int32_t y)
 		{
@@ -302,6 +303,7 @@ namespace host
 			t.y = y;
 			t.colour = kDialogWhite;
 			t.menuFont = inteng;
+			t.top = onTop;
 			lines->push_back(t);
 		};
 
@@ -314,6 +316,7 @@ namespace host
 
 			PaintBox b = { r.x, r.y, r.width, r.height, colour };
 
+			b.top = onTop;
 			boxes->push_back(b);
 		};
 
@@ -436,7 +439,9 @@ namespace host
 					}
 				}
 
-				// an open combo's list, over everything else
+				// an open combo's list, over everything else: its boxes AND its words after every word of the window (the owner's screenshot 11-18: the window's labels showed through it)
+				onTop = true;
+
 				for (DialogWidget const &w : box.Widgets())
 				{
 					if (w.type != DialogWidgetType::Combo || !w.visible || !w.listOpen)
@@ -524,6 +529,77 @@ namespace host
 		}
 	}
 
+	// The harness's dialogoverlist (Vasquez 11-18, the owner's screenshot): the words of the window the panel pass paints OVER its open drop-down list, in the pass's own order (PanelPaint_LayerOf:
+	// a word is over a box when its layer is the box's or a later one; every item of a dialog is in the overlay, editor_panels.cpp). The list's own words are left out. "" when none, or no list is open.
+	static std::string WordsOverTheOpenList()
+	{
+		struct Row
+		{
+			DialogRect r;
+			std::string words;
+		};
+
+		std::vector<Row> rows;
+
+		for (DialogWidget const &w : box.Widgets())
+		{
+			for (size_t row = 0; w.type == DialogWidgetType::Combo && w.visible && w.listOpen && row < w.items.size(); row++)
+			{
+				rows.push_back({ InDialog::ComboRow(w, row), w.items[row] });
+			}
+		}
+
+		if (rows.empty())
+		{
+			return std::string();
+		}
+
+		std::vector<PaintBox> drawnBoxes;
+		std::vector<PaintText> drawnLines;
+
+		Dialogs_Draw(&drawnBoxes, &drawnLines, 0, 0);
+
+		int32_t const fontHeight = PanelPass_HasMenuFont() ? PanelPass_MenuFontHeight() : kPanelPassLineHeight;
+		std::string over;
+
+		for (PaintText line : drawnLines)
+		{
+			line.overlay = true;
+
+			bool own = false;
+
+			for (Row const &one : rows)
+			{
+				own = own || (line.text == one.words && line.x == one.r.x + 1 && line.y == one.r.y - 1);
+			}
+
+			int32_t const width = (int32_t)line.text.size() * (fontHeight / 2);
+			bool covers = false;
+
+			for (Row const &one : rows)
+			{
+				bool const meets = line.x < one.r.x + one.r.width && one.r.x < line.x + width && line.y < one.r.y + one.r.height && one.r.y < line.y + fontHeight;
+
+				for (PaintBox b : drawnBoxes)
+				{
+					b.overlay = true;
+
+					if (meets && b.x == one.r.x && b.y == one.r.y && b.width == one.r.width && b.height == one.r.height && PanelPaint_LayerOf(line) >= PanelPaint_LayerOf(b))
+					{
+						covers = true;
+					}
+				}
+			}
+
+			if (!own && covers && !line.text.empty())
+			{
+				over += (over.empty() ? "" : "|") + line.text;
+			}
+		}
+
+		return over;
+	}
+
 	DialogsState Dialogs_State()
 	{
 		DialogsState s;
@@ -534,6 +610,7 @@ namespace host
 			{
 				s.title = box.Title();
 				s.kind = "form";
+				s.overlist = WordsOverTheOpenList();
 
 				size_t edits = 0;
 

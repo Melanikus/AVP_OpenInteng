@@ -46,6 +46,8 @@
 //                               by default (src/host/orbit_command.h, camera_orbit.h; the owner 11-18: test cameras at 45 degrees round the subject)
 //   camera-corner <object>      the four upper diagonal orbit spots (45 / 135 / 225 / 315 round, 45 up) tried in turn: the first from which the editor's own pick at the middle of the view
 //                               is the subject is kept; none: the first, said. Both are sent as WM_COPYDATA text and answered with the camera line; the state line's camera field reads it.
+//                               <object> is the rest of the line ("camera-corner ppump palm"), camera-orbit's last 1 to 3 plain numbers aside; a name in double quotes for one that ends in
+//                               a number ("camera-orbit "door 2" 90 30"). A name not in play fails with the editor's words ("no object or module named ... is in play").
 //   face-light <n>              Light Sourcing: selects light n (counting from 1) and turns the camera on the spot to face it (kHarnessFaceLight)
 //   repeat <most> <key> <hold ms> <status_words> | <step> | <step>   the steps, again with the key held between, until the status holds the words (_ is a space): picks that depend on the camera
 //   wait <milliseconds>; wait-status <most milliseconds> <words>: the state asked every half second until the status line holds the words (FAILED if it never does in that time)
@@ -56,6 +58,7 @@
 //   expect-number <field> <label> <least> <most>   the number right after <label> (_ a space) in that state-line field is in the range
 //   wait-field <field> <label> <n> [<most ms>]   asks again every 100 ms until the number right after <label> (_ a space) in that field is n or more; FAILED at the limit (20000 ms)
 //   app-active <0|1>            the editor's window is told the program lost (0) or got (1) the focus, as Windows tells it on an Alt+Tab (WM_ACTIVATEAPP: Link with AVP reads it)
+//   kill-editor                 the editor is ended at once, as a crash or Task Manager ends it (TerminateProcess): nothing it does when it closes happens; only verify steps make sense after it
 //   expect-pixels-changed-since <n> <kind> <x> <y> <w> <h> [share]   the same, the newest picture against picture n (one taken with picture <n>),
 //                               not the one before: dialog steps between them take their own pictures; expect-pixels-same-since likewise
 //   expect-colour <kind> <x> <y> <w> <h> <rrggbb> [share] [tolerance]   that share of the box is that colour (channels within the tolerance)
@@ -937,6 +940,26 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	// wait-field <field> <word> <n> [<most ms>] (Vasquez 11-18, Bishop's ask): asks the state line again every 100 ms until the number after <word> in that field (_ for a space,
 	// as expect-number reads it: "Timer_" is the number after "Timer ") is n or more, so a timed event (a placed hierarchy's Timer, a track's play) is met by its own clock and not by a
 	// guessed wait. FAILED, with the last number seen (or that the word never showed), when that has not happened within <most ms> (20000 if not given; 1 to 600000).
+	// kill-editor (Vasquez 11-18, the camera file kept): the editor the harness started is ended by its process handle (never by a name), as a crash ends it, and waited for; the run's end then has no
+	// editor to close. A step that asks the editor anything after this fails (it is gone); verify steps read what it left on disk.
+	if (verb == "kill-editor")
+	{
+		bool killed = false;
+
+		if (s->editor.process.hProcess)
+		{
+			killed = TerminateProcess(s->editor.process.hProcess, 98) && WaitForSingleObject(s->editor.process.hProcess, 10000) == WAIT_OBJECT_0;
+			CloseHandle(s->editor.process.hProcess);
+			CloseHandle(s->editor.process.hThread);
+			s->editor.process = PROCESS_INFORMATION();
+			s->editor.window = NULL;
+			s->editor.view = NULL;
+		}
+
+		Check(killed, label + " (the editor ended at once, nothing of its closing run)");
+		return killed;
+	}
+
 	// app-active <0|1> (Vasquez 11-18, Link with AVP): WM_ACTIVATEAPP with that word, posted as the other messages are (the editor's window takes it in its turn; the next state line
 	// is after it). A real focus change sends the same message, so a scenario reads what the editor did (its fields), never only that it was told.
 	if (verb == "app-active" && w.size() >= 2)
@@ -2482,11 +2505,75 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		// the editor's OrbitCommand_Run (orbit_command.h) through WM_COPYDATA, the only message that carries a name: it is answered with the editor's camera line (Drake 11-18)
 		Drain(s);
 
-		std::string text = std::string(verb == "camera-orbit" ? "orbit|" : "corner|") + w[1];
-
-		for (size_t k = 2; verb == "camera-orbit" && k < w.size() && k < 5; k++)
+		// the object's name is the REST OF THE LINE (Bishop / Dietrich 2026-11-18: the owner's MelPyth parts have spaces, "ppump palm"), or a name in double quotes (one that ends in a
+		// number: "door 2"); camera-orbit's <around> <up> <distance> are the last words that are plain numbers, at most 3, after at least one word of the name (or after the quoted name)
+		auto const plainNumber = [](std::string const &word)
 		{
-			text += "|" + w[k];
+			size_t at = word.size() > 1 && word[0] == '-' ? 1 : 0;
+			size_t const digits = word.find_first_not_of("0123456789", at);
+
+			if (digits == at)
+			{
+				return false;
+			}
+
+			return digits == std::string::npos || (word[digits] == '.' && digits + 1 < word.size() && word.find_first_not_of("0123456789", digits + 1) == std::string::npos);
+		};
+		auto const trimEnd = [](std::string *text)
+		{
+			while (!text->empty() && (text->back() == ' ' || text->back() == '\t' || text->back() == '\r'))
+			{
+				text->pop_back();
+			}
+		};
+		std::string name = Rest(line, 1);
+		std::vector<std::string> numbers;
+		std::string wrong;
+
+		trimEnd(&name);
+
+		if (!name.empty() && name[0] == '"')
+		{
+			size_t const close = name.find('"', 1);
+
+			numbers = close == std::string::npos ? std::vector<std::string>() : Words(name.substr(close + 1));
+			wrong = close == std::string::npos || close == 1 ? "the quoted name has no closing quote, or is empty" : std::string();
+			name = close == std::string::npos ? name : name.substr(1, close - 1);
+		}
+		else if (verb == "camera-orbit")
+		{
+			std::vector<std::string> const words = Words(name);
+			size_t keep = words.size();
+
+			while (keep > 1 && words.size() - keep < 3 && plainNumber(words[keep - 1]))
+			{
+				keep--;
+				name.erase(name.find_last_of(" \t"));
+				trimEnd(&name);
+			}
+
+			numbers.assign(words.begin() + (long)keep, words.end());
+		}
+
+		for (std::string const &number : numbers)
+		{
+			wrong = !wrong.empty() ? wrong : verb == "camera-corner" ? "camera-corner takes only the name" : numbers.size() > 3 || !plainNumber(number) ?
+				"after the quoted name, at most <around> <up> <distance>, each a plain number" : std::string();
+		}
+
+		wrong = !wrong.empty() ? wrong : name.find('|') != std::string::npos ? "a name with a | can't be sent (the command's fields are split on |)" : std::string();
+
+		if (!wrong.empty())
+		{
+			Check(false, label + " -> " + wrong);
+			return true;
+		}
+
+		std::string text = std::string(verb == "camera-orbit" ? "orbit|" : "corner|") + name;
+
+		for (std::string const &number : numbers)
+		{
+			text += "|" + number;
 		}
 
 		COPYDATASTRUCT data = {};
@@ -2499,7 +2586,10 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		std::string const said = WaitForLine(&s->editor, "AVP_OpenInteng: camera: ", 10000);
 
-		Check(answer == TRUE && !said.empty(), label + " -> " + (said.empty() ? std::string("no camera line (the status line says why)") : said.substr(said.find("camera"))));
+		// no camera line: the editor's own words, from the status line ("camera-orbit: no object or module named ... is in play")
+		std::string const why = said.empty() && AskState(s) ? Field(s->last, "status") : std::string();
+
+		Check(answer == TRUE && !said.empty(), label + " -> " + (!said.empty() ? said.substr(said.find("camera")) : "no camera line: the editor says \"" + why + "\""));
 		return true;
 	}
 
@@ -3117,7 +3207,8 @@ int main(int argc, char **argv)
 
 	bool const started = made && StartTheEditor(exe, s.recordFolder, &s.editor, startArguments);
 
-	Check(started, "the editor starts, with -picture" + Narrow(startArguments) + ", and its window and view are found");
+	Check(started, "the editor starts, with -picture" + Narrow(startArguments) + ", and its window and view are found" +
+		(started ? std::string() : " (" + (made ? s.editor.startProblem : std::string("a made level failed, so it wasn't started")) + ")"));   // why not, from the harness's own look (Frost 11-18)
 
 	if (started)
 	{

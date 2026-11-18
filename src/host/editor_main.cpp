@@ -2574,6 +2574,30 @@ static host::CameraFileSlot FileSlotOfCamera(FlyCamera const &camera)
 static bool cameraSlotSet[12];
 std::string cameraWords;
 
+// THE CAMERA FILE (FUN_00470610): the open level's <RIFFNAME>.cam in the editor's own camera folder (camera_file.h), its name and CAMORIGN offset set when the level opens (no name: none is written).
+// inteng writes it at EVERY save of a slot (FUN_004704d0 0x47053c: every Shift+F and every mode's Exit) and when the program ends (FUN_0058c9e0 0x58d06e), so a position saved is on disk at once:
+// a crash or a hard kill keeps it (Vasquez 11-18; until then ours wrote it only on its way out).
+static std::string cameraFileName;
+static std::string cameraFolder;
+static int32_t cameraFileOffset[3];
+
+static bool WriteTheCameraFile()
+{
+	if (cameraFileName.empty())
+	{
+		return false;
+	}
+
+	host::CameraFileSlot toWrite[host::kCameraFileSlots];
+
+	for (size_t s = 0; s < host::kCameraFileSlots; s++)
+	{
+		toWrite[s] = FileSlotOfCamera(cameraSlots[s]);
+	}
+
+	return host::CameraFile_Write(cameraFolder, cameraFileName, cameraFileOffset, toWrite);
+}
+
 static void SaveCameraSlot(int slot)
 {
 	if (theCamera && slot >= 0 && slot < 12)
@@ -2592,6 +2616,7 @@ unsigned cameraSavedDrawn = 0;   // the frames that drew the words (the state li
 void CameraPositionSaved(int slot)
 {
 	SaveCameraSlot(slot);
+	WriteTheCameraFile();   // 0x47053c: FUN_00470610, the file written at once
 	cameraSavedDraw = true;
 	cameraSavedCount++;
 }
@@ -8156,9 +8181,9 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 						// the flag page (FUN_00525700) and Stability (FUN_00527370) are loops of their own: neither reads E's slot 0xd87a85, and the one reader of it on the screen, page 0's dispatcher
 						// FUN_00524e90, is not called while they run (only page 0's frame FUN_00522980 calls it, 0x522a0c): nothing (strategy-data.md S-52)
 					}
-					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && wParam == 'E' && !shiftHeld)
+					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && wParam == 'E')
 					{
-						// Strategy mode's E (FUN_00524e90 0x524ee7: slot 0xd87a85 makes the command 7): Edit Strategy
+						// Strategy mode's E (FUN_00524e90 0x524ee7: slot 0xd87a85 makes the command 7): Edit Strategy. Shift too: the slot is set whatever Shift is (FUN_0058c010 0x58c182; S-52, Vasquez 11-18)
 						StrategyModeCommand(7);
 					}
 					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && wParam == VK_TAB && strategyFromPlacement)
@@ -14430,11 +14455,10 @@ int main(int, char **)
 	}
 
 	// THE CAMERA FILE (inteng, FUN_00470950): the eleven saved camera places of this level, from <RIFFNAME>.cam, read after the first frame's camera is set (so they are used from the next F key or mode start). Ours is read from and
-	// written to the editor's own folder (camera_file.h says what is named); written when the program ends (FUN_00470610).
-	std::string cameraFileName;
-	std::string const cameraFolder = std::string(ownFolder) + "camera\\";
-
-	int32_t cameraFileOffset[3] = { 0, 0, 0 };
+	// written to the editor's own folder (camera_file.h says what is named); written at every slot save and when the program ends (WriteTheCameraFile, FUN_00470610).
+	cameraFileName.clear();
+	cameraFolder = std::string(ownFolder) + "camera\\";
+	cameraFileOffset[0] = cameraFileOffset[1] = cameraFileOffset[2] = 0;
 
 	if (host::CameraFile_Name(LevelObjects_Level(), &cameraFileName))
 	{
@@ -15927,6 +15951,7 @@ int main(int, char **)
 			}
 
 			host::DialogsState const dialogNow = host::Dialogs_State();
+			StateLine_Add("dialogoverlist", dialogNow.overlist);   // the window's words painted over its open drop-down list (dialogs.cpp WordsOverTheOpenList)
 
 			if (!dialogNow.kind.empty())
 			{
@@ -16206,14 +16231,7 @@ int main(int, char **)
 	// Leaving: the camera file is written (FUN_00470610), into the editor's own folder
 	if (!cameraFileName.empty())
 	{
-		host::CameraFileSlot toWrite[host::kCameraFileSlots];
-
-		for (size_t s = 0; s < host::kCameraFileSlots; s++)
-		{
-			toWrite[s] = FileSlotOfCamera(cameraSlots[s]);
-		}
-
-		bool const written = host::CameraFile_Write(cameraFolder, cameraFileName, cameraFileOffset, toWrite);
+		bool const written = WriteTheCameraFile();
 
 		if (pictureAfter)
 		{

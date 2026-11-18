@@ -299,6 +299,11 @@ static size_t GiveTheViewTheseColours(std::vector<host::LitObject> const &lit)
 
 // inteng's view is lit live by the lights that are on (FUN_004ac240 adds or takes away one light's part of every colour), so after a light is switched the view is lit again the
 // same way, from the lights as the state holds them. Nothing is written to the level (Save Intensities does that).
+// Its words go to relitWords, NEVER to lightWords: the status line may point at lightWords, and giving lightWords new words frees what it pointed at. OUR BUG, FIXED 2026-11-18 (Dietrich, the
+// owner-path walk on his Genshd1): a pick that changed the selected light re-lit the view in the next frame (LightKeysEveryFrame), so the status line read freed memory ("Atten: y", "?????").
+// Only the key F (lighting again) shows them.
+static std::string relitWords;
+
 void RelightTheView()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
@@ -307,6 +312,7 @@ void RelightTheView()
 
 	if (!open || !host::LightScene_ReadLights(open, &lights, &why))
 	{
+		relitWords = "view not re-lit: " + (open ? why : std::string("no level is open"));
 		return;
 	}
 
@@ -319,7 +325,7 @@ void RelightTheView()
 
 	host::LightScene_LightModules(open, lights, false, lightState.DoorsClosed(), &lit, lightState.FlatNormals());   // NAMED: the view shows what the game's save would bake (No PreLight lights off), so it starts as the level's own colours and only the light switched changes it; inteng's live view has those lights on
 	size_t const given = GiveTheViewTheseColours(lit);
-	lightWords = "view re-lit: " + std::to_string(given) + " modules";
+	relitWords = "view re-lit: " + std::to_string(given) + " modules";
 }
 
 static void SaveTheIntensities(bool toolsSave)
@@ -977,6 +983,7 @@ bool RunLightKey(int32_t command)
 			return true;
 		case host::kScreenKeyLightRelight:
 			RelightTheView();
+			lightWords = relitWords;
 			statusWords = lightWords.c_str();
 			return true;
 		case host::kScreenKeyLightReturn:

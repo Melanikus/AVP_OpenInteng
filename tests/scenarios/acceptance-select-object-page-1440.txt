@@ -1,0 +1,20 @@
+# ACCEPTANCE (Drake 11-18, red first; Bishop's ruling (a)): Object Placement's Object > Find, "Select Object", on Invasion (301 objects) is DRAWN. It was not: our list chooser's page filled the
+# window (133 cells at 1024 x 768, 302 at 2560 x 1440), more boxes than a frame draws, and editor_panels.cpp skipped the whole window while it still took the keys. Now the page is
+# inteng's 640 x 480 page on any window (list_picker.cpp, FUN_00475bf0's numbers) and a dialog is never skipped whole (what fits is drawn; dialogdrawn = boxes drawn / boxes).
+# RED on bishop-int 25e25a0c: no dialogdrawn field (the window skipped). The owner's 2560 x 1440 window.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+start-args -r2560x1440
+pictures on
+state
+item 0xcc
+expect-screen Object Placement
+wait 400
+item 0x19
+expect-dialog Select Object
+wait 400
+expect-field dialogdrawn 118/118
+picture 1
+key Esc
+expect-no-dialog

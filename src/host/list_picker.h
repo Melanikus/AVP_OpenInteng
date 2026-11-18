@@ -3,6 +3,8 @@
 // License.txt, "AVP_OpenInteng's own code".
 //
 // WHAT INTENG DOES (read from FUN_00475bf0, dump-all-2.txt:8668-9000, 2026-11-15; Select Hierarchy FUN_0048b8a0 0x48bb2b and Select Sequence FUN_0048bc10 0x48bff3 call it as FUN_0048c610(title, names, numbers)):
+// - "the screen" below is inteng's, 640 x 480: OURS, NAMED (Bishop's ruling 2026-11-18), works the page out on at most 640 x 480 whatever the window's size, so a bigger window keeps
+//   inteng's page and a page always fits in one frame (list_picker.cpp, kPageScreenWidth); the window is in the middle of the real screen;
 // - the width of a column is the widest choice's text + 0x14 (20), at least 100 and at most the screen's width - 0x28;
 // - rows in a column: (screen height - 0x78) / 0x14 (rows are 0x14 = 20 pixels apart), at most as many as there are choices, at least 1;
 // - columns: the screen's width / (column width + 0x14), at most as many as the choices need, at least 1;

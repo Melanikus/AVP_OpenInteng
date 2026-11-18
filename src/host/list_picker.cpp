@@ -9,6 +9,13 @@ namespace host
 	{
 		int32_t const kRowHeight = 0x14;     // 20 pixels between rows
 		int32_t const kButtonHeight = 0x12;
+
+		// THE PAGE (Bishop's ruling 2026-11-18, named): inteng works its page out from its screen (FUN_00475bf0: rows (height - 0x78) / 0x14 at 0x475d2f, columns
+		// width / (column + 0x14) at 0x475d60), and its screen was 640 x 480. Ours works it out on at most 640 x 480, so a bigger window keeps inteng's page (18 rows, as many
+		// columns as 640 holds) and a page always fits in one frame: on a 2560 x 1440 window Object Placement's Select Object had 302 cells, more boxes than a frame draws, and
+		// the window was not drawn at all (Drake 11-18). The window stays in the middle of the real screen; Prev / Next page through the rest, as before.
+		int32_t const kPageScreenWidth = 640;
+		int32_t const kPageScreenHeight = 480;
 		size_t const kMostChoices = 100000;  // a bound the editor puts
 
 		bool Inside(ListPickerBox const &box, int32_t x, int32_t y)
@@ -29,6 +36,10 @@ namespace host
 
 		int32_t const count = (int32_t)choices.size();
 
+		// the screen the page is worked out on: the real one, at most inteng's 640 x 480 (kPageScreenWidth)
+		int32_t const pageWidth = screenWidth < kPageScreenWidth ? screenWidth : kPageScreenWidth;
+		int32_t const pageHeight = screenHeight < kPageScreenHeight ? screenHeight : kPageScreenHeight;
+
 		// the column's width: the widest choice + 0x14, at least 100, at most the screen's width - 0x28
 		columnWidth = 100;
 
@@ -42,23 +53,17 @@ namespace host
 			}
 		}
 
-		if (columnWidth > screenWidth - 0x28 && screenWidth - 0x28 >= 100)
+		if (columnWidth > pageWidth - 0x28 && pageWidth - 0x28 >= 100)
 		{
-			columnWidth = screenWidth - 0x28;
+			columnWidth = pageWidth - 0x28;
 		}
 
 		// rows in a column, columns on the screen
-		rows = (screenHeight - 0x78) / kRowHeight;
+		rows = (pageHeight - 0x78) / kRowHeight;
 
 		if (rows > count)
 		{
 			rows = count;
-		}
-
-		// NAMED: the panel pass holds 64 boxes and lines in all, so a page has at most 22 rows (inteng's own rule gives up to 30 on a 480 pixel screen)
-		if (rows > 22)
-		{
-			rows = 22;
 		}
 
 		if (rows < 1)
@@ -66,7 +71,7 @@ namespace host
 			rows = 1;
 		}
 
-		columns = screenWidth / (columnWidth + 0x14);
+		columns = pageWidth / (columnWidth + 0x14);
 
 		if ((count - 1 + rows) / rows <= columns)
 		{
@@ -93,9 +98,9 @@ namespace host
 			width = titleWidth;
 		}
 
-		if (width > screenWidth - 0x14 && screenWidth - 0x14 >= 300)
+		if (width > pageWidth - 0x14 && pageWidth - 0x14 >= 300)
 		{
-			width = screenWidth - 0x14;
+			width = pageWidth - 0x14;
 		}
 
 		int32_t const height = (rows + 5) * kRowHeight;

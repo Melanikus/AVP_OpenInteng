@@ -80,8 +80,8 @@ namespace
 		RenderSmallFontString(letters, x, y, ONE_FIXED, red, green, blue);
 	}
 
-	// The extra boxes of one layer (the screen's own, or the overlay: PaintBox), each cut to the window: plain colour, no picture, as the game's own scope draws its bars (weapon_scope.cpp)
-	void AddBoxes(const PanelExtras &extras, int32_t width, int32_t height, bool overlay)
+	// The extra boxes of one layer (0 the screen's own, 1 the overlay, 2 the top: PanelPaint_LayerOf), each cut to the window: plain colour, no picture, as the game's own scope draws its bars (weapon_scope.cpp)
+	void AddBoxes(const PanelExtras &extras, int32_t width, int32_t height, int layer)
 	{
 		size_t const boxes = extras.boxes ? (extras.boxCount < kPanelPassMostExtras ? extras.boxCount : kPanelPassMostExtras) : 0;
 
@@ -89,7 +89,7 @@ namespace
 		{
 			host::PaintBox cut;
 
-			if (extras.boxes[i].overlay == overlay && host::PanelPaint_CutBox(extras.boxes[i], width, height, &cut))
+			if (host::PanelPaint_LayerOf(extras.boxes[i]) == layer && host::PanelPaint_CutBox(extras.boxes[i], width, height, &cut))
 			{
 				DrawQuad((uint32_t)cut.x, (uint32_t)cut.y, (uint32_t)cut.width, (uint32_t)cut.height, NO_TEXTURE, cut.colour, TRANSLUCENCY_OFF);
 			}
@@ -97,7 +97,7 @@ namespace
 	}
 
 	// The extra lines of one layer: made safe again, and only those whose place is inside the window (a line at x 0 is on the left edge)
-	void AddLines(const PanelExtras &extras, int32_t width, int32_t height, bool overlay)
+	void AddLines(const PanelExtras &extras, int32_t width, int32_t height, int layer)
 	{
 		size_t const extraLines = extras.lines ? (extras.lineCount < kPanelPassMostExtras ? extras.lineCount : kPanelPassMostExtras) : 0;
 
@@ -105,7 +105,7 @@ namespace
 		{
 			host::PaintText const &line = extras.lines[i];
 
-			if (line.overlay != overlay || line.x < 0 || line.y < 0 || line.x >= width || line.y >= height)
+			if (host::PanelPaint_LayerOf(line) != layer || line.x < 0 || line.y < 0 || line.x >= width || line.y >= height)
 			{
 				continue;
 			}
@@ -134,7 +134,7 @@ namespace
 		}
 
 		// 1. The screen's own extra boxes
-		AddBoxes(*frame->extras, frame->width, frame->height, false);
+		AddBoxes(*frame->extras, frame->width, frame->height, 0);
 
 		// 2. Each panel's own line
 		host::PaintText lines[4];
@@ -152,11 +152,15 @@ namespace
 		}
 
 		// 3. The screen's own extra lines
-		AddLines(*frame->extras, frame->width, frame->height, false);
+		AddLines(*frame->extras, frame->width, frame->height, 0);
 
 		// 4. Over all of it, the overlay: the bar, its drop-downs, the pop-up, a dialog (BAR-6: inteng blits them opaque over the frame), their boxes and then their words
-		AddBoxes(*frame->extras, frame->width, frame->height, true);
-		AddLines(*frame->extras, frame->width, frame->height, true);
+		AddBoxes(*frame->extras, frame->width, frame->height, 1);
+		AddLines(*frame->extras, frame->width, frame->height, 1);
+
+		// 5. Over that, the top: a dialog's open drop-down list, its boxes and then its words, so no word of its window shows through it (the owner's screenshot, 11-18)
+		AddBoxes(*frame->extras, frame->width, frame->height, 2);
+		AddLines(*frame->extras, frame->width, frame->height, 2);
 	}
 }
 
@@ -170,10 +174,12 @@ void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extr
 	// The level may have been drawn as lines (the View menu's Wireframe): the panels never are, as in PanelPass_Draw below. The boxes are
 	// added before the lines, so a line is over every box; the overlay (the bar, its drop-downs, the pop-up, a dialog) after both, so nothing of the screen is over it.
 	CheckWireFrameMode(0);
-	AddBoxes(extras, width, height, false);
-	AddLines(extras, width, height, false);
-	AddBoxes(extras, width, height, true);
-	AddLines(extras, width, height, true);
+	AddBoxes(extras, width, height, 0);
+	AddLines(extras, width, height, 0);
+	AddBoxes(extras, width, height, 1);
+	AddLines(extras, width, height, 1);
+	AddBoxes(extras, width, height, 2);   // a dialog's open drop-down list, over its window's words
+	AddLines(extras, width, height, 2);
 }
 
 bool PanelPass_SetMenuFont(const host::MenuFont &font)

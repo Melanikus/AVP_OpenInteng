@@ -1821,30 +1821,47 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 
 		host::Dialogs_Draw(&dialogBoxes, &dialogLines, kPanelPassBackground, host::kMenuLitColour);
 
-		if (boxCount + (int)dialogBoxes.size() <= kPanelPassMostExtras && lineCount + (int)dialogLines.size() <= kPanelPassMostExtras)
+		// a dialog is over everything (DL-2), the bar too. NEVER SKIPPED WHOLE (Bishop's ruling 2026-11-18): it was, when it had more boxes or lines than the frame's room
+		// (kPanelPassMostExtras), and the owner would see no window while it took his keys. What fits is drawn, its boxes in their order (the window first, then its parts), and
+		// the state line's dialogdrawn says how much ("<boxes drawn>/<boxes>"); the rest is logged once.
+		size_t drawnBoxes = 0;
+		size_t drawnLines = 0;
+
+		for (host::PaintBox const &b : dialogBoxes)
 		{
-			// a dialog is over everything (DL-2), the bar too
-			for (host::PaintBox const &b : dialogBoxes)
+			if ((size_t)boxCount >= kPanelPassMostExtras)
 			{
-				boxes[boxCount] = b;
-				boxes[boxCount++].overlay = true;
+				break;
 			}
 
-			for (host::PaintText const &t : dialogLines)
-			{
-				lines[lineCount] = t;
-				lines[lineCount++].overlay = true;
-			}
+			boxes[boxCount] = b;
+			boxes[boxCount++].overlay = true;
+			drawnBoxes++;
 		}
-		else
+
+		for (host::PaintText const &t : dialogLines)
 		{
-			// never silent: a window that can't be drawn still takes the keys (Melanikus 11-16 met one: kPanelPassMostExtras was 64)
+			if ((size_t)lineCount >= kPanelPassMostExtras)
+			{
+				break;
+			}
+
+			lines[lineCount] = t;
+			lines[lineCount++].overlay = true;
+			drawnLines++;
+		}
+
+		StateLine_Add("dialogdrawn", std::to_string((unsigned long long)drawnBoxes) + "/" + std::to_string((unsigned long long)dialogBoxes.size()));
+
+		if (drawnBoxes < dialogBoxes.size() || drawnLines < dialogLines.size())
+		{
 			static bool told = false;
 
 			if (!told)
 			{
 				told = true;
-				LogString("dialogs: the open window has " + std::to_string(dialogBoxes.size()) + " boxes and " + std::to_string(dialogLines.size()) + " lines, more than the frame has room for (panel_pass.h): not drawn");
+				LogString("dialogs: the open window has " + std::to_string(dialogBoxes.size()) + " boxes and " + std::to_string(dialogLines.size()) + " lines, more than the frame has room for (panel_pass.h): " +
+					std::to_string(drawnBoxes) + " boxes and " + std::to_string(drawnLines) + " lines drawn");
 			}
 		}
 	}

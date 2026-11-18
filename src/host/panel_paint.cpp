@@ -53,6 +53,16 @@ namespace host
 		return true;
 	}
 
+	int PanelPaint_LayerOf(const PaintBox &box)
+	{
+		return box.top ? 2 : box.overlay ? 1 : 0;
+	}
+
+	int PanelPaint_LayerOf(const PaintText &text)
+	{
+		return text.top ? 2 : text.overlay ? 1 : 0;
+	}
+
 	bool PanelPaint_CutBox(const PaintBox &box, int32_t width, int32_t height, PaintBox *out)
 	{
 		if (!out)

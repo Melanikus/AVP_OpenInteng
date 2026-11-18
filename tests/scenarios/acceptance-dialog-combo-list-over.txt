@@ -1,0 +1,33 @@
+# ACCEPTANCE (red first; the OWNER's screenshot 11-18, via Bishop, urgent): an open drop-down list COVERS its window. In Edit object properties with "Type of Object" open, the window's own words
+# ("Subtype", its combo's "Alien", "Texturing ID", "Random", "Starts Inactive") were painted OVER the open list's rows (Alien, Marine, Predator, ...): the panel pass paints a layer's boxes, then
+# its words, and the whole dialog was one layer, so every word of the window came after the list's boxes. The open list is now its own top layer, painted last (panel_pass.cpp; PanelPaint_LayerOf),
+# as the real list window covers its parent. Read from the state line's dialogoverlist (dialogs.cpp: the window's words the pass paints over the list's rows, in the pass's order), and picture 1.
+# RED on vph-25 (the report without the top layer): the words over the list were listed.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0xcc
+expect-screen Object Placement
+# Create > AVP Bad Guy (0x35), named, then Object > Edit (0x18): Edit object properties
+item 0x35
+expect-dialog Name Object
+form-field 1 bgV
+click-button OK
+expect-no-dialog
+item 0x18
+expect-dialog Edit object properties
+expect-dialog-text Alien|Alien|Random
+expect-field-empty dialogoverlist
+# Type of Object opened: its rows over the window, no word of the window over them
+click-combo 1
+expect-field-has dialogcomborows Marine
+expect-field-empty dialogoverlist
+picture 1
+# closed again by a pick: nothing over anything
+click-combo-row Marine
+expect-dialog-text Marine|Pulse Rifle|Random
+expect-field-empty dialogoverlist
+click-button Cancel
+expect-no-dialog

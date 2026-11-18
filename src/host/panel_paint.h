@@ -50,6 +50,7 @@ namespace host
 		uint32_t colour = 0xFFFFFFFFu;   // ARGB the letters are drawn in: white unless a part asks otherwise (an "on" menu item is yellow, H-5e)
 		bool menuFont = false;           // a menu's line: its letters 0 to 127 as they are (glyph 1 a tick, 2 a sub-menu's mark); any other line is made safe first. Every line is drawn in inteng's font once it was read (panel_pass.h PanelPass_SetMenuFont; view-state-table.md H-1i), solid in the colour
 		bool overlay = false;            // drawn after every box and line of the screen itself (the bar, its drop-downs, the pop-up, a dialog: see PaintBox)
+		bool top = false;                // drawn after the overlay's words too: a dialog's open drop-down list (see PaintBox)
 	};
 
 	// A plain box of one colour on the panels, such as an open menu's background: its top left and size in the window's pixels, and its
@@ -64,7 +65,13 @@ namespace host
 		int32_t height;
 		uint32_t colour;
 		bool overlay = false;
+		bool top = false;   // drawn after the overlay's boxes AND words: an open drop-down list of a dialog, which covers its window's words as the real list does (Vasquez 11-18, the owner's screenshot)
 	};
+
+	// THE PAINT ORDER (panel_pass.cpp): layer 0, the screen's own, then 1, the overlay, then 2, the top; in each layer every box, then every word, in the order given. So a word is over a box
+	// when its layer is the box's or a later one. Layer: 2 for top, else 1 for overlay, else 0.
+	int PanelPaint_LayerOf(const PaintBox &box);
+	int PanelPaint_LayerOf(const PaintText &text);
 
 	// The part of box inside a window of width by height pixels, in *out. Gives back false, with nothing in *out, when no part of it is
 	// inside: a box of no size or of a size below 0, one wholly outside, or a window of no size. Every sum is done in 64 bits.
