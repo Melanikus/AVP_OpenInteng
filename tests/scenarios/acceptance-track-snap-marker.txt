@@ -1,0 +1,51 @@
+# ACCEPTANCE (red first): V in Track Editing's END EDIT snaps the flying end marker to a vertex, live (T-3b of reassess/track-editing-closeout-vasquez.md; Vasquez, 2026-11-17).
+# inteng's state 3 sends V (slot 0xd87a96, 0x4dc8f6-0x4dc902) to FUN_004dd280, as Object Placement's V does, on the FLYING object, which in the end edit is the end marker (F flies it):
+# its place and matrix are saved, every frame it is put back to them and snapped under the pointer (0x4dc995-0x4dca28, FUN_004f7000); a LEFT press keeps the snap, Escape (0x4dca33) puts
+# it back. Finish End Pos Edit then takes the marker as the section's end. RED before T-3b: V did nothing in Track Editing (the marker stayed at the end, the section ended where it did).
+# Invasion, read from a copy: switch3 (in front of the camera, as acceptance-object-snap-vertex has it), whose one-section track ends at -27851 -14055 88656; the pointer over the left window
+# frame (300, 300), where the snap puts the switch on the frame's vertex in acceptance-object-snap-vertex.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+click-bar Object > Edit Track
+expect-screen Track Editing
+# 1. Edit Section End Position, then F: the end marker (the switch itself) flies
+item 0x516
+key F
+expect-status Fly end marker: on
+wait 300
+picture 1
+# 2. V: the live snap on the marker; the pointer over the frame: the marker follows it, no click
+key V
+expect-status-not the end marker is not flying
+move-win 300 300
+wait 500
+picture 2
+expect-pixels-changed-since 1 picture 0 0 1008 640 0.01
+# 3. Escape: the marker as it was
+key Esc
+wait 500
+picture 3
+expect-pixels-same-since 1 picture 0 0 1008 640 0.002
+# 4. V again, the pointer on the frame, a LEFT press: kept
+key V
+wait 300
+move-win 300 300
+wait 500
+click-win 300 300
+wait 500
+expect-status Snap To Vertex: the end marker is on the vertex
+picture 4
+expect-pixels-changed-since 1 picture 0 0 1008 640 0.01
+# 5. Finish End Pos Edit takes it; Stop Track Edit; the copy's track ends somewhere else now
+item 0x517
+item 0x51c
+expect-screen Object Placement
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_objects/verify_objects.exe {copy} track switch3 trackendmoved switch3|0|-27851|-14055|88656

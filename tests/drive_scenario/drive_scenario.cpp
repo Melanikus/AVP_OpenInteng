@@ -489,6 +489,8 @@ static UINT KeyOf(std::string const &name)
 	if (name == "Numpad8") return VK_NUMPAD8;
 	if (name == "Multiply") return VK_MULTIPLY;
 	if (name == "Divide") return VK_DIVIDE;
+	if (name == "Slash") return VK_OEM_2;          // the main keyboard's '/' (inteng's "/ + Rotation Keys", camera-closeout-drake.md CAM-3)
+	if (name == "ScrollLock") return VK_SCROLL;    // inteng's "Scroll Lock + Object: Set Object For Rotation Axes" (CAM-8)
 	// one letter or digit is its own key (the Hierarchy view's P O N M, the key frame flags 0 to 9, Q)
 	if (name.size() == 1 && ((name[0] >= 'A' && name[0] <= 'Z') || (name[0] >= '0' && name[0] <= '9'))) return (UINT)name[0];
 	return 0;
@@ -1251,7 +1253,25 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		bool const right = std::find(w.begin(), w.end(), "right") != w.end();
 		bool const shift = std::find(w.begin(), w.end(), "shift") != w.end();
 
+		// "s": the S key held over the click (Strategy Data's flag page: S + click selects by texture, FUN_00525700 0x525db2; Drake 11-17, S-69): its key-down is posted before the press, its
+		// key-up after the release, as click-view's "delete" / "ctrl" / "esc"
+		bool const sKey = std::find(w.begin(), w.end(), "s") != w.end();
+		UINT const sScan = MapVirtualKeyW('S', MAPVK_VK_TO_VSC);
+
+		if (sKey)
+		{
+			PostMessageW(s->editor.window, WM_KEYDOWN, 'S', 1 | (sScan << 16));
+			Sleep(60);
+		}
+
 		ClickWindow(s, atoi(w[1].c_str()), atoi(w[2].c_str()), right, shift);
+
+		if (sKey)
+		{
+			PostMessageW(s->editor.window, WM_KEYUP, 'S', 1 | (sScan << 16) | (1u << 30) | (1u << 31));
+			Sleep(200);
+		}
+
 		AskState(s);
 		Check(true, label);
 		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
@@ -1628,8 +1648,10 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		bool const shift = std::find(w.begin(), w.end(), "shift") != w.end();
 		// "delete": the Delete key held over the click (Module Linking's un-pick, inteng's slot 0x55 = VK 0x2e): its key-down is posted before the press, its key-up after the release.
 		// "ctrl": the Ctrl key held over the click the same way (Strategy Data's collector: Ctrl + click adds the clicked object's whole shape group, FUN_00526bf0 0x526e3b; the press carries MK_CONTROL too)
+		// "esc": the Esc key held over the click the same way (Scroll Lock's pick reads Esc only at a press: Esc held then gives it up, FUN_004720c0 0x472139; Drake 11-17)
 		bool const held = std::find(w.begin(), w.end(), "delete") != w.end();
 		bool const ctrl = std::find(w.begin(), w.end(), "ctrl") != w.end();
+		bool const esc = std::find(w.begin(), w.end(), "esc") != w.end();
 
 		AskState(s);   // the box's place now
 
@@ -1643,10 +1665,10 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		int const x = box[0] + (int)(atof(w[1].c_str()) * box[2]);
 		int const y = box[1] + (int)(atof(w[2].c_str()) * box[3]);
-		UINT const heldKey = held ? VK_DELETE : VK_CONTROL;
+		UINT const heldKey = held ? VK_DELETE : (esc ? VK_ESCAPE : VK_CONTROL);
 		UINT const heldScan = MapVirtualKeyW(heldKey, MAPVK_VK_TO_VSC);
 
-		if (held || ctrl)
+		if (held || ctrl || esc)
 		{
 			PostMessageW(s->editor.window, WM_KEYDOWN, heldKey, 1 | (heldScan << 16));
 			Sleep(60);
@@ -1654,7 +1676,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		ClickWindow(s, x, y, right, shift, 600, ctrl);
 
-		if (held || ctrl)
+		if (held || ctrl || esc)
 		{
 			PostMessageW(s->editor.window, WM_KEYUP, heldKey, 1 | (heldScan << 16) | (1u << 30) | (1u << 31));
 			Sleep(200);
@@ -1940,6 +1962,35 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		Check(false, label + " (the status never said \"" + wanted + "\" in " + std::to_string(most) + " rounds; it says \"" + Field(s->last, "status") + "\")");
 		return false;
 }
+
+	// alt-release <key>: the key goes down, then Alt; the key is let go WHILE Alt is down (Windows sends that as WM_SYSKEYUP, not WM_KEYUP), then Alt goes up. The way a
+	// key is let go under Alt in real use: the editor kept such a key held in its table (ML-M-76; added 2026-11-17 by Melanikus (Dietrich))
+	if (verb == "alt-release" && w.size() >= 2)
+	{
+		UINT const key = KeyOf(w[1]);
+
+		if (!key)
+		{
+			Check(false, label + " (a key the scenario doesn't know)");
+			return false;
+		}
+
+		HWND const window = s->editor.window;
+		UINT const keyScan = MapVirtualKeyW(key, MAPVK_VK_TO_VSC), altScan = MapVirtualKeyW(VK_MENU, MAPVK_VK_TO_VSC);
+
+		PostMessageW(window, WM_KEYDOWN, key, 1 | (keyScan << 16));
+		Sleep(80);
+		PostMessageW(window, WM_SYSKEYDOWN, VK_MENU, 1 | (altScan << 16) | (1u << 29));
+		Sleep(80);
+		PostMessageW(window, WM_SYSKEYUP, key, 1 | (keyScan << 16) | (1u << 29) | (1u << 30) | (1u << 31));
+		Sleep(80);
+		PostMessageW(window, WM_SYSKEYUP, VK_MENU, 1 | (altScan << 16) | (1u << 30) | (1u << 31));
+		Sleep(150);
+		AskState(s);
+		Check(true, label);
+		PictureAfter(s, line);
+		return true;
+	}
 
 	if (verb == "chord" && w.size() >= 3)
 	{

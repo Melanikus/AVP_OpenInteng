@@ -7902,3 +7902,59 @@ void RecalculateTheNormals()
 	recalcWords = host::ShapeRecalc_Words(report);
 	statusWords = recalcWords.c_str();
 }
+
+// ---- THE KEYS AS INTENG'S KEY TABLE GIVES THEM (TM-A, Frost 2026-11-17; host::TextureMapKeyCommand, texture_keys.h) ----
+// inteng hands every key to the Texture Map menu object's key table (FUN_00557ea0) and runs the command it gives in the same switch the menus feed (FUN_0054d260 in the polygon
+// screen; the texture window's FUN_00551f80). So here: the key's command, then the menu's own handler (TextureMapCommand), except where ours does that command in another form:
+// Tab (0x3 / 0x2) is TextureWindowToggle, G / Shift+G (0xbd / 0xbe) TextureGoto, the window's 1-4 (0xe8-0xeb) its node, X / Y / E / R (6, 7, 0x1b, 0x19) TextureMapEdit (with the
+// window's nodes read again), and 7 / 8 / 9 in the polygon screen (0x3b-0x3d: flat shaded / polyline / filled polyline) the editor's own draw-mode keys (editor_actions.h), which
+// this leaves alone. A key inteng gives no command goes on to ours (S with an arrow, PageUp / PageDown, the window's arrows, = / - and Esc: named differences).
+// THE CLASHES, inteng's way (the owner's ruling, texture-map-closeout-frost.md): C is Select Texture (0x2a; ours tiled), E turns 90 anti-clockwise (0x1b) and R clockwise (0x19)
+// (ours had them swapped). Not yet here: the Ctrl keys (the editor's key branch takes Texture Map keys only without Ctrl) and F / Shift+F (ours keeps no View's Add / Remove).
+bool TextureMapKeyCommandRun(uint8_t key, bool shift, bool ctrl)
+{
+	host::TextureKeyState state = {};
+
+	state.selectAs = textureSelectAs;
+	state.texturedShown = ViewToggles_Now().textured;
+	state.flagViewOn = false;   // TO BUILD with F / Shift+F: the View's Add / Remove pair (DAT_00914d88 / d8c)
+
+	int32_t const command = host::TextureMapKeyCommand(textureWindowOn ? 1 : 0, key, shift, ctrl, state);
+
+	switch (command)
+	{
+		case 0:
+			return false;
+		case 0x3: case 0x2:
+			TextureWindowToggle();
+			return true;
+		case 0x3b: case 0x3c: case 0x3d: case 0xcd:
+			return false;   // 7 / 8 / 9 and B: the editor's own View keys do it (draw modes, Gouraud: editor_actions.h), before this is asked; doing it here too would undo it
+		case 0xbd: case 0xbe:
+			if (textureFound.empty())
+			{
+				statusWords = "Texture Map: no polygons were found to go to (Find first)";
+			}
+			else
+			{
+				TextureGoto(command == 0xbd ? 1 : -1);
+			}
+
+			return true;
+		case 0xe8: case 0xe9: case 0xea: case 0xeb:
+			textureWinNode = (int)(command - 0xe8) < textureWinCount ? (int)(command - 0xe8) : textureWinNode;
+			return true;
+		case 0x6: case 0x7: case 0x19: case 0x1b:
+			TextureMapEdit(command);
+
+			if (textureWindowOn)
+			{
+				TextureWindowLoad();
+			}
+
+			return true;
+		default:
+			TextureMapCommand(command);
+			return true;
+	}
+}

@@ -1,0 +1,44 @@
+# ACCEPTANCE (red first; Drake 11-17, strategy-data.md S-62, brief AvP-docs/director/briefs-phase1/S-62.md): A KIND'S OBJECT PICK DRAWS ITS CHOICE RED, on his path (Invasion, the file opened as a double click).
+# inteng's pick loop FUN_00527540 (a kind's view, e.g. a Switch Door's door line, FUN_0052d490 0x52d4ef): a click on a record with a wrapper marks it (0x527629 FUN_00529470: block +0x64 |= 0x40000000,
+# drawn 0xff0000 by FUN_004a7cd0 0x4a7eca, over its green), the old one's mark off (0x527620); nothing hit: off (0x52763a); the end: off (0x527676). Ours ran the pick with the view's flag set, which turns
+# both colour paths off (the selected colour 0; the modules' red in FlagViewTints skipped): a picked module or placed object was not drawn red.
+# A: a MODULE picked (APCmod): the modules' path (FlagViewTints). B: a PLACED OBJECT picked (switch3): the selected colour's path.
+# RED on bishop-int a4450aa8: steps A and B find no red.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+# the subject: the module at 640 130 (gARAGDOR, no strategy in stock Invasion, so no replace question)
+click-win 640 130
+expect-selected 1
+click-win 640 130 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Switch_Door
+wait 400
+expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:None
+# the door lines: the OBJECT PICK (FUN_0052d490 -> FUN_00527540); the door is none, so nothing is red and the camera stays
+click-win 300 24
+wait 400
+picture 2
+expect-colour-at-most picture 0 400 300 200 ff0000 0.001 70
+# A: APCmod picked: RED (0x527629 FUN_00529470)
+click-win 120 500
+wait 300
+picture 3
+expect-colour picture 0 400 300 200 ff0000 0.01 70
+# B: in front of switch3, picked: RED; APCmod's red goes (0x527620)
+camera -27851 -14055 85500 0 0
+wait 500
+click-win 504 364
+wait 300
+picture 4
+expect-colour picture 430 290 150 150 ff0000 0.03 70
+# C: Return ends the pick (0x527676). The view is black after it (no level drawn), so this only checks nothing is left red on the screen
+key Enter
+wait 400
+picture 5
+expect-colour-at-most picture 0 0 1008 729 ff0000 0.0005 70
+key Esc

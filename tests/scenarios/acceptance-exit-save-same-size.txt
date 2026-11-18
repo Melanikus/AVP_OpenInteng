@@ -1,0 +1,29 @@
+# ACCEPTANCE (red first): a mode's Exit saves a SAME-SIZE edit (Dietrich, 2026-11-17; the view gap's second half, found by a read-only trace of acceptance-view-gap-same-size). Every inteng
+# mode's Exit writes the level file (FUN_004719e0; editor_main.cpp's exit sweep). Ours writes it when the level changed since the last save (LevelChangedSinceSave), which compared the level's
+# Generation(): only a ReplaceLevel moves it, so an edit of a chunk at its own size (SetPayload: Object Placement's Rescale, OP-13, among many) was not a change and the Exit wrote nothing.
+# Now it compares Changes(), which every edit moves. His path: Genshd1, Object Placement, Find bypass, Rescale to 2, Exit: the level is saved (the Exit's words begin with the save's).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is bypass
+expect-no-dialog
+wait 400
+click-bar Object > Rescale
+expect-dialog Rescale Shape
+form-field 1 2
+click-button OK
+expect-no-dialog
+wait 300
+state
+expect-status Rescaled
+click-bar Mode > Exit
+wait 800
+state
+expect-screen Construction
+expect-status Saved
+expect-status Camera position saved

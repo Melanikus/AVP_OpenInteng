@@ -1,0 +1,27 @@
+# ACCEPTANCE (red first; Drake 11-17, camera-closeout-drake.md CAM-2): ZOOMED IN, THE CAMERA TURNS SLOWER, on his path (Invasion, the file opened as a double click).
+# inteng's mover FUN_0053db40 0x53de00-0x53de94: when the camera's view scale (+0x34 / +0x38: half the screen's width, multiplied by Insert's zoom FUN_00471cb0, put back by Home's FUN_004721a0) is over
+# 512, the yaw becomes yaw x 512 / scale (FUN_0053e5a0), never 0 for a key that turned. Unzoomed, half our view's width is under 512, so the turn is the keys' own; after a zoom in it is about
+# 512 / (half the width x the zoom) of it. Dietrich's camturn has the rule with half the width only (the zoom left out).
+# The same hold of numpad 4 before and after the zoom: the second turns the camera (camangles turn) clearly less (measured on drake-camera: 444 and 402 unzoomed, 40 at the zoom's 854%).
+# RED on bishop-int a9ad2b4c: the zoomed hold turns as far as the unzoomed one.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+remember-number camangles turn
+hold Numpad4 600
+expect-number-moved camangles turn 300 560
+# Insert: a press chooses the zoom's centre, the next (near it: a small rectangle) zooms in
+key Insert
+click-view 0.5 0.5
+click-view 0.56 0.5
+expect-field-has status Zoom: in
+picture 1
+remember-number camangles turn
+hold Numpad4 600
+expect-number-moved camangles turn 5 150
+# Home puts the zoom back: the turn is the keys' own again
+key Home
+remember-number camangles turn
+hold Numpad4 600
+expect-number-moved camangles turn 300 560

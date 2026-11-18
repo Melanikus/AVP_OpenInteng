@@ -361,6 +361,7 @@ namespace host
 		::List<Object_Chunk *> all;
 
 		open->Level()->list_objects(&all);
+		modulePlaces.clear();
 
 		for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
 		{
@@ -376,6 +377,14 @@ namespace host
 				}
 
 				names.insert(std::string(object->object_data.o_name, length));
+
+				// W-4: the module's place, where its module-link lines end (FUN_00586700: the module record's +0x10..+0x18; the first of a name, as the name compare finds it)
+				std::vector<int32_t> &place = modulePlaces[std::string(object->object_data.o_name, length)];
+
+				if (place.empty())
+				{
+					place = { object->object_data.location.x, object->object_data.location.y, object->object_data.location.z };
+				}
 			}
 		}
 
@@ -499,6 +508,23 @@ namespace host
 		int64_t const from = wpCurrent < 0 ? (delta > 0 ? -1 : 0) : wpCurrent;
 
 		wpCurrent = (int32_t)((from + delta % count + count) % count);
+	}
+
+	bool WaypointMode::ModulePlace(std::string const &name, int32_t place[3]) const
+	{
+		auto const found = modulePlaces.find(name);
+
+		if (found == modulePlaces.end() || found->second.size() != 3)
+		{
+			return false;
+		}
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			place[axis] = found->second[(size_t)axis];
+		}
+
+		return true;
 	}
 
 	std::string WaypointMode::Words() const
@@ -633,15 +659,18 @@ namespace host
 
 				case 0x1b:   // Remove Module (0x583ef9): a module of the current AI module goes; it is painted green or white by its own WAYPOINT and the pick is let go
 				{
-					if (current < 0 || picked < 0 || pickedMaster != current || picked == current)
+					// inteng's gate (0x583f05-0x583f23): a pick and a current AI module, the pick's master the current one; a master is its own master, so the MASTER itself passes (W-9: its
+					// second branch, the first slave becomes the master); so does a plain module made current by Edit Module (nothing written, no AI module current after)
+					if (current < 0 || picked < 0 || (pickedMaster != current && picked != current))
 					{
-						return Said("Remove Module: pick a module of the current AI module (not its master)");
+						return Said("Remove Module: pick a module of the current AI module");
 					}
 
 					int32_t const removed = picked;
-					AiModulesResult const result = AiModules_Remove(open, removed, nullptr, &why);
+					int32_t newMaster = -1;
+					AiModulesResult const result = AiModules_Remove(open, removed, nullptr, &why, &newMaster);
 
-					if (result != AiModulesResult::Done)
+					if (result != AiModulesResult::Done && !(result == AiModulesResult::NotASlave && removed == current))
 					{
 						return Said((std::string("Remove Module: ") + AiModulesWords(result) + (why.empty() ? std::string() : " (" + why + ")")).c_str());
 					}
@@ -650,6 +679,12 @@ namespace host
 
 					Snapshots(open, &after);
 					picked = -1;
+
+					// the current AI module (0x583f3f-0x583f73): none, or the master the function gave back (the first slave, when the master itself was taken out)
+					if (removed == current)
+					{
+						current = newMaster;
+					}
 					paint[removed] = HoldsWaypoints(after, removed) ? kWaypointModuleGreen : kWaypointModuleWhite;
 					RefreshGroup(open);
 					out.levelChanged = true;

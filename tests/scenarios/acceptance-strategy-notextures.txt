@@ -5,8 +5,8 @@
 #   0x18 -> 7) whose image number is past the table's count or whose entry is -1 becomes kind 0xe (polyline, see-through lines), flags |= 2 (iflag_nolight: its colour as it is, unlit), texture -1.
 # - FUN_00522ab0 0x522b94-0x522bd6: with 0x80 every level shape (from DAT_008f588c on) is painted 0xffffff (true colour; 0xf8 with a palette) by FUN_0046da70.
 # - The strategy colours on the blocks' flags (+0x64: 0x2000000 has a strategy -> GREEN, 0x40000000 the current object -> RED, FUN_004a7cd0 0x4a7eca) colour the lines.
-# Ours: the Module Linking wire look (view_toggles_game.cpp ViewToggles_Apply): every polygon as lines, white, unlit. NAMED DIFFERENCE: the level's few untextured polygons (kind 2 / 3: Invasion 360 of 25008) stay FILLED white in
-# inteng; avpx's wire switch is per category (modules / objects), not per polygon, so ours draws them as lines too (a rendering row for the next batch).
+# Ours: the Module Linking wire look (view_toggles_game.cpp ViewToggles_Apply): every textured polygon as lines, white, unlit. The level's few untextured polygons (kind 2 / 3) stay FILLED and lit, as inteng's
+# (R_SetEditorFillUntextured; acceptance-strategy-notextures-fill.txt). Invasion's 359 all carry flag 1 (not drawn), so this view has none.
 # His path: the file is opened (start-args, his double click), the bar is clicked, an object is clicked.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on

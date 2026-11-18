@@ -1,0 +1,102 @@
+# ACCEPTANCE (red first; Drake 11-17, camera-closeout-drake.md CAM-3 / CAM-7 / CAM-8): the camera SWINGS ROUND the rotation centre, on his path (Invasion, the file opened as a double click).
+# inteng's manual (menu.txt): "/ + Rotation Keys: Rotate Camera Around Environment Using World Axes", "Number Pad / + Rotation: ... Using Camera Axes", "Scroll Lock + Object: Set Object For
+# Rotation Axes". The mover FUN_0053db40 0x53dec0-0x53e071: with '/' (slot 0xbf) or numpad / (0x6f) held, the turn keys' turn swings the camera's place round DAT_00931110 and turns the camera by the
+# same, so the centre stays where the camera sees it. The centre starts as the average place of the level's objects at every hub start (FUN_00470e70 from FUN_00447550 0x447652); Scroll Lock
+# (FUN_004720c0) shows "Choose object for centre of rotation" at (200, 100) and "RMB or escape to cancel" at (200, 0x74) and puts it on the object or module the next left press hits.
+# The state line's rotcentre: the centre, the camera's distance to it, its bearing round it, where the camera sees it (seenx / seeny / seenz along its own axes), waiting.
+# (remember-number keeps ONE number: each quantity is kept and checked round a hold of its own.)
+# RED on bishop-int (no rotcentre field; '/' does nothing: numpad 4 turns the camera where it is, so it sees the centre elsewhere and its bearing stays).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+# CAM-7: the centre is the average of Invasion's objects (each place / their count, added)
+expect-number rotcentre waiting 0 0
+expect-number rotcentre x -7577 -7573
+expect-number rotcentre y -9066 -9062
+expect-number rotcentre z 55636 55640
+# CAM-8: Scroll Lock waits, with inteng's two lines. The wait is MODAL (FUN_004720c0's loop reads only the mouse): Esc on its own does nothing, no key acts (Insert starts no zoom), nothing moves
+# (numpad 4 held turns nothing); a press with Esc held gives up (0x472139), the centre as it was
+remember-number rotcentre x
+key ScrollLock
+expect-number rotcentre waiting 1 1
+expect-field-has hierarchylines 6@200:Choose object for centre of rotation
+expect-field-has hierarchylines 7@200:RMB or escape to cancel
+picture 1
+key Esc
+expect-number rotcentre waiting 1 1
+key Insert
+expect-status-not Zoom
+remember-number camangles turn
+hold Numpad4 400
+expect-number-moved camangles turn 0 0
+# no screen frame runs meanwhile: H held does not raise the hub's view distance
+remember-number screentext View_Distance_:
+hold H 300
+expect-number-moved screentext View_Distance_: 0 0
+remember-number rotcentre x
+click-view 0.5 0.5 esc
+expect-number rotcentre waiting 0 0
+expect-number-moved rotcentre x 0 0
+# the right button gives up too
+key ScrollLock
+expect-number rotcentre waiting 1 1
+click-view 0.5 0.5 right
+expect-number rotcentre waiting 0 0
+expect-number-moved rotcentre x 0 0
+# a left press on the middle of the view (the start's view: a module there) puts the centre on what it hits
+key ScrollLock
+click-view 0.5 0.5
+wait 300
+expect-number rotcentre waiting 0 0
+expect-number rotcentre x 2061 2065
+picture 2
+# Module Overlaps off sets the hub up again (FUN_00445270: FUN_004476d0, FUN_00447550 0x445275): the centre back on the average; then the module picked again
+click-bar Miscellaneous > Module Overlaps
+click-bar Miscellaneous > Module Overlaps
+expect-status Module Overlaps off
+expect-number rotcentre x -7577 -7573
+key ScrollLock
+click-view 0.5 0.5
+wait 300
+expect-number rotcentre waiting 0 0
+expect-number rotcentre x 2061 2065
+# CAM-3 '/': world axes, numpad 4 held with it: the camera keeps its distance, sees the centre where it did, and goes round it
+remember-number rotcentre dist
+hold Slash+Numpad4 800
+expect-number-moved rotcentre dist -100 100
+remember-number rotcentre seenx
+hold Slash+Numpad4 800
+expect-number-moved rotcentre seenx -40 40
+remember-number rotcentre seenz
+hold Slash+Numpad4 800
+expect-number-moved rotcentre seenz -40 40
+remember-number rotcentre bearing
+hold Slash+Numpad4 800
+expect-number-moved rotcentre bearing 4000 14000
+picture 3
+# CAM-3 numpad /: the camera's own axes, numpad 8 (pitch) held with it
+remember-number rotcentre dist
+hold Divide+Numpad8 600
+expect-number-moved rotcentre dist -100 100
+remember-number rotcentre seeny
+hold Divide+Numpad8 600
+expect-number-moved rotcentre seeny -40 40
+# about the camera's OWN axes: a pitch then adds no roll (about the world's x, on a camera the yaw orbit turned, it would roll it); numpad 2 brings the look back from near the vertical
+remember-number camangles roll
+hold Divide+Numpad2 600
+expect-number-moved camangles roll -3 3
+picture 4
+# without '/', numpad 4 turns the camera where it is: it sees the centre elsewhere
+remember-number rotcentre seenx
+hold Numpad4 600
+expect-number-moved rotcentre seenx 3000 14000
+# CAM-7 again: a mode's Exit goes back to the hub, whose start puts the centre back on the average (FUN_00447550 0x447652): the pick lasted until then
+click-bar Mode > Object Placement
+expect-screen Object Placement
+click-bar Mode > Exit
+wait 300
+expect-screen Construction
+expect-number rotcentre x -7577 -7573
+expect-number rotcentre z 55636 55640
+state

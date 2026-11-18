@@ -1,0 +1,38 @@
+# ACCEPTANCE (red first; Drake 11-17, OP-47, Bishop's ruling: the game's own dynamics): Object Placement's Misc > Toggle Gravity on his path (Invasion, the file opened as a double click).
+# inteng (FUN_004d9af0 0x4dc66e-0x4dc6d6, FUN_004e3e30): Gravity gives every placed shape of type 1-5 or 15 its collision strategy and its ENGINE drops it; it lands and stays; nothing reaches the
+# file until a save writes the objects (their blocks' places). Ours: those objects (the game's inanimate objects of those types) run in avpx's ObjectDynamics each frame while Gravity is on, every
+# other block held still (LevelView_GravityStep). smart1 is a pickup (type 2) that the level places in the air (the game's pickups do not fall): Gravity drops it 3.8 m onto the floor, where it
+# stays; off, it stays where it landed; Mode > Save writes that place (PlacementGravityFlush) and the game's loader reads it from the copy.
+# RED on drake-opclose 90dfd209: Gravity was a switch and words; smart1 stays in the air.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is smart1
+expect-no-dialog
+wait 400
+expect-field selectedat x -20296 y 8806 z 73693
+picture 1
+remember-field selectedat
+click-bar Misc > Toggle Gravity
+expect-status Toggle Gravity: on
+wait 2500
+expect-field-changed selectedat
+expect-number selectedat y 12500 12700
+remember-field selectedat
+wait 1500
+expect-field-same selectedat
+picture 2
+click-bar Misc > Toggle Gravity
+expect-status Toggle Gravity: off
+wait 500
+expect-field-same selectedat
+click-bar Mode > Save
+wait 600
+expect-status Saved a copy:
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} near smart1|-20290|12600|73600|200

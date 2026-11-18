@@ -90,13 +90,24 @@ namespace model
 	// would depend on the order and nothing in the game asks for it.
 	ShapeMathsResult WeldShapePoints(ShapeModel *b, ShapePoint placeB, ShapeModel const &a, ShapePoint placeA, int32_t tolerance, size_t *welded);
 
-	// Turns a whole-number vector by an object's turn (the four floats x, y, z, w the file holds in OBJHEAD1 after the place), the way inteng does:
-	// the quaternion becomes a 3x3 matrix of doubles by FUN_00430d70 (out\menu-reads-19.txt:2-47: m0 = 1 - 2(y^2 + z^2), m1 = 2xy - 2zw, ... with
-	// the float products it makes) and the vector is multiplied by it as M x v, row by row, each result truncated toward zero by FUN_00430e80
-	// (out\raw-listing-13.txt, p11-shape-handlers.md section 31). Overflow when a result leaves the 32-bit range or a float isn't finite.
-	// NAMED DEVIATION: inteng adds the three products in x87 extended precision; this does it in double, so a result a hair under a whole number
-	// can truncate one unit differently.
+	// An object's turn (the four floats x, y, z, w the file holds in OBJHEAD1 after the place) as inteng's 3x3 matrix, FUN_00430d70, read in the raw listing
+	// (out\listing-all-1b.txt 0x430d7c-0x430e6b): every step in DOUBLE, with X = 2x, Y = 2y, Z = 2z: m0 = 1-(Zz+Yy), m1 = Yx-Zw, m2 = xZ+Yw, m3 = Yx+Zw,
+	// m4 = 1-(Zz+Xx), m5 = Zy-Xw, m6 = xZ-Yw, m7 = Zy+Xw, m8 = 1-(Yy+Xx). (Until 2026-11-17 this copied the decompiler's float products, which the code
+	// doesn't have: a quarter turn then took (1500, 0, 1000) to x 999 where inteng gives 1000; tests/shape_maths_turn_test.cpp.)
+	void TurnMatrix(float const turn[4], double m[9]);
+
+	// Turns a whole-number vector by an object's turn, the way inteng does: TurnMatrix, then M x v row by row, (v.x*m0 + v.y*m1) + v.z*m2, each result
+	// truncated toward zero by FUN_00430e80 (p11-shape-handlers.md section 31). Overflow when a result leaves the 32-bit range or a float isn't finite.
+	// NAMED DEVIATION: inteng adds the three products on the x87 stack (53-bit precision under the C runtime's default, the same as a double here,
+	// but the build's /fp:fast may order the sums differently), so a result a hair under a whole number can truncate one unit differently.
 	ShapeMathsResult RotateByTurn(float const turn[4], ShapePoint v, ShapePoint *out);
+
+	// Bakes an object's turn into its shape, as Merge Objects' FUN_00449970 does (0x449bb6-0x449c38): every point turned by RotateByTurn; every point normal
+	// and every polygon normal turned by FUN_00430f00 (0x430f0b-0x430f56: each row from the original normal, (x*m0 + y*m1) + z*m2 with the float components and
+	// the matrix's doubles, stored as a float) and made unit by FUN_0042fb00 (divided by its length unless that is 0). The caller sets the object's turn to
+	// (0, 0, 0, 1) (0x449c41-0x449c62). All or nothing: Overflow (a point leaves the 32-bit range, or the turn isn't finite) leaves the shape as it was.
+	// NAMED DEVIATION as RotateByTurn's: the sums and the length are double here, x87 there.
+	ShapeMathsResult TurnShapeByTurn(ShapeModel *shape, float const turn[4]);
 
 	// Rescale's numbers (Object Placement, Rescale; FUN_004e1340 calls FUN_00430210 on the CHUNK-side record, menu-reads-34.txt:8-57; Apone's run 11,
 	// apone-reads-3.md): every coordinate of every point, and the six extents numbers, become the old number times factor, truncated toward zero (__ftol);

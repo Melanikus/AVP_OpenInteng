@@ -1,0 +1,36 @@
+# ACCEPTANCE (red first): AD-6 of reassess/adjacent-closeout-dietrich.md (Dietrich, 2026-11-17). Module Linking's Exit + New Adjacencies (0x66, FUN_004c1a90 -> FUN_004c5a30(1)) ends with
+# FUN_00403d50 (0x4c603a), the same pass as Adjacent's Recalculate Entry Points: for each pair of modules that don't touch it asks "Warning adjacent modules don't touch / From %s To %s /
+# Would you like to delete the adjacency?" (0x5c38b4, FUN_00402ae0), a Yes taking that entry out; then it writes the level file (FUN_004719e0 at 0x4c6047). Ours asked nothing and kept the data
+# in the editor's bytes. His path: Caverns (two pairs that don't touch, asked in the file's order: DR-CAVERNC to CAVERNC-04, then CAVERNA-02 to TUNNELA-01), Mode > Module Linking, Exit + New
+# Adjacencies: the first question, Yes; the second, No; the level is saved, and the saved copy has the first pair's entry gone and the second's kept.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Caverns.RIF
+pictures on
+verify cmd /c del /q "{exedir}AVP_OpenInteng\edited\Caverns-edited.rif" "{exedir}AVP_OpenInteng\edited\Caverns-edited.rif.bak" 2>nul & exit 0
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+wait 400
+item 0x66
+wait 2000
+expect-dialog-kind confirm
+expect-dialog Warning adjacent modules don't touch
+expect-dialog From DR-CAVERNC To CAVERNC-04
+state
+click-button Yes
+expect-dialog-kind confirm
+expect-dialog Warning adjacent modules don't touch
+expect-dialog From CAVERNA-02 To TUNNELA-01
+state
+click-button No
+expect-no-dialog
+wait 400
+state
+expect-screen Construction
+expect-status 2 pairs of modules do not touch (1 taken out)
+# the save at 0x4c6047 (the state line cuts the status before the file's name; the verify reads the file)
+expect-status Saved a copy
+# the saved copy, read by the game's loader: DR-CAVERNC's entry to CAVERNC-04 is gone (the Yes), CAVERNA-02's to TUNNELA-01 kept (the No). New Adjacencies itself gives Caverns' modules with no
+# ADJMDLEP their chunk and puts the reverse entries into their neighbours' lists, so the other lists are counted, not compared (others-may-change)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_adjacent/verify_adjacent.exe {orig} {exedir}AVP_OpenInteng\edited\Caverns-edited.rif touch DR-CAVERNC CAVERNC-04 CAVERNA-02 TUNNELA-01 others-may-change

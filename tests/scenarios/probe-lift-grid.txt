@@ -1,0 +1,179 @@
+# PROBE (Drake 11-17): where liftplt (Genshd1's Platform Lift) is picked from where Strategy Data's Find Object > liftplt puts the camera; each click's pick is the screen text's name
+# (Strategy Data shows the picked object's name and ID at the top left). Not an acceptance.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is liftplt
+expect-no-dialog
+wait 400
+click-win 300 300
+wait 200
+state
+click-win 400 300
+wait 200
+state
+click-win 504 300
+wait 200
+state
+click-win 600 300
+wait 200
+state
+click-win 700 300
+wait 200
+state
+click-win 300 330
+wait 200
+state
+click-win 400 330
+wait 200
+state
+click-win 504 330
+wait 200
+state
+click-win 600 330
+wait 200
+state
+click-win 700 330
+wait 200
+state
+click-win 300 350
+wait 200
+state
+click-win 400 350
+wait 200
+state
+click-win 504 350
+wait 200
+state
+click-win 600 350
+wait 200
+state
+click-win 700 350
+wait 200
+state
+click-win 300 364
+wait 200
+state
+click-win 400 364
+wait 200
+state
+click-win 504 364
+wait 200
+state
+click-win 600 364
+wait 200
+state
+click-win 700 364
+wait 200
+state
+click-win 300 380
+wait 200
+state
+click-win 400 380
+wait 200
+state
+click-win 504 380
+wait 200
+state
+click-win 600 380
+wait 200
+state
+click-win 700 380
+wait 200
+state
+click-win 300 400
+wait 200
+state
+click-win 400 400
+wait 200
+state
+click-win 504 400
+wait 200
+state
+click-win 600 400
+wait 200
+state
+click-win 700 400
+wait 200
+state
+click-win 300 420
+wait 200
+state
+click-win 400 420
+wait 200
+state
+click-win 504 420
+wait 200
+state
+click-win 600 420
+wait 200
+state
+click-win 700 420
+wait 200
+state
+click-win 300 445
+wait 200
+state
+click-win 400 445
+wait 200
+state
+click-win 504 445
+wait 200
+state
+click-win 600 445
+wait 200
+state
+click-win 700 445
+wait 200
+state
+click-win 300 470
+wait 200
+state
+click-win 400 470
+wait 200
+state
+click-win 504 470
+wait 200
+state
+click-win 600 470
+wait 200
+state
+click-win 700 470
+wait 200
+state
+click-win 300 520
+wait 200
+state
+click-win 400 520
+wait 200
+state
+click-win 504 520
+wait 200
+state
+click-win 600 520
+wait 200
+state
+click-win 700 520
+wait 200
+state
+click-win 300 600
+wait 200
+state
+click-win 400 600
+wait 200
+state
+click-win 504 600
+wait 200
+state
+click-win 600 600
+wait 200
+state
+click-win 700 600
+wait 200
+state
+picture 1

@@ -2,7 +2,7 @@
 // by Melanikus (Frost) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // USE: verify_objects.exe <the copy it saved> gone|kept|track|notrack <an object's name> [gone|kept|track|notrack <name>] ...
-//      ... tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>   ... notracksound <name>|<index>   ... trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>   ... at <name>|<x>|<y>|<z>
+//      ... tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>   ... notracksound <name>|<index>   ... trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>   ... at <name>|<x>|<y>|<z>   ... near <name>|<x>|<y>|<z>|<within>
 // CHECKS: the copy is read by the game's loader; for "gone <name>" no object of the copy (module or placed object) has that exact name; for "kept <name>" one has; for
 // "track <name>" the object of that name holds a track of its own (OBJTRAK2), for "notrack <name>" it holds none (added 2026-11-17 by Frost, OP-20 / OP-21).
 // For "alt <name>=<count>,<group>" the object's alternate locations (its ALTLOCAT, read by alt_locations_edit.cpp's loader from the copy the game's loader took) are that many, in that group
@@ -12,6 +12,8 @@
 // For "notracksound <name>|<index>" the object of that name exists and holds no track sound with that index (TB-T1: Cancel on a sound Edit made adds none).
 // For "trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>" the object's track has that section, its pivot from (sx sy sz) to (ex ey ez) (T-2: Shift+T moves a track onto its object).
 // For "at <name>|<x>|<y>|<z>" the object's place is exactly (x y z).
+// For "near <name>|<x>|<y>|<z>|<within>" each of the object's three numbers is at most <within> from (x y z), for a place the engine's dynamics chose: they step by the frame's own
+// time (NormalFrameTime), so where a dropped object lands varies a little from run to run (added 2026-11-17 by Drake, OP-47: Gravity's landing place reaches the save).
 // Gives back 0 only if every check passed.
 
 #include <limits.h>
@@ -29,6 +31,7 @@
 #include "mishchnk.hpp"
 #include "level_file.h"
 #include "alt_locations_edit.h"
+#include "strategy_lookup.h"
 
 static int checksFailed = 0;
 
@@ -191,6 +194,44 @@ static void CheckAt(OpenLevelFile &level, std::string const &asked)
 		"the copy's object \"" + fields[0] + "\" is at " + fields[1] + " " + fields[2] + " " + fields[3] + " (it is at: " + held + ")");
 }
 
+// "near <name>|<x>|<y>|<z>|<within>": the object's place (OBJHEAD1) is within <within> of (x y z) on each of the three
+static void CheckNear(OpenLevelFile &level, std::string const &asked)
+{
+	std::vector<std::string> const fields = BarFields(asked, 5);
+	long long at[3] = {};
+	long long within = 0;
+	bool good = fields.size() == 5 && !fields[0].empty() && WholeNumber(fields[4], 0, INT_MAX, &within);
+
+	for (int i = 0; good && i < 3; i++)
+	{
+		good = WholeNumber(fields[(size_t)i + 1], INT_MIN, INT_MAX, &at[i]);
+	}
+
+	if (!good)
+	{
+		Check(false, "a near check as <name>|<x>|<y>|<z>|<within>, not \"" + asked + "\"");
+		return;
+	}
+
+	Object_Chunk *const object = ObjectNamed(level, fields[0].c_str());
+	bool close = object != nullptr;
+
+	if (object)
+	{
+		long long const held[3] = { object->object_data.location.x, object->object_data.location.y, object->object_data.location.z };
+
+		for (int i = 0; i < 3; i++)
+		{
+			close = close && held[i] >= at[i] - within && held[i] <= at[i] + within;   // long long: no sum here can overflow (each part is an int)
+		}
+	}
+
+	std::string const held = object ? std::to_string(object->object_data.location.x) + " " + std::to_string(object->object_data.location.y) + " " +
+		std::to_string(object->object_data.location.z) : std::string("no object of that name");
+
+	Check(close, "the copy's object \"" + fields[0] + "\" is within " + fields[4] + " of " + fields[1] + " " + fields[2] + " " + fields[3] + " (it is at: " + held + ")");
+}
+
 // "trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>": the object's track (OBJTRAK2) has that section, and the section's pivot starts and ends at those places (the file's units)
 static void CheckTrackPivot(OpenLevelFile &level, std::string const &asked)
 {
@@ -225,6 +266,40 @@ static void CheckTrackPivot(OpenLevelFile &level, std::string const &asked)
 
 	Check(same, "the copy's object \"" + fields[0] + "\" has track section " + fields[1] + " from " + fields[2] + " " + fields[3] + " " + fields[4] + " to " + fields[5] + " " + fields[6] + " " +
 		fields[7] + " (it holds: " + held + ")");
+}
+
+// "trackendmoved <name>|<section>|<x>|<y>|<z>": the object's track has that section, and the section's pivot no longer ENDS at (x y z) (T-3b: a snap moved the end marker, wherever it landed)
+static void CheckTrackEndMoved(OpenLevelFile &level, std::string const &asked)
+{
+	std::vector<std::string> const fields = BarFields(asked, 5);
+	long long section = 0, at[3] = {};
+	bool good = fields.size() == 5 && !fields[0].empty() && WholeNumber(fields[1], 0, INT_MAX, &section);
+
+	for (int i = 0; good && i < 3; i++)
+	{
+		good = WholeNumber(fields[(size_t)i + 2], INT_MIN, INT_MAX, &at[i]);
+	}
+
+	if (!good)
+	{
+		Check(false, "a trackendmoved check as <name>|<section>|<x>|<y>|<z>, not \"" + asked + "\"");
+		return;
+	}
+
+	Object_Chunk *const object = ObjectNamed(level, fields[0].c_str());
+	Object_Track_Chunk2 *const track = object ? dynamic_cast<Object_Track_Chunk2 *>(object->lookup_single_child("OBJTRAK2")) : nullptr;
+	std::string held = object ? (track ? "no such section" : "no track") : "no object of that name";
+	bool moved = false;
+
+	if (track && track->sections && section < (long long)track->num_sections)
+	{
+		ChunkTrackSection const &t = track->sections[section];
+
+		held = std::to_string(t.pivot_end.x) + " " + std::to_string(t.pivot_end.y) + " " + std::to_string(t.pivot_end.z);
+		moved = t.pivot_end.x != at[0] || t.pivot_end.y != at[1] || t.pivot_end.z != at[2];
+	}
+
+	Check(moved, "the copy's object \"" + fields[0] + "\" has track section " + fields[1] + " ending somewhere else than " + fields[2] + " " + fields[3] + " " + fields[4] + " (it ends at: " + held + ")");
 }
 
 // "notracksound <name>|<index>": the object is there and holds no track sound with that index
@@ -283,7 +358,7 @@ int main(int argc, char **argv)
 {
 	if (argc < 4 || (argc - 2) % 2 != 0)
 	{
-		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [alt <name>=<count>,<group>]\n");
+		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [trackendmoved <name>|<section>|<x>|<y>|<z>] [alt <name>=<count>,<group>] [virtualgone|virtualkept <name>]\n");
 		return 2;
 	}
 
@@ -350,17 +425,40 @@ int main(int argc, char **argv)
 		{
 			CheckNoTrackSound(copy, argv[a + 1]);
 		}
+		else if (what == "trackendmoved")
+		{
+			CheckTrackEndMoved(copy, argv[a + 1]);
+		}
 		else if (what == "trackpivot")
 		{
 			CheckTrackPivot(copy, argv[a + 1]);
+		}
+		else if (what == "virtualgone" || what == "virtualkept")
+		{
+			// a VIRTUAL object (VIOBJECT in SPECLOBJ, strategy_lookup.h ListVirtualObjects) of that exact name is not there / is (S-87: Delete Multiple's Obsolete Switches)
+			std::vector<host::VirtualObjectRef> virtuals;
+			bool there = false;
+
+			host::ListVirtualObjects(copy.Level(), &virtuals);
+
+			for (host::VirtualObjectRef const &v : virtuals)
+			{
+				there = there || v.name == argv[a + 1];
+			}
+
+			Check(there == (what == "virtualkept"), std::string("the copy ") + (what == "virtualkept" ? "has" : "has no") + " virtual object named \"" + argv[a + 1] + "\"");
 		}
 		else if (what == "at")
 		{
 			CheckAt(copy, argv[a + 1]);
 		}
+		else if (what == "near")
+		{
+			CheckNear(copy, argv[a + 1]);
+		}
 		else
 		{
-			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, at or alt), not \"" + what + "\"");
+			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, trackendmoved, at, near, alt, virtualgone or virtualkept), not \"" + what + "\"");
 		}
 	}
 

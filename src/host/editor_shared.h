@@ -57,6 +57,7 @@ extern host::HierarchyMode hierarchyMode;
 
 // made in texture_map_screen.cpp
 void TextureMapCommand(int32_t command);
+bool TextureMapKeyCommandRun(uint8_t key, bool shift, bool ctrl);   // a key as inteng's key table gives it (texture_map_screen.cpp, TM-A); true when it had a command
 
 // made in editor_main.cpp
 extern std::vector<std::string> promptList;
@@ -144,6 +145,7 @@ struct VolumeEditor
 	int module = -1;          // the picked module's game number, -1 none
 	bool objectPicked = false;   // a placed object was picked instead (FUN_00559720 gives any record): its ID
 	uint8_t object[8] = { 0 };
+	bool iconPicked = false;     // that record is one of the editor's icons (a virtual object, generator, sound ...): S / X take its drawn box (StrategyIconBox), S-VOL-4
 	ULONGLONG last = 0;       // the last frame's time
 };
 
@@ -616,13 +618,16 @@ extern bool onlyDrawLinked;
 extern std::vector<int32_t> linkedGameModules;
 extern std::string viewWords;
 int32_t ActionOfCommand(char const *table, int32_t command);
+bool PlacementGravityOn();   // Object Placement's Misc > Toggle Gravity (DAT_008f4f50; editor_main.cpp): off at every start of the mode but the Shape Chooser's return (V-24)
 int32_t HierarchyBarAction(int32_t command);
 
 // made in strategy_data_screen.cpp
 void UpdateModuleTints(bool onAdjacent);
 
 // made in construction_modes_screen.cpp
-bool WriteTheAdjacentList();
+void WriteTheAdjacentListThen(std::function<void(bool)> const &then, bool keepChanged = false);
+void AdjacentMakeCurrentFromList();
+extern bool adjacentExitHeld;
 
 // made in editor_main.cpp
 std::string ModuleNameOfIndex(int32_t index);
@@ -652,6 +657,10 @@ extern bool strategyFromPlacement;
 extern bool strategyMarkedChanged;
 extern uint32_t strategyViewBit;
 std::string SaveAtIntengsPoint();
+// FUN_00403d50 with its "modules don't touch" questions (AD-2 / AD-6): every entry point worked out, one Yes / No box per pair that doesn't touch, the Yes entries and
+// those naming no object taken out, then done(words) once all is written. False (done never called) when there is no level or the run could not be worked out.
+// onlyModule >= 0: that module's entries alone (Adjacent's list write-back, FUN_00404040).
+bool StartEntryRecalc(std::string const &who, std::function<void(std::string const &)> const &done, int32_t onlyModule = -1);
 
 // made in light_screen.cpp
 extern bool clickPicksLights;
@@ -743,6 +752,9 @@ extern bool stabilityActive;
 extern std::string strategyMessage;
 extern ULONGLONG strategyMessageAt;
 extern bool moveRelWaiting;
+extern bool rotationPickWaiting;   // Scroll Lock's pick of the rotation centre waits for its press (editor_main.cpp, CAM-8)
+extern int zoomStage;              // Insert's zoom: 0 none, 1 waiting for the centre, 2 the rectangle moves (editor_main.cpp)
+void RotationCentreDefault();     // the rotation centre back on the level objects' average: every start of the hub (FUN_00470e70 from FUN_00447550, CAM-7; editor_main.cpp)
 extern bool placementPolyCounts;
 extern bool onTextureMap;
 extern std::string textureWords;
@@ -814,11 +826,12 @@ int32_t WaypointPickedObject(OpenLevelFile *open);
 
 // made in editor_screen_keys.cpp
 extern bool linkFollowCamera;
-extern unsigned viewGeneration;
+extern unsigned viewChanges;
 extern size_t strategyTextureCount;
 
 // made in strategy_data_screen.cpp
 bool StrategyIconUnderClick(int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight, int32_t levelDistance, uint8_t id[8]);
+bool StrategyIconBox(uint8_t const id[8], int32_t mins[3], int32_t maxs[3]);   // the drawn box of the icon with that ID (the volume editor's S / X on an icon, S-VOL-4)
 void StrategyListClick(host::PickReport const &report, bool shift, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight);
 void StrategySelectByTexture(host::PickReport const &report);
 extern bool hiddenModulesStale;

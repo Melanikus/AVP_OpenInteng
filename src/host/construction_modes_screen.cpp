@@ -283,6 +283,17 @@ static void MergeTheSelectedObjectsNow()
 		ids.push_back(id);
 	}
 
+	// TB-C8i: every selected object's shape is looked at for morphing data BEFORE anything is merged (FUN_0044a950 0x44a978-0x44aa5c); with any, inteng says
+	// "Cannot merge objects with morphing data" (FUN_00474030, the words at 0x5cfbf0, shown by FUN_0057c800(100, 100)) and merges nothing
+	for (std::vector<uint8_t> const &id : ids)
+	{
+		if (host::ShapeEdit_HasMorph(open->Level(), id.data()))
+		{
+			DialogMessage("Cannot merge objects with morphing data");
+			return;
+		}
+	}
+
 	size_t merged = 0;
 
 	for (size_t i = 1; i < ids.size(); i++)
@@ -304,6 +315,7 @@ static void MergeTheSelectedObjectsNow()
 				words += "; " + std::to_string(merged) + " merged before it";
 				host::Selection_Clear();   // the merged ones are gone from the level
 				LoadTheObjectListAgain();
+				words += "; " + SaveAtIntengsPoint();   // TB-C8j: what was merged is written, as inteng's merge always ends (0x44aba2; inteng refuses no pair)
 			}
 
 			Answer(words);
@@ -315,8 +327,14 @@ static void MergeTheSelectedObjectsNow()
 
 	host::Selection_Clear();
 	LoadTheObjectListAgain();
-	Answer("Merged " + std::to_string(merged) + " object" + (merged == 1 ? "" : "s") + " into the first (kept in the editor's bytes until Save a copy)");
+
+	// TB-C8j: inteng's merge ends by marking the level changed (DAT_00631264 = 1, 0x44ab98) and leaving the hub, which WRITES THE LEVEL FILE (FUN_004476d0 at 0x44aba2 ->
+	// FUN_004719e0), then entering it again (FUN_00447550, 0x44aba7). Before, ours kept the merge in the editor's bytes until a save.
+	std::string const saved = SaveAtIntengsPoint();
+
+	Answer("Merged " + std::to_string(merged) + " object" + (merged == 1 ? "" : "s") + " into the first; " + saved);
 	CameraPositionSaved(10);   // the merge ends by leaving the hub and entering it again: FUN_0044a950 0x44aba2 -> FUN_004476d0 (camera-saved-vasquez.md CS-2)
+	RotationCentreDefault();   // and its set-up FUN_00447550 (0x44aba7) puts the rotation centre back on the objects' average (0x447652, CAM-7)
 }
 
 // ---- THE SHAPE CHOOSER (inteng's screen state 5, FUN_004dd910 enter / FUN_004ddb60 per frame; shape_chooser.h) ----
@@ -691,21 +709,28 @@ void ShapeChooserPick(std::string const &typed)
 
 // ---- ADJACENT MODULES: Link > Add, Link > Delete, Base > Set Current, Mode > Exit, Base > Show All, Find Not Done (inteng's FUN_00404a20 0x32 / 0x34 / 100 / 10 / 0x66 / 0x68, FUN_004025d0) ----
 // The rules are host::AdjacentList's (adjacent_list.h); the write-back (FUN_00404040) is adjacent_write.h's. The module picked is the first of the picked modules (the selection set, as Module Linking's
-// are). The list is put into the current module's ADJMDLEP when another module is made current, at Find Not Done and at Exit (the three places inteng calls FUN_00404040), only when it was changed.
-// The level is not written to a file: Save a copy does that. (Added 2026-11-15 by Melanikus (Drake).)
+// are). The list is put into the current module's ADJMDLEP when another module is made current, at Find Not Done and at Exit (the three places inteng calls FUN_00404040), only when it was changed;
+// then its entries are worked out with the "modules don't touch" questions and the level file is written (0x404511; AD-6a, WriteTheAdjacentListThen). (Added 2026-11-15 by Melanikus (Drake).)
 std::unique_ptr<host::AdjacentList> adjacentList;
 bool adjacentShowAllPaint = false;   // showAllModules / showAllColours hold the Adjacent Modules screen's Show All (blue: has an ADJMDLEP, white: none)
 static std::string adjacentWriteWords;      // what the last write-back did, for the answers
+bool adjacentExitHeld = false;              // Exit's write-back is asking its questions: RunAction keeps the screen until the last answer (AD-6a)
+static std::string adjacentExitWords;       // what that write-back did, for the words of the Exit run again after the answers
 
-// FUN_00404040: the list of the current module goes into the level when it was changed. True when there is nothing more to do (written, or nothing to write); false when it could not be written
-// (the answer says why and the list stays, so a later Set Current / Exit tries again).
-bool WriteTheAdjacentList()
+// FUN_00404040: the list of the current module goes into the level when it was changed, then (0x404361-0x4044a6) each of its entries is worked out again, asking "Warning adjacent
+// modules don't touch" for a pair that doesn't touch (StartEntryRecalc kept to the module; a Yes takes that entry out), then the level file is written (FUN_004719e0 at 0x404511, on the
+// empty list's way too). then(true) when there is nothing more to do: at once when nothing was to be written or nothing asked, after the last answer otherwise; then(false) when the list
+// could not be written (the answer says why and the list stays, so a later Set Current / Exit tries again). INTENG BUG, FIXED (NAMED, adjacent_write.h): only the entry answered Yes
+// goes, not every later one. (The questions and the save added 2026-11-17 by Melanikus (Dietrich), AD-6a of reassess/adjacent-closeout-dietrich.md; until then nothing was asked and
+// the data was kept in the editor's bytes until Save a copy.)
+void WriteTheAdjacentListThen(std::function<void(bool)> const &then, bool keepChanged)
 {
 	adjacentWriteWords.clear();
 
 	if (!adjacentList || adjacentList->Current() < 0 || !adjacentList->Changed())
 	{
-		return true;
+		then(true);
+		return;
 	}
 
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
@@ -713,22 +738,52 @@ bool WriteTheAdjacentList()
 	if (!open)
 	{
 		Answer("No level is held to work on");
-		return false;
+		then(false);
+		return;
 	}
 
+	int32_t const current = adjacentList->Current();
 	host::AdjacentWriteCounts counts;
-	host::AdjacentWriteResult const result = host::AdjacentWriteBack(open, adjacentList->Current(), adjacentList->Members(), &counts);
+	host::AdjacentWriteResult const result = host::AdjacentWriteBack(open, current, adjacentList->Members(), &counts, false);
 
 	if (result != host::AdjacentWriteResult::Done)
 	{
-		Answer(std::string("Adjacent modules of ") + ModuleNameOfIndex(adjacentList->Current()) + " not written: " + host::AdjacentWriteWords(result));
-		return false;
+		Answer(std::string("Adjacent modules of ") + ModuleNameOfIndex(current) + " not written: " + host::AdjacentWriteWords(result));
+		then(false);
+		return;
 	}
 
-	adjacentList->MarkWritten();
-	adjacentWriteWords = counts.removed ? std::string("the module's adjacent-module chunk was taken out (the list is empty)")
-		: std::to_string(counts.entries) + " adjacent modules written (" + std::to_string(counts.kept) + " kept as they were, " + std::to_string(counts.made) + " new, " + std::to_string(counts.recalculated) + " entry points worked out)";
-	return true;
+	// FUN_00404040 never clears DAT_0060677c (only Set Current 0x4026ab / 0x4026cc and the Find Not Done row 0x4052e4 do): after Find Not Done's write the list stays changed
+	// (keepChanged), so a later Exit / Set Current / Find Not Done writes it again and asks again (AD-6a-2)
+	if (!keepChanged)
+	{
+		adjacentList->MarkWritten();
+	}
+
+	if (counts.removed)
+	{
+		// the empty list (0x4040b8 -> 0x4044ed): the chunk taken out, no entry to work out, then the same save (0x404511)
+		std::string const saved = SaveAtIntengsPoint();
+
+		adjacentWriteWords = "the module's adjacent-module chunk was taken out (the list is empty); " + saved;
+		then(true);
+		return;
+	}
+
+	std::string const made = std::to_string(counts.entries) + " adjacent modules written (" + std::to_string(counts.kept) + " kept as they were, " + std::to_string(counts.made) + " new)";
+	bool const started = StartEntryRecalc("Adjacent modules of " + ModuleNameOfIndex(current), [made, then](std::string const &words)
+	{
+		const std::string saved = SaveAtIntengsPoint();   // const first: Snyk Code's parser skips the whole file on "std::string const" in a lambda given to a call
+
+		adjacentWriteWords = made + "; " + words + "; " + saved;
+		then(true);
+	}, current);
+
+	if (!started)
+	{
+		adjacentWriteWords = made + "; the entry points were not worked out; " + SaveAtIntengsPoint();
+		then(true);
+	}
 }
 
 // Show All (0x66, FUN_00404a20 0x4c: every module with a record is painted, blue when its MODULEDT holds an ADJMDLEP and white when it does not; read as the chunk's presence). It stays until the next
@@ -792,6 +847,46 @@ static void AdjacentLetGoOfShowAll()
 	}
 }
 
+// FUN_004045b0 + the current module's set-up (FUN_004025d0's second half; the Find Not Done row's 0x40522b-0x4052e4): the module's own list is loaded from the level (a module with no
+// adjacency chunk has no list, and is still made the current one), the pick cleared, the list unchanged
+static void MakeTheModuleCurrent(int32_t pick, std::string const &written)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open)
+	{
+		Answer("No level is held to work on");
+		return;
+	}
+
+	host::LevelStore const store(open);   // made now: a write-back may have made a new image
+	std::vector<int32_t> entries;
+
+	host::AdjacentModulesOf(LevelObjects_Level(), &store, pick, &entries);
+	adjacentList->SetCurrent(pick, entries);
+	host::Selection_Clear();
+	Answer("Current module: " + ModuleNameOfIndex(pick) + " (" + std::to_string(adjacentList->Members().size()) + " adjacent modules)" + (written.empty() ? std::string() : "; the one before: " + written));
+}
+
+// Find Not Done's row (FUN_00404a20 0x40522b-0x4052e4): the module picked in the list is made current WITHOUT writing the list of the one before (inteng's row does not go through
+// FUN_004025d0: Find Not Done wrote it already, and the row clears the changed mark, 0x4052e4) (AD-6a-2)
+void AdjacentMakeCurrentFromList()
+{
+	if (!adjacentList)
+	{
+		adjacentList.reset(new host::AdjacentList());
+	}
+
+	AdjacentLetGoOfShowAll();   // the row repaints (FUN_004046b0)
+
+	std::vector<int32_t> const picked = PickedModules();
+
+	if (!picked.empty())
+	{
+		MakeTheModuleCurrent(picked[0], std::string());
+	}
+}
+
 void AdjacentEdit(int32_t what)
 {
 	if (!adjacentList)
@@ -815,20 +910,53 @@ void AdjacentEdit(int32_t what)
 
 	if (what == kAdjExit)
 	{
-		// Exit (command 10): FUN_00404040, then FUN_004049d0 lets go of the screen's state. The item has already gone to the hub.
+		// Exit (command 10): FUN_00404040, then FUN_004049d0 lets go of the screen's state, then the hub (FUN_00447550). The item has already gone to the hub. When the write-back asks its
+		// questions (AD-6a), inteng is still on Adjacent Modules: adjacentExitHeld makes RunAction keep the screen, and after the last answer the Exit item is run again, now with nothing
+		// left to write, so it leaves as an Exit with nothing to write does (its words kept in adjacentExitWords).
 		AdjacentLetGoOfShowAll();
 
-		if (!WriteTheAdjacentList())
+		std::shared_ptr<bool> const answered = std::make_shared<bool>(false), waiting = std::make_shared<bool>(false);
+
+		adjacentExitHeld = false;
+		WriteTheAdjacentListThen([answered, waiting](bool ok)
 		{
-			return;
+			*answered = true;
+
+			if (!ok)
+			{
+				return;
+			}
+
+			if (*waiting)
+			{
+				const int32_t exitItem = BarActionOfCommand(0xa);   // const first: Snyk Code's parser (a lambda given to a call)
+
+				adjacentExitWords = adjacentWriteWords;
+				adjacentExitHeld = false;
+
+				if (exitItem)
+				{
+					RunAction(exitItem);
+				}
+
+				return;
+			}
+
+			const std::string done = adjacentWriteWords.empty() ? adjacentExitWords : adjacentWriteWords;
+
+			adjacentExitWords.clear();
+			adjacentList->Clear();
+			adjacentBoo.clear();
+			host::Selection_Clear();
+			Answer(done.empty() ? std::string("Adjacent Modules left") : "Adjacent Modules left: " + done);
+		});
+
+		if (!*answered)
+		{
+			*waiting = true;
+			adjacentExitHeld = true;
 		}
 
-		std::string const done = adjacentWriteWords;
-
-		adjacentList->Clear();
-		adjacentBoo.clear();
-		host::Selection_Clear();
-		Answer(done.empty() ? std::string("Adjacent Modules left") : "Adjacent Modules left: " + done + "; kept in the editor's bytes until Save a copy");
 		return;
 	}
 
@@ -845,29 +973,20 @@ void AdjacentEdit(int32_t what)
 			return;
 		}
 
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-		std::vector<int32_t> entries;
-
-		if (!open)
+		if (!LevelObjects_OpenForEdit())
 		{
 			Answer("No level is held to work on");
 			return;
 		}
 
-		// FUN_004025d0 writes the list of the module that WAS current first
-		if (!WriteTheAdjacentList())
+		// FUN_004025d0 writes the list of the module that WAS current first (with its questions, AD-6a); the pick is made current once that is done
+		WriteTheAdjacentListThen([pick](bool ok)
 		{
-			return;
-		}
-
-		std::string const written = adjacentWriteWords;
-		host::LevelStore const store(open);
-
-		// A module with no adjacency chunk has no list (FUN_004045b0 finds none to load): it is still made the current one
-		host::AdjacentModulesOf(LevelObjects_Level(), &store, pick, &entries);
-		adjacentList->SetCurrent(pick, entries);
-		host::Selection_Clear();
-		Answer("Current module: " + ModuleNameOfIndex(pick) + " (" + std::to_string(adjacentList->Members().size()) + " adjacent modules)" + (written.empty() ? std::string() : "; the one before: " + written));
+			if (ok)
+			{
+				MakeTheModuleCurrent(pick, adjacentWriteWords);
+			}
+		});
 		return;
 	}
 
@@ -1216,6 +1335,7 @@ void AutoLinkFrame()
 // the line the click makes (light_pick.h's rule: inteng picks the marker's box with the game's object pick); the camera's turn and look are not given to the marker (it moves, it does not turn).
 static int32_t entryMarkersOf = -2;          // the module (an object index) the markers are of, -2 for none made yet
 static unsigned entryMarkersGeneration = ~0u;
+static bool entryRecalcAsking = false;       // Recalculate all is asking its questions: FUN_00588770 let the markers go first, FUN_00588260 makes them again at the end
 static std::string entryWords;
 
 static int32_t EntryMarkerModule()
@@ -1249,6 +1369,13 @@ void RefreshTheEntryMarkers()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	bool const wanted = barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Waypoint") == 0 && waypointMode.Mode() == 0 && open && open->Level();
+
+	if (entryRecalcAsking)
+	{
+		entryMarkers.clear();
+		entryMarkerPicked = -1;
+		return;
+	}
 
 	if (!wanted)
 	{
@@ -1806,6 +1933,34 @@ void DoWaypointCommand(int32_t command, EditorHostState &host)
 	if (command == 0x25 && waypointMode.Mode() == 0)
 	{
 		FlyTheEntryPoint();
+		return;
+	}
+
+	// Entry points > Recalculate all (0x26, FUN_00583d00 0x583fe9-0x583ff8): FUN_00588770 first (a marker being moved is written back, FUN_0058b5e0 at 0x588779, the hover is let go and the
+	// markers are gone while it asks), FUN_00403d50 with its "modules don't touch" questions (StartEntryRecalc, as Adjacent's Recalculate Entry Points: a Yes takes that entry out), then the
+	// picked AI module's markers made again (FUN_00588260); no box and no save. The written-back marker swaps the level, so it comes before the run is worked out. The mode's own 0x26
+	// (waypoint_mode.cpp, the same work with no question) is what its unit test drives. (Added 2026-11-17 by Melanikus (Dietrich), AD-6 of reassess/adjacent-closeout-dietrich.md.)
+	if (command == 0x26 && waypointMode.Mode() == 0)
+	{
+		StopFlyingTheEntryPoint("Recalculate all");
+		entryRecalcAsking = true;
+		entryMarkers.clear();
+		entryMarkerPicked = -1;
+
+		bool const started = StartEntryRecalc("Recalculate all", [](std::string const &words)
+		{
+			LoadTheObjectListAgain();
+			entryRecalcAsking = false;
+			entryMarkersGeneration = ~0u;   // the markers are made again from what the level holds now (FUN_00588260)
+			Answer("Recalculate all: " + words);
+		});
+
+		if (!started)
+		{
+			entryRecalcAsking = false;
+			entryMarkersGeneration = ~0u;
+		}
+
 		return;
 	}
 

@@ -1,0 +1,65 @@
+# PROBE (Drake 11-17, OP-47 / OP-117 / OP-118): what the engine does with Gravity on and with a flight's collisions, on his path (Invasion). Not an acceptance: its state lines set the
+# acceptance's numbers. (1) smart1 (a pickup, type 2) flown up with L off, then Toggle Gravity: selectedat over time. (2) switch3 flown along the world's +z (X) into the wall behind
+# it, L on, then L off: flyat over time.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is smart1
+expect-no-dialog
+wait 400
+state
+key F
+key L
+hold Subtract 800
+wait 200
+state
+key F
+wait 300
+state
+picture 1
+click-bar Misc > Toggle Gravity
+wait 200
+state
+wait 800
+state
+wait 1500
+state
+wait 1500
+state
+picture 2
+click-bar Misc > Toggle Gravity
+wait 300
+state
+click-bar Mode > Save
+wait 600
+state
+save-copy
+# ---- (2) a flight into a wall
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-hierarchy-text switch3
+key F
+key X
+state
+hold A 1500
+wait 200
+state
+hold A 1500
+wait 200
+state
+picture 3
+key L
+hold A 1500
+wait 200
+state
+hold A 1500
+wait 200
+state
+picture 4
+key F

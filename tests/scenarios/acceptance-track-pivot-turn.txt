@@ -1,0 +1,31 @@
+# ACCEPTANCE (red first): P in Track Editing's END EDIT turns the flown end marker about its PIVOT (CAM-4 of reassess/camera-closeout-drake.md; Vasquez, 2026-11-17).
+# inteng: Edit Section End Position (FUN_004f0c70 0x4f0c97) sets the mover's point to minus the section's object offset; P (slot 0xd87a90, 0x4dc8a0-0x4dc8bd) flips DAT_005e5188 and DAT_00914afc;
+# while the marker flies the mover keeps the point place + M d still as it turns (0x53dedc-0x53df73), so the object swings round its pivot and Finish End Pos Edit (FUN_004f0cd0) keeps the
+# pivot where it was. Ours carries the marker with the camera (NAMED) and swings the carried place by (M_now - M_base) x the offset.
+# RED before CAM-4: P only told Finish End to keep the pivot, but the marker had turned about its centre, so Finish End put the pivot under the turned object: the pivot moved.
+# Area52, read from a copy: lc-switc01 (row 25) at -14984 -613 33202, its one-section track pivots at -14984 -489 33202 with the object offset 0 -124 0.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Area52.RIF
+pictures on
+state
+expect-screen Object Placement
+select-row 25
+expect-selected 1
+click-bar Object > Edit Track
+expect-screen Track Editing
+# 1. the end edit, the marker flown (F), P: about the pivot
+item 0x516
+key F
+expect-status Fly end marker: on
+key P
+expect-status The marker's turn is about the pivot
+# 2. the camera looks up for a while, so the marker pitches with it
+hold Numpad2 700
+wait 300
+picture 1
+# 3. Finish End Pos Edit, Stop Track Edit: the pivot is where it was, the end turned
+item 0x517
+item 0x51c
+expect-screen Object Placement
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_objects/verify_objects.exe {copy} track lc-switc01 trackpivot lc-switc01|0|-14984|-489|33202|-14984|-489|33202

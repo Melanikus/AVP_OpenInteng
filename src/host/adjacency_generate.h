@@ -51,8 +51,9 @@ namespace host
 
 	char const *AdjacencyWords(AdjacencyResult result);
 
-	// newOnly: Exit + New Adjacencies (only the modules with no ADJMDLEP); false: Exit + All Adjacencies. levelScale: the level's scale (ENVSDSCL).
-	AdjacencyResult Adjacency_Generate(OpenLevelFile *open, bool newOnly, double levelScale, AdjacencyCounts *counts, std::string *why);
+	// newOnly: Exit + New Adjacencies (only the modules with no ADJMDLEP); false: Exit + All Adjacencies. levelScale: the level's scale (ENVSDSCL). workOutEntryPoints false: the last step
+	// (FUN_00403d50) is left to the caller, which asks its "modules don't touch" questions (the editor's StartEntryRecalc, AD-6); counts->recalculated stays 0 then.
+	AdjacencyResult Adjacency_Generate(OpenLevelFile *open, bool newOnly, double levelScale, AdjacencyCounts *counts, std::string *why, bool workOutEntryPoints = true);
 
 	// Recalculate Entry Points over every module (FUN_00403d50; entry_recalc.h): gives how many entry points were worked out, or -1 when the level could not be read. The level's bytes change only for entries that come out different.
 	int64_t Adjacency_RecalculateEntryPoints(OpenLevelFile *open);

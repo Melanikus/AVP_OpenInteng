@@ -1,0 +1,23 @@
+# ACCEPTANCE (red first): Delete Multiple Strategies runs its groups in inteng's ORDER (S-87 of reassess/strategy-data.md; Vasquez, 2026-11-17). FUN_005380d0 deletes the typed kinds first
+# (0x53812e-0x5381da: Switches, Doors, Lighting effects, Mission Objective, Messages 0x49, Volume of Death, Self Destruct; FUN_00536bd0 takes a VIRTUAL object away with its strategy), then the
+# pickups and the species, then OBSOLETE SWITCHES LAST (FUN_00537030, 0x53874f: its repair pass resets the targets the deletes left dead, then every virtual switch whose network of targets is
+# all virtual switches is destroyed), then always the repair pass (FUN_00536ad0, 0x538764) and the recolouring (FUN_00522650).
+# RED before S-87: ours ran Obsolete Switches FIRST, so a virtual switch whose only target was a virtual object the same Ok deleted kept going (its target was still there when it was looked at).
+# Genshd1, read from a copy: the virtual Link Switches linktomessage09 and newlink target the virtual Messages message09 and message08 (kind 73). Messages + Obsolete Switches ticked: the
+# messages go, and so do the two switches; a Link Switch whose target is a Multi Switch (accessmedlab -> opendoors, kind 66) stays.
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+item 0x39
+expect-screen Strategy Data
+# Delete Multiple Strategies: Obsolete Switches (box 2) and Messages (box 6)
+item 0x42
+expect-dialog-kind form
+click-check 2
+click-check 6
+expect-dialog-checks off,on,off,off,off,on,off,off,off,off,off,off,off,off,off,off,off,off,off,off
+click-button Ok
+expect-no-dialog
+expect-status Obsolete Switches
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_objects/verify_objects.exe {copy} virtualgone message09 virtualgone message08 virtualgone linktomessage09 virtualgone newlink virtualkept accessmedlab virtualkept opendoors

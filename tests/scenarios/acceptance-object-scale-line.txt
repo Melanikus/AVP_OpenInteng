@@ -1,0 +1,49 @@
+# ACCEPTANCE (OP-102, reassess/object-placement.md; FUN_004e3600 0x4e3783-0x4e39f6, traced twice, independently, 11-17): the current placed shape's text lines say "Object scale %-5.6f"
+# (0x5e8bec) right after the common lines (FUN_004df3c0) when the object's OWN shape has an SHPEXTFL holding an SHPEXTFN (the first of each; no level-wide test). The number is
+# DAT_00607bd8 x 0.01 x that SHPEXTFN's rescale, in that order; DAT_00607bd8 is 100 x the first REBENVDT's first ENVSDSCL, or 100 when there is none (FUN_0046e700). Invasion has no
+# ENVSDSCL, so the line shows the rescale itself. Stock facts (read by a one-off, vasquez-ut/keep/placedoutside.cpp): flam014's SHPEXTFN holds 2.04081633 (= (10/7)^2: two '=' presses in
+# the shipped file), switch3's shape has no outside file. A typed Rescale of 2.5 on smart1 (a one-user outside shape: acceptance-object-scale-keys) makes its rescale 2.5 / (100 x 0.01).
+# Red without the line (vop-3, bishop-int's text lines); green with it.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- L1 switch3 (no outside file): no Object scale line
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+expect-hierarchy-text switch3
+expect-hierarchy-count 0 Object scale
+state
+
+# ---- L2 flam014: the stock rescale, to 6 decimals
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is flam014
+expect-no-dialog
+wait 400
+expect-hierarchy-text flam014
+expect-hierarchy-text Object scale 2.040816
+picture 1
+
+# ---- L3 smart1, then a typed Rescale of 2.5: the line reads the live chunk
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is smart1
+expect-no-dialog
+wait 400
+expect-hierarchy-text smart1
+expect-hierarchy-text Object scale
+click-bar Object > Rescale
+expect-dialog Rescale Shape
+form-field 1 2.5
+click-button OK
+expect-no-dialog
+wait 400
+state
+expect-hierarchy-text Object scale 2.500000
+picture 2

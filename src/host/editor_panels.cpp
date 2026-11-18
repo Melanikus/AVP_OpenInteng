@@ -316,6 +316,10 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 			bar.SetChecked(HierarchyBarAction(0x45), hierarchyMode.adaptiveDegradation);
 			bar.SetChecked(HierarchyBarAction(0x5c), hierarchyMode.dummyObjects);
 			bar.SetChecked(HierarchyBarAction(0x48), hierarchyMode.saveTimesOn);
+
+			// Object Placement's Misc > Toggle Gravity (0x58): ticked by DAT_008f4f50, at the mode's start (0x4d8422-0x4d842c) and at each flip (0x4dc67c-0x4dc6e0); Track Editing's page has it too (V-24)
+			bar.SetChecked(ActionOfCommand("0x5e51b8", 0x58), PlacementGravityOn());
+			bar.SetChecked(ActionOfCommand("0x5e6e98", 0x58), PlacementGravityOn());
 		}
 
 		// The textures setting is kept in the editor's own settings file when it changes
@@ -829,8 +833,9 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 		}
 
 		// "View Distance :%d" (0x5c39b0, the distance / 500000) at (16, 0x20): FUN_00522980 0x5229e0 and FUN_00529370 0x52944b draw it every frame, on page 0 and in every loop of the screen (the flag page, Stability,
-		// the volume editor, the collectors); a kind's Edit view does not (strategy-data.md S-65)
-		if (!strategyEditFan && lineCount < kPanelPassMostExtras)
+		// the volume editor, the collectors); a kind's Edit view does not (strategy-data.md S-65). The volume editor runs from an Edit view (V), with strategyEditFan still set, and its loop FUN_005277c0
+		// draws the row through FUN_00529370 (S-VOL-3, Drake 11-17: it was skipped there). The state line's screentext has it too
+		if ((!strategyEditFan || volume.on) && lineCount < kPanelPassMostExtras)
 		{
 			static char distanceWords[48];
 			host::PaintText distance;
@@ -840,6 +845,7 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 			distance.x = 16;
 			distance.y = layout.view.y + 0x20;
 			lines[lineCount++] = distance;
+			screenTextNow += (screenTextNow.empty() ? "" : "|") + std::string(distanceWords);
 		}
 
 		// THE FLAG PAGE'S TEXT (FUN_00525700 0x526245-0x5266c5, strategy-data.md S-73), rows of 16 from row 3 (y 48 from the window's top): no flag viewed: "Flag View - None" (0x5ede30); a flag viewed:
@@ -1683,6 +1689,28 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	if (moveRelWaiting)
 	{
 		HierarchyTextLine line = { 200, 100 / 16, "Move relative to which poly" };
+
+		line.pixelY = 100;
+		hierarchyTextNow.push_back(line);
+	}
+
+	// Scroll Lock's pick of the rotation centre waiting (CAM-8): FUN_004720c0 0x4720fa / 0x47210c writes "Choose object for centre of rotation" at (200, 100) and "RMB or escape to cancel" at (200, 0x74)
+	if (rotationPickWaiting)
+	{
+		HierarchyTextLine first = { 200, 100 / 16, "Choose object for centre of rotation" };
+		HierarchyTextLine second = { 200, 0x74 / 16, "RMB or escape to cancel" };
+
+		first.pixelY = 100;
+		second.pixelY = 0x74;
+		hierarchyTextNow.push_back(first);
+		hierarchyTextNow.push_back(second);
+	}
+
+	// Insert's zoom waiting for its centre: FUN_00471cb0 0x471ccb writes "Zoom... Choose centre" at (200, 100) (FUN_0057bd40); the status line keeps saying it too. It shows on every screen, the volume
+	// editor's too, where the status line is blank (a review of S-VOL-11, 11-17: nothing showed there)
+	if (zoomStage == 1)
+	{
+		HierarchyTextLine line = { 200, 100 / 16, "Zoom... Choose centre" };
 
 		line.pixelY = 100;
 		hierarchyTextNow.push_back(line);

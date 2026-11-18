@@ -26,6 +26,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <string>
 #include <vector>
 
 class File_Chunk;
@@ -47,6 +48,9 @@ namespace host
 		int32_t pointBefore[3];
 		int32_t pointAfter[3];
 		bool notTouching;        // the modules don't touch (see the gaps)
+		bool keep;               // asking mode: kept only for the "don't touch" question; its numbers came out the same (or out of range), so nothing is written
+		std::string mainName;    // the two modules' names, for the question ("From %s To %s")
+		std::string adjacentName;
 		bool failedToPlace;      // inteng's "Failed to placed entrypoint" message
 	};
 
@@ -61,11 +65,26 @@ namespace host
 		size_t notTouching;
 		size_t failedToPlace;
 		size_t outOfRange;       // the new point is beyond 2^24 from the middle: the game's loader would refuse it, so it is not written
+		size_t noObject;         // asking mode: entries naming no object of the level, put in the deletes (else they are counted in skippedNoObject)
 	};
 
 	// Works out what Recalculate Entry Points would change. false when level is null. Nothing is changed. Hostile input: every size is checked,
 	// a chunk that is not a whole ADJMDLEP is skipped.
-	bool PlanEntryRecalc(File_Chunk *level, PayloadStore const *store, std::vector<EntryChange> *changes, EntryRecalcCounts *counts);
+	// ASKING MODE (deletes given; Adjacent Modules' Recalculate Entry Points, AD-2 / AD-5 of reassess/adjacent-closeout-dietrich.md): as inteng's FUN_00403d50, an entry
+	// naming no object of the level is TAKEN OUT (0x403fb5-0x403fd4: the search runs to the end, FUN_00429820 deletes the node), so it goes in *deletes; and every pair
+	// that doesn't touch is in *changes even when its numbers come out the same (keep), because inteng asks about each one ("Warning adjacent modules don't touch"),
+	// and a Yes takes that entry out (FUN_00402ae0 gives 0, then FUN_00429820) while the run goes on; and so is every pair that failed to place (failedToPlace: inteng shows
+	// its "Failed to placed entrypoint" box for it, 0x4036c9, AD-7). Without deletes, nothing of this: as before.
+	struct EntryDelete
+	{
+		Chunk *adjacency;        // the module's ADJMDLEP chunk
+		int32_t mainIndex;       // the module (its object number)
+		int32_t adjacentIndex;   // the entry's module (its object number)
+		size_t entry;            // the entry's number in the chunk (from 0)
+	};
+
+	// onlyModule >= 0: only that module's entries are worked out (and counted): Adjacent's list write-back FUN_00404040 works out the current module's alone (0x404361-0x4044a6, AD-6)
+	bool PlanEntryRecalc(File_Chunk *level, PayloadStore const *store, std::vector<EntryChange> *changes, EntryRecalcCounts *counts, std::vector<EntryDelete> *deletes = nullptr, int32_t onlyModule = -1);
 
 	// Puts the changes into the ADJMDLEP bytes (the store keeps their size). An entry is only written when the chunk still has that entry number
 	// with that module number. Gives how many entries were written, and in *refused how many were not (null: not asked).

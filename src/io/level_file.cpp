@@ -690,7 +690,7 @@ bool IsThere(const char * path, DWORD * attributes, bool * cantTell)
 }
 
 OpenLevelFile::OpenLevelFile()
-: level(0), packed(false), paired(false), chunksSeen(0), tooManyChunks(false), standsForKnown(false), restructured(false), generation(0)
+: level(0), packed(false), paired(false), chunksSeen(0), tooManyChunks(false), standsForKnown(false), restructured(false), generation(0), changes(0)
 {
 	memset(standsForIdentity, 0, sizeof(standsForIdentity));
 }
@@ -727,6 +727,7 @@ void OpenLevelFile::Close()
 	standsForKnown = false;
 	restructured = false;
 	generation = 0;
+	changes = 0;
 }
 
 // Running out of memory, anywhere in the open (the decoder, the game's loader, the pairing), refuses the open, with nothing left open
@@ -931,6 +932,7 @@ LevelOpenResult OpenLevelFile::ReplaceLevelUnguarded(std::vector<char> const & i
 	paired = true;
 	restructured = true;
 	generation++;
+	changes++;
 	return LevelOpenResult::Opened;
 }
 
@@ -1079,6 +1081,7 @@ bool OpenLevelFile::MarkChanged(Chunk * chunk)
 void OpenLevelFile::NoteChange(Chunk * chunk)
 {
 	changed.insert(chunk);
+	changes++;   // Changes(): a same-size edit is an edit for the view too (the view gap)
 
 	// Every chunk on the way out from it to the level holds a change now, so its size is worked out again at the save. Each step out is
 	// looked up with find, so nothing is ever added to holderOf here. (find since 2026-11-14 by Melanikus (Drake), F7 N6.)

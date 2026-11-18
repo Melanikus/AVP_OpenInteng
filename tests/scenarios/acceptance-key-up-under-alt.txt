@@ -1,0 +1,22 @@
+# ACCEPTANCE: ML-M-76 of module-linking-map-dietrich.md (Dietrich, 2026-11-17). A key let go of while Alt is down reaches the window as WM_SYSKEYUP, not WM_KEYUP, and the
+# editor's key table never let it go: Ctrl let go under Alt stayed "held", so the next plain B on Module Linking skipped the screen's own B (Branch Link) and ran the
+# editor's Ctrl+B (View > Headlight). inteng reads its key table from the keys' real state: a key let go is up. His path: Invasion, Mode > Module Linking, Ctrl down,
+# Alt down, Ctrl up, Alt up (alt-release Ctrl); the editor holds no Ctrl (the bar it shows while Ctrl is held is not shown: barshown 0), and B is Module Linking's B.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+wait 400
+state
+expect-field barshown 0
+alt-release Ctrl
+wait 200
+state
+expect-field barshown 0
+key B
+wait 200
+state
+expect-status-not Headlight

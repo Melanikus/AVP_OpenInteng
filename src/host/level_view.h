@@ -281,6 +281,15 @@ void LevelView_FlyEnd();
 void const *LevelView_FlyCopyBlock();
 bool LevelView_FlyActive();
 
+// A SECOND LIVE COPY of an object, drawn where it is put while the object itself stays drawn (or flies as the copy above): Track Editing's start marker, inteng's copy of the object at the
+// current section's start (FUN_004b2590 at the track's load, placed by FUN_004f0da0; T-3c). Begin false when the object is not in play, is a hierarchy, or a second copy is already shown.
+bool LevelView_GhostBegin(const uint8_t *id);
+void LevelView_GhostPut(const int32_t world[3], const float quat[4]);
+void LevelView_GhostEnd();
+bool LevelView_GhostActive();
+// Where the second copy is, as the game holds it (its ObWorld), for the scenario's state line; false when none is shown
+bool LevelView_GhostWorld(int32_t world[3]);
+
 // Where the live copy is, as the game holds it (its ObWorld), its radius and whether the game has it among the blocks it is drawing this frame (for the scenario's state line); false when none flies
 bool LevelView_FlyCopyState(int32_t world[3], int32_t *radius, bool *active);
 
@@ -291,6 +300,23 @@ bool LevelView_FlyMatrix(int32_t matrix[9]);
 // (CreateEulerMatrix of (0, yaw, 0) and (pitch, 0, 0), MatrixMultiply: the game's own, as inteng's FUN_004b3370 and FUN_004b34b0 are), and the camera at the block's place plus C applied to
 // (0, 0, -distance) (RotateVector, AddVector: FUN_004b3860, FUN_004b3800), so it is that far back along C's forward and faces the way C does. The angles in 4096ths, the places in the world's units.
 void LevelView_OrbitOf(const int32_t blockPlace[3], const int32_t blockMatrix[9], int pitch, int yaw, int32_t distance, int32_t place[3], int32_t matrix[9]);
+
+// THE ENGINE'S OWN DYNAMICS ON CHOSEN BLOCKS (Object Placement's Gravity OP-47 and a flight's collisions OP-117 / OP-118; Bishop's ruling 11-17: the game's code, no physics of ours). inteng ran
+// its engine on its blocks; here avpx's ObjectDynamics (dynamics.cpp) runs once a frame with every block NOT chosen held static for that call (its IsStatic bit set and put back), so only the
+// chosen ones move, by the game's own gravity, collisions and relocation.
+// Gravity on: every placed inanimate object of type 1 (furniture), 2 (weapon), 3 (ammo), 4 (health), 5 (armour) or 15 (field charge) (inteng's FUN_004e3e30 by the object's +0x44) is chosen:
+// its GravityOn set, its IsStatic cleared; off: both put back, the objects left where the engine took them. False when no level is open or the game has no player block to run with.
+bool LevelView_SetGravity(bool on);
+// One frame of it (Object Placement's frame, while Gravity is on)
+void LevelView_GravityStep();
+// The chosen objects that the engine has moved since Gravity went on: each one's 8-byte ID, its place now in the game's units and its matrix (16.16, by rows), for the save that writes them
+struct LevelViewMovedObject { uint8_t id[8]; int32_t world[3]; int32_t matrix[9]; };
+void LevelView_GravityMoved(std::vector<LevelViewMovedObject> *moved);
+// A FLIGHT'S COLLISIONS (L, OP-118): the object whose 8-byte ID this is moved by the engine from `from` to `to` (the game's units) through its own strategy block's dynamics, gravity off,
+// colliding with the level as the game's objects do; *reached is where it got to. False (reached = to) when the object has no dynamics block or the engine can't run.
+bool LevelView_FlyCollideMove(const uint8_t *id, const int32_t from[3], const int32_t to[3], int32_t reached[3]);
+// B (OP-117, FUN_004df1e0 / FUN_004df2d0): the object's collision box (its display block's ObMaxX..ObMinZ, which the engine's box is made from) grown by 2000 on each side, or put back
+bool LevelView_FlyBoxGrow(const uint8_t *id, bool grow);
 
 // A view matrix in place of the camera's turn, look and roll for the draws that follow (the orbit's C: inteng's camera block takes it whole), or none again (nullptr). The camera's x y z stay its place.
 void LevelView_SetViewMatrix(const int32_t *matrix);
@@ -309,6 +335,12 @@ void LevelView_TurnSpeedsOfKeys(bool numpad4, bool numpad6, bool numpad7, bool n
 // A matrix (the game's ObMat) turned by a frame's angles x, y, z about its own axes (0x53dea7-0x53df8d): M = CreateEulerMatrix of the angles, the matrix multiplied by M (MatrixMultiply(matrix, M, matrix),
 // FUN_004b34b0), then squared again (MNormalise, FUN_004b4030)
 void LevelView_TurnMatrix(int32_t matrix[9], const int angles[3]);
+
+// THE ORBIT (camera-closeout-drake.md CAM-3; FUN_0053db40 0x53dec0-0x53e071, '/' or numpad / held): the frame's angles as a matrix (CreateEulerMatrix, FUN_004b3370), turned round (TransposeMatrixCH,
+// FUN_004b3710); about the CAMERA's own axes when cameraAxes (numpad /: the camera's matrix C, the turn made C^T x turn x C through MatrixMultiply(C, R, R), TransposeMatrixCH(C), MatrixMultiply(R, C^T, R)),
+// else about the world's ('/'); the place swung round the centre by it (place - centre, RotateVector (FUN_004b3860), + centre) and the matrix turned by it (MatrixMultiply(R, matrix, matrix), FUN_004b34b0, then
+// MNormalise, FUN_004b4030). The same calls in the same order as inteng's, the engine's own: so the centre keeps its place in the view while the camera swings round it.
+void LevelView_OrbitTurn(int32_t matrix[9], int32_t place[3], const int32_t centre[3], const int angles[3], bool cameraAxes);
 
 // The live copy put at a place with a matrix as its ObMat (the flown object's own, A-7), its Euler from that matrix as the mover writes it (FUN_004b3d90 into +0x1c)
 void LevelView_FlyPutMatrix(const int32_t world[3], const int32_t matrix[9]);

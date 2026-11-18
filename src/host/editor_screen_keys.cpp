@@ -313,32 +313,52 @@ bool RunScreenKey(uint8_t key, bool shift)
 }
 
 // Exit + New Adjacencies (0x66) and Exit + All Adjacencies (0x65): FUN_004c5a30(1) and (0). The rules and what is named are in adjacency_generate.h; the level's links have been
-// written by LinkExit already. Kept in the editor's bytes until Save a copy.
+// written by LinkExit already. FUN_004c5a30 ends with FUN_00403d50 (0x4c603a), which asks "Warning adjacent modules don't touch ..." for each pair that doesn't touch, a Yes taking
+// that entry out (StartEntryRecalc, as Adjacent's Recalculate Entry Points), and then writes the level file (FUN_004719e0 at 0x4c6047): ours saves there (SaveAtIntengsPoint) once
+// the last question is answered. (The questions and the save added 2026-11-17 by Melanikus (Dietrich), AD-6 of reassess/adjacent-closeout-dietrich.md; until then the entry points
+// were worked out with no question and the data was kept in the editor's bytes until Save a copy.)
 void GenerateAdjacency(bool newOnly)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
 	if (!open || !LevelObjects_Level())
 	{
+		linkMessage.clear();
 		Answer("No level is held to work on");
 		return;
 	}
 
 	host::AdjacencyCounts counts;
 	std::string why;
-	host::AdjacencyResult const result = host::Adjacency_Generate(open, newOnly, local_scale > 0.0 ? local_scale : 1.0, &counts, &why);
+	host::AdjacencyResult const result = host::Adjacency_Generate(open, newOnly, local_scale > 0.0 ? local_scale : 1.0, &counts, &why, false);
 
 	LoadTheObjectListAgain();
 
 	if (result != host::AdjacencyResult::Done)
 	{
+		linkMessage.clear();
 		Answer(std::string("Adjacent module data: ") + host::AdjacencyWords(result) + (why.empty() ? std::string() : " (" + why + ")"));
 		return;
 	}
 
-	Answer(std::string(newOnly ? "Adjacent module data for the new modules: " : "Adjacent module data for every module: ") + std::to_string(counts.made) + " modules made (" + std::to_string(counts.entries) + " entries, " +
-		std::to_string(counts.recalculated) + " entry points worked out)" + (counts.noModuleData > 0 ? ", " + std::to_string(counts.noModuleData) + " had no module data" : std::string()) +
-		(counts.noneFound > 0 ? ", " + std::to_string(counts.noneFound) + " found no adjacent module" : std::string()) + " (kept in the editor's bytes until Save a copy)");
+	std::string const made = std::string(newOnly ? "Adjacent module data for the new modules: " : "Adjacent module data for every module: ") + std::to_string(counts.made) + " modules made (" +
+		std::to_string(counts.entries) + " entries)" + (counts.noModuleData > 0 ? ", " + std::to_string(counts.noModuleData) + " had no module data" : std::string()) +
+		(counts.noneFound > 0 ? ", " + std::to_string(counts.noneFound) + " found no adjacent module" : std::string());
+
+	// NAMED: inteng asks these questions and saves while still on Module Linking (FUN_004c3f40 / FUN_00447550 come after FUN_004c5a30); ours has left for the hub at the click, as it does for
+	// the "Calculating ..." words and Exit + All's own question (adjacency_generate.h, named 5), so the boxes come over the hub
+	bool const started = StartEntryRecalc(newOnly ? "Exit + New Adjacencies" : "Exit + All Adjacencies", [made](std::string const &words)
+	{
+		const std::string saved = SaveAtIntengsPoint();   // const first: Snyk Code's parser skips the whole file on "std::string const" in a lambda given to a call
+
+		linkMessage.clear();
+		Answer(made + "; " + words + "; " + saved);
+	});
+
+	if (!started)
+	{
+		linkMessage.clear();
+	}
 }
 
 // AutoLink > Load from file (0xa3, FUN_004c8be0, dump-full-2 64700, read 22:40): the level's .mlf next to it (autolink_mlf.h: the file is HOSTILE INPUT, parsed whole before anything is
@@ -507,13 +527,13 @@ bool DeleteLinksRunning()
 // SaveAs took the copy for the level's file and lost every edit after it) and the view loads that copy (LevelView_ShowFile). LevelView_FilePath still names the opened file, so Save's target and
 // its .bak are the same. Not while AutoLink's worker or Delete Links runs (they read the game's blocks), nor with Hierarchy's model or the Shape Chooser's preview shown (blocks of their own in the
 // game's memory), nor for a model file (no module: Hierarchy's own view): the next screen change tries again. Doors Light Sourcing closed stay closed; the toggles are given to the game again.
-unsigned viewGeneration = ~0u;   // the level's generation the game's view was loaded from: the opening's, then each ShowTheWorkingBytes'
+unsigned viewChanges = ~0u;      // the level's Changes() the game's view was loaded at: the opening's, then each ShowTheWorkingBytes' (Generation() missed a same-size edit: Drake, 11-17)
 
 void ShowTheWorkingBytes()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
-	if (!open || !open->Level() || viewGeneration == ~0u || open->Generation() == viewGeneration || autoLinkRun.Running() || DeleteLinksRunning() || chooserActive || HierarchyView_IsShown() ||
+	if (!open || !open->Level() || viewChanges == ~0u || open->Changes() == viewChanges || autoLinkRun.Running() || DeleteLinksRunning() || chooserActive || HierarchyView_IsShown() ||
 		!theGameFolder[0] || openLevelName.empty())
 	{
 		return;
@@ -564,7 +584,7 @@ void ShowTheWorkingBytes()
 		}
 
 		ViewToggles_LevelOpenedAgain();
-		viewGeneration = shown ? open->Generation() : viewGeneration;
+		viewChanges = shown ? open->Changes() : viewChanges;
 		words = shown ? "view: the level as edited is shown (" + path + ")" : "view: the level as edited is NOT shown, the opened file is: " + std::string(said);
 	}
 

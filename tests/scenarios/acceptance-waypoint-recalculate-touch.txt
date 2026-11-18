@@ -1,0 +1,43 @@
+# ACCEPTANCE (red first): AD-6 of reassess/adjacent-closeout-dietrich.md (Dietrich, 2026-11-17). Waypoint's Entry points > Recalculate all (0x26, FUN_00583d00 0x583fe9-0x583ff8) runs FUN_00403d50
+# (0x583fee), the same pass as Adjacent's Recalculate Entry Points: for each pair of modules that don't touch it asks "Warning adjacent modules don't touch / From %s To %s / Would you like to
+# delete the adjacency?" (0x5c38b4, FUN_00402ae0), a Yes taking that entry out; no box after and no save. Ours asked nothing. His path: Caverns (two pairs that don't touch, asked in the file's
+# order: DR-CAVERNC to CAVERNC-04, then CAVERNA-02 to TUNNELA-01), Mode > Waypoint, Entry points > Recalculate all: the first question, Yes; the second, No; Exit, the hub's File > Save: the
+# saved copy has the first pair's entry gone and the second's kept.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Caverns.RIF
+pictures on
+verify cmd /c del /q "{exedir}AVP_OpenInteng\edited\Caverns-edited.rif" "{exedir}AVP_OpenInteng\edited\Caverns-edited.rif.bak" 2>nul & exit 0
+state
+expect-screen Construction
+click-bar Mode > Waypoint
+expect-screen Waypoint
+wait 400
+click-bar Entry points > Recalculate all
+expect-dialog-kind confirm
+expect-dialog Warning adjacent modules don't touch
+expect-dialog From DR-CAVERNC To CAVERNC-04
+state
+click-button Yes
+expect-dialog-kind confirm
+expect-dialog Warning adjacent modules don't touch
+expect-dialog From CAVERNA-02 To TUNNELA-01
+state
+click-button No
+expect-no-dialog
+wait 400
+state
+expect-screen Waypoint
+expect-status Recalculate all: Entry points calculated
+expect-status 2 pairs of modules do not touch (1 taken out)
+# no save of its own (FUN_00583d00 writes no file): Exit, then the hub's File > Save
+item 0x2
+wait 800
+state
+expect-screen Construction
+click-bar File > Save
+wait 400
+state
+# the save (the state line cuts the status at a fixed length, so the file's name falls off with a longer run folder: the verify below reads the file itself)
+expect-status Saved
+# the saved copy, read by the game's loader: DR-CAVERNC's entry to CAVERNC-04 is gone (the Yes), CAVERNA-02's to TUNNELA-01 kept (the No), every other list as it was
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_adjacent/verify_adjacent.exe {orig} {exedir}AVP_OpenInteng\edited\Caverns-edited.rif touch DR-CAVERNC CAVERNC-04 CAVERNA-02 TUNNELA-01

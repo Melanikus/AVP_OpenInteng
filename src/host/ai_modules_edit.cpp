@@ -237,12 +237,97 @@ namespace host
 		}
 	}
 
-	AiModulesResult AiModules_Remove(OpenLevelFile *open, int32_t moduleIndex, AiModulesCounts *counts, std::string *why)
+	namespace
+	{
+		// W-9, FUN_00589570's second branch (see the header): the master m taken out of its own AI module
+		AiModulesResult RemoveTheMaster(OpenLevelFile *open, std::vector<ModuleSnapshot> const &snapshots, ModuleSnapshot const &m, AiModulesCounts *total, std::string *why, int32_t *newMaster)
+		{
+			std::vector<ModuleSnapshot const *> slaves;
+
+			for (ModuleSnapshot const &other : snapshots)
+			{
+				if (other.module && other.masterIndex == m.index && other.index != m.index)
+				{
+					slaves.push_back(&other);
+				}
+			}
+
+			std::vector<ModuleChildEdit> edits;
+
+			// an empty list (0x5899eb -> 0x589b2a): the AIMODMAS goes, nothing else; no master is left
+			if (slaves.empty())
+			{
+				edits.push_back(RemoveEdit(m.index, "AIMODMAS"));
+				return Write(open, edits, total, why);
+			}
+
+			// n, the list's first (0x5899fc): its AIMODSLA goes (0x589acb-0x589b02), it is a master now (0x589a51)
+			ModuleSnapshot const &n = *slaves.front();
+
+			edits.push_back(RemoveEdit(n.index, "AIMODSLA"));
+			edits.push_back(PutEdit(n.index, "AIMODMAS", MasterChunk()));
+
+			// AddModule(m) (0x589a68, FUN_0058de90): every other slave of m names n (FUN_0058ddb0)
+			for (size_t i = 1; i < slaves.size(); i++)
+			{
+				edits.push_back(PutEdit(slaves[i]->index, "AIMODSLA", SlaveChunk(n.index)));
+				total->slavesMoved++;
+			}
+
+			// ... m's AIMODMAS goes (0x58e0b1); the AIMODSLA AddModule gave m is taken out again (0x589a86-0x589abd), so m is on its own
+			edits.push_back(RemoveEdit(m.index, "AIMODMAS"));
+
+			// ... and m's waypoints go after n's own (0x58e0ef-0x58e14a, FUN_0058d850): n's chunk, or a new one; m's goes only when it had waypoints
+			if (m.hasWaypoint)
+			{
+				WaypointSet from, into;
+				std::string reason;
+
+				if (!Waypoints_Parse(m.waypoint.data(), m.waypoint.size(), &from, &reason) || (n.hasWaypoint && !Waypoints_Parse(n.waypoint.data(), n.waypoint.size(), &into, &reason)))
+				{
+					if (why)
+					{
+						*why = "the waypoints: " + reason;
+					}
+
+					return AiModulesResult::BadWaypoints;
+				}
+
+				total->waypointsMoved = from.alien.size() + from.ground.size();
+
+				if (Waypoints_Transfer(&into, from))
+				{
+					edits.push_back(PutEdit(n.index, "WAYPOINT", Waypoints_Serialize(into)));
+					edits.push_back(RemoveEdit(m.index, "WAYPOINT"));
+				}
+				else if (!n.hasWaypoint)
+				{
+					edits.push_back(PutEdit(n.index, "WAYPOINT", Waypoints_Serialize(into)));   // n's new, empty chunk (FUN_0058d590 makes it before the transfer)
+				}
+			}
+
+			AiModulesResult const result = Write(open, edits, total, why);
+
+			if (result == AiModulesResult::Done && newMaster)
+			{
+				*newMaster = n.index;
+			}
+
+			return result;
+		}
+	}
+
+	AiModulesResult AiModules_Remove(OpenLevelFile *open, int32_t moduleIndex, AiModulesCounts *counts, std::string *why, int32_t *newMaster)
 	{
 		AiModulesCounts none;
 		AiModulesCounts &total = counts ? *counts : none;
 
 		total.slavesMoved = total.waypointsMoved = total.chunksChanged = 0;
+
+		if (newMaster)
+		{
+			*newMaster = -1;
+		}
 
 		if (!open || !open->Level())
 		{
@@ -262,6 +347,11 @@ namespace host
 			{
 				if (snapshot.module && snapshot.index == moduleIndex)
 				{
+					if (snapshot.masterIndex < 0 && snapshot.isMaster)
+					{
+						return RemoveTheMaster(open, snapshots, snapshot, &total, why, newMaster);
+					}
+
 					if (snapshot.masterIndex < 0)
 					{
 						return AiModulesResult::NotASlave;

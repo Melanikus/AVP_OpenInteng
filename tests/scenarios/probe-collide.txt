@@ -1,0 +1,42 @@
+# PROBE (Drake 11-17, OP-118): smart1 (in the open air) flown along each world axis with L ON (its first state: collisions on) for 4 s, then OFF the same way back: where it stops.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is smart1
+expect-no-dialog
+wait 400
+key F
+key X
+state
+hold A 4000
+wait 200
+state
+hold Z 4000
+wait 200
+state
+hold Numpad1 4000
+wait 200
+state
+hold Numpad3 4000
+wait 200
+state
+key L
+state
+hold A 4000
+wait 200
+state
+hold Z 4000
+wait 200
+state
+hold Numpad1 4000
+wait 200
+state
+hold Numpad3 4000
+wait 200
+state
+key F

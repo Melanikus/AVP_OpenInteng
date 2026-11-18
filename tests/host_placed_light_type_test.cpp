@@ -161,23 +161,23 @@ static std::string LastChildOf(OpenLevelFile &f, char const *name)
 			std::string last;
 			bool ours = false;
 
-			for (size_t in = at + 12; in + 12 <= at + (size_t)size; )
+			for (size_t pos = at + 12; pos + 12 <= at + (size_t)size; )
 			{
-				int32_t const childSize = Int32At(image, in + 8);
+				int32_t const childSize = Int32At(image, pos + 8);
 
-				if (childSize < 12 || in + (size_t)childSize > at + (size_t)size)
+				if (childSize < 12 || pos + (size_t)childSize > at + (size_t)size)
 				{
 					return "(a child whose size does not fit)";
 				}
 
 				// OBJHEAD1: its name after 60 bytes of numbers, after the 12-byte heading
-				if (memcmp(image.data() + in, "OBJHEAD1", 8) == 0 && (size_t)childSize > 72 && strncmp(image.data() + in + 72, name, (size_t)childSize - 72) == 0)
+				if (memcmp(image.data() + pos, "OBJHEAD1", 8) == 0 && (size_t)childSize > 72 && strncmp(image.data() + pos + 72, name, (size_t)childSize - 72) == 0)
 				{
 					ours = true;
 				}
 
-				last.assign(image.data() + in, 8);
-				in += (size_t)childSize;
+				last.assign(image.data() + pos, 8);
+				pos += (size_t)childSize;
 			}
 
 			if (ours)

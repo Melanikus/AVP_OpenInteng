@@ -885,7 +885,7 @@ static void HierarchyStepSequence(int direction);
 static void SpecialRunCommand(int32_t command, bool soundsScreen);
 // OP-47 / section 8a (V-6, V-7, V-8, V-11, V-21; FUN_004d9af0 0x4dc12c-0x4dc204, 0x4dc343, 0x4dc66e): Gravity on (DAT_008f4f50) skips the current object's commands and keys; a flying object
 // (DAT_008f4f44) can't be deleted and Gravity can't be switched while it flies
-static bool PlacementGravityOn();
+bool PlacementGravityOn();
 static bool PlacementIsFlying();
 static void SimpleEditOpen();
 void NameObjectBox(std::string const &start, std::function<void(std::string const &)> const &named);   // inteng's "Name Object" dialog (FUN_004d4c70 / FUN_004d53d0)
@@ -918,7 +918,8 @@ void GenerateAdjacency(bool newOnly);
 // MODULE LINKING'S ADJACENCY MESSAGE (module-linking-closeout-vasquez.md ML-T1; Vasquez 11-17): Exit + New Adjacencies puts "Calculating new module adjacency" (0x5e3a9c) and Exit + All
 // Adjacencies, after its Yes, "Calculating adjacency data" (0x5e3a0c) on the screen at (200, 100) (FUN_0057bd40, 0x4c1e56 / 0x4c1eb1) BEFORE FUN_004c5a30 works the data out, so they stay
 // while it works. Ours: the words are drawn, and the work is done two frames later (as Light Sourcing's save, lightSavePending); linkMessageShown is the last one drawn (the state line's
-// linkmessage, for the harness: the words are gone when the work is done).
+// linkmessage, for the harness: the words are gone when the work is done). The work ends with FUN_00403d50's questions (AD-6): the words stay under the boxes until the last answer, so
+// GenerateAdjacency lets them go on each of its ways out (editor_screen_keys.cpp).
 std::string linkMessage;
 std::string linkMessageShown;
 static int linkAdjacencyPending = 0;
@@ -936,7 +937,6 @@ static void AdjacencyEveryFrame()
 	if (linkAdjacencyPending > 0 && --linkAdjacencyPending == 0)
 	{
 		GenerateAdjacency(linkAdjacencyNewOnly);
-		linkMessage.clear();
 	}
 }
 
@@ -1225,7 +1225,6 @@ int32_t HierarchyBarAction(int32_t command)
 }
 
 void UpdateModuleTints(bool onAdjacent);
-bool WriteTheAdjacentList();
 std::string ModuleNameOfIndex(int32_t index);
 void ToggleModuleOverlaps();
 static bool SmallModuleStep(bool back);
@@ -2815,6 +2814,7 @@ static void FixTearsDo(std::string const &typed)
 	Answer(words);
 	LoadTheObjectListAgain();
 	CameraPositionSaved(10);   // then the hub is left and entered again: FUN_004476d0 (FUN_0044ad20 0x44b189, FUN_0044b1f0 0x44ba69; camera-saved-vasquez.md CS-2)
+	RotationCentreDefault();   // and its set-up FUN_00447550 (0x44b18e, 0x44ba6e) puts the rotation centre back on the objects' average (0x447652, CAM-7)
 }
 
 // Texture Map > Recentre Shape (0xd6, FUN_00565bd0): "Recentre object: Select polygon in object to recentre that object to the centre of the polygon". The click names the object and the file polygon; the
@@ -3085,10 +3085,13 @@ static void MoveRelativeModuleStart()
 // Object Placement > Misc > Toggle Gravity (0x58, FUN_004d9af0 0x4dc67c-0x4dc6e0): DAT_008f4f50 flips (only when DAT_008f4f44 == 0), the menu tick follows, and every object of inteng's list gets its vtable
 // slot +0x50 called with the new value. That slot is a no-op in 19 of the 20 placed-object classes (the five special ones among them); in class 0x5ae538 (a placed SHAPE object) FUN_004e3e30 does this for
 // the kinds 1, 2, 3, 4, 5 and 15 only: on, the object's game block gets dynamics type 7, loses bit 0x2000 of its +0x5c and gains bit 0x10000000 of its +0x60 (it falls while inteng's view runs), and +0x1c4
-// = 9; off, +0x1c4 = 0. All of it is the LIVE PREVIEW of inteng's own game blocks: nothing in the level file changes. The editor runs no such blocks, so this keeps the flag and says so (NAMED).
+// = 9; off, +0x1c4 = 0: inteng's ENGINE then moves those blocks (they fall and land), and the level file changes only when the objects are saved after (Mode > Save, Exit, Tab: each object's save
+// writes its block's place). Ours (Drake 11-17, Bishop's ruling: the game's own code): LevelView_SetGravity gives the game's inanimate objects of those types to avpx's ObjectDynamics, which runs
+// each frame of the screen while Gravity is on (LevelView_GravityStep); PlacementGravityFlush writes the places the engine moved them to into the level before a save.
 static bool placementGravity = false;
+static void PlacementGravityFlush();
 
-static bool PlacementGravityOn()
+bool PlacementGravityOn()
 {
 	return placementGravity;
 }
@@ -3101,9 +3104,58 @@ static void GravityToggleCommand()
 		return;
 	}
 
+	// off: the places the engine moved the objects to go into the level now (the blocks stay where they landed, and a later save writes them, as inteng's object saves do)
+	if (placementGravity)
+	{
+		PlacementGravityFlush();
+	}
+
 	placementGravity = !placementGravity;
-	Answer(placementGravity ? "Toggle Gravity: on (inteng lets its placed shape objects of kinds 1 to 5 and 15 fall in its own preview; nothing in the level changes, and this editor runs no such preview)"
-	                        : "Toggle Gravity: off");
+
+	bool const running = LevelView_SetGravity(placementGravity);
+
+	Answer(placementGravity ? (running ? "Toggle Gravity: on" : "Toggle Gravity: on (the game's dynamics can't run on this level: it has no player body)") : "Toggle Gravity: off");
+}
+
+// The places Gravity's engine moved objects to, written into the level (each object's OBJHEAD1 place and turn, as Move relative writes them), before a save: inteng's object save writes its
+// block's place (Mode > Save, Exit, Tab). The level's scale turns the game's units into the file's.
+static void PlacementGravityFlush()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	std::vector<LevelViewMovedObject> moved;
+
+	if (!placementGravity || !open)
+	{
+		return;
+	}
+
+	LevelView_GravityMoved(&moved);
+
+	double const scale = local_scale > 0.0 ? local_scale : 1.0;
+
+	for (LevelViewMovedObject const &one : moved)
+	{
+		model::AltLocation where;
+
+		for (int k = 0; k < 3; k++)
+		{
+			where.place[k] = (int32_t)((double)one.world[k] / scale);
+		}
+
+		host::ObjectMake_TurnFromMatrix(one.matrix, where.turn);
+		host::AlternateLocations_PutOnObject(open, one.id, where);
+	}
+}
+
+// Leaving the screen (Exit, Tab, another mode): the moved places written, the blocks given back (inteng's DAT_008f4f50 is 0 again at the next entry, 0x4d8409)
+static void PlacementGravityLeave()
+{
+	if (placementGravity)
+	{
+		PlacementGravityFlush();
+		LevelView_SetGravity(false);
+		placementGravity = false;
+	}
 }
 
 // Object Placement > Misc > Snap To Vertex (0x4e2; FUN_004dd280 starts it with the current object, FUN_004f7000 does it under the mouse): the current object (the special object just made or found, else the
@@ -3821,7 +3873,7 @@ void CameraKey(int n, bool save)
 bool strategyFromPlacement = false;   // Strategy mode was entered from Object Placement (Tab, DAT_0091493c): its Exit and Tab go back there, not to the hub
 bool strategyMarkedChanged = false;   // inteng's "changed" mark DAT_00914950 for what changes no bytes (an Edit view opened: FUN_005286b0 0x5286cc): Exit asks "Would you like to save first?"; Save (0x52831b) and leaving the screen clear it
 uint32_t strategyViewBit = 0;   // Strategy mode's View Flag (FUN_0052f680 sets DAT_00914944 to the bit, FUN_00522650 colours the modules that hold it): 0 is none
-static unsigned copySavedGeneration = ~0u;   // defined with the mode's Exit below: the level's generation at the opening, then at each Save a copy
+static unsigned copySavedChanges = ~0u;   // defined with the mode's Exit below: the level's Changes() at the opening, then at each Save a copy (its Generation() until 2026-11-17: a same-size edit, SetPayload, moves only Changes(), so the Exit did not save it; the view gap, Dietrich)
 static host::LevelSaveSitting levelSaveSitting;   // this run's saves: the first save of the level keeps it as .bak, later ones leave that .bak alone (level_save.h, Bishop's ruling B)
 
 // STRATEGY DATA'S "CHANGED" (strategy-data.md S-10, S-5; reassess/strategy-data-verify-frost.md W-3): inteng's mark DAT_00914950 is cleared on EVERY entry of the mode (FUN_00522ab0 0x522ae2,
@@ -3978,6 +4030,9 @@ void SaveTheCopy()
 	savedWords = "Not saved: the save did not finish";
 	statusWords = savedWords.c_str();
 
+	// the places Object Placement's Gravity moved objects to (OP-47: inteng's object save writes its block's place)
+	PlacementGravityFlush();
+
 	// the polygons flagged for deletion are taken out of their shapes first (inteng does it when the Texture Map mode is left)
 	TexturePolyApplyRemoved();
 
@@ -4120,7 +4175,7 @@ void SaveTheCopy()
 	}
 
 	statusWords = savedWords.c_str();
-	copySavedGeneration = open->Generation();
+	copySavedChanges = open->Changes();
 
 	if (saveTheModel)
 	{
@@ -4361,6 +4416,7 @@ static void PasteTheTrackRelative()
 bool trackShowStart = true;        // inteng's O: "Toggle display of section start position" (FUN_004f0c70 hides the start marker; 0x4dc8d7)
 static size_t trackObjectCount = 0;   // the objects of the level (inteng's DAT_008f4ef4), counted when Edit Track is chosen
 static int trackFlyBase[3] = { 0, 0, 0 };   // the camera's turn, look and roll when the marker was last taken: how far it has turned since is how far the marker turned
+static int32_t trackFlyOffset[3] = { 0, 0, 0 };
 bool trackTurnAboutPivot = false;   // inteng's P: "Switch between rotation about pivot and about centre": the Turn End's rotation
 host::TrackEditor trackEd;
 
@@ -4660,6 +4716,14 @@ static void TrackEditApply(host::TrackAction const &a)
 		trackFlyBase[0] = theCamera->turn;   // the marker's turn is the section's now: counted again from here
 		trackFlyBase[1] = theCamera->look;
 		trackFlyBase[2] = theCamera->roll;
+
+		// ... and its place: the carry from where the marker is now (CAM-4: a swing about the pivot is in the place, not in the camera's offset)
+		double const scale = local_scale > 0.0 ? local_scale : 1.0;
+		int32_t const *const at = a.cursorSet ? a.cursor : threeCursor;
+
+		trackFlyOffset[0] = (int32_t)floor((double)at[0] * scale + 0.5) - theCamera->x;
+		trackFlyOffset[1] = (int32_t)floor((double)at[1] * scale + 0.5) - theCamera->y;
+		trackFlyOffset[2] = (int32_t)floor((double)at[2] * scale + 0.5) - theCamera->z;
 	}
 
 	if (a.changed)
@@ -5032,6 +5096,14 @@ static host::TrackEditResult TrackClipNow(OpenLevelFile *open, uint8_t const *id
 }
 
 static bool PlacementFlyHoldsTheCopy();   // Object Placement's F is flying the object as its live copy (defined with the fly state)
+static bool TrackMarkerSnapping();        // V snaps the track's flying end marker now (T-3b; defined with the snap state)
+
+// The object itself is shown at the current section's end (FUN_004f0da0): in the editing's states but the end edit (where it is the flying marker) and the play (T-3c)
+static bool TrackObjectAtEndWanted()
+{
+	return OnTheTrackScreen() && trackEd.working && trackEd.current < trackEd.working->track.sections.size() &&
+		(trackEd.state == host::TrackState::Loaded || trackEd.state == host::TrackState::PivotEdit) && !PlacementFlyHoldsTheCopy();
+}
 
 static void TrackWorldLines()
 {
@@ -5044,7 +5116,7 @@ static void TrackWorldLines()
 			LevelView_FlyBegin(trackEd.id);
 		}
 
-		if (flyWanted && LevelView_FlyActive())
+		if (flyWanted && LevelView_FlyActive() && !TrackMarkerSnapping())   // (while V snaps the marker, the snap puts the live copy)
 		{
 			double const flyScale = local_scale > 0.0 ? local_scale : 1.0;
 			int32_t const world[3] = { (int32_t)floor((double)threeCursor[0] * flyScale + 0.5), (int32_t)floor((double)threeCursor[1] * flyScale + 0.5), (int32_t)floor((double)threeCursor[2] * flyScale + 0.5) };
@@ -5056,9 +5128,74 @@ static void TrackWorldLines()
 				LevelView_FlyPut(world, turned);
 			}
 		}
-		else if (!flyWanted && LevelView_FlyActive() && !PlacementFlyHoldsTheCopy())   // (Object Placement's F holds the copy itself)
+		else if (!flyWanted && LevelView_FlyActive() && !PlacementFlyHoldsTheCopy() && !TrackObjectAtEndWanted())   // (Object Placement's F holds the copy itself)
 		{
 			LevelView_FlyEnd();
+		}
+	}
+
+	// INTENG'S TWO OBJECTS OF THE CURRENT SECTION (T-3c of reassess/track-editing-closeout-vasquez.md; Bishop's ruling (b): our lines and crosses below stay, a named addition): FUN_004f0da0 puts
+	// the OBJECT itself at the current section's END (place +0x28..0x30, matrix +0x58) and the START MARKER, a copy of the object made when the track was loaded (FUN_004b2590 in FUN_004eff90), at
+	// its START (+0x1c..0x24, +0x34), at every section change, in every state of the editing; O moves the start marker out of sight (0x4dc8d7). While the end is edited the object is the marker
+	// above; while the track plays it stays where the play put the section (inteng's play moves the object: ours plays the game's track code and shows a cross, NAMED).
+	{
+		bool const editing = OnTheTrackScreen() && trackEd.state != host::TrackState::Off && trackEd.working && trackEd.current < trackEd.working->track.sections.size();
+		double const scale = local_scale > 0.0 ? local_scale : 1.0;
+		auto const world = [scale](int32_t const file[3], int32_t out[3])
+		{
+			for (int axis = 0; axis < 3; axis++)
+			{
+				out[axis] = (int32_t)floor((double)file[axis] * scale + 0.5);
+			}
+		};
+
+		// the two poses are worked out again only when the track, the section or the state changed, or a copy was just made (each takes the game's track code twice)
+		static std::vector<uint8_t> lastTrack;
+		static size_t lastSection = ~(size_t)0;
+		static int lastState = -1;
+		std::vector<uint8_t> trackNow;
+
+		if (editing)
+		{
+			host::TrackData_Bytes(trackEd.working->track, &trackNow);
+		}
+
+		bool const same = editing && trackNow == lastTrack && lastSection == trackEd.current && lastState == (int)trackEd.state;
+
+		lastTrack = trackNow;
+		lastSection = trackEd.current;
+		lastState = editing ? (int)trackEd.state : -1;
+
+		if (TrackObjectAtEndWanted())
+		{
+			bool const begun = !LevelView_FlyActive() && LevelView_FlyBegin(trackEd.id);
+
+			if (!same || begun)
+			{
+				int32_t end[3], at[3];
+
+				host::TrackData_MarkerAt(trackEd.working->track, trackEd.current, true, host::TrackPlay_ObjectPlace, end);
+				world(end, at);
+				LevelView_FlyPut(at, trackEd.working->track.sections[trackEd.current].quatEnd);
+			}
+		}
+
+		if (editing && trackShowStart)
+		{
+			bool const begun = !LevelView_GhostActive() && LevelView_GhostBegin(trackEd.id);
+
+			if (!same || begun)
+			{
+				int32_t start[3], at[3];
+
+				host::TrackData_MarkerAt(trackEd.working->track, trackEd.current, false, host::TrackPlay_ObjectPlace, start);
+				world(start, at);
+				LevelView_GhostPut(at, trackEd.working->track.sections[trackEd.current].quatStart);
+			}
+		}
+		else if (LevelView_GhostActive())
+		{
+			LevelView_GhostEnd();
 		}
 	}
 
@@ -5232,7 +5369,7 @@ static void TrackPlayFrame()
 // wrote over the opened file; here the level is saved as a COPY, never over the opened file: Save a copy's own place), (3) FUN_004704d0(10): "Camera position saved" (the one camera slot every mode shares, so the
 // camera is where it was when the next mode starts: the editor has one camera, which already does that), (4) the hub (FUN_00447550). Strategy Data's Exit (0x5, FUN_00524e90 -> FUN_00524d80 -> FUN_00524d00)
 // first asks "Would you like to save first?" when the mode changed something (its flag DAT_00914950, set by every edit), and saves (FUN_005282d0 "Saving") on yes; no leaves without saving. Ours: the level is
-// "changed" when its generation is not the one the last Save a copy (or the opening) left. AvP-docs\engine\inteng\exit-and-strategy-leftovers.md has every address.
+// "changed" when its Changes() is not the one the last Save a copy (or the opening) left. AvP-docs\engine\inteng\exit-and-strategy-leftovers.md has every address.
 std::string exitWords;
 void ExitCleanup(size_t screen);
 
@@ -5240,7 +5377,75 @@ bool LevelChangedSinceSave()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
-	return open && copySavedGeneration != ~0u && open->Generation() != copySavedGeneration;
+	return open && copySavedChanges != ~0u && open->Changes() != copySavedChanges;
+}
+
+// ---- THE ROTATION CENTRE (camera-closeout-drake.md CAM-3 / CAM-7 / CAM-8; inteng's DAT_00931110 / 14 / 18): the point '/' and numpad / swing the camera round (MoveTheCamera). Every start of the hub
+// sets it to the average place of the level's objects (FUN_00470e70, called by the hub's set-up FUN_00447550 at 0x447652: the blocks of the level's own shapes, one for each of its objects, modules and
+// placed objects alike; each place divided by their count before it is added, inteng's rounding; 0, 0, 0 for none). Scroll Lock (FUN_004720c0, WinMain 0x58d004: slot 0x22) puts it on the object or
+// module the next left press hits: "Choose object for centre of rotation" at (200, 100) and "RMB or escape to cancel" at (200, 0x74) until then; a press that hits nothing waits on; the right button or
+// Esc gives up. OURS, NAMED: the places are the game's (the file's times the level's scale, local_scale), so the rounding is in millimetres; inteng's wait is modal (the view stands still), ours draws on.
+int32_t rotationCentre[3] = { 0, 0, 0 };
+bool rotationPickWaiting = false;
+static bool rotationPickButtonHeld = false;   // a left or middle press of the wait is still down: a miss picks again on each move, and Esc pressed then gives up (FUN_004720c0's loop goes round with the button bits kept)
+
+void RotationCentreDefault()
+{
+	rotationCentre[0] = rotationCentre[1] = rotationCentre[2] = 0;
+
+	std::vector<int32_t> places;
+
+	if (!LevelObjects_Places(&places) || places.size() < 3)
+	{
+		return;
+	}
+
+	int const count = (int)(places.size() / 3);
+	double const scale = local_scale > 0.0 ? local_scale : 1.0;
+
+	for (size_t at = 0; at + 2 < places.size(); at += 3)
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			int32_t const world = (int32_t)floor(places[at + (size_t)i] * scale + 0.5);
+
+			rotationCentre[i] += world / count;   // FUN_00470e70 0x470ebf-0x470ee7: each divided first (IDIV, toward 0, as C++'s /)
+		}
+	}
+}
+
+// Scroll Lock's press answered (FUN_004720c0 0x472142-0x472180): the place of the module or object the pick hit (a module: MODULE.m_world; an object: its file place times the level's scale); false, and the
+// wait goes on, for a press that hit neither
+static bool RotationPickAnswer(host::PickReport const &picked)
+{
+	int32_t world[3] = { 0, 0, 0 };
+	bool found = false;
+
+	if (picked.found == host::PickFound::Module)
+	{
+		found = LevelView_ModuleWorld(picked.moduleIndex, world);
+	}
+	else if (picked.found == host::PickFound::Object)
+	{
+		int32_t place[3] = { 0, 0, 0 };
+		double const scale = local_scale > 0.0 ? local_scale : 1.0;
+
+		found = LevelObjects_PlaceOf(picked.objectId, place);
+
+		for (int i = 0; i < 3 && found; i++)
+		{
+			world[i] = (int32_t)floor(place[i] * scale + 0.5);
+		}
+	}
+
+	if (found)
+	{
+		memcpy(rotationCentre, world, sizeof(rotationCentre));
+		rotationPickWaiting = false;
+		rotationPickButtonHeld = false;
+	}
+
+	return found;
 }
 
 // After the mode's Exit has saved or not: the mode's own state is let go, the camera position is said to be saved, the hub is shown
@@ -5262,7 +5467,17 @@ static void LeaveTheMode(char const *saved, bool cameraSaved = true, size_t targ
 	exitWords = std::string(saved && *saved ? saved : "") + (saved && *saved && cameraSaved ? "; " : "") + (cameraSaved ? "Camera position saved" : "");
 	exitWords = exitWords.empty() ? std::string(target == host::kIntengHub ? "Construction" : "Object Placement") : exitWords;
 	ShowTheScreen(target);
+
+	// the next screen's start loads the level from inteng's tree in memory (the hub's FUN_00447550, FUN_0046e700), so the view shows what the mode changed: ShowTheWorkingBytes, as the
+	// screen change of a bar pick does (RunAction). ShowTheScreen sets barScreen itself, so a mode's Exit never reached that screen change and the hub kept the picture of the level as it
+	// was opened. (Added 2026-11-17 by Melanikus (Dietrich), the view gap; found by a read-only trace of acceptance-view-gap-same-size.)
+	ShowTheWorkingBytes();
 	statusWords = exitWords.c_str();
+
+	if (target == host::kIntengHub)
+	{
+		RotationCentreDefault();   // the hub's start (FUN_00447550 0x447652): a Scroll Lock pick lasts until then
+	}
 }
 
 // Strategy Data's Module flags mode (command 0x2, FUN_00525700): bar page 1 of both sets is shown (+0x18(1) at 0x525725): bar A = Mode > Exit, Help; bar B = the flag menus (Add Flag, Remove Flag, View Flag, Save); its Exit (0x5) gives page 0 back (+0x18(0) at 0x5267e3) and does not leave the screen
@@ -5337,7 +5552,8 @@ static int32_t stabilityMin[3], stabilityMax[3];
 // FUN_00527540): only there Insert / Home zoom (0x5293a2 / 0x5293b0). The screen's own page 0 (FUN_00522980) and a kind's Edit view (its own loop) read neither (strategy-data.md S-57)
 static bool StrategyInASubLoop()
 {
-	return OnStrategyScreen() && !strategyEditFan && (strategyFlagPage || stabilityActive || volume.on || copyCollecting || strategyPick != 0 || !strategyPickField.empty());
+	// the volume editor runs from a kind's Edit view (V), so strategyEditFan is still set while it does; its loop is FUN_00529370's all the same (S-VOL-11, Drake 11-17)
+	return OnStrategyScreen() && (volume.on || (!strategyEditFan && (strategyFlagPage || stabilityActive || copyCollecting || strategyPick != 0 || !strategyPickField.empty())));
 }
 
 std::string strategyMessage;          // an on-screen message of Strategy Data at (200, 100) (FUN_0057bd40(200, 100, 0, words)), gone after 700 ms (FUN_00529220 waits that long for a click or key)
@@ -5393,6 +5609,8 @@ void ExitTheMode()
 		return;
 	}
 
+	// OP-6: Object Placement's Exit saves every object (its block's place): the places Gravity moved them go into the level first, then every placed shape is saved
+	PlacementGravityFlush();
 	SaveEveryPlacedShape();
 
 	bool const strategy = strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0;
@@ -6845,10 +7063,16 @@ static int32_t snapNowPlace[3];
 static float snapNowTurn[4];
 static int snapPointerX = -1, snapPointerY = -1;
 static int32_t snapViewHeight = 0;
+static bool snapForTrack = false;   // T-3b: the live snap is Track Editing's, on the flying end marker (the marker's pose, not the object's record, is what it keeps)
 
 static bool PlacementFlyHoldsTheCopy()
 {
 	return (flyOn && flyReal) || snapLive;   // (the live snap shows the object as the same live copy)
+}
+
+static bool TrackMarkerSnapping()
+{
+	return snapLive && snapForTrack;
 }
 static float flyStartQuat[4] = { 0, 0, 0, 1 };
 static float flyTurnNow[4] = { 0, 0, 0, 1 };
@@ -6909,9 +7133,40 @@ bool flyIncBox = false;
 // F in Track Editing's end edit (inteng flies the END MARKER OBJECT there, the same F as Object Placement's: state 3's frame code 0x4dc850-0x4dc9a1 copies the marker's place into the track's end): the 3D cursor,
 // which is the marker here, takes the camera's place plus the offset it had when F was pressed; F again lets it go there; Finish End Pos Edit takes it.
 bool trackFly = false;
-static int32_t trackFlyOffset[3] = { 0, 0, 0 };
-// L: "Toggle collisions" (0x4dc1a0: the current object's game block gets dynamics 7 and its flag 0x2000 flipped, 0x10000000 set): inteng's live preview only; the switch is kept
-static bool collisionsOn = false;
+// (trackFlyOffset is declared with trackFlyBase)
+// L: "Toggle collisions" (V-7, OP-86; FUN_004d9af0 0x4dc124-0x4dc1db): a current object (DAT_008f4f3c), Gravity off (0x4dc133), state 0 or 3 (0x4dc14f), L (slot 0x4c): the CURRENT object's block
+// gets +0x20c = 7, +0x5c ^= 0x2000 (set: it does NOT collide) and +0x60 |= 0x10000000. A mark of THAT object: "Colliding" (FUN_004df3c0 0x4df4ea flying; FUN_004e9b60 0x4e9bfc, a placed hierarchy) is
+// its own. Every start of the mode clears every mark (0x4d847d); each frame with nothing current FUN_004dd2f0 (0x4dd343-0x4dd37c) clears it on the level objects (a rif object +0x154, a level shape,
+// not +0x64 bit 0x1000000) that are within the view distance (the camera's distance to the block less its radius +0x100, under DAT_005fd678). Was: one switch for every object (Drake 11-17).
+// NAMED: Gravity on clears it on the shapes of kinds 1-5 and 15 (FUN_004e3e30), which needs the objects' kinds (with OP-47's physics); Track Editing's markers and FUN_004f49f0's hidden shapes set
+// it on blocks that are not level objects (0x4f03c2, 0x4f4be5); the radius here is half the object's drawn box's diagonal (inteng's +0x100, the shape's radius)
+static std::set<std::string> placementNoCollide;   // the objects marked "not colliding": PlacementCurrentKey's keys
+
+// The current object of Object Placement as a key (inteng's DAT_008f4f3c: the special object just made or found, a placed hierarchy, else the selected placed object); empty for none
+static std::string PlacementCurrentKey()
+{
+	if (specialMode.haveCurrent)
+	{
+		return "special " + std::to_string((int)specialMode.kind) + " " + std::to_string(specialMode.number);
+	}
+
+	if (placedHierarchyCurrent >= 0)
+	{
+		return "hierarchy " + std::to_string(placedHierarchyCurrent);
+	}
+
+	uint8_t id[8];
+
+	return SelectedObjectId(id) ? "object " + std::string((char const *)id, 8) : std::string();
+}
+
+// "Colliding" for the current object: its block's +0x5c bit 0x2000 is clear
+static bool PlacementCurrentCollides()
+{
+	std::string const key = PlacementCurrentKey();
+
+	return !key.empty() && placementNoCollide.count(key) == 0;
+}
 
 // OBJECT PLACEMENT'S TEXT (reassess/object-placement.md OP-100..OP-105, OP-80, OP-83). inteng draws, every frame, at x 16 (FUN_004d9af0 0x4dc74e-0x4dc832): "View Distance :%d" (0x5c39b0) at y 32,
 // "Num Objects :%d" (0x5e8354, the placement list's count) at y 48, then from y 64 the CURRENT object's lines (its +0x4c), then "Visible polygons %d" (0x5e8340) when the camera's target is in a module.
@@ -7583,6 +7838,12 @@ static void PlacementFrame()
 	bool const acoustic = OnAcousticScreen();
 	bool const here = acoustic || (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Object Placement") == 0);
 
+	// OP-47: while Gravity is on, the engine moves the chosen objects one frame (inteng's frame runs its engine on its blocks)
+	if (here && placementGravity)
+	{
+		LevelView_GravityStep();
+	}
+
 	// OP-40 / OP-111: making ANOTHER object current stops the flight (FUN_004d64a0 calls FUN_004df090(0) for the old one), and so does leaving the screen (Acoustic Mode AC-1, the chooser, Exit). NAMED: Track
 	// Editing (inteng's state 3 of this screen) keeps it here as inteng does; its pivot edit (TE-5) stops it there.
 	if (flyOn)
@@ -7611,8 +7872,11 @@ static void PlacementFrame()
 			placementHideOn = false;
 		}
 
-		// the screen left: a live Snap To Vertex ends with the object where it was
-		SnapLiveEnd(false);
+		// the screen left: a live Snap To Vertex ends with the object where it was (Track Editing's snap on its end marker is not this screen's: SnapLiveFrame ends it when the end edit is left)
+		if (!snapForTrack)
+		{
+			SnapLiveEnd(false);
+		}
 
 		// the screen left: its sounds stop and are let go (placed_sounds_game.h)
 		if (placedSoundsOpen)
@@ -7681,10 +7945,49 @@ static void PlacementFrame()
 		}
 	}
 
-	// with no current object every placed object collides again (FUN_004dd2f0 0x4dd343-0x4dd37c clears block +0x5c bit 0x2000): the L switch of the next current object starts ON
-	if (!specialMode.haveCurrent && host::Selection_Get().kind != host::SelectedKind::Object && placedHierarchyCurrent < 0)
+	// with no current object the level's objects within the view distance collide again (FUN_004dd2f0 0x4dd343-0x4dd37c clears block +0x5c bit 0x2000 on the blocks with a rif object and a level
+	// shape: not the special objects' or the hierarchies' records); one beyond it keeps its mark
+	if (PlacementCurrentKey().empty() && theCamera)
 	{
-		collisionsOn = true;
+		double const scale = local_scale > 0.0 ? local_scale : 1.0;
+
+		for (auto mark = placementNoCollide.begin(); mark != placementNoCollide.end(); )
+		{
+			int32_t place[3] = { 0, 0, 0 }, mins[3] = { 0, 0, 0 }, maxs[3] = { 0, 0, 0 };
+			bool const isObject = mark->size() == 15 && mark->compare(0, 7, "object ") == 0;
+			uint8_t id[8];
+
+			if (isObject)
+			{
+				memcpy(id, mark->data() + 7, 8);
+			}
+
+			if (!isObject || !LevelObjects_PlaceOf(id, place))
+			{
+				++mark;
+				continue;
+			}
+
+			double const d[3] = { place[0] * scale - theCamera->x, place[1] * scale - theCamera->y, place[2] * scale - theCamera->z };
+			double radius = 0.0;
+
+			if (LevelView_ObjectBox(id, mins, maxs))
+			{
+				double const half[3] = { (maxs[0] - mins[0]) / 2.0, (maxs[1] - mins[1]) / 2.0, (maxs[2] - mins[2]) / 2.0 };
+
+				radius = sqrt(half[0] * half[0] + half[1] * half[1] + half[2] * half[2]);
+			}
+
+			// FUN_004b31b0 the distance, less the block's radius, under DAT_005fd678 (100 to the millimetre)
+			if (sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) - radius < viewDistance / 100.0)
+			{
+				mark = placementNoCollide.erase(mark);
+			}
+			else
+			{
+				++mark;
+			}
+		}
 	}
 
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
@@ -7874,7 +8177,7 @@ void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 			put("Inc Bounding Box");
 		}
 
-		if (collisionsOn)
+		if (PlacementCurrentCollides())
 		{
 			put("Colliding");
 		}
@@ -7885,7 +8188,7 @@ void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 		// FUN_004e9b60 (the class 0x5ae6c4's +0x4c): while it flies the fly lines (it cannot fly here yet: NAMED), "Colliding" when its block collides, then (PH-15) "Sequence %d" (the current
 		// record's index, 0x4e9c24) when there is a current record, and "Timer %d" (the main player's +0x10) and "Frame %d" (FUN_004790a0) when the player has a main sequence: no name line and none
 		// of FUN_004df3c0's common lines
-		if (collisionsOn)
+		if (PlacementCurrentCollides())
 		{
 			put("Colliding");
 		}
@@ -7994,6 +8297,17 @@ void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 			if (host::TrackExists(open, one.id))
 			{
 				put("Has Track");
+			}
+
+			// OP-102 (FUN_004e3600 0x4e3783-0x4e39f6), after the common lines (FUN_004df3c0): when the object's OWN shape has an SHPEXTFL holding an SHPEXTFN (the first of each;
+			// no level-wide test), "Object scale %-5.6f" (0x5e8bec) = DAT_00607bd8 x 0.01 (0x5ac438) x that SHPEXTFN's rescale, multiplied in that order (0x4e39d4-0x4e39f6).
+			// DAT_00607bd8 is 100 x the first REBENVDT's first ENVSDSCL, or 100 with none (FUN_0046e700 / FUN_0046e140): 100 x local_scale here, as Rescale works its factor out.
+			double rescale = 0.0;
+
+			if (host::ShapeRescale_Current(open, LevelObjects_Level(), one.id, &rescale))
+			{
+				snprintf(line, sizeof(line), "Object scale %-5.6f", ((100.0 * (local_scale > 0.0 ? local_scale : 1.0)) * host::kRescaleHundredth) * rescale);
+				put(line);
 			}
 
 			std::string module;
@@ -8129,8 +8443,9 @@ static void UpdateCameraLink(FlyCamera *camera)
 {
 	int32_t world[3];
 
-	// F in the track's end edit: the marker (the 3D cursor) takes the camera's place plus its offset; it lets go when the end edit is left
-	if (trackFly)
+	// F in the track's end edit: the marker (the 3D cursor) takes the camera's place plus its offset; it lets go when the end edit is left. While V snaps it (T-3b) it is not carried: inteng puts
+	// the flying marker back to its saved pose every frame before the snap (0x4dc9a6-0x4dc9e4)
+	if (trackFly && !snapLive)
 	{
 		if (!OnTheTrackScreen() || trackEd.state != host::TrackState::EndEdit)
 		{
@@ -8153,6 +8468,35 @@ static void UpdateCameraLink(FlyCamera *camera)
 			trackEd.markerTurn[0] = since(camera->turn, trackFlyBase[0]);
 			trackEd.markerTurn[1] = since(camera->look, trackFlyBase[1]);
 			trackEd.markerTurn[2] = since(camera->roll, trackFlyBase[2]);
+
+			// CAM-4 (camera-closeout-drake.md; Vasquez 11-17): with P on (inteng's DAT_005e5188, copied to DAT_00914afc while the marker flies, 0x4dc184 / 0x4dc8b3) the mover turns the marker about
+			// its PIVOT, not its centre: the point place + M d stays still (0x53dedc-0x53df73: V = d turned by the old matrix is added to the place, the matrix turned, V turned by the new one
+			// taken away), d being minus the section's object offset (FUN_004f0c70 0x4f0c97). Ours carries the marker with the camera (NAMED), so the place carried is swung by
+			// (M_now - M_base) x offset: the pivot is carried, the object swings round it, and Finish End finds the pivot where it was
+			if (trackTurnAboutPivot && trackEd.working && trackEd.current < trackEd.working->track.sections.size())
+			{
+				int32_t const *const offset = trackEd.working->track.sections[trackEd.current].offset;
+				float base[4], turned[4];
+				double before[9], after[9];
+
+				if ((offset[0] || offset[1] || offset[2]) && host::TrackEdit_MarkerBase(trackEd, base) && host::TrackPlay_QuatAxes(base, before) &&
+					host::TrackPlay_TurnedBy(base, trackEd.markerTurn[0], trackEd.markerTurn[1], trackEd.markerTurn[2], turned) && host::TrackPlay_QuatAxes(turned, after))
+				{
+					double const at[3] = { (double)camera->x, (double)camera->y, (double)camera->z };
+
+					for (int axis = 0; axis < 3; axis++)
+					{
+						double swing = 0.0;
+
+						for (int i = 0; i < 3; i++)
+						{
+							swing += (double)offset[i] * (after[i * 3 + axis] - before[i * 3 + axis]);   // the local offset in the world: its parts along the rows (the local axes)
+						}
+
+						threeCursor[axis] = (int32_t)floor((at[axis] + (double)trackFlyOffset[axis]) / scale + swing + 0.5);
+					}
+				}
+			}
 		}
 	}
 
@@ -8204,6 +8548,18 @@ static void UpdateCameraLink(FlyCamera *camera)
 }
 
 // X and B while an object flies: the words are inteng's ("Move Rel to Axes", "Inc Bounding Box", FUN_004e9b10)
+// OP-117 (FUN_004df1e0 / FUN_004df2d0): B grows the flying object's box (its block's extents, the box the engine collides it by) by 2000 each way, and puts it back; every stop of the flight puts it back.
+// NAMED: inteng grows the SHAPE's extents too (+0x38..+0x4c), which only its visibility test reads; ours grows the block's only.
+static void FlyBoxSet(bool on)
+{
+	if (on != flyIncBox && flyReal && !trackFly)
+	{
+		LevelView_FlyBoxGrow(flyId, on);
+	}
+
+	flyIncBox = on;
+}
+
 static void FlySwitchKey(bool x)
 {
 	if (x)
@@ -8213,7 +8569,7 @@ static void FlySwitchKey(bool x)
 	}
 	else
 	{
-		flyIncBox = !flyIncBox;
+		FlyBoxSet(!flyIncBox);
 		Answer(flyIncBox ? "Inc Bounding Box: on (the flying object's bounds are 2000 wider each way, for its collisions)" : "Inc Bounding Box: off");
 	}
 }
@@ -8231,10 +8587,10 @@ static void PlacementFlyStop()
 	double const scale = local_scale > 0.0 ? local_scale : 1.0;
 	int32_t place[3] = { (int32_t)(flyWorld[0] / scale), (int32_t)(flyWorld[1] / scale), (int32_t)(flyWorld[2] / scale) };
 
+	FlyBoxSet(false);
 	flyOn = false;
 	PlacementCameraUnlink(false);
 	flyRelAxes = false;
-	flyIncBox = false;
 	flySpeedUnits = speedUnits;
 	speedUnits = flyCameraSpeedKept;
 	flyGlides[FlyGlideKey()] = flyGlide;   // the stop leaves the block's +0x168 as it is (THE FLOWN OBJECT'S GLIDE)
@@ -8291,6 +8647,8 @@ static void SnapLiveShow(int32_t const place[3], float const turn[4])
 }
 
 // Esc (keep false: the saved pose stays, nothing written) or the left press (keep true: the pose shown is written, OBJHEAD1's place and turn)
+static void TrackMarkerSnapPut(int32_t const place[3], float const turn[4], bool kept);
+
 static void SnapLiveEnd(bool keep)
 {
 	if (!snapLive)
@@ -8299,6 +8657,18 @@ static void SnapLiveEnd(bool keep)
 	}
 
 	snapLive = false;
+
+	// Track Editing's (T-3b): the marker flies on (its live copy stays); a left press makes the pose shown the marker's: the 3D cursor its place, its turn the one the keys turn from, the
+	// camera's carry counted from here (inteng: DAT_008f4f10 = 0 with the flying marker where the snap put it, 0x4dca24); Escape: the marker as it was (0x4dca33)
+	if (snapForTrack)
+	{
+		snapForTrack = false;
+
+		// kept: the pose shown; Escape: the pose saved at V (the camera may have flown meanwhile, so the carry is counted again from it)
+		TrackMarkerSnapPut(keep ? snapNowPlace : snapSavedPlace, keep ? snapNowTurn : snapSavedTurn, keep);
+		return;
+	}
+
 	LevelView_FlyEnd();
 
 	if (!keep || (memcmp(snapNowPlace, snapSavedPlace, sizeof(snapNowPlace)) == 0 && memcmp(snapNowTurn, snapSavedTurn, sizeof(snapNowTurn)) == 0))
@@ -8350,11 +8720,89 @@ static bool SnapLiveStart()
 	return true;
 }
 
+// V IN TRACK EDITING'S END EDIT (T-3b of reassess/track-editing-closeout-vasquez.md; Vasquez 11-17): inteng's state 3 sends V (slot 0xd87a96, 0x4dc8f6-0x4dc902) to FUN_004dd280 as Object
+// Placement does, on the FLYING object, which in the end edit is the end marker (F flies it): its place and matrix are saved (DAT_008f4b60.., DAT_008f4bb8..), and every frame it is put back to them
+// and snapped under the pointer (0x4dc995-0x4dca28, FUN_004f7000); a left press keeps the snap, Escape (0x4dca33) puts the saved pose back. With the marker not flying, V does nothing.
+// Ours: Object Placement's live snap (SnapLiveFrame, SnapToVertex_Pose) on the marker's live copy, from the marker's pose (the 3D cursor, its turn); what is kept is the marker's pose.
+static bool TrackSnapLiveStart()
+{
+	if (!OnTheTrackScreen() || trackEd.state != host::TrackState::EndEdit || !trackFly || !LevelView_FlyActive() || !trackEd.working)
+	{
+		return false;
+	}
+
+	float base[4], turned[4];
+
+	if (!host::TrackEdit_MarkerBase(trackEd, base) || !host::TrackPlay_TurnedBy(base, trackEd.markerTurn[0], trackEd.markerTurn[1], trackEd.markerTurn[2], turned))
+	{
+		return false;
+	}
+
+	SnapLiveEnd(false);
+	memcpy(snapId, trackEd.id, sizeof(snapId));
+	memcpy(snapSavedPlace, threeCursor, sizeof(snapSavedPlace));
+	memcpy(snapSavedTurn, turned, sizeof(snapSavedTurn));
+	memcpy(snapNowPlace, snapSavedPlace, sizeof(snapNowPlace));
+	memcpy(snapNowTurn, snapSavedTurn, sizeof(snapNowTurn));
+	// the pointer where it is now (V is a key: no mouse move need come before the snap's first frame)
+	POINT pointer = { -1, -1 };
+
+	RECT inside = { 0, 0, 0, 0 };
+
+	if (GetCursorPos(&pointer) && ScreenToClient(hWndMain, &pointer) && GetClientRect(hWndMain, &inside) && PtInRect(&inside, pointer))   // (over the view only)
+	{
+		snapPointerX = pointer.x;
+		snapPointerY = pointer.y;
+	}
+
+	snapLive = true;
+	snapForTrack = true;
+	SnapLiveShow(snapNowPlace, snapNowTurn);
+	return true;
+}
+
+// The track's snap over: the marker at this pose (kept: where the snap put it; Escape: where it was at V), its turn the one the keys turn from, the camera's carry counted from here
+static void TrackMarkerSnapPut(int32_t const place[3], float const turn[4], bool kept)
+{
+	double const scale = local_scale > 0.0 ? local_scale : 1.0;
+
+	memcpy(threeCursor, place, sizeof(threeCursor));
+
+	for (int i = 0; i < 4; i++)
+	{
+		trackEd.markerBase[i] = turn[i];
+	}
+
+	trackEd.markerBaseSet = true;
+	trackEd.markerBaseSection = trackEd.current;
+	trackEd.markerTurn[0] = trackEd.markerTurn[1] = trackEd.markerTurn[2] = 0.0;
+
+	if (theCamera)
+	{
+		trackFlyBase[0] = theCamera->turn;
+		trackFlyBase[1] = theCamera->look;
+		trackFlyBase[2] = theCamera->roll;
+		trackFlyOffset[0] = (int32_t)floor((double)threeCursor[0] * scale + 0.5) - theCamera->x;
+		trackFlyOffset[1] = (int32_t)floor((double)threeCursor[1] * scale + 0.5) - theCamera->y;
+		trackFlyOffset[2] = (int32_t)floor((double)threeCursor[2] * scale + 0.5) - theCamera->z;
+	}
+
+	trackDirty = true;
+	statusWords = kept ? "Snap To Vertex: the end marker is on the vertex (Finish End Pos Edit takes it)" : "Snap To Vertex: cancelled, the end marker is where it was";
+}
+
 // Every frame while it is on, after the frame was drawn (its list of what is on screen is the pick's): the saved pose, then the snap under the pointer
 static void SnapLiveFrame(int32_t viewWidth, int32_t viewHeight)
 {
 	if (!snapLive)
 	{
+		return;
+	}
+
+	// Track Editing's snap ends, the marker as it was, when the end edit or the marker's flight is over (Finish End, Stop, F, Shift+T, another screen)
+	if (snapForTrack && (!OnTheTrackScreen() || trackEd.state != host::TrackState::EndEdit || !trackFly))
+	{
+		SnapLiveEnd(false);
 		return;
 	}
 
@@ -8389,7 +8837,7 @@ static void SnapLiveFrame(int32_t viewWidth, int32_t viewHeight)
 			int32_t place[3];
 			float turn[4];
 
-			if (host::SnapToVertex_Pose(open, open->Level(), snapId, target, point, pick.polygonNumber, align, place, turn) == host::MoveRelPolyEditResult::Done)
+			if (host::SnapToVertex_Pose(open, open->Level(), snapId, target, point, pick.polygonNumber, align, place, turn, snapForTrack ? snapSavedPlace : nullptr, snapForTrack ? snapSavedTurn : nullptr) == host::MoveRelPolyEditResult::Done)
 			{
 				memcpy(snapNowPlace, place, sizeof(snapNowPlace));
 				memcpy(snapNowTurn, turn, sizeof(snapNowTurn));
@@ -8550,14 +8998,24 @@ static bool PlacementKey(WPARAM key, bool shift)
 
 	if (key == 'L' && !shift && !IsAMoveKey(key))
 	{
-		// OP-86 (V-7): L needs Gravity off (0x4dc13a); with it on, nothing
-		if (PlacementGravityOn())
+		// OP-86 (V-7): L needs Gravity off (0x4dc13a), state 0 or 3 (0x4dc14f: no track loaded, or its end being edited) and a current object (0x4dc124); then THAT object's mark flips
+		std::string const key = PlacementCurrentKey();
+
+		if (PlacementGravityOn() || !(trackEd.state == host::TrackState::Off || trackEd.state == host::TrackState::EndEdit) || key.empty())
 		{
 			return true;
 		}
 
-		collisionsOn = !collisionsOn;
-		Answer(collisionsOn ? "Collisions: on (the switch is kept: the flying object does not yet bump into the level)" : "Collisions: off");
+		if (placementNoCollide.count(key) != 0)
+		{
+			placementNoCollide.erase(key);
+		}
+		else
+		{
+			placementNoCollide.insert(key);
+		}
+
+		Answer(PlacementCurrentCollides() ? "Collisions: on for the current object" : "Collisions: off for the current object");
 		return true;
 	}
 
@@ -9200,6 +9658,13 @@ void RunAction(int32_t id)
 	if (host.adjacentOp != kAdjNone)
 	{
 		AdjacentEdit(host.adjacentOp);
+
+		// Exit whose write-back is asking its questions (AD-6a): the screen stays on Adjacent Modules, and the status on the question's words, until the last answer runs the Exit again
+		if (host.adjacentOp == kAdjExit && adjacentExitHeld)
+		{
+			host.screen = barScreen;
+			host.statusWords = nullptr;
+		}
 	}
 
 	// While Show All holds the screen, inteng's frame ends before it reads the command (0x4c1b74): the item chosen does nothing (row ML-M-3)
@@ -9395,6 +9860,12 @@ void RunAction(int32_t id)
 			CameraPositionSaved(10);
 		}
 
+		// every arrival at Construction is the hub's set-up FUN_00447550, which puts the rotation centre back on the objects' average (0x447652, CAM-7), Shape Morph's way back too
+		if (host.screen == host::kIntengHub && wasScreen != host::kIntengHub)
+		{
+			RotationCentreDefault();
+		}
+
 		if (intoLight)
 		{
 			EnterLightSourcing();
@@ -9407,16 +9878,39 @@ void RunAction(int32_t id)
 
 		barScreen = host.screen;
 
-		// Object Placement left (its Track Editing and Acoustic pages are its own): every flown object's glide is let go of, as inteng's are when the hub loads the level again (THE FLOWN OBJECT'S GLIDE)
+		// Object Placement left (its Track Editing and Acoustic pages are its own): every flown object's glide is let go of, as inteng's are when the hub loads the level again (THE FLOWN OBJECT'S GLIDE),
+		// and Gravity's places are written and its blocks given back. The Shape Chooser is the mode's own too: inteng comes back from it through its entry with DAT_008f4f38 = 1, which keeps Gravity
+		// (0x4d83b3 skips 0x4d83fe) and loads no level, so the blocks stay where they fell (V-24; the chooser's screen runs no Gravity step, PlacementFrame)
 		{
 			auto const placementFamily = [](size_t screen) {
 				return screen < host::kIntengScreenCount && (strcmp(host::kIntengScreens[screen].name, "Object Placement") == 0 || strcmp(host::kIntengScreens[screen].name, "Placement mode 1 (sounds)") == 0 ||
-					strcmp(host::kIntengScreens[screen].name, "Track Editing") == 0);
+					strcmp(host::kIntengScreens[screen].name, "Track Editing") == 0 || strcmp(host::kIntengScreens[screen].name, "Shape Chooser") == 0);
 			};
 
 			if (placementFamily(wasScreen) && !placementFamily(barScreen))
 			{
+				PlacementGravityLeave();
 				flyGlides.clear();
+			}
+
+			// Object Placement STARTED (V-24, OP-1): inteng's entry FUN_004d68e0, called only by the hub (FUN_004452b0) and by the Shape Chooser's return, sets DAT_008f4f50 = 0 (0x4d83fe)
+			// unless it comes back from the chooser (DAT_008f4f38 = 1: 0x4d83b3 skips it; our chooser's return does not come through here); the Misc item 0x58 is ticked by it (0x4d8422-0x4d842c,
+			// the panels' loop: editor_panels.cpp). Its own pages (Track Editing, the sounds' page) are no new start.
+			auto const placementAny = [](size_t screen) {
+				if (screen >= host::kIntengScreenCount)
+				{
+					return false;
+				}
+
+				char const *const name = host::kIntengScreens[screen].name;
+
+				return strncmp(name, "Object Placement", 16) == 0 || strncmp(name, "Placement mode", 14) == 0 || strcmp(name, "Track Editing") == 0 || strcmp(name, "Shape Chooser") == 0;
+			};
+
+			if (placementAny(barScreen) && !placementAny(wasScreen))
+			{
+				placementGravity = false;
+				placementNoCollide.clear();   // and every block collides again (0x4d847d: +0x5c bit 0x2000 cleared; V-7)
 			}
 		}
 
@@ -9828,6 +10322,13 @@ static void HandleEvent(const ui::Event &event)
 // OURS, named: the scale is the view's own projection scale (LevelView_SetProjectionScale: from 0.1 to 10 times the game's, where inteng's whole numbers reach 1000000 / (half the width)); the turn is added to the camera's turn and
 // look (the same rotation when the camera is not rolled); a zoom is kept while the level is open.
 int zoomStage = 0;               // 0 none, 1 waiting for the centre, 2 the rectangle moves
+
+// inteng's modal waits that stand the screen's frame still: Scroll Lock's pick (FUN_004720c0) and Insert's zoom (FUN_00471cb0: its own loops 0x471cda-0x471ce6 and 0x471e80-0x471f71 read only the
+// mouse word, the pointer and Escape). Meanwhile no key acts (a key down is only held), no screen frame reads a held key, the camera's mover does not run (a review of S-VOL-11, 11-17)
+static bool ModalWaitOn()
+{
+	return rotationPickWaiting || zoomStage != 0;
+}
 float zoomScale = 1.0f;          // the projection scale the zoom gives (1 = the game's own, what Home puts back)
 int zoomCentre[2] = { 0, 0 };    // the centre chosen, in the view's own pixels from its middle
 int zoomHalf = 0;                // half the rectangle's width, in pixels
@@ -10079,6 +10580,64 @@ static int NoFileScreen(int width, int height, char const *picturePath)
 	return 0;
 }
 
+// SCROLL LOCK'S PICK, a press or a held button's move while it waits (CAM-8; FUN_004720c0 0x472114-0x472166, modal: it takes every press, before any screen's own): the frame picks at the pointer
+// (RotationPickAnswer). Only the 3D view counts: with the three views up, its quarter (inteng's FUN_00559750 tests the press against the outlines drawn where it is, so a 2D quarter's or the bars'
+// press most likely hits nothing); elsewhere a press hits nothing and the wait goes on.
+static void RotationPickPress(HWND window, LPARAM lParam)
+{
+	POINT const at = InThePanels(window, lParam);
+
+	if (OnAPanel(at.x, at.y) || window != hWndMain || (threeMainBox.width > 0 && !ui::BoxHolds(threeMainBox, at.x, at.y)))
+	{
+		return;
+	}
+
+	pickAsked = true;
+	pickShift = false;
+	pickCtrl = false;
+	pickDelete = false;
+	pickWithS = false;
+	pickX = GET_X_LPARAM(lParam);
+	pickY = GET_Y_LPARAM(lParam);
+	pickInBox = threeMainBox.width > 0;
+
+	if (pickInBox)
+	{
+		pickX = at.x - threeMainBox.x;
+		pickY = at.y - threeMainBox.y;
+	}
+}
+
+// Scroll Lock's pick given up (the right button, or Esc held while a button is down): the centre as it was; a held button's move may have asked the frame for a pick, which is then no click either
+static void RotationPickGiveUp()
+{
+	rotationPickWaiting = false;
+	rotationPickButtonHeld = false;
+	pickAsked = false;
+}
+
+// A button pressed while Scroll Lock's pick waits (FUN_004720c0 0x472130-0x472140): the right one gives up (bit 2), so does any with Esc held at that moment (the Esc slot is read only then: Esc on its
+// own does nothing); the left and the middle pick (any bit but 2 reaches FUN_00559750). True: the press is the pick's.
+static bool RotationPickButton(HWND window, LPARAM lParam, bool right)
+{
+	if (!rotationPickWaiting)
+	{
+		return false;
+	}
+
+	if (right || KeyHeldNow(VK_ESCAPE))
+	{
+		RotationPickGiveUp();
+	}
+	else
+	{
+		rotationPickButtonHeld = true;
+		RotationPickPress(window, lParam);
+	}
+
+	return true;
+}
+
 static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	if (noFileScreenOn)
@@ -10192,6 +10751,53 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		case WM_SYSKEYDOWN:
 		case WM_CHAR:
 		{
+			// Scroll Lock's pick waiting (CAM-8): FUN_004720c0's loop reads no key, so no key acts; a key down is only HELD (inteng's key tables follow the keys during the loop, FUN_0058c010),
+			// which is how Esc held at a press gives the pick up (0x472139) and how keys held through the wait act after it
+			if (rotationPickWaiting)
+			{
+				if (message == WM_KEYDOWN)
+				{
+					keyDown[wParam & 0xFF] = true;
+
+					// Esc pressed while a press of the wait is still down: the loop's next round sees the button and Esc together and gives up (0x472139)
+					if (wParam == VK_ESCAPE && rotationPickButtonHeld)
+					{
+						RotationPickGiveUp();
+					}
+				}
+
+				// Windows' own system keys go on to it (Alt+F4 closes the window, as it does in inteng's wait: the pump FUN_0058b700 dispatches them)
+				if (message == WM_SYSKEYDOWN)
+				{
+					break;
+				}
+
+				return 0;
+			}
+
+			// Insert's zoom waiting (FUN_00471cb0): its loops read only the mouse word, the pointer and Escape (0x471ce6 / 0x471f69: Escape gives it up), so no other key acts meanwhile, Home
+			// included; a key down is only held (a review of S-VOL-11, 11-17: Home, H / N, F keys and the volume editor's keys acted during the wait)
+			if (zoomStage != 0)
+			{
+				if (message == WM_KEYDOWN)
+				{
+					keyDown[wParam & 0xFF] = true;
+
+					if (wParam == VK_ESCAPE)
+					{
+						ZoomCancel();   // "(escape cancels process)"
+						statusWords = "Zoom cancelled";
+					}
+				}
+
+				if (message == WM_SYSKEYDOWN)
+				{
+					break;
+				}
+
+				return 0;
+			}
+
 			// the live Snap To Vertex: Escape (slot 0xd87a45) puts the object back where it was, nothing written (0x4da8ef-0x4da941)
 			if (snapLive && message == WM_KEYDOWN && wParam == VK_ESCAPE)
 			{
@@ -10263,10 +10869,18 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				return 0;
 			}
 
+			// the pick (FUN_00527540) and the collector (FUN_00526bf0) are loops of their own: each reads the mouse and Return (the collector also its L, Ctrl and Shift) and runs FUN_00529370's frame
+			// (the view distance, Insert / Home), never the mode's own key reader FUN_00524e90 (E = Edit Strategy 0x524ee7, Tab = back to Object Placement 0x524eca) nor a view's V. So E, V and Tab do
+			// nothing while either waits. Before, they fell through to the mode: E opened the view again and left the pick's choice the selection, drawn red with nothing picked (S-62's review, 11-17)
+			if (OnStrategyScreen() && (!strategyPickField.empty() || copyCollecting) && !ADialogIsOpen() && message == WM_KEYDOWN && (wParam == 'E' || wParam == 'V' || wParam == VK_TAB))
+			{
+				return 0;
+			}
+
 			// the Mission Objective's P / V (S-K70-8, 0x532dc3: slots 0xd87a90 / 0xd87a96): the alteration row under the POINTER's y has its word bit 2 / bit 1 flipped
 			// a Track Object's main page: P (slot 0xd87a90) acts as a click at y 32 (S-K72-2)
 			// (the "Which ...?" window P opens never gets P's own letter: dialogKeySwallowChar, as for every key that opens one of inteng's windows)
-			if (strategyEditFan && (strategyEditKind == 72 || strategyEditKind == 80) && trackPage < 0 && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && wParam == 'P')
+			if (strategyEditFan && !volume.on && (strategyEditKind == 72 || strategyEditKind == 80) && trackPage < 0 && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && wParam == 'P')
 			{
 				StrategyViewClickAt(0, 32);
 				dialogKeySwallowChar = ADialogIsOpen() ? 'p' : 0;
@@ -10274,7 +10888,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			}
 
 			// a Hierarchy Object's main page: P (slot 0xd87a90) acts as a click at y 16 (FUN_00533a40 0x533ba5; S-K76-2)
-			if (strategyEditFan && strategyEditKind == 76 && trackPage < 0 && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && wParam == 'P')
+			if (strategyEditFan && !volume.on && strategyEditKind == 76 && trackPage < 0 && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && wParam == 'P')
 			{
 				StrategyViewClickAt(0, 16);
 				dialogKeySwallowChar = ADialogIsOpen() ? 'p' : 0;
@@ -10282,7 +10896,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			}
 
 			// a Binary or Linked Switch's T (slot 0xd87a94, FUN_0052d700 0x52d9ee): the target pick, as a press on its line (S-K52-4); P (slot 0xd87a90, 0x52da56): the Switch Properties form (S-K52-3)
-			if (strategyEditFan && (strategyEditKind == 52 || strategyEditKind == 61) && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && (wParam == 'T' || wParam == 'P'))
+			if (strategyEditFan && !volume.on && (strategyEditKind == 52 || strategyEditKind == 61) && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && (wParam == 'T' || wParam == 'P'))
 			{
 				StrategyViewClickAt(0, wParam == 'T' ? 0x50 : 0x20);
 				dialogKeySwallowChar = wParam == 'P' && ADialogIsOpen() ? 'p' : 0;   // P's letter is not typed into the form's seconds field
@@ -10291,7 +10905,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 
 			// a Multiple Target Switch's keys (FUN_0052f700 0x52fbda-0x52feb0; S-K66-3..7), each on the target row under the POINTER (StrategyView_MultiTargetAt): S flips its request's bit 0 (slot 0xd87a93),
 			// D duplicates it, Shift + D removes it (0xd87a84, FUN_00530430 / FUN_005304a0), T flies to it and opens the targets' collector (0xd87a94, FUN_0052ff10), P the form (0xd87a90); E is the common E
-			if (strategyEditFan && (strategyEditKind == 66 || strategyEditKind == 68) && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && (wParam == 'S' || wParam == 'D' || wParam == 'T' || wParam == 'P'))
+			if (strategyEditFan && !volume.on && (strategyEditKind == 66 || strategyEditKind == 68) && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && (wParam == 'S' || wParam == 'D' || wParam == 'T' || wParam == 'P'))
 			{
 				if (wParam == 'P')
 				{
@@ -10307,13 +10921,13 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			}
 
 			// a Multiple Target Switch's Space (slot 0xd87a5d, 0x52fdbc-0x52fdcf): the next page of 15 targets, back to the first past the last
-			if (strategyEditFan && (strategyEditKind == 66 || strategyEditKind == 68) && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && wParam == VK_SPACE)
+			if (strategyEditFan && !volume.on && (strategyEditKind == 66 || strategyEditKind == 68) && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && wParam == VK_SPACE)
 			{
 				MultiNextPage();
 				return 0;
 			}
 
-			if (strategyEditFan && strategyEditKind == 70 && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && (wParam == 'P' || wParam == 'V'))
+			if (strategyEditFan && !volume.on && strategyEditKind == 70 && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && (wParam == 'P' || wParam == 'V'))
 			{
 				MissionToggleUnderPointer(wParam == 'P' ? 2 : 1);
 				return 0;
@@ -10321,7 +10935,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 
 			// an Edit view ends with Escape (slot 0xd87a45, FUN_0058c010 case 0x1b; S-KC-3). A dialog open over the view takes the Escape itself (FUN_0057c800 0x57cc91: it answers 1 and clears the slot), so the view goes on
 			// E on a view with a target (S-K62-5, S-K69-6, S-K72-6, the Track main page 0x534a82): the target's extra request data page (S-KC-8)
-			if (strategyEditFan && !requestPageOn && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && wParam == 'E')
+			if (strategyEditFan && !volume.on && !requestPageOn && strategyPickField.empty() && !copyCollecting && !ADialogIsOpen() && message == WM_KEYDOWN && wParam == 'E')
 			{
 				StrategyRequestE();
 				return 0;
@@ -10555,6 +11169,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					{
 						// the key only ended the play
 					}
+					else if (onTextureMap && !textureChooserOn && !textureAnimPick && !textureAnimCopyPick && !textureCopyObject && !textureCopyPending && !textureInvertPending &&
+						!(textureSHeld && (wParam == VK_UP || wParam == VK_LEFT || wParam == VK_RIGHT || wParam == VK_DOWN)) && TextureMapKeyCommandRun((uint8_t)wParam, shiftHeld, false))
+					{
+						// inteng's key table took the key (FUN_00557ea0; texture_map_screen.cpp TextureMapKeyCommandRun): the X / Y / E / R, G, U, T, C and L branches below are only
+						// reached by keys it gives no command
+					}
 					else if (HierarchyKey(wParam))
 					{
 						// the Hierarchy view's keys (Space, comma, period, Home, End)
@@ -10572,18 +11192,21 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 						ZoomReset();   // the Movement help's Home: back to the default zoom level
 						statusWords = "The zoom is back to the default level";
 					}
+					else if (wParam == VK_SCROLL && !(lParam & 0x40000000) && !onTextureMap && !(OnStrategyScreen() && (StrategyInASubLoop() || strategyEditFan)) && !volume.on && zoomStage == 0 &&
+						!host::ClickMode_Waiting() && !moveRelWaiting && !snapLive && !AutoLinkShow_On())
+					{
+						// nor while another of inteng's modal waits holds the frame (Insert's zoom FUN_00471cb0, a click-mode's or Move rel. to poly's wait, the live Snap To Vertex, AutoLink's run): WinMain
+						// does not get round to 0x58d004 until it ends (a review of the camera close-out, 11-17)
+						// Scroll Lock (WinMain 0x58d004-0x58d00d, after every screen's frame): the rotation centre's pick waits for its press (FUN_004720c0, CAM-8). Not where inteng's frame is inside a
+						// loop of its own and never gets back to WinMain: Strategy Data's flag page, Stability, the collectors, the pick loop and the volume editor (FUN_00529370's loops) and a kind's Edit
+						// view (FUN_0052cbb0's wait). TO CHECK: Texture Map (its menu's "Misc > Screenshot (Scroll Lock)"; the mode is paused), left out until read. NAMED: inteng runs it each frame the
+						// key is HELD (a pick made with the key still down starts another); ours, once a press
+						rotationPickWaiting = true;
+					}
 					else if (zoomStage != 0 && wParam == VK_ESCAPE)
 					{
 						ZoomCancel();   // "(escape cancels process)"
 						statusWords = "Zoom cancelled";
-					}
-					else if (onTextureMap && wParam == VK_TAB)
-					{
-						TextureWindowToggle();
-					}
-					else if (onTextureMap && textureWindowOn && (wParam >= '1' && wParam <= '4'))
-					{
-						textureWinNode = (int)(wParam - '1') < textureWinCount ? (int)(wParam - '1') : textureWinNode;
 					}
 					else if (onTextureMap && textureWindowOn && (wParam == VK_LEFT || wParam == VK_RIGHT || wParam == VK_UP || wParam == VK_DOWN))
 					{
@@ -10606,20 +11229,6 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 						// S and an arrow key: arrow selection
 						textureArrowAsked = wParam == VK_UP ? 1 : wParam == VK_LEFT ? 2 : wParam == VK_RIGHT ? 3 : 4;
 					}
-					else if (onTextureMap && !shiftHeld && (wParam == 'X' || wParam == 'Y' || wParam == 'E' || wParam == 'R'))
-					{
-						// inteng's help: X / Y flip, E / R turn (the commands 6, 7, 0x19, 0x1b)
-						TextureMapEdit(wParam == 'X' ? 6 : wParam == 'Y' ? 7 : wParam == 'E' ? 0x19 : 0x1b);
-
-						if (textureWindowOn)
-						{
-							TextureWindowLoad();
-						}
-					}
-					else if (onTextureMap && wParam == 'G' && !textureFound.empty())
-					{
-						TextureGoto(shiftHeld ? -1 : 1);   // 0xbd: Goto next poly (Shift+G: previous)
-					}
 					else if (onTextureMap && (textureAnimPick || textureAnimCopyPick || textureCopyObject) && wParam == VK_ESCAPE)
 					{
 						textureAnimPick = false;
@@ -10631,10 +11240,6 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					{
 						textureCopyPending = false;
 						statusWords = "Texture Map: copy texturing cancelled";
-					}
-					else if (onTextureMap && wParam == 'U' && !shiftHeld)
-					{
-						TextureMapCommand(0x31);   // inteng's U: Copy Texturing > Polygon
 					}
 					else if (onTextureMap && textureInvertPending && (wParam == 'A' || wParam == VK_ESCAPE))
 					{
@@ -10654,23 +11259,10 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 							statusWords = "Texture Map: invert cancelled";
 						}
 					}
-					else if (onTextureMap && (wParam == 'T' || wParam == 'C'))
-					{
-						// Wrap (0x2e) and Tile (0x2f): "Choose Polygon for plane" - the next click names the plane (the keys are ours: T wrap, Shift+T tile; C is a second key for tile: a posted key message cannot hold Shift for the scenario harness, and inteng's own U is Copy Texturing)
-						int const wanted = (shiftHeld || wParam == 'C') ? 2 : 1;
-
-						texturePlaneMode = texturePlaneMode == wanted ? 0 : wanted;
-						statusWords = texturePlaneMode ? (texturePlaneMode == 2 ? "Tiling texture: Choose Polygon for plane (T again cancels)" : "Wrap: Choose Polygon for plane (T again cancels)") : "Texture Map: plane pick cancelled";
-					}
 					else if (onTextureMap && (wParam == VK_NEXT || wParam == VK_PRIOR))
 					{
 						// Next Texture / Prev Texture (inteng's items 0xa and 0xb; the keys are ours)
 						TextureMapStepPicture(wParam == VK_NEXT ? 1 : -1);
-					}
-					else if (wParam == 'L' && !shiftHeld && onTextureMap)
-					{
-						// the Texture Map mode's "L: deselect all polygons" (inteng's help block, p11 section 52)
-						TextureMapDeselectAll();
 					}
 					else if (wParam >= VK_F1 && wParam <= VK_F12)
 					{
@@ -10715,10 +11307,11 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 						// Path mode's keys (FUN_004f9d10: slot 0xd87a8c L = Add selected module to path, 0xd87a84 D = Delete last module, 0xd87a90 P = Properties); D is a movement key in the Modern layout
 						PathModeCommand(wParam == 'L' ? 3 : (wParam == 'D' ? 4 : 9));
 					}
-					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && (wParam == 'T' || wParam == 'V') && !shiftHeld)
+					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && wParam == 'V' && !shiftHeld)
 					{
-						// the Edit Strategy dialog's "T : Change Target" and "V : Edit Volume" (inteng's strings), as keys on the Strategy screen: the same click picks as the items
-						StrategyModeCommand(wParam == 'T' ? 0x100 : 0x101);
+						// the Edit Strategy dialog's "V : Edit Volume" (inteng's string), as a key on the Strategy screen: the same click pick as the item. (S-59, Vasquez 11-17: T no longer does the
+						// same with "T : Change Target": inteng reads T only inside the switch kinds' Edit views, which take it before this (52 / 61 / 66 / 68), and does nothing with it on page 0)
+						StrategyModeCommand(0x101);
 					}
 					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && wParam == 'E' && !shiftHeld)
 					{
@@ -10738,6 +11331,14 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 						strategyFromPlacement = true;
 						ShowTheScreen(strategyScreen);
 						statusWords = "Strategy Data: Tab or Exit goes back to Object Placement";
+					}
+					else if (OnTheTrackScreen() && trackEd.state == host::TrackState::EndEdit && wParam == 'V' && !shiftHeld)
+					{
+						// V in the end edit: Snap To Vertex, live, on the flying marker (T-3b); with the marker not flying inteng does nothing
+						if (!TrackSnapLiveStart())
+						{
+							statusWords = "Snap To Vertex: the end marker is not flying (F flies it)";
+						}
 					}
 					else if (OnTheTrackScreen() && wParam == 'T' && shiftHeld)
 					{
@@ -10779,6 +11380,18 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					}
 					else if (OnTheTrackScreen() && trackEd.state != host::TrackState::Off && wParam == 'P')
 					{
+						// CAM-4: while the marker flies, the turn so far is kept and the swing about the pivot counts from here (inteng flips DAT_00914afc with it, 0x4dc8bd, so the next frames turn
+						// the other way; the place the marker has stays)
+						float base[4], turned[4];
+
+						if (trackFly && trackEd.state == host::TrackState::EndEdit && host::TrackEdit_MarkerBase(trackEd, base) &&
+							host::TrackPlay_TurnedBy(base, trackEd.markerTurn[0], trackEd.markerTurn[1], trackEd.markerTurn[2], turned))
+						{
+							int32_t const at[3] = { threeCursor[0], threeCursor[1], threeCursor[2] };
+
+							TrackMarkerSnapPut(at, turned, true);
+						}
+
 						trackTurnAboutPivot = !trackTurnAboutPivot;
 						trackEd.markerAboutPivot = trackTurnAboutPivot;
 						statusWords = trackTurnAboutPivot ? "The marker's turn is about the pivot" : "The marker's turn is about the centre (the object stays at its end place)";
@@ -10846,6 +11459,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		}
 		case WM_LBUTTONDOWN:
 		{
+			// Scroll Lock's pick waiting takes the press before anything else (CAM-8)
+			if (RotationPickButton(window, lParam, false))
+			{
+				return 0;
+			}
+
 			// Module Linking's Show All is let go by a mouse button (_DAT_00d8806a, 0x4c1aff); the press then goes on as a click (0x4c36a8) (row ML-M-3)
 			if (showAllHeld && OnModuleLinkingScreen())
 			{
@@ -11074,7 +11693,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					pickShift = ShiftDown() || (wParam & MK_SHIFT) != 0;
 					pickCtrl = KeyHeldNow(VK_CONTROL) || (wParam & MK_CONTROL) != 0;
 					pickDelete = KeyHeldNow(VK_DELETE);   // Module Linking: Delete + click takes a module off the picks (slot 0x55 = VK 0x2e, FUN_004c3880)
-					pickWithS = keyLayout == KeyLayout::Classic && keyDown['S'] && barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && strategyFlagPage;   // S + click is the flag page's (FUN_00525700 0x525dbf); page 0 takes it as a plain click (S-58)
+					pickWithS = keyLayout == KeyLayout::Classic && keyDown['S'] && barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && strategyFlagPage && !pickShift;   // S + click is the flag page's (FUN_00525700 0x525db2 / 0x525dbf), but Shift is tested first (0x525cba-0x525cc1: Shift down skips the S read): Shift + S + click is Shift + click (0x525cc7, out of the list, red off 0x525da8; S-69); page 0 takes it as a plain click (S-58)
 					pickX = GET_X_LPARAM(lParam);
 					pickY = GET_Y_LPARAM(lParam);
 					pickInBox = threeMainBox.width > 0 && ui::BoxHolds(threeMainBox, at.x, at.y);
@@ -11091,6 +11710,13 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		}
 		case WM_LBUTTONUP:
 		{
+			// Scroll Lock's pick waiting: the release is the wait's own (its press was), and a miss now waits for a new press (0x472119)
+			if (rotationPickWaiting)
+			{
+				rotationPickButtonHeld = false;
+				return 0;
+			}
+
 			if (textureWinDrag)
 			{
 				POINT const dropped = InThePanels(window, lParam);
@@ -11154,12 +11780,45 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				textureSHeld = false;
 			}
 			return 0;
+		case WM_SYSKEYUP:
+			// A key let go of while Alt is down comes as WM_SYSKEYUP, not WM_KEYUP: without this it stayed held in the table (Ctrl let go under Alt, then a plain B ran
+			// Ctrl+B, the Headlight: ML-M-76 of module-linking-map-dietrich.md). inteng reads its key table from the keys' real state, so a key let go is up. The message
+			// still goes on to DefWindowProc, as before. (Added 2026-11-17 by Melanikus (Dietrich).)
+			keyDown[wParam & 0xFF] = false;
+
+			if (wParam == 'S')
+			{
+				textureSHeld = false;
+			}
+			break;
 		case WM_KILLFOCUS:
 			// A key let go of while another window has the keyboard never reaches this one, so every key counts as up
 			memset(keyDown, 0, sizeof(keyDown));
 			rightButtonDown = false;
 			return 0;
+		case WM_MBUTTONDOWN:
+			// Scroll Lock's pick waiting: the middle button picks too (bit 4 is not the cancel's bit 2)
+			if (RotationPickButton(window, lParam, false))
+			{
+				return 0;
+			}
+
+			break;
+		case WM_MBUTTONUP:
+			if (rotationPickWaiting)
+			{
+				rotationPickButtonHeld = false;
+				return 0;
+			}
+
+			break;
 		case WM_RBUTTONDOWN:
+			// Scroll Lock's pick waiting takes the press before anything else: the right button gives up (CAM-8)
+			if (RotationPickButton(window, lParam, true))
+			{
+				return 0;
+			}
+
 			// while AutoLink runs, a right press cancels it (inteng: DAT_00d8806a & 2 at the top of each record, 0x4c899c; AD-4) and does nothing else: no pop-up
 			if (AutoLinkShow_On())
 			{
@@ -11179,6 +11838,16 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				POINT const press = InThePanels(window, lParam);
 
 				host::Dialogs_RightPress(press.x, press.y);
+				return 0;
+			}
+
+			// A zoom waiting: any button chooses the centre, the right one then zooms out. Its loop is modal (FUN_00471cb0 reads only the mouse and Escape, and clears the mouse word at its end,
+			// 0x471e48 / 0x4720ad), so no end test of a loop under it sees the press: not the volume editor's, not an Edit view's (the volume editor runs from a kind's view), not a pick's or a collector's
+			if (zoomStage != 0)
+			{
+				POINT const zoomAt = InThePanels(window, lParam);
+
+				ZoomPress(zoomAt.x, zoomAt.y, true);
 				return 0;
 			}
 
@@ -11245,15 +11914,6 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				return 0;
 			}
 
-			// A zoom waiting: any button chooses the centre, the right one then zooms out
-			if (zoomStage != 0)
-			{
-				POINT const zoomAt = InThePanels(window, lParam);
-
-				ZoomPress(zoomAt.x, zoomAt.y, true);
-				return 0;
-			}
-
 			// With a pop-up open, a right press elsewhere closes it (a press on one of its items picks it)
 			if (popupBar.IsOpen())
 			{
@@ -11315,6 +11975,18 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			rightButtonDown = false;
 			return 0;
 		case WM_MOUSEMOVE:
+			// Scroll Lock's pick waiting with the left or middle button still held: a press that hit nothing picks again where the pointer is now (FUN_004720c0 0x472166 jumps back with the button
+			// bits kept, and the pointer is read again each time round, so dragging onto an object picks it); nothing else follows the pointer meanwhile
+			if (rotationPickWaiting)
+			{
+				if ((wParam & (MK_LBUTTON | MK_MBUTTON)) && !(wParam & MK_RBUTTON) && !KeyHeldNow(VK_ESCAPE))
+				{
+					RotationPickPress(window, lParam);
+				}
+
+				return 0;
+			}
+
 			if (onTextureMap && textureChooserOn)
 			{
 				POINT const over = InThePanels(window, lParam);
@@ -11787,7 +12459,9 @@ static void MoveTheCamera(FlyCamera *camera, bool moves = true)
 
 		TurnKeysOfFrame(cameraTurnCarry, angles);
 
-		int const half = frameViewWidth / 2;
+		// the view's scale (+0x34 / +0x38): half the width, times Insert's zoom (FUN_00471cb0 multiplies the scale, FUN_004721a0 puts half the width back), so a zoom in slows the turn
+		// (camera-closeout-drake.md CAM-2, Drake 11-17: the zoom was left out)
+		int const half = (int)((double)(frameViewWidth / 2) * (double)zoomScale);
 
 		if (half > 0x200)
 		{
@@ -11809,7 +12483,26 @@ static void MoveTheCamera(FlyCamera *camera, bool moves = true)
 			int32_t view[9];
 
 			LevelView_MatrixOfAngles(camera->turn, camera->look, camera->roll, view);
-			LevelView_TurnMatrix(view, angles);
+
+			// '/' or numpad / held (0x53dec0-0x53ded6, the manual's "Rotate Camera Around Environment"): the camera SWINGS ROUND the rotation centre by the turn, about the world's axes with '/',
+			// about its own with numpad / (LevelView_OrbitTurn, CAM-3); else it turns where it is (0x53df78). NOT BUILT HERE: DAT_00914afc's turn about a point the camera carries (CAM-4,
+			// Track Editing's, Vasquez). NAMED: while an entry point flies (Waypoint's F, FUN_0058b550: the marker has the mover) inteng would swing the MARKER round the centre; ours turns the
+			// camera in place then (the entry fly takes only the camera's place change, which an orbit of the camera would move the marker by wrongly)
+			if (!entryFlying && (KeyHeldNow(VK_OEM_2) || KeyHeldNow(VK_DIVIDE)))
+			{
+				int32_t place[3] = { camera->x, camera->y, camera->z };
+
+				LevelView_OrbitTurn(view, place, rotationCentre, angles, KeyHeldNow(VK_DIVIDE));
+				camera->x = place[0];
+				camera->y = place[1];
+				camera->z = place[2];
+				FlyCamera_Hold(camera);
+			}
+			else
+			{
+				LevelView_TurnMatrix(view, angles);
+			}
+
 			LevelView_AnglesOfMatrix(view, &camera->turn, &camera->look, &camera->roll);
 		}
 	}
@@ -11905,7 +12598,31 @@ static void MoveTheCamera(FlyCamera *camera, bool moves = true)
 // INTENG BUG FIXED, NAMED (section 15): with X, Down adds 0x3e87360 to the world y where every other key adds 0x10000 (0x53e1c6: 81 c1 60 73 e8 03, ADD ECX,0x3e87360; the exe's bytes read), so Down went
 // about 1000 times as far as Up; ours steps once, as Up does.
 // NOT HERE: Space's turn speeds +0x190.. (always 0 for a flown object: no joystick). The turn keys' +0x1ac.. are worked out again each frame from the keys (A-7), so Space zeroing them changes nothing.
+static void MoveTheFlyingObjectFree(bool turns);
+
+// OP-118: with L on (the object collides: every block does on the screen's entry, OP-3, and L flips it), the frame's move goes through the object's own strategy block in the game's ObjectDynamics
+// (LevelView_FlyCollideMove: gravity off, the level's polygons and the other objects in its way), so the object stops at a wall as inteng's engine stops its block (inteng: strategy 7, the ellipsoid;
+// ours: the game's own collision shape for that object, NAMED). L off: it goes through.
 static void MoveTheFlyingObject(bool turns)
+{
+	int32_t const before[3] = { flyWorld[0], flyWorld[1], flyWorld[2] };
+
+	MoveTheFlyingObjectFree(turns);
+
+	if (flyOn && flyReal && PlacementCurrentCollides() && (flyWorld[0] != before[0] || flyWorld[1] != before[1] || flyWorld[2] != before[2]))
+	{
+		int32_t reached[3];
+
+		if (LevelView_FlyCollideMove(flyId, before, flyWorld, reached))
+		{
+			flyWorld[0] = reached[0];
+			flyWorld[1] = reached[1];
+			flyWorld[2] = reached[2];
+		}
+	}
+}
+
+static void MoveTheFlyingObjectFree(bool turns)
 {
 	// C held: nothing moves, the glide neither
 	if (keyDown['C'])
@@ -13848,16 +14565,23 @@ std::string HexOf(const uint8_t *id)
 // says how many there are and names the one now selected, and each press goes on to the next (the UI is ours, what is listed is inteng's).
 // matches FUN_00404a20 (menu-reads-1-full.txt:7332-7420). Its first step, FUN_00404040, writes the CURRENT module's list back, and does nothing while
 // no module is current (DAT_005c3868 < 0), which is always so until Set Current is built. (Added 2026-11-15 by Melanikus (Drake).)
+static void FindNotDoneAfterTheWrite();
+
 static void FindNotDoneAdjacent()
 {
-	static size_t next = 0;
-
-	// FUN_00404a20 0x68 calls the write-back first (FUN_00404040): a module made adjacent just now counts
-	if (!WriteTheAdjacentList())
+	// FUN_00404a20 0x68 calls the write-back first (FUN_00404040): a module made adjacent just now counts. Its questions come first (AD-6a); the scan once they are answered
+	WriteTheAdjacentListThen([](bool ok)
 	{
-		return;
-	}
+		if (ok)
+		{
+			FindNotDoneAfterTheWrite();
+		}
+	}, true);   // the list stays changed (AD-6a-2)
+}
 
+static void FindNotDoneAfterTheWrite()
+{
+	static size_t next = 0;
 	std::vector<host::ModuleWithoutAdjacency> none;
 
 	if (!LevelObjects_Level())
@@ -13907,59 +14631,213 @@ static void FindNotDoneAdjacent()
 			FlyCamera_Hold(theCamera);
 		}
 
-		AdjacentEdit(kAdjSetCurrent);
+		AdjacentMakeCurrentFromList();   // no second write (AD-6a-2)
 	});
 }
 
 
 // Adjacent Modules, Misc, Recalculate Entry Points (inteng's FUN_00403d50, menu-reads-2.txt:60-194): every entry of every module's adjacent-module
 // list is worked out again (entry_recalc.h: the data side, as inteng's FUN_00402ae0 does it, AI groups included) and written into the level.
-// inteng says "Entry points calculated" (0x5c39c8) and, once the box is closed, WRITES THE LEVEL FILE (FUN_004719e0(DAT_0060801c, 0) at 0x4054a6,
-// whether anything changed or not): ours saves there too (SaveAtIntengsPoint), and the status line carries the save's words. The question inteng
-// asks when two modules don't touch is a named gap: the run goes on and the status line counts them. (Added 2026-11-15 by Melanikus (Drake).
-// The save added 2026-11-17 by Melanikus (Dietrich), AD-1 of reassess/adjacent-closeout-dietrich.md.)
-static void RecalculateEntryPoints()
+// For each pair that doesn't touch inteng asks "Warning adjacent modules don't touch\nFrom %s To %s\nWould you like to delete the adjacency?"
+// (0x5c38b4, FUN_00474a40: Yes / No): Yes takes THAT entry out and the run goes on (FUN_00403d50 0x403f9f, 0x403fd4: FUN_00429820), No works it out
+// as any other; an entry naming no object of the level is taken out without a word (0x403fb5-0x403fd4). Ours works the whole run out first, asks
+// the questions in the run's order, then writes it all (NAMED: inteng works each entry out after the answers before it; an answer takes out one
+// entry only, so a later one comes out the same unless its AI group reads that list). inteng says "Entry points calculated" (0x5c39c8) and, once
+// the box is closed, WRITES THE LEVEL FILE (FUN_004719e0(DAT_0060801c, 0) at 0x4054a6, whether anything changed or not): ours saves there too
+// (SaveAtIntengsPoint), and the status line carries the save's words. (Added 2026-11-15 by Melanikus (Drake). The save added 2026-11-17 by
+// Melanikus (Dietrich), AD-1; the questions and the taking out, AD-2 / AD-5 of reassess/adjacent-closeout-dietrich.md.)
+// FUN_00403d50 has three callers, and each goes on its own way once the run is done (AD-6): Adjacent's Recalculate Entry Points (0x405474: the box, then the save),
+// Module Linking's Exit + New / All Adjacencies (FUN_004c5a30 0x4c603a: the save, no box) and Waypoint's Recalculate all (FUN_00583d00 0x583fee: the markers made
+// again, no save). So the run is started by StartEntryRecalc (editor_shared.h) with what comes after it (done, given the run's words once all is written).
+struct EntryRecalcRun
+{
+	std::vector<host::EntryChange> changes;
+	std::vector<host::EntryDelete> deletes;   // the entries naming no object of the level (AD-5)
+	std::vector<size_t> asks;                 // the changes whose modules don't touch, in the run's order
+	std::vector<bool> takeOut;                // per change: the mapper answered Yes
+	host::EntryRecalcCounts counts;
+	unsigned generation;                      // the level's swap count when the run was worked out: the chunks it names are still the level's
+	std::string who;                          // the command, for the words when the run cannot be written
+	std::function<void(std::string const &)> done;   // the caller's way on, with the run's words (AD-6)
+};
+
+static void RecalculateEntryPointsFinish(std::shared_ptr<EntryRecalcRun> const &run)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
-	if (!open || !LevelObjects_Level())
+	if (!open || !LevelObjects_Level() || open->Generation() != run->generation)
 	{
-		Answer("No level is held to work on");
+		Answer(run->who + ": the level changed while it asked; nothing was written");
 		return;
 	}
 
-	host::LevelStore store(open);
-	std::vector<host::EntryChange> changes;
-	host::EntryRecalcCounts counts;
+	std::vector<host::EntryChange> write;
+	std::vector<host::EntryDelete> drop = run->deletes;
+	size_t answeredYes = 0;
 
-	if (!host::PlanEntryRecalc(LevelObjects_Level(), &store, &changes, &counts))
+	for (size_t i = 0; i < run->changes.size(); i++)
 	{
-		Answer("Entry points could not be worked out");
-		return;
+		host::EntryChange const &change = run->changes[i];
+
+		if (run->takeOut[i])
+		{
+			host::EntryDelete const one = { change.adjacency, change.mainIndex, change.adjacentIndex, change.entry };
+
+			drop.push_back(one);
+			answeredYes++;
+		}
+		else if (!change.keep)
+		{
+			write.push_back(change);
+		}
 	}
 
 	size_t refused = 0;
-	size_t const written = host::ApplyEntryRecalc(&store, changes, &refused);
-	std::string words = "Entry points calculated: " + std::to_string(counts.recalculated) + " worked out, " + std::to_string(written) + " changed";
+	size_t written = 0;
+	size_t deleted = 0;
+
+	{
+		host::LevelStore store(open);
+
+		written = host::ApplyEntryRecalc(&store, write, &refused);   // in place, before the image is made again for the deletions
+	}
+
+	host::AdjacentWriteResult const dropped = host::DeleteAdjacencyEntries(open, drop, &deleted);
+
+	if (deleted > 0)
+	{
+		LoadTheObjectListAgain();   // the deletions made a new image: the object list is read from it again
+	}
+
+	std::string words = "Entry points calculated: " + std::to_string(run->counts.recalculated) + " worked out, " + std::to_string(written) + " changed";
 
 	if (refused > 0)
 	{
 		words += ", " + std::to_string(refused) + " could not be written";
 	}
 
-	if (counts.notTouching > 0)
+	if (run->counts.notTouching > 0)
 	{
-		words += ", " + std::to_string(counts.notTouching) + " pairs of modules do not touch";
+		words += ", " + std::to_string(run->counts.notTouching) + " pairs of modules do not touch (" + std::to_string(answeredYes) + " taken out)";
 	}
 
-	Answer(words);
-
-	// FUN_00404a20 0x405479-0x4054a6: the message box after the work; when it is closed, the level file is written (0x4054a6)
-	DialogMessage("Entry points calculated", [words]()
+	if (run->counts.noObject > 0)
 	{
-		const std::string saved = SaveAtIntengsPoint();   // const first: Snyk Code's parser skips the whole file on "std::string const" in a lambda given to a call
+		words += ", " + std::to_string(run->counts.noObject) + " naming no module taken out";
+	}
 
-		Answer(words + "; " + saved);
+	if (run->counts.failedToPlace > 0)
+	{
+		words += ", " + std::to_string(run->counts.failedToPlace) + " failed to place in the adjacent module";
+	}
+
+	if (dropped != host::AdjacentWriteResult::Done || deleted != drop.size())
+	{
+		words += ", " + std::to_string(drop.size() - deleted) + " could not be taken out";
+	}
+
+	if (run->done)
+	{
+		run->done(words);
+	}
+}
+
+// FUN_00402ae0 0x4036c9-0x403730 (AD-7): when the worked-out point lies in no member of the adjacent list, the one-button box "Failed to placed entrypoint in adjacent
+// module\nFrom %s To %s" (0x5c3874, inteng's own spelling; FUN_00474030 + FUN_0057c800, its answer not read); the point is written all the same (it returns 1)
+static void RecalculateEntryPointsAsk(std::shared_ptr<EntryRecalcRun> const &run, size_t k);
+
+static void RecalculateEntryPointsFailedBox(std::shared_ptr<EntryRecalcRun> const &run, size_t k)
+{
+	host::EntryChange const &pair = run->changes[run->asks[k]];
+
+	DialogMessage("Failed to placed entrypoint in adjacent module\nFrom " + pair.mainName + " To " + pair.adjacentName, [run, k]()
+	{
+		RecalculateEntryPointsAsk(run, k + 1);
+	});
+}
+
+// One pair a step, in the run's order: the question for a pair that doesn't touch (0x4032a7: sprintf of 0x5c38b4 with the two modules' names, FUN_00474a40 + FUN_0057c800(100, 100)),
+// a Yes (3) taking that entry out (FUN_00402ae0 returns 0 at 0x403448, before the Failed box); then, unless the answer was Yes, the Failed box for a pair that failed to place
+// (the two are not exclusive: a No can be followed by the box for the same pair). After the last, the run is written.
+static void RecalculateEntryPointsAsk(std::shared_ptr<EntryRecalcRun> const &run, size_t k)
+{
+	if (k >= run->asks.size())
+	{
+		RecalculateEntryPointsFinish(run);
+		return;
+	}
+
+	host::EntryChange const &pair = run->changes[run->asks[k]];
+
+	if (!pair.notTouching)
+	{
+		RecalculateEntryPointsFailedBox(run, k);   // only the Failed box for this pair
+		return;
+	}
+
+	DialogConfirm("Warning adjacent modules don't touch\nFrom " + pair.mainName + " To " + pair.adjacentName + "\nWould you like to delete the adjacency?", [run, k](bool yes)
+	{
+		run->takeOut[run->asks[k]] = yes;
+
+		if (!yes && run->changes[run->asks[k]].failedToPlace)
+		{
+			RecalculateEntryPointsFailedBox(run, k);
+			return;
+		}
+
+		RecalculateEntryPointsAsk(run, k + 1);
+	});
+}
+
+bool StartEntryRecalc(std::string const &who, std::function<void(std::string const &)> const &done, int32_t onlyModule)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !LevelObjects_Level())
+	{
+		Answer("No level is held to work on");
+		return false;
+	}
+
+	std::shared_ptr<EntryRecalcRun> const run = std::make_shared<EntryRecalcRun>();
+	host::LevelStore store(open);
+
+	if (!host::PlanEntryRecalc(LevelObjects_Level(), &store, &run->changes, &run->counts, &run->deletes, onlyModule))
+	{
+		Answer(who + ": the entry points could not be worked out");
+		return false;
+	}
+
+	run->generation = open->Generation();
+	run->takeOut.assign(run->changes.size(), false);
+	run->who = who;
+	run->done = done;
+
+	for (size_t i = 0; i < run->changes.size(); i++)
+	{
+		if (run->changes[i].notTouching || run->changes[i].failedToPlace)
+		{
+			run->asks.push_back(i);   // a step: the question, the Failed box (AD-7), or both
+		}
+	}
+
+	RecalculateEntryPointsAsk(run, 0);
+	return true;
+}
+
+static void RecalculateEntryPoints()
+{
+	StartEntryRecalc("Recalculate Entry Points", [](std::string const &words)
+	{
+		Answer(words);
+
+		// FUN_00404a20 0x405479-0x4054a6: the message box after the work; when it is closed, the level file is written (0x4054a6)
+		DialogMessage("Entry points calculated", [words]()
+		{
+			const std::string saved = SaveAtIntengsPoint();   // const first: Snyk Code's parser skips the whole file on "std::string const" in a lambda given to a call
+
+			Answer(words + "; " + saved);
+		});
 	});
 }
 
@@ -15785,7 +16663,16 @@ void DeleteMultipleForm()
 			box++;
 		}
 
-		// the groups that work on the live objects (FUN_005373e0 pickups, FUN_00536de0 doors, FUN_005375d0 the species), in the order FUN_005380d0 runs them; boxes are numbered as the form's list
+		// S-87 (strategy-data.md, Vasquez 11-17): FUN_005380d0's order is the typed kinds first (0x53812e-0x5381da: Switches 52 / 61 / 66 / 68, Doors FUN_00536de0, Lighting effects, Mission
+		// Objective, Messages, Volume of Death, Self Destruct), then the pickups (FUN_005373e0, 0x5381fc), the species (FUN_005375d0, 0x538699), OBSOLETE SWITCHES LAST (FUN_00537030, 0x53874f),
+		// then always the repair pass (FUN_00536ad0, 0x538764) and the recolouring (FUN_00522650, 0x538769). (Ours ran Obsolete Switches first and no repair after: a virtual switch whose
+		// only target went in the same Ok survived.)
+		if (!typed.empty())
+		{
+			RunDeleteMulti(typed);
+		}
+
+		// the groups that work on the live objects (FUN_00536de0 doors, FUN_005373e0 pickups, FUN_005375d0 the species), in the order FUN_005380d0 runs them; boxes are numbered as the form's list
 		std::string live;
 		{
 			OpenLevelFile *const open = LevelObjects_OpenForEdit();
@@ -15807,16 +16694,6 @@ void DeleteMultipleForm()
 
 			if (open && on.size() == 20)
 			{
-				// Obsolete Switches (FUN_00537030, the second box, run before the doors): the repair pass, then every virtual switch whose network of targets is all virtual switches
-				if (on[1])
-				{
-					bool refused = false;
-
-					done = host::StrategyRepair_DeleteObsoleteSwitches(open, &refused);
-					live += (live.empty() ? "" : ", ") + std::string("Obsolete Switches") + (refused ? " (a destroy was refused)" : "");
-					total += done;
-				}
-
 				if (on[2])
 				{
 					done = 0;
@@ -15847,17 +16724,28 @@ void DeleteMultipleForm()
 					total += done;
 				}
 
+				// Obsolete Switches (FUN_00537030, the second box, LAST, 0x53874f): the repair pass, then every virtual switch whose network of targets is all virtual switches
+				if (on[1])
+				{
+					bool refused = false;
+
+					done = host::StrategyRepair_DeleteObsoleteSwitches(open, &refused);
+					live += (live.empty() ? "" : ", ") + std::string("Obsolete Switches") + (refused ? " (a destroy was refused)" : "");
+					total += done;
+				}
+
+				// ... and always the repair pass (FUN_00536ad0, 0x538764): the targets the deletes left dead are reset
+				if (host::StrategyRepair_Run(open) > 0 && live.empty())
+				{
+					live = "the repair pass";
+				}
+
 				if (!live.empty())
 				{
 					LoadTheObjectListAgain();
 					liveWords = "Delete Multiple Strategies: " + std::to_string((unsigned long long)total) + " more deleted (" + live + ")";
 				}
 			}
-		}
-
-		if (!typed.empty())
-		{
-			RunDeleteMulti(typed);
 		}
 
 		if (!liveWords.empty())
@@ -17774,19 +18662,26 @@ void VolumeBegin()
 	memcpy(volume.lo, lo, sizeof(lo));
 	memcpy(volume.hi, hi, sizeof(hi));
 
-	// a box that is not empty (some corner number differs, 0x5277fa): FUN_00529280(cube, 0) puts the camera at the cube's place, its centre (FUN_00582f40 0x5830c4), less ten times the camera's own
-	// motion numbers, 0 at rest (as Find Object's move, 0x5292c5); the current object stays (strategy-data.md S-VOL-2)
+	// a box that is not empty (some corner number differs, 0x5277fa): FUN_00529280(cube, 0) puts the camera at the cube's place, its centre (FUN_00582f40 0x5830c4), less ten times the camera's
+	// FORWARD axis (+0x50..+0x58, 16.16: 0x5292c1-0x529321; S-11, as Find Object's move, StrategyFlyTo: forward / 10 in the game's millimetres), its turn and look kept; the current object stays
+	// (strategy-data.md S-VOL-2). Was: the camera AT the centre (its comment read +0x50.. as motion numbers, 0 at rest)
 	if (theCamera && (lo[0] != hi[0] || lo[1] != hi[1] || lo[2] != hi[2]))
 	{
-		theCamera->x = (int)((lo[0] + hi[0]) / 2);
-		theCamera->y = (int)((lo[1] + hi[1]) / 2);
-		theCamera->z = (int)((lo[2] + hi[2]) / 2);
+		int32_t view[9];
+
+		// the camera's OWN forward (inteng's +0x50..+0x58: its live matrix's third row), from its angles: not LevelView_CameraAxes, which reads the last DRAWN frame, and V is pressed in
+		// a kind's Edit view, which draws no level (editViewBlack), so a turn made there would be missed (a skeptic's correction to the brief, 11-17)
+		LevelView_MatrixOfAngles(theCamera->turn, theCamera->look, theCamera->roll, view);
+		theCamera->x = (int)((lo[0] + hi[0]) / 2) - view[6] / 10;
+		theCamera->y = (int)((lo[1] + hi[1]) / 2) - view[7] / 10;
+		theCamera->z = (int)((lo[2] + hi[2]) / 2) - view[8] / 10;
 		FlyCamera_Hold(theCamera);
 	}
 	volume.kind = kind;
 	volume.face = -1;
 	volume.module = -1;
 	volume.objectPicked = false;
+	volume.iconPicked = false;
 	volume.last = 0;
 	volume.on = true;
 	strategyPick = 0;
@@ -17885,7 +18780,7 @@ static void VolumeFrame()
 	bool const plus = keyDown[VK_OEM_PLUS];
 	bool const minus = keyDown[VK_OEM_MINUS];
 
-	if (volume.face < 0 || plus == minus || dt <= 0.0)
+	if (volume.face < 0 || plus == minus || dt <= 0.0 || zoomStage != 0)   // no face moves while Insert's zoom waits (its own loop, S-VOL-11)
 	{
 		return;
 	}
@@ -17919,6 +18814,7 @@ static void VolumeEnd()
 	volume.face = -1;
 	volume.module = -1;
 	volume.objectPicked = false;
+	volume.iconPicked = false;
 
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	char const *loName = nullptr;
@@ -17967,6 +18863,20 @@ static bool VolumeKey(WPARAM key)
 		return false;
 	}
 
+	// Insert's zoom waiting (S-VOL-11): its own loop FUN_00471cb0 reads only the mouse, the pointer and Escape (0x471cda-0x471f71), and a tapped key's slot is cleared at its key-up
+	// (FUN_0058c5e0 0x58c6fe), so the editor's Return, S and X do nothing meanwhile, and Escape gives the zoom up
+	if (zoomStage != 0 && (key == VK_RETURN || key == 'S' || key == 'X'))
+	{
+		return true;
+	}
+
+	if (zoomStage != 0 && key == VK_ESCAPE)
+	{
+		ZoomCancel();
+		statusWords = "Zoom cancelled";
+		return true;
+	}
+
 	if (key == VK_RETURN)
 	{
 		VolumeEnd();
@@ -17977,7 +18887,7 @@ static bool VolumeKey(WPARAM key)
 	{
 		int32_t mins[3], maxs[3];
 
-		if ((volume.module >= 0 && LevelView_ModuleBox(volume.module, mins, maxs)) || (volume.objectPicked && LevelView_ObjectBox(volume.object, mins, maxs)))
+		if ((volume.module >= 0 && LevelView_ModuleBox(volume.module, mins, maxs)) || (volume.objectPicked && (volume.iconPicked ? StrategyIconBox(volume.object, mins, maxs) : LevelView_ObjectBox(volume.object, mins, maxs))))
 		{
 			for (int a = 0; a < 3; a++)
 			{
@@ -18005,22 +18915,40 @@ static void VolumeClick(host::PickReport const &report, bool shift, int32_t x, i
 {
 	if (!shift)
 	{
-		// FUN_00559720 gives the record under the pointer, module or object (0x527a5b): it is the picked one (strategy-data.md S-VOL-4)
+		// FUN_00559720 gives the record under the pointer, module or object (0x527a5b): it is the picked one (strategy-data.md S-VOL-4). Its records are inteng's display blocks, the editor's
+		// icons among them (a virtual object, a generator, a bad guy, a sound, a particle generator), so an icon nearer than what the level's pick met is the record, as on the screen's own
+		// click (StrategyIconUnderClick; Drake 11-17: the icons could not be picked here). S / X then take the icon's drawn box (StrategyIconBox; inteng's record box, 0x527b51-0x527ba4).
+		// NAMED: a placed hierarchy's icon (shape 4, PLACHIER, 0x53b66c) is not drawn on Strategy Data in ours (SpecialIconTriangles' !strategy gate), so it cannot be picked here
+		uint8_t icon[8];
+		bool const levelHit = report.found == host::PickFound::Module || report.found == host::PickFound::Object;
+
+		if (StrategyIconUnderClick(x, y, viewWidth, viewHeight, levelHit ? report.distance : -1, icon))
+		{
+			volume.module = -1;
+			volume.objectPicked = true;
+			volume.iconPicked = true;
+			memcpy(volume.object, icon, sizeof(volume.object));
+			return;
+		}
+
 		if (report.found == host::PickFound::Module)
 		{
 			volume.module = report.moduleIndex;
 			volume.objectPicked = false;
+			volume.iconPicked = false;
 		}
 		else if (report.found == host::PickFound::Object)
 		{
 			volume.module = -1;
 			volume.objectPicked = true;
+			volume.iconPicked = false;
 			memcpy(volume.object, report.objectId, sizeof(volume.object));
 		}
 		else if (report.found == host::PickFound::Nothing || report.found == host::PickFound::NoLine)
 		{
 			volume.module = -1;
 			volume.objectPicked = false;
+			volume.iconPicked = false;
 		}
 
 		return;
@@ -18096,7 +19024,8 @@ static void StrategyViewDistanceEveryFrame()
 		return;
 	}
 
-	if (strategyEditFan)
+	// a kind's Edit view reads neither H nor N; the volume editor, which runs from one, is FUN_00529370's loop, where H / N and the hiding go on (S-VOL-11, Drake 11-17)
+	if (strategyEditFan && !volume.on)
 	{
 		return;
 	}
@@ -18185,6 +19114,13 @@ void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 	// Copy took the source's red off first, 0x5283a5)
 	auto const isRed = [strategy](bool current, uint8_t const *id)
 	{
+		// in the volume editor the ONLY red record is the one it picked (FUN_005277c0 0x527a8b FUN_00529470 on it, an icon too, S-VOL-4): the view's own object lost its red before the view
+		// ran (FUN_00528830 0x52897d / FUN_005286b0 0x5286d7), so the subject's icon is not red (a review of S-VOL-4, 11-17: it stayed red)
+		if (strategy && volume.on)
+		{
+			return volume.objectPicked && memcmp(volume.object, id, 8) == 0;
+		}
+
 		if (!(strategy && copyCollecting))
 		{
 			return current;
@@ -19230,8 +20166,8 @@ int main(int, char **)
 	std::unique_ptr<OpenLevelFile> openLevel(new OpenLevelFile);
 	const char *const notHeldWords = NotHeldWords(LevelObjects_Hold(openLevel.get()));
 	editedLevel = openLevel.get();
-	copySavedGeneration = openLevel->Generation();   // Move relative and Name object change its bytes (M-1)
-	viewGeneration = openLevel->Generation();         // the game's view is of these bytes (ShowTheWorkingBytes)
+	copySavedChanges = openLevel->Changes();   // Move relative and Name object change its bytes (M-1)
+	viewChanges = openLevel->Changes();               // the game's view is of these bytes (ShowTheWorkingBytes)
 
 	// THE CAMERA FILE (inteng, FUN_00470950): the eleven saved camera places of this level, from <RIFFNAME>.cam, read after the first frame's camera is set (so they are used from the next F key or mode start). Ours is read from and
 	// written to the editor's own folder (camera_file.h says what is named); written when the program ends (FUN_00470610).
@@ -19336,6 +20272,7 @@ int main(int, char **)
 
 		bool const listRead = LevelObjects_Read(&found);
 		objectList.Load(found.data(), found.size());
+		RotationCentreDefault();   // the file open's hub set-up (FUN_00447d50 -> FUN_00447550 0x447652, CAM-7)
 		fieldHost.Clear();
 		shownRecord = host::FieldRecord();
 		fieldsSawChanges = host::Selection_Changes();
@@ -19428,8 +20365,12 @@ int main(int, char **)
 
 		BeginTheFrameStep();   // the frame's distance for the move keys, from the time since the last frame (inteng's speed x frame time)
 
+		// Scroll Lock's pick waiting (CAM-8): inteng's frame stands still inside FUN_004720c0's loop, so nothing moves (the keys held meanwhile act after it, as inteng's held table has them)
+		if (ModalWaitOn())
+		{
+		}
 		// Fly (entry points): the keys move the marker picked, the camera stays where it is (FUN_0058b550 swaps the movement state of the camera and the marker)
-		if (entryFlying)
+		else if (entryFlying)
 		{
 			FlyCamera const before = camera;
 
@@ -19455,8 +20396,11 @@ int main(int, char **)
 			MoveTheCamera(&camera);
 		}
 
-		UpdateCameraLink(&camera);
-		HierarchyCameraRootFrame(&camera);
+		if (!ModalWaitOn())   // Scroll Lock's wait stands the frame still (FUN_004720c0's own loop): no screen frame reads a key or moves anything
+		{
+			UpdateCameraLink(&camera);
+			HierarchyCameraRootFrame(&camera);
+		}
 		HierarchySaveIfAsked();
 
 		if (chooserActive)
@@ -19650,7 +20594,7 @@ int main(int, char **)
 			// , / . HELD (HP-17, FUN_004889d0 0x489f9d-0x48a030): each frame a quarter of the frame time (DAT_00d876dc, 16.16 seconds; (t + (t >> 31 & 3)) >> 2), ',' first then '.'.
 			// No Shift: FUN_0047bb20 / FUN_0047b9c0 move a STOPPED main's timer (and with Y's switch the stopped turret and deltas); Shift: inteng's [2] (the newest delta, else the turret), running or not.
 			// inteng's FUN_0047b9c0 / FUN_0047bb20 add a stopped delta's step to its +0x28 (the running word, 0x47baaa / 0x47bbfd), so it starts running: INTENG BUG, FIXED (section 15, HP-17): its timer moves.
-			if (onHierarchy && !AMenuIsOpen() && !ADialogIsOpen() && promptFor == kPromptNone && (keyDown[VK_OEM_COMMA] || keyDown[VK_OEM_PERIOD]))
+			if (onHierarchy && !AMenuIsOpen() && !ADialogIsOpen() && promptFor == kPromptNone && !ModalWaitOn() && (keyDown[VK_OEM_COMMA] || keyDown[VK_OEM_PERIOD]))
 			{
 				int32_t const frameTime = (int32_t)(((int64_t)frameMs * 65536) / 1000);
 				int32_t const quarter = (frameTime + ((frameTime >> 31) & 3)) >> 2;
@@ -19779,16 +20723,26 @@ int main(int, char **)
 			static bool worldLinesShown = false;
 
 			RefreshTheEntryMarkers();
-			LightKeysEveryFrame();
+
+			// Scroll Lock's wait stands the screen's frame still (FUN_004720c0's own loop runs only the message pump and its pick): the keys held meanwhile change nothing (no light, no view distance,
+			// no scale) until it ends (camera-closeout-drake.md CAM-8)
+			if (!ModalWaitOn())
+			{
+				LightKeysEveryFrame();
+			}
+
 			AdjacencyEveryFrame();
 
 			PathTintsEveryFrame();
 
-			StrategyViewDistanceEveryFrame();
-			HubViewDistanceEveryFrame();
+			if (!ModalWaitOn())
+			{
+				StrategyViewDistanceEveryFrame();
+				HubViewDistanceEveryFrame();
+			}
 
 			// Path mode's H and N (FUN_004f9d10 0x4f9e74: slots 0xd87a88 / 0xd87a8e): the view distance +500000 for each frame H is held, -500000 for N (never below 0)
-			if (OnThePathScreen() && !AMenuIsOpen())
+			if (OnThePathScreen() && !AMenuIsOpen() && !ModalWaitOn())
 			{
 				int64_t const next = (int64_t)viewDistance + (keyDown['H'] ? 500000 : 0) - (keyDown['N'] ? 500000 : 0);
 
@@ -19796,7 +20750,10 @@ int main(int, char **)
 			}
 
 			// Object Placement's H and N, its view distance rule and the data of its text lines (PlacementFrame: OP-80, OP-4 (5)); off that screen it takes its rule away
-			PlacementFrame();
+			if (!ModalWaitOn())
+			{
+				PlacementFrame();
+			}
 
 			static bool trianglesShown = false;
 
@@ -19809,7 +20766,8 @@ int main(int, char **)
 			// Module Linking draws no selection colour: only the tree's colours (FUN_004c0720) and its picks 0x7f007f (FUN_004c17a0 0x4c18b2). Our selection's green went to a picked DOOR
 			// (an object by its ID) before the pick's colour, and the first colour given to a block wins: the door showed green, not 0x7f007f (Dietrich 11-16)
 			// Copy Strategy's collector: the source (the selection) is not red while it runs (FUN_00528340 0x5283a5 FUN_00529480; back at 0x5285bd); its members are (FlagViewTints)
-			LevelView_SetSelectedColour(OnModuleLinkingScreen() || (OnStrategyScreen() && (strategyEditFan || copyCollecting)) ? 0u :
+			// while a view's OBJECT PICK runs (FUN_00527540) the selection is the pick, and it IS red: 0x52754a / 0x527629 FUN_00529470, off at 0x527620 / 0x52763a / 0x527676 (S-62)
+			LevelView_SetSelectedColour(OnModuleLinkingScreen() || (OnStrategyScreen() && ((strategyEditFan && strategyPickField.empty()) || copyCollecting)) ? 0u :
 				(OnAPlacementScreen() || OnStrategyScreen() ? 0xFFFF0000u : (onTheHub ? hubSelection : 0xFF00FF00u)));
 
 			bool const iconsWanted = !OnALightScreen() && !(stabilityActive && OnStrategyScreen()) && (OnAPlacementScreen() || OnStrategyScreen()) && !placementSplit && !(strategyEditFan && OnStrategyScreen() && strategyPickField.empty() && !copyCollecting && !volume.on);   // an Edit view's black screen shows no icons (S-KC-1)
@@ -20293,7 +21251,12 @@ int main(int, char **)
 
 			// A command waiting for its click (P4) takes this one, and the click then doesn't change the selection
 			// the live Snap To Vertex: the left press keeps the pose shown, and picks nothing else (FUN_004d9af0 0x4da8d6: DAT_008f4f10 = 0; FUN_004d6520 skipped)
-			if (snapLive)
+			// Scroll Lock's pick first (CAM-8: WinMain's modal FUN_004720c0): the place of what it hit becomes the rotation centre; a press that hit nothing waits on
+			if (rotationPickWaiting)
+			{
+				RotationPickAnswer(picked);
+			}
+			else if (snapLive)
 			{
 				SnapLiveEnd(true);
 			}
@@ -20558,8 +21521,10 @@ int main(int, char **)
 
 				if (LevelView_ObjectBox(nowSelected.objectId, boxMins, boxMaxs))
 				{
+					// its box's middle, then its size (width x, height y, depth z: a same-size edit such as a Rescale shows in the size)
 					selectedAt = "x " + std::to_string(((int64_t)boxMins[0] + boxMaxs[0]) / 2) + " y " + std::to_string(((int64_t)boxMins[1] + boxMaxs[1]) / 2) + " z " +
-						std::to_string(((int64_t)boxMins[2] + boxMaxs[2]) / 2);
+						std::to_string(((int64_t)boxMins[2] + boxMaxs[2]) / 2) + " width " + std::to_string((int64_t)boxMaxs[0] - boxMins[0]) + " height " +
+						std::to_string((int64_t)boxMaxs[1] - boxMins[1]) + " depth " + std::to_string((int64_t)boxMaxs[2] - boxMins[2]);
 				}
 			}
 
@@ -20699,6 +21664,8 @@ int main(int, char **)
 
 				_snprintf_s(volumeText, sizeof(volumeText), _TRUNCATE, "lo %d %d %d hi %d %d %d", (int)volume.lo[0], (int)volume.lo[1], (int)volume.lo[2], (int)volume.hi[0], (int)volume.hi[1], (int)volume.hi[2]);
 				volumeWord = volumeText;
+				// the record the left click picked (a level object or an icon: S-VOL-4), by its ID
+				volumeWord += volume.objectPicked ? " picked " + HexOf(volume.object) : std::string(" picked none");
 			}
 
 
@@ -20792,8 +21759,53 @@ int main(int, char **)
 			// the camera's turn, look and roll (4096ths), for the camera turn's acceptance
 			std::string const camAnglesWords = "turn " + std::to_string(camera.turn) + " look " + std::to_string(camera.look) + " roll " + std::to_string(camera.roll);
 
-			printf("AVP_OpenInteng: scenario: screen \"%s\"; bar1 \"%s\"; bar2 \"%s\"; selection \"%s\"; prompt %d; status \"%s\"; selected \"%zu\"; modelbox \"%s\"; choices \"%s\"; dialog \"%s\"; dialogrows \"%s\"; dialogrow1 \"%s\"; dialogkind \"%s\"; dialogbuttons \"%s\"; dialogtext \"%s\"; dialogchecks \"%s\"; dialogfields \"%s\"; dialogcombos \"%s\"; dialogcomborows \"%s\"; popup \"%s\"; popuprow1 \"%s\"; popupstep \"%s\"; viewmode \"%s\"; camera \"%d %d %d %d %d\"; level \"%s\"; levelbytes \"%lld\"; hierarchylines \"%s\"; barshown \"%d\"; stability \"%s\"; camspeed \"%d\"; barboxes \"%s\"; dropboxes \"%s\"; strategyview \"%s\"; volume \"%s\"; volumeface \"%d\"; volumemodule \"%d\"; screentext \"%s\"; viewdistance \"%d\"; dropticked \"%s\"; textscreen \"%s\"; linktree \"%s\"; placedsounds \"%s\"; pathlines \"%s\"; camerasaved \"%u\"; camerasaveddrawn \"%u\"; lightspin \"%s\"; linkmessage \"%s\"; window \"%s\"; selectedat \"%s\"; flyat \"%s\"; orbit \"%s\"; flyturned \"%s\"; flymatrix \"%s\"; camangles \"%s\"\n", barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : "?", titles1.c_str(), titles2.c_str(),
-				selectedWords.c_str(), (int)promptFor, statusWords ? statusWords : "", host::Selection_SetCount(), modelBox.c_str(), choiceBoxes.c_str(), dialogTitle.c_str(), dialogRows.c_str(), dialogRow1.c_str(), dialogKindWord.c_str(), dialogNow.buttons.c_str(), dialogNow.text.c_str(), dialogNow.checks.c_str(), dialogNow.fields.c_str(), dialogNow.combos.c_str(), dialogNow.comborows.c_str(), popupEntries.c_str(), popupRow1.c_str(), popupStep.c_str(), scenarioViewMode, camera.x, camera.y, camera.z, camera.turn, camera.look, openLevelName.c_str(), scenarioLevelBytes, hierarchyLinesWord.c_str(), barVisible ? 1 : 0, stabilityWord.c_str(), speedUnits, barBoxesWord.c_str(), dropBoxesWord.c_str(), strategyViewWord.c_str(), volumeWord.c_str(), volume.on ? volume.face : -1, volume.on ? volume.module : -1, screenTextNow.c_str(), (int)(viewDistance / 500000), dropTickedWord.c_str(), textScreenWord.c_str(), LinkTreeStateWords().c_str(), placedSoundsWord.c_str(), pathLinesNow.c_str(), cameraSavedCount, cameraSavedDrawn, OnALightScreen() ? lightSpinWord.c_str() : "", linkMessageShown.c_str(), windowWord.c_str(), selectedAt.c_str(), flyAtWords.c_str(), orbitWords.c_str(), flyTurnedWords.c_str(), flyMatrixWords.c_str(), camAnglesWords.c_str());
+			// the rotation centre (CAM-3 / CAM-7 / CAM-8), for the orbit's acceptance: its place; the camera's distance to it (mm); the camera's bearing round it (65536ths of a turn: atan2 of the camera's x over its
+			// z from the centre); where the camera SEES it (its place along the camera's own axes, the view matrix times centre - camera: an orbit keeps it, a turn in place moves it); waiting: 1 while
+			// Scroll Lock's pick waits
+			std::string rotCentreWords;
+			{
+				int32_t view[9];
+
+				LevelView_MatrixOfAngles(camera.turn, camera.look, camera.roll, view);
+
+				double const d[3] = { (double)rotationCentre[0] - camera.x, (double)rotationCentre[1] - camera.y, (double)rotationCentre[2] - camera.z };
+				long long seen[3];
+
+				for (int i = 0; i < 3; i++)
+				{
+					seen[i] = (long long)floor((view[3 * i] * d[0] + view[3 * i + 1] * d[1] + view[3 * i + 2] * d[2]) / 65536.0 + 0.5);
+				}
+
+				long long const distance = (long long)floor(sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) + 0.5);
+				// in 65536ths of a turn, so a scenario's 16-bit difference (expect-number-moved) wraps where the turn does
+				int const bearing = (int)floor(atan2(-d[0], -d[2]) * 65536.0 / (2.0 * 3.14159265358979323846) + 0.5) & 65535;
+
+				rotCentreWords = "x " + std::to_string(rotationCentre[0]) + " y " + std::to_string(rotationCentre[1]) + " z " + std::to_string(rotationCentre[2]) + " dist " + std::to_string(distance) +
+					" bearing " + std::to_string(bearing) + " seenx " + std::to_string(seen[0]) + " seeny " + std::to_string(seen[1]) + " seenz " + std::to_string(seen[2]) + " waiting " +
+					(rotationPickWaiting ? "1" : "0");
+			}
+
+			// Track Editing's two objects of the current section as the game draws them (T-3c): the object itself (the live copy) and the start marker (the second copy), the world's units; empty off the screen
+			std::string trackObjectsWords;
+
+			if (OnTheTrackScreen() && trackEd.state != host::TrackState::Off)
+			{
+				int32_t at[3] = { 0, 0, 0 }, radius = 0;
+				bool active = false;
+
+				if (LevelView_FlyCopyState(at, &radius, &active))
+				{
+					trackObjectsWords = "end " + std::to_string(at[0]) + " " + std::to_string(at[1]) + " " + std::to_string(at[2]);
+				}
+
+				if (LevelView_GhostWorld(at))
+				{
+					trackObjectsWords += (trackObjectsWords.empty() ? "" : " ") + std::string("start ") + std::to_string(at[0]) + " " + std::to_string(at[1]) + " " + std::to_string(at[2]);
+				}
+			}
+
+			printf("AVP_OpenInteng: scenario: screen \"%s\"; bar1 \"%s\"; bar2 \"%s\"; selection \"%s\"; prompt %d; status \"%s\"; selected \"%zu\"; modelbox \"%s\"; choices \"%s\"; dialog \"%s\"; dialogrows \"%s\"; dialogrow1 \"%s\"; dialogkind \"%s\"; dialogbuttons \"%s\"; dialogtext \"%s\"; dialogchecks \"%s\"; dialogfields \"%s\"; dialogcombos \"%s\"; dialogcomborows \"%s\"; popup \"%s\"; popuprow1 \"%s\"; popupstep \"%s\"; viewmode \"%s\"; camera \"%d %d %d %d %d\"; level \"%s\"; levelbytes \"%lld\"; hierarchylines \"%s\"; barshown \"%d\"; stability \"%s\"; camspeed \"%d\"; barboxes \"%s\"; dropboxes \"%s\"; strategyview \"%s\"; volume \"%s\"; volumeface \"%d\"; volumemodule \"%d\"; screentext \"%s\"; viewdistance \"%d\"; dropticked \"%s\"; textscreen \"%s\"; linktree \"%s\"; placedsounds \"%s\"; pathlines \"%s\"; camerasaved \"%u\"; camerasaveddrawn \"%u\"; lightspin \"%s\"; linkmessage \"%s\"; window \"%s\"; selectedat \"%s\"; flyat \"%s\"; orbit \"%s\"; flyturned \"%s\"; flymatrix \"%s\"; camangles \"%s\"; rotcentre \"%s\"; trackobjects \"%s\"\n", barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : "?", titles1.c_str(), titles2.c_str(),
+				selectedWords.c_str(), (int)promptFor, statusWords ? statusWords : "", host::Selection_SetCount(), modelBox.c_str(), choiceBoxes.c_str(), dialogTitle.c_str(), dialogRows.c_str(), dialogRow1.c_str(), dialogKindWord.c_str(), dialogNow.buttons.c_str(), dialogNow.text.c_str(), dialogNow.checks.c_str(), dialogNow.fields.c_str(), dialogNow.combos.c_str(), dialogNow.comborows.c_str(), popupEntries.c_str(), popupRow1.c_str(), popupStep.c_str(), scenarioViewMode, camera.x, camera.y, camera.z, camera.turn, camera.look, openLevelName.c_str(), scenarioLevelBytes, hierarchyLinesWord.c_str(), barVisible ? 1 : 0, stabilityWord.c_str(), speedUnits, barBoxesWord.c_str(), dropBoxesWord.c_str(), strategyViewWord.c_str(), volumeWord.c_str(), volume.on ? volume.face : -1, volume.on ? volume.module : -1, screenTextNow.c_str(), (int)(viewDistance / 500000), dropTickedWord.c_str(), textScreenWord.c_str(), LinkTreeStateWords().c_str(), placedSoundsWord.c_str(), pathLinesNow.c_str(), cameraSavedCount, cameraSavedDrawn, OnALightScreen() ? lightSpinWord.c_str() : "", linkMessageShown.c_str(), windowWord.c_str(), selectedAt.c_str(), flyAtWords.c_str(), orbitWords.c_str(), flyTurnedWords.c_str(), flyMatrixWords.c_str(), camAnglesWords.c_str(), rotCentreWords.c_str(), trackObjectsWords.c_str());
 			fflush(stdout);
 
 			// the camera, for a run that moves it (hold Z, a turn): where it is, in the game's millimetres, and the frames drawn so far

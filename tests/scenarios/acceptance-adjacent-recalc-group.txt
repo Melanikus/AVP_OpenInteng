@@ -1,0 +1,22 @@
+# ACCEPTANCE (red first): AD-8 of reassess/adjacent-closeout-dietrich.md (Dietrich, 2026-11-17). inteng's FUN_00402ae0 asks "Warning adjacent modules don't touch" only while local_67c is
+# set (0x40327d-0x403293); the pair's collapse, when the main module's AI group holds the adjacent module so each stands for itself alone, clears it (0x402e6d), and the pass goes on as after a
+# No (0x403456). Ours collapsed the pair but asked all the same. His path: Hangar (its four pairs that don't touch are all such pairs: Hangar05 / hang n01 bot, Outside 01 / airlock, both ways),
+# Mode > Adjacent Modules, Misc > Recalculate Entry Points: no question, straight to "Entry points calculated".
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Adjacent Modules
+expect-screen Adjacent Modules
+wait 400
+click-bar Misc > Recalculate Entry Points
+expect-dialog-kind message
+expect-dialog Entry points calculated
+state
+click-button Ok
+expect-no-dialog
+wait 400
+state
+expect-status Entry points calculated
+expect-status-not do not touch

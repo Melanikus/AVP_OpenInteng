@@ -44,6 +44,7 @@ namespace host
 	int32_t const kWaypointMinimisedHalf = 200;             // 20,000 of inteng's units, in the world's
 	int32_t const kWaypointAimMarkerHalf = 100;             // Centre Edit's marker: 10,000 of inteng's units each way
 	uint32_t const kWaypointAimMarker = 0xFF00FF00u;        // (& 0xfe03) + 0xfd
+	uint32_t const kWaypointModuleLink = 0xFF00FF00u;       // W-4: a module link's line, FUN_005835a0's own green on both halves (0x5837eb / 0x583808), no FUN_00586570 after
 
 	void WaypointView_WorldLines(WaypointMode const &mode, double levelScale, std::vector<TrackLine> *lines);
 

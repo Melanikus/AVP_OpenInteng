@@ -72,6 +72,14 @@ jobs:
             echo "::error::Snyk Code skips a file with these declarations: write them const-first (const T name), which means the same"
             exit 1
           fi
+          # A third, found 2026-11-17 (bisected: tests/host_placed_light_type_test.cpp skipped whole): a for loop whose variable is named
+          # "in" ("for (size_t in = ...;"), which the parser seems to take for an Objective-C "for (x in list)". Rename the variable.
+          forin=$(git grep -n -E 'for[[:space:]]*\([^;]*[^A-Za-z0-9_]in[[:space:]]*(=|;|:|\{|\()' -- '*.cpp' '*.h' ':!avpx' || true)
+          if [ -n "$forin" ]; then
+            echo "$forin"
+            echo "::error::Snyk Code skips a file with a for loop whose variable is named 'in': rename the variable"
+            exit 1
+          fi
           echo "No declaration Snyk Code can't parse."
 
       # Snyk Code also skips, without saying so, a file over about 1 MiB: src/host/editor_main.cpp was left out at 1,057,726 bytes (read at

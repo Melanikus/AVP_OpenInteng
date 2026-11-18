@@ -17,6 +17,7 @@
 
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include <windows.h>
 
@@ -28,6 +29,7 @@
 #include "shape_edit.h"
 #include "shape_merge.h"
 #include "shape_merge_edit.h"
+#include "shape_maths.h"
 
 static int checksFailed = 0;
 
@@ -204,11 +206,43 @@ int main(int argc, char **argv)
 		candidates.push_back(object);
 	}
 
+	// The objects whose SHPCENTR is off the middle are tried first as the first object (39 of Invasion's placed objects): a merged shape's centre is worked out again (TB-C8k),
+	// so the old one must not survive the merge
+	std::stable_partition(candidates.begin(), candidates.end(), [&before](Object_Chunk *object)
+	{
+		Bytes centre;
+		Chunk *const chunk = object->get_assoc_shape()->lookup_single_child("SHPCENTR");
+		int32_t mid[3] = { 0, 0, 0 };
+
+		if (chunk && before.PayloadOf(chunk, &centre) && centre.size() >= 12)
+		{
+			memcpy(mid, centre.data(), 12);
+		}
+
+		return mid[0] != 0 || mid[1] != 0 || mid[2] != 0;
+	});
+
 	Check(candidates.size() >= 2, "the level has at least two textured objects Merge Objects can take: " + std::to_string(candidates.size()));
 
 	if (candidates.size() < 2)
 	{
 		return 1;
+	}
+
+	// (TB-C8h) The first candidate is given a quarter turn about y first, as a placed object can have one: inteng bakes it into the shape before the merge (FUN_00449970)
+	float const quarter[4] = { 0.0f, 0.70710677f, 0.0f, 0.70710677f };
+
+	{
+		Bytes head;
+		Chunk *const chunk = candidates[0]->get_header();
+		bool const read = chunk && before.PayloadOf(chunk, &head) && head.size() >= 48;
+
+		if (read)
+		{
+			memcpy(head.data() + 32, quarter, sizeof(quarter));
+		}
+
+		Check(read && before.SetPayload(chunk, head), "the first candidate is given a quarter turn about y (its OBJHEAD1's turn, payload 32)");
 	}
 
 	// The first pair the merge takes (another object may name the second: then the next pair is tried)
@@ -218,6 +252,8 @@ int main(int argc, char **argv)
 	host::ShapeMergeEditResult result = host::ShapeMergeEditResult::BadCall;
 	std::string why;
 	size_t tried = 0;
+	float turnA[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	int32_t placeA[3] = { 0, 0, 0 };
 
 	for (size_t a = 0; a < candidates.size() && result != host::ShapeMergeEditResult::Done && tried < 40; a++)
 	{
@@ -239,6 +275,15 @@ int main(int argc, char **argv)
 
 			uvA = UvPayload(before, candidates[a]->get_assoc_shape());
 			uvB = UvPayload(before, candidates[b]->get_assoc_shape());
+
+			Bytes headA;
+
+			if (candidates[a]->get_header() && before.PayloadOf(candidates[a]->get_header(), &headA) && headA.size() >= 48)
+			{
+				memcpy(placeA, headA.data() + 20, sizeof(placeA));
+				memcpy(turnA, headA.data() + 32, sizeof(turnA));
+			}
+
 			tried++;
 			why.clear();
 			result = host::ShapeMergeEdit_Objects(&before, first, second, &why);   // after a success every Chunk * held is gone: the loops end at once
@@ -276,6 +321,31 @@ int main(int argc, char **argv)
 
 	Check(objectA != nullptr, "the first object is in the copy");
 	Check(ObjectWithId(after.Level(), second) == nullptr, "the second object is gone");
+
+	// (TB-C8s) and so is its shape, which it alone used: inteng deletes the second's shape with it (FUN_00449cf0: the shape taken at 0x449d35, deleted at 0x44a830-0x44a83c).
+	// Before, the merged level kept it, used by nobody.
+	{
+		List<Shape_Chunk *> shapes;
+		size_t holding = 0;
+
+		after.Level()->list_shapes(&shapes);
+
+		for (LIF<Shape_Chunk *> each(&shapes); !each.done(); each.next())
+		{
+			Bytes head;
+			Chunk *const chunk = each()->lookup_single_child("SHPHEAD1");
+			int32_t number = -1;
+
+			if (chunk && after.PayloadOf(chunk, &head) && head.size() >= 24)
+			{
+				memcpy(&number, head.data() + 20, 4);
+			}
+
+			holding += number == shapeB.number ? 1 : 0;
+		}
+
+		Check(holding == 0, "the second object's shape (number " + std::to_string(shapeB.number) + ") is gone with it: " + std::to_string(holding) + " shapes hold that number");
+	}
 
 	if (!objectA || !objectA->get_assoc_shape())
 	{
@@ -330,6 +400,70 @@ int main(int argc, char **argv)
 	}
 
 	Check(secondMoved, "each of the second shape's " + std::to_string(textured) + " textured polygons names its old UV list + " + std::to_string(countA) + ", the others keep their colours");
+
+	// 5. (TB-C8k) SHPCENTR is worked out again for the merged shape, as inteng's rebuild does (FUN_0050f570 at 0x44a780: the middle of the extents, each sum halved toward zero,
+	// 0x50fc36-0x50fcd4; one is made when the shape had none, 0x50fce0-0x50fd05). Before, the merged shape kept the first's old centre.
+	Bytes centre;
+	Chunk *const centreChunk = objectA->get_assoc_shape()->lookup_single_child("SHPCENTR");
+	int32_t mid[3] = { 0, 0, 0 };
+
+	Check(centreChunk != nullptr && after.PayloadOf(centreChunk, &centre) && centre.size() >= 16, "the merged shape has a SHPCENTR");
+
+	if (centre.size() >= 16)
+	{
+		memcpy(mid, centre.data(), 12);
+	}
+
+	int32_t const wantedMid[3] =
+	{
+		(int32_t)(((int64_t)merged.extents.maxX + (int64_t)merged.extents.minX) / 2),
+		(int32_t)(((int64_t)merged.extents.maxY + (int64_t)merged.extents.minY) / 2),
+		(int32_t)(((int64_t)merged.extents.maxZ + (int64_t)merged.extents.minZ) / 2),
+	};
+
+	Check(mid[0] == wantedMid[0] && mid[1] == wantedMid[1] && mid[2] == wantedMid[2], "its centre is the middle of the merged extents: " + std::to_string(mid[0]) + " " + std::to_string(mid[1]) + " " +
+		std::to_string(mid[2]) + " (wanted " + std::to_string(wantedMid[0]) + " " + std::to_string(wantedMid[1]) + " " + std::to_string(wantedMid[2]) + ")");
+
+	// 6. (TB-C8h) THE TURN BAKE (FUN_00449970): the first object's turn went into its shape, every point at the same place in the world, and the turn is now (0, 0, 0, 1)
+	Bytes headNow;
+	float turnNow[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	int32_t placeNow[3] = { 0, 0, 0 };
+
+	if (objectA->get_header() && after.PayloadOf(objectA->get_header(), &headNow) && headNow.size() >= 48)
+	{
+		memcpy(placeNow, headNow.data() + 20, sizeof(placeNow));
+		memcpy(turnNow, headNow.data() + 32, sizeof(turnNow));
+	}
+
+	Check(turnA[0] != 0.0f || turnA[1] != 0.0f || turnA[2] != 0.0f, "the merged first object had a turn (" + std::to_string(turnA[1]) + " about y)");
+	Check(turnNow[0] == 0.0f && turnNow[1] == 0.0f && turnNow[2] == 0.0f && turnNow[3] == 1.0f, "the first object's turn is (0, 0, 0, 1) after the merge: " + std::to_string(turnNow[0]) + " " +
+		std::to_string(turnNow[1]) + " " + std::to_string(turnNow[2]) + " " + std::to_string(turnNow[3]));
+
+	bool sameWorld = merged.points.size() >= shapeA.points.size();
+	size_t firstWrong = 0;
+
+	for (size_t at = 0; sameWorld && at < shapeA.points.size(); at++)
+	{
+		model::ShapePoint turned = { 0, 0, 0 };
+
+		sameWorld = model::RotateByTurn(turnA, shapeA.points[at], &turned) == model::ShapeMathsResult::Ok &&
+			(int64_t)placeA[0] + turned.x == (int64_t)placeNow[0] + merged.points[at].x &&
+			(int64_t)placeA[1] + turned.y == (int64_t)placeNow[1] + merged.points[at].y &&
+			(int64_t)placeA[2] + turned.z == (int64_t)placeNow[2] + merged.points[at].z;
+		firstWrong = at;
+	}
+
+	Check(sameWorld, "each of the first shape's " + std::to_string(shapeA.points.size()) + " points is where the turn put it in the world" + (sameWorld ? "" : " (point " + std::to_string(firstWrong) + " is not)"));
+
+	model::ShapeModel turnedA = shapeA;
+	bool normalsTurned = model::TurnShapeByTurn(&turnedA, turnA) == model::ShapeMathsResult::Ok && merged.polygonNormals.size() >= turnedA.polygonNormals.size();
+
+	for (size_t at = 0; normalsTurned && at < turnedA.polygonNormals.size(); at++)
+	{
+		normalsTurned = memcmp(&merged.polygonNormals[at], &turnedA.polygonNormals[at], sizeof(model::ShapeNormal)) == 0;
+	}
+
+	Check(normalsTurned, "the first shape's polygon normals are turned too (FUN_00430f00, made unit by FUN_0042fb00)");
 
 	DeleteFileA(copyPath.c_str());
 	printf("%s\n", checksFailed ? "SOME CHECKS FAILED" : "All checks passed");

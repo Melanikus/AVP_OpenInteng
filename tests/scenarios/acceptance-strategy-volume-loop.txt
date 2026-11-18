@@ -1,0 +1,85 @@
+# ACCEPTANCE (red first; Drake 11-17, strategy-data.md REFRESH S-VOL-3 / S-VOL-11): THE VOLUME EDITOR IS ONE OF THE SCREEN'S OWN LOOPS, on his path (Invasion, the file opened as a double click).
+# inteng's volume editor FUN_005277c0 runs FUN_00529370 every loop: it draws "View Distance :%d" at (16, 0x20) (0x52944b), H / N change the distance (0x5293xx, the shared DAT_005fd678), Insert / Home zoom
+# (0x5293a2 / 0x5293b0), and the loop reads none of the Edit view's own keys (an Area Switch's D, Shift+D, P, Space). Ours runs the editor from the kind's Edit view (V) with that view's flag still set,
+# so the row was skipped, H / N and Insert / Home did nothing, and D / P / Space still went to the Area Switch's view.
+# RED on bishop-int 9123fee0: no "View Distance" text, H moves nothing, Insert starts no zoom, P opens the Switch Properties form, the icon click picks no record (S-VOL-4), and a turned camera ends where the last DRAWN frame faced.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+click-win 640 300 right
+click-popup 6
+click-popup 1
+type ZoneVO
+key Enter
+expect-no-dialog
+camera 0 0 -1450 0
+wait 400
+click-win 504 364
+expect-selected 1
+click-win 504 364 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Area_Switch
+expect-no-dialog
+expect-field-has strategyview : Area Switch|100@609:V : Change Trigger Volume
+key V
+expect-status Edit Volume
+# S-VOL-3: the row at (16, 32)
+expect-screen-text View Distance :
+picture 1
+# the view's own object is not red in the editor (FUN_00528830 0x52897d took its red off before the view): ZoneVO's icon, the square round the middle of the view, has no red until it is picked
+expect-colour-at-most picture 405 265 195 200 ff0000 0.01 70
+# S-VOL-11: H adds 500,000 a frame to the distance (the row says it in 500,000s)
+remember-number screentext View_Distance_:
+hold H 300
+expect-number-moved screentext View_Distance_: 1 200
+# Insert starts the zoom, as in every one of the screen's loops (FUN_00529370 0x5293a2): "Zoom... Choose centre" at (200, 100) (0x471ccb). Its wait is MODAL: Home does nothing meanwhile
+# (FUN_00471cb0 reads only the mouse and Escape)
+key Insert
+expect-status Zoom... Choose centre
+expect-field-has hierarchylines 6@200:Zoom... Choose centre
+key Home
+expect-status Zoom... Choose centre
+# a RIGHT press is the zoom's too (its centre; FUN_00471cb0 takes either button), not the editor's end: the editor goes on; the next press zooms; then Home puts the zoom back
+click-view 0.5 0.5 right
+expect-status-not written
+expect-field-has volume lo
+click-view 0.6 0.5
+expect-status Zoom: in
+key Home
+expect-status The zoom is back
+# the zoom is modal (FUN_00471cb0's loop reads only the mouse and Escape): Return does not end the editor while it waits; Escape gives the zoom up
+key Insert
+key Enter
+expect-status-not written
+expect-field-has volume lo
+key Esc
+expect-status Zoom cancelled
+# S-VOL-4: a left click on the virtual object's icon (FUN_00559720 meets inteng's icon blocks too) picks that record, drawn RED; no module is picked
+remember-field volume
+click-view 0.486 0.549
+expect-field-changed volume
+expect-field volumemodule -1
+picture 2
+# S takes the picked icon's box (0x527b51-0x527ba4: the record's box and place; ours the icon's drawn box, StrategyIconBox): the volume is not empty any more
+remember-field volume
+key S
+expect-field-changed volume
+expect-field-has volume lo -250 -250 -250 hi 250 250 250
+# the Area Switch view's own keys are not read: P (its Switch Properties form, S-K52-3 / FUN_0052f700) opens nothing
+key P
+wait 300
+expect-no-dialog
+key Enter
+expect-status The volume is written into the strategy
+# S-VOL-2 with the camera turned half round in the Edit view (which draws no level): V puts it 10 x its OWN forward (now -z) back from the cube's centre, read from its angles, not from the last
+# drawn frame (a skeptic's correction, 11-17)
+camera 0 0 -1450 2048
+wait 400
+key V
+wait 300
+expect-field camera 0 0 6553 2048 0
+key Enter

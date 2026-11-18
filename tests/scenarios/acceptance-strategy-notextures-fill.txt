@@ -1,0 +1,30 @@
+# ACCEPTANCE: Strategy Data > No Textures leaves the level's UNTEXTURED polygons FILLED (construction-closeout-frost.md, the 0x39 / 0x3a row; strategy-data.md S-2). Red on bishop-int, where every polygon is a line.
+# Traced: No Textures (0x3a, FUN_004452b0 0x445bcc-0x445bdb) starts Strategy Data with load flags 0x93 (FUN_00524cc0 -> FUN_00522ab0 -> FUN_0046e700(0x93)). With 0x80 no texture is loaded, so the shape converter
+# makes every TEXTURED polygon (kinds 5, 6, 7, 0x18) kind 0xe, a line, with flag 2, unlit (FUN_004ff010 0x4ffb2a-0x4ffc62). It does not touch the UNTEXTURED ones (kinds 2 / 3): they stay filled, keep their flags (no flag 2:
+# lit) and take the colour FUN_00522ab0 / FUN_0046da70 paints their shape (white; a strategy object's green).
+# Stock levels have few visible untextured polygons (most carry flag 1, not drawn: all 359 of Invasion's). Derelict's exit signs have them: exit01 (a strategy object, so green) is a 780 x 390 box at 12514 -2000 -34157
+# turned a quarter about y; its polygons 10 and 11, its BACK, are untextured and face +x, the wall (found with AvP-docs/tools/frost/notex/frost_untex_probe.cpp). Its front is textured.
+# The camera's turn is the game's: 1024 looks along -x, 3072 along +x.
+# His path: the file is opened (start-args, his double click), the bar is clicked, the view flown around the sign.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: No Textures
+expect-screen Strategy Data
+# THE FRONT, from the room, 1.3 m away: textured, so green LINES (the strategy colour) with the black between them
+camera 11214 -2000 -34157 3072
+wait 500
+picture 1
+expect-colour picture 304 240 400 250 00ff00 0.002 40
+expect-colour picture 304 240 400 250 000000 0.80 16
+# THE BACK, from behind the wall, 0.5 m away: untextured, so FILLED. It faces away from every light, so its green comes out black, and it hides the level behind it: no white line and no green line in its middle
+# (before: its two triangles' green lines, and the room's white lines seen through it)
+camera 13014 -2000 -34157 1024
+wait 500
+picture 2
+expect-colour-at-most picture 204 200 600 360 ffffff 0.001 40
+expect-colour-at-most picture 204 200 600 360 00ff00 0.001 40
+expect-colour picture 204 200 600 360 000000 0.99 16
+# the rest of the level is still the white wireframe
+expect-colour picture 0 0 1008 729 ffffff 0.002 16

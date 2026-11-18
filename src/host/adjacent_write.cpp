@@ -2,6 +2,7 @@
 
 #include "adjacent_write.h"
 
+#include <map>
 #include <set>
 
 #include "entry_recalc.h"
@@ -25,7 +26,7 @@ namespace host
 		return "the adjacent modules could not be written";
 	}
 
-	AdjacentWriteResult AdjacentWriteBack(OpenLevelFile *open, int32_t current, std::vector<int32_t> const &members, AdjacentWriteCounts *counts)
+	AdjacentWriteResult AdjacentWriteBack(OpenLevelFile *open, int32_t current, std::vector<int32_t> const &members, AdjacentWriteCounts *counts, bool workOutEntryPoints)
 	{
 		AdjacentWriteCounts none;
 
@@ -114,9 +115,9 @@ namespace host
 			return AdjacentWriteResult::WriteFailed;
 		}
 
-		if (edit.remove)
+		if (edit.remove || !workOutEntryPoints)
 		{
-			return AdjacentWriteResult::Done;
+			return AdjacentWriteResult::Done;   // (!workOutEntryPoints: the caller works them out, with the questions)
 		}
 
 		// the entries of THIS module worked out again (FUN_00402ae0 for each): the plan of Recalculate Entry Points, kept to the module's own
@@ -144,4 +145,113 @@ namespace host
 
 		return AdjacentWriteResult::Done;
 	}
+	AdjacentWriteResult DeleteAdjacencyEntries(OpenLevelFile *open, std::vector<EntryDelete> const &deletes, size_t *deleted)
+	{
+		if (deleted)
+		{
+			*deleted = 0;
+		}
+
+		if (!open || !open->Level())
+		{
+			return AdjacentWriteResult::NothingOpen;
+		}
+
+		if (deletes.empty())
+		{
+			return AdjacentWriteResult::Done;
+		}
+
+		// what goes, module by module: its chunk, and each entry number with the module it must name
+		std::map<int32_t, std::pair<Chunk *, std::map<size_t, int32_t>>> byModule;
+
+		for (EntryDelete const &drop : deletes)
+		{
+			std::pair<Chunk *, std::map<size_t, int32_t>> &one = byModule[drop.mainIndex];
+
+			one.first = drop.adjacency;
+			one.second[drop.entry] = drop.adjacentIndex;
+		}
+
+		LevelStore const store(open);
+		std::vector<ModuleAdjacencyFor> edits;
+		std::vector<size_t> goneOf;
+
+		for (auto const &module : byModule)
+		{
+			std::vector<unsigned char> bytes;
+
+			// the entries as the store holds them now (after the recalculated ones were put in): a count, then 20 bytes each
+			if (!module.second.first || !store.PayloadOf(module.second.first, &bytes) || bytes.size() < 4)
+			{
+				continue;
+			}
+
+			int32_t const stated = (int32_t)((uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) | ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24));
+
+			if (stated < 0 || bytes.size() != 4 + (size_t)stated * 20)
+			{
+				continue;   // not a whole ADJMDLEP: left as it is
+			}
+
+			ModuleAdjacencyFor edit;
+			size_t gone = 0;
+
+			edit.objectIndex = module.first;
+			edit.remove = false;
+
+			for (size_t entry = 0; entry < (size_t)stated; entry++)
+			{
+				int32_t numbers[5];
+
+				for (int k = 0; k < 5; k++)
+				{
+					size_t const at = 4 + entry * 20 + (size_t)k * 4;
+
+					numbers[k] = (int32_t)((uint32_t)bytes[at] | ((uint32_t)bytes[at + 1] << 8) | ((uint32_t)bytes[at + 2] << 16) | ((uint32_t)bytes[at + 3] << 24));
+				}
+
+				auto const drop = module.second.second.find(entry);
+
+				if (drop != module.second.second.end() && drop->second == numbers[0])
+				{
+					gone++;
+					continue;
+				}
+
+				ModuleAdjacencyEntry kept = { numbers[0], numbers[1], { numbers[2], numbers[3], numbers[4] } };
+
+				edit.entries.push_back(kept);
+			}
+
+			if (gone > 0)
+			{
+				edits.push_back(edit);
+				goneOf.push_back(gone);
+			}
+		}
+
+		if (edits.empty())
+		{
+			return AdjacentWriteResult::Done;
+		}
+
+		std::vector<bool> written;
+
+		if (SetModuleAdjacencyMany(open, edits, &written) != ObjectEditResult::Done)
+		{
+			return AdjacentWriteResult::WriteFailed;
+		}
+
+		for (size_t i = 0; i < edits.size() && i < written.size(); i++)
+		{
+			if (written[i] && deleted)
+			{
+				*deleted += goneOf[i];
+			}
+		}
+
+		return AdjacentWriteResult::Done;
+	}
 }
+

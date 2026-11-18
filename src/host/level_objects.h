@@ -63,3 +63,12 @@ bool LevelObjects_ShapeGroup(const uint8_t *id, std::vector<host::LevelObject> *
 // The open level, as the game's chunk library holds it (the editor's own open's file chunk, level_file.h), for lookups that walk it
 // (strategy_lookup.h). Null when no level is open. It's good only while that level stays open.
 File_Chunk *LevelObjects_Level();
+
+// The place of every object of the open level, modules and placed objects alike, in the level's order and the file's own units (its header's
+// location), three numbers an object, into *places (emptied first). False, with none, when no level is open. (Added 2026-11-17 by Drake: the
+// rotation centre's average, camera-closeout-drake.md CAM-7.)
+bool LevelObjects_Places(std::vector<int32_t> *places);
+
+// The file place of the open level's object with that ID (the first in the level's order with it). False, with place as it was, when no level is
+// open or no object has that ID. (Added 2026-11-17 by Drake: Scroll Lock's pick of the rotation centre, CAM-8.)
+bool LevelObjects_PlaceOf(const uint8_t *id, int32_t place[3]);

@@ -61,6 +61,11 @@ namespace host
 	// times the factor and the first SHPEXTFN's rescale double times it, as ShapeRescale_ByValue does after working its factor out. The same refusals (NoExternal, SharedShape ...).
 	ShapeRescaleResult ShapeRescale_ByFactor(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, double factor, std::string *why);
 
+	// OP-102, the placed shape's "Object scale %-5.6f" line (FUN_004e3600 0x4e3783-0x4e39f6): the rescale double of the first SHPEXTFN inside the first SHPEXTFL of the shape of the
+	// object whose 8-byte ID is id, AS IT IS: inteng prints whatever the chunk holds (its value is not checked; a NaN prints as this CRT prints one, "-nan(ind)", where inteng's
+	// own CRT printed "-1.#IND00": NAMED). false when there is no such object, shape, SHPEXTFL or SHPEXTFN, or the name chunk is shorter than its 8 bytes: inteng draws no line then.
+	bool ShapeRescale_Current(OpenLevelFile *store, File_Chunk *level, uint8_t const *id, double *rescale);
+
 	// The two factors inteng pushes (0x3ff6db6db6db6db7 = 10/7, 0x3fe6666666666666 = 0.7)
 	double const kScaleKeyUp = 10.0 / 7.0;
 	double const kScaleKeyDown = 0.7;

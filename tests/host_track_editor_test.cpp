@@ -538,20 +538,58 @@ int main(int argc, char **argv)
 
 		f.Level()->list_objects(&objects);
 
-		// the IDs first: every edit replaces the level, so the list of chunks is not kept
+		std::string const name = argv[a];
+
+		// the IDs first: every edit replaces the level, so the list of chunks is not kept. ONLY THE OBJECTS THAT HOLD A TRACK (an OBJTRAK2, as the game's own chunk sees it, not the code
+		// under test): OneObject checks nothing on any other object, and every track call puts the whole level together (track_edit.cpp Find: BuildLevel), so walking each of a big
+		// level's ~1000 objects cost most of the test's time (Bishop's round 3, 11-17: over its 600 s limit). One object with no track, whose name no tracked object has (the calls find
+		// an object by its name), is checked to have none.
 		std::vector<std::vector<uint8_t> > ids;
+		std::vector<std::string> trackedNames;
+		std::vector<std::pair<std::string, std::vector<uint8_t> > > untracked;
 
 		for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
 		{
 			Object_Chunk *const o = each();
 
-			if (o)
+			if (!o)
 			{
-				ids.push_back(std::vector<uint8_t>((uint8_t const *)&o->object_data.ID, (uint8_t const *)&o->object_data.ID + 8));
+				continue;
+			}
+
+			std::vector<uint8_t> const id((uint8_t const *)&o->object_data.ID, (uint8_t const *)&o->object_data.ID + 8);
+			std::string const objectName = o->object_data.o_name ? o->object_data.o_name : "";
+
+			if (o->lookup_single_child("OBJTRAK2"))
+			{
+				ids.push_back(id);
+				trackedNames.push_back(objectName);
+			}
+			else if (untracked.size() < 8)
+			{
+				untracked.push_back(std::make_pair(objectName, id));
 			}
 		}
 
-		std::string const name = argv[a];
+		for (std::pair<std::string, std::vector<uint8_t> > const &one : untracked)
+		{
+			bool nameTracked = one.first.empty();
+
+			for (std::string const &n : trackedNames)
+			{
+				nameTracked = nameTracked || n == one.first;
+			}
+
+			if (!nameTracked)
+			{
+				host::TrackClip none;
+
+				Check(!host::TrackExists(&f, one.second.data()) && host::TrackCopy(&f, one.second.data(), &none) == host::TrackEditResult::NoTrack,
+					name.substr(name.find_last_of("/\\") + 1) + ": an object with no track (" + one.first + ") is known to have none, and Copy Track says so");
+				break;
+			}
+		}
+
 		int doneHere = 0;
 
 		for (std::vector<uint8_t> const &id : ids)

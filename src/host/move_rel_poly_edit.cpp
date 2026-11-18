@@ -772,7 +772,7 @@ namespace host
 	}
 
 	MoveRelPolyEditResult SnapToVertex_Pose(OpenLevelFile *store, File_Chunk *level, uint8_t const *movingId, uint8_t const *targetId, double const point[3], int32_t polygon, bool align,
-		int32_t place[3], float turn[4])
+		int32_t place[3], float turn[4], int32_t const *fromPlace, float const *fromTurn)
 	{
 		if (!store || !level || !movingId || !targetId || !point || !place || !turn || memcmp(movingId, targetId, 8) == 0)
 		{
@@ -818,6 +818,20 @@ namespace host
 			return MoveRelPolyEditResult::NoShape;
 		}
 
+		// the pose snapped from: the store's, or the one given (both or neither)
+		bool const given = fromPlace && fromTurn;
+
+		if ((fromPlace != nullptr) != (fromTurn != nullptr))
+		{
+			return MoveRelPolyEditResult::BadCall;
+		}
+
+		if (given)
+		{
+			memcpy(header.place, fromPlace, sizeof(header.place));
+			memcpy(header.turn, fromTurn, sizeof(header.turn));
+		}
+
 		float newTurn[4];
 
 		memcpy(newTurn, header.turn, sizeof(newTurn));
@@ -831,7 +845,11 @@ namespace host
 			MoveRelPolyEdit_TurnToMatrix(header.turn, matrix);
 			SnapVertex_Align(normal, matrix);
 			MoveRelPolyEdit_MatrixToTurn(matrix, newTurn);
+		}
 
+		// the moving points at the pose snapped from (FilePick_World put them at the store's): turned by the new turn and moved by the place
+		if ((align && polygon >= 0 && (size_t)polygon * 3 + 2 < targetNormals.size()) || given)
+		{
 			movingPoints.clear();
 
 			for (model::ShapePoint const &local : movingShape.points)

@@ -1,0 +1,39 @@
+# ACCEPTANCE (red first): AD-6a-2 of reassess/adjacent-closeout-dietrich.md (Dietrich, 2026-11-17). inteng's changed mark DAT_0060677c is set by Add (0x404b98) and Delete (0x404cb2) and
+# cleared only by Set Current (0x4026ab / 0x4026cc) and by Find Not Done's row (0x4052e4); the write-back FUN_00404040 only reads it. So after Find Not Done's write (0x404f12) the list stays
+# changed: with the list or the box closed (no row), the next Exit writes the list again and asks its questions again; a ROW makes its module current WITHOUT a second write (the row does not go
+# through FUN_004025d0). Ours marked the list written. His path: Caverns, DR-CAVERNC current (19), CAVEC-SR deleted and added again (changed), Find Not Done: "From DR-CAVERNC To CAVERNC-04":
+# No; the list "Modules without adjacent modules": Esc; Exit: the same question again, No; the hub.
+screen Adjacent Modules
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Caverns.RIF
+pictures on
+state
+expect-screen Adjacent Modules
+pick-module 19
+item 0x64
+expect-status Current module: DR-CAVERNC
+pick-module 21
+item 0x34
+expect-status Delete
+pick-module 21
+item 0x32
+expect-status Add
+item 0x68
+expect-dialog-kind confirm
+expect-dialog From DR-CAVERNC To CAVERNC-04
+click-button No
+expect-dialog-kind list
+expect-dialog Modules without adjacent modules
+key Esc
+expect-no-dialog
+wait 300
+# Exit: the list is still changed, so it is written again and its question comes again, on Adjacent Modules
+item 0xa
+expect-dialog-kind confirm
+expect-dialog From DR-CAVERNC To CAVERNC-04
+state
+expect-screen Adjacent Modules
+click-button No
+expect-no-dialog
+wait 800
+state
+expect-screen Construction

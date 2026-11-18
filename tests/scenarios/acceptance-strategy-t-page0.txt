@@ -1,0 +1,20 @@
+# ACCEPTANCE (red first): T on Strategy Data's first page does NOTHING, as in inteng (S-59 of reassess/strategy-data.md; Vasquez, 2026-11-17). inteng reads T (slot 0xd87a94) only inside
+# the switch kinds' Edit views ("T : Change Target (+Ctrl to choose environment)", FUN_0052f700: 52 / 61 / 66 / 68, which ours take before the screen's keys); on the page itself it is no key.
+# RED before S-59: ours ran a NAMED stand-in: with the current object holding a strategy, T started a target pick ("Change Target: click the object in the view that is to be the target") and
+# the next click wrote the strategy's first object field.
+# Invasion: the view in front of switch3 (as acceptance-strategy-colours), a click makes it current (it has a strategy); T; a click on another object changes nothing of switch3's strategy.
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+camera -27851 -14055 85500 0 0
+wait 500
+click-win 504 364
+wait 300
+expect-selected 1
+key T
+wait 300
+expect-status-not Change Target
+expect-selected 1
+picture 1

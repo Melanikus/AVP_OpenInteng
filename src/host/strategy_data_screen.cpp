@@ -252,6 +252,51 @@ bool StrategyIconUnderClick(int32_t x, int32_t y, int32_t viewWidth, int32_t vie
 	return found;
 }
 
+// The box round the icon with that ID as it is drawn (its triangles' least and most corners), for the volume editor's S / X on an icon record (FUN_005277c0 0x527b51-0x527ba4: the record's
+// box and place; S-VOL-4). False when no icon has that ID. NAMED: inteng's box is the record's own extents (+0x104..+0x118), which for a turned generator or bad guy may be the unturned
+// shape's; ours is the drawn icon's (a virtual object has no turn, so they agree)
+bool StrategyIconBox(uint8_t const id[8], int32_t mins[3], int32_t maxs[3])
+{
+	std::vector<IconForPick> icons;
+	std::vector<LevelViewTriangle> none;
+	bool found = false;
+
+	SpecialIconTriangles(&none, 0, true, &icons);
+
+	for (IconForPick const &icon : icons)
+	{
+		if (memcmp(icon.id, id, 8) != 0)
+		{
+			continue;
+		}
+
+		for (host::IconWorldTriangle const &t : icon.triangles)
+		{
+			int32_t const *const corners[3] = { t.a, t.b, t.c };
+
+			for (int32_t const *corner : corners)
+			{
+				for (int axis = 0; axis < 3; axis++)
+				{
+					if (!found || corner[axis] < mins[axis])
+					{
+						mins[axis] = corner[axis];
+					}
+
+					if (!found || corner[axis] > maxs[axis])
+					{
+						maxs[axis] = corner[axis];
+					}
+				}
+
+				found = true;
+			}
+		}
+	}
+
+	return found;
+}
+
 void StrategyListClick(host::PickReport const &report, bool shift, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
@@ -1380,6 +1425,7 @@ void ToggleModuleOverlaps()
 		overlapColours.clear();
 		overlapsFor = ~0u;
 		statusWords = "Module Overlaps off";
+		RotationCentreDefault();   // FUN_00445270 sets the hub up again (FUN_004476d0, FUN_00447550 0x445275), which puts the rotation centre back on the objects' average (0x447652, CAM-7)
 		return;
 	}
 
@@ -1672,7 +1718,7 @@ static void FlagViewTints(OpenLevelFile *open)
 
 	// RED modules (FUN_00529470: block flag 0x40000000 -> FUN_004a7cd0 0x4a7eca), FIRST in the list so they win over a green or orange (strategy-data.md S-62): the selection's red reaches only placed objects
 	// (blocks with a strategy block), so a module's red is given here: the volume editor's picked module; on page 0 the current module; on the flag page every module in its list. Not while a kind's
-	// Edit view runs (0x5286d7) nor on the Stability page (0x527379: the current's red is cleared first)
+	// Edit view runs (0x5286d7), EXCEPT the view's object pick, whose choice is red (FUN_00527540 0x52754a / 0x527629; S-62), nor on the Stability page (0x527379: the current's red is cleared first)
 	std::vector<int32_t> redModules;
 	// THE COLLECTOR'S MEMBERS (FUN_00526bf0: every object added is FUN_00529470'd, RED; at its end each is FUN_00529480'd): Copy's targets, a Lift's positions, a switch's, a track
 	// point's or a mission's targets. Copy takes the source's own red off before it (0x5283a5) and gives it back after (0x5285bd): the selection is not red while it runs.
@@ -1704,7 +1750,7 @@ static void FlagViewTints(OpenLevelFile *open)
 	{
 		redModules.push_back(volume.module);
 	}
-	else if (OnStrategyScreen() && !strategyEditFan && !stabilityActive && !copyCollecting && host::Selection_SetCount() > 0)
+	else if (OnStrategyScreen() && (!strategyEditFan || !strategyPickField.empty()) && !stabilityActive && !copyCollecting && host::Selection_SetCount() > 0)
 	{
 		for (size_t s = 0; s < host::Selection_SetCount() && redModules.size() < 64; s++)
 		{

@@ -1,0 +1,25 @@
+# ACCEPTANCE (red first; Drake 11-17, strategy-data.md S-69, brief AvP-docs/director/briefs-phase1/S-69.md): ON THE FLAG PAGE, SHIFT IS TESTED BEFORE S, on his path (Invasion, the file opened as a
+# double click). inteng's flag page FUN_00525700, on a left click on a level record: Shift (slot 0xd87a5e, 0x525cba-0x525cc1) first: down, the record comes OUT of the list (0x525cc7, red off 0x525da8), and the
+# S slot is never read; up, S (0xd87a93, 0x525db2) selects by texture (0x525dbf); else a plain click adds the record. Ours tested S first, so Shift + S + click selected by texture and removed nothing.
+# (click-win's "s" holds S through the click: the harness word added with this test.)
+# RED on bishop-int 9727cea7: the first Shift + S + click selects by texture ("S + click: ...") and the room stays in the list.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+click-bar Mode > Module flags
+expect-screen Strategy Data
+click-win 640 130
+expect-selected 1
+# Shift + S + click on the listed room: Shift first (0x525cbf), out of the list (0x525cc7)
+click-win 640 130 shift s
+expect-selected 0
+expect-status-not S + click
+# Shift + S + click on the room now out of the list: nothing
+click-win 640 130 shift s
+expect-selected 0
+# S + click without Shift still selects by texture (0x525db2 -> 0x525dbf)
+click-win 640 130 s
+expect-status S + click:

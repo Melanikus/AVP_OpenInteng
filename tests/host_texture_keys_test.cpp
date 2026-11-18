@@ -46,8 +46,9 @@ int main()
 		Check(host::TextureMapKeys_Own((uint8_t)*letters, false), std::string("Texture Map takes ") + *letters + " for itself");
 	}
 
-	Check(!host::TextureMapKeys_Own('W', false) && !host::TextureMapKeys_Own('A', false) && !host::TextureMapKeys_Own('D', false) && !host::TextureMapKeys_Own('F', false), "it leaves W, A, D and F alone");
-	Check(!host::TextureMapKeys_Own(VK_LEFT, false) && !host::TextureMapKeys_Own(VK_UP, false) && !host::TextureMapKeys_Own('1', false) && !host::TextureMapKeys_Own(VK_TAB, false), "arrows, digits and Tab are the mode's only with the texture window on");
+	// TM-A (Frost, 2026-11-17): the mode's keys are inteng's key table's (FUN_00557ea0, texture_keys.h): W is its Polys Shown (0x11 / 0x12), 1 / 2 its animation frames, Tab its texture window
+	Check(host::TextureMapKeys_Own('W', false) && !host::TextureMapKeys_Own('A', false) && !host::TextureMapKeys_Own('D', false) && !host::TextureMapKeys_Own('F', false), "it takes W (inteng's Polys Shown) and leaves A, D and F (F only while a flag View is on) alone");
+	Check(!host::TextureMapKeys_Own(VK_LEFT, false) && !host::TextureMapKeys_Own(VK_UP, false) && host::TextureMapKeys_Own('1', false) && host::TextureMapKeys_Own(VK_TAB, false) && !host::TextureMapKeys_Own('3', false), "the arrows are the mode's only with the texture window on; 1 and Tab are inteng's in the polygon screen too, 3 only in the window");
 	Check(host::TextureMapKeys_Own(VK_LEFT, true) && host::TextureMapKeys_Own(VK_DOWN, true) && host::TextureMapKeys_Own('3', true) && host::TextureMapKeys_Own(VK_TAB, true) && host::TextureMapKeys_Own(VK_OEM_PLUS, true) && host::TextureMapKeys_Own(VK_NEXT, true),
 		"with the texture window on the arrows, 1-4, Tab, = and PageDown are the mode's");
 
@@ -57,11 +58,11 @@ int main()
 	std::vector<uint8_t> const modernWindow = Lost(KeyLayout::ModernWasd, true);
 
 	Check(classic.empty(), "Classic's camera loses no key in Texture Map (A and Z and the keypad are free)");
-	Check(modern.size() == 2 && Has(modern, 'R') && Has(modern, 'S'), "Modern WASD's camera loses exactly R (up) and S (back) in Texture Map: the mode's turn and arrow-select keys win");
-	Check(!Has(modern, 'W') && !Has(modern, 'A') && !Has(modern, 'D') && !Has(modern, 'F'), "and keeps W, A, D and F");
+	Check(modern.size() == 3 && Has(modern, 'R') && Has(modern, 'S') && Has(modern, 'W'), "Modern WASD's camera loses exactly R (up), S (back) and W (forward) in Texture Map: the mode's turn, arrow-select and Polys Shown keys win");
+	Check(!Has(modern, 'A') && !Has(modern, 'D') && !Has(modern, 'F'), "and keeps A, D and F");
 	Check(Has(modernWindow, 'R') && Has(modernWindow, 'S') && Has(modernWindow, VK_LEFT) && Has(modernWindow, VK_RIGHT) && Has(modernWindow, VK_UP) && Has(modernWindow, VK_DOWN) && modernWindow.size() == 6, "with the texture window on Modern WASD's camera also loses its four arrows");
 	Check(Lost(KeyLayout::Classic, true).empty(), "Classic's camera, on the keypad, loses nothing with the texture window on either");
-	Check(host::TextureMapKeys_CameraKeysLost(KeyLayout::ModernWasd, false, nullptr, 0) == 2, "asking with no room still counts the keys lost");
+	Check(host::TextureMapKeys_CameraKeysLost(KeyLayout::ModernWasd, false, nullptr, 0) == 3, "asking with no room still counts the keys lost");
 
 	printf("%s\n", checksFailed ? "SOME CHECKS FAILED" : "All checks passed");
 	return checksFailed ? 1 : 0;
