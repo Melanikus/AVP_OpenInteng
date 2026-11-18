@@ -44,6 +44,8 @@
 #include "strategy_views.h"
 #include "virtual_object.h"
 
+#include "scenarios/arg_number.h"   // the child's level number (--one <number>), bounded before it is used
+
 using namespace host;
 
 static int checks = 0;
@@ -1082,7 +1084,111 @@ static std::string FileText(std::string const &path)
 	return text;
 }
 
-static bool StartChild(std::string const &exe, std::string const &folder, std::string const &level, std::string const &outPath, std::string const &tsvPath, HANDLE job, HANDLE *process)
+// A path named on the command line, taken as the verifiers take one (drive_scenario.cpp's scenario file, Snyk Code PR #79): no ".." and no quote in it, made a full path by Windows in
+// a buffer of MAX_PATH, ending in `ending` (any capitals; "" for a folder) and, for a file, a plain file that is there (not a folder, not a link). *full gets the full path: a level's,
+// read through the game's own loader (never opened or written as a file here). False, with the reason printed, otherwise. (Snyk Code, beta.1, 11-18.)
+static bool CheckedPath(char const *what, char const *given, char const *ending, bool aFile, std::string *full)
+{
+	if (!given || strstr(given, "..") != nullptr || strchr(given, '"') != nullptr)
+	{
+		printf("  FAILED  %s isn't taken: its name holds \"..\" or a quote\n", what);
+		return false;
+	}
+
+	char whole[MAX_PATH];
+	DWORD const length = GetFullPathNameA(given, MAX_PATH, whole, nullptr);
+	size_t const endLength = strlen(ending);
+
+	if (length == 0 || length >= MAX_PATH || (size_t)length < endLength || _stricmp(whole + length - endLength, ending) != 0)
+	{
+		printf("  FAILED  %s isn't taken: its full path must end in \"%s\" and be shorter than %d letters\n", what, ending, MAX_PATH);
+		return false;
+	}
+
+	if (aFile)
+	{
+		DWORD const kind = GetFileAttributesA(whole);
+
+		if (kind == INVALID_FILE_ATTRIBUTES || (kind & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0)
+		{
+			printf("  FAILED  %s isn't taken: it isn't there, or it is a folder or a link\n", what);
+			return false;
+		}
+	}
+
+	*full = std::string(whole, length);
+	return true;
+}
+
+// THE TEST'S OWN FOLDER (Snyk Code, beta.1, 11-18: path traversal and command injection from argv): the copies and the lists go to <the program's folder>\scratch, which is the {OUT}
+// the .runargs give (run-editor-tests.sh: the program is <dir>\<name>.exe, {OUT} <dir>\scratch). It comes from the program's own path, never from the command line, so no path from
+// the command line is opened or written to (as host_level_save_test); *exe gets the program's path.
+static bool OwnFolder(std::string *exe, std::string *folder)
+{
+	char path[MAX_PATH * 2] = { 0 };
+	DWORD const length = GetModuleFileNameA(nullptr, path, sizeof(path));
+
+	if (length == 0 || length >= sizeof(path))
+	{
+		return false;
+	}
+
+	*exe = std::string(path, length);
+
+	size_t const cut = exe->find_last_of("\\/");
+
+	if (cut == std::string::npos)
+	{
+		return false;
+	}
+
+	*folder = exe->substr(0, cut) + "\\scratch";
+	return true;
+}
+
+// The levels' list the children read their level from (one CheckedPath full path a line, in the order named), in the test's own folder
+static std::string LevelsListOf(std::string const &folder)
+{
+	return folder + "\\levels.txt";
+}
+
+// The index-th line of the levels' list, or false
+static bool ListedLevel(std::string const &folder, size_t index, std::string *level)
+{
+	FILE *const file = fopen(LevelsListOf(folder).c_str(), "r");
+
+	if (!file)
+	{
+		return false;
+	}
+
+	char line[MAX_PATH + 2];
+	size_t at = 0;
+	bool found = false;
+
+	while (fgets(line, sizeof(line), file))
+	{
+		if (at++ == index)
+		{
+			size_t length = strnlen(line, sizeof(line));
+
+			while (length > 0 && (line[length - 1] == '\n' || line[length - 1] == '\r'))
+			{
+				length--;
+			}
+
+			*level = std::string(line, length);
+			found = length > 0;
+			break;
+		}
+	}
+
+	fclose(file);
+	return found;
+}
+
+// The child's command line is the program's own path and the level's number alone: nothing from the command line goes on it
+static bool StartChild(std::string const &exe, size_t index, std::string const &outPath, HANDLE job, HANDLE *process)
 {
 	SECURITY_ATTRIBUTES inherit = { sizeof(inherit), nullptr, TRUE };
 	HANDLE const out = CreateFileA(outPath.c_str(), GENERIC_WRITE, FILE_SHARE_READ, &inherit, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -1092,8 +1198,8 @@ static bool StartChild(std::string const &exe, std::string const &folder, std::s
 		return false;
 	}
 
-	// every argument in quotes: none of these paths can hold a quote (Windows refuses one in a file name)
-	std::string command = "\"" + exe + "\" --one \"" + folder + "\" \"" + tsvPath + "\" \"" + level + "\"";
+	// the program's path in quotes (Windows refuses a quote in a file name), then the level's number
+	std::string command = "\"" + exe + "\" --one " + std::to_string((unsigned long long)index);
 	std::vector<char> line(command.begin(), command.end());
 
 	line.push_back(0);
@@ -1135,9 +1241,27 @@ int main(int argc, char **argv)
 {
 	setvbuf(stdout, 0, _IONBF, 0);
 
-	if (argc == 5 && strcmp(argv[1], "--one") == 0)
+	std::string exe, folder;
+
+	if (!OwnFolder(&exe, &folder))
 	{
-		return OneLevel(argv[2], argv[3], argv[4]);
+		printf("  FAILED  the program's own path could not be had (its folder holds the copies, and it starts a child for each level)\n");
+		return 1;
+	}
+
+	if (argc == 3 && strcmp(argv[1], "--one") == 0)
+	{
+		// the child: its level's number, bounded (arg_number.h); the level is the list's line of that number, its list the folder's file of that number
+		long index = 0;
+		std::string level;
+
+		if (!ArgNumber("the level's number", argv[2], 0, 100000, &index) || !ListedLevel(folder, (size_t)index, &level))
+		{
+			printf("  FAILED  the child has no level of that number in %s\n", LevelsListOf(folder).c_str());
+			return 1;
+		}
+
+		return OneLevel(folder, folder + "\\level-" + std::to_string(index) + ".tsv", level.c_str());
 	}
 
 	if (argc < 3)
@@ -1146,18 +1270,9 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	std::string const folder = argv[1];
-
+	// the first word ({OUT}) is the program's own scratch folder: the copies go to the folder made from the program's path (OwnFolder), so nothing named on the command line is written to
+	printf("  (the copies and lists go to %s)\n", folder.c_str());
 	CreateDirectoryA(folder.c_str(), nullptr);
-
-	char exe[MAX_PATH * 2] = { 0 };
-	DWORD const exeLength = GetModuleFileNameA(nullptr, exe, sizeof(exe));
-
-	if (exeLength == 0 || exeLength >= sizeof(exe))
-	{
-		printf("  FAILED  the program's own path could not be had, to start a child for each level\n");
-		return 1;
-	}
 
 	HANDLE const job = CreateJobObjectA(nullptr, nullptr);
 	JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {};
@@ -1177,18 +1292,37 @@ int main(int argc, char **argv)
 
 	auto const started = std::chrono::steady_clock::now();
 	size_t const levels = (size_t)(argc - 2);
-	std::vector<std::string> outPaths(levels), tsvPaths(levels);
+	std::vector<std::string> outPaths(levels), tsvPaths(levels), levelPaths(levels);
 	std::vector<DWORD> codes(levels, 0xffffffff);
 	std::vector<Child> running;
 	size_t next = 0;
 
+	FILE *const list = fopen(LevelsListOf(folder).c_str(), "w");
+
+	if (!list)
+	{
+		printf("  FAILED  the levels' list can't be written: %s\n", LevelsListOf(folder).c_str());
+		return 1;
+	}
+
 	for (size_t i = 0; i < levels; i++)
 	{
-		std::string const stem = folder + "\\level-" + std::to_string(i) + "-" + SafeName(BaseName(argv[i + 2]));
+		if (!CheckedPath("a level", argv[i + 2], ".rif", true, &levelPaths[i]))
+		{
+			fclose(list);
+			return 1;
+		}
+
+		fprintf(list, "%s\n", levelPaths[i].c_str());
+
+		// each level's files are named by its number alone (the child makes the same names)
+		std::string const stem = folder + "\\level-" + std::to_string(i);
 
 		outPaths[i] = stem + ".out";
 		tsvPaths[i] = stem + ".tsv";
 	}
+
+	fclose(list);
 
 	TestMoveRule();
 	printf("the round trip (read, written back, saved, read again), then the repair pass and the Links as Strategy Data's Save runs them; %zu levels, %zu at a time:\n", levels, most);
@@ -1199,7 +1333,7 @@ int main(int argc, char **argv)
 		{
 			HANDLE process = nullptr;
 
-			if (StartChild(exe, folder, argv[next + 2], outPaths[next], tsvPaths[next], job, &process))
+			if (StartChild(exe, next, outPaths[next], job, &process))
 			{
 				running.push_back({ next, process });
 			}
@@ -1304,7 +1438,7 @@ int main(int argc, char **argv)
 		// a child that stopped without saying why (it crashed, or never started) is a failure of its level
 		if (codes[i] != 0 && failedHere == 0)
 		{
-			Check(false, BaseName(argv[i + 2]) + ": its process ended with " + std::to_string((unsigned long)codes[i]) + " and no FAILED line (it stopped, or could not start)");
+			Check(false, BaseName(levelPaths[i].c_str()) + ": its process ended with " + std::to_string((unsigned long)codes[i]) + " and no FAILED line (it stopped, or could not start)");
 		}
 
 		std::string const rows = FileText(tsvPaths[i]), classRows = FileText(tsvPaths[i] + ".class");

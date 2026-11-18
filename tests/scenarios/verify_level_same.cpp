@@ -79,11 +79,63 @@ static bool IsChunkName(char const *text)
 	return true;
 }
 
+// A level's path from the command line, made whole (GetFullPathNameA) and checked to be an existing file, not a folder, before anything opens it; one that
+// climbs out of a folder ("..") or is longer than a path can be is refused. What is opened is the whole path, not the argument. (Added 2026-11-18 by
+// Melanikus (Drake): Snyk Code, a command line's path read unchecked.)
+static bool LevelSameWholePath(char const *given, std::string *out)
+{
+	if (!given || !given[0] || strlen(given) >= MAX_PATH || strstr(given, "..") != nullptr)
+	{
+		return false;
+	}
+
+	char full[MAX_PATH] = "";
+	DWORD const length = GetFullPathNameA(given, MAX_PATH, full, nullptr);
+
+	if (length == 0 || length >= MAX_PATH)
+	{
+		return false;
+	}
+
+	DWORD const kind = GetFileAttributesA(full);
+
+	if (kind == INVALID_FILE_ATTRIBUTES || (kind & FILE_ATTRIBUTE_DIRECTORY) != 0)
+	{
+		return false;
+	}
+
+	*out = full;
+	return true;
+}
+
+// A chunk's name for --ignore, already checked by IsChunkName (1 to 8 letters, digits or _), made again letter by letter from the table of
+// the letters a name may have: what reaches the comparison is the table's letters, never the command line's own text. (Added 2026-11-18
+// by Melanikus (Drake): Snyk Code followed the argument into level_same.cpp's arithmetic.)
+static std::string IgnoredChunkName(char const *text)
+{
+	static char const kLetters[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_";
+	std::string name;
+
+	for (size_t n = 0; n < 8 && text[n] != '\0'; n++)
+	{
+		for (size_t k = 0; k + 1 < sizeof(kLetters); k++)
+		{
+			if (kLetters[k] == text[n])
+			{
+				name.push_back(kLetters[k]);
+				break;
+			}
+		}
+	}
+
+	return name;
+}
+
 int main(int argc, char **argv)
 {
 	setvbuf(stdout, NULL, _IONBF, 0);
 
-	std::vector<char const *> files;
+	std::vector<std::string> files;
 	std::vector<std::string> ignored;
 
 	for (int n = 1; n < argc; n++)
@@ -96,11 +148,19 @@ int main(int argc, char **argv)
 				return 2;
 			}
 
-			ignored.push_back(argv[++n]);
+			ignored.push_back(IgnoredChunkName(argv[++n]));
 		}
 		else
 		{
-			files.push_back(argv[n]);
+			std::string level;
+
+			if (!LevelSameWholePath(argv[n], &level))
+			{
+				printf("REFUSED a level: not an existing file's path, or one with \"..\" in it\n");
+				return 2;
+			}
+
+			files.push_back(level);
 		}
 	}
 
@@ -110,5 +170,5 @@ int main(int argc, char **argv)
 		return 2;
 	}
 
-	return PrintLevelSameReport(CompareLevelFiles(files[0], files[1], ignored));
+	return PrintLevelSameReport(CompareLevelFiles(files[0].c_str(), files[1].c_str(), ignored));
 }

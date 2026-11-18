@@ -76,6 +76,23 @@ void Sound_ForgetAddressesInside(const void *, size_t)
 
 typedef std::vector<unsigned char> Bytes;
 
+// A chunk's 32-bit number, a byte at a time (little-endian): a number, never text. Snyk Code took a memcpy into an array that is later printed for a text that might not end
+// (Improper Null Termination, as 20558ba8); the caller checks the bytes are there.
+static int32_t IntIn(Bytes const &bytes, size_t at)
+{
+	return (int32_t)((uint32_t)bytes[at] | ((uint32_t)bytes[at + 1] << 8) | ((uint32_t)bytes[at + 2] << 16) | ((uint32_t)bytes[at + 3] << 24));
+}
+
+// The same for a 32-bit float: its bits as a number, then into one float
+static float FloatIn(Bytes const &bytes, size_t at)
+{
+	uint32_t const bits = (uint32_t)IntIn(bytes, at);
+	float value = 0.0f;
+
+	memcpy(&value, &bits, sizeof(value));
+	return value;
+}
+
 static bool ReadWholeFile(std::string const &path, std::vector<char> *out)
 {
 	HANDLE const file = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
@@ -216,7 +233,10 @@ int main(int argc, char **argv)
 
 		if (chunk && before.PayloadOf(chunk, &centre) && centre.size() >= 12)
 		{
-			memcpy(mid, centre.data(), 12);
+			for (int k = 0; k < 3; k++)
+			{
+				mid[k] = IntIn(centre, (size_t)k * 4);
+			}
 		}
 
 		return mid[0] != 0 || mid[1] != 0 || mid[2] != 0;
@@ -280,8 +300,15 @@ int main(int argc, char **argv)
 
 			if (candidates[a]->get_header() && before.PayloadOf(candidates[a]->get_header(), &headA) && headA.size() >= 48)
 			{
-				memcpy(placeA, headA.data() + 20, sizeof(placeA));
-				memcpy(turnA, headA.data() + 32, sizeof(turnA));
+				for (int k = 0; k < 3; k++)
+				{
+					placeA[k] = IntIn(headA, 20 + (size_t)k * 4);
+				}
+
+				for (int k = 0; k < 4; k++)
+				{
+					turnA[k] = FloatIn(headA, 32 + (size_t)k * 4);
+				}
 			}
 
 			tried++;
@@ -411,7 +438,10 @@ int main(int argc, char **argv)
 
 	if (centre.size() >= 16)
 	{
-		memcpy(mid, centre.data(), 12);
+		for (int k = 0; k < 3; k++)
+		{
+			mid[k] = IntIn(centre, (size_t)k * 4);
+		}
 	}
 
 	int32_t const wantedMid[3] =
@@ -431,8 +461,15 @@ int main(int argc, char **argv)
 
 	if (objectA->get_header() && after.PayloadOf(objectA->get_header(), &headNow) && headNow.size() >= 48)
 	{
-		memcpy(placeNow, headNow.data() + 20, sizeof(placeNow));
-		memcpy(turnNow, headNow.data() + 32, sizeof(turnNow));
+		for (int k = 0; k < 3; k++)
+		{
+			placeNow[k] = IntIn(headNow, 20 + (size_t)k * 4);
+		}
+
+		for (int k = 0; k < 4; k++)
+		{
+			turnNow[k] = FloatIn(headNow, 32 + (size_t)k * 4);
+		}
 	}
 
 	Check(turnA[0] != 0.0f || turnA[1] != 0.0f || turnA[2] != 0.0f, "the merged first object had a turn (" + std::to_string(turnA[1]) + " about y)");

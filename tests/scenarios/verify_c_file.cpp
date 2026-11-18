@@ -45,6 +45,35 @@ static bool Textured(int32_t type)
 	return type == 5 || type == 6 || type == 7 || (type >= 0x15 && type <= 0x19);
 }
 
+// The .c file's path from the command line, made whole (GetFullPathNameA) and checked to be an existing file, not a folder, before anything opens it; one that
+// climbs out of a folder ("..") or is longer than a path can be is refused. What is opened is the whole path, not the argument. (Added 2026-11-18 by
+// Melanikus (Drake): Snyk Code, a command line's path read unchecked.)
+static bool CFileWholePath(char const *given, std::string *out)
+{
+	if (!given || !given[0] || strlen(given) >= MAX_PATH || strstr(given, "..") != nullptr)
+	{
+		return false;
+	}
+
+	char full[MAX_PATH] = "";
+	DWORD const length = GetFullPathNameA(given, MAX_PATH, full, nullptr);
+
+	if (length == 0 || length >= MAX_PATH)
+	{
+		return false;
+	}
+
+	DWORD const kind = GetFileAttributesA(full);
+
+	if (kind == INVALID_FILE_ATTRIBUTES || (kind & FILE_ATTRIBUTE_DIRECTORY) != 0)
+	{
+		return false;
+	}
+
+	*out = full;
+	return true;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc != 5 || strlen(argv[2]) > 200 || strlen(argv[4]) > 200)
@@ -58,7 +87,15 @@ int main(int argc, char **argv)
 
 	Check(file.Open(argv[1]) == LevelOpenResult::Opened, "the level opens");
 
-	std::ifstream in(argv[3], std::ios::binary);
+	std::string cFile;
+
+	if (!CFileWholePath(argv[3], &cFile))
+	{
+		printf("REFUSED the .c file: not an existing file's path, or one with \"..\" in it\n");
+		return 2;
+	}
+
+	std::ifstream in(cFile, std::ios::binary);
 	std::stringstream read;
 
 	read << in.rdbuf();

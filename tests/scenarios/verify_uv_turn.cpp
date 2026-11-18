@@ -50,7 +50,8 @@ struct Read
 	std::vector<model::PolygonUv> uv;
 };
 
-static bool ReadLevel(char const *path, char const *name, Read *out)
+// (Named for this file alone: Snyk Code took a call of the old name, ReadLevel, for level_same.cpp's function of that name.)
+static bool ReadUvLevel(char const *path, char const *name, Read *out)
 {
 	std::string why;
 
@@ -103,8 +104,8 @@ int main(int argc, char **argv)
 	bool const mirror = strcmp(argv[5], "mirror") == 0;
 	Read before, after;
 
-	Check(ReadLevel(argv[1], argv[3], &before), "the level before opens and its shape of " + std::string(argv[3]) + " reads");
-	Check(ReadLevel(argv[2], argv[3], &after), "the level after opens and its shape reads");
+	Check(ReadUvLevel(argv[1], argv[3], &before), "the level before opens and its shape of " + std::string(argv[3]) + " reads");
+	Check(ReadUvLevel(argv[2], argv[3], &after), "the level after opens and its shape reads");
 
 	if (failed)
 	{

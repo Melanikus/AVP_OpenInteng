@@ -93,7 +93,8 @@ static bool LinkFileNamed(char const *path, bool aaaToo)
 	return _stricmp(name, "module.bbb") == 0 || (aaaToo && _stricmp(name, "module.aaa") == 0);
 }
 
-static bool WriteBytes(char const *path, std::vector<uint8_t> const &bytes)
+// (Named for this file alone: Snyk Code took a call of the old name, WriteBytes, for level_file_test.cpp's function of that name.)
+static bool PlantLinkFileBytes(char const *path, std::vector<uint8_t> const &bytes)
 {
 	HANDLE const file = CreateFileA(path, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
 
@@ -237,7 +238,7 @@ int main(int argc, char **argv)
 			PutInt(&bytes, (int32_t)number);
 		}
 
-		Check(WriteBytes(argv[2], bytes), std::string("module.bbb planted, 48 bytes: ") + argv[2]);
+		Check(PlantLinkFileBytes(argv[2], bytes), std::string("module.bbb planted, 48 bytes: ") + argv[2]);
 		return checksFailed ? 1 : 0;
 	}
 
@@ -250,7 +251,7 @@ int main(int argc, char **argv)
 			return 2;
 		}
 
-		Check(WriteBytes(argv[2], std::vector<uint8_t>((size_t)count, 0)), "module.bbb planted, " + std::to_string(count) + " zero bytes");
+		Check(PlantLinkFileBytes(argv[2], std::vector<uint8_t>((size_t)count, 0)), "module.bbb planted, " + std::to_string(count) + " zero bytes");
 		return checksFailed ? 1 : 0;
 	}
 

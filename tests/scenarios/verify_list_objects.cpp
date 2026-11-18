@@ -146,7 +146,14 @@ int main(int argc, char **argv)
 		uint8_t id[8];
 		bool has = false;
 
-		memcpy(id, &object->object_data.ID, 8);
+		// the ID's 8 bytes a byte at a time (Snyk Code took a memcpy into an array that is later printed for a text that might not end, as 20558ba8): numbers, never text
+		static_assert(sizeof(object->object_data.ID) == 8, "an object ID is 8 bytes");
+		uint8_t const *const idBytes = (uint8_t const *)&object->object_data.ID;
+
+		for (int k = 0; k < 8; k++)
+		{
+			id[k] = idBytes[k];
+		}
 
 		Object_Header_Chunk *const header = object->get_header();
 		bool const track = object->lookup_single_child("OBJTRAK2") != nullptr;
