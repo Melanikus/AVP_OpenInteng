@@ -1,0 +1,103 @@
+# ACCEPTANCE (Drake 11-18, the owner's "can a mapper make a playable map", Bishop): THE MAPPER'S JOURNEY on his path, Invasion opened as a double click.
+# The level is made one nobody can start in (its one player start deleted: Object > Find, Object > Delete), then the mapper gives it what a map needs, each by the bars and the view:
+# a player start (Create > Player starting position, at the view, where the level's own was: a place the game starts a player in), an object (Create > With shape: Choose, a shape from
+# the list, named), a texture on a polygon (Texture Map: the polygon in the middle of the view, Texture > Select, a picture of the chooser), a light (Light Sourcing: D, at the view),
+# and saves. The state line is checked at each step and the file after each step and at the end (verify_journey: one start at its place, the object, one light more at its place, one polygon's
+# picture changed to the one the chooser put on it). No picture checks (the owner, 11-18 04:5x).
+#
+# THE GAME (lane G, Hudson, while he is away; never by hand), on the last copy: put in a run folder's own data as avp_rifs/Invasion.RIF (never his avp_rifs), then
+#   AvPx.exe -dev -hudson level=invasion frames=2000 seconds=120 meets=yes meetsagain=10
+# meets=yes logs "meets: start x y z" (PlayerStartLocation) and "meets-only-here: he's at x y z" on the level's FIRST frame (hudson.cpp SayWhatThePlayerMeets, done == 1; the
+# counts come 120 frames in), and meetsagain=10 (avpx drake-meets-again fdc6f2c0, for the game PR) logs "meets-again: he's at x y z", "meets-again: he's in room <name>" and
+# "meets-again: health <n>, 10 seconds in" ten seconds later, once he has had time to fall. PASS: the start is -7764 2852 10527 (the file's units times the scale, 1 here); the
+# first frame's he's at is at it, x and z within 100; the second reading's x and z are within 100 of the start too (he did not slide or fall off), its y within 2000 below it (y
+# points down: he stands on the floor under it, not out of the level), its room is not (none), and its health is the first frame's (the drop did not hurt him).
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+
+# ---- 1. a level nobody can start in: its one player start deleted
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is Player Start 1
+expect-no-dialog
+wait 300
+click-bar Object > Delete
+expect-no-dialog
+wait 300
+expect-status Player starting position deleted
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} starts 0
+
+# ---- 2. the mapper's player start, at the view, where the level's own was
+camera -7764 2852 10527 0 0
+wait 400
+click-bar Create > Player starting position
+expect-no-dialog
+wait 300
+expect-status Player starting position made at the view
+expect-field-has hierarchylines Player Start 1
+key Back
+wait 300
+
+# ---- 3. an object: a shape from the chooser's list, named
+camera -7764 2852 13527 0 0
+wait 400
+click-bar Create > With shape: Choose
+expect-screen Shape Chooser
+key S
+expect-dialog Select shape
+click-choice Smrtam01
+expect-no-dialog
+key Enter
+expect-screen Object Placement
+expect-dialog Name Object
+type journeyThing
+key Enter
+expect-no-dialog
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-harness-out/verify_chooser/verify_chooser.exe {save1} {copy} journeyThing Smrtam01
+
+# ---- 4. a texture on a polygon: Texture Map, the polygon in the middle of the view, Texture > Select, a picture
+click-bar Mode > Exit
+wait 400
+expect-screen Construction
+click-bar Mode > Texture Map
+expect-screen Texture Map
+# the view at the start's place again (the camera left in front of the new object, whose shape is an imported one: Texture Map hides those)
+camera -7764 2852 10527 0 0
+wait 400
+click-view 0.50 0.60
+expect-status 1 selected
+# Select Texture (0x2a) is on the second bar, which click-bar does not reach (its barboxes are the first bar's): the key C, Select Texture's own key (texture-map-closeout-frost.md, the owner's ruling)
+expect-bar2 Select Texture
+key C
+expect-status the texture chooser
+click-view 0.30 0.30
+wait 600
+expect-status picture graphics/Envrnmts/Invasion/07 128.RIM put on 1 polygon
+save-copy
+
+# ---- 5. a light at the view: Light Sourcing, D (leaving Texture Map asks to save its changes: Yes keeps the texture, as a mapper answers)
+click-bar Mode > Exit
+wait 400
+expect-dialog Would you like to save the changes you have made?
+click-button Yes
+expect-no-dialog
+wait 400
+expect-screen Construction
+click-bar Mode > Light Sourcing
+expect-screen Light Sourcing (with Doors)
+camera -7764 2852 12000 0 0
+wait 400
+key D
+expect-status Light dropped
+wait 300
+
+# ---- 6. saved: the map has its start, its object, its texture and its light
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_journey.exe {save1} {copy} -7764|2852|10527 journeyThing -7764|2852|12000 2 "Envrnmts/Invasion/07 128.RIM"

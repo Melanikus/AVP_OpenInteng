@@ -1,0 +1,39 @@
+# ACCEPTANCE: the menus look as inteng's (Bishop, 2026-11-18; the owner: "I dont think the color gray is in inteng at all", "So some text we're validating is based on wrong UI").
+# Inteng draws every row of a drop-down the same way: the item's words and nothing more (FUN_004b6f70). Ours put a tag after the name of an item we have not built (" [wip]",
+# " [unfinished in inteng]", " [no AvP]", " [Blender]"). Each row must read exactly the item's name, and a not-built item still says why on the status line when it is clicked
+# (IntengMenus_Why). Read from the state line's droprows (the words each shown row draws), no picture.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+expect-screen Construction
+# ---- the hub's File: Write C File is built (Frost 11-18): with no object selected nothing happens, as inteng (0x445870: DAT_00631234 == 1 only); the hub has no item
+# left that is not built, so Adjacent Modules' Copy from VModules below is the one whose click says why (Module Linking's Link with AVP is built: Vasquez 11-18)
+click-bar File
+expect-field droprows Quit|Save|Write C File|Write Asc File|Write Asc File (Doors closed)
+key Esc
+click-bar File > Write C File
+expect-screen Construction
+wait 300
+expect-no-dialog
+# ---- Module Linking: Misc's Link with AVP (built 11-18: acceptance-module-linking-link-avp.txt), and Mode's two separators (tagged as not built)
+click-bar Mode > Module Linking
+expect-screen Module Linking
+wait 500
+click-bar Misc
+expect-field droprows Link with AVP
+key Esc
+click-bar Mode
+expect-field droprows Exit|-----|Exit + New Adjacencies|-----|Exit + All Adjacencies
+key Esc
+# ---- Adjacent Modules: Link's Copy from VModules, which inteng never finished (IntengTag::Unfinished): its row is its name alone, and its click says why
+click-bar Mode > Exit
+expect-screen Construction
+click-bar Mode > Adjacent Modules
+expect-screen Adjacent Modules
+wait 500
+click-bar Link
+expect-field droprows Add|Delete|Copy from VModules
+key Esc
+click-bar Link > Copy from VModules
+expect-status The old editor never finished this item: its own handler does nothing, or only part of its job

@@ -1,0 +1,42 @@
+# ACCEPTANCE (red first): TM-B 3b, the multiple node mode's nodes moved and written back (FUN_00555070 the arrow keys, FUN_00553be0 / FUN_005546b0 / FUN_00554ca0 the press, drag and
+# release, FUN_00560450 the write-back; Dietrich, 2026-11-18; reassess/tm-b-multinode-map.md). The arrow keys move the current node a texel; a press within 4 pixels of a node takes it and the
+# drag moves it with the mouse; after each move every corner the node stands for takes its place. Ours (3a): the nodes did not move. His path: Invasion, Mode > Texture Map, the quad at
+# 0.50 0.60 (polygon 31), M, Tab (4 nodes, node 1 = its corner 0 at 0 127, the current one), Right: node 1 at 1 127, written (the saved copy, read by the game's loader: only polygon 31's
+# corner 0 moved, by 1 0); the node dragged 8 pixels right at Texture Scale x1 (inteng's window: the whole picture in the screen's bottom-right corner): node 1 at 9 127, written
+# (moved by 8 0). (TM-B T, 11-18: at x4 in the middle of the screen before, 8 pixels were 2 texels.)
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+save-copy
+save-copy
+click-view 0.50 0.60
+expect-status 1 selected
+key M
+wait 200
+key Tab
+wait 400
+state
+expect-status multiple node mode: 4 nodes from 1 polygons
+save-copy
+key Right
+wait 300
+state
+expect-status node 1 at 1 127
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} nodemove 1 1 0 --baseline {save1} {save2}
+# the window shows the whole 128 x 128 picture at x1: node 1 at (1, 127) is 1, 127 from its top left
+expect-texwin 128 128 0 0 128 128 1
+drag-texwin 1 127 9 127
+wait 400
+state
+expect-status node 1 at 9 127
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} nodemove 1 8 0 --baseline {save1} {save2}
+picture 481
+key Tab
+wait 300
+state
+expect-status the polygons

@@ -7,14 +7,20 @@
 // window forward; at the end it checks that the cursor and the foreground window are where they were. The editor answers six messages only in a -picture run (editor_main.cpp, kHarness*).
 //
 // USAGE: drive_scenario.exe <the editor's .exe> <a folder for the pictures and the record> <a scenario file>
+//    or: drive_scenario.exe --shot-to-scenario <a shot .png, or a pattern with *>: prints the from-shot line and the -at line it stands for (from_shot.h); starts nothing
 // It prints "ok" or "FAILED" lines, writes the pictures (picture-<n>.png, panels-<n>.png) into the record folder, and gives back 0 only if every check passed.
 //
 // THE SCENARIO FILE: one step a line; a line starting with # and an empty line do nothing.
 //   screen <Name>               first: the editor starts on that screen's bar (-screen), as the Screens menu names it ("Waypoint", "Module Linking", "Path")
-//   level <a .rif path>         the level the editor's settings open (for verify's {orig})
+//   level <a .rif path>         the level the editor's settings open (for verify's {orig}): only its NAME is written, as Level=, so the editor opens its data folder's avp_rifs/<name>.rif;
+//                               a path whose file is not that one byte for byte is REFUSED before the editor starts, unless start-args opens that same path (Drake 11-18)
 //   make-level <command>        before the editor starts: a TEST TOOL makes a level the scenario then opens (tests/scenarios/make_strategy_level.cpp: a stock copy with the strategy bytes a
 //                               kind no stock level holds needs); {exedir} and {scenariodir} as in start-args. It runs fresh every run; an exit other than 0 fails the scenario and the
 //                               editor is not started. (Added 2026-11-17 by Drake, strategy-closeout-drake.md E-5: made levels are made by a tool, never by hand.)
+//   from-shot <png>             first: the editor starts FROM A SCREENSHOT (#78's PNG; a * in the name takes the newest that matches; {exedir} and {scenariodir} as in start-args), by
+//                               its own -shot (open_at.h): the shot's map from its data folder (refused, both named, when the file's sha256 is not the shot's), the shot's screen,
+//                               camera and first selected object. The PNG is hostile: every field bounded (shot_read.h). (Added 2026-11-18 by Drake, Bishop from the owner.)
+//                               The same by numbers: start-args <level name> -at <x> <y> <z> <turn> <look> ["<screen>"].
 //   env <AVP_NAME> <value>      before the editor starts: that variable in the editor's environment (it inherits the harness's), so a scenario carries the test hook it needs whatever runs it
 //                               (hierarchy-turret-sentry: AVP_HV_TURRET pivot, hierarchy_view.cpp). Only names that start with AVP_ are taken: a scenario never changes PATH or any
 //                               other variable of Windows. (Added 2026-11-17 by Frost: run-shards sets no variable, so the scenario went red in Bishop's round 1.)
@@ -27,11 +33,19 @@
 //   select-row <n> [add]        selects the n-th row of the object list (as a click on it does); with add it joins the selection
 //   select-rows <n> <n> ...     the first row is selected, the others join (several objects selected, as Shift+clicks do)
 //   click-win <x> <y> [right] [shift]   a click at a place in the editor window's client pixels
+//   drag-win <x0> <y0> <x1> <y1> [right] [ctrl]   a drag, with the right button and / or Control held
+//   drag-texwin <x0> <y0> <x1> <y1> [right] [ctrl] / click-texwin <x> <y> [shift]   the same at places from the Texture Map window's top left (the state line's texwin)
+//   allow-fail <reason> | <check line>   the check as usual, but a failure is "ALLOWED" (with the reason) and not counted; a pass gets a NOTE to take the prefix away
+//   expect-texwin <width> <height> <view left> <top> <right> <bottom> <scale>   the Texture Map window is that big, shows that view at that scale, in the frame's bottom-right corner
 //   click-wp <index|current> <top|side|front> [right] [shift]   a click on the middle of that waypoint's box in that one of the three views (the editor says where it is: kHarnessLocate)
 //   drag-win <x0> <y0> <x1> <y1>        press at the first place, move to the second in steps, let go
 //   type <text>                 the characters, one WM_CHAR each, to the editor's window (into an open prompt); key <Enter|Esc|Back|Tab|Left|Right|Up|Down|Space>
 //                               (F1 to F12 and PrintScreen too); key-up <k>: only the key's letting go, as Windows hands Print Screen to a window
-//   camera <x> <y> <z> <turn>   puts the camera there (millimetres; turn 0 looks along z, 1024 along x) (kHarnessCamera)
+//   camera <x> <y> <z> <turn>   puts the camera there (millimetres; turn 0 looks along +z, 1024 along -x (measured 11-18 against the editor's matrix; it said +x)) (kHarnessCamera); the axes: src/host/level_view.h FlyCamera
+//   camera-orbit <object> [<around> <up> <distance>]   the camera ORBITING that object (or module), looking at its box's centre: 45 round, 45 up and 2.5 half diagonals off (1 to 4 metres)
+//                               by default (src/host/orbit_command.h, camera_orbit.h; the owner 11-18: test cameras at 45 degrees round the subject)
+//   camera-corner <object>      the four upper diagonal orbit spots (45 / 135 / 225 / 315 round, 45 up) tried in turn: the first from which the editor's own pick at the middle of the view
+//                               is the subject is kept; none: the first, said. Both are sent as WM_COPYDATA text and answered with the camera line; the state line's camera field reads it.
 //   face-light <n>              Light Sourcing: selects light n (counting from 1) and turns the camera on the spot to face it (kHarnessFaceLight)
 //   repeat <most> <key> <hold ms> <status_words> | <step> | <step>   the steps, again with the key held between, until the status holds the words (_ is a space): picks that depend on the camera
 //   wait <milliseconds>; wait-status <most milliseconds> <words>: the state asked every half second until the status line holds the words (FAILED if it never does in that time)
@@ -40,6 +54,8 @@
 //                               (default 0.05) of the box changed (a dialog appeared, a gun moved); expect-pixels-same ... [share]: at most
 //                               that share (default 0.01) changed (nothing happened there)
 //   expect-number <field> <label> <least> <most>   the number right after <label> (_ a space) in that state-line field is in the range
+//   wait-field <field> <label> <n> [<most ms>]   asks again every 100 ms until the number right after <label> (_ a space) in that field is n or more; FAILED at the limit (20000 ms)
+//   app-active <0|1>            the editor's window is told the program lost (0) or got (1) the focus, as Windows tells it on an Alt+Tab (WM_ACTIVATEAPP: Link with AVP reads it)
 //   expect-pixels-changed-since <n> <kind> <x> <y> <w> <h> [share]   the same, the newest picture against picture n (one taken with picture <n>),
 //                               not the one before: dialog steps between them take their own pictures; expect-pixels-same-since likewise
 //   expect-colour <kind> <x> <y> <w> <h> <rrggbb> [share] [tolerance]   that share of the box is that colour (channels within the tolerance)
@@ -61,6 +77,8 @@
 #include <map>
 #include <fstream>
 #include <sstream>
+
+#include "from_shot.h"   // from-shot <png>, and --shot-to-scenario (Drake 11-18)
 
 static std::string Narrow(std::wstring const &text)
 {
@@ -84,6 +102,81 @@ static std::wstring Widen(std::string const &text)
 	}
 
 	return out;
+}
+
+// The biggest level file the "level" check below reads to compare: every stock level is under 3 MB, so 256 MB is never a real one (the scenario file names it, so it is bounded too)
+static std::streamoff const kLevelCheckMostBytes = 256 * 1024 * 1024;
+
+// The whole of a file, or false when it can't be read or is bigger than most
+static bool ReadWholeFile(std::string const &path, std::streamoff most, std::string *bytes)
+{
+	std::ifstream file(path, std::ios::binary | std::ios::ate);
+
+	if (!file)
+	{
+		return false;
+	}
+
+	std::streamoff const size = file.tellg();
+
+	if (size < 0 || size > most)
+	{
+		return false;
+	}
+
+	bytes->assign((size_t)size, '\0');
+	file.seekg(0);
+	return size == 0 || (bool)file.read(&(*bytes)[0], size);
+}
+
+// A path with every \ as / and every letter small, so two spellings of one path compare the same
+static std::string SamePathSpelling(std::string text)
+{
+	for (char &letter : text)
+	{
+		letter = letter == '\\' ? '/' : (char)tolower((unsigned char)letter);
+	}
+
+	return text;
+}
+
+// LEVEL IS A NAME (Drake 2026-11-18, Bishop): "level <path>" writes only <path>'s name as Level= in the editor's ini, so the editor opens <its DataFolder>\avp_rifs\<name>.rif, not <path>, while
+// verify's {orig} is <path>. A <path> whose file is not that one, byte for byte, would test another file than the scenario names (Drake's owner's-path walk on 11-18 ran the stock Genshd1
+// where it named his own, and its AutoLink check compared the two). True when the editor will open the very file named: the data folder's file is it, byte for byte, or the editor's
+// command line opens <path> itself (start-args <path>, as a double click does). Otherwise false, and why says which file the editor opens and what to write instead.
+static bool LevelLineIsTheFileOpened(std::string const &level, std::string const &name, std::string const &ini, std::wstring const &startArguments, std::string *why)
+{
+	if (SamePathSpelling(Narrow(startArguments)).find(SamePathSpelling(level)) != std::string::npos)
+	{
+		return true;
+	}
+
+	char folder[MAX_PATH] = "";
+	GetPrivateProfileStringA("Editor", "DataFolder", "", folder, sizeof(folder), ini.c_str());
+
+	if (!folder[0])
+	{
+		*why = "the editor's settings (" + ini + ") name no DataFolder, so the file it opens for Level=" + name + " can't be checked against this one: use start-args " + level;
+		return false;
+	}
+
+	std::string const opened = std::string(folder) + "\\avp_rifs\\" + name + ".rif";
+	std::string named, real;
+
+	if (!ReadWholeFile(level, kLevelCheckMostBytes, &named))
+	{
+		*why = "the file can't be read (or is over 256 MB)";
+		return false;
+	}
+
+	if (!ReadWholeFile(opened, kLevelCheckMostBytes, &real) || real != named)
+	{
+		*why = "the editor opens " + opened + " (Level=" + name + " in its data folder), and that is not this file byte for byte (or is not there): to test this file, use start-args " +
+			level + " (the double-click path), or put it in {datadir}/avp_rifs";
+		return false;
+	}
+
+	return true;
 }
 
 struct Scenario
@@ -331,7 +424,7 @@ static HWND TargetOf(Scenario *s, int *x, int *y)
 }
 
 // A press at the first place, the pointer moved to the second in steps with the button down, then let go
-static void DragWindow(Scenario *s, int x0, int y0, int x1, int y1)
+static void DragWindow(Scenario *s, int x0, int y0, int x1, int y1, bool right = false, bool control = false)
 {
 	int ax = x0, ay = y0, bx = x1, by = y1;
 	HWND const target = TargetOf(s, &ax, &ay);
@@ -342,17 +435,19 @@ static void DragWindow(Scenario *s, int x0, int y0, int x1, int y1)
 	bx = x1 - (x0 - ax);
 	by = y1 - (y0 - ay);
 
-	PostMessageW(target, WM_MOUSEMOVE, 0, MAKELPARAM(ax, ay));
-	PostMessageW(target, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(ax, ay));
+	WPARAM const held = (right ? MK_RBUTTON : MK_LBUTTON) | (control ? MK_CONTROL : 0);
+
+	PostMessageW(target, WM_MOUSEMOVE, control ? MK_CONTROL : 0, MAKELPARAM(ax, ay));
+	PostMessageW(target, right ? WM_RBUTTONDOWN : WM_LBUTTONDOWN, held, MAKELPARAM(ax, ay));
 	Sleep(150);
 
 	for (int step = 1; step <= 8; step++)
 	{
-		PostMessageW(target, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(ax + (bx - ax) * step / 8, ay + (by - ay) * step / 8));
+		PostMessageW(target, WM_MOUSEMOVE, held, MAKELPARAM(ax + (bx - ax) * step / 8, ay + (by - ay) * step / 8));
 		Sleep(80);
 	}
 
-	PostMessageW(target, WM_LBUTTONUP, 0, MAKELPARAM(bx, by));
+	PostMessageW(target, right ? WM_RBUTTONUP : WM_LBUTTONUP, control ? MK_CONTROL : 0, MAKELPARAM(bx, by));
 	Sleep(600);
 }
 
@@ -522,6 +617,45 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	std::vector<std::string> const w = Words(line);
 	std::string const &verb = w[0];
 	std::string const label = "step " + std::to_string(number) + ": " + line;
+
+	// allow-fail <reason> | <check line> (Bishop / Dietrich 2026-11-18): the check runs as usual; a failure is ALLOWED (logged "  ALLOWED  step N: <check> (<reason>)", not counted, so
+	// the file can stay GREEN), a pass is ok with a NOTE that the prefix may go. For a check that can't SEE what it looks for after a couple of camera tries (the owner's rule: allowed to
+	// fail, and he looks at the picture; failed-report.js lists the ALLOWED lines on his page). A step that can't go on still stops the scenario.
+	if (verb == "allow-fail")
+	{
+		size_t const bar = line.find(" | ");
+		size_t const from = line.find("allow-fail") + 10;
+		auto const trim = [](std::string text)
+		{
+			size_t const first = text.find_first_not_of(" \t");
+			size_t const last = text.find_last_not_of(" \t");
+
+			return first == std::string::npos ? std::string() : text.substr(first, last - first + 1);
+		};
+		std::string const reason = bar == std::string::npos || bar < from ? std::string() : trim(line.substr(from, bar - from));
+		std::string const check = bar == std::string::npos ? std::string() : trim(line.substr(bar + 3));
+
+		if (reason.empty() || check.empty() || Words(check)[0] == "allow-fail")
+		{
+			Check(false, label + " (allow-fail <reason> | <check line>: one reason and one check)");
+			return true;
+		}
+
+		checkAllowedReason = reason;
+		checkAllowedPassed = 0;
+		checkAllowedFailed = 0;
+
+		bool const goOn = DoStep(s, check, number);
+
+		checkAllowedReason.clear();
+
+		if (checkAllowedFailed == 0 && checkAllowedPassed > 0)
+		{
+			printf("  NOTE  allowed-fail check passed: remove the prefix? (step %d: %s)\n", number, check.c_str());
+		}
+
+		return goOn;
+	}
 
 	if (verb == "item")
 	{
@@ -800,6 +934,82 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	// expect-number <field> <label> <least> <most>: the whole number written right after the label's words (_ for a space) in that state-line field lies in the range, ends included
 	// (a value the screen shows as text, e.g. "Timer :%d" of the Hierarchy rows in the field hierarchylines). A sixth word n (1 to 64) takes the label's n-th place in the field
 	// (the Hierarchy text has a "Timer :" row for the main, the turret and each delta), else the first.
+	// wait-field <field> <word> <n> [<most ms>] (Vasquez 11-18, Bishop's ask): asks the state line again every 100 ms until the number after <word> in that field (_ for a space,
+	// as expect-number reads it: "Timer_" is the number after "Timer ") is n or more, so a timed event (a placed hierarchy's Timer, a track's play) is met by its own clock and not by a
+	// guessed wait. FAILED, with the last number seen (or that the word never showed), when that has not happened within <most ms> (20000 if not given; 1 to 600000).
+	// app-active <0|1> (Vasquez 11-18, Link with AVP): WM_ACTIVATEAPP with that word, posted as the other messages are (the editor's window takes it in its turn; the next state line
+	// is after it). A real focus change sends the same message, so a scenario reads what the editor did (its fields), never only that it was told.
+	if (verb == "app-active" && w.size() >= 2)
+	{
+		bool const active = w[1] == "1";
+
+		if (!active && w[1] != "0")
+		{
+			Check(false, label + " (app-active takes 0 or 1)");
+			return false;
+		}
+
+		PostMessageW(s->editor.window, WM_ACTIVATEAPP, active ? TRUE : FALSE, 0);
+		return true;
+	}
+
+	if (verb == "wait-field" && w.size() >= 4)
+	{
+		std::string wanted = w[2];
+
+		for (char &letter : wanted)
+		{
+			letter = letter == '_' ? ' ' : letter;
+		}
+
+		long long const target = atoll(w[3].c_str());
+		long long most = w.size() >= 5 ? atoll(w[4].c_str()) : 20000;
+
+		if (most < 1 || most > 600000)
+		{
+			Check(false, label + " (the time limit is 1 to 600000 ms)");
+			return true;
+		}
+
+		ULONGLONG const start = GetTickCount64();
+		long long last = 0;
+		bool seen = false;
+
+		for (;;)
+		{
+			if (!AskState(s))
+			{
+				Check(false, label + " (the editor gave no state line)");
+				return false;
+			}
+
+			std::string const now = Field(s->last, w[1]);
+			size_t const at = now.find(wanted);
+			long long const waited = (long long)(GetTickCount64() - start);
+
+			if (at != std::string::npos)
+			{
+				last = atoll(now.c_str() + at + wanted.size());
+				seen = true;
+
+				if (last >= target)
+				{
+					Check(true, label + " (it is " + std::to_string(last) + " after " + std::to_string(waited) + " ms)");
+					return true;
+				}
+			}
+
+			if (waited >= most)
+			{
+				Check(false, label + (seen ? " (it was " + std::to_string(last) + " after " + std::to_string(waited) + " ms)" : " (\"" + wanted + "\" never showed in " + w[1] + " in " +
+					std::to_string(waited) + " ms: \"" + now.substr(0, 200) + "\")"));
+				return true;
+			}
+
+			Sleep(100);
+		}
+	}
+
 	if (verb == "expect-number" && w.size() >= 5)
 	{
 		if (!AskState(s))
@@ -1865,9 +2075,63 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 	if (verb == "drag-win" && w.size() >= 5)
 	{
-		DragWindow(s, atoi(w[1].c_str()), atoi(w[2].c_str()), atoi(w[3].c_str()), atoi(w[4].c_str()));
+		// drag-win <x0> <y0> <x1> <y1> [right] [ctrl]: the right button's drag, and with Control held (Dietrich, TM-B 2026-11-18: the texture windows' right drag)
+		bool const right = (w.size() >= 6 && w[5] == "right") || (w.size() >= 7 && w[6] == "right");
+		bool const control = (w.size() >= 6 && w[5] == "ctrl") || (w.size() >= 7 && w[6] == "ctrl");
+
+		DragWindow(s, atoi(w[1].c_str()), atoi(w[2].c_str()), atoi(w[3].c_str()), atoi(w[4].c_str()), right, control);
 		AskState(s);
 		Check(true, label);
+		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
+		PictureAfter(s, line);
+		return true;
+	}
+
+	// THE TEXTURE MAP WINDOW (Dietrich, TM-B T 2026-11-18): inteng lays it out in the screen's bottom-right corner, its size the view's times the scale, so its places follow the frame's
+	// size; the editor's texwin field says where it is: left top right bottom, the view's left top right bottom (texels), the scale's number, "resizing" while Texture Resize is on.
+	// drag-texwin / click-texwin take places from its top left; expect-texwin checks the size, the view and the scale, and that its far edges are the frame's right and the frame's
+	// bottom less the status line (36)
+	if ((verb == "drag-texwin" && w.size() >= 5) || (verb == "click-texwin" && w.size() >= 3) || (verb == "expect-texwin" && w.size() >= 8))
+	{
+		AskState(s);
+
+		std::string const words = Field(s->last, "texwin");
+		int win[4] = {}, view[4] = {}, scale = 0;
+
+		if (sscanf_s(words.c_str(), "%d %d %d %d %d %d %d %d %d", &win[0], &win[1], &win[2], &win[3], &view[0], &view[1], &view[2], &view[3], &scale) != 9)
+		{
+			Check(false, label + " (no texture window on the state line: texwin \"" + words + "\")");
+			return true;
+		}
+
+		if (verb == "expect-texwin")
+		{
+			RECT client = {};
+
+			GetClientRect(s->editor.window, &client);
+
+			bool const same = win[2] - win[0] == atoi(w[1].c_str()) && win[3] - win[1] == atoi(w[2].c_str()) && view[0] == atoi(w[3].c_str()) && view[1] == atoi(w[4].c_str()) &&
+				view[2] == atoi(w[5].c_str()) && view[3] == atoi(w[6].c_str()) && scale == atoi(w[7].c_str());
+			bool const corner = win[2] == client.right - client.left && win[3] == client.bottom - client.top - 36;
+
+			Check(same && corner, label + " (texwin \"" + words + "\", the frame " + std::to_string(client.right - client.left) + " x " + std::to_string(client.bottom - client.top) + ")");
+			return true;
+		}
+
+		if (verb == "click-texwin")
+		{
+			ClickWindow(s, win[0] + atoi(w[1].c_str()), win[1] + atoi(w[2].c_str()), false, std::find(w.begin(), w.end(), "shift") != w.end());
+		}
+		else
+		{
+			bool const right = std::find(w.begin(), w.end(), "right") != w.end();
+			bool const control = std::find(w.begin(), w.end(), "ctrl") != w.end();
+
+			DragWindow(s, win[0] + atoi(w[1].c_str()), win[1] + atoi(w[2].c_str()), win[0] + atoi(w[3].c_str()), win[1] + atoi(w[4].c_str()), right, control);
+		}
+
+		AskState(s);
+		Check(true, label + " (the window's top left " + std::to_string(win[0]) + "," + std::to_string(win[1]) + ")");
 		printf("  (%s)\n", s->last.empty() ? "no state line" : s->last.substr(s->last.find("scenario: ")).c_str());
 		PictureAfter(s, line);
 		return true;
@@ -2213,6 +2477,32 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	}
 
 	// camera-look <look> <roll>: the camera's look (4096ths, signed: plus is down, held to a quarter turn either way) and roll; "camera" sets the place and the turn only (kHarnessCamera parts 4 and 5)
+	if ((verb == "camera-orbit" || verb == "camera-corner") && w.size() >= 2)
+	{
+		// the editor's OrbitCommand_Run (orbit_command.h) through WM_COPYDATA, the only message that carries a name: it is answered with the editor's camera line (Drake 11-18)
+		Drain(s);
+
+		std::string text = std::string(verb == "camera-orbit" ? "orbit|" : "corner|") + w[1];
+
+		for (size_t k = 2; verb == "camera-orbit" && k < w.size() && k < 5; k++)
+		{
+			text += "|" + w[k];
+		}
+
+		COPYDATASTRUCT data = {};
+		DWORD_PTR answer = 0;
+
+		data.dwData = 0x4f524254ul;   // orbit_command.h kOrbitCommandTag ('ORBT')
+		data.cbData = (DWORD)text.size();
+		data.lpData = (PVOID)text.data();
+		SendMessageTimeoutW(s->editor.window, WM_COPYDATA, 0, (LPARAM)&data, SMTO_ABORTIFHUNG, 10000, &answer);
+
+		std::string const said = WaitForLine(&s->editor, "AVP_OpenInteng: camera: ", 10000);
+
+		Check(answer == TRUE && !said.empty(), label + " -> " + (said.empty() ? std::string("no camera line (the status line says why)") : said.substr(said.find("camera"))));
+		return true;
+	}
+
 	if (verb == "camera-look" && w.size() >= 3)
 	{
 		Drain(s);
@@ -2564,6 +2854,26 @@ int main(int argc, char **argv)
 {
 	setvbuf(stdout, NULL, _IONBF, 0);
 
+	// --shot-to-scenario <png, or a pattern with *: the newest that matches>: the from-shot line a screenshot gives and what it stands for (from_shot.h), printed; no editor is started
+	if (argc >= 2 && strcmp(argv[1], "--shot-to-scenario") == 0)
+	{
+		std::string png, why;
+		std::vector<std::string> lines;
+
+		if (argc < 3 || !fromshot::Lines(argv[2], &png, &lines, &why))
+		{
+			printf("shot-to-scenario: %s\n", argc < 3 ? "usage: drive_scenario --shot-to-scenario <shot .png, or a pattern with *>" : why.c_str());
+			return argc < 3 ? 2 : 1;
+		}
+
+		for (std::string const &one : lines)
+		{
+			printf("%s\n", one.c_str());
+		}
+
+		return 0;
+	}
+
 	if (argc < 4)
 	{
 		printf("usage: drive_scenario <the editor's .exe> <a folder for the pictures and the record> <a scenario file>\n");
@@ -2701,6 +3011,31 @@ int main(int argc, char **argv)
 			continue;
 		}
 
+		if (w[0] == "from-shot" && w.size() >= 2 && steps.empty())
+		{
+			// from-shot <png, or a pattern with *: the newest that matches> (from_shot.h): the editor started with -shot <that png> (open_at.h: the shot's map from the editor's data folder, only with
+			// the shot's sha256, its camera, screen and selected object); {exedir} and {scenariodir} as start-args has them (Drake 11-18)
+			std::string const folderOfEditor = Narrow(exe.substr(0, exe.find_last_of(L"\\/") + 1));
+			char wholeScenario[MAX_PATH] = "";
+			DWORD const wholeLength = GetFullPathNameA(argv[3], sizeof(wholeScenario), wholeScenario, nullptr);
+			std::string const scenarioWhole = wholeLength > 0 && wholeLength < sizeof(wholeScenario) ? std::string(wholeScenario) : std::string(argv[3]);
+			std::string const folderOfScenario = scenarioWhole.substr(0, scenarioWhole.find_last_of("\\/") + 1);
+			std::string const pattern = Replace(Replace(Rest(line, 1), "{exedir}", folderOfEditor), "{scenariodir}", folderOfScenario);
+			std::string why;
+			std::string const png = fromshot::ShotFile(pattern, &why);
+
+			if (png.empty())
+			{
+				printf("  FAILED  from-shot %s: %s\n", pattern.c_str(), why.c_str());
+				printf("SOME CHECKS FAILED\n");
+				return 1;
+			}
+
+			printf("  ok  from-shot %s: the editor opens it with -shot\n", png.c_str());
+			startArguments += L" -shot \"" + Widen(png) + L"\"";
+			continue;
+		}
+
 		if (w[0] == "level" && w.size() >= 2)
 		{
 			s.level = Rest(line, 1);
@@ -2728,6 +3063,8 @@ int main(int argc, char **argv)
 
 	// The level the scenario names is the one the editor's settings open: its name (the file's, without the folder and the ending) is written as Level= in the AVP_OpenInteng.ini beside the editor's program
 	// (the run folder is a COPY made for the run; the harness never changes any other file)
+	std::string levelName, levelIni;   // what the block below wrote, for the check after the made levels
+
 	if (!s.level.empty())
 	{
 		size_t const slash = s.level.find_last_of("/\\");
@@ -2746,6 +3083,8 @@ int main(int argc, char **argv)
 		{
 			WritePrivateProfileStringA("Editor", "Level", name.c_str(), ini.c_str());
 			printf("  (the editor's level is %s: Level=%s in %s)\n", s.level.c_str(), name.c_str(), ini.c_str());
+			levelName = name;
+			levelIni = ini;
 		}
 	}
 
@@ -2764,6 +3103,16 @@ int main(int argc, char **argv)
 
 		Check(code == 0, "make-level " + command + " -> exit " + std::to_string(code));
 		made = made && code == 0;
+	}
+
+	// the level line's file is the one the editor opens (LevelLineIsTheFileOpened), checked after the made levels, since one of them can be it
+	if (made && !levelName.empty())
+	{
+		std::string why;
+		bool const same = LevelLineIsTheFileOpened(s.level, levelName, levelIni, startArguments, &why);
+
+		Check(same, "level " + s.level + " is the file the editor opens" + (same ? std::string() : ": " + why));
+		made = same;
 	}
 
 	bool const started = made && StartTheEditor(exe, s.recordFolder, &s.editor, startArguments);
@@ -2811,6 +3160,12 @@ int main(int argc, char **argv)
 	}
 
 	CoUninitialize();
+
+	if (checksAllowed > 0)
+	{
+		printf("  NOTE  %d check%s allowed to fail failed (the ALLOWED lines): not counted\n", checksAllowed, checksAllowed == 1 ? "" : "s");
+	}
+
 	printf("%s\n", checksFailed ? "SOME CHECKS FAILED" : "All checks passed");
 	return checksFailed ? 1 : 0;
 }

@@ -1,0 +1,37 @@
+# ACCEPTANCE (Drake 11-18, THE OWNER'S PATH before the beta, Bishop): Module Linking's AutoLink > Module (delete old) (acceptance-autolink-module's steps); the module in the view's middle is his level's module 191, shedent03, with 18 links in HIS file (25 in stock Genshd1). On HIS OWN Genshd1.rif (his game folder's copy, copied read-only to drake-ownerpath/his-originals, SHA256SUMS there; this scenario opens its own copy, so no other editor opens the same file). The walk on 11-18 ran the same steps on the stock copy of the level beside it: every check came out the same. The source scenario's own notes follow.
+# ACCEPTANCE: AutoLink > Module (delete old) on his path (Dietrich, 2026-11-16; rows ML-A-1..7 of AvP-docs/engine/inteng/reassess/module-linking-map-dietrich.md; the plan:
+# AvP-docs/director/autolink-plan-2026-11-16.md). FUN_004c8930(the picks, 1): the picked module made current with its old links thrown away, its pictures drawn and read (FUN_004c7ab0 /
+# FUN_004c6fb0: the meet test, the views, the read-back, the doors' second pictures), the links put in its tree, the tree written, the module that was current made current again.
+# Ours runs it on a worker thread (the owner's ruling) and shows the pictures in the bottom-right grid. THE ORACLE: Invasion's own stock links of the module (until his inteng-saved
+# result arrives: then the same check against that file). Level: Invasion, a copy saved; the original is only read.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+#ini ViewDistance=100000000
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-autolink/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-autolink/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1425512
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+# ---- gARAGDOR (the view's middle from the start camera) made current, then picked
+click-view 0.5 0.5
+key S
+expect-status Current module: shedent03 (18 links)
+click-view 0.5 0.5
+expect-status Picked: module 191 (shedent03)
+remember-field camerasaved
+# ---- AutoLink > Module (delete old): its old links thrown away, the run's links in their place; at its start FUN_004704d0(10) saves the camera and says "Camera position saved"
+# (0x4c8961, row CS-13 of reassess/camera-saved-vasquez.md): the state line's camerasaved goes up by one
+click-bar AutoLink > Module (delete old)
+wait 3000
+expect-field-changed camerasaved
+expect-status AutoLink: 1 modules run
+expect-status-not 0 links added
+expect-number linktree links 1 1000
+# ---- out, a copy saved, read back through the game's loader: gARAGDOR links the same modules as the stock level, and no other module changed
+item 0x64
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_autolink/verify_autolink.exe {orig} {copy} shedent03 same-branches

@@ -140,6 +140,7 @@ int32_t const kLinkMixed = 25;          // Mixed (0x4a), Dietrich: the base used
 int32_t const kLinkShowAll = 26;        // Show All (0xca), Dietrich
 int32_t const kLinkViewDistance = 27;   // Toggle View Distance (0x49), Dietrich
 int32_t const kLinkOnlyLinked = 28;     // Only Draw Linked Modules (0x4b), Dietrich
+int32_t const kLinkWithAvp = 29;        // Misc > Link with AVP (0x190): the switch (module_link_avp.h), Vasquez
 int32_t const kLinkExit = 6;  // Module Linking, Exit: the links are written, the screen's state is let go of
 // The Shape Chooser's actions (shape_chooser.h)
 int32_t const kChooserNone = 0;
@@ -175,6 +176,7 @@ int32_t const kPromptAssignReplace = 33;    // Assign Strategy: "Object already 
 int32_t const kPromptDeleteMulti = 36;      // Strategy mode, Delete Multiple Strategies (0x42): the numbers of the groups to delete
 int32_t const kPromptVirtualName = 29;     // Strategy mode, Create Virtual Object (0x39-0x3f): "Type name for new virtual object"
 int32_t const kPromptStability = 28;       // Strategy mode, Stability flags (0x37): the six faces of the picked module, typed as six letters r (red: stable) or g (green: unstable)
+int32_t const kPromptWriteC = 48;          // Write C File (0xc): the name of the file for the selected object's shape, without ".c" (write_c_file.h). Taken 2026-11-18 by Frost.
 int32_t const kPromptExitSave = 47;        // Strategy Data's Exit (0x5) when the level changed: "Would you like to save first?" (yes or no)
 int32_t const kPromptTrackTime = 37;       // Track Edit, Properties > Section (0x51b): "Time for section", in seconds
 int32_t const kPromptTrackFlags = 38;      // Track Edit, Properties > Track (0x527): the letters of the flags that are on

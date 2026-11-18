@@ -171,7 +171,10 @@
 #include "open_with.h"
 #include "texture_quad.h"
 #include "texture_area.h"   // the texture area (TM-B)
+#include "texture_window.h"   // the texture window's layout and Texture Resize (TM-B T)
 #include "texture_shared.h"
+#include "state_line.h"       // texwin: the window's layout on the scenario line
+#include "texture_nodes.h"   // O / V: cycle / reverse nodes (TM-C H5, Drake)
 
 #include "editor_shared.h"
 
@@ -179,6 +182,8 @@
 // (a pair of triangles the loader joined into a quad, and an animated texture, keep the old look until the level is opened again: named).
 void ShowTheNewUv(OpenLevelFile *open, TexturePolygon const &lead, std::vector<model::PolygonUv> const &polygons)   // texture_shared.h
 {
+	TextureModified_Note(lead.id);   // a texture-coordinate write: the object is modified (Return's shared-shape question)
+
 	LevelViewShapeOf shape = {};
 	model::ShapeModel model;
 	std::string why;
@@ -664,6 +669,19 @@ static model::TextureWindow textureArea = {};
 static int32_t textureAreaTexture = -1;   // state +0x58: the texture the area is of (-1: none since Texture Map started; -2: the lowest picture, at the start)
 static int32_t textureAreaW = 0, textureAreaH = 0;   // that texture's picture size
 
+// THE TEXTURE WINDOW'S LAYOUT (TM-B T, reassess/tm-b-window-layout.md; model/texture_window.h): the state's view (+28..+34), window (+38..+44), scale (+50 / +54) and Texture Resize
+// (+74's flags, +90), one for both window sub-modes (1 and 3), as inteng keeps one. The view starts again where FUN_00555dd0 / FUN_0055d290 run (TextureAreaForTexture, Reset Source
+// Rect); any other change of the texture area, or of the frame's size, lays the window out again (FUN_00555ad0: the repeats 0x557e41, Add 1 0x54f125). The screen is the frame less the
+// status line under it (NAMED: inteng's is the whole screen; ours keeps the status line).
+model::TextureWindowState textureWin;
+static bool textureWinStart = true;   // the view starts again at the next layout
+static int32_t textureWinLastW = 0, textureWinLastH = 0;
+static bool textureWinViewMoved = false;   // the arrow keys moved the view (Texture Resize), not the nodes: the editor's TextureWindowApply after them writes nothing
+static int32_t textureWinResizeX = 0, textureWinResizeY = 0;   // the last mouse place of a Texture Resize drag (+64 / +68)
+static int textureWinDotPhase = 0;   // the outline's dotted line's phase (DAT_00914d14: 0..5)
+static bool textureWinMouseKnown = false;
+static int32_t textureWinMouseX = 0, textureWinMouseY = 0;   // the mouse over the frame (the scale keys zoom about it)
+
 // FUN_00555dd0's area (model::AreaForTexture): the current texture becomes `texture`, whose picture is w x h; Default to 1X1 (or no texture before) also makes the repeats 1X1
 static void TextureAreaForTexture(int32_t texture, int32_t w, int32_t h)
 {
@@ -689,6 +707,42 @@ static void TextureAreaForTexture(int32_t texture, int32_t w, int32_t h)
 }
 
 // The area as it is now; at Texture Map's start it is made for the lowest picture, w x h (FUN_00555cd0)
+static model::TextureWindow TextureAreaNow(int32_t w, int32_t h);
+
+bool TextureCurrentPictureSize(int32_t *width, int32_t *height);
+
+// The texture area now (state +8 .. +0x14); false when the game has no picture loaded
+bool TextureCurrentArea(int32_t *left, int32_t *top, int32_t *right, int32_t *bottom)
+{
+	int32_t w = 0, h = 0;
+
+	if (!TextureCurrentPictureSize(&w, &h))
+	{
+		return false;
+	}
+
+	*left = textureArea.left;
+	*top = textureArea.top;
+	*right = textureArea.right;
+	*bottom = textureArea.bottom;
+	return true;
+}
+
+// The current texture's picture size (state +0x58: the lowest picture at Texture Map's start); false when the game has no picture loaded
+bool TextureCurrentPictureSize(int32_t *width, int32_t *height)
+{
+	int32_t lowestW = 0, lowestH = 0;
+
+	if (textureAreaTexture == -1 && LevelView_LowestPictureSize(&lowestW, &lowestH))
+	{
+		TextureAreaNow(lowestW, lowestH);
+	}
+
+	*width = textureAreaW;
+	*height = textureAreaH;
+	return textureAreaTexture != -1 && textureAreaW > 0 && textureAreaH > 0;
+}
+
 static model::TextureWindow TextureAreaNow(int32_t w, int32_t h)
 {
 	if (textureAreaTexture == -1)
@@ -699,6 +753,7 @@ static model::TextureWindow TextureAreaNow(int32_t w, int32_t h)
 	return textureArea;
 }
 
+static bool textureBasePick = false;   // Shift+B (0xe7) waits for the click on the base polygon (FUN_00556ff0; TextureBasePicked, below)
 static bool textureShowImported = false;   // 0x145 Show Imported Shapes (DAT_00914d50): off at the start; FUN_0054bdb0 sets object flag 0x800000 on every SHPEXTFL shape while it is off (they cannot be selected or inverted)
 bool textureRectActive = false, textureRectAsked = false, textureRectShift = false;   // Rect (In or On) / Rect (In): the left button is down and dragging / the drag is let go and waits for the frame
 int textureRectX0 = 0, textureRectY0 = 0, textureRectX1 = 0, textureRectY1 = 0, textureRectViewW = 0, textureRectViewH = 0;
@@ -719,13 +774,13 @@ void TextureMapEdit(int32_t command);
 void TextureMapStepPicture(int step);
 static void TextureWindowRotateNodes(int quarters);
 static void TextureWindowCorners(int direction, int start);
+static void TextureWindowTurnOrder();
 static bool TextureWindowPictureSize(int32_t *width, int32_t *height);
 bool textureWindowOn = false;
 // inteng's sub-mode (DAT_00914bf8, the menu object's +0x14, set by FUN_0054caf0): 0 the polygons, 1 the texture window, 2 Merge (FUN_005511f0), 3 multiple nodes (FUN_00552bb0). The key
 // table and the key ownership go by it, and TextureMapCommand hands a sub-mode's commands to its own switch first (TextureWindowCommand, texture_submodes.cpp). (D1 of the TM-A / TM-B
 // split, Bishop's ruling 11-17; added 2026-11-18 by Melanikus (Dietrich).)
 int textureSubMode = 0;
-int textureWinScale = 0;   // 0: fit
 bool TextureWindowLoad();
 void TextureWindowApply();
 bool textureWinAllNodes = false;   // Toggle Node Selection: the arrow keys move every node
@@ -741,12 +796,835 @@ bool AnimPlayStop();
 void AnimPlayTick();
 static bool textureSelectOnGoto = false;   // 0xd4 Select on GotoPoly (DAT_00914d98): going to a polygon (G, the Find items) also selects it (FUN_00563100 0x5633c2)
 void TextureGoto(int direction);
+static bool textureGotoFirst = false;   // the Find goes to its list's first polygon: not "Gone back to start of list" (only G past the end says it)
 bool textureCopyPending = false;   // 0x31 Copy Texturing > Polygon (key U): the next click names the polygon whose coordinates and picture the selected polygons take ("Get UV coords from which polygon")
 bool textureInvertPending = false;   // 0x101 was chosen: the next click names the object to invert (A: all shapes, right click or Esc: cancel)
+
+// P (0x32, and Merge's 0x32 at 0x5512b1): DAT_005fd69c, 1 at the start and never reset when the mode is entered. FUN_00543fa0 (0x544030-0x54404c) draws the mode's menus
+// every frame (FUN_0057b6f0) while Texture Map is on: always in the texture window (sub-mode 1) and the multiple node mode (3), and in the polygon screen (0) and Merge (2)
+// while the flag is set. So the bar shows by itself there, where the other screens show it only at the top edge or with Ctrl (FUN_004b7c50; editor_panels.cpp).
+bool textureTextShown = true;
+
+bool TextureBarsAlwaysShown()
+{
+	return onTextureMap && (textureSubMode == 1 || textureSubMode == 3 || textureTextShown);
+}
+
+// RETURN / BACKSPACE (0x2c / 0x2d; reassess/texture-map-return-backspace.md, option B, Bishop's conditions 11-18). Inteng holds the mode's work in its own records and
+// writes them into the chunks and the file at Return (FUN_00572440: "Copying data to chunks", then "Updating file." 0x57345b); Backspace (FUN_00558df0) gives every
+// modified polygon back what the chunks hold (FUN_00558f70), so the state at the last Return or at the mode's entry. Ours writes every edit at once, so the mode keeps
+// a SAVE POINT: the level's whole image (OpenLevelFile::BuildLevel) at its entry and after each Return. Nothing in level_file changes.
+static std::vector<char> textureSavePoint;
+static unsigned textureSavePointChanges = 0;   // the level's Changes() at the save point: Return writes nothing when they are the same (inteng's DAT_00914d18 gate, 0x57246a)
+static bool textureReturnSaving = false;       // Return's save: the flagged polygons stay in the file (TexturePolyApplyRemoved does nothing then)
+void TextureForEveryShape(OpenLevelFile *open, std::function<void(uint8_t const *id, bool isModule, int32_t moduleIndex)> const &each);
+
+// FUN_00544510 0x5449cc: at the mode's start every slot's merged pairs are checked (FUN_0055d500, here host::PolyEdit_CheckPairsNow with Dietrich's checks): a pair whose
+// polygons do not match is parted, and a polygon takes its partner's flags, type or colour where the checks say so; written at once (inteng's parting is in the chunk at
+// once: SHPMRGDT's +0x28 is the working array). No words, no box. DECIDED: before the save point is taken, so Backspace keeps what they did and they alone make no leave
+// question. NAMED: inteng's checks change a polygon's flags in its copy and set DAT_00914d18, so its Backspace would give such a polygon back and its exit would ask; no
+// stock level has one (verify_survey_entry_checks: of 38 levels the checks change one shape, Area52's FireSKA, 2 pairs parted, no polygon).
+static void TextureEntryPairChecks()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	std::vector<host::LevelObject> rows;
+
+	if (!open || !open->Level() || !LevelObjects_Read(&rows))
+	{
+		return;
+	}
+
+	// every slot, DAT_008f588c up to DAT_00914c80 (0x5449c9): the game's shapes, the imported ones too (the mode hides those only from the view and the picks), so every
+	// object of the level (a shape two objects use is checked twice; the second finds nothing). NAMED: a shape no object uses is not checked.
+	std::vector<std::string> ids;
+
+	for (host::LevelObject const &row : rows)
+	{
+		ids.push_back(std::string((char const *)row.id, 8));   // first the list, then the checks (the walk is not held over the writes)
+	}
+
+	for (std::string const &id : ids)
+	{
+		size_t parted = 0;
+		bool changed = false;
+		std::string why;
+
+		host::PolyEdit_CheckPairsNow(open, (uint8_t const *)id.data(), true, &parted, &changed, &why);   // a shape the checks can't read is left as it is
+	}
+}
+
+// FUN_00544510 (the mode's entry, from TextureModeStateReset) / after a Return: the level as it is now is the save point
+static void TextureTakeSavePoint()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	textureSavePoint.clear();
+
+	if (open && open->Level() && open->BuildLevel(textureSavePoint))
+	{
+		textureSavePointChanges = open->Changes();
+	}
+	else
+	{
+		textureSavePoint.clear();
+	}
+
+	TextureModified_Clear();   // nothing is modified at the save point (FUN_00572440 clears each slot's flag as it writes it)
+}
+
+// 0x2c (Return, FUN_00572440): with a change since the save point (the DAT_00914d18 gate, 0x57246a), each modified object whose shape other objects use too is asked
+// about first (FUN_0055aa50, below), then the level is saved (the editor's save, SaveTheCopy, keeping the flagged polygons) and the save point taken again. then() runs
+// after it all (the leave question's Yes), also when nothing was saved.
+//
+// THE SHARED-SHAPE QUESTION (FUN_0055aa50(slot, &skipAll) at 0x572522; FUN_0055b4c0's form, 600 x 400): "The shape associated with %s / is used by some other objects. /
+// Which of the other objects would you like the / changes applied to?", Ok (100, 370) 3, All (200, 370) 4, View Obj (300, 370) 5, Skip Obj (300, 350) 6, Skip All
+// (200, 350) 7, a box per other user, unticked, 10 a column, columns 200 apart. All, or Ok with every box ticked: the shape is written once for every user (ours is already:
+// the edits are in it) and the others' modified flags and selections are cleared (FUN_0056e030). Ok with any box unticked, Skip All, Escape: the object and the ticked
+// ones get a COPY of the shape (FUN_0050e880; here PolyEdit_SetMergeDataOnCopy, Dietrich's copy path), the others keep the shape as the last save had it (inteng's
+// chunk is the last save: here the save point, read into a second level). Skip Obj: asked again in a second pass (0x55ad3f, 0x573437). Skip All: no more questions this
+// Return, each a copy (0x55adea). NAMED: View Obj (the viewer FUN_005519c0) is not built: it asks again with the boxes unticked. NAMED: when an unticked user's own
+// polygons were edited too, the shape keeps the edits for it (ours are one set of bytes) and it is asked about in its own turn. The pairing and the animations of
+// the shape the others keep stay as they are now (as Backspace keeps them).
+struct TextureReturnPass
+{
+	std::vector<std::string> queue;          // the modified objects (8-byte IDs) whose shape has other users, in the order noted
+	size_t at = 0;
+	bool skipAll = false;                    // 0x55adea: set by Skip All, for the rest of this Return
+	bool again = false;                      // a Skip Obj: the pass runs again over `later`
+	std::vector<std::string> later;
+	std::unique_ptr<OpenLevelFile> saved;    // the level as the save point holds it
+	size_t copies = 0, inPlace = 0, refused = 0;
+	bool showAgain = false;
+	std::function<void()> then;
+};
+static TextureReturnPass textureReturnPass;
+static bool textureReturnAsking = false;   // the pass is under way (its form open)
+static void TextureReturnNext();
+
+// An object of the level by its name (the first of that name, as the shapes' users lists name them), and an object's name
+static bool TextureObjectByName(std::string const &name, uint8_t id[8])
+{
+	std::vector<host::LevelObject> rows;
+
+	if (!LevelObjects_Read(&rows))
+	{
+		return false;
+	}
+
+	for (host::LevelObject const &row : rows)
+	{
+		if (row.name && std::string(row.name, strnlen(row.name, 64)) == name)
+		{
+			memcpy(id, row.id, 8);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static std::string TextureObjectName(uint8_t const id[8])
+{
+	std::vector<host::LevelObject> rows;
+
+	if (LevelObjects_Read(&rows))
+	{
+		for (host::LevelObject const &row : rows)
+		{
+			if (row.name && memcmp(row.id, id, 8) == 0)
+			{
+				return std::string(row.name, strnlen(row.name, 64));
+			}
+		}
+	}
+
+	return std::string();
+}
+
+static bool TextureIsModified(uint8_t const id[8])
+{
+	std::string const key((char const *)id, 8);
+
+	for (std::string const &one : TextureModified_List())
+	{
+		if (one == key)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// FUN_0056e030: the object's selected polygons leave the selection (no wrap: inteng clears the slot's selection object)
+static void TextureDropSelectionOf(uint8_t const id[8])
+{
+	for (size_t i = texturePolygons.size(); i-- > 0;)
+	{
+		if (memcmp(texturePolygons[i].id, id, 8) == 0)
+		{
+			texturePolygons.erase(texturePolygons.begin() + (std::ptrdiff_t)i);
+		}
+	}
+}
+
+static void TextureReturnSave()
+{
+	TextureReturnPass &pass = textureReturnPass;
+
+	if (pass.copies)
+	{
+		LoadTheObjectListAgain();   // the movers' rows name the copy now
+	}
+
+	if (pass.copies || pass.showAgain)
+	{
+		ShowTheWorkingBytes();
+	}
+
+	textureReturnSaving = true;
+	SaveTheCopy();   // its own words on the status line ("Saved: ..." or why not)
+	textureReturnSaving = false;
+
+	if (savedWords.compare(0, 5, "Saved") == 0)
+	{
+		TextureTakeSavePoint();   // a save that did not happen leaves the save point where it was (inteng's d18 stays set when the file is not written)
+	}
+
+	if (pass.copies || pass.inPlace || pass.refused)
+	{
+		textureWords = std::string(statusWords ? statusWords : "") + " | shared shapes: " + std::to_string(pass.copies) + " given a copy, " + std::to_string(pass.inPlace) +
+			" written for all their users" + (pass.refused ? ", " + std::to_string(pass.refused) + " not copied (written for all their users)" : "");
+		statusWords = textureWords.c_str();
+	}
+
+	std::function<void()> const then = pass.then;
+
+	textureReturnPass = TextureReturnPass();   // the level as saved let go
+	textureReturnAsking = false;
+
+	if (then)
+	{
+		then();
+	}
+}
+
+static void TextureReturn(std::function<void()> const &then = nullptr)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !open->Level() || textureReturnAsking)
+	{
+		if (then)
+		{
+			then();
+		}
+
+		return;
+	}
+
+	if (!textureSavePoint.empty() && open->Changes() == textureSavePointChanges)
+	{
+		statusWords = "Texture Map: Return: nothing has changed since the last save";   // 0x57246a: DAT_00914d18 not set, nothing done
+
+		if (then)
+		{
+			then();
+		}
+
+		return;
+	}
+
+	textureReturnPass = TextureReturnPass();
+	textureReturnPass.then = then;
+	textureReturnAsking = true;
+
+	for (std::string const &id : TextureModified_List())
+	{
+		std::vector<std::string> users;
+
+		if (host::PolyEdit_ShapeUserNames(open, (uint8_t const *)id.data(), &users) && users.size() >= 2)
+		{
+			textureReturnPass.queue.push_back(id);   // 0x55aaf6: one user or none, no question
+		}
+	}
+
+	if (!textureReturnPass.queue.empty() && !textureSavePoint.empty())
+	{
+		// the level as the save point holds it, beside the one open (a level file opened, then made the save point's image)
+		char path[MAX_PATH] = "";
+		std::unique_ptr<OpenLevelFile> saved(new OpenLevelFile());
+
+		if (LevelView_FilePath(path, sizeof(path)) && saved->Open(path) == LevelOpenResult::Opened && saved->ReplaceLevel(textureSavePoint) == LevelOpenResult::Opened)
+		{
+			textureReturnPass.saved = std::move(saved);
+		}
+		else
+		{
+			textureReturnPass.refused = textureReturnPass.queue.size();   // NAMED: without the level as saved, the shared shapes stay written for every user
+			textureReturnPass.queue.clear();
+		}
+	}
+	else
+	{
+		textureReturnPass.queue.clear();
+	}
+
+	TextureReturnNext();
+}
+
+// The split (0x55aece-0x55b31b): the object and the ticked ones onto a copy holding the shape as it is now; the shape the others keep back at the last save
+static void TextureReturnSplit(std::string const &idText, std::string const &current, std::vector<std::string> const &others, std::vector<std::string> const &ticked)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	TextureReturnPass &pass = textureReturnPass;
+	uint8_t const *const id = (uint8_t const *)idText.data();
+	std::vector<std::string> movers(1, current);
+	uint8_t keeper[8] = {};
+	bool haveKeeper = false, keeperEdited = false;
+
+	movers.insert(movers.end(), ticked.begin(), ticked.end());
+
+	for (std::string const &other : others)
+	{
+		uint8_t otherId[8];
+
+		if (std::find(ticked.begin(), ticked.end(), other) != ticked.end() || !TextureObjectByName(other, otherId))
+		{
+			continue;
+		}
+
+		if (!haveKeeper)
+		{
+			memcpy(keeper, otherId, 8);
+			haveKeeper = true;
+		}
+
+		keeperEdited = keeperEdited || TextureIsModified(otherId);
+	}
+
+	model::ShapeModel shape;
+	std::vector<int32_t> merge;
+	bool hasMerge = false;
+	std::string why;
+
+	if (!open || host::ShapeEdit_Read(open->Level(), open, id, &shape, nullptr, &why) != host::ShapeEditResult::Done)
+	{
+		pass.refused++;
+		return;
+	}
+
+	host::PolygonItems_ReadMergeData(open, open->Level(), id, &merge, &hasMerge);
+
+	if (!hasMerge || merge.size() != shape.polygons.size())
+	{
+		merge.assign(shape.polygons.size(), -1);
+	}
+
+	if (host::PolyEdit_SetMergeDataOnCopy(open, id, movers, merge, &why) != host::PolyMergeResult::Done)
+	{
+		pass.refused++;   // the shape stays written for every user
+		return;
+	}
+
+	pass.copies++;
+
+	for (std::string const &mover : ticked)
+	{
+		uint8_t moverId[8];
+
+		if (TextureObjectByName(mover, moverId))
+		{
+			TextureModified_Forget(moverId);
+			TextureDropSelectionOf(moverId);   // 0x55b244: FUN_0056e030(j)
+		}
+	}
+
+	// the shape the others keep: back at the last save (when none of them was edited itself)
+	if (haveKeeper && !keeperEdited && pass.saved && !TextureShapeFields_Copy(pass.saved.get(), id, open, keeper, &pass.showAgain, &why))
+	{
+		pass.refused++;
+	}
+}
+
+static void TextureReturnAsk(std::string const &idText, std::string const &current, std::vector<std::string> const &others)
+{
+	host::DialogFormSpec spec;
+	host::DialogWidget text, ok, all, view, skipObj, skipAll;
+	auto const button = [](host::DialogWidget *b, int32_t x, int32_t y, int32_t w, char const *words, int32_t answer)
+	{
+		b->type = host::DialogWidgetType::Button;
+		b->box = { x, y, w, 16 };
+		b->text = words;
+		b->answer = answer;
+	};
+
+	spec.width = 600;
+	spec.height = 400;
+	text.type = host::DialogWidgetType::Label;
+	text.box = { 18, 18, 370, 100 };
+	text.text = "The shape associated with " + current + "\nis used by some other objects.\nWhich of the other objects would you like the\nchanges applied to?";   // 0x600af0
+	button(&ok, 100, 370, 50, "Ok", 3);
+	button(&all, 200, 370, 50, "All", 4);
+	button(&view, 300, 370, 80, "View Obj", 5);   // sub-mode 0 (DAT_00914bf8 == 0): the three more
+	button(&skipObj, 300, 350, 80, "Skip Obj", 6);
+	button(&skipAll, 200, 350, 80, "Skip All", 7);
+	spec.widgets = { text, ok, all, view, skipObj, skipAll };
+
+	for (size_t i = 0; i < others.size(); i++)
+	{
+		host::DialogWidget check, name;
+		int32_t const x = (int32_t)(i / 10) * 200, y = (int32_t)(i % 10 + 6) * 20;
+
+		check.type = host::DialogWidgetType::Check;
+		check.box = { x + 18, y, 16, 16 };
+		name.type = host::DialogWidgetType::Label;
+		name.box = { x + 40, y, 100, 18 };
+		name.text = others[i].substr(0, 30);   // strncpy(buf, name, 30)
+		spec.widgets.push_back(check);
+		spec.widgets.push_back(name);
+	}
+
+	host::Dialogs_Form(spec, [idText, current, others](int32_t answer, std::vector<host::DialogWidget> const &widgets)
+	{
+		TextureReturnPass &pass = textureReturnPass;
+		uint8_t const *const id = (uint8_t const *)idText.data();
+		std::vector<std::string> ticked;
+
+		for (size_t i = 0, row = 0; i < widgets.size(); i++)
+		{
+			if (widgets[i].type == host::DialogWidgetType::Check)
+			{
+				if (answer == 3 && widgets[i].checked && row < others.size())
+				{
+					ticked.push_back(others[row]);   // any answer but Ok: every box unticked (0x55adbc)
+				}
+
+				row++;
+			}
+		}
+
+		if (answer == 5)
+		{
+			TextureReturnAsk(idText, current, others);   // View Obj: NAMED, the viewer is not built
+			return;
+		}
+
+		if (answer == 6)
+		{
+			pass.later.push_back(idText);   // Skip Obj: the object stays modified and is asked about again (0x55ad59)
+			pass.again = true;
+			TextureReturnNext();
+			return;
+		}
+
+		pass.skipAll = pass.skipAll || answer == 7;
+		TextureModified_Forget(id);   // 0x5724f6: the slot's flag cleared as it is written
+
+		if (answer == 4 || (answer == 3 && ticked.size() == others.size()))
+		{
+			// All (0x55b322) / every box ticked (0x55ae2c): written once for every user; the others' flags and selections cleared (FUN_0056e030)
+			for (std::string const &other : others)
+			{
+				uint8_t otherId[8];
+
+				if (TextureObjectByName(other, otherId))
+				{
+					TextureModified_Forget(otherId);
+					TextureDropSelectionOf(otherId);
+				}
+			}
+
+			pass.inPlace++;
+		}
+		else
+		{
+			TextureReturnSplit(idText, current, others, ticked);
+		}
+
+		TextureReturnNext();
+	});
+}
+
+static void TextureReturnNext()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	TextureReturnPass &pass = textureReturnPass;
+
+	while (open && open->Level() && pass.at < pass.queue.size())
+	{
+		std::string const idText = pass.queue[pass.at++];
+		uint8_t const *const id = (uint8_t const *)idText.data();
+		std::vector<std::string> users;
+
+		if (!TextureIsModified(id) || !host::PolyEdit_ShapeUserNames(open, id, &users) || users.size() < 2)
+		{
+			continue;   // settled earlier in this Return (All, or moved with another), or alone on its shape now
+		}
+
+		if (pass.saved && TextureShapeFields_Same(pass.saved.get(), id, open, id))
+		{
+			TextureModified_Forget(id);   // nothing of the shape changed since the last save
+			continue;
+		}
+
+		std::string const current = TextureObjectName(id);
+		std::vector<std::string> others;
+		bool named = false;
+
+		for (std::string const &one : users)
+		{
+			if (!named && one == current)
+			{
+				named = true;   // the current object is not a row (0x55ab5a-0x55abac)
+				continue;
+			}
+
+			others.push_back(one);
+		}
+
+		if (!named || others.empty())
+		{
+			continue;   // the users list does not name it: the shape stays written for every user
+		}
+
+		if (pass.skipAll)
+		{
+			TextureModified_Forget(id);
+			TextureReturnSplit(idText, current, others, {});   // 0x55abf4: no form, as Skip All
+			continue;
+		}
+
+		TextureReturnAsk(idText, current, others);
+		return;   // the answer goes on with the pass
+	}
+
+	if (pass.again)
+	{
+		pass.again = false;
+		pass.queue = pass.later;
+		pass.later.clear();
+		pass.at = 0;
+		TextureReturnNext();   // 0x573437: the whole pass again for the skipped ones
+		return;
+	}
+
+	TextureReturnSave();
+}
+
+// The level put back as at the save point, but for what Backspace does not touch: the pairing (DAT_00914d3c) and the animations ("It won't undo changes to
+// animations."), which keep what they hold now. Backspace's Yes and the leave question's No. False, with the status words, when the level could not be put back.
+static bool TextureBackToSavePoint(bool *keptSome)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	*keptSome = false;
+
+	if (!open || !open->Level() || textureSavePoint.empty())
+	{
+		return false;
+	}
+
+	// what stays: each shape's pairing and animation now
+	struct Kept
+	{
+		uint8_t id[8];
+		std::vector<int32_t> merge;
+		bool hasMerge = false;
+		int32_t shapeNumber = -1;
+		model::TextureAnim anim;
+		std::vector<unsigned char> animBytes;
+		bool hasAnim = false;
+	};
+
+	std::vector<Kept> kept;
+
+	TextureForEveryShape(open, [&](uint8_t const *id, bool, int32_t)
+	{
+		Kept one;
+
+		memcpy(one.id, id, 8);
+		host::PolygonItems_ReadMergeData(open, open->Level(), id, &one.merge, &one.hasMerge);
+		one.hasAnim = host::AnimEdit_Read(open, id, &one.shapeNumber, &one.anim) == host::AnimEditResult::Done &&
+			model::WriteTextureAnim(one.anim, &one.animBytes) == model::TextureAnimResult::Ok;
+		kept.push_back(std::move(one));
+	});
+
+	if (open->ReplaceLevel(textureSavePoint) != LevelOpenResult::Opened)
+	{
+		statusWords = "Texture Map: the changes since the last save could not be undone (the level is as it was)";
+		return false;
+	}
+
+	size_t pairingsKept = 0;
+	std::vector<host::AnimWrite> anims;
+
+	for (Kept const &one : kept)
+	{
+		std::vector<int32_t> merge;
+		bool hasMerge = false;
+		std::string why;
+
+		host::PolygonItems_ReadMergeData(open, open->Level(), one.id, &merge, &hasMerge);
+
+		if (one.hasMerge && (!hasMerge || merge != one.merge) && host::PolyEdit_SetMergeData(open, one.id, one.merge, &why) == host::PolyMergeResult::Done)
+		{
+			pairingsKept++;
+		}
+
+		int32_t shapeNumber = -1;
+		model::TextureAnim anim;
+		std::vector<unsigned char> bytes;
+
+		if (one.hasAnim && (host::AnimEdit_Read(open, one.id, &shapeNumber, &anim) != host::AnimEditResult::Done ||
+			model::WriteTextureAnim(anim, &bytes) != model::TextureAnimResult::Ok || bytes != one.animBytes))
+		{
+			anims.push_back({ one.shapeNumber, one.anim });
+		}
+	}
+
+	std::string animWhy;
+
+	if (!anims.empty())
+	{
+		host::AnimEdit_Write(open, anims, &animWhy);
+	}
+
+	textureSavePointChanges = open->Changes();
+	ShowTheWorkingBytes();   // the game's view made again from the working bytes
+	*keptSome = pairingsKept || !anims.empty();
+	TextureModified_Clear();   // the level is the save point's again
+	return true;
+}
+
+// 0x2d's Yes (FUN_00558df0 from 0x558e65): the edits ring cleared, and the level back at the save point (TextureBackToSavePoint). The selection and the polygons flagged
+// for deletion stay.
+static void TextureUndoSinceSave()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !open->Level())
+	{
+		return;
+	}
+
+	TextureUndo_Reset();   // 0x558e77: FUN_0057e810 on the edits ring
+
+	if (textureSavePoint.empty() || open->Changes() == textureSavePointChanges)
+	{
+		statusWords = "Texture Map: nothing has changed since the last save";
+		return;
+	}
+
+	bool keptSome = false;
+
+	if (TextureBackToSavePoint(&keptSome))
+	{
+		textureWords = "Texture Map: the changes since the last save were undone" + std::string(keptSome ? " (the pairing and the animations kept as they are)" : "");
+		statusWords = textureWords.c_str();
+	}
+}
+
+// THE LEAVE QUESTION (FUN_0055c070(1), from the mode's exit FUN_0054bfd0 at 0x54c0d6, after the selection's wrap at 0x54c0af). Asked when something waits: a change since
+// the save point (DAT_00914d18 / FUN_00573600), polygons flagged for deletion (0x4000) or a split waiting (DAT_00914c6c); else the mode is left with nothing asked. Yes is
+// Return's save, then the splits and the deletions (FUN_00564300 / FUN_00563d90, 0x54c0de); No leaves the level as the last save had it (the teardown frees inteng's
+// records: the chunks keep the last saved state) and the flags and splits are dropped. NAMED: our question comes after the mode's bar has gone (inteng asks inside the
+// exit, on the mode's screen): what it decides is the same, before anything else can be done.
+static bool textureLeaveAsking = false;   // the question is open: the save point and the flagged polygons wait for its answer
+void TexturePolyDropFlags();
+bool TexturePolyAnyWaiting();
+
+static void TextureLeaveAnswer(bool yes)
+{
+	textureLeaveAsking = false;
+
+	if (yes)
+	{
+		// 0x55c172: FUN_00572440 (gated: nothing written when only flags wait; its shared-shape questions first), then 0x54c0de-0x54c0ef: the splits, then the deletions
+		TextureReturn([]()
+		{
+			std::string const saved(statusWords ? statusWords : "");
+
+			TexturePolyApplyRemoved();
+
+			if (saved.compare(0, 5, "Saved") == 0 && (!statusWords || saved != statusWords))
+			{
+				textureWords = std::string(statusWords ? statusWords : "") + " | " + saved;   // both answers on the line: what was taken out, and the save
+				statusWords = textureWords.c_str();
+			}
+
+			std::vector<char>().swap(textureSavePoint);   // the mode is gone: its save point with it
+		});
+		return;
+	}
+	else
+	{
+		OpenLevelFile *const open = LevelObjects_OpenForEdit();
+		bool const changed = open && open->Level() && !textureSavePoint.empty() && open->Changes() != textureSavePointChanges;
+		bool keptSome = false;
+
+		TexturePolyDropFlags();
+
+		if (!changed || TextureBackToSavePoint(&keptSome))
+		{
+			textureWords = std::string("Texture Map: the changes since the last save were not saved, and are undone") + (keptSome ? " (the pairing and the animations kept as they are)" : "");
+			statusWords = textureWords.c_str();
+		}
+	}
+
+	std::vector<char>().swap(textureSavePoint);   // the mode is gone: its save point with it
+}
+
+// LeaveTextureMap's hook, after the wrap and the selection's clearing: asks, or (nothing waiting) lets the save point go
+void TextureLeaveQuestion()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	bool const changed = open && open->Level() && !textureSavePoint.empty() && open->Changes() != textureSavePointChanges;
+
+	if (!changed && !TexturePolyAnyWaiting())
+	{
+		return;   // 0x55c07d-0x55c118: nothing to ask; TextureModeStateReset lets the save point go
+	}
+
+	textureLeaveAsking = true;
+	DialogConfirm("Would you like to save the changes\nyou have made?.\nIf you don't the changes will be lost.", [](bool yes)
+	{
+		TextureLeaveAnswer(yes);
+	});
+}
+
+// TEXTURE ALIGNMENT (I, 0x34: FUN_0055eeb0): 1 = waiting for the polygon to be altered, 2 = for the polygon to align it with; 0 = off. The altered polygon (and its partner with Select As
+// Quad, +0x9c == 4) is kept here between the two clicks.
+static int textureAlignStage = 0;
+static TexturePolygon textureAlignTarget;
+static int32_t textureAlignPartner = -1;
 
 // TEXTURE MAP's held states, cleared on entry and when it is left (reassess/mode-entry-exit-frost.md): FUN_00544510 0x544551 sets the selection mode DAT_00914d9c = 0 on every entry
 // (TM-E1); FUN_0054bfd0 frees everything of the mode on its Exit (TM-X2): no corners held, no plane or rectangle or invert waiting, no multiple copy half done
 extern int textureSelectAs;   // Select As, below
+
+// THE VIEW DISTANCE IN TEXTURE MAP (TM-B; FUN_00544070, H / N: 0xe5 / 0xe6, FUN_0054d260 0x54f676 / 0x54f691): the polygon screen's frame (0x54d284, every frame) hides each object whose
+// distance from the camera less its radius is at least the view distance (DAT_005fd678: the distance Module Linking's J / M change, 100 to the millimetre, 1,000,000 at the start), except one
+// with a selected polygon (0x5440d3); the other sub-modes draw the objects as the polygon screen's last frame left them (the flag stays). H adds 500,000, N takes 500,000 away, never below 0
+// (ViewDistanceHeld keeps the top bound, ML-E-8). Ours runs the rule every frame of the Texture Map screen, whatever the sub-mode, and lets it go when the screen is left.
+static bool textureViewHideOn = false;
+
+// I (0x105, both windows: FUN_00551f80 0x552400, FUN_00552bb0 0x55303b; FUN_0056fa60): the selected polygons' outline hidden / shown, each on its own. Inteng's selection outline is the
+// item flag 0x80: a polygon with it is drawn as it is, then its outline over it in the highlight colour (the drawers' 0x780 test, FUN_00498670; FUN_004980f0: 0xfa / 0xff0000); I flips
+// it on each selected polygon, which stays selected; leaving either window sets it on every selected polygon again (FUN_0056f9d0: 0x5520a8, 0x552cd7), and so does any refresh of the
+// polygon screen (FUN_00572320), so the hiding lasts while a window is open. Ours draws the selection again in the highlight (ShowTheTexturePolygons); a polygon listed here is left out
+// of it. NAMED: ours highlights the selection as a yellow tint, not an outline; an untextured polygon in the line view is not made a filled one (FUN_0055a720 0x55a74f).
+static std::vector<TexturePolygon> textureOutlineOff;
+
+static bool TextureSamePolygon(TexturePolygon const &a, TexturePolygon const &b)
+{
+	return a.polygon == b.polygon && a.isModule == b.isModule && a.moduleIndex == b.moduleIndex && memcmp(a.id, b.id, 8) == 0;
+}
+
+bool TexturePolygonOutlineOff(TexturePolygon const &one)
+{
+	return std::any_of(textureOutlineOff.begin(), textureOutlineOff.end(), [&](TexturePolygon const &off) { return TextureSamePolygon(off, one); });
+}
+
+static void TextureOutlineToggle()
+{
+	size_t hidden = 0;
+
+	for (TexturePolygon const &one : texturePolygons)
+	{
+		auto const at = std::find_if(textureOutlineOff.begin(), textureOutlineOff.end(), [&](TexturePolygon const &off) { return TextureSamePolygon(off, one); });
+
+		if (at != textureOutlineOff.end())
+		{
+			textureOutlineOff.erase(at);
+		}
+		else
+		{
+			textureOutlineOff.push_back(one);
+			hidden++;
+		}
+	}
+
+	ShowTheTexturePolygons();
+
+	static std::string words;
+
+	words = "Texture Map: the outline of " + std::to_string(hidden) + " selected polygon" + (hidden == 1 ? "" : "s") + " hidden, " + std::to_string(texturePolygons.size() - hidden) + " shown";
+	statusWords = words.c_str();
+}
+
+// FUN_0056f9d0: every selected polygon's outline shown again (the windows' leaving)
+void TextureOutlineAllShown()
+{
+	if (!textureOutlineOff.empty())
+	{
+		textureOutlineOff.clear();
+		ShowTheTexturePolygons();
+	}
+}
+
+// Recentre Shape's box (0xd6, FUN_00565bd0 0x565f18-0x565f9c), after a recentre: "Recentred %s" with the name of the object the shape is (its record among DAT_0093d120's, the name at
+// +0x154's +100, the box only when +0x154 is set). NAMED: +0x154 is taken as "the object has a name" (UNREAD which field it is); a module is its object here too (Dietrich 2026-11-18;
+// moved here from editor_main.cpp, whose size is held under the CI's 900 KB)
+void TextureRecentredBox(uint8_t const *target)
+{
+	std::vector<host::LevelObject> objects;
+
+	LevelObjects_Read(&objects);
+
+	for (host::LevelObject const &one : objects)
+	{
+		if (memcmp(one.id, target, 8) == 0 && one.name && one.name[0])
+		{
+			DialogMessage(std::string("Recentred ") + one.name);
+			break;
+		}
+	}
+}
+
+void TextureMapViewPass(bool here)
+{
+	if (here)
+	{
+		StateLine_Add("textureoutline", std::to_string(textureOutlineOff.size()) + " hidden");   // I (0x105): the selected polygons whose outline is hidden
+		StateLine_Add("textureshapesnotdrawn", std::to_string(textureShapesNotDrawn));   // the selected polygons' shapes whose highlight can't be drawn (ShowTheTexturePolygons)
+	}
+
+	if (!here)
+	{
+		if (textureViewHideOn)
+		{
+			LevelView_HideBeyond(false, 0);
+			LevelView_HideBeyondKeep(nullptr);
+			textureViewHideOn = false;
+		}
+
+		return;
+	}
+
+	// every object and module with a selected polygon is kept (each once)
+	std::vector<LevelViewShapeOf> keep;
+	std::set<std::string> seen;
+
+	for (TexturePolygon const &one : texturePolygons)
+	{
+		std::string const key = one.isModule ? "m" + std::to_string(one.moduleIndex) : "o" + std::string((char const *)one.id, 8);
+
+		if (seen.insert(key).second)
+		{
+			LevelViewShapeOf shape = {};
+
+			shape.isModule = one.isModule;
+			shape.moduleIndex = one.moduleIndex;
+			memcpy(shape.objectId, one.id, 8);
+			keep.push_back(shape);
+		}
+	}
+
+	LevelView_HideBeyondKeepShapes(keep.data(), keep.size());
+	LevelView_HideBeyond(true, viewDistance / 100);   // inteng's DAT_005fd678 is 100 to the millimetre (H-6)
+	textureViewHideOn = true;
+}
 
 void TextureModeStateReset()
 {
@@ -760,8 +1638,20 @@ void TextureModeStateReset()
 	textureMultiMode = 0;
 	textureInvertPending = false;
 	textureAreaTexture = -1;   // FUN_00555cd0 (0x54bc57 at every entry): the texture area is made again for the lowest texture
+	textureAlignStage = 0;
+	textureOutlineOff.clear();   // I's hiding lasts only while a window is open (FUN_0056f9d0 at the windows' leaving; FUN_00572320 at every refresh)
 	TextureUndo_Reset();   // FUN_00544510 0x54bcbe: the edits ring made again at every entry (FUN_0057e630)
 	TextureSelectionUndo_Reset();   // 0x54bcc8: and the selection's
+
+	if (onTextureMap)
+	{
+		TextureEntryPairChecks();   // 0x5449cc: FUN_0055d500 for every slot
+		TextureTakeSavePoint();   // the entry: Backspace goes back to the level as it is now (inteng's chunks hold it until a Return)
+	}
+	else if (!textureLeaveAsking)
+	{
+		std::vector<char>().swap(textureSavePoint);   // the exit: the save point is let go (the leave question's answer lets it go when it asks)
+	}
 }
 int textureAsk = 0;                  // the question kPromptTextureMap holds: 1 = the angle, 2 = the arrow step sizes
 
@@ -1506,6 +2396,28 @@ void TextureInvert(OpenLevelFile *open, uint8_t const *id, bool isModule, int32_
 
 void TextureWindowToggle();
 static void TextureAreaReset();
+void TextureMultiEnter();   // texture_submodes.cpp: sub-mode 3
+void TextureMultiLeave();
+extern bool textureAllNodesShown;
+
+// Tab (0x3 on the polygon screen, 0x2 in the windows; FUN_0054d260 0x54d2c6): with polygons selected, the multiple node mode when All Nodes Shown (M) is on (0x54d2d9), else the
+// texture window (0x54d2e8); in a window, back to the polygons
+void TextureTab()
+{
+	if (textureSubMode == 3)
+	{
+		TextureMultiLeave();
+		return;
+	}
+
+	if (!textureWindowOn && textureAllNodesShown && !texturePolygons.empty())
+	{
+		TextureMultiEnter();
+		return;
+	}
+
+	TextureWindowToggle();
+}
 void TextureRepeatsChooserOpen();
 
 void TextureMapCommand(int32_t command)
@@ -1572,10 +2484,8 @@ void TextureMapCommand(int32_t command)
 			TexturePolyUnmerge();
 			break;
 		case 0xc7: case 0xc8:
-			textureAsk = command == 0xc7 ? 22 : 23;
-			memset(keyDown, 0, sizeof(keyDown));
-			promptFor = kPromptTextureMap;
-			promptText.clear();
+			// TM-C H6: inteng's CONFIRM box (FUN_005746b0), not a typed y
+			DialogConfirm("Are you sure that you want to make these polys into\na new object?", [command](bool yes) { if (yes) TexturePolySplitNow(command == 0xc8); });
 			break;
 		case 0xc4:
 			TexturePolyRestore();
@@ -1675,6 +2585,36 @@ void TextureMapCommand(int32_t command)
 			textureWords = std::string("Texture Map: ") + (textureRepeatMode == 0 ? "Default to 1X1" : textureRepeatMode == 1 ? "Maintain Used Area" : "Maintain Num Repeats") + ": what the texture area does when the current texture changes";
 			statusWords = textureWords.c_str();
 			break;
+		case 0x3a:
+			// M (0x54d5b4): All Nodes Shown, DAT_00914d74; with it on, Tab opens the multiple node mode (TM-B sub-mode 3)
+			textureAllNodesShown = !textureAllNodesShown;
+			statusWords = textureAllNodesShown ? "Texture Map: All Nodes Shown on (Tab opens the multiple node mode)" : "Texture Map: All Nodes Shown off (Tab opens the texture window)";
+			break;
+		case 0x117: case 0x118:
+			// + / - (0x54f85f / 0x54f87c): with a hierarchy current (DAT_0063711c) its frame one on / back (FUN_00479110 / FUN_00479290, the Hierarchy mode's M / N, with its Y switch), then
+			// the shown objects placed again (FUN_0056d860); with none, nothing. NAMED: FUN_0056d860 is not built - Texture Map's picks read the file's shapes, not the posed model
+			if (HierarchyView_IsShown())
+			{
+				HierarchyView_StepFrame(command == 0x117 ? 1 : -1, hierarchyPlayAll);
+				statusWords = command == 0x117 ? "Texture Map: the hierarchy's next frame" : "Texture Map: the hierarchy's previous frame";
+			}
+			else
+			{
+				statusWords = "Texture Map: no hierarchy is current (+ and - step its frames)";
+			}
+
+			break;
+		case 0xe7:
+			texturePlaneMode = 0;   // 0x54f6b4: DAT_00914d1c = 0, wrap / tile stopped
+			textureBasePick = true;
+			statusWords = "Get coordinates from which poly? ";   // 0x5fed24 (Escape: none)
+			break;
+		case 0xe5: case 0xe6:
+			// H / N (0x54f676 / 0x54f691): the view distance 500,000 more or less, never below 0
+			viewDistance = ViewDistanceHeld((int64_t)viewDistance + (command == 0xe5 ? 500000 : -500000));
+			textureWords = "Texture Map: View Distance :" + std::to_string(viewDistance / 500000) + " (H and N change it; the objects beyond it are not drawn, but those with a selected polygon)";
+			statusWords = textureWords.c_str();
+			break;
 		case 0x14:
 			textureAddOne = textureAddOne ? 0 : 1;
 
@@ -1723,7 +2663,7 @@ void TextureMapCommand(int32_t command)
 			break;
 		// THE TEXTURE WINDOW'S OWN MENUS (bar page 3 while Tab has the window open): Mode > Polygon 0x2 leaves it (FUN_00551f80 case 2), Texture 0x3 is the mode it is in; X-Flip 0x6 / Y-Flip 0x7 (FUN_00558880 / FUN_00558900), Next / Prev Texture 0xa / 0xb (FUN_00555dd0 +1 / -1),
 		// Rotate Nodes: 90 / 180 / 270 Texture Centre 0x19 / 0x1a / 0x1b and 90 / 180 / 270 Node Centre 0x16 / 0x17 / 0x18 (FUN_00556ce0(angle, flag)), Toggle Texture Resize 0x103 (state +0x48), Set Default Size x1/4 .. x3 0xec-0xf0 (FUN_0055d350), Toggle Node Selection 0x102.
-		// NAMED: the scale of the picture is a whole number here, so x1/4, x1/2 and x1 all show it at 1; Toggle Texture Resize only says what it is (this window has no resizing of the used part of the texture yet).
+		// The scale and Toggle Texture Resize are inteng's (TM-B T: TextureWindowScale, textureWin).
 		case 0x2:
 			if (textureWindowOn)
 			{
@@ -1763,22 +2703,43 @@ void TextureMapCommand(int32_t command)
 		case 0x16: case 0x17: case 0x18:
 			TextureWindowRotateNodes(command - 0x15);
 			break;
+		case 0x35:
+			// O in the texture window (FUN_00551f80 0x5522b0, FUN_00556df0): the nodes' order turned one place - the last node first, every other one place on - and the
+			// polygons take it (+0x98). The window only: sub-mode 3 has no case for it. Inteng keeps the window's undo record first (FUN_0055f7c0: the window's ring is not built)
+			TextureWindowTurnOrder();
+			break;
 		case 0x1e: case 0x1f: case 0x20: case 0x21:
 			TextureWindowCorners(1, command - 0x1e);   // Clockwise: Top Left .. Bottom Left
 			break;
 		case 0x23: case 0x24: case 0x25: case 0x26:
 			TextureWindowCorners(-1, command - 0x23);   // Anti-Clockwise: Top Left .. Bottom Left
 			break;
-		case 0xec: case 0xed: case 0xee: case 0xef: case 0xf0:
-			textureWinScale = command == 0xef ? 2 : (command == 0xf0 ? 3 : 1);
-			statusWords = "Texture Map: the texture window's size is set";
+		case 0xec: case 0xed: case 0xee: case 0xef: case 0xf0: case 0xf1: case 0xf2: case 0xf3: case 0xf4:
+			TextureWindowScale(command);   // FUN_0055d350 (0xf1-0xf4: FUN_0055d190 / 0055d1d0 / 0055d1b0 / 0055d230 first)
 			break;
 		case 0x102:
 			textureWinAllNodes = !textureWinAllNodes;
 			statusWords = textureWinAllNodes ? "Texture Map: the arrow keys move every node" : "Texture Map: the arrow keys move the selected node";
 			break;
 		case 0x103:
-			statusWords = "Texture Map: Toggle Texture Resize: the window does not resize the used part of the texture yet";
+			// Toggle Texture Resize (T, 0x5523e2: +0x90, nothing else reset): while on, a left press on the window's left or top edge drags that edge, inside it scrolls the view, and the
+			// arrow keys move the view (TextureWindowPress / DragTo, TextureWindowMoveNode); "Resizing Texture" is in the window's text
+			textureWin.resizing = !textureWin.resizing;
+			statusWords = textureWin.resizing ? "Texture Map: Resizing Texture on" : "Texture Map: Resizing Texture off";
+			break;
+		case 0x105:
+			TextureOutlineToggle();   // I: the selected polygons' outline (FUN_0056fa60)
+			break;
+		case 0x40:
+			TextureColourPickStart();   // Shift+K Select Colour (FUN_00560620; texture_colour_pick.cpp)
+			break;
+		case 0x41:
+			TextureColourApplyCurrent();   // Ctrl+K: the current colour on the selection (FUN_00570490)
+			break;
+		case 0xe3:
+			// Shift+P (0x54f328): inteng flips bit 1 of the current object animation sequence's flags (FUN_00518550, FUN_00542b10) only when one is current (DAT_00914da4), and only the
+			// Texture Map's commands that no AvP menu, pop-up or key reaches make one current (0xd0 / 0xd1 / 0xd2 / 0xd3, FUN_00542b10 / FUN_00543350; the leave clears it, 0x54c570):
+			// so in AvP Shift+P does nothing, and so does ours (it said "not built"). Dietrich 2026-11-18
 			break;
 		case 0x2b:
 			TextureMapDeselectAll();
@@ -1852,7 +2813,7 @@ void TextureMapCommand(int32_t command)
 				char *end = nullptr;
 				double const scale = strtod(texts[0].c_str(), &end);
 
-				if (texts[0].empty() || end == texts[0].c_str() || scale == 1.0 || scale <= -100000.0 || scale >= 100000.0)
+				if (texts[0].empty() || end == texts[0].c_str() || scale == 0.0 || scale <= -100000.0 || scale >= 100000.0)   // TM-C H6: inteng skips only 0 (0x54fe28: DAT_005ab2ac = 0.0)
 				{
 					statusWords = "Texture Map: the coordinates stay as they are";
 					return;
@@ -1878,6 +2839,7 @@ void TextureMapCommand(int32_t command)
 		case 0x143:
 			textureFakeMerge = !textureFakeMerge;
 			textureFakePairs.clear();
+			DialogMessage(textureFakeMerge ? "Fake merge data turned on" : "Fake merge data turned off");   // TM-C H6: inteng's message box (0x54feb7 / 0x54fe7b, FUN_0057c800)
 			textureWords = textureFakeMerge ? "Texture Map: Fake merge data turned on (the pairing of triangles is a copy that Merge and Unmerge change without writing the file's merge data)" : "Texture Map: Fake merge data turned off (the file's pairing is used again)";
 			statusWords = textureWords.c_str();
 			break;
@@ -1900,6 +2862,60 @@ void TextureMapCommand(int32_t command)
 			break;
 		case 0xb7: case 0xb8: case 0xb9: case 0xba: case 0xbb: case 0xbc:
 			TextureFind(command);
+			break;
+		case 0x34:
+			// FUN_0054d260 0x54d54d: FUN_0055eeb0, Texture Alignment: Polys Shown goes to Textured (0x12, DAT_005fd6b4 = 1), then two clicks
+			if (!ViewToggles_Now().textured)
+			{
+				ViewToggles_UseNow(host::ViewToggle::Textures);
+			}
+
+			textureAlignStage = 1;
+			statusWords = "Texture Alignment: Select polygon to be altered (Esc: cancel)";
+			break;
+		case 0x3f:
+			// FUN_0054d260 0x54d5ca: FUN_0056dc70 (Ctrl+0, Ctrl+\): a YES / NO question (FUN_00474a40, FUN_0057c800); Yes: "Selecting all Polygons", every polygon of every shape selected
+			// (FUN_0056dd60 for every slot); No: nothing
+			DialogConfirm("Are you sure that you want to select all\nof the polygons?", [](bool yes)
+			{
+				OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+				if (!yes || !open || !open->Level())
+				{
+					return;
+				}
+
+				bool full = false;
+
+				TextureForEveryShape(open, [&](uint8_t const *id, bool isModule, int32_t moduleIndex)
+				{
+					if (!full)
+					{
+						TextureSelectObject(open, id, isModule, isModule ? moduleIndex : -1, true, &full);
+					}
+				});
+
+				ShowTheTexturePolygons();
+				textureWords = "Texture Map: all polygons selected: " + std::to_string(texturePolygons.size()) + " selected" + (full ? " (the selection is full)" : "");
+				statusWords = textureWords.c_str();
+			});
+			break;
+		case 0x2c:
+			TextureReturn();   // FUN_0054d260 0x54d4b6: FUN_00572440 then FUN_0055e240 (Return)
+			break;
+		case 0x32:
+			textureTextShown = !textureTextShown;   // 0x54d3ff: DAT_005fd69c flipped (P): the mode's menus drawn every frame or not (TextureBarsAlwaysShown)
+			statusWords = textureTextShown ? "Texture Map: the menus are shown" : "Texture Map: the menus are hidden (P shows them)";
+			break;
+		case 0x2d:
+			// 0x54d4c6: FUN_00558df0(0) (Backspace): a YES / NO question (00600a74), Yes undoes the changes since the last save
+			DialogConfirm("Are you sure that you want to undo the\nchanges you have made since your last save?\n(It won't undo changes to animations.)", [](bool yes)
+			{
+				if (yes)
+				{
+					TextureUndoSinceSave();
+				}
+			});
 			break;
 		case 0x36:
 			TextureUndo_Undo();   // FUN_0054d260 0x54d576: FUN_0057e6d0 on the edits ring (key ,)
@@ -1926,6 +2942,7 @@ void TextureMapCommand(int32_t command)
 			}
 
 			break;
+		case 0xbf: case 0xc0: case 0xc1: case 0xc2: TextureNodes_Command(command); break;   // O / Shift+O / V / Shift+V: FUN_00571310 / FUN_00571910 (texture_nodes.h, TM-C H5)
 		case 0x101:
 			textureInvertPending = true;
 			statusWords = "Invert selection for which object? Click one. A : All Shapes, Esc : Cancel";
@@ -2041,7 +3058,7 @@ void TextureMapTypedAnswer(std::string const &typed)
 
 			TextureShiftOrScale(false, first, second);
 		}
-		else if (first != 1.0 && first > -100000.0 && first < 100000.0)
+		else if (first != 0.0 && first > -100000.0 && first < 100000.0)   // TM-C H6: inteng scales by any factor but 0 (0x54fe28: DAT_005ab2ac is 0.0, read from inteng.exe); 0 would flatten every node
 		{
 			TextureShiftOrScale(true, first, 0);
 		}
@@ -2410,6 +3427,63 @@ static int32_t PictureIndexForShape(OpenLevelFile *open, uint8_t const *id, int3
 }
 
 // Puts the game's texture number `texture` on every selected textured polygon: each shape's polygon colour words rewritten (bits 0-11 only) through ShapeEdit_WriteSameCounts
+// For the multiple node mode's entry (FUN_00570040, texture_submodes.cpp): the current texture's picture number in the list the shape `id` is numbered by (state +0x58: the first
+// picture stands in before any window, as the window's place takes it); -1 when that list has it not
+// The current texture when none is yet (FUN_00555cd0 at Texture Map's start: the lowest texture number of the level's own pictures, DAT_008f5860 - ours: pictureTextureOf, the level's
+// picture list as its polygons use it); the first loaded picture only when the level's list is empty (the game also loads pictures no shape of the level names)
+void TextureCurrentEnsure(OpenLevelFile *open)
+{
+	if (textureCurrent >= 0 || !open)
+	{
+		return;
+	}
+
+	BuildThePictureIndex(open);
+
+	for (auto const &one : pictureTextureOf)
+	{
+		textureCurrent = textureCurrent < 0 || one.second < textureCurrent ? one.second : textureCurrent;
+	}
+
+	std::vector<LevelViewPicture> pictures;
+
+	if (textureCurrent < 0 && LevelView_Pictures(&pictures, 4096) && !pictures.empty())
+	{
+		textureCurrent = pictures[0].texture;
+	}
+}
+
+int32_t TextureCurrentPictureFor(OpenLevelFile *open, uint8_t const *id)
+{
+	TextureCurrentEnsure(open);
+
+	if (textureCurrent < 0)
+	{
+		return -1;
+	}
+
+	BuildThePictureIndex(open);
+	return PictureIndexForShape(open, id, textureCurrent);
+}
+
+// The window's corner nodes (state +0xa4, textureNodes) and their count (+0x9c: Select As, 3 or 4)
+void TextureWindowCornerNodes(model::UvCorner corners[4], int *count)
+{
+	int32_t width = 0, height = 0;
+
+	if (LevelView_LowestPictureSize(&width, &height))
+	{
+		TextureNodesFor(width, height);
+	}
+
+	for (int k = 0; k < 4; k++)
+	{
+		corners[k] = textureNodes.uv.corners[k];
+	}
+
+	*count = textureSelectAs == 3 ? 3 : 4;
+}
+
 static void TextureMapSetPicture(int32_t texture)
 {
 	TextureDropImported();
@@ -2613,6 +3687,7 @@ void TextureMapStepPicture(int step)
 	at = (size_t)(((int64_t)at + step + (int64_t)pictures.size()) % (int64_t)pictures.size());
 	textureCurrent = pictures[at].texture;
 	TextureMapSetPicture(textureCurrent);
+	textureWinStart = true;   // FUN_00555dd0(+1 / -1) (0x552127 / 0x552150): the start view
 }
 
 // TEXTURE MAP: WRAP (0x2e, FUN_0055e400) and TILE (0x2f, FUN_0055e5d0), both ending in FUN_00570590(module, polygon, mode): the command asks "Choose Polygon for plane", the next click names a polygon, and the
@@ -2872,11 +3947,18 @@ bool TextureWindowLoad()
 
 void TextureWindowToggle()
 {
+	if (textureSubMode == 3)
+	{
+		TextureMultiLeave();   // Escape and the window's own leaving in the multiple node mode
+		return;
+	}
+
 	if (textureWindowOn)
 	{
 		textureWindowOn = false;
 		textureSubMode = 0;
 		textureWinDrag = false;
+		TextureOutlineAllShown();   // FUN_0056f9d0 (0x5520a8)
 		TextureWindowBars(false);
 		statusWords = "Texture Map: back to the level";
 		return;
@@ -2891,6 +3973,7 @@ void TextureWindowToggle()
 	TextureUndo_RecordSelection();   // FUN_0054caf0 0x54cec6: one step on entering the window, for every edit made in it
 	textureWindowOn = true;
 	textureSubMode = 1;
+	textureWinStart = true;   // FUN_00555dd0 at the entry (0x54d11b; its view 0x555f03-0x555f84): the start view, at the scale kept
 	TextureWindowBars(true);
 	textureWords = "Texture Map: the texture window (1-4 pick a node, arrows move it, Shift 10, Ctrl all; = - scale; Tab leaves)";
 	statusWords = textureWords.c_str();
@@ -2917,6 +4000,7 @@ static void TextureAreaReset()
 	textureArea = model::AreaReset(textureAreaW, textureAreaH, textureAddOne);
 	textureRepeatX = 1;
 	textureRepeatY = 1;
+	textureWinStart = true;   // FUN_0055d290 0x55d2c7: the start view
 	textureWords = "Texture Map: Reset Source Rect: the texture area is the whole picture, 0,0 to " + std::to_string(textureArea.right) + "," + std::to_string(textureArea.bottom);
 	statusWords = textureWords.c_str();
 }
@@ -2995,6 +4079,27 @@ static bool TextureWindowPictureSize(int32_t *width, int32_t *height)
 	return *width > 0 && *height > 0;
 }
 
+// O in the texture window (0x35): the nodes' order turned one place (FUN_00556df0; see TextureMapCommand)
+static void TextureWindowTurnOrder()
+{
+	if (!textureWindowOn || textureSubMode != 1 || textureWinCount < 2)
+	{
+		return;
+	}
+
+	model::UvCorner const last = textureWinUv.corners[textureWinCount - 1];
+
+	for (int k = textureWinCount - 1; k > 0; k--)
+	{
+		textureWinUv.corners[k] = textureWinUv.corners[k - 1];
+	}
+
+	textureWinUv.corners[0] = last;
+	TextureWindowApply();
+	textureWords += "; the nodes' order turned one place";
+	statusWords = textureWords.c_str();
+}
+
 // Clockwise: Top Left / Top Right / Bottom Right / Bottom Left (0x1e-0x21) and Anti-Clockwise: the same (0x23-0x26): the texture screen only (FUN_00551f80 0x5521b4-0x55226a; sub-modes 0 and 3 have
 // no case for them), FUN_00556e80(direction, start). The window's nodes go on the corners of its texture area (state +8 .. +0x14, model::TextureWindow: the picture's size, its repeats and Add 1):
 // corner 0 the top left (left, top), 1 the top right (right - 1, top), 2 the bottom right (right - 1, bottom - 1), 3 the bottom left (left, bottom - 1). Node n takes the corner
@@ -3030,8 +4135,49 @@ static void TextureWindowCorners(int direction, int start)
 	statusWords = textureWords.c_str();
 }
 
+// The current texture's picture, and the frame the window is laid out on (TextureWindowPlace, below: it makes textureWin's layout for that frame)
+struct TextureWinPlace
+{
+	bool ok;
+	int32_t texture, width, height, screenW, screenH;
+};
+
+static TextureWinPlace TextureWindowPlace(int32_t windowWidth, int32_t windowHeight);
+
+bool TextureMultiPress(int32_t x, int32_t y, model::TextureWindowState const &win, bool shift);   // texture_submodes.cpp, sub-mode 3
+static int32_t textureMultiReleaseX = 0, textureMultiReleaseY = 0;   // where the last drag step was, for the release
+static bool textureMultiReleasePending = false;
+void TextureMultiDragTo(int32_t x, int32_t y, model::TextureWindowState const &win);
+void TextureMultiRelease(int32_t x, int32_t y, model::TextureWindowState const &win);
+void TextureMultiArrow(int32_t du, int32_t dv, bool ctrl);
+static void TextureWindowResizeRelease();
+
 void TextureWindowApply()
 {
+	if (textureWin.drag != 0)
+	{
+		TextureWindowResizeRelease();   // a Texture Resize drag let go (FUN_00554ca0): the window, not the nodes
+		return;
+	}
+
+	if (textureWinViewMoved)
+	{
+		textureWinViewMoved = false;   // the arrow keys moved the view (Texture Resize)
+		return;
+	}
+
+	if (textureSubMode == 3)
+	{
+		// the editor calls this when a window drag is let go: in sub-mode 3 the release (FUN_00554ca0), at the drag's last place; an arrow key's move was written already
+		if (textureMultiReleasePending)
+		{
+			textureMultiReleasePending = false;
+			TextureMultiRelease(textureMultiReleaseX, textureMultiReleaseY, textureWin);
+		}
+
+		return;
+	}
+
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
 	if (!open || !open->Level() || textureWinPolygon < 0)
@@ -3048,6 +4194,27 @@ void TextureWindowApply()
 
 void TextureWindowMoveNode(int node, float du, float dv, bool all)
 {
+	if (textureWin.resizing)
+	{
+		// TEXTURE RESIZE's arrow keys (FUN_00555070 0x55508d, both sub-modes): the view a quarter of its size, the whole of it with the modifier (DAT_00d87a5e, UNREAD which key:
+		// NAMED, ours is Shift, the key that makes a node's step 10), then the layout; the nodes stay
+		TextureWinPlace const place = TextureWindowPlace(textureWinFrameW, textureWinFrameH);
+
+		if (place.ok)
+		{
+			model::WindowResizeArrows(&textureWin, dv < 0, dv > 0, du < 0, du > 0, fabs(du) >= 10.0f || fabs(dv) >= 10.0f, place.screenW, place.screenH);
+		}
+
+		textureWinViewMoved = true;
+		return;
+	}
+
+	if (textureSubMode == 3)
+	{
+		TextureMultiArrow((int32_t)du, (int32_t)dv, all);   // the arrow keys (FUN_00555070); Ctrl: every node
+		return;
+	}
+
 	for (int k = 0; k < textureWinCount; k++)
 	{
 		if (all || k == node)
@@ -3058,21 +4225,39 @@ void TextureWindowMoveNode(int node, float du, float dv, bool all)
 	}
 }
 
-// Where the picture and the nodes are on the window (the window's pixels): used by the drawing and by the mouse
-struct TextureWinPlace
+// The layout for a screen of screenW x screenH: the texture area taken from the state's (+8..+14), the start view when one is due, the layout again when the area or the screen changed
+static void TextureWindowLayoutFor(int32_t screenW, int32_t screenH)
 {
-	bool ok;
-	int32_t texture, width, height, x, y, scale, areaTop, areaHeight, tilesX, tilesY;
-};
+	bool const areaChanged = textureWin.areaL != textureArea.left || textureWin.areaT != textureArea.top || textureWin.areaR != textureArea.right || textureWin.areaB != textureArea.bottom;
 
+	textureWin.areaL = textureArea.left;
+	textureWin.areaT = textureArea.top;
+	textureWin.areaR = textureArea.right;
+	textureWin.areaB = textureArea.bottom;
+
+	if (textureWinStart)
+	{
+		textureWinStart = false;
+		model::WindowStartView(&textureWin, screenW, screenH);
+	}
+	else if (areaChanged || screenW != textureWinLastW || screenH != textureWinLastH)
+	{
+		model::WindowLayout(&textureWin, screenW, screenH);
+	}
+
+	textureWinLastW = screenW;
+	textureWinLastH = screenH;
+}
+
+// Where the picture and the nodes are: used by the drawing and by the mouse. The window is inteng's (FUN_00555ad0): the view, in the screen's bottom-right corner
 static TextureWinPlace TextureWindowPlace(int32_t windowWidth, int32_t windowHeight)
 {
 	TextureWinPlace place = {};
 	std::vector<LevelViewPicture> pictures;
 
-	if (!textureWindowOn || textureCurrent < 0 || !LevelView_Pictures(&pictures, 4096))
+	if (!textureWindowOn || !LevelView_Pictures(&pictures, 4096))
 	{
-		return place;
+		return place;   // (no current texture yet - the multiple node mode opened before any window: the first picture stands in, below)
 	}
 
 	for (LevelViewPicture const &picture : pictures)
@@ -3099,38 +4284,257 @@ static TextureWinPlace TextureWindowPlace(int32_t windowWidth, int32_t windowHei
 		return place;
 	}
 
-	place.areaTop = 56;   // below the two menu bars
-	place.areaHeight = windowHeight - 56 - 36;
+	place.screenW = windowWidth;
+	place.screenH = windowHeight - 36;   // above the status line
 
-	// inteng's window is the picture repeated 1 to 10 times each way (0x10f Select Number of Repeats; inf is shown as 3)
-	place.tilesX = textureRepeatX == 11 ? 3 : textureRepeatX;
-	place.tilesY = textureRepeatY == 11 ? 3 : textureRepeatY;
-
-	int32_t fit = (windowWidth - 40) / (place.width * place.tilesX);
-	int32_t const fitHeight = (place.areaHeight - 72) / (place.height * place.tilesY);
-
-	if (fitHeight < fit)
+	if (place.screenW <= 320 || place.screenH <= 100)
 	{
-		fit = fitHeight;
+		return place;   // FUN_00555ad0's layout for a screen of 320 or less (bug candidate G-1) is not built: so small a frame shows no window
 	}
 
-	place.scale = textureWinScale > 0 ? textureWinScale : (fit < 1 ? 1 : fit);
-	place.x = (windowWidth - place.width * place.scale * place.tilesX) / 2;
-	place.y = place.areaTop + 68;
-	place.ok = place.areaHeight > 100;
+	TextureWindowLayoutFor(place.screenW, place.screenH);
+	place.ok = true;
 	return place;
 }
 
-static void TextureWindowNodeAt(TextureWinPlace const &place, int node, int32_t *x, int32_t *y)
+// A node's place on the screen (FUN_005567b0: toward zero)
+static void TextureWindowNodeAt(TextureWinPlace const &, int node, int32_t *x, int32_t *y)
 {
-	*x = place.x + (int32_t)floor(textureWinUv.corners[node].u * place.scale + 0.5f);
-	*y = place.y + (int32_t)floor(textureWinUv.corners[node].v * place.scale + 0.5f);
+	*x = model::WindowScreenX(textureWin, textureWinUv.corners[node].u);
+	*y = model::WindowScreenY(textureWin, textureWinUv.corners[node].v);
+}
+
+// The end of a Texture Resize drag (FUN_00554ca0)
+static void TextureWindowResizeRelease()
+{
+	TextureWinPlace const place = TextureWindowPlace(textureWinFrameW, textureWinFrameH);
+
+	if (place.ok)
+	{
+		model::WindowResizeRelease(&textureWin, place.screenW, place.screenH);
+	}
+
+	textureWin.drag = 0;
+}
+
+// The scale (FUN_0055d350): Set Default Size x1/4 .. x3 (0xec-0xf0: -4, -2, 1, 2, 3; the key 8 is 0xee) and the keys 9 / 7 / 0 / 6 (0xf1 / 0xf3 / 0xf2 / 0xf4: one up / down, a power of
+// two up / down), about the texel under the mouse when it is right of and below the window's top left (a menu click is above it: the view's middle)
+void TextureWindowScale(int32_t command)
+{
+	TextureWinPlace const place = TextureWindowPlace(textureWinFrameW, textureWinFrameH);
+
+	if (!place.ok)
+	{
+		statusWords = "Texture Map: the texture window is not shown";
+		return;
+	}
+
+	int const n = textureWin.scaleN;
+	int const next = command == 0xec ? -4 : command == 0xed ? -2 : command == 0xee ? 1 : command == 0xef ? 2 : command == 0xf0 ? 3 : command == 0xf1 ? model::WindowScaleUp(n) :
+		command == 0xf2 ? model::WindowScalePowerUp(n) : command == 0xf3 ? model::WindowScaleDown(n) : model::WindowScalePowerDown(n);
+
+	model::WindowSetScale(&textureWin, next, textureWinMouseKnown, textureWinMouseX, textureWinMouseY, place.screenW, place.screenH);
+
+	static std::string words;
+
+	words = "Texture Map: Texture Scale x" + (textureWin.scaleN >= 1 ? std::to_string(textureWin.scaleN) : "1/" + std::to_string(-textureWin.scaleN));
+	statusWords = words.c_str();
+}
+
+// The mouse over the frame (the editor's mouse move, in the panels' pixels)
+void TextureWindowMouseAt(int32_t x, int32_t y)
+{
+	textureWinMouseKnown = true;
+	textureWinMouseX = x;
+	textureWinMouseY = y;
+}
+
+// THE RIGHT DRAG in the texture windows (sub-modes 1 and 3: FUN_005557a0, called every frame by both, 0x55243b): a right press on the window (x and y not less than the view's
+// top left, 0x555972) takes the middle of the nodes' screen places; while the right button is held every node turns about it by the angle the mouse went round it (FUN_005926d0 and
+// the side test at 0x555835, then FUN_00556a90), or with Ctrl is scaled by how much farther from it the mouse now is (FUN_00556bd0), steps of less than a pixel left out. NAMED:
+// the turn and the scale are worked from the nodes as they were at the press by the whole angle and factor so far (inteng steps the nodes' screen places each frame), the
+// polygons take the nodes on the release, as the left drag (inteng every frame), and which way the angle goes is the mouse's; the window's undo record (FUN_0055f7c0) is not built.
+bool textureWinRightDrag = false;
+static double textureRightCX = 0, textureRightCY = 0, textureRightAngle = 0, textureRightScale = 1;
+static int32_t textureRightLastX = 0, textureRightLastY = 0;
+static std::vector<double> textureRightU, textureRightV;   // the nodes at the press, texels
+
+void TextureMultiPlaces(std::vector<int32_t> *u, std::vector<int32_t> *v);   // texture_submodes.cpp
+void TextureMultiSetPlaces(std::vector<int32_t> const &u, std::vector<int32_t> const &v, bool write);
+
+bool TextureWindowRightPress(int32_t x, int32_t y, int32_t windowWidth, int32_t windowHeight)
+{
+	TextureWinPlace const place = TextureWindowPlace(windowWidth, windowHeight);
+
+	if (!place.ok || x < textureWin.winL || y < textureWin.winT || (textureSubMode != 1 && textureSubMode != 3))
+	{
+		return false;
+	}
+
+	textureRightU.clear();
+	textureRightV.clear();
+
+	if (textureSubMode == 3)
+	{
+		std::vector<int32_t> u, v;
+
+		TextureMultiPlaces(&u, &v);
+
+		for (size_t n = 0; n < u.size(); n++)
+		{
+			textureRightU.push_back(u[n]);
+			textureRightV.push_back(v[n]);
+		}
+	}
+	else
+	{
+		for (int k = 0; k < textureWinCount && k < 4; k++)
+		{
+			textureRightU.push_back(textureWinUv.corners[k].u);
+			textureRightV.push_back(textureWinUv.corners[k].v);
+		}
+	}
+
+	if (textureRightU.empty())
+	{
+		return false;
+	}
+
+	// the middle of the nodes' screen places (+0xbc / +0xc0, 0x55598f-0x5559fe)
+	textureRightCX = textureRightCY = 0;
+
+	for (size_t n = 0; n < textureRightU.size(); n++)
+	{
+		textureRightCX += (double)model::WindowScreenX(textureWin, textureRightU[n]) / textureRightU.size();
+		textureRightCY += (double)model::WindowScreenY(textureWin, textureRightV[n]) / textureRightU.size();
+	}
+
+	textureRightAngle = 0;
+	textureRightScale = 1;
+	textureRightLastX = x;
+	textureRightLastY = y;
+	textureWinRightDrag = true;
+	return true;
+}
+
+// The nodes as the press had them, turned by the angle and scaled by the factor so far, about the middle
+static void TextureRightPlace(TextureWinPlace const &, bool write)
+{
+	double const cu = (textureRightCX - textureWin.winL) / textureWin.scaleF + textureWin.viewL, cv = (textureRightCY - textureWin.winT) / textureWin.scaleF + textureWin.viewT;
+	double const c = cos(textureRightAngle), s = sin(textureRightAngle);
+	std::vector<int32_t> u, v;
+
+	for (size_t n = 0; n < textureRightU.size(); n++)
+	{
+		double const du = (textureRightU[n] - cu) * textureRightScale, dv = (textureRightV[n] - cv) * textureRightScale;
+
+		u.push_back((int32_t)floor(cu + du * c - dv * s + 0.5));
+		v.push_back((int32_t)floor(cv + du * s + dv * c + 0.5));
+	}
+
+	if (textureSubMode == 3)
+	{
+		TextureMultiSetPlaces(u, v, write);
+		return;
+	}
+
+	for (size_t n = 0; n < u.size() && (int)n < textureWinCount; n++)
+	{
+		textureWinUv.corners[n].u = (float)u[n];
+		textureWinUv.corners[n].v = (float)v[n];
+	}
+
+	if (write)
+	{
+		TextureWindowApply();
+	}
+}
+
+void TextureWindowRightDragTo(int32_t x, int32_t y, int32_t windowWidth, int32_t windowHeight, bool ctrl)
+{
+	TextureWinPlace const place = TextureWindowPlace(windowWidth, windowHeight);
+
+	if (!textureWinRightDrag || !place.ok)
+	{
+		return;
+	}
+
+	double const ax = textureRightLastX - textureRightCX, ay = textureRightLastY - textureRightCY, bx = x - textureRightCX, by = y - textureRightCY;
+	double const la = sqrt(ax * ax + ay * ay), lb = sqrt(bx * bx + by * by);
+
+	if (la <= 0)
+	{
+		return;
+	}
+
+	if (!ctrl && lb >= 1.0)
+	{
+		// the angle from the last place to this one round the middle: its sine from the cross product, the far side when the two point apart (0x555835)
+		double const sine = (ax * by - ay * bx) / (la * lb), cosine = (ax * bx + ay * by) / (la * lb);
+		double angle = asin(sine < -1 ? -1 : sine > 1 ? 1 : sine);
+
+		if (cosine < 0)
+		{
+			angle = (angle >= 0 ? 3.14159265358979 : -3.14159265358979) - angle;
+		}
+
+		textureRightAngle += angle;
+	}
+	else if (ctrl && lb > 1.0)
+	{
+		textureRightScale *= lb / la;   // FUN_00556bd0(|mouse - middle| / |last - middle|)
+	}
+	else
+	{
+		return;
+	}
+
+	textureRightLastX = x;
+	textureRightLastY = y;
+	TextureRightPlace(place, false);
+}
+
+void TextureWindowRightRelease(int32_t windowWidth, int32_t windowHeight)
+{
+	if (!textureWinRightDrag)
+	{
+		return;
+	}
+
+	textureWinRightDrag = false;
+
+	TextureWinPlace const place = TextureWindowPlace(windowWidth, windowHeight);
+
+	if (place.ok)
+	{
+		TextureRightPlace(place, true);
+	}
 }
 
 // A press at (x, y) of the window takes the nearest node within 16 pixels; true if one was taken
 bool TextureWindowPress(int32_t x, int32_t y, int32_t windowWidth, int32_t windowHeight)
 {
 	TextureWinPlace const place = TextureWindowPlace(windowWidth, windowHeight);
+
+	if (place.ok && textureWin.resizing)
+	{
+		// TEXTURE RESIZE (FUN_00553be0 0x553bf3, both sub-modes): the window's left or top edge, or its inside (scroll), takes the drag, and no node is taken. NAMED: the window's undo
+		// snapshot (FUN_0055f7c0) is not built
+		textureWinResizeX = x;
+		textureWinResizeY = y;
+		textureWinDrag = model::WindowResizePress(&textureWin, x, y) != 0;
+		return textureWinDrag;
+	}
+
+	if (textureSubMode == 3)
+	{
+		textureWinDrag = place.ok && TextureMultiPress(x, y, textureWin, ShiftDown());
+		textureMultiReleasePending = textureWinDrag;
+		textureMultiReleaseX = x;
+		textureMultiReleaseY = y;
+		return textureWinDrag;
+	}
+
 	int best = -1;
 	int64_t bestDistance = 16 * 16 + 1;
 
@@ -3163,17 +4567,142 @@ void TextureWindowDragTo(int32_t x, int32_t y, int32_t windowWidth, int32_t wind
 {
 	TextureWinPlace const place = TextureWindowPlace(windowWidth, windowHeight);
 
+	if (textureWin.drag != 0)
+	{
+		// Texture Resize's drag (FUN_005546b0) by the mouse's move since the last place: the edges move the window, scroll moves the view (the nodes' screen places follow the view)
+		int32_t nodeDx = 0, nodeDy = 0;
+
+		if (place.ok)
+		{
+			model::WindowResizeDrag(&textureWin, x - textureWinResizeX, y - textureWinResizeY, place.screenW, place.screenH, &nodeDx, &nodeDy);
+		}
+
+		textureWinResizeX = x;
+		textureWinResizeY = y;
+		return;
+	}
+
+	if (textureSubMode == 3)
+	{
+		if (place.ok)
+		{
+			TextureMultiDragTo(x, y, textureWin);
+			textureMultiReleaseX = x;
+			textureMultiReleaseY = y;
+		}
+
+		return;
+	}
+
 	if (place.ok && textureWinDrag && textureWinNode < textureWinCount)
 	{
-		textureWinUv.corners[textureWinNode].u = (float)floor((double)(x - place.x) / place.scale + 0.5);
-		textureWinUv.corners[textureWinNode].v = (float)floor((double)(y - place.y) / place.scale + 0.5);
+		// the node to the texel under the mouse (FUN_00556710: toward zero)
+		textureWinUv.corners[textureWinNode].u = (float)model::WindowTexelX(textureWin, x);
+		textureWinUv.corners[textureWinNode].v = (float)model::WindowTexelY(textureWin, y);
 	}
+}
+
+void TextureMultiForDraw(std::vector<int32_t> *u, std::vector<int32_t> *v, std::vector<std::pair<int32_t, int32_t>> *links, std::vector<bool> *lit, std::vector<std::string> *lines);
+
+// THE WINDOW'S TEXT (FUN_00551f80 0x552685..0x5529e3, sub-mode 3 FUN_00552bb0: the same places, on inteng's text panel DAT_00914d60): "Texture Scale x%d" (x1/%d below 1) at (16, 32);
+// node i's u and v "%03d" at (16, (i + 3) x 16) and (66, ...), the marker on the current node's row at x 0; then the flags. NAMED: the rows are 28 pixels lower, under our two menu bars
+// (inteng's first row, 32, is ours 60); the marker is ">" (inteng's glyph 2: the font's control letters are not drawn, hostile-text rule); the single window's "Texture wrap" / "Texture
+// tile" and U / V scale rows (16, 128 .. 160) and the three undo counters (16, 200 .. 232, UNREAD) are not built.
+int32_t const kTextureWindowTextDown = 28;
+
+static std::string TextureScaleWords()
+{
+	return textureWin.scaleN >= 1 ? "Texture Scale x" + std::to_string(textureWin.scaleN) : "Texture Scale x1/" + std::to_string(-textureWin.scaleN);
+}
+
+static void TextureNodeRow(std::vector<TextureWindowWords> *words, int row, int32_t u, int32_t v, bool current)
+{
+	char number[16];
+	int32_t const y = (row + 3) * 16 + kTextureWindowTextDown;
+
+	snprintf(number, sizeof(number), "%03d", (int)u);
+	words->push_back({ 16, y, number });
+	snprintf(number, sizeof(number), "%03d", (int)v);
+	words->push_back({ 66, y, number });
+
+	if (current)
+	{
+		words->push_back({ 0, y, ">" });
+	}
+}
+
+static TextureWindowPicture TextureWindowPictureNow(TextureWinPlace const &place)
+{
+	TextureWindowPicture picture = {};
+
+	picture.texture = place.texture;
+	picture.pictureWidth = place.width;
+	picture.pictureHeight = place.height;
+	picture.view[0] = textureWin.viewL;
+	picture.view[1] = textureWin.viewT;
+	picture.view[2] = textureWin.viewR;
+	picture.view[3] = textureWin.viewB;
+	picture.window[0] = textureWin.winL;
+	picture.window[1] = textureWin.winT;
+	picture.window[2] = textureWin.winR;
+	picture.window[3] = textureWin.winB;
+	picture.dotPhase = textureWinDotPhase;
+	return picture;
+}
+
+// Sub-mode 3's frame: the view, the text (the rows from the nodes, the flags from TextureMultiForDraw after them), the links and the nodes
+static void TextureMultiDraw(int32_t windowWidth, int32_t windowHeight, TextureWinPlace const &place)
+{
+	std::vector<int32_t> u, v, x, y;
+	std::vector<std::pair<int32_t, int32_t>> links;
+	std::vector<bool> lit;
+	std::vector<std::string> text;
+	std::vector<TextureWindowWords> words;
+
+	TextureMultiForDraw(&u, &v, &links, &lit, &text);
+	words.push_back({ 16, 32 + kTextureWindowTextDown, TextureScaleWords() });
+
+	size_t const rows = u.size() < 20 ? u.size() : 20;
+
+	for (size_t n = 0; n < rows; n++)
+	{
+		TextureNodeRow(&words, (int)n, u[n], v[n], n < lit.size() && lit[n]);
+	}
+
+	// the flags, each a row on (NAMED: their rows are not read, ours follow the node rows); "..." at (16, 0x170) when the rows reach 20
+	int32_t flagRow = (int32_t)rows + 3;
+
+	for (std::string const &line : text)
+	{
+		if (line == "...")
+		{
+			words.push_back({ 16, 0x170 + kTextureWindowTextDown, line });
+			flagRow = 0x170 / 16 + 1;
+		}
+		else if (line.size() < 2 || (line[0] != '>' && line[0] != ' '))
+		{
+			words.push_back({ 16, flagRow++ * 16 + kTextureWindowTextDown, line });
+		}
+	}
+
+	TextureWindowPicture const picture = TextureWindowPictureNow(place);
+
+	TextureWindowPaint_Draw(windowWidth, windowHeight, picture, words);
+
+	for (size_t n = 0; n < u.size(); n++)
+	{
+		x.push_back(model::WindowScreenX(textureWin, u[n]));
+		y.push_back(model::WindowScreenY(textureWin, v[n]));
+	}
+
+	TextureWindowPaint_Nodes(windowWidth, windowHeight, x, y, links, lit, picture.window, picture.dotPhase);
 }
 
 void TextureWindowDraw(int32_t windowWidth, int32_t windowHeight)
 {
 	textureWinFrameW = windowWidth;
 	textureWinFrameH = windowHeight;
+	textureWinDotPhase = (textureWinDotPhase + 1) % 6;   // DAT_00914d14, one step a frame in both windows (0x552062 / 0x552c8c)
 
 	TextureWinPlace const place = TextureWindowPlace(windowWidth, windowHeight);
 
@@ -3182,32 +4711,41 @@ void TextureWindowDraw(int32_t windowWidth, int32_t windowHeight)
 		return;
 	}
 
-	TextureWindowPicture picture = {};
-	static char words[3][200];
-	char const *lines[3] = { words[0], words[1], words[2] };
+	// the layout on the scenario line: the window (left top right bottom), the view (the same, texels), the scale's number and Texture Resize
+	StateLine_Add("texwin", std::to_string(textureWin.winL) + " " + std::to_string(textureWin.winT) + " " + std::to_string(textureWin.winR) + " " + std::to_string(textureWin.winB) + " " +
+		std::to_string(textureWin.viewL) + " " + std::to_string(textureWin.viewT) + " " + std::to_string(textureWin.viewR) + " " + std::to_string(textureWin.viewB) + " " +
+		std::to_string(textureWin.scaleN) + (textureWin.resizing ? " resizing" : ""));
 
-	picture.texture = place.texture;
-	picture.x = place.x;
-	picture.y = place.y;
-	picture.width = place.width * place.scale;
-	picture.height = place.height * place.scale;
-	picture.tilesX = place.tilesX;
-	picture.tilesY = place.tilesY;
+	if (textureSubMode == 3)
+	{
+		TextureMultiDraw(windowWidth, windowHeight, place);
+		return;
+	}
+
+	TextureWindowPicture picture = TextureWindowPictureNow(place);
+	std::vector<TextureWindowWords> words;
+
 	picture.nodeCount = textureWinCount;
 	picture.activeNode = textureWinNode;
-	picture.areaTop = place.areaTop;
-	picture.areaHeight = place.areaHeight;
 
 	for (int k = 0; k < textureWinCount && k < 4; k++)
 	{
 		TextureWindowNodeAt(place, k, &picture.nodeX[k], &picture.nodeY[k]);
 	}
 
-	snprintf(words[0], sizeof(words[0]), "Texture window: Texture Scale x%d (%d by %d)   node %d of %d", place.scale, place.width, place.height, textureWinNode + 1, textureWinCount);
-	snprintf(words[1], sizeof(words[1]), "%d %d  %d %d  %d %d  %d %d", (int)textureWinUv.corners[0].u, (int)textureWinUv.corners[0].v, (int)textureWinUv.corners[1].u, (int)textureWinUv.corners[1].v,
-		(int)textureWinUv.corners[2].u, (int)textureWinUv.corners[2].v, textureWinCount > 3 ? (int)textureWinUv.corners[3].u : 0, textureWinCount > 3 ? (int)textureWinUv.corners[3].v : 0);
-	snprintf(words[2], sizeof(words[2]), "1-4 node, arrows move (Shift 10, Ctrl all), drag a node, X Y flip, E R turn, = - scale, PgUp PgDn picture, Tab leaves");
-	TextureWindowPaint_Draw(windowWidth, windowHeight, picture, lines, 3, 16, place.areaTop + 4);
+	words.push_back({ 16, 32 + kTextureWindowTextDown, TextureScaleWords() });
+
+	for (int k = 0; k < (textureWinCount == 4 ? 4 : 3); k++)
+	{
+		TextureNodeRow(&words, k, (int32_t)textureWinUv.corners[k].u, (int32_t)textureWinUv.corners[k].v, k == textureWinNode);   // rows 0..2, and 3 with four nodes (G-7)
+	}
+
+	if (textureWin.resizing)
+	{
+		words.push_back({ 16, 112 + kTextureWindowTextDown, "Resizing Texture" });
+	}
+
+	TextureWindowPaint_Draw(windowWidth, windowHeight, picture, words);
 }
 
 // THE ANIM MENU of the Texture Map mode (inteng's 0x9d Select, 0x9e Create, 0x9f Destroy, 0xa4 Set Anim Number, Sequence 0xa6 Next / 0xa7 Previous / 0xa8 Add / 0xa9 Remove / 0xaa Copy / 0xab Change Properties, Frame 0xad Next / 0xae Previous / 0xaf Add / 0xb0 Remove,
@@ -5511,6 +7049,7 @@ void TextureChooserClick(int x, int y)
 
 		TextureMapSetPicture(textureChooserList[(size_t)at].texture);
 		textureCurrent = textureChooserList[(size_t)at].texture;
+		textureWinStart = true;   // FUN_00555dd0 (0x557bdd): the start view
 	}
 }
 
@@ -6068,12 +7607,19 @@ void TextureGoto(int direction)
 		return;
 	}
 
+	// G past the list's end goes back to its start with "Gone back to start of list" (0x54e6de-0x54e715: drawn at 200, 100 for half a second; here on the status line). INTENG BUG,
+	// FIXED: inteng's Shift+G (0x54e968) moves its place back and stops without going there (the break at 0x54e9b3), and at the list's start goes to the START again with the same
+	// words; here it goes to the previous polygon, and from the first to the last ("Gone to the end of the list")
+	bool wrapped = false;
+
 	if (direction > 0)
 	{
 		textureFoundAt = (textureFoundAt + 1) % textureFound.size();
+		wrapped = textureFoundAt == 0 && !textureGotoFirst;
 	}
 	else
 	{
+		wrapped = textureFoundAt == 0;
 		textureFoundAt = (textureFoundAt + textureFound.size() - 1) % textureFound.size();
 	}
 
@@ -6140,7 +7686,8 @@ void TextureGoto(int direction)
 		ShowTheTexturePolygons();
 	}
 
-	textureWords = "Texture Map: polygon " + std::to_string(one.polygon) + " (" + std::to_string(textureFoundAt + 1) + " of " + std::to_string(textureFound.size()) + ")";
+	textureWords = std::string(wrapped ? (direction > 0 ? "Gone back to start of list - " : "Gone to the end of the list - ") : "") + "Texture Map: polygon " + std::to_string(one.polygon) + " (" +
+		std::to_string(textureFoundAt + 1) + " of " + std::to_string(textureFound.size()) + ")";
 	statusWords = textureWords.c_str();
 }
 
@@ -6167,6 +7714,68 @@ static void TextureFind(int32_t command)
 	{
 		statusWords = "Texture Map: no current texture is chosen yet (Next Texture picks one)";
 		return;
+	}
+
+	// Invalid PSX UV coords (0xb9 / 0xbc) first brings every polygon of every shape that is not imported onto its picture (FUN_00562770 0x56279f: FUN_00558980 runs
+	// FUN_00566b90 on each, TextureWrapPolygon; TM-B): a polygon whose coordinates are whole pictures off is moved back before it is judged, and only one that still reaches
+	// past its picture is found
+	size_t wrapped = 0;
+
+	if (kind == 2)
+	{
+		TextureForEveryShape(open, [&](uint8_t const *id, bool isModule, int32_t moduleIndex)
+		{
+			model::ShapeModel shape;
+			std::string why;
+
+			if (host::ShapeEdit_Read(open->Level(), open, id, &shape, nullptr, &why) != host::ShapeEditResult::Done)
+			{
+				return;
+			}
+
+			for (size_t p = 0; p < shape.polygons.size(); p++)
+			{
+				// FUN_00566b90 moves a polygon only when its smallest u or v (with its partner's) is off its picture: the ones already on it are passed over here without the call (a
+				// partner that is off moves the pair when its own turn comes)
+				model::PolygonUv uv;
+
+				if (!model::EngineTypeIsTextured(shape.polygons[p].engineType) || host::UvEdit_ReadPolygon(open, open->Level(), id, (int32_t)p, &uv, &why) != host::UvEditResult::Done ||
+					!uv.textured || uv.uv.cornerCount < 3)
+				{
+					continue;
+				}
+
+				auto const texture = pictureTextureOf.find(uv.colour & 0xfff);
+				int32_t width = 0, height = 0;
+
+				for (LevelViewPicture const &picture : pictures)
+				{
+					if (texture != pictureTextureOf.end() && picture.texture == texture->second)
+					{
+						width = picture.width;
+						height = picture.height;
+					}
+				}
+
+				int32_t minU = (int32_t)uv.uv.corners[0].u, minV = (int32_t)uv.uv.corners[0].v;
+
+				for (int c = 1; c < 3; c++)
+				{
+					minU = (int32_t)uv.uv.corners[c].u < minU ? (int32_t)uv.uv.corners[c].u : minU;
+					minV = (int32_t)uv.uv.corners[c].v < minV ? (int32_t)uv.uv.corners[c].v : minV;
+				}
+
+				if (width < 1 || height < 1 || (minU >= 0 && minU < width && minV >= 0 && minV < height))
+				{
+					continue;
+				}
+
+				if (TextureWrapPolygon(id, isModule, moduleIndex, (int32_t)p, &why) == TextureWrapResult::Moved)
+				{
+					wrapped++;
+				}
+			}
+		});
 	}
 
 	bool full = false;
@@ -6257,8 +7866,11 @@ static void TextureFind(int32_t command)
 	}
 
 	textureFoundAt = textureFound.size() - 1;
+	textureGotoFirst = true;
 	TextureGoto(1);
-	textureWords += std::string(" - ") + std::to_string(textureFound.size()) + (kind == 0 ? " polygons haven't been done" : kind == 1 ? " polygons use the current texture" : " polygons have invalid PSX UV coordinates") + (select ? ", selected" : "") + (full ? " (the selection is full)" : "") + "; G goes to the next, Shift+G to the previous";
+	textureGotoFirst = false;
+	textureWords += std::string(" - ") + std::to_string(textureFound.size()) + (kind == 0 ? " polygons haven't been done" : kind == 1 ? " polygons use the current texture" : " polygons have invalid PSX UV coordinates") + (select ? ", selected" : "") + (full ? " (the selection is full)" : "") +
+		(kind == 2 ? " (" + std::to_string(wrapped) + " brought onto their pictures first)" : "") + "; G goes to the next, Shift+G to the previous";
 	statusWords = textureWords.c_str();
 }
 
@@ -6710,14 +8322,34 @@ static void TexturePolyShowHide(bool hide)
 	statusWords = textureWords.c_str();
 }
 
+// The leave question's gate: polygons flagged for deletion (a record with 0x4000, 0x55c0f0) or a split waiting (DAT_00914c6c >= 1)
+bool TexturePolyAnyWaiting()
+{
+	return !polyRemoved.empty() || !polySplit.empty();
+}
+
+// The leave question's No: the flags and the waiting splits are dropped (inteng's teardown frees the records that hold them); the hidden ones are drawn again
+void TexturePolyDropFlags()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (polyHideRemoved && open && open->Level())
+	{
+		PolyShowHideInView(open, polyRemoved, false);
+	}
+
+	polyRemoved.clear();
+	polySplit.clear();
+}
+
 // The polygons flagged are taken out of their shapes (FUN_00563d90): one shape at a time, the polygon numbers of that shape move, so its selection and hidden polygons are cleared
 void TexturePolyApplyRemoved()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
-	if ((polyRemoved.empty() && polySplit.empty()) || !open || !open->Level())
+	if ((polyRemoved.empty() && polySplit.empty()) || !open || !open->Level() || textureReturnSaving)
 	{
-		return;
+		return;   // Return's save keeps the flagged polygons in the file (FUN_00572440 writes them; they go when the mode is left)
 	}
 
 	TextureUndo_ForgetAll();   // the shapes' polygon numbers change: the rings' records name polygons by number (texture_shared.h, NAMED)
@@ -7339,12 +8971,327 @@ static void TexturePolyCreate()
 
 // A click in the Texture Map mode: the object under it (a module click is mapped to the object of that name), then which of that object's FILE polygons the click's line meets
 // What a click on polygon `polygon` of the object `target` does in the mode now (a plane for wrap or tile, the animation to select or copy, Copy Texturing, the selection): the click's own work after the polygon is known - and what the harness's pick-poly does, by number
+// FUN_0055f280 (reference, target): when both are textured, each corner of the target takes the coordinates of the first corner of the reference whose world place is less
+// than 100 from it (FUN_004b31b0, the length rounded as FUN_004fd830). Inteng's record holds a triangle's three corners; DECIDED: the file's own quad, all four. Gives back
+// whether a corner changed.
+static bool TextureAlignOne(OpenLevelFile *open, TexturePolygon const &reference, std::vector<model::PolygonUv> *lists, TexturePolygon const &target, size_t targetAt)
+{
+	model::ShapeModel refShape, targetShape;
+	std::vector<int32_t> refPoints, targetPoints, normals;
+	model::PolygonUv ref;
+	std::string why;
+
+	if (host::UvEdit_ReadPolygon(open, open->Level(), reference.id, reference.polygon, &ref, &why) != host::UvEditResult::Done || !ref.textured ||
+		host::FilePick_World(open, open->Level(), reference.id, &refShape, &refPoints, &normals) != host::FilePickResult::Done ||
+		host::FilePick_World(open, open->Level(), target.id, &targetShape, &targetPoints, &normals) != host::FilePickResult::Done || reference.polygon < 0 ||
+		(size_t)reference.polygon >= refShape.polygons.size() || target.polygon < 0 || (size_t)target.polygon >= targetShape.polygons.size())
+	{
+		return false;
+	}
+
+	model::PolygonUv &own = (*lists)[targetAt];
+	model::ShapePolygon const &refPolygon = refShape.polygons[(size_t)reference.polygon];
+	model::ShapePolygon const &ownPolygon = targetShape.polygons[(size_t)target.polygon];
+	double const scale = local_scale > 0.0 ? local_scale : 1.0;
+	int const refCorners = refPolygon.cornerCount < ref.uv.cornerCount ? refPolygon.cornerCount : ref.uv.cornerCount;
+	int const ownCorners = ownPolygon.cornerCount < own.uv.cornerCount ? ownPolygon.cornerCount : own.uv.cornerCount;
+	bool changed = false;
+
+	auto const world = [&](std::vector<int32_t> const &points, int32_t point, double out[3])
+	{
+		if (point < 0 || (size_t)point * 3 + 2 >= points.size())
+		{
+			return false;
+		}
+
+		for (int a = 0; a < 3; a++)
+		{
+			out[a] = (double)(int32_t)(points[(size_t)point * 3 + (size_t)a] * scale);
+		}
+
+		return true;
+	};
+
+	for (int k = 0; k < ownCorners; k++)
+	{
+		double at[3];
+
+		if (!world(targetPoints, ownPolygon.corners[k], at))
+		{
+			continue;
+		}
+
+		for (int j = 0; j < refCorners; j++)
+		{
+			double there[3];
+
+			if (!world(refPoints, refPolygon.corners[j], there))
+			{
+				continue;
+			}
+
+			double const dx = there[0] - at[0], dy = there[1] - at[1], dz = there[2] - at[2];
+			double const length = nearbyint((double)(float)sqrt(dx * dx + dy * dy + dz * dz));
+
+			if (length < 100.0)
+			{
+				// 0x55f375: the reference's (whole-number) coordinates
+				model::UvCorner const take = { (float)trunc(ref.uv.corners[j].u), (float)trunc(ref.uv.corners[j].v) };
+
+				changed = changed || memcmp(&own.uv.corners[k], &take, sizeof(take)) != 0;
+				own.uv.corners[k] = take;
+				break;
+			}
+		}
+	}
+
+	return changed;
+}
+
+// FUN_0055eeb0's clicks: the polygon to alter (textured, as the game drew it; with Select As Quad its partner too), then the one to align it with
+void TextureAlignClicked(OpenLevelFile *open, uint8_t const *target, bool isModule, int32_t moduleIndex, int32_t polygon)
+{
+	TexturePolygon clicked = {};
+
+	memcpy(clicked.id, target, 8);
+	clicked.polygon = polygon;
+	clicked.isModule = isModule;
+	clicked.moduleIndex = isModule ? moduleIndex : -1;
+
+	TextureLoaded const loaded = TextureLoadedOf(open, target, isModule, moduleIndex);
+	int32_t texture = -1;
+	// textured as inteng's record says it (type 2 for one the game drew without a picture); NAMED: when the game's shape can't be matched to the file's polygons (the view's
+	// "shape not drawn": its merge data and the loaded shape disagree), the file's own word is taken
+	auto const textured = [&](int32_t p)
+	{
+		model::PolygonUv uv;
+		std::string why;
+
+		return host::UvEdit_ReadPolygon(open, open->Level(), target, p, &uv, &why) == host::UvEditResult::Done && uv.textured && uv.uv.cornerCount > 0 && (!loaded.inPlay || loaded.Texture(p, &texture));
+	};
+
+	if (textureAlignStage == 1)
+	{
+		int32_t const partner = textureSelectAs == 4 ? TexturePartnerOf(open, target, polygon) : -1;   // 0x55efb5: the partner only with Quad
+
+		if (!textured(polygon) || (partner >= 0 && !textured(partner)))
+		{
+			textureAlignStage = 0;
+			statusWords = "Texture Alignment: Poly not textured";   // 0x55f01c / 0x55f254
+			return;
+		}
+
+		textureAlignTarget = clicked;
+		textureAlignPartner = partner;
+		textureAlignStage = 2;
+		statusWords = "Texture Alignment: Align with which polygon? (Esc: cancel)";
+		return;
+	}
+
+	textureAlignStage = 0;
+
+	if (!textured(polygon))
+	{
+		statusWords = "Texture Alignment: that polygon is not textured: nothing aligned";   // 0x55f134: inteng just stops
+		return;
+	}
+
+	int32_t const refPartner = textureSelectAs == 4 ? TexturePartnerOf(open, target, polygon) : -1;   // 0x55f142
+
+	// 0x55f168-0x55f191: a step of the edits ring, the polygon (and its partner) recorded
+	TextureUndo_BeginStep();
+	TextureUndo_RecordPolygon(textureAlignTarget.id, textureAlignTarget.polygon);
+
+	if (textureAlignPartner >= 0)
+	{
+		TextureUndo_RecordPolygon(textureAlignTarget.id, textureAlignPartner);
+	}
+
+	std::vector<model::PolygonUv> lists;
+	std::vector<TexturePolygon> targets = { textureAlignTarget };
+	std::string why;
+
+	if (textureAlignPartner >= 0)
+	{
+		TexturePolygon mate = textureAlignTarget;
+
+		mate.polygon = textureAlignPartner;
+		targets.push_back(mate);
+	}
+
+	for (TexturePolygon const &one : targets)
+	{
+		model::PolygonUv uv;
+
+		if (host::UvEdit_ReadPolygon(open, open->Level(), one.id, one.polygon, &uv, &why) != host::UvEditResult::Done || !uv.textured)
+		{
+			statusWords = "Texture Alignment: the polygon to alter could not be read: nothing aligned";
+			return;
+		}
+
+		lists.push_back(uv);
+	}
+
+	// 0x55f1aa-0x55f1fd: the polygon and its partner, each against the reference, then against the reference's partner
+	bool changed = false;
+	TexturePolygon refMate = clicked;
+
+	refMate.polygon = refPartner;
+
+	for (size_t t = 0; t < targets.size(); t++)
+	{
+		changed = TextureAlignOne(open, clicked, &lists, targets[t], t) || changed;
+	}
+
+	for (size_t t = 0; refPartner >= 0 && t < targets.size(); t++)
+	{
+		changed = TextureAlignOne(open, refMate, &lists, targets[t], t) || changed;
+	}
+
+	if (!changed)
+	{
+		statusWords = "Texture Alignment: no corner of the altered polygon is at a corner of that one: nothing aligned";
+		return;
+	}
+
+	if (host::UvEdit_WritePolygons(open, open->Level(), textureAlignTarget.id, lists, &why) != host::UvEditResult::Done)
+	{
+		textureWords = "Texture Alignment: not written: " + why;
+		statusWords = textureWords.c_str();
+		return;
+	}
+
+	ShowTheNewUv(open, textureAlignTarget, lists);
+	textureWords = "Texture Alignment: polygon " + std::to_string(textureAlignTarget.polygon) + (textureAlignPartner >= 0 ? " and its partner" : "") + " aligned with polygon " +
+		std::to_string(polygon);
+	statusWords = textureWords.c_str();
+}
+
+// Esc while Texture Alignment waits for a click: it stops (inteng: the right button, 0x55ef88 / 0x55f101)
+bool TextureAlignCancel()
+{
+	if (!textureAlignStage)
+	{
+		return false;
+	}
+
+	textureAlignStage = 0;
+	statusWords = "Texture Alignment: cancelled";
+	return true;
+}
+
+// SHIFT+B, Select base polygon (0xe7; FUN_0054d260 0x54f6b4 stops wrap / tile, DAT_00914d1c = 0, then FUN_00556ff0, TM-B): "Get coordinates from which poly? " (0x5fed24, drawn at 200, 0x78)
+// and the next click on a polygon makes it the base: the window's corner nodes (state +0xa4, textureNodes: what Wrap and Tile work over) take its coordinates (FUN_00558b90):
+//  - a polygon with no merge partner: with Select As Triangle (+0x9c 3) its three corners; with Select As Quad no base (0x5570a8: the base is let go);
+//  - one of a merged pair: with Select As Quad the pair as one quad (FUN_0055cdf0 of the lower-numbered: each place from the polygon that has it); with Triangle no base (0x557106).
+// An untextured polygon gives nothing (0x5570c9). NAMED: Escape lets the question go (inteng's right button, 0x557062: the right button turns the view in ours); a quad of the file with
+// Select As Quad gives its four corners (inteng's copy holds triangles only); with three nodes the fourth stays where it was (FUN_00558b90 writes three). textureBasePick is with the
+// mode's other held states, above.
+
+static void TextureBasePicked(OpenLevelFile *open, uint8_t const *target, int32_t polygon)
+{
+	textureBasePick = false;
+
+	static std::string words;
+	model::PolygonUv uv, other;
+	std::string why;
+	std::vector<int32_t> merge;
+	bool hasChunk = false;
+	int const want = textureSelectAs == 3 ? 3 : 4;   // the selection's node count (+0x9c): Select As
+
+	if (!open || !open->Level() || host::UvEdit_ReadPolygon(open, open->Level(), target, polygon, &uv, &why) != host::UvEditResult::Done || !uv.textured || uv.uv.cornerCount < 3)
+	{
+		statusWords = "Texture Map: Select base polygon: that polygon is not textured, no base";
+		return;
+	}
+
+	host::PolygonItems_ReadMergeData(open, open->Level(), target, &merge, &hasChunk);
+
+	int32_t const partner = hasChunk && polygon >= 0 && (size_t)polygon < merge.size() ? merge[(size_t)polygon] : -1;
+	model::UvCorner corners[4] = {};
+
+	if (partner < 0)
+	{
+		if (want == 4 && uv.uv.cornerCount != 4)
+		{
+			statusWords = "Texture Map: Select base polygon: a triangle is no base with Select As Quad, no base";
+			return;
+		}
+
+		for (int k = 0; k < want; k++)
+		{
+			corners[k] = uv.uv.corners[k];
+		}
+	}
+	else
+	{
+		model::ShapeModel shape;
+		model::TextureQuad quad;
+		int32_t const lower = polygon < partner ? polygon : partner, higher = polygon < partner ? partner : polygon;
+		model::PolygonUv lowerUv, higherUv;
+
+		if (want == 3)
+		{
+			statusWords = "Texture Map: Select base polygon: a merged pair is no base with Select As Triangle, no base";
+			return;
+		}
+
+		if (host::ShapeEdit_Read(open->Level(), open, target, &shape, nullptr, &why) != host::ShapeEditResult::Done ||
+			host::UvEdit_ReadPolygon(open, open->Level(), target, lower, &lowerUv, &why) != host::UvEditResult::Done || !lowerUv.textured ||
+			host::UvEdit_ReadPolygon(open, open->Level(), target, higher, &higherUv, &why) != host::UvEditResult::Done || !higherUv.textured ||
+			model::TextureQuadOf(shape, lower, higher, &quad) != model::TextureQuadResult::Ok)
+		{
+			statusWords = "Texture Map: Select base polygon: the merged pair is not two textured triangles, no base";
+			return;
+		}
+
+		for (int k = 0; k < 4; k++)
+		{
+			corners[k] = quad.ownCorners[k] >= 0 ? lowerUv.uv.corners[quad.ownCorners[k]] : higherUv.uv.corners[quad.partnerCorners[k] >= 0 ? quad.partnerCorners[k] : 0];
+		}
+	}
+
+	int32_t width = 0, height = 0;
+
+	if (LevelView_LowestPictureSize(&width, &height))
+	{
+		TextureNodesFor(width, height);   // made as Wrap and Tile make them, then the base's coordinates put in
+	}
+
+	for (int k = 0; k < want; k++)
+	{
+		textureNodes.uv.corners[k] = corners[k];
+	}
+
+	words = "Texture Map: the base polygon is polygon " + std::to_string(polygon) + ": the window's nodes are";
+
+	for (int k = 0; k < 4; k++)
+	{
+		words += " " + std::to_string((int)textureNodes.uv.corners[k].u) + "," + std::to_string((int)textureNodes.uv.corners[k].v);
+	}
+
+	statusWords = words.c_str();
+}
+
 void TexturePolygonClicked(OpenLevelFile *open, uint8_t const *target, bool isModule, int32_t moduleIndex, int32_t polygon, bool deselect, bool copyNow)
 {
+	// Shift+B waits for a click: it takes the polygon as the base and selects nothing
+	if (textureBasePick && textureSubMode == 0)
+	{
+		TextureBasePicked(open, target, polygon);
+		return;
+	}
+
 	// Merge (sub-mode 2) picks its own way (texture_submodes.cpp): a click and the harness's pick-poly both come here
 	if (textureSubMode == 2)
 	{
 		TextureMergeClicked(target, isModule, moduleIndex, polygon);
+		return;
+	}
+
+	if (textureAlignStage)
+	{
+		TextureAlignClicked(open, target, isModule, moduleIndex, polygon);   // FUN_0055eeb0's two clicks take the polygons
 		return;
 	}
 
@@ -8270,6 +10217,13 @@ void RecalculateTheNormals()
 // (ours had them swapped). Not yet here: the Ctrl keys (the editor's key branch takes Texture Map keys only without Ctrl) and F / Shift+F (ours keeps no View's Add / Remove).
 bool TextureMapKeyCommandRun(uint8_t key, bool shift, bool ctrl)
 {
+	if (textureBasePick && key == VK_ESCAPE)
+	{
+		textureBasePick = false;   // Select base polygon's question let go (inteng: the right button, 0x557062)
+		statusWords = "Texture Map: no base polygon";
+		return true;
+	}
+
 	host::TextureKeyState state = {};
 
 	state.selectAs = textureSelectAs;
@@ -8290,12 +10244,19 @@ bool TextureMapKeyCommandRun(uint8_t key, bool shift, bool ctrl)
 		return TextureMergeKey(key);
 	}
 
+	// the multiple node mode (sub-mode 3): its table's commands go to its own switch (TextureMultiCommand); Tab and Ctrl+X below
+	if (textureSubMode == 3 && command != 0 && command != 0x5 && command != 0x2 && command != 0x3)
+	{
+		TextureMapCommand(command);
+		return true;
+	}
+
 	switch (command)
 	{
 		case 0:
 			return false;
 		case 0x3: case 0x2:
-			TextureWindowToggle();
+			TextureTab();
 			return true;
 		case 0x3b: case 0x3c: case 0x3d: case 0xcd: case 0x13e:
 			return false;   // 7 / 8 / 9, B and Ctrl+B: the editor's own View keys do it (draw modes, Gouraud, headlight: editor_actions.h), before this is asked; doing it here too would undo it

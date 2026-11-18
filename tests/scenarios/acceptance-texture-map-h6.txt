@@ -1,0 +1,58 @@
+# ACCEPTANCE (red first; Drake 11-18, TM-C H6): on his path (Invasion opened as a double click, Mode > Texture Map, the polygon in the middle of the view):
+# 1. Scale UV Coords (0x134) with the factor 0 changes NOTHING: inteng's case 0x134 (0x54fdf9-0x54fe40) runs FUN_00572200 only when the typed factor is not DAT_005ab2ac, which is 0.0 (read
+#    from inteng.exe's .rdata); ours skipped 1.0 and scaled by 0, putting every node of the polygon on 0, 0. With 2 it does scale (the status says so).
+# 2. Fake Merge Data (0x143) shows inteng's message box, "Fake merge data turned on", then "Fake merge data turned off" (0x54feb7 / 0x54fe7b: FUN_00474030 and FUN_0057c800).
+# Checked on the file (verify_level_same: the factor 0 left the level as it was) and on the state line (the dialogs). RED on drake-tmc 78bc5024: the factor 0 changed the polygon; no box.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures off
+state
+click-bar Mode > Texture Map
+expect-screen Texture Map
+camera -7764 2852 10527 0 0
+wait 400
+click-view 0.50 0.60
+expect-status 1 selected
+save-copy
+item 0x134
+expect-dialog-kind text
+expect-dialog How much would you like to scale the uv coordinates by?
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+type 0
+click-button Ok
+expect-no-dialog
+wait 300
+expect-status the coordinates stay as they are
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save2}
+item 0x134
+expect-dialog-kind text
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+type 2
+click-button Ok
+expect-no-dialog
+wait 300
+expect-status-not the coordinates stay as they are
+item 0x143
+expect-dialog-kind message
+expect-dialog Fake merge data turned on
+click-button Ok
+expect-no-dialog
+item 0x143
+expect-dialog-kind message
+expect-dialog Fake merge data turned off
+click-button Ok
+expect-no-dialog

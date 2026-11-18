@@ -33,13 +33,31 @@
 
 static int checksFailed = 0;
 
+// ALLOW-FAIL (drive_scenario's "allow-fail <reason> | <check line>", Bishop / Dietrich 2026-11-18): while checkAllowedReason holds a reason, a check that fails is logged ALLOWED with the
+// reason and not counted as failed (checksAllowed counts it); one that passes counts in checkAllowedPassed, so the step can say the prefix may go
+static std::string checkAllowedReason;
+static int checksAllowed = 0, checkAllowedPassed = 0, checkAllowedFailed = 0;
+
 static void Check(bool good, std::string const &what)
 {
+	if (!good && !checkAllowedReason.empty())
+	{
+		printf("  ALLOWED  %s (%s)\n", what.c_str(), checkAllowedReason.c_str());
+		fflush(stdout);
+		checksAllowed++;
+		checkAllowedFailed++;
+		return;
+	}
+
 	printf("  %s  %s\n", good ? "ok" : "FAILED", what.c_str());
 	fflush(stdout);
 	if (!good)
 	{
 		checksFailed++;
+	}
+	else if (!checkAllowedReason.empty())
+	{
+		checkAllowedPassed++;
 	}
 }
 

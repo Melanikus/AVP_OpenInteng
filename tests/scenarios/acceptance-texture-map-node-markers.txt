@@ -1,0 +1,30 @@
+# ACCEPTANCE (red first): TM-B, the texture windows' node markers are inteng's sprites (FUN_005535a0 / FUN_00553ab0: a node's a plus three pixels thick, white in the middle and
+# blue either side; the current node's a thin blue plus; Dietrich, 2026-11-18). Ours drew 9 x 9 boxes, white, the current one red (ff4040): an invented look. His path: Invasion,
+# Mode > Texture Map, the quad at 0.50 0.60, Tab: no red round the window (875,560 133 x 140); M, Tab: the same. Pictures.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+key Tab
+wait 400
+expect-texwin 128 128 0 0 128 128 1
+wait 400
+picture 513
+expect-colour-at-most picture 875 560 133 140 ff4040 0.0005 40
+key Tab
+wait 300
+key M
+wait 200
+key Tab
+wait 400
+expect-status multiple node mode
+expect-texwin 128 128 0 0 128 128 1
+wait 400
+picture 514
+expect-colour-at-most picture 875 560 133 140 ff4040 0.0005 40
+key Tab
+wait 300

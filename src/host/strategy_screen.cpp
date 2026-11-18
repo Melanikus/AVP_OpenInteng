@@ -3795,29 +3795,12 @@ void StrategyModeCommand(int32_t command)
 		return;
 	}
 
-	// V (0x101, our number): inteng's volume editor FUN_005277c0. NAMED STAND-IN FOR THE ENTRY: inteng reads V inside the kind's own Edit view (Volume of Death FUN_00535970 slot 0xd87a96, "V : Edit
-	// Volume"; Area Switch FUN_0052f700 -> FUN_00530900, "V : Change Trigger Volume"), not on the Strategy screen; those views are not built yet, so V on the screen with the object current starts it.
+	// V (0x101, our number): the volume editor FUN_005277c0 (VolumeBegin). inteng enters it from two Edit views only: a Volume of Death's FUN_00535970 (slot 0xd87a96, "V : Edit Volume", 0x535bd7) and an
+	// Area Switch's FUN_0052f700 -> FUN_00530900 ("V : Change Trigger Volume", 0x5309b2). Their V reaches it here (no view key takes V before it), and VolumeBegin starts nothing outside those two views
+	// (strategy-data.md S-59)
 	if (command == 0x101)
 	{
 		VolumeBegin();
-		return;
-	}
-
-	// T: Change Target (0x100, our number; NAMED STAND-IN: inteng's T is a key of the switch kinds' Edit views, FUN_0052f700 "T : Change Target (+Ctrl to choose environment)"): the next click in the
-	// 3D view is the pick: the object clicked (a module is found by its name) goes in the selected strategy's first object field (a switch's Target, an enemy's Death Target, a switch door's door).
-	if (command == 0x100)
-	{
-		uint8_t selected[8];
-		host::ObjectStrategy now;
-
-		if (!open || !SelectedObjectId(selected) || host::FindObjectStrategy(LevelObjects_Level(), selected, &now) != host::StrategyFound::Found || now.payload.size() < 12)
-		{
-			statusWords = "Select an object that has a strategy first";
-			return;
-		}
-
-		strategyPick = 1;
-		statusWords = "Change Target: click the object in the view that is to be the target";
 		return;
 	}
 
@@ -3867,42 +3850,6 @@ void StrategyModeCommand(int32_t command)
 	if (command == 0x37)
 	{
 		StabilityBegin();
-		return;
-	}
-
-	// Stability flags (0x37, FUN_00527370 / FUN_00527020 / FUN_00527210): the picked module's six faces, red = stable, green = unstable; the answer is typed here (the picture of the faces is not drawn)
-	if (command == 0x37)
-	{
-		std::vector<uint8_t> const ids = PickedModuleIdBytes();
-		uint32_t faces = 0;
-
-		if (!open || ids.empty())
-		{
-			statusWords = "Stability flags: pick a module first (click, Shift+click for more)";
-			return;
-		}
-
-		host::StrategyModeResult const got = host::StrategyMode_GetStability(open, ids.data(), &faces);
-
-		if (got != host::StrategyModeResult::Done)
-		{
-			strategyWords = std::string("Stability flags: ") + host::StrategyModeWords(got);
-			statusWords = strategyWords.c_str();
-			return;
-		}
-
-		memcpy(stabilityId, ids.data(), sizeof(stabilityId));
-		promptList.clear();
-
-		std::string now;
-
-		for (int face = 0; face < 6; face++)
-		{
-			now += (faces & (1u << face)) ? 'r' : 'g';
-		}
-
-		promptList.push_back("Red : stable   Green : unstable   (faces 1 to 6 now: " + now + ")");
-		OpenAPrompt(kPromptStability);
 		return;
 	}
 

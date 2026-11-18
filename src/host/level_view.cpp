@@ -615,7 +615,11 @@ static size_t SelectedBlocks(const DISPLAYBLOCK **blocks)
 	return found;
 }
 
-// The shape a LevelViewShapeOf names: the display block of the module, or of the object found among the active blocks by its strategy's name; null when it is not in play
+struct displayblock *ModelObjects_BlockOfId(const uint8_t id[8]);   // hierarchy_view.cpp: the block the editor made for an object of a file with no modules
+
+// The shape a LevelViewShapeOf names: the display block of the module, or of the object found among the active blocks by its strategy's name, or (a model file, which has no
+// modules: its objects have no strategy) the block the editor made for that object (ModelObjects_Build); null when it is not in play. (The model file's case added 2026-11-18 by
+// Dietrich: the Texture Map highlight of a picked part of MelPyth_MarWep / marwep.rif was "not drawn", as no block was found for it.)
 static const DISPLAYBLOCK *BlockOfShape(const LevelViewShapeOf &shape)
 {
 	if (shape.isModule)
@@ -640,7 +644,7 @@ static const DISPLAYBLOCK *BlockOfShape(const LevelViewShapeOf &shape)
 		}
 	}
 
-	return nullptr;
+	return ModelObjects_BlockOfId(shape.objectId);
 }
 
 bool LevelView_LowestPictureSize(int32_t *width, int32_t *height)
@@ -1895,17 +1899,24 @@ void LevelView_HideBeyond(bool on, int32_t distance)
 	hideBeyondDistance = distance > 0 ? distance : 0;
 }
 
-static bool hideBeyondKeepOn = false;
-static uint8_t hideBeyondKeepId[8];
+static std::vector<LevelViewShapeOf> hideBeyondKeeps;   // the objects and modules the distance rule never hides
 
 void LevelView_HideBeyondKeep(const uint8_t *objectId)
 {
-	hideBeyondKeepOn = objectId != nullptr;
+	LevelViewShapeOf keep = {};
 
 	if (objectId)
 	{
-		memcpy(hideBeyondKeepId, objectId, sizeof(hideBeyondKeepId));
+		keep.isModule = false;
+		memcpy(keep.objectId, objectId, 8);
 	}
+
+	LevelView_HideBeyondKeepShapes(&keep, objectId ? 1 : 0);
+}
+
+void LevelView_HideBeyondKeepShapes(const LevelViewShapeOf *shapes, size_t count)
+{
+	hideBeyondKeeps.assign(shapes, shapes + (shapes ? (count < kLevelViewMostHidden ? count : kLevelViewMostHidden) : 0));
 }
 
 void LevelView_HideObjects(const uint8_t (*ids)[8], size_t count, bool everyObject)
@@ -2133,20 +2144,19 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 
 		if (hideBeyondOn)
 		{
-			const DISPLAYBLOCK *kept = nullptr;
+			std::vector<const DISPLAYBLOCK *> kept;
 
-			if (hideBeyondKeepOn)
+			for (LevelViewShapeOf const &keep : hideBeyondKeeps)
 			{
-				LevelViewShapeOf keep = {};
-
-				keep.isModule = false;
-				memcpy(keep.objectId, hideBeyondKeepId, 8);
-				kept = BlockOfShape(keep);
+				if (const DISPLAYBLOCK *const block = BlockOfShape(keep))
+				{
+					kept.push_back(block);
+				}
 			}
 
 			auto beyond = [&](const DISPLAYBLOCK *block)
 			{
-				if (!block || block == kept)
+				if (!block || std::find(kept.begin(), kept.end(), block) != kept.end())
 				{
 					return;
 				}

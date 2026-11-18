@@ -589,7 +589,8 @@ bool ShapeChooserKey(WPARAM key)
 // Create > With shape > Choose, after the shape: the typed name is asked for ("Name Object"), a name already used by any object is refused with "The name of the object has already been
 // used." and asked again (FUN_004d9af0 0x4d9450-0x4d97be, p11-shape-handlers.md section 25); a new placed object of that shape is then made at the VIEW's place with the view's turn
 // (host::CreateObjectFromShape, Frost's maker, the one Quick-create uses) and the selection is let go of. NAMED: the maker names the object itself and it is then renamed to the typed name
-// (ObjectEdit_Rename, whose rules are 1 to 63 plain letters); the object number is the maker's (greatest + 1), not inteng's counter DAT_00636f4c.
+// (ObjectEdit_Rename, whose rules are 1 to 63 plain letters). The object number is inteng's (V-27): the lowest number no object has (FUN_004bebc0's first empty slot, given at the save);
+// DAT_00636f4c is the next SHAPE slot, not an object counter.
 bool ObjectNameInUse(std::string const &name)
 {
 	return host::ObjectNameInUse(LevelObjects_Level(), name.c_str());
@@ -643,6 +644,7 @@ void CreateNamedAtTheView(std::string const &typed)
 	host::ObjectEditAnswer const renamed = host::ObjectEdit_Rename(open, LevelObjects_Level(), newId, typed.c_str(), renamedId, &why);
 
 	LoadTheObjectListAgain();
+	PutTheNewObjectInPlay();   // OP-26c: in the game's view at once (FUN_004e0ed0 makes it in inteng's scene)
 	MakePlacedObjectCurrent(renamed == host::ObjectEditAnswer::Done ? renamedId : newId);   // FUN_004d64a0 (0x4d97aa): the new object is THE current one (OP-5)
 
 	if (renamed == host::ObjectEditAnswer::Done)

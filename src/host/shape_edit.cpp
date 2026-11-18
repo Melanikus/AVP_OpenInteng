@@ -327,43 +327,68 @@ namespace host
 		else
 		{
 			// FUN_00565bd0: the polygon's distinct corner points are added up and Q = ftol(sum / -n) (FUN_0042f9b0 divides, truncating toward 0): minus the average, so the polygon's centre goes to the origin.
-			// n is the count of distinct corners (inteng's is 3, or 4 for a polygon merged from two: the file polygon of a merged quad holds the 4)
+			// A triangle merged with another (its partner in the shape's SHPMRGDT, DAT_00914d3c: 0x565cef) adds the partner's corners it does not share (0x565de7-0x565e8e) and n is 4; one alone
+			// is its own corners. CORRECTED 2026-11-18 (Dietrich): ours took a merged triangle alone. INTENG BUG, FIXED: inteng divides a polygon alone by 3 whatever its corners (0x565d16), so a
+			// file quad's centre came out a third too far; ours divides by the corners counted. NAMED: merge data that does not name another triangle of the shape is taken as none.
 			if ((size_t)polygon >= shape.polygons.size())
 			{
 				Say(why, "there is no such polygon in the shape");
 				return ShapeEditResult::Refused;
 			}
 
-			model::ShapePolygon const &poly = shape.polygons[(size_t)polygon];
-			int distinct[8];
+			int32_t partner = -1;
+			Chunk *const mergeChunk = owned->lookup_single_child("SHPMRGDT");
+			std::vector<unsigned char> mergeBytes;
+
+			if (mergeChunk && store->PayloadOf(mergeChunk, &mergeBytes) && mergeBytes.size() % 4 == 0 && (size_t)polygon < mergeBytes.size() / 4)
+			{
+				int32_t named = -1;
+
+				memcpy(&named, mergeBytes.data() + (size_t)polygon * 4, 4);
+				partner = named >= 0 && (size_t)named < shape.polygons.size() && named != polygon && shape.polygons[(size_t)polygon].cornerCount == 3 &&
+					shape.polygons[(size_t)named].cornerCount == 3 ? named : -1;
+			}
+
+			int distinct[16];
 			int n = 0;
 			double sum[3] = { 0, 0, 0 };
+			int32_t const which[2] = { polygon, partner };
 
-			for (int k = 0; k < poly.cornerCount && k < 8; k++)
+			for (int w = 0; w < 2; w++)
 			{
-				int const number = poly.corners[k];
-				bool again = false;
-
-				for (int j = 0; j < n; j++)
-				{
-					again = again || distinct[j] == number;
-				}
-
-				if (again)
+				if (which[w] < 0)
 				{
 					continue;
 				}
 
-				if (number < 0 || (size_t)number >= shape.points.size())
-				{
-					Say(why, "the polygon names a point the shape does not have");
-					return ShapeEditResult::Refused;
-				}
+				model::ShapePolygon const &poly = shape.polygons[(size_t)which[w]];
 
-				distinct[n++] = number;
-				sum[0] += shape.points[(size_t)number].x;
-				sum[1] += shape.points[(size_t)number].y;
-				sum[2] += shape.points[(size_t)number].z;
+				for (int k = 0; k < poly.cornerCount && k < 8; k++)
+				{
+					int const number = poly.corners[k];
+					bool again = false;
+
+					for (int j = 0; j < n; j++)
+					{
+						again = again || distinct[j] == number;
+					}
+
+					if (again)
+					{
+						continue;
+					}
+
+					if (number < 0 || (size_t)number >= shape.points.size())
+					{
+						Say(why, "the polygon names a point the shape does not have");
+						return ShapeEditResult::Refused;
+					}
+
+					distinct[n++] = number;
+					sum[0] += shape.points[(size_t)number].x;
+					sum[1] += shape.points[(size_t)number].y;
+					sum[2] += shape.points[(size_t)number].z;
+				}
 			}
 
 			if (n < 1)

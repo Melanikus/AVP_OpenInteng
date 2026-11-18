@@ -3,6 +3,8 @@
 // Usage: verify_texmap.exe <the level before the step> <the level after it (a saved copy)> <step> [numbers]
 //   texture <picture file name>     Set Texture: the polygons whose picture changed (the selection) all hold ONE picture index, and that index is the BMPNAMES entry of the named file
 //   flipx <W> <H> | flipy <W> <H>   X-Flip / Y-Flip: every polygon whose coordinates changed holds exactly FlipU / FlipV (uv_model.h) of what it held before, over the window 0,0,W,H (the lowest picture's size)
+//   uv <u1> <v1> <u2> <v2> <u3> <v3> [<u4> <v4>]   the one changed polygon's corners are exactly these
+//   order                           the texture window's O: the one changed polygon's corner k holds what corner k - 1 held, corner 1 the last one's
 //   corners <W> <H> <1|-1> <0..3>   the texture window's corner commands: the one changed polygon's node n is on corner (start + n x direction) & 3 of the area 0,0 to W,H
 //   wrap <W> <H> [scale] | tile <W> <H> [scale]
 //                                   Wrap / Tile: the polygons whose coordinates changed (the selection) hold exactly what uv_project.h's ProjectCorners gives for the world points of their corners, for SOME chosen polygon's plane
@@ -319,6 +321,22 @@ int main(int argc, char **argv)
 							}
 						}
 
+						// SHPHEAD1's version_no (the 32 bits at byte 60 of its payload, after the extents: Shape_Header_Chunk::fill_data_block) is compared by its VALUE, as OBJHEAD1's
+						// below: a shape whose save adds 1 every time can carry into the next byte in one pair of saves and not in the other (seen 11-18 on the owner's
+						// MelPyth_hnpcmarine.RIF: the baseline pair differed in 2 bytes, the step in 1, both +1). Every other byte is compared as it is.
+						if (differs && strcmp(name, "SHPHEAD1") == 0)
+						{
+							std::vector<unsigned char> ha, hb, xha, xhb;
+							auto version = [](std::vector<unsigned char> const &bytes) -> int64_t { return bytes.size() >= 64 ? (int64_t)((uint32_t)bytes[60] | ((uint32_t)bytes[61] << 8) | ((uint32_t)bytes[62] << 16) | ((uint32_t)bytes[63] << 24)) : -1; };
+							auto rest = [](std::vector<unsigned char> bytes) { for (size_t i = 60; i < 64 && i < bytes.size(); i++) { bytes[i] = 0; } return bytes; };
+
+							if (ca && cb && da && db && before.PayloadOf(ca, &ha) && after.PayloadOf(cb, &hb) && baseA.PayloadOf(da, &xha) && baseB.PayloadOf(db, &xhb) &&
+								version(ha) >= 0 && version(hb) >= 0 && version(xha) >= 0 && version(xhb) >= 0 && rest(ha) == rest(hb) && (version(hb) - version(ha)) == (version(xhb) - version(xha)))
+							{
+								differs = false;
+							}
+						}
+
 						if (differs)
 						{
 							std::string places;
@@ -572,6 +590,52 @@ int main(int argc, char **argv)
 			}
 
 			Check(right, "node " + std::to_string(node + 1) + " moved by " + std::to_string(du) + " " + std::to_string(dv) + " and every other corner stayed");
+		}
+	}
+	else if (step == "uv" && argc >= 10)
+	{
+		// TM-B (Dietrich, 2026-11-18): one polygon's corners are now exactly these whole texels, u v for each corner in order (the texture windows' right drag)
+		Check(pictureChanged.empty(), "no polygon's picture changed");
+		Check(uvChanged.size() == 1, "exactly one polygon's coordinates changed (" + std::to_string(uvChanged.size()) + ")");
+
+		if (uvChanged.size() == 1)
+		{
+			model::PolygonUv const &after = now[uvChanged[0]].uv;
+			int const given = (argc - 4) / 2;
+			bool right = after.uv.cornerCount == given;
+
+			for (int k = 0; right && k < given; k++)
+			{
+				double const wantU = atof(argv[4 + k * 2]), wantV = atof(argv[5 + k * 2]);
+
+				printf("  corner %d: %.2f %.2f (wanted %.2f %.2f)\n", k + 1, after.uv.corners[k].u, after.uv.corners[k].v, wantU, wantV);
+				right = fabs(after.uv.corners[k].u - wantU) < 0.01 && fabs(after.uv.corners[k].v - wantV) < 0.01;
+			}
+
+			Check(right, "the corners are the ones given (" + std::to_string(given) + ")");
+		}
+	}
+	else if (step == "order")
+	{
+		// TM-B (Dietrich, 2026-11-18): the texture window's O (FUN_00556df0): one polygon's nodes turned one place, corner k now holds what corner k - 1 held (corner 0 the last one's)
+		Check(pictureChanged.empty(), "no polygon's picture changed");
+		Check(uvChanged.size() == 1, "exactly one polygon's coordinates changed (" + std::to_string(uvChanged.size()) + ")");
+
+		if (uvChanged.size() == 1)
+		{
+			model::PolygonUv const &before = was[uvChanged[0]].uv, &after = now[uvChanged[0]].uv;
+			int const n = after.uv.cornerCount;
+			bool right = before.uv.cornerCount == n && n >= 2;
+
+			for (int k = 0; right && k < n; k++)
+			{
+				int const from = (k + n - 1) % n;
+
+				printf("  corner %d: %.2f %.2f (wanted corner %d before: %.2f %.2f)\n", k + 1, after.uv.corners[k].u, after.uv.corners[k].v, from + 1, before.uv.corners[from].u, before.uv.corners[from].v);
+				right = fabs(after.uv.corners[k].u - before.uv.corners[from].u) < 0.01 && fabs(after.uv.corners[k].v - before.uv.corners[from].v) < 0.01;
+			}
+
+			Check(right, "every corner holds the one before it (the last one's in corner 1)");
 		}
 	}
 	else if (step == "corners" && argc >= 8)

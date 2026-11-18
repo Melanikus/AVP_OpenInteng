@@ -30,6 +30,7 @@
 #include "level_file.h"
 #include "object_edit.h"
 #include "object_make.h"
+#include "object_number.h"
 #include "object_place_edit.h"
 #include "shape_chooser.h"
 
@@ -510,7 +511,63 @@ int main(int argc, char **argv)
 		uint8_t madeId[8] = {};
 		int32_t const place[3] = { 1000, 2000, 3000 };
 
+		// V-27b: the numbers before the copy, worked out here on their own (every header's number at 48)
+		std::vector<int32_t> numbersBefore;
+
+		if (edited.Level())
+		{
+			List<Object_Chunk *> all;
+
+			edited.Level()->list_objects(&all);
+
+			for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
+			{
+				std::vector<unsigned char> bytes;
+				int32_t number = -1;
+
+				if (each() && each()->get_header() && edited.PayloadOf(each()->get_header(), &bytes) && bytes.size() >= 52)
+				{
+					memcpy(&number, &bytes[48], sizeof(number));
+					numbersBefore.push_back(number);
+				}
+			}
+		}
+
+		int32_t lowestBefore = 0;
+
+		while (std::find(numbersBefore.begin(), numbersBefore.end(), lowestBefore) != numbersBefore.end())
+		{
+			lowestBefore++;
+		}
+
 		Check(haveLike && host::CreateObjectLike(&edited, like, "savePairA", place, madeId) == host::ObjectEditResult::Done, "a placed object is copied (CreateObjectLike)");
+
+		// V-27b: the copy is a new object as inteng's save makes one (object_number.h): the lock user "Player" and ten zeros, and the lowest number no object had
+		{
+			std::string lock;
+			int32_t number = -1;
+			List<Object_Chunk *> all;
+
+			if (edited.Level())
+			{
+				edited.Level()->list_objects(&all);
+			}
+
+			for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
+			{
+				std::vector<unsigned char> bytes;
+
+				if (each() && memcmp(&each()->object_data.ID, madeId, 8) == 0 && each()->get_header() && edited.PayloadOf(each()->get_header(), &bytes) && bytes.size() >= 52)
+				{
+					lock = std::string((char const *)&bytes[4], 16);
+					memcpy(&number, &bytes[48], sizeof(number));
+				}
+			}
+
+			Check(lock == std::string("Player\0\0\0\0\0\0\0\0\0\0", 16), "the copy's lock user is inteng's \"Player\" and ten zeros (its first letter: " +
+				std::to_string(lock.empty() ? -1 : (int)(unsigned char)lock[0]) + ")");
+			Check(number == lowestBefore, "the copy's number is the lowest no object had: " + std::to_string(number) + ", wanted " + std::to_string(lowestBefore));
+		}
 
 		std::string const firstPath = scratchFolder + "save-prepared-dup1.rif", againPath = scratchFolder + "save-prepared-dup2.rif", thirdPath = scratchFolder + "save-prepared-dup3.rif";
 		DeleteFileA(firstPath.c_str());

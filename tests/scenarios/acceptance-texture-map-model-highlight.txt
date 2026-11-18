@@ -1,0 +1,22 @@
+# ACCEPTANCE (red first): TM-B, the Texture Map highlight of a picked part of a MODEL file (a file with no modules: hierarchy_view.h ModelObjects_Build makes a display block of the game's
+# own for each of its objects, and the pick names the object by it; Dietrich, 2026-11-18, Bishop: the owner's MelPyth weapon and HUD files are such models). Ours: the polygon was
+# selected and its edits worked, but its highlight was "not drawn" (level_view's BlockOfShape looked only among the blocks with a strategy, so the part's items were never found).
+# Inteng draws a selected polygon's highlight whatever it is part of (its 0x80 on the shape's item, FUN_0056db80). His path: marwep.rif (his data folder), Mode > Texture Map, the
+# camera on the orbit round the minigun (camera-corner: the first upper diagonal spot whose middle picks it), a click in the middle: 1 selected, no shape not drawn (the state line's
+# textureshapesnotdrawn 0), the highlight seen (picture 515).
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-try-run/data/avp_rifs/marwep.rif
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+camera-corner minigun
+wait 400
+picture 514
+click-view 0.50 0.50
+wait 400
+state
+expect-status 1 selected
+expect-status-not not drawn
+expect-field textureshapesnotdrawn 0
+picture 515
+expect-pixels-changed-since 514 picture 304 214 400 300 0.02

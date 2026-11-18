@@ -34,12 +34,18 @@ wait 200
 expect-hierarchy-text Frame 0
 expect-hierarchy-text Timer 0
 
-# ---- P3 Play: the timer runs and the model moves
+# ---- P3 Play: the timer runs and the model moves. The record's key frames fly the dropship in from far away to the hangar's landing place (an Area Switch, "dropswitch", plays it in
+#      the game, and its end fires "endmissionobject"): from the garage view above it is not in sight. So the view goes up into the hangar, 45 degrees down (the owner's camera rule), where
+#      the ship passes from about 9 s to 13 s of its 16 s (probe 11-18, confirmed by the owner's eye: it is drawn dark, as in the game). Play runs it from frame 0.
+camera 90406 -52364 67651 2320
+camera-look 512 0
+wait 400
 click-win 504 322 right
 click-popup 1
 wait 600
 expect-hierarchy-count 0 Timer 0
-# DISABLED 11-18 by the owner (not grinding on these; failed in round 5): expect-moving picture 0 0 1000 700 6 250 0.001
+wait-field hierarchylines Timer_ 36000 20000
+expect-moving picture 0 0 1000 700 6 250 0.001
 
 # ---- P4 Stop: it stands still where it is
 click-win 504 322 right

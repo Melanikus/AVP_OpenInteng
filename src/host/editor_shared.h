@@ -35,6 +35,7 @@ struct EditorHostState;     // editor_actions.h
 struct FlyCamera;           // level_view.h
 struct LevelViewTriangle;   // level_view.h
 struct PanelExtras;         // panel_pass.h
+enum class LevelOpenResult;   // level_file.h
 
 namespace host
 {
@@ -50,19 +51,24 @@ namespace host
 	struct EntryMarker;         // entry_markers.h
 	struct HierarchyMode;       // hierarchy_mode.h
 	struct HierarchyStep;       // hierarchy_mode.h
+	struct ObjectTypeCall;      // object_type_edit.h
 	struct PaintBox;            // panel_paint.h
 	struct PaintText;           // panel_paint.h
 	struct PathNode;            // path_mode.h
 	struct PickCamera;          // pick_ray.h
+	struct PlacedSoundIn;       // placed_sounds_game.h
 	struct PolyCountRow;        // poly_counts.h
 	struct PolyVertexList;      // poly_edit.h
 	struct RequestPageState;    // strategy_views.h
 	struct ShapeChoice;         // shape_chooser.h
+	struct SoundEditRecord;     // sound_edit.h
 	struct SpecialMode;         // special_mode.h
+	struct TrackClip;           // track_edit.h
 	struct TrackEditor;         // track_editor.h
 	struct TrackLine;           // track_view.h
 	struct TrackPose;           // track_play_game.h
 	struct VirtualObjectInfo;   // virtual_object.h
+	enum class TrackEditResult;   // track_edit.h
 }
 
 namespace ui
@@ -298,6 +304,15 @@ struct TexturePolygon
 extern std::vector<TexturePolygon> texturePolygons;
 extern std::string textureWords;
 void ShowTheTexturePolygons();
+bool TexturePolygonOutlineOff(TexturePolygon const &one);   // texture_map_screen.cpp: I (0x105) hid this selected polygon's outline
+void TextureOutlineAllShown();   // every selected polygon's outline shown again (FUN_0056f9d0, the windows' leaving)
+void TextureRecentredBox(uint8_t const *target);   // Recentre Shape's "Recentred %s" box (0xd6)
+// texture_colour_pick.cpp: Select Colour (Shift+K, 0x40) and Apply Colour (Ctrl+K, 0x41)
+extern bool textureColourPicking;   // the grid is up, waiting for a press
+void TextureColourPickStart();
+bool TextureColourPickPress(int32_t x, int32_t y, bool left);
+void TextureColourDraw(int32_t frameW, int32_t frameH);
+void TextureColourApplyCurrent();
 
 // made in texture_map_screen.cpp
 void TextureForEveryShape(OpenLevelFile *open, std::function<void(const uint8_t *id, bool isModule, int32_t moduleIndex)> const &each);
@@ -363,6 +378,8 @@ void TextureMapEdit(int32_t command);
 void TextureMapStepPicture(int step);
 extern bool textureWindowOn;
 extern int textureSubMode;
+extern bool textureTextShown;   // DAT_005fd69c, P (0x32) in the polygon screen and Merge (texture_map_screen.cpp)
+bool TextureBarsAlwaysShown();   // FUN_00543fa0 0x544030: Texture Map draws its menus every frame (the bar shows by itself)
 // made in texture_submodes.cpp
 bool TextureWindowCommand(int32_t command);
 struct LevelViewTriangle;
@@ -371,11 +388,22 @@ bool TextureMergeHoldsTheExit();
 bool TextureFakeMergeOn();
 void TextureMergeEnter();
 void TextureMergeLeave();
+void TextureMultiLeave();   // sub-mode 3 left (texture_submodes.cpp)
+extern bool hierarchyPlayAll;   // the Hierarchy mode's Y switch (editor_main.cpp)
+void TextureTab();   // Tab on the Texture Map screen (texture_map_screen.cpp)
+extern bool textureWinRightDrag;   // the texture windows' right drag (texture_map_screen.cpp)
+bool TextureWindowRightPress(int32_t x, int32_t y, int32_t windowWidth, int32_t windowHeight);
+void TextureWindowRightDragTo(int32_t x, int32_t y, int32_t windowWidth, int32_t windowHeight, bool ctrl);
+void TextureWindowRightRelease(int32_t windowWidth, int32_t windowHeight);
+void TextureMapViewPass(bool here);   // Texture Map's view distance rule, every frame (texture_map_screen.cpp)
 bool TextureMergeKey(uint8_t key);
 void TextureMergeClicked(uint8_t const *id, bool isModule, int32_t moduleIndex, int32_t polygon);
 bool TextureMergeFrame(std::vector<LevelViewTriangle> *triangles);
 void TextureMergeLines(std::vector<std::pair<int32_t, std::string>> *lines);
-extern int textureWinScale;
+namespace model { struct TextureWindowState; }
+extern model::TextureWindowState textureWin;   // the texture window's layout and Texture Resize (texture_map_screen.cpp; model/texture_window.h)
+void TextureWindowScale(int32_t command);   // 0xec-0xf4: the window's scale
+void TextureWindowMouseAt(int32_t x, int32_t y);   // the mouse over the frame, for the scale keys
 bool TextureWindowLoad();
 void TextureWindowApply();
 extern bool textureWinAllNodes;
@@ -613,6 +641,7 @@ extern std::wstring levelSourcePath;
 void DeleteLinksFrame();
 bool DeleteLinksRunning();
 void ShowTheWorkingBytes();
+void PutTheNewObjectInPlay();   // OP-26c: a new object is in the game's view at once (ShowTheWorkingBytes, not while a live copy flies or a ghost shows)
 void AutoLinkLoadFileCommand();
 void GenerateAdjacency(bool newOnly);
 
@@ -803,6 +832,7 @@ extern std::vector<FormRow> formRows;
 bool OnStrategyScreen();
 
 // made in editor_main.cpp
+bool StrategyInASubLoop();   // Strategy Data runs one of the loops whose frame is FUN_00529370 (the flag page, Stability, the volume editor, a collector, the object pick), from a view or not
 void ConfirmAs(int32_t kind, std::string const &text);
 void TextAs(int32_t kind, std::string const &text, std::string const &initial);
 void FormLines(std::string const &title, std::vector<std::string> *words);
@@ -970,3 +1000,138 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 
 // made in editor_main.cpp
 int main(int, char **);
+
+// ---- THE THIRD SPLIT (2026-11-18, Frost): editor_main.cpp was 920 KB, near the 900 KB that checks.yml stops at (Snyk Code skips a file over about 1 MiB without a
+// word). These are the names special_windows.cpp, track_edit_screen.cpp, hierarchy_screen.cpp, placed_hierarchy_screen.cpp and editor_prompts.cpp share with the other
+// files: the same rules as above.
+
+// made in editor_main.cpp
+extern int32_t trackSection;
+const char *NotHeldWords(LevelOpenResult result);
+bool ADialogIsOpen();
+extern OpenLevelFile hierarchyModelFile;
+extern unsigned hierarchyModelSavedGeneration;
+extern DWORD hierarchyAnswerUntil;
+extern bool hierarchyPromptFresh;
+extern std::string hierarchyShownModel;
+extern std::string hierarchyShownName;
+extern std::string hierarchyTitle;
+extern int32_t assignKind;
+extern bool specialNameGiven;
+extern std::vector<host::PlacedHierarchyInfo> placementHierarchies;
+
+// THE NEW-SOUND DEFAULTS (DAT_005e7a60 / 64 / 68 inner, outer, volume; DAT_008f4f98 / 9c / a0 pitch, flags, probability: the constructor FUN_004ecb20 reads them): inteng's constants until P on a sound makes them
+// that sound's (OP-26, FUN_004d9af0 0x4dbe1c-0x4dbf6c); every later Create > Sound takes them. The ranges are kept in the game's millimetres (inteng keeps its own units, the file's x 100 x the scale).
+struct SoundDefaults
+{
+	bool set = false;
+	double innerMm = 0.0, outerMm = 0.0;
+	int32_t volume = 0, pitch = 0, flags = 0, probability = 0;
+};
+
+extern SoundDefaults soundDefaults;
+void PlacementFind();
+extern int32_t tearTolerance;
+extern bool tearAll;
+extern bool splitCentreOn;
+extern bool placementGravity;
+extern std::string shapeFolder;
+extern unsigned strategyCleanGeneration;
+void StrategyCleanNow();
+bool StrategyChanged();
+extern std::string hierarchyWords;
+extern bool hierarchyText;
+extern bool hierarchyWire;
+extern std::vector<int32_t> hierarchySkinFaces;
+extern int hierarchyPickViewW, hierarchyPickViewH;
+extern int hierarchyDetail;
+void HierarchyStatus();
+bool PlacementIsFlying();
+bool PlacementFlyHoldsTheCopy();   // Object Placement's F is flying the object as its live copy (defined with the fly state)
+bool TrackMarkerSnapping();        // V snaps the track's flying end marker now (T-3b; defined with the snap state)
+size_t PlacementObjectCount();   // "Num Objects" (inteng's DAT_008f4ef4): the placement list's size, the same in Object Placement and Track Editing (T-4b; defined with the list)
+bool SelectedObjectOrModuleId(uint8_t *id);
+extern int32_t smallLimit;
+extern std::vector<host::ObjectTypeCall> typeCalls;
+extern size_t typeAsking;
+void RunTypeAnswer(std::string const &typed);
+
+// made in special_windows.cpp
+extern std::string specialTitle;
+extern bool specialPromptFresh;
+void SimpleEditOpen();
+void SpecialRunCommand(int32_t command, bool soundsScreen);
+void SpecialTypedAnswer(std::string const &typed);
+void SoundEditWindowOpen(host::SoundEditRecord const &record, std::string const &folder, std::string const &soundDirectory, std::function<void(host::SoundEditRecord const &, bool)> const &done);
+void PlacedSoundEdit();
+
+// made in track_edit_screen.cpp
+void CopyTheTrack();
+void PasteTheTrackAbsolute();
+void PasteTheTrackRelative();
+extern int trackFlyBase[3];
+extern int32_t trackFlyOffset[3];
+bool TrackPivotEditing();
+extern std::vector<host::TrackLine> trackPlayBase;
+extern bool trackPlayBaseWanted;
+extern std::string trackEditWords;
+extern int trackPromptSound;
+size_t ScreenOfName(char const *name);
+bool IsTheAcousticScreen(size_t screen);
+void ShowTheScreen(size_t screen);
+void TrackEditCommand(int32_t command);
+void UpdateTrackPositions();
+bool TrackEditEnter(bool followTheObject = true);
+void TrackEditLeftByOtherWay();
+void RunTrackPrompt(int32_t kind, std::string const &typed);
+host::TrackEditResult TrackClipNow(OpenLevelFile *open, uint8_t const *id, host::TrackClip *clip);
+void TrackWorldLines();
+void TrackPlayFrame();
+
+// made in hierarchy_screen.cpp
+bool HierarchyCtrlKey(WPARAM key);
+bool HierarchyModeKey(WPARAM key);
+void EnterHierarchy();
+void HierarchyClicked(host::PickReport const &report);
+void HierarchySyncView(bool restart = false);
+void HierarchyStepSequence(int direction);
+void HierarchyRunCommand(int32_t command);
+void HierarchyDialogAnswer(std::string const &typed);
+void HierarchyDialogCancel();
+void HierarchyTypedAnswer(std::string const &typed);
+void HierarchyOpenOnSelectedObject();
+
+// made in placed_hierarchy_screen.cpp
+extern OpenLevelFile *placementRowsOpen;
+extern unsigned placementRowsFor;
+extern OpenLevelFile *placedSoundsOpen;
+extern unsigned placedSoundsFor;
+std::vector<host::PlacedSoundIn> PlacedSoundsOfLevel(std::vector<host::SpecialObject> const &specials);
+int32_t PlacementHideDistance();
+extern bool placementHideOn;
+extern int placedHierarchyShown;
+extern size_t placedHierarchyRecord;
+void PlacedHierarchyFrame(bool here);
+void PlacedHierarchyCommand(int32_t command);
+
+// OutsideShapes_RefreshFile's answer (editor_prompts.cpp): what the refresh of a whole level file did
+enum class OutsideRefresh
+{
+	Changed,     // at least one outside shape changed, and the file was written with them
+	Unchanged,   // nothing to change (no outside shape, none in the folder, or every one refused: the log says which)
+	Refused,     // the file couldn't be opened by the game's loader, or the new file couldn't be written: it is as it was
+};
+
+// made in editor_prompts.cpp
+void RunDeleteMulti(std::string const &typed);
+void RunAssignPrompt(int32_t kind, std::string const &typed);
+void RunDestroyPrompt(int32_t kind, std::string const &typed);
+void StrategyPickClicked(host::PickReport const &report);
+void RunStrategyStability(std::string const &typed);
+void RunStrategyMessage(std::string const &typed);
+void RunStrategyFans(std::string const &typed);
+void DialogLine(std::string const &title, std::string const &label, std::string const &initial, size_t most, int32_t editHeight, std::function<void(std::string const &)> const &ok);
+int OutsideShapesUpdate(OpenLevelFile *open, bool forced, std::string const &onlyObject, double *before, double *after, std::vector<std::string> *names = nullptr);
+extern std::string outsideShapesWords;
+std::string OutsideShapesWordsOf(std::vector<std::string> const &refreshed);
+OutsideRefresh OutsideShapes_RefreshFile(const char *rifPath, std::string *why);

@@ -1,0 +1,40 @@
+# THE OWNER'S PATH (Dietrich 11-18, the walk before the beta, Bishop): Texture Map's main job on his weapon model MelPyth_MarWep.rif in his run folder (the mel side: his data folder and ini): a polygon of the hand
+# picked, the window, node 2 moved (3, 2) by the arrows: the saved copy, read by the game's loader, has only that corner moved; Ctrl+K: the polygon plain in colour 0 (verify_colour). His files
+# miss some pictures: their polygons are white lines, the normal case.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-try-run/data/avp_rifs/MelPyth_MarWep.rif
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+save-copy
+save-copy
+click-view 0.55 0.75
+wait 300
+expect-status 1 selected
+key Tab
+wait 400
+picture 401
+key 2
+key Right
+wait 200
+key Right
+wait 200
+key Right
+wait 200
+key Down
+wait 200
+key Down
+wait 300
+expect-status given to 1 polygon
+picture 402
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} nodemove 2 3 2 --baseline {save1} {save2}
+key Tab
+wait 300
+key K ctrl
+wait 400
+expect-status 1 polygon given the colour 00000000
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_colour/verify_colour.exe {prev} {copy} 1 00000000
+picture 403

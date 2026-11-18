@@ -21,6 +21,8 @@ expect-no-dialog
 expect-status Object dupA made at the view
 expect-selected 1
 expect-hierarchy-count 1 dupA
+# OP-26c: it is in the game's view at once (inteng's FUN_004e0ed0 makes it in its scene). RED before (vph-11): "no" until the next screen change
+expect-field inplay yes
 
 # ---- D2 a sound (sndD) and P on it: the name window; OK makes sndE, current, with sndD's ranges
 click-bar Create > Sound

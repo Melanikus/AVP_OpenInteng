@@ -1,0 +1,33 @@
+# ACCEPTANCE (red first): TM-B, the right drag in the texture window (FUN_005557a0: the nodes turned about their middle by the angle the mouse goes round it, FUN_00556a90; Ctrl scales
+# them, FUN_00556bd0; Dietrich, 2026-11-18). Ours: the right button did nothing in the window. His path: Invasion, Mode > Texture Map, the quad at 0.50 0.60 (polygon 31: nodes 0,127 / 127,127 /
+# 127,67 / 0,60, their middle 63.5,95.25), Tab (the window at inteng's x1, the whole 128 x 128 picture in the screen's bottom-right corner: a node's place is its texel from the window's top
+# left), a right drag from 126,90 to 66,125 (a quarter turn about the middle, to within 0.002 degrees): the saved copy, read by the game's loader, has the corners 32,32 / 32,159 / 92,159 /
+# 99,32; then Ctrl+right drag from 66,61 to 111,69 (1.567 times as far from the middle, 63.75,95.5): 14,-4 / 14,195 / 108,195 / 119,-4. Places chosen so no corner lands within 0.24 of a
+# half texel (dietrich-proofs/right-drag-expect.js). (TM-B T, 11-18: the window moved to inteng's layout; at x4 in the middle of the screen before.) State line and saved file only.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+item 0x46
+expect-screen Texture Map
+save-copy
+save-copy
+click-view 0.50 0.60
+expect-status 1 selected
+key Tab
+wait 300
+expect-texwin 128 128 0 0 128 128 1
+save-copy
+drag-texwin 126 90 66 125 right
+wait 400
+state
+expect-status the nodes were given to 1 polygon
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} uv 32 32 32 159 92 159 99 32 --baseline {save1} {save2}
+drag-texwin 66 61 111 69 right ctrl
+wait 400
+state
+expect-status the nodes were given to 1 polygon
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} uv 14 -4 14 195 108 195 119 -4 --baseline {save1} {save2}
+key Tab
+wait 300

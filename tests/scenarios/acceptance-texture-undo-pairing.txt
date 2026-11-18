@@ -25,6 +25,9 @@ expect-status Unmerge selected polygons: 1 pairs parted
 key Comma
 expect-status undone on 2 polygons
 item 0x143
+expect-dialog Fake merge data turned on
+click-button Ok
+expect-no-dialog
 expect-status Fake merge data turned on
 item 0x11a
 expect-status 1 pairs parted (in the fake merge data only)

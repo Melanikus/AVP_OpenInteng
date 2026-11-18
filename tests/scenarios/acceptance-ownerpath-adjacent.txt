@@ -1,0 +1,30 @@
+# ACCEPTANCE (Drake 11-18, THE OWNER'S PATH before the beta, Bishop): Adjacent Modules > Recalculate Entry Points and the save (acceptance-adjacent-recalc-save's steps) on his Derelict.rif (the plugin's round trip), unchanged. (His Genshd1 shows inteng's "Failed to placed entrypoint" box five times there, AD-7, 1:1: acceptance-adjacent-recalc-failed has that box). On HIS OWN Derelict.rif (his game folder's copy, copied read-only to drake-ownerpath/his-originals, SHA256SUMS there; this scenario opens its own copy, so no other editor opens the same file). The walk on 11-18 ran the same steps on the stock copy of the level beside it: every check came out the same. The source scenario's own notes follow.
+# ACCEPTANCE: AD-1 of reassess/adjacent-closeout-dietrich.md (Dietrich, 2026-11-17). inteng's Adjacent Modules, Misc > Recalculate Entry Points (command 0x47,
+# FUN_00404a20 0x405479-0x4054a6): the entries worked out (FUN_00403d50), the box "Entry points calculated", and once it is closed the level FILE is written
+# (FUN_004719e0(DAT_0060801c, 0) at 0x4054a6, changed or not), as at its other save points. Ours worked them out and showed the box, but wrote nothing until a
+# Save a copy or an Exit. His path: Invasion, Mode > Adjacent Modules, Misc > Recalculate Entry Points, Ok: the status line carries the save's words and the
+# written copy is there, before any Exit (an Exit saves on its own, so it would prove nothing).
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-adjacent/Derelict.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-adjacent/Derelict.rif
+pictures on
+# no file from an earlier run may be read in place of this one's
+verify cmd /c del /q "{exedir}AVP_OpenInteng\edited\Derelict-edited.rif" "{exedir}AVP_OpenInteng\edited\Derelict-edited.rif.bak" 2>nul & exit 0
+state
+expect-field levelbytes 2771532
+expect-screen Construction
+click-bar Mode > Adjacent Modules
+expect-screen Adjacent Modules
+wait 400
+click-bar Misc > Recalculate Entry Points
+expect-dialog-kind message
+expect-dialog Entry points calculated
+click-button Ok
+expect-no-dialog
+wait 400
+state
+expect-screen Adjacent Modules
+expect-status Entry points calculated:
+expect-status Derelict-edited.rif
+expect-status-not NOT saved
+verify cmd /c if exist "{exedir}AVP_OpenInteng\edited\Derelict-edited.rif" (exit 0) else (exit 1)

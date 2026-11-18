@@ -1,0 +1,20 @@
+# ACCEPTANCE (red first): TM-B, Find: Invalid PSX UV coords (0xb9) and Find and select (0xbc) first bring every polygon of every shape that is not imported onto its picture (FUN_00562770
+# 0x56279f: FUN_00558980 runs FUN_00566b90 on each), then list the ones with a coordinate still past their picture (Dietrich, 2026-11-18). Ours listed without the first step. His path:
+# Invasion, Mode > Texture Map, Misc > Find: Invalid PSX UV coords: the status counts the polygons brought onto their pictures, then the ones found; Find and select: the same, selected.
+# State line only.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+item 0x46
+expect-screen Texture Map
+item 0xb9
+# the first step goes over every polygon of the level: wait for the answer (up to 30 s under a full round's load)
+wait-status 30000 have invalid PSX UV coordinates
+state
+expect-status have invalid PSX UV coordinates
+expect-status brought onto their pictures first
+item 0xbc
+wait-status 30000 coordinates, selected
+state
+expect-status have invalid PSX UV coordinates, selected
+expect-status (0 brought onto their pictures first)

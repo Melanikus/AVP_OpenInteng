@@ -1,0 +1,23 @@
+# ACCEPTANCE (red first): TM-B, O in the texture window (0x35; FUN_00551f80 0x5522b0, FUN_00556df0; Dietrich, 2026-11-18): the nodes' order turned one place, the last node first and every
+# other one place on, and the polygon takes it. Ours: O did nothing in the window. His path: Invasion, Mode > Texture Map, the quad at 0.50 0.60 (polygon 31), Tab (the window), O: the saved
+# copy, read by the game's loader, has polygon 31's corner 1 at what its corner 4 was, corner 2 at corner 1's, and so on. State line and saved file only.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+item 0x46
+expect-screen Texture Map
+save-copy
+save-copy
+click-view 0.50 0.60
+expect-status 1 selected
+key Tab
+wait 300
+save-copy
+key O
+wait 300
+state
+expect-status the nodes' order turned one place
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} order --baseline {save1} {save2}
+key Tab
+wait 300

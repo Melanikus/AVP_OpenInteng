@@ -1,0 +1,29 @@
+# ACCEPTANCE (red first; Drake 11-18, TM-C H5, texture-map-closeout-dietrich.md part 2 "TO BUILD 1 / 2"): O CYCLES and V REVERSES the selected polygon's nodes, on his path (Invasion opened as a
+# double click, Mode > Texture Map, the polygon in the middle of the view clicked). inteng: FUN_00571310 (O 0xbf: node k takes node k + 1's, the last the first's; a merged pair as one quad) and
+# FUN_00571910 (V 0xc1: nodes 1 and 2 swap; a pair's corners 0 <-> 3 and 1 <-> 2), each first recording the selection's undo step (FUN_00573570), so , takes each back. Checked on the file:
+# verify_nodes (each changed polygon holds exactly the turn of what it held, alone or as a pair; nothing else of any polygon changed), and verify_level_same (both undone = as before).
+# RED on drake-tmc 7ec0fd5a: O and V are keys inteng's table gives (0xbf / 0xc1) but "that item is not built yet".
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures off
+state
+click-bar Mode > Texture Map
+expect-screen Texture Map
+camera -7764 2852 10527 0 0
+wait 400
+click-view 0.50 0.60
+expect-status 1 selected
+save-copy
+key O
+expect-status Cycle nodes done on
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_nodes.exe {save1} {save2} cycle
+key V
+expect-status Reverse nodes done on
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_nodes.exe {save2} {save3} reverse
+key Comma
+expect-status undone
+key Comma
+expect-status undone
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save4}

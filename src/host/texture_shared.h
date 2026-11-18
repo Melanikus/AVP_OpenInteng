@@ -85,6 +85,24 @@ TextureWrapResult TextureWrapPolygon(uint8_t const id[8], bool isModule, int32_t
 // written once (a list another polygon shares refuses a shape's whole write, so then each polygon is written alone). Gives back how many polygons were moved.
 size_t TextureWrapPolygons(std::vector<TexturePolygon> const &polygons);
 
+// Texture Alignment (I, 0x34, FUN_0055eeb0) waiting for a click: Esc stops it (inteng: the right button). True when it was waiting.
+bool TextureAlignCancel();
+
+// ----- THE MODIFIED OBJECTS (inteng's (DAT_00914dcc+8)[slot], read by Return's FUN_00572440 and its shared-shape question FUN_0055aa50) -----
+// The objects a write has been noted for since the save point: TextureUndo_RecordSelection and TextureUndo_RecordPolygon (every built command records first), and
+// ShowTheNewUv (every texture-coordinate write of the polygon screen, the wraps too). In the order first noted; each the object's 8-byte ID as a string. NAMED: the
+// sub-modes' own writes (texture_submodes.cpp) are not noted, so Return does not ask about a shared shape only they changed (it stays written for every user, as All).
+void TextureModified_Note(uint8_t const id[8]);
+void TextureModified_Forget(uint8_t const id[8]);
+void TextureModified_Clear();
+std::vector<std::string> TextureModified_List();
+
+// The type, flags, colour and texture coordinates of every polygon of object fromId's shape in `from` against object toId's shape in `to`: Same = all alike (the same
+// polygon count); Copy = written into `to` (refused, with *why, when the counts differ: the polygon numbers moved). The pairing is not part of it. FUN_0055aa50's copy
+// path: the shape the other users keep goes back to what the last save held (`from` = the level as saved).
+bool TextureShapeFields_Same(OpenLevelFile *from, uint8_t const fromId[8], OpenLevelFile *to, uint8_t const toId[8]);
+bool TextureShapeFields_Copy(OpenLevelFile *from, uint8_t const fromId[8], OpenLevelFile *to, uint8_t const toId[8], bool *showAgain, std::string *why);
+
 // ----- the mode's own, shared between its files (texture_map_screen.cpp makes them) -----
 int32_t TexturePartnerOf(OpenLevelFile *open, uint8_t const *id, int32_t polygon);   // the pairing in use: the fake merge data's while on, else the file's
 void TextureFakePairSet(OpenLevelFile *open, uint8_t const *id, int32_t polygon, int32_t partner);   // the fake copy's pairing (only while it is on)

@@ -1,0 +1,31 @@
+# ACCEPTANCE (red first): TM-B, Shift+B Select base polygon (0xe7; FUN_0054d260 0x54f6b4, FUN_00556ff0, FUN_00558b90; Dietrich, 2026-11-18). "Get coordinates from which poly? " and the
+# next click on a polygon makes it the base: the window's corner nodes (what Wrap and Tile work over) take its coordinates, and the click selects nothing. Escape lets the question go.
+# Ours: Shift+B did nothing. His path: Invasion, Mode > Texture Map (Select As Quad at the start), Shift+B, a click on the quad of the file at 0.50 0.60 (polygon 31): the nodes are its four
+# corners 0,127 127,127 127,67 0,60; nothing selected; Shift+B, Escape: no base polygon. State line only (nothing is written).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+item 0x46
+expect-screen Texture Map
+key B shift
+wait 200
+state
+expect-status Get coordinates from which poly?
+click-view 0.50 0.60
+wait 300
+state
+expect-status the base polygon is polygon 31: the window's nodes are 0,127 127,127 127,67 0,60
+key L
+wait 200
+state
+expect-status all polygons deselected
+key B shift
+wait 200
+key Esc
+wait 200
+state
+expect-status no base polygon
+click-view 0.50 0.60
+wait 300
+state
+expect-status 1 selected

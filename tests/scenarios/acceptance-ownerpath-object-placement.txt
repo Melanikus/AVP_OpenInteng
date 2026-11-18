@@ -1,0 +1,111 @@
+# ACCEPTANCE (Drake 11-18, THE OWNER'S PATH before the beta, Bishop): Object Placement's main job (acceptance-object-placement's steps); the view is put at a corner of his level's med02L (camera-corner, a name from verify_list_objects), where Invasion's fixed camera was in front of switch3. On HIS OWN Genshd1.rif (his game folder's copy, copied read-only to drake-ownerpath/his-originals, SHA256SUMS there; this scenario opens its own copy, so no other editor opens the same file). The walk on 11-18 ran the same steps on the stock copy of the level beside it: every check came out the same. The source scenario's own notes follow.
+# ACCEPTANCE: Object Placement on a stock level (Drake, 2026-11-16, from reassess/object-placement.md; inteng code in object-placement-reads.md, edobtype-dialogs.md, inteng-help-keys.md). This file says what FINISHED is for this screen.
+# Items I authored (Delete 0x16, With shape: Selected 0x33, Replace shape 0x1d, Rescale 0x1a, Move relative 0x1c) are not here: Hicks's review decides them. UNTRACED marks a read still owed.
+# Level: Invasion, read-only. EXPECTED TODAY (cut 10): RED. Finished = every line ok.
+# the icons are inteng's own shapes, read at run time from his installed inteng.exe (object-placement.md 8b V-25): the run names his Tools folder
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-object-placement/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-object-placement/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1425512
+# the view inside the level, whatever camera file an earlier run left (the hub keeps camera slot 10, FUN_00470550(10))
+camera-corner med02L
+wait 300
+picture 1
+# the level drew (not what it shows): since 1d95ce8 the hub hides every module past the view distance each frame, as inteng's hub (FUN_00444b70, row ML-E-11), so at the
+# default distance this view is about 9% drawn (0.093 on e5f4679), under the verb's 10%; a blank view is near 0
+expect-not-empty 0.02
+# Construction > Mode > Object Placement (0xcc; table 0x5e51b8 by FUN_004d68e0)
+item 0xcc
+expect-screen Object Placement
+expect-bar1 Mode
+expect-bar1 Create
+expect-bar1 Alt Locations
+picture 10
+
+# ---- O1 SELECTION (reassess/object-placement.md OP-120, OP-82): the click makes ONE current object (FUN_004d6520 / FUN_004d64a0: the nearest projected centre, Shift not read; the help text 0x5e853c has no
+# click line, the "Shift+LMB: Select multiple objects" of the old reading is not in it); Backspace: Deselect object
+# Object Placement's click takes the object of the placement list whose centre is nearest the pointer on the screen (FUN_0046ddb0; modules are not in that list). The view is put in front of switch3 and its neighbours (Invasion, placed objects)
+camera-corner med02L
+wait 400
+click-win 504 364
+expect-selected 1
+click-win 250 450 shift
+expect-selected 1
+key Back
+wait 300
+expect-selected 0
+
+# ---- O2 CREATE AVP generator (0x34, FUN_004d9af0 0x4daa0d-0x4dab1e, OP-27): FUN_004d53d0's "Name Object" window first (OP-24); OK with a free name builds it at the VIEW's place with the view's heading,
+# added to the list, made current by FUN_004d64a0 (the names and the clash are acceptance-object-create-name.txt)
+item 0x34
+expect-dialog Name Object
+form-field 1 genO
+click-button OK
+expect-no-dialog
+expect-hierarchy-count 1 genO
+expect-pixels-changed picture 0 0 2000 2000 0.002
+# ---- O3 EDIT (0x18; vtable +0x38 of the current object): the generator's own dialog from edobtype.dll, ALL its fields in one window with OK / Cancel (edobtype-dialogs.md: fields, order, limits and units)
+item 0x18
+expect-prompt 0
+expect-dialog Generator Settings
+# UNTRACED: the dialog's title words come from the DLL's resource (edobtype-dialogs.md lists the fields; read the caption)
+expect-pixels-changed panels 0 0 800 600 0.05
+click-button Cancel
+expect-no-dialog
+
+# ---- O4 FIND (0x19, OP-10: FUN_004d9af0 0x4da22b-0x4da528): the "Select Object" list of every object of the placement list; a pick is acceptance-object-find.txt
+item 0x19
+expect-dialog Select Object
+# the list dialog is modal (FUN_00475bf0, FUN_0057c800): Escape leaves it, and only then do the keys and clicks reach the view again
+key Esc
+expect-no-dialog
+
+# ---- O5 ALT LOCATIONS (FUN_004df820 Add new, FUN_004df6b0 Delete Current, FUN_004df8c0 Next, FUN_004df990 Prev, FUN_004dfa60 Assign Group Number, 0x69 Change shown location): on a selected object; the object MOVES to the shown location (the picture changes)
+select-row 0
+expect-selected 1
+item 0x64
+picture 13
+item 0x67
+expect-pixels-changed picture 0 0 2000 2000 0.001
+item 0x68
+expect-pixels-changed picture 0 0 2000 2000 0.001
+
+# ---- O6 KEYS and MISC (inteng-help-keys.md; FUN_004d9af0): Keys 0x53 shows the placement key text; S / Toggle Split Screen 0x52 (FUN_004d5980) halves the window into three axis-aligned views and back; Lighting 0x54 (FUN_004d67f0) flips the item types of the draw table
+item 0x53
+expect-pixels-changed panels 0 60 500 300 0.02
+click-win 300 300
+item 0x52
+expect-pixels-changed picture 0 0 2000 2000 0.1
+item 0x52
+expect-pixels-changed picture 0 0 2000 2000 0.1
+item 0x54
+# REMOVED 11-18: Invasion has no placed object with baked colours (placementlight: objects 0 baked none), so Lighting changes nothing to see here, from any camera; acceptance-op-lighting checks the switch and the file
+item 0x54
+
+# ---- O7 FLY SELECTED OBJECT (key F: the movement keys move the OBJECT and the VIEW STAYS (FUN_004d9af0 0x4dc38b, the engine key movement 0x53e123); F again writes it where it flew; the picture of the object moving is acceptance-object-fly.txt)
+select-row 0
+camera -27851 -14055 85500 0 0
+key F
+hold A 800
+# the VIEW stays: the camera is where it was (the object itself moves, so the picture changes where it is drawn)
+expect-field camera -27851 -14055 85500 0 512
+key F
+# UNTRACED: what the flying object looks like (read the draw call of the flying object, FUN_004d9af0 around 0x4dc3d8 and FUN_004e3e30)
+
+# ---- O8 TAB enters Strategy mode and Tab (or Exit) there gives Object Placement back (FUN_00524e90 0x524eca)
+key Tab
+expect-screen Strategy Data
+# Tab there is Exit (FUN_00524e90 0x524eca), which asks "Would you like to save first?" only when STRATEGY changed something: DAT_00914950 is cleared on every entry of the mode (FUN_00522ab0
+# 0x522ae2, this Tab's FUN_00524ce0 included) and set only by Strategy's own edits (Frost, 11-16, reassess/strategy-data-verify-frost.md W-3). This run's Placement changes are not asked about: no question
+key Tab
+expect-no-dialog
+expect-screen Object Placement
+
+# ---- O9 EXIT (FUN_004d9820: the list emptied, FUN_004bd8e0(level,1) when DAT_008f4f54, FUN_00500f00, FUN_004704a0; FUN_004719e0 writes the level; "Camera position saved")
+item 0xa
+expect-screen Construction
+save-copy

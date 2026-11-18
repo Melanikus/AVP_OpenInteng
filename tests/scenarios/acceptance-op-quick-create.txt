@@ -18,6 +18,8 @@ click-popup 1
 wait 400
 expect-no-dialog
 expect-status Object pulse9 made at the view
+# OP-26c: in the game's view at once (red before: "no" until the next screen change)
+expect-field inplay yes
 click-win 500 300 right
 wait 200
 click-popup 1

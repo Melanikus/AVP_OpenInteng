@@ -1,0 +1,20 @@
+# ACCEPTANCE (red first): TM-B, the headlight at Texture Map's entry and Ctrl+B (FUN_00544510 0x54bd9b: the view's headlight DAT_00962308 +0x84 = 0 on every entry; 0x13e, FUN_0054d260
+# 0x54f202, turns it on and off; Dietrich, 2026-11-18). Ours kept the headlight as it was. His path: Invasion with the headlight on, Mode > Texture Map: the headlight is off; Ctrl+B: on;
+# Ctrl+B: off. State line only (the field viewmode).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+expect-field viewmode polygon+unlit+headlight
+item 0x46
+expect-screen Texture Map
+wait 200
+state
+expect-field viewmode polygon+unlit
+key B ctrl
+wait 200
+state
+expect-field viewmode polygon+unlit+headlight
+key B ctrl
+wait 200
+state
+expect-field viewmode polygon+unlit

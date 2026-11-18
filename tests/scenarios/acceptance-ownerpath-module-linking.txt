@@ -1,0 +1,36 @@
+# ACCEPTANCE (Drake 11-18, THE OWNER'S PATH before the beta, Bishop): Module Linking's links (acceptance-module-linking's steps), unchanged: they hold on his file as they are. On HIS OWN Genshd1.rif (his game folder's copy, copied read-only to drake-ownerpath/his-originals, SHA256SUMS there; this scenario opens its own copy, so no other editor opens the same file). The walk on 11-18 ran the same steps on the stock copy of the level beside it: every check came out the same. The source scenario's own notes follow.
+# ACCEPTANCE: Module Linking's items that ASK or SHOW a screen (Vasquez, 2026-11-16; reassess/MASTER-MAP.md item 1; inteng FUN_004c1a90): AutoLink > Delete Links > Environment (0xa8) is the CONFIRM "Delete all module
+# linking for this level?" (FUN_00474a40, FUN_0057c800); Show Poly Counts (0xcc) is inteng's FULL-SCREEN list (FUN_004c0950: two columns of 25 rows, the foot lines "Left Button : Goto object" ... , page keys, a left press
+# goes to the module, the right button leaves); Help (0xd2) is the text screen (FUN_004c0ed0 -> FUN_004724f0: the screen cleared, the text from (0, 0), "Click to continue.", a click closes it).
+# Nothing is typed: every question is answered by a click, every check looks at the screen.
+screen Module Linking
+level C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-module-linking/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-module-linking/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1425512
+expect-screen Module Linking
+# Delete all module linking: a YES / NO question; No leaves every link as it is
+item 0xa8
+expect-dialog-kind confirm
+expect-dialog Delete all module linking for this level?
+click-button No
+expect-no-dialog
+expect-prompt 0
+# Show Poly Counts: the screen is cleared and the list written over it; PgDn shows the next 50 modules, the right button leaves
+item 0xcc
+expect-pixels-changed panels 0 0 1000 700 0.05
+key PageDown
+expect-pixels-changed panels 0 0 600 400 0.01
+key PageUp
+click-win 500 300 right
+expect-pixels-changed panels 0 0 1000 700 0.05
+# the list again: a LEFT press on its first entry goes to that module and leaves the screen
+item 0xcc
+click-win 100 8 left
+expect-pixels-changed panels 0 0 1000 700 0.05
+# Help: the text screen (a click closes it)
+item 0xd2
+expect-pixels-changed panels 0 0 1000 700 0.05
+click-win 500 300 left
+expect-pixels-changed panels 0 0 1000 700 0.05

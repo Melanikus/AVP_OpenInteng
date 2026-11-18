@@ -1,0 +1,51 @@
+# ACCEPTANCE (red first): TM-B 3c, the multiple node mode's own commands (FUN_00552bb0; FUN_00558880 X-Flip, FUN_00556ce0 the turns; Dietrich, 2026-11-18; reassess/tm-b-multinode-map.md).
+# X-Flip flips every node over the texture area (u = left + right - 1 - u) and the polygons take it; Toggle Node Selection (S) switches Selectable Nodes; L lets the taken nodes go; Rotate
+# Nodes > 90 Texture Centre turns every node about the area's middle. Ours (3a / 3b): these did nothing in the mode. His path: Invasion, Mode > Texture Map, the quad at 0.50 0.60 (polygon
+# 31) and the one beside it (32), M, Tab (8 nodes, node 1 at 0 127, over the 128 x 128 area of the lowest picture), X-Flip: node 1 at 127 127 and the saved copy, read by the game's loader, holds FlipU of both polygons' corners
+# over 0,0,128,128; Toggle Node Selection on and off; L; 90 Texture Centre: node 1 moves. State line and saved file only (the owner, 11-18: no picture checks).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+item 0x46
+expect-screen Texture Map
+save-copy
+save-copy
+click-view 0.50 0.60
+expect-status 1 selected
+click-view 0.42 0.60
+wait 200
+expect-status 2 selected
+key M
+wait 200
+key Tab
+wait 400
+state
+expect-status multiple node mode: 8 nodes from 2 polygons
+save-copy
+item 0x6
+wait 300
+state
+expect-status node 1 at 127 127
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} flipx 128 128 --baseline {save1} {save2}
+item 0x102
+wait 200
+state
+expect-status Selectable Nodes on
+item 0x102
+wait 200
+state
+expect-status Selectable Nodes off
+key L
+wait 200
+state
+expect-status no node taken
+item 0x19
+wait 300
+state
+expect-status node 1 at
+expect-status-not node 1 at 127 127
+key Tab
+wait 300
+state
+expect-status the polygons

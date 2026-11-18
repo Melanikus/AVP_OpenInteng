@@ -1,0 +1,74 @@
+# ACCEPTANCE (built, untested until now; Bishop 11-18, strategy-data.md S-28 / S-29 / S-30): THE FLAG PAGE'S STAIR, SKY VISIBLE AND FOGGED, SET AND SAVED, on his path (Invasion, the file opened as a
+# double click). FUN_00525700: View Flag > Stair (0x13, 0x525831) / Sky Visible (0x16, 0x52587b) / Fogged (0x19, 0x5258d2) calls FUN_0052f680 with the bit (0x40000000 / 0x20000000 / 0x10000000)
+# and makes F the Add (DAT_00914948 = 0x11 / 0x14 / 0x17) and Shift + F the Remove (DAT_0091494c = 0x12 / 0x15 / 0x18) of that bit; Add Flag > ... (0x11 / 0x14 / 0x17, FUN_0052f360(list, bit, 1))
+# sets it on every listed module. The bit is the module's MODFLAGS word (stock gARAGDOR has no MODFLAGS: the edit makes one); each save is read back through the game's own loader (verify_objects modflags).
+# His path: Strategy Data, Mode > Module flags, click the room (gARAGDOR), then for each flag: right-click > View Flag > the flag, F, Save a copy, Shift + F, Save a copy; at the end right-click > Add Flag
+# > Stair, Sky Visible, Fogged, Save a copy.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+click-bar Mode > Module flags
+expect-screen Strategy Data
+click-win 504 364
+expect-selected 1
+
+# S-28 STAIR: View Flag > Stair, F adds it, Shift + F takes it off
+click-win 504 364 right
+expect-popup-rows Add Flag|Remove Flag|View Flag|Save
+click-popup 3
+expect-popup-rows Airduct|Stair|Sky Visible|Fogged|Stop Flag View
+click-popup 2
+key F
+expect-status Module flags: 1 of 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/verify_objects.exe {copy} modflags gARAGDOR|f0000000|40000000
+key F shift
+expect-status Module flags: 1 of 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/verify_objects.exe {copy} modflags gARAGDOR|f0000000|0
+
+# S-29 SKY VISIBLE
+click-win 504 364 right
+click-popup 3
+click-popup 3
+key F
+expect-status Module flags: 1 of 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/verify_objects.exe {copy} modflags gARAGDOR|f0000000|20000000
+key F shift
+expect-status Module flags: 1 of 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/verify_objects.exe {copy} modflags gARAGDOR|f0000000|0
+
+# S-30 FOGGED
+click-win 504 364 right
+click-popup 3
+click-popup 4
+key F
+expect-status Module flags: 1 of 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/verify_objects.exe {copy} modflags gARAGDOR|f0000000|10000000
+key F shift
+expect-status Module flags: 1 of 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/verify_objects.exe {copy} modflags gARAGDOR|f0000000|0
+
+# the menu's own Add Flag > Stair, > Sky Visible, > Fogged (0x11, 0x14, 0x17): all three on the room, Airduct not
+click-win 504 364 right
+click-popup 1
+expect-popup-rows Airduct|Stair|Sky Visible|Fogged
+click-popup 2
+expect-status Module flags: 1 of 1
+click-win 504 364 right
+click-popup 1
+click-popup 3
+expect-status Module flags: 1 of 1
+click-win 504 364 right
+click-popup 1
+click-popup 4
+expect-status Module flags: 1 of 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/verify_objects.exe {copy} modflags gARAGDOR|f0000000|70000000

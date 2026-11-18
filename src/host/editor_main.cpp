@@ -96,8 +96,10 @@
 #include "hierarchy_view.h"
 #include "object_edit.h"
 #include "level_chunks.h"
+#include "write_c_file.h"
 #include "asc_text.h"
 #include "module_links.h"
+#include "module_link_avp.h"
 #include "object_place_edit.h"
 #include "object_edit.h"
 #include "object_make.h"
@@ -225,6 +227,8 @@
 #include "view_toggles_game.h"
 #include "window_events.h"
 #include "open_with.h"
+#include "open_at.h"   // -at / -shot: the editor opened at a place (Drake 11-18)
+#include "orbit_command.h"   // the harness's camera-orbit / camera-corner (Drake 11-18)
 #include "editor_shared.h"   // what this file shares with the files moved out of it (editor_shared.h names them)
 #include "placement_lighting.h"   // Object Placement's lighting (OP-3, OP-44)
 #include "state_line.h"   // the state line's fields added by their owners (StateLine_Add)
@@ -440,7 +444,7 @@ static host::ThreeViews threeViews;
 static bool threeViewsFitted = false;
 int32_t threeCursor[3] = { 0, 0, 0 };
 static ui::Box threeBox = { 0, 0, 0, 0 };
-static int32_t trackSection = 0;          // the CURRENT section of the track, whose start and end markers the views show (FUN_004f0da0); stepped by , and . (ours)
+int32_t trackSection = 0;          // the CURRENT section of the track, whose start and end markers the views show (FUN_004f0da0); stepped by , and . (ours)
 static size_t trackSectionCount = 0;
 static char trackWords[96];
 bool trackDirty = false;           // the selected object's track changed (a paste, a field kept): its lines are made again
@@ -473,7 +477,6 @@ bool WaypointWorldOn()
 	return OnWaypointScreen() && waypointMode.Mode() >= 1;
 }
 
-static bool TrackPivotEditing();
 
 // inteng's three orthographic views on the track screens are PIVOT EDIT's alone (state 5: FUN_004f3770 turns the split screen off and makes them, 0x4f37aa-0x4f3838; its page has only Move Pivot To Centre and Stop Pivot Edit).
 // The other states (2 a track loaded, 3 the end edit, 4 play) use the normal 3D view, where the track is drawn as lines in the world (TrackWorldLines, the avpx hook R_SetEditorWorldLines).
@@ -641,7 +644,7 @@ static_assert(host::kObjectIdBytes == host::kSelectionIdBytes, "the list and the
 // is loaded. openLevel, in main, is that hold. When the hold fails the level still shows, but there's no object list and the field panel
 // has nothing to read: the status line says why, and so does a -picture run's output. Gives back null when the level is held. These
 // are fixed texts of the editor's own, never the level's words. (Added 2026-11-15 by Melanikus (Dietrich).)
-static const char *NotHeldWords(LevelOpenResult result)
+const char *NotHeldWords(LevelOpenResult result)
 {
 	switch (result)
 	{
@@ -817,13 +820,11 @@ bool MenuLoopUp()
 	return barVisible || AMenuIsOpen();
 }
 // The Hierarchy mode's questions that list their choices are inteng's list dialog (DialogList below, FUN_00475bf0): a click or Return answers with the row's place in the list, Esc cancels
-static void HierarchyDialogAnswer(std::string const &typed);
-static void HierarchyDialogCancel();
 
 // ---- inteng's DIALOGS (dialogs.h: message, confirm, text, list and the form toolkit; one open at a time, modal). These are thin names for the editor's own code.
 std::string adjacentBoo;   // Adjacent Modules: the text inteng draws after a Delete ("BOO!", FUN_0057b1b0 0x404cbc), drawn at (10, 0x50) of the view until the screen is left
 
-static bool ADialogIsOpen()
+bool ADialogIsOpen()
 {
 	return host::Dialogs_IsOpen();
 }
@@ -867,41 +868,30 @@ static char answerWords[240] = "";              // the status line's words for w
 
 void OpenAPrompt(int32_t kind);
 bool onHierarchy = false;                // the Hierarchy screen is the one shown (hierarchy_mode.h)
-static OpenLevelFile hierarchyModelFile;         // the model file (avp_huds\<name>.rif) Hierarchy mode works on once one is opened: hierarchies live in models, not levels
+OpenLevelFile hierarchyModelFile;         // the model file (avp_huds\<name>.rif) Hierarchy mode works on once one is opened: hierarchies live in models, not levels
 bool hierarchyModelOpen = false;
-static unsigned hierarchyModelSavedGeneration = ~0u;   // the model's generation when it was opened or last saved as a copy: inteng's "changed" DAT_00637134 is the model differing from it
+unsigned hierarchyModelSavedGeneration = ~0u;   // the model's generation when it was opened or last saved as a copy: inteng's "changed" DAT_00637134 is the model differing from it
 int hierarchySaveAsked = 0;   // Return (C-47): 2 = "Saving" is drawn this frame, 1 = the frame with it was drawn, so the save runs now (HierarchySaveIfAsked); 0 = none
 std::string openLevelName;   // the level the editor opened (its file is avp_rifs\<name>.rif in the data folder): inteng's Hierarchy mode works on the OPENED FILE
 // The model and hierarchy the view shows now (so a change of either shows it again, and a change of sequence only switches it)
-static DWORD hierarchyAnswerUntil = 0;           // a command's own words stay on the status line until this tick; the playing view's per-frame words come back after it
-static bool hierarchyPromptFresh = false;        // the open prompt holds the question's default text: the first typed letter replaces it (as a selected field in inteng's dialogs does)
-static std::string hierarchyShownModel;
-static std::string hierarchyShownName;
+DWORD hierarchyAnswerUntil = 0;           // a command's own words stay on the status line until this tick; the playing view's per-frame words come back after it
+bool hierarchyPromptFresh = false;        // the open prompt holds the question's default text: the first typed letter replaces it (as a selected field in inteng's dialogs does)
+std::string hierarchyShownModel;
+std::string hierarchyShownName;
 static int promptSwallow = 0;   // a key that opened a prompt also sends its letter as a character a moment later: that one letter is not typed into the prompt
-static void HierarchyClicked(host::PickReport const &report);
 host::HierarchyMode hierarchyMode;      // its state: the current hierarchy, sequence and collection, the platform numbers
-static std::string hierarchyTitle;             // the words of the question the mode asked
+std::string hierarchyTitle;             // the words of the question the mode asked
 bool IsTheHierarchyScreen(size_t screen);
 static bool IsTheTrackScreen(size_t screen);
 static void ShowTrackPageAfter(int32_t command);
-static void EnterHierarchy();
-static void HierarchyOpenOnSelectedObject();
 void LeaveHierarchy();
-static void HierarchyRunCommand(int32_t command);
 void TextureMapCommand(int32_t command);
-static void HierarchyTypedAnswer(std::string const &typed);
-static void HierarchySyncView(bool restart = false);
-static void HierarchyStepSequence(int direction);
-static void SpecialRunCommand(int32_t command, bool soundsScreen);
 // OP-47 / section 8a (V-6, V-7, V-8, V-11, V-21; FUN_004d9af0 0x4dc12c-0x4dc204, 0x4dc343, 0x4dc66e): Gravity on (DAT_008f4f50) skips the current object's commands and keys; a flying object
 // (DAT_008f4f44) can't be deleted and Gravity can't be switched while it flies
 bool PlacementGravityOn();
-static bool PlacementIsFlying();
-static void SimpleEditOpen();
 void NameObjectBox(std::string const &start, std::function<void(std::string const &)> const &named);   // inteng's "Name Object" dialog (FUN_004d4c70 / FUN_004d53d0)
 // Every editor object's icon as it is drawn, with the object's id, for Strategy Data's click (an icon is a thing the click can land on, as inteng's display blocks are)
 static bool OnAPlacementScreen();
-static void SpecialTypedAnswer(std::string const &typed);
 std::vector<std::string> promptList;   // extra lines under an open prompt: the chooser's rows (Find Small Modules)
 static void FindNotDoneAdjacent();
 void AdjacentEdit(int32_t what);
@@ -1245,26 +1235,18 @@ static void SetTheBaseModule();
 static void ChangeTheObjectType(int32_t which);
 void StrategyModeCommand(int32_t command);
 void RunStrategyDelete(std::string const &typed);
-static void RunStrategyFans(std::string const &typed);
-static void RunStrategyMessage(std::string const &typed);
-static void RunStrategyStability(std::string const &typed);
 int strategyPick = 0;   // a click in the view is waited for: 1 a target (T, Change Target)
-static void StrategyPickClicked(host::PickReport const &report);
 static void RunVirtualName(std::string const &typed);
-static void RunDeleteMulti(std::string const &typed);
-static void RunAssignPrompt(int32_t kind, std::string const &typed);
 size_t KindsTheObjectCanTake(uint8_t const *id, int32_t *kinds);
-static void RunDestroyPrompt(int32_t kind, std::string const &typed);
 std::vector<host::VirtualObjectInfo> destroyChoices;
 uint8_t destroyId[8];
 uint8_t assignId[8];
-static int32_t assignKind = 0;
+int32_t assignKind = 0;
 int64_t virtualPlace[3];
 uint8_t stabilityId[8];
 void PathModeCommand(int32_t command);
 bool OnThePathScreen();
 void RunPathPrompt(int32_t kind, std::string const &typed);
-static void RunTypeAnswer(std::string const &typed);
 static void StopTheTypeQuestions();
 static void AltLocationCommand(int32_t command);
 
@@ -1357,1111 +1339,18 @@ void LoadTheObjectListAgain()
 	shownRecord = host::FieldRecord();
 }
 
-// Object Placement's special objects (special_mode.h; the dialogs are edobtype.dll's, read in AvP-docs/engine/inteng/edobtype-dialogs.md): Create AVP generator / Bad Guy / Player starting position /
-// Sound / Particle Generator at the view (the view's place and turn, as inteng's FUN_004d9af0 cases take them), Edit, Delete, and Find on the sounds screen. (Added 2026-11-15 by Melanikus (Vasquez).)
-host::SpecialMode specialMode;
-static std::string specialTitle;
-static bool specialPromptFresh = false;
 
-static void SpecialFormOpen();
-static void SpecialTypedAnswer(std::string const &typed);
-static void GeneratorSettingsWindowShow(host::GeneratorSettingsTyped const &typed);   // a generator's Edit: edobtype's "Generator Settings" (below)
-static void ParticleWindowOpen();   // a particle generator's Edit: inteng's own "Particle generator properties" (below)
-static void BadGuyWindowShow();   // a bad guy's Edit: edobtype's "Edit object properties" in the AvP mode (below)
-
-static void SpecialShow(host::SpecialStep const &step)
-{
-	promptList = specialMode.list;
-
-	// Find (FUN_004d9af0 0x4da337): the list dialog "Select Object" (FUN_00475bf0); the pick is the object's place in the list as it was given
-	if (step.prompt && specialMode.ask == host::SpecialAsk::PickObject && !specialMode.list.empty())
-	{
-		std::vector<std::string> names;
-
-		for (std::string const &line : specialMode.list)
-		{
-			size_t digits = 0;
-
-			while (digits < line.size() && line[digits] >= '0' && line[digits] <= '9')
-			{
-				digits++;
-			}
-
-			names.push_back(digits > 0 && line.compare(digits, 2, "  ") == 0 ? line.substr(digits + 2) : line);
-		}
-
-		DialogList("Select Object", names, [](int32_t place)
-		{
-			if (place >= 0)
-			{
-				SpecialTypedAnswer(std::to_string(place + 1));
-			}
-			else
-			{
-				host::SpecialMode_Cancel(&specialMode);
-			}
-		});
-		return;
-	}
-
-	// Edit: the object's own dialog, ONE window with all its fields and OK / Cancel (edobtype.dll: "Generator Settings", "Edit object properties", "Sound Edit - %s")
-	if (step.form)
-	{
-		// a generator's: edobtype's "Generator Settings" as its resource 133 lays it out (A-8, OP-131); the other kinds: the form of their fields
-		std::function<void()> const openTheForm = specialMode.draft.kind == host::SpecialKind::Generator ? std::function<void()>([]() { GeneratorSettingsWindowShow(host::GeneratorSettings_Shown(specialMode.draft)); })
-			: specialMode.draft.kind == host::SpecialKind::BadGuy ? std::function<void()>([]() { BadGuyWindowShow(); })
-			: specialMode.draft.kind == host::SpecialKind::ParticleGenerator ? std::function<void()>([]() { ParticleWindowOpen(); }) : std::function<void()>([]() { SpecialFormOpen(); });
-
-		if (!step.answer.empty())
-		{
-			DialogMessage(step.answer, openTheForm);
-		}
-		else
-		{
-			openTheForm();
-		}
-
-		return;
-	}
-
-	if (step.prompt)
-	{
-		specialTitle = step.title;
-		memset(keyDown, 0, sizeof(keyDown));
-		promptFor = kPromptSpecial;
-		promptText = step.defaultText;
-		specialPromptFresh = !step.defaultText.empty();
-		return;
-	}
-
-	promptList.clear();
-	specialPromptFresh = false;
-
-	if (!step.answer.empty())
-	{
-		Answer(step.answer);
-	}
-}
-
-static void SpecialFormOpen()
-{
-	std::string title;
-	std::vector<host::SpecialFormItem> items;
-
-	if (!host::SpecialMode_FormItems(specialMode, &title, &items))
-	{
-		return;
-	}
-
-	// the window: two columns of controls (a label and its edit, or a check box), 20 pixels a row, OK and Cancel under them
-	host::DialogFormSpec spec;
-	size_t const perColumn = (items.size() + 1) / 2;
-	int32_t const rows = (int32_t)(items.size() > 12 ? perColumn : items.size());
-	int32_t const columns = items.size() > 12 ? 2 : 1;
-
-	spec.title = title;
-	spec.width = columns == 2 ? 760 : 420;
-	spec.height = rows * 22 + 70;
-
-	for (size_t i = 0; i < items.size(); i++)
-	{
-		int32_t const column = columns == 2 && i >= perColumn ? 1 : 0;
-		int32_t const row = (int32_t)(columns == 2 ? (i >= perColumn ? i - perColumn : i) : i);
-		int32_t const x = 12 + column * 370;
-		int32_t const y = 12 + row * 22;
-		host::DialogWidget control;
-
-		if (items[i].kind == 1)
-		{
-			control.type = host::DialogWidgetType::Check;
-			control.text = items[i].label;
-			control.checked = items[i].value == "y";
-			control.box = { x, y, 340, 18 };
-			control.group = -1;
-		}
-		else
-		{
-			host::DialogWidget label;
-
-			label.type = host::DialogWidgetType::Label;
-			label.text = items[i].label;
-			label.box = { x, y, 220, 18 };
-			spec.widgets.push_back(label);
-			control.type = host::DialogWidgetType::Edit;
-			control.text = items[i].value;
-			control.most = 63;
-			control.box = { x + 224, y, 120, 18 };
-		}
-
-		spec.widgets.push_back(control);
-	}
-
-	host::DialogWidget ok, cancel;
-
-	ok.type = host::DialogWidgetType::Button;
-	ok.text = "OK";
-	ok.answer = host::kDialogOk;
-	ok.box = { spec.width / 2 - 110, rows * 22 + 30, 100, 22 };
-	cancel.type = host::DialogWidgetType::Button;
-	cancel.text = "Cancel";
-	cancel.answer = host::kDialogEscape;
-	cancel.box = { spec.width / 2 + 10, rows * 22 + 30, 100, 22 };
-	spec.widgets.push_back(ok);
-	spec.widgets.push_back(cancel);
-
-	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		if (answer != host::kDialogOk)
-		{
-			host::SpecialMode_Cancel(&specialMode);
-			return;
-		}
-
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-		if (!open || !open->Level())
-		{
-			return;
-		}
-
-		// the controls' answers in the order of the items: an edit's text, a check box as y / n (the labels and the buttons are not answers)
-		std::vector<std::string> values;
-
-		for (host::DialogWidget const &one : widgets)
-		{
-			if (one.type == host::DialogWidgetType::Edit)
-			{
-				values.push_back(one.text);
-			}
-			else if (one.type == host::DialogWidgetType::Check)
-			{
-				values.push_back(one.checked ? "y" : "n");
-			}
-		}
-
-		unsigned const generation = open->Generation();
-
-		SpecialShow(host::SpecialMode_FormAnswer(open, &specialMode, values));
-
-		if (open->Generation() != generation)
-		{
-			LoadTheObjectListAgain();
-		}
-	});
-}
-
-// THE "Generator Settings" WINDOW, 1:1 (A-8, reassess/object-placement.md OP-131; generator_settings.h has the numbers): edobtype's resource 133 laid out as the DLL lays it (342 x 273 dialog units, 1.5 x
-// 1.625 pixels each, the controls in the resource's order): the weights in three group boxes, the two rates, Max NPCs, the boxes, OK and Cancel. OK reads the controls in the DLL's DoDataExchange order and
-// the first refused says MFC's words (the window then shows again as typed); else the generator is written as the old form wrote it (SpecialMode_FormAnswer). NAMED: MFC puts the first focus on OK (the
-// resource's first control), the toolkit on the first edit. Added 2026-11-16 by Melanikus (Vasquez).
-static std::vector<int32_t> generatorWindowIds;   // the control number of each widget of the window shown (0 for a label or a group box)
-
-static void GeneratorSettingsWindowShow(host::GeneratorSettingsTyped const &typed)
-{
-	auto const dx = [](int32_t u) { return (int32_t)(u * 3 / 2); };
-	auto const dy = [](int32_t u) { return (int32_t)(u * 13 / 8); };
-	host::DialogFormSpec spec;
-
-	// the dialog units are the client area's, which starts under the window's caption: the toolkit's title band (the font's height) and a pixel or two are kept above the first control
-	int32_t const clientTop = 18;
-
-	spec.title = "Generator Settings";   // resource 133's caption
-	spec.width = dx(342) + 10;
-	spec.height = dy(273) + 10 + clientTop;
-	generatorWindowIds.clear();
-
-	auto const add = [&spec, clientTop](host::DialogWidgetType kind, int32_t id, std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h, int32_t answer)
-	{
-		host::DialogWidget one;
-
-		one.type = kind;
-		one.text = words;
-		one.box = { x, y + clientTop, w, h };
-		one.answer = answer;
-		one.most = 255;
-		spec.widgets.push_back(one);
-		generatorWindowIds.push_back(id);
-	};
-
-	// the edits by control: 1027 .. 1036, 1038 .. 1041, 1049 hold the weights (generator_settings.h's order), 1042 / 1043 the rates, 1051 Max NPCs
-	auto const edit = [&](int32_t id, int32_t x, int32_t y)
-	{
-		static int32_t const weightIds[15] = { 1027, 1028, 1029, 1030, 1031, 1032, 1033, 1034, 1035, 1036, 1038, 1039, 1040, 1041, 1049 };
-		std::string words;
-
-		for (int i = 0; i < 15; i++)
-		{
-			words = weightIds[i] == id ? typed.weights[i] : words;
-		}
-
-		words = id == 1042 ? typed.rate : id == 1043 ? typed.increase : id == 1051 ? typed.maxNpcs : words;
-		add(host::DialogWidgetType::Edit, id, words, dx(x), dy(y), dx(40), dy(14), 0);
-	};
-
-	// a check box with its words (BS_AUTOCHECKBOX): the box and the words to its right
-	auto const box = [&](int32_t id, std::string const &words, bool checked, int32_t x, int32_t y)
-	{
-		add(host::DialogWidgetType::Check, id, std::string(), dx(x), dy(y), 12, 12, 0);
-		spec.widgets.back().checked = checked;
-		add(host::DialogWidgetType::Label, 0, words, dx(x) + 16, dy(y) - 2, dx(100), 16, 0);
-	};
-
-	auto const label = [&](std::string const &words, int32_t x, int32_t y)
-	{
-		add(host::DialogWidgetType::Label, 0, words, dx(x), dy(y), dx(140), 16, 0);
-	};
-
-	auto const group = [&](std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h)
-	{
-		add(host::DialogWidgetType::Group, 0, words, dx(x), dy(y), dx(w), dy(h), 0);
-	};
-
-	add(host::DialogWidgetType::Button, 1, "OK", dx(115), dy(255), dx(50), dy(14), host::kDialogOk);
-	add(host::DialogWidgetType::Button, 2, "Cancel", dx(195), dy(255), dx(50), dy(14), host::kDialogEscape);
-	edit(1027, 20, 15);
-	edit(1028, 20, 35);
-	edit(1029, 20, 55);
-	edit(1030, 20, 75);
-	edit(1031, 20, 95);
-	edit(1032, 20, 115);
-	group("Marine weightings", 10, 5, 108, 150);
-	label("Pulse Rifle", 70, 20);
-	label("Flamer", 70, 40);
-	label("Smartgun", 70, 60);
-	label("Sadar", 70, 80);
-	label("Grenade", 70, 100);
-	label("Minigun", 70, 120);
-	edit(1033, 140, 15);
-	edit(1034, 140, 35);
-	edit(1035, 140, 55);
-	edit(1036, 140, 75);
-	edit(1038, 140, 95);
-	label("Shotgun", 190, 20);
-	label("Pistol", 190, 40);
-	label("Flamer", 190, 60);
-	label("Unarmed", 190, 80);
-	label("Molotov", 190, 100);
-	group("Civilian weightings", 130, 5, 95, 130);
-	edit(1039, 245, 15);
-	edit(1040, 245, 35);
-	edit(1041, 245, 55);
-	label("Alien", 300, 20);
-	label("PredAlien", 300, 40);
-	label("Praetorian", 300, 60);
-	group("Alien weightings", 235, 5, 100, 130);
-	edit(1042, 15, 180);
-	edit(1043, 15, 200);
-	box(1047, "Use global generator times", typed.useGlobalTimes, 15, 165);
-	label("Initial generation rate per minute", 75, 185);
-	label("Increase in rate per minute", 75, 205);
-	box(1044, "Marine", typed.marine, 250, 165);
-	box(1045, "Alien", typed.alien, 250, 175);
-	box(1046, "Predator", typed.predator, 250, 185);
-	group("Multiplayer settings", 240, 155, 70, 45);
-	box(1048, "Starts inactive", typed.startsInactive, 130, 150);
-	edit(1049, 20, 135);
-	label("Pistol", 70, 140);
-	edit(1051, 15, 235);
-	box(1052, "Use own max npc setting", typed.useOwnMax, 15, 220);
-	label("Max NPCs", 65, 240);
-	box(1059, "Multiplayer start", typed.multiplayerStart, 240, 140);
-	box(1009, "Easy", typed.easy, 245, 215);
-	box(1010, "Medium", typed.medium, 245, 225);
-	box(1011, "Hard", typed.hard, 245, 235);
-	group("Difficulty", 240, 205, 70, 45);
-
-	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		if (answer != host::kDialogOk)
-		{
-			host::SpecialMode_Cancel(&specialMode);   // Cancel or Escape: nothing kept
-			return;
-		}
-
-		// what the window holds, by control
-		host::GeneratorSettingsTyped now;
-		static int32_t const weightIds[15] = { 1027, 1028, 1029, 1030, 1031, 1032, 1033, 1034, 1035, 1036, 1038, 1039, 1040, 1041, 1049 };
-
-		for (size_t i = 0; i < widgets.size() && i < generatorWindowIds.size(); i++)
-		{
-			int32_t const id = generatorWindowIds[i];
-			host::DialogWidget const &w = widgets[i];
-
-			for (int k = 0; k < 15; k++)
-			{
-				if (weightIds[k] == id)
-				{
-					now.weights[k] = w.text;
-				}
-			}
-
-			now.rate = id == 1042 ? w.text : now.rate;
-			now.increase = id == 1043 ? w.text : now.increase;
-			now.maxNpcs = id == 1051 ? w.text : now.maxNpcs;
-			now.useGlobalTimes = id == 1047 ? w.checked : now.useGlobalTimes;
-			now.startsInactive = id == 1048 ? w.checked : now.startsInactive;
-			now.marine = id == 1044 ? w.checked : now.marine;
-			now.alien = id == 1045 ? w.checked : now.alien;
-			now.predator = id == 1046 ? w.checked : now.predator;
-			now.useOwnMax = id == 1052 ? w.checked : now.useOwnMax;
-			now.multiplayerStart = id == 1059 ? w.checked : now.multiplayerStart;
-			now.easy = id == 1009 ? w.checked : now.easy;
-			now.medium = id == 1010 ? w.checked : now.medium;
-			now.hard = id == 1011 ? w.checked : now.hard;
-		}
-
-		host::SpecialObject made = specialMode.draft;
-		std::string message;
-		int32_t control = 0;
-
-		if (!host::GeneratorSettings_Ok(now, &made, &message, &control))
-		{
-			DialogMessage(message, [now]() { GeneratorSettingsWindowShow(now); });   // MFC's words; the window stays as typed
-			return;
-		}
-
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-		if (!open || !open->Level())
-		{
-			return;
-		}
-
-		// the generator written as the old form wrote it: its controls' answers in SpecialMode_FormItems' order (Easy, Medium, Hard, the 14 weights, the two rates, Marine, Alien, Predator, Use global
-		// generator times, Starts inactive, Marine Pistol, Max NPCs, Use own max npc setting, Multiplayer start), from the values OK made
-		auto const yes = [](bool b) { return std::string(b ? "y" : "n"); };
-		auto const hundredths = [](int32_t v) { char text[32]; _snprintf_s(text, sizeof(text), _TRUNCATE, "%.2f", v * 0.01); return std::string(text); };
-		std::vector<std::string> values = { yes(now.easy), yes(now.medium), yes(now.hard) };
-
-		for (int k = 0; k < 14; k++)
-		{
-			values.push_back(std::to_string((long long)made.weights[k]));
-		}
-
-		values.push_back(hundredths(made.genRate));
-		values.push_back(hundredths(made.genIncrease));
-		values.push_back(yes(now.marine));
-		values.push_back(yes(now.alien));
-		values.push_back(yes(now.predator));
-		values.push_back(yes(now.useGlobalTimes));
-		values.push_back(yes(now.startsInactive));
-		values.push_back(std::to_string((long long)made.weights[14]));
-		values.push_back(std::to_string((unsigned)made.genLimit));
-		values.push_back(yes(now.useOwnMax));
-		values.push_back(yes(now.multiplayerStart));
-
-		unsigned const generation = open->Generation();
-
-		SpecialShow(host::SpecialMode_FormAnswer(open, &specialMode, values));
-
-		if (open->Generation() != generation)
-		{
-			LoadTheObjectListAgain();
-		}
-	});
-}
-
-// THE PARTICLE GENERATOR'S WINDOW, 1:1 (A-8, reassess/object-placement.md OP-134; particle_edit.h has the numbers): inteng's own "Particle generator properties" (FUN_004e7310, 400 x 250, its parts at their
-// pixels), Type opens "Select Particle Generator Type" and the window stays; every way out keeps what it holds (FUN_004e7750). Added 2026-11-16 by Melanikus (Vasquez).
-namespace
-{
-	int32_t const kParticleType = 102, kParticleSound = 104, kParticleRemoveSound = 106, kParticleOk = 2;   // the buttons' answers: 100 + their control number; Ok answers 2 (FUN_004e79b0)
-
-	host::ParticleTyped particleNow;   // what the window holds (kept while the Type list is open)
-	std::string particleSoundName;
-}
-
-static void SoundEditWindowOpen(host::SoundEditRecord const &record, std::string const &folder, std::string const &soundDirectory, std::function<void(host::SoundEditRecord const &, bool)> const &done);
-
-// The particle window has ended (any way out): what it held is kept (FUN_004e7750 whatever FUN_0057c800 answered), and the generator's sound with it (OP-135)
-static void ParticleWindowKeep()
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-	if (!open || !open->Level())
-	{
-		return;
-	}
-
-	unsigned const generation = open->Generation();
-
-	SpecialShow(host::SpecialMode_FormWrite(open, &specialMode, host::Particle_Ok(specialMode.draft, particleNow)));
-
-	if (open->Generation() != generation)
-	{
-		LoadTheObjectListAgain();
-	}
-}
-
-static void ParticleWindowShow()
-{
-	host::DialogFormSpec spec;
-
-	spec.title = "Particle generator properties";   // 0x5e8f60
-	spec.width = 400;
-	spec.height = 0xfa;
-
-	auto const add = [&spec](host::DialogWidgetType kind, std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h, int32_t answer, size_t most)
-	{
-		host::DialogWidget one;
-
-		one.type = kind;
-		one.text = words;
-		one.box = { x, y, w, h };
-		one.answer = answer;
-		one.most = most;
-		spec.widgets.push_back(one);
-	};
-
-	add(host::DialogWidgetType::Button, "Ok", 0xaf, 0xe1, 0x50, 0x12, kParticleOk, 0);                                      // 1
-	add(host::DialogWidgetType::Button, "Type", 0x12, 0x28, 0x46, 0x12, kParticleType, 0);                                  // 2
-	add(host::DialogWidgetType::Label, host::Particle_TypeName(particleNow.type), 100, 0x28, 0x118, 0x12, 0, 0);            // 3
-	add(host::DialogWidgetType::Button, "Sound", 0x12, 0x3c, 0x46, 0x12, kParticleSound, 0);                                // 4
-	add(host::DialogWidgetType::Label, particleSoundName, 100, 0x3c, 0x118, 0x12, 0, 0);                                    // 5
-	add(host::DialogWidgetType::Button, "Remove Sound", 0x12, 0x50, 0x78, 0x12, kParticleRemoveSound, 0);                   // 6
-	add(host::DialogWidgetType::Label, "Active", 0x28, 100, 100, 0x12, 0, 0);                                                 // 7
-	add(host::DialogWidgetType::Check, std::string(), 0x12, 100, 16, 16, 0, 0);                                               // 8
-	spec.widgets.back().checked = particleNow.active;
-	add(host::DialogWidgetType::Edit, particleNow.frequency, 0x12, 0x78, 100, 0x12, 0, 10);                                 // 9 (FUN_0057d8e0, 10 letters)
-	add(host::DialogWidgetType::Label, "Frequency (seconds) (0-6000)", 0x76, 0x78, 0x118, 0x12, 0, 0);                      // 10
-	add(host::DialogWidgetType::Edit, std::to_string((long long)particleNow.probability), 0x12, 0x8c, 100, 0x12, 0, 10);   // 11 (FUN_0057de30, a number box)
-	add(host::DialogWidgetType::Label, "Probability(0-100)", 0x76, 0x8c, 200, 0x12, 0, 0);                                  // 12
-	add(host::DialogWidgetType::Edit, std::to_string((long long)particleNow.quantity), 0x12, 0xa0, 100, 0x12, 0, 10);      // 13
-	add(host::DialogWidgetType::Label, "Quantity(1-1000)", 0x76, 0xa0, 200, 0x12, 0, 0);                                    // 14
-	add(host::DialogWidgetType::Edit, particleNow.speed, 0x12, 0xb4, 100, 0x12, 0, 10);                                     // 15
-	add(host::DialogWidgetType::Label, "Speed (m/s) (0-600)", 0x76, 0xb4, 200, 0x12, 0, 0);                                 // 16
-
-	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &w)
-	{
-		if (w.size() < 16)
-		{
-			return;
-		}
-
-		particleNow.active = w[7].checked;
-		particleNow.frequency = w[8].text;
-		particleNow.probability = host::HierarchyMode_EditNumber(w[10].text);   // FUN_0057d620
-		particleNow.quantity = host::HierarchyMode_EditNumber(w[12].text);
-		particleNow.speed = w[14].text;
-
-		if (answer == kParticleType)
-		{
-			// FUN_004e6950: "Select Particle Generator Type"; the window stays, showing the pick's name
-			DialogList("Select Particle Generator Type", { host::Particle_TypeName(0), host::Particle_TypeName(1), host::Particle_TypeName(2), host::Particle_TypeName(3) }, [](int32_t place)
-			{
-				if (place >= 0 && place < 4)
-				{
-					particleNow.type = place;
-				}
-
-				ParticleWindowShow();
-			});
-			return;
-		}
-
-		if (answer == kParticleRemoveSound)
-		{
-			// REMOVE SOUND (FUN_004e79b0 case 6, FUN_004ebd20): the record destroyed, the label "None" (0x5d126c); the window stays, redrawn. Its INDSOUND goes when the window ends.
-			specialMode.draft.hasSound = false;
-			specialMode.draft.particleSoundRead = false;
-			specialMode.draft.particleSoundWav.clear();
-			specialMode.draft.particleSoundExtra.clear();
-			particleSoundName = host::Particle_Shown(specialMode.draft).soundName;
-			ParticleWindowShow();
-			return;
-		}
-
-		if (answer == kParticleSound)
-		{
-			// SOUND (FUN_004e79b0 case 4, 0x4e7a0d-0x4e7a6f; reassess/object-placement.md OP-135): with no sound a record is made (FUN_004ebc80(0, 1): "Not Set" (0x5e3f5c), inner 500000 and
-			// outer 4000000 in inteng's memory (x 1e-5 m), volume 127, pitch 0, flags 1, its loops box live); a sound read from the file is the record FUN_004ebb80 makes of it (the
-			// ranges x DAT_00607bd8 = 100 x the level's scale, its loops box live too: 0x4e6849). Either way its Sound Edit (FUN_004ebd60) runs, and then the particle window ENDS and
-			// keeps what it holds. Cancel in Sound Edit keeps the record as it was. INTENG BUG, FIXED (Bishop's ruling Q1 11-17, as PH-8's and TB-T1): inteng keeps a record it made for this
-			// window on Cancel too, leaving a "Not Set" sound on the generator; ours adds nothing on Cancel. The INDSOUND is made from the record (FUN_004ec1b0: the ranges / DAT_00607bd8).
-			host::SpecialObject &draft = specialMode.draft;
-
-			if (draft.hasSound && !draft.particleSoundRead)
-			{
-				// HOSTILE INPUT: an INDSOUND this editor could not read whole is never remade from guesses; it stays as the file holds it
-				Answer("Sound: this generator's sound could not be read whole, so it is kept as the file holds it");
-				ParticleWindowShow();
-				return;
-			}
-
-			double const unit = 100.0 * (local_scale > 0.0 ? local_scale : 1.0);
-			auto const ftol = [](double v) { return !(v == v) ? 0 : (v >= 2147483647.0 ? 2147483647 : (v <= -2147483648.0 ? (int32_t)-2147483647 - 1 : (int32_t)v)); };
-			bool const made = !draft.hasSound;
-			uint32_t const memInner = made ? 500000u : (uint32_t)ftol((double)draft.particleSoundInner * unit);
-			uint32_t const memOuter = made ? 4000000u : (uint32_t)ftol((double)draft.particleSoundOuter * unit);
-
-			if (made)
-			{
-				draft.hasSound = true;
-				draft.particleSoundRead = true;
-				draft.particleSoundIndex = 0;
-				draft.particleSoundWav = "Not Set";
-				draft.particleSoundVolume = 127;
-				draft.particleSoundPitch = 0;
-				draft.particleSoundFlags = 1;
-				draft.particleSoundExtra.clear();
-			}
-
-			host::SoundEditRecord const record = host::SoundEdit_IndexedRecord(draft.particleSoundWav, memInner, memOuter, draft.particleSoundPitch, draft.particleSoundVolume, draft.particleSoundFlags, true);
-			OpenLevelFile *const open = LevelObjects_OpenForEdit();
-			std::string const soundDirectory = host::TrackLevelSoundDirectory(open);
-			std::string const folder = std::string(theGameFolder) + "\\sound\\" + soundDirectory + "\\";
-
-			SoundEditWindowOpen(record, folder, soundDirectory, [unit, ftol, made](host::SoundEditRecord const &back, bool ok)
-			{
-				host::SpecialObject &now = specialMode.draft;
-
-				if (made && !ok)
-				{
-					// the named fix above: the record made for this window goes, and the generator keeps no sound
-					now.hasSound = false;
-					now.particleSoundRead = false;
-					now.particleSoundWav.clear();
-					ParticleWindowKeep();
-					return;
-				}
-				int32_t inner = 0, outer = 0, pitch = 0, volume = 0, flags = 0;
-
-				host::SoundEdit_IndexedBack(back, now.particleSoundFlags, &inner, &outer, &pitch, &volume, &flags);
-				now.particleSoundWav = back.name;
-				now.particleSoundInner = (uint32_t)ftol((double)(uint32_t)inner / unit);
-				now.particleSoundOuter = (uint32_t)ftol((double)(uint32_t)outer / unit);
-				now.particleSoundPitch = pitch;
-				now.particleSoundVolume = volume;
-				now.particleSoundFlags = flags;
-				ParticleWindowKeep();
-			});
-			return;
-		}
-
-		// every other way out keeps what the window holds (FUN_004e7750 whatever FUN_0057c800 answered)
-		ParticleWindowKeep();
-	});
-}
-
-static void ParticleWindowOpen()
-{
-	host::ParticleShown const shown = host::Particle_Shown(specialMode.draft);
-
-	particleNow = host::ParticleTyped();
-	particleNow.type = specialMode.draft.particleType;
-	particleNow.active = shown.active;
-	particleNow.frequency = shown.frequency;
-	particleNow.probability = shown.probability;
-	particleNow.quantity = shown.quantity;
-	particleNow.speed = shown.speed;
-	particleSoundName = shown.soundName;
-	ParticleWindowShow();
-}
-
-// THE BAD GUY'S "Edit object properties" WINDOW, 1:1 (A-8, reassess/object-placement.md OP-132; bad_guy_edit.h has the numbers): edobtype's resource 129 in the AvP mode (302 x 231 dialog units under the
-// caption), the parts the bad-guy class shows: "Type of Object" and its combo, the type's own controls on the left (1001 combo / 1003 edit under 1004's words) and on the right (1018 combo / 1020 edit under
-// 1017's), "Texturing ID" and its combo (live for a Marine), "Starts Inactive", OK, Cancel. A pick in the type combo shows that type's controls at once (FUN_10005400). Game mode and Difficulty are hidden as
-// inteng hides them (Bishop's ruling 11-16) and their flags come back unchanged. Added 2026-11-16 by Melanikus (Vasquez).
-namespace
-{
-	// the window's parts by place (BadGuyWindowShow adds them in this order)
-	enum BadGuyPart : size_t
-	{
-		kBgOk, kBgCancel, kBgTypeLabel, kBgType, kBgLeftLabel, kBgLeftCombo, kBgLeftEdit, kBgRightLabel, kBgRightCombo, kBgRightEdit, kBgTextureLabel, kBgTexture, kBgInactive, kBgInactiveLabel, kBgParts
-	};
-
-	host::BadGuyControls badGuyShown;   // what the window shows now (its combos' numbers)
-
-	// THE NEW-BAD-GUY DEFAULTS (OP-132): after every Edit of a bad guy, OK or Cancel alike, its type, subtype, texture and extras become the next new one's (0x4e5e96-0x4e5eb5: DAT_005e7a48 the type,
-	// DAT_008f4f94 / 95 / 96 / 97 the subtype, extra 1, extra 2, texture), which Create > AVP Bad Guy takes (FUN_004dd600 0x4dd65e-0x4dd692; the flags are 0x3801 always). Before any Edit: type 1, the rest 0.
-	struct BadGuyDefaults
-	{
-		bool set = false;
-		int32_t type = 1;
-		uint8_t subType = 0, extra1 = 0, extra2 = 0, texture = 0;
-	};
-
-	BadGuyDefaults badGuyDefaults;
-
-	void BadGuyDefaultsFrom(host::SpecialObject const &one)
-	{
-		badGuyDefaults.set = true;
-		badGuyDefaults.type = one.type;
-		badGuyDefaults.subType = one.subType;
-		badGuyDefaults.extra1 = one.extra1;
-		badGuyDefaults.extra2 = one.extra2;
-		badGuyDefaults.texture = one.texture;
-	}
-}
-
-// The type's controls into the window's parts (at the opening, and after a pick in the type combo)
-static void BadGuyPartsFor(std::vector<host::DialogWidget> &w, host::BadGuyControls const &c)
-{
-	auto const names = [](host::BadGuyChoices const &choices)
-	{
-		std::vector<std::string> out;
-
-		for (auto const &one : choices)
-		{
-			out.push_back(one.first);
-		}
-
-		return out;
-	};
-
-	auto const combo = [&](size_t part, host::BadGuyChoices const &choices, int32_t pick, bool shown, bool live)
-	{
-		w[part].items = names(choices);
-		w[part].selected = pick;
-		w[part].text = pick >= 0 && (size_t)pick < choices.size() ? choices[(size_t)pick].first : std::string();
-		w[part].visible = shown;
-		w[part].enabled = live;
-		w[part].listOpen = false;
-	};
-
-	w[kBgLeftLabel].text = c.leftLabel;
-	w[kBgLeftLabel].visible = !c.leftLabel.empty();
-	w[kBgRightLabel].text = c.rightLabel;
-	w[kBgRightLabel].visible = !c.rightLabel.empty();
-	combo(kBgLeftCombo, c.leftChoices, c.leftPick, c.leftCombo, true);
-	combo(kBgRightCombo, c.rightChoices, c.rightPick, c.rightCombo, true);
-	combo(kBgTexture, c.textures, c.texturePick, true, c.textureLive);
-	w[kBgLeftEdit].text = c.leftText;
-	w[kBgLeftEdit].visible = c.leftEdit;
-	w[kBgRightEdit].text = c.rightText;
-	w[kBgRightEdit].visible = c.rightEdit;
-}
-
-static void BadGuyWindowShow()
-{
-	auto const dx = [](int32_t u) { return (int32_t)(u * 3 / 2); };
-	auto const dy = [](int32_t u) { return (int32_t)(u * 13 / 8); };
-	int32_t const clientTop = 18;   // the dialog units start under the caption (the toolkit's title band)
-	host::DialogFormSpec spec;
-
-	badGuyShown = host::BadGuy_Controls(specialMode.draft, specialMode.draft.type);
-	spec.title = "Edit object properties";   // resource 129's caption
-	spec.width = dx(302) + 10;
-	spec.height = dy(231) + 10 + clientTop;
-	spec.widgets.resize(kBgParts);
-
-	auto const put = [&](size_t part, host::DialogWidgetType kind, std::string const &words, int32_t x, int32_t y, int32_t width, int32_t height, int32_t answer)
-	{
-		host::DialogWidget &one = spec.widgets[part];
-
-		one.type = kind;
-		one.text = words;
-		one.box = { dx(x), dy(y) + clientTop, width, height };
-		one.answer = answer;
-		one.most = 63;
-	};
-
-	put(kBgOk, host::DialogWidgetType::Button, "OK", 55, 190, dx(50), dy(14), host::kDialogOk);
-	put(kBgCancel, host::DialogWidgetType::Button, "Cancel", 170, 190, dx(50), dy(14), host::kDialogEscape);
-	put(kBgTypeLabel, host::DialogWidgetType::Label, "Type of Object", 10, 10, dx(100), 16, 0);      // 1016
-	put(kBgType, host::DialogWidgetType::Combo, std::string(), 10, 24, dx(115), 18, 0);              // 1002
-	put(kBgLeftLabel, host::DialogWidgetType::Label, std::string(), 10, 45, dx(114), 16, 0);         // 1004
-	put(kBgLeftCombo, host::DialogWidgetType::Combo, std::string(), 10, 60, dx(115), 18, 0);         // 1001
-	put(kBgLeftEdit, host::DialogWidgetType::Edit, std::string(), 10, 60, dx(105), dy(12) + 2, 0);   // 1003
-	put(kBgRightLabel, host::DialogWidgetType::Label, std::string(), 165, 45, dx(110), 16, 0);       // 1017
-	put(kBgRightCombo, host::DialogWidgetType::Combo, std::string(), 165, 60, dx(115), 18, 0);       // 1018
-	put(kBgRightEdit, host::DialogWidgetType::Edit, std::string(), 165, 60, dx(105), dy(12) + 2, 0); // 1020
-	put(kBgTextureLabel, host::DialogWidgetType::Label, "Texturing ID", 10, 85, dx(70), 16, 0);      // 1019
-	put(kBgTexture, host::DialogWidgetType::Combo, std::string(), 10, 95, dx(115), 18, 0);           // 1022
-	put(kBgInactive, host::DialogWidgetType::Check, std::string(), 10, 130, 12, 12, 0);              // 1008 "Starts Inactive"
-	spec.widgets[kBgInactive].checked = badGuyShown.startsInactive;
-	put(kBgInactiveLabel, host::DialogWidgetType::Label, "Starts Inactive", 10, 130, dx(104), 16, 0);
-	spec.widgets[kBgInactiveLabel].box.x += 16;
-	spec.widgets[kBgInactiveLabel].box.y -= 2;
-
-	{
-		std::vector<std::string> types;
-
-		for (auto const &one : badGuyShown.types)
-		{
-			types.push_back(one.first);
-		}
-
-		spec.widgets[kBgType].items = types;
-		spec.widgets[kBgType].selected = badGuyShown.typePick;
-		spec.widgets[kBgType].text = badGuyShown.typePick >= 0 ? badGuyShown.types[(size_t)badGuyShown.typePick].first : std::string();
-	}
-
-	BadGuyPartsFor(spec.widgets, badGuyShown);
-
-	// a pick in the type combo: that type's controls at once (FUN_10005400 with the new type; the subtype and the numbers are the bad guy's)
-	spec.onChange = [](std::vector<host::DialogWidget> &w, size_t part)
-	{
-		if (part != kBgType || w[kBgType].selected < 0 || (size_t)w[kBgType].selected >= badGuyShown.types.size())
-		{
-			return;
-		}
-
-		host::BadGuyChoices const types = badGuyShown.types;
-		int32_t const typePick = w[kBgType].selected;
-
-		badGuyShown = host::BadGuy_Controls(specialMode.draft, types[(size_t)typePick].second);
-		BadGuyPartsFor(w, badGuyShown);
-	};
-
-	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &w)
-	{
-		if (answer != host::kDialogOk || w.size() < kBgParts)
-		{
-			BadGuyDefaultsFrom(specialMode.draft);     // 0x4e5e96: the next new bad guy's, after Cancel too
-			host::SpecialMode_Cancel(&specialMode);   // Cancel or Escape: nothing kept
-			return;
-		}
-
-		auto const valueOf = [](host::BadGuyChoices const &choices, host::DialogWidget const &part) -> int32_t
-		{
-			return part.visible && part.selected >= 0 && (size_t)part.selected < choices.size() ? choices[(size_t)part.selected].second : -1;
-		};
-
-		host::BadGuyTyped typed;
-
-		typed.type = w[kBgType].selected >= 0 && (size_t)w[kBgType].selected < badGuyShown.types.size() ? badGuyShown.types[(size_t)w[kBgType].selected].second : specialMode.draft.type;
-		typed.leftPick = valueOf(badGuyShown.leftChoices, w[kBgLeftCombo]);
-		typed.rightPick = valueOf(badGuyShown.rightChoices, w[kBgRightCombo]);
-		typed.texturePick = valueOf(badGuyShown.textures, w[kBgTexture]);
-		typed.leftText = w[kBgLeftEdit].text;
-		typed.rightText = w[kBgRightEdit].text;
-		typed.startsInactive = w[kBgInactive].checked;
-
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-		if (!open || !open->Level())
-		{
-			return;
-		}
-
-		unsigned const generation = open->Generation();
-		host::SpecialObject const kept = host::BadGuy_Ok(specialMode.draft, typed);
-
-		BadGuyDefaultsFrom(kept);   // 0x4e5e96-0x4e5eb5: the next new bad guy's
-		SpecialShow(host::SpecialMode_FormWrite(open, &specialMode, kept));
-
-		if (open->Generation() != generation)
-		{
-			LoadTheObjectListAgain();
-		}
-	});
-}
-
-// Object Placement's Edit of an ORDINARY object (simple_object_edit.h): edobtype.dll's "Edit object properties" window
-static host::SimpleObjectEdit simpleEdit;
-
-static void SimpleEditShow()
-{
-	// edobtype.dll's dialog 129 as its resource lays it out (rects in dialog units, 1.5 px by 1.625 px): the type combo box, the list headed "Enter type", Mass and Integrity, Game mode, Difficulty, the Explosion
-	// radio buttons, OK and Cancel. The parts keep their places; what a type shows is made visible (FUN_10004520), at once when the combo box's pick changes (CBN_SELCHANGE, FUN_100060e0).
-	std::string title;
-	std::vector<host::SimpleFormItem> items;
-
-	host::SimpleEdit_Items(simpleEdit, &title, &items);
-
-	auto const dx = [](int32_t u) { return (int32_t)(u * 3 / 2); };
-	auto const dy = [](int32_t u) { return (int32_t)(u * 13 / 8); };
-
-	host::DialogFormSpec spec;
-
-	spec.title = title;
-	spec.width = dx(302) + 10;
-	spec.height = dy(231) + 10;
-
-	auto const label = [&](char const *words, int32_t x, int32_t y)
-	{
-		host::DialogWidget one;
-
-		one.type = host::DialogWidgetType::Label;
-		one.text = words;
-		one.box = { dx(x), dy(y), 200, 16 };
-		spec.widgets.push_back(one);
-	};
-
-	// 0 label, 1 Type combo
-	label("Type of Object", 10, 10);
-
-	host::DialogWidget typeBox;
-
-	typeBox.type = host::DialogWidgetType::Combo;
-	typeBox.box = { dx(10), dy(24) - 4, dx(115), 18 };
-	typeBox.items = items[0].choices;
-	typeBox.text = items[0].value;
-
-	for (size_t i = 0; i < typeBox.items.size(); i++)
-	{
-		if (typeBox.items[i] == typeBox.text)
-		{
-			typeBox.selected = (int32_t)i;
-		}
-	}
-
-	spec.widgets.push_back(typeBox);
-
-	// 2 label, 3 the list headed "Enter type"
-	label("Enter type", 10, 45);
-
-	host::DialogWidget extraBox;
-
-	extraBox.type = host::DialogWidgetType::Combo;
-	extraBox.box = { dx(10), dy(60) - 4, dx(115), 18 };
-	spec.widgets.push_back(extraBox);
-
-	// 4 label, 5 Mass, 6 label, 7 Integrity
-	label("Mass (x100g)", 10, 85);
-
-	host::DialogWidget massBox;
-
-	massBox.type = host::DialogWidgetType::Edit;
-	massBox.box = { dx(10), dy(95), dx(48), 18 };
-	massBox.most = 10;
-	massBox.text = simpleEdit.massText;
-	spec.widgets.push_back(massBox);
-	label("Integrity", 65, 85);
-
-	host::DialogWidget integrityBox = massBox;
-
-	integrityBox.box = { dx(65), dy(95), dx(50), 18 };
-	integrityBox.text = simpleEdit.integrityText;
-	spec.widgets.push_back(integrityBox);
-
-	// 8 label "Game mode", 9-11 Marine Alien Predator, 12 label "Difficulty", 13-15 Easy Medium Hard: ALL HIDDEN, as inteng hides them (resource 129's style 0x48010003 / 0x48000007 has no
-	// WS_VISIBLE, and the simple object's init FUN_10003de0 never shows them; Bishop's ruling for the same boxes of the bad guy, 11-16). Their ticks stay in the widgets, so OK gives the
-	// flags back as they were. (Fixed 11-17 by Drake: they were shown and could be changed.)
-	label("Game mode", 165, 95);
-	spec.widgets.back().visible = false;
-	label("Difficulty", 230, 95);
-	spec.widgets.back().visible = false;
-
-	char const *const modeWords[3] = { "Marine", "Alien", "Predator" };
-	char const *const difficultyWords[3] = { "Easy", "Medium", "Hard" };
-
-	for (int i = 0; i < 6; i++)
-	{
-		host::DialogWidget check;
-
-		check.type = host::DialogWidgetType::Check;
-		check.text = i < 3 ? modeWords[i] : difficultyWords[i - 3];
-		check.box = { dx(i < 3 ? 171 : 235), dy(105 + (i % 3) * 10) + 8, 14, 14 };
-		check.group = -1;
-		check.visible = false;   // hidden as inteng (above)
-
-		for (host::SimpleFormItem const &one : items)
-		{
-			if (one.kind == 1 && one.label == check.text)
-			{
-				check.checked = one.value == "y";
-			}
-		}
-
-		spec.widgets.push_back(check);
-
-		host::DialogWidget words;
-
-		words.type = host::DialogWidgetType::Label;
-		words.text = check.text;
-		words.box = { check.box.x + 18, check.box.y, 90, 16 };
-		words.visible = false;
-		spec.widgets.push_back(words);
-	}
-
-	// then the Explosion group: a label, four radio buttons (one group) each with its words
-	label("Explosion", 200, 10);
-
-	size_t const firstRadio = spec.widgets.size();
-
-	for (int i = 0; i < 4; i++)
-	{
-		host::DialogWidget radio;
-		static char const *const explosionWords[4] = { "None", "Small", "Big", "Molotov" };
-
-		radio.type = host::DialogWidgetType::Check;
-		radio.text = explosionWords[i];
-		radio.group = 0;
-		radio.box = { dx(205), dy(20 + i * 10) + 8, 14, 14 };
-		radio.checked = items.back().value == explosionWords[i];
-		spec.widgets.push_back(radio);
-
-		host::DialogWidget words;
-
-		words.type = host::DialogWidgetType::Label;
-		words.text = explosionWords[i];
-		words.box = { radio.box.x + 18, radio.box.y, 90, 16 };
-		spec.widgets.push_back(words);
-	}
-
-	host::DialogWidget ok, cancel;
-
-	ok.type = host::DialogWidgetType::Button;
-	ok.text = "OK";
-	ok.answer = host::kDialogOk;
-	ok.box = { dx(55), dy(190), dx(50), 22 };
-	cancel.type = host::DialogWidgetType::Button;
-	cancel.text = "Cancel";
-	cancel.answer = host::kDialogEscape;
-	cancel.box = { dx(170), dy(190), dx(50), 22 };
-	spec.widgets.push_back(ok);
-	spec.widgets.push_back(cancel);
-
-	// the parts a type shows: set now and again whenever the type's pick changes
-	static size_t const kTypeCombo = 1, kExtraLabel = 2, kExtraCombo = 3, kMassLabel = 4, kMassEdit = 5, kIntegrityLabel = 6, kIntegrityEdit = 7;
-
-	auto const layoutFor = [](std::vector<host::DialogWidget> &widgets, int32_t type, int32_t extra)
-	{
-		host::SimpleLayout const layout = host::SimpleEdit_LayoutFor(type);
-
-		widgets[kExtraLabel].visible = layout.extra;
-		widgets[kExtraCombo].visible = layout.extra;
-		widgets[kExtraCombo].items = layout.extraChoices;
-		widgets[kExtraCombo].listOpen = false;
-		widgets[kExtraCombo].selected = layout.extra ? host::SimpleEdit_ExtraRow(type, extra) : -1;
-		widgets[kExtraCombo].text = widgets[kExtraCombo].selected >= 0 ? layout.extraChoices[(size_t)widgets[kExtraCombo].selected] : std::string();
-		widgets[kMassLabel].visible = layout.mass;
-		widgets[kMassEdit].visible = layout.mass;
-		widgets[kIntegrityLabel].visible = layout.mass;
-		widgets[kIntegrityEdit].visible = layout.mass;
-	};
-
-	layoutFor(spec.widgets, simpleEdit.draft.type, simpleEdit.draft.extra);
-
-	spec.onChange = [layoutFor](std::vector<host::DialogWidget> &widgets, size_t changed)
-	{
-		int32_t type = 0;
-
-		if (changed == kTypeCombo && host::SimpleEdit_TypeOfWord(widgets[kTypeCombo].text, &type))
-		{
-			simpleEdit.draft.type = type;
-			layoutFor(widgets, type, simpleEdit.draft.extra);
-		}
-	};
-
-	(void)firstRadio;
-
-	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		if (answer != host::kDialogOk)
-		{
-			simpleEdit.open = false;
-			return;
-		}
-
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-		if (!open || !open->Level())
-		{
-			return;
-		}
-
-		// the controls' words in the order of SimpleEdit_Items for the picked type: the type, the list if shown, the number boxes if shown, the six boxes, the radio button that is on
-		std::vector<std::string> values;
-		bool const extraShown = widgets[3].visible, massShown = widgets[5].visible;
-
-		values.push_back(widgets[1].text);
-
-		if (extraShown)
-		{
-			values.push_back(widgets[3].text);
-		}
-
-		if (massShown)
-		{
-			values.push_back(widgets[5].text);
-			values.push_back(widgets[7].text);
-		}
-
-		for (size_t i = 8; i < widgets.size(); i++)
-		{
-			host::DialogWidget const &one = widgets[i];
-
-			if (one.type == host::DialogWidgetType::Check && one.group < 0)
-			{
-				values.push_back(one.checked ? "y" : "n");
-			}
-		}
-
-		std::string explosion;
-
-		for (size_t i = 8; i < widgets.size(); i++)
-		{
-			if (widgets[i].type == host::DialogWidgetType::Check && widgets[i].group == 0 && widgets[i].checked)
-			{
-				explosion = widgets[i].text;
-			}
-		}
-
-		values.push_back(explosion);
-
-		unsigned const generation = open->Generation();
-		std::string words;
-		host::SimpleAnswer const result = host::SimpleEdit_Answer(open, open->Level(), &simpleEdit, values, &words);
-
-		if (open->Generation() != generation)
-		{
-			LoadTheObjectListAgain();
-		}
-
-		if (result == host::SimpleAnswer::Message)
-		{
-			while (!words.empty() && words.back() == '\n')
-			{
-				words.pop_back();
-			}
-
-			DialogMessage(words, []() { SimpleEditShow(); });   // inteng: the box "Object Edit", then the window is still open
-		}
-		else if (result == host::SimpleAnswer::Done)
-		{
-			Answer("Object properties changed");
-		}
-		else
-		{
-			Answer("Edit: " + words);
-		}
-	});
-}
-
-static void SimpleEditOpen()
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	host::Selected const selected = host::Selection_Get();
-
-	if (!open || !open->Level() || selected.kind != host::SelectedKind::Object)
-	{
-		Answer("Edit: select an object first");
-		return;
-	}
-
-	if (!host::SimpleEdit_Begin(open, open->Level(), selected.objectId, &simpleEdit))
-	{
-		Answer("Edit: the object could not be read");
-		return;
-	}
-
-	SimpleEditShow();
-}
-
-static bool specialNameGiven = false;   // SpecialRunCommand is running again from the Name Object dialog's OK
+bool specialNameGiven = false;   // SpecialRunCommand is running again from the Name Object dialog's OK
 
 // THE PLACED HIERARCHIES of Object Placement (OP-2, OP-105, NA-6): inteng makes an object of class 0x5ae6c4 (kind 5) for every PLACHIER of SPECLOBJ on entry (FUN_004e8cc0 <- 0x4d8e96), drawn as the
 // editor's icon shape 4 at its place with its turn (FUN_004e4ae0(5, ..., shape 4) at 0x4e8ce3-0x4e8d4a); it is in the placement list, so the click, Find and Num Objects take it, and it can be THE current
 // object (its select FUN_004e9b20 also puts the right-click pop-up on page 6: NOT BUILT here yet). The list is read again whenever the level changes (PlacementFrame).
-static std::vector<host::PlacedHierarchyInfo> placementHierarchies;
+std::vector<host::PlacedHierarchyInfo> placementHierarchies;
 int placedHierarchyCurrent = -1;   // its place in placementHierarchies; -1: none is current
 
-// THE NEW-SOUND DEFAULTS (DAT_005e7a60 / 64 / 68 inner, outer, volume; DAT_008f4f98 / 9c / a0 pitch, flags, probability: the constructor FUN_004ecb20 reads them): inteng's constants until P on a sound makes them
-// that sound's (OP-26, FUN_004d9af0 0x4dbe1c-0x4dbf6c); every later Create > Sound takes them. The ranges are kept in the game's millimetres (inteng keeps its own units, the file's x 100 x the scale).
-struct SoundDefaults
-{
-	bool set = false;
-	double innerMm = 0.0, outerMm = 0.0;
-	int32_t volume = 0, pitch = 0, flags = 0, probability = 0;
-};
-
-static SoundDefaults soundDefaults;
+SoundDefaults soundDefaults;
 
 // Object > Edit / E on a SOUND (OP-133a..c): inteng's Sound Edit window 1:1 (below, with the hierarchy's sound window)
-static void PlacedSoundEdit();
 
 // Object > Find (0x19) on Object Placement (OP-10; FUN_004d9af0 0x4da22b-0x4da528): inteng's list dialog FUN_00475bf0 titled "Select Object" (0x5cf744) holds the name of EVERY object of the placement list, in the
 // list's order (OP-2: the placed objects in the level's order, then the SPECLOBJ children in the file's order); Escape: nothing. A pick: the VIEW jumps to the object's place (the camera block's place, its turn
@@ -2469,7 +1358,7 @@ static void PlacedSoundEdit();
 // every special object, inteng's between the sounds and the particle generators (the dialog sorts its rows, so only two of one name could show it). (Note made current 11-17 by Drake, OP-10.)
 static std::string placementFindWords;
 
-static void PlacementFind()
+void PlacementFind()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	std::vector<host::PolyCountRow> rows;
@@ -2576,188 +1465,13 @@ static void PlacementFind()
 	});
 }
 
-static void SpecialRunCommand(int32_t command, bool soundsScreen)
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-	if (!open || !open->Level())
-	{
-		Answer("No level is held to work on");
-		return;
-	}
-
-	bool const create = command == 0x34 || command == 0x35 || command == 0x3a || command == 0x37 || command == 0x39;
-
-	// OP-12 / OP-47 (V-8, V-21): Edit (0x18, key E) and Delete (0x16) need Gravity off (0x4dc1fe); Delete does nothing while an object flies (0x4dc343): nothing happens, as in inteng
-	if ((command == 0x18 || command == 0x16) && (PlacementGravityOn() || (command == 0x16 && PlacementIsFlying())))
-	{
-		return;
-	}
-
-	// Create > AVP generator / Bad Guy / Sound / Particle Generator: inteng's "Name Object" dialog first (FUN_004d53d0 at 0x4daa1b, 0x4dab31, 0x4dad35, 0x4dac43; OP-24); Cancel makes nothing. The player
-	// start takes no name (0x4db273).
-	if (create && command != 0x3a && !specialNameGiven)
-	{
-		NameObjectBox("", [command, soundsScreen](std::string const &name)
-		{
-			specialMode.createName = name;
-			specialNameGiven = true;
-			SpecialRunCommand(command, soundsScreen);
-			specialNameGiven = false;
-		});
-		return;
-	}
-
-	// Object > Edit / E on the current SOUND: the sound's +0x38 (0x4ed060), edobtype's Sound Edit window (OP-133a..c)
-	if (command == 0x18 && specialMode.haveCurrent && specialMode.kind == host::SpecialKind::Sound && host::Selection_Get().kind != host::SelectedKind::Object)
-	{
-		PlacedSoundEdit();
-		return;
-	}
-
-	// Object > Find on Object Placement: inteng's "Select Object" list of every object (OP-10); the sounds screen keeps its own Find (the sounds only)
-	if (command == 0x19 && !soundsScreen)
-	{
-		PlacementFind();
-		return;
-	}
-
-	// an ordinary object selected after the special one: that one is the object the commands work on now
-	if (!create && host::Selection_Get().kind == host::SelectedKind::Object)
-	{
-		specialMode.haveCurrent = false;
-	}
-
-	specialMode.levelScale = local_scale > 0.0 ? local_scale : 1.0;
-	specialMode.soundsOnly = soundsScreen;
-	specialMode.useForm = true;
-
-	if (create)
-	{
-		// the view's place and turn (FUN_004d9af0: DAT_00962308 + 0x10 and +0x38): the file's place is the game's divided by the level's scale (object_setup.cpp:1225)
-		int32_t matrix[9];
-		int32_t heading = 0;
-		float quaternion[4] = { 0, 0, 0, 1 };
-
-		if (!theCamera || !LevelView_CameraMatrix(matrix) || !LevelView_CameraHeading(&heading))
-		{
-			Answer("Create: no frame has been drawn yet, so there is no view to make it at");
-			return;
-		}
-
-		LevelView_CameraQuaternion(quaternion);
-		specialMode.where = host::SpecialPlace();
-		specialMode.where.place[0] = (int32_t)(theCamera->x / specialMode.levelScale);
-		specialMode.where.place[1] = (int32_t)(theCamera->y / specialMode.levelScale);
-		specialMode.where.place[2] = (int32_t)(theCamera->z / specialMode.levelScale);
-		specialMode.where.heading = heading;
-		memcpy(specialMode.where.matrix, matrix, sizeof(matrix));
-		memcpy(specialMode.where.turn, quaternion, sizeof(quaternion));
-	}
-
-	unsigned const generation = open->Generation();
-	host::SpecialStep const step = host::SpecialMode_Command(open, &specialMode, command);
-
-	if (step.passOn)
-	{
-		if (command == 0x18 && host::Selection_Get().kind == host::SelectedKind::Object)
-		{
-			SimpleEditOpen();
-			return;
-		}
-
-		Answer(command == 0x16 ? "Delete: select an object first" : command == 0x19 ? "Find: nothing to find here" : "Edit: select an object first (Create makes a special one and selects it; Find on the sounds screen selects a sound)");
-		return;
-	}
-
-	if (create)
-	{
-		host::Selection_Clear();
-	}
-
-	// a NEW bad guy takes the new-bad-guy defaults the last Edit of a bad guy made (OP-132, FUN_004dd600 0x4dd65e-0x4dd692)
-	if (command == 0x35 && badGuyDefaults.set && open->Generation() != generation && specialMode.haveCurrent && specialMode.kind == host::SpecialKind::BadGuy)
-	{
-		std::vector<host::SpecialObject> all;
-
-		if (host::SpecialObjects_Read(open, &all) == host::SpecialResult::Done)
-		{
-			for (host::SpecialObject &one : all)
-			{
-				if (one.kind == host::SpecialKind::BadGuy && one.number == specialMode.number)
-				{
-					one.type = badGuyDefaults.type;
-					one.subType = badGuyDefaults.subType;
-					one.extra1 = badGuyDefaults.extra1;
-					one.extra2 = badGuyDefaults.extra2;
-					one.texture = badGuyDefaults.texture;
-					host::SpecialObject_Write(open, one);
-					break;
-				}
-			}
-		}
-	}
-
-	// a NEW sound takes the new-sound defaults when P has set them (OP-26)
-	if (command == 0x37 && soundDefaults.set && open->Generation() != generation && specialMode.haveCurrent && specialMode.kind == host::SpecialKind::Sound)
-	{
-		std::vector<host::SpecialObject> all;
-
-		if (host::SpecialObjects_Read(open, &all) == host::SpecialResult::Done)
-		{
-			for (host::SpecialObject &one : all)
-			{
-				if (one.kind == host::SpecialKind::Sound && one.number == specialMode.number)
-				{
-					auto const fileOf = [](double mm) { double const file = mm / specialMode.levelScale; return file > 2147483000.0 ? 2147483000 : (file < -2147483000.0 ? -2147483000 : (int32_t)file); };
-
-					one.inner = fileOf(soundDefaults.innerMm);
-					one.outer = fileOf(soundDefaults.outerMm);
-					one.volume = soundDefaults.volume;
-					one.pitch = soundDefaults.pitch;
-					one.soundFlags = soundDefaults.flags;
-					one.probability = soundDefaults.probability;
-					host::SpecialObject_Write(open, one);
-					break;
-				}
-			}
-		}
-	}
-
-	SpecialShow(step);
-
-	if (open->Generation() != generation)
-	{
-		LoadTheObjectListAgain();
-	}
-}
-
-static void SpecialTypedAnswer(std::string const &typed)
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-	if (!open || !open->Level())
-	{
-		Answer("No level is held to work on");
-		return;
-	}
-
-	unsigned const generation = open->Generation();
-
-	SpecialShow(host::SpecialMode_Typed(open, &specialMode, typed));
-
-	if (open->Generation() != generation)
-	{
-		LoadTheObjectListAgain();
-	}
-}
 
 // Construction > Miscellaneous > Fix tears between Objects (0x5a Selected, 0x5b All; FUN_0044ad20 / FUN_0044b1f0, p11-shape-handlers.md sections 4, 8, 47, 48): the tolerance in millimetres is typed first
 // (inteng: "Fixing tears for selected objects" / "... for ALL objects", "Type in tolerance level for tear fixing (in mm)", the number kept in DAT_005ced28, 5 to start with), then the weld. Selected
 // wants exactly two objects ("You need to select two objects for tear fixing") and neither placed ("Tear fixing doesn't work on placed objects"); the FIRST selected is the one whose points move.
 bool ModuleObject(OpenLevelFile *open, int32_t moduleIndex, uint8_t id[8]);
-static int32_t tearTolerance = 5;
-static bool tearAll = false;
+int32_t tearTolerance = 5;
+bool tearAll = false;
 
 static void FixTearsStart(bool all)
 {
@@ -2912,6 +1626,7 @@ static void RecentrePolygonClicked(host::PickReport const &report)
 
 	Answer("Recentred: polygon " + std::to_string(hit.polygon) + " is now the centre of the shape, " + std::to_string((unsigned long long)users) + " object place(s) kept in the world");
 	LoadTheObjectListAgain();
+	TextureRecentredBox(target);   // inteng's "Recentred %s" box (texture_map_screen.cpp)
 }
 
 // Object Placement > Misc > Toggle Split Screen (0x52, FUN_004d9af0 0x4da0c0-0x4da17e; FUN_004d5980 enters, FUN_004d5d80 leaves, FUN_004d58e0 places the cameras): DAT_008f4f60 flips. On, the window is
@@ -2919,7 +1634,7 @@ static void RecentrePolygonClicked(host::PickReport const &report)
 // none) along z, x and y, looking along +z, +x and +y (the matrices 0x10000 / 0xffff0000 of FUN_004d5980). READ: which quarter takes which is not (the track screens' layout is used: z top left, x top
 // right, y bottom left). The picture is drawn by LevelView_SetExtraViews (level_view.h). The markers are not drawn while it is on.
 bool placementSplit = false;
-static bool splitCentreOn = false;      // the split screen's three views are put round this place (OP-45 / OP-46 / OP-40); off: round the camera
+bool splitCentreOn = false;      // the split screen's three views are put round this place (OP-45 / OP-46 / OP-40); off: round the camera
 static int32_t splitCentre[3] = { 0, 0, 0 };   // game units (mm)
 static bool placementText = true;       // T: inteng's text switch DAT_005fd69c (1 at start; T flips it, 0x4dd0cd-0x4dd0ef; the frame's text is drawn only when it is on, 0x4dd126): all of Object Placement's text lines, and the names beside the markers (the owner's addition) with them
 static bool LinkedObjectWorld(int32_t out[3], int32_t *radius = nullptr, bool *special = nullptr, uint8_t *idOut = nullptr);
@@ -3120,7 +1835,7 @@ static void MoveRelativeModuleStart()
 // = 9; off, +0x1c4 = 0: inteng's ENGINE then moves those blocks (they fall and land), and the level file changes only when the objects are saved after (Mode > Save, Exit, Tab: each object's save
 // writes its block's place). Ours (Drake 11-17, Bishop's ruling: the game's own code): LevelView_SetGravity gives the game's inanimate objects of those types to avpx's ObjectDynamics, which runs
 // each frame of the screen while Gravity is on (LevelView_GravityStep); PlacementGravityFlush writes the places the engine moved them to into the level before a save.
-static bool placementGravity = false;
+bool placementGravity = false;
 static void PlacementGravityFlush();
 
 bool PlacementGravityOn()
@@ -3339,7 +2054,7 @@ static void DeleteTheSelectedObject()
 std::string quickCreateWords;
 // Where a shape the level doesn't hold is looked for ([Editor] ShapeFolder= in AVP_OpenInteng.ini; empty: nowhere): shape_import.h. Held to the data
 // folder's rules (SaveFolder_WhyNotUsable) when the program starts; an unusable one is left empty and the log says why.
-static std::string shapeFolder;
+std::string shapeFolder;
 
 // The view's place in the FILE's units (inteng: the view block's place / DAT_00607bd8, which is 100 x the level's scale, by ftol: the game's millimetres divided by the scale, cut toward 0). The object makers
 // (object_make.h, object_edit.h) write the place they are given into the object's header as it is.
@@ -3433,6 +2148,7 @@ static void QuickCreateAtTheView(int32_t command, bool importAsked)
 	}
 
 	LoadTheObjectListAgain();
+	PutTheNewObjectInPlay();   // OP-26c: in the game's view at once
 	MakePlacedObjectCurrent(newId);
 	quickCreateWords = "Object " + name + " made at the view";
 	statusWords = quickCreateWords.c_str();
@@ -3446,6 +2162,17 @@ static void QuickCreateAtTheView(int32_t command, bool importAsked)
 // to the view's turn.
 static uint8_t duplicateFrom[host::kSelectionIdBytes];
 static std::string duplicateWords;
+
+// OP-26c (found 11-18 on the kens-co-op bunker switch): a NEW object is in play at once, as inteng's FUN_004e0ed0 makes it in its own scene. Ours made it in the working bytes only, and the
+// game's view loads them at a screen change (ShowTheWorkingBytes, the view gap), so a P copy was not drawn ("selection: in play no") until the next screen. Now the view loads the working bytes
+// as soon as the object is made (the camera stays the editor's own). Not while a live copy flies or a ghost shows (their blocks belong to the level loaded): the next screen change shows it.
+void PutTheNewObjectInPlay()
+{
+	if (!LevelView_FlyActive() && !LevelView_GhostActive())
+	{
+		ShowTheWorkingBytes();
+	}
+}
 
 static void PlacementDuplicateNamed(std::string const &typed)
 {
@@ -3539,6 +2266,7 @@ static void PlacementDuplicateNamed(std::string const &typed)
 		duplicateWords = "Object " + typed + " made at the view (a copy of the whole object: its shape has no outside file name)";
 	}
 
+	PutTheNewObjectInPlay();
 	MakePlacedObjectCurrent(madeId);
 	Answer(duplicateWords);
 }
@@ -3798,8 +2526,8 @@ int32_t strategyViewAdd = 0;   // the Add Flag command of the flag in view (the 
 // every mode's start restores. F10 is slot 9 like the others (Windows sends it as a system key; the editor's window handles it as the F key it is, Bishop 2026-11-16).
 static FlyCamera cameraSlots[12];
 
-// The camera file's slots (camera_file.h) and the editor's camera: the turn matrix is the Euler turn (look, turn, roll) the editor's camera is made of (level_view.cpp, PutTheEyes). The game's MatrixToEuler reads the other way
-// round to CreateEulerMatrix (LevelView_CameraHeading transposes the same way), so the matrix is turned over first.
+// The camera file's slots and the editor's camera. form: slot.matrix is CreateEulerMatrix's own (the game's, VDB_Mat for no look); camera_file.cpp turns the file's inteng form over.
+// form: MatrixToEuler takes CreateEulerMatrix's TURNED OVER (as LevelView_CameraHeading), so the slot's is turned over first.
 static FlyCamera CameraOfFileSlot(host::CameraFileSlot const &slot)
 {
 	MATRIXCH matrix;
@@ -3913,9 +2641,9 @@ static host::LevelSaveSitting levelSaveSitting;   // this run's saves: the first
 // STRATEGY DATA'S "CHANGED" (strategy-data.md S-10, S-5; reassess/strategy-data-verify-frost.md W-3): inteng's mark DAT_00914950 is cleared on EVERY entry of the mode (FUN_00522ab0 0x522ae2,
 // Object Placement's Tab included) and by its Save (FUN_005282d0 0x52831b), and set only by the mode's own edits (its 30 writers, all in 0x5286b0-0x53b7a9). So a change made before the mode
 // was entered (Object Placement's, carried in by Tab) does not make Exit ask. Ours: the level's generation at the entry or the last Save, and strategyMarkedChanged for the marks that change no bytes.
-static unsigned strategyCleanGeneration = ~0u;
+unsigned strategyCleanGeneration = ~0u;
 
-static void StrategyCleanNow()   // W-3: the entry (FUN_00522ab0 0x522ae2) and Save (0x52831b)
+void StrategyCleanNow()   // W-3: the entry (FUN_00522ab0 0x522ae2) and Save (0x52831b)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
@@ -3923,7 +2651,7 @@ static void StrategyCleanNow()   // W-3: the entry (FUN_00522ab0 0x522ae2) and S
 	strategyMarkedChanged = false;
 }
 
-static bool StrategyChanged()   // W-3: DAT_00914950 as FUN_00524d00 0x524d1d reads it
+bool StrategyChanged()   // W-3: DAT_00914950 as FUN_00524d00 0x524d1d reads it
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
@@ -4356,190 +3084,6 @@ static bool ShotKey(UINT message, WPARAM wParam, LPARAM lParam)
 	return false;
 }
 
-// Copy Track and Paste Track Absolute (Object Placement; track_edit.h, inteng's FUN_004f2ff0 and FUN_004f3330). The clipboard is the editor's, kept
-// until the next copy, as inteng keeps its own.
-static host::TrackClip trackClipboard;
-
-static void CopyTheTrack()
-{
-	host::Selected const selected = host::Selection_Get();
-
-	if (selected.kind != host::SelectedKind::Object)
-	{
-		statusWords = "Copy Track: select an object first";
-		return;
-	}
-
-	host::TrackEditResult const result = host::TrackCopy(LevelObjects_OpenForEdit(), selected.objectId, &trackClipboard);
-
-	statusWords = result == host::TrackEditResult::Done ? "Track copied" : host::TrackEditWords(result);
-
-	if (result == host::TrackEditResult::NoTrack)
-	{
-		DialogMessage(host::TrackEditWords(result));   // inteng: FUN_00474030 "Object doesn't have a track" shown by FUN_0057c800 (FUN_004f2ff0 0x4f303d)
-	}
-}
-
-// inteng's Paste Track (FUN_004f3330 0x4f368f-0x4f36af) loads the pasted track into the track editor and shows page 2, state 2: the track is being edited
-static void TrackEditAfterPaste(char const *what, bool followTheObject = true);
-
-static void PasteTheTrackAbsolute()
-{
-	host::Selected const selected = host::Selection_Get();
-
-	if (selected.kind != host::SelectedKind::Object)
-	{
-		statusWords = "Paste Track: select an object first";
-		return;
-	}
-
-	host::TrackEditResult const result = host::TrackPasteAbsolute(LevelObjects_OpenForEdit(), selected.objectId, trackClipboard);
-
-	if (result == host::TrackEditResult::ClipboardEmpty)
-	{
-		DialogMessage(host::TrackEditWords(result));   // inteng: FUN_00474030 + FUN_0057c800 (FUN_004f3330 0x4f3373 / 0x4f33cc)
-	}
-
-	if (result == host::TrackEditResult::Done)
-	{
-		trackDirty = true;
-		LoadTheObjectListAgain();
-		ShowTheSelected(host::Selection_Get());
-		statusWords = "Track pasted (absolute)";
-		TrackEditAfterPaste("Track pasted (absolute)", false);
-	}
-	else
-	{
-		statusWords = host::TrackEditWords(result);
-	}
-}
-
-static void PasteTheTrackRelative()
-{
-	host::Selected const selected = host::Selection_Get();
-
-	if (selected.kind != host::SelectedKind::Object)
-	{
-		statusWords = "Paste Track: select an object first";
-		return;
-	}
-
-	host::TrackEditResult const result = host::TrackPasteRelative(LevelObjects_OpenForEdit(), selected.objectId, trackClipboard);
-
-	if (result == host::TrackEditResult::ClipboardEmpty)
-	{
-		DialogMessage(host::TrackEditWords(result));   // inteng: FUN_00474030 + FUN_0057c800 (FUN_004f3330 0x4f3373 / 0x4f33cc)
-	}
-
-	if (result == host::TrackEditResult::Done)
-	{
-		trackDirty = true;
-		LoadTheObjectListAgain();
-		ShowTheSelected(host::Selection_Get());
-		statusWords = "Track pasted (relative)";
-		TrackEditAfterPaste("Track pasted (relative: turned and moved onto the object)");
-	}
-	else
-	{
-		statusWords = host::TrackEditWords(result);
-	}
-}
-
-// ---- TRACK EDITING: inteng's Edit Track (0x36) and the pages 2 to 5 of its placement menu (track_editor.h has the state machine and the commands; track-menu-pairs.md the menus).
-// This is the screen's part: the 3D cursor, the prompts, the screen change, and PLAYING with the game's own track code (track_play_game.h), shown as a cross in the three views.
-bool trackShowStart = true;        // inteng's O: "Toggle display of section start position" (FUN_004f0c70 hides the start marker; 0x4dc8d7)
-static size_t trackObjectCount = 0;   // the objects of the level (inteng's DAT_008f4ef4), counted when Edit Track is chosen
-static int trackFlyBase[3] = { 0, 0, 0 };   // the camera's turn, look and roll when the marker was last taken: how far it has turned since is how far the marker turned
-static int32_t trackFlyOffset[3] = { 0, 0, 0 };
-bool trackTurnAboutPivot = false;   // inteng's P: "Switch between rotation about pivot and about centre": the Turn End's rotation
-host::TrackEditor trackEd;
-
-static bool TrackPivotEditing()
-{
-	return trackEd.state == host::TrackState::PivotEdit;
-}
-host::TrackPose trackPose = {};
-bool trackPlaying = false;
-static ULONGLONG trackPlayTick = 0;
-static std::vector<host::TrackLine> trackPlayBase;   // the lines of the track as they were when the play began
-static bool trackPlayBaseWanted = false;
-static std::string trackEditWords;
-static int trackPromptSound = 0;
-static int32_t const kTrackPrompt[] = { 0, kPromptTrackTime, kPromptTrackFlags, kPromptTrackSound, kPromptTrackDelete };   // host::TrackPrompt -> the prompt numbers of editor_actions.h (by name: cut 9 renumbered Turn End to 46, and the bare 41 here stayed behind)
-
-static size_t ScreenOfName(char const *name)
-{
-	for (size_t s = 0; s < host::kIntengScreenCount; s++)
-	{
-		if (strcmp(host::kIntengScreens[s].name, name) == 0)
-		{
-			return s;
-		}
-	}
-
-	return host::kIntengScreenCount;
-}
-
-size_t ScreenOfTable(char const *table)
-{
-	for (size_t s = 0; s < host::kIntengScreenCount; s++)
-	{
-		if (strcmp(host::kIntengScreens[s].table, table) == 0)
-		{
-			return s;
-		}
-	}
-
-	return host::kIntengScreenCount;
-}
-
-// Object Placement's Acoustic Mode (its menu page 7 in inteng): the screen "Acoustic" (reassess/object-placement.md AC-1 .. AC-9)
-static bool IsTheAcousticScreen(size_t screen)
-{
-	return screen < host::kIntengScreenCount && strcmp(host::kIntengScreens[screen].name, "Acoustic") == 0;
-}
-
-bool OnAcousticScreen()
-{
-	return IsTheAcousticScreen(barScreen);
-}
-
-bool OnTheTrackScreen()
-{
-	return barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Track Editing") == 0;
-}
-
-static void TrackStopPlaying()
-{
-	if (trackPlaying)
-	{
-		host::TrackPlay_Stop();
-		trackPlaying = false;
-	}
-}
-
-static void ShowTheScreen(size_t screen)
-{
-	if (screen < host::kIntengScreenCount && screen != barScreen)
-	{
-		size_t const was = barScreen;
-
-		barScreen = screen;
-		OnScreenChanged(was, screen);
-
-		if (strcmp(host::kIntengScreens[screen].name, "Strategy Data") == 0)
-		{
-			StrategyCleanNow();   // FUN_00522ab0 0x522ae2: DAT_00914950 = 0 on entry (Object Placement's Tab: FUN_00524ce0) (W-3)
-		}
-
-		if (!LoadTheMenus())
-		{
-			LogString("menus: the bar of screen " + std::to_string(barScreen) + " couldn't be made, so the editor closed");
-			running = false;
-			bRunning = false;
-		}
-	}
-}
 
 // ---- THE TRACK DIALOGS as inteng draws them (Track Properties: check boxes "Loop Track", "Loop back and forth", "Playing at start", "Use Track Smoothing" with OK and Cancel, FUN_004f4090; the sound dialog:
 // a file name, the ranges, the volume and pitch, loop, with OK and Cancel, edit_sound): a form over the level, in the same gray overlay as a prompt. Up / Down / Tab move between the rows, Space ticks a
@@ -4737,669 +3281,6 @@ void FormLines(std::string const &title, std::vector<std::string> *words)
 	words->push_back("Up / Down: move, Space: tick, Enter: OK, Esc: Cancel");
 }
 
-// What the command did, shown and done: the status line, the level's list, the 3D cursor, a prompt, the play, the way back to Object Placement
-static void TrackEditApply(host::TrackAction const &a)
-{
-	trackEditWords = a.words;
-	statusWords = trackEditWords.c_str();
-
-	if (a.stopPlay)
-	{
-		TrackStopPlaying();
-	}
-
-	if (a.markerTurnTaken && theCamera)
-	{
-		trackFlyBase[0] = theCamera->turn;   // the marker's turn is the section's now: counted again from here
-		trackFlyBase[1] = theCamera->look;
-		trackFlyBase[2] = theCamera->roll;
-
-		// ... and its place: the carry from where the marker is now (CAM-4: a swing about the pivot is in the place, not in the camera's offset)
-		double const scale = local_scale > 0.0 ? local_scale : 1.0;
-		int32_t const *const at = a.cursorSet ? a.cursor : threeCursor;
-
-		trackFlyOffset[0] = (int32_t)floor((double)at[0] * scale + 0.5) - theCamera->x;
-		trackFlyOffset[1] = (int32_t)floor((double)at[1] * scale + 0.5) - theCamera->y;
-		trackFlyOffset[2] = (int32_t)floor((double)at[2] * scale + 0.5) - theCamera->z;
-	}
-
-	if (a.changed)
-	{
-		trackDirty = true;
-		LoadTheObjectListAgain();
-		ShowTheSelected(host::Selection_Get());
-	}
-
-	if (a.cursorSet)
-	{
-		for (int axis = 0; axis < 3; axis++)
-		{
-			threeCursor[axis] = a.cursor[axis];
-		}
-	}
-
-	if (trackEd.state != host::TrackState::Off)
-	{
-		trackSection = (int32_t)trackEd.current;
-		trackDirty = true;
-	}
-
-	// Edit Pivot Point: FUN_004f3770 turns the split screen off first (0x4f37aa), then makes the three views
-	if (trackEd.state == host::TrackState::PivotEdit && placementSplit)
-	{
-		placementSplit = false;
-		splitCentreOn = false;
-	}
-
-	if (a.startPlay)
-	{
-		extern double local_scale;
-
-		host::TrackPlay_UseLevelScale(local_scale > 0.0 ? local_scale : 1.0);
-		host::TrackPlay_UseSoundDirectory(host::TrackLevelSoundDirectory(LevelObjects_OpenForEdit()));
-		host::TrackPlay_UseSilence(editorHiddenRun);
-		trackPlaying = host::TrackPlay_Start(a.playData, local_scale > 0.0 ? local_scale : 1.0, &trackPose, &a.playSounds);
-		trackPlayTick = GetTickCount64();
-		trackPlayBaseWanted = true;
-		trackDirty = true;
-
-		if (!trackPlaying)
-		{
-			trackEditWords = "Play Track: the game's track code could not start this track";
-			statusWords = trackEditWords.c_str();
-			host::TrackEdit_PlayEnded(&trackEd);
-		}
-	}
-
-	if (a.prompt == host::TrackPrompt::TrackFlags)
-	{
-		// Track Properties (FUN_004f4090): a 400 x 200 form, four check boxes at (0x10, 0x28 + 0x14 x n) with their words at (0x20, ...), Ok at (100, 0xa0) and Cancel at (200, 0xa0), ticked as the track's flags are
-		static char const *const labels[4] = { "Loop Track", "Loop back and forth", "Playing at start", "Use Track Smoothing" };
-		static char const letters[4] = { 'L', 'B', 'P', 'S' };
-		host::DialogFormSpec spec;
-
-		spec.title = "Track Properties";
-		spec.width = 400;
-		spec.height = 200;
-
-		for (int i = 0; i < 4; i++)
-		{
-			host::DialogWidget check, words;
-
-			check.type = host::DialogWidgetType::Check;
-			check.box = host::DialogRect{ 0x10, 0x28 + 0x14 * i - 0x0, 12, 12 };
-			check.checked = a.promptDefault.find(letters[i]) != std::string::npos;
-			check.text = labels[i];
-			words.type = host::DialogWidgetType::Label;
-			words.box = host::DialogRect{ 0x20, 0x28 + 0x14 * i, 200, 0x12 };
-			words.text = labels[i];
-			spec.widgets.push_back(check);
-			spec.widgets.push_back(words);
-		}
-
-		host::DialogWidget ok, cancel;
-
-		ok.type = host::DialogWidgetType::Button;
-		ok.box = host::DialogRect{ 100, 0xa0, 0x32, 0x10 };
-		ok.text = "Ok";
-		ok.answer = host::kDialogOk;
-		cancel.type = host::DialogWidgetType::Button;
-		cancel.box = host::DialogRect{ 200, 0xa0, 0x32, 0x10 };
-		cancel.text = "Cancel";
-		cancel.answer = host::kDialogEscape;
-		spec.widgets.push_back(ok);
-		spec.widgets.push_back(cancel);
-
-		trackPromptSound = a.soundIndex;
-		host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-		{
-			if (answer != host::kDialogOk)
-			{
-				Answer("Cancelled");
-				return;
-			}
-
-			std::string typed;
-			int box = 0;
-
-			for (host::DialogWidget const &w : widgets)
-			{
-				if (w.type == host::DialogWidgetType::Check)
-				{
-					typed += w.checked ? std::string(1, "LBPS"[box]) : std::string();
-					box++;
-				}
-			}
-
-			promptFor = kPromptTrackFlags;
-			promptText = typed.empty() ? std::string("0") : typed;
-			RunThePrompt();
-		});
-	}
-	else if (a.prompt == host::TrackPrompt::Sound)
-	{
-		// Sound / Start Sound / End Sound > Edit: inteng's FUN_004f2bf0, edobtype's Sound Edit window, the one the placed sounds and the particle generators open. In: the name; the two ranges in
-		// inteng's units (the file's x 100 x the scale: FUN_004f2af0 0x4f2b41; a new sound's 500000 / 1000000 as FUN_004f2a60 made them) x 1e-5 m; pitch x 0.0078125; volume x 100 x 0.007874016 %;
-		// Sound Loops the only live box (mask 2), ticked when the sound's bit 0 is set. Back after OK OR Cancel alike (not Cancel on a new sound: TB-T1 below): the four numbers through __ftol, bit 0 = Sound Loops, and the ranges into the
-		// file's units as the save makes them (FUN_004f1300 0x4f17bd: ftol(mem / unit)). (Until 2026-11-17 a gray form of our own, track-edit-facts.md named deviation 3; T-1 of
-		// reassess/track-editing-closeout-vasquez.md.)
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-		double const unit = 100.0 * (local_scale > 0.0 ? local_scale : 1.0);
-		auto const ftol = [](double v) { return !(v == v) ? 0 : (v >= 2147483647.0 ? 2147483647 : (v <= -2147483648.0 ? (int32_t)-2147483647 - 1 : (int32_t)v)); };
-		host::TrackSound const sound = a.sound;
-		uint32_t const memInner = a.soundNew ? 500000u : (uint32_t)ftol((double)sound.innerRange * unit);
-		uint32_t const memOuter = a.soundNew ? 1000000u : (uint32_t)ftol((double)sound.outerRange * unit);
-		host::SoundEditRecord const record = host::SoundEdit_IndexedRecord(sound.wav, memInner, memOuter, sound.pitch, sound.maxVolume, sound.flags, true);
-		std::string const soundDirectory = host::TrackLevelSoundDirectory(open);
-		std::string const folder = std::string(theGameFolder) + "\\sound\\" + soundDirectory + "\\";
-		int const index = a.soundIndex;
-
-		trackPromptSound = index;
-		SoundEditWindowOpen(record, folder, soundDirectory, [sound, index, unit, ftol, isNew = a.soundNew](host::SoundEditRecord const &back, bool ok)
-		{
-			// INTENG BUG TB-T1, FIXED (Bishop's ruling 11-17, track-editing-closeout-vasquez.md): inteng makes the new sound (FUN_004f2a60) before the window and keeps it on Cancel too, so
-			// Edit + Cancel on a missing sound left a "Not Set" sound in the level (the game finds no wav of that name and plays nothing). Ours: Cancel on a sound this Edit made adds
-			// nothing; OK on it, and OK or Cancel on a sound the track had, are inteng's
-			if (isNew && !ok)
-			{
-				return;
-			}
-
-			host::TrackSound now = sound;
-			int32_t inner = 0, outer = 0, pitch = 0, volume = 0, flags = 0;
-
-			host::SoundEdit_IndexedBack(back, sound.flags, &inner, &outer, &pitch, &volume, &flags);
-			now.wav = back.name;
-			now.innerRange = (uint32_t)ftol((double)(uint32_t)inner / unit);
-			now.outerRange = (uint32_t)ftol((double)(uint32_t)outer / unit);
-			now.pitch = pitch;
-			now.maxVolume = volume;
-			now.flags = flags;
-
-			host::TrackAction action;
-
-			host::TrackEdit_SetSound(LevelObjects_OpenForEdit(), &trackEd, index, now, &action);
-			TrackEditApply(action);
-		});
-	}
-	else if (a.prompt == host::TrackPrompt::SectionTime)
-	{
-		// inteng asks it with its text dialog (FUN_00474bc0, "Time for section" 0x5e9340): the seconds, Ok / Cancel
-		trackPromptSound = a.soundIndex;
-		TextAs(kPromptTrackTime, "Time for section :", a.promptDefault);
-	}
-	else if (a.prompt == host::TrackPrompt::DeleteTrack)
-	{
-		// inteng asks Yes / No (FUN_00474a40)
-		DialogConfirm("Delete this track?", [](bool yes)
-		{
-			if (yes)
-			{
-				promptFor = kPromptTrackDelete;
-				promptText = "yes";
-				RunThePrompt();
-			}
-		});
-	}
-	else if (a.prompt != host::TrackPrompt::None)
-	{
-		trackPromptSound = a.soundIndex;
-		memset(keyDown, 0, sizeof(keyDown));
-		promptFor = kTrackPrompt[(int)a.prompt];
-		promptText = a.promptDefault;
-	}
-
-	if (a.leave)
-	{
-		TrackStopPlaying();
-		ShowTheScreen(ScreenOfTable("0x5e51b8"));
-	}
-}
-
-static OpenLevelFile *TrackLevel()
-{
-	extern double local_scale;
-
-	host::TrackPlay_UseLevelScale(local_scale > 0.0 ? local_scale : 1.0);
-	return LevelObjects_OpenForEdit();
-}
-
-// A Track Editing item (inteng's command number): what it does is track_editor.cpp's switch of FUN_004d9af0
-static void TrackEditCommand(int32_t command)
-{
-	OpenLevelFile *const open = TrackLevel();
-
-	if (!open)
-	{
-		statusWords = "No level is held to work on";
-		return;
-	}
-
-	host::TrackAction action;
-	bool const pivotBefore = trackEd.state == host::TrackState::PivotEdit;
-
-	host::TrackEdit_Command(open, &trackEd, command, threeCursor, &action);
-
-	// Edit Pivot Point's start (FUN_004f3770: flies the object when it is not flying, then FUN_004704d0(10) at 0x4f3792; camera-saved-vasquez.md CS-18)
-	if (!pivotBefore && trackEd.state == host::TrackState::PivotEdit)
-	{
-		CameraPositionSaved(10);
-	}
-
-	TrackEditApply(action);
-}
-
-// SHIFT+T, "Updating track positions" (inteng's FUN_004efd50, object-placement.md OP-83, T-2 of reassess/track-editing-closeout-vasquez.md; Vasquez 11-17): on Object Placement, sound placement and
-// Track Editing alike (the key test 0x4dd0cd-0x4dd0e1 comes after FUN_004d9af0's state switch, so every state takes it). inteng's message box first (FUN_00474030 "Updating track positions"
-// 0x5e9324 shown by FUN_0057c800(100, 100): Ok), then every object holding a track has it re-based onto where the object is now and written, in the list's order (track_editor.h
-// TrackEdit_UpdatePositions); a track being edited is written first and Track Editing ends (INTENG BUG TB-T2, FIXED: inteng stays on Track Editing with no track)
-static void UpdateTrackPositions()
-{
-	DialogMessage("Updating track positions", []()
-	{
-		OpenLevelFile *const open = TrackLevel();
-
-		if (!open)
-		{
-			statusWords = "No level is held to work on";
-			return;
-		}
-
-		host::TrackAction action;
-
-		host::TrackEdit_UpdatePositions(open, &trackEd, &action);
-		TrackEditApply(action);
-	});
-}
-
-// The screen "Track Editing" was chosen (Object Placement's Edit Track, 0x36): the selected object's track is loaded. Gives back false (the screen stays where it was) when it cannot.
-static bool TrackEditEnter(bool followTheObject = true)
-{
-	OpenLevelFile *const open = TrackLevel();
-	host::Selected const selected = host::Selection_Get();
-
-	if (!open || selected.kind != host::SelectedKind::Object)
-	{
-		statusWords = "Edit Track: select an object first (click it, or choose it in the object list)";
-		return false;
-	}
-
-	host::TrackAction action;
-
-	if (!host::TrackEdit_Enter(open, selected.objectId, &trackEd, &action, followTheObject))
-	{
-		trackEditWords = action.words;
-		statusWords = trackEditWords.c_str();
-		return false;
-	}
-
-	trackSection = 0;
-
-	{
-		std::vector<host::LevelObject> everyObject;
-
-		LevelObjects_Read(&everyObject);
-		trackObjectCount = everyObject.size();
-	}
-
-	TrackEditApply(action);
-	return true;
-}
-
-// Paste Track: the pasted track is the one being edited (the Track Edit screen, state 2), as inteng shows it after FUN_004f3330
-static void TrackEditAfterPaste(char const *what, bool followTheObject)
-{
-	if (TrackEditEnter(followTheObject))
-	{
-		ShowTheScreen(ScreenOfName("Track Editing"));
-		trackEditWords = std::string(what) + ": " + trackEditWords;
-		statusWords = trackEditWords.c_str();
-	}
-}
-
-// The Track Edit screen is left some other way than Stop Track Edit (Back to Construction, the Screens menu): the editing stops as Stop Track Edit does
-static void TrackEditLeftByOtherWay()
-{
-	if (trackEd.state == host::TrackState::Off)
-	{
-		return;
-	}
-
-	OpenLevelFile *const open = TrackLevel();
-	host::TrackAction action;
-
-	if (open)
-	{
-		host::TrackEdit_Command(open, &trackEd, 0x51c, threeCursor, &action);
-	}
-
-	TrackStopPlaying();
-	trackEd.state = host::TrackState::Off;
-	trackEd.working.reset();   // (a track the loader refused is let go too: the level keeps the one it had)
-
-	if (action.changed)
-	{
-		trackDirty = true;
-		LoadTheObjectListAgain();
-		ShowTheSelected(host::Selection_Get());
-	}
-}
-
-// The prompts of the track items: Enter
-static void RunTrackPrompt(int32_t kind, std::string const &typed)
-{
-	OpenLevelFile *const open = TrackLevel();
-	host::TrackAction action;
-
-	if (!open)
-	{
-		statusWords = "No level is held to work on";
-		return;
-	}
-
-	if (kind == kTrackPrompt[(int)host::TrackPrompt::SectionTime])
-	{
-		host::TrackEdit_AnswerTime(open, &trackEd, typed, &action);
-	}
-	else if (kind == kTrackPrompt[(int)host::TrackPrompt::TrackFlags])
-	{
-		host::TrackEdit_AnswerFlags(open, &trackEd, typed, &action);
-	}
-	else if (kind == kTrackPrompt[(int)host::TrackPrompt::Sound])
-	{
-		host::TrackEdit_AnswerSound(open, &trackEd, trackPromptSound, typed, &action);
-	}
-	else
-	{
-		host::TrackEdit_AnswerDelete(open, &trackEd, typed, &action);
-	}
-
-	TrackEditApply(action);
-}
-
-// Each frame: a playing track is moved by the game's Update_Track_Position (frame time in 16.16 seconds, at most a quarter of a second so a slow frame does not skip a section)
-// The track in the 3D view (inteng shows it in states 2 to 4 as the two marker objects and the track's other markers in the world): every section as dim lines, the current section's start and end as crosses with the line
-// between (TrackView_Section, the same lines as the three views), the end marker (the 3D cursor) as a cross while the end is edited, and the object's place as a cross while the track plays. The track's numbers are the
-// file's units, the world's are those times local_scale. Made again only when something it shows changed. (Added 2026-11-15 by Melanikus (Frost).)
-// The track the screen draws: the one in memory while it is edited (the level's bytes keep the old one until Stop Track Edit), else the level's
-static host::TrackEditResult TrackClipNow(OpenLevelFile *open, uint8_t const *id, host::TrackClip *clip)
-{
-	if (host::TrackEdit_WorkingClip(trackEd, id, clip))
-	{
-		return host::TrackEditResult::Done;
-	}
-
-	return host::TrackCopy(open, id, clip);
-}
-
-static bool PlacementFlyHoldsTheCopy();   // Object Placement's F is flying the object as its live copy (defined with the fly state)
-static bool TrackMarkerSnapping();        // V snaps the track's flying end marker now (T-3b; defined with the snap state)
-
-// The object itself is shown at the current section's end (FUN_004f0da0): in the editing's states but the end edit (where it is the flying marker) and the play (T-3c)
-static bool TrackObjectAtEndWanted()
-{
-	return OnTheTrackScreen() && trackEd.working && trackEd.current < trackEd.working->track.sections.size() &&
-		(trackEd.state == host::TrackState::Loaded || trackEd.state == host::TrackState::PivotEdit) && !PlacementFlyHoldsTheCopy();
-}
-
-static void TrackWorldLines()
-{
-	// THE END MARKER IS THE REAL OBJECT (inteng's end edit works with the object itself, flown with F: FUN_004dd280, 0x4dc9a6): while the end is edited it is drawn at the marker's place and turn, live
-	{
-		bool const flyWanted = OnTheTrackScreen() && trackEd.state == host::TrackState::EndEdit && trackEd.working && trackEd.current < trackEd.working->track.sections.size();
-
-		if (flyWanted && !LevelView_FlyActive())
-		{
-			LevelView_FlyBegin(trackEd.id);
-		}
-
-		if (flyWanted && LevelView_FlyActive() && !TrackMarkerSnapping())   // (while V snaps the marker, the snap puts the live copy)
-		{
-			double const flyScale = local_scale > 0.0 ? local_scale : 1.0;
-			int32_t const world[3] = { (int32_t)floor((double)threeCursor[0] * flyScale + 0.5), (int32_t)floor((double)threeCursor[1] * flyScale + 0.5), (int32_t)floor((double)threeCursor[2] * flyScale + 0.5) };
-			float turned[4], base[4];
-
-			// turned from the marker's base: the section's end turn, or the start's after Jump To Start (T-3a)
-			if (host::TrackEdit_MarkerBase(trackEd, base) && host::TrackPlay_TurnedBy(base, trackEd.markerTurn[0], trackEd.markerTurn[1], trackEd.markerTurn[2], turned))
-			{
-				LevelView_FlyPut(world, turned);
-			}
-		}
-		else if (!flyWanted && LevelView_FlyActive() && !PlacementFlyHoldsTheCopy() && !TrackObjectAtEndWanted())   // (Object Placement's F holds the copy itself)
-		{
-			LevelView_FlyEnd();
-		}
-	}
-
-	// INTENG'S TWO OBJECTS OF THE CURRENT SECTION (T-3c of reassess/track-editing-closeout-vasquez.md; Bishop's ruling (b): our lines and crosses below stay, a named addition): FUN_004f0da0 puts
-	// the OBJECT itself at the current section's END (place +0x28..0x30, matrix +0x58) and the START MARKER, a copy of the object made when the track was loaded (FUN_004b2590 in FUN_004eff90), at
-	// its START (+0x1c..0x24, +0x34), at every section change, in every state of the editing; O moves the start marker out of sight (0x4dc8d7). While the end is edited the object is the marker
-	// above; while the track plays it stays where the play put the section (inteng's play moves the object: ours plays the game's track code and shows a cross, NAMED).
-	{
-		bool const editing = OnTheTrackScreen() && trackEd.state != host::TrackState::Off && trackEd.working && trackEd.current < trackEd.working->track.sections.size();
-		double const scale = local_scale > 0.0 ? local_scale : 1.0;
-		auto const world = [scale](int32_t const file[3], int32_t out[3])
-		{
-			for (int axis = 0; axis < 3; axis++)
-			{
-				out[axis] = (int32_t)floor((double)file[axis] * scale + 0.5);
-			}
-		};
-
-		// the two poses are worked out again only when the track, the section or the state changed, or a copy was just made (each takes the game's track code twice)
-		static std::vector<uint8_t> lastTrack;
-		static size_t lastSection = ~(size_t)0;
-		static int lastState = -1;
-		std::vector<uint8_t> trackNow;
-
-		if (editing)
-		{
-			host::TrackData_Bytes(trackEd.working->track, &trackNow);
-		}
-
-		bool const same = editing && trackNow == lastTrack && lastSection == trackEd.current && lastState == (int)trackEd.state;
-
-		lastTrack = trackNow;
-		lastSection = trackEd.current;
-		lastState = editing ? (int)trackEd.state : -1;
-
-		if (TrackObjectAtEndWanted())
-		{
-			bool const begun = !LevelView_FlyActive() && LevelView_FlyBegin(trackEd.id);
-
-			if (!same || begun)
-			{
-				int32_t end[3], at[3];
-
-				host::TrackData_MarkerAt(trackEd.working->track, trackEd.current, true, host::TrackPlay_ObjectPlace, end);
-				world(end, at);
-				LevelView_FlyPut(at, trackEd.working->track.sections[trackEd.current].quatEnd);
-			}
-		}
-
-		if (editing && trackShowStart)
-		{
-			bool const begun = !LevelView_GhostActive() && LevelView_GhostBegin(trackEd.id);
-
-			if (!same || begun)
-			{
-				int32_t start[3], at[3];
-
-				host::TrackData_MarkerAt(trackEd.working->track, trackEd.current, false, host::TrackPlay_ObjectPlace, start);
-				world(start, at);
-				LevelView_GhostPut(at, trackEd.working->track.sections[trackEd.current].quatStart);
-			}
-		}
-		else if (LevelView_GhostActive())
-		{
-			LevelView_GhostEnd();
-		}
-	}
-
-	static bool shown = false;
-	static uint64_t key = ~0ull;
-
-	bool const want = OnTheTrackScreen() && trackEd.state != host::TrackState::Off;
-
-	if (!want)
-	{
-		if (shown)
-		{
-			LevelView_WorldLines(nullptr, 0);
-			shown = false;
-			key = ~0ull;
-		}
-
-		return;
-	}
-
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	host::Selected const picked = host::Selection_Get();
-	uint64_t now = (uint64_t)host::Selection_Changes() * 1000003ull + (uint64_t)(trackSection + 1) * 7919ull + (trackShowStart ? 1ull : 0ull) + (uint64_t)trackEd.state * 31ull + (trackDirty ? 99991ull : 0ull);
-
-	now = now * 1000003ull + (uint64_t)(uint32_t)threeCursor[0] * 31ull + (uint64_t)(uint32_t)threeCursor[1] * 17ull + (uint64_t)(uint32_t)threeCursor[2];
-	now = now * 1000003ull + (uint64_t)(int64_t)(trackEd.markerTurn[0] * 100.0) * 7ull + (uint64_t)(int64_t)(trackEd.markerTurn[1] * 100.0) * 13ull + (uint64_t)(int64_t)(trackEd.markerTurn[2] * 100.0);
-
-	if (trackPlaying)
-	{
-		now = ~0ull - 1;   // every frame while it plays: the object moves
-	}
-
-	if (shown && now == key)
-	{
-		return;
-	}
-
-	key = now;
-
-	double const scale = local_scale > 0.0 ? local_scale : 1.0;
-	std::vector<host::TrackLine> file;
-	host::TrackClip clip;
-
-	if (open && picked.kind == host::SelectedKind::Object && TrackClipNow(open, picked.objectId, &clip) == host::TrackEditResult::Done && clip.track.size() > 12)
-	{
-		uint8_t const *const payload = (uint8_t const *)clip.track.data() + 12;
-		size_t const length = clip.track.size() - 12;
-		int32_t maxAbs[3] = { 0, 0, 0 };
-		size_t count = 0;
-
-		if (host::TrackView_Section(payload, length, 0, -1, &file, maxAbs, &count) && count > 0)
-		{
-			for (host::TrackLine &line : file)
-			{
-				line.colour = 0xFF808080u;   // the whole track, grey
-			}
-
-			int32_t const section = (int32_t)(((int64_t)trackSection % (int64_t)count + (int64_t)count) % (int64_t)count);
-			std::vector<host::TrackLine> current;
-
-			if (host::TrackView_Section(payload, length, (int32_t)(400.0 / scale), section, &current, maxAbs, nullptr, !trackShowStart))
-			{
-				file.insert(file.end(), current.begin(), current.end());
-			}
-		}
-	}
-
-	// the end marker while the end is edited (a cross at the cursor), and the object while the track plays
-	auto const cross = [&](int32_t const place[3], uint32_t colour)
-	{
-		int32_t const half = (int32_t)(500.0 / scale);
-
-		for (int axis = 0; axis < 3; axis++)
-		{
-			host::TrackLine line = {};
-
-			memcpy(line.from, place, sizeof(line.from));
-			memcpy(line.to, place, sizeof(line.to));
-			line.from[axis] -= half;
-			line.to[axis] += half;
-			line.colour = colour;
-			file.push_back(line);
-		}
-	};
-
-	if (trackEd.state == host::TrackState::EndEdit)
-	{
-		cross(threeCursor, host::kTrackPivotColour);
-
-		// the marker's three axes, turned as the keys have turned it (red x, green y, blue z): the end turn Finish End Pos Edit takes
-		if (trackEd.working && trackEd.current < trackEd.working->track.sections.size())
-		{
-			float turned[4], base[4];
-			double axes[9];
-
-			if (host::TrackEdit_MarkerBase(trackEd, base) && host::TrackPlay_TurnedBy(base, trackEd.markerTurn[0], trackEd.markerTurn[1], trackEd.markerTurn[2], turned) && host::TrackPlay_QuatAxes(turned, axes))
-			{
-				uint32_t const colours[3] = { 0xFFFF4040u, 0xFF40FF40u, 0xFF4040FFu };
-				double const length = 900.0 / scale;
-
-				for (int axis = 0; axis < 3; axis++)
-				{
-					host::TrackLine line = {};
-
-					for (int k = 0; k < 3; k++)
-					{
-						line.from[k] = threeCursor[k];
-						line.to[k] = threeCursor[k] + (int32_t)floor(axes[axis * 3 + k] * length + 0.5);
-					}
-
-					line.colour = colours[axis];
-					file.push_back(line);
-				}
-			}
-		}
-	}
-
-	if (trackPlaying)
-	{
-		cross(trackPose.place, host::kTrackOffsetColour);
-	}
-
-	std::vector<host::TrackLine> world = file;
-
-	for (host::TrackLine &line : world)
-	{
-		for (int axis = 0; axis < 3; axis++)
-		{
-			line.from[axis] = (int32_t)floor((double)line.from[axis] * scale + 0.5);
-			line.to[axis] = (int32_t)floor((double)line.to[axis] * scale + 0.5);
-		}
-	}
-
-	LevelView_WorldLines(world.data(), world.size());
-	shown = true;
-
-	if (!TrackPivotEditing())
-	{
-		trackDirty = false;   // the three views (Pivot Edit) keep it for their own lines
-	}
-}
-
-static void TrackPlayFrame()
-{
-	if (!trackPlaying)
-	{
-		return;
-	}
-
-	ULONGLONG const now = GetTickCount64();
-	ULONGLONG elapsed = now - trackPlayTick;
-
-	trackPlayTick = now;
-
-	if (elapsed > 250)
-	{
-		elapsed = 250;
-	}
-
-	if (!host::TrackPlay_Step((int32_t)(elapsed * 65536 / 1000), &trackPose))
-	{
-		TrackStopPlaying();
-		host::TrackEdit_PlayEnded(&trackEd);
-		trackEditWords = "The track has reached its end (choose Play Track to play it again)";
-		statusWords = trackEditWords.c_str();
-	}
-}
 
 // ---- THE MODE'S EXIT (the exit sweep). Every inteng mode's Exit does the same four things, read in each handler: (1) the mode's own write-back of what it holds (Path: the working path, FUN_004fab40; Hierarchy:
 // FUN_00481b60 when it changed; Waypoint, Light Sourcing, Object Placement, the others: what they hold is in the level already here), (2) FUN_004719e0: the LEVEL FILE IS WRITTEN (silently, the old editor
@@ -5588,11 +3469,13 @@ static bool stabilityPolygons = false;   // T: the faces as polygons (the cross)
 static int32_t stabilityMin[3], stabilityMax[3];
 
 // Strategy Data runs one of the loops whose frame is FUN_00529370 (the flag page FUN_00525700, Stability FUN_00527370, the volume editor FUN_005277c0, the collector FUN_00526bf0, the pick loop
-// FUN_00527540): only there Insert / Home zoom (0x5293a2 / 0x5293b0). The screen's own page 0 (FUN_00522980) and a kind's Edit view (its own loop) read neither (strategy-data.md S-57)
-static bool StrategyInASubLoop()
+// FUN_00527540): only there Insert / Home zoom (0x5293a2 / 0x5293b0). The screen's own page 0 (FUN_00522980) and a kind's Edit view (its own loop) read neither (strategy-data.md S-57).
+// The volume editor, the collector and the pick also run FROM a kind's Edit view (V; a Lift's positions FUN_0052b360 0x52b42c, a switch's, a mission's or a track's targets; every object line's pick
+// FUN_00527540), so strategyEditFan is still set while they do: their loop is FUN_00529370's all the same (S-VOL-11, Drake 11-17; the collector and the pick, S-57, Bishop 11-18: before, the view's
+// flag shut them out, so H / N, Insert / Home and the "View Distance" line did nothing there). Only the view's own loop, with none of them running, reads none of these.
+bool StrategyInASubLoop()
 {
-	// the volume editor runs from a kind's Edit view (V), so strategyEditFan is still set while it does; its loop is FUN_00529370's all the same (S-VOL-11, Drake 11-17)
-	return OnStrategyScreen() && (volume.on || (!strategyEditFan && (strategyFlagPage || stabilityActive || copyCollecting || strategyPick != 0 || !strategyPickField.empty())));
+	return OnStrategyScreen() && (volume.on || strategyFlagPage || stabilityActive || copyCollecting || strategyPick != 0 || !strategyPickField.empty());
 }
 
 std::string strategyMessage;          // an on-screen message of Strategy Data at (200, 100) (FUN_0057bd40(200, 100, 0, words)), gone after 700 ms (FUN_00529220 waits that long for a click or key)
@@ -5767,7 +3650,6 @@ static int32_t moveRelLastDistance = 0;   // inteng keeps the last distance and 
 static int moveRelMoverKind = 0;   // 1: the flying object (its live pose; the file gets it when the flight stops, as inteng's block); 2: the camera
 static bool PlacementFlyIsTheMover(uint8_t id[8]);                            // defined with the fly's state
 static void PlacementFlyTakePose(int32_t const world[3], float const turn[4]);   // defined with the fly's state
-static void DialogLine(std::string const &title, std::string const &label, std::string const &initial, size_t most, int32_t editHeight, std::function<void(std::string const &)> const &ok);
 static std::string AcousticShown(float value);
 static bool AcousticTyped(std::string const &typed, float *value);
 
@@ -6003,6 +3885,7 @@ bool IsTheTextureMapScreen(size_t screen)
 }
 
 void TextureModeStateReset();   // the mode's held states (reassess/mode-entry-exit-frost.md TM-E1 / TM-X2), defined with them below
+void TextureLeaveQuestion();   // FUN_0055c070(1): the question when the mode is left (texture_map_screen.cpp)
 
 static void EnterTextureMap()
 {
@@ -6013,6 +3896,7 @@ static void EnterTextureMap()
 
 	onTextureMap = true;
 	TextureModeStateReset();   // FUN_00544510 0x544551: the selection mode DAT_00914d9c = 0 on every entry (TM-E1)
+	if (ViewToggles_Now().headlight) ViewToggles_UseNow(host::ViewToggle::Headlight);   // 0x54bd9b: the headlight off at every entry (DAT_00962308 +0x84 = 0); Ctrl+B (0x13e) turns it on again
 	textureMapSavedMode = ViewToggles_Now().drawMode;
 	texturePolygons.clear();
 	ShowTheTexturePolygons();
@@ -6033,11 +3917,12 @@ void LeaveTextureMap()
 	}
 
 	TextureMergeLeave();   // Merge (sub-mode 2) lets its view and picks go (texture_submodes.cpp)
+	TextureMultiLeave();   // the multiple node mode (sub-mode 3) is left first (FUN_005604f0, texture_submodes.cpp)
 
-	TexturePolyApplyRemoved();   // inteng takes the flagged polygons out when the mode is left (FUN_0054bfd0 -> FUN_00563d90)
 	onTextureMap = false;
 	TextureWrapPolygons(texturePolygons);   // FUN_0054bfd0 0x54c0af: FUN_0056e0a0 brings each selected polygon onto its picture as it clears the list (texture_shared.h)
 	texturePolygons.clear();   // FUN_0054bfd0 "delete poly list": DAT_00914dcc freed (TM-X2)
+	TextureLeaveQuestion();   // 0x54c0d6: FUN_0055c070(1) asks to save; Yes saves, then takes the flagged polygons out (FUN_00563d90); No drops them
 	TextureModeStateReset();   // FUN_0054bfd0 frees the rest of the mode (TM-X2)
 	ShowTheTexturePolygons();
 
@@ -6113,7 +3998,7 @@ void ShowTheTexturePolygons()
 
 			done[i] = true;
 
-			if (worked && one.polygon >= 0 && (size_t)one.polygon < toItem.size() && shown.size() < kLevelViewMostHighlighted)
+			if (worked && one.polygon >= 0 && (size_t)one.polygon < toItem.size() && shown.size() < kLevelViewMostHighlighted && !TexturePolygonOutlineOff(one))   // (I, 0x105: hidden)
 			{
 				LevelViewHighlight item;
 
@@ -6191,7 +4076,7 @@ void ShowTheTexturePolygons()
 
 // HIERARCHY VIEW (hierarchy_view.h): a model shown in front of the camera, and the keys that run it. The game draws a free object only inside a room the camera sees, so the place is the lowest and farthest one
 // in front of the camera that is inside a room; AVP_HV_DIST and AVP_HV_DROP (millimetres) choose another, for finding a good one in a proof run.
-static std::string hierarchyWords;   // kept here so statusWords can point at it
+std::string hierarchyWords;   // kept here so statusWords can point at it
 
 int32_t hierarchyShownPlace[3] = { 0, 0, 0 };   // where the model was last put in the world (mm): the dummy object is drawn there
 
@@ -6213,19 +4098,19 @@ bool ShowTheModelInFront(char const *model, char const *hierarchy, int sequence,
 }
 
 // Hierarchy mode's T, W, C and Y switches (inteng's help keys)
-static bool hierarchyText = true;
-static bool hierarchyWire = false;
+bool hierarchyText = true;
+bool hierarchyWire = false;
 bool hierarchyCameraRoot = false;
-static bool hierarchyPlayAll = false;
+bool hierarchyPlayAll = false;   // Y, "Play commands affect all sequences" (the player's +0x88); Texture Map's + / - read it too
 // V / Shift+V (vertex selection): the points of the attached object's shape as the attachment sees them (hierarchy space, mm), drawn at the model's place; clicks take the nearest one on the screen
 std::vector<int32_t> hierarchySkin;
-static std::vector<int32_t> hierarchySkinFaces;   // its polygons (HierarchyEdit_SkinFaces): the vertex click must be on one of them (FUN_00485290, TB-2)
-static int hierarchyPickViewW = 0, hierarchyPickViewH = 0;   // the size of the view the last Hierarchy click was made in
+std::vector<int32_t> hierarchySkinFaces;   // its polygons (HierarchyEdit_SkinFaces): the vertex click must be on one of them (FUN_00485290, TB-2)
+int hierarchyPickViewW = 0, hierarchyPickViewH = 0;   // the size of the view the last Hierarchy click was made in
 bool hierarchyBones = false;   // B (command 0x5f, DAT_00637128): the box round the hierarchy's sections is shown (FUN_0047f4a0 makes it, FUN_0047f6fc hides it when off)
-static int hierarchyDetail = 0;   // U / I: the detail level shown (inteng's view +0x3c, 0 to 9; 0 the full shape): FUN_00477fb0 via the commands 0x41 / 0x42
+int hierarchyDetail = 0;   // U / I: the detail level shown (inteng's view +0x3c, 0 to 9; 0 the full shape): FUN_00477fb0 via the commands 0x41 / 0x42
 
 // The Hierarchy view's words are NOT on the status line: inteng draws them over the view every frame (HierarchyTextLines below, FUN_004889d0 0x48a07a-0x48a96b). The old status words are gone.
-static void HierarchyStatus()
+void HierarchyStatus()
 {
 }
 
@@ -6259,21 +4144,6 @@ void PlacementTextLines(std::vector<HierarchyTextLine> *out);
 static void CurrentObjectTextLines(std::function<void(std::string const &)> const &put, bool trackEditing);
 static model::AltLocations const *PlacementAltShown(OpenLevelFile *open, uint8_t const *id);
 
-static std::string HierarchyFlagName(int bit)
-{
-	static char const *const names[] = { "0 'Blocking'", "1 'Cause Damage'", "2 'Can be Blocked'", "3 'Invincible'", "4 'Left Step'", "5 'Right Step'", "6 'Hit Floor Thud'", "7 'Hit Floor Sound'", "8 'Metal Chink'",
-		"9 'Jump Now'", "'Combat Roll Left'", "'Combat Roll Right'", "'Swipe Sound'", "'Start Pushing'", "'Stop Pushing'", "'Start Moving'", "'Stop Moving'" };
-
-	return bit >= 0 && bit < 17 ? names[bit] : std::to_string(bit);   // FUN_00478f00; the others are the number
-}
-
-static std::string HierarchyFloat(char const *format, double a, double b = 0.0)
-{
-	char text[96];
-
-	_snprintf_s(text, sizeof(text), _TRUNCATE, format, a, b);
-	return text;
-}
 
 // TRACK EDITING DRAWS THIS (FUN_004d9af0's frame, FUN_0057b1b0 at x 0x10, y 16 x row; the rows count from 2: 0x4dc742-0x4dc79f): "View Distance :%d" (DAT_005fd678 over 500,000), "Num Objects :%d", the current
 // object's lines (CurrentObjectTextLines, 0x4dc7be: T-4, 11-17), then the state's
@@ -6284,7 +4154,9 @@ void TrackTextLines(std::vector<HierarchyTextLine> *out)
 {
 	out->clear();
 
-	if (!OnTheTrackScreen() || trackEd.state == host::TrackState::Off)
+	// T-4c, FIXED 11-18: in state 5 (Edit Pivot Point) FUN_004d9af0 calls FUN_004f3e30 and returns at 0x4d9b51, before every line below; FUN_004f3e30 (menu-reads-2.txt:9158-9235) draws a
+	// cross in each of the three views and no text. So nothing here in that state (ours drew View Distance, Num Objects, the Section and "Using pivot point")
+	if (!OnTheTrackScreen() || trackEd.state == host::TrackState::Off || trackEd.state == host::TrackState::PivotEdit)
 	{
 		return;
 	}
@@ -6294,7 +4166,7 @@ void TrackTextLines(std::vector<HierarchyTextLine> *out)
 	auto put = [&](std::string const &text) { out->push_back({ 16, row++, text }); };
 
 	put("View Distance :" + std::to_string((long long)(viewDistance / 500000)));
-	put("Num Objects :" + std::to_string((unsigned long long)trackObjectCount));
+	put("Num Objects :" + std::to_string((unsigned long long)PlacementObjectCount()));   // the same global as Object Placement's (T-4b)
 
 	// the current object's lines (0x4dc7be), then the state's header: inteng's line counter runs on, so the header comes after them (until 11-17 it was held at row 4)
 	CurrentObjectTextLines(put, true);
@@ -6409,608 +4281,6 @@ void WaypointTextLines(std::vector<HierarchyTextLine> *out)
 	}
 }
 
-void HierarchyTextLines(std::vector<HierarchyTextLine> *out)
-{
-	out->clear();
-
-	if (!onHierarchy || !HierarchyView_IsShown())
-	{
-		return;
-	}
-
-	int32_t row = 3;
-
-	auto put = [&](int32_t x, int32_t at, std::string const &text) { out->push_back({ x, at, text }); };
-
-	if (!hierarchyText)
-	{
-		put(0, row, "(Text off)");
-		return;
-	}
-
-	if (hierarchyPlayAll)
-	{
-		put(200, row, "Play commands affect all sequences");
-	}
-
-	if (hierarchyMode.vertexMode)
-	{
-		put(0, row++, "Vertex Selection Mode");
-	}
-
-	// the selected section (view +0x48): its name (FUN_0047fdd0), then FUN_0047fcb0's offset and quaternion. They are the section's own offset (+0x84..0x8c, set to the placement origin DAT_00637068/6c/70 = 0 each frame by
-	// FUN_0047ef70 0x47efc7) and its matrix (+0x90, set to the identity DAT_005d45d0 at 0x47efd3) turned into a quaternion (FUN_004de070: the identity gives 0, 0, 0, 1)
-	if (!hierarchyMode.section.empty())
-	{
-		put(0, row++, hierarchyMode.section);
-		put(0, row++, "Offset : X:0  Y:0  Z:0");
-		put(0, row++, "Rel Quat : X:0.0000  Y:0.0000  Z:0.0000  W:1.0000");
-	}
-
-	if (hierarchyMode.platformOn)
-	{
-		if (hierarchyMode.platform.lastAngle < 0)
-		{
-			put(0, row++, HierarchyFloat("Platform speed %.3f m/s", (double)hierarchyMode.platform.lastSpeed * 0.001));
-		}
-		else
-		{
-			put(0, row++, HierarchyFloat("Platform speed %.3f m/s (%.3f)", (double)hierarchyMode.platform.lastSpeed * 0.001, (double)hierarchyMode.platform.lastAngle * 0.001));
-		}
-	}
-
-	put(0, row++, "Poly Count 0");
-
-	if (hierarchyCameraRoot)
-	{
-		put(0, row++, "Use Camera Root");
-	}
-
-	put(0, row++, "Detail level " + std::to_string(hierarchyDetail));
-
-	int distance = 0;
-
-	if (HierarchyView_DetailDistance(hierarchyDetail, &distance))
-	{
-		put(0, row++, HierarchyFloat("Detail distance %.3fm", (double)distance * 0.001));
-	}
-
-	put(0, row++, HierarchyFloat("Current distance %.3fm", (double)HierarchyView_DistanceFromModel() * 0.001));
-
-	OpenLevelFile *const file = HierarchyFile();
-
-	// "Shape Set Collection: %s" (the selected collection, view +0x38) and a "Shape Set: %s" for each set applied (view +0x28)
-	if (file && hierarchyMode.collectionSelected)
-	{
-		std::vector<model::ShapeSetCollection> collections;
-
-		if (host::HierarchyEdit_Collections(file, &collections) == host::HierarchyEditResult::Done)
-		{
-			for (model::ShapeSetCollection const &one : collections)
-			{
-				if (one.number == hierarchyMode.collection)
-				{
-					put(0, row++, "Shape Set Collection: " + one.name);
-					break;
-				}
-			}
-		}
-	}
-
-	if (file && !hierarchyMode.applied.empty())
-	{
-		std::vector<model::AlternateSetInfo> alternates;
-
-		if (host::HierarchyEdit_AlternateSets(file, &alternates) == host::HierarchyEditResult::Done)
-		{
-			for (int32_t const member : hierarchyMode.applied)
-			{
-				for (model::AlternateSetInfo const &one : alternates)
-				{
-					if (one.number == member)
-					{
-						put(0, row++, "Shape Set: " + one.name);
-						break;
-					}
-				}
-			}
-		}
-	}
-
-	// what follows the main player, whether there is one or not (0x48a76e on): a blank row; the turret player's block (name, Timer, Seq. Time, Turret Angle, a blank row); each delta player's Timer and Seq. Time and a blank row
-	std::vector<host::SequenceInfo> sequences;
-
-	auto tail = [&]()
-	{
-		row++;
-
-		int turretTimer = 0, turretMs = 0;
-
-		if (HierarchyView_TurretFacts(&turretTimer, &turretMs))
-		{
-			int turretNumber = 0, turretSub = 0;
-			std::string turretName;
-
-			if (HierarchyView_TurretSequence(&turretNumber, &turretSub))
-			{
-				for (host::SequenceInfo const &one : sequences)
-				{
-					if (one.number == turretNumber && one.subNumber == turretSub)
-					{
-						turretName = one.name;
-						break;
-					}
-				}
-			}
-
-			put(0, row++, turretName);
-			put(0, row++, "Timer :" + std::to_string(turretTimer));
-			put(0, row++, HierarchyFloat("Seq. Time :%.1f sec", (double)turretMs * 0.001));
-			put(0, row++, "Turret Angle : " + std::to_string(HierarchyView_Elevation()));
-			row++;
-		}
-
-		int deltaTimers[16], deltaMs[16];
-		int const deltas = HierarchyView_DeltaFacts(deltaTimers, deltaMs, 16);
-
-		for (int i = 0; i < deltas; i++)
-		{
-			put(0, row++, "Timer :" + std::to_string(deltaTimers[i]));
-			put(0, row++, HierarchyFloat("Seq. Time :%.1f sec", (double)deltaMs[i] * 0.001));
-			row++;
-		}
-	};
-
-	// the main player: when a sequence has been chosen
-	if (!file || !hierarchyMode.sequenceSelected || host::HierarchyEdit_Sequences(file, hierarchyMode.hierarchy, &sequences) != host::HierarchyEditResult::Done || hierarchyMode.sequence >= sequences.size())
-	{
-		tail();
-		return;
-	}
-
-	host::SequenceInfo const &chosen = sequences[hierarchyMode.sequence];
-
-	put(0, row++, chosen.name);
-
-	uint32_t sequenceFlags = 0;
-	bool flagsPresent = false;
-
-	host::HierarchyEdit_ReadSequenceFlags(file, hierarchyMode.hierarchy, hierarchyMode.sequence, &sequenceFlags, &flagsPresent);
-
-	if (sequenceFlags & 1)
-	{
-		put(0, row++, "Upper Sequence");
-	}
-	else if (sequenceFlags & 2)
-	{
-		put(0, row++, "Lower Sequence");
-	}
-
-	if (sequenceFlags & 0x10)
-	{
-		put(0, row++, "No Interpolation");
-	}
-
-	if (sequenceFlags & 0x20)
-	{
-		put(0, row++, "1/2 Frame Rate");
-	}
-
-	// FUN_00478bb0: for each of the 23 flag bits the frames that have it, then each frame's sound
-	std::vector<host::FrameInfo> frames;
-	int keyFrame = 0;
-
-	if (host::HierarchyEdit_RootFrames(file, hierarchyMode.hierarchy, chosen.number, chosen.subNumber, &frames) == host::HierarchyEditResult::Done && !frames.empty())
-	{
-		for (int bit = 0; bit < 23; bit++)
-		{
-			std::string list;
-
-			for (size_t i = 0; i < frames.size(); i++)
-			{
-				if (frames[i].flags & (1u << bit))
-				{
-					list += (list.empty() ? "" : ",") + std::to_string(i);
-				}
-			}
-
-			if (!list.empty())
-			{
-				put(0, row++, "Flag " + HierarchyFlagName(bit) + " at " + list);
-			}
-		}
-
-		for (size_t i = 0; i < frames.size(); i++)
-		{
-			uint32_t const sound = (frames[i].flags >> 24) & 0x7f;
-
-			if (sound != 0)
-			{
-				put(0, row++, "Sound " + std::to_string(sound) + " at " + std::to_string(i));
-			}
-		}
-
-		// FUN_004790a0: the frame whose time range holds the player's time (the last one when none does)
-		int const timer = HierarchyView_Position();
-
-		keyFrame = (int)frames.size() - 1;
-
-		for (size_t i = 0; i < frames.size(); i++)
-		{
-			int const to = i + 1 < frames.size() ? frames[i + 1].at : 65536;
-
-			if (frames[i].at <= timer && timer < to)
-			{
-				keyFrame = (int)i;
-				break;
-			}
-		}
-	}
-
-	put(0, row++, "Key frame :" + std::to_string(keyFrame));
-	put(0, row++, "Timer :" + std::to_string(HierarchyView_Position()));
-
-	int32_t stored = 0;
-	bool storedPresent = false;
-
-	host::HierarchyEdit_ReadSequenceTime(file, hierarchyMode.hierarchy, hierarchyMode.sequence, &stored, &storedPresent);
-
-	if (storedPresent && stored != 0)
-	{
-		put(0, row++, HierarchyFloat("Seq. Time :%.1f sec  (%.1f)", (double)HierarchyView_SequenceMilliseconds() * 0.001, (double)stored * 0.001));
-	}
-	else
-	{
-		put(0, row++, HierarchyFloat("Seq. Time :%.1f sec", (double)HierarchyView_SequenceMilliseconds() * 0.001));
-	}
-
-	if (hierarchyMode.saveTimesOn)
-	{
-		put(0, row++, "(Saving Seq. Times)");
-	}
-
-	tail();
-}
-
-// inteng's Hierarchy keys that run the mode's commands (its help text, read from the exe; hierarchy-data-model.md): H select hierarchy, S select sequence, + / - sequence time, 0-9 add keyframe flag
-// (Shift: remove), Q apply frame sound (Shift: remove), D / F previous / next sequence, P / O start / stop, N / M previous / next key frame. Shift on S, + , -, P, O applies to the delta sequence, which is not built.
-// The current sequence's number and sub-number, from the file's list (hierarchyMode.sequence is its place)
-static bool HierarchyCurrentSequence(host::SequenceInfo *out, std::vector<host::SequenceInfo> *all)
-{
-	if (!onHierarchy || !hierarchyModelOpen || hierarchyMode.hierarchy.empty() || !hierarchyMode.sequenceSelected ||
-		host::HierarchyEdit_Sequences(&hierarchyModelFile, hierarchyMode.hierarchy, all) != host::HierarchyEditResult::Done || hierarchyMode.sequence >= all->size())
-	{
-		return false;
-	}
-
-	*out = (*all)[hierarchyMode.sequence];
-	return true;
-}
-
-// Ctrl+R (key word 'R' | Ctrl -> 0x39, FUN_0048cde0 0x48ce02; rows K-1, C-39): with a sequence open, FUN_00479590 -> FUN_0047f720 -> FUN_00480eb0 turns every frame of the ROOT section's current
-// sequence half round the vertical (the frames' chunks, so the file, and the player, so the view), then marks the file changed (DAT_00637134). No words on the screen.
-static void HierarchyTurnTheSequence()
-{
-	host::SequenceInfo current = { 0, 0, 0, false };
-	std::vector<host::SequenceInfo> all;
-
-	if (!HierarchyCurrentSequence(&current, &all))
-	{
-		return;
-	}
-
-	if (host::HierarchyEdit_TurnRootFrames(&hierarchyModelFile, hierarchyMode.hierarchy, current.number, current.subNumber) != host::HierarchyEditResult::Done)
-	{
-		Answer("Rotate sequence by 180 degrees: the sequence's frames could not be changed");
-		return;
-	}
-
-	HierarchyView_TurnRootSequence(current.number, current.subNumber);
-	Answer("Sequence rotated by 180 degrees");
-	hierarchyAnswerUntil = GetTickCount() + 5000;
-}
-
-// Ctrl+F (key word 'F' | Ctrl -> 0x3e, FUN_0048cde0 0x48cdfd; rows K-2, C-3e; not in Help): with a sequence open, FUN_004795d0: for EVERY sequence of the hierarchy, in the list's order, the player
-// takes it (FUN_004784e0) and poses its start (FUN_00478920), the LOWEST point of every section's posed shape is found (FUN_0047f900: the largest y, y pointing down, from -10000000), and every frame
-// of the ROOT section's sequence has it taken off its y (0x479670-0x4796a5): each sequence stands on the floor at its start. The player is left on the LAST sequence of the list. The file is
-// marked changed. Ours poses with the game's own pose (HierarchyPlayer, as Calculate Bounding Box does) in the game's unit, the file's for a model. NAMED: a sequence whose sections have no point
-// is left as it is (inteng would take -10000000 / its scale off).
-static void HierarchyPutSequencesOnTheFloor()
-{
-	host::SequenceInfo current = { 0, 0, 0, false };
-	std::vector<host::SequenceInfo> all;
-
-	if (!HierarchyCurrentSequence(&current, &all) || all.empty())
-	{
-		return;
-	}
-
-	host::HierarchyPlayer player;
-	std::string why;
-
-	if (!player.Load(hierarchyMode.modelName, hierarchyMode.hierarchy, nullptr, &why))
-	{
-		Answer("Put sequences on the floor: " + why);
-		return;
-	}
-
-	int done = 0;
-
-	for (host::SequenceInfo const &each : all)
-	{
-		int32_t low[3] = { 0, 0, 0 }, high[3] = { 0, 0, 0 };
-
-		if (!player.Start(each.number, each.subNumber, &why) || !player.Box(std::vector<int>(1, 0), low, high))
-		{
-			continue;
-		}
-
-		if (host::HierarchyEdit_LowerRootFrames(&hierarchyModelFile, hierarchyMode.hierarchy, each.number, each.subNumber, high[1]) == host::HierarchyEditResult::Done)
-		{
-			HierarchyView_LowerRootSequence(each.number, each.subNumber, high[1]);
-			done++;
-		}
-	}
-
-	// the player is left on the last sequence of the list (FUN_004784e0 for each, in turn): at timer 0, not running, its deltas let go
-	hierarchyMode.sequence = 0;
-	HierarchyStepSequence(-1);
-	Answer("Put " + std::to_string(done) + " sequence(s) on the floor");
-	hierarchyAnswerUntil = GetTickCount() + 5000;
-}
-
-// Ctrl+R and Ctrl+F (the key translator's Ctrl words, FUN_0048cde0 0x48cdfd-0x48ce18). They are read WITH Ctrl held, so the window's key step calls this one where Ctrl is held. They
-// were in HierarchyModeKey, which is reached only through the keys that want NO Ctrl (the window's "!ctrlHeld" step): there Ctrl+R never arrived from the real keyboard, and a scenario's
-// posted Ctrl got through only while ctrlHeld read the real keyboard and this read the key table (until 2f4e9ff made both read the table). True when the key was one of them.
-static bool HierarchyCtrlKey(WPARAM key)
-{
-	if (!onHierarchy || ShiftDown() || !KeyHeldNow(VK_CONTROL) || (key != 'R' && key != 'F'))
-	{
-		return false;
-	}
-
-	if (key == 'R')
-	{
-		HierarchyTurnTheSequence();
-	}
-	else
-	{
-		HierarchyPutSequencesOnTheFloor();
-	}
-
-	return true;
-}
-
-static bool HierarchyModeKey(WPARAM key)
-{
-	bool const shift = ShiftDown();
-
-	// Dietrich's HierarchyKey (below) has the keys of the model's time, sequences, key frames, sounds, the turret and the delta variants; this one takes only the keys it lacks: T, W, C and Return
-	// U / I (Alter detail level) and Shift+D (Set distance for current detail level, FUN_00479a80) are this one's too
-	bool const detailKey = !shift && (key == 'U' || key == 'I');
-	bool const distanceKey = shift && key == 'D';
-	bool const vertexKey = key == 'V';   // V: Toggle vertex selection (0x63); Shift + V: Add selected vertices to selected bone (0x61)
-	bool const deltaKey = shift && (key == 'S' || key == 'P' || key == 'O');   // the keys marked * apply to the delta sequence (inteng's help): commands 0x9 (select it), 0xb / 0xc (play / stop it)
-
-	if (!detailKey && !distanceKey && !deltaKey && !vertexKey && (shift || (key != 'T' && key != 'W' && key != 'C' && key != 'B' && key != VK_RETURN)))
-	{
-		return false;
-	}
-
-	if (vertexKey)
-	{
-		if (!onHierarchy || !hierarchyModelOpen)
-		{
-			Answer("Vertex selection: open a model with Select Hierarchy first");
-			return true;
-		}
-
-		HierarchyRunCommand(shift ? 0x61 : 0x63);
-		return true;
-	}
-
-	if (!shift && key == 'B')
-	{
-		hierarchyBones = !hierarchyBones;
-		Answer(hierarchyBones ? "Bones: on (the box round the sections' places is shown)" : "Bones: off");
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-		return true;
-	}
-
-	if (deltaKey)
-	{
-		if (key == 'S')
-		{
-			HierarchyRunCommand(0x9);       // Add delta: which delta sequence plays over the main one
-		}
-		else
-		{
-			// Shift+P / Shift+O: cases 0xb / 0xc (FUN_0048cde0 0x48ce40 / 0x48ce48): the CURRENT delta (the one last added, the player's +8) gets +0x28 = 1 / 0: it plays / stops
-			// (0x488b07-0x488b41; reassess/hierarchy-deltas-vasquez.md HD-19). No delta: nothing happens.
-			if (HierarchyView_SetDeltaPlaying(key == 'P'))
-			{
-				Answer(key == 'P' ? "Delta sequence playing" : "Delta sequence stopped");
-			}
-		}
-
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-		return true;
-	}
-
-	if (detailKey)
-	{
-		if (!HierarchyView_IsShown())
-		{
-			Answer("Detail level: open a model with Select Hierarchy first");
-			return true;
-		}
-
-		int const levels = HierarchyView_DetailLevels();
-		int const wanted = hierarchyDetail + (key == 'U' ? 1 : -1);
-
-		// FUN_00477fb0 (0x477fe5-0x477ff2): the level is held to 0..9, whatever the model has; Adaptive Degradation is NOT touched (while it is on, the next frame's pick, FUN_00479b80, sets
-		// the level by the distance again: the view shows that pick, editor_main.cpp's LevelView_SetAdaptiveDegradation)
-		hierarchyDetail = wanted < 0 ? 0 : (wanted > 9 ? 9 : wanted);
-		// NAMED: which shape a level beyond the model's own levels shows is FUN_0047e9f0's pick among the "L<k>#<name>" objects (0x47eb48-0x47ebe9), not read through yet
-		hierarchyWords = "Detail level " + std::to_string(hierarchyDetail) + " (the model has " + std::to_string(levels) + ")";
-		Answer(hierarchyWords);
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-		return true;
-	}
-
-	if (distanceKey)
-	{
-		// Shift+D (FUN_00479a80): only with a hierarchy and a detail level above 0 (0x479a99: at level 0 nothing at all); the level's distance is the camera's distance from the WORLD'S
-		// ORIGIN (FUN_004fd830 of the camera block's place +0x10: the length of the vector) / 100, inteng's unit to mm (the hierarchy stands at the origin); the levels below it can start no
-		// farther, the ones above no nearer; the file is marked changed (DAT_00637134)
-		int const levels = HierarchyView_DetailLevels();
-		int32_t distances[10];
-		bool present = false;
-
-		if (!HierarchyView_IsShown() || !hierarchyModelOpen || hierarchyDetail <= 0 || !theCamera)
-		{
-			return true;
-		}
-
-		double const length = sqrt((double)theCamera->x * theCamera->x + (double)theCamera->y * theCamera->y + (double)theCamera->z * theCamera->z);
-		int const distance = length < 2147483647.0 ? (int)length : 2147483647;
-
-		if (host::HierarchyEdit_ReadDegradation(&hierarchyModelFile, distances, &present) != host::HierarchyEditResult::Done)
-		{
-			Answer("Set distance for current detail level: the model's distances could not be read");
-			return true;
-		}
-
-		distances[hierarchyDetail] = distance;
-
-		for (int i = 0; i < hierarchyDetail; i++)
-		{
-			distances[i] = distances[i] > distance ? distance : distances[i];
-		}
-
-		for (int i = hierarchyDetail + 1; i < 10; i++)
-		{
-			distances[i] = distances[i] < distance ? distance : distances[i];
-		}
-
-		host::HierarchyEditResult const wrote = host::HierarchyEdit_WriteDegradation(&hierarchyModelFile, distances);
-
-		if (wrote != host::HierarchyEditResult::Done)
-		{
-			Answer(std::string("Set distance for current detail level: ") + host::HierarchyEditWords(wrote));
-			return true;
-		}
-
-		for (int i = 0; i < levels && i < 10; i++)
-		{
-			HierarchyView_SetDetailDistance(i, distances[i]);
-		}
-
-		Answer("Detail level " + std::to_string(hierarchyDetail) + " now starts at " + std::to_string(distance) + " mm (kept in the model's HIDEGDIS; File > Save a copy writes it)");
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-		return true;
-	}
-
-	if (KeyHeldNow(VK_CONTROL))
-	{
-		return false;
-	}
-
-	bool const plus = key == VK_OEM_PLUS || key == VK_ADD;
-	bool const minus = key == VK_OEM_MINUS || key == VK_SUBTRACT;
-
-	if (key == 'H')
-	{
-		HierarchyRunCommand(0x03);
-	}
-	else if (shift && (key == 'S' || plus || minus || key == 'P' || key == 'O'))
-	{
-		Answer("Shift + this key applies to the delta sequence: the delta sequence keys are not wired yet");
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-	}
-	else if (key == 'S')
-	{
-		HierarchyRunCommand(0x04);
-	}
-	else if (plus || minus)
-	{
-		HierarchyRunCommand(plus ? 0xd : 0xe);
-		HierarchySyncView(true);
-	}
-	else if (key >= '0' && key <= '9')
-	{
-		HierarchyRunCommand((shift ? 0x26 : 0x15) + (int32_t)(key - '0'));
-	}
-	else if (key == 'Q')
-	{
-		HierarchyRunCommand(shift ? 0x51 : 0x50);
-	}
-	else if (key == 'D' || key == 'F')
-	{
-		HierarchyStepSequence(key == 'F' ? 1 : -1);
-	}
-	else if (HierarchyView_IsShown() && (key == 'P' || key == 'O'))
-	{
-		// P (case 5, FUN_0047b8b0) / O (case 6, FUN_0047b940): the main sequence; the turret and the deltas too only with Y's "Play commands affect all sequences" on (0x47b8c3, HP-4 / HP-5)
-		HierarchyView_Play(key == 'P', true, hierarchyPlayAll);
-		HierarchyStatus();
-	}
-	else if (HierarchyView_IsShown() && (key == 'N' || key == 'M'))
-	{
-		HierarchyView_StepFrame(key == 'M' ? 1 : -1, hierarchyPlayAll);
-		HierarchyStatus();
-	}
-	else if (!shift && key == 'T')
-	{
-		// T: Toggle Text (inteng's help): the status words of the Hierarchy view
-		hierarchyText = !hierarchyText;
-		Answer(hierarchyText ? "Text: on" : "Text: off (the view's status words are hidden)");
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-	}
-	else if (!shift && key == 'W')
-	{
-		// W: Toggle wireframe: the model as lines or as polygons (the editor's draw modes Polyline and Polygon)
-		hierarchyWire = !hierarchyWire;
-		statusWords = ViewToggles_UseNow(hierarchyWire ? host::ViewToggle::Polyline : host::ViewToggle::Polygon);
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-	}
-	else if (!shift && key == 'R' && HierarchyView_IsShown())
-	{
-		// R: Restart all sequences (set timer to 0)
-		HierarchyView_SetPosition(0);
-		HierarchyStatus();
-	}
-	else if (!shift && key == 'C')
-	{
-		// C: Toggle use of camera root (for hud weapons), command 0x37 (FUN_004889d0 0x488da5): flips DAT_006370f0 (see HierarchyCameraRootFrame)
-		hierarchyCameraRoot = !hierarchyCameraRoot;
-		Answer(hierarchyCameraRoot ? "Use Camera Root: on (the camera sits at the hierarchy's Camera Root section and looks level: the HUD camera's view of the gun)" : "Use Camera Root: off");
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-	}
-	else if (!shift && key == 'Y')
-	{
-		// Y: the play commands affect the turret and delta sequences as well as the main one; press again to turn off
-		hierarchyPlayAll = !hierarchyPlayAll;
-		Answer(hierarchyPlayAll ? "Play commands affect the turret and delta sequences as well as the main sequence" : "Play commands affect the main sequence only");
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-	}
-	else if (!shift && key == VK_RETURN)
-	{
-		// Return (key code 6 -> 0x47, FUN_004889d0 0x488a37-0x488a80; row C-47): only when the hierarchy code marked the file changed (DAT_00637134; ours: the model differs from its last
-		// save), the words "Saving" (0x5d5730) at (200, 100) (FUN_0057bd40(200, 100, 0, words)), then the save (FUN_00481b60 the sounds, FUN_004719e0 the file) and the collections' text
-		// (FUN_0048cac0). Ours saves a COPY, never his file (SaveTheCopy: the model and its ".txt", as Exit does, HP-1 / HP-29). Not changed: nothing at all.
-		if (hierarchyModelOpen && hierarchyModelFile.Generation() != hierarchyModelSavedGeneration && hierarchySaveAsked == 0)
-		{
-			hierarchySaveAsked = 2;
-		}
-	}
-	else
-	{
-		return false;
-	}
-
-	return true;
-}
 
 // Object Placement's keys (inteng's help, AvP-docs/engine/inteng/inteng-help-keys.md): Backspace deselects, T text on and off, S split screen, D centre the split screen on the selected object, E edit the
 // selected object, P duplicate it, V snap it to a vertex, Q set the particle generator's parent (click an object). Not on the Modern WASD layout's movement keys (S, D, F, R there move the camera).
@@ -7062,7 +4332,7 @@ static void PlacementCameraUnlink(bool byR)
 // keeps the offset from the camera it had when F was pressed; its place is written when F is pressed again (the editor draws no live copy of an ordinary object: a cube marks where it is meanwhile).
 static bool flyOn = false;
 
-static bool PlacementIsFlying()
+bool PlacementIsFlying()
 {
 	return flyOn;
 }
@@ -7123,12 +4393,12 @@ static int snapPointerX = -1, snapPointerY = -1;
 static int32_t snapViewHeight = 0;
 static bool snapForTrack = false;   // T-3b: the live snap is Track Editing's, on the flying end marker (the marker's pose, not the object's record, is what it keeps)
 
-static bool PlacementFlyHoldsTheCopy()
+bool PlacementFlyHoldsTheCopy()
 {
 	return (flyOn && flyReal) || snapLive;   // (the live snap shows the object as the same live copy)
 }
 
-static bool TrackMarkerSnapping()
+bool TrackMarkerSnapping()
 {
 	return snapLive && snapForTrack;
 }
@@ -7282,926 +4552,21 @@ void OnScreenChanged(size_t was, size_t now)
 // (the radius in inteng's units, the game's x 100). NAMED: a placed shape's "Object scale %-5.6f" line is not drawn yet (the outside file's scale is not read here).
 static std::vector<host::PolyCountRow> placementRows;
 static std::vector<host::SpecialObject> placementSpecials;
-static OpenLevelFile *placementRowsOpen = nullptr;
-static unsigned placementRowsFor = 0;
-static OpenLevelFile *placedSoundsOpen = nullptr;   // the level and generation the playing sounds (placed_sounds_game.h) were made from; none while the screen is not shown
-static unsigned placedSoundsFor = 0;
 
-// The level's placed sounds, in their order among the sounds, as the game's sound code takes them: the place and the ranges in the game's units (the file's x the level's scale, as the
-// game's loader makes a track's sound, object_setup.cpp:178-183), the volume and the pitch as the file holds them (the game's own units)
-static std::vector<host::PlacedSoundIn> PlacedSoundsOfLevel(std::vector<host::SpecialObject> const &specials)
+// "Num Objects :%d" (DAT_008f4ef4) is inteng's object-record list's size: +1 for each object its mode's start makes (0x4d8a80-0x4d9789), -1 for each one deleted (0x4e4e95), emptied when
+// the list is freed (0x4d4488). FUN_004d9af0's frame prints it (0x4dc788) in Object Placement AND in Track Editing: one frame function, one global, and Track Editing builds no list. Ours: the
+// placement list (placed objects, specials, placed hierarchies) in both. T-4b, FIXED 11-18: the track screen counted every object of the level, modules too (Invasion 599 for 301,
+// kens-co-op 93 for 54).
+size_t PlacementObjectCount()
 {
-	extern double local_scale;
-	double const scale = local_scale > 0.0 ? local_scale : 1.0;
-	std::vector<host::SpecialObject const *> sounds;
+	size_t placed = 0;
 
-	for (host::SpecialObject const &one : specials)
+	for (host::PolyCountRow const &one : placementRows)
 	{
-		if (one.kind == host::SpecialKind::Sound)
-		{
-			sounds.push_back(&one);
-		}
+		placed += one.placed ? 1 : 0;
 	}
 
-	std::sort(sounds.begin(), sounds.end(), [](host::SpecialObject const *a, host::SpecialObject const *b) { return a->number < b->number; });
-
-	std::vector<host::PlacedSoundIn> list;
-
-	for (host::SpecialObject const *one : sounds)
-	{
-		host::PlacedSoundIn s;
-
-		s.name = one->name;
-		s.wav = one->wav;
-
-		for (int axis = 0; axis < 3; axis++)
-		{
-			s.place[axis] = (int32_t)(one->place[axis] * scale);
-		}
-
-		s.inner = (int32_t)(unsigned)((uint32_t)one->inner * scale);
-		s.outer = (int32_t)(unsigned)((uint32_t)one->outer * scale);
-		s.volume = one->volume;
-		s.pitch = one->pitch;
-		s.flags = (uint32_t)one->soundFlags;
-		list.push_back(s);
-	}
-
-	return list;
-}
-
-// The view distance of Object Placement, in the game's millimetres (inteng's DAT_005fd678 is in its own units, 100 to the millimetre: 1,000,000 = 10 m)
-static int32_t PlacementHideDistance()
-{
-	return viewDistance / 100;
-}
-
-static bool placementHideOn = false;   // Object Placement's view distance rule is applied (its own screen shown)
-
-// THE CURRENT PLACED HIERARCHY'S PLAYER (reassess/object-placement.md PH-1, PH-2, PH-3, PH-14, PH-15). Added 2026-11-16 by Melanikus (Vasquez).
-// inteng's select (FUN_004e9520, called by the class's select FUN_004e9b20) makes a Hierarchy player for the object when it has none. The player is at the object's place with its turn, and it shows
-// the hierarchy's model while hiding the object's own icon. Then the FIRST sequence record becomes current and the player is set to its sequence, not running and looped (FUN_00478630(.., 1)).
-// The pop-up goes to page 6. Unselect (FUN_004e94a0) stops it, destroys the player, shows the icon again and puts the pop-up back on page 0.
-// Ours: the hierarchy view shows the model the game's way (HierarchyView_ShowPlaced). inteng's three placed hierarchies are FUN_004f4db0's table at 0x5e7b20, the same three the game knows
-// (avpx projload.cpp PlacedHierarchyArray), read from avp_huds by the game's recipe; the hierarchy is found by the game's own names.
-// NOT YET (later steps): a placed hierarchy with no sequence record gets one made for its first sequence (FUN_004ea290; here the first sequence is shown and no record is made); its sounds (PH-2 / PH-14 timings).
-static int placedHierarchyShown = -1;       // the placed hierarchy whose model the view shows (its place in placementHierarchies); -1: none
-static size_t placedHierarchyRecord = 0;    // its current sequence record (inteng's +0x64): a place in its sequences
-static bool placedCommaWas = false;         // ',' / '.' were down the frame before (inteng's key slots 0xd87afc / 0xd87afe: set on the key press, cleared by the one who uses them)
-static bool placedPeriodWas = false;
-
-static const char *const kPlacedHierarchyModels[3][2] =
-{
-	{ "Dropship", "dropship" },
-	{ "pred ship fury", "pred ship fury" },
-	{ "pred ship ob", "pred ship ob" },
-};
-
-// The placed hierarchy's own model file (avp_huds\<file>.rif), read-only, for the names of its hierarchy's sequences (FUN_0047b450 lists them; FUN_0047b730 gives one)
-static OpenLevelFile placedModelFile;
-static std::string placedModelHierarchy;   // the hierarchy's name in that file
-
-static bool PlacedHierarchyWriteRecords(std::vector<host::PlacedHierarchySequence> const &records);
-
-static void PlacedHierarchyUnselect()
-{
-	if (placedHierarchyShown < 0)
-	{
-		return;
-	}
-
-	// FUN_004e94a0: Stop (FUN_004ea210), the player destroyed (FUN_00477870), the icon shown again; FUN_004e9b40 then puts the pop-up back on page 0
-	HierarchyView_Close();
-	placedHierarchyShown = -1;
-	placedHierarchyRecord = 0;
-	EditorBar_SetPopupPage(0);
-}
-
-static void PlacedHierarchySelect(int which)
-{
-	PlacedHierarchyUnselect();
-
-	if (which < 0 || (size_t)which >= placementHierarchies.size())
-	{
-		return;
-	}
-
-	host::PlacedHierarchyInfo const &one = placementHierarchies[(size_t)which];
-
-	// FUN_004e9b20 puts the pop-up on page 6 whether or not a player could be made (FUN_004f4db0 gives none outside 0..2)
-	EditorBar_SetPopupPage(6);
-	placedHierarchyShown = which;
-	placedHierarchyRecord = 0;
-
-	if (one.hierarchyIndex < 0 || one.hierarchyIndex > 2)
-	{
-		return;
-	}
-
-	double const scale = local_scale > 0.0 ? local_scale : 1.0;
-	int32_t const place[3] = { (int32_t)(one.place[0] * scale), (int32_t)(one.place[1] * scale), (int32_t)(one.place[2] * scale) };
-	int sequence = -1;
-	int sub = 0;
-
-	if (!one.sequences.empty())
-	{
-		sequence = one.sequences[0].sequence;
-		sub = one.sequences[0].sub;
-	}
-
-	std::string why;
-	char const *const model = kPlacedHierarchyModels[one.hierarchyIndex][0];
-	char const *const hierarchy = kPlacedHierarchyModels[one.hierarchyIndex][1];
-
-	// No record: the hierarchy's first sequence (FUN_004784e0(0))
-	bool const madeRecord = sequence < 0;
-
-	if (sequence < 0 && !HierarchyView_FirstSequence(model, hierarchy, &sequence, &sub, &why))
-	{
-		Answer("The placed hierarchy's model can't be shown: " + why);
-		return;
-	}
-
-	if (!HierarchyView_ShowPlaced(model, hierarchy, sequence, sub, -1, place, one.turn, &why))
-	{
-		Answer("The placed hierarchy's model can't be shown: " + why);
-		return;
-	}
-
-	HierarchyView_Play(false, true, false);
-	HierarchyView_SetPosition(0);
-
-	// its model file, read-only, for its sequences' names (PH-4 / PH-6); the hierarchy is the one with the game's name, else the file's first
-	std::vector<std::string> names;
-
-	placedModelHierarchy.clear();
-
-	if (placedModelFile.Open((std::string("avp_huds\\") + model + ".rif").c_str()) == LevelOpenResult::Opened && host::HierarchyEdit_Names(&placedModelFile, &names) == host::HierarchyEditResult::Done && !names.empty())
-	{
-		placedModelHierarchy = names[0];
-
-		for (std::string const &each : names)
-		{
-			if (_stricmp(each.c_str(), hierarchy) == 0)
-			{
-				placedModelHierarchy = each;
-			}
-		}
-	}
-
-	// FUN_004e9520 0x4e9649-0x4e96a1: with no record, one is made for that first sequence (FUN_004ea290: index 0, 1000 ms, Loop on) and it is current; the save writes it (PH-1)
-	if (madeRecord)
-	{
-		host::PlacedHierarchySequence first;
-
-		first.index = 0;
-		first.sequence = sequence;
-		first.sub = sub;
-		first.milliseconds = 1000;
-		first.flags = 1;
-		PlacedHierarchyWriteRecords({ first });
-	}
-}
-
-// The frame of Object Placement for its placed hierarchy: select / unselect follow the current object, and while one is current and STOPPED, one ',' / '.' press is one key frame back / forward
-// (FUN_004e9cb0 0x4e9f29-0x4e9f4f: FUN_00479290 / FUN_00479110, each key slot cleared once it is used). The player's own step is the hierarchy view's frame (FUN_00478920).
-static void PlacedHierarchyFrame(bool here)
-{
-	int const wanted = here ? placedHierarchyCurrent : -1;
-
-	if (wanted != placedHierarchyShown)
-	{
-		if (wanted < 0)
-		{
-			PlacedHierarchyUnselect();
-		}
-		else
-		{
-			PlacedHierarchySelect(wanted);
-		}
-	}
-
-	bool const comma = keyDown[VK_OEM_COMMA];
-	bool const period = keyDown[VK_OEM_PERIOD];
-
-	// PH-14: ',' -> FUN_00479290, '.' -> FUN_00479110 on the placed hierarchy's OWN player (+0x5c, made by FUN_00477450 at 0x4e95df). Their "all sequences" test reads that player's +0x88
-	// (FUN_00479110 0x47914a), which FUN_00477450 sets to 0 (0x477603) and nothing of the placed hierarchy writes (Y is Hierarchy mode's, on its own player): all = false, the main only.
-	if (placedHierarchyShown >= 0 && HierarchyView_IsShown() && !HierarchyView_IsPlaying() && !AMenuIsOpen() && !ADialogIsOpen() && promptFor == kPromptNone)
-	{
-		if (comma && !placedCommaWas)
-		{
-			HierarchyView_StepFrame(-1, false);
-		}
-
-		if (period && !placedPeriodWas)
-		{
-			HierarchyView_StepFrame(1, false);
-		}
-	}
-
-	placedCommaWas = comma;
-	placedPeriodWas = period;
-}
-
-// THE SEQUENCE RECORDS (PH-4..PH-7, NA-6 step 2). inteng keeps them in the object (+0x70) and its save writes them as PLHISEQU (FUN_004e96d0); ours writes them into the level's bytes at once
-// (special_objects_edit.cpp PlacedHierarchy_WriteSequences), and the copy saved holds them. Added 2026-11-16 by Melanikus (Vasquez).
-static bool PlacedHierarchyWriteRecords(std::vector<host::PlacedHierarchySequence> const &records)
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	host::SpecialResult const done = open ? host::PlacedHierarchy_WriteSequences(open, (size_t)placedHierarchyShown, records) : host::SpecialResult::BadCall;
-
-	if (done != host::SpecialResult::Done)
-	{
-		Answer(std::string("The placed hierarchy's sequences were not changed: ") + host::SpecialWords(done));
-		return false;
-	}
-
-	// the list is read again from the bytes when the level's generation changes (PlacementFrame); until then it holds what was written
-	placementHierarchies[(size_t)placedHierarchyShown].sequences = records;
-	return true;
-}
-
-static bool PlacedModelSequences(std::vector<host::SequenceInfo> *sequences)
-{
-	sequences->clear();
-	return !placedModelHierarchy.empty() && host::HierarchyEdit_Sequences(&placedModelFile, placedModelHierarchy, sequences) == host::HierarchyEditResult::Done;
-}
-
-static std::string PlacedSequenceName(int32_t number, int32_t sub)
-{
-	std::vector<host::SequenceInfo> sequences;
-
-	if (PlacedModelSequences(&sequences))
-	{
-		for (host::SequenceInfo const &one : sequences)
-		{
-			if (one.number == number && one.subNumber == sub)
-			{
-				return one.name;
-			}
-		}
-	}
-
-	return std::to_string(number) + "." + std::to_string(sub);
-}
-
-// FUN_004ea3f0: Stop; the record becomes current (+0x64); FUN_00478630(its number, sub, 1): that sequence from 0, stopped, looped (a sequence the hierarchy has not: the player keeps its own)
-static void PlacedHierarchyMakeCurrent(size_t place)
-{
-	host::PlacedHierarchyInfo const &one = placementHierarchies[(size_t)placedHierarchyShown];
-
-	if (place >= one.sequences.size())
-	{
-		return;
-	}
-
-	HierarchyView_Play(false, true, false);
-	placedHierarchyRecord = place;
-	HierarchyView_SetSequence(one.sequences[place].sequence, one.sequences[place].sub);
-	HierarchyView_Play(false, true, false);
-	HierarchyView_SetPosition(0);
-}
-
-// The lowest index no record has (FUN_004ea290 0x4ea2b0-0x4ea2dd)
-static int32_t PlacedHierarchyFreeIndex(std::vector<host::PlacedHierarchySequence> const &records)
-{
-	for (int32_t index = 0;; index++)
-	{
-		bool used = false;
-
-		for (host::PlacedHierarchySequence const &one : records)
-		{
-			used = used || one.index == index;
-		}
-
-		if (!used)
-		{
-			return index;
-		}
-	}
-}
-
-// PH-4, Sequence > Edit sequence (0x7d2, FUN_004ea9a0): inteng's window FUN_004ec2b0 (600 x 400, style 0xb), run by FUN_004ec650. `draft` is the record as the window shows it: the name button
-// (control 1, FUN_004ec6e0) picks another of the hierarchy's sequences (FUN_0047b450) and the window comes back with it; ours closes the window for that list and opens it again (NAMED: inteng
-// shows the list over the open window).
-static void PlacedHierarchyEditWindow(host::PlacedHierarchySequence draft)
-{
-	host::DialogFormSpec spec;
-	host::DialogWidget name, timeLabel, timeEdit, loopLabel, loopTick, initialLabel, initialTick, playingLabel, playingTick, ok;
-
-	spec.title = "Sequence " + std::to_string(draft.index);
-	spec.width = 600;
-	spec.height = 400;
-	name.type = host::DialogWidgetType::Button;
-	name.text = PlacedSequenceName(draft.sequence, draft.sub);
-	name.box = { 0x12, 0x14, 0x172, 0x12 };
-	name.answer = 10;
-	timeLabel.type = host::DialogWidgetType::Label;
-	timeLabel.text = "Time in ms";
-	timeLabel.box = { 0x12, 0x28, 100, 0x12 };
-	timeEdit.type = host::DialogWidgetType::Edit;
-	timeEdit.text = std::to_string(draft.milliseconds);
-	timeEdit.box = { 0x76, 0x28, 100, 0x12 };
-	loopLabel.type = host::DialogWidgetType::Label;
-	loopLabel.text = "Loop";
-	loopLabel.box = { 0x12, 0x3c, 200, 0x11 };
-	loopTick.type = host::DialogWidgetType::Check;
-	loopTick.checked = (draft.flags & 1) != 0;
-	loopTick.box = { 0xda, 0x3c, 0x11, 0x11 };
-	initialLabel.type = host::DialogWidgetType::Label;
-	initialLabel.text = "Initial sequence";
-	initialLabel.box = { 0x12, 0x50, 200, 0x11 };
-	initialTick.type = host::DialogWidgetType::Check;
-	initialTick.checked = (draft.flags & 2) != 0;
-	initialTick.box = { 0xda, 0x50, 0x11, 0x11 };
-	playingLabel.type = host::DialogWidgetType::Label;
-	playingLabel.text = "Playing at start";
-	playingLabel.box = { 0x12, 100, 200, 0x11 };
-	playingTick.type = host::DialogWidgetType::Check;
-	playingTick.checked = (draft.flags & 4) != 0;
-	playingTick.box = { 0xda, 100, 0x11, 0x11 };
-	ok.type = host::DialogWidgetType::Button;
-	ok.text = "OK";
-	ok.box = { 200, 0x15e, 100, 0x12 };
-	ok.answer = host::kDialogOk;
-
-	for (host::DialogWidget const &part : { name, timeLabel, timeEdit, loopLabel, loopTick, initialLabel, initialTick, playingLabel, playingTick, ok })
-	{
-		spec.widgets.push_back(part);
-	}
-
-	// FUN_004ec6e0, control 9: ticking Playing at start ticks Initial sequence too
-	spec.onCheck = [](std::vector<host::DialogWidget> &widgets, size_t changed)
-	{
-		if (changed == 8 && widgets[8].checked)
-		{
-			widgets[6].checked = true;
-		}
-	};
-
-	host::Dialogs_Form(spec, [draft](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		host::PlacedHierarchySequence edited = draft;
-		std::string const typed = widgets[2].text;
-		bool digits = !typed.empty() && typed.size() <= 9;
-
-		for (char const c : typed)
-		{
-			digits = digits && c >= '0' && c <= '9';
-		}
-
-		// FUN_004ec650, whatever the window answered: a time over 10 ms is taken (and its 16.16 length with it), the three ticks always
-		if (digits && atoi(typed.c_str()) > 10)
-		{
-			edited.milliseconds = atoi(typed.c_str());
-		}
-
-		edited.flags = (widgets[4].checked ? 1 : 0) | (widgets[6].checked ? 2 : 0) | (widgets[8].checked ? 4 : 0);
-
-		if (answer == 10)
-		{
-			// the name button: the hierarchy's own list (FUN_0047b450, "Select Sequence"); a pick sets the record's sequence, Cancel keeps it; then the window again
-			std::vector<host::SequenceInfo> sequences;
-			std::vector<std::string> names;
-
-			PlacedModelSequences(&sequences);
-
-			for (host::SequenceInfo const &one : sequences)
-			{
-				names.push_back(one.name);
-			}
-
-			DialogList("Select Sequence", names, [edited, sequences](int32_t picked)
-			{
-				host::PlacedHierarchySequence again = edited;
-
-				if (picked >= 0 && (size_t)picked < sequences.size())
-				{
-					again.sequence = sequences[(size_t)picked].number;
-					again.sub = sequences[(size_t)picked].subNumber;
-				}
-
-				PlacedHierarchyEditWindow(again);
-			});
-			return;
-		}
-
-		if (placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size())
-		{
-			return;
-		}
-
-		std::vector<host::PlacedHierarchySequence> records = placementHierarchies[(size_t)placedHierarchyShown].sequences;
-		size_t place = records.size();
-
-		for (size_t i = 0; i < records.size(); i++)
-		{
-			if (records[i].index == edited.index)
-			{
-				place = i;
-			}
-		}
-
-		if (place == records.size())
-		{
-			return;
-		}
-
-		records[place] = edited;
-
-		// FUN_004ea9a0 0x4ea9f4-0x4eaaac: an Initial sequence is the only one: every other record loses Initial sequence and Playing at start
-		if (edited.flags & 2)
-		{
-			for (size_t i = 0; i < records.size(); i++)
-			{
-				if (i != place)
-				{
-					records[i].flags &= ~6;
-				}
-			}
-		}
-
-		if (PlacedHierarchyWriteRecords(records))
-		{
-			PlacedHierarchyMakeCurrent(place);
-		}
-	});
-}
-
-// PH-11 / PH-12 (reassess/ph8-13-map-vasquez.json): the current record's timing number `timing` written back as `edited`, the record kept current
-static void PlacedHierarchyWriteTiming(size_t timing, host::PlacedHierarchyTimedSound const &edited)
-{
-	if (placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size())
-	{
-		return;
-	}
-
-	std::vector<host::PlacedHierarchySequence> records = placementHierarchies[(size_t)placedHierarchyShown].sequences;
-	size_t const record = placedHierarchyRecord;
-
-	if (record >= records.size() || timing >= records[record].sounds.size())
-	{
-		return;
-	}
-
-	records[record].sounds[timing] = edited;
-
-	if (PlacedHierarchyWriteRecords(records))
-	{
-		PlacedHierarchyMakeCurrent(record);
-	}
-}
-
-// PH-11 / PH-12, inteng's "Edit sound times" window (FUN_004ec790, vtable 0x5ae738, run by FUN_004eca00): 600 x 400; "Sound index %d" a BUTTON at 18,20 (370 x 18) that opens the sound
-// chooser "Use which sound?" over it (FUN_004eca40 control 1 -> FUN_004eac40; with no sound inteng's message box "Please add a sound first"); "Start time" and "End time " with a number
-// field each (18,40 / 18,60, 100 x 18); OK at 200,350. WHATEVER ends it (OK, Return, Escape: there is no Cancel), the fields are read back, each taken when 0 or more
-// (PlacedHierarchy_TimingFromFields). Ours closes the window for the chooser and opens it again (NAMED, as PH-4's sequence button: our forms end on any button). `timing` is the
-// timing's place in the current record's list.
-static void PlacedHierarchyTimingWindow(size_t timing, host::PlacedHierarchyTimedSound draft)
-{
-	host::DialogFormSpec spec;
-	host::DialogWidget soundButton, startLabel, startEdit, endLabel, endEdit, ok;
-
-	spec.title = "Edit sound times";
-	spec.width = 600;
-	spec.height = 400;
-	soundButton.type = host::DialogWidgetType::Button;
-	soundButton.text = "Sound index " + std::to_string(draft.soundIndex);
-	soundButton.box = { 18, 20, 370, 18 };
-	soundButton.answer = 10;
-	startLabel.type = host::DialogWidgetType::Label;
-	startLabel.text = "Start time";
-	startLabel.box = { 118, 40, 100, 18 };
-	startEdit.type = host::DialogWidgetType::Edit;
-	startEdit.text = std::to_string(draft.start);
-	startEdit.box = { 18, 40, 100, 18 };
-	endLabel.type = host::DialogWidgetType::Label;
-	endLabel.text = "End time ";
-	endLabel.box = { 118, 60, 200, 17 };
-	endEdit.type = host::DialogWidgetType::Edit;
-	endEdit.text = std::to_string(draft.end);
-	endEdit.box = { 18, 60, 100, 18 };
-	ok.type = host::DialogWidgetType::Button;
-	ok.text = "OK";
-	ok.box = { 200, 350, 100, 18 };
-	ok.answer = host::kDialogOk;
-
-	for (host::DialogWidget const &part : { soundButton, startLabel, startEdit, endLabel, endEdit, ok })
-	{
-		spec.widgets.push_back(part);
-	}
-
-	host::Dialogs_Form(spec, [timing, draft](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		host::PlacedHierarchyTimedSound edited = draft;
-
-		host::PlacedHierarchy_TimingFromFields(widgets[2].text, widgets[4].text, &edited);
-
-		if (answer == 10)
-		{
-			std::vector<host::PlacedHierarchySound> sounds;
-
-			if (placedHierarchyShown >= 0 && (size_t)placedHierarchyShown < placementHierarchies.size())
-			{
-				sounds = placementHierarchies[(size_t)placedHierarchyShown].sounds;
-			}
-
-			if (sounds.empty())
-			{
-				DialogMessage("Please add a sound first", [timing, edited]() { PlacedHierarchyTimingWindow(timing, edited); });
-				return;
-			}
-
-			std::vector<std::string> rows;
-
-			for (host::PlacedHierarchySound const &sound : sounds)
-			{
-				rows.push_back(host::PlacedHierarchy_SoundRow(sound));
-			}
-
-			DialogList("Use which sound?", rows, [timing, edited, sounds](int32_t picked)
-			{
-				host::PlacedHierarchyTimedSound again = edited;
-
-				if (picked >= 0 && (size_t)picked < sounds.size())
-				{
-					again.soundIndex = sounds[(size_t)picked].index;
-				}
-
-				PlacedHierarchyTimingWindow(timing, again);
-			});
-			return;
-		}
-
-		PlacedHierarchyWriteTiming(timing, edited);
-	});
-}
-
-// PH-8..10: the shown placed hierarchy's sounds written (PlacedHierarchy_WriteSounds); the list holds them until the level is read again (PlacementFrame, on a new generation)
-static bool PlacedHierarchyWriteSounds(std::vector<host::PlacedHierarchySound> const &sounds)
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-	if (placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size())
-	{
-		return false;
-	}
-
-	host::SpecialResult const done = open ? host::PlacedHierarchy_WriteSounds(open, (size_t)placedHierarchyShown, sounds) : host::SpecialResult::BadCall;
-
-	if (done != host::SpecialResult::Done)
-	{
-		Answer(std::string("The placed hierarchy's sounds were not changed: ") + host::SpecialWords(done));
-		return false;
-	}
-
-	placementHierarchies[(size_t)placedHierarchyShown].sounds = sounds;
-	return true;
-}
-
-// PH-8 / PH-9: a sound of the shown placed hierarchy in edobtype's Sound Edit window (FUN_004ebd60 -> edit_sound, the window the track sounds and the particle generators open). In: the name;
-// the ranges in inteng's units (the file's x DAT_00607bd8, 100 x the level scale: FUN_004ebb80 0x4ebbc6) x 1e-5 m; pitch x 1/128; volume x 100 x 0.007874016 %; Sound Loops live (the
-// record's +0x18: FUN_004ebc80(index, 1) and the load FUN_004ebb80(chunk, 1)). Back, OK or Cancel alike (FUN_004ebd60 writes back whatever edit_sound answers), in the file's units again
-// (FUN_004ec1b0 0x4ec221: ftol(units / DAT_00607bd8)). INTENG BUG, FIXED (Bishop's ruling Q1 11-17, as TB-T1): Add makes the sound before the window and keeps it on Cancel, leaving a
-// "Not Set" sound in the level; ours adds nothing on Cancel.
-static void PlacedHierarchySoundWindow(host::PlacedHierarchySound sound, bool isNew)
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	double const unit = 100.0 * (local_scale > 0.0 ? local_scale : 1.0);
-	auto const ftol = [](double v) { return !(v == v) ? 0 : (v >= 2147483647.0 ? 2147483647 : (v <= -2147483648.0 ? (int32_t)-2147483647 - 1 : (int32_t)v)); };
-	uint32_t const memInner = isNew ? 500000u : (uint32_t)ftol((double)sound.inner * unit);
-	uint32_t const memOuter = isNew ? 4000000u : (uint32_t)ftol((double)sound.outer * unit);
-	host::SoundEditRecord const record = host::SoundEdit_IndexedRecord(sound.wav, memInner, memOuter, sound.pitch, sound.volume, sound.flags, true);
-	std::string const soundDirectory = host::TrackLevelSoundDirectory(open);
-	std::string const folder = std::string(theGameFolder) + "\\sound\\" + soundDirectory + "\\";
-
-	SoundEditWindowOpen(record, folder, soundDirectory, [sound, isNew, unit, ftol](host::SoundEditRecord const &back, bool ok)
-	{
-		if ((isNew && !ok) || placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size())
-		{
-			return;
-		}
-
-		host::PlacedHierarchySound now = sound;
-		int32_t inner = 0, outer = 0, pitch = 0, volume = 0, flags = 0;
-
-		host::SoundEdit_IndexedBack(back, sound.flags, &inner, &outer, &pitch, &volume, &flags);
-		now.wav = back.name;
-		now.inner = (uint32_t)ftol((double)(uint32_t)inner / unit);
-		now.outer = (uint32_t)ftol((double)(uint32_t)outer / unit);
-		now.pitch = pitch;
-		now.volume = volume;
-		now.flags = flags;
-		now.read = true;
-		now.raw.clear();
-		now.extra.clear();   // FUN_004ec1b0 makes the chunk again with no extra words
-
-		std::vector<host::PlacedHierarchySound> sounds = placementHierarchies[(size_t)placedHierarchyShown].sounds;
-		bool placed = false;
-
-		for (size_t i = 0; i < sounds.size() && !isNew && !placed; i++)
-		{
-			if (sounds[i].index == sound.index)
-			{
-				sounds[i] = now;
-				placed = true;
-			}
-		}
-
-		if (!placed)
-		{
-			sounds.push_back(now);   // Add: at the END of the list (FUN_004eab10 0x4eabd6)
-		}
-
-		PlacedHierarchyWriteSounds(sounds);
-	});
-}
-
-// The current placed hierarchy's pop-up items (page 6): Play (0x7d0, FUN_004e9f70), Stop (0x7d1, FUN_004ea210), the Sequence items (0x7d2 / 0x7db / 0x7d9 / 0x7da), the Sounds items
-// (0x7d3 / 0x7d4 / 0x7d5, PH-8..10) and the Sound Timing items (0x7d6 / 0x7d7 / 0x7d8, PH-11..13).
-static void PlacedHierarchyCommand(int32_t command)
-{
-	// FUN_004d9af0 0x4db540-0x4db75c: each needs a current object of kind 5
-	if (placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size() || placedHierarchyCurrent != placedHierarchyShown)
-	{
-		return;
-	}
-
-	host::PlacedHierarchyInfo const &one = placementHierarchies[(size_t)placedHierarchyShown];
-
-	if (command == 0x7d0)
-	{
-		// Play: only a STOPPED main player; timer 0, the record's time (16.16 seconds, [4]) and loop ([5]); the record's sounds start with their timings (later steps)
-		if (!HierarchyView_IsShown() || HierarchyView_IsPlaying())
-		{
-			return;
-		}
-
-		bool loop = true;
-
-		if (placedHierarchyRecord < one.sequences.size())
-		{
-			host::PlacedHierarchySequence const &record = one.sequences[placedHierarchyRecord];
-
-			loop = (record.flags & 1) != 0;
-			HierarchyView_SetSequenceSeconds((int32_t)(((int64_t)record.milliseconds << 16) / 1000));
-		}
-
-		HierarchyView_SetPosition(0);
-		HierarchyView_Play(true, loop, false);
-	}
-	else if (command == 0x7d1)
-	{
-		// Stop: only a running one; the pose stays where it is (and every sound of the object stops: later steps)
-		if (HierarchyView_IsShown() && HierarchyView_IsPlaying())
-		{
-			HierarchyView_Play(false, true, false);
-		}
-	}
-	else if (command == 0x7db)
-	{
-		// PH-5 Choose sequence (FUN_004ea4f0): the list "Select Sequence" of the records' indexes ("%d", in the list's order); Cancel: nothing; a pick: FUN_004ea3f0
-		std::vector<std::string> rows;
-
-		for (host::PlacedHierarchySequence const &record : one.sequences)
-		{
-			rows.push_back(std::to_string(record.index));
-		}
-
-		DialogList("Select Sequence", rows, [](int32_t picked)
-		{
-			if (picked >= 0 && placedHierarchyShown >= 0 && (size_t)placedHierarchyShown < placementHierarchies.size())
-			{
-				PlacedHierarchyMakeCurrent((size_t)picked);
-			}
-		});
-	}
-	else if (command == 0x7d9)
-	{
-		// PH-6 Add sequence (FUN_004ea490): the hierarchy's own "Select Sequence" list (FUN_0047b450: the names, 600 wide); Cancel: nothing; a pick: a new record at the END with the lowest unused
-		// index, that sequence, 1000 ms, Loop on, Initial and Playing off, no sound timings (FUN_004ea290), then it is current (FUN_004ea3f0)
-		std::vector<host::SequenceInfo> sequences;
-		std::vector<std::string> names;
-
-		if (!PlacedModelSequences(&sequences))
-		{
-			return;
-		}
-
-		for (host::SequenceInfo const &each : sequences)
-		{
-			names.push_back(each.name);
-		}
-
-		DialogList("Select Sequence", names, [sequences](int32_t picked)
-		{
-			if (picked < 0 || (size_t)picked >= sequences.size() || placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size())
-			{
-				return;
-			}
-
-			std::vector<host::PlacedHierarchySequence> records = placementHierarchies[(size_t)placedHierarchyShown].sequences;
-			host::PlacedHierarchySequence made;
-
-			made.index = PlacedHierarchyFreeIndex(records);
-			made.sequence = sequences[(size_t)picked].number;
-			made.sub = sequences[(size_t)picked].subNumber;
-			made.milliseconds = 1000;
-			made.flags = 1;
-			records.push_back(made);
-
-			if (PlacedHierarchyWriteRecords(records))
-			{
-				PlacedHierarchyMakeCurrent(records.size() - 1);
-			}
-		});
-	}
-	else if (command == 0x7da)
-	{
-		// PH-7 Delete sequence (FUN_004ea800): with ONE record inteng's message box "Must have at least one sequence"; otherwise Stop, the current record taken out, the FIRST one current
-		if (placedHierarchyRecord >= one.sequences.size())
-		{
-			return;
-		}
-
-		if (one.sequences.size() == 1)
-		{
-			DialogMessage("Must have at least one sequence");
-			return;
-		}
-
-		std::vector<host::PlacedHierarchySequence> records = one.sequences;
-
-		HierarchyView_Play(false, true, false);
-		records.erase(records.begin() + (std::ptrdiff_t)placedHierarchyRecord);
-
-		if (PlacedHierarchyWriteRecords(records))
-		{
-			PlacedHierarchyMakeCurrent(0);
-		}
-	}
-	else if (command == 0x7d2)
-	{
-		// PH-4 Edit sequence (FUN_004ea9a0): needs a current record; Stop, then the window
-		if (placedHierarchyRecord >= one.sequences.size())
-		{
-			return;
-		}
-
-		HierarchyView_Play(false, true, false);
-		PlacedHierarchyEditWindow(one.sequences[placedHierarchyRecord]);
-	}
-	else if (command == 0x7d6)
-	{
-		// PH-11 Sound Timing > Add (FUN_004eb0f0): Stop FIRST, then a current record is needed (0x4eb10b, 0x4eb110: with none nothing more, no message); a new timing (FUN_004ebb60) at
-		// the END of its list, then the window on it. There is no Cancel: the timing stays however the window is closed.
-		if (HierarchyView_IsShown() && HierarchyView_IsPlaying())
-		{
-			HierarchyView_Play(false, true, false);
-		}
-
-		if (placedHierarchyRecord >= one.sequences.size())
-		{
-			return;
-		}
-
-		std::vector<host::PlacedHierarchySequence> records = one.sequences;
-		size_t const record = placedHierarchyRecord;
-		host::PlacedHierarchyTimedSound const fresh = host::PlacedHierarchy_NewTiming();
-
-		records[record].sounds.push_back(fresh);
-
-		size_t const timing = records[record].sounds.size() - 1;
-
-		if (PlacedHierarchyWriteRecords(records))
-		{
-			PlacedHierarchyMakeCurrent(record);
-			PlacedHierarchyTimingWindow(timing, fresh);
-		}
-	}
-	else if (command == 0x7d7 || command == 0x7d8)
-	{
-		// PH-12 Sound Timing > Edit (FUN_004eb1f0) / PH-13 > Remove (FUN_004eb270): a current record is needed BEFORE Stop (0x4eb20b / 0x4eb274: with none nothing at all happens); Stop;
-		// the timing chooser (FUN_004eb340: "Select sound to edit" / "Remove which sound?", the rows "%d start %d , end %d"; no timing: nothing, no message). Edit: the window on the
-		// pick, edited in place. Remove: the pick taken out, no question asked.
-		if (placedHierarchyRecord >= one.sequences.size())
-		{
-			return;
-		}
-
-		if (HierarchyView_IsShown() && HierarchyView_IsPlaying())
-		{
-			HierarchyView_Play(false, true, false);
-		}
-
-		std::vector<host::PlacedHierarchyTimedSound> const timings = one.sequences[placedHierarchyRecord].sounds;
-
-		if (timings.empty())
-		{
-			return;
-		}
-
-		std::vector<std::string> rows;
-
-		for (host::PlacedHierarchyTimedSound const &timing : timings)
-		{
-			rows.push_back(host::PlacedHierarchy_TimingRow(timing));
-		}
-
-		bool const remove = command == 0x7d8;
-
-		DialogList(remove ? "Remove which sound?" : "Select sound to edit", rows, [remove, timings](int32_t picked)
-		{
-			if (picked < 0 || (size_t)picked >= timings.size() || placedHierarchyShown < 0 || (size_t)placedHierarchyShown >= placementHierarchies.size())
-			{
-				return;
-			}
-
-			if (!remove)
-			{
-				PlacedHierarchyTimingWindow((size_t)picked, timings[(size_t)picked]);
-				return;
-			}
-
-			std::vector<host::PlacedHierarchySequence> records = placementHierarchies[(size_t)placedHierarchyShown].sequences;
-			size_t const record = placedHierarchyRecord;
-
-			if (record < records.size() && (size_t)picked < records[record].sounds.size())
-			{
-				records[record].sounds.erase(records[record].sounds.begin() + picked);
-
-				if (PlacedHierarchyWriteRecords(records))
-				{
-					PlacedHierarchyMakeCurrent(record);
-				}
-			}
-		});
-	}
-	else if (command == 0x7d3)
-	{
-		// PH-8 Sounds > Add (FUN_004eab10): Stop; a new sound (FUN_004ebc80(index, 1): the lowest unused index, "Not Set", 5 m / 40 m (500000 / 4000000 inteng units), volume 127, pitch 0,
-		// Sound Loops on and live) in the Sound Edit window first; at the end of the list on OK (Cancel adds nothing: the named fix above)
-		if (HierarchyView_IsShown() && HierarchyView_IsPlaying())
-		{
-			HierarchyView_Play(false, true, false);
-		}
-
-		host::PlacedHierarchySound fresh;
-
-		fresh.index = host::PlacedHierarchy_FreeSoundIndex(one.sounds);
-		fresh.wav = "Not Set";
-		fresh.volume = 127;
-		fresh.pitch = 0;
-		fresh.flags = 1;
-		fresh.read = true;
-		PlacedHierarchySoundWindow(fresh, true);
-	}
-	else if (command == 0x7d4 || command == 0x7d5)
-	{
-		// PH-9 Sounds > Edit (FUN_004eafe0) / PH-10 > Remove (FUN_004eb010): Stop; the sound chooser (FUN_004eac40: "Select sound to edit" / "Delete which sound?", "%d %s" rows; with no
-		// sound inteng's message box "Please add a sound first"). Edit: the Sound Edit window on the pick. Remove: the pick taken out, no question asked; the timings that name it keep its
-		// index (and play nothing until a sound takes the index again)
-		if (HierarchyView_IsShown() && HierarchyView_IsPlaying())
-		{
-			HierarchyView_Play(false, true, false);
-		}
-
-		std::vector<host::PlacedHierarchySound> const sounds = one.sounds;
-
-		if (sounds.empty())
-		{
-			DialogMessage("Please add a sound first");
-			return;
-		}
-
-		std::vector<std::string> rows;
-
-		for (host::PlacedHierarchySound const &sound : sounds)
-		{
-			rows.push_back(host::PlacedHierarchy_SoundRow(sound));
-		}
-
-		bool const remove = command == 0x7d5;
-
-		DialogList(remove ? "Delete which sound?" : "Select sound to edit", rows, [remove, sounds](int32_t picked)
-		{
-			if (picked < 0 || (size_t)picked >= sounds.size())
-			{
-				return;
-			}
-
-			if (!remove)
-			{
-				PlacedHierarchySoundWindow(sounds[(size_t)picked], false);
-				return;
-			}
-
-			std::vector<host::PlacedHierarchySound> left = sounds;
-
-			left.erase(left.begin() + picked);
-			PlacedHierarchyWriteSounds(left);
-		});
-	}
+	return placed + placementSpecials.size() + placementHierarchies.size();
 }
 
 // THE '=' AND '-' KEYS (OP-14, FUN_004d9af0 0x4dc2c3-0x4dc308): with a current object, the keys live and Gravity off (0x4dc1ea), the main keyboard's '=' (slot 0xd87afb) calls the current
@@ -8334,6 +4699,7 @@ static void PlacementFrame()
 		if (placedSoundsOpen)
 		{
 			host::PlacedSounds_LetGo();
+			host::HierarchySounds_LetGo();
 			placedSoundsOpen = nullptr;
 		}
 
@@ -8781,16 +5147,10 @@ void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 	auto put = [&](std::string const &text) { out->push_back({ 16, row++, text }); };
 	char line[300];
 	double const scale = local_scale > 0.0 ? local_scale : 1.0;
-	size_t placedCount = 0;
-
-	for (host::PolyCountRow const &one : placementRows)
-	{
-		placedCount += one.placed ? 1 : 0;
-	}
 
 	snprintf(line, sizeof(line), "View Distance :%d", viewDistance / 500000);   // 0x4dc746-0x4dc768: DAT_005fd678 / 500000 (the multiply by 0x431bde83, shift 49)
 	put(line);
-	snprintf(line, sizeof(line), "Num Objects :%d", (int)(placedCount + placementSpecials.size() + placementHierarchies.size()));
+	snprintf(line, sizeof(line), "Num Objects :%d", (int)PlacementObjectCount());
 	put(line);
 
 	CurrentObjectTextLines(put, false);
@@ -10179,7 +6539,7 @@ void RunAction(int32_t id)
 	}
 
 	// A link made (any Module Linking action but the view ones) lets go of Show All's paint
-	if (host.linkOp != kLinkNone && host.linkOp != kLinkShowAll && host.linkOp != kLinkViewDistance && host.linkOp != kLinkOnlyLinked)
+	if (host.linkOp != kLinkNone && host.linkOp != kLinkShowAll && host.linkOp != kLinkViewDistance && host.linkOp != kLinkOnlyLinked && host.linkOp != kLinkWithAvp)
 	{
 		showAllModules.clear();
 		showAllColours.clear();
@@ -10250,6 +6610,10 @@ void RunAction(int32_t id)
 	{
 		onlyDrawLinked = !onlyDrawLinked;
 		SayTheViewDistance();
+	}
+	else if (host.linkOp == kLinkWithAvp)
+	{
+		host::ModuleLinkAvp_Toggle();
 	}
 	else if (host.linkOp == kLinkPolyCounts)
 	{
@@ -11216,6 +7580,8 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		case WM_SYSKEYDOWN:
 		case WM_CHAR:
 		{
+			if (textureColourPicking) { return 0; }   // Select Colour's grid: FUN_00560620's loop reads no key, only a mouse press (0x56086a)
+
 			// Scroll Lock's pick waiting (CAM-8): FUN_004720c0's loop reads no key, so no key acts; a key down is only HELD (inteng's key tables follow the keys during the loop, FUN_0058c010),
 			// which is how Esc held at a press gives the pick up (0x472139) and how keys held through the wait act after it
 			if (rotationPickWaiting)
@@ -11689,8 +8055,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					}
 					else if (onTextureMap && textureWindowOn && (wParam == VK_OEM_PLUS || wParam == VK_OEM_MINUS))
 					{
-						textureWinScale = wParam == VK_OEM_PLUS ? (textureWinScale < 1 ? 2 : textureWinScale + 1) : (textureWinScale < 2 ? 1 : textureWinScale - 1);
-						textureWinScale = textureWinScale > 8 ? 8 : textureWinScale;
+						TextureWindowScale(wParam == VK_OEM_PLUS ? 0xf1 : 0xf3);   // ours, kept by the owner's ruling (board 17:52): = / - step the scale as 9 / 7 do
 					}
 					else if (onTextureMap && textureWindowOn && wParam == VK_ESCAPE)
 					{
@@ -11713,6 +8078,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 						textureCopyPending = false;
 						statusWords = "Texture Map: copy texturing cancelled";
 					}
+					else if (onTextureMap && wParam == VK_ESCAPE && TextureAlignCancel()) {}   // Texture Alignment's click stopped (texture_shared.h)
 					else if (onTextureMap && textureInvertPending && (wParam == 'A' || wParam == VK_ESCAPE))
 					{
 						textureInvertPending = false;
@@ -11784,6 +8150,11 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 						// the Edit Strategy dialog's "V : Edit Volume" (inteng's string), as a key on the Strategy screen: the same click pick as the item. (S-59, Vasquez 11-17: T no longer does the
 						// same with "T : Change Target": inteng reads T only inside the switch kinds' Edit views, which take it before this (52 / 61 / 66 / 68), and does nothing with it on page 0)
 						StrategyModeCommand(0x101);
+					}
+					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && wParam == 'E' && (strategyFlagPage || stabilityActive))
+					{
+						// the flag page (FUN_00525700) and Stability (FUN_00527370) are loops of their own: neither reads E's slot 0xd87a85, and the one reader of it on the screen, page 0's dispatcher
+						// FUN_00524e90, is not called while they run (only page 0's frame FUN_00522980 calls it, 0x522a0c): nothing (strategy-data.md S-52)
 					}
 					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && wParam == 'E' && !shiftHeld)
 					{
@@ -11936,6 +8307,8 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			{
 				return 0;
 			}
+
+			if (textureColourPicking) { POINT const at = InThePanels(window, lParam); TextureColourPickPress(at.x, at.y, true); return 0; }   // Select Colour's grid (Shift+K, FUN_00560620)
 
 			// Module Linking's Show All is let go by a mouse button (_DAT_00d8806a, 0x4c1aff); the press then goes on as a click (0x4c36a8) (row ML-M-3)
 			if (showAllHeld && OnModuleLinkingScreen())
@@ -12263,6 +8636,9 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				textureSHeld = false;
 			}
 			break;
+		case WM_ACTIVATEAPP:
+			host::ModuleLinkAvp_AppActive(wParam != 0);   // Link with AVP (0x58ba6f-0x58bc26, module_link_avp.h)
+			return 0;
 		case WM_KILLFOCUS:
 			// A key let go of while another window has the keyboard never reaches this one, so every key counts as up
 			memset(keyDown, 0, sizeof(keyDown));
@@ -12291,12 +8667,17 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				return 0;
 			}
 
+			if (textureColourPicking) { POINT const at = InThePanels(window, lParam); TextureColourPickPress(at.x, at.y, false); return 0; }   // Select Colour's grid: not a colour
+
 			// while AutoLink runs, a right press cancels it (inteng: DAT_00d8806a & 2 at the top of each record, 0x4c899c; AD-4) and does nothing else: no pop-up
 			if (AutoLinkShow_On())
 			{
 				AutoLinkShow_RightPress();
 				return 0;
 			}
+
+			// the texture windows take a right press on them: the right drag turns or scales the nodes (FUN_005557a0, texture_map_screen.cpp)
+			if (onTextureMap && textureWindowOn && window == hWndMain) { POINT const pressed = InThePanels(window, lParam); if (TextureWindowRightPress(pressed.x, pressed.y, textureWinFrameW, textureWinFrameH)) { rightButtonDown = false; return 0; } }
 
 			// Module Linking's Show All is let go by a mouse button, the right one too (row ML-M-3)
 			if (showAllHeld && OnModuleLinkingScreen())
@@ -12408,6 +8789,8 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			lastMouseY = GET_Y_LPARAM(lParam);
 			return 0;
 		case WM_RBUTTONUP:
+			if (textureWinRightDrag) { POINT const let = InThePanels(window, lParam); TextureWindowRightDragTo(let.x, let.y, textureWinFrameW, textureWinFrameH, (wParam & MK_CONTROL) != 0); TextureWindowRightRelease(textureWinFrameW, textureWinFrameH); return 0; }   // the texture windows' right drag ends
+
 			// Edit Extents' Shift + right drag ends with the button (DAT_0091bf08 = 0, 0x585be1)
 			if (waypointPanning)
 			{
@@ -12492,6 +8875,9 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 
 				ZoomMove(zoomAt.x, zoomAt.y);
 			}
+
+			if (onTextureMap && textureWindowOn) { POINT const over = InThePanels(window, lParam); TextureWindowMouseAt(over.x, over.y); }   // the scale keys zoom about the mouse (FUN_0055d350)
+			if (textureWinRightDrag) { POINT const turned = InThePanels(window, lParam); TextureWindowRightDragTo(turned.x, turned.y, textureWinFrameW, textureWinFrameH, (wParam & MK_CONTROL) != 0); }   // the texture windows' right drag
 
 			if (textureWinDrag)
 			{
@@ -12602,6 +8988,18 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				harnessScenarioAsked = true;
 			}
 			return 0;
+		case WM_COPYDATA:
+			// the harness's camera-orbit / camera-corner (orbit_command.h): its text, at most 256 bytes, in a -picture run only
+			if (NobodyWatching() && lParam && ((COPYDATASTRUCT const *)lParam)->dwData == kOrbitCommandTag && ((COPYDATASTRUCT const *)lParam)->lpData && ((COPYDATASTRUCT const *)lParam)->cbData <= 256)
+			{
+				std::string orbitWords;
+
+				OrbitCommand_Run(std::string((char const *)((COPYDATASTRUCT const *)lParam)->lpData, ((COPYDATASTRUCT const *)lParam)->cbData), &orbitWords);
+				LogString(orbitWords);
+				Answer(orbitWords);
+				return TRUE;
+			}
+			break;
 		case kHarnessCamera:
 			if (NobodyWatching() && theCamera && wParam <= 5)
 			{
@@ -13649,1344 +10047,6 @@ static void HarnessShowPage(int page)
 	harnessScenarioAsked = true;
 }
 
-static void EnterHierarchy()
-{
-	if (onHierarchy)
-	{
-		return;
-	}
-
-	onHierarchy = true;
-	host::HierarchyMode_Reset(&hierarchyMode);
-	hierarchyModelOpen = false;
-
-	// the model files the game has (avp_huds\*.rif): what Select Hierarchy offers when the open file holds no hierarchy
-	{
-		WIN32_FIND_DATAA found;
-		HANDLE const search = FindFirstFileA("avp_huds\\*.rif", &found);
-
-		if (search != INVALID_HANDLE_VALUE)
-		{
-			do
-			{
-				std::string name = found.cFileName;
-
-				if (!(found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && name.size() > 4 && hierarchyMode.models.size() < 200)
-				{
-					hierarchyMode.models.push_back(name.substr(0, name.size() - 4));
-				}
-			} while (FindNextFileA(search, &found));
-
-			FindClose(search);
-		}
-	}
-	promptList.clear();
-	statusWords = "Hierarchy: Select Hierarchy first (it asks for a model of avp_huds, then a hierarchy and a sequence); the model is drawn in front of the camera and played: P / O play and stop, N / M key frames, - / + the sequence time";
-	HierarchyOpenOnSelectedObject();   // a file of objects with no modules and an object picked: opens on its hierarchy (and says what it did)
-}
-
-void LeaveHierarchy()
-{
-	if (!onHierarchy)
-	{
-		return;
-	}
-
-	onHierarchy = false;
-	hierarchyModelOpen = false;
-	HierarchyView_Close();
-	hierarchyShownModel.clear();
-	hierarchyShownName.clear();
-	host::HierarchyMode_Reset(&hierarchyMode);
-	HierarchyView_Close();
-
-	if (promptFor == kPromptHierarchy)
-	{
-		promptFor = kPromptNone;
-		promptText.clear();
-	}
-
-	promptList.clear();
-}
-
-// A click in the Hierarchy view selects the section whose polygons are under it (inteng's FUN_00559720 + FUN_00479da0), drawn again in yellow; the section's name goes on the status line (ours: inteng
-// says nothing). A click on no section lets the selected one go.
-static void HierarchyClicked(host::PickReport const &report)
-{
-	// Vertex selection (V), inteng's way (hierarchy-closeout-frost.md TB-2; FUN_004889d0 0x489dd4-0x489efa, FUN_00485290; vertex_pick.h; Vasquez 11-17): the click must be on the skin object's
-	// polygons, else nothing; then the point nearest on the screen and every point within 1 of it on each axis (its duplicates) are ADDED to the selection, or with Shift TAKEN OFF it. (Until
-	// 11-17 ours toggled the one nearest point wherever the click was.) NAMED: the skin is the attached object in the reference pose where the view draws its points, not moved with the
-	// playing frame.
-	if (hierarchyMode.vertexMode && !hierarchySkin.empty())
-	{
-		host::PickCamera camera;
-		host::PickRay ray;
-
-		if (!PickGame_Camera(hierarchyPickViewW, hierarchyPickViewH, &camera) || host::PickRay_FromClick(camera, pickX, pickY, &ray) != host::PickRayMade::Made)
-		{
-			Answer("Vertex selection: there is no frame to put the points on");
-			return;
-		}
-
-		std::vector<int32_t> world(hierarchySkin.size());
-
-		for (size_t i = 0; i < hierarchySkin.size(); i++)
-		{
-			world[i] = hierarchySkin[i] + hierarchyShownPlace[i % 3];
-		}
-
-		// 0x48530f-0x48531b: FUN_00559720 must give the vertex object
-		if (!host::VertexPick_RayHitsFaces(ray, world, hierarchySkinFaces))
-		{
-			Answer("Vertex selection: the click is not on " + hierarchyMode.attachObject);
-			hierarchyAnswerUntil = GetTickCount() + 5000;
-			return;
-		}
-
-		// 0x4853c4: a point not beyond the view block's +0x3c is skipped: 0x140 of inteng's units for the marine's lens, 0xa0 for the alien's (100 to the millimetre)
-		double const nearAhead = hierarchyMode.viewKind == 1 ? 1.6 : 3.2;
-		std::vector<int32_t> const picked = host::VertexPick_Points(camera, pickX, pickY, world, nearAhead);
-		size_t changed = 0;
-
-		for (int32_t const point : picked)
-		{
-			const std::vector<int32_t>::iterator at = std::find(hierarchyMode.vertices.begin(), hierarchyMode.vertices.end(), point);
-
-			if (pickShift && at != hierarchyMode.vertices.end())
-			{
-				hierarchyMode.vertices.erase(at);   // FUN_0046dce0: the mark cleared
-				changed++;
-			}
-			else if (!pickShift && at == hierarchyMode.vertices.end())
-			{
-				hierarchyMode.vertices.push_back(point);   // FUN_0046dc90: the mark set
-				changed++;
-			}
-		}
-
-		Answer(std::string("Vertex ") + (picked.empty() ? std::string("none") : std::to_string(picked[0])) + ": " + std::to_string(picked.size()) + " points " + (pickShift ? "taken off" : "added")
-			+ " (" + std::to_string(changed) + " changed, " + std::to_string(hierarchyMode.vertices.size()) + " selected)");
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-		return;
-	}
-
-	// inteng (0x489f5d-0x489f74, HP-16; hierarchy-closeout-frost.md TB-1): FUN_00559720(x, y), the object whose POLYGONS are under the pointer, nearest along the ray, then FUN_00479da0: the
-	// section before is let go (+0x48 = 0), and the section that object is (FUN_0047f880) becomes the selected one; an object that is no section, or nothing at all, leaves NONE selected. Ours: the
-	// game's line of sight over what was drawn met that section's posed polygons (PickReport::hierarchySection). (Until 2026-11-16 ours took the section whose bounding sphere the ray crossed,
-	// and a click on nothing kept the selection.)
-	int index = -1;
-	std::vector<HierarchyViewSection> sections;
-
-	if (!HierarchyView_SectionOfHit(report.hierarchySection, &index) || !HierarchyView_Sections(&sections) || index < 0 || (size_t)index >= sections.size())
-	{
-		HierarchyView_SelectSection(-1);
-		hierarchyMode.section.clear();
-		Answer("Hierarchy: no section under the click");
-		return;
-	}
-
-	HierarchyView_SelectSection(index);
-	hierarchyMode.section = sections[(size_t)index].name;   // Change object for section and the vertex selection work on the selected section (inteng's view +0x48)
-	Answer("Hierarchy: section " + sections[(size_t)index].name + " selected");
-}
-
-// What the mode says next. HIERARCHYSHOW IS THE ONE PLACE a Hierarchy step becomes what inteng shows (Bishop 2026-11-16: each owner traces the dialog kind of his asks and returns it):
-//   step.messageBox            inteng's MESSAGE BOX (FUN_00474030 + FUN_0057c800(100, 100)): the words and Ok; with soundForm the Sound Edit window opens after the Ok
-//   step.soundForm             the Sound Edit window of hierarchyMode.soundBeingEdited (FUN_004ebd60 -> edobtype's edit_sound): HierarchySoundFormOpen, answered by HierarchyMode_SoundForm
-//   step.prompt + textDialog   inteng's TEXT DIALOG (FUN_00474170: the words, one edit holding defaultText, Ok / Cancel): Ok gives the edit's words to HierarchyMode_Typed (a number: read it with
-//                              HierarchyMode_EditNumber = FUN_0057d620, as FUN_00474340 does), Cancel calls HierarchyMode_Cancel
-//   step.prompt + the Help ask the two Help pages as inteng's full text screens (FUN_004724f0, "Click to continue.")
-//   step.prompt + a list       inteng's LIST DIALOG (FUN_00475bf0, the rows sorted): the pick is answered as its place from 1
-//   step.prompt, nothing else  OUR TYPED LINE: a substitute, still to be traced to one of the kinds above
-//   anything else              the answer is kept for the state line only (the Hierarchy screen draws no status line)
-// (The mode's helpers in hierarchy_mode.cpp: AskInDialog, Box, Line + Ask.)
-static void HierarchySoundFormOpen();
-
-// The sound chooser's right click (0x481720: FUN_00501080, then FUN_004ec0a0(the sound, the camera block's place +0x10)): the sound with that index plays once at the camera's place, with its
-// ranges (the file's x the level's scale, as the game takes a track's), volume and pitch; the sound folder is the level's (SOUNDDIR, as Track Editing's sounds). Its words are the state line's.
-static void HierarchyListen(int32_t index)
-{
-	std::vector<host::SoundInfo> sounds;
-
-	if (!hierarchyModelOpen || !theCamera || host::HierarchyEdit_Sounds(&hierarchyModelFile, &sounds) != host::HierarchyEditResult::Done)
-	{
-		return;
-	}
-
-	for (host::SoundInfo const &each : sounds)
-	{
-		if (each.index != index)
-		{
-			continue;
-		}
-
-		double const scale = hierarchyMode.levelScale > 0.0 && hierarchyMode.levelScale <= 1000000.0 ? hierarchyMode.levelScale : 1.0;
-		int32_t const place[3] = { theCamera->x, theCamera->y, theCamera->z };
-
-		host::TrackPlay_UseSoundDirectory(host::TrackLevelSoundDirectory(LevelObjects_OpenForEdit()));
-		bool const playing = host::TrackPlay_Listen(each.wav, (int32_t)(each.inner * scale), (int32_t)(each.outer * scale), each.volume, each.pitch, place);
-
-		Answer(playing ? "Listening to " + each.wav : "Listen: " + each.wav + " could not be played (no sound device, or no such wav in the sound folder)");
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-		return;
-	}
-}
-static void HierarchyFemaleFormOpen(bool checked);
-
-void HierarchyShow(host::HierarchyStep const &step)
-{
-	promptList = hierarchyMode.list;
-
-	// inteng's message box (FUN_00474030 + FUN_0057c800(100, 100)): the refusals of Select Sequence and Add delta (reassess/hierarchy-deltas-vasquez.md HD-10, HD-16), the sound items' (C-SND,
-	// C-4d); a Sound Edit window that is shown again after it (a refused answer) opens when Ok closes the box
-	if (step.messageBox)
-	{
-		promptList.clear();
-		Answer(step.answer);
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-
-		// a box and then a question ("That name is already used", Ok, the same text dialog again: FUN_0048af00 / FUN_0047a880's loops)
-		if (step.prompt)
-		{
-			host::HierarchyStep question = step;
-
-			question.messageBox = false;
-			question.answer.clear();
-			memset(keyDown, 0, sizeof(keyDown));
-			DialogMessage(step.answer, [question]() { HierarchyShow(question); });
-			return;
-		}
-
-		if (step.soundForm)
-		{
-			DialogMessage(step.answer, []() { HierarchySoundFormOpen(); });
-		}
-		else
-		{
-			DialogMessage(step.answer);
-		}
-
-		return;
-	}
-
-	// Set Properties' window (FUN_0048d6a0 / FUN_0048d820)
-	if (step.prompt && step.femaleForm)
-	{
-		promptList.clear();
-		memset(keyDown, 0, sizeof(keyDown));
-		HierarchyFemaleFormOpen(step.femaleChecked);
-		return;
-	}
-
-	// the sound's Sound Edit window (FUN_004ebd60: edobtype's edit_sound)
-	if (step.soundForm)
-	{
-		promptList.clear();
-
-		if (!step.answer.empty())
-		{
-			Answer(step.answer);
-			hierarchyAnswerUntil = GetTickCount() + 5000;
-		}
-
-		HierarchySoundFormOpen();
-		return;
-	}
-
-	// inteng's text dialog (FUN_00474170): the words, one edit holding the number offered, Ok / Cancel (FUN_0057c800(100, 100)); Ok gives the edit's words to the mode, Cancel closes the question
-	if (step.prompt && step.textDialog)
-	{
-		host::DialogField field;
-
-		promptList.clear();
-		hierarchyTitle = step.title;
-		memset(keyDown, 0, sizeof(keyDown));
-		promptFor = kPromptNone;
-		promptText.clear();
-		field.text = step.defaultText;
-		DialogText(step.title, { field }, [](int32_t answer, std::vector<std::string> const &texts)
-		{
-			if (answer == host::kDialogOk && !texts.empty())
-			{
-				HierarchyDialogAnswer(texts[0]);
-			}
-			else
-			{
-				HierarchyDialogCancel();
-			}
-		});
-		return;
-	}
-
-	// Help (0x38, FUN_0048ab60): FUN_004724f0 twice, the model's keys and then the boned object and turret commands. FUN_004724f0 is NOT a toolkit message box (it never calls FUN_0057c800): it draws the text over the view
-	// (FUN_0057be40) with "Click to continue." (005d3ed8) and runs its own message loop until a click: the text panel Module Linking's, Strategy's and Light's Help use (textPanelText / textPanelNext)
-	if (step.prompt && hierarchyMode.ask == host::HierarchyAsk::Help)
-	{
-		auto words = [](std::vector<std::string> const &lines)
-		{
-			std::string text;
-
-			for (std::string const &line : lines)
-			{
-				text += (text.empty() ? "" : "\n") + line;
-			}
-
-			return text;
-		};
-
-		std::string const first = words(hierarchyMode.list);
-
-		host::HierarchyMode_Typed(HierarchyFile(), &hierarchyMode, std::string());   // the next page
-
-		std::string const second = hierarchyMode.ask == host::HierarchyAsk::Help ? words(hierarchyMode.list) : std::string();
-
-		if (hierarchyMode.ask == host::HierarchyAsk::Help)
-		{
-			host::HierarchyMode_Typed(HierarchyFile(), &hierarchyMode, std::string());   // closes the question
-		}
-
-		promptList.clear();
-		hierarchyMode.list.clear();
-
-		static std::string helpPages[2];   // the panel keeps pointers to these until it is closed
-
-		helpPages[0] = first;
-		helpPages[1] = second;
-		textPanelText = helpPages[0].c_str();
-		textPanelNext = second.empty() ? nullptr : helpPages[1].c_str();
-		return;
-	}
-
-	if (step.prompt && !hierarchyMode.list.empty())
-	{
-		// choices: inteng's list dialog (DialogList, FUN_00475bf0), no typed prompt; the rows come as "N  name" lines, the dialog shows the names, the answer is the row's place in the list from 1
-		hierarchyTitle = step.title;
-		memset(keyDown, 0, sizeof(keyDown));
-		promptFor = kPromptNone;
-		promptText.clear();
-
-		std::vector<std::string> names;
-
-		for (std::string const &line : promptList)
-		{
-			size_t digits = 0;
-
-			while (digits < line.size() && line[digits] >= '0' && line[digits] <= '9')
-			{
-				digits++;
-			}
-
-			names.push_back(digits > 0 && line.compare(digits, 2, "  ") == 0 ? line.substr(digits + 2) : line);
-		}
-
-		// the sound chooser (FUN_00481740) gives its list a right-click handler (FUN_00476f70 with 0x481720): a right click on a row plays that row's sound, the list stays open
-		std::function<void(int32_t)> listen;
-
-		if (hierarchyMode.ask == host::HierarchyAsk::SoundEditPick || hierarchyMode.ask == host::HierarchyAsk::SoundDeletePick || hierarchyMode.ask == host::HierarchyAsk::SoundApplyPick)
-		{
-			std::vector<int32_t> const indices = hierarchyMode.listValues;   // each row's sound index
-
-			listen = [indices](int32_t place)
-			{
-				if (place >= 0 && (size_t)place < indices.size())
-				{
-					HierarchyListen(indices[(size_t)place]);
-				}
-			};
-		}
-
-		DialogList(step.title, names, [](int32_t choice)
-		{
-			if (choice < 0)
-			{
-				HierarchyDialogCancel();
-			}
-			else
-			{
-				HierarchyDialogAnswer(std::to_string(choice + 1));
-			}
-		}, listen);
-		return;
-	}
-
-	// inteng's Yes / No box (FUN_00474a40)
-	if (step.prompt && step.confirm)
-	{
-		hierarchyTitle = step.title;
-		memset(keyDown, 0, sizeof(keyDown));
-		promptFor = kPromptNone;
-		promptText.clear();
-		DialogConfirm(step.title, [](bool yes) { HierarchyDialogAnswer(yes ? "yes" : "no"); });
-		return;
-	}
-
-	if (step.prompt)
-	{
-		hierarchyTitle = step.title;
-		memset(keyDown, 0, sizeof(keyDown));
-		promptFor = kPromptHierarchy;
-		promptText = step.defaultText;
-		hierarchyPromptFresh = !step.defaultText.empty();
-		return;
-	}
-
-	promptList.clear();
-	hierarchyPromptFresh = false;
-
-	if (!step.answer.empty())
-	{
-		Answer(step.answer);
-		hierarchyAnswerUntil = GetTickCount() + 5000;
-	}
-
-	HierarchySyncView();
-}
-
-// The file Hierarchy mode works on: the opened model, or else the open level
-OpenLevelFile *HierarchyFile()
-{
-	return hierarchyModelOpen ? &hierarchyModelFile : LevelObjects_OpenForEdit();
-}
-
-// The model the typed Open model answer named: opened from avp_huds beside the data folder, then Select Hierarchy runs again over it
-static void HierarchyOpenRequestedModel()
-{
-	std::string const name = hierarchyMode.modelRequested;
-
-	hierarchyMode.modelRequested.clear();
-
-	if (name.empty())
-	{
-		return;
-	}
-
-	std::string const path = "avp_huds\\" + name + ".rif";
-	LevelOpenResult const opened = hierarchyModelFile.Open(path.c_str());
-
-	if (opened != LevelOpenResult::Opened)
-	{
-		Answer("Open model " + name + ": the game's own loader did not take the file");
-		return;
-	}
-
-	hierarchyModelOpen = true;
-	hierarchyModelSavedGeneration = hierarchyModelFile.Generation();
-	hierarchyMode.modelName = name;
-	hierarchyMode.hierarchy.clear();
-	hierarchyMode.sequenceSelected = false;
-	hierarchyMode.collectionSelected = false;
-	hierarchyMode.applied.clear();
-	HierarchyShow(host::HierarchyMode_Command(&hierarchyModelFile, &hierarchyMode, 0x03));
-}
-
-// The view follows the mode: once a model is open with a hierarchy and a sequence selected, the hierarchy is shown in front of the camera playing that sequence; a new sequence switches it;
-// restart shows it again with the sequence's time in the mode (after the time keys), keeping the position and whether it plays.
-static void HierarchySyncView(bool restart)
-{
-	// Calculate Bounding Box: every sequence is played through its keyframes by the game's own pose (hierarchy_player.h), the box of the shapes' points is written into the sequence's HIERBBOX, and
-	// the box over all sequences into the hierarchy's (inteng's FUN_004796f0; the poses are the keyframe starts: inteng adds one time step, the frame clock, to each)
-	if (hierarchyMode.boundsRequested)
-	{
-		hierarchyMode.boundsRequested = false;
-
-		host::HierarchyPlayer player;
-		std::string why;
-		std::vector<host::SequenceInfo> sequences;
-		bool const loaded = hierarchyModelOpen && player.Load(hierarchyMode.modelName, hierarchyMode.hierarchy, nullptr, &why) &&
-			host::HierarchyEdit_Sequences(&hierarchyModelFile, hierarchyMode.hierarchy, &sequences) == host::HierarchyEditResult::Done;
-		int32_t overall[2][3] = { { 0, 0, 0 }, { 0, 0, 0 } };
-		bool anyAt = false;
-		int done = 0;
-
-		for (size_t i = 0; loaded && i < sequences.size(); i++)
-		{
-			std::vector<host::FrameInfo> frames;
-			std::vector<int> times;
-			int32_t low[3] = { 0, 0, 0 }, high[3] = { 0, 0, 0 };
-
-			if (host::HierarchyEdit_RootFrames(&hierarchyModelFile, hierarchyMode.hierarchy, sequences[i].number, sequences[i].subNumber, &frames) != host::HierarchyEditResult::Done)
-			{
-				continue;
-			}
-
-			for (host::FrameInfo const &each : frames)
-			{
-				times.push_back(each.at);
-			}
-
-			if (!player.Start(sequences[i].number, sequences[i].subNumber, &why) || !player.Box(times, low, high) ||
-				host::HierarchyEdit_WriteBoundingBox(&hierarchyModelFile, hierarchyMode.hierarchy, (int)i, low, high) != host::HierarchyEditResult::Done)
-			{
-				continue;
-			}
-
-			for (int axis = 0; axis < 3; axis++)
-			{
-				overall[0][axis] = anyAt && overall[0][axis] < low[axis] ? overall[0][axis] : low[axis];
-				overall[1][axis] = anyAt && overall[1][axis] > high[axis] ? overall[1][axis] : high[axis];
-			}
-
-			anyAt = true;
-			done++;
-		}
-
-		if (anyAt && host::HierarchyEdit_WriteBoundingBox(&hierarchyModelFile, hierarchyMode.hierarchy, -1, overall[0], overall[1]) == host::HierarchyEditResult::Done)
-		{
-			Answer("Calculated bounding box (" + std::to_string(done) + " sequences; x " + std::to_string(overall[0][0]) + " to " + std::to_string(overall[1][0]) + ", y " + std::to_string(overall[0][1]) + " to " +
-				std::to_string(overall[1][1]) + ", z " + std::to_string(overall[0][2]) + " to " + std::to_string(overall[1][2]) + ")");
-		}
-		else
-		{
-			Answer("Calculate Bounding Box: no box could be worked out" + (why.empty() ? std::string() : ": " + why));
-		}
-
-		hierarchyAnswerUntil = GetTickCount() + 6000;
-	}
-
-	// Add delta / Remove delta: the mode asks, the view does (the game's own delta controllers)
-	if (hierarchyMode.removeDeltasRequested)
-	{
-		hierarchyMode.removeDeltasRequested = false;
-		HierarchyView_RemoveDeltas();
-	}
-
-	if (hierarchyMode.addDeltaRequested)
-	{
-		hierarchyMode.addDeltaRequested = false;
-
-		if (!HierarchyView_AddDelta(hierarchyMode.addDeltaNumber, hierarchyMode.addDeltaSub))
-		{
-			Answer("Add delta: the view shows no model, or the hierarchy has no such sequence");
-		}
-		else if (hierarchyMode.deltaSelected)
-		{
-			HierarchyView_SetDeltaMilliseconds(hierarchyMode.deltaMs);
-		}
-	}
-
-	if (hierarchyMode.deltaTimeRequested)
-	{
-		hierarchyMode.deltaTimeRequested = false;
-		HierarchyView_SetDeltaMilliseconds(hierarchyMode.deltaMs);
-	}
-
-	if (!onHierarchy || !hierarchyModelOpen || hierarchyMode.hierarchy.empty() || !hierarchyMode.sequenceSelected || hierarchyMode.modelName.empty())
-	{
-		return;
-	}
-
-	std::vector<host::SequenceInfo> sequences;
-
-	if (host::HierarchyEdit_Sequences(&hierarchyModelFile, hierarchyMode.hierarchy, &sequences) != host::HierarchyEditResult::Done || hierarchyMode.sequence >= sequences.size())
-	{
-		return;
-	}
-
-	host::SequenceInfo const &wanted = sequences[hierarchyMode.sequence];
-	bool const same = HierarchyView_IsShown() && hierarchyShownModel == hierarchyMode.modelName && hierarchyShownName == hierarchyMode.hierarchy;
-	int sequence = 0, sub = 0;
-
-	// A sequence player's time is ITS OWN: 1000 ms unless the sequence has an OBASEQTM above 0 (FUN_0047d6f0 0x47d80c +0x18 = 1000, +0x14 = 0x10000; 0x47d982-0x47d99c the chunk's time),
-	// never the game's default length of the sequence (reassess/hierarchy-play-frost.md HP-32): hierarchyMode.sequenceMs holds it
-	if (same && !restart)
-	{
-		if (!(HierarchyView_CurrentSequence(&sequence, &sub) && sequence == wanted.number && sub == wanted.subNumber))
-		{
-			HierarchyView_SetSequence(wanted.number, wanted.subNumber);
-			HierarchyView_ChangeTime(hierarchyMode.sequenceMs - HierarchyView_SequenceMilliseconds());
-		}
-
-		return;
-	}
-
-	int32_t const position = same ? HierarchyView_Position() : 0;
-	bool const playing = same && HierarchyView_IsPlaying();
-	std::string why;
-	int32_t place[3] = { 0, 0, 0 };
-
-	if (!HierarchyView_LoadModel(hierarchyMode.modelName.c_str(), &why) ||
-		!ShowTheModelInFront(hierarchyMode.modelName.c_str(), hierarchyMode.hierarchy.c_str(), wanted.number, wanted.subNumber, place, &why,
-			(int32_t)(((int64_t)hierarchyMode.sequenceMs * 65536) / 1000)))
-	{
-		Answer("Hierarchy view: " + why);
-		return;
-	}
-
-	hierarchyShownModel = hierarchyMode.modelName;
-	hierarchyShownName = hierarchyMode.hierarchy;
-
-	if (same)
-	{
-		HierarchyView_SetPosition(position);
-		HierarchyView_Play(playing, true);
-	}
-	else
-	{
-		HierarchyView_Play(false, true);   // a chosen sequence stands at position 0 until P (FUN_0047d6f0 makes its player not running)
-	}
-}
-
-// D / F: the previous / next sequence of the hierarchy becomes the current one (inteng's keys; the sequence's time is read as Select Sequence reads it)
-// D / F (the key table FUN_0048cde0: D -> 0x40, F -> 0x3f; FUN_004889d0 cases 0x40 0x488e4d / 0x3f 0x488e26, reassess/hierarchy-play-frost.md HP-11 / HP-12 / HP-30): only with a player and a main
-// sequence (else NOTHING, no message); FUN_004784e0(main index -/+ 1): the main player is replaced by a new one for that index, wrapped by the hierarchy's sequence count (FUN_0047d6f0 0x47d743-0x47d74c,
-// the file's order), at timer 0 and NOT running (0x47d810 / 0x47d816), with its own time (OBASEQTM, else 1000 ms); the delta players are freed (0x478526-0x4785dc). Its name shows in the text rows.
-static void HierarchyStepSequence(int direction)
-{
-	if (hierarchyMode.hierarchy.empty() || !hierarchyModelOpen || !hierarchyMode.sequenceSelected)
-	{
-		return;
-	}
-
-	std::vector<host::SequenceInfo> sequences;
-
-	if (host::HierarchyEdit_Sequences(&hierarchyModelFile, hierarchyMode.hierarchy, &sequences) != host::HierarchyEditResult::Done || sequences.empty())
-	{
-		return;
-	}
-
-	size_t const count = sequences.size();
-
-	hierarchyMode.sequence = (hierarchyMode.sequence + (direction > 0 ? 1 : count - 1)) % count;
-
-	int32_t milliseconds = 0;
-	bool has = false;
-
-	hierarchyMode.sequenceMs = 1000;
-
-	if (host::HierarchyEdit_ReadSequenceTime(&hierarchyModelFile, hierarchyMode.hierarchy, hierarchyMode.sequence, &milliseconds, &has) == host::HierarchyEditResult::Done && has && milliseconds > 0)
-	{
-		hierarchyMode.sequenceMs = milliseconds;
-	}
-
-	HierarchyView_RemoveDeltas();
-	hierarchyMode.deltaSelected = false;
-	HierarchySyncView();   // the new sequence (the turret player stays: FUN_004784e0 keeps [1])
-	HierarchyView_ChangeTime(hierarchyMode.sequenceMs - HierarchyView_SequenceMilliseconds());   // at its own time
-	HierarchyView_SetPosition(0);   // timer 0, not running
-}
-
-// inteng's Hierarchy mode works on the OPENED FILE (FUN_0048b8a0 lists its OBJCHIER objects): when the file the editor opened holds hierarchies (a HUD or weapon file, a model file) it becomes the mode's file, drawn
-// from avp_rifs\<level>.rif by the game's own loader; a level with none leaves the mode as it was, and Select Hierarchy then does nothing, as in inteng
-static void HierarchyOpenTheLevelAsTheFile()
-{
-	if (hierarchyModelOpen || openLevelName.empty())
-	{
-		return;
-	}
-
-	std::string const path = "avp_rifs\\" + openLevelName + ".rif";
-	std::vector<std::string> names;
-
-	if (hierarchyModelFile.Open(path.c_str()) != LevelOpenResult::Opened || host::HierarchyEdit_Names(&hierarchyModelFile, &names) != host::HierarchyEditResult::Done || names.empty())
-	{
-		return;
-	}
-
-	hierarchyModelOpen = true;
-	hierarchyModelSavedGeneration = hierarchyModelFile.Generation();
-	hierarchyMode.modelName = "avp_rifs/" + openLevelName;
-	hierarchyMode.hierarchy.clear();
-	hierarchyMode.sequenceSelected = false;
-}
-
-static void HierarchyRunCommand(int32_t command)
-{
-	HierarchyOpenTheLevelAsTheFile();
-
-	OpenLevelFile *const open = HierarchyFile();
-
-	if (!open || !open->Level())
-	{
-		Answer("No level is held to work on");
-		return;
-	}
-
-	hierarchyMode.position = HierarchyView_IsShown() ? HierarchyView_Position() : 0;
-	HierarchyShow(host::HierarchyMode_Command(open, &hierarchyMode, command));
-	HierarchySyncView();
-
-	if (hierarchyMode.vertexMode && hierarchySkin.empty())
-	{
-		if (host::HierarchyEdit_SkinPoints(open, hierarchyMode.attachObject, &hierarchySkin) != host::HierarchyEditResult::Done
-			|| host::HierarchyEdit_SkinFaces(open, hierarchyMode.attachObject, &hierarchySkinFaces) != host::HierarchyEditResult::Done)
-		{
-			hierarchySkin.clear();
-			hierarchySkinFaces.clear();
-			hierarchyMode.vertexMode = false;
-			Answer("Vertex selection: the attached object's points could not be read");
-		}
-	}
-	else if (!hierarchyMode.vertexMode)
-	{
-		hierarchySkin.clear();
-		hierarchySkinFaces.clear();
-	}
-	else if (command == 0x61)
-	{
-		hierarchySkin.clear();   // the points are read again next frame (the attachment changed, the shape did not: this is only to be safe)
-		host::HierarchyEdit_SkinPoints(open, hierarchyMode.attachObject, &hierarchySkin);
-		host::HierarchyEdit_SkinFaces(open, hierarchyMode.attachObject, &hierarchySkinFaces);
-	}
-}
-
-// THE SOUND EDIT WINDOW of a hierarchy's sound (New sound and Edit sound: FUN_004ebd60 -> edobtype's edit_sound, resource 132 "Sound Edit", 245 x 178 dialog units in MS Sans Serif 8, each control
-// where the resource puts it): the wav name, Inner Range (m), Outer Range (m), Pitch +/- semitones, Volume %, the boxes Playing at Start and Sound Loops (OFF for a hierarchy's sound: FUN_004ebd60
-// passes the mask 0, FUN_004ebc80's third number being 0), OK and Cancel. The probability (1060 / 1061) is hidden in AvP (edobtype 0x10006930). The caption is "Sound Edit - %s" with the sound
-// folder FUN_004ebd60 passes (DAT_008f4dac, made by FUN_004f68b0 from the level's SOUNDDIR: the folder's first part is still to trace). NOT BUILT: the wav name is an edit, where the DLL's is a
-// combo of the folder's *.wav; the Play button (1065).
-static void HierarchySoundFormOpen()
-{
-	auto const dx = [](int32_t u) { return (int32_t)(u * 3 / 2); };
-	auto const dy = [](int32_t u) { return (int32_t)(u * 13 / 8); };
-	std::vector<std::string> const shown = host::HierarchyMode_SoundFormShown(hierarchyMode);
-	host::DialogFormSpec spec;
-
-	spec.title = "Sound Edit - " + host::TrackLevelSoundDirectory(LevelObjects_OpenForEdit());
-	spec.width = dx(245) + 10;
-	spec.height = dy(178) + 10;
-
-	auto const add = [&spec](host::DialogWidgetType kind, std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h, int32_t answer, size_t most, bool enabled)
-	{
-		host::DialogWidget one;
-
-		one.type = kind;
-		one.text = words;
-		one.box = { x, y, w, h };
-		one.answer = answer;
-		one.most = most;
-		one.enabled = enabled;
-		spec.widgets.push_back(one);
-	};
-
-	add(host::DialogWidgetType::Label, "Wav file name", dx(13), dy(9), dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, shown.size() > 0 ? shown[0] : std::string(), dx(13), dy(25), dx(216), 18, 0, 255, true);
-	add(host::DialogWidgetType::Label, "Inner Range (m)", dx(13), dy(44), dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, shown.size() > 1 ? shown[1] : std::string(), dx(15), dy(55), dx(63), 18, 0, 20, true);
-	add(host::DialogWidgetType::Label, "Pitch +/- semitones", dx(91), dy(44), dx(70), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, shown.size() > 3 ? shown[3] : std::string(), dx(91), dy(56), dx(63), 18, 0, 20, true);
-	add(host::DialogWidgetType::Label, "Outer Range (m)", dx(13), dy(76), dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, shown.size() > 2 ? shown[2] : std::string(), dx(15), dy(90), dx(63), 18, 0, 20, true);
-	add(host::DialogWidgetType::Label, "Volume %", dx(91), dy(76), dx(62), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, shown.size() > 4 ? shown[4] : std::string(), dx(91), dy(88), dx(63), 18, 0, 20, true);
-
-	// the two flag boxes, off (greyed) for a hierarchy's sound; what they show: Playing at Start is checked when the flag bit 0 is clear, Sound Loops when the bit 1 FUN_004ebd60 makes is clear
-	// (it sets that bit when the sound's bit 0 is clear: 0x4ebe2b), so for a hierarchy's sound exactly one of them is checked
-	bool const bitZero = (hierarchyMode.soundBeingEdited.flags & 1u) != 0;
-
-	add(host::DialogWidgetType::Check, std::string(), dx(90), dy(115), 12, 12, 0, 10, false);
-	spec.widgets.back().checked = true;   // the flags word FUN_004ebd60 passes has no bit 0 (0x4ebe2b: only bit 1)
-	add(host::DialogWidgetType::Label, "Playing at Start", dx(90) + 16, dy(115) - 2, dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Check, std::string(), dx(90), dy(129), 12, 12, 0, 10, false);
-	spec.widgets.back().checked = bitZero;
-	add(host::DialogWidgetType::Label, "Sound Loops", dx(90) + 16, dy(129) - 2, dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Button, "OK", dx(35), dy(155), dx(50), 20, host::kDialogOk, 10, true);
-	add(host::DialogWidgetType::Button, "Cancel", dx(170), dy(155), dx(50), 20, host::kDialogEscape, 10, true);
-
-	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		if (answer != host::kDialogOk)
-		{
-			// Cancel: the DLL writes nothing back, so the sound keeps what it had (a new sound its start values); FUN_004816f0 still marks the file changed
-			return;
-		}
-
-		// the edits in the window's order are name, inner, pitch, outer, volume: the mode takes name, inner, outer, pitch, volume
-		std::vector<std::string> edits;
-
-		for (host::DialogWidget const &one : widgets)
-		{
-			if (one.type == host::DialogWidgetType::Edit)
-			{
-				edits.push_back(one.text);
-			}
-		}
-
-		if (edits.size() < 5)
-		{
-			return;
-		}
-
-		OpenLevelFile *const open = HierarchyFile();
-
-		if (!open || !open->Level())
-		{
-			return;
-		}
-
-		HierarchyShow(host::HierarchyMode_SoundForm(open, &hierarchyMode, { edits[0], edits[1], edits[3], edits[2], edits[4] }));
-	});
-}
-
-// THE SOUND EDIT WINDOW, 1:1 (A-10; reassess/object-placement.md OP-133a..c; sound_edit.h has the numbers): edobtype's resource 132 as it lays it out (245 x 178 dialog units, 1.5 x 1.625
-// pixels each), its wav name an EDITABLE combo (CBS_DROPDOWN) holding every wav of the sound folder and the folders below it (0x10006a68, edobtype's finder), the one whose name BEGINS with the
-// sound's name picked (CB_SELECTSTRING, any capitals; an empty name picks the first); Inner Range (m), Outer Range (m), Pitch +/- semitones, Volume % as MFC's float fields; Playing at Start and
-// Sound Loops (live under the mask); Play; OK; Cancel; the probability hidden (AvP). OK (and Play) read the fields in the DLL's order and the first that fails says MFC's words and the window
-// stays. The window answers with the record (sound_edit.h: OK changes it, Cancel leaves it). Added 2026-11-16 by Melanikus (Vasquez).
-namespace
-{
-	struct SoundEditTyped
-	{
-		std::string name;
-		int32_t picked = -1;
-		std::string fields[4];
-		bool playingAtStart = false;
-		bool loops = false;
-	};
-
-	struct SoundEditWindow
-	{
-		host::SoundEditRecord record;
-		std::string folder;
-		std::vector<std::string> wavs;
-		std::function<void(host::SoundEditRecord const &, bool)> done;
-	};
-
-	SoundEditWindow soundEditWindow;
-}
-
-static int32_t const kSoundEditPlay = 1065;   // the Play button's control (the DLL's message map 0x1001ab78)
-
-static void SoundEditWindowShow(SoundEditTyped const &typed);
-
-// The fields, the boxes and the name as the window holds them now (OK and Play read them; a refusal shows the window again with them)
-static SoundEditTyped SoundEditTypedOf(std::vector<host::DialogWidget> const &widgets)
-{
-	SoundEditTyped t;
-	size_t edit = 0, check = 0;
-
-	for (host::DialogWidget const &w : widgets)
-	{
-		if (w.type == host::DialogWidgetType::Combo)
-		{
-			t.name = w.text;
-			t.picked = w.selected;
-		}
-		else if (w.type == host::DialogWidgetType::Edit && edit < 4)
-		{
-			t.fields[edit++] = w.text;
-		}
-		else if (w.type == host::DialogWidgetType::Check)
-		{
-			(check++ == 0 ? t.playingAtStart : t.loops) = w.checked;
-		}
-	}
-
-	return t;
-}
-
-// UpdateData(TRUE) in the DLL's DoDataExchange order (0x10006830): the name, then inner, outer, pitch, volume; the first that fails shows MFC's words and gives false
-static bool SoundEditRead(SoundEditTyped const &typed, float values[4])
-{
-	for (int i = 0; i < 4; i++)
-	{
-		std::string message;
-
-		if (!host::SoundEdit_ReadField(i, typed.fields[i], &values[i], &message))
-		{
-			DialogMessage(message, [typed]() { SoundEditWindowShow(typed); });
-			return false;
-		}
-	}
-
-	return true;
-}
-
-static void SoundEditWindowShow(SoundEditTyped const &typed)
-{
-	auto const dx = [](int32_t u) { return (int32_t)(u * 3 / 2); };
-	auto const dy = [](int32_t u) { return (int32_t)(u * 13 / 8); };
-	host::SoundEditShown const shown = host::SoundEdit_Shown(soundEditWindow.record);
-	host::DialogFormSpec spec;
-
-	spec.title = "Sound Edit - " + soundEditWindow.folder;   // 0x10006b5a: "Sound Edit - %s" with the folder
-	spec.width = dx(245) + 10;
-	spec.height = dy(178) + 10;
-
-	auto const add = [&spec](host::DialogWidgetType kind, std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h, int32_t answer, size_t most, bool enabled)
-	{
-		host::DialogWidget one;
-
-		one.type = kind;
-		one.text = words;
-		one.box = { x, y, w, h };
-		one.answer = answer;
-		one.most = most;
-		one.enabled = enabled;
-		spec.widgets.push_back(one);
-	};
-
-	add(host::DialogWidgetType::Label, "Wav file name", dx(13), dy(9), dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Combo, typed.name, dx(13), dy(25), dx(216), 18, 0, 255, true);
-	spec.widgets.back().items = soundEditWindow.wavs;
-	spec.widgets.back().selected = typed.picked;
-	spec.widgets.back().editable = true;
-	add(host::DialogWidgetType::Label, "Inner Range (m)", dx(13), dy(44), dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, typed.fields[0], dx(15), dy(55), dx(63), 18, 0, 20, true);
-	add(host::DialogWidgetType::Label, "Outer Range (m)", dx(13), dy(76), dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, typed.fields[1], dx(15), dy(90), dx(63), 18, 0, 20, true);
-	add(host::DialogWidgetType::Label, "Pitch +/- semitones", dx(91), dy(44), dx(70), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, typed.fields[2], dx(91), dy(56), dx(63), 18, 0, 20, true);
-	add(host::DialogWidgetType::Label, "Volume %", dx(91), dy(76), dx(62), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, typed.fields[3], dx(91), dy(88), dx(63), 18, 0, 20, true);
-	add(host::DialogWidgetType::Check, std::string(), dx(90), dy(115), 12, 12, 0, 10, shown.playingAtStartLive);
-	spec.widgets.back().checked = typed.playingAtStart;
-	add(host::DialogWidgetType::Label, "Playing at Start", dx(90) + 16, dy(115) - 2, dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Check, std::string(), dx(90), dy(129), 12, 12, 0, 10, shown.loopsLive);
-	spec.widgets.back().checked = typed.loops;
-	add(host::DialogWidgetType::Label, "Sound Loops", dx(90) + 16, dy(129) - 2, dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Button, "Play", dx(175), dy(85), dx(50), 20, kSoundEditPlay, 10, true);
-	add(host::DialogWidgetType::Button, "OK", dx(35), dy(155), dx(50), 20, host::kDialogOk, 10, true);
-	add(host::DialogWidgetType::Button, "Cancel", dx(170), dy(155), dx(50), 20, host::kDialogEscape, 10, true);
-
-	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		SoundEditTyped const now = SoundEditTypedOf(widgets);
-
-		if (answer == kSoundEditPlay)
-		{
-			// Play (0x10007420 -> 0x10006db0 -> 0x10007060): the fields read first; the file is the PICKED row's (none picked: nothing); what the last Play started stops; it plays in 2D at the
-			// pitch, looping when Sound Loops is ticked; then the window again. NAMED (placed_sounds_game.h): through the game's loader and sound code, the volume as the game's 0..127
-			float values[4];
-
-			if (SoundEditRead(now, values))
-			{
-				if (now.picked >= 0 && (size_t)now.picked < soundEditWindow.wavs.size())
-				{
-					std::string const &wav = soundEditWindow.wavs[(size_t)now.picked];
-					bool const playing = host::SoundGame_PreviewPlay(wav, (int32_t)(values[3] * 0.01f * 127.0f), (int32_t)(values[2] * 128.0f), now.loops);
-
-					Answer("Sound Edit: Play " + wav + (playing ? ": playing" : (host::SoundGame_DeviceOn() ? ": the game did not load it" : ": no sound device")));
-				}
-				else
-				{
-					Answer("Sound Edit: Play: no wav is picked in the list, nothing plays");
-				}
-
-				SoundEditWindowShow(now);
-			}
-
-			return;
-		}
-
-		if (answer != host::kDialogOk)
-		{
-			// Cancel (or Escape): the record as it was; the window closing stops what Play started (0x10007010)
-			host::SoundGame_PreviewStop();
-
-			std::function<void(host::SoundEditRecord const &, bool)> const done = soundEditWindow.done;
-
-			if (done)
-			{
-				done(soundEditWindow.record, false);
-			}
-
-			return;
-		}
-
-		float values[4];
-
-		if (!SoundEditRead(now, values))
-		{
-			return;
-		}
-
-		host::SoundEdit_Ok(&soundEditWindow.record, now.name, values, now.playingAtStart, now.loops);
-		host::SoundGame_PreviewStop();   // the window closes (0x10007010)
-
-		std::function<void(host::SoundEditRecord const &, bool)> const done = soundEditWindow.done;
-
-		if (done)
-		{
-			done(soundEditWindow.record, true);
-		}
-	});
-}
-
-// Opens the window for the record; `done` gets the record after OK (changed) or Cancel (as it was), and whether it was OK (only Track Editing's new sound asks, TB-T1). The list (Bishop's ruling 11-16): the raw folder's wavs when the folder is there
-// (edobtype's finder, 1:1), else the wavs the game's loader holds in its fastfiles under "sound/<the level's sound directory>/" in the finder's order (NAMED, sound_edit.h)
-static void SoundEditWindowOpen(host::SoundEditRecord const &record, std::string const &folder, std::string const &soundDirectory, std::function<void(host::SoundEditRecord const &, bool)> const &done)
-{
-	DWORD const folderIs = GetFileAttributesA(folder.c_str());
-	bool const rawFolder = folderIs != INVALID_FILE_ATTRIBUTES && (folderIs & FILE_ATTRIBUTE_DIRECTORY) != 0;
-	std::string const prefix = "sound/" + soundDirectory + "/";
-
-	soundEditWindow.record = record;
-	soundEditWindow.folder = folder;
-	soundEditWindow.wavs = rawFolder ? host::SoundEdit_WavNames(folder) : host::SoundEdit_WavNamesFromFiles(prefix, host::SoundGame_FastFileNames(prefix));
-	soundEditWindow.done = done;
-	host::SoundGame_UseSilence(editorHiddenRun);
-	host::SoundGame_UseSoundDirectory(soundDirectory);
-
-	host::SoundEditShown const shown = host::SoundEdit_Shown(record);
-	SoundEditTyped typed;
-
-	typed.name = record.name;
-
-	// CB_SELECTSTRING(-1, name) (0x10006ae8): the first row that BEGINS with the name, any capitals, is picked and shown
-	std::string lowerName;
-
-	for (char ch : record.name)
-	{
-		lowerName += (char)tolower((unsigned char)ch);
-	}
-
-	for (size_t row = 0; row < soundEditWindow.wavs.size(); row++)
-	{
-		std::string lowerRow;
-
-		for (char ch : soundEditWindow.wavs[row])
-		{
-			lowerRow += (char)tolower((unsigned char)ch);
-		}
-
-		if (lowerRow.compare(0, lowerName.size(), lowerName) == 0)
-		{
-			typed.picked = (int32_t)row;
-			typed.name = soundEditWindow.wavs[row];
-			break;
-		}
-	}
-
-	for (int i = 0; i < 4; i++)
-	{
-		typed.fields[i] = shown.fields[i];
-	}
-
-	typed.playingAtStart = shown.playingAtStart;
-	typed.loops = shown.loops;
-	SoundEditWindowShow(typed);
-}
-
-// Object > Edit / E on a placed SOUND (0x4ed060): the record from the sound (inteng's units: the file's x 100 x the scale, FUN_004ecd40 0x4ecddf), the window, and after OK OR Cancel alike the
-// numbers back through the floats (0x4ed20c-0x4ed290) and into the file's units (the save 0x4ed4f8: ftol(mem / unit)); they also become the next new sound's (DAT_005e7a60 .., OP-30).
-static void PlacedSoundEdit()
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	std::vector<host::SpecialObject> all;
-
-	if (!open || !open->Level() || host::SpecialObjects_Read(open, &all) != host::SpecialResult::Done)
-	{
-		Answer("Sound Edit: no level is held to work on");
-		return;
-	}
-
-	host::SpecialObject const *sound = nullptr;
-
-	for (host::SpecialObject const &one : all)
-	{
-		sound = one.kind == host::SpecialKind::Sound && one.number == specialMode.number ? &one : sound;
-	}
-
-	if (!sound)
-	{
-		Answer("Sound Edit: the current sound is not in the level any more");
-		return;
-	}
-
-	double const unit = 100.0 * (local_scale > 0.0 ? local_scale : 1.0);
-	auto const ftol = [](double v) { return !(v == v) ? 0 : (v >= 2147483647.0 ? 2147483647 : (v <= -2147483648.0 ? (int32_t)-2147483647 - 1 : (int32_t)v)); };
-	uint32_t const inner = (uint32_t)ftol((double)(uint32_t)sound->inner * unit);
-	uint32_t const outer = (uint32_t)ftol((double)(uint32_t)sound->outer * unit);
-	host::SoundEditRecord const record = host::SoundEdit_Record(sound->wav, inner, outer, sound->pitch, sound->volume, (uint32_t)sound->soundFlags, sound->probability);
-	std::string const soundDirectory = host::TrackLevelSoundDirectory(open);
-	std::string const folder = std::string(theGameFolder) + "\\sound\\" + soundDirectory + "\\";
-	size_t const number = sound->number;
-
-	// 0x4ed13e-0x4ed1ac: the sound stops and its wav is let go before the window (placed_sounds_game.h)
-	host::PlacedSounds_EditStart(number);
-
-	SoundEditWindowOpen(record, folder, soundDirectory, [number, unit, ftol](host::SoundEditRecord const &back, bool)
-	{
-		OpenLevelFile *const file = LevelObjects_OpenForEdit();
-		std::vector<host::SpecialObject> again;
-
-		if (!file || !file->Level() || host::SpecialObjects_Read(file, &again) != host::SpecialResult::Done)
-		{
-			return;
-		}
-
-		int32_t memInner = 0, memOuter = 0, pitch = 0, volume = 0, probability = 0;
-		uint32_t flags = 0;
-
-		host::SoundEdit_Back(back, &memInner, &memOuter, &pitch, &volume, &flags, &probability);
-
-		for (host::SpecialObject &one : again)
-		{
-			if (one.kind != host::SpecialKind::Sound || one.number != number)
-			{
-				continue;
-			}
-
-			unsigned const generation = file->Generation();
-
-			one.wav = back.name;
-			one.inner = ftol((double)(uint32_t)memInner / unit);
-			one.outer = ftol((double)(uint32_t)memOuter / unit);
-			one.pitch = pitch;
-			one.volume = volume;
-			one.soundFlags = (int32_t)flags;
-			one.probability = probability;
-
-			host::SpecialResult const written = host::SpecialObject_Write(file, one);
-
-			// 0x4ed295-0x4ed32b: its wav loaded by the (new) name and, when bit 0 is clear, played as when made (placed_sounds_game.h)
-			std::vector<host::PlacedSoundIn> const playedNow = PlacedSoundsOfLevel(std::vector<host::SpecialObject>(1, one));
-
-			if (!playedNow.empty())
-			{
-				host::PlacedSounds_EditEnd(number, playedNow[0]);
-			}
-
-			// 0x4ed212-0x4ed290: every number becomes the next new sound's
-			soundDefaults.set = true;
-			soundDefaults.innerMm = (double)(uint32_t)memInner / 100.0;
-			soundDefaults.outerMm = (double)(uint32_t)memOuter / 100.0;
-			soundDefaults.volume = volume;
-			soundDefaults.pitch = pitch;
-			soundDefaults.flags = (int32_t)flags;
-			soundDefaults.probability = probability;
-
-			Answer(written == host::SpecialResult::Done ? "Sound Edit: " + back.name + " written" : std::string("Sound Edit: not written: ") + host::SpecialWords(written));
-
-			if (file->Generation() != generation)
-			{
-				LoadTheObjectListAgain();
-			}
-
-			return;
-		}
-	});
-}
-
-// SET PROPERTIES' WINDOW (case 0x58, FUN_0048d6a0 / FUN_0048d820; reassess/hierarchy-edit-frost.md HF-0x58): FUN_0057d170(600, 0x1a4, 5) with its title "Shape set properties" (0x5d5d2c), "Ok"
-// (0x5cf68c) at (200, 0x172) and "Cancel" (0x5cfab4) at (0x15e, 0x172), each 0x50 x 0x12, the label "Female" (0x5d5d24) at (0x12, 0x28) 100 x 0x12 (FUN_0057d400) and the check box FUN_0057d670 at
-// (0x76, 0x28) holding the applied set's flags bit 0; Ok gives the box's state to the mode, Cancel nothing
-static void HierarchyFemaleFormOpen(bool checked)
-{
-	host::DialogFormSpec spec;
-
-	spec.title = "Shape set properties";
-	spec.width = 600;
-	spec.height = 0x1a4;
-
-	auto const add = [&spec](host::DialogWidgetType kind, std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h, int32_t answer)
-	{
-		host::DialogWidget one;
-
-		one.type = kind;
-		one.text = words;
-		one.box = { x, y, w, h };
-		one.answer = answer;
-		one.most = 10;
-		one.enabled = true;
-		spec.widgets.push_back(one);
-	};
-
-	add(host::DialogWidgetType::Button, "Ok", 200, 0x172, 0x50, 0x12, host::kDialogOk);
-	add(host::DialogWidgetType::Button, "Cancel", 0x15e, 0x172, 0x50, 0x12, host::kDialogEscape);
-	add(host::DialogWidgetType::Label, "Female", 0x12, 0x28, 100, 0x12, 0);
-	add(host::DialogWidgetType::Check, std::string(), 0x76, 0x28, 12, 12, 0);
-	spec.widgets.back().checked = checked;
-
-	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		if (answer != host::kDialogOk)
-		{
-			HierarchyDialogCancel();
-			return;
-		}
-
-		bool on = false;
-
-		for (host::DialogWidget const &one : widgets)
-		{
-			on = one.type == host::DialogWidgetType::Check ? one.checked : on;
-		}
-
-		HierarchyDialogAnswer(on ? "yes" : "no");
-	});
-}
-
-static void HierarchyDialogAnswer(std::string const &typed)
-{
-	promptList.clear();
-	HierarchyTypedAnswer(typed);
-}
-
-static void HierarchyDialogCancel()
-{
-	promptList.clear();
-	host::HierarchyMode_Cancel(&hierarchyMode);
-}
-
-static void HierarchyTypedAnswer(std::string const &typed)
-{
-	OpenLevelFile *const open = HierarchyFile();
-
-	if (!open || !open->Level())
-	{
-		Answer("No level is held to work on");
-		return;
-	}
-
-	unsigned const generation = open->Generation();
-
-	hierarchyMode.position = HierarchyView_IsShown() ? HierarchyView_Position() : 0;
-	HierarchyShow(host::HierarchyMode_Typed(open, &hierarchyMode, typed));
-	HierarchySyncView();
-
-	if (hierarchyMode.turretChosen)
-	{
-		hierarchyMode.turretChosen = false;
-
-		std::vector<host::SequenceInfo> sequences;
-
-		if (host::HierarchyEdit_Sequences(&hierarchyModelFile, hierarchyMode.hierarchy, &sequences) == host::HierarchyEditResult::Done && hierarchyMode.turretSequence < sequences.size() &&
-			HierarchyView_SetTurret(sequences[hierarchyMode.turretSequence].number, sequences[hierarchyMode.turretSequence].subNumber))
-		{
-			Answer("Hierarchy: turret sequence " + std::to_string(sequences[hierarchyMode.turretSequence].number) + "." + std::to_string(sequences[hierarchyMode.turretSequence].subNumber) + " plays on the sections under the turret section");
-		}
-	}
-
-	if (!hierarchyMode.modelRequested.empty())
-	{
-		HierarchyOpenRequestedModel();
-	}
-
-	// the level was rebuilt: the object list and the picture are made again from it
-	if (open->Generation() != generation && !hierarchyModelOpen)
-	{
-		LoadTheObjectListAgain();
-	}
-}
-
-// A file of objects with no modules, an object picked, and the Hierarchy screen entered: the Hierarchy mode opens on THAT object's hierarchy, ready to play its sequences (Bishop's order for Melanikus's HUD and weapon files:
-// "click an object, go to Hierarchy, and it opens on that object's hierarchy"). The hierarchy is the first of the file whose sections' objects include the picked one (HierarchyEdit_SectionObjects), the model is the file itself in
-// avp_huds (the way the mode opens a model), and the first sequence is selected, so the view shows the hierarchy playing it. Nothing happens when no object is picked, the file has no model objects, or avp_huds has no copy of the file.
-// The hierarchy of the open file that has the object with this 8-byte ID as one of its sections (HierarchyEdit_SectionObjects: the objects the sections' shapes are); empty when none does. *objectName gets the object's name.
-std::string HierarchyOfObject(uint8_t const *id, std::string *objectName)
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	std::vector<host::LevelObject> rows;
-	std::string name;
-
-	LevelObjects_Read(&rows);
-
-	for (host::LevelObject const &row : rows)
-	{
-		if (memcmp(row.id, id, host::kSelectionIdBytes) == 0 && row.name)
-		{
-			name = row.name;
-			break;
-		}
-	}
-
-	if (objectName)
-	{
-		*objectName = name;
-	}
-
-	std::vector<std::string> names;
-
-	if (!open || !open->Level() || name.empty() || host::HierarchyEdit_Names(open, &names) != host::HierarchyEditResult::Done)
-	{
-		return std::string();
-	}
-
-	for (std::string const &hierarchy : names)
-	{
-		std::vector<std::string> objects;
-
-		if (host::HierarchyEdit_SectionObjects(open, hierarchy, &objects) == host::HierarchyEditResult::Done)
-		{
-			for (std::string const &object : objects)
-			{
-				if (object == name)
-				{
-					return hierarchy;
-				}
-			}
-		}
-	}
-
-	return std::string();
-}
-
-// The hand-off's words: on the status line and, for a hidden run, on the output (the screen change that follows replaces the status line)
-static void HandOffSays(std::string const &words)
-{
-	Answer(words);
-	printf("AVP_OpenInteng: hand-off: %s\n", words.c_str());
-	fflush(stdout);
-}
-
-static void HierarchyOpenOnSelectedObject()
-{
-	if (ModelObjects_Count() == 0)
-	{
-		return;
-	}
-
-	uint8_t id[host::kSelectionIdBytes];
-
-	if (!SelectedObjectId(id))
-	{
-		return;
-	}
-
-	std::string objectName;
-	std::string const chosen = HierarchyOfObject(id, &objectName);
-
-	if (chosen.empty())
-	{
-		HandOffSays("Hierarchy: the picked object, " + objectName + ", is not a section of any hierarchy of this file");
-		return;
-	}
-
-	// the mode works on the OPENED FILE (HierarchyOpenTheLevelAsTheFile, inteng's FUN_0048b8a0 lists the opened file's hierarchies): Select Hierarchy asks, and the answer is the chosen one's place in its list
-	HierarchyRunCommand(0x03);
-	promptFor = kPromptNone;
-	promptText.clear();
-	promptList.clear();   // the list dialog the command opened is answered below, not shown
-	host::Dialogs_DismissList();
-
-	if (!hierarchyModelOpen)
-	{
-		HandOffSays("Hierarchy: the opened file could not be taken as the hierarchy file");
-		return;
-	}
-
-	std::vector<std::string> modelNames;
-
-	if (host::HierarchyEdit_Names(&hierarchyModelFile, &modelNames) != host::HierarchyEditResult::Done)
-	{
-		return;
-	}
-
-	size_t place = 0;
-
-	for (; place < modelNames.size() && modelNames[place] != chosen; place++)
-	{
-	}
-
-	if (place >= modelNames.size())
-	{
-		HandOffSays("Hierarchy: the file does not list the hierarchy " + chosen);
-		return;
-	}
-
-	HierarchyDialogAnswer(std::to_string((unsigned long long)(place + 1)));   // Select Hierarchy: its number
-	promptFor = kPromptNone;
-	promptText.clear();
-	HierarchyRunCommand(0x04);                                               // Select Sequence ...
-	promptFor = kPromptNone;
-	promptText.clear();
-	promptList.clear();   // the list dialog the command opened is answered below, not shown
-	host::Dialogs_DismissList();
-	HierarchyDialogAnswer("1");                                               // ... the first one: the view plays it
-	promptFor = kPromptNone;
-	promptText.clear();
-}
 
 // The selected object's ID, when an object is selected
 bool SelectedObjectId(uint8_t *id)
@@ -15003,7 +10063,7 @@ bool SelectedObjectId(uint8_t *id)
 }
 
 // The object Light Sourcing's Edge > Soft works on: the selected object, or the module picked in Select Object mode (a module is an object of the file too, found by its name and place)
-static bool SelectedObjectOrModuleId(uint8_t *id)
+bool SelectedObjectOrModuleId(uint8_t *id)
 {
 	if (SelectedObjectId(id))
 	{
@@ -15448,7 +10508,6 @@ std::vector<int32_t> PickedModules()
 // ---- ACOUSTIC MODE (reassess/object-placement.md section 2, AC-1 .. AC-9; the data side is acoustic_mode.h). inteng's is Object Placement's menu page 7 with
 // DAT_008f4f30 = 1, so that FUN_004d9af0 runs only FUN_004f57b0 each frame; here it is the screen "Acoustic", entered by Mode > Acoustic Mode (0x10) and left by its
 // Mode > Exit (0xa) for Object Placement. Its bar is inteng's page 7 (menu-status.json's Acoustic stand-in: Mode, Module, Default).
-static void DialogLine(std::string const &title, std::string const &label, std::string const &initial, size_t most, int32_t editHeight, std::function<void(std::string const &)> const &ok);
 int32_t GameModuleOfNumber(int32_t number);
 
 
@@ -16151,7 +11210,7 @@ static void AltChangeShown(int64_t typed)
 // 0x44c293). Then the hub's G steps to the list's next one and Shift+G to the one before (FUN_004452b0 0x446b11-0x446c38, round the list), each time the view to its place and it
 // selected alone. The list is emptied by the next search and when the hub is left (FUN_004476d0's first loop).
 extern double local_scale;   // the level's scale (declared again below, where Find uses it)
-static int32_t smallLimit = 500;                      // DAT_005cf510: the limit, in millimetres (its start is the data word 0x1f4 = 500, read from inteng.exe's data, 0x5cf510)
+int32_t smallLimit = 500;                      // DAT_005cf510: the limit, in millimetres (its start is the data word 0x1f4 = 500, read from inteng.exe's data, 0x5cf510)
 static std::vector<host::SmallModule> smallFound;      // the found list (DAT_00631250), in the level's order: the chooser's rows
 static size_t smallAt = 0;                             // where the list's iterator stands (DAT_00631228)
 static std::string smallWords;
@@ -16368,9 +11427,9 @@ static void SetTheBaseModule()
 // Placed asks "<name> has module linking data. Do you want to delete it?" for each object that has a MODULEDT, in the selection's order; yes destroys
 // the data, anything else leaves THAT object as it was. Here the questions come first, then one change for all the objects (all or nothing).
 // Esc answers "no" to the question it is on (inteng's dialog gave an answer that wasn't yes the same way). (Added 2026-11-15 by Melanikus (Frost).)
-static std::vector<host::ObjectTypeCall> typeCalls;     // the selected objects, with the answers so far
+std::vector<host::ObjectTypeCall> typeCalls;     // the selected objects, with the answers so far
 static std::vector<bool> typeHasLinks;                  // which of them hold a MODULEDT
-static size_t typeAsking = 0;                           // the object the open question is about (an index in typeCalls)
+size_t typeAsking = 0;                           // the object the open question is about (an index in typeCalls)
 static std::string typeWords;
 
 static void ApplyTheObjectType(host::ObjectTypeWhat what)
@@ -16522,7 +11581,7 @@ static void ChangeTheObjectType(int32_t which)
 }
 
 // Enter on the question: "y" or "yes" (any case) destroys the object's module data; anything else leaves the object as it was
-static void RunTypeAnswer(std::string const &typed)
+void RunTypeAnswer(std::string const &typed)
 {
 	if (typeAsking >= typeCalls.size())
 	{
@@ -17068,1681 +12127,6 @@ static void RunVirtualName(std::string const &typed)
 	statusWords = strategyWords.c_str();
 }
 
-static void RunDeleteMulti(std::string const &typed);
-
-// DELETE MULTIPLE STRATEGIES' WINDOW (FUN_005376a0: FUN_0057d170(600, 400, 0x2b), the title "Select Strategies To Delete" 0x5f027c; Ok (0x96, 0x172) and Cancel (0x15e, 0x172), each 0x46 x 0x10; then twenty check boxes at x 0x10 (left column) or 0x13c (right column), their words 0x10 to the right (200 x 0x12), rows y 0x28 + 0x14 x row:
-// left Switches, Obsolete Switches, Doors (Non-Lift), Lighting effects, Mission Objective, Messages, Volume of Death, Self Destruct, Marine Pickups, Predator Pickups; right Generators, Aliens, Marines, Predators, Alien Queens, Xenoborgs, Predator-Aliens, Praetorians, Sentry Guns, Facehuggers).
-// Ok (FUN_005380d0, the window's answer 2) deletes for every ticked box; the boxes the data side has (Switches, Lighting effects, Mission Objective, Messages, Volume of Death, Self Destruct) go through StrategyMode_DeleteKinds, and a ticked box that is not built yet (Obsolete Switches FUN_00537030, Doors (Non-Lift) FUN_00536de0, the pickups FUN_005373e0, the species FUN_005375d0: they work on the game's live objects) is NAMED on the status line, never silently skipped.
-void DeleteMultipleForm()
-{
-	static char const *const words[20] = { "Switches", "Obsolete Switches", "Doors (Non-Lift)", "Lighting effects", "Mission Objective", "Messages", "Volume of Death", "Self Destruct", "Marine Pickups", "Predator Pickups",
-		"Generators", "Aliens", "Marines", "Predators", "Alien Queens", "Xenoborgs", "Predator-Aliens", "Praetorians", "Sentry Guns", "Facehuggers" };
-	host::DialogFormSpec spec;
-
-	spec.title = "Select Strategies To Delete";
-	spec.width = 600;
-	spec.height = 400;
-
-	host::DialogWidget ok, cancel;
-
-	ok.type = host::DialogWidgetType::Button;
-	ok.box = host::DialogRect{ 0x96, 0x172, 0x46, 0x10 };
-	ok.text = "Ok";
-	ok.answer = host::kDialogOk;
-	cancel.type = host::DialogWidgetType::Button;
-	cancel.box = host::DialogRect{ 0x15e, 0x172, 0x46, 0x10 };
-	cancel.text = "Cancel";
-	cancel.answer = host::kDialogEscape;
-	spec.widgets.push_back(ok);
-	spec.widgets.push_back(cancel);
-
-	for (int i = 0; i < 20; i++)
-	{
-		int32_t const x = i < 10 ? 0x10 : 0x13c, y = 0x28 + 0x14 * (i % 10);
-		host::DialogWidget box, label;
-
-		box.type = host::DialogWidgetType::Check;
-		box.box = host::DialogRect{ x, y, 12, 12 };
-		box.group = -1;
-		label.type = host::DialogWidgetType::Label;
-		label.box = host::DialogRect{ x + 0x10, y, 200, 0x12 };
-		label.text = words[i];
-		spec.widgets.push_back(box);
-		spec.widgets.push_back(label);
-	}
-
-	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		if (answer != host::kDialogOk)
-		{
-			return;
-		}
-
-		host::StrategyGroup const *groups = nullptr;
-		size_t const groupCount = host::StrategyMode_Groups(&groups);
-		std::string typed, notBuilt, liveWords;
-		int box = 0;
-
-		for (host::DialogWidget const &w : widgets)
-		{
-			if (w.type != host::DialogWidgetType::Check)
-			{
-				continue;
-			}
-
-			if (w.checked)
-			{
-				bool built = false;
-
-				for (size_t g = 0; g < groupCount && !built; g++)
-				{
-					if (strcmp(groups[g].name, words[box]) == 0)
-					{
-						typed += std::to_string((unsigned long long)(g + 1)) + " ";
-						built = true;
-					}
-				}
-
-				bool const live = box == 1 || box == 2 || box == 8 || box == 9 || box >= 10;
-
-				if (!built && !live)
-				{
-					notBuilt += (notBuilt.empty() ? "" : ", ") + std::string(words[box]);
-				}
-			}
-
-			box++;
-		}
-
-		// S-87 (strategy-data.md, Vasquez 11-17): FUN_005380d0's order is the typed kinds first (0x53812e-0x5381da: Switches 52 / 61 / 66 / 68, Doors FUN_00536de0, Lighting effects, Mission
-		// Objective, Messages, Volume of Death, Self Destruct), then the pickups (FUN_005373e0, 0x5381fc), the species (FUN_005375d0, 0x538699), OBSOLETE SWITCHES LAST (FUN_00537030, 0x53874f),
-		// then always the repair pass (FUN_00536ad0, 0x538764) and the recolouring (FUN_00522650, 0x538769). (Ours ran Obsolete Switches first and no repair after: a virtual switch whose
-		// only target went in the same Ok survived.)
-		if (!typed.empty())
-		{
-			RunDeleteMulti(typed);
-		}
-
-		// the groups that work on the live objects (FUN_00536de0 doors, FUN_005373e0 pickups, FUN_005375d0 the species), in the order FUN_005380d0 runs them; boxes are numbered as the form's list
-		std::string live;
-		{
-			OpenLevelFile *const open = LevelObjects_OpenForEdit();
-			std::vector<bool> on;
-
-			for (host::DialogWidget const &w : widgets)
-			{
-				if (w.type == host::DialogWidgetType::Check)
-				{
-					on.push_back(w.checked);
-				}
-			}
-
-			size_t done = 0, total = 0;
-			auto const count = [&](host::StrategyModeResult result, char const *what)
-			{
-				live += (live.empty() ? "" : ", ") + std::string(what) + (result == host::StrategyModeResult::Done ? "" : std::string(" (") + host::StrategyModeWords(result) + ")");
-			};
-
-			if (open && on.size() == 20)
-			{
-				if (on[2])
-				{
-					done = 0;
-					count(host::StrategyMode_DeleteDoorsNonLift(open, &done), "Doors (Non-Lift)");
-					total += done;
-				}
-
-				if (on[8] || on[9])
-				{
-					done = 0;
-					count(host::StrategyMode_DeletePickups(open, on[8], on[9], &done), on[8] && on[9] ? "Pickups" : (on[8] ? "Marine Pickups" : "Predator Pickups"));
-					total += done;
-				}
-
-				// Generators 0, Aliens 1, Marines 7, Predators 2, Alien Queens 6, Xenoborgs 4, Predator-Aliens 5, Praetorians 8, Sentry Guns 9, Facehuggers 3 (the form's right column, FUN_005380d0's list)
-				static int const species[10] = { 0, 1, 7, 2, 6, 4, 5, 8, 9, 3 };
-				uint32_t mask = 0;
-
-				for (int i = 0; i < 10; i++)
-				{
-					mask |= on[(size_t)(10 + i)] ? (1u << species[i]) : 0u;
-				}
-
-				if (mask != 0)
-				{
-					done = 0;
-					count(host::StrategyMode_DeleteSpecies(open, mask, &done), "species groups");
-					total += done;
-				}
-
-				// Obsolete Switches (FUN_00537030, the second box, LAST, 0x53874f): the repair pass, then every virtual switch whose network of targets is all virtual switches
-				if (on[1])
-				{
-					bool refused = false;
-
-					done = host::StrategyRepair_DeleteObsoleteSwitches(open, &refused);
-					live += (live.empty() ? "" : ", ") + std::string("Obsolete Switches") + (refused ? " (a destroy was refused)" : "");
-					total += done;
-				}
-
-				// ... and always the repair pass (FUN_00536ad0, 0x538764): the targets the deletes left dead are reset
-				if (host::StrategyRepair_Run(open) > 0 && live.empty())
-				{
-					live = "the repair pass";
-				}
-
-				if (!live.empty())
-				{
-					LoadTheObjectListAgain();
-					liveWords = "Delete Multiple Strategies: " + std::to_string((unsigned long long)total) + " more deleted (" + live + ")";
-				}
-			}
-		}
-
-		if (!liveWords.empty())
-		{
-			strategyWords = typed.empty() ? liveWords : strategyWords + " | " + liveWords;
-			statusWords = strategyWords.c_str();
-		}
-
-		if (!notBuilt.empty())
-		{
-			strategyWords = std::string((typed.empty() && liveWords.empty()) ? "" : strategyWords + " | ") + "Delete Multiple Strategies: not built yet: " + notBuilt + " (FUN_00537030 is read but its rule is not settled)";
-			statusWords = strategyWords.c_str();
-		}
-		else if (typed.empty() && liveWords.empty())
-		{
-			statusWords = "Delete Multiple Strategies: nothing chosen";
-		}
-	});
-}
-
-// The numbers typed in Delete Multiple Strategies: the groups they name are deleted in one change
-static void RunDeleteMulti(std::string const &typed)
-{
-	host::StrategyGroup const *groups = nullptr;
-	size_t const groupCount = host::StrategyMode_Groups(&groups);
-	std::vector<int32_t> kinds;
-	std::string named;
-	size_t at = 0;
-
-	while (at < typed.size())
-	{
-		if (typed[at] == ' ' || typed[at] == ',')
-		{
-			at++;
-			continue;
-		}
-
-		char *end = nullptr;
-		long const number = strtol(typed.c_str() + at, &end, 10);
-
-		if (end == typed.c_str() + at || number < 1 || (size_t)number > groupCount)
-		{
-			statusWords = "Delete Multiple Strategies: type group numbers from the list, like 1 3";
-			return;
-		}
-
-		host::StrategyGroup const &group = groups[(size_t)number - 1];
-
-		for (size_t i = 0; i < group.count; i++)
-		{
-			kinds.push_back(group.kinds[i]);
-		}
-
-		named += (named.empty() ? "" : ", ") + std::string(group.name);
-		at = (size_t)(end - typed.c_str());
-	}
-
-	if (kinds.empty())
-	{
-		statusWords = "Delete Multiple Strategies: nothing chosen";
-		return;
-	}
-
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	size_t deleted = 0;
-	host::StrategyModeResult const result = open ? host::StrategyMode_DeleteKinds(open, kinds.data(), kinds.size(), &deleted) : host::StrategyModeResult::BadCall;
-
-	if (result != host::StrategyModeResult::Done)
-	{
-		strategyWords = std::string("Delete Multiple Strategies: ") + host::StrategyModeWords(result);
-		statusWords = strategyWords.c_str();
-		return;
-	}
-
-	LoadTheObjectListAgain();
-	strategyWords = "Delete Multiple Strategies (" + named + "): " + std::to_string((unsigned long long)deleted) + " strategy(ies) deleted (kept in the editor's bytes until Save a copy)";
-	statusWords = strategyWords.c_str();
-}
-
-// WHICH STRATEGIES AN OBJECT CAN TAKE (Assign Strategy's chooser FUN_0052a160, in its order, each row shown only when the object's class says it can take the kind: method +8,
-// vtable 0x5af9a0 at 0x538a80, read from the exe's bytes; this exe's game number makes the placed-object branches the ones below):
-//   a MODULE (the object's header has no placed bit): Lift 51, Door 50, Airlock 57, Switch Door 59, Lighting Effects 64;
-//   a PLACED object: Platform Lift 54, Multi Switch 66, Linked Switch 61, Track Object 72, Track Object (Destructable) 80, Fan 75, Placed Object 62.
-// (Binary Switch 52, Simple Object 53 and the Console 63 are accepted by the class but have no row in the chooser; the virtual object's class takes 52, 61, 66, 68, 70, 73, 77, 78.)
-// Gives how many kinds, into kinds (most 16), for the object with that ID; 0 when the object's header can't be read.
-size_t KindsTheObjectCanTake(uint8_t const *id, int32_t *kinds)
-{
-	// an ENEMY (AVPGENER with a species, type != 0: wrapper vtable 0x5afa00, +8 at 0x53a2b0) takes Enemy 69 only; a GENERATOR (type 0: 0x5afa20, +8 at 0x53aa70) Generator 79 only (S-KC-6)
-	{
-		host::GeneratorRef generator;
-
-		if (host::FindGenerator(LevelObjects_Level(), id, &generator))
-		{
-			kinds[0] = generator.type != 0 ? 69 : 79;
-			return 1;
-		}
-	}
-
-	// a PLACED HIERARCHY (PLACHIER: wrapper vtable 0x5afae0, +8 at 0x53b780) takes Hierarchy Object 76 only (S-KC-6, S-K76-W)
-	{
-		host::PlacedHierarchyRef placedHierarchy;
-
-		if (host::FindPlacedHierarchy(LevelObjects_Level(), id, &placedHierarchy))
-		{
-			kinds[0] = 76;
-			return 1;
-		}
-	}
-
-	// a VIRTUAL object (VIOBJECT): class vtable 0x5af9e0, +8 at 0x539cf0 takes Binary 52, Linked 61, Multi 66, Area 68, Mission Objective 70, Message 73, Volume of Death 77 and Self Destruct 78;
-	// the chooser has rows for these (no Binary Switch row), in its order
-	{
-		std::vector<host::VirtualObjectRef> virtuals;
-
-		host::ListVirtualObjects(LevelObjects_Level(), &virtuals);
-
-		for (host::VirtualObjectRef const &one : virtuals)
-		{
-			if (memcmp(one.id, id, host::kSelectionIdBytes) == 0)
-			{
-				static int32_t const virtualKinds[] = { 66, 61, 68, 70, 73, 77, 78 };
-
-				for (size_t i = 0; i < sizeof(virtualKinds) / sizeof(virtualKinds[0]); i++)
-				{
-					kinds[i] = virtualKinds[i];
-				}
-
-				return sizeof(virtualKinds) / sizeof(virtualKinds[0]);
-			}
-		}
-	}
-
-	host::ObjectHeader header;
-
-	if (!LevelObjects_FindHeader(id, &header))
-	{
-		return 0;
-	}
-
-	static int32_t const moduleKinds[] = { 51, 50, 57, 59, 64 };
-	static int32_t const placedKinds[] = { 54, 66, 61, 72, 80, 75, 62 };
-	bool const placed = (header.flags & 0x400) != 0;
-	int32_t const *const list = placed ? placedKinds : moduleKinds;
-	size_t const count = placed ? sizeof(placedKinds) / sizeof(placedKinds[0]) : sizeof(moduleKinds) / sizeof(moduleKinds[0]);
-
-	for (size_t i = 0; i < count; i++)
-	{
-		kinds[i] = list[i];
-	}
-
-	return count;
-}
-
-// The two questions of Assign Strategy: the kind (a number of the list), then, when the object has a strategy, yes or no to replacing it
-static void RunAssignPrompt(int32_t kind, std::string const &typed)
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-	if (!open)
-	{
-		statusWords = "Assign Strategy: no level is held to work on";
-		return;
-	}
-
-	if (kind == kPromptAssignKind)
-	{
-		char *end = nullptr;
-
-		errno = 0;
-
-		long long const number = _strtoi64(typed.c_str(), &end, 10);
-		model::StrategyKind const *const found = errno == 0 && end != typed.c_str() && *end == '\0' && number > 0 && number < 100000 ? model::FindStrategyKind((int32_t)number) : nullptr;
-
-		int32_t canTake[16];
-		size_t const canCount = KindsTheObjectCanTake(assignId, canTake);
-		bool listed = false;
-
-		for (size_t k = 0; k < canCount; k++)
-		{
-			listed = listed || (found && canTake[k] == found->number);
-		}
-
-		if (!found || !found->offered || !listed)
-		{
-			StrategyMessage("Object cannot use that strategy");   // inteng's words (0x5ee294), drawn at (200, 100) for 700 ms (FUN_0057bd40, 0x528920)
-			statusWords = "Object cannot use that strategy";
-			return;
-		}
-
-		assignKind = found->number;   // the replace question was asked before the window (command 0x8 above)
-	}
-	else
-	{
-		std::string lower;
-
-		for (char const letter : typed)
-		{
-			lower += (char)tolower((unsigned char)letter);
-		}
-
-		if (lower != "y" && lower != "yes")
-		{
-			statusWords = "Assign Strategy: nothing changed";
-			return;
-		}
-	}
-
-	bool isVirtual = false;
-	{
-		std::vector<host::VirtualObjectRef> virtuals;
-
-		host::ListVirtualObjects(LevelObjects_Level(), &virtuals);
-
-		for (host::VirtualObjectRef const &one : virtuals)
-		{
-			isVirtual = isVirtual || memcmp(one.id, assignId, host::kSelectionIdBytes) == 0;
-		}
-	}
-
-	host::ObjectEditResult result = host::ObjectEditResult::Done;
-
-	host::GeneratorRef generator;
-
-	if (isVirtual)
-	{
-		host::VirtualObjectResult const made = host::VirtualObject_AssignStrategy(open, assignId, assignKind);
-
-		result = made == host::VirtualObjectResult::Done ? host::ObjectEditResult::Done : host::ObjectEditResult::BadStrategy;
-	}
-	else if (host::FindGenerator(LevelObjects_Level(), assignId, &generator))
-	{
-		// the enemy wrapper's +0xc (FUN_0053a2c0) / the generator's (FUN_0053aa80): the old strategy destroyed, or a holder made, then the new one (S-K69-0, S-K79-0)
-		host::GeneratorStrategyResult const made = host::GeneratorStrategy_Assign(open, assignId, assignKind);
-
-		result = made == host::GeneratorStrategyResult::Done ? host::ObjectEditResult::Done : made == host::GeneratorStrategyResult::LoaderRefused ? host::ObjectEditResult::LoaderRefused : host::ObjectEditResult::BadStrategy;
-	}
-	else if (host::PlacedHierarchyRef placedHierarchy; host::FindPlacedHierarchy(LevelObjects_Level(), assignId, &placedHierarchy))
-	{
-		// the placed hierarchy's wrapper +0xc (FUN_0053b790): the old strategy destroyed, or a holder made (FUN_0051e130 on the PLACHIER), then the new one (S-K76-0)
-		host::PlacedHierarchyStrategyResult const made = host::PlacedHierarchyStrategy_Assign(open, assignId, assignKind);
-
-		result = made == host::PlacedHierarchyStrategyResult::Done ? host::ObjectEditResult::Done :
-		         made == host::PlacedHierarchyStrategyResult::LoaderRefused ? host::ObjectEditResult::LoaderRefused : host::ObjectEditResult::BadStrategy;
-	}
-	else
-	{
-		result = host::AssignStrategy(open, assignId, assignKind);
-	}
-
-	if (result != host::ObjectEditResult::Done)
-	{
-		StrategyMessage("Object cannot use that strategy");   // inteng's words (0x5ee294), on screen for 700 ms
-		strategyWords = std::string("Object cannot use that strategy: ") + host::ObjectEditWords(result);   // then why, on the status line the harness reads
-		statusWords = strategyWords.c_str();
-		return;
-	}
-
-	LoadTheObjectListAgain();
-	ShowTheSelected(host::Selection_Get());
-
-	// FUN_00528830's last call: the new strategy's view at once (method +0x14(1), 0x529141), the current object's red off while it runs; a kind whose view is not built yet: the field panel (NAMED stand-in)
-	bool const viewOpen = StrategyViewOpen();
-
-	strategyWords = viewOpen ? "The object has a new strategy: its Edit view (Escape or the right button ends it)" : "The object has a new strategy (kept in the editor's bytes until Save a copy)";   // ours: inteng shows the view and says nothing
-	statusWords = strategyWords.c_str();
-}
-
-// The two answers of Destroy Virtual Object: which one (a number of the list), then yes or no to "Delete this object?" (only yes cuts it)
-static void RunDestroyPrompt(int32_t kind, std::string const &typed)
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-
-	if (!open)
-	{
-		statusWords = "Destroy Virtual Object: no level is held to work on";
-		return;
-	}
-
-	if (kind == kPromptDestroyPick)
-	{
-		char *end = nullptr;
-
-		errno = 0;
-
-		long long const row = _strtoi64(typed.c_str(), &end, 10);
-
-		if (typed.empty() || end == typed.c_str() || *end != '\0' || errno != 0 || row < 1 || (unsigned long long)row > destroyChoices.size())
-		{
-			statusWords = "Destroy Virtual Object: type the number of a virtual object in the list";
-			return;
-		}
-
-		memcpy(destroyId, destroyChoices[(size_t)row - 1].id, sizeof(destroyId));
-		ConfirmAs(kPromptDestroyAsk, "Delete this object?");   // 0x5eddec, FUN_00474a40
-		return;
-	}
-
-	std::string lower;
-
-	for (char const letter : typed)
-	{
-		lower += (char)tolower((unsigned char)letter);
-	}
-
-	if (lower != "y" && lower != "yes")
-	{
-		statusWords = "Destroy Virtual Object: nothing changed";
-		return;
-	}
-
-	host::VirtualObjectResult const result = host::VirtualObject_Destroy(open, destroyId);
-
-	if (result != host::VirtualObjectResult::Done)
-	{
-		strategyWords = std::string("Destroy Virtual Object: ") + host::VirtualObjectWords(result);
-		statusWords = strategyWords.c_str();
-		return;
-	}
-
-	host::Selection_Clear();   // the selection is cleared (FUN_00539e00)
-	LoadTheObjectListAgain();
-	strategyWords = "The virtual object is destroyed (kept in the editor's bytes until Save a copy)";
-	statusWords = strategyWords.c_str();
-}
-
-// The click that T (change target) waits for (see StrategyModeCommand 0x100)
-static std::string strategyPickWords;
-
-static void StrategyPickClicked(host::PickReport const &report)
-{
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	uint8_t selected[8];
-	host::ObjectStrategy now;
-
-	if (!open || !SelectedObjectId(selected) || host::FindObjectStrategy(LevelObjects_Level(), selected, &now) != host::StrategyFound::Found || now.payload.size() < 12)
-	{
-		strategyPick = 0;
-		statusWords = "The pick is let go of: the selected object has no strategy any more";
-		return;
-	}
-
-	int32_t const kind = *(int32_t const *)(now.payload.data() + 8);
-	model::StrategyKind const *const model = model::FindStrategyKind(kind);
-	host::LevelStore store(open);
-	char const *why = nullptr;
-
-	if (strategyPick == 1)
-	{
-		// the object clicked: an Object by its ID, a module by its name (the object that has that name)
-		uint8_t target[8];
-		bool have = false;
-
-		if (report.found == host::PickFound::Object)
-		{
-			memcpy(target, report.objectId, 8);
-			have = true;
-		}
-		else if (report.found == host::PickFound::Module)
-		{
-			std::vector<host::LevelObject> rows;
-
-			LevelObjects_Read(&rows);
-
-			// the module's object: the one whose number the game gave this module (the same map the module tints use)
-			std::map<int32_t, int32_t> numbers;
-
-			host::GameModuleNumbers(LevelObjects_Level(), &numbers);
-
-			for (host::LevelObject const &row : rows)
-			{
-				int32_t index = 0;
-
-				if (!host::ModuleIndexOfId(LevelObjects_Level(), row.id, &index))
-				{
-					continue;
-				}
-
-				auto const found = numbers.find(index);
-
-				if (found != numbers.end() && found->second == report.moduleIndex)
-				{
-					memcpy(target, row.id, 8);
-					have = true;
-					break;
-				}
-			}
-		}
-
-		if (!have)
-		{
-			strategyPickWords = "Change Target: that click found no object (click an object or a module; the game found kind " + std::to_string((int)report.found) + ")";
-			statusWords = strategyPickWords.c_str();
-			return;
-		}
-
-		// the first object field of the kind that sits at its start (a list's targets are not this)
-		model::Field const *field = nullptr;
-
-		for (size_t i = 0; model && i < model->fieldCount && !field; i++)
-		{
-			if (model->fields[i].storage == model::Storage::ObjectId && model->fields[i].anchor == model::Anchor::Start)
-			{
-				field = &model->fields[i];
-			}
-		}
-
-		if (!field)
-		{
-			strategyPick = 0;
-			statusWords = "This kind of strategy has no target to change";
-			return;
-		}
-
-		host::FieldEdit e;
-
-		e.field = field->name;
-		e.what = host::EditWhat::Object;
-		memcpy(&e.first, target, 4);
-		memcpy(&e.second, target + 4, 4);
-
-		host::StrategyFound lookup;
-
-		if (host::ApplyStrategyEdit(LevelObjects_Level(), selected, kind, e, &store, &why, &lookup) != host::EditAnswer::Applied)
-		{
-			strategyPickWords = std::string("Change Target: ") + (why ? why : "the strategy would not take it");
-			statusWords = strategyPickWords.c_str();
-			strategyPick = 0;
-			return;
-		}
-
-		strategyPick = 0;
-		ShowTheFieldsAgain();
-		strategyPickWords = std::string("The target of ") + field->name + " is the object you clicked (kept in the editor's bytes until Save a copy)";
-		statusWords = strategyPickWords.c_str();
-		return;
-	}
-}
-
-// Enter on Stability flags' six letters (FUN_00527210: the faces are written into the shape header's flag word when the answer to "Would you like to keep the changes?" is yes;
-// typing the six letters is the answer here): r = red = stable (the bit is set), g = green = unstable (cleared)
-static void RunStrategyStability(std::string const &typed)
-{
-	std::string letters;
-
-	for (char const letter : typed)
-	{
-		if (letter != ' ')
-		{
-			letters += (char)tolower((unsigned char)letter);
-		}
-	}
-
-	if (letters.size() != 6 || letters.find_first_not_of("rg") != std::string::npos)
-	{
-		statusWords = "Stability flags: type six letters, r (red: stable) or g (green: unstable), one for each face";
-		return;
-	}
-
-	uint32_t faces = 0;
-
-	for (int face = 0; face < 6; face++)
-	{
-		faces |= letters[(size_t)face] == 'r' ? (1u << face) : 0u;
-	}
-
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	host::StrategyModeResult const result = open ? host::StrategyMode_SetStability(open, stabilityId, faces) : host::StrategyModeResult::BadCall;
-
-	if (result != host::StrategyModeResult::Done)
-	{
-		strategyWords = std::string("Stability flags: ") + host::StrategyModeWords(result);
-		statusWords = strategyWords.c_str();
-		return;
-	}
-
-	LoadTheObjectListAgain();
-	strategyWords = "Stability flags: " + letters + " written into the module's shape (kept in the editor's bytes until Save a copy)";
-	statusWords = strategyWords.c_str();
-}
-
-// Enter on Message's number (FUN_00525700 0x525b74-0x525c10): a whole number 0 to 127 clears the message bits (0xfe00000) of every picked module and sets number << 21;
-// a number outside 0..127 gives inteng's "Number not between 0 and 127" and changes nothing
-static void RunStrategyMessage(std::string const &typed)
-{
-	char *end = nullptr;
-
-	errno = 0;
-
-	long long const number = _strtoi64(typed.c_str(), &end, 10);
-
-	if (typed.empty() || end == typed.c_str() || *end != '\0' || errno != 0 || number < 0 || number > host::kStrategyMostMessage)
-	{
-		statusWords = "Number not between 0 and 127";   // inteng's own words (0x5edf74)
-		return;
-	}
-
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	std::vector<uint8_t> const ids = PickedModuleIdBytes();
-
-	if (!open || ids.empty())
-	{
-		statusWords = "Message: the picked modules are gone";
-		return;
-	}
-
-	size_t const count = ids.size() / host::kSelectionIdBytes;
-	size_t cleared = 0;
-	size_t set = 0;
-	host::StrategyModeResult result = host::StrategyMode_SetModuleFlag(open, ids.data(), count, host::kStrategyMessageBits, false, &cleared);
-
-	if (result == host::StrategyModeResult::Done)
-	{
-		result = host::StrategyMode_SetModuleFlag(open, ids.data(), count, (uint32_t)number << 21, true, &set);
-	}
-
-	if (result != host::StrategyModeResult::Done)
-	{
-		strategyWords = std::string("Message: ") + host::StrategyModeWords(result);
-		statusWords = strategyWords.c_str();
-		return;
-	}
-
-	LoadTheObjectListAgain();
-	strategyWords = "Message " + std::to_string(number) + ": " + std::to_string((unsigned long long)count) + " picked module(s) (kept in the editor's bytes until Save a copy)";
-	statusWords = strategyWords.c_str();
-}
-
-// Enter on the question of Reset fan wind speed: only "y" or "yes" resets (FUN_005354d0: the answer 3)
-static void RunStrategyFans(std::string const &typed)
-{
-	std::string lower;
-
-	for (char const letter : typed)
-	{
-		lower += (char)tolower((unsigned char)letter);
-	}
-
-	if (lower != "y" && lower != "yes")
-	{
-		statusWords = "Reset fan wind speed: nothing changed";
-		return;
-	}
-
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	size_t fans = 0;
-	// S-13: FUN_005354d0 writes no DAT_00914950, so a reset alone does not make Exit ask: when nothing of Strategy's had changed, the clean mark moves with it (W-3)
-	bool const wasClean = open && !StrategyChanged();
-	host::StrategyModeResult const result = open ? host::StrategyMode_ResetFans(open, &fans) : host::StrategyModeResult::BadCall;
-
-	if (result == host::StrategyModeResult::Done && wasClean)
-	{
-		strategyCleanGeneration = open->Generation();
-	}
-
-	if (result == host::StrategyModeResult::NoStrategy)
-	{
-		statusWords = "Reset fan wind speed: the level has no fan";
-		return;
-	}
-
-	if (result != host::StrategyModeResult::Done)
-	{
-		strategyWords = std::string("Reset fan wind speed: ") + host::StrategyModeWords(result);
-		statusWords = strategyWords.c_str();
-		return;
-	}
-
-	strategyWords = "The wind strength of " + std::to_string((unsigned long long)fans) + " fan(s) is reset to 100 (kept in the editor's bytes until Save a copy)";
-	statusWords = strategyWords.c_str();
-}
-
-// The questions inteng asks in a WINDOW (FUN_0057c800) are shown as that window (dialog_box.h) and the answer goes the way the typed one did:
-// - Exit + All Adjacencies (0x4c1eb7): the confirm box "Do you want to regenerate adjacent module data?\nThis will mess up any one-way adjacencies that have been set up." (0x5e3a28); only Yes (3) goes on
-// - Set Visibility (0xa4, FUN_004c3620): the text box "Visible distance in metres :" with the distance now (DAT_00704378 / 100000) in its field, Ok or Cancel (FUN_00474340, an input box of the FUN_00474350 family)
-// - Edge > Soft (FUN_004b0270): the text box "Type in the maximum angle for soft edges (flat is 0)." with Ok and Cancel (the field's first contents are not known: empty)
-// THE NAME OBJECT DIALOG (reassess/object-placement.md OP-24; Bishop checked the row 11-16): FUN_004d53d0 (0x4d53d0-0x4d560f) runs it for Create > AVP generator / Bad Guy / Sound / Particle Generator, and
-// FUN_004d68e0 0x4d9460-0x4d97be / FUN_004d9af0 0x4db0e1-0x4dbe0c run the same loop for Create > With shape (Choose, and P on a placed shape). The window is FUN_004d4c70: 400 x 200, titled "Name Object" (0x5e7e68),
-// the words "Type in the name of the object." (0x5e7e74) at (18, 18, 370 x 40), an edit at (30, 100, 300 x 35) of up to 200 letters holding the name passed in, "OK" (0x5cfabc) at (100, 150, 50 x 16) and "Cancel" (0x5cfab4)
-// at (200, 150, 50 x 16); Return is OK (the window's default 2); OK answers 2, Cancel and Escape 1 (method 0x447b90). Not OK: no object. OK: the typed name is compared, byte for byte (FUN_0053ec30; the RBOBJECT names
-// with a byte loop at 0x4d54d8-0x4d5501), with the name of every object of the placement list and of every RBOBJECT (here: every object chunk of the level and every special object); used -> the window
-// FUN_004d4e00: 400 x 150, titled "Name Object", "The name of the object has already been used." (0x5e7ea0) at (18, 70, 370 x 40), "Re-enter" (0x5e7e94) at (75, 120, 75 x 16) and "Cancel" at (200, 120, 75 x 16);
-// Return is Re-enter; Re-enter (2) shows the name window again holding the typed name, Cancel (1) makes no object. A free name goes on to the create. (The earlier box here had no OK button: a misread.)
-static bool NameUsedByAnObject(std::string const &name)
-{
-	if (host::ObjectNameInUse(LevelObjects_Level(), name.c_str()))
-	{
-		return true;
-	}
-
-	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	std::vector<host::SpecialObject> specials;
-
-	if (open && host::SpecialObjects_Read(open, &specials) == host::SpecialResult::Done)
-	{
-		for (host::SpecialObject const &one : specials)
-		{
-			if (one.name == name)
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-void NameObjectBox(std::string const &start, std::function<void(std::string const &)> const &named)
-{
-	host::DialogFormSpec spec;
-	host::DialogWidget words, edit, ok, cancel;
-
-	spec.title = "Name Object";
-	spec.width = 400;
-	spec.height = 200;
-	words.type = host::DialogWidgetType::Label;
-	words.text = "Type in the name of the object.";
-	words.box = { 0x12, 0x12, 0x172, 0x28 };
-	edit.type = host::DialogWidgetType::Edit;
-	edit.box = { 0x1e, 100, 300, 0x23 };
-	edit.most = 200;
-	edit.text = start.size() > edit.most ? start.substr(0, edit.most) : start;
-	ok.type = host::DialogWidgetType::Button;
-	ok.text = "OK";
-	ok.box = { 100, 0x96, 0x32, 0x10 };
-	ok.answer = host::kDialogOk;
-	cancel.type = host::DialogWidgetType::Button;
-	cancel.text = "Cancel";
-	cancel.box = { 200, 0x96, 0x32, 0x10 };
-	cancel.answer = host::kDialogEscape;
-	spec.widgets.push_back(words);
-	spec.widgets.push_back(edit);
-	spec.widgets.push_back(ok);
-	spec.widgets.push_back(cancel);
-
-	host::Dialogs_Form(spec, [named](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		if (answer != host::kDialogOk)
-		{
-			return;   // Cancel or Escape: no object
-		}
-
-		for (host::DialogWidget const &one : widgets)
-		{
-			if (one.type == host::DialogWidgetType::Edit)
-			{
-				if (NameUsedByAnObject(one.text))
-				{
-					NameInUseBox(one.text, named);
-				}
-				else if (named)
-				{
-					named(one.text);
-				}
-
-				return;
-			}
-		}
-	});
-}
-
-void NameInUseBox(std::string const &typed, std::function<void(std::string const &)> const &named)
-{
-	host::DialogFormSpec spec;
-	host::DialogWidget words, again, cancel;
-
-	spec.title = "Name Object";
-	spec.width = 400;
-	spec.height = 0x96;
-	words.type = host::DialogWidgetType::Label;
-	words.text = "The name of the object has already been used.";
-	words.box = { 0x12, 0x46, 0x172, 0x28 };
-	again.type = host::DialogWidgetType::Button;
-	again.text = "Re-enter";
-	again.box = { 0x4b, 0x78, 0x4b, 0x10 };
-	again.answer = host::kDialogOk;
-	cancel.type = host::DialogWidgetType::Button;
-	cancel.text = "Cancel";
-	cancel.box = { 200, 0x78, 0x4b, 0x10 };
-	cancel.answer = host::kDialogEscape;
-	spec.widgets.push_back(words);
-	spec.widgets.push_back(again);
-	spec.widgets.push_back(cancel);
-
-	host::Dialogs_Form(spec, [typed, named](int32_t answer, std::vector<host::DialogWidget> const &)
-	{
-		if (answer == host::kDialogOk)
-		{
-			NameObjectBox(typed, named);
-		}
-	});
-}
-
-// inteng's one-line text window (FUN_00447860 and FUN_00474170 / FUN_004747f0, the same layout: 400 x 200, a label at (0x12, 0x12, 0x172 x 0x28), the edit at (0x1e, 100, 300 x editHeight) of up to `most` letters, Ok at (100, 0x96) and
-// Cancel at (200, 0x96), 0x32 x 0x10 each; Return and Ok answer 3, Escape and Cancel 1). `ok` gets the text when the answer is Ok.
-static void DialogLine(std::string const &title, std::string const &label, std::string const &initial, size_t most, int32_t editHeight, std::function<void(std::string const &)> const &ok)
-{
-	host::DialogFormSpec spec;
-	host::DialogWidget one;
-
-	spec.title = title;
-	spec.width = 400;
-	spec.height = 200;
-
-	one.type = host::DialogWidgetType::Label;
-	one.box = { 0x12, 0x12, 0x172, 0x28 };
-	one.text = label;
-	spec.widgets.push_back(one);
-
-	host::DialogWidget edit;
-
-	edit.type = host::DialogWidgetType::Edit;
-	edit.box = { 0x1e, 100, 300, editHeight };
-	edit.text = initial;
-	edit.most = most;
-	spec.widgets.push_back(edit);
-
-	host::DialogWidget okButton;
-
-	okButton.type = host::DialogWidgetType::Button;
-	okButton.box = { 100, 0x96, 0x32, 0x10 };
-	okButton.text = "Ok";
-	okButton.answer = host::kDialogOk;
-	spec.widgets.push_back(okButton);
-
-	host::DialogWidget cancelButton;
-
-	cancelButton.type = host::DialogWidgetType::Button;
-	cancelButton.box = { 200, 0x96, 0x32, 0x10 };
-	cancelButton.text = "Cancel";
-	cancelButton.answer = host::kDialogEscape;
-	spec.widgets.push_back(cancelButton);
-
-	host::Dialogs_Form(spec, [ok](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		if (answer != host::kDialogOk)
-		{
-			return;
-		}
-
-		for (host::DialogWidget const &w : widgets)
-		{
-			if (w.type == host::DialogWidgetType::Edit)
-			{
-				ok(w.text);
-				return;
-			}
-		}
-	});
-}
-
-std::string HexOf(const uint8_t *id);
-
-static bool OpenAsDialog(int32_t kind)
-{
-	if (kind == kPromptRegenAdjacency)
-	{
-		DialogConfirm("Do you want to regenerate adjacent module data?\nThis will mess up any one-way adjacencies that have been set up.", [](bool yes)
-		{
-			if (yes)
-			{
-				promptFor = kPromptRegenAdjacency;
-				promptText = "yes";
-				RunThePrompt();
-			}
-		});
-		return true;
-	}
-
-	// AutoLink > Delete Links > Environment (0xa8, FUN_004c1a90 0x4c35bf): the confirm box "Delete all module linking for this level?" (FUN_00474a40, FUN_0057c800); only Yes (3) calls FUN_004c8af0(0)
-	// Create > With shape > Choose, the name (FUN_004d4c70, 0x4d9450): see NameObjectBox
-	if (kind == kPromptCreateName)
-	{
-		NameObjectBox("", CreateNamedAtTheView);
-		return true;
-	}
-
-	if (kind == kPromptDeleteAllLinks)
-	{
-		DialogConfirm("Delete all module linking for this level?", [](bool yes)
-		{
-			if (yes)
-			{
-				promptFor = kPromptDeleteAllLinks;
-				promptText = "yes";
-				RunThePrompt();
-			}
-		});
-		return true;
-	}
-
-	if (kind == kPromptVisibility || kind == kPromptSoftEdge)
-	{
-		host::DialogField field;
-
-		field.text = kind == kPromptVisibility ? std::to_string(visibleDistance / 100000) : std::string();
-
-		DialogText(kind == kPromptVisibility ? "Visible distance in metres :" : "Type in the maximum angle for soft edges (flat is 0).", std::vector<host::DialogField>{ field }, [kind](int32_t answer, std::vector<std::string> const &texts)
-		{
-			if (answer == host::kDialogOk && !texts.empty())
-			{
-				promptFor = kind;
-				promptText = texts[0];
-				RunThePrompt();
-			}
-		});
-		return true;
-	}
-
-	// Write Asc File x2 (FUN_00447860: title "Write asc file" / "Write asc file (doors closed)", label "Type filename (without .asc extension)", an edit of 200 letters; Ok writes it, nothing typed writes nothing, 0x445476-0x4454a2)
-	// THE START TEXT (TB-C3, construction-closeout-frost.md): the edit starts with the level's RIFFNAME name (0x44545f: REBENVDT > RIFFNAME +0x28 into the edit's +0x24), and for Doors closed
-	// with "%sb" of it (0x4457c2, the format at 0x5cf99c): the name as it is, kept to the edit's 200 letters
-	if (kind == kPromptAsc || kind == kPromptAscDoors)
-	{
-		std::string start;
-
-		if (host::LevelRiffName(LevelObjects_Level(), 200, &start) && kind == kPromptAscDoors)
-		{
-			start = (start + "b").substr(0, 200);
-		}
-
-		DialogLine(kind == kPromptAsc ? "Write asc file" : "Write asc file (doors closed)", "Type filename (without .asc extension)", start, 200, 0x23, [kind](std::string const &typed)
-		{
-			if (!typed.empty())
-			{
-				promptFor = kind;
-				promptText = typed;
-				RunThePrompt();
-			}
-		});
-		return true;
-	}
-
-	// Fix tears (FUN_00474170 at 0x445d44 / 0x445dcf): the words with a line between, the last tolerance as the start text (DAT_005ced28, 5), an edit of 10 letters
-	if (kind == kPromptTears)
-	{
-		DialogLine(std::string(), tearAll ? "Fixing tears for ALL objects\nType in tolerance level for tear fixing (in mm)" : "Fixing tears for selected objects\nType in tolerance level for tear fixing (in mm)", std::to_string((int)tearTolerance), 10, 0x12, [](std::string const &typed)
-		{
-			promptFor = kPromptTears;
-			promptText = typed;
-			RunThePrompt();
-		});
-		return true;
-	}
-
-	// Find Small Modules (FUN_004747f0 at 0x445ef6): "Search for modules with x or z extents smaller than what?(in m)", the limit in metres as the start text (printed with a fraction, the zeros at its end taken off: 0x4749e5), an edit of 200 letters
-	if (kind == kPromptSmallLimit)
-	{
-		char shown[48];
-
-		_snprintf_s(shown, sizeof(shown), _TRUNCATE, "%f", host::SmallModules_MetresOfLimit(smallLimit));
-
-		if (strchr(shown, '.'))
-		{
-			size_t length = strlen(shown);
-
-			while (length > 0 && shown[length - 1] == '0')
-			{
-				shown[--length] = 0;
-			}
-
-			if (length > 0 && shown[length - 1] == '.')
-			{
-				shown[--length] = 0;
-			}
-		}
-
-		DialogLine(std::string(), "Search for modules with x or z extents smaller than what?(in m)", shown, 200, 0x12, [](std::string const &typed)
-		{
-			promptFor = kPromptSmallLimit;
-			promptText = typed;
-			RunThePrompt();
-		});
-		return true;
-	}
-
-	// Change Object Type: the question about an object that has module linking data (FUN_00448530: the confirm box (FUN_00474a40) "%s has module linking data. Do you want to delete it?"; Yes deletes it)
-	if (kind == kPromptTypeLinks)
-	{
-		host::FoundObject asked;
-		bool const found = typeAsking < typeCalls.size() && host::ObjectEdit_Find(LevelObjects_Level(), editedLevel, HexOf(typeCalls[typeAsking].id).c_str(), &asked);
-
-		DialogConfirm((found ? asked.name : std::string("The object")) + " has module linking data. Do you want to delete it?", [](bool yes)
-		{
-			RunTypeAnswer(yes ? std::string("yes") : std::string());
-		});
-		return true;
-	}
-
-	// Find Object (0x52, 0x446636-0x44696e): the list dialog "Select Object" of every object of the level by name (FUN_00475bf0, rows sorted by the dialog); the one chosen is selected and the view goes to its place
-	// STRATEGY DATA's Find Object (strategy-data.md S-11; reassess/strategy-data-verify-frost.md S-11): FUN_00524e90 case 0x41 -> FUN_005253c0(1) (dump-full-3:58960) makes the list AGAIN each
-	// time (DAT_0091495c is only ever set to 0) of every record whose wrapper is a virtual object (+8 != 0, 0x525496) or holds a strategy (+0x14 +0x30, 0x52549b), EACH RECORD ONCE, by its
-	// name (wrapper +4(-1)); FUN_00475bf0 "Select Object" sorts the rows. Our object list holds the virtual objects too, so they are taken from it once, as virtual objects. A choice:
-	// FUN_00529280(record, 1) (dump-full-3:61782) lets the old current go, puts the camera at the record's place LESS 10 x the camera's FORWARD axis (+0x50..+0x58, a 16.16 unit vector:
-	// camera-mover-trace.md step 8; 655360 inteng units = 6553.6 of the game's), the turn and look as they were, and makes the record current and red. No words.
-	if (kind == kPromptFindSelect && OnStrategyScreen())
-	{
-		struct One
-		{
-			std::string name;
-			std::array<uint8_t, 8> id;
-			bool virt;
-			bool generator = false;
-			int32_t place[3] = { 0, 0, 0 };
-		};
-
-		std::vector<One> found;
-		std::vector<std::string> rows;
-		std::vector<host::VirtualObjectRef> virtuals;
-		std::set<std::array<uint8_t, 8>> virtualIds;
-
-		host::ListVirtualObjects(LevelObjects_Level(), &virtuals);
-
-		for (host::VirtualObjectRef const &one : virtuals)
-		{
-			std::array<uint8_t, 8> key;
-
-			memcpy(key.data(), one.id, 8);
-			virtualIds.insert(key);
-		}
-
-		for (size_t i = 0; i < objectList.Count(); i++)
-		{
-			const uint8_t *const id = objectList.Id(i);
-			host::ObjectStrategy now;
-			std::array<uint8_t, 8> key = {};
-
-			if (id)
-			{
-				memcpy(key.data(), id, 8);
-			}
-
-			// S-11: a virtual object is its own row below (0x525496), never a second one here
-			if (id && !virtualIds.count(key) && host::FindObjectStrategy(LevelObjects_Level(), id, &now) == host::StrategyFound::Found)
-			{
-				found.push_back(One{ objectList.Name(i), key, false });
-			}
-		}
-
-		for (host::VirtualObjectRef const &one : virtuals)
-		{
-			std::array<uint8_t, 8> key;
-
-			memcpy(key.data(), one.id, 8);
-			found.push_back(One{ one.name, key, true });
-		}
-
-		// the enemies and generators (their wrappers are not level blocks: +8 != 0, so inteng lists them whether or not they have a strategy), and the placed hierarchies below. NOT YET: the sounds and
-		// particle generators inteng lists the same way
-		std::vector<host::GeneratorRef> generators;
-
-		host::ListGenerators(LevelObjects_Level(), &generators);
-
-		for (host::GeneratorRef const &one : generators)
-		{
-			std::array<uint8_t, 8> key;
-
-			memcpy(key.data(), one.id, 8);
-
-			One row{ one.name, key, true };
-
-			row.generator = true;
-			memcpy(row.place, one.place, sizeof(row.place));
-			found.push_back(row);
-		}
-
-		// the placed hierarchies (wrapper class 0x5afae0, no level block: listed as the generators are, S-K76-W), by their PLACHIDT names
-		std::vector<host::PlacedHierarchyRef> placedHierarchies;
-
-		host::ListPlacedHierarchies(LevelObjects_Level(), &placedHierarchies);
-
-		for (host::PlacedHierarchyRef const &one : placedHierarchies)
-		{
-			std::array<uint8_t, 8> key;
-
-			memcpy(key.data(), one.id, 8);
-
-			One row{ one.name, key, true };
-
-			memcpy(row.place, one.place, sizeof(row.place));
-			found.push_back(row);
-		}
-
-		for (One const &one : found)
-		{
-			rows.push_back(one.name);
-		}
-
-		DialogList("Select Object", rows, [found](int32_t place)
-		{
-			if (place < 0 || (size_t)place >= found.size())
-			{
-				return;
-			}
-
-			One const &chosen = found[(size_t)place];
-
-			// FUN_00529280(record, 1): 0x52928e-0x5292a5 / 0x529342-0x529357 the old current let go, the record current and red; 0x5292c1-0x529321 the camera behind it (StrategyFlyTo)
-			host::Selected picked = {};
-
-			picked.kind = host::SelectedKind::Object;
-			memcpy(picked.objectId, chosen.id.data(), host::kSelectionIdBytes);
-			host::Selection_Set(picked);
-			StrategyFlyTo(chosen.id.data());
-		});
-		return true;
-	}
-
-	if (kind == kPromptFindSelect)
-	{
-		std::vector<std::string> rows;
-		std::vector<std::string> ids;
-
-		for (size_t i = 0; i < objectList.Count(); i++)
-		{
-			if (const uint8_t *const id = objectList.Id(i))
-			{
-				rows.push_back(objectList.Name(i));
-				ids.push_back(HexOf(id));
-			}
-		}
-
-		DialogList("Select Object", rows, [ids](int32_t place)
-		{
-			if (place >= 0 && (size_t)place < ids.size())
-			{
-				promptFor = kPromptFindSelect;
-				promptText = ids[(size_t)place];
-				RunThePrompt();
-			}
-		});
-		return true;
-	}
-
-	return false;
-}
-
-// Object > Rescale (0x1a, OP-13): FUN_004d9af0 0x4dc28f-0x4dc2a6 calls the CURRENT object's +0x18 when Gravity is off; only the placed shape has one (0x4e1a80, the others RET 4: nothing happens).
-// FUN_004e1a80 opens inteng's "Rescale Shape" window FUN_004d4f80: 400 x 240, the words "Type in the new scale of the shape." at 18,18 (370 x 40), an EMPTY edit at 30,100 (300 x 35, up to 200 letters),
-// OK at 100,150 and Cancel at 200,150 (50 x 16), "Take scale from shape rif" at 75,200 (200 x 16); Return is OK. The answers (0x4d5150): OK 2, Cancel 1, Take scale 3. OK: the text is read by
-// sscanf "%lf" (0x5e8af8: a number at its start; nothing read, nothing done) and taken when it is 0 to 1,000,000 and the shape has an outside file: the shape made that size (shape_rescale_edit.h, with
-// its named deviations). Take scale (FUN_004e1970) brings the shape up to date from its own .rif, forced (OutsideShapesUpdate, OP-137..OP-141), then rescales it by new / old (FUN_004e1340).
-static std::string rescaleWords;
-
-// THE OUTSIDE SHAPES' UPDATE (inteng FUN_00512fc0; reassess/object-placement.md section 7, OP-137..OP-141; shape_update.h). Added 2026-11-16 by Melanikus (Vasquez).
-// Every outside shape of the held level (forced false: inteng does it at every load, silently), or the one the named object uses (forced true: Take scale), is brought up to date from its own
-// file in the shape folder (shapeFolder, F-IMPORT-FOLDER: [Editor] ShapeFolder= or shape_rifs beside the program; agreed with Frost). A file not there changes nothing, as in inteng. Each
-// refusal goes to the log with the file's name and why, and keeps the level's own copy (OP-141 (g)). All the changes go to the game's own loader at once (OpenLevelFile::ReplaceLevel), which
-// refuses the lot or takes it. The file must be a plain file, not a folder, a link or a device (OP-141 (b)); ShapeImport_Read (Frost's) holds the name to plain letters and the size to 4 MB.
-// Gives how many shapes changed; *before / *after get the last changed shape's rescale.
-static size_t const kOutsideMostLevelBytes = 32u << 20;   // what the game's loader takes, unpacked (OpenLevelFile's MostUnpackedBytes, level_file.cpp)
-
-static int OutsideShapesUpdateUnguarded(OpenLevelFile *open, bool forced, std::string const &onlyObject, double *before, double *after, std::vector<std::string> *names)
-{
-	using namespace host::shape_chunks;
-
-	std::vector<char> image;
-	std::vector<Span> top;
-	size_t total = 0;
-
-	if (!open || shapeFolder.empty() || !open->BuildLevel(image) || image.size() < kHeadingBytes || !NameIs(image, 0, "REBINFF2") || !ChunkSizeAt(image, 0, image.size(), &total) ||
-		!Children(image, kHeadingBytes, total, &top))
-	{
-		return 0;
-	}
-
-	std::vector<std::vector<char>> made(top.size());
-	int changed = 0;
-	std::vector<int32_t> users;   // how many of the level's objects each shape has (FUN_004bf1d0's tie), for the scale's "no object uses it" test
-
-	host::ShapeUpdate_LevelUsers(image, &users);
-	size_t wouldBe = image.size();   // the level as it would be put together with the shapes made so far
-
-	for (size_t i = 0; i < top.size(); i++)
-	{
-		if (!NameIs(image, top[i].at, "REBSHAPE"))
-		{
-			continue;
-		}
-
-		std::vector<char> const chunk(image.begin() + (std::ptrdiff_t)top[i].at, image.begin() + (std::ptrdiff_t)(top[i].at + top[i].size));
-		std::string name;
-
-		if ((!onlyObject.empty() && !host::ShapeUpdate_UsedBy(chunk, onlyObject)) || !host::ShapeUpdate_FileName(chunk, &name))
-		{
-			continue;
-		}
-
-		std::string path = shapeFolder;
-
-		if (path.back() != '\\' && path.back() != '/')
-		{
-			path += '\\';
-		}
-
-		path += name + ".rif";
-
-		DWORD const what = GetFileAttributesA(path.c_str());
-
-		if (what == INVALID_FILE_ATTRIBUTES)
-		{
-			continue;   // not in the folder: nothing, as inteng (0x5130ad)
-		}
-
-		if (what & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DEVICE))
-		{
-			LogString("outside shape " + name + ": refused, the file there is a folder, a link or a device; the level's own copy is kept");
-			continue;
-		}
-
-		std::vector<char> bytes;
-		host::ShapeImportResult const read = host::ShapeImport_Read(shapeFolder.c_str(), name, &bytes, nullptr);
-
-		if (read == host::ShapeImportResult::NotFound)
-		{
-			continue;
-		}
-
-		if (read != host::ShapeImportResult::Done)
-		{
-			LogString("outside shape " + name + ": refused, " + host::ShapeImportWords(read) + "; the level's own copy is kept");
-			continue;
-		}
-
-		std::string why;
-		host::ShapeUpdateResult const result = host::ShapeUpdate_Build(chunk, bytes, forced, i < users.size() ? users[i] : 0, &made[i], &why, before, after);
-
-		if (result == host::ShapeUpdateResult::Done || result == host::ShapeUpdateResult::NameOnly)
-		{
-			// HOSTILE INPUT: many shapes can name one big file, and every made shape is kept until the level is put together, so the level as it would be is measured as each one
-			// is made, and the lot is refused as soon as it passes what the game's loader takes, before the next one is made (hostile-input-1 of the 11-17 review: it ran the 32-bit
-			// editor out of memory while a level opened)
-			wouldBe = wouldBe - top[i].size + made[i].size();
-
-			if (wouldBe > kOutsideMostLevelBytes)
-			{
-				LogString("outside shapes: the level would be bigger than the game's loader takes (" + std::to_string(kOutsideMostLevelBytes >> 20) + " MB) with them; its own shapes are kept");
-
-				if (names)
-				{
-					names->clear();
-				}
-
-				return 0;
-			}
-
-			changed++;
-
-			if (names)
-			{
-				names->push_back(name);
-			}
-		}
-		else if (result != host::ShapeUpdateResult::NotOutside)
-		{
-			made[i].clear();
-			LogString("outside shape " + name + ": refused, " + host::ShapeUpdateWords(result) + (why.empty() ? std::string() : " (" + why + ")") + "; the level's own copy is kept");
-		}
-	}
-
-	if (changed == 0)
-	{
-		return 0;
-	}
-
-	std::vector<char> level(image.begin(), image.begin() + (std::ptrdiff_t)kHeadingBytes);
-
-	for (size_t i = 0; i < top.size(); i++)
-	{
-		if (!made[i].empty())
-		{
-			level.insert(level.end(), made[i].begin(), made[i].end());
-		}
-		else
-		{
-			AddCopy(&level, image, top[i]);
-		}
-	}
-
-	if (level.size() > 0x7fffffff)
-	{
-		LogString("outside shapes: the level would be too big; its own shapes are kept");
-		return 0;
-	}
-
-	PutIntAt(&level, 8, (int32_t)level.size());
-
-	if (open->ReplaceLevel(level) != LevelOpenResult::Opened)
-	{
-		LogString("outside shapes: the game's own loader refused the level with them; its own shapes are kept");
-		return 0;
-	}
-
-	LogString("outside shapes: " + std::to_string(changed) + " brought up to date from " + shapeFolder);
-	return changed;
-}
-
-// The update, with running out of memory on a hostile level refused like any other refusal: the level is as it was (hostile-input-1)
-static int OutsideShapesUpdate(OpenLevelFile *open, bool forced, std::string const &onlyObject, double *before, double *after, std::vector<std::string> *names = nullptr)
-{
-	try
-	{
-		return OutsideShapesUpdateUnguarded(open, forced, onlyObject, before, after, names);
-	}
-	catch (std::bad_alloc const &)
-	{
-		LogString("outside shapes: not enough memory to bring them up to date; the level's own shapes are kept");
-
-		if (names)
-		{
-			names->clear();
-		}
-
-		return 0;
-	}
-}
-
-// OP-137a (inteng: the SHPEXTFL's post_input_processing FUN_005149e0 -> FUN_00512fc0(0) runs WHILE THE RIF IS READ, vtable 0x5aeb9c +0x24, so nothing is ever drawn with the file's old
-// outside shapes): the refresh of a whole level FILE, for the open path to call on the editor's OWN copy (avp_rifs\OpenedByEditor\...) before the game loads it for the view (agreed with
-// Frost 11-16: the open path is his). The file is opened by the game's hardened loader (OpenLevelFile::Open: hostile input), every outside shape is brought up to date (OutsideShapesUpdate,
-// not forced), and only when one changed is the file written again, over THAT path (SaveAs: the game's loader checks the new bytes first). Never called with his own file. Silent as in
-// inteng (OP-139): each refusal goes to the log only. *why (when given) says what happened. Added 2026-11-16 by Melanikus (Vasquez).
-enum class OutsideRefresh
-{
-	Changed,     // at least one outside shape changed, and the file was written with them
-	Unchanged,   // nothing to change (no outside shape, none in the folder, or every one refused: the log says which)
-	Refused,     // the file couldn't be opened by the game's loader, or the new file couldn't be written: it is as it was
-};
-
-static std::string outsideShapesWords;   // OP-140: the open's refresh, for the status line (empty: nothing changed)
-
-// OP-140's words for the shapes an update brought up to date (the file names OutsideShapesUpdate gives): each file once, in the level's order, with how many of its shapes when more than one;
-// at most 8, so the line stays readable
-static std::string OutsideShapesWordsOf(std::vector<std::string> const &refreshed)
-{
-	std::string words;
-
-	std::vector<std::pair<std::string, int>> named;
-
-	for (std::string const &one : refreshed)
-	{
-		auto const same = std::find_if(named.begin(), named.end(), [&one](std::pair<std::string, int> const &n) { return n.first == one; });
-
-		if (same == named.end())
-		{
-			named.push_back(std::make_pair(one, 1));
-		}
-		else
-		{
-			same->second++;
-		}
-	}
-
-	words = "Outside shapes brought up to date from their own files:";
-
-	for (size_t i = 0; i < named.size() && i < 8; i++)
-	{
-		words += (i ? ", " : " ") + named[i].first + (named[i].second > 1 ? " (" + std::to_string(named[i].second) + " shapes)" : std::string());
-	}
-
-	if (named.size() > 8)
-	{
-		words += " and " + std::to_string(named.size() - 8) + " more files";
-	}
-
-	return words;
-}
-
-
-static OutsideRefresh OutsideShapes_RefreshFile(const char *rifPath, std::string *why)
-{
-	std::string words;
-	OutsideRefresh result = OutsideRefresh::Unchanged;
-	OpenLevelFile file;
-	std::vector<std::string> refreshed;
-	LevelOpenResult const opened = rifPath && rifPath[0] ? file.Open(rifPath) : LevelOpenResult::NoPath;
-
-	if (opened != LevelOpenResult::Opened)
-	{
-		result = OutsideRefresh::Refused;
-		words = std::string("outside shapes: the level file wasn't refreshed, ") + NotHeldWords(opened);
-	}
-	else if (OutsideShapesUpdate(&file, false, std::string(), nullptr, nullptr, &refreshed) == 0)
-	{
-		words = "outside shapes: nothing to bring up to date";
-	}
-	else if (file.SaveAs(rifPath) != LevelSaveResult::Saved)
-	{
-		result = OutsideRefresh::Refused;
-		words = "outside shapes: the refreshed level couldn't be written; the file is as it was";
-	}
-	else
-	{
-		result = OutsideRefresh::Changed;
-		words = OutsideShapesWordsOf(refreshed);   // OP-140 (Bishop's ruling 11-17): inteng's refresh is silent; ours says which shapes it brought up to date
-	}
-
-	if (result != OutsideRefresh::Unchanged)
-	{
-		LogString(words);
-	}
-
-	if (why)
-	{
-		*why = words;
-	}
-
-	return result;
-}
-
-static void RescaleShapeBox()
-{
-	uint8_t id[8];
-
-	if (placementGravity || specialMode.haveCurrent || placedHierarchyCurrent >= 0 || host::Selection_Get().kind != host::SelectedKind::Object || !SelectedObjectId(id))
-	{
-		return;   // no current placed shape (or Gravity on): inteng does nothing
-	}
-
-	host::DialogFormSpec spec;
-	host::DialogWidget words, edit, ok, cancel, fromRif;
-
-	spec.title = "Rescale Shape";
-	spec.width = 400;
-	spec.height = 0xf0;
-	words.type = host::DialogWidgetType::Label;
-	words.text = "Type in the new scale of the shape.";
-	words.box = { 0x12, 0x12, 0x172, 0x28 };
-	edit.type = host::DialogWidgetType::Edit;
-	edit.box = { 0x1e, 100, 300, 0x23 };
-	edit.most = 200;
-	ok.type = host::DialogWidgetType::Button;
-	ok.text = "OK";
-	ok.box = { 100, 0x96, 0x32, 0x10 };
-	ok.answer = host::kDialogOk;
-	cancel.type = host::DialogWidgetType::Button;
-	cancel.text = "Cancel";
-	cancel.box = { 200, 0x96, 0x32, 0x10 };
-	cancel.answer = host::kDialogEscape;
-	fromRif.type = host::DialogWidgetType::Button;
-	fromRif.text = "Take scale from shape rif";
-	fromRif.box = { 0x4b, 200, 200, 0x10 };
-	fromRif.answer = 4;   // its own answer (inteng's 3; ours numbers OK as 3)
-	spec.widgets.push_back(words);
-	spec.widgets.push_back(edit);
-	spec.widgets.push_back(ok);
-	spec.widgets.push_back(cancel);
-	spec.widgets.push_back(fromRif);
-
-	std::vector<uint8_t> const object(id, id + 8);
-
-	host::Dialogs_Form(spec, [object](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		if (answer == 4)
-		{
-			// Take scale from shape rif (FUN_004e1970): the shape brought up to date from its own file, FORCED (FUN_00512fc0(1): rescale 1.0, then the file's ENVSDSCL when it has one), then every
-			// placed object of the shape rescaled by new / old (its +0x14 = FUN_004e1340, here Drake's ShapeRescale_ByValue with the value that gives that factor; NAMED there: a shape other
-			// objects use too is refused, where inteng scales it once per object)
-			std::vector<host::LevelObject> objects;
-			std::string name;
-
-			if (LevelObjects_Read(&objects))
-			{
-				for (host::LevelObject const &one : objects)
-				{
-					if (memcmp(one.id, object.data(), 8) == 0 && one.name)
-					{
-						name = one.name;
-					}
-				}
-			}
-
-			double before = 0.0, after = 0.0;
-
-			if (name.empty() || OutsideShapesUpdate(LevelObjects_OpenForEdit(), true, name, &before, &after) == 0)
-			{
-				rescaleWords = "Take scale from shape rif: the shape's own file is not in the shape folder, or was refused (the log says why); nothing changed";
-				Answer(rescaleWords);
-				return;
-			}
-
-			// the update put the level together again (ReplaceLevel): every Chunk * of the old one is gone, so the list and the field panel let go of them (open-path-1 of the 11-17 review)
-			LoadTheObjectListAgain();
-
-			// FUN_004e1970: +0x14 (FUN_004e1340) with new / old, the rescale read before and after FUN_00512fc0(1): the FACTOR is checked and used (ShapeRescale_ByFactor), not a typed size made from
-			// it, whose own 1,000,000 bound refused factors inteng takes (open-path-4). The RIFFNAME-only update gives the same rescale twice: a factor of 1.0, as inteng.
-			OpenLevelFile *const open = LevelObjects_OpenForEdit();
-			double const factor = before > 0.0 ? after / before : 0.0;
-			std::string reason;
-			unsigned const generation = open ? open->Generation() : 0;
-			host::ShapeRescaleResult const result = before > 0.0 && open ? host::ShapeRescale_ByFactor(open, LevelObjects_Level(), object.data(), factor, &reason) : host::ShapeRescaleResult::BadShape;
-
-			if (open && open->Generation() != generation)
-			{
-				LoadTheObjectListAgain();   // the rescale made a SHPCENTR by putting the level together again (V-30a)
-			}
-
-			rescaleWords = "Take scale from shape rif: the shape is its file's again at scale " + std::to_string(after) + (result == host::ShapeRescaleResult::Done ?
-				", then " + std::to_string(factor) + " times that (new / old)" : std::string(", but the rescale by new / old was not done: ") + host::ShapeRescaleWords(result));
-			Answer(rescaleWords);
-			return;
-		}
-
-		if (answer != host::kDialogOk)
-		{
-			return;   // Cancel or Escape
-		}
-
-		std::string typed;
-
-		for (host::DialogWidget const &one : widgets)
-		{
-			if (one.type == host::DialogWidgetType::Edit)
-			{
-				typed = one.text;
-			}
-		}
-
-		double value = 0.0;
-
-		if (sscanf_s(typed.c_str(), "%lf", &value) != 1 || !(value >= 0.0 && value <= host::kRescaleMost))
-		{
-			return;   // nothing read, or outside 0 to 1,000,000: inteng does nothing
-		}
-
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-		double factor = 0.0;
-		std::string reason;
-
-		if (!open)
-		{
-			return;
-		}
-
-		unsigned const generation = open->Generation();
-		host::ShapeRescaleResult const result = host::ShapeRescale_ByValue(open, LevelObjects_Level(), object.data(), value, local_scale > 0.0 ? local_scale : 1.0, &factor, &reason);
-
-		// V-30b: a shape with no SHPCENTR gets one by the level being put together again (V-30a's ReplaceLevel): every Chunk * of the old level is gone, so the list and the field panel
-		// let go of them, as every other edit that swaps the level does
-		if (open->Generation() != generation)
-		{
-			LoadTheObjectListAgain();
-		}
-
-		if (result != host::ShapeRescaleResult::Done)
-		{
-			rescaleWords = std::string("Rescale: ") + host::ShapeRescaleWords(result) + (reason.empty() ? std::string() : " (" + reason + ")");
-			Answer(rescaleWords);
-			return;
-		}
-
-		rescaleWords = "Rescaled: every point of the shape is " + std::to_string(factor) + " times what it was (kept in the editor's bytes until Save a copy)";
-		Answer(rescaleWords);
-	});
-}
-
-void OpenAPrompt(int32_t kind)
-{
-	// Object > Rescale: inteng's window, not a typed prompt
-	if (kind == kPromptRescale)
-	{
-		RescaleShapeBox();
-		return;
-	}
-
-	uint8_t id[8];
-
-	if (!LevelObjects_Level() || !editedLevel)
-	{
-		Answer("No level is held to work on");
-		return;
-	}
-
-	if (kind == kPromptSoftEdge && !SelectedObjectOrModuleId(id))
-	{
-		Answer("Soft: select an object first (Select > Object, then click it)");
-		return;
-	}
-
-	// Edge > Soft (FUN_004b0270): the text dialog "Type in the maximum angle for soft edges (flat is 0)." with Ok / Cancel (sscanf %d), not a typed prompt
-	if (kind == kPromptSoftEdge)
-	{
-		memset(keyDown, 0, sizeof(keyDown));
-		TextAs(kPromptSoftEdge, "Type in the maximum angle for soft edges (flat is 0).", "");
-		return;
-	}
-
-	if ((kind == kPromptMove || kind == kPromptName) && !SelectedObjectId(id))
-	{
-		Answer("Select an object first: click it in the level, or choose it in the object list");
-		return;
-	}
-
-	if (OpenAsDialog(kind))
-	{
-		return;
-	}
-
-	memset(keyDown, 0, sizeof(keyDown));
-	promptFor = kind;
-	promptText.clear();
-
-	if (kind == kPromptTears)
-	{
-		promptText = std::to_string((int)tearTolerance);   // the last number is the default (DAT_005ced28)
-	}
-}
 
 // The words of the prompt's lines
 void PromptWords(std::string *title, std::string *hint)
@@ -18758,6 +12142,9 @@ void PromptWords(std::string *title, std::string *hint)
 		case kPromptAsc:
 		case kPromptAscDoors:
 			*title = "Write asc file: type the filename (without .asc extension)";
+			break;
+		case kPromptWriteC:
+			*title = "Write .c file: type the filename for the shape (without .c extension)";
 			break;
 		case kPromptMove:
 			*title = "Move relative: type how far to move it, as three whole numbers: x y z";
@@ -18902,6 +12289,12 @@ void RunThePrompt()
 	if (kind == kPromptAsc || kind == kPromptAscDoors)
 	{
 		WriteTheAsc(typed, kind == kPromptAscDoors);
+		return;
+	}
+
+	if (kind == kPromptWriteC)
+	{
+		WriteTheC(typed);   // write_c_file.h
 		return;
 	}
 
@@ -19817,7 +13210,11 @@ static void VolumeClick(host::PickReport const &report, bool shift, int32_t x, i
 
 // STRATEGY DATA'S VIEW DISTANCE (strategy-data.md S-53 / S-54 / S-65): the screen's frame FUN_00522980 (0x5229a0-0x5229e0) and the sub-loops' FUN_00529370 (0x52940b-0x52944b): H held (slot 0xd87a88) adds 500000 to
 // the shared distance DAT_005fd678 (1,000,000 at the start) each frame, N held (0xd87a8e) takes 500000 away, never below 0; then FUN_00522a30 every frame: a module whose distance from the camera, less its radius (+0x100),
-// is not under the distance is not drawn. A kind's Edit view runs its own loop (FUN_0058b700 only): no H / N and no culling pass while it is up. NAMED: inteng never hides a record flagged 0x800000 (+0x64); ours has no such flag.
+// is not under the distance is not drawn. A kind's Edit view runs its own loop (FUN_0058b700 only): no H / N and no culling pass while it is up.
+// THE EDITOR'S ICONS ARE NEVER CULLED (S-65, read 11-18): FUN_00522a30 0x522a48 looks only at records whose shape (+0, the map block's shape, FUN_004b2590 0x4b268a) is at or after DAT_008f588c, the
+// level's first shape: FUN_0042c700 puts inteng's 0x13 built-in shapes first and gives back 0x13 (0x42c7ca), which FUN_0046e700 keeps there (0x46ed8e). The icons of the virtual objects (13), generators
+// (3), bad guys (7), sounds (8), particle generators (2) and placed hierarchies (4) are built-in shapes (editor_icons.h), so the distance never hides them: SpecialIconTriangles hides them by distance
+// only off Strategy, as ours always did. NAMED: a record flagged 0x800000 (+0x64) is ALWAYS hidden (0x522a79: the flag sends it to +0x5c |= 4 whatever its distance); ours has no such flag.
 static bool strategyDistanceApplied = false;
 
 static void StrategyViewDistanceEveryFrame()
@@ -19833,8 +13230,9 @@ static void StrategyViewDistanceEveryFrame()
 		return;
 	}
 
-	// a kind's Edit view reads neither H nor N; the volume editor, which runs from one, is FUN_00529370's loop, where H / N and the hiding go on (S-VOL-11, Drake 11-17)
-	if (strategyEditFan && !volume.on)
+	// a kind's Edit view reads neither H nor N; the volume editor, the collector and the object pick it starts are FUN_00529370's loops, where H / N and the hiding go on (S-VOL-11, Drake 11-17;
+	// S-57, Bishop 11-18)
+	if (strategyEditFan && !StrategyInASubLoop())
 	{
 		return;
 	}
@@ -20294,6 +13692,7 @@ static void AddThePanels(void *context)
 		// AutoLink's display, while a run is on: the owner's grid of pictures, then over it inteng's counter and words (AD-5 .. AD-7); the menu bar and the dialogs over all
 		AutoLinkShow_Draw(frame->width, frame->height);
 		PanelPass_AddToFrame(frame->width, frame->height, frame->extras);
+		TextureColourDraw(frame->width, frame->height);   // Select Colour's grid, over the bars too (Shift+K, FUN_00560620)
 	}
 }
 // (THE PROOF RUNS: in editor_proofs.cpp)
@@ -20349,6 +13748,8 @@ int main(int, char **)
 	bool hierarchyProof = false;   // -hierarchyproof: a proof run shows a stock model in front of the camera at one point of one sequence
 	std::string hierarchyProofModel, hierarchyProofHierarchy;
 	int hierarchyProofSequence = 0, hierarchyProofSub = 0, hierarchyProofPosition = 0;
+	host::OpenAt openAt;   // -at x y z turn look [screen] / -shot <png> (open_at.h)
+	std::string openAtWhy;
 	std::string startGotoObject;   // -gotoobject NAME: the camera is put 2.5 metres in front of the first textured polygon of that object on the first frame (a proof run's way to look at an object)
 	bool texMapProof = false;   // -texmapproof: a proof run checks the polygon map against the game's shapes and selects some polygons for the picture
 	std::string screenWhy;
@@ -20577,14 +13978,22 @@ int main(int, char **)
 			optionsFolder = narrow;
 			i++;
 		}
+		else if (host::OpenAt_Argument(args, argCount, &i, &openAt, &openAtWhy))
+		{
+			badCommandLine = openAtWhy.empty() ? badCommandLine : openAtWhy.c_str();   // -at / -shot (open_at.h)
+		}
 		else if (args[i][0] != L'\0' && args[i][0] != L'-' && levelFile.empty())
 		{
 			levelFile = args[i];
 		}
 		else
 		{
-			badCommandLine = "the command line takes one level file, -picture <frames>, -viewmode <mode>, -screen <name>, -r<width>x<height> and -w";
+			badCommandLine = "the command line takes one level file, -picture <frames>, -viewmode <mode>, -screen <name>, -r<width>x<height>, -w, <level> -at <x> <y> <z> <turn> <look> [<screen>] and -shot <png>";
 		}
+	}
+	if (!badCommandLine && !openAt.place.screen.empty() && !host::OpenAt_Screen(openAt, screenGiven, &startScreen, &openAtWhy))
+	{
+		badCommandLine = openAtWhy.c_str();   // the screen -at or the shot names, by -screen's own reader (open_at.h)
 	}
 	LocalFree(args);
 	if (!badCommandLine && !testDocuments.empty() && !editorHiddenRun)
@@ -20604,7 +14013,7 @@ int main(int, char **)
 	// "Please load a rif file by double clicking on it", Ok, and the program ends. Nothing else is read or opened. The ini's Level= is not looked at, as inteng has no such thing; only a
 	// -picture run (nobody at the screen, the hidden proofs) may still take its level from there, unless it says -nofile. (Written 2026-11-16 by Melanikus (Dietrich), Bishop's start-up order;
 	// startup-trace.md. The box is Windows' for now: inteng's own toolkit window needs the level's view up, which has no level to open.)
-	bool const noFile = levelFile.empty() && (!pictureAfter || noFileProof);   // the window is made as for any start, and the message is shown in it (NoFileScreen); no level is opened
+	bool const noFile = levelFile.empty() && !openAt.shot && (!pictureAfter || noFileProof);   // the window is made as for any start, and the message is shown in it (NoFileScreen); no level is opened
 
 	// The bar the editor starts with: the hub, or the screen -screen named
 	barScreen = startScreen;
@@ -20664,7 +14073,7 @@ int main(int, char **)
 		return Stop("the program's own folder has too long a name");
 	}
 	if (!ReadSetting(settingsFile, "DataFolder", dataFolder, sizeof(dataFolder)) ||
-		(levelFile.empty() && !noFile && !ReadSetting(settingsFile, "Level", levelName, sizeof(levelName))))
+		(levelFile.empty() && !noFile && !openAt.shot && !ReadSetting(settingsFile, "Level", levelName, sizeof(levelName))))
 	{
 		return Stop("AVP_OpenInteng.ini beside the program needs [Editor] with DataFolder=, and Level= unless a level file is given (each "
 			"shorter than 259 letters)");
@@ -20810,6 +14219,16 @@ int main(int, char **)
 	if (strcpy_s(theGameFolder, sizeof(theGameFolder), dataFolder) != 0)
 	{
 		return Stop("the game's folder has too long a name");
+	}
+
+	// -at's level word or -shot's map: a NAME of the data folder's levels, opened by its name (a shot's only with its sha256), so no file is copied in (open_at.h)
+	if ((openAt.at || openAt.shot) && !host::OpenAt_Level(openAt, levelFile, dataFolder, levelName, sizeof(levelName), host::IntengExe_Sha256, &openAtWhy))
+	{
+		return Stop(openAtWhy.c_str());
+	}
+	if (openAt.at || openAt.shot)
+	{
+		levelFile.clear();
 	}
 
 	// A level file given on the command line is copied into the data folder's avp_rifs if it isn't there yet, and opened by its name
@@ -21848,6 +15267,7 @@ int main(int, char **)
 				// Module Linking's own view rules (view distance, only the linked modules)
 				LinkFollowPass(barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].table, "0x5e2e38") == 0);
 				ModuleLinkingViewPass(barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].table, "0x5e2e38") == 0, barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].table, "0x5c3508") == 0);
+				TextureMapViewPass(onTextureMap);   // Texture Map's view distance rule (FUN_00544070; texture_map_screen.cpp)
 			}
 
 
@@ -21979,6 +15399,14 @@ int main(int, char **)
 		char const *const askedPicture = lastFrame ? picture : (harnessPathsMade ? harnessPicturePath : nullptr);
 		char const *const screenshotTo = !askedPicture && !screenshotPending.empty() ? screenshotPending.c_str() : nullptr;
 		char const *const shotTo = !askedPicture && !screenshotTo && !shotPending.empty() ? shotPending.c_str() : nullptr;   // #78
+		if ((openAt.at || openAt.shot) && !openAt.applied && LevelObjects_OpenForEdit())
+		{
+			std::string openedAt;
+
+			host::OpenAt_Apply(&openAt, &openedAt);   // -at / -shot: the camera and the selection, once the level is up (open_at.h)
+			LogString(openedAt);
+			Answer(openedAt);
+		}
 		if (!startGotoObject.empty())
 		{
 			OpenLevelFile *const here = LevelObjects_OpenForEdit();
@@ -22094,6 +15522,18 @@ int main(int, char **)
 
 		// the live Snap To Vertex: the snap under the pointer, every frame (FUN_004d9af0 0x4da855-0x4da8ce)
 		SnapLiveFrame(view.right - view.left, view.bottom - view.top);
+
+		{
+			std::string cornerWords;
+
+			OrbitCommand_Frame(view.right - view.left, view.bottom - view.top, &cornerWords);   // the harness's camera-corner trial (orbit_command.h)
+
+			if (!cornerWords.empty())
+			{
+				LogString(cornerWords);
+				Answer(cornerWords);
+			}
+		}
 
 		// Acoustic Mode: the module under the pointer, every frame (FUN_004f57b0 0x4f5bd6), for its lines
 		if (OnAcousticScreen())
@@ -22361,6 +15801,10 @@ int main(int, char **)
 
 		if (harnessScenarioAsked)
 		{
+			// OP-26c: whether the current placed object is in the game's view (has its display block), for the harness: "yes" / "no", empty when no placed object is current
+			host::ModuleLinkAvp_StateLine();
+			StateLine_Add("inplay", host::Selection_Get().kind == host::SelectedKind::Object ? (LevelView_SelectedIsInPlay() ? "yes" : "no") : "");
+
 			std::string titles1, titles2;
 
 			// the titles of the two LOGICAL rows (inteng's row 1 with the editor's own menus, and its row 2), whatever physical rows they wrap into at this width
@@ -22517,6 +15961,9 @@ int main(int, char **)
 			// Stability flags: the six faces as letters, r red (stable) or g green, empty when the mode is not on (for expect-field stability)
 			// THE BAR FOR THE ACCEPTANCE HARNESS's click-bar: barboxes "<title>~<x> <y> <w> <h>|..." the titles of every physical row, dropboxes "<item>~<x> <y> <w> <h>|..." the items shown in the open drop-down
 			std::string barBoxesWord, dropBoxesWord, dropTickedWord;
+			// droprows "<words>|<words>|...": the WORDS each shown row of the open drop-down draws, as menu_paint.cpp draws them (the item's name, then its tag right after it when
+			// it has one), so a scenario reads the menu as it is on the screen (dropboxes names the items to click by, and leaves a tag out)
+			std::string dropRowsWord;
 			// textScreenWord: the first line of the full text screen shown over the view (inteng's FUN_004724f0: a Help page, "Click to continue."), quotes taken out; empty when none
 			std::string textScreenWord = textPanelText ? std::string(textPanelText).substr(0, std::string(textPanelText).find('\n')) : std::string();
 
@@ -22557,6 +16004,10 @@ int main(int, char **)
 					for (size_t k = 0; k < rowBar.ShownItems(); k++)
 					{
 						dropBoxesWord += (dropBoxesWord.empty() ? "" : "|") + std::string(openMenu.items[rowBar.FirstShownItem() + k].name) + "~" + std::to_string(d.x) + " " + std::to_string(d.y + (int32_t)k * rowBar.ItemHeight()) + " " + std::to_string(d.width) + " " + std::to_string(rowBar.ItemHeight());
+
+						ui::MenuItem const &drawn = openMenu.items[rowBar.FirstShownItem() + k];
+
+						dropRowsWord += (dropRowsWord.empty() ? "" : "|") + std::string(drawn.name) + (drawn.tag ? drawn.tag : "");
 
 						if (rowBar.IsChecked((size_t)rowBar.OpenMenu(), rowBar.FirstShownItem() + k))
 						{
@@ -22599,7 +16050,7 @@ int main(int, char **)
 			int const currentSounding = specialMode.haveCurrent && specialMode.kind == host::SpecialKind::Sound ? (host::PlacedSounds_SoundingAt(specialMode.number) ? 1 : 0) : -1;
 			std::string const placedSoundsWord = "held " + std::to_string(host::PlacedSounds_Held()) + " loaded " + std::to_string(host::PlacedSounds_Loaded()) + " sounding " +
 				std::to_string(host::PlacedSounds_Sounding()) + " current " + std::to_string(currentSounding) + " preview " + (host::SoundGame_PreviewSounding() ? "1" : "0") + " device " +
-				(host::SoundGame_DeviceOn() ? "1" : "0");
+				(host::SoundGame_DeviceOn() ? "1" : "0") + " hierarchy " + std::to_string(host::HierarchySounds_Playing());   // PH-2/3/14: the placed hierarchy's sounds playing
 
 			// the editor's window (startup-screen-frost.md SS-13): its client's width and height, and whether it is inteng's full screen (a popup over the monitor) or a framed window
 			RECT windowClient = { 0, 0, 0, 0 };
@@ -22673,8 +16124,8 @@ int main(int, char **)
 				}
 			}
 
-			printf("AVP_OpenInteng: scenario: screen \"%s\"; bar1 \"%s\"; bar2 \"%s\"; selection \"%s\"; prompt %d; fieldsfresh \"%d\"; status \"%s\"; selected \"%zu\"; modelbox \"%s\"; choices \"%s\"; dialog \"%s\"; dialogrows \"%s\"; dialogrow1 \"%s\"; dialogkind \"%s\"; dialogbuttons \"%s\"; dialogtext \"%s\"; dialogchecks \"%s\"; dialogfields \"%s\"; dialogcombos \"%s\"; dialogcomborows \"%s\"; popup \"%s\"; popuprow1 \"%s\"; popupstep \"%s\"; viewmode \"%s\"; camera \"%d %d %d %d %d\"; level \"%s\"; levelbytes \"%lld\"; hierarchylines \"%s\"; barshown \"%d\"; stability \"%s\"; camspeed \"%d\"; barboxes \"%s\"; dropboxes \"%s\"; strategyview \"%s\"; volume \"%s\"; volumeface \"%d\"; volumemodule \"%d\"; screentext \"%s\"; viewdistance \"%d\"; dropticked \"%s\"; textscreen \"%s\"; linktree \"%s\"; placedsounds \"%s\"; pathlines \"%s\"; camerasaved \"%u\"; camerasaveddrawn \"%u\"; lightspin \"%s\"; linkmessage \"%s\"; window \"%s\"; selectedat \"%s\"; flyat \"%s\"; orbit \"%s\"; flyturned \"%s\"; flymatrix \"%s\"; camangles \"%s\"; rotcentre \"%s\"; trackobjects \"%s\"%s\n", barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : "?", titles1.c_str(), titles2.c_str(),
-				selectedWords.c_str(), (int)promptFor, FieldsFresh() ? 1 : 0, statusWords ? statusWords : "", host::Selection_SetCount(), modelBox.c_str(), choiceBoxes.c_str(), dialogTitle.c_str(), dialogRows.c_str(), dialogRow1.c_str(), dialogKindWord.c_str(), dialogNow.buttons.c_str(), dialogNow.text.c_str(), dialogNow.checks.c_str(), dialogNow.fields.c_str(), dialogNow.combos.c_str(), dialogNow.comborows.c_str(), popupEntries.c_str(), popupRow1.c_str(), popupStep.c_str(), scenarioViewMode, camera.x, camera.y, camera.z, camera.turn, camera.look, openLevelName.c_str(), scenarioLevelBytes, hierarchyLinesWord.c_str(), barVisible ? 1 : 0, stabilityWord.c_str(), speedUnits, barBoxesWord.c_str(), dropBoxesWord.c_str(), strategyViewWord.c_str(), volumeWord.c_str(), volume.on ? volume.face : -1, volume.on ? volume.module : -1, screenTextNow.c_str(), (int)(viewDistance / 500000), dropTickedWord.c_str(), textScreenWord.c_str(), LinkTreeStateWords().c_str(), placedSoundsWord.c_str(), pathLinesNow.c_str(), cameraSavedCount, cameraSavedDrawn, OnALightScreen() ? lightSpinWord.c_str() : "", linkMessageShown.c_str(), windowWord.c_str(), selectedAt.c_str(), flyAtWords.c_str(), orbitWords.c_str(), flyTurnedWords.c_str(), flyMatrixWords.c_str(), camAnglesWords.c_str(), rotCentreWords.c_str(), trackObjectsWords.c_str(), StateLine_Words().c_str());
+			printf("AVP_OpenInteng: scenario: screen \"%s\"; bar1 \"%s\"; bar2 \"%s\"; selection \"%s\"; prompt %d; fieldsfresh \"%d\"; status \"%s\"; selected \"%zu\"; modelbox \"%s\"; choices \"%s\"; dialog \"%s\"; dialogrows \"%s\"; dialogrow1 \"%s\"; dialogkind \"%s\"; dialogbuttons \"%s\"; dialogtext \"%s\"; dialogchecks \"%s\"; dialogfields \"%s\"; dialogcombos \"%s\"; dialogcomborows \"%s\"; popup \"%s\"; popuprow1 \"%s\"; popupstep \"%s\"; viewmode \"%s\"; camera \"%d %d %d %d %d\"; level \"%s\"; levelbytes \"%lld\"; hierarchylines \"%s\"; barshown \"%d\"; stability \"%s\"; camspeed \"%d\"; barboxes \"%s\"; dropboxes \"%s\"; droprows \"%s\"; strategyview \"%s\"; volume \"%s\"; volumeface \"%d\"; volumemodule \"%d\"; screentext \"%s\"; viewdistance \"%d\"; dropticked \"%s\"; textscreen \"%s\"; linktree \"%s\"; placedsounds \"%s\"; pathlines \"%s\"; camerasaved \"%u\"; camerasaveddrawn \"%u\"; lightspin \"%s\"; linkmessage \"%s\"; window \"%s\"; selectedat \"%s\"; flyat \"%s\"; orbit \"%s\"; flyturned \"%s\"; flymatrix \"%s\"; camangles \"%s\"; rotcentre \"%s\"; trackobjects \"%s\"%s\n", barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : "?", titles1.c_str(), titles2.c_str(),
+				selectedWords.c_str(), (int)promptFor, FieldsFresh() ? 1 : 0, statusWords ? statusWords : "", host::Selection_SetCount(), modelBox.c_str(), choiceBoxes.c_str(), dialogTitle.c_str(), dialogRows.c_str(), dialogRow1.c_str(), dialogKindWord.c_str(), dialogNow.buttons.c_str(), dialogNow.text.c_str(), dialogNow.checks.c_str(), dialogNow.fields.c_str(), dialogNow.combos.c_str(), dialogNow.comborows.c_str(), popupEntries.c_str(), popupRow1.c_str(), popupStep.c_str(), scenarioViewMode, camera.x, camera.y, camera.z, camera.turn, camera.look, openLevelName.c_str(), scenarioLevelBytes, hierarchyLinesWord.c_str(), barVisible ? 1 : 0, stabilityWord.c_str(), speedUnits, barBoxesWord.c_str(), dropBoxesWord.c_str(), dropRowsWord.c_str(), strategyViewWord.c_str(), volumeWord.c_str(), volume.on ? volume.face : -1, volume.on ? volume.module : -1, screenTextNow.c_str(), (int)(viewDistance / 500000), dropTickedWord.c_str(), textScreenWord.c_str(), LinkTreeStateWords().c_str(), placedSoundsWord.c_str(), pathLinesNow.c_str(), cameraSavedCount, cameraSavedDrawn, OnALightScreen() ? lightSpinWord.c_str() : "", linkMessageShown.c_str(), windowWord.c_str(), selectedAt.c_str(), flyAtWords.c_str(), orbitWords.c_str(), flyTurnedWords.c_str(), flyMatrixWords.c_str(), camAnglesWords.c_str(), rotCentreWords.c_str(), trackObjectsWords.c_str(), StateLine_Words().c_str());
 			fflush(stdout);
 
 			// the camera, for a run that moves it (hold Z, a turn): where it is, in the game's millimetres, and the frames drawn so far
@@ -22780,6 +16231,7 @@ int main(int, char **)
 	// the sounds Object Placement holds go before the game's level does (its teardown lets go of every loaded sound)
 	host::SoundGame_PreviewStop();
 	host::PlacedSounds_LetGo();
+	host::HierarchySounds_LetGo();
 	host::TrackPlay_EndSounds();
 	LevelView_Close();
 	ReleaseDirect3D();

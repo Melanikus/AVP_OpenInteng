@@ -1,0 +1,23 @@
+# ACCEPTANCE (red first): TM-B, G / Shift+G round the Find list (0xbd / 0xbe; FUN_0054d260 0x54e68f / 0x54e968; Dietrich, 2026-11-18). G past the list's end goes back to its start
+# with "Gone back to start of list" (0x5fec3c). INTENG BUG, FIXED: inteng's Shift+G moves back without going there and at the start goes to the START again; ours goes to the previous
+# polygon, and from the first to the last ("Gone to the end of the list"). Ours went round silently. His path: Invasion, Mode > Texture Map, Misc > Find: Invalid PSX UV coords (the
+# first found is gone to), Shift+G: the last, said; G: the first, "Gone back to start of list". State line only.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+item 0x46
+expect-screen Texture Map
+item 0xb9
+wait-status 30000 have invalid PSX UV coordinates
+state
+expect-status (1 of
+expect-status-not Gone back to start of list
+key G shift
+wait 300
+state
+expect-status Gone to the end of the list
+key G
+wait 300
+state
+expect-status Gone back to start of list
+expect-status (1 of

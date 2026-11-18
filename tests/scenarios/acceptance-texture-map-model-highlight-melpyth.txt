@@ -1,0 +1,13 @@
+# ACCEPTANCE (red first): TM-B, the Texture Map highlight of a picked part of the owner's MelPyth_MarWep.rif (a model file, his data folder): see acceptance-texture-map-model-highlight.txt.
+# His path: MelPyth_MarWep.rif, Mode > Texture Map, a click on the hand (0.55 0.75): 1 selected, no shape not drawn (the state line's textureshapesnotdrawn 0). State line.
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-try-run/data/avp_rifs/MelPyth_MarWep.rif
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.55 0.75
+wait 400
+state
+expect-status 1 selected
+expect-status-not not drawn
+expect-field textureshapesnotdrawn 0

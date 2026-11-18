@@ -95,6 +95,10 @@
 #include "topology_match.h"
 #include "texture_anim.h"
 #include "polygon_items.h"
+#include "multinode.h"        // TM-B sub-mode 3
+#include "texture_window.h"   // the window's layout: where a node is on the screen (TM-B T)
+#include "texture_quad.h"
+#include "texture_shared.h"
 #include "module_poly_count.h"
 #include "hierarchy_mode.h"
 #include "list_picker.h"
@@ -198,7 +202,6 @@ namespace
 	std::vector<int32_t> mergeOld;           // DAT_00914d40: the numbers when M was pressed
 	bool mergeHadChunk = false;              // the shape has its SHPMRGDT
 	bool mergeChanged = false;               // DAT_00914d18
-	bool mergeTextShown = false;             // DAT_005fd69c, flipped by P (0x32)
 	std::vector<uint32_t> mergeColours;      // each polygon's colour while viewing
 	model::ShapeModel mergeModel;            // the shape as the level holds it
 	std::vector<int32_t> mergeWorld;         // its points where the game puts them (FilePick_World: inteng's FUN_0055a900)
@@ -1015,8 +1018,15 @@ char const *const kIntengMergeHelpText = "\t\t\tMouse Controls\n\nLeft click\t\t
 // THE SUB-MODES' OWN COMMAND SWITCHES (D1): Merge's is FUN_005511f0's (0x55121c): 2 Polygon (and Tab) back to the polygons (FUN_0054caf0(0); while viewing, the save question first: 2c),
 // 0x27 / 0x28 the help texts, 0x32 (P) the text shown or hidden; every other command does nothing in it (Merge 0x4 again included: its switch has no case for it). Exit (5) leaves through the
 // editor's Exit (LeaveTextureMap lets Merge go). The texture window's commands (sub-mode 1) are still TextureMapCommand's own.
+bool TextureMultiCommand(int32_t command);
+
 bool TextureWindowCommand(int32_t command)
 {
+	if (textureSubMode == 3)
+	{
+		return TextureMultiCommand(command);
+	}
+
 	if (textureSubMode != 2)
 	{
 		return false;
@@ -1067,10 +1077,987 @@ bool TextureWindowCommand(int32_t command)
 			textPanelNext = nullptr;
 			return true;
 		case 0x32:
-			mergeTextShown = !mergeTextShown;   // DAT_005fd69c; the text FUN_00543fa0 draws while it is set (FUN_0057b6f0 at 0x544048) is NOT READ yet (tm-b-merge-map.md)
-			statusWords = mergeTextShown ? "Texture Map: Merge: text shown" : "Texture Map: Merge: text hidden";
+			textureTextShown = !textureTextShown;   // DAT_005fd69c, the polygon screen's P's own flag (texture_map_screen.cpp): FUN_00543fa0 draws the menus while it is set (FUN_0057b6f0 at 0x544048)
+			statusWords = textureTextShown ? "Texture Map: Merge: the menus are shown" : "Texture Map: Merge: the menus are hidden (P shows them)";
 			return true;
 		default:
 			return true;
+	}
+}
+
+// ================================================================= SUB-MODE 3: THE MULTIPLE NODE MODE (TM-B; reassess/tm-b-multinode-map.md)
+// M (0x3a, FUN_0054d260 0x54d5b4) turns All Nodes Shown (DAT_00914d74) on and off; Tab (0x3) with polygons selected then opens the multiple node mode in place of the texture window
+// (0x54d2cf). Its entry (FUN_0054caf0 case 3, FUN_00573f20) joins the selected polygons' corners into nodes - a corner within 400 of a node on each axis is one of its members -
+// links them along the polygons' edges and lines them up on the current picture (model/multinode.h); with that it shows the picture, the nodes and their links, bar page 3. A line-up
+// that fails gives "Cannot use multiple node mode with currently selected polygons" (0x601b44) and the polygon screen. Polygon (2), Tab and Exit leave it (FUN_005604f0): every
+// selected polygon's coordinates are brought onto the picture (FUN_005702e0 -> FUN_00566b90, TextureWrapPolygon).
+// THE NODES MOVED (TM-B 3b; FUN_00553be0 0x55411e, FUN_005546b0, FUN_00554ca0, FUN_00555070): a press within 4 pixels of a node (both ways) makes it the current node and takes it; else
+// a press within 5 pixels of a link takes both its nodes; else a press on the picture takes EVERY node; the drag moves the taken nodes with the mouse (one node: to the mouse), held
+// in the texture area. With Selectable Nodes on (S, 0x102) the taken nodes stay taken after the release and a press with Shift draws a box that takes the nodes in it (one under 2
+// pixels: the nearest node in or out); without it they are let go. Shift+press (Selectable Nodes off) puts the current node at the mouse. The arrow keys move the current node 1
+// texel (Shift 10); with Ctrl every node, with Selectable Nodes the taken ones; held in the texture area. After each move every member corner takes its node's place
+// (FUN_00560450, model::MultiNodeWriteBack) and the changed polygons are written.
+// NAMED (3a/3b): the mode's own commands (flips and turns of the nodes, S / L / T, 0x105, Reset, the scales: 3c) do nothing yet. INTENG BUG, FIXED: the current node is 0 at
+// every entry (inteng leaves +0x88 as it was, and an arrow key then writes past the nodes when there are fewer: 0x5551a5); a drag moves only the taken nodes (inteng makes every
+// node's place again from its screen place, 0x554c26, so untouched nodes snap to the screen's steps at a scale that is not x1).
+// DECIDED: the corners are measured where the game puts them (FilePick_World, as Merge's FUN_0055a900; inteng's DAT_00914c48 is not read); the shapes are taken in the order their
+// first polygon was selected (inteng walks its shape slots in order); a selected polygon with no texture is first given the current texture and the window's
+// coordinates (FUN_00570040, TextureMultiTextureTheUntextured); the "do not fit in the used area" box after the entry (FUN_0055cfa0) is not built.
+bool textureAllNodesShown = false;   // DAT_00914d74
+
+namespace
+{
+	struct MultiShape
+	{
+		uint8_t id[8];
+		bool isModule;
+		int32_t moduleIndex;
+		model::ShapeModel model;
+		std::vector<int32_t> world;   // its points where the game puts them, 3 per point
+		std::vector<int32_t> merge;   // its merge data, one per polygon (-1s for a shape with none)
+	};
+
+	struct MultiRef
+	{
+		size_t shape;          // in multiShapes
+		int32_t polygon;       // the polygon's number in the file's SHPPOLYS
+		model::PolygonUv uv;   // as read at the entry
+	};
+
+	std::vector<MultiShape> multiShapes;
+	std::vector<MultiRef> multiRefs;                    // one per multiPolygons entry
+	std::vector<model::MultiNodePolygon> multiPolygons;
+	std::vector<model::MultiNode> multiNodes;
+	int32_t multiCurrent = 0;                           // state +0x88
+	std::vector<int32_t> multiTaken;                    // +0x78, the taken nodes
+	int multiDrag = 0;                                  // +0x74: 1 the taken nodes move, 0x10 a box
+	int32_t multiPressX = 0, multiPressY = 0, multiLastX = 0, multiLastY = 0;
+	bool multiSelectable = false;                       // +0x8c, Selectable Nodes (+0x90, Resizing Texture, is textureWin.resizing: one for both windows)
+
+	// The polygons' coordinates as multiPolygons holds them now, written for each shape whose coordinates differ from the entry's
+	bool MultiWrite(std::string *why)
+	{
+		OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+		if (!open || !open->Level())
+		{
+			return false;
+		}
+
+		for (size_t s = 0; s < multiShapes.size(); s++)
+		{
+			std::vector<model::PolygonUv> changed;
+
+			for (size_t p = 0; p < multiPolygons.size(); p++)
+			{
+				if (multiRefs[p].shape != s)
+				{
+					continue;
+				}
+
+				model::PolygonUv uv = multiRefs[p].uv;
+				bool differs = false;
+
+				for (int c = 0; c < multiPolygons[p].corners && c < uv.uv.cornerCount; c++)
+				{
+					differs = differs || (int32_t)uv.uv.corners[c].u != multiPolygons[p].u[c] || (int32_t)uv.uv.corners[c].v != multiPolygons[p].v[c];
+					uv.uv.corners[c].u = (float)multiPolygons[p].u[c];
+					uv.uv.corners[c].v = (float)multiPolygons[p].v[c];
+				}
+
+				if (differs)
+				{
+					changed.push_back(uv);
+				}
+			}
+
+			if (!changed.empty() && host::UvEdit_WritePolygons(open, open->Level(), multiShapes[s].id, changed, why) != host::UvEditResult::Done)
+			{
+				return false;
+			}
+
+			for (model::PolygonUv const &one : changed)
+			{
+				for (size_t p = 0; p < multiRefs.size(); p++)
+				{
+					if (multiRefs[p].shape == s && multiRefs[p].polygon == one.polygonNumber)
+					{
+						multiRefs[p].uv = one;
+					}
+				}
+			}
+		}
+
+		return true;
+	}
+
+	// The place of polygon `polygon` of shape `shape` in the lists, read and added when it is not there yet (selected: one of the selection's; else a partner); -1 when it can't be read
+	int32_t MultiPolygonOf(OpenLevelFile *open, size_t shape, int32_t polygon, bool selected)
+	{
+		for (size_t p = 0; p < multiRefs.size(); p++)
+		{
+			if (multiRefs[p].shape == shape && multiRefs[p].polygon == polygon)
+			{
+				multiPolygons[p].selected = multiPolygons[p].selected || selected;
+				return (int32_t)p;
+			}
+		}
+
+		MultiShape const &owner = multiShapes[shape];
+		model::PolygonUv uv;
+		std::string why;
+
+		if (polygon < 0 || (size_t)polygon >= owner.model.polygons.size() ||
+			host::UvEdit_ReadPolygon(open, open->Level(), owner.id, polygon, &uv, &why) != host::UvEditResult::Done || !uv.textured || uv.uv.cornerCount < 3)
+		{
+			return -1;
+		}
+
+		model::ShapePolygon const &item = owner.model.polygons[(size_t)polygon];
+		model::MultiNodePolygon one = {};
+		int corners = 0;
+
+		while (corners < 5 && item.corners[corners] >= 0)
+		{
+			corners++;
+		}
+
+		if (corners < 3 || corners > 4 || uv.uv.cornerCount < corners)
+		{
+			return -1;
+		}
+
+		one.selected = selected;
+		one.partner = -1;
+		one.corners = corners;
+
+		for (int c = 0; c < corners; c++)
+		{
+			size_t const at = (size_t)item.corners[c] * 3;
+
+			if (at + 2 >= owner.world.size())
+			{
+				return -1;
+			}
+
+			one.x[c] = owner.world[at];
+			one.y[c] = owner.world[at + 1];
+			one.z[c] = owner.world[at + 2];
+			one.u[c] = (int32_t)uv.uv.corners[c].u;   // whole texels, as inteng holds them
+			one.v[c] = (int32_t)uv.uv.corners[c].v;
+		}
+
+		multiPolygons.push_back(one);
+		multiRefs.push_back({ shape, polygon, uv });
+		return (int32_t)multiPolygons.size() - 1;
+	}
+
+	void MultiClear()
+	{
+		multiShapes.clear();
+		multiRefs.clear();
+		multiPolygons.clear();
+		multiNodes.clear();
+		multiCurrent = 0;
+		multiTaken.clear();
+		multiDrag = 0;
+	}
+
+	void MultiTake(int32_t node)
+	{
+		if (node >= 0 && (size_t)node < multiNodes.size() && std::find(multiTaken.begin(), multiTaken.end(), node) == multiTaken.end())
+		{
+			multiTaken.push_back(node);
+		}
+	}
+}
+
+bool TextureCurrentPictureSize(int32_t *width, int32_t *height);   // texture_map_screen.cpp: the current texture's picture (state +0x58)
+
+int32_t TextureCurrentPictureFor(OpenLevelFile *open, uint8_t const *id);   // texture_map_screen.cpp
+void TextureCurrentEnsure(OpenLevelFile *open);
+void TextureWindowCornerNodes(model::UvCorner corners[4], int *count);
+
+// FUN_00570040 (the entry's first step, 0x573f44): every selected UNTEXTURED polygon is given the current texture (type 7) with the window's corner nodes as its coordinates
+// (FUN_005589e0): a polygon with no merge partner, or one whose partner is not selected or is textured, takes nodes 1-3; a merged pair both selected and untextured takes the four
+// nodes as one quad (FUN_0055cdf0) when the window has four (Select As Quad), else both take the texture with every coordinate 0 (0x570139-0x5701ef). The polygons are written, so
+// the join that follows finds them textured. Gives how many were textured. NAMED: a quad of the file takes the four nodes; a shape whose own picture list has not the current
+// texture is left as it is (inteng's copy holds the engine's texture number and its write-back is not read); inteng walks every shape slot from 0 (bug candidate G-11): ours the
+// selection's shapes.
+static size_t textureMultiUntexturedLeft = 0;   // untextured selected polygons the entry could not texture (their shape's list has not the current texture, or the write was refused)
+
+static size_t TextureMultiTextureTheUntextured(OpenLevelFile *open)
+{
+	textureMultiUntexturedLeft = 0;
+	model::UvCorner nodes[4];
+	int count = 4;
+	size_t textured = 0;
+	std::vector<std::string> shapesDone;
+
+	TextureWindowCornerNodes(nodes, &count);
+
+	for (TexturePolygon const &lead : texturePolygons)
+	{
+		std::string const key((char const *)lead.id, 8);
+
+		if (std::find(shapesDone.begin(), shapesDone.end(), key) != shapesDone.end())
+		{
+			continue;
+		}
+
+		shapesDone.push_back(key);
+
+		model::ShapeModel shape;
+		std::vector<int32_t> merge;
+		bool hasChunk = false;
+		std::string why;
+
+		if (host::ShapeEdit_Read(open->Level(), open, lead.id, &shape, nullptr, &why) != host::ShapeEditResult::Done)
+		{
+			continue;
+		}
+
+		if (!host::PolygonItems_ReadMergeData(open, open->Level(), lead.id, &merge, &hasChunk) || merge.size() != shape.polygons.size())
+		{
+			merge.assign(shape.polygons.size(), -1);
+		}
+
+		auto const untextured = [&shape](int32_t p) { return p >= 0 && (size_t)p < shape.polygons.size() && !model::EngineTypeIsTextured(shape.polygons[(size_t)p].engineType); };
+		auto const selected = [&lead](int32_t p) { return TextureSelectedIndex(lead.id, p) < texturePolygons.size(); };
+
+		// which polygons of this shape take the texture, and what each corner takes (-1: 0, 0)
+		std::vector<int32_t> make;
+		std::vector<std::pair<int32_t, std::vector<int>>> corners;   // polygon, the node each corner takes
+
+		for (TexturePolygon const &one : texturePolygons)
+		{
+			if (memcmp(one.id, lead.id, 8) != 0 || !untextured(one.polygon) || std::find(make.begin(), make.end(), one.polygon) != make.end())
+			{
+				continue;
+			}
+
+			int32_t const p = one.polygon, partner = merge[(size_t)p];
+			int own = 0;
+
+			while (own < 5 && shape.polygons[(size_t)p].corners[own] >= 0)
+			{
+				own++;
+			}
+
+			if (partner < 0 || !selected(partner) || !untextured(partner))
+			{
+				std::vector<int> take;
+
+				for (int c = 0; c < own && c < 4; c++)
+				{
+					take.push_back(c);   // nodes 1-3 (a quad of the file: 1-4)
+				}
+
+				make.push_back(p);
+				corners.push_back(std::make_pair(p, take));
+				continue;
+			}
+
+			model::TextureQuad quad;
+			int32_t const lower = p < partner ? p : partner, higher = p < partner ? partner : p;
+
+			make.push_back(lower);
+			make.push_back(higher);
+
+			if (count != 4 || model::TextureQuadOf(shape, lower, higher, &quad) != model::TextureQuadResult::Ok)
+			{
+				corners.push_back(std::make_pair(lower, std::vector<int>(3, -1)));   // 0x570162-0x5701ef: the texture, every coordinate 0
+				corners.push_back(std::make_pair(higher, std::vector<int>(3, -1)));
+				continue;
+			}
+
+			std::vector<int> lowerTakes(3, -1), higherTakes(3, -1);
+
+			for (int k = 0; k < 4; k++)
+			{
+				if (quad.ownCorners[k] >= 0)
+				{
+					lowerTakes[(size_t)quad.ownCorners[k]] = k;
+				}
+
+				if (quad.partnerCorners[k] >= 0)
+				{
+					higherTakes[(size_t)quad.partnerCorners[k]] = k;
+				}
+			}
+
+			corners.push_back(std::make_pair(lower, lowerTakes));
+			corners.push_back(std::make_pair(higher, higherTakes));
+		}
+
+		int32_t const picture = make.empty() ? -1 : TextureCurrentPictureFor(open, lead.id);
+		size_t made = 0;
+
+		if (make.empty())
+		{
+			continue;
+		}
+
+		if (picture < 0 || host::PolyEdit_MakeTextured(open, lead.id, make.data(), make.size(), picture, &made, &why) != host::PolyTypeResult::Done)
+		{
+			textureMultiUntexturedLeft += make.size();
+			continue;
+		}
+
+		// the coordinates: the nodes each corner takes (MakeTextured left every one at 0, 0)
+		std::vector<model::PolygonUv> written;
+
+		for (auto const &one : corners)
+		{
+			model::PolygonUv uv;
+
+			if (host::UvEdit_ReadPolygon(open, open->Level(), lead.id, one.first, &uv, &why) != host::UvEditResult::Done || !uv.textured)
+			{
+				continue;
+			}
+
+			bool any = false;
+
+			for (size_t c = 0; c < one.second.size() && (int)c < uv.uv.cornerCount; c++)
+			{
+				if (one.second[c] >= 0)
+				{
+					uv.uv.corners[c] = nodes[one.second[c]];
+					any = true;
+				}
+			}
+
+			if (any)
+			{
+				written.push_back(uv);
+			}
+		}
+
+		if (!written.empty())
+		{
+			host::UvEdit_WritePolygons(open, open->Level(), lead.id, written, &why);
+		}
+
+		textured += made;
+	}
+
+	return textured;
+}
+
+// FUN_0054caf0 case 3 and FUN_00573f20: the entry (from TextureTab, with polygons selected and All Nodes Shown on)
+void TextureMultiEnter()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	int32_t width = 0, height = 0;
+
+	if (!open || !open->Level() || texturePolygons.empty() || !TextureCurrentPictureSize(&width, &height))
+	{
+		return;   // 0x54cb1e (no texture) / 0x54cbd7 (nothing selected)
+	}
+
+	MultiClear();
+	TextureCurrentEnsure(open);   // the window this mode shows is the current texture's (state +0x58)
+
+	size_t const madeTextured = TextureMultiTextureTheUntextured(open);   // FUN_00570040, first (0x573f44)
+
+	// the selected polygons, each shape read once (its world points and its merge data)
+	for (TexturePolygon const &one : texturePolygons)
+	{
+		size_t shape = multiShapes.size();
+
+		for (size_t s = 0; s < multiShapes.size(); s++)
+		{
+			if (memcmp(multiShapes[s].id, one.id, 8) == 0)
+			{
+				shape = s;
+			}
+		}
+
+		if (shape == multiShapes.size())
+		{
+			MultiShape made;
+			bool hasChunk = false;
+
+			memcpy(made.id, one.id, 8);
+			made.isModule = one.isModule;
+			made.moduleIndex = one.moduleIndex;
+
+			std::vector<int32_t> normals;
+
+			if (host::FilePick_World(open, open->Level(), one.id, &made.model, &made.world, &normals) != host::FilePickResult::Done)
+			{
+				continue;
+			}
+
+			if (!host::PolygonItems_ReadMergeData(open, open->Level(), one.id, &made.merge, &hasChunk) || !hasChunk || made.merge.size() != made.model.polygons.size())
+			{
+				made.merge.assign(made.model.polygons.size(), -1);
+			}
+
+			multiShapes.push_back(made);
+		}
+
+		MultiPolygonOf(open, shape, one.polygon, true);
+	}
+
+	// each selected triangle's merge partner (added unselected when it is not selected) and the pair as one quad (FUN_0055cdf0)
+	size_t const selectedCount = multiPolygons.size();
+
+	for (size_t p = 0; p < selectedCount; p++)
+	{
+		MultiShape const &owner = multiShapes[multiRefs[p].shape];
+		int32_t const number = multiRefs[p].polygon;
+		int32_t const partnerNumber = (size_t)number < owner.merge.size() ? owner.merge[(size_t)number] : -1;
+
+		if (partnerNumber < 0 || multiPolygons[p].corners != 3)
+		{
+			continue;
+		}
+
+		int32_t const partner = MultiPolygonOf(open, multiRefs[p].shape, partnerNumber, false);
+		model::TextureQuad quad;
+
+		if (partner >= 0 && model::TextureQuadOf(owner.model, number, partnerNumber, &quad) == model::TextureQuadResult::Ok)
+		{
+			multiPolygons[p].partner = partner;
+			multiPolygons[p].quadKnown = true;
+			multiPolygons[p].quad = quad;
+		}
+	}
+
+	multiNodes = model::MultiNodeJoin(multiPolygons);
+	model::MultiNodeLink(&multiNodes, multiPolygons);
+
+	std::string why;
+
+	if (multiNodes.empty() || !model::MultiNodeLineUp(&multiNodes, &multiPolygons, width, height) || !MultiWrite(&why))
+	{
+		MultiClear();
+		DialogMessage("Cannot use multiple node mode with currently selected polygons");   // 0x5742ad: the box, then the polygon screen
+
+		static std::string failed;
+
+		failed = "Texture Map: the multiple node mode could not start: " + std::string(multiNodes.empty() ? "no selected polygon gave a node" : "the nodes could not be lined up on the picture") +
+			(textureMultiUntexturedLeft ? " (" + std::to_string(textureMultiUntexturedLeft) + " untextured polygons could not take the current texture)" : "") + (why.empty() ? "" : " - " + why);
+		statusWords = failed.c_str();
+		return;
+	}
+
+	textureSubMode = 3;
+	textureWindowOn = true;   // the window's frame draws it (TextureWindowDraw's sub-mode 3 branch)
+	multiSelectable = false;
+	EditorBar_SetPage(3);   // 0x54cbee (+0x90 Resizing Texture is not reset: tm-b-multinode-map.md B, E)
+
+	if (!LoadTheMenus())
+	{
+		LogString("menus: the multiple node mode's bars couldn't be made");
+	}
+
+	static std::string words;
+
+	words = "Texture Map: multiple node mode: " + std::to_string(multiNodes.size()) + " nodes from " + std::to_string(selectedCount) + " polygons" +
+		(madeTextured ? " (" + std::to_string(madeTextured) + " untextured ones given the current texture first)" : "");
+	statusWords = words.c_str();
+}
+
+// FUN_005604f0: the mode left (Polygon 2, Tab, Exit 5, and Texture Map left): every selected polygon brought onto its picture (FUN_005702e0), the polygon screen
+void TextureMultiLeave()
+{
+	if (textureSubMode != 3)
+	{
+		return;
+	}
+
+	for (size_t p = 0; p < multiPolygons.size(); p++)
+	{
+		if (multiPolygons[p].selected)
+		{
+			std::string why;
+			MultiShape const &owner = multiShapes[multiRefs[p].shape];
+
+			TextureWrapPolygon(owner.id, owner.isModule, owner.moduleIndex, multiRefs[p].polygon, &why);
+		}
+	}
+
+	MultiClear();
+	textureSubMode = 0;
+	textureWindowOn = false;
+	TextureOutlineAllShown();   // FUN_0056f9d0 (0x552cd7): every selected polygon's outline shown again
+	EditorBar_SetPage(0);
+
+	if (!LoadTheMenus())
+	{
+		LogString("menus: the Texture Map bars couldn't be made");
+	}
+
+	statusWords = "Texture Map: the polygons";
+}
+
+// What the window draws in sub-mode 3: each node's (u, v), the links (pairs of node numbers), which are lit (the current node), and the text (FUN_00552bb0 0x5530e5-0x55333d:
+// "Texture Scale x%d" comes from the window; the node rows "%03d" u and v for the first 20, "..." when there are 20 or more, then "All Nodes Shown", "Selectable Nodes",
+// "Resizing Texture")
+void TextureMultiForDraw(std::vector<int32_t> *u, std::vector<int32_t> *v, std::vector<std::pair<int32_t, int32_t>> *links, std::vector<bool> *lit, std::vector<std::string> *lines)
+{
+	u->clear();
+	v->clear();
+	links->clear();
+	lit->clear();
+	lines->clear();
+
+	for (size_t n = 0; n < multiNodes.size(); n++)
+	{
+		u->push_back(multiNodes[n].u);
+		v->push_back(multiNodes[n].v);
+		lit->push_back((int32_t)n == multiCurrent);
+
+		for (int32_t const to : multiNodes[n].links)
+		{
+			links->push_back(std::make_pair((int32_t)n, to));
+		}
+
+		if (n < 20)
+		{
+			char row[40];
+
+			snprintf(row, sizeof(row), "%s%03d %03d", (int32_t)n == multiCurrent ? "> " : "  ", multiNodes[n].u, multiNodes[n].v);
+			lines->push_back(row);
+		}
+	}
+
+	if (multiNodes.size() >= 20)
+	{
+		lines->push_back("...");   // 0x5532a2: also with exactly 20 (a bug candidate, kept with the rows: tm-b-multinode-map.md G-8)
+	}
+
+	if (textureAllNodesShown)
+	{
+		lines->push_back("All Nodes Shown");
+	}
+
+	if (multiSelectable)
+	{
+		lines->push_back("Selectable Nodes");
+	}
+
+	if (textureWin.resizing)
+	{
+		lines->push_back("Resizing Texture");
+	}
+}
+
+bool TextureCurrentArea(int32_t *left, int32_t *top, int32_t *right, int32_t *bottom);   // texture_map_screen.cpp: the texture area (state +8 .. +0x14)
+
+namespace
+{
+	// Every node in `which` moved by (du, dv) texels, held so that each stays in the texture area (FUN_00555070 / FUN_005546b0 clamp the step for the whole group)
+	void MultiMove(std::vector<int32_t> const &which, int32_t du, int32_t dv)
+	{
+		int32_t left = 0, top = 0, right = 0, bottom = 0;
+
+		if (!TextureCurrentArea(&left, &top, &right, &bottom))
+		{
+			return;
+		}
+
+		for (int32_t const n : which)
+		{
+			model::MultiNode const &node = multiNodes[(size_t)n];
+
+			du = node.u + du < left ? left - node.u : node.u + du > right - 1 ? right - 1 - node.u : du;
+			dv = node.v + dv < top ? top - node.v : node.v + dv > bottom - 1 ? bottom - 1 - node.v : dv;
+		}
+
+		for (int32_t const n : which)
+		{
+			multiNodes[(size_t)n].u += du;
+			multiNodes[(size_t)n].v += dv;
+		}
+	}
+
+	// FUN_00560450 for every node, then the changed polygons written
+	void MultiWriteBack()
+	{
+		std::string why;
+		static std::string words;
+
+		model::MultiNodeWriteBack(multiNodes, &multiPolygons);
+
+		if (!MultiWrite(&why))
+		{
+			words = "Texture Map: the nodes could not be written: " + why;
+			statusWords = words.c_str();
+			return;
+		}
+
+		if ((size_t)multiCurrent < multiNodes.size())
+		{
+			words = "Texture Map: node " + std::to_string(multiCurrent + 1) + " at " + std::to_string(multiNodes[(size_t)multiCurrent].u) + " " + std::to_string(multiNodes[(size_t)multiCurrent].v) +
+				" (" + std::to_string(multiTaken.size()) + " taken)";
+			statusWords = words.c_str();
+		}
+	}
+
+	// A node's place on the screen (FUN_005567b0) and the texel under a screen place (FUN_00556710)
+	int32_t MultiScreenX(model::TextureWindowState const &win, int32_t n) { return model::WindowScreenX(win, multiNodes[(size_t)n].u); }
+	int32_t MultiScreenY(model::TextureWindowState const &win, int32_t n) { return model::WindowScreenY(win, multiNodes[(size_t)n].v); }
+}
+
+// A press on the window (win: its layout, model/texture_window.h); true: the drag follows
+bool TextureMultiPress(int32_t x, int32_t y, model::TextureWindowState const &win, bool shift)
+{
+	if (textureSubMode != 3 || multiNodes.empty())
+	{
+		return false;
+	}
+
+	multiPressX = multiLastX = x;
+	multiPressY = multiLastY = y;
+	multiDrag = 0;
+	bool const onPicture = x > win.winL + 3 && y > win.winT + 3 && x < win.winR && y < win.winB;   // 0x5545b0: inside the view
+
+	if (multiSelectable)
+	{
+		multiDrag = shift ? 0x10 : 1;   // the taken nodes move, or a box (0x55411e)
+		return true;
+	}
+
+	if (shift && onPicture && (size_t)multiCurrent < multiNodes.size())
+	{
+		// Shift: the current node to the mouse (0x55414e-0x554256)
+		multiTaken.assign(1, multiCurrent);
+		MultiMove(multiTaken, model::WindowTexelX(win, x) - multiNodes[(size_t)multiCurrent].u, model::WindowTexelY(win, y) - multiNodes[(size_t)multiCurrent].v);
+		MultiWriteBack();
+		multiTaken.clear();
+		return false;
+	}
+
+	for (size_t n = 0; n < multiNodes.size(); n++)
+	{
+		if (abs(MultiScreenX(win,(int32_t)n) - x) <= 4 && abs(MultiScreenY(win,(int32_t)n) - y) <= 4)   // 0x55428b, the first node within 4
+		{
+			multiCurrent = (int32_t)n;
+			MultiTake((int32_t)n);
+			multiDrag = 1;
+			return true;
+		}
+	}
+
+	for (size_t n = 0; n < multiNodes.size(); n++)
+	{
+		for (int32_t const to : multiNodes[n].links)
+		{
+			// a link within 5 pixels, between its ends (0x554405-0x55447e)
+			double const ax = MultiScreenX(win,(int32_t)n), ay = MultiScreenY(win,(int32_t)n), bx = MultiScreenX(win,to), by = MultiScreenY(win,to);
+			double const dx = bx - ax, dy = by - ay, length = sqrt(dx * dx + dy * dy);
+
+			if (length > 0 && (x - ax) * (x - bx) + (y - ay) * (y - by) < 0 && fabs((x - ax) * dy - (y - ay) * dx) / length < 5.0)
+			{
+				MultiTake((int32_t)n);
+				MultiTake(to);
+				multiDrag = 1;
+				return true;
+			}
+		}
+	}
+
+	if (onPicture)
+	{
+		for (size_t n = 0; n < multiNodes.size(); n++)
+		{
+			MultiTake((int32_t)n);   // 0x5545b0-0x554633: every node
+		}
+
+		multiDrag = 1;
+		return true;
+	}
+
+	return false;
+}
+
+// The drag (FUN_005546b0): the taken nodes move with the mouse (one node: to the mouse)
+void TextureMultiDragTo(int32_t x, int32_t y, model::TextureWindowState const &win)
+{
+	if (textureSubMode != 3 || multiDrag != 1 || multiTaken.empty())
+	{
+		multiLastX = x;
+		multiLastY = y;
+		return;
+	}
+
+	if (multiTaken.size() == 1)
+	{
+		model::MultiNode const &node = multiNodes[(size_t)multiTaken[0]];
+
+		MultiMove(multiTaken, model::WindowTexelX(win, x) - node.u, model::WindowTexelY(win, y) - node.v);
+	}
+	else
+	{
+		double const f = win.scaleF;
+		int32_t const du = model::WindowFtol((x - multiPressX) / f) - model::WindowFtol((multiLastX - multiPressX) / f);
+		int32_t const dv = model::WindowFtol((y - multiPressY) / f) - model::WindowFtol((multiLastY - multiPressY) / f);
+
+		MultiMove(multiTaken, du, dv);
+	}
+
+	multiLastX = x;
+	multiLastY = y;
+}
+
+// The release (FUN_00554ca0): a box takes the nodes in it (one under 2 pixels: the nearest node in or out); the moved nodes are written back; without Selectable Nodes nothing stays taken
+void TextureMultiRelease(int32_t x, int32_t y, model::TextureWindowState const &win)
+{
+	if (textureSubMode != 3)
+	{
+		return;
+	}
+
+	if (multiDrag == 0x10)
+	{
+		int32_t const x0 = multiPressX < x ? multiPressX : x, x1 = multiPressX < x ? x : multiPressX, y0 = multiPressY < y ? multiPressY : y, y1 = multiPressY < y ? y : multiPressY;
+
+		if (x1 - x0 < 2 && y1 - y0 < 2)
+		{
+			int32_t nearest = -1;
+			int64_t best = 10000000;   // 0x989680
+
+			for (size_t n = 0; n < multiNodes.size(); n++)
+			{
+				int64_t const dx = MultiScreenX(win,(int32_t)n) - x, dy = MultiScreenY(win,(int32_t)n) - y;
+
+				if (dx * dx + dy * dy < best)
+				{
+					best = dx * dx + dy * dy;
+					nearest = (int32_t)n;
+				}
+			}
+
+			auto const at = std::find(multiTaken.begin(), multiTaken.end(), nearest);
+
+			if (at != multiTaken.end())
+			{
+				multiTaken.erase(at);
+			}
+			else
+			{
+				MultiTake(nearest);
+			}
+		}
+		else
+		{
+			for (size_t n = 0; n < multiNodes.size(); n++)
+			{
+				int32_t const nx = MultiScreenX(win,(int32_t)n), ny = MultiScreenY(win,(int32_t)n);
+
+				if (nx >= x0 && nx <= x1 && ny >= y0 && ny <= y1)
+				{
+					MultiTake((int32_t)n);
+				}
+			}
+		}
+	}
+	else if (multiDrag == 1)
+	{
+		MultiWriteBack();
+	}
+
+	multiDrag = 0;
+
+	if (!multiSelectable)
+	{
+		multiTaken.clear();   // 0x554fe0
+	}
+}
+
+// The arrow keys (FUN_00555070): du / dv texels (1, or 10 with Shift); with Ctrl every node, with Selectable Nodes the taken ones, else the current node
+void TextureMultiArrow(int32_t du, int32_t dv, bool ctrl)
+{
+	if (textureSubMode != 3 || multiNodes.empty())
+	{
+		return;
+	}
+
+	std::vector<int32_t> which;
+
+	if (ctrl)
+	{
+		for (size_t n = 0; n < multiNodes.size(); n++)
+		{
+			which.push_back((int32_t)n);
+		}
+	}
+	else if (multiSelectable)
+	{
+		which = multiTaken;
+	}
+	else if ((size_t)multiCurrent < multiNodes.size())
+	{
+		which.push_back(multiCurrent);
+	}
+
+	MultiMove(which, du, dv);
+	MultiWriteBack();
+}
+
+// Sub-mode 3's own commands (FUN_00552bb0's switches 0x552cc5 / 0x552e5a; TM-B 3c). True: done here; false: the Texture Map screen's own switch does it as in the window (Reset Source Rect
+// 0x9, Next / Prev Texture 0xa / 0xb, Select Texture 0x2a, the scales 0xec-0xf4: the same calls in both).
+//  - 2 Polygon (and Tab) leaves; 5 Exit is the editor's (its LeaveTextureMap leaves this mode first).
+//  - 6 / 7: every node flipped over the texture area (FUN_00558880 / FUN_00558900: u = left + right - 1 - u, v = top + bottom - 1 - v).
+//  - 0x16 / 0x17 / 0x18: every node turned 90 / 180 / 270 degrees about the nodes' middle; 0x19 / 0x1a / 0x1b: about the texture area's middle (FUN_00556ce0(angle, 0 / 1)).
+//  - 0x102 (S) Selectable Nodes on / off, the taken nodes let go (0x552f0d); 0x104 (L) the taken nodes let go (0x552fa1); 0x103 (T) Resizing Texture on / off (0x55301d).
+//  - 0x10f Select Number of Repeats as in the window; 0x28 the Movement help.
+// Each move is written back (FUN_00560450). NAMED: the turns are made on texels, rounded to the nearest, the same way round as the window's (inteng turns the nodes' screen places in
+// floats, FUN_00556a90 / FUN_00556710: its rounding and which way is +90 are not read). T (Texture Resize), I (0x105, the selected polygons' outline) and the scales are the single
+// window's own (TextureMapCommand); undo / redo (0x36 / 0x37, the window's ring) do nothing yet.
+void TextureRepeatsChooserOpen();
+
+// The mode's own help (0x27, FUN_005572d0): two text screens, the mouse's (0x5ff788) then the keys' (0x5ff434), inteng's words
+char const *const kIntengMultiNodeMouseHelpText = "\t\t\tMouse Controls\n\nLeft click and drag on node or line to move that node or line.\nLeft click and drag in polygon to move it.\nLeft click and drag near edges of texture to resize texture.\nShift+Left click to move current node to cursor.\nRight click and drag on texture to rotate nodes.\nControl+Right click and drag on texture to resize polygon.\nRight click outside of texture to get pop-up menu.\n\nIn node selection mode (S) :\nLeft click and drag to move all selected nodes\nShift+Left click near node to toggle selection\n\nWhile in texture resizing mode (T to toggle on and off)\nLeft click and drag in texture to scroll currently viewed area\nLeft click and drag near edges of texture to resize texture.\n";
+char const *const kIntengMultiNodeKeysHelpText = "\t\t\t Keyboard Controls\n\nArrow keys\tMove the selected node.\nShift+Arrow keys\tMove the selected node in steps of 10.\nCtrl+Arrow keys\tMove all nodes.\nCtrl+Shift+Arrow \tMove all nodes in steps of 10.\nIn texture resizing mode(T) , arrow keys scroll texture\n\nP\t\tSelect previous texture.\nN\t\tSelect next texture.\nC\t\tSelect texture.\nX\t\tX-Flip nodes.\nY\t\tY-Flip nodes.\nE\t\tRotate nodes 90 degrees anti-clockwise.\nR\t\tRotate nodes 90 degrees clockwise.\n6\t\tReduce texture scale in powers of 2\n7\t\tReduce texture scale by 1\n8\t\tSet texture scale to x1\n9\t\tIncrease texture scale by 1\n0\t\tIncrease texture scale in powers of 2\nT\t\tToggle texture resizing\nShift+N\t\tSelect number of repeats of texture to use\nL\t\tDeselect all nodes\nI\t\tToggle polyline on selected polygons\nSpace\t\tForce screen redraw.\nTab\t\tChange to polygon mode.\n<\t\tUndo.\n>\t\tRedo.\nCtrl+X\t\tExit texture mapper.";
+
+namespace
+{
+	// Every node turned quarters x 90 degrees about (cu, cv) in texels, rounded to the nearest, held in the texture area
+	void MultiTurn(int quarters, double cu, double cv)
+	{
+		int32_t left = 0, top = 0, right = 0, bottom = 0;
+
+		if (!TextureCurrentArea(&left, &top, &right, &bottom))
+		{
+			return;
+		}
+
+		for (model::MultiNode &node : multiNodes)
+		{
+			double du = node.u - cu, dv = node.v - cv;
+
+			for (int q = 0; q < quarters; q++)
+			{
+				double const turned = du;
+
+				du = dv;
+				dv = -turned;
+			}
+
+			int32_t const u = (int32_t)floor(cu + du + 0.5), v = (int32_t)floor(cv + dv + 0.5);
+
+			node.u = u < left ? left : u > right - 1 ? right - 1 : u;
+			node.v = v < top ? top : v > bottom - 1 ? bottom - 1 : v;
+		}
+	}
+}
+
+bool TextureMultiCommand(int32_t command)
+{
+	int32_t left = 0, top = 0, right = 0, bottom = 0;
+	static std::string words;
+
+	switch (command)
+	{
+		case 0x6: case 0x7:
+			if (TextureCurrentArea(&left, &top, &right, &bottom))
+			{
+				for (model::MultiNode &node : multiNodes)
+				{
+					if (command == 0x6)
+					{
+						node.u = left + right - 1 - node.u;
+					}
+					else
+					{
+						node.v = top + bottom - 1 - node.v;
+					}
+				}
+
+				MultiWriteBack();
+			}
+
+			return true;
+		case 0x16: case 0x17: case 0x18: case 0x19: case 0x1a: case 0x1b:
+			if (!multiNodes.empty() && TextureCurrentArea(&left, &top, &right, &bottom))
+			{
+				double cu = 0, cv = 0;
+
+				if (command >= 0x19)
+				{
+					cu = (left + right) * 0.5;   // the texture area's middle (0x556d94)
+					cv = (top + bottom) * 0.5;
+				}
+				else
+				{
+					for (model::MultiNode const &node : multiNodes)
+					{
+						cu += (double)node.u / multiNodes.size();   // the nodes' middle (0x556d68)
+						cv += (double)node.v / multiNodes.size();
+					}
+				}
+
+				MultiTurn(command >= 0x19 ? command - 0x18 : command - 0x15, cu, cv);
+				MultiWriteBack();
+			}
+
+			return true;
+		case 0x27:
+			textPanelText = kIntengMultiNodeMouseHelpText;   // FUN_005572d0: the mouse's page, then the keys' (FUN_004724f0 twice)
+			textPanelNext = kIntengMultiNodeKeysHelpText;
+			return true;
+		case 0x102:
+			multiSelectable = !multiSelectable;
+			multiTaken.clear();
+			statusWords = multiSelectable ? "Texture Map: Selectable Nodes on (presses take nodes; Shift draws a box)" : "Texture Map: Selectable Nodes off";
+			return true;
+		case 0x104:
+			multiTaken.clear();
+			statusWords = "Texture Map: no node taken";
+			return true;
+		case 0x9: case 0xa: case 0xb: case 0x2a: case 0xec: case 0xed: case 0xee: case 0xef: case 0xf0: case 0xf1: case 0xf2: case 0xf3: case 0xf4: case 0x103: case 0x105:
+			return false;   // (0x103 Toggle Texture Resize: the window's one flag, +0x90; 0x105 I: the same FUN_0056fa60 as the window's; both in TextureMapCommand)
+		case 0x2:
+			TextureMultiLeave();
+			return true;
+		case 0x5:
+			return false;   // Exit: the editor's Exit, whose LeaveTextureMap leaves this mode first (0x552cf0)
+		case 0x28:
+			textPanelText = kIntengTextureMapMovementText;
+			textPanelNext = nullptr;
+			return true;
+		case 0x10f:
+			TextureRepeatsChooserOpen();
+			return true;
+		default:
+			return true;
+	}
+}
+
+// The multiple node mode's node places (texels), for the window's right drag (texture_map_screen.cpp); setting them holds each in the texture area, and write puts them in the polygons
+void TextureMultiPlaces(std::vector<int32_t> *u, std::vector<int32_t> *v)
+{
+	u->clear();
+	v->clear();
+
+	for (model::MultiNode const &node : multiNodes)
+	{
+		u->push_back(node.u);
+		v->push_back(node.v);
+	}
+}
+
+void TextureMultiSetPlaces(std::vector<int32_t> const &u, std::vector<int32_t> const &v, bool write)
+{
+	int32_t left = 0, top = 0, right = 0, bottom = 0;
+
+	if (textureSubMode != 3 || u.size() != multiNodes.size() || v.size() != multiNodes.size() || !TextureCurrentArea(&left, &top, &right, &bottom))
+	{
+		return;
+	}
+
+	for (size_t n = 0; n < multiNodes.size(); n++)
+	{
+		multiNodes[n].u = u[n] < left ? left : u[n] > right - 1 ? right - 1 : u[n];
+		multiNodes[n].v = v[n] < top ? top : v[n] > bottom - 1 ? bottom - 1 : v[n];
+	}
+
+	if (write)
+	{
+		MultiWriteBack();
 	}
 }

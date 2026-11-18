@@ -1,0 +1,51 @@
+# ACCEPTANCE (red first): TM-B, I (0x105) in both texture windows (FUN_0056fa60: each selected polygon's outline, the item flag 0x80, hidden / shown; FUN_0056f9d0 shows them all again
+# when the window is left; Dietrich, 2026-11-18). Ours: I did nothing. His path: Invasion, Mode > Texture Map, the quad at 0.50 0.60 (selected: drawn in the highlight), Tab, I: its
+# highlight is gone, the polygon still selected; I: back; I: gone; Tab (the window left): back. Then M, Tab (the multiple node mode), I: gone; Tab: back. State line (textureoutline:
+# how many selected polygons are hidden) and pictures (the quad's middle, 445..500 x 370..440, inside its highlight).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+key Tab
+wait 400
+expect-field textureoutline 0 hidden
+picture 497
+key I
+wait 300
+expect-status the outline of 1 selected polygon hidden
+expect-field textureoutline 1 hidden
+picture 498
+expect-pixels-changed-since 497 picture 445 370 55 70 0.5
+key I
+wait 300
+expect-field textureoutline 0 hidden
+picture 499
+expect-pixels-changed-since 498 picture 445 370 55 70 0.5
+key I
+wait 300
+expect-field textureoutline 1 hidden
+picture 500
+key Tab
+wait 300
+expect-field textureoutline 0 hidden
+picture 501
+expect-pixels-changed-since 500 picture 445 370 55 70 0.5
+key M
+wait 200
+key Tab
+wait 400
+expect-status multiple node mode
+key I
+wait 300
+expect-field textureoutline 1 hidden
+picture 502
+expect-pixels-changed-since 501 picture 445 370 55 70 0.5
+key Tab
+wait 300
+expect-field textureoutline 0 hidden
+picture 503
+expect-pixels-changed-since 502 picture 445 370 55 70 0.5

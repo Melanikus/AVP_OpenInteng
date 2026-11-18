@@ -1,0 +1,21 @@
+# ACCEPTANCE (TM-A): Ctrl+0 (0x3f) selects every polygon of every shape after a YES / NO question, as inteng's FUN_0056dc70 (FUN_0054d260 0x54d5ca): "Are you sure that
+# you want to select all of the polygons?" (FUN_00474a40, FUN_0057c800); Yes selects all (FUN_0056dd60 for every slot); No leaves the selection as it was.
+# Red on the build of frost-tma 2deeb61f (Ctrl+0 "not built": no question), green on the hash with it. Invasion has more polygons than the selection's 20000 (NAMED,
+# kTexturePolygonsMost; inteng keeps one list a shape, with no such bound), so the status says the selection is full.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+key 0 ctrl
+expect-dialog-kind confirm
+expect-dialog select all
+click-button No
+expect-no-dialog
+key 0 ctrl
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+expect-status all polygons selected:
+expect-status-not all polygons selected: 0 selected

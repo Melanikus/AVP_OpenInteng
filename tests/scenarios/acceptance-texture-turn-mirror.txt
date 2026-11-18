@@ -1,0 +1,36 @@
+# ACCEPTANCE (TM-A): O / Shift+O (0xbf / 0xc0, FUN_00571310) turn each selected textured polygon's coordinates one corner on, and V / Shift+V (0xc1 / 0xc2,
+# FUN_00571910) mirror them; a merged pair is done as ONE quad (FUN_0055cdf0) by its lower-numbered polygon. Checked on the saved files only (verify_uv_turn: the
+# polygon, or the pair as inteng's quad, holds exactly the coordinates turned or mirrored from the save before; every other polygon is as it was). Area52's CANSR01
+# (row 55, a shape of the level's own): polygons 0 and 1 are a pair (a pick of 0 selects both); then they are parted (Unmerge) and 0 alone is turned and mirrored.
+# Red on exe-cache/6ed2e594.exe (O and V not built). O / V are Drake's (TM-C H5, 78bc5024, texture_nodes.cpp; Frost's b7899980 built them twice and was taken out):
+# this stays as a second, independent check of them (verify_uv_turn reads the quad through model::TextureQuadOf).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Area52.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 55 0
+expect-status ; 2 selected
+save-copy
+key O
+expect-status done on 2 polygons
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_uv_turn/verify_uv_turn.exe {save1} {save2} CANSR01 0 turn 1
+key V
+expect-status done on 2 polygons
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_uv_turn/verify_uv_turn.exe {save2} {save3} CANSR01 0 mirror 1
+item 0x11a
+expect-status 1 pairs parted
+pick-poly 55 1 deselect
+expect-status ; 1 selected
+save-copy
+key O shift
+expect-status done on 1 polygon
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_uv_turn/verify_uv_turn.exe {save4} {save5} CANSR01 0 turn
+key V
+expect-status done on 1 polygon
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_uv_turn/verify_uv_turn.exe {save5} {save6} CANSR01 0 mirror

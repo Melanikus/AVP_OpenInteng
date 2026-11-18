@@ -18,6 +18,7 @@
 
 #include "field_model.h"      // model::MakeNewStrategy: a new strategy of a kind the old editor offered
 #include "level_file.h"
+#include "object_number.h"   // V-27b: a new object's number and lock user
 
 namespace host
 {
@@ -618,19 +619,22 @@ namespace host
 				}
 			}
 
-			int32_t nextIndex = 0;
+			// V-27b: the copy is a new RBOBJECT as inteng's save makes one: the lowest number no object has (object_number.h, FUN_004bebc0)
+			std::vector<int32_t> numbers;
 
 			for (ObjectInfo const &each : objects)
 			{
-				nextIndex = each.index >= nextIndex ? each.index + 1 : nextIndex;
+				numbers.push_back(each.index);
 			}
+
+			int32_t const nextIndex = ObjectNumber_LowestFree(numbers);
 
 			if (nextIndex < 0 || nextIndex > Object_Chunk::Max_Index_Num)
 			{
 				return ObjectEditResult::TooManyObjects;
 			}
 
-			// The copy's bytes: the object's own, but for its header, which is made again with the new name, place, number and nobody's lock
+			// The copy's bytes: the object's own, but for its header, which is made again with the new name, place, number and inteng's lock user ("Player": object_number.h)
 			Bytes copy(HeadingBytes, 0);
 			memcpy(copy.data(), "RBOBJECT", 8);
 
@@ -650,7 +654,7 @@ namespace host
 				memcpy(copy.data() + start, "OBJHEAD1", 8);
 				PutIntAt(copy, start + 8, (int32_t)length);
 				memcpy(copy.data() + start + HeadingBytes, image.data() + child.at + HeadingBytes, NameAt);
-				memset(copy.data() + start + HeadingBytes + LockUserAt, 0, 16);
+				ObjectNumber_LockUser(copy.data() + start + HeadingBytes + LockUserAt);
 				PutIntAt(copy, start + HeadingBytes + IndexAt, nextIndex);
 
 				if (place)

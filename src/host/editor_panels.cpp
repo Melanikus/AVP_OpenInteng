@@ -47,6 +47,7 @@
 #include "level_chunks.h"
 #include "asc_text.h"
 #include "module_links.h"
+#include "module_link_avp.h"
 #include "object_place_edit.h"
 #include "object_edit.h"
 #include "object_make.h"
@@ -249,7 +250,7 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 		bool const over = barPointerY >= 0 && (barPointerY < 3 || (barVisible && barPointerY < layout.toolbar.y + layout.toolbar.height));
 
 		// a strategy kind's Edit view runs its own loop (S-KC-1: FUN_0052cbb0 and the others clear the window and draw their lines, then FUN_0057bd90): FUN_004b7c50 is not called, so no bar shows over it
-		barVisible = !strategyEditFan && (open || control || over);
+		barVisible = !strategyEditFan && (open || control || over || TextureBarsAlwaysShown());   // Texture Map: FUN_0057b6f0 every frame (P, texture_map_screen.cpp)
 	}
 
 	titlesEnd[0] += 12;
@@ -320,6 +321,7 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 			// Module Linking's two switches: ticked while on
 			bar.SetChecked(ActionOfCommand("0x5e2e38", 0x49), viewDistanceOn);
 			bar.SetChecked(ActionOfCommand("0x5e2e38", 0x4b), onlyDrawLinked);
+			bar.SetChecked(ActionOfCommand("0x5e2e38", 0x190), host::ModuleLinkAvp_On());   // Link with AVP's tick (0x4c36da)
 			bar.SetChecked(ActionOfCommand("0x5c3508", 0x46), adjacentViewDistanceOn);
 
 			// Hierarchy's three switches with a tick (row M-TICK): each flip calls the menu object's method +0x2c(command, the new value) (0x4b90b0 -> FUN_004b7500), which SETS the item's "on" state to it (Adaptive Degradation 0x4896ef,
@@ -846,9 +848,12 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 		}
 
 		// "View Distance :%d" (0x5c39b0, the distance / 500000) at (16, 0x20): FUN_00522980 0x5229e0 and FUN_00529370 0x52944b draw it every frame, on page 0 and in every loop of the screen (the flag page, Stability,
-		// the volume editor, the collectors); a kind's Edit view does not (strategy-data.md S-65). The volume editor runs from an Edit view (V), with strategyEditFan still set, and its loop FUN_005277c0
-		// draws the row through FUN_00529370 (S-VOL-3, Drake 11-17: it was skipped there). The state line's screentext has it too
-		if ((!strategyEditFan || volume.on) && lineCount < kPanelPassMostExtras)
+		// the volume editor, the collectors, the object pick); a kind's Edit view does not (strategy-data.md S-65). The volume editor and a collector run from an Edit view, with strategyEditFan still
+		// set, and their loops (FUN_005277c0, FUN_00526bf0) draw the row through FUN_00529370 (S-VOL-3, Drake 11-17; a view's collector, S-57, Bishop 11-18: it was skipped there). A view's object pick
+		// (FUN_00527540) draws it among the pick's own lines below (the view's font, as its other lines), so not here too. The state line's screentext has it
+		bool const viewPickDrawsIt = strategyEditFan && !volume.on && !copyCollecting && !strategyPickField.empty();
+
+		if ((!strategyEditFan || StrategyInASubLoop()) && !viewPickDrawsIt && lineCount < kPanelPassMostExtras)
 		{
 			static char distanceWords[48];
 			host::PaintText distance;

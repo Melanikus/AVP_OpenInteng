@@ -1,0 +1,34 @@
+# ACCEPTANCE (TM-A): P (0x32) flips DAT_005fd69c (1 at the start, never reset when the mode is entered). While Texture Map is on, FUN_00543fa0 draws the mode's menus
+# every frame (FUN_0057b6f0 at 0x544048): in the polygon screen while the flag is set, so the bar shows by itself there, where the hub shows it only at the top edge or
+# with Ctrl (FUN_004b7c50). Checked on the state line only (barshown): the hub 0; Texture Map 1; P: 0; out and in again: still 0 (the flag is kept); P: 1.
+# Red on exe-cache/6ed2e594.exe (Texture Map's bar hidden as the hub's, P not built), green on the hash with P.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures off
+state
+expect-field barshown 0
+item 0x46
+expect-screen Texture Map
+wait 200
+state
+expect-field barshown 1
+key P
+wait 200
+state
+expect-status the menus are hidden
+expect-field barshown 0
+item 0x5
+expect-screen Construction
+wait 200
+state
+expect-field barshown 0
+item 0x46
+expect-screen Texture Map
+wait 200
+state
+expect-field barshown 0
+key P
+wait 200
+state
+expect-status the menus are shown
+expect-field barshown 1

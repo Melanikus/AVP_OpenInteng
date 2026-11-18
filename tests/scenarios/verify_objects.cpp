@@ -18,6 +18,8 @@
 // strategy lookup finds them) and it holds no strategy: Delete Strategy took its AVPSTRAT and kept the holder (added 2026-11-17 by Bishop, S-39 on virtual objects and placed hierarchies).
 // For "starts <count>" the copy holds that many player starts; for "startnear <n>|<x>|<y>|<z>|<within>" the n-th (from 1, the file's order) is within <within> of (x y z) (added 2026-11-18 by
 // Drake, OP-29).
+// For "modflags <name>|<mask>|<word>" (two hex numbers, 1 to 8 digits) the module of that exact name has a MODFLAGS (in its MODULEDT) whose flag word, ANDed with the mask, is the word: what Strategy
+// Data's flag page sets (Airduct 80000000, Stair 40000000, Sky Visible 20000000, Fogged 10000000) reached the save (added 2026-11-18 by Bishop, strategy-data.md S-28 / S-29 / S-30).
 // Gives back 0 only if every check passed.
 
 #include <limits.h>
@@ -420,11 +422,69 @@ static void CheckNoStrategy(OpenLevelFile &copy, char const *name)
 		(found ? host::StrategyFoundWords(answer) : "no holder of that name") + ")");
 }
 
+// A hex number of the check's words, and only that: 1 to 8 hex digits, nothing else
+static bool HexWord(std::string const &word, uint32_t *out)
+{
+	if (word.empty() || word.size() > 8)
+	{
+		return false;
+	}
+
+	uint32_t value = 0;
+
+	for (char const letter : word)
+	{
+		int const digit = letter >= '0' && letter <= '9' ? letter - '0' : (letter >= 'a' && letter <= 'f' ? letter - 'a' + 10 : (letter >= 'A' && letter <= 'F' ? letter - 'A' + 10 : -1));
+
+		if (digit < 0)
+		{
+			return false;
+		}
+
+		value = (value << 4) | (uint32_t)digit;
+	}
+
+	*out = value;
+	return true;
+}
+
+// "modflags <name>|<mask>|<word>": the first object of that exact name is a module (it holds a MODULEDT) with a MODFLAGS whose flag word, ANDed with the mask, is the word (the chunks as the game's
+// loader made them: a chunk it could not read is a "miscellaneous" one and fails the check)
+static void CheckModFlags(OpenLevelFile &level, std::string const &asked)
+{
+	std::vector<std::string> const fields = BarFields(asked, 3);
+	uint32_t mask = 0, want = 0;
+
+	if (fields.size() != 3 || fields[0].empty() || !HexWord(fields[1], &mask) || !HexWord(fields[2], &want))
+	{
+		Check(false, "a modflags check as <name>|<mask hex>|<word hex>, not \"" + asked + "\"");
+		return;
+	}
+
+	Object_Chunk *const object = ObjectNamed(level, fields[0].c_str());
+	Chunk *const moduleChunk = object ? object->lookup_single_child("MODULEDT") : nullptr;
+	Chunk_With_Children *const module = moduleChunk && !moduleChunk->r_u_miscellaneous() ? dynamic_cast<Chunk_With_Children *>(moduleChunk) : nullptr;
+	Chunk *const flagsChunk = module ? module->lookup_single_child("MODFLAGS") : nullptr;
+	Module_Flag_Chunk *const flags = flagsChunk && !flagsChunk->r_u_miscellaneous() ? dynamic_cast<Module_Flag_Chunk *>(flagsChunk) : nullptr;
+	char held[64];
+
+	if (flags)
+	{
+		_snprintf_s(held, sizeof(held), _TRUNCATE, "its flag word is %08x", (unsigned)(uint32_t)flags->Flags);
+	}
+	else
+	{
+		_snprintf_s(held, sizeof(held), _TRUNCATE, "%s", !object ? "no object of that name" : (!module ? "it is not a module" : "it has no MODFLAGS"));
+	}
+
+	Check(flags && ((uint32_t)flags->Flags & mask) == want, "the copy's module \"" + fields[0] + "\" has the flag word " + fields[2] + " under the mask " + fields[1] + " (" + held + ")");
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 4 || (argc - 2) % 2 != 0)
 	{
-		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [trackendmoved <name>|<section>|<x>|<y>|<z>] [alt <name>=<count>,<group>] [virtualgone|virtualkept <name>] [nostrategy <name>]\n");
+		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [trackendmoved <name>|<section>|<x>|<y>|<z>] [alt <name>=<count>,<group>] [virtualgone|virtualkept <name>] [nostrategy <name>] [modflags <name>|<mask hex>|<word hex>]\n");
 		return 2;
 	}
 
@@ -607,9 +667,13 @@ int main(int argc, char **argv)
 		{
 			CheckNear(copy, argv[a + 1]);
 		}
+		else if (what == "modflags")
+		{
+			CheckModFlags(copy, argv[a + 1]);
+		}
 		else
 		{
-			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, trackendmoved, at, near, alt, specialalt, virtualgone, virtualkept or nostrategy), not \"" + what + "\"");
+			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, trackendmoved, at, near, alt, specialalt, virtualgone, virtualkept, nostrategy or modflags), not \"" + what + "\"");
 		}
 	}
 

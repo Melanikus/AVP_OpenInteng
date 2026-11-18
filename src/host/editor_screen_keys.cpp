@@ -47,6 +47,7 @@
 #include "level_chunks.h"
 #include "asc_text.h"
 #include "module_links.h"
+#include "module_link_avp.h"
 #include "object_place_edit.h"
 #include "object_edit.h"
 #include "object_make.h"
@@ -481,6 +482,9 @@ void AutoLinkLoadFileCommand()
 // cannot be written (the loader refuses: inteng has no such case) the tree stays, so a later Set Current or Exit tries again, and the words say so.
 void LinkExit()
 {
+	// FUN_004c3b90 0x4c3bb3: Link with AVP goes off first (module_link_avp.h)
+	host::ModuleLinkAvp_Off();
+
 	if (!WriteTheLinks())
 	{
 		return;

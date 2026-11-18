@@ -1,0 +1,41 @@
+# ACCEPTANCE (red first): TM-B 3a, the multiple node mode's entry and leave (FUN_0054caf0 case 3, FUN_00573f20, FUN_005604f0; Dietrich, 2026-11-18; reassess/tm-b-multinode-map.md). M (0x3a) turns
+# All Nodes Shown on; Tab with polygons selected then opens the multiple node mode (0x54d2d9) instead of the texture window: the selected polygons' corners joined into nodes (within 400 on
+# each axis), linked along their edges, lined up on the picture; the bars go to page 3 (Toggle Node Selection where the window has Nodes To Corners) and the text says "All Nodes Shown".
+# Tab (Polygon) leaves it for the polygon screen. Ours: M did nothing and Tab always opened the texture window. His path: Invasion, Mode > Texture Map, two neighbouring polygons clicked
+# (a quad of the file and the one beside it), M, Tab: the mode with its nodes (picture 480), Tab: the polygons again; M off, Tab: the texture window as before.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+click-view 0.42 0.60
+wait 200
+state
+expect-status 2 selected
+key M
+wait 200
+state
+expect-status All Nodes Shown on
+key Tab
+wait 400
+state
+expect-status multiple node mode:
+expect-bar2 Toggle Node Selection
+picture 480
+key Tab
+wait 300
+state
+expect-status the polygons
+expect-bar2 Clear Selection
+key M
+wait 200
+expect-status All Nodes Shown off
+key Tab
+wait 300
+state
+expect-bar2 Nodes To Corners
+key Tab
+wait 300

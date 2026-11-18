@@ -540,6 +540,8 @@ void TextureUndo_RecordSelection()
 			continue;
 		}
 
+		TextureModified_Note(one.id);   // the write that follows makes the object modified (Return's shared-shape question)
+
 		int32_t *const record = editsRing.NewRecord();
 
 		if (!record)
@@ -559,6 +561,8 @@ void TextureUndo_RecordPolygon(uint8_t const id[8], int32_t polygon)
 	{
 		return;
 	}
+
+	TextureModified_Note(id);
 
 	if (!editsRing.HasSlots())
 	{
@@ -601,4 +605,163 @@ bool TextureUndo_Undo()
 bool TextureUndo_Redo()
 {
 	return Replay(false);
+}
+
+// ----- the modified objects and a shape's texture fields between two levels (Return's shared-shape question, FUN_0055aa50) -----
+namespace
+{
+	std::vector<std::string> modifiedObjects;   // 8-byte IDs, in the order first noted
+	size_t const kModifiedMost = 1u << 20;     // a bound (hostile input: no level has so many objects)
+
+	// Every polygon of the object's shape as `open` holds it; false when the shape can't be read
+	bool ReadShapeStates(OpenLevelFile *open, uint8_t const id[8], std::vector<PolygonState> *out)
+	{
+		model::ShapeModel shape;
+		std::string why;
+
+		out->clear();
+
+		if (!open || !open->Level() || host::ShapeEdit_Read(open->Level(), open, id, &shape, nullptr, &why) != host::ShapeEditResult::Done)
+		{
+			return false;
+		}
+
+		std::map<std::string, model::ShapeModel> shapes;
+
+		for (size_t p = 0; p < shape.polygons.size(); p++)
+		{
+			PolygonState state;
+
+			if (!ReadState(open, id, false, -1, (int32_t)p, &shapes, &state))
+			{
+				return false;
+			}
+
+			out->push_back(state);
+		}
+
+		return true;
+	}
+}
+
+void TextureModified_Note(uint8_t const id[8])
+{
+	if (!id || modifiedObjects.size() >= kModifiedMost)
+	{
+		return;
+	}
+
+	std::string const key((char const *)id, 8);
+
+	for (std::string const &one : modifiedObjects)
+	{
+		if (one == key)
+		{
+			return;
+		}
+	}
+
+	modifiedObjects.push_back(key);
+}
+
+void TextureModified_Forget(uint8_t const id[8])
+{
+	if (!id)
+	{
+		return;
+	}
+
+	std::string const key((char const *)id, 8);
+
+	for (size_t i = 0; i < modifiedObjects.size(); i++)
+	{
+		if (modifiedObjects[i] == key)
+		{
+			modifiedObjects.erase(modifiedObjects.begin() + (std::ptrdiff_t)i);
+			return;
+		}
+	}
+}
+
+void TextureModified_Clear()
+{
+	modifiedObjects.clear();
+}
+
+std::vector<std::string> TextureModified_List()
+{
+	return modifiedObjects;
+}
+
+bool TextureShapeFields_Same(OpenLevelFile *from, uint8_t const fromId[8], OpenLevelFile *to, uint8_t const toId[8])
+{
+	std::vector<PolygonState> a, b;
+
+	if (!ReadShapeStates(from, fromId, &a) || !ReadShapeStates(to, toId, &b) || a.size() != b.size())
+	{
+		return false;
+	}
+
+	for (size_t p = 0; p < a.size(); p++)
+	{
+		if (a[p].engineType != b[p].engineType || a[p].flags != b[p].flags || a[p].colour != b[p].colour || !SameUv(a[p].uv, b[p].uv))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool TextureShapeFields_Copy(OpenLevelFile *from, uint8_t const fromId[8], OpenLevelFile *to, uint8_t const toId[8], bool *showAgain, std::string *why)
+{
+	std::vector<PolygonState> want, now;
+
+	if (!ReadShapeStates(from, fromId, &want) || !ReadShapeStates(to, toId, &now))
+	{
+		if (why)
+		{
+			*why = "a shape could not be read";
+		}
+
+		return false;
+	}
+
+	if (want.size() != now.size())
+	{
+		if (why)
+		{
+			*why = "the shape has not as many polygons as at the last save";   // NAMED: refused rather than guessed (the polygon numbers moved)
+		}
+
+		return false;
+	}
+
+	Pending pending;
+	std::string const key((char const *)toId, 8);
+
+	for (PolygonState state : want)
+	{
+		memcpy(state.id, toId, 8);
+		state.pairingSwapped = false;   // the pairing is not part of it (as Backspace keeps it)
+		pending.target[{ key, state.polygon }] = state;
+		pending.order.push_back({ key, state.polygon });
+	}
+
+	size_t changed = 0, refused = 0;
+	bool again = false;
+
+	WriteBack(to, pending, &changed, &refused, &again);
+
+	if (showAgain)
+	{
+		*showAgain = *showAgain || again;
+	}
+
+	if (refused && why)
+	{
+		*why = std::to_string(refused) + " polygons could not be written";
+	}
+
+	return refused == 0;
 }

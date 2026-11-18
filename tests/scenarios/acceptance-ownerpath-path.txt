@@ -1,0 +1,130 @@
+# ACCEPTANCE (Drake 11-18, THE OWNER'S PATH before the beta, Bishop): Path mode's main job (acceptance-path's steps) on his Derelict.rif (the plugin's round trip): the click's module is START; the second module is CORR-11 (object 172), three steps from START on the only shortest route START - START-EN01 - DR-START - CORR-11 (path-graph on his file), so the route brings two and the path holds 4 modules, as Invasion's gARAGDOR - Door - Corridor - Bend; his level draws 3.5% of the start view (0.035 on 11-18), so "the level drew" asks 2% (a blank view is near 0). On HIS OWN Derelict.rif (his game folder's copy, copied read-only to drake-ownerpath/his-originals, SHA256SUMS there; this scenario opens its own copy, so no other editor opens the same file). The walk on 11-18 ran the same steps on the stock copy of the level beside it: every check came out the same. The source scenario's own notes follow.
+# ACCEPTANCE: Path mode on a stock level (Drake, 2026-11-16, from reassess/path.md; inteng code in path-mode-facts.md and path-menu-pairs.md). This file says what FINISHED is for this screen.
+# UNTRACED / OWED marks a read still owed (the cycling node colour FUN_004fa5a0; a colour-reading verb; F-PATH-ROOT: the route search's root depth from the raw 0x4f89f0). Level: Invasion, read-only. Finished = every line ok.
+# Run: AvP-docs/tools/drake/drive-scenario-t6.sh <tree> <this file> pacc verify_path   (the name pacc: the scenario reads the verifier the run builds under drake-proofs/pacc)
+
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-path/Derelict.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-path/Derelict.rif
+pictures on
+state
+expect-field levelbytes 2771532
+picture 1
+# the level drew (not what it shows): since 1d95ce8 the hub hides every module past the view distance each frame, as inteng's hub (FUN_00444b70, row ML-E-11), so at the
+# default distance this view is about 7% drawn (0.072 on e5f4679), under the verb's 10%; a blank view is near 0
+expect-not-empty 0.02
+# Construction > Mode > Path (0xce, entry FUN_004f9780): bar A = Mode > Exit, Keys; bar B = Add Module, Select Path, Properties, Delete Module, Create Path, Delete Path
+item 0xce
+expect-screen Path
+expect-bar1 Mode
+expect-bar2 Add Module
+expect-bar2 Select Path
+expect-bar2 Properties
+expect-bar2 Delete Module
+expect-bar2 Create Path
+expect-bar2 Delete Path
+picture 10
+
+# ---- P1 CREATE PATH (FUN_004fb300): the question "Name of path (optional)" (0x5e982c: a text dialog, FUN_00474bc0 + FUN_0057c800(100,100)); only the answer 3 keeps the text; the new path has no node and exists in the file once a node is added
+picture 11
+item 5
+expect-dialog-kind text
+expect-dialog Name of path (optional)
+type AcceptPath
+key Enter
+expect-no-dialog
+# the screen draws "View Distance :%d" then "Path :%d  %s" (0x5e9808: the working path's number and name) at x 0, rows of 16 from row 2 (FUN_004f9d10 0x4f9f70). The rows are checked by
+# their WORDS: the state line's pathlines holds the rows drawn in the frame, joined by '|' (Invasion has no path, so the new one is number 0)
+expect-field-has pathlines |Path :0  AcceptPath
+
+# ---- P2 ADD MODULE (FUN_004fa6a0; key L, slot 0xd87a8c): the picked module becomes a node; a click on a module picks it and FUN_004fa1c0 colours it; with a path that has nodes the modules between (FUN_004f8c10, breadth first over the ADJMDLEP graph FUN_004f8240) come too, flags|=1
+picture 12
+click-win 504 364
+# the picked module is drawn purple (0x7f007f, FUN_004fa1c0 0x4fa471) and its name is drawn as a line (FUN_004f9d10 0x4fa0b0): the colour is read in the part of the view the text does not cover. Path is the WHITE WIRE
+# (FUN_004f9780 loads with 0x483: no textures, every polygon 0xe | 2; view-state-table.md R-9), so the module's lines are the purple itself (about 0.056 of the box on Invasion)
+expect-pixels-changed picture 300 100 700 600 0.01
+expect-colour picture 300 100 700 600 7f007f 0.02 40
+# the picked module's name is drawn as a row under the path's (the click's module on Invasion is gARAGDOR, object number 54)
+expect-field-has pathlines |Path :0  AcceptPath|START
+picture 13
+key L
+# the module is a node: its name is drawn as a line under the path line, and the pick is gone (FUN_004fa6a0 clears it); the module turns from purple to the node colour (blue 0x0000ff, FUN_004fa1c0 0x4fa313)
+expect-status Path :0  AcceptPath (1 module(s))
+expect-field selection nothing
+expect-field-has pathlines |Path :0  AcceptPath|START
+remember-field pathlines
+# the module turns from purple to the node colour, blue 0x0000ff (FUN_004fa1c0 0x4fa313): on the white wire its lines are that blue (about 0.056 of the box)
+wait 400
+picture 18
+expect-colour picture 300 100 700 600 0000ff 0.02 40
+# another module is picked through the module list and added: its route's modules between are added with it. pick-module takes the module's object number and picks it as a click on it would
+# (AvP-docs/tools/drake/path-graph lists Invasion's modules, numbers and neighbours). Bend (57) is three steps from gARAGDOR on the only shortest route, gARAGDOR - Door - Corridor - Bend, so the
+# route brings Door and Corridor (flags bit 1: not drawn, path-mode-facts.md) and the path holds 4 modules, two drawn
+picture 14
+pick-module 172
+expect-field-has pathlines |Path :0  AcceptPath|START|CORR-11
+key L
+expect-status Path :0  AcceptPath (4 module(s))
+expect-field selection nothing
+expect-field-has pathlines |Path :0  AcceptPath|START|CORR-11
+
+# ---- P3 DELETE MODULE (FUN_004fa950; key D in the Classic layout, slot 0xd87a84): the last node goes, then every earlier node put in by the route (flags & 1) until an explicit one
+picture 15
+item 4
+# Bend goes, then Corridor and Door (the route's), up to gARAGDOR: the rows are again the ones after the first Add Module
+expect-status Path :0  AcceptPath (1 module(s))
+expect-field-same pathlines
+# the path is built up again for the saved copy to hold (Bend picked and added again: the route brings Door and Corridor back)
+pick-module 172
+key L
+expect-status Path :0  AcceptPath (4 module(s))
+expect-field-has pathlines |Path :0  AcceptPath|START|CORR-11
+
+# ---- P4 VIEW KEYS 8 / 9 (FUN_004f9d10 after the switch): 8 Polyline, 9 Filled Polyline, on THIS screen. 8 makes every polygon 0xe | 2 (0x4f9ef6-0x4f9f13, R-10): the look the screen entered with,
+# so the picture does NOT change; 9 makes them 0x10 | 2, the white hidden-line look (0x4f9f2a-0x4f9f47)
+picture 16
+key 8
+expect-pixels-same picture 0 0 2000 2000 0.01
+picture 17
+key 9
+expect-pixels-changed picture 0 0 2000 2000 0.003
+
+# ---- P5 KEYS (FUN_004fa110): inteng's text 0x5e9844 "8\t\tPolyline\n9\t\tFilled Polyline\nL\t\tAdd selected module to path\nD\t\tDelete last module from path", shown as a text over the level (FUN_004724f0), not as a status line; any key closes it
+picture 19
+item 8
+expect-pixels-changed panels 0 40 500 200 0.003
+click-win 300 300
+
+# ---- P6 PROPERTIES (FUN_004fbdf0 / FUN_004fbee0): a form 400 x 200 titled "Path Properties" (0x5e98c8) with two boxes, "Loop path" (0x5e98bc) and "Go back and forth" (0x5e98a8), a pair, and Ok / Cancel; it starts on the box the flags say (a new path loops)
+item 9
+expect-dialog-kind form
+expect-dialog Path Properties
+expect-dialog-checks on,off
+click-check 2
+expect-dialog-checks off,on
+click-button Ok
+expect-no-dialog
+# the flags now hold bit 2 (go back and forth); the saved copy is checked at the end
+
+# ---- P7 SELECT PATH (FUN_004fbdd0 = write the working path, then the chooser FUN_004fb6a0: every AVPPATH2 of the level, a row = the name and two spaces, the list dialog FUN_0045dd10 titled "Select Path" 0x5e97e8; answers below 2 pick none)
+item 6
+expect-dialog-kind list
+expect-dialog Select Path
+expect-dialog-rows AcceptPath  
+click-row 1
+expect-no-dialog
+
+# ---- P8 DELETE PATH (case 7): "Delete this path?" (0x5e9818) Yes / No; yes deletes nodes until none are left; the chunk goes at the write
+item 7
+expect-dialog-kind confirm
+expect-dialog Delete this path?
+click-button No
+expect-no-dialog
+
+# ---- P9 EXIT (FUN_004f9b90 = FUN_004fab40 writes the working path, releases the state, FUN_004719e0 writes the level, hub): the saved copy holds the path with exactly the nodes the screen showed
+key Esc
+item 2
+expect-screen Construction
+save-copy
+# the verifier (tests/scenarios/verify_path.cpp, built from drake-path) reads the copy with the library: the new path's name, its flags (2: go back and forth, from Properties), every node a module, each next to the one before it, and the route a shortest one by a breadth-first walk of its own
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_path/verify_path.exe {orig} {copy} AcceptPath 2

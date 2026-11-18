@@ -110,6 +110,18 @@ namespace host
 			pose->section = controller->current_section;
 			pose->timer = controller->timer;
 			pose->playing = controller->playing != 0;
+
+			// TE-4: the place and turn the view draws the object at (Update_Track_Position writes OrientMat only when the track turns: track.cpp no_rotation)
+			for (int axis = 0; axis < 3; axis++)
+			{
+				pose->world[axis] = axes[axis];
+			}
+
+			MATRIXCH const &m = dynamics.OrientMat;
+			int32_t const each[9] = { m.mat11, m.mat12, m.mat13, m.mat21, m.mat22, m.mat23, m.mat31, m.mat32, m.mat33 };
+
+			memcpy(pose->matrix, each, sizeof(each));
+			pose->turned = !controller->no_rotation;
 		}
 
 		TRACK_CONTROLLER *Build(TrackData const &track, double use, bool *rotates);

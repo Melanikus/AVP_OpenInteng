@@ -1,0 +1,9 @@
+# ACCEPTANCE (Drake 11-18, the owner: "make inteng take a map and coordinates so you can open it for me in a specific place you want me to test later"): AVP_OpenInteng.exe <level> -at x y z
+# turn look [screen] (open_at.h): the level by its name in the editor's data folder, the camera there (a scenario's "camera x y z turn" and "camera-look look" numbers), on that screen.
+# Checked on the state line: the screen, the camera, the status. RED on drake-op29 eb0e2ea3: the editor refuses -at (its command line takes no such word) and does not start.
+start-args Invasion -at -7764 2852 10527 1024 -100 "Object Placement"
+pictures off
+state
+expect-screen Object Placement
+expect-field camera -7764 2852 10527 1024 -100
+expect-status Opened at -7764 2852 10527 turn 1024 look -100, nothing selected

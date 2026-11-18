@@ -1,0 +1,72 @@
+# ACCEPTANCE (TM-A): Return (0x2c, FUN_00572440) and Backspace (0x2d, FUN_00558df0) on the polygon screen. Backspace asks inteng's question (00600a74: "Are you sure that
+# you want to undo the changes you have made since your last save? (It won't undo changes to animations.)"); Yes puts every polygon back as it was at the last Return, or at
+# the mode's entry (FUN_00558f70 from the chunks), and clears the edits ring. Return writes the level (FUN_00572440 "Updating file.": the editor's save) when something changed
+# (DAT_00914d18), and is then the point Backspace goes back to. Checked on the saved files only (the owner, 11-18: no picture checks): the polygon at the view's middle in
+# Invasion (no partner, a shape of the level's own) is shifted by 7 3 (Shift UV Coords, 0x133), then Backspace / Yes: the level saved after it is the level saved before the
+# shift (verify_level_same); a Backspace with nothing changed leaves it so; then a shift, Return, another shift, Backspace: the level is the one Return saved.
+# Red on exe-cache/ac714841.exe (bishop-int with frost-tma's last HAND: Return and Backspace "not built", no question), green on the hash with them.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+save-copy
+item 0x133
+expect-dialog-kind text
+type 7
+key Tab
+type 3
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+key Back
+expect-dialog-kind confirm
+expect-dialog undo the
+click-button No
+expect-no-dialog
+save-copy
+key Back
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+expect-status the changes since the last save were undone
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save3}
+key Back
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+expect-status nothing has changed since the last save
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save4}
+item 0x133
+expect-dialog-kind text
+type 7
+key Tab
+type 3
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+key Enter
+expect-status Saved a copy:
+key Enter
+expect-status Return: nothing has changed since the last save
+save-copy
+item 0x133
+expect-dialog-kind text
+type 5
+key Tab
+type 0
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+key Back
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+expect-status the changes since the last save were undone
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save5} {save6}

@@ -1,0 +1,37 @@
+# ACCEPTANCE (a guard, green from the start: ours already matched; Bishop 11-18, strategy-data.md S-65): THE VIEW DISTANCE NEVER HIDES THE EDITOR'S ICONS ON STRATEGY DATA, on his path (Invasion, the
+# file opened as a double click). inteng's culling FUN_00522a30 (every frame of page 0, FUN_00522980 0x522a1a, and of the sub-loops, FUN_00529370) looks only at the records whose shape (+0) is at or
+# after DAT_008f588c, the level's first shape (0x522a48): FUN_0042c700 puts inteng's 0x13 built-in shapes first and gives back 0x13 (0x42c7ca, kept by FUN_0046e700 0x46ed8e). A virtual object's
+# record is built from the built-in shape 13 (FUN_00539ee0(0xd, ...), FUN_004b2590 0x4b268a puts it at +0), so with the distance at 0 the modules far off go and the light blue V stays.
+# His path: Strategy Data, Create Virtual Object > Here (at the camera), the camera up and round the new object (45 degrees round, 45 up, 1.5 m off), N held to 0.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+expect-field viewdistance 2
+camera 0 0 0 0
+wait 300
+# Create Virtual Object > Here: it is made at the camera's place, 0 0 0, with no strategy (light blue, 007fff) and not current
+click-win 640 300 right
+click-popup 6
+click-popup 1
+expect-dialog-kind text
+expect-dialog Type name for new virtual object
+type GuardVO
+key Enter
+expect-no-dialog
+# the camera 45 degrees round (looking along +x +z: turn -512) and 45 up (look 512, down) from the object, 1.5 m from it
+camera -750 -1060 -750 3584
+camera-look 512 0
+wait 500
+picture 1
+expect-colour picture 354 214 300 300 007fff 0.002 40
+# N held: the distance goes to 0; the far modules are hidden, the icon is not
+hold N 3000
+expect-field viewdistance 0
+wait 400
+picture 2
+expect-colour picture 354 214 300 300 007fff 0.002 40
+expect-pixels-changed-since 1 picture 0 60 1008 600 0.02

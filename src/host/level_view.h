@@ -29,6 +29,9 @@
 // Where the editor's camera is and which way it looks, in the game's own units: the place in the game's world units, a turn around
 // the up axis and a look up or down, each in 4096ths of a full turn as the game counts angles. Only the low 12 bits of the two angles
 // are used, so any whole number is a real angle.
+// THE AXES, MEASURED (11-18: Bishop's two camera trials against the editor's matrix, a701208a; Drake's orbit camera on Genshd1's lift shaft): x across, y points DOWN, z forward; turn 0
+// looks along +z and turn 1024 along -x; a POSITIVE look looks down (held to a quarter turn, 1024, either way). Every other note about the camera (the harness's camera verbs,
+// harness-verbs.md, camera_orbit.h) points here.
 struct FlyCamera
 {
 	int x;
@@ -336,12 +339,16 @@ bool LevelView_FlyCollideMove(const uint8_t *id, const int32_t from[3], const in
 bool LevelView_FlyBoxGrow(const uint8_t *id, bool grow);
 
 // A view matrix in place of the camera's turn, look and roll for the draws that follow (the orbit's C: inteng's camera block takes it whole), or none again (nullptr). The camera's x y z stay its place.
+// form: the game's (the player's ObMat, as PutTheEyes puts it; 16.16, mat11 mat12 mat13 mat21 ...).
 void LevelView_SetViewMatrix(const int32_t *matrix);
 
 // The camera's turn, look and roll whose view (the look about x after the turn and roll, as the game's UpdateCamera makes it) is this matrix, the look kept within a quarter turn either way; in 4096ths
+// form: the game's VDB_Mat (local to world: the way the camera faces is column 3, mat13 mat23 mat33), NOT inteng's view block +0x38, which is it turned over (FUN_004c19a0).
 void LevelView_AnglesOfMatrix(const int32_t matrix[9], int *turn, int *look, int *roll);
 
 // The view's matrix of the camera's turn, look and roll, as the game's UpdateCamera makes it from PutTheEyes's player: pan(look) x CreateEulerMatrix(0, turn, roll) (MatrixMultiply(ObMat, pan))
+// form: the game's VDB_Mat, as LevelView_AnglesOfMatrix takes it. THE GAME'S OWN (avpx maths.cpp, not ours to comment there): form: CreateEulerMatrix(e) gives the game's (PutTheEyes's ObMat, VDB_Mat for no look);
+// form: MatrixToEuler(m) takes CreateEulerMatrix's TURNED OVER (editor_main.cpp CameraOfFileSlot and LevelView_CameraHeading turn it over first).
 void LevelView_MatrixOfAngles(int turn, int look, int roll, int32_t matrix[9]);
 
 // A-7 (OP-113), THE TURN KEYS' SPEEDS as inteng's mover FUN_0053db40 makes them (0x53dc1a-0x53dd3c): a matrix that starts as the identity is multiplied by a 10 degree turn for each key held, in the order
@@ -407,6 +414,8 @@ void LevelView_HideBlocks(const struct displayblock *const *blocks, size_t count
 void LevelView_HideBeyond(bool on, int32_t distance);
 // The object whose block the distance rule never hides (Object Placement's current object, FUN_004dd2f0); null: none
 void LevelView_HideBeyondKeep(const uint8_t *objectId);
+// The same for several objects or modules (up to kLevelViewMostHidden): Texture Map keeps every one with a selected polygon (FUN_00544070 0x5440d3). Replaces the earlier keep; count 0 keeps none.
+void LevelView_HideBeyondKeepShapes(const LevelViewShapeOf *shapes, size_t count);
 
 // THE VIEW RULE's own hiding, kept apart from the explicit Hide calls above so the two never undo each other (the hidden set drawn is the union): these modules (game numbers) and, with everyObject,
 // every placed object. Replaces the rule's earlier set; (nullptr, 0, false) lets go of it.

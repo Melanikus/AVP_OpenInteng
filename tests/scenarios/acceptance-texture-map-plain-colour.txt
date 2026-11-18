@@ -1,0 +1,24 @@
+# ACCEPTANCE (red first): the level editor draws a plain polygon (the file's engine type 2) in its own colour times the light, as inteng draws its kinds 2 / 3 (avpx kshape,
+# Dietrich 2026-11-18). Ours: the game's untextured way, the light's grey put into red and green (yellow), whatever the polygon's colour. His path: Invasion, Mode > Texture Map, the quad
+# at 0.50 0.60, Shift+K, the cell 149 (inteng's colour 21 0 0: 84 0 0 on the screen), Deselect All: the quad is dark red (at least 60% of its middle within 60 of 540000: the light
+# makes it darker, never another hue). Pictures.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+key K shift
+wait 400
+expect-field colourgrid 63 43
+click-win 346 408
+wait 400
+expect-status 1 polygon given the colour 95540000
+item 0x2b
+wait 400
+expect-status all polygons deselected
+picture 508
+expect-colour picture 445 370 55 70 540000 0.6 60

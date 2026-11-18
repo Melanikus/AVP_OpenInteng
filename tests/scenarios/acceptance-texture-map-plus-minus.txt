@@ -1,0 +1,16 @@
+# ACCEPTANCE (red first): TM-B, + / - in Texture Map (0x117 / 0x118, FUN_0054d260 0x54f85f / 0x54f87c; Dietrich, 2026-11-18). With a hierarchy current (DAT_0063711c) they step its frame on /
+# back (FUN_00479110 / FUN_00479290, the Hierarchy mode's M / N); with none they do nothing, which ours says on the status line. Ours: "that item is not built yet". His path: Invasion (no
+# hierarchy), Mode > Texture Map, + and -. State line only.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+item 0x46
+expect-screen Texture Map
+key Plus
+wait 200
+state
+expect-status no hierarchy is current
+key Minus
+wait 200
+state
+expect-status no hierarchy is current

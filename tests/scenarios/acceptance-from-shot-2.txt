@@ -1,0 +1,13 @@
+# ACCEPTANCE (Drake 11-18): FROM-SHOT, part 2 of 2: the editor started FROM the shot part 1 took (the newest Invasion shot in the run's shots folder), by the editor's own -shot (open_at.h; the
+# harness's from-shot hands the picture over): the PNG's context read as hostile input (shot_read.h), Invasion opened from the editor's data folder only because its sha256 is the shot's, the
+# screen, the camera's place, turn and look, and switch3 selected, as the shot was. Checked on the state line: the screen, the camera, the selection, the status.
+# RED on drake-op29 eb0e2ea3 (no from-shot: the line is a step the harness does not know; the editor has no -shot).
+#ini-keep
+from-shot {exedir}AVP_OpenInteng\shots\Invasion-*.png
+pictures off
+state
+expect-screen Object Placement
+expect-field camera -27851 -14055 85500 512 0
+expect-selected 1
+expect-hierarchy-text switch3
+expect-status Opened at the shot's place: -27851 -14055 85500 turn 512 look 0, selected switch3

@@ -1,0 +1,45 @@
+# ACCEPTANCE (red first): Track Editing's state 5, Edit Pivot Point, draws NO text lines (T-4c, reassess/track-editing-closeout-vasquez.md). inteng's frame FUN_004d9af0 calls FUN_004f3e30 in
+# state 5 and returns at 0x4d9b51, before every text line of the screen (View Distance, Num Objects, the object's lines, the state's header, Section ...); FUN_004f3e30 itself
+# (menu-reads-2.txt:9158-9235) reads Stop Pivot Edit (0x51e), the pivot's reset (0x523) and the clicks in the three views, and draws a cross in each (FUN_00553ab0): no text. Stop Pivot
+# Edit goes back to page 3, whose lines come back. RED on vph-17: ours drew View Distance, Num Objects, the Section and "Using pivot point" in state 5.
+# His path: kens-co-op (opened as by a double click, read-only), switch 1 (its own track), Edit Track, the pop-up's Edit Section End Position (page 3), then its Edit Pivot Point.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/kens-co-op.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is switch 1
+expect-no-dialog
+expect-status Selected: switch 1
+click-bar Object > Edit Track
+wait 600
+expect-screen Track Editing
+expect-hierarchy-text View Distance
+expect-hierarchy-text Track Edit
+
+# ---- page 3: Edit Section End Position; its lines are drawn
+click-win 504 322 right
+click-popup 1
+wait 300
+expect-hierarchy-text Track Edit : Edit Section End
+click-win 504 322 right
+expect-popup-rows Edit Pivot Point|Add Section|Jump To Start|Next Section|Previous Section|Finish End Pos Edit
+
+# ---- state 5: Edit Pivot Point: no text line at all
+click-popup 1
+wait 400
+expect-hierarchy-count 0 View Distance
+expect-hierarchy-count 0 Num Objects
+expect-hierarchy-count 0 Section
+expect-hierarchy-count 0 Using pivot point
+picture 1
+
+# ---- Stop Pivot Edit: back to page 3, its lines again
+click-win 504 322 right
+expect-popup-rows Move Pivot To Centre|Stop Pivot Edit
+click-popup 2
+wait 400
+expect-hierarchy-text View Distance
+expect-hierarchy-text Track Edit : Edit Section End

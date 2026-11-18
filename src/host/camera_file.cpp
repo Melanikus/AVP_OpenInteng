@@ -31,6 +31,25 @@ namespace host
 			}
 		}
 
+		// The file's place (inteng's 1/100 mm, the offset added) as the editor's millimetres: the nearest, halves away from 0. Any 32-bit number plus any offset fits.
+		int32_t FileToMm(int64_t inteng)
+		{
+			return (int32_t)(inteng >= 0 ? (inteng + 50) / 100 : -((-inteng + 50) / 100));
+		}
+
+		// The editor's millimetres as the file's number (x 100, the offset taken off), held to what 32 bits hold (never wrapped round to the other side)
+		int32_t MmToFile(int32_t mm, int32_t offset)
+		{
+			int64_t const inteng = (int64_t)mm * 100 - offset;
+
+			return inteng > INT32_MAX ? INT32_MAX : inteng < INT32_MIN ? INT32_MIN : (int32_t)inteng;
+		}
+
+		// The file's k-th matrix number is inteng's view matrix (+0x38), the game's VDB_Mat TURNED OVER (FUN_004c19a0, FUN_004b3710); the slot keeps the game's (camera_file.h)
+		int SlotPlaceOfFileNumber(int k)
+		{
+			return (k % 3) * 3 + k / 3;
+		}
 	}
 
 	bool CameraFile_Name(File_Chunk *level, std::string *name)
@@ -175,12 +194,12 @@ namespace host
 
 			for (int i = 0; i < 3; i++)
 			{
-				slot.place[i] = (int32_t)((int64_t)Le(&bytes[placeAt + i * 4]) + offset[i]);
+				slot.place[i] = FileToMm((int64_t)Le(&bytes[placeAt + i * 4]) + offset[i]);
 			}
 
-			for (int i = 0; i < 9; i++)
+			for (int k = 0; k < 9; k++)
 			{
-				slot.matrix[i] = Le(&bytes[matrixAt + i * 4]);
+				slot.matrix[SlotPlaceOfFileNumber(k)] = Le(&bytes[matrixAt + k * 4]);
 			}
 
 			slots[s] = slot;
@@ -193,31 +212,31 @@ namespace host
 	{
 		std::vector<uint8_t> bytes;
 
-		// the places of slots 0 to 9 (offset taken off), their turns, then slot 10's place (offset taken off) and its turn
+		// the places of slots 0 to 9 (in inteng's 1/100 mm, offset taken off), their turns (inteng's form: turned over), then slot 10's place and its turn
 		for (size_t s = 0; s < 10; s++)
 		{
 			for (int i = 0; i < 3; i++)
 			{
-				PutLe(&bytes, (int32_t)((int64_t)slots[s].place[i] - offset[i]));
+				PutLe(&bytes, MmToFile(slots[s].place[i], offset[i]));
 			}
 		}
 
 		for (size_t s = 0; s < 10; s++)
 		{
-			for (int i = 0; i < 9; i++)
+			for (int k = 0; k < 9; k++)
 			{
-				PutLe(&bytes, slots[s].matrix[i]);
+				PutLe(&bytes, slots[s].matrix[SlotPlaceOfFileNumber(k)]);
 			}
 		}
 
 		for (int i = 0; i < 3; i++)
 		{
-			PutLe(&bytes, (int32_t)((int64_t)slots[10].place[i] - offset[i]));
+			PutLe(&bytes, MmToFile(slots[10].place[i], offset[i]));
 		}
 
-		for (int i = 0; i < 9; i++)
+		for (int k = 0; k < 9; k++)
 		{
-			PutLe(&bytes, slots[10].matrix[i]);
+			PutLe(&bytes, slots[10].matrix[SlotPlaceOfFileNumber(k)]);
 		}
 
 		if (bytes.size() != kCameraFileBytes)

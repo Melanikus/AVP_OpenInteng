@@ -1,0 +1,20 @@
+# ACCEPTANCE (Drake 11-18, Bishop from the owner: "the point of my printscreen with location is ... also to help you testing"): FROM-SHOT, part 1 of 2: the shot. On his path (Invasion
+# opened as a double click): Object Placement, the camera put, switch3 clicked and selected, the camera turned to 512, then Shift+F12, the editor's own screenshot key (#78): its PNG carries the
+# map and its sha256, the screen, the camera and the selection. Part 2 (acceptance-from-shot-2, #ini-keep: the same run folder, right after) starts the editor FROM THAT SHOT.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures off
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+expect-hierarchy-text switch3
+camera -27851 -14055 85500 512 0
+wait 400
+expect-field camera -27851 -14055 85500 512 0
+key F12 shift
+wait 600
+expect-status Screenshot saved: AVP_OpenInteng\shots\Invasion-
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_shot.exe {exedir}AVP_OpenInteng\shots\Invasion-*.png is map Invasion.RIF is screen Object_Placement in selected switch3 pos -27851 -14055 85500 number turn 512

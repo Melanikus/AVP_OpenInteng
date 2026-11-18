@@ -2,7 +2,7 @@
 // Melanikus (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // inteng's texture screen (FUN_00551f80, sub-mode 1) shows the current texture's bitmap with the selected polygon's texture coordinates as nodes joined by lines, "Texture Scale x%d", and the nodes' "%d %d" numbers. This
-// draws the same things with the game's own quads (DrawQuad, the way PanelPass does boxes): a plain dark box over the level, the picture as one textured quad, each line as a row of small boxes, each node as a box. It must be
+// draws the same things with the game's own quads (DrawQuad, the way PanelPass does boxes) over the level (no background, as inteng), the picture as textured quads, each line as a row of small boxes, each node as a box. It must be
 // called inside the game's frame (LevelView_Draw's addToFrame), like PanelPass_AddToFrame.
 
 #pragma once
@@ -10,21 +10,37 @@
 #include <stdint.h>
 
 #include <string>
+#include <utility>
 #include <vector>
 
+// The texture window as inteng lays it out (model/texture_window.h): the VIEW, the part of the texture area shown (texels; the area can be the picture repeated, so the view can take in
+// several repeats), stretched onto the WINDOW, in the screen's bottom-right corner (FUN_00556250: one textured quad from the window's top left to its far edges, its texture
+// coordinates the view's; inteng's texture wraps, the game's quads clamp, so each repeat is its own quad. NAMED: inteng's half-texel shift of the coordinates (+0.5) is left out, as
+// a clamped repeat would take a strip of its neighbour's edge).
 struct TextureWindowPicture
 {
 	int32_t texture;           // the game's texture number of the picture (texID_t); -1: none
-	int32_t x, y;              // the picture's top left on the window, in pixels
-	int32_t width, height;     // its size on the window, in pixels
-	int32_t tilesX, tilesY;    // how many times the picture is repeated across and down (the texture window of inteng is the picture repeated 1 to 10 times: Select Number of Repeats); 0 is 1
+	int32_t pictureWidth, pictureHeight;   // the picture's size, texels
+	int32_t view[4];           // left, top, right, bottom: texels
+	int32_t window[4];         // left, top, right, bottom on the frame (right and bottom not in it)
 	int32_t nodeCount;         // 3 or 4
 	int32_t nodeX[4], nodeY[4];   // each node's place on the window, in pixels
 	int32_t activeNode;        // 0 to 3
-	int32_t areaTop, areaHeight;   // the dark box's top and height (below the bars, above the status line)
+	int dotPhase;              // the outline's dotted line's phase, 0..5, one step a frame (DAT_00914d14)
+};
+
+// A line of the window's text at its own place on the frame (FUN_00551f80's text: each at inteng's place)
+struct TextureWindowWords
+{
+	int32_t x, y;
+	std::string text;
 };
 
 // Lines of text, one under the other from (x, y), 15 pixels apart, on the game's frame (the Texture Map's flag list)
+// THE MULTIPLE NODE MODE (Texture Map sub-mode 3, FUN_00556250 0x5562dd): along each link (pairs of node numbers) inteng's dotted line (FUN_005564b0, model::WindowDots: one-pixel
+// dots every 3 pixels, black and white by turns, crawling with dotPhase, only inside the window) and a box on each node in the window (red when lit)
+void TextureWindowPaint_Nodes(int32_t windowWidth, int32_t windowHeight, const std::vector<int32_t> &x, const std::vector<int32_t> &y, const std::vector<std::pair<int32_t, int32_t>> &links,
+	const std::vector<bool> &lit, const int32_t window[4], int dotPhase);   // window: left, top, right, bottom
 void TextureWindowPaint_Lines(int32_t windowWidth, int32_t windowHeight, const std::vector<std::string> &lines, int32_t x, int32_t y);
 
 // THE TEXTURE CHOOSER (inteng's FUN_005575a0: a grid of every texture): each cell holds one picture, drawn as the game's quad; the hovered cell has a frame, and lines of words (the picture's size and name) go under the grid.
@@ -36,4 +52,7 @@ struct TextureChooserCell
 
 void TextureChooserPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t areaTop, int32_t areaHeight, const std::vector<TextureChooserCell> &cells, int32_t hovered, const std::vector<std::string> &lines, int32_t lineX, int32_t lineY);
 
-void TextureWindowPaint_Draw(int32_t windowWidth, int32_t windowHeight, const TextureWindowPicture &picture, const char *const *lines, int32_t lineCount, int32_t lineX, int32_t lineY);
+void TextureWindowPaint_Draw(int32_t windowWidth, int32_t windowHeight, const TextureWindowPicture &picture, const std::vector<TextureWindowWords> &words);
+
+// SELECT COLOUR (Shift+K, FUN_00560620): 256 cells of gridWidth / 16 x gridHeight / 16 from the top left, cell i at column i % 16, row i / 16, each filled with colours[i] (0xAARRGGBB)
+void TextureColourPaint_Grid(int32_t windowWidth, int32_t windowHeight, int32_t gridWidth, int32_t gridHeight, const std::vector<uint32_t> &colours);

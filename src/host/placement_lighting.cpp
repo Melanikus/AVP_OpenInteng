@@ -56,7 +56,11 @@ void PlacementLighting_Frame(char const *screen)
 	// DECIDED OP-3: inteng's Object Placement draws by ITEM: the modules plain (flag 2), the objects with baked colours lit or plain by Lighting (FUN_004d67f0 swaps their types). The
 	// editor's whole-view full bright (the Gouraud switch off, the hub's plain look: Frost 11-15) would draw every item fully lit and hide the objects' light, so while the look is on the game
 	// lights by item: a plain item (iflag_nolight) is still drawn at its textures' full colours (kshape.cpp, static_level.cpp), so the modules look as in the hub
-	if (placementLook)
+	// The Shape Chooser shows the chosen shape ALONE: its preview block stands 1 km out with no light near it (hierarchy_view.cpp kPreviewZ), so lighting by item drew a shape without baked
+	// colours black (found 11-18 by Vasquez: acceptance-shape-chooser-spin's pictures all black since the look came in, d2bdf61f; the box was drawn before it). There the whole view's full
+	// bright stays as the view toggles set it, as before the look; the items' bits are kept, so the look is the same when the chooser goes back. NAMED: what lights inteng's preview
+	// (FUN_004dd870) is not read.
+	if (placementLook && !(screen && strcmp(screen, "Shape Chooser") == 0))
 	{
 		DrawFullBright = 0;
 	}

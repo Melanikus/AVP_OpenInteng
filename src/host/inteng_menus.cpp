@@ -19,7 +19,7 @@ namespace host
 			{ "Quit", 0x10001, 0xa, IntengTag::None, IntengWork::Quit, -1, 0 },
 			// OURS, NAMED (docs/inteng/menu-status.json, additions): THE OWNER'S ADDITION (Melanikus 2026-11-16, through Bishop: "Let's put a save on the hub"): inteng's hub File has no Save. It sits second, after Quit, where every other screen keeps its Save, and does what Object Placement's Save does (SaveCopy). Its number is ours; it has no inteng command
 			{ "Save", 0x1ff01, 0x0, IntengTag::None, IntengWork::SaveCopy, -1, 0 },
-			{ "Write C File", 0x10002, 0xc, IntengTag::Wip, IntengWork::None, -1, -1 },
+			{ "Write C File", 0x10002, 0xc, IntengTag::None, IntengWork::WriteC, -1, -1 },
 			{ "Write Asc File", 0x10003, 0xe, IntengTag::None, IntengWork::WriteAsc, -1, -1 },
 			{ "Write Asc File (Doors closed)", 0x10004, 0x10, IntengTag::None, IntengWork::WriteAscDoorsClosed, -1, -1 },
 		};
@@ -275,7 +275,7 @@ namespace host
 		};
 		IntengItem const kItems4_8[] =
 		{
-			{ "Link with AVP", 0x5002f, 0x190, IntengTag::Unfinished, IntengWork::None, -1, -1 },
+			{ "Link with AVP", 0x5002f, 0x190, IntengTag::None, IntengWork::LinkWithAvp, -1, -1 },
 		};
 		IntengMenu const kMenus4[] =
 		{

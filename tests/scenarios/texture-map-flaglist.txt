@@ -15,11 +15,17 @@ expect-status the flag list is off
 picture 911
 # Fake Merge Data (0x143) on and off
 item 0x143
+expect-dialog Fake merge data turned on
+click-button Ok
+expect-no-dialog
 expect-status Fake merge data turned on
 item 0xf
 expect-status selecting as quads
 click-view 0.50 0.60
 wait 300
 item 0x143
+expect-dialog Fake merge data turned off
+click-button Ok
+expect-no-dialog
 expect-status Fake merge data turned off
 picture 912

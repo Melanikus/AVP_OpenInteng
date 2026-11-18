@@ -1,0 +1,36 @@
+# ACCEPTANCE (TM-A): I (0x34), TEXTURE ALIGNMENT, as inteng's FUN_0055eeb0: "Texture Alignment:" "Select polygon to be altered" (a click), then "Align with which polygon?"
+# (a click); the altered polygon is recorded (FUN_0057e940 + FUN_00567ba0) and each of its corners takes the coordinates of the first corner of the other polygon less than
+# 100 from it in the WORLD (FUN_0055f280; the world places of FUN_0055a900). Area52's CANSR01 (row 55, a shape of the level's own): its triangles 0 and 1 are a pair that shares
+# two points. They are unmerged, 1 deselected, 0 alone shifted by 7 3 (its coordinates at the shared points now differ from 1's: verify_align), then 0 is aligned with 1, after
+# which they are the same there again.
+# Red on exe-cache/3dac4c74.exe (bishop-int before this batch: I "not built", the picks only select), green on the hash with the alignment.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Area52.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 55 0
+expect-status ; 2 selected
+item 0x11a
+expect-status 1 pairs parted
+pick-poly 55 1 deselect
+expect-status ; 1 selected
+item 0x133
+expect-dialog-kind text
+type 7
+key Tab
+type 3
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_align/verify_align.exe {copy} CANSR01 0 1 differ
+key I
+expect-status Select polygon to be altered
+pick-poly 55 0
+expect-status Align with which polygon?
+pick-poly 55 1
+expect-status aligned with polygon 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_align/verify_align.exe {copy} CANSR01 0 1 same

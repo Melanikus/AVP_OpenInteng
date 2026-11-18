@@ -1,0 +1,46 @@
+# ACCEPTANCE (red first): TM-B, H / N in Texture Map (0xe5 / 0xe6, FUN_0054d260 0x54f676 / 0x54f691; the rule FUN_00544070; Dietrich, 2026-11-18). The polygon screen hides, every frame, each
+# object whose distance from the camera less its radius is at least the view distance (DAT_005fd678, the distance Module Linking's J / M change), but one with a selected polygon; H adds 500,000
+# to it and N takes 500,000 away, never below 0. Ours: H and N did nothing in Texture Map and nothing was hidden. His path: Invasion, Mode > Texture Map, a polygon clicked (its object is kept),
+# H (the distance up), N six times (down to 0): the level is gone from the view but the selected polygon's object (pictures 470 / 471 / 472).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+wait 300
+picture 470
+click-view 0.50 0.60
+expect-status 1 selected
+state
+remember-field viewdistance
+key H
+wait 200
+state
+expect-field-changed viewdistance
+expect-status View Distance :
+key N
+wait 100
+key N
+wait 100
+key N
+wait 100
+key N
+wait 100
+key N
+wait 100
+key N
+wait 300
+state
+expect-field viewdistance 0
+expect-status View Distance :0
+picture 471
+expect-not-empty 0.01
+# no polygon is selected: nothing is kept, everything is beyond 0
+item 0x2b
+wait 300
+picture 472
+key H
+wait 200
+state
+expect-field viewdistance 1

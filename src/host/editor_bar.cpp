@@ -171,6 +171,9 @@ static bool PopupMenusOf(size_t screen, const host::IntengMenu **menus, size_t *
 
 // One inteng menu's items as rows of the room, from items[*used]: an item of level 1 opens a CASCADE (inteng's kind 1 with kind-2 records under it, BAR-10), its rows the level-2 items after it, put in
 // room->subItems from *subUsed; a level-2 item is taken only so. *added counts the rows. False when the room, or a cascade, would hold more than it can.
+// EVERY ROW AS INTENG DRAWS IT: its words alone, in the menu's one colour (FUN_004b6f70), so no tag goes after an item's name, also for an item we have not built (the owner, 2026-11-18:
+// "I dont think the color gray is in inteng at all"; Bishop: "menus look exactly like inteng's"). Such an item still says why when it is clicked: EditorBar_Run puts IntengMenus_Why on the
+// status line. (Until 2026-11-18 the row showed IntengMenus_TagWords after the name: " [wip]", " [Blender]", " [no AvP]", " [unfinished in inteng]".)
 static bool AddIntengItems(EditorBarRoom *room, const host::IntengItem *items, size_t count, size_t most, size_t *used, size_t *subUsed, size_t *added)
 {
 	for (size_t i = 0; i < count; i++)
@@ -187,7 +190,7 @@ static bool AddIntengItems(EditorBarRoom *room, const host::IntengItem *items, s
 			return false;
 		}
 
-		ui::MenuItem shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag), item.access };
+		ui::MenuItem shown = { item.name, nullptr, item.action, nullptr, item.access };
 
 		if (item.level == 1)
 		{
@@ -200,12 +203,11 @@ static bool AddIntengItems(EditorBarRoom *room, const host::IntengItem *items, s
 					return false;
 				}
 
-				ui::MenuItem const row = { items[k].name, nullptr, items[k].action, host::IntengMenus_TagWords(items[k].tag), items[k].access };
+				ui::MenuItem const row = { items[k].name, nullptr, items[k].action, nullptr, items[k].access };
 
 				room->subItems[(*subUsed)++] = row;
 			}
 
-			shown.tag = nullptr;
 			shown.subMenu = *subUsed > from;
 			shown.subItems = *subUsed > from ? room->subItems + from : nullptr;
 			shown.subCount = *subUsed - from;
@@ -261,7 +263,7 @@ bool EditorBar_MakePopupLevel(size_t screen, int32_t group, EditorBarRoom *room)
 			if (menus[m].count == 1)
 			{
 				const host::IntengItem &item = menus[m].items[0];
-				ui::MenuItem const shown = { item.name, nullptr, item.action, host::IntengMenus_TagWords(item.tag), item.access };
+				ui::MenuItem const shown = { item.name, nullptr, item.action, nullptr, item.access };   // its words alone, as every row (AddIntengItems)
 
 				room->items[used++] = shown;
 			}
@@ -311,7 +313,7 @@ bool EditorBar_Make(size_t screen, KeyLayout layout, EditorBarRoom *room)
 
 	size_t used = 0, subUsed = 0;
 
-	// inteng's own menus, each item with its tag's words, and each cascade with its rows (BAR-10)
+	// inteng's own menus, each item with its words alone, and each cascade with its rows (BAR-10)
 	for (size_t m = 0; m < inteng.count; m++)
 	{
 		ui::Menu &menu = room->menus[m];
@@ -706,6 +708,9 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 		case host::IntengWork::LinkHelp:
 			host->showLinkHelp = true;
 			break;
+		case host::IntengWork::LinkWithAvp:
+			host->linkOp = kLinkWithAvp;
+			break;
 		case host::IntengWork::WaypointCommand:
 			host->waypointCommand = item->command;
 			host->waypointAsked = true;
@@ -892,6 +897,9 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 		case host::IntengWork::WriteAscDoorsClosed:
 			host->prompt = kPromptAscDoors;
 			break;
+		case host::IntengWork::WriteC:
+			host->prompt = kPromptWriteC;   // write_c_file.h: nothing happens unless exactly one object is selected
+			break;
 		case host::IntengWork::LinkSetCurrent:
 			host->linkOp = kLinkSetCurrent;
 			break;
@@ -1036,7 +1044,7 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 			host->chooserOp = kChooserWithout;
 			break;
 		default:
-			// A tagged item: it says why it does nothing yet
+			// An item with nothing built behind it: it says why it does nothing yet (its row shows its name alone, as inteng's does)
 			host->statusWords = host::IntengMenus_Why(item->tag);
 			break;
 	}

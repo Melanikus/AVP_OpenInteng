@@ -30,7 +30,7 @@
 
 namespace host
 {
-	// Why an item isn't done, shown as its tag and said when it's chosen
+	// Why an item isn't done, said on the status line when it's chosen (the bar shows no tag: every row is its name alone, as inteng's; editor_bar.cpp)
 	enum class IntengTag
 	{
 		None,      // the editor does it
@@ -69,6 +69,7 @@ namespace host
 		Screenshot,       // Light sourcing's Screenshot: the view is saved as a picture, numbered as inteng numbers it (FUN_00472930, screenshot_name.h)
 		WriteAsc,         // Construction, File, Write Asc File (FUN_00506f90 with doors open): a prompt for the file name, then the level's shapes as a .asc
 		WriteAscDoorsClosed, // Write Asc File (Doors closed): the same with each door's first morph shape
+		WriteC,           // Construction, File, Write C File (0xc, FUN_00503da0): with one object selected, a prompt for the file name, then its shape as C (write_c_file.h)
 		LinkSetCurrent,   // Module Linking, Set Current (FUN_004c1a90 command 0xc8): the first picked module becomes the current one
 		LinkNormal,       // Module Linking, Normal Link (0x32)
 		LinkBranch,       // Branch Link (0x34)
@@ -84,6 +85,7 @@ namespace host
 		LinkExitAll,      // Mode, Exit + All Adjacencies (0x65, FUN_004c5a30(0)), after a typed yes
 		PlacementKeys,    // Object Placement's Keys (0x53): the key list of FUN_004d9af0, as the text screen
 		LinkHelp,         // Help (0xd2, FUN_004c0ed0): the key list, as a text over the level
+		LinkWithAvp,      // Misc, Link with AVP (0x190, FUN_004c1a90 0x4c36b6): a switch with a tick, read when the program loses or gets the focus (module_link_avp.h)
 		LightHierarchy,   // Light Sourcing (with Hierarchy), Hierarchy > Hierarchy (0xc8, FUN_0048b8a0 then FUN_004b1720)
 		LightSequence,    // ... Sequence (0xc9, FUN_0048bc10 then FUN_004b1720)
 		SoftEdge,         // Light Sourcing, Edge, Soft (0x50, FUN_004af810): the selected object's shape gets its vertex normals made again from a typed angle (shape_soften_edit.h)
@@ -165,7 +167,7 @@ namespace host
 
 	struct IntengItem
 	{
-		const char *name;     // as shown: inteng's words without &, and without the tag (IntengMenus_TagWords gives its words)
+		const char *name;     // as shown: inteng's words without & (the bar shows nothing after it)
 		int32_t action;       // the menu bar's number for it: (its screen + 1) * 0x10000 + its record's place in inteng's table
 		int32_t command;      // inteng's own command number, for tracing it in inteng-menus.md (0 for a stand-in's items)
 		IntengTag tag;
@@ -219,7 +221,8 @@ namespace host
 	// The words the status line says for a tagged item, or null for one with no tag
 	const char *IntengMenus_Why(IntengTag tag);
 
-	// A tag's words, shown right after an item's name (ui::MenuItem::tag): " [wip]", " [Blender]" or " [no AvP]", or null for none
+	// A tag's words: " [wip]", " [Blender]", " [no AvP]" or " [unfinished in inteng]", or null for none. The editor's bar no longer shows them after an item's name
+	// (2026-11-18: inteng's rows are the item's words alone); kept for the code and tests that name a tag
 	const char *IntengMenus_TagWords(IntengTag tag);
 
 	// The word after -screen on the editor's command line, which is hostile input (Tao 3). It has to be EXACTLY one screen's name

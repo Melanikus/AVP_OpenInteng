@@ -1,0 +1,31 @@
+# ACCEPTANCE (Drake 11-18, THE OWNER'S PATH before the beta, Bishop): Track Editing keeps the current object's lines (acceptance-track-editing-object-lines's steps); his level's 5th row is med02I, a shape of the level with no outside file, so it has no "Object scale" line (FUN_004e3600 writes it only for a shape with an outside file, as Invasion's smrtam010 has). On HIS OWN Genshd1.rif (his game folder's copy, copied read-only to drake-ownerpath/his-originals, SHA256SUMS there; this scenario opens its own copy, so no other editor opens the same file). The walk on 11-18 ran the same steps on the stock copy of the level beside it: every check came out the same. The source scenario's own notes follow.
+# ACCEPTANCE (T-4, reassess/track-editing-closeout-vasquez.md; FUN_004d9af0 0x4dc7be, traced twice, independently, 11-17): while a track is edited (states 2, 3 and 4), inteng's frame still
+# draws the CURRENT OBJECT's lines (its class's +0x4c on DAT_008f4f3c, which entering Track Editing does not clear) between "Num Objects :%d" and the state's header. For a placed shape
+# (FUN_004e3600) that is "Difficulty (...)", the common lines (FUN_004df3c0: the name ...; "Has Track" only once the level holds the track, which a new one being edited is not) and "Object scale" when it has an outside file; only "In Object %s - radius %d"
+# waits for state 0 (0x4e3ba7). The close-out had Track Editing draw its own lines only. Red without T-4 (v102-1: no object lines on the track screen); green with it.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-track-editing/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-track-editing/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1425512
+expect-screen Object Placement
+select-row 5
+wait 300
+state
+expect-hierarchy-text Difficulty (
+expect-hierarchy-text med02I
+expect-hierarchy-text - radius
+item 0x36
+expect-screen Track Editing
+wait 300
+state
+expect-hierarchy-text View Distance :
+expect-hierarchy-text Num Objects :
+expect-hierarchy-text Difficulty (
+expect-hierarchy-text med02I
+expect-hierarchy-count 0 Object scale
+expect-hierarchy-text Track Edit
+expect-hierarchy-text Section 0/
+expect-hierarchy-count 0 - radius
+picture 1

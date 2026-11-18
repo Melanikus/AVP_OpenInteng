@@ -174,7 +174,8 @@ namespace host
 	PolyRemoveResult PolyEdit_RemoveInModel(model::ShapeModel *shape, std::vector<int32_t> *mergeData, int32_t const *polygons, size_t count, PolyRemoveMap *map);
 
 	// The same on a level: the object whose 8-byte ID is id, its shape's chunks made again at the new counts (header, points, polygons, both normal arrays, SHPMRGDT, the list of texture coordinates when a
-	// list is left without a user, TEXTANIM with the polygons renumbered, SHPCENTR from the new extents), the level put in by ReplaceLevel. NAMED: inteng asks "would you like to have the affected shapes
+	// list is left without a user, TEXTANIM with the polygons renumbered, SHPCENTR from the new extents; each bone attachment SHPBONHD and each SHPVTINT of the objects using the shape through the point
+	// map, as inteng's FUN_00435a00 / FUN_00435c80: TM-C H1, poly_edit.cpp PointRemap), the level put in by ReplaceLevel. NAMED: inteng asks "would you like to have the affected shapes
 	// recentred"; this answers no. Shapes with SHPMORPH, ANIMSEQU, SHPPCINF, SHPFRAGS or SHPFRGTP are refused (inteng refuses the first two for Delete itself). After a success the polygon numbers of that
 	// shape have moved (see the map) and every Chunk * the editor held is gone.
 	PolyRemoveResult PolyEdit_Remove(OpenLevelFile *file, uint8_t const *id, int32_t const *polygons, size_t count, PolyRemoveMap *map, std::string *why);
@@ -233,6 +234,12 @@ namespace host
 	// (PolyEdit_CheckMergedPairs, FUN_0055d500 at 0x55bb73): the parted ones are written parted, and the shape's polygons take the flags, types and colours the checks gave them. *parted (when not
 	// null): how many pairs the checks parted.
 	PolyMergeResult PolyEdit_SetMergeData(OpenLevelFile *file, uint8_t const *id, std::vector<int32_t> const &numbers, std::string *why, size_t *parted = nullptr);
+
+	// FUN_0055d500 on the shape of object `id` as the level holds it (Texture Map's start checks every slot, FUN_00544510 0x5449cc; Frost, 2026-11-18): the checks of
+	// PolyEdit_CheckMergedPairs on its pairing and polygons. *parted: how many pairs they part; *polygonsChanged: whether a polygon's flags, type or colour change. With
+	// `write`, and only when something changes, the parted pairing (the shape's own SHPMRGDT, not its sub-shapes': FUN_0055d500 changes the working array) and the
+	// polygons are written, and the loader reads the level again; without, nothing is written (a survey). A shape with no SHPMRGDT: Done, nothing checked.
+	PolyMergeResult PolyEdit_CheckPairsNow(OpenLevelFile *file, uint8_t const *id, bool write, size_t *parted, bool *polygonsChanged, std::string *why);
 
 	// FUN_0055d500, Merge's save checking its pairs (TM-B 2e; reassess/tm-b-merge-map.md). For each pair, j the partner of i and j < i, in the order of i:
 	//  - flags (SHPPOLYS +8) that differ: each polygon gets the two OR'd;

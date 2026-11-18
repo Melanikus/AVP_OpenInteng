@@ -1,0 +1,54 @@
+# ACCEPTANCE (Drake 11-18, THE OWNER'S PATH before the beta, Bishop): the Shape Chooser (acceptance-shape-chooser's steps) with a shape HIS level has, Medbox01, not Invasion's Smrtam01. On HIS OWN Genshd1.rif (his game folder's copy, copied read-only to drake-ownerpath/his-originals, SHA256SUMS there; this scenario opens its own copy, so no other editor opens the same file). The walk on 11-18 ran the same steps on the stock copy of the level beside it: every check came out the same. The source scenario's own notes follow.
+# ACCEPTANCE: the SHAPE CHOOSER screen (Vasquez, 2026-11-16; reassess/MASTER-MAP.md item 2; inteng FUN_004dd910 enter, FUN_004ddb60 per frame, FUN_004dd6f0 / FUN_0053c4f0 the preview, FUN_004d49e0 the list).
+# Object Placement > Create > With shape > Choose (command 0x32) opens inteng's SCREEN for choosing a shape: the shape drawn alone in the view, "Polys %d, Verts %d" at (10, 0x28), "Shape '%s'" at (10, 0x38),
+# and at x 200 the foot lines "S : Select shape from list", "Return : Exit with shape", "Escape : Exit without shape". The keys: , previous shape and . next shape (they wrap), S a list dialog "Select shape",
+# Return leaves WITH the shape (inteng then asks the new object's name: "Type in the name of the object."), Escape leaves without. No status line, no typed shape name. Nothing here is typed except the new object's name;
+# every other question is answered by a key or a click and every check looks at the screen.
+# EXPECTED TODAY: RED (ours: a text panel, PageUp / PageDown, the shape not drawn, a typed list pick).
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-shape-chooser/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-shape-chooser/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1425512
+expect-screen Object Placement
+picture 1
+item 0x32
+expect-screen Shape Chooser
+# the screen is the shape alone, drawn by the game's renderer over a cleared view: the level is no longer there
+expect-pixels-changed panels 0 0 1000 700 0.3
+expect-prompt 0
+# . shows the next shape: the pictures differ; , goes back
+# the lines of text change with the shape at once (the renderer shows it a frame later): the name and counts at the top left are what is compared
+key Period
+expect-pixels-changed panels 0 36 300 40 0.002
+key Comma
+expect-pixels-changed panels 0 36 300 40 0.002
+# S: the list dialog "Select shape" (FUN_00475bf0), a row is clicked
+key S
+expect-dialog Select shape
+click-row 2
+expect-no-dialog
+expect-pixels-changed panels 0 36 300 40 0.002
+# Escape leaves WITHOUT a shape: back on Object Placement, nothing asked
+key Esc
+expect-screen Object Placement
+expect-prompt 0
+# again, and Return leaves WITH it: the name of the new object is asked
+item 0x32
+expect-screen Shape Chooser
+key S
+click-choice Medbox01
+expect-no-dialog
+key Enter
+expect-screen Object Placement
+# the name box is inteng's form (FUN_004d4c70): "Name Object", the words, an edit and Cancel; Return answers with the edit
+expect-dialog-kind form
+expect-dialog Name Object
+type chosentest
+key Enter
+expect-no-dialog
+# OP-26c: the chosen shape's new object is in the game's view at once (red before: "no")
+expect-field inplay yes
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-harness-out/verify_chooser/verify_chooser.exe {orig} {copy} chosentest Medbox01
