@@ -586,6 +586,7 @@ static UINT KeyOf(std::string const &name)
 	if (name == "F11") return VK_F11;
 	if (name == "F12") return VK_F12;
 	if (name == "PrintScreen") return VK_SNAPSHOT;
+	if (name == "Pause") return VK_PAUSE;           // inteng's screenshot key in every mode (FUN_0058c010 case 0x13; bible-check.md M-1, Frost 11-18)
 	if (name == "End") return VK_END;
 	if (name == "PageDown") return VK_NEXT;
 	if (name == "PageUp") return VK_PRIOR;
