@@ -61,7 +61,9 @@ static Bytes Join(std::vector<Bytes> const &parts)
 	return all;
 }
 
-// A SHPHEAD1: flags, 16 letters of lock user, number, points, polygons, radius, the box (max/min x, y, z), version, a word, the object count and names
+// A SHPHEAD1 as the game's chunk library writes it (Shape_Header_Chunk::fill_data_block, chunk_shape.cpp:1663): flags, 16 letters of lock user, number, points, polygons, radius, the box
+// (max/min x, y, z), version, the object count (+64) and the names. FIXED 11-18 (Vasquez, CI on PR #80): a stray word sat between the version and the count, so the count was read as 0 and the
+// update took the file's ENVSDSCL where objects use the shape (TestKeptScale's eight failures)
 static Bytes Header(int32_t points, int32_t polygons, float radius, int32_t const box[6], int32_t version, std::vector<std::string> const &objects, int32_t countGiven = -1)
 {
 	Bytes p;
@@ -79,7 +81,6 @@ static Bytes Header(int32_t points, int32_t polygons, float radius, int32_t cons
 	}
 
 	AddInt(&p, version);
-	AddInt(&p, 0);
 	AddInt(&p, countGiven >= 0 ? countGiven : (int32_t)objects.size());
 
 	for (std::string const &one : objects)

@@ -214,8 +214,10 @@ static void TestFileBlock()
 {
 	File_Chunk root;
 
-	new PartlyWrittenChunk(&root);
-	new Shape_External_Object_Name_Chunk(&root, "a");
+	// both are the file chunk's children: root owns them and deletes them with itself
+	PartlyWrittenChunk *const partChunk = new PartlyWrittenChunk(&root);
+	Shape_External_Object_Name_Chunk *const nameChunk = new Shape_External_Object_Name_Chunk(&root, "a");
+	Check(partChunk != 0 && nameChunk != 0, "the two chunks were made inside the file chunk");
 
 	size_t const size = root.size_chunk();
 	char *const block = root.make_data_block_from_chunk();
