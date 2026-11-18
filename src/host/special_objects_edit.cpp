@@ -1794,12 +1794,12 @@ namespace host
 		AltHolder h;
 		SpecialResult const held = FindAltHolder(w, kind, number, &h);
 
-		if (held != SpecialResult::Done || h.holder == w.special.size())
+		if (held != SpecialResult::Done || h.holder >= w.special.size())
 		{
 			return held;
 		}
 
-		Span const holder = w.special[h.holder];
+		Span const holder = w.special.at(h.holder);
 		std::vector<Span> parts;
 
 		if (!Children(w.image, holder.at + kHeadingBytes, holder.at + holder.size, &parts))
@@ -1850,7 +1850,7 @@ namespace host
 		char const *const holderName = kind == SpecialKind::ParticleGenerator ? "PARGENER" : kind == SpecialKind::Sound ? "SOUNDEXD" : "AVPGENEX";
 		Bytes inside;
 
-		if (h.holder != w.special.size())
+		if (h.holder < w.special.size())
 		{
 			// every child of the holder but its ALTLOCAT, in order
 			Span const holder = w.special[h.holder];
