@@ -1,0 +1,36 @@
+# ACCEPTANCE (TM-A, ruling 5; texture-map-closeout-frost.md "RINGS' RECORDS READ"): the Texture Map's SELECTION undo and redo. Every frame of the mode starts a step on the
+# selection's ring (FUN_00543fa0 0x543fa5); each polygon added to the selection is recorded as selected (FUN_00575070 -> FUN_00567a80) and each taken out as deselected
+# (FUN_005750e0 / FUN_00575170 -> FUN_00567aa0). Shift+, (0x38) undoes the newest step and Shift+. (0x39) does it again (FUN_00567a30). Inteng says nothing; the status line here
+# says what came back (NAMED).
+# Red on bishop-int b7f8b540 (Shift+, and Shift+. did nothing), green on the hash with the selection ring.
+# His path: Invasion, Mode > Texture Map, two polygons picked one at a time, Shift+, twice, Shift+., Clear Selection, Shift+,.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 0 0
+wait 200
+state
+expect-status 1 selected
+pick-poly 0 5
+wait 200
+state
+expect-status 2 selected
+key Comma shift
+expect-status selection undone: 0 selected, 1 deselected; 1 selected
+key Comma shift
+expect-status selection undone: 0 selected, 1 deselected; 0 selected
+key Comma shift
+expect-status no selection to undo
+key Period shift
+expect-status selection done again: 1 selected, 0 deselected; 1 selected
+key Period shift
+expect-status selection done again: 1 selected, 0 deselected; 2 selected
+item 0x2b
+wait 200
+state
+expect-status all polygons deselected
+key Comma shift
+expect-status selection undone: 2 selected, 0 deselected; 2 selected

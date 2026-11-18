@@ -1,21 +1,64 @@
 // texture_shared.h: the Texture Map's SHARED calls, for every part of the mode that edits polygons (TM-A, texture-map-closeout-frost.md: Frost's; Dietrich's sub-mode
 // frames, corners and Merge call them where inteng does). The pure maths they use, the merged pair as one quad (FUN_0055cdf0) and the wrap's move, are in
-// src/model/texture_quad.h. Written 2026-11-17 by Melanikus (Frost) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
+// src/model/texture_quad.h; the undo ring itself is src/model/undo_ring.h. Written 2026-11-17 by Melanikus (Frost) for AVP_OpenInteng. AVP_OpenInteng's own code:
+// see License.txt, "AVP_OpenInteng's own code".
 #pragma once
 
 #include <stdint.h>
 
 #include <string>
+#include <vector>
 
-// ----- the undo of the polygon screen (TM-A, ruling 5: as deep as inteng's) -----
+class OpenLevelFile;
+struct TexturePolygon;
+
+namespace model
+{
+	struct PolygonUv;
+}
+
+// ----- the undo of the polygon screen's edits (TM-A, ruling 5: as deep as inteng's; texture-map-closeout-frost.md "RINGS' RECORDS READ") -----
+// The EDITS ring (inteng DAT_00914ca8, FUN_0054be10: 25000 records, model::UndoRing). Each record is one polygon as it was: its pairing (the fake merge data's while
+// that is on), its type, flag word and colour word (its picture and list numbers), and its list of texture coordinates. Inteng's record (FUN_00567ba0, 0x38 bytes)
+// holds the same things as its own texture record keeps them; ours is 18 whole numbers (the same 25000 records, a larger slot: NAMED).
+
 // FUN_00573570 (the selection): before an edit to the selected polygons, a new undo step (FUN_0057e940) holds each of them as it is (FUN_00567ba0 for every selected
-// polygon of every shape). Inteng calls it at the start of every edit command (FUN_0054d260's cases, FUN_00570f40, FUN_00570590, ...): call it at the same place.
-// STUB: the undo ring (DAT_00914ca8, FUN_0057e5c0) is not built yet, so nothing is kept; the call is where it belongs, and the ring fills it in later.
+// polygon). Nothing with no selection. Inteng calls it at the start of every edit command (FUN_0054d260's cases, FUN_00570f40, FUN_00570590, ...: the 65 places
+// of reassess/texture-map-undo-sites.md): call it at the same place.
 void TextureUndo_RecordSelection();
 
-// FUN_00567ba0: one polygon of the shape of object id (the file's SHPPOLYS number) and its partner into the step being made, for an edit to a polygon that isn't in
-// the selection. STUB as above.
+// FUN_00567ba0: one polygon of the shape of object id (the file's SHPPOLYS number) into the step being made (a new step only when BeginStep was asked: inteng's
+// callers outside FUN_00573570 call FUN_0057e940 themselves). Nothing while an undo or redo runs.
 void TextureUndo_RecordPolygon(uint8_t const id[8], int32_t polygon);
+
+// FUN_0057e940 for a caller that records polygons one by one (TextureUndo_RecordPolygon): the next record starts a new step
+void TextureUndo_BeginStep();
+
+// 0x36 (FUN_0057e6d0 on the edits ring) / 0x37 (FUN_0057e770): the newest step undone, or the newest undone step done again. Each polygon of the step takes the
+// state its record holds and the record takes what the polygon had (FUN_00567ac0), so the same record redoes it; after the step the pairing of every shape whose
+// pairing changed is written again (FUN_00567c10 -> FUN_00566d60). Inteng says nothing; here the status line says how many polygons came back (NAMED: the owner,
+// users are told). False when there was nothing to undo or redo.
+bool TextureUndo_Undo();
+bool TextureUndo_Redo();
+
+// The edits ring emptied and made again (FUN_0057e630, at the mode's entry 0x54bcbe)
+void TextureUndo_Reset();
+
+// ----- the undo of the SELECTION (the ring DAT_00914c10: FUN_0054bf80, 100000 records, model::UndoRing; reset at entry 0x54bcc8) -----
+// Every frame of the mode starts a step (FUN_00543fa0 0x543fa5: FUN_0057e940), so what one frame's clicks and keys select or deselect is one step. Each polygon
+// added to the selection is recorded as selected (FUN_00575070 -> FUN_00567a80: [0] 0) and each taken out as deselected (FUN_005750e0 / FUN_00575170 ->
+// FUN_00567aa0: [0] 1), with its object and polygon. 0x38 (Shift+,) undoes the newest step and 0x39 (Shift+.) does it again: each record's polygon is deselected
+// or selected back and the record turned the other way (FUN_00567a30). NAMED: the status line says how many; inteng's deselect also brings the polygon's
+// coordinates onto its picture (FUN_0056dea0 0x56df12, the wrap), which comes with the deselect's own wrap (TM-A). The record is our 6 whole numbers.
+void TextureSelectionUndo_BeginStep();   // every frame while the mode is on (editor_main.cpp)
+void TextureSelectionUndo_Record(TexturePolygon const &one, bool selected);
+bool TextureSelectionUndo_Undo();
+bool TextureSelectionUndo_Redo();
+void TextureSelectionUndo_Reset();
+
+// Both rings emptied: a command that changes a shape's polygon NUMBERS (polygons taken out) calls it, as a record names its polygon by number. NAMED: inteng keeps the
+// records, and an undo then puts one onto another polygon
+void TextureUndo_ForgetAll();
 
 // ----- FUN_00566b90: a polygon's texture coordinates brought onto its picture -----
 enum class TextureWrapResult
@@ -35,3 +78,9 @@ enum class TextureWrapResult
 // "texture changed" flag DAT_00914d18 and the shape's modified flag: here the write marks the level edited. Inteng runs it on every deselect (FUN_0056dfa0 /
 // FUN_0056dea0), before each Anim step, first in Find invalid PSX UV and on leaving sub-mode 3.
 TextureWrapResult TextureWrapPolygon(uint8_t const id[8], bool isModule, int32_t moduleIndex, int32_t polygon, std::string *why);
+
+// ----- the mode's own, shared between its files (texture_map_screen.cpp makes them) -----
+int32_t TexturePartnerOf(OpenLevelFile *open, uint8_t const *id, int32_t polygon);   // the pairing in use: the fake merge data's while on, else the file's
+void TextureFakePairSet(OpenLevelFile *open, uint8_t const *id, int32_t polygon, int32_t partner);   // the fake copy's pairing (only while it is on)
+bool TextureFakeMergeOn();
+void ShowTheNewUv(OpenLevelFile *open, TexturePolygon const &lead, std::vector<model::PolygonUv> const &polygons);   // the view's live preview of a UV write

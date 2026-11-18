@@ -12,13 +12,17 @@
 // file (unpacked and packed), a chunk's size pointing past the end (at the top and inside a shape), a wrong heading and a level's size
 // field that isn't its size are refused, each for its reason (e); a chunk holding 16,385 chunks, and 16 holding 16,384 each, are refused
 // before the game's loader is given them, its time growing as the square of the chunks inside one chunk, and one holding 16,384 is read (f).
+// Every list made with new[] starts filled with a number of its own (operator new[] below), so a number a save never set differs between the
+// two saves every time, and (a) can't pass by luck of what the memory held.
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <memory>
+#include <new>
 #include <string>
 #include <vector>
 
@@ -41,6 +45,52 @@ static void Check(bool good, std::string const &what)
 	{
 		checksFailed++;
 	}
+}
+
+// ---- Every list made with new[] starts filled with a number of its own, and goes back with delete[] (the plain new and delete stay the
+// library's own). Each 4 bytes of a list hold 0xA5 and then the list's serial number (1 for the first list made, 2 for the next, and so
+// on), so a number the library's save never set is another number in the second save than in the first, every time. The same bytes in
+// every list, as host_chunk_shape_test's 0xA5, would do the opposite here: both saves would write those same bytes where nothing was set,
+// and (a) would pass on a save that writes numbers it never set (the morph frames' save did, before avpx facfb49c).
+
+static uint32_t listsMade = 0;
+
+void *operator new[](size_t bytes)
+{
+	void *const block = malloc(bytes ? bytes : 1);
+
+	if (!block)
+	{
+		throw std::bad_alloc();
+	}
+
+	listsMade++;
+
+	uint32_t const word = 0xA5000000u | (listsMade & 0x00FFFFFFu);
+	unsigned char *const at = (unsigned char *)block;
+	size_t n = 0;
+
+	for (; n + 4 <= bytes; n += 4)
+	{
+		memcpy(at + n, &word, 4);
+	}
+
+	for (; n < bytes; n++)
+	{
+		at[n] = 0xA5;
+	}
+
+	return block;
+}
+
+void operator delete[](void *block) noexcept
+{
+	free(block);
+}
+
+void operator delete[](void *block, size_t) noexcept
+{
+	free(block);
 }
 
 // what the game's chunk code calls

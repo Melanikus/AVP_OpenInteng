@@ -7,6 +7,8 @@
 //   - a chunk of the test's own, whose writer writes only its 12-byte head and leaves the 8 bytes after it;
 //   - the game's own EXTOBJNM chunk (Shape_External_Object_Name_Chunk), with a name of 1 letter (2 bytes left) and of 4 letters (3 bytes left);
 //   - the block of a whole file chunk holding both, as a save makes it.
+// And the same for the block for processing (Chunk::make_data_block_for_process, beside it in chunk.cpp), which goes to the same writers: of the test's own chunk, and of the whole file
+// chunk. Nothing in avpx or the editor makes one today; its block must start as zeros all the same.
 //
 // HOW. Every list made with new[] in this program starts filled with 0xA5 bytes (operator new[] below), so a byte the block was given nothing for can't read as 0 by luck. It needs no game
 // files.
@@ -158,6 +160,18 @@ static void TestOwnChunk()
 		Check(NotZero(block, 12, 20) == 0, "the 8 bytes its writer leaves are 0 (" + std::to_string(NotZero(block, 12, 20)) + " are not)");
 		delete[] block;
 	}
+
+	// The same chunk's block for processing (make_data_block_for_process), which goes to the same writer
+	char *const process = part->make_data_block_for_process();
+
+	Check(process != 0 && part->size_chunk_for_process() == 20, "the test's own chunk made a block for processing of 20 bytes");
+
+	if (process)
+	{
+		Check(!strncmp(process, "TESTPART", 8) && Read32(process + 8) == 20, "the block for processing has its head written");
+		Check(NotZero(process, 12, 20) == 0, "in the block for processing, the 8 bytes its writer leaves are 0 (" + std::to_string(NotZero(process, 12, 20)) + " are not)");
+		delete[] process;
+	}
 }
 
 // The game's EXTOBJNM chunk with the name given: its size rounds the name up to a whole number of 4 bytes (chunk_shape.hpp), its writer writes the name and its ending zero only
@@ -223,6 +237,31 @@ static void TestFileBlock()
 		}
 
 		delete[] block;
+	}
+
+	// The file chunk's block for processing (make_data_block_for_process): the same chunks, through the same writers
+	size_t const processSize = root.size_chunk_for_process();
+	char *const process = root.make_data_block_for_process();
+
+	Check(process != 0 && processSize == size, "the file chunk made a block for processing of " + std::to_string(processSize) + " bytes");
+
+	if (process)
+	{
+		size_t const part = FindName(process, processSize, "TESTPART");
+		size_t const name = FindName(process, processSize, "EXTOBJNM");
+		bool const both = part + 20 <= processSize && name + 20 <= processSize;
+
+		Check(both, "both chunks are in the file's block for processing");
+
+		if (both)
+		{
+			Check(NotZero(process, part + 12, part + 20) == 0, "in the file's block for processing, the 8 bytes the test's own chunk leaves are 0 (" +
+				std::to_string(NotZero(process, part + 12, part + 20)) + " are not)");
+			Check(NotZero(process, name + 18, name + 20) == 0, "in the file's block for processing, the 2 bytes after EXTOBJNM's name are 0 (" +
+				std::to_string(NotZero(process, name + 18, name + 20)) + " are not)");
+		}
+
+		delete[] process;
 	}
 }
 

@@ -143,6 +143,7 @@
 #include "uv_edit.h"
 #include "anim_edit.h"
 #include "texture_keys.h"
+#include "texture_shared.h"
 #include "topology_match.h"
 #include "texture_anim.h"
 #include "polygon_items.h"
@@ -22062,6 +22063,8 @@ int main(int, char **)
 		proofViewHeight = drawnView.height;
 		drawnWindowWidth = windowWidth;
 		drawnWindowHeight = windowHeight;
+
+		if (onTextureMap) TextureSelectionUndo_BeginStep();   // FUN_00543fa0 0x543fa5: every frame of Texture Map starts a selection step (texture_shared.h)
 
 		// A click waiting from before this frame picks from it now, while the game's camera and its list of what's on screen are this
 		// frame's (pick_game.h). The place was in the view's pixels then; a view resized since only moves the line a little, and

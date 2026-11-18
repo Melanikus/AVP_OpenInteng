@@ -175,7 +175,7 @@
 
 // The live preview of a texture coordinate write: the game's items of those file polygons take the new corners, so the view shows them at once. Only a polygon that is ONE item of the same corner count is shown
 // (a pair of triangles the loader joined into a quad, and an animated texture, keep the old look until the level is opened again: named).
-static void ShowTheNewUv(OpenLevelFile *open, TexturePolygon const &lead, std::vector<model::PolygonUv> const &polygons)
+void ShowTheNewUv(OpenLevelFile *open, TexturePolygon const &lead, std::vector<model::PolygonUv> const &polygons)   // texture_shared.h
 {
 	LevelViewShapeOf shape = {};
 	model::ShapeModel model;
@@ -229,6 +229,7 @@ static size_t TextureDropImported()
 	{
 		if (host::PolygonItems_ShapeHasOwnPictureList(open->Level(), texturePolygons[i - 1].id))
 		{
+			TextureSelectionUndo_Record(texturePolygons[i - 1], false);
 			texturePolygons.erase(texturePolygons.begin() + (std::ptrdiff_t)(i - 1));
 			dropped++;
 		}
@@ -244,6 +245,11 @@ static size_t TextureDropImported()
 
 void TextureMapDeselectAll()
 {
+	for (TexturePolygon const &one : texturePolygons)
+	{
+		TextureSelectionUndo_Record(one, false);   // FUN_00575170: each one recorded as deselected
+	}
+
 	texturePolygons.clear();
 	ShowTheTexturePolygons();
 	statusWords = "Texture Map: all polygons deselected";
@@ -343,6 +349,8 @@ static void TextureFlagsSet(uint32_t mask, bool on, char const *name)
 		statusWords = "Texture Map: select the polygons first";
 		return;
 	}
+
+	TextureUndo_RecordSelection();   // FUN_00573570 first (the flags' Add / Remove cases of FUN_0054d260, 0x54d939...; Shift / Scale UV 0x5720e9 / 0x572209)
 
 	size_t changed = 0;
 	std::vector<bool> done(texturePolygons.size(), false);
@@ -538,6 +546,8 @@ static void TextureShiftOrScale(bool scale, double a, double b)
 		return;
 	}
 
+	TextureUndo_RecordSelection();   // FUN_00573570 first (the flags' Add / Remove cases of FUN_0054d260, 0x54d939...; Shift / Scale UV 0x5720e9 / 0x572209)
+
 	size_t changed = 0;
 	std::vector<bool> done(texturePolygons.size(), false);
 
@@ -707,6 +717,8 @@ void TextureModeStateReset()
 	textureRectShift = false;
 	textureMultiMode = 0;
 	textureInvertPending = false;
+	TextureUndo_Reset();   // FUN_00544510 0x54bcbe: the edits ring made again at every entry (FUN_0057e630)
+	TextureSelectionUndo_Reset();   // 0x54bcc8: and the selection's
 }
 int textureAsk = 0;                  // the question kPromptTextureMap holds: 1 = the angle, 2 = the arrow step sizes
 
@@ -746,7 +758,7 @@ bool TextureFakeMergeOn()
 }
 static std::map<std::string, std::vector<int32_t>> textureFakePairs;
 
-static int32_t TexturePartnerOf(OpenLevelFile *open, uint8_t const *id, int32_t polygon)
+int32_t TexturePartnerOf(OpenLevelFile *open, uint8_t const *id, int32_t polygon)   // texture_shared.h
 {
 	std::string const key((char const *)id, 8);
 	auto found = textureFakeMerge ? textureFakePairs.find(key) : textureFakePairs.end();
@@ -782,7 +794,7 @@ static int32_t TexturePartnerOf(OpenLevelFile *open, uint8_t const *id, int32_t 
 	return -1;
 }
 
-[[maybe_unused]] static void TextureFakePairSet(OpenLevelFile *open, uint8_t const *id, int32_t polygon, int32_t partner)
+void TextureFakePairSet(OpenLevelFile *open, uint8_t const *id, int32_t polygon, int32_t partner)   // texture_shared.h
 {
 	TexturePartnerOf(open, id, polygon);   // makes the copy of that shape
 
@@ -981,6 +993,7 @@ static bool TextureSelectOne(uint8_t const *id, bool isModule, int32_t moduleInd
 	{
 		if (at < texturePolygons.size())
 		{
+			TextureSelectionUndo_Record(texturePolygons[at], false);   // FUN_005750e0 -> FUN_00567aa0
 			texturePolygons.erase(texturePolygons.begin() + (std::ptrdiff_t)at);
 		}
 
@@ -1003,6 +1016,7 @@ static bool TextureSelectOne(uint8_t const *id, bool isModule, int32_t moduleInd
 	one.polygon = polygon;
 	one.isModule = isModule;
 	one.moduleIndex = isModule ? moduleIndex : -1;
+	TextureSelectionUndo_Record(one, true);   // FUN_00575070 -> FUN_00567a80
 	texturePolygons.push_back(one);
 	return true;
 }
@@ -1693,6 +1707,18 @@ void TextureMapCommand(int32_t command)
 		case 0xb7: case 0xb8: case 0xb9: case 0xba: case 0xbb: case 0xbc:
 			TextureFind(command);
 			break;
+		case 0x36:
+			TextureUndo_Undo();   // FUN_0054d260 0x54d576: FUN_0057e6d0 on the edits ring (key ,)
+			break;
+		case 0x37:
+			TextureUndo_Redo();   // 0x54d585: FUN_0057e770 on the edits ring (key .)
+			break;
+		case 0x38:
+			TextureSelectionUndo_Undo();   // 0x54d594: FUN_0057e6d0 on the selection ring (Shift+,)
+			break;
+		case 0x39:
+			TextureSelectionUndo_Redo();   // 0x54d5a3: FUN_0057e770 on the selection ring (Shift+.)
+			break;
 		case 0x31:
 			// FUN_0054d51f: only when something is selected; FUN_0055c210(0) asks "Get UV coords from which polygon" and waits for a click (right click cancels)
 			if (texturePolygons.empty())
@@ -1938,6 +1964,8 @@ void TextureMapEdit(int32_t command)
 		statusWords = "Texture Map: nothing is selected";
 		return;
 	}
+
+	TextureUndo_RecordSelection();   // FUN_00570f40 0x570f4d: X / Y flip, the turns, first of all
 
 	int32_t windowWidth = 0, windowHeight = 0;
 
@@ -2588,6 +2616,9 @@ static void TextureCopyFrom(uint8_t const sourceId[8], int32_t sourcePolygon)
 	}
 
 	size_t left = 0;
+
+	TextureUndo_RecordSelection();   // FUN_0055c210 0x55c378 / 0x55c3e1: before the selection takes the source's coordinates
+
 	size_t const changed = TextureApplyUv(open, sourceId, sourcePolygon, source.uv, source.uv.cornerCount, &left);
 
 	// the picture: the source's index in the list of its shape, as the game's texture number
@@ -2675,6 +2706,7 @@ void TextureWindowToggle()
 		return;
 	}
 
+	TextureUndo_RecordSelection();   // FUN_0054caf0 0x54cec6: one step on entering the window, for every edit made in it
 	textureWindowOn = true;
 	textureSubMode = 1;
 	TextureWindowBars(true);
@@ -5131,6 +5163,12 @@ void TextureChooserClick(int x, int y)
 	if (at >= 0)
 	{
 		textureChooserOn = false;
+
+		if (!texturePolygons.empty())
+		{
+			TextureUndo_RecordSelection();   // FUN_005575a0 0x557bce: before the selection takes the picture
+		}
+
 		TextureMapSetPicture(textureChooserList[(size_t)at].texture);
 		textureCurrent = textureChooserList[(size_t)at].texture;
 	}
@@ -5320,6 +5358,7 @@ static void TextureAnimCopyClicked(uint8_t const *id, int32_t polygon)
 	{
 		size_t left = 0;
 
+		TextureUndo_RecordSelection();   // FUN_0055c210(1) 0x55c3e1: Copy Texturing with the animation
 		TextureApplyUv(open, id, polygon, sourceUv.uv, sourceUv.uv.cornerCount, &left);
 	}
 
@@ -5895,6 +5934,8 @@ static void TextureMapProject(uint8_t const planeId[8], int32_t planePolygon, bo
 		return;
 	}
 
+	TextureUndo_RecordSelection();   // FUN_00570590 0x5705b4 (in the polygon screen): Texture Across Sel / Wrap and Tile
+
 	// the chosen polygon's plane
 	model::ShapeModel planeShape;
 	std::vector<int32_t> planePoints, planeNormals;
@@ -6339,6 +6380,8 @@ void TexturePolyApplyRemoved()
 		return;
 	}
 
+	TextureUndo_ForgetAll();   // the shapes' polygon numbers change: the rings' records name polygons by number (texture_shared.h, NAMED)
+
 	std::vector<RemovedPoly> pending = polyRemoved;
 	size_t taken = 0, kept = 0;
 	std::string left;
@@ -6646,6 +6689,8 @@ static void TexturePolyMerge()
 		return;
 	}
 
+	TextureUndo_RecordSelection();   // FUN_00573630 0x57364b
+
 	size_t joined = 0;
 	std::string refused;
 	std::vector<bool> done(texturePolygons.size(), false);
@@ -6734,6 +6779,8 @@ static void TexturePolyUnmerge()
 		statusWords = "Texture Map: Unmerge selected polygons: select the polygons first";
 		return;
 	}
+
+	TextureUndo_RecordSelection();   // FUN_00573e20 0x573e34
 
 	size_t parted = 0;
 	std::string refused;
@@ -7066,6 +7113,7 @@ void TexturePolygonClicked(OpenLevelFile *open, uint8_t const *target, bool isMo
 	{
 		if (was)
 		{
+			TextureSelectionUndo_Record(texturePolygons[at], false);   // FUN_005750e0 -> FUN_00567aa0
 			texturePolygons.erase(texturePolygons.begin() + (std::ptrdiff_t)at);
 		}
 	}
@@ -7083,6 +7131,7 @@ void TexturePolygonClicked(OpenLevelFile *open, uint8_t const *target, bool isMo
 		added.polygon = polygon;
 		added.isModule = isModule;
 		added.moduleIndex = isModule ? moduleIndex : -1;
+		TextureSelectionUndo_Record(added, true);   // FUN_00575070 -> FUN_00567a80
 		texturePolygons.push_back(added);
 	}
 

@@ -7,6 +7,10 @@
 // 587c09f3 (ReadingAsItWas below): the same count, and each frame with the same two shapes and the same spare number. So a change to the loader can't change any of the game's own
 // levels without this going red.
 //
+// THE FILE'S OWN BYTES are what every chunk is compared with: the level as it is in the file, unpacked by the game's checked unpacker (HuffmanDecompressChecked) when it is packed, and in
+// it every FRMMORPH chunk's bytes, in the order the level holds them. Before any save, the chunk's own block (make_data_block_from_chunk: the numbers the reader kept, written by the chunk's
+// writer) must be those bytes exactly, and the loader's frames must be those THE READING AS IT WAS gives from the file's numbers.
+//
 // And THE SAVE: the whole level is then prepared as the editor's save prepares it (prepare_for_output on the whole tree, src/io/level_file.cpp PrepareAsIntengDoes), and for every FRMMORPH
 // this checks that a save writes the chunk exactly as the file holds it, every byte: the numbers at the places of the list a frame gives, and the file's own numbers at the places no frame
 // reaches (where inteng's save left numbers it never set, which the game's levels hold); and that the game's reading of the written numbers gives the frames the loader made. So a change
@@ -15,17 +19,21 @@
 // It also says, as notes (never a check), how many chunks THE READER'S ORDER (frame i at i*3, i*3+1, i*3+2, each shape looked for from the first sub-shape: ReadingInReadersOrder below)
 // would give other frames for, and which. That is what a change of the reading would change in the game's own levels.
 //
-// HOW. Each level is read by the game's own loader (File_Chunk), and every chunk of it is visited. A FRMMORPH's numbers are taken as the save path would write them before any
-// prepare_for_output: its own make_data_block_from_chunk, so the numbers are the ones the reader kept. The levels are only read, opened so other tests can read them at the same time.
-// The last lines give the count of chunks, the frames by count, and one sum over every frame (its shapes by their place in the morph data, and its spare number), to compare runs by.
+// HOW. Each level's file is read, then the level is read by the game's own loader (File_Chunk), and every chunk of it is visited. The FRMMORPH chunks the loader made are matched with the
+// file's in order (the loader keeps a chunk's children in the order the file holds them), and there must be as many of each. Every list made with new[] in this program starts filled
+// with 0xA5 bytes (operator new[] below), so a number a save never set reads as 0xA5A5A5A5 and can't match the file's by luck of what the memory held. The levels are only read, opened
+// so other tests can read them at the same time. The last lines give the count of chunks, the frames by count, and one sum over every frame (its shapes by their place in the morph data,
+// and its spare number), to compare runs by.
 //
 // HOW IT RUNS: tests/host_chunk_shape_stock_test.args builds it; run as host_chunk_shape_stock_test <level> [<level> ...] (tests/host_chunk_shape_stock_test.runargs: {LEVELS}).
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <new>
 #include <string>
 #include <vector>
 
@@ -33,6 +41,7 @@
 
 #include "chunk.hpp"
 #include "chunk_shape.hpp"
+#include "huffman.hpp"
 #include "mishchnk.hpp"
 
 static int checks = 0;
@@ -47,6 +56,33 @@ static void Check(bool good, std::string const &what)
 	{
 		checksFailed++;
 	}
+}
+
+// ---- Every list made with new[] starts as 0xA5 bytes, and goes back with delete[] (the plain new and delete stay the library's own), as in host_chunk_shape_test
+
+static unsigned char const kFill = 0xA5;
+
+void *operator new[](size_t bytes)
+{
+	void *const block = malloc(bytes ? bytes : 1);
+
+	if (!block)
+	{
+		throw std::bad_alloc();
+	}
+
+	memset(block, kFill, bytes);
+	return block;
+}
+
+void operator delete[](void *block) noexcept
+{
+	free(block);
+}
+
+void operator delete[](void *block, size_t) noexcept
+{
+	free(block);
 }
 
 // ---- Stand-ins for the parts of the game the chunk code calls (as host_strategy_stock_roundtrip_test). The game's loader opens a level with no sharing (mishchnk.cpp: share 0), so two
@@ -117,11 +153,14 @@ struct Found
 {
 	Shape_Morphing_Data_Chunk *morph;          // the SHPMORPH it is in
 	Shape_Morphing_Frame_Data_Chunk *frames;
+	size_t place;                              // which FRMMORPH of the level it is, counting every one (plain ones too) in the order the level holds them
 };
 
 static int plainFrameChunks = 0;   // FRMMORPH chunks the loader kept as plain bytes (not in a SHPMORPH): the game never reads frames from those
 
-static void Visit(Chunk *chunk, Chunk_With_Children *parent, std::vector<Found> *found, int depth)
+// Each chunk before its children, and the children in the loader's order, which is the file's (Chunk::Chunk adds a child at the end of its parent's list): so the FRMMORPH chunks are
+// met in the order the level holds them. seen counts every one met.
+static void Visit(Chunk *chunk, Chunk_With_Children *parent, std::vector<Found> *found, size_t *seen, int depth)
 {
 	if (!strncmp(chunk->identifier, "FRMMORPH", 8))
 	{
@@ -130,12 +169,14 @@ static void Visit(Chunk *chunk, Chunk_With_Children *parent, std::vector<Found> 
 
 		if (frames && morph)
 		{
-			found->push_back(Found { morph, frames });
+			found->push_back(Found { morph, frames, *seen });
 		}
 		else
 		{
 			plainFrameChunks++;
 		}
+
+		(*seen)++;
 	}
 
 	Chunk_With_Children *const holder = dynamic_cast<Chunk_With_Children *>(chunk);
@@ -147,8 +188,85 @@ static void Visit(Chunk *chunk, Chunk_With_Children *parent, std::vector<Found> 
 
 	for (Chunk *child = holder->*Get(FirstChild()); child; child = child->*Get(NextChunk()))
 	{
-		Visit(child, holder, found, depth + 1);
+		Visit(child, holder, found, seen, depth + 1);
 	}
+}
+
+// ---- The file's own bytes
+
+static bool ReadWholeFile(char const *path, std::vector<char> *out)
+{
+	HANDLE const file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+
+	if (file == INVALID_HANDLE_VALUE)
+	{
+		return false;
+	}
+
+	LARGE_INTEGER size;
+	bool good = GetFileSizeEx(file, &size) && size.QuadPart > 0 && size.QuadPart < (1LL << 31);
+
+	if (good)
+	{
+		out->assign((size_t)size.QuadPart, 0);
+		DWORD got = 0;
+		good = ReadFile(file, out->data(), (DWORD)out->size(), &got, 0) && got == out->size();
+	}
+
+	CloseHandle(file);
+	return good;
+}
+
+// The level inside a file: the file itself, or what the game's checked unpacker makes of a packed one (empty if it can't), as host_level_same_test's LevelIn
+static std::vector<char> LevelIn(std::vector<char> const &file)
+{
+	if (file.size() < sizeof(HuffmanPackage) || memcmp(file.data(), COMPRESSED_RIF_IDENTIFIER, 8) != 0)
+	{
+		return file;
+	}
+
+	std::vector<char> level;
+	char *const unpacked = HuffmanDecompressChecked((HuffmanPackage const *)file.data(), (int)file.size());
+
+	if (unpacked)
+	{
+		int size;
+		memcpy(&size, file.data() + offsetof(HuffmanPackage, UncompressedDataSize), sizeof(size));
+		level.assign(unpacked, unpacked + size);
+		free(unpacked);
+	}
+
+	return level;
+}
+
+// Every FRMMORPH chunk in a level's bytes, in the order the level holds them: the 8 letters FRMMORPH, and the chunk's bytes from there, as many as its size says. Empty for one whose size
+// doesn't hold its count's numbers (24 bytes and 12 for each frame) or doesn't fit in the level. The caller checks there are as many as the loader made, so the letters inside some other
+// chunk's data can't be taken for a chunk unnoticed.
+static std::vector<std::vector<char>> FrameChunksIn(std::vector<char> const &level)
+{
+	std::vector<std::vector<char>> found;
+
+	for (size_t at = 0; at + 24 <= level.size(); at++)
+	{
+		if (level[at] != 'F' || memcmp(level.data() + at, "FRMMORPH", 8) != 0)
+		{
+			continue;
+		}
+
+		int32_t size = 0, count = 0;
+		memcpy(&size, level.data() + at + 8, 4);
+		memcpy(&count, level.data() + at + 20, 4);
+
+		if (count < 0 || count > 32767 || size != 24 + 12 * count || (size_t)size > level.size() - at)
+		{
+			found.push_back(std::vector<char>());
+			continue;
+		}
+
+		found.push_back(std::vector<char>(level.begin() + at, level.begin() + at + size));
+	}
+
+	return found;
 }
 
 // ---- The two readings
@@ -400,11 +518,10 @@ static int32_t ShapeCode(Shape_Sub_Shape_Chunk *sub, Shape_Chunk *main, Shape_Mo
 
 // ---- The test
 
-// A FRMMORPH's list of numbers, from the block the chunk writes (make_data_block_from_chunk), and the whole block's bytes: false, with why, when there is no block or its size doesn't hold
-// its count's numbers
-static bool NumbersOf(Shape_Morphing_Frame_Data_Chunk *chunk, std::vector<int32_t> *numbers, std::string *why, std::vector<char> *bytes = 0)
+// The block a FRMMORPH writes (make_data_block_from_chunk), every byte: false, with why, when there is no block or its size doesn't hold its count's numbers
+static bool BlockOf(Shape_Morphing_Frame_Data_Chunk *chunk, std::vector<char> *bytes, std::string *why)
 {
-	numbers->clear();
+	bytes->clear();
 
 	char *const block = chunk->make_data_block_from_chunk();
 
@@ -425,20 +542,39 @@ static bool NumbersOf(Shape_Morphing_Frame_Data_Chunk *chunk, std::vector<int32_
 		return false;
 	}
 
-	numbers->resize((size_t)count * 3);
-
-	if (count)
-	{
-		memcpy(numbers->data(), block + 24, numbers->size() * 4);
-	}
-
-	if (bytes)
-	{
-		bytes->assign(block, block + size);
-	}
-
+	bytes->assign(block, block + size);
 	delete[] block;
 	return true;
+}
+
+// A FRMMORPH's list of numbers, three for each frame, from the chunk's bytes (BlockOf's, or the file's)
+static std::vector<int32_t> ListIn(std::vector<char> const &bytes)
+{
+	std::vector<int32_t> numbers;
+
+	if (bytes.size() >= 24)
+	{
+		numbers.resize((bytes.size() - 24) / 4);
+
+		if (!numbers.empty())
+		{
+			memcpy(numbers.data(), bytes.data() + 24, numbers.size() * 4);
+		}
+	}
+
+	return numbers;
+}
+
+static std::string ListWords(std::vector<int32_t> const &numbers)
+{
+	std::string words;
+
+	for (size_t n = 0; n < numbers.size(); n++)
+	{
+		words += (n ? " " : "") + std::to_string(numbers[n]);
+	}
+
+	return words;
 }
 
 static int notGiven = 0;       // places of the lists no frame gives (a save must write the file's own number there too)
@@ -466,6 +602,18 @@ static std::string NameOf(char const *path)
 static void TestLevel(char const *path)
 {
 	std::string const name = NameOf(path);
+
+	// The file's own bytes, read before the loader opens it
+	std::vector<char> file;
+
+	if (!ReadWholeFile(path, &file))
+	{
+		Check(false, name + ": the file is read");
+		return;
+	}
+
+	std::vector<std::vector<char>> const fileChunks = FrameChunksIn(LevelIn(file));
+
 	File_Chunk *const level = new File_Chunk(path);
 
 	if (level->error_code != 0)
@@ -476,15 +624,22 @@ static void TestLevel(char const *path)
 	}
 
 	std::vector<Found> found;
-	Visit(level, 0, &found, 0);
+	size_t seen = 0;
+	Visit(level, 0, &found, &seen, 0);
+
+	// The loader's FRMMORPH chunks are matched with the file's in order, so there must be as many of each
+	if (fileChunks.size() != seen)
+	{
+		Check(false, name + ": the level's bytes hold " + std::to_string(fileChunks.size()) + " FRMMORPH chunks and the loader made " + std::to_string(seen) +
+			", so they can't be matched");
+		delete level;
+		return;
+	}
 
 	int same = 0;
 	int bad = 0;
 
-	// What each chunk held as it was read, for the save below: the file's bytes and numbers and the frames the loader made from them (empty and not usable when the chunk's block was
-	// refused)
-	std::vector<std::vector<char>> fileBytes(found.size());
-	std::vector<std::vector<int32_t>> fileNumbers(found.size());
+	// What each chunk held in the file, for the save below, and the frames the loader made from it (not usable when the chunk's bytes or block were refused)
 	std::vector<std::vector<Frame>> loadersFrames(found.size());
 	std::vector<bool> usable(found.size(), false);
 
@@ -492,22 +647,49 @@ static void TestLevel(char const *path)
 	{
 		Shape_Morphing_Frame_Data_Chunk *const chunk = found[k].frames;
 		Shape_Morphing_Data_Chunk *const morph = found[k].morph;
+		std::vector<char> const &fileBytes = fileChunks[found[k].place];
 
-		// The numbers the reader kept, as the chunk writes them before any prepare_for_output: the file's own bytes
-		std::vector<int32_t> numbers;
+		if (fileBytes.empty())
+		{
+			Check(false, name + ": FRMMORPH " + std::to_string(k) + ": the level's bytes there are not a whole chunk that holds its count's numbers");
+			bad++;
+			continue;
+		}
+
+		// The numbers the reader kept, as the chunk writes them before any prepare_for_output: they must be the file's own bytes
+		std::vector<char> readersBytes;
 		std::string why;
 
-		if (!NumbersOf(chunk, &numbers, &why, &fileBytes[k]))
+		if (!BlockOf(chunk, &readersBytes, &why))
 		{
 			Check(false, name + ": FRMMORPH " + std::to_string(k) + " " + why);
 			bad++;
 			continue;
 		}
 
+		std::vector<int32_t> const numbers = ListIn(fileBytes);
+
+		if (readersBytes != fileBytes)
+		{
+			std::vector<int32_t> const kept = ListIn(readersBytes);
+			int32_t fileHead[3] = { 0, 0, 0 }, keptHead[3] = { 0, 0, 0 };
+
+			memcpy(fileHead, fileBytes.data() + 12, 12);
+
+			if (readersBytes.size() >= 24)
+			{
+				memcpy(keptHead, readersBytes.data() + 12, 12);
+			}
+
+			Check(false, name + ": FRMMORPH " + std::to_string(k) + ": before any save the chunk writes other bytes than the file holds: flags, speed, count " +
+				std::to_string(keptHead[0]) + " " + std::to_string(keptHead[1]) + " " + std::to_string(keptHead[2]) + " and the list " + ListWords(kept) + " (the file has " +
+				std::to_string(fileHead[0]) + " " + std::to_string(fileHead[1]) + " " + std::to_string(fileHead[2]) + " and " + ListWords(numbers) + ")");
+			bad++;
+		}
+
 		int const count = (int)(numbers.size() / 3);
 		std::vector<Frame> const loaders = LoadersFrames(chunk);
 
-		fileNumbers[k] = numbers;
 		loadersFrames[k] = loaders;
 		usable[k] = true;
 		std::vector<Frame> const asItWas = ReadingAsItWas(numbers, count, morph);
@@ -531,15 +713,8 @@ static void TestLevel(char const *path)
 		{
 			differInReadersOrder++;
 
-			std::string numberWords;
-
-			for (size_t n = 0; n < numbers.size(); n++)
-			{
-				numberWords += (n ? " " : "") + std::to_string(numbers[n]);
-			}
-
-			printf("  note  %s FRMMORPH %d (numbers %s; %d sub-shapes): the reading as it was gives %s; the reader's order would give %s\n", name.c_str(), (int)k, numberWords.c_str(),
-				(int)list.size(), FramesWords(asItWas, morph).c_str(), FramesWords(readersOrder, morph).c_str());
+			printf("  note  %s FRMMORPH %d (numbers %s; %d sub-shapes): the reading as it was gives %s; the reader's order would give %s\n", name.c_str(), (int)k,
+				ListWords(numbers).c_str(), (int)list.size(), FramesWords(asItWas, morph).c_str(), FramesWords(readersOrder, morph).c_str());
 		}
 
 		AddToSum((int32_t)loaders.size());
@@ -559,7 +734,8 @@ static void TestLevel(char const *path)
 
 	if (bad == 0)
 	{
-		Check(true, name + ": all " + std::to_string(found.size()) + " FRMMORPH chunks give the frames of the reading as it was");
+		Check(true, name + ": all " + std::to_string(found.size()) + " FRMMORPH chunks write the file's own bytes before a save, and give the frames the reading as it was gives from the "
+			"file's numbers");
 	}
 
 	// THE SAVE, as the editor's (src/io/level_file.cpp PrepareAsIntengDoes, as inteng's File_Chunk::write_file): the whole tree is prepared, then each FRMMORPH's block is made. The game's
@@ -577,22 +753,23 @@ static void TestLevel(char const *path)
 			continue;
 		}
 
-		std::vector<int32_t> saved;
+		std::vector<char> const &fileBytes = fileChunks[found[k].place];
 		std::vector<char> savedBytes;
 		std::string why;
 
-		if (!NumbersOf(found[k].frames, &saved, &why, &savedBytes))
+		if (!BlockOf(found[k].frames, &savedBytes, &why))
 		{
 			Check(false, name + ": FRMMORPH " + std::to_string(k) + " after the save's prepare_for_output: " + why);
 			saveBad++;
 			continue;
 		}
 
+		std::vector<int32_t> const saved = ListIn(savedBytes);
 		int const count = (int)(saved.size() / 3);
 		size_t const given = count ? (size_t)count + 2 : 0;
 		std::vector<Frame> const readAgain = ReadingAsItWas(saved, count, found[k].morph);
 		bool const framesSame = Same(readAgain, loadersFrames[k]);
-		bool const numbersSame = savedBytes == fileBytes[k];
+		bool const bytesSame = savedBytes == fileBytes;
 
 		if (saved.size() > given)
 		{
@@ -601,23 +778,12 @@ static void TestLevel(char const *path)
 
 		saveChecked++;
 
-		if (!framesSame || !numbersSame)
+		if (!framesSame || !bytesSame)
 		{
-			std::string savedWords, fileWords;
-
-			for (size_t p = 0; p < saved.size(); p++)
-			{
-				savedWords += (p ? " " : "") + std::to_string(saved[p]);
-			}
-
-			for (size_t p = 0; p < fileNumbers[k].size(); p++)
-			{
-				fileWords += (p ? " " : "") + std::to_string(fileNumbers[k][p]);
-			}
-
 			saveBad++;
-			Check(false, name + ": FRMMORPH " + std::to_string(k) + ": a save writes " + savedWords + " (the file has " + fileWords + "); the game's reading of it gives " +
-				FramesWords(readAgain, found[k].morph) + "; the loader made " + FramesWords(loadersFrames[k], found[k].morph));
+			Check(false, name + ": FRMMORPH " + std::to_string(k) + ": a save writes " + ListWords(saved) + (bytesSame ? "" : ", not the file's bytes") + " (the file has " +
+				ListWords(ListIn(fileBytes)) + "); the game's reading of it gives " + FramesWords(readAgain, found[k].morph) + "; the loader made " +
+				FramesWords(loadersFrames[k], found[k].morph));
 		}
 	}
 

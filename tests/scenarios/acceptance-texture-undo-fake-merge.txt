@@ -1,0 +1,23 @@
+# ACCEPTANCE (TM-A undo; INTENG BUG, FIXED): undoing an Unmerge made in the FAKE merge data puts the fake pairing back. Inteng's undo of a polygon (FUN_00567ac0 0x567af2)
+# compares the record's partner with the REAL pairing (DAT_00914d3c) but swaps it into the pairing in use (the fake DAT_00914d48 while Fake Merge Data is on): a pair parted
+# in the fake data only is still paired in the real one, so the record and the real pairing agree, nothing is swapped, and the undo leaves the pair parted. Ours compares with
+# the pairing in use, so the pair comes back: a second Unmerge parts it again.
+# Invasion's flam014 (the object list's first row) has 72 merged pairs; its polygons 0 and 1 are a pair (both picked by number: pick-poly).
+# Red on bishop-int b7f8b540 (, did nothing: the second Unmerge parts 0 pairs), green on the hash with the edits ring.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 0 0
+pick-poly 0 1
+expect-status 2 selected
+item 0x143
+expect-status Fake merge data turned on
+item 0x11a
+expect-status 1 pairs parted (in the fake merge data only)
+key Comma
+expect-status undone on 2 polygons
+item 0x11a
+expect-status 1 pairs parted (in the fake merge data only)
