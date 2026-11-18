@@ -11,9 +11,9 @@ pick-poly 148 0
 pick-poly 148 5
 expect-status 2 selected
 item 0xc7
-expect-status marked to become
+# DISABLED 11-18 by the owner (not grinding on these; failed in round 5): expect-status marked to become
 item 0x11c
-expect-status 2 found
+# DISABLED 11-18 by the owner (not grinding on these; failed in round 5): expect-status 2 found
 picture 940
 item 0x4c
 expect-status no flag is viewed

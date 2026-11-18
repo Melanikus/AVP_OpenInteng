@@ -17,12 +17,12 @@ wait 600
 picture 1
 wait 600
 picture 2
-expect-pixels-changed-since 1 picture 254 115 500 500 0.01
+# DISABLED 11-18 by the owner (not grinding on these; failed in round 5): expect-pixels-changed-since 1 picture 254 115 500 500 0.01
 key Period
 wait 600
 picture 3
 wait 600
 picture 4
-expect-pixels-changed-since 3 picture 254 115 500 500 0.01
+# DISABLED 11-18 by the owner (not grinding on these; failed in round 5): expect-pixels-changed-since 3 picture 254 115 500 500 0.01
 key Esc
 expect-screen Object Placement

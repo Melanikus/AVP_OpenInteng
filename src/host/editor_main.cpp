@@ -6036,6 +6036,7 @@ void LeaveTextureMap()
 
 	TexturePolyApplyRemoved();   // inteng takes the flagged polygons out when the mode is left (FUN_0054bfd0 -> FUN_00563d90)
 	onTextureMap = false;
+	TextureWrapPolygons(texturePolygons);   // FUN_0054bfd0 0x54c0af: FUN_0056e0a0 brings each selected polygon onto its picture as it clears the list (texture_shared.h)
 	texturePolygons.clear();   // FUN_0054bfd0 "delete poly list": DAT_00914dcc freed (TM-X2)
 	TextureModeStateReset();   // FUN_0054bfd0 frees the rest of the mode (TM-X2)
 	ShowTheTexturePolygons();
@@ -9098,7 +9099,7 @@ static void PlacementFlyStop()
 		flying.haveCurrent = true;
 		flying.kind = flyKind;
 		flying.number = flyNumber;
-		Answer(host::SpecialMode_MoveCurrent(open, &flying, place).answer);
+		Answer(host::SpecialMode_MoveCurrent(open, &flying, place, true).answer);
 	}
 	else if (flyReal)
 	{

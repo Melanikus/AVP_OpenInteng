@@ -16,6 +16,8 @@
 // time (NormalFrameTime), so where a dropped object lands varies a little from run to run (added 2026-11-17 by Drake, OP-47: Gravity's landing place reaches the save).
 // For "nostrategy <name>" the copy has a holder of that exact name (a module or placed object, a virtual object, an enemy or generator, or a placed hierarchy: the first in that order, as the
 // strategy lookup finds them) and it holds no strategy: Delete Strategy took its AVPSTRAT and kept the holder (added 2026-11-17 by Bishop, S-39 on virtual objects and placed hierarchies).
+// For "starts <count>" the copy holds that many player starts; for "startnear <n>|<x>|<y>|<z>|<within>" the n-th (from 1, the file's order) is within <within> of (x y z) (added 2026-11-18 by
+// Drake, OP-29).
 // Gives back 0 only if every check passed.
 
 #include <limits.h>
@@ -507,6 +509,60 @@ int main(int argc, char **argv)
 			Check(loaded && (int)locations.list.size() == count && locations.group == group, "the copy's special object \"" + name + "\" has " + std::to_string(count) + " alternate locations in group " +
 				std::to_string(group) + (!read ? " (the words are not <name>=<count>,<group>)" : !found ? " (no special object of that name)" : !loaded ? " (its ALTLOCAT does not load)" : " (it has " +
 				std::to_string((unsigned long long)locations.list.size()) + " in group " + std::to_string(locations.group) + ")"));
+		}
+		else if (what == "starts" || what == "startnear")
+		{
+			// "starts <count>": the copy holds that many player starts (AVPSTART); "startnear <n>|<x>|<y>|<z>|<within>": the n-th of them (from 1, in the file's order, the order inteng's
+			// FUN_00422110 numbers them "Player Start %d" in) is within <within> of (x y z) on each axis, the file's units (added 2026-11-18 by Drake, OP-29)
+			std::vector<host::SpecialObject> specials;
+			std::vector<host::SpecialObject> starts;
+			bool const read = host::SpecialObjects_Read(&copy, &specials) == host::SpecialResult::Done;
+
+			for (host::SpecialObject const &one : specials)
+			{
+				if (one.kind == host::SpecialKind::PlayerStart)
+				{
+					starts.push_back(one);
+				}
+			}
+
+			if (what == "starts")
+			{
+				long long want = -1;
+				bool const asked = WholeNumber(argv[a + 1], 0, INT_MAX, &want);
+
+				Check(read && asked && (long long)starts.size() == want, std::string("the copy holds ") + argv[a + 1] + " player start(s) (it holds " + std::to_string((unsigned long long)starts.size()) +
+					(read ? "" : "; its special objects could not be read") + ")");
+			}
+			else
+			{
+				std::vector<std::string> const fields = BarFields(argv[a + 1], 5);
+				long long n = 0, at[3] = {}, within = 0;
+				bool good = fields.size() == 5 && WholeNumber(fields[0], 1, INT_MAX, &n) && WholeNumber(fields[4], 0, INT_MAX, &within);
+
+				for (int i = 0; good && i < 3; i++)
+				{
+					good = WholeNumber(fields[(size_t)i + 1], INT_MIN, INT_MAX, &at[i]);
+				}
+
+				bool close = good && read && (size_t)n <= starts.size();
+				std::string held = "no such start";
+
+				if (close)
+				{
+					host::SpecialObject const &one = starts[(size_t)n - 1];
+
+					for (int i = 0; i < 3; i++)
+					{
+						close = close && (long long)one.place[i] >= at[i] - within && (long long)one.place[i] <= at[i] + within;
+					}
+
+					held = std::to_string(one.place[0]) + " " + std::to_string(one.place[1]) + " " + std::to_string(one.place[2]);
+				}
+
+				Check(close, std::string("the copy's player start ") + (good ? std::to_string(n) : "(a startnear check as <n>|<x>|<y>|<z>|<within>)") + " is within " + (good ? fields[4] : "?") + " of " +
+					(good ? fields[1] + " " + fields[2] + " " + fields[3] : std::string("?")) + " (it is at: " + held + "; " + std::to_string((unsigned long long)starts.size()) + " starts)");
+			}
 		}
 		else if (what == "tracksound")
 		{

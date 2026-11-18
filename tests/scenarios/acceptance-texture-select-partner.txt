@@ -1,0 +1,22 @@
+# ACCEPTANCE (TM-A, the selection): a click on a merged triangle selects its partner too, and a Shift+click deselects both, whatever Select As is, as inteng's does.
+# FUN_0056db80 (0x56dc00-0x56dc50 in the listing) selects the polygon and then, with no test of Select As (+0x9c, the texture window's count of nodes), its partner in
+# the pairing in use (DAT_00914d3c); FUN_0056dea0 (0x56df27-0x56df52) deselects both. Ours selected the polygon alone (and the partner only with Quad, by other paths).
+# Area52's CANSR01 (row 55, imported=no in AvP-docs/tools/po/stock-merge-pairs.txt): polygons 0 and 1 are paired, 2 and 3 too. The polygons are picked by number
+# (pick-poly does what a click on them does).
+# Red on bishop-rc2's build of 3dac4c74 (11-18 03:51: 1 selected after the first pick, the partner left), green on the hash that takes the partner.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Area52.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 55 0
+expect-status polygon 0 selected
+expect-status ; 2 selected
+pick-poly 55 1 deselect
+expect-status polygon 1 deselected
+expect-status ; 0 selected
+item 0xe
+pick-poly 55 2
+expect-status polygon 2 selected
+expect-status ; 2 selected

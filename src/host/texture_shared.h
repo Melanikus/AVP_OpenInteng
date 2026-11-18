@@ -18,8 +18,10 @@ namespace model
 }
 
 // ----- the undo of the polygon screen's edits (TM-A, ruling 5: as deep as inteng's; texture-map-closeout-frost.md "RINGS' RECORDS READ") -----
-// The EDITS ring (inteng DAT_00914ca8, FUN_0054be10: 25000 records, model::UndoRing). Each record is one polygon as it was: its pairing (the fake merge data's while
-// that is on), its type, flag word and colour word (its picture and list numbers), and its list of texture coordinates. Inteng's record (FUN_00567ba0, 0x38 bytes)
+// The EDITS ring (inteng DAT_00914ca8, FUN_0054be10: 25000 records, model::UndoRing). Each record is one polygon as it was: its partner in the REAL pairing (the file's
+// merge data, also while the fake copy is on: FUN_00567ba0 reads DAT_00914d48 then), its type, flag word and colour word (its picture and list numbers), and its list
+// of texture coordinates. Its undo swaps the partner back into the real pairing only when the pairing IN USE differs from it (FUN_00567ac0 0x567af2), so an Unmerge
+// made in the fake copy is not undone (DECIDED: inteng's way; the fake copy is the mode's scratch). Inteng's record (FUN_00567ba0, 0x38 bytes)
 // holds the same things as its own texture record keeps them; ours is 18 whole numbers (the same 25000 records, a larger slot: NAMED).
 
 // FUN_00573570 (the selection): before an edit to the selected polygons, a new undo step (FUN_0057e940) holds each of them as it is (FUN_00567ba0 for every selected
@@ -78,6 +80,10 @@ enum class TextureWrapResult
 // "texture changed" flag DAT_00914d18 and the shape's modified flag: here the write marks the level edited. Inteng runs it on every deselect (FUN_0056dfa0 /
 // FUN_0056dea0), before each Anim step, first in Find invalid PSX UV and on leaving sub-mode 3.
 TextureWrapResult TextureWrapPolygon(uint8_t const id[8], bool isModule, int32_t moduleIndex, int32_t polygon, std::string *why);
+
+// FUN_0056dfa0 for every shape (FUN_0056e0a0, "Clearing list"): TextureWrapPolygon on each of `polygons` (and the partner still with it), each shape read once and
+// written once (a list another polygon shares refuses a shape's whole write, so then each polygon is written alone). Gives back how many polygons were moved.
+size_t TextureWrapPolygons(std::vector<TexturePolygon> const &polygons);
 
 // ----- the mode's own, shared between its files (texture_map_screen.cpp makes them) -----
 int32_t TexturePartnerOf(OpenLevelFile *open, uint8_t const *id, int32_t polygon);   // the pairing in use: the fake merge data's while on, else the file's

@@ -4,9 +4,13 @@
 //
 // USAGE: verify_survey_merge_pairs.exe <a folder of level files>
 // For every .rif in the folder (by name, A to Z), it prints:
-//   <level> row=<row> object=<name> poly=<a> poly=<b> state=<free|paired|taken> order=<any|this>
+//   <level> row=<row> object=<name> poly=<a> poly=<b> state=<free|paired|taken> order=<any|this> imported=<yes|no>
 //     one line for each pair of triangles of an object's shape that the editor's Merge would join, where the object's shape has merge data
-//     (SHPMRGDT). The two words "pick-poly <row> <a>" and "pick-poly <row> <b>" in Texture Map select the pair, in that order.
+//     (SHPMRGDT). The two words "pick-poly <row> <a>" and "pick-poly <row> <b>" in Texture Map select the pair, in that order: BOTH are needed,
+//     as the editor's click (and pick-poly) selects only the polygon itself, not its partner.
+//     imported=yes: the shape has its own picture list (SHPEXTFL with BMPLSTST: host::PolygonItems_ShapeHasOwnPictureList), and a command that
+//     writes takes such polygons out of the selection first (TextureDropImported), so a test of a write wants imported=no. (Added 2026-11-18 by
+//     Melanikus (Frost).)
 //     state=free: neither triangle is paired yet, so Merge selected polygons (0x119) joins them ("1 pairs made").
 //     state=paired: they are already each other's partners in the merge data, so Unmerge selected polygons (0x11a) parts them.
 //     state=taken: one of them is paired with some other triangle, so Merge leaves them (unmerge that pair first).
@@ -50,6 +54,7 @@
 #include "level_objects.h"
 #include "object_list.h"
 #include "poly_edit.h"
+#include "polygon_items.h"
 #include "shape_edit.h"
 
 // ---- Stand-ins for the parts of the game the chunk code calls (as tests/host_poly_edit_test.cpp has them): files are read by Windows' own
@@ -158,7 +163,7 @@ struct LevelCounts
 };
 
 // One object's shape: its merge pairs counted, its joinable pairs printed
-static void SurveyObject(char const *level, size_t row, std::string const &name, model::ShapeModel const &shape, std::vector<int32_t> const &merge, LevelCounts *counts)
+static void SurveyObject(char const *level, size_t row, std::string const &name, model::ShapeModel const &shape, std::vector<int32_t> const &merge, bool imported, LevelCounts *counts)
 {
 	size_t const polygons = shape.polygons.size();
 
@@ -272,7 +277,8 @@ static void SurveyObject(char const *level, size_t row, std::string const &name,
 
 			if (counts->lines < kMostLinesPerLevel)
 			{
-				printf("%s row=%zu object=%s poly=%d poly=%d state=%s order=%s\n", level, row, name.c_str(), first, second, state, forward && backward ? "any" : "this");
+				printf("%s row=%zu object=%s poly=%d poly=%d state=%s order=%s imported=%s\n", level, row, name.c_str(), first, second, state, forward && backward ? "any" : "this",
+					imported ? "yes" : "no");
 				counts->lines++;
 			}
 			else if (counts->lines == kMostLinesPerLevel)
@@ -351,7 +357,7 @@ static bool SurveyLevel(std::string const &path, std::string const &levelName)
 			memcpy(merge.data(), bytes.data(), bytes.size());
 		}
 
-		SurveyObject(levelName.c_str(), row, Plain(rows[row].name, kMostNameBytes), shape, merge, &counts);
+		SurveyObject(levelName.c_str(), row, Plain(rows[row].name, kMostNameBytes), shape, merge, host::PolygonItems_ShapeHasOwnPictureList(open.Level(), id), &counts);
 	}
 
 	printf("%s counts: objects-with-SHPMRGDT=%zu merge-pairs=%zu joinable-pairs=%zu free=%zu paired=%zu taken=%zu", levelName.c_str(), counts.withMerge, counts.mergePairs,

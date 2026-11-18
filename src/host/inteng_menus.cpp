@@ -1794,7 +1794,7 @@ namespace host
 		IntengItem const kItems22_1_1_1[] =
 		{
 			{ "Select", 0x170404, 0x2a, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
-			{ "Reset Source Rect", 0x170405, 0x9, IntengTag::Wip, IntengWork::None, -1, 0 },
+			{ "Reset Source Rect", 0x170405, 0x9, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
 		};
 		IntengItem const kItems22_1_1_2[] =
 		{
@@ -1831,7 +1831,7 @@ namespace host
 		IntengItem const kItems22_1_3_1[] =
 		{
 			{ "Select", 0x170c04, 0x2a, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
-			{ "Reset Source Rect", 0x170c05, 0x9, IntengTag::Wip, IntengWork::None, -1, 0 },
+			{ "Reset Source Rect", 0x170c05, 0x9, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
 		};
 		IntengItem const kItems22_1_3_2[] =
 		{
@@ -1923,14 +1923,14 @@ namespace host
 		};
 		IntengItem const kItems22_2_1_0[] =
 		{
-			{ "Clockwise: Top Left", 0x174402, 0x1e, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Clockwise: Top Right", 0x174403, 0x1f, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Clockwise: Bottom Right", 0x174404, 0x20, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Clockwise: Bottom Left", 0x174405, 0x21, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Anti-Clockwise: Top Left", 0x174407, 0x23, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Anti-Clockwise: Top Right", 0x174408, 0x24, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Anti-Clockwise: Bottom Right", 0x174409, 0x25, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Anti-Clockwise: Bottom Left", 0x17440a, 0x26, IntengTag::Wip, IntengWork::None, -1, -1 },
+			{ "Clockwise: Top Left", 0x174402, 0x1e, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Clockwise: Top Right", 0x174403, 0x1f, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Clockwise: Bottom Right", 0x174404, 0x20, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Clockwise: Bottom Left", 0x174405, 0x21, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Anti-Clockwise: Top Left", 0x174407, 0x23, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Anti-Clockwise: Top Right", 0x174408, 0x24, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Anti-Clockwise: Bottom Right", 0x174409, 0x25, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Anti-Clockwise: Bottom Left", 0x17440a, 0x26, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
 		};
 		IntengItem const kItems22_2_1_1[] =
 		{

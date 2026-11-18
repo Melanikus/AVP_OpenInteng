@@ -6,6 +6,7 @@ src/host/level_objects.cpp
 src/host/strategy_lookup.cpp
 src/host/shape_edit.cpp
 src/host/poly_edit.cpp
+src/host/polygon_items_read.cpp
 src/host/anim_edit.cpp
 src/host/object_make.cpp
 src/host/shape_import.cpp

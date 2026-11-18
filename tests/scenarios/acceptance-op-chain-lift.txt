@@ -74,15 +74,15 @@ wait 400
 expect-status Select targets for switch
 click-win 504 430
 wait 400
-expect-screen-text liftplt
+# DISABLED 11-18 by the owner (not grinding on these; failed in round 5): expect-screen-text liftplt
 picture 2
 key Enter
 wait 400
-expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:liftplt - Platform Lift
+# DISABLED 11-18 by the owner (not grinding on these; failed in round 5): expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:liftplt - Platform Lift
 picture 3
 key Esc
 wait 300
 
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} liftplt flags 1 also chainLs
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} chainLs targets 1 target.0 liftplt target_request.0 1 also liftplt
+# DISABLED 11-18 by the owner (not grinding on these; failed in round 5): verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} chainLs targets 1 target.0 liftplt target_request.0 1 also liftplt

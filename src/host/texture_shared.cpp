@@ -29,7 +29,8 @@ namespace
 		int32_t polygon;
 		bool isModule;
 		int32_t moduleIndex;
-		int32_t partner;
+		int32_t partner;         // the REAL pairing's (the file's merge data, also while the fake copy is on: FUN_00567ba0 reads DAT_00914d48 then)
+		bool pairingSwapped = false;   // a walk's target only (not kept in the record): its pairing is to be written (FUN_00567ac0's swap happened)
 		int32_t engineType;
 		int32_t flags;
 		int32_t colour;
@@ -114,7 +115,17 @@ namespace
 		out->polygon = polygon;
 		out->isModule = isModule;
 		out->moduleIndex = moduleIndex;
-		out->partner = TexturePartnerOf(open, id, polygon);
+		out->partner = -1;
+
+		std::vector<int32_t> numbers;
+		bool hasMerge = false;
+
+		if (host::PolygonItems_ReadMergeData(open, open->Level(), id, &numbers, &hasMerge) && hasMerge && (size_t)polygon < numbers.size() && numbers[(size_t)polygon] >= 0 &&
+			(size_t)numbers[(size_t)polygon] < numbers.size())
+		{
+			out->partner = numbers[(size_t)polygon];   // the real pairing (FUN_00567ba0 0x567bd6-0x567be6)
+		}
+
 		out->engineType = now.engineType;
 		out->flags = now.flags;
 		out->colour = now.colour;
@@ -265,35 +276,22 @@ namespace
 				}
 			}
 
-			// the pairing: the fake copy's while that is on, else the file's merge data written again
+			// the pairing (FUN_00567c10 -> FUN_00566d60): the REAL one, the file's merge data, takes the swapped numbers (inteng keeps them in DAT_00914d48 while the fake
+			// copy is on and writes them when it is turned off, FUN_00567950: here at once, NAMED); the fake copy is left as it is, as inteng leaves it
 			std::vector<int32_t> numbers;
 			bool hasMerge = false;
 			bool pairingChanged = false;
 
-			if (!TextureFakeMergeOn())
-			{
-				host::PolygonItems_ReadMergeData(open, open->Level(), id, &numbers, &hasMerge);
+			host::PolygonItems_ReadMergeData(open, open->Level(), id, &numbers, &hasMerge);
 
-				if (!hasMerge || numbers.size() != shape.polygons.size())
-				{
-					numbers.assign(shape.polygons.size(), -1);   // a shape with no SHPMRGDT yet: none paired (SetMergeData gives it the chunk)
-				}
+			if (!hasMerge || numbers.size() != shape.polygons.size())
+			{
+				numbers.assign(shape.polygons.size(), -1);   // a shape with no SHPMRGDT yet: none paired (SetMergeData gives it the chunk)
 			}
 
 			for (PolygonState const *want : mine)
 			{
-				int32_t const now = TexturePartnerOf(open, id, want->polygon);
-
-				if (now == want->partner)
-				{
-					continue;
-				}
-
-				if (TextureFakeMergeOn())
-				{
-					TextureFakePairSet(open, id, want->polygon, want->partner);
-				}
-				else if ((size_t)want->polygon < numbers.size())
+				if (want->pairingSwapped && (size_t)want->polygon < numbers.size() && numbers[(size_t)want->polygon] != want->partner)
 				{
 					numbers[(size_t)want->polygon] = want->partner;
 					pairingChanged = true;
@@ -348,8 +346,25 @@ namespace
 				pending.order.push_back(key);
 			}
 
+			// FUN_00567ac0 0x567af2: only when the pairing IN USE differs from the record's real partner is the record's partner swapped with the real pairing's
+			int32_t const inUse = TexturePartnerOf(open, recorded.id, recorded.polygon);
+			bool const swap = inUse != recorded.partner;
+			int32_t const keptPartner = recorded.partner;
+
+			recorded.pairingSwapped = swap;
+
+			if (!swap)
+			{
+				recorded.partner = live.partner;   // the real pairing stays as it is
+			}
+
 			pending.target[key] = recorded;
 			Pack(live, record);   // FUN_00565b90: the record takes what the polygon had, so the same record does it again
+
+			if (!swap)
+			{
+				record[5] = keptPartner;   // no swap: the record keeps its partner
+			}
 		};
 
 		size_t changed = 0, refused = 0;

@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include <algorithm>
 #include <map>
 #include <array>
 #include <functional>
@@ -169,6 +170,7 @@
 #include "window_events.h"
 #include "open_with.h"
 #include "texture_quad.h"
+#include "texture_area.h"   // the texture area (TM-B)
 #include "texture_shared.h"
 
 #include "editor_shared.h"
@@ -245,6 +247,8 @@ static size_t TextureDropImported()
 
 void TextureMapDeselectAll()
 {
+	TextureWrapPolygons(texturePolygons);   // FUN_0056e0a0 -> FUN_0056dfa0 for every shape: each selected polygon brought onto its picture (FUN_00566b90)
+
 	for (TexturePolygon const &one : texturePolygons)
 	{
 		TextureSelectionUndo_Record(one, false);   // FUN_00575170: each one recorded as deselected
@@ -617,19 +621,9 @@ bool textureHoverSet = false;
 int textureArrowAsked = 0;   // an arrow key with S down was pressed (1 up, 2 left, 3 right, 4 down): the frame loop does the selection with that frame's camera
 // 0x10f Select Number of Repeats (FUN_00557c00): the texture window is the picture repeated 1 to 10 times each way, or without end (infXinf): the window's right is width x repeats + DAT_00914d30 (Add 1), its bottom height x repeats + DAT_00914d30, left and top
 // 0 - for "inf" the left (top) is -100,000,000 and the right (bottom) 100,000,000 - and its size is right - left. 11 stands for inf. 0x110 / 0x111 / 0x112 set DAT_00914db8 (0 Default to 1X1, 1 Maintain Used Area, 2 Maintain Num Repeats): what the texture screen does with the
-// window when the current texture changes. NAMED: this editor's window is the lowest picture's whatever the current texture is, so that switch is kept and changes nothing; the used area (the four corners wrap works on) stays the picture's own size.
+// window when the current texture changes (the texture area, TM-B: TextureAreaForTexture below).
 int textureRepeatX = 1, textureRepeatY = 1;
 static int textureRepeatMode = 0;
-
-static model::TextureWindow TextureWindowOf(int32_t width, int32_t height, int addOne)
-{
-	int32_t const infinite = 100000000;
-	int32_t const left = textureRepeatX == 11 ? -infinite : 0, top = textureRepeatY == 11 ? -infinite : 0;
-	int32_t const right = textureRepeatX == 11 ? infinite : (int32_t)(((int64_t)width * textureRepeatX + addOne) > 1000000000 ? 1000000000 : (int64_t)width * textureRepeatX + addOne);
-	int32_t const bottom = textureRepeatY == 11 ? infinite : (int32_t)(((int64_t)height * textureRepeatY + addOne) > 1000000000 ? 1000000000 : (int64_t)height * textureRepeatY + addOne);
-
-	return { left, top, right, bottom, right - left, bottom - top };
-}
 
 // THE TEXTURE WINDOW'S CORNER NODES (inteng's list of four (u, v) points at the texture screen's state +0xa4 / +0x52): the picture's corners at the start - (0,0) (W,0) (W,H) (0,H) of the window's picture - which every X-Flip / Y-Flip / turn moves as it moves the selected
 // polygons ("THEN, whatever the command, the same flip / rotate is applied to the FOUR window corner points", FUN_00570f40, p11 section 51), and which Wrap and Tile use as the window's corners (FUN_00570590). The texture screen edits them.
@@ -659,6 +653,52 @@ static void TextureNodesFor(int32_t width, int32_t height)
 }
 
 static int textureAddOne = 0;   // 0x14 Add 1 to texture area (DAT_00914d30: 0 at the start): while on, the texture window is one larger each way - the right and bottom (and its size) are the picture's width and height PLUS 1 (0x54f0ce-0x54f15d, FUN_00555cd0)
+// THE TEXTURE AREA (TM-B, reassess/tm-b-texture-area.md): the texture screen's state +8 .. +0x14 (left, top, right, bottom) and +0x48 / +0x4c (its size), kept as inteng keeps it. The flips,
+// turns, corners, wrap and tile work over it. Its writers:
+//  - Texture Map's start (FUN_00555cd0 0x555dad): the area of the lowest texture, made the first time it is wanted (TextureAreaNow);
+//  - the current texture set (FUN_00555dd0: the window's entry 0x54d11f, TextureAreaForTexture): none before: (0, 0, w + Add 1, h + Add 1); another texture: by Repeating Texture Options
+//    (DAT_00914db8): Default to 1X1 the same, Maintain Used Area kept, Maintain Num Repeats each side not inf made w x (right / w) + Add 1 again; the same texture: kept; the size right - left;
+//  - Reset Source Rect (0x9, FUN_0055d290): (0, 0, w, h); Select Number of Repeats (0x10f, FUN_00557c00): from the repeats, its size right - left;
+//  - Add 1 to texture area (0x14, 0x54f0ce): right and bottom one more or one less, the size left as it was.
+static model::TextureWindow textureArea = {};
+static int32_t textureAreaTexture = -1;   // state +0x58: the texture the area is of (-1: none since Texture Map started; -2: the lowest picture, at the start)
+static int32_t textureAreaW = 0, textureAreaH = 0;   // that texture's picture size
+
+// FUN_00555dd0's area (model::AreaForTexture): the current texture becomes `texture`, whose picture is w x h; Default to 1X1 (or no texture before) also makes the repeats 1X1
+static void TextureAreaForTexture(int32_t texture, int32_t w, int32_t h)
+{
+	if (w < 1 || h < 1)
+	{
+		return;
+	}
+
+	bool const had = textureAreaTexture != -1, same = texture == textureAreaTexture;
+	model::AreaKeep const keep = (model::AreaKeep)textureRepeatMode;
+
+	textureArea = model::AreaForTexture(textureArea, had, same, textureAreaW, textureAreaH, w, h, keep, textureAddOne);
+
+	if (!had || (!same && keep == model::AreaKeep::DefaultTo1X1))
+	{
+		textureRepeatX = 1;
+		textureRepeatY = 1;
+	}
+
+	textureAreaTexture = texture;
+	textureAreaW = w;
+	textureAreaH = h;
+}
+
+// The area as it is now; at Texture Map's start it is made for the lowest picture, w x h (FUN_00555cd0)
+static model::TextureWindow TextureAreaNow(int32_t w, int32_t h)
+{
+	if (textureAreaTexture == -1)
+	{
+		TextureAreaForTexture(-2, w, h);
+	}
+
+	return textureArea;
+}
+
 static bool textureShowImported = false;   // 0x145 Show Imported Shapes (DAT_00914d50): off at the start; FUN_0054bdb0 sets object flag 0x800000 on every SHPEXTFL shape while it is off (they cannot be selected or inverted)
 bool textureRectActive = false, textureRectAsked = false, textureRectShift = false;   // Rect (In or On) / Rect (In): the left button is down and dragging / the drag is let go and waits for the frame
 int textureRectX0 = 0, textureRectY0 = 0, textureRectX1 = 0, textureRectY1 = 0, textureRectViewW = 0, textureRectViewH = 0;
@@ -678,6 +718,8 @@ double textureGotoDistance = 2500.0;
 void TextureMapEdit(int32_t command);
 void TextureMapStepPicture(int step);
 static void TextureWindowRotateNodes(int quarters);
+static void TextureWindowCorners(int direction, int start);
+static bool TextureWindowPictureSize(int32_t *width, int32_t *height);
 bool textureWindowOn = false;
 // inteng's sub-mode (DAT_00914bf8, the menu object's +0x14, set by FUN_0054caf0): 0 the polygons, 1 the texture window, 2 Merge (FUN_005511f0), 3 multiple nodes (FUN_00552bb0). The key
 // table and the key ownership go by it, and TextureMapCommand hands a sub-mode's commands to its own switch first (TextureWindowCommand, texture_submodes.cpp). (D1 of the TM-A / TM-B
@@ -717,6 +759,7 @@ void TextureModeStateReset()
 	textureRectShift = false;
 	textureMultiMode = 0;
 	textureInvertPending = false;
+	textureAreaTexture = -1;   // FUN_00555cd0 (0x54bc57 at every entry): the texture area is made again for the lowest texture
 	TextureUndo_Reset();   // FUN_00544510 0x54bcbe: the edits ring made again at every entry (FUN_0057e630)
 	TextureSelectionUndo_Reset();   // 0x54bcc8: and the selection's
 }
@@ -742,8 +785,10 @@ size_t TextureSelectedIndex(uint8_t const *id, int32_t polygon)
 }
 
 // Selects (or deselects) one polygon; false when the selection is full
-// Select As (Options > Select As > Triangle 0xe / Quad 0xf; FUN_0054d260 sets the state's +0x9c to 3 or 4): with Quad, a polygon that was merged with another (the file's merge data SHPMRGDT: a quad the game made of two triangles) is selected - and deselected - together with its partner
-// (FUN_0056db80 selects the partner, FUN_005734a0 does it for the selection already made when Quad is chosen). It STARTS ON QUAD at every entry (TM-A3): the mode's state is made
+// Select As (Options > Select As > Triangle 0xe / Quad 0xf; FUN_0054d260 sets the state's +0x9c to 3 or 4): +0x9c is the texture window's count of nodes (FUN_0055ff68 0x55ff68, FUN_005600b7,
+// FUN_0056018a). The SELECTION takes a merged polygon's partner whatever it is (read again 11-18 in the listing, 0x56dc00-0x56dc50: FUN_0056db80 selects the polygon and then, with no test
+// of +0x9c, its partner in the pairing in use, DAT_00914d3c; FUN_0056dea0 deselects both): Quad also adds the partners of the selection already made (FUN_005734a0). It STARTS ON QUAD at every
+// entry (TM-A3): the mode's state is made
 // again by FUN_00555fa0 (called at 0x54bc47), which sets +0x9c = 4 (0x556012); TextureModeStateReset does that here.
 int textureSelectAs = 4;
 
@@ -962,6 +1007,143 @@ TextureWrapResult TextureWrapPolygon(uint8_t const id[8], bool isModule, int32_t
 	return TextureWrapResult::Moved;
 }
 
+// FUN_0056dfa0 / FUN_0056e0a0 (texture_shared.h): FUN_00566b90 on many polygons, each shape read once and written once
+size_t TextureWrapPolygons(std::vector<TexturePolygon> const &polygons)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	std::vector<LevelViewPicture> pictures;
+	size_t moved = 0;
+
+	if (!open || !open->Level() || polygons.empty() || !LevelView_Pictures(&pictures, 4096))
+	{
+		return 0;
+	}
+
+	auto const sizeOf = [&](int32_t texture, int32_t *width, int32_t *height)
+	{
+		for (LevelViewPicture const &picture : pictures)
+		{
+			if (picture.texture == texture)
+			{
+				*width = picture.width;
+				*height = picture.height;
+				return true;
+			}
+		}
+
+		return false;
+	};
+
+	std::vector<bool> done(polygons.size(), false);
+
+	for (size_t first = 0; first < polygons.size(); first++)
+	{
+		if (done[first])
+		{
+			continue;
+		}
+
+		TexturePolygon const &lead = polygons[first];
+		TextureLoaded const loaded = TextureLoadedOf(open, lead.id, lead.isModule, lead.moduleIndex);
+		std::vector<model::PolygonUv> all;
+		std::string why;
+		bool const read = loaded.inPlay && host::UvEdit_ReadAllPolygons(open, open->Level(), lead.id, &all, &why) == host::UvEditResult::Done;
+		std::vector<int32_t> changed, toPart;
+
+		for (size_t i = first; i < polygons.size(); i++)
+		{
+			if (done[i] || memcmp(polygons[i].id, lead.id, 8) != 0)
+			{
+				continue;
+			}
+
+			done[i] = true;
+
+			int32_t const p = polygons[i].polygon;
+			int32_t texture = -1, width = 0, height = 0;
+
+			if (!read || p < 0 || (size_t)p >= all.size() || !all[(size_t)p].textured || !loaded.Texture(p, &texture) || !sizeOf(texture, &width, &height))
+			{
+				continue;   // as TextureWrapPolygon: NotTextured or NoPicture
+			}
+
+			// 0x566bcf-0x566c30: the partner, or parted from it
+			int32_t const partner = TexturePartnerOf(open, lead.id, p);
+			bool withPartner = false;
+
+			if (partner >= 0 && (size_t)partner < all.size())
+			{
+				int32_t partnerTexture = -1;
+
+				withPartner = all[(size_t)partner].textured && loaded.Texture(partner, &partnerTexture) && partnerTexture == texture;
+
+				if (!withPartner && TextureFakeMergeOn())
+				{
+					TextureFakePairSet(open, lead.id, p, -1);
+					TextureFakePairSet(open, lead.id, partner, -1);
+				}
+				else if (!withPartner)
+				{
+					toPart.push_back(p);
+				}
+			}
+
+			bool wasMoved = false;
+			model::PolygonUv &own = all[(size_t)p];
+
+			if (model::TextureWrapUv(&own.uv, own.cornerCount, withPartner ? &all[(size_t)partner].uv : nullptr, withPartner ? all[(size_t)partner].cornerCount : 0, width,
+				height, &wasMoved) == model::UvModelResult::Ok && wasMoved)
+			{
+				for (int32_t const one : { p, withPartner ? partner : -1 })
+				{
+					if (one >= 0 && std::find(changed.begin(), changed.end(), one) == changed.end())
+					{
+						changed.push_back(one);
+					}
+				}
+			}
+		}
+
+		if (!changed.empty())
+		{
+			std::vector<model::PolygonUv> lists;
+
+			for (int32_t const one : changed)
+			{
+				lists.push_back(all[(size_t)one]);
+			}
+
+			if (host::UvEdit_WritePolygons(open, open->Level(), lead.id, lists, &why) == host::UvEditResult::Done)
+			{
+				moved += lists.size();
+				ShowTheNewUv(open, lead, lists);
+			}
+			else
+			{
+				// one list another polygon shares refuses the whole write: each one alone, so the others still come onto their picture
+				for (model::PolygonUv const &one : lists)
+				{
+					if (host::UvEdit_WritePolygons(open, open->Level(), lead.id, std::vector<model::PolygonUv>{ one }, &why) == host::UvEditResult::Done)
+					{
+						moved++;
+						ShowTheNewUv(open, lead, std::vector<model::PolygonUv>{ one });
+					}
+				}
+			}
+		}
+
+		if (!toPart.empty())
+		{
+			size_t parted = 0;
+			std::string partWhy;
+
+			host::PolyEdit_Unmerge(open, lead.id, toPart.data(), toPart.size(), &parted, &partWhy);
+		}
+	}
+
+	return moved;
+}
+
 static bool TextureSelectOne(uint8_t const *id, bool isModule, int32_t moduleIndex, int32_t polygon, bool select);
 
 bool TextureSelectPolygon(uint8_t const *id, bool isModule, int32_t moduleIndex, int32_t polygon, bool select)
@@ -971,15 +1153,13 @@ bool TextureSelectPolygon(uint8_t const *id, bool isModule, int32_t moduleIndex,
 		return false;
 	}
 
-	if (textureSelectAs == 4)
-	{
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-		int32_t const partner = TexturePartnerOf(open, id, polygon);
+	// FUN_0056db80 0x56dc00 / FUN_0056dea0 0x56df27: the partner in the pairing in use too, whatever Select As is
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	int32_t const partner = TexturePartnerOf(open, id, polygon);
 
-		if (partner >= 0)
-		{
-			return TextureSelectOne(id, isModule, moduleIndex, partner, select);
-		}
+	if (partner >= 0)
+	{
+		return TextureSelectOne(id, isModule, moduleIndex, partner, select);
 	}
 
 	return true;
@@ -993,8 +1173,11 @@ static bool TextureSelectOne(uint8_t const *id, bool isModule, int32_t moduleInd
 	{
 		if (at < texturePolygons.size())
 		{
-			TextureSelectionUndo_Record(texturePolygons[at], false);   // FUN_005750e0 -> FUN_00567aa0
+			TexturePolygon const gone = texturePolygons[at];
+
+			TextureSelectionUndo_Record(gone, false);   // FUN_005750e0 -> FUN_00567aa0
 			texturePolygons.erase(texturePolygons.begin() + (std::ptrdiff_t)at);
+			TextureWrapPolygon(gone.id, gone.isModule, gone.moduleIndex, gone.polygon, nullptr);   // FUN_0056dea0 0x56df12
 		}
 
 		return true;
@@ -1322,7 +1505,8 @@ void TextureInvert(OpenLevelFile *open, uint8_t const *id, bool isModule, int32_
 }
 
 void TextureWindowToggle();
-static void TextureWindowReset();
+static void TextureAreaReset();
+void TextureRepeatsChooserOpen();
 
 void TextureMapCommand(int32_t command)
 {
@@ -1338,7 +1522,7 @@ void TextureMapCommand(int32_t command)
 			TextureMergeEnter();   // Mode > Merge: sub-mode 2 (FUN_0054caf0(2), texture_submodes.cpp)
 			break;
 		case 0x9:
-			TextureWindowReset();   // the texture screen's Reset Source Rect
+			TextureAreaReset();   // Reset Source Rect (FUN_0055d290)
 			break;
 		case 0xf9: case 0xfa: case 0xfb: case 0xfc: case 0xfd: case 0xfe:
 		{
@@ -1484,18 +1668,22 @@ void TextureMapCommand(int32_t command)
 			statusWords = textureSelectOnGoto ? "Texture Map: Select on GotoPoly on" : "Texture Map: Select on GotoPoly off";
 			break;
 		case 0x10f:
-			textureAsk = 3;
-			memset(keyDown, 0, sizeof(keyDown));
-			promptFor = kPromptTextureMap;
-			promptText.clear();
+			TextureRepeatsChooserOpen();   // Select Number of Repeats: inteng's grid (FUN_00557c00)
 			break;
 		case 0x110: case 0x111: case 0x112:
 			textureRepeatMode = command - 0x110;
-			textureWords = std::string("Texture Map: ") + (textureRepeatMode == 0 ? "Default to 1X1" : textureRepeatMode == 1 ? "Maintain Used Area" : "Maintain Num Repeats") + " (kept; this editor's window does not follow the current texture)";
+			textureWords = std::string("Texture Map: ") + (textureRepeatMode == 0 ? "Default to 1X1" : textureRepeatMode == 1 ? "Maintain Used Area" : "Maintain Num Repeats") + ": what the texture area does when the current texture changes";
 			statusWords = textureWords.c_str();
 			break;
 		case 0x14:
 			textureAddOne = textureAddOne ? 0 : 1;
+
+			// 0x54f0eb-0x54f15d: the area's right and bottom one more (on) or one less (off); its size is left as it was
+			if (textureAreaTexture != -1)
+			{
+				model::AreaAddOne(&textureArea, textureAddOne != 0);
+			}
+
 			textureWords = std::string("Texture Map: Add 1 to texture area ") + (textureAddOne ? "on: the texture window is the picture's size plus 1 (the flips, turns, wrap and tile use it)" : "off: the texture window is the picture's own size");
 			statusWords = textureWords.c_str();
 			break;
@@ -1574,6 +1762,12 @@ void TextureMapCommand(int32_t command)
 			break;
 		case 0x16: case 0x17: case 0x18:
 			TextureWindowRotateNodes(command - 0x15);
+			break;
+		case 0x1e: case 0x1f: case 0x20: case 0x21:
+			TextureWindowCorners(1, command - 0x1e);   // Clockwise: Top Left .. Bottom Left
+			break;
+		case 0x23: case 0x24: case 0x25: case 0x26:
+			TextureWindowCorners(-1, command - 0x23);   // Anti-Clockwise: Top Left .. Bottom Left
 			break;
 		case 0xec: case 0xed: case 0xee: case 0xef: case 0xf0:
 			textureWinScale = command == 0xef ? 2 : (command == 0xf0 ? 3 : 1);
@@ -1895,31 +2089,6 @@ void TextureMapTypedAnswer(std::string const &typed)
 
 		TextureSelectByAngle((int)degrees);
 	}
-	else if (ask == 3)
-	{
-		// two words: 1 to 10 or inf (inteng's grid: infXinf, infX%d, %dXinf, %dX%d)
-		int across = 0, down = 0;
-		char first[16] = "", second[16] = "";
-
-		if (sscanf_s(typed.c_str(), "%15s %15s", first, (unsigned)sizeof(first), second, (unsigned)sizeof(second)) == 2)
-		{
-			auto const one = [](char const *word) { return _stricmp(word, "inf") == 0 ? 11 : (atoi(word) >= 1 && atoi(word) <= 10 ? atoi(word) : 0); };
-
-			across = one(first);
-			down = one(second);
-		}
-
-		if (!across || !down)
-		{
-			statusWords = "Texture Map: the repeats are two words, each 1 to 10 or inf";
-			return;
-		}
-
-		textureRepeatX = across;
-		textureRepeatY = down;
-		textureWords = std::string("Texture Map: the texture window is ") + (across == 11 ? "infinite" : std::to_string(across)) + "X" + (down == 11 ? "infinite" : std::to_string(down)) + " pictures (the flips, turns, wrap and tile use it)";
-		statusWords = textureWords.c_str();
-	}
 	else if (ask == 2)
 	{
 		long vertical = 0, horizontal = 0;
@@ -2030,7 +2199,7 @@ void TextureMapEdit(int32_t command)
 				continue;
 			}
 
-			model::TextureWindow window = TextureWindowOf(windowWidth, windowHeight, textureAddOne);
+			model::TextureWindow window = TextureAreaNow(windowWidth, windowHeight);
 			model::UvModelResult const result = command == 6 ? model::FlipU(&uv, window) : command == 7 ? model::FlipV(&uv, window) : command == 0x19 ? model::TurnA(&uv, window) : model::TurnB(&uv, window);
 
 			if (result != model::UvModelResult::Ok)
@@ -2077,7 +2246,7 @@ void TextureMapEdit(int32_t command)
 		// the corner nodes move the same way, over the same window
 		TextureNodesFor(windowWidth, windowHeight);
 
-		model::TextureWindow const window = TextureWindowOf(windowWidth, windowHeight, textureAddOne);
+		model::TextureWindow const window = TextureAreaNow(windowWidth, windowHeight);
 
 		if (command == 6) model::FlipU(&textureNodes, window);
 		else if (command == 7) model::FlipV(&textureNodes, window);
@@ -2685,6 +2854,19 @@ bool TextureWindowLoad()
 		textureCurrent = texture->second;
 	}
 
+	// FUN_00555dd0 at the window's entry (0x54d11f): the current texture is the polygon's and the texture area follows it, from the lowest texture's at Texture Map's start
+	int32_t lowestW = 0, lowestH = 0, pictureW = 0, pictureH = 0;
+
+	if (textureAreaTexture == -1 && LevelView_LowestPictureSize(&lowestW, &lowestH))
+	{
+		TextureAreaNow(lowestW, lowestH);
+	}
+
+	if (TextureWindowPictureSize(&pictureW, &pictureH))
+	{
+		TextureAreaForTexture(textureCurrent, pictureW, pictureH);
+	}
+
 	return true;
 }
 
@@ -2714,18 +2896,36 @@ void TextureWindowToggle()
 	statusWords = textureWords.c_str();
 }
 
-static void TextureWindowReset()
+// Reset Source Rect (0x9, Shift+R, help "use all of texture"; every sub-mode: 0x54d55d, 0x55227f, 0x552e30; FUN_0055d290): the texture area becomes the current texture's whole picture and the
+// repeats 1X1; the nodes stay where they are (ours put them back on the polygon's coordinates before). INTENG BUG, FIXED: inteng makes it 0, 0, w, h, leaving out Add 1, which every other writer
+// of the area adds (DAT_00914d30): with Add 1 on the area came out one smaller than its tick says, and turning Add 1 off then made it one smaller than the picture. Ours adds it.
+static void TextureAreaReset()
 {
-	if (textureWindowOn && TextureWindowLoad())
+	int32_t lowestW = 0, lowestH = 0;
+
+	if (textureAreaTexture == -1 && LevelView_LowestPictureSize(&lowestW, &lowestH))
 	{
-		statusWords = "Texture Map: the nodes are back on the polygon's own coordinates";
+		TextureAreaNow(lowestW, lowestH);
 	}
+
+	if (textureAreaTexture == -1)
+	{
+		statusWords = "Texture Map: Reset Source Rect: the game has no picture loaded";
+		return;
+	}
+
+	textureArea = model::AreaReset(textureAreaW, textureAreaH, textureAddOne);
+	textureRepeatX = 1;
+	textureRepeatY = 1;
+	textureWords = "Texture Map: Reset Source Rect: the texture area is the whole picture, 0,0 to " + std::to_string(textureArea.right) + "," + std::to_string(textureArea.bottom);
+	statusWords = textureWords.c_str();
 }
 
-// The bars of the texture window (page 3 of the Texture Map screen: Mode, Texture, Help; Rotate Nodes, X-Flip, Y-Flip, Next / Prev Texture, Toggle Texture Resize, Set Default Size, Toggle Node Selection) and back (page 0)
+// The bars of the texture window (page 1 of the Texture Map screen: Mode, Texture, Help; Nodes To Corners, Rotate Nodes, X-Flip, Y-Flip, Next / Prev Texture, Toggle Texture Resize, Set Default Size) and back (page 0).
+// Inteng's single-node window (sub-mode 1) shows page 1 (FUN_0054caf0 case 1, 0x54ced7); page 3 (Toggle Node Selection in place of Nodes To Corners) is the multi-node window's (sub-mode 3, 0x54cbee).
 static void TextureWindowBars(bool on)
 {
-	EditorBar_SetPage(on ? 3 : 0);
+	EditorBar_SetPage(on ? 1 : 0);
 
 	if (!LoadTheMenus())
 	{
@@ -2768,6 +2968,66 @@ static void TextureWindowRotateNodes(int quarters)
 	}
 
 	TextureWindowApply();
+}
+
+// The size of the texture window's picture (the current texture's, as TextureWindowPlace draws it; the first picture stands in for one the game no longer has)
+static bool TextureWindowPictureSize(int32_t *width, int32_t *height)
+{
+	std::vector<LevelViewPicture> pictures;
+
+	if (textureCurrent < 0 || !LevelView_Pictures(&pictures, 4096) || pictures.empty())
+	{
+		return false;
+	}
+
+	*width = pictures[0].width;
+	*height = pictures[0].height;
+
+	for (LevelViewPicture const &picture : pictures)
+	{
+		if (picture.texture == textureCurrent)
+		{
+			*width = picture.width;
+			*height = picture.height;
+		}
+	}
+
+	return *width > 0 && *height > 0;
+}
+
+// Clockwise: Top Left / Top Right / Bottom Right / Bottom Left (0x1e-0x21) and Anti-Clockwise: the same (0x23-0x26): the texture screen only (FUN_00551f80 0x5521b4-0x55226a; sub-modes 0 and 3 have
+// no case for them), FUN_00556e80(direction, start). The window's nodes go on the corners of its texture area (state +8 .. +0x14, model::TextureWindow: the picture's size, its repeats and Add 1):
+// corner 0 the top left (left, top), 1 the top right (right - 1, top), 2 the bottom right (right - 1, bottom - 1), 3 the bottom left (left, bottom - 1). Node n takes the corner
+// (start + n x direction) & 3, direction 1 clockwise and -1 anti-clockwise, so node 1 is on `start`'s corner. Inteng sets four nodes and a triangle keeps the first three (0x556f83 converts only the
+// node count's). The nodes are then given to the selected polygons as every window edit is (TextureWindowApply). Inteng first keeps the window's undo record (FUN_0055f7c0): the window's
+// undo ring is not built yet (Frost's rings).
+static void TextureWindowCorners(int direction, int start)
+{
+	int32_t width = 0, height = 0;
+
+	if (!textureWindowOn || textureWinCount < 3 || !TextureWindowPictureSize(&width, &height))
+	{
+		statusWords = "Texture Map: the corner commands put the texture window's nodes on its corners (Tab opens the window on a selected polygon)";
+		return;
+	}
+
+	model::TextureWindow const area = TextureAreaNow(width, height);
+	int32_t const cornerU[4] = { area.left, area.right - 1, area.right - 1, area.left };
+	int32_t const cornerV[4] = { area.top, area.top, area.bottom - 1, area.bottom - 1 };
+
+	for (int n = 0; n < textureWinCount && n < 4; n++)
+	{
+		int const corner = ((start + n * direction) % 4 + 4) % 4;
+
+		textureWinUv.corners[n].u = (float)cornerU[corner];
+		textureWinUv.corners[n].v = (float)cornerV[corner];
+	}
+
+	TextureWindowApply();
+
+	textureWords += std::string("; the nodes are on the corners of the texture area ") + std::to_string(area.left) + "," + std::to_string(area.top) + " to " + std::to_string(area.right) + "," +
+		std::to_string(area.bottom) + (direction > 0 ? ", clockwise" : ", anti-clockwise");
+	statusWords = textureWords.c_str();
 }
 
 void TextureWindowApply()
@@ -5048,6 +5308,7 @@ static void TextureCopyObjectClicked(uint8_t const *target)
 // THE TEXTURE CHOOSER (Select Texture 0x2a, also the texture window's Texture > Select; FUN_005575a0): a grid of every texture of the level over the view, each picture in its cell; the hovered one is framed and its size and name are told; a left click picks it (the same "set this texture" as Next and Prev:
 // every selected polygon takes it and it becomes the current one); Esc cancels. NAMED: only the level's own pictures are offered (those a polygon's number can name, as Next Texture offers them); inteng's used-only switch, the sets and the keys (K: Keys, U, ...) are not built.
 bool textureChooserOn = false;
+static bool textureRepeatsChooser = false;   // the chooser on the screen is Select Number of Repeats' grid (TextureRepeatsChooserOpen, below)
 static std::vector<LevelViewPicture> textureChooserList;
 int textureChooserMouseX = -1, textureChooserMouseY = -1;
 static int32_t textureChooserFrameW = 0, textureChooserFrameH = 0;
@@ -5121,11 +5382,84 @@ static void TextureChooserOpen()
 	BuildThePictureIndex(open);
 	textureChooserList.erase(std::remove_if(textureChooserList.begin(), textureChooserList.end(), [](LevelViewPicture const &picture) { return pictureIndexOf.find(picture.texture) == pictureIndexOf.end(); }), textureChooserList.end());
 	textureChooserOn = !textureChooserList.empty();
+	textureRepeatsChooser = false;
 	statusWords = textureChooserOn ? "Texture Map: the texture chooser (a left click picks the texture, Esc cancels)" : "Texture Map: no picture of the level's list is in use";
+}
+
+// SELECT NUMBER OF REPEATS (0x10f, Shift+N; sub-modes 0, 1 and 3: FUN_0054d260 0x54fc39, FUN_00551f80 0x552412, FUN_00552bb0 0x55304d; FUN_00557c00, TM-B): the screen cleared, "Select number
+// of repeats of texture to use" at (150, 0), and a grid of cells "%dX%d" (x across and y down, 1 to 10; 11 is inf: "infX%d", "%dXinf", "infXinf"), each at (x x 50, y x 40 + 12). A left click
+// picks the cell (x / 50, y / 40) when both are 1 to 11 and the texture area is made from it (model::AreaFromRepeats over the current texture's picture, 0x557d5f-0x557e32); a click anywhere
+// else is waited past; Escape leaves the area as it was. Inteng opens it only with a current texture (state +0x58), which Texture Map's start sets. It takes the place of ours' typed prompt.
+// The picture chooser's flag (textureChooserOn) holds it on the screen, so its Escape, keys and frame are the picture chooser's; textureRepeatsChooser says which of the two it is.
+static void TextureRepeatsChosen(int across, int down)
+{
+	textureRepeatX = across;
+	textureRepeatY = down;
+	textureArea = model::AreaFromRepeats(textureAreaW, textureAreaH, across, down, textureAddOne);
+	textureWords = std::string("Texture Map: the texture window is ") + (across == model::kRepeatsInfinite ? "infinite" : std::to_string(across)) + "X" +
+		(down == model::kRepeatsInfinite ? "infinite" : std::to_string(down)) + " pictures (the flips, turns, wrap and tile use it)";
+	statusWords = textureWords.c_str();
+}
+
+void TextureRepeatsChooserOpen()
+{
+	int32_t lowestW = 0, lowestH = 0;
+
+	if (textureAreaTexture == -1 && LevelView_LowestPictureSize(&lowestW, &lowestH))
+	{
+		TextureAreaNow(lowestW, lowestH);
+	}
+
+	if (textureAreaTexture == -1)
+	{
+		statusWords = "Texture Map: Select Number of Repeats: the game has no picture loaded";
+		return;
+	}
+
+	textureChooserOn = true;
+	textureRepeatsChooser = true;
+	statusWords = "Texture Map: Select number of repeats of texture to use (a left click on a cell picks it, Esc cancels)";
+}
+
+static void TextureRepeatsChooserDraw(int32_t windowWidth, int32_t windowHeight)
+{
+	std::vector<TextureChooserCell> const none;
+
+	TextureChooserPaint_Draw(windowWidth, windowHeight, 0, windowHeight, none, -1, std::vector<std::string>(1, "Select number of repeats of texture to use"), 150, 0);
+
+	for (int x = 1; x <= model::kRepeatsInfinite; x++)
+	{
+		for (int y = 1; y <= model::kRepeatsInfinite; y++)
+		{
+			std::string const across = x == model::kRepeatsInfinite ? "inf" : std::to_string(x), down = y == model::kRepeatsInfinite ? "inf" : std::to_string(y);
+
+			TextureWindowPaint_Lines(windowWidth, windowHeight, std::vector<std::string>(1, across + "X" + down), x * 50, y * 40 + 12);
+		}
+	}
+}
+
+static void TextureRepeatsChooserClick(int x, int y)
+{
+	int const across = x / 50, down = y / 40;
+
+	if (x < 0 || y < 0 || across < 1 || across > model::kRepeatsInfinite || down < 1 || down > model::kRepeatsInfinite)
+	{
+		return;
+	}
+
+	textureChooserOn = false;
+	textureRepeatsChooser = false;
+	TextureRepeatsChosen(across, down);
 }
 
 void TextureChooserDraw(int32_t windowWidth, int32_t windowHeight)
 {
+	if (textureRepeatsChooser)
+	{
+		TextureRepeatsChooserDraw(windowWidth, windowHeight);
+		return;
+	}
+
 	textureChooserFrameW = windowWidth;
 	textureChooserFrameH = windowHeight;
 
@@ -5154,6 +5488,12 @@ void TextureChooserDraw(int32_t windowWidth, int32_t windowHeight)
 // A left click in the chooser: the cell under it is the texture
 void TextureChooserClick(int x, int y)
 {
+	if (textureRepeatsChooser)
+	{
+		TextureRepeatsChooserClick(x, y);
+		return;
+	}
+
 	std::vector<TextureChooserCell> cells;
 
 	TextureChooserCells(textureChooserFrameW, textureChooserFrameH, &cells);
@@ -6045,7 +6385,7 @@ static void TextureMapProject(uint8_t const planeId[8], int32_t planePolygon, bo
 		window.v[k] = (int32_t)textureNodes.uv.corners[k].v;
 	}
 
-	model::TextureWindow const rect = TextureWindowOf(width, height, textureAddOne);
+	model::TextureWindow const rect = TextureAreaNow(width, height);
 	model::TileSettings const tiles = { 1000, 1000, 0, 0 };
 	std::vector<model::UvCorner> made;
 
@@ -7113,8 +7453,21 @@ void TexturePolygonClicked(OpenLevelFile *open, uint8_t const *target, bool isMo
 	{
 		if (was)
 		{
-			TextureSelectionUndo_Record(texturePolygons[at], false);   // FUN_005750e0 -> FUN_00567aa0
+			TexturePolygon const gone = texturePolygons[at];
+
+			TextureSelectionUndo_Record(gone, false);   // FUN_005750e0 -> FUN_00567aa0
 			texturePolygons.erase(texturePolygons.begin() + (std::ptrdiff_t)at);
+			TextureWrapPolygon(gone.id, gone.isModule, gone.moduleIndex, gone.polygon, nullptr);   // FUN_0056dea0 0x56df12
+
+			// 0x56df27-0x56df52: and its partner in the pairing in use
+			int32_t const partner = TexturePartnerOf(open, target, polygon);
+			size_t const partnerAt = partner >= 0 ? TextureSelectedIndex(target, partner) : texturePolygons.size();
+
+			if (partnerAt < texturePolygons.size())
+			{
+				TextureSelectionUndo_Record(texturePolygons[partnerAt], false);
+				texturePolygons.erase(texturePolygons.begin() + (std::ptrdiff_t)partnerAt);
+			}
 		}
 	}
 	else if (!was)
@@ -7133,6 +7486,18 @@ void TexturePolygonClicked(OpenLevelFile *open, uint8_t const *target, bool isMo
 		added.moduleIndex = isModule ? moduleIndex : -1;
 		TextureSelectionUndo_Record(added, true);   // FUN_00575070 -> FUN_00567a80
 		texturePolygons.push_back(added);
+
+		// FUN_0056db80 0x56dc00-0x56dc50: and its partner in the pairing in use, whatever Select As is
+		int32_t const partner = TexturePartnerOf(open, target, polygon);
+
+		if (partner >= 0 && TextureSelectedIndex(target, partner) >= texturePolygons.size() && texturePolygons.size() < kTexturePolygonsMost)
+		{
+			TexturePolygon mate = added;
+
+			mate.polygon = partner;
+			TextureSelectionUndo_Record(mate, true);
+			texturePolygons.push_back(mate);
+		}
 	}
 
 	ShowTheTexturePolygons();

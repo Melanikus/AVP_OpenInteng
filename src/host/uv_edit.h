@@ -60,6 +60,10 @@ namespace host
 	UvEditResult UvEdit_ReadPolygon(OpenLevelFile const *store, File_Chunk *level, uint8_t const *objectId, int32_t polygonNumber, model::PolygonUv *out,
 		std::string *why, size_t *listUsers = nullptr);
 
+	// Every polygon of the shape at once (*out[p] is polygon p, as UvEdit_ReadPolygon gives it), the shape read once: for a command over many polygons of one shape.
+	// A polygon the rules refuse comes back not textured. (Added 2026-11-18 by Melanikus (Frost), the deselect's wrap.)
+	UvEditResult UvEdit_ReadAllPolygons(OpenLevelFile const *store, File_Chunk *level, uint8_t const *objectId, std::vector<model::PolygonUv> *out, std::string *why);
+
 	// Puts a changed polygon back: its texture coordinates (the same count of corners as the file's list) and its flag word. The polygon is named by
 	// polygon.polygonNumber; its engineType, cornerCount, uvListNumber and pictureNumber must be the file's (deviation 1: a different picture is
 	// Refused). Nothing changes when the answer isn't Done.

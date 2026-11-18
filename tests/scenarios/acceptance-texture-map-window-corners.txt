@@ -1,0 +1,42 @@
+# ACCEPTANCE (red first): TM-B, the texture window's corner commands (FUN_00556e80; Dietrich, 2026-11-18). Texture > Clockwise / Anti-Clockwise: Top Left, Top Right, Bottom Right, Bottom Left
+# (0x1e-0x21 / 0x23-0x26, the texture screen only: FUN_00551f80 0x5521b4-0x55226a) put the window's nodes on the corners of its texture area (state +8 .. +0x14): node n on corner
+# (start + n x direction) & 3, the corners (left, top), (right - 1, top), (right - 1, bottom - 1), (left, bottom - 1). Ours had the items and did nothing. His path: Invasion, Mode > Texture Map,
+# a polygon clicked, Tab (the texture window), Clockwise: Top Left: the saved copy, read by the game's loader, has that polygon's nodes on 0,0 / W-1,0 / W-1,H-1 (/ 0,H-1); Anti-Clockwise: Bottom
+# Right: W-1,H-1 / W-1,0 / 0,0 (/ 0,H-1); Add 1 to texture area on, Clockwise: Top Right: the area one larger each way, W,0 / W,H / 0,H (/ 0,0).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+save-copy
+save-copy
+click-view 0.50 0.60
+key Tab
+wait 300
+state
+item 0x1e
+wait 300
+state
+expect-status the nodes are on the corners of the texture area 0,0 to 128,128, clockwise
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_texmap/verify_texmap.exe {prev} {copy} corners 128 128 1 0 --baseline {save1} {save2}
+item 0x25
+wait 300
+state
+expect-status anti-clockwise
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_texmap/verify_texmap.exe {prev} {copy} corners 128 128 -1 2 --baseline {save1} {save2}
+# Add 1 to texture area (0x14) is on the polygons' bars (page 0): Tab leaves the window, Add 1, Tab opens it again
+key Tab
+wait 300
+item 0x14
+wait 200
+key Tab
+wait 300
+item 0x1f
+wait 300
+state
+expect-status to 129,129, clockwise
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_texmap/verify_texmap.exe {prev} {copy} corners 129 129 1 1 --baseline {save1} {save2}

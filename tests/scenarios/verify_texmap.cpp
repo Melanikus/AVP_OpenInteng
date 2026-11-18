@@ -3,6 +3,7 @@
 // Usage: verify_texmap.exe <the level before the step> <the level after it (a saved copy)> <step> [numbers]
 //   texture <picture file name>     Set Texture: the polygons whose picture changed (the selection) all hold ONE picture index, and that index is the BMPNAMES entry of the named file
 //   flipx <W> <H> | flipy <W> <H>   X-Flip / Y-Flip: every polygon whose coordinates changed holds exactly FlipU / FlipV (uv_model.h) of what it held before, over the window 0,0,W,H (the lowest picture's size)
+//   corners <W> <H> <1|-1> <0..3>   the texture window's corner commands: the one changed polygon's node n is on corner (start + n x direction) & 3 of the area 0,0 to W,H
 //   wrap <W> <H> [scale] | tile <W> <H> [scale]
 //                                   Wrap / Tile: the polygons whose coordinates changed (the selection) hold exactly what uv_project.h's ProjectCorners gives for the world points of their corners, for SOME chosen polygon's plane
 //                                   (the one the scenario clicked is not known here: every polygon of the level is tried, and the one that matches is named); scale is the level's ENVSDSCL (1 when none)
@@ -571,6 +572,41 @@ int main(int argc, char **argv)
 			}
 
 			Check(right, "node " + std::to_string(node + 1) + " moved by " + std::to_string(du) + " " + std::to_string(dv) + " and every other corner stayed");
+		}
+	}
+	else if (step == "corners" && argc >= 8)
+	{
+		// TM-B (Dietrich, 2026-11-18): the texture window's Clockwise / Anti-Clockwise corner commands (FUN_00556e80(direction, start)): one polygon was selected and its node n now holds the corner
+		// (start + n x direction) & 3 of the texture area 0,0 to W,H: 0 (0, 0), 1 (W - 1, 0), 2 (W - 1, H - 1), 3 (0, H - 1). W and H are the area's (the picture's size, plus 1 with Add 1 on).
+		long width = 0, height = 0, direction = 0, start = 0;
+
+		if (!ArgNumber("the area's width", argv[4], 1, 65536, &width) || !ArgNumber("the area's height", argv[5], 1, 65536, &height) ||
+			!ArgNumber("the direction", argv[6], -1, 1, &direction) || direction == 0 || !ArgNumber("the first corner", argv[7], 0, 3, &start))
+		{
+			return 2;
+		}
+
+		double const cornerU[4] = { 0.0, (double)width - 1, (double)width - 1, 0.0 };
+		double const cornerV[4] = { 0.0, 0.0, (double)height - 1, (double)height - 1 };
+
+		Check(pictureChanged.empty(), "no polygon's picture changed");
+		Check(uvChanged.size() == 1, "exactly one polygon's coordinates changed (" + std::to_string(uvChanged.size()) + ")");
+
+		if (uvChanged.size() == 1)
+		{
+			model::PolygonUv const &before = was[uvChanged[0]].uv, &after = now[uvChanged[0]].uv;
+			bool right = before.uv.cornerCount == after.uv.cornerCount && after.uv.cornerCount >= 3;
+
+			for (int k = 0; right && k < after.uv.cornerCount && k < 4; k++)
+			{
+				int const corner = (int)(((start + k * direction) % 4 + 4) % 4);
+
+				printf("  node %d: %.2f %.2f (wanted corner %d: %.2f %.2f)\n", k + 1, after.uv.corners[k].u, after.uv.corners[k].v, corner, cornerU[corner], cornerV[corner]);
+				right = right && fabs(after.uv.corners[k].u - cornerU[corner]) < 0.01 && fabs(after.uv.corners[k].v - cornerV[corner]) < 0.01;
+			}
+
+			Check(right, std::string("every node is on its corner of 0,0 to ") + std::to_string(width) + "," + std::to_string(height) + (direction > 0 ? ", clockwise" : ", anti-clockwise") +
+				" from corner " + std::to_string(start));
 		}
 	}
 	else if ((step == "wrap" || step == "tile") && argc >= 6)

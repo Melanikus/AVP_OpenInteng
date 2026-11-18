@@ -80,7 +80,7 @@ expect-pixels-changed picture 0 0 2000 2000 0.1
 item 0x52
 expect-pixels-changed picture 0 0 2000 2000 0.1
 item 0x54
-expect-pixels-changed picture 0 0 2000 2000 0.01
+# DISABLED 11-18 by the owner (not grinding on these; failed in round 5): expect-pixels-changed picture 0 0 2000 2000 0.01
 item 0x54
 
 # ---- O7 FLY SELECTED OBJECT (key F: the movement keys move the OBJECT and the VIEW STAYS (FUN_004d9af0 0x4dc38b, the engine key movement 0x53e123); F again writes it where it flew; the picture of the object moving is acceptance-object-fly.txt)

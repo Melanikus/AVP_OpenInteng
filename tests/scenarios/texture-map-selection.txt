@@ -116,15 +116,17 @@ item 0xd4
 expect-status Select on GotoPoly on
 item 0xd4
 expect-status Select on GotoPoly off
+# Select Number of Repeats is inteng's grid (TM-B, FUN_00557c00): the cell (x / 50, y / 40); 2 across, inf (11) down at (110, 445)
 item 0x10f
-expect-prompt 43
-type 2 inf
-key Enter
+wait 200
+expect-status Select number of repeats
+click-win 110 445
+wait 300
 expect-status 2Xinfinite
 item 0x10f
-expect-prompt 43
-type 1 1
-key Enter
+wait 200
+click-win 60 50
+wait 300
 expect-status 1X1
 item 0x112
 expect-status Maintain Num Repeats

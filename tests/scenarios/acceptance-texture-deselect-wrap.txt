@@ -1,0 +1,29 @@
+# ACCEPTANCE (TM-A, the shared helper FUN_00566b90 on the deselect): taking a polygon out of the selection brings its texture coordinates onto its picture by whole picture
+# sizes, with its partner's (FUN_0056dea0 0x56df12; Clear Selection, FUN_0056e0a0 -> FUN_0056dfa0, for every selected polygon; the mode's exit too, FUN_0054bfd0 0x54c0af).
+# The polygon at the view's middle in Invasion (no partner; a shape of the level's own: an imported one is taken out of the selection before a write): its u shifted by 512
+# texels (Shift UV Coords, 0x133: a multiple of any of the game's picture widths), then Clear Selection: the wrap moves it back by 512, so the level saved after it is the level
+# saved before the shift (verify_level_same).
+# Red on bishop-rc2's build of 3dac4c74 (11-18 03:51, before the deselect's wrap: SHPUVCRD 512 where it was 0), green on the hash with the deselect's wrap.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+save-copy
+item 0x133
+expect-dialog-kind text
+type 512
+key Tab
+type 0
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+item 0x2b
+wait 200
+state
+expect-status all polygons deselected
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save2}
