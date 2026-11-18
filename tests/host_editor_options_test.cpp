@@ -38,8 +38,91 @@ static void Put(std::string const &file, char const *key, char const *value)
 	WritePrivateProfileStringA("Editor", key, value, file.c_str());
 }
 
+static std::string ReadWhole(char const *path)
+{
+	std::string text;
+	FILE *file = nullptr;
+
+	if (fopen_s(&file, path, "rb") != 0 || !file)
+	{
+		return text;
+	}
+
+	char block[4096];
+	size_t got = 0;
+
+	while ((got = fread(block, 1, sizeof(block), file)) > 0 && text.size() < (1u << 20))
+	{
+		text.append(block, got);
+	}
+
+	fclose(file);
+	return text;
+}
+
+// THE START SIZE AND WINDOWED (the owner's ruling 11-18): [Editor] StartWidth=, StartHeight=, Windowed= of our own settings file, read as hostile input, and the default file the zip ships
+static void TestTheStart()
+{
+	int32_t number = 7;
+
+	Check(EditorOptions_StartNumber("1280", &number) && number == 1280 && EditorOptions_StartNumber("720", &number) && number == 720 && EditorOptions_StartNumber("16384", &number) &&
+		number == 16384, "a size is read: 1280, 720, and 16384 the most");
+	number = 7;
+	Check(!EditorOptions_StartNumber("0", &number) && !EditorOptions_StartNumber("16385", &number) && !EditorOptions_StartNumber("-640", &number) && !EditorOptions_StartNumber("+640", &number) &&
+		!EditorOptions_StartNumber("640px", &number) && !EditorOptions_StartNumber("6 40", &number) && !EditorOptions_StartNumber("", &number) && !EditorOptions_StartNumber("123456", &number) &&
+		!EditorOptions_StartNumber("99999999999999999999", &number) && !EditorOptions_StartNumber(nullptr, &number) && number == 7,
+		"and nothing else is a size: 0, past 16384, a sign, letters after it, a space in it, empty, six digits or more, none; the value is untouched");
+	Check(EditorOptions_StartFlag("true") == 1 && EditorOptions_StartFlag("True") == 1 && EditorOptions_StartFlag("TRUE") == 1 && EditorOptions_StartFlag("1") == 1 &&
+		EditorOptions_StartFlag("false") == 0 && EditorOptions_StartFlag("FALSE") == 0 && EditorOptions_StartFlag("0") == 0, "Windowed is true or 1, false or 0, in any case");
+	Check(EditorOptions_StartFlag("yes") == -1 && EditorOptions_StartFlag("truex") == -1 && EditorOptions_StartFlag(" true") == -1 && EditorOptions_StartFlag("") == -1 &&
+		EditorOptions_StartFlag("2") == -1 && EditorOptions_StartFlag(nullptr) == -1, "and nothing else: yes, truex, a space before it, empty, 2, none");
+
+	std::string const file = TempFile("avp_open_inteng_start_test.ini");
+	char const *why = "x";
+
+	DeleteFileA(file.c_str());
+	EditorStart start = EditorOptions_Start(file.c_str(), &why);
+	Check(!start.sizeGiven && !start.windowed && why == nullptr, "no file: no size of its own and not windowed, nothing refused");
+
+	Put(file, "StartWidth", "1280");
+	Put(file, "StartHeight", "720");
+	Put(file, "Windowed", "true");
+	start = EditorOptions_Start(file.c_str(), &why);
+	Check(start.sizeGiven && start.width == 1280 && start.height == 720 && start.windowed && why == nullptr, "StartWidth=1280, StartHeight=720, Windowed=true: 1280 x 720, windowed");
+
+	Put(file, "StartHeight", nullptr);
+	start = EditorOptions_Start(file.c_str(), &why);
+	Check(!start.sizeGiven && start.windowed && why == nullptr, "a width with no height is no size (both or neither)");
+
+	Put(file, "StartHeight", "72O");
+	Put(file, "Windowed", "maybe");
+	start = EditorOptions_Start(file.c_str(), &why);
+	Check(!start.sizeGiven && !start.windowed && why != nullptr && strcmp(why, "StartHeight") == 0, "a height that isn't a number and a Windowed that isn't a word: neither taken, and the first named");
+
+	Put(file, "StartHeight", std::string(300, '7').c_str());
+	Put(file, "Windowed", "1");
+	start = EditorOptions_Start(file.c_str(), &why);
+	Check(!start.sizeGiven && start.windowed && why != nullptr, "a value of 300 digits is cut to the reader's room, so it is not a number");
+	DeleteFileA(file.c_str());
+
+	// the default settings file the release zip ships beside the exe (release.yml), and the acceptance's copy of it (acceptance-start-size-release)
+	std::string const shipped = ReadWhole("dist/AVP_OpenInteng.ini");
+	std::string const copy = ReadWhole("tests/scenarios/release-ini/AVP_OpenInteng.ini");
+	Check(!shipped.empty() && shipped == copy, "dist/AVP_OpenInteng.ini is there, and the acceptance's copy is byte for byte the same");
+
+	char full[MAX_PATH] = "";
+	start = EditorOptions_Start(GetFullPathNameA("dist/AVP_OpenInteng.ini", MAX_PATH, full, nullptr) ? full : "", &why);
+	Check(start.sizeGiven && start.width == 1280 && start.height == 720 && start.windowed && why == nullptr, "and it says 1280 x 720, windowed (the owner, 11-18)");
+
+	char data[16];
+	GetPrivateProfileStringA("Editor", "DataFolder", "none", data, sizeof(data), full);
+	Check(strcmp(data, "none") == 0, "it names no data folder: that is each mapper's own (the editor says so at its start)");
+}
+
 int main()
 {
+	TestTheStart();
+
 	EditorOptions const start = EditorOptions_Defaults();
 
 	Check(start.selectByPolygons && !start.preferBmp && !start.polygonViewDistance, "the defaults: Select by polygons on (the editor's click has always been the hit test), the other two off");

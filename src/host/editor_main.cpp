@@ -11,6 +11,7 @@
 //     DataFolder=<the editor's own copy of the game's data: a folder that holds avp_rifs>
 //     Level=<a level's file name, without .rif: the level opened when none is given on the command line>
 //     KeyLayout=<Classic or ModernWASD: the key layout; Classic inteng's when the line is missing or says anything else (key_layout.h)>
+//     StartWidth=, StartHeight=, Windowed=<the start size and a framed window (editor_options.h; the release zip's own file says 1280, 720, true)>
 // The game's files are opened from that folder, as the game opens them from its own. The only thing ever written there is a level
 // file given on the command line, copied into its avp_rifs (open_with.h). In AVP_OpenInteng.ini the editor writes only the KeyLayout=
 // line, when the mapper picks a key layout in the View menu.
@@ -9731,7 +9732,8 @@ static void MenuFontStart()
 // found: inteng's 640 x 480 (SS-12). The size is bounded to the primary monitor (at least 640 x 480); a popup over the whole monitor when the framed window wouldn't fit its work area (inteng's
 // full screen, without its display mode change or its exclusive screen: SS-8, SS-10), else a framed window whose client is that size, at the work area's corner (as -w's 0,0). -w: always
 // framed. A hidden test run (-picture) reads no IntengOptions.ini and keeps its 1024 x 768 window, which every acceptance's places hang on, unless -options <folder> or -r is given (SS-13).
-// Written 2026-11-16 by Melanikus (Frost).
+// Written 2026-11-16 by Melanikus (Frost). Modified 2026-11-18 by Melanikus (Frost), the owner's ruling (SS-14, named): our own AVP_OpenInteng.ini's StartWidth / StartHeight are the size over
+// inteng's 640 x 480 and under -r and IntengOptions.ini, and its Windowed=true frames the window as -w does (editor_options.h EditorOptions_Start); the release zip ships 1280 x 720, windowed.
 struct StartPlace
 {
 	DWORD style = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
@@ -9751,6 +9753,27 @@ static StartPlace ChooseTheStartPlace(bool hidden, host::IntengScreenSize size, 
 		place.words = "the start size: a hidden test run's 1024 x 768 window (no IntengOptions.ini is read without -options)";
 		return place;
 	}
+
+	// Our own AVP_OpenInteng.ini's [Editor] StartWidth / StartHeight / Windowed (editor_options.h, the owner's ruling 11-18, SS-14, named): the size over inteng's 640 x 480 and under -r and
+	// IntengOptions.ini (read below, it wins as in inteng); Windowed=true frames the window as -w does. Read as hostile input; a value refused is said in the log and not used.
+	char const *ownWhy = nullptr;
+	host::EditorStart const own = host::EditorOptions_Start(layoutSettingsFile[0] ? layoutSettingsFile : nullptr, &ownWhy);
+
+	if (ownWhy)
+	{
+		LogString(std::string("settings: ") + ownWhy + " in AVP_OpenInteng.ini is not used: a size is 1 to 16384, Windowed is true or false");
+	}
+
+	bool const ownSize = own.sizeGiven && !sizeGiven;
+	bool const windowedByOwn = own.windowed && !framed;
+
+	if (ownSize)
+	{
+		size.width = own.width;
+		size.height = own.height;
+	}
+
+	framed = framed || own.windowed;
 
 	std::vector<std::string> tries;
 
@@ -9778,7 +9801,7 @@ static StartPlace ChooseTheStartPlace(bool hidden, host::IntengScreenSize size, 
 	}
 
 	// the first file that opens decides, as inteng reads one
-	std::string from = "no IntengOptions.ini found, inteng's 640 x 480";
+	std::string from = ownSize ? "no IntengOptions.ini found, AVP_OpenInteng.ini's StartWidth / StartHeight" : "no IntengOptions.ini found, inteng's 640 x 480";
 
 	for (std::string const &path : tries)
 	{
@@ -9846,7 +9869,7 @@ static StartPlace ChooseTheStartPlace(bool hidden, host::IntengScreenSize size, 
 	}
 
 	place.words = "the start size: " + std::to_string(size.width) + " x " + std::to_string(size.height) + (sizeGiven ? " (-r, then " : " (") + from + "), " +
-		(start.popup ? "a popup over the whole monitor, " : (framed ? "a framed window (-w), its client " : "a framed window, its client ")) + std::to_string(start.width) + " x " +
+		(start.popup ? "a popup over the whole monitor, " : (windowedByOwn ? "a framed window (Windowed=true), its client " : framed ? "a framed window (-w), its client " : "a framed window, its client ")) + std::to_string(start.width) + " x " +
 		std::to_string(start.height);
 	return place;
 }

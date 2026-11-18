@@ -14,6 +14,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 
 namespace host
 {
@@ -33,4 +34,31 @@ namespace host
 
 	// Writes one switch ("SelectByPolygons", "PreferBmp" or "PolygonViewDistance") as 0 or 1. False for another key, no file name, or a write the system refused.
 	bool EditorOptions_Save(char const *settingsFile, char const *key, bool on);
+
+	// THE START SIZE AND WINDOWED (the owner's ruling 11-18: "We want to ship AVP_OpenInteng.ini with 1280x720 and with a windowed = true flag"; reassess/startup-screen-frost.md SS-14).
+	// Ours, a NAMED addition: [Editor] StartWidth=, StartHeight= and Windowed= of our own AVP_OpenInteng.ini. Classic inteng has no such keys, and its IntengOptions.ini stays its own, never
+	// written (SS-11). WHICH WINS (the editor's ChooseTheStartPlace): inteng's 640 x 480, then StartWidth / StartHeight (both, or neither is taken), then the command line's -r, then
+	// IntengOptions.ini's Screen Width / Screen Height (inteng's own file, read last, wins as in inteng). Windowed=true frames the window as -w does (its client made smaller until the
+	// framed window fits the work area); false or missing: as before (a popup over the monitor when the framed window wouldn't fit). -w frames it whatever Windowed says. A hidden test run
+	// (-picture) reads these only with -options or -r, as it reads IntengOptions.ini (SS-13), so its 1024 x 768 window doesn't change.
+	// THE FILE IS HOSTILE INPUT: each value is read into a 16-letter room (a longer one is cut, so it's no number); a size is 1 to 5 digits and nothing else, 1 to 16384 (the start's
+	// own bounds then keep it to at least 640 x 480 and at most the monitor); Windowed is "true", "false", "1" or "0", in any case, and nothing else. A value refused keeps the default,
+	// and *why names the first such key.
+	struct EditorStart
+	{
+		bool sizeGiven = false;   // both StartWidth and StartHeight were read
+		int32_t width = 0;
+		int32_t height = 0;
+		bool windowed = false;
+	};
+
+	int32_t const kEditorStartMostSide = 16384;
+
+	EditorStart EditorOptions_Start(char const *settingsFile, char const **why);
+
+	// One size's text: true and *value for 1 to 5 digits making 1 to kEditorStartMostSide, nothing before or after them; false, *value untouched, for anything else or no text
+	bool EditorOptions_StartNumber(char const *text, int32_t *value);
+
+	// Windowed's text: 1 for "true" or "1", 0 for "false" or "0" (letters in any case), -1 for anything else or no text
+	int EditorOptions_StartFlag(char const *text);
 }

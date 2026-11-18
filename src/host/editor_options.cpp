@@ -101,4 +101,107 @@ namespace host
 
 		return known && WritePrivateProfileStringA("Editor", key, on ? "1" : "0", settingsFile) != 0;
 	}
+
+	bool EditorOptions_StartNumber(char const *text, int32_t *value)
+	{
+		if (!text || !value)
+		{
+			return false;
+		}
+
+		int32_t number = 0;
+		size_t digits = 0;
+
+		for (; text[digits] != '\0'; digits++)
+		{
+			if (digits >= 5 || text[digits] < '0' || text[digits] > '9')
+			{
+				return false;   // a sixth digit, a sign, a space or a letter: not a size (five digits can't pass 99999, so nothing wraps)
+			}
+
+			number = number * 10 + (text[digits] - '0');
+		}
+
+		if (digits == 0 || number < 1 || number > kEditorStartMostSide)
+		{
+			return false;
+		}
+
+		*value = number;
+		return true;
+	}
+
+	int EditorOptions_StartFlag(char const *text)
+	{
+		if (!text)
+		{
+			return -1;
+		}
+
+		if (strcmp(text, "1") == 0 || _stricmp(text, "true") == 0)
+		{
+			return 1;
+		}
+
+		if (strcmp(text, "0") == 0 || _stricmp(text, "false") == 0)
+		{
+			return 0;
+		}
+
+		return -1;
+	}
+
+	EditorStart EditorOptions_Start(char const *settingsFile, char const **why)
+	{
+		EditorStart start;
+
+		if (why)
+		{
+			*why = nullptr;
+		}
+
+		if (!settingsFile || !settingsFile[0])
+		{
+			return start;
+		}
+
+		char const missing[] = "missing";
+		char const *const keys[3] = { "StartWidth", "StartHeight", "Windowed" };
+		char texts[3][16];
+		bool found[3];
+
+		for (int k = 0; k < 3; k++)
+		{
+			// a text longer than the room is cut, so it is no number and no word
+			GetPrivateProfileStringA("Editor", keys[k], missing, texts[k], sizeof(texts[k]), settingsFile);
+			found[k] = strcmp(texts[k], missing) != 0;
+		}
+
+		int32_t width = 0;
+		int32_t height = 0;
+		bool const widthRead = found[0] && EditorOptions_StartNumber(texts[0], &width);
+		bool const heightRead = found[1] && EditorOptions_StartNumber(texts[1], &height);
+		int const windowed = found[2] ? EditorOptions_StartFlag(texts[2]) : 0;
+
+		for (int k = 0; k < 3 && why && !*why; k++)
+		{
+			bool const refused = found[k] && (k == 0 ? !widthRead : k == 1 ? !heightRead : windowed < 0);
+
+			if (refused)
+			{
+				*why = keys[k];
+			}
+		}
+
+		// both sizes, or neither
+		if (widthRead && heightRead)
+		{
+			start.sizeGiven = true;
+			start.width = width;
+			start.height = height;
+		}
+
+		start.windowed = windowed == 1;
+		return start;
+	}
 }

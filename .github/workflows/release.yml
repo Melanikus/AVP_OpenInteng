@@ -196,6 +196,10 @@ jobs:
           [System.IO.File]::WriteAllLines((Join-Path $licenceFolder 'README.txt'), [string[]]$readme)
 
           Copy-Item License.txt, README.md $package
+          # The editor's own settings file, as the owner wants it shipped (11-18): its window starts framed, 1280 x 720 (StartWidth, StartHeight, Windowed: src/host/editor_options.h).
+          # It names no DataFolder: each mapper adds his own, and the editor says so at its start until he has. tests/host_editor_options_test reads it.
+          if (-not (Test-Path -LiteralPath 'dist\AVP_OpenInteng.ini')) { throw 'dist\AVP_OpenInteng.ini, the settings file the zip ships, is not there' }
+          Copy-Item -LiteralPath 'dist\AVP_OpenInteng.ini' -Destination $package
           Copy-Item -Recurse notices (Join-Path $package 'notices')
           "AVP_OpenInteng $env:VERSION, commit $env:GITHUB_SHA, AvPx $(git -C avpx rev-parse HEAD)" | Out-File -Encoding ascii (Join-Path $package 'BUILD.txt')
 
