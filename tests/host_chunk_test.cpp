@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <memory>
 #include <new>
 #include <string>
 
@@ -43,31 +44,42 @@ static void Check(bool good, std::string const &what)
 	}
 }
 
-// ---- Every list made with new[] starts as 0xA5 bytes, and goes back with delete[] (the plain new and delete stay the library's own)
+// ---- Every list made with new[] starts as 0xA5 bytes, and goes back with delete[] (the plain new and delete stay the library's own). The lists come from
+// the process's own Windows heap and every delete[] gives its list back there once (GiveBack, HeapFree): nothing paired with the C library's malloc / free
+// (as tests/level_file_test.cpp).
 
 static unsigned char const kFill = 0xA5;
 
 void *operator new[](size_t bytes)
 {
-	void *const block = malloc(bytes ? bytes : 1);
+	size_t const asked = bytes ? bytes : 1;
+	void *const block = HeapAlloc(GetProcessHeap(), 0, asked);
 
 	if (!block)
 	{
 		throw std::bad_alloc();
 	}
 
-	memset(block, kFill, bytes);
+	memset(block, kFill, asked);
 	return block;
+}
+
+static void GiveBack(void *block) noexcept
+{
+	if (block)
+	{
+		HeapFree(GetProcessHeap(), 0, block);
+	}
 }
 
 void operator delete[](void *block) noexcept
 {
-	free(block);
+	GiveBack(block);
 }
 
 void operator delete[](void *block, size_t) noexcept
 {
-	free(block);
+	GiveBack(block);
 }
 
 // ---- Stand-ins for the parts of the game the chunk code calls (as avpx/tests/chunk_memory_test.cpp). Nothing here opens a file.
@@ -145,10 +157,13 @@ static int NotZero(char const *block, size_t from, size_t to)
 	return count;
 }
 
+// The chunks below are made as children of a file chunk and OWNED by the test (std::unique_ptr, made after the file chunk so they go first): deleting a chunk
+// takes it out of its parent's list (Chunk::~Chunk), so each is freed once, by its own pointer, and the file chunk has none left to delete.
+
 static void TestOwnChunk()
 {
 	File_Chunk root;
-	PartlyWrittenChunk *const part = new PartlyWrittenChunk(&root);
+	std::unique_ptr<PartlyWrittenChunk> const part(new PartlyWrittenChunk(&root));
 	size_t const size = part->size_chunk();
 	char *const block = part->make_data_block_from_chunk();
 
@@ -178,7 +193,7 @@ static void TestOwnChunk()
 static void TestNameChunk(char const *name)
 {
 	File_Chunk root;
-	Shape_External_Object_Name_Chunk *const chunk = new Shape_External_Object_Name_Chunk(&root, name);
+	std::unique_ptr<Shape_External_Object_Name_Chunk> const chunk(new Shape_External_Object_Name_Chunk(&root, name));
 	size_t const length = strlen(name);
 	size_t const size = chunk->size_chunk();
 	size_t const written = 12 + 4 + length + 1;
@@ -214,10 +229,10 @@ static void TestFileBlock()
 {
 	File_Chunk root;
 
-	// both are the file chunk's children: root owns them and deletes them with itself
-	PartlyWrittenChunk *const partChunk = new PartlyWrittenChunk(&root);
-	Shape_External_Object_Name_Chunk *const nameChunk = new Shape_External_Object_Name_Chunk(&root, "a");
-	Check(partChunk != 0 && nameChunk != 0, "the two chunks were made inside the file chunk");
+	// both are the file chunk's children, owned by the test (the note above TestOwnChunk)
+	std::unique_ptr<PartlyWrittenChunk> const partChunk(new PartlyWrittenChunk(&root));
+	std::unique_ptr<Shape_External_Object_Name_Chunk> const nameChunk(new Shape_External_Object_Name_Chunk(&root, "a"));
+	Check(partChunk != nullptr && nameChunk != nullptr, "the two chunks were made inside the file chunk");
 
 	size_t const size = root.size_chunk();
 	char *const block = root.make_data_block_from_chunk();

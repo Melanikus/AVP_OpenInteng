@@ -2,7 +2,7 @@
 // that same code. Each field the shot gives is held to its bounds (the picture is hostile, Tao 3): a picture made wrong in one way each, and one made right. Written 2026-11-18 by Melanikus
 // (Drake) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
-// Use, from the repository's root: node tools/from-shot-test.js <the built drive_scenario.exe> <a folder holding a level> <that level's file name> (the level gives the shot's sha256; the
+// Use, from the repository's root, with all three inside it (tree-path.js): node tools/from-shot-test.js <the built drive_scenario.exe> <a folder holding a level> <that level's file name> (the level gives the shot's sha256; the
 // check of a level's sha256 against the shot's is the editor's, acceptance-from-shot-2). It prints "ok" or "FAILED" for each check and gives back 1 if any failed. It writes its pictures into
 // a new folder in the system's temporary folder and deletes it.
 'use strict';
@@ -13,6 +13,7 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const tool = require('./read-shot-context.js');
+const { insideTree } = require('./tree-path.js');
 
 let failed = 0;
 
@@ -26,10 +27,19 @@ if (process.argv.length < 5) {
 	process.exit(2);
 }
 
-const harness = process.argv[2];
-const maps = process.argv[3];
-const mapName = process.argv[4];
-const sha = crypto.createHash('sha256').update(fs.readFileSync(path.join(maps, mapName))).digest('hex');
+// The three come from the command line, so they are held to the folder this is run from, the tree's root, as every tool's paths are (tree-path.js
+// says how). The harness must be a drive_scenario.exe that is there as a plain file.
+const harness = insideTree(process.argv[2], 'The harness');
+const levelPath = insideTree(path.join(process.argv[3], process.argv[4]), 'The level');
+const mapName = path.basename(levelPath);
+const harnessFile = fs.statSync(harness, { throwIfNoEntry: false });
+
+if (path.basename(harness).toLowerCase() !== 'drive_scenario.exe' || !harnessFile || !harnessFile.isFile()) {
+	console.log(`The harness must be a drive_scenario.exe that is there: ${JSON.stringify(String(process.argv[2]))} isn't`);
+	process.exit(2);
+}
+
+const sha = crypto.createHash('sha256').update(fs.readFileSync(levelPath)).digest('hex');
 
 function chunk(type, data) {
 	const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);

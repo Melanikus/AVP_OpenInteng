@@ -55,9 +55,11 @@ static void Check(bool good, std::string const &what)
 
 static uint32_t listsMade = 0;
 
+// The lists come from the process's own Windows heap and every delete[] gives its list back there once (GiveBack, HeapFree): nothing paired with the C
+// library's malloc / free (as tests/level_file_test.cpp).
 void *operator new[](size_t bytes)
 {
-	void *const block = malloc(bytes ? bytes : 1);
+	void *const block = HeapAlloc(GetProcessHeap(), 0, bytes ? bytes : 1);
 
 	if (!block)
 	{
@@ -83,14 +85,22 @@ void *operator new[](size_t bytes)
 	return block;
 }
 
+static void GiveBack(void *block) noexcept
+{
+	if (block)
+	{
+		HeapFree(GetProcessHeap(), 0, block);
+	}
+}
+
 void operator delete[](void *block) noexcept
 {
-	free(block);
+	GiveBack(block);
 }
 
 void operator delete[](void *block, size_t) noexcept
 {
-	free(block);
+	GiveBack(block);
 }
 
 // what the game's chunk code calls

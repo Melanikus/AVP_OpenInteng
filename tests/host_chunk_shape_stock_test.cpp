@@ -58,31 +58,42 @@ static void Check(bool good, std::string const &what)
 	}
 }
 
-// ---- Every list made with new[] starts as 0xA5 bytes, and goes back with delete[] (the plain new and delete stay the library's own), as in host_chunk_shape_test
+// ---- Every list made with new[] starts as 0xA5 bytes, and goes back with delete[] (the plain new and delete stay the library's own), as in host_chunk_shape_test.
+// The lists come from the process's own Windows heap and every delete[] gives its list back there once (GiveBack, HeapFree): nothing paired with the C
+// library's malloc / free (as tests/level_file_test.cpp).
 
 static unsigned char const kFill = 0xA5;
 
 void *operator new[](size_t bytes)
 {
-	void *const block = malloc(bytes ? bytes : 1);
+	size_t const asked = bytes ? bytes : 1;
+	void *const block = HeapAlloc(GetProcessHeap(), 0, asked);
 
 	if (!block)
 	{
 		throw std::bad_alloc();
 	}
 
-	memset(block, kFill, bytes);
+	memset(block, kFill, asked);
 	return block;
+}
+
+static void GiveBack(void *block) noexcept
+{
+	if (block)
+	{
+		HeapFree(GetProcessHeap(), 0, block);
+	}
 }
 
 void operator delete[](void *block) noexcept
 {
-	free(block);
+	GiveBack(block);
 }
 
 void operator delete[](void *block, size_t) noexcept
 {
-	free(block);
+	GiveBack(block);
 }
 
 // ---- Stand-ins for the parts of the game the chunk code calls (as host_strategy_stock_roundtrip_test). The game's loader opens a level with no sharing (mishchnk.cpp: share 0), so two
@@ -548,6 +559,25 @@ static bool BlockOf(Shape_Morphing_Frame_Data_Chunk *chunk, std::vector<char> *b
 }
 
 // A FRMMORPH's list of numbers, three for each frame, from the chunk's bytes (BlockOf's, or the file's)
+// The 32-bit number at this place of the bytes, lowest byte first, read a byte at a time (0 past the end): numbers, never text (Snyk Code took a memcpy of
+// a chunk's numbers into an array for an unterminated text, as in 20558ba8)
+static int32_t NumberAt(std::vector<char> const &bytes, size_t at)
+{
+	if (at > bytes.size() || bytes.size() - at < 4)
+	{
+		return 0;
+	}
+
+	uint32_t value = 0;
+
+	for (size_t b = 4; b > 0; b--)
+	{
+		value = (value << 8) | (unsigned char)bytes[at + b - 1];
+	}
+
+	return (int32_t)value;
+}
+
 static std::vector<int32_t> ListIn(std::vector<char> const &bytes)
 {
 	std::vector<int32_t> numbers;
@@ -674,11 +704,11 @@ static void TestLevel(char const *path)
 			std::vector<int32_t> const kept = ListIn(readersBytes);
 			int32_t fileHead[3] = { 0, 0, 0 }, keptHead[3] = { 0, 0, 0 };
 
-			memcpy(fileHead, fileBytes.data() + 12, 12);
-
-			if (readersBytes.size() >= 24)
+			// the flags, speed and count after the chunk's 12-byte head, a number at a time
+			for (size_t n = 0; n < 3; n++)
 			{
-				memcpy(keptHead, readersBytes.data() + 12, 12);
+				fileHead[n] = NumberAt(fileBytes, 12 + 4 * n);
+				keptHead[n] = readersBytes.size() >= 24 ? NumberAt(readersBytes, 12 + 4 * n) : 0;
 			}
 
 			Check(false, name + ": FRMMORPH " + std::to_string(k) + ": before any save the chunk writes other bytes than the file holds: flags, speed, count " +

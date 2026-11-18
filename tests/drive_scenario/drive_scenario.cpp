@@ -143,6 +143,34 @@ static std::string SamePathSpelling(std::string text)
 	return text;
 }
 
+// A file a scenario names, as the full path Windows makes of it: false when its name holds "..", the full path is MAX_PATH long or more, or there is no plain file there
+// (a folder or a link is not read). The scenario file itself is held to the same (main).
+static bool PlainFileFullPath(std::string const &given, std::string *full)
+{
+	if (given.find("..") != std::string::npos)
+	{
+		return false;
+	}
+
+	char made[MAX_PATH];
+	DWORD const length = GetFullPathNameA(given.c_str(), MAX_PATH, made, NULL);
+
+	if (length == 0 || length >= MAX_PATH)
+	{
+		return false;
+	}
+
+	DWORD const attributes = GetFileAttributesA(made);
+
+	if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0)
+	{
+		return false;
+	}
+
+	*full = made;
+	return true;
+}
+
 // LEVEL IS A NAME (Drake 2026-11-18, Bishop): "level <path>" writes only <path>'s name as Level= in the editor's ini, so the editor opens <its DataFolder>\avp_rifs\<name>.rif, not <path>, while
 // verify's {orig} is <path>. A <path> whose file is not that one, byte for byte, would test another file than the scenario names (Drake's owner's-path walk on 11-18 ran the stock Genshd1
 // where it named his own, and its AutoLink check compared the two). True when the editor will open the very file named: the data folder's file is it, byte for byte, or the editor's
@@ -164,15 +192,23 @@ static bool LevelLineIsTheFileOpened(std::string const &level, std::string const
 	}
 
 	std::string const opened = std::string(folder) + "\\avp_rifs\\" + name + ".rif";
-	std::string named, real;
+	std::string named, real, levelFull;
 
-	if (!ReadWholeFile(level, kLevelCheckMostBytes, &named))
+	if (!PlainFileFullPath(level, &levelFull))
+	{
+		*why = "the file isn't read: its name holds \"..\", or there is no plain file there (a folder or a link isn't read)";
+		return false;
+	}
+
+	if (!ReadWholeFile(levelFull, kLevelCheckMostBytes, &named))
 	{
 		*why = "the file can't be read (or is over 256 MB)";
 		return false;
 	}
 
-	if (!ReadWholeFile(opened, kLevelCheckMostBytes, &real) || real != named)
+	std::string openedFull;
+
+	if (!PlainFileFullPath(opened, &openedFull) || !ReadWholeFile(openedFull, kLevelCheckMostBytes, &real) || real != named)
 	{
 		*why = "the editor opens " + opened + " (Level=" + name + " in its data folder), and that is not this file byte for byte (or is not there): to test this file, use start-args " +
 			level + " (the double-click path), or put it in {datadir}/avp_rifs";
@@ -635,7 +671,7 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 			return first == std::string::npos ? std::string() : text.substr(first, last - first + 1);
 		};
-		std::string const reason = bar == std::string::npos || bar < from ? std::string() : trim(line.substr(from, bar - from));
+		std::string const reason = bar == std::string::npos || bar < from ? std::string() : trim(line.substr(0, bar).substr(from));   // the words between the prefix and the bar
 		std::string const check = bar == std::string::npos ? std::string() : trim(line.substr(bar + 3));
 
 		if (reason.empty() || check.empty() || Words(check)[0] == "allow-fail")

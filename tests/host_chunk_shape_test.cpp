@@ -63,22 +63,33 @@ static void Check(bool good, std::string const &what)
 	}
 }
 
-// ---- Everything made with new or new[] starts as 0xA5 bytes, and goes back with delete or delete[]
+// ---- Everything made with new or new[] starts as 0xA5 bytes, and goes back with delete or delete[]. The blocks come from the process's own Windows heap
+// and every delete gives its block back there once (GiveBack, HeapFree): one allocator of the test's own, nothing paired with the C library's malloc /
+// free (as tests/level_file_test.cpp).
 
 static unsigned char const kFill = 0xA5;
 static int32_t const kFilled = (int32_t)0xA5A5A5A5;
 
 static void *Filled(size_t bytes)
 {
-	void *const block = malloc(bytes ? bytes : 1);
+	size_t const asked = bytes ? bytes : 1;
+	void *const block = HeapAlloc(GetProcessHeap(), 0, asked);
 
 	if (!block)
 	{
 		throw std::bad_alloc();
 	}
 
-	memset(block, kFill, bytes);
+	memset(block, kFill, asked);
 	return block;
+}
+
+static void GiveBack(void *block) noexcept
+{
+	if (block)
+	{
+		HeapFree(GetProcessHeap(), 0, block);
+	}
 }
 
 void *operator new(size_t bytes)
@@ -93,22 +104,22 @@ void *operator new[](size_t bytes)
 
 void operator delete(void *block) noexcept
 {
-	free(block);
+	GiveBack(block);
 }
 
 void operator delete(void *block, size_t) noexcept
 {
-	free(block);
+	GiveBack(block);
 }
 
 void operator delete[](void *block) noexcept
 {
-	free(block);
+	GiveBack(block);
 }
 
 void operator delete[](void *block, size_t) noexcept
 {
-	free(block);
+	GiveBack(block);
 }
 
 // ---- Stand-ins for the parts of the game the chunk code calls (as avpx/tests/chunk_memory_test.cpp). Nothing here opens a file.
