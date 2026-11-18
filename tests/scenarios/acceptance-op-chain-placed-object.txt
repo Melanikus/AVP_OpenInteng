@@ -4,11 +4,10 @@
 #    (Create > With shape > Selected, OP-26): "chainP" made at the view from the shape, with locker02's simple-object properties (its own 62, object_make.cpp).
 # 2. Object > Edit (E, OP-130): Key, "Pass 3". Then Mode > Exit, which saves (inteng's save point).
 # 3. Strategy Data: chainP's own Edit view shows its strategy.
-# 4. The Binary Switch opslev01 (52): E, T ("Select target for switch": the camera goes to the old target, tolink04, -22220 -17381 72240), a click on the placed object pulse5 on the floor
-#    ahead (510, 437), Return: its view says "Target : pulse5 - Placed object". NAMED, THE VIEW GAP: an object made in this sitting is not drawn in the view yet (the view shows the level
-#    as it was opened), so the pick cannot reach chainP itself; when the view draws new objects this step picks chainP.
+# 4. The Binary Switch opslev01 (52): E, T ("Select target for switch": the camera goes to the old target, tolink04, -22220 -17381 72240), a click on chainP, the cabinet drawn
+#    on the left (250 450; an object made in this sitting is drawn since Dietrich's view-gap fix 075ee904), Return: its view says "Target : chainP - Placed object".
 # 5. File > Save a copy (the second save of the sitting: it was refused before cefa2e9c, strategy-data.md S-35a); the game's loader reads the copy: chainP a 62 of Type 6 (Key) and
-#    ExtraData 3, and opslev01's strategy holds pulse5's ID.
+#    ExtraData 3, and opslev01's strategy holds chainP's ID: the switch drives the object made in this sitting.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
 pictures on
 state
@@ -61,7 +60,7 @@ picture 2
 key Esc
 wait 300
 
-# ---- 4. a switch's target picked in the view: opslev01's T, a click on pulse5, Return
+# ---- 4. a switch's target picked in the view: opslev01's T, a click on chainP (the cabinet on the left), Return
 click-bar Find Object
 expect-dialog Select Object
 click-choice-is opslev01
@@ -73,15 +72,15 @@ key T
 wait 400
 expect-field camera -22220 -17381 72240 0 0
 picture 3
-click-win 510 437
+click-win 250 450
 wait 400
 picture 4
 key Enter
 wait 400
-expect-field-has strategyview 16@80:Target : pulse5 - Placed object
+expect-field-has strategyview 16@80:Target : chainP - Placed object
 picture 5
 key Esc
 wait 300
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} chainP Type 6 ExtraData 3 also opslev01
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} opslev01 holds pulse5 also chainP
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} opslev01 holds chainP also chainP

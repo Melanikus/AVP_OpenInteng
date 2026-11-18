@@ -1,11 +1,14 @@
 # ACCEPTANCE: the OBJECT PLACEMENT close-out's fifth chain (AvP-docs/director/strategy-100/PLAN.md THEN; Drake 2026-11-17): a TRACK OBJECT placed, given its strategy (72), a point
 # effect whose target is picked in the view, saved and read back, on his path on Invasion (a read-only stock copy, the file opened as a double click):
-# 1. Object Placement: Object > Find Fan1 (a placed object with a track; train1, the level's Track Object, is a module), P (Create > With shape > Selected, OP-26): "chainT" made at the view, a copy of the whole object (Fan1's
-#    shape has no outside file name), its track with it. Mode > Exit (saves).
+# 1. Object Placement: Object > Find Fan1 (a placed object with a track; train1, the level's Track Object, is a module), the view put 5 m ahead of the start view, P
+#    (Create > With shape > Selected, OP-26): "chainT" made at the view, a copy of the whole object (Fan1's shape has no outside file name), its track with it. Then Find switch3,
+#    the view 6.5 m ahead of chainT's, P: "chainTs". Mode > Exit (saves).
 # 2. Strategy Data: Find Object chainT, the right button's Assign Strategy: "Object already has a strategy. Would you like to replace it?" Yes (S-38), Track Object: its main page
 #    (S-K72-1, creation values S-K72-0: no point effects). "Point Effects :" (S-K72-2): "Which track point?" 0; point 0's page (S-K72-4); a click past its rows: the targets editor
-#    (S-K72-5): a click on the module Bigtube05 in the view, Return: the target on, both directions; a click on its direction: Forward only.
-# 3. File > Save a copy; the game's loader reads the copy: chainT a Track Object (72) with one effect, point 0, one target Bigtube05, request 1, direction 1 (forward).
+#    (S-K72-5): a click on the APC (the module APCmod) in the view, Return: the target on, both directions; a click on its direction: Forward only.
+# 3. File > Save a copy; the game's loader reads the copy: chainT a Track Object (72) with one effect, point 0, one target APCmod, request 1, direction 1 (forward); chainTs holds chainT, on.
+# 4. Targeted by a switch: Find Object chainTs (the camera at the start view), Assign Strategy (Yes) > Multi Switch, T, a click on chainT's blade, Return: chainT is its target, on
+#    (new objects are drawn since Dietrich's view-gap fix 075ee904).
 # NO OP EDIT STEP: Object Placement's Edit of a placed shape edits its Simple Object properties (OP-130), which live in a 62; a track has a 72, so a track's edit is its view's.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
@@ -14,12 +17,15 @@ click-bar Mode > Object Placement
 expect-screen Object Placement
 wait 400
 
-# ---- 1. placed
+# ---- 1. placed: chainT 5 m ahead of Invasion's start view (camera 0 0 0), and a switch chainTs (P from switch3) 6.5 m ahead of it, so that Strategy Data's
+# Find Object > chainTs puts the camera back at the start view with chainT in front of it
 click-bar Object > Find
 expect-dialog Select Object
 click-choice-is Fan1
 expect-no-dialog
 wait 400
+camera 0 0 5000 0 0
+wait 300
 key P
 expect-dialog Name Object
 form-field 1 chainT
@@ -27,9 +33,21 @@ click-button OK
 expect-no-dialog
 expect-status Object chainT made at the view
 picture 1
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is switch3
+expect-no-dialog
+wait 400
+camera 0 0 6553 0 0
+wait 300
+key P
+expect-dialog Name Object
+form-field 1 chainTs
+click-button OK
+expect-no-dialog
+expect-status Object chainTs made at the view
 click-bar Mode > Exit
 wait 400
-
 # ---- 2. given its strategy, a point effect with a target picked in the view
 click-bar Mode > Strategy Data: Normal
 expect-screen Strategy Data
@@ -51,27 +69,27 @@ expect-no-dialog
 wait 400
 picture 3
 # "Point Effects :" (y 32): "Which track point?", 0
-click-win 100 40
+click-box 100 40
 expect-dialog Which track point?
 key Enter
 expect-no-dialog
 wait 300
 picture 4
 expect-field-has strategyview 16@32:Point 0 targets :|32@48:None :
-# past the rows (none: "None :" at y 48): the targets editor ("Select targets", "Press return when finished"; picture 5); a click in the middle of the view: the module Bigtube05
-click-win 100 56
+# past the rows (none: "None :" at y 48): the targets editor ("Select targets", "Press return when finished"; picture 5); a click on the APC on the left: the module APCmod
+click-box 100 56
 wait 400
 picture 5
-click-win 504 364
+click-win 150 520
 wait 400
 picture 6
 key Enter
 wait 400
-expect-field-has strategyview 16@32:Point 0 targets :|0@48:(on)|50@48:(Both directions)|190@48:Bigtube05
+expect-field-has strategyview 16@32:Point 0 targets :|0@48:(on)|50@48:(Both directions)|190@48:APCmod
 # its direction (x 50..189): Both directions -> Forward only (S-K72-5)
-click-win 100 56
+click-box 100 56
 wait 300
-expect-field-has strategyview 16@32:Point 0 targets :|0@48:(on)|50@48:(Forward only)|190@48:Bigtube05
+expect-field-has strategyview 16@32:Point 0 targets :|0@48:(on)|50@48:(Forward only)|190@48:APCmod
 picture 7
 # the right button: the main page, the effect listed
 click-win 500 300 right
@@ -80,5 +98,37 @@ picture 8
 key Esc
 wait 300
 
+# ---- the switch: a Multi Switch whose target is chainT, picked in the view
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is chainTs
+expect-no-dialog
+wait 400
+expect-field camera 0 0 0 0 0
+click-win 500 300 right
+click-popup 4
+expect-dialog-kind confirm
+expect-dialog Object already has a strategy.
+click-button Yes
+expect-dialog Select Strategy
+click-button Multi_Switch
+expect-no-dialog
+wait 400
+expect-field-has strategyview 200@0:chainTs : Multiple Target Switch|
+key T
+wait 400
+expect-status Select targets for switch
+# T with no target yet: the camera stays; chainT's upper blade (500 200; the switch's own red marker is in the middle)
+click-win 500 200
+wait 400
+expect-screen-text chainT
+picture 6
+key Enter
+wait 400
+expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:chainT - Track
+picture 7
+key Esc
+wait 300
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} chainT effect.0.point 0 effect.0.targets 1 effect.0.target.0 Bigtube05 effect.0.target_request.0 1 effect.0.target_direction.0 1
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} chainT effect.0.point 0 effect.0.targets 1 effect.0.target.0 APCmod effect.0.target_request.0 1 effect.0.target_direction.0 1 also chainTs
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} chainTs targets 1 target.0 chainT target_request.0 1 also chainT

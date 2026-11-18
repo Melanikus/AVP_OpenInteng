@@ -27,6 +27,7 @@
 #include <math.h>
 
 #include <algorithm>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -1415,8 +1416,13 @@ static void RemoveOnLevel(std::string const &levelPath, std::string const &copyF
 
 		memcpy(mid, centreBytes.data(), 12);
 		memcpy(&radius, centreBytes.data() + 12, 4);
-		Check(mid[0] == (int32_t)(((int64_t)now.extents.maxX + now.extents.minX) / 2) && mid[1] == (int32_t)(((int64_t)now.extents.maxY + now.extents.minY) / 2) && mid[2] == (int32_t)(((int64_t)now.extents.maxZ + now.extents.minZ) / 2) &&
-			radius == model::ShapeRadiusAboutCentre(now), label + ": SHPCENTR is worked out again from the new extents");
+		int32_t const want[3] = { (int32_t)(((int64_t)now.extents.maxX + now.extents.minX) / 2), (int32_t)(((int64_t)now.extents.maxY + now.extents.minY) / 2),
+			(int32_t)(((int64_t)now.extents.maxZ + now.extents.minZ) / 2) };
+		float const wantRadius = model::ShapeRadiusAboutCentre(now);
+
+		Check(mid[0] == want[0] && mid[1] == want[1] && mid[2] == want[2] && radius == wantRadius, label + ": SHPCENTR is worked out again from the new extents (it holds " + std::to_string(mid[0]) + " " +
+			std::to_string(mid[1]) + " " + std::to_string(mid[2]) + " r " + std::to_string(radius) + "; the extents give " + std::to_string(want[0]) + " " + std::to_string(want[1]) + " " +
+			std::to_string(want[2]) + " r " + std::to_string(wantRadius) + "; " + std::to_string(now.points.size()) + " points now, " + std::to_string(original.points.size()) + " before; over the points before " + std::to_string([&]() { model::ShapeModel old = original; old.extents = now.extents; return model::ShapeRadiusAboutCentre(old); }()) + ")");
 	}
 
 	// every other shape is the baseline's
@@ -1700,6 +1706,164 @@ static void MergeInNumbers()
 	std::vector<int32_t> wrong = { -1 };
 
 	Check(host::PolyEdit_MergeInModel(shape, &wrong, every, 3, false) == 0, "merge data that is not one number for each polygon makes no pair");
+}
+
+// TM-B 2e (Dietrich, 2026-11-18): FUN_0055d500, Merge's save checking its pairs (reassess/tm-b-merge-map.md). The pair: polygon 1 (corners 0, 2, 3) with polygon 0 (corners 0, 1, 2), sharing
+// the points 0 and 2; both textured (type 5, picture 3), their lists matching at the shared corners.
+struct CheckedPair
+{
+	model::ShapeModel shape;
+	std::vector<model::UvList> lists;
+	std::vector<int32_t> merge;
+	bool changed = false;
+	size_t parted = 0;
+};
+
+static CheckedPair MatchingPair()
+{
+	CheckedPair pair;
+	model::ShapePolygon p0 = {}, p1 = {};
+
+	pair.shape = SquareShape();
+	pair.shape.polygons.clear();
+	p0.engineType = 5;
+	p0.flags = 0;
+	p0.colour = model::MakePolygonColour(3, 0);
+	p0.corners[0] = 0; p0.corners[1] = 1; p0.corners[2] = 2; p0.corners[3] = -1; p0.corners[4] = -1;
+	p1 = p0;
+	p1.colour = model::MakePolygonColour(3, 1);
+	p1.corners[0] = 0; p1.corners[1] = 2; p1.corners[2] = 3;
+	pair.shape.polygons.push_back(p0);
+	pair.shape.polygons.push_back(p1);
+
+	model::UvList l0 = {}, l1 = {};
+
+	l0.cornerCount = 3;
+	l0.corners[0] = { 0, 0 }; l0.corners[1] = { 64, 0 }; l0.corners[2] = { 64, 64 };
+	l1.cornerCount = 3;
+	l1.corners[0] = { 0, 0 }; l1.corners[1] = { 64, 64 }; l1.corners[2] = { 0, 64 };
+	pair.lists.push_back(l0);
+	pair.lists.push_back(l1);
+	pair.merge = { 1, 0 };
+
+	return pair;
+}
+
+static void Run(CheckedPair *pair)
+{
+	pair->parted = host::PolyEdit_CheckMergedPairs(&pair->shape, pair->lists, &pair->merge, &pair->changed);
+}
+
+static bool Kept(CheckedPair const &pair)
+{
+	return pair.parted == 0 && pair.merge[0] == 1 && pair.merge[1] == 0;
+}
+
+static bool Parted(CheckedPair const &pair)
+{
+	return pair.parted == 1 && pair.merge[0] == -1 && pair.merge[1] == -1;
+}
+
+static void CheckPairsInNumbers()
+{
+	printf("MERGE'S SAVE CHECKS, THE NUMBERS\n");
+
+	CheckedPair same = MatchingPair();
+
+	Run(&same);
+	Check(Kept(same) && !same.changed, "a matching pair is kept and no polygon changes");
+
+	CheckedPair flags = MatchingPair();
+
+	flags.shape.polygons[0].flags = 0x1;
+	flags.shape.polygons[1].flags = 0x4;
+	Run(&flags);
+	Check(Kept(flags) && flags.changed && flags.shape.polygons[0].flags == 0x5 && flags.shape.polygons[1].flags == 0x5, "flags that differ: each polygon gets the two OR'd (0x55d558), the pair kept");
+
+	CheckedPair gouraud = MatchingPair();
+
+	gouraud.shape.polygons[1].engineType = 6;
+	Run(&gouraud);
+	Check(Kept(gouraud) && !gouraud.changed && gouraud.shape.polygons[1].engineType == 6, "types 5 and 6 are both 5 as Texture Map holds them (0x55da15): kept, the type left");
+
+	CheckedPair threeD = MatchingPair();
+
+	threeD.shape.polygons[1].engineType = 0x17;
+	Run(&threeD);
+	Check(Kept(threeD) && threeD.changed && threeD.shape.polygons[1].engineType == 5 && threeD.shape.polygons[0].engineType == 5,
+		"types 5 and 0x17 (held 5 and 7): the higher-numbered polygon takes its partner's type (0x55d5d8), kept");
+
+	CheckedPair picture = MatchingPair();
+
+	picture.shape.polygons[1].colour = model::MakePolygonColour(4, 1);
+	Run(&picture);
+	Check(Parted(picture), "another picture parts the pair (0x55d636)");
+
+	CheckedPair place = MatchingPair();
+
+	place.lists[1].corners[1] = { 65, 64 };
+	Run(&place);
+	Check(Parted(place), "another place on the picture at a shared corner (the point 2) parts the pair (FUN_0055cdf0, 0x55d684)");
+
+	CheckedPair fraction = MatchingPair();
+
+	fraction.lists[1].corners[1] = { 64.6f, 64.2f };
+	Run(&fraction);
+	Check(Kept(fraction), "a place that differs by less than a texel is the same whole texel, as the game's loader holds it: kept");
+
+	CheckedPair freeCorner = MatchingPair();
+
+	freeCorner.lists[1].corners[2] = { 5, 5 };
+	Run(&freeCorner);
+	Check(Kept(freeCorner), "another place at a corner they don't share (the point 3) is not compared: kept");
+
+	CheckedPair plain = MatchingPair();
+	int32_t const textureColour = plain.shape.polygons[0].colour;
+
+	plain.shape.polygons[1].engineType = 2;
+	plain.shape.polygons[1].colour = 0x1234;
+	Run(&plain);
+	Check(Parted(plain), "one textured and one untextured parts the pair (0x55d5e3)");
+	Check(plain.shape.polygons[1].colour == 0x1234 && plain.shape.polygons[0].colour == textureColour,
+		"INTENG BUG, FIXED: the parted untextured polygon keeps its colour (inteng gives it its partner's picture number), the textured one its picture");
+
+	CheckedPair flat = MatchingPair();
+
+	flat.shape.polygons[0].engineType = 2;
+	flat.shape.polygons[0].colour = 0x10;
+	flat.shape.polygons[1].engineType = 2;
+	flat.shape.polygons[1].colour = 0x20;
+	Run(&flat);
+	Check(Kept(flat) && flat.changed && flat.shape.polygons[1].colour == 0x10 && flat.shape.polygons[0].colour == 0x10,
+		"two untextured of one type: the higher-numbered takes its partner's colour (0x55d6d6), kept");
+
+	CheckedPair mixedPlain = MatchingPair();
+
+	mixedPlain.shape.polygons[0].engineType = 2;
+	mixedPlain.shape.polygons[0].colour = 0x10;
+	mixedPlain.shape.polygons[1].engineType = 3;
+	mixedPlain.shape.polygons[1].colour = 0x20;
+	Run(&mixedPlain);
+	Check(Parted(mixedPlain) && mixedPlain.shape.polygons[1].colour == 0x10, "two untextured of different types: parted, the colour taken (0x55d5e3, 0x55d6d6)");
+
+	CheckedPair emptyList = MatchingPair();
+
+	emptyList.lists[1].cornerCount = 0;
+	Run(&emptyList);
+	Check(Parted(emptyList) && emptyList.shape.polygons[1].colour == model::MakePolygonColour(3, 1),
+		"a textured polygon whose list is empty is held untextured (0x55d8d2): parted from a textured partner, its colour word left");
+
+	CheckedPair alone = MatchingPair();
+
+	alone.merge = { -1, -1 };
+	Run(&alone);
+	Check(alone.parted == 0 && !alone.changed && alone.merge[0] == -1 && alone.merge[1] == -1, "no pair: nothing checked");
+
+	CheckedPair wrongSize = MatchingPair();
+
+	wrongSize.merge = { 1 };
+	Run(&wrongSize);
+	Check(wrongSize.parted == 0 && !wrongSize.changed && wrongSize.merge.size() == 1, "merge data that is not one number for each polygon is left");
 }
 
 // ================================================================= F. Split Object > As Placed Obj (PolyEdit_SplitAsObject) on a stock level
@@ -1998,6 +2162,911 @@ static void SplitOnLevel(std::string const &levelPath, std::string const &copyFo
 	}
 }
 
+// TM-B 2d (Dietrich, 2026-11-18): Merge's save of a SHARED shape that not all its users take (FUN_0055aa50's copy path): the first user gets a COPY of the shape, numbered one past the level's
+// highest, holding the new pairing; the other users keep the shape as it was, less the mover's name. Read back through the game's loader from a saved copy.
+static int32_t ShapeNumberOf(OpenLevelFile const &open, Object_Chunk *object)
+{
+	Object_Header_Chunk *const header = object ? object->get_header() : nullptr;
+	std::vector<unsigned char> bytes;
+	int32_t number = -1;
+
+	if (header && open.PayloadOf(header, &bytes) && bytes.size() >= 60)
+	{
+		memcpy(&number, bytes.data() + 56, 4);
+	}
+
+	return number;
+}
+
+static Object_Chunk *ObjectNamed(OpenLevelFile const &open, std::string const &name)
+{
+	List<Object_Chunk *> all;
+
+	open.Level()->list_objects(&all);
+
+	for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
+	{
+		if (each() && std::string(each()->object_data.o_name, strnlen(each()->object_data.o_name, sizeof(each()->object_data.o_name))) == name)
+		{
+			return each();
+		}
+	}
+
+	return nullptr;
+}
+
+static void MergeOnCopyOnLevel(std::string const &levelPath, std::string const &copyFolder)
+{
+	std::string const level = BaseName(levelPath);
+
+	printf("MERGE ON A COPY %s\n", level.c_str());
+
+	OpenLevelFile work;
+
+	if (work.Open(levelPath.c_str()) != LevelOpenResult::Opened || !work.Level())
+	{
+		Check(false, "the game's loader takes the level");
+		return;
+	}
+
+	// a shape with at least two users and merge data of its own
+	uint8_t id[8] = { 0 };
+	std::vector<std::string> users;
+	std::vector<int32_t> numbers;
+	bool have = false;
+	List<Object_Chunk *> all;
+
+	work.Level()->list_objects(&all);
+
+	for (LIF<Object_Chunk *> each(&all); !each.done() && !have; each.next())
+	{
+		Object_Chunk *const object = each();
+
+		if (!object || !HasChunk(object, "SHPMRGDT"))
+		{
+			continue;
+		}
+
+		uint8_t const *const thisId = (uint8_t const *)&object->object_data.ID;
+		std::vector<std::string> names;
+
+		if (!host::PolyEdit_ShapeUserNames(&work, thisId, &names) || names.size() < 2 || !MergeNumbers(work, object, &numbers) || numbers.empty())
+		{
+			continue;
+		}
+
+		// the object must be the list's first name (the mover)
+		Object_Chunk *const first = ObjectNamed(work, names[0]);
+
+		if (!first)
+		{
+			continue;
+		}
+
+		memcpy(id, &first->object_data.ID, 8);
+		users = names;
+		have = MergeNumbers(work, first, &numbers) && !numbers.empty();
+	}
+
+	if (!have)
+	{
+		printf("  --  %s: no shared shape with merge data\n", level.c_str());
+		return;
+	}
+
+	std::string const label = level + " Merge on a copy";
+	int32_t const oldNumber = ShapeNumberOf(work, ObjectNamed(work, users[0]));
+	std::vector<int32_t> changed = numbers;
+
+	// the new pairing: the first pair parted (or, with none, the numbers as they are)
+	for (size_t p = 0; p < changed.size(); p++)
+	{
+		if (changed[p] > (int32_t)p)
+		{
+			changed[(size_t)changed[p]] = -1;
+			changed[p] = -1;
+			break;
+		}
+	}
+
+	std::string why;
+	host::PolyMergeResult const result = host::PolyEdit_SetMergeDataOnCopy(&work, id, std::vector<std::string>(1, users[0]), changed, &why);
+
+	Check(result == host::PolyMergeResult::Done, label + ": " + users[0] + " gets a copy of the shape it shares with " + std::to_string(users.size() - 1) + " more" +
+		(result == host::PolyMergeResult::Done ? "" : std::string(": ") + host::PolyMergeWords(result) + " " + why));
+
+	if (result != host::PolyMergeResult::Done)
+	{
+		return;
+	}
+
+	std::string const copyPath = CopyPathIn(copyFolder, (level + "-poly-merge-copy.rif").c_str());
+
+	DeleteFileA(copyPath.c_str());
+	Check(work.SaveAs(copyPath.c_str()) == LevelSaveResult::Saved, label + ": the level is saved as a COPY");
+
+	OpenLevelFile edited;
+
+	Check(edited.Open(copyPath.c_str()) == LevelOpenResult::Opened && edited.Level(), label + ": the game's loader takes the copy");
+
+	if (!edited.Level())
+	{
+		return;
+	}
+
+	Object_Chunk *const mover = ObjectNamed(edited, users[0]);
+	Object_Chunk *const keeper = ObjectNamed(edited, users[1]);
+	int32_t const moverNumber = ShapeNumberOf(edited, mover), keeperNumber = ShapeNumberOf(edited, keeper);
+	std::vector<std::string> moverUsers, keeperUsers;
+	std::vector<int32_t> moverNumbers, keeperNumbers;
+
+	Check(mover && keeper, label + ": both objects are in the copy");
+	Check(moverNumber != oldNumber && moverNumber > 0 && keeperNumber == oldNumber, label + ": " + users[0] + " uses a new shape (" + std::to_string(moverNumber) + "), " + users[1] +
+		" the old one (" + std::to_string(keeperNumber) + ")");
+	Check(mover && host::PolyEdit_ShapeUserNames(&edited, (uint8_t const *)&mover->object_data.ID, &moverUsers) && moverUsers == std::vector<std::string>(1, users[0]),
+		label + ": the copy's only user is " + users[0]);
+
+	std::vector<std::string> expectedKeepers(users.begin() + 1, users.end());
+
+	Check(keeper && host::PolyEdit_ShapeUserNames(&edited, (uint8_t const *)&keeper->object_data.ID, &keeperUsers) && keeperUsers == expectedKeepers,
+		label + ": the old shape's users are the others, " + users[0] + " gone from its list");
+	Check(mover && MergeNumbers(edited, mover, &moverNumbers) && moverNumbers == changed, label + ": the copy holds the new pairing");
+	Check(keeper && MergeNumbers(edited, keeper, &keeperNumbers) && keeperNumbers == numbers, label + ": the old shape's pairing is as it was");
+}
+
+// TM-B 2e (Dietrich, 2026-11-18): Merge's save runs FUN_0055d500's checks before it writes (0x55bb73). On a stock shape whose pairs all pass: the first pair's lower polygon given a flag its partner
+// lacks, the second pair's higher polygon given another picture; the save writes the first pair kept with the flags OR'd on both, the second parted, every other number as it was. Read back
+// through the game's loader from a saved copy.
+static bool ShapeLists(OpenLevelFile const &open, Object_Chunk *object, std::vector<model::UvList> *lists)
+{
+	Shape_Chunk *const shape = object ? object->get_assoc_shape() : nullptr;
+	Chunk *const uv = shape ? shape->lookup_single_child("SHPUVCRD") : nullptr;
+	std::vector<unsigned char> bytes;
+
+	lists->clear();
+
+	return shape && (!uv || (open.PayloadOf(uv, &bytes) && model::ReadUvLists(bytes.data(), bytes.size(), lists) == model::UvModelResult::Ok));
+}
+
+static void CheckPairsOnLevel(std::string const &levelPath, std::string const &copyFolder)
+{
+	std::string const level = BaseName(levelPath);
+
+	printf("MERGE'S SAVE CHECKS %s\n", level.c_str());
+
+	OpenLevelFile work;
+
+	if (work.Open(levelPath.c_str()) != LevelOpenResult::Opened || !work.Level())
+	{
+		Check(false, "the game's loader takes the level");
+		return;
+	}
+
+	// a shape with at least two pairs, every pair of it passing the checks as the file holds it, the two first pairs textured
+	uint8_t id[8] = { 0 };
+	model::ShapeModel shape;
+	std::vector<int32_t> numbers;
+	size_t stockParted = 0, stockChanged = 0, shapesChecked = 0;
+	int32_t pairA[2] = { -1, -1 }, pairB[2] = { -1, -1 };
+	bool have = false;
+	List<Object_Chunk *> all;
+
+	work.Level()->list_objects(&all);
+
+	for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
+	{
+		Object_Chunk *const object = each();
+		std::vector<int32_t> merge;
+		std::vector<model::UvList> lists;
+		model::ShapeModel model;
+		std::string ignore;
+
+		if (!object || !HasChunk(object, "SHPMRGDT") || !MergeNumbers(work, object, &merge) || !ShapeLists(work, object, &lists) ||
+			host::ShapeEdit_Read(work.Level(), &work, (uint8_t const *)&object->object_data.ID, &model, nullptr, &ignore) != host::ShapeEditResult::Done || merge.size() != model.polygons.size())
+		{
+			continue;
+		}
+
+		model::ShapeModel tried = model;
+		std::vector<int32_t> triedMerge = merge;
+		bool changed = false;
+		size_t const parted = host::PolyEdit_CheckMergedPairs(&tried, lists, &triedMerge, &changed);
+
+		shapesChecked++;
+		stockParted += parted;
+		stockChanged += changed ? 1 : 0;
+
+		if (have || parted != 0 || changed)
+		{
+			continue;
+		}
+
+		std::vector<std::pair<int32_t, int32_t>> pairs;
+
+		for (size_t p = 0; p < merge.size(); p++)
+		{
+			if (merge[p] >= 0 && merge[p] < (int32_t)p && model::EngineTypeIsTextured(model.polygons[p].engineType))
+			{
+				pairs.push_back(std::make_pair((int32_t)p, merge[p]));
+			}
+		}
+
+		if (pairs.size() < 2)
+		{
+			continue;
+		}
+
+		memcpy(id, &object->object_data.ID, 8);
+		shape = model;
+		numbers = merge;
+		pairA[0] = pairs[0].first; pairA[1] = pairs[0].second;
+		pairB[0] = pairs[1].first; pairB[1] = pairs[1].second;
+		have = true;
+	}
+
+	printf("  --  %s: %zu shapes with merge data; as the file holds them the checks would part %zu pairs and change the polygons of %zu shapes\n", level.c_str(), shapesChecked, stockParted, stockChanged);
+
+	if (!have)
+	{
+		printf("  --  %s: no shape with two textured pairs that pass the checks\n", level.c_str());
+		return;
+	}
+
+	std::string const label = level + " Merge's save checks";
+	int32_t const flagsI = shape.polygons[(size_t)pairA[0]].flags, flagsJ = shape.polygons[(size_t)pairA[1]].flags;
+	uint32_t free = 1;
+
+	while (free != 0 && ((uint32_t)(flagsI | flagsJ) & free) != 0)
+	{
+		free <<= 1;
+	}
+
+	int32_t const bit = (int32_t)free;
+
+	int32_t const picture = model::PolygonPictureNumber(shape.polygons[(size_t)pairB[0]].colour);
+
+	shape.polygons[(size_t)pairA[1]].flags |= bit;
+	shape.polygons[(size_t)pairB[0]].colour = model::MakePolygonColour(picture < 0x7ffe ? picture + 1 : 0, model::PolygonUvListNumber(shape.polygons[(size_t)pairB[0]].colour));
+
+	std::string why;
+
+	Check(bit != 0 && host::ShapeEdit_WriteSameCounts(&work, work.Level(), id, shape, &why) == host::ShapeEditResult::Done, label + ": the two polygons are changed in the editor's bytes " + why);
+
+	size_t parted = 99;
+	host::PolyMergeResult const result = host::PolyEdit_SetMergeData(&work, id, numbers, &why, &parted);
+
+	Check(result == host::PolyMergeResult::Done && parted == 1, label + ": the save is written, one pair parted by the checks (" + std::to_string(parted) + ")" +
+		(result == host::PolyMergeResult::Done ? "" : std::string(": ") + host::PolyMergeWords(result) + " " + why));
+
+	if (result != host::PolyMergeResult::Done)
+	{
+		return;
+	}
+
+	std::string const copyPath = CopyPathIn(copyFolder, (level + "-poly-merge-checks.rif").c_str());
+
+	DeleteFileA(copyPath.c_str());
+	Check(work.SaveAs(copyPath.c_str()) == LevelSaveResult::Saved, label + ": the level is saved as a COPY");
+
+	OpenLevelFile edited;
+
+	Check(edited.Open(copyPath.c_str()) == LevelOpenResult::Opened && edited.Level(), label + ": the game's loader takes the copy");
+
+	if (!edited.Level())
+	{
+		return;
+	}
+
+	Object_Chunk *object = nullptr;
+	List<Object_Chunk *> every;
+
+	edited.Level()->list_objects(&every);
+
+	for (LIF<Object_Chunk *> each(&every); !each.done() && !object; each.next())
+	{
+		if (each() && memcmp(&each()->object_data.ID, id, 8) == 0)
+		{
+			object = each();
+		}
+	}
+
+	std::vector<int32_t> now;
+	model::ShapeModel saved;
+
+	Check(object && MergeNumbers(edited, object, &now) && host::ShapeEdit_Read(edited.Level(), &edited, id, &saved, nullptr, &why) == host::ShapeEditResult::Done &&
+		now.size() == numbers.size() && saved.polygons.size() == shape.polygons.size(), label + ": the saved shape is read");
+
+	if (now.size() != numbers.size() || saved.polygons.size() != shape.polygons.size())
+	{
+		return;
+	}
+
+	std::vector<int32_t> expected = numbers;
+
+	expected[(size_t)pairB[0]] = -1;
+	expected[(size_t)pairB[1]] = -1;
+
+	Check(now == expected, label + ": the pair given another picture (" + std::to_string(pairB[0]) + " + " + std::to_string(pairB[1]) + ") is written parted, every other number as it was");
+
+	int32_t const both = flagsI | flagsJ | bit;
+
+	Check(saved.polygons[(size_t)pairA[0]].flags == both && saved.polygons[(size_t)pairA[1]].flags == both && now[(size_t)pairA[0]] == pairA[1],
+		label + ": the pair whose flags differed (" + std::to_string(pairA[0]) + " + " + std::to_string(pairA[1]) + ") is kept, each polygon with the two OR'd (" +
+		std::to_string(saved.polygons[(size_t)pairA[0]].flags) + ", " + std::to_string(saved.polygons[(size_t)pairA[1]].flags) + ", wanted " + std::to_string(both) + ")");
+}
+
+// ---- TM-C H1: Remove and Split keep the BONE ATTACHMENT (SHPBONHD) and the VERTEX COLOURS (SHPVTINT) of the points kept. inteng's removal FUN_00435080 (Delete polys' FUN_00563d90 and Split's
+// FUN_00564300, which runs it on its copy of the shape, FUN_0050e880) ends with FUN_00435a00: in each SHPBONHD of the shape, SHPBONIN's point count becomes the shape's (0x435aaf), each SHPBONE keeps
+// the records (20 bytes: the point, then four more numbers, moved whole) of the points kept, renumbered (0x435b2a-0x435b41), and a SHPBONE left with none is deleted (0x435bb0); then FUN_00435c80: each
+// SHPVTINT of every object using the shape becomes one number per point of the shape, a kept point's old number, 0xffffffff for any other (0x435dde-0x435e25).
+// No stock level has a bone attachment, so one is put in the shape (two bones: A holds every point, B only the points the polygon taken out frees); the vertex colours are the level's own.
+
+namespace boneTest
+{
+	typedef std::vector<char> Bytes;
+
+	int32_t IntAt(Bytes const &b, size_t at)
+	{
+		int32_t v;
+
+		memcpy(&v, b.data() + at, 4);
+		return v;
+	}
+
+	void PutIntAt(Bytes *b, size_t at, int32_t v)
+	{
+		memcpy(b->data() + at, &v, 4);
+	}
+
+	void PutInt(Bytes *b, int32_t v)
+	{
+		b->insert(b->end(), (char const *)&v, (char const *)&v + 4);
+	}
+
+	void PutText(Bytes *b, std::string const &s)
+	{
+		size_t const at = b->size();
+
+		b->resize(at + ((s.size() + 4) & ~(size_t)3), 0);
+		memcpy(b->data() + at, s.data(), s.size());
+	}
+
+	Bytes Start(char const *name)
+	{
+		Bytes c(12, 0);
+
+		memcpy(c.data(), name, 8);
+		return c;
+	}
+
+	void Finish(Bytes *c)
+	{
+		PutIntAt(c, 8, (int32_t)c->size());
+	}
+
+	struct Span
+	{
+		size_t at, size;
+	};
+
+	bool Children(Bytes const &b, size_t from, size_t to, std::vector<Span> *out)
+	{
+		out->clear();
+
+		for (size_t at = from; at < to; )
+		{
+			if (to - at < 12)
+			{
+				return false;
+			}
+
+			int32_t const size = IntAt(b, at + 8);
+
+			if (size < 12 || (size_t)size > to - at)
+			{
+				return false;
+			}
+
+			out->push_back({ at, (size_t)size });
+			at += (size_t)size;
+		}
+
+		return true;
+	}
+
+	bool Is(Bytes const &b, Span const &s, char const *name)
+	{
+		return memcmp(b.data() + s.at, name, 8) == 0;
+	}
+
+	// the record's four numbers after the point, made from the OLD point number, so a record moved whole can be told from one made again
+	std::array<int32_t, 5> Record(int32_t newPoint, int32_t oldPoint)
+	{
+		return { newPoint, oldPoint * 2 + 1, -oldPoint, oldPoint * 3, 0x3f800000 };
+	}
+
+	Bytes BoneHeader(int32_t points, std::vector<std::pair<std::string, std::vector<int32_t>>> const &bones)
+	{
+		Bytes header = Start("SHPBONHD"), info = Start("SHPBONIN");
+
+		PutInt(&info, 7);
+		PutInt(&info, 3);
+		PutInt(&info, points);
+		PutText(&info, "testhier");
+		Finish(&info);
+		header.insert(header.end(), info.begin(), info.end());
+
+		for (auto const &bone : bones)
+		{
+			Bytes data = Start("SHPBONDT"), holder = Start("SHPBONE");
+
+			PutText(&data, bone.first);
+			PutInt(&data, (int32_t)bone.second.size());
+
+			for (int32_t const p : bone.second)
+			{
+				for (int32_t const n : Record(p, p))
+				{
+					PutInt(&data, n);
+				}
+			}
+
+			PutInt(&data, 11);   // the two numbers after the records, kept as they were
+			PutInt(&data, 12);
+			Finish(&data);
+			holder.insert(holder.end(), data.begin(), data.end());
+			Finish(&holder);
+			header.insert(header.end(), holder.begin(), holder.end());
+		}
+
+		Finish(&header);
+		return header;
+	}
+
+	// the REBSHAPE whose SHPHEAD1 has this number (its payload's int at 20)
+	bool ShapeSpan(Bytes const &image, int32_t number, Span *out)
+	{
+		std::vector<Span> top, inside;
+
+		if (!Children(image, 12, image.size(), &top))
+		{
+			return false;
+		}
+
+		for (Span const &t : top)
+		{
+			if (!Is(image, t, "REBSHAPE") || !Children(image, t.at + 12, t.at + t.size, &inside))
+			{
+				continue;
+			}
+
+			for (Span const &c : inside)
+			{
+				if (Is(image, c, "SHPHEAD1") && c.size >= 12 + 24 && IntAt(image, c.at + 12 + 20) == number)
+				{
+					*out = t;
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	bool PutInShape(OpenLevelFile *file, int32_t number, Bytes const &chunk)
+	{
+		Bytes image;
+		Span shape;
+
+		if (!file->BuildLevel(image) || !ShapeSpan(image, number, &shape))
+		{
+			return false;
+		}
+
+		image.insert(image.begin() + (std::ptrdiff_t)(shape.at + shape.size), chunk.begin(), chunk.end());
+		PutIntAt(&image, shape.at + 8, (int32_t)(shape.size + chunk.size()));
+		PutIntAt(&image, 8, (int32_t)image.size());
+		return file->ReplaceLevel(image) == LevelOpenResult::Opened;
+	}
+
+	struct Bone
+	{
+		std::string name;
+		std::vector<std::array<int32_t, 5>> records;
+		int32_t after[2];
+	};
+
+	struct Attachment
+	{
+		int headers = 0, holders = 0;
+		int32_t number = 0, sub = 0, points = -1;
+		std::string hierarchy;
+		std::vector<Bone> bones;
+	};
+
+	bool ReadAttachment(OpenLevelFile *file, int32_t number, Attachment *out)
+	{
+		Bytes image;
+		Span shape;
+		std::vector<Span> inside, parts, data;
+
+		*out = Attachment();
+
+		if (!file->BuildLevel(image) || !ShapeSpan(image, number, &shape) || !Children(image, shape.at + 12, shape.at + shape.size, &inside))
+		{
+			return false;
+		}
+
+		for (Span const &c : inside)
+		{
+			if (!Is(image, c, "SHPBONHD"))
+			{
+				continue;
+			}
+
+			out->headers++;
+
+			if (!Children(image, c.at + 12, c.at + c.size, &parts))
+			{
+				return false;
+			}
+
+			for (Span const &p : parts)
+			{
+				if (Is(image, p, "SHPBONIN") && p.size >= 12 + 13)
+				{
+					out->number = IntAt(image, p.at + 12);
+					out->sub = IntAt(image, p.at + 16);
+					out->points = IntAt(image, p.at + 20);
+					out->hierarchy = std::string(image.data() + p.at + 24, strnlen(image.data() + p.at + 24, p.size - 24));
+				}
+				else if (Is(image, p, "SHPBONE"))
+				{
+					out->holders++;
+
+					if (!Children(image, p.at + 12, p.at + p.size, &data))
+					{
+						return false;
+					}
+
+					for (Span const &d : data)
+					{
+						if (!Is(image, d, "SHPBONDT"))
+						{
+							continue;
+						}
+
+						Bone bone;
+						size_t const nameLength = strnlen(image.data() + d.at + 12, d.size - 12);
+						size_t at = d.at + 12 + ((nameLength + 4) & ~(size_t)3);
+
+						bone.name.assign(image.data() + d.at + 12, nameLength);
+
+						if (at + 4 > d.at + d.size)
+						{
+							return false;
+						}
+
+						int32_t const count = IntAt(image, at);
+
+						at += 4;
+
+						if (count < 0 || at + (size_t)count * 20 + 8 > d.at + d.size)
+						{
+							return false;
+						}
+
+						for (int32_t k = 0; k < count; k++, at += 20)
+						{
+							bone.records.push_back({ IntAt(image, at), IntAt(image, at + 4), IntAt(image, at + 8), IntAt(image, at + 12), IntAt(image, at + 16) });
+						}
+
+						bone.after[0] = IntAt(image, at);
+						bone.after[1] = IntAt(image, at + 4);
+						out->bones.push_back(bone);
+					}
+				}
+			}
+		}
+
+		return true;
+	}
+
+	// every SHPVTINT of the objects whose header names this shape (OBJHEAD1's payload, int at 56): the set's name and its numbers
+	bool ReadTints(OpenLevelFile *file, int32_t number, std::vector<std::pair<std::string, std::vector<int32_t>>> *out)
+	{
+		Bytes image;
+		std::vector<Span> top, inside;
+
+		out->clear();
+
+		if (!file->BuildLevel(image) || !Children(image, 12, image.size(), &top))
+		{
+			return false;
+		}
+
+		for (Span const &t : top)
+		{
+			if (!Is(image, t, "RBOBJECT") || !Children(image, t.at + 12, t.at + t.size, &inside))
+			{
+				continue;
+			}
+
+			bool mine = false;
+
+			for (Span const &c : inside)
+			{
+				mine = mine || (Is(image, c, "OBJHEAD1") && c.size >= 12 + 60 && IntAt(image, c.at + 12 + 56) == number);
+			}
+
+			for (Span const &c : inside)
+			{
+				if (!mine || !Is(image, c, "SHPVTINT") || c.size < 12 + 16)
+				{
+					continue;
+				}
+
+				int32_t const count = IntAt(image, c.at + 12 + 12);
+
+				if (count < 0 || 12 + 16 + (size_t)count * 4 > c.size)
+				{
+					return false;
+				}
+
+				std::pair<std::string, std::vector<int32_t>> one(std::string(image.data() + c.at + 12, strnlen(image.data() + c.at + 12, 8)), std::vector<int32_t>());
+
+				for (int32_t k = 0; k < count; k++)
+				{
+					one.second.push_back(IntAt(image, c.at + 12 + 16 + (size_t)k * 4));
+				}
+
+				out->push_back(one);
+			}
+		}
+
+		return true;
+	}
+
+	// what the attachment must be after a removal whose point map is `map` (-1: the point is gone), from the one put in: bone A's records of the points kept, renumbered, in the old order; bone B's the
+	// same, and no SHPBONE at all for B when none of its points is kept
+	void CheckAttachment(Attachment const &got, std::vector<int32_t> const &map, std::vector<int32_t> const &freed, std::string const &label)
+	{
+		int32_t kept = 0;
+		std::vector<std::array<int32_t, 5>> wantA, wantB;
+
+		for (size_t q = 0; q < map.size(); q++)
+		{
+			if (map[q] >= 0)
+			{
+				kept++;
+				wantA.push_back(Record(map[q], (int32_t)q));
+			}
+		}
+
+		for (int32_t const q : freed)
+		{
+			if (map[(size_t)q] >= 0)
+			{
+				wantB.push_back(Record(map[(size_t)q], q));
+			}
+		}
+
+		size_t const wantBones = wantB.empty() ? 1 : 2;
+
+		Check(got.headers == 1 && got.number == 7 && got.sub == 3 && got.hierarchy == "testhier", label + ": the shape still has its one bone attachment, its hierarchy named as it was (" + std::to_string(got.headers) + " SHPBONHD, " +
+			got.hierarchy + " " + std::to_string(got.number) + " " + std::to_string(got.sub) + ")");
+		Check(got.points == kept, label + ": SHPBONIN's point count is the shape's new one (" + std::to_string(got.points) + ", the shape has " + std::to_string(kept) + "; FUN_00435a00 0x435aaf)");
+		Check(got.holders == (int)wantBones && got.bones.size() == wantBones, label + ": " + std::to_string(wantBones) + " bone(s) left (" + std::to_string(got.holders) + " SHPBONE; a bone left with no point goes, 0x435bb0)");
+
+		if (got.bones.size() == wantBones)
+		{
+			Check(got.bones[0].name == "boneA" && got.bones[0].records == wantA && got.bones[0].after[0] == 11 && got.bones[0].after[1] == 12, label + ": bone A holds the " + std::to_string(wantA.size()) +
+				" points kept, renumbered, each record's other numbers moved with it, the two numbers after them as they were (" + std::to_string(got.bones[0].records.size()) + " records)");
+
+			if (wantBones == 2)
+			{
+				Check(got.bones[1].name == "boneB" && got.bones[1].records == wantB && got.bones[1].after[0] == 11 && got.bones[1].after[1] == 12, label + ": bone B holds its " + std::to_string(wantB.size()) +
+					" points, renumbered (" + std::to_string(got.bones[1].records.size()) + " records)");
+			}
+		}
+	}
+
+	void CheckTints(std::vector<std::pair<std::string, std::vector<int32_t>>> const &before, std::vector<std::pair<std::string, std::vector<int32_t>>> const &after, std::vector<int32_t> const &map,
+		std::string const &label)
+	{
+		int32_t kept = 0;
+
+		for (int32_t const m : map)
+		{
+			kept += m >= 0 ? 1 : 0;
+		}
+
+		bool same = before.size() == after.size() && !after.empty();
+
+		for (size_t s = 0; same && s < after.size(); s++)
+		{
+			std::vector<int32_t> want((size_t)kept, -1);
+
+			for (size_t q = 0; q < before[s].second.size() && q < map.size(); q++)
+			{
+				if (map[q] >= 0)
+				{
+					want[(size_t)map[q]] = before[s].second[q];
+				}
+			}
+
+			same = after[s].first == before[s].first && after[s].second == want;
+		}
+
+		Check(same, label + ": each of the object's " + std::to_string(before.size()) + " vertex colour lists (SHPVTINT) has one number per point left (" + std::to_string(kept) + "), each kept point's old one (" +
+			(after.empty() ? std::string("none") : std::to_string(after[0].second.size())) + " numbers in the first; FUN_00435c80)");
+	}
+}
+
+static void BonesAndTintsOnLevel(std::string const &levelPath, std::string const &copyFolder)
+{
+	std::string const level = BaseName(levelPath);
+
+	printf("BONES AND VERTEX COLOURS %s\n", level.c_str());
+
+	OpenLevelFile baseline;
+
+	if (baseline.Open(levelPath.c_str()) != LevelOpenResult::Opened || !baseline.Level())
+	{
+		Check(false, "the game's loader takes the level");
+		return;
+	}
+
+	// a shape that nothing refuses, used by one object that has vertex colours, with a polygon whose taking out frees a point (its corners not all shared)
+	uint8_t id[8] = { 0 };
+	bool have = false;
+	model::ShapeModel original;
+	int32_t take = -1;
+	std::vector<int32_t> freed;
+	std::vector<std::pair<std::string, std::vector<int32_t>>> tints;
+	List<Object_Chunk *> all;
+
+	baseline.Level()->list_objects(&all);
+
+	for (LIF<Object_Chunk *> each(&all); !each.done() && !have; each.next())
+	{
+		Object_Chunk *const object = each();
+
+		if (!object || !object->get_assoc_shape() || HasChunk(object, "SHPMORPH") || HasChunk(object, "ANIMSEQU") || HasChunk(object, "SHPPCINF") || HasChunk(object, "SHPFRAGS") || HasChunk(object, "SHPFRGTP") || HasChunk(object, "SHPEXTFL") ||
+			HasChunk(object, "SHPBONHD"))
+		{
+			continue;
+		}
+
+		model::ShapeModel shape;
+		std::string why;
+		size_t users = 0;
+		uint8_t const *const thisId = (uint8_t const *)&object->object_data.ID;
+
+		if (host::ShapeEdit_Read(baseline.Level(), &baseline, thisId, &shape, &users, &why) != host::ShapeEditResult::Done || users != 1 || shape.polygons.size() < 8 || shape.polygons.size() > 6000 ||
+			!boneTest::ReadTints(&baseline, shape.number, &tints) || tints.empty() || tints[0].second.size() != shape.points.size())
+		{
+			continue;
+		}
+
+		std::vector<int> uses(shape.points.size(), 0);
+
+		for (model::ShapePolygon const &p : shape.polygons)
+		{
+			for (int c = 0; c < p.cornerCount; c++)
+			{
+				uses[(size_t)p.corners[c]]++;
+			}
+		}
+
+		for (size_t i = 0; i < shape.polygons.size() && !have; i++)
+		{
+			std::vector<int32_t> alone;
+
+			for (int c = 0; c < shape.polygons[i].cornerCount; c++)
+			{
+				if (uses[(size_t)shape.polygons[i].corners[c]] == 1)
+				{
+					alone.push_back(shape.polygons[i].corners[c]);
+				}
+			}
+
+			if (!alone.empty())
+			{
+				have = true;
+				take = (int32_t)i;
+				freed = alone;
+				original = shape;
+				memcpy(id, thisId, 8);
+			}
+		}
+	}
+
+	if (!have)
+	{
+		printf("  --  %s: no shape with vertex colours and a polygon that frees a point\n", level.c_str());
+		return;
+	}
+
+	std::vector<int32_t> every;
+
+	for (size_t q = 0; q < original.points.size(); q++)
+	{
+		every.push_back((int32_t)q);
+	}
+
+	boneTest::Bytes const attachment = boneTest::BoneHeader((int32_t)original.points.size(), { { "boneA", every }, { "boneB", freed } });
+
+	// REMOVE: the map is the one PolyEdit_RemoveInModel gives for the same polygon
+	{
+		std::string const label = level + " Remove (bones, colours)";
+		OpenLevelFile work;
+		host::PolyRemoveMap map;
+		std::string why;
+
+		Check(work.Open(levelPath.c_str()) == LevelOpenResult::Opened && boneTest::PutInShape(&work, original.number, attachment), label + ": a bone attachment is put in the shape and the game's loader takes it");
+		Check(host::PolyEdit_Remove(&work, id, &take, 1, &map, &why) == host::PolyRemoveResult::Done && map.point.size() == original.points.size(), label + ": polygon " + std::to_string(take) + " is taken out, freeing " +
+			std::to_string(freed.size()) + " point(s) " + why);
+
+		std::string const copyPath = CopyPathIn(copyFolder, (level + "-poly-removed-bones.rif").c_str());
+		OpenLevelFile edited;
+		boneTest::Attachment got;
+		std::vector<std::pair<std::string, std::vector<int32_t>>> tintsAfter;
+
+		DeleteFileA(copyPath.c_str());
+		Check(work.SaveAs(copyPath.c_str()) == LevelSaveResult::Saved && edited.Open(copyPath.c_str()) == LevelOpenResult::Opened, label + ": the level is saved as a copy and the game's loader takes it");
+		Check(boneTest::ReadAttachment(&edited, original.number, &got), label + ": the copy's bone attachment is read");
+		boneTest::CheckAttachment(got, map.point, freed, label);
+		Check(boneTest::ReadTints(&edited, original.number, &tintsAfter), label + ": the copy's vertex colours are read");
+		boneTest::CheckTints(tints, tintsAfter, map.point, label);
+	}
+
+	// SPLIT: the old shape as Remove; the NEW shape keeps the attachment too, through its own map (its points are those polygon `take` uses), and the new object has no vertex colours (FUN_00564300 names
+	// no SHPVTINT, and its copy of the shape has no object yet when FUN_00435c80 runs)
+	{
+		std::string const label = level + " Split (bones, colours)";
+		OpenLevelFile work;
+		uint8_t madeId[8] = { 0 };
+		std::string made, why;
+		std::vector<int32_t> rest;
+		model::ShapeModel fresh = original, cut = original;
+		host::PolyRemoveMap freshMap, cutMap;
+
+		for (size_t i = 0; i < original.polygons.size(); i++)
+		{
+			if ((int32_t)i != take)
+			{
+				rest.push_back((int32_t)i);
+			}
+		}
+
+		Check(host::PolyEdit_RemoveInModel(&fresh, nullptr, rest.data(), rest.size(), &freshMap) == host::PolyRemoveResult::Done && host::PolyEdit_RemoveInModel(&cut, nullptr, &take, 1, &cutMap) == host::PolyRemoveResult::Done,
+			label + ": the maps of the two shapes are worked out");
+		Check(work.Open(levelPath.c_str()) == LevelOpenResult::Opened && boneTest::PutInShape(&work, original.number, attachment), label + ": a bone attachment is put in the shape and the game's loader takes it");
+		Check(host::PolyEdit_SplitAsObject(&work, id, &take, 1, madeId, &made, &why) == host::PolySplitResult::Done, label + ": polygon " + std::to_string(take) + " is split off as " + made + " " + why);
+
+		std::string const copyPath = CopyPathIn(copyFolder, (level + "-poly-split-bones.rif").c_str());
+		OpenLevelFile edited;
+
+		DeleteFileA(copyPath.c_str());
+		Check(work.SaveAs(copyPath.c_str()) == LevelSaveResult::Saved && edited.Open(copyPath.c_str()) == LevelOpenResult::Opened, label + ": the level is saved as a copy and the game's loader takes it");
+
+		Object_Chunk *const newObject = FindObject(edited, madeId);
+		int32_t const newNumber = ShapeNumberOf(edited, newObject);
+		boneTest::Attachment gotOld, gotNew;
+		std::vector<std::pair<std::string, std::vector<int32_t>>> tintsOld, tintsNew;
+
+		Check(newObject && newNumber >= 0 && newNumber != original.number, label + ": the new object and its shape are found (shape " + std::to_string(newNumber) + ")");
+		Check(boneTest::ReadAttachment(&edited, original.number, &gotOld), label + " (old shape): its bone attachment is read");
+		boneTest::CheckAttachment(gotOld, cutMap.point, freed, label + " (old shape)");
+		Check(boneTest::ReadTints(&edited, original.number, &tintsOld), label + " (old shape): its vertex colours are read");
+		boneTest::CheckTints(tints, tintsOld, cutMap.point, label + " (old shape)");
+		Check(boneTest::ReadAttachment(&edited, newNumber, &gotNew), label + " (new shape): its bone attachment is read");
+		boneTest::CheckAttachment(gotNew, freshMap.point, freed, label + " (new shape)");
+		Check(boneTest::ReadTints(&edited, newNumber, &tintsNew) && tintsNew.empty(), label + " (new shape): the new object has no vertex colours (" + std::to_string(tintsNew.size()) + " lists)");
+	}
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 3)
@@ -2010,6 +3079,7 @@ int main(int argc, char **argv)
 	Numbers();
 	RemoveInNumbers();
 	MergeInNumbers();
+	CheckPairsInNumbers();
 
 	std::string const copyFolder = argv[argc - 1];
 
@@ -2028,7 +3098,10 @@ int main(int argc, char **argv)
 		TypeChanges(argv[i], copyFolder);
 		RemoveOnLevel(argv[i], copyFolder);
 		UnmergeOnLevel(argv[i], copyFolder);
+		MergeOnCopyOnLevel(argv[i], copyFolder);
+		CheckPairsOnLevel(argv[i], copyFolder);
 		SplitOnLevel(argv[i], copyFolder);
+		BonesAndTintsOnLevel(argv[i], copyFolder);
 	}
 
 	if (checksFailed)

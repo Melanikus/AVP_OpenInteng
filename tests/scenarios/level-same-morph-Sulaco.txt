@@ -1,0 +1,13 @@
+# TWO SAVES OF A LEVEL WITH TWO-FRAME MORPHS ARE THE SAME, THE MORPH FRAMES TOO (2026-11-18, avpx facfb49c): Sulaco has FRMMORPH chunks of two frames
+# (shapes that morph, as doors do), whose save wrote 2 numbers a frame after the first that it never set, so two saves differed there and verify_level_same
+# needed --ignore FRMMORPH (tools/po/harness-verbs.md). Now nothing is skipped: two saves are SAME, every chunk. And the first save's FRMMORPH chunks are the
+# stock file's own, every byte: the {orig} check skips only the chunks every save writes otherwise (the rounding after a name, level_same.h), never FRMMORPH.
+# One file a level: level-same-morph-<level>.txt for the 10 stock levels with such a morph.
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Sulaco.RIF
+pictures off
+state
+expect-screen Construction
+save-copy
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save2}
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {orig} {save1} --ignore AVPGENER --ignore AVPGENNM --ignore AVPPATH2 --ignore BMPLSTST --ignore BMPNAMES --ignore EXTOBJNM --ignore FRGSOUND --ignore FRGTYPDC --ignore FRGTYPSC --ignore GMODHEAD --ignore INDSOUND --ignore MATCHIMG --ignore OBJHEAD1 --ignore PARGENDA --ignore RIFCHILD --ignore RIFFNAME --ignore SETPALST --ignore SHBMPNAM --ignore SHPEXTFN --ignore SHPFNAME --ignore SHPFRGTP --ignore SHPHEAD1 --ignore SOUNDDIR --ignore SOUNDOB2 --ignore TLTCONFG --ignore TRAKSOUN --ignore VOBJPROP

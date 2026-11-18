@@ -1,0 +1,98 @@
+# ACCEPTANCE (TM-A): Return's question for a SHARED shape (FUN_0055aa50 from FUN_00572440 0x572522; the form FUN_0055b4c0: "The shape associated with %s / is used by
+# some other objects. / Which of the other objects would you like the / changes applied to?", Ok, All, View Obj, Skip Obj, Skip All, a box per other user, unticked).
+# Ok with a box unticked: the object and the ticked ones get a COPY of the shape with the change, the others keep it as the last save had it; All: every user takes it;
+# Skip Obj: asked again; Skip All: a copy, no more questions. Area52's shapes of its own that objects share (verify_survey_shared_shapes): CANSR01 (row 55) with CANS01
+# (57); GANTE19 (118) with GANTE15 (121) and GANTE12 (123); GANTE24 (104) with GANTE23 (105); GANTE16 (120) with GANTE09 (250). Each: polygon 0 (and its partner)
+# shifted 7 3, then Return. Checked on the state line and the saved file only (uv_verify: object A's polygons against object B's).
+# Red on exe-cache/0daadb65.exe (Return writes the shared shape for every user, no question), green on the hash with the question.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Area52.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 55 0
+expect-status selected
+item 0x133
+expect-dialog-kind text
+type 7
+key Tab
+type 3
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+key Enter
+expect-dialog-kind form
+expect-field-has dialogbuttons Skip_All
+expect-field-has dialogbuttons View_Obj
+expect-dialog-checks off
+click-button Ok
+expect-no-dialog
+expect-status Saved a copy:
+expect-status 1 given a copy
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/uv_verify/uv_verify.exe {copy} 55 57 differ 0 1
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/uv_verify/uv_verify.exe {copy} 55 57 same 2 3 4 5
+item 0x2b
+wait 200
+pick-poly 118 0
+expect-status selected
+item 0x133
+expect-dialog-kind text
+type 7
+key Tab
+type 3
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+key Enter
+expect-dialog-kind form
+expect-dialog-checks off,off
+click-check 1
+expect-dialog-checks on,off
+click-button Ok
+expect-no-dialog
+expect-status 1 given a copy
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/uv_verify/uv_verify.exe {copy} 118 121 same 0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/uv_verify/uv_verify.exe {copy} 118 123 differ 0
+item 0x2b
+wait 200
+pick-poly 104 0
+expect-status selected
+item 0x133
+expect-dialog-kind text
+type 7
+key Tab
+type 3
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+key Enter
+expect-dialog-kind form
+click-button All
+expect-no-dialog
+expect-status 1 written for all their users
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/uv_verify/uv_verify.exe {copy} 104 105 same 0
+item 0x2b
+wait 200
+pick-poly 120 0
+expect-status selected
+item 0x133
+expect-dialog-kind text
+type 7
+key Tab
+type 3
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+key Enter
+expect-dialog-kind form
+click-button Skip_Obj
+expect-dialog-kind form
+click-button Skip_All
+expect-no-dialog
+expect-status 1 given a copy
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/uv_verify/uv_verify.exe {copy} 120 250 differ 0

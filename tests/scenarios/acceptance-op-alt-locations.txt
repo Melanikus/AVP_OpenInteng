@@ -1,0 +1,107 @@
+# ACCEPTANCE (red first; Drake 11-17, OP close-out OP-34..OP-38 and OP-91): Object Placement's Alt Locations on his path (Invasion, the file opened as a double click; switch3, a placed object).
+# OP-34 Add new (FUN_004df820): with no locations, location 0 = where the object is, then a NEW one appended and made current: "Location 1/2" (FUN_004df3c0's line, the shown one from 0).
+# Move relative moves it. OP-91: ',' (slot 0xd87afc) = Prev (FUN_004df990): the current location takes the place now, the object goes to the one before ("Location 0/2"); '.' = Next.
+# OP-37 the bar's Prev / Next the same. OP-36 Assign Group Number (FUN_004dfa60): inteng's number window (FUN_00474170) starting at the group, 0; 3, Return: "Location group 3".
+# OP-38 Change shown location (all objects) (FUN_004dfb90): the number window starting at 0; 0, Return: every object with locations at that index. File > Save a copy: the game's loader
+# reads switch3 with 2 alternate locations in group 3. OP-35 Delete Current (FUN_004df6b0): the next location put on the object, the current one taken out; one left: the list emptied.
+# RED on bishop-int 056fed50: Assign Group Number and Change shown location are typed prompts (no window), ',' and '.' do nothing.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+expect-hierarchy-text switch3
+
+# ---- OP-34 Add new: 2 locations, the new one current
+click-bar Alt Locations > Add new
+wait 300
+expect-field-has hierarchylines Location 1/2
+
+# ---- moved 1.25 m (Move relative)
+click-bar Object > Move relative
+expect-dialog RelMove Shape
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+type 1.25
+key Tab
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+type 0
+key Tab
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+type 0
+key Enter
+expect-no-dialog
+expect-status Moved
+picture 1
+
+# ---- OP-91: , = Prev, . = Next
+key Comma
+wait 300
+expect-field-has hierarchylines Location 0/2
+picture 2
+key Period
+wait 300
+expect-field-has hierarchylines Location 1/2
+picture 3
+
+# ---- OP-37: the bar's Prev / Next
+click-bar Alt Locations > Prev
+wait 300
+expect-field-has hierarchylines Location 0/2
+click-bar Alt Locations > Next
+wait 300
+expect-field-has hierarchylines Location 1/2
+
+# ---- OP-36: Assign Group Number, inteng's number window starting at the group (0)
+click-bar Alt Locations > Assign Group Number
+expect-dialog-kind form
+expect-dialog-text 0
+picture 4
+key Back
+type 3
+key Enter
+expect-no-dialog
+wait 300
+expect-field-has hierarchylines Location group 3
+
+# ---- OP-38: Change shown location (all objects), the window starting at 0
+click-bar Alt Locations > Change shown location (all objects)
+expect-dialog-kind form
+expect-dialog-text 0
+key Enter
+expect-no-dialog
+wait 300
+expect-field-has hierarchylines Location 0/2
+picture 5
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} alt switch3=2,3
+
+# ---- OP-35: Delete Current: the next location on the object, then one left: no locations
+click-bar Alt Locations > Delete Current
+wait 300
+expect-status Location deleted
+picture 6

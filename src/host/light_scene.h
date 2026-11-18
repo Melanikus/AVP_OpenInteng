@@ -39,6 +39,7 @@ namespace host
 		double place[3];
 		int32_t matrix[9];
 		bool hidden;
+		bool changed = false;   // its local flags hold 4 (LOFlag_Changed): Light Sourcing turns its marker (FUN_004ab670, light-closeout-frost.md TB-L6)
 	};
 
 	// The markers of the STDLIGHTs of the set NORMALLT, in the set's order (so the number of a light is its marker's place). False when the level has no such set.

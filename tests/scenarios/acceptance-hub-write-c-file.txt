@@ -1,0 +1,33 @@
+# ACCEPTANCE: Construction > File > Write C File (0xc; FUN_004452b0 0x445867-0x44595f, FUN_00447bc0, FUN_00503da0; AvP-docs\engine\inteng\write-c-file-facts.md). Only with
+# exactly ONE object selected (DAT_00631234 == 1): with none, or two, nothing happens. With one: the dialog "Write .c file", "Type filename for shape (without .c
+# extension)", an empty edit; Cancel writes nothing; Ok with a name writes the object's shape as C. Ours goes to <the copies folder>\edited\<name>.c (as Write Asc
+# File), never the game's folder. Area52's CANSR01 (row 55: a textured shape two objects use, CANS01 the other). Checked on the state line and the written file
+# (verify_c_file: the level read on its own; the exact text is c_shape_text_test's).
+# Red on exe-cache/e639a8dd.exe (Write C File not built: no dialog), green on the hash with it.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Area52.RIF
+pictures off
+verify cmd /c del /q "{exedir}AVP_OpenInteng\edited\cansr.c" 2>nul & exit 0
+state
+expect-screen Construction
+item 0xc
+wait 300
+expect-no-dialog
+select-rows 55 57
+item 0xc
+wait 300
+expect-no-dialog
+select-row 55
+item 0xc
+expect-dialog Write .c file
+expect-dialog-kind form
+click-button Cancel
+expect-no-dialog
+item 0xc
+expect-dialog Write .c file
+type cansr
+click-button Ok
+expect-no-dialog
+expect-status Written
+expect-status cansr.c
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_c_file/verify_c_file.exe {orig} CANSR01 {exedir}AVP_OpenInteng\edited\cansr.c cansr

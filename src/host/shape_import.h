@@ -32,12 +32,130 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <string>
 #include <vector>
 
 namespace host
 {
+
+	// THE CHUNK HELPERS this file's reader uses, made public so the outside-shape update (shape_update.h) reads hostile bytes with the SAME hardened code (Frost, 2026-11-16:
+	// one parser, not two that drift apart). Moved here unchanged by Melanikus (Vasquez), 2026-11-16.
+	namespace shape_chunks
+	{
+		typedef std::vector<char> Bytes;
+
+		size_t const kHeadingBytes = 12;          // a chunk: its 8-letter name, then its size (which counts these 12 bytes too)
+
+		inline int32_t IntAt(Bytes const &bytes, size_t at)
+		{
+			int32_t value;
+
+			memcpy(&value, bytes.data() + at, sizeof(value));
+			return value;
+		}
+
+		inline void PutIntAt(Bytes *bytes, size_t at, int32_t value)
+		{
+			memcpy(bytes->data() + at, &value, sizeof(value));
+		}
+
+		inline void AddInt(Bytes *bytes, int32_t value)
+		{
+			char raw[sizeof(value)];
+
+			memcpy(raw, &value, sizeof(value));
+			bytes->insert(bytes->end(), raw, raw + sizeof(raw));
+		}
+
+		struct Span
+		{
+			size_t at;
+			size_t size;
+		};
+
+		inline bool ChunkSizeAt(Bytes const &bytes, size_t at, size_t end, size_t *size)
+		{
+			if (end > bytes.size() || at > end || end - at < kHeadingBytes)
+			{
+				return false;
+			}
+
+			int32_t const stored = IntAt(bytes, at + 8);
+
+			if (stored < (int32_t)kHeadingBytes || (size_t)stored > end - at)
+			{
+				return false;
+			}
+
+			*size = (size_t)stored;
+			return true;
+		}
+
+		inline bool NameIs(Bytes const &bytes, size_t at, char const *name)
+		{
+			return memcmp(bytes.data() + at, name, 8) == 0;
+		}
+
+		inline bool Children(Bytes const &bytes, size_t from, size_t to, std::vector<Span> *out)
+		{
+			out->clear();
+
+			for (size_t at = from; at < to; )
+			{
+				size_t size = 0;
+
+				if (!ChunkSizeAt(bytes, at, to, &size))
+				{
+					return false;
+				}
+
+				Span const span = { at, size };
+
+				out->push_back(span);
+				at += size;
+			}
+
+			return true;
+		}
+
+		inline void PadToFour(Bytes *bytes)
+		{
+			while (bytes->size() % 4 != 0)
+			{
+				bytes->push_back(0);
+			}
+		}
+
+		inline Bytes MakeChunk(char const *name, Bytes const &payload)
+		{
+			Bytes chunk(kHeadingBytes, 0);
+
+			memcpy(chunk.data(), name, 8);
+			chunk.insert(chunk.end(), payload.begin(), payload.end());
+			PutIntAt(&chunk, 8, (int32_t)chunk.size());
+			return chunk;
+		}
+
+		inline void AddCopy(Bytes *out, Bytes const &from, Span const &span)
+		{
+			out->insert(out->end(), from.begin() + (std::ptrdiff_t)span.at, from.begin() + (std::ptrdiff_t)(span.at + span.size));
+		}
+
+		inline size_t FirstNamed(Bytes const &bytes, std::vector<Span> const &inside, char const *name)
+		{
+			for (size_t i = 0; i < inside.size(); i++)
+			{
+				if (NameIs(bytes, inside[i].at, name))
+				{
+					return i;
+				}
+			}
+
+			return inside.size();
+		}
+	}
 	enum class ShapeImportResult
 	{
 		Done,

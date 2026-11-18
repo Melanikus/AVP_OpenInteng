@@ -1,0 +1,38 @@
+# ACCEPTANCE: A-7, turning the flown object (Dietrich, 2026-11-17; reassess/object-placement.md OP-113, V-15; reassess/op-moving-dietrich.md). inteng's mover FUN_0053db40 turns the flown object's block:
+# each held turn key multiplies a 10 degree matrix into a turn whose Euler angles are speeds in 4096ths a second (one key: 114), this frame's share of each is the speed x the frame's time with the part
+# of a unit carried, x 6 (0x53dd78), and the block's matrix is turned by them about its own axes (0x53df7b): about 684 of 4096 a second (60 degrees) for one key, at any frame rate. Numpad '*' held levels it
+# (0x53e403-0x53e51a: row 1 straight down, row 2 the forward made level); Shift + numpad '*' snaps it to right angles (FUN_0053d1e0). Ours turned 24 of 4096 every frame, and had no numpad '*'.
+# His path: Invasion, Object Placement, switch3 picked with the mouse, F, then the keys held. flyturned is the turn since F (4096ths), flymatrix the object's own matrix by rows.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+wait 300
+key F
+expect-status Fly selected object: on
+expect-number flyturned y_ 0 0
+# numpad 4 held a second: about 684 of 4096 about its own up axis (the hold's own length and the frames around it allowed)
+hold Numpad4 1000
+expect-number flyturned y_ 550 850
+# numpad 8 tips it (about its own x); then numpad '*' levels it: its down row is straight down again, exactly
+remember-field flymatrix
+hold Numpad8 500
+expect-field-changed flymatrix
+hold Multiply 100
+expect-field-has flymatrix down 0 65536 0
+# Shift + numpad '*': a turn of some degrees snapped back to right angles (the matrix changes), its down row still straight down
+hold Numpad4 300
+remember-field flymatrix
+hold Shift+Multiply 100
+expect-field-changed flymatrix
+expect-field-has flymatrix down 0 65536 0
+# F again lets it go, turned
+wait 300
+key F
+expect-status Fly selected object: off

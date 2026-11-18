@@ -29,6 +29,9 @@
 // Where the editor's camera is and which way it looks, in the game's own units: the place in the game's world units, a turn around
 // the up axis and a look up or down, each in 4096ths of a full turn as the game counts angles. Only the low 12 bits of the two angles
 // are used, so any whole number is a real angle.
+// THE AXES, MEASURED (11-18: Bishop's two camera trials against the editor's matrix, a701208a; Drake's orbit camera on Genshd1's lift shaft): x across, y points DOWN, z forward; turn 0
+// looks along +z and turn 1024 along -x; a POSITIVE look looks down (held to a quarter turn, 1024, either way). Every other note about the camera (the harness's camera verbs,
+// harness-verbs.md, camera_orbit.h) points here.
 struct FlyCamera
 {
 	int x;
@@ -73,6 +76,11 @@ bool LevelView_Start(char *why, size_t whySize);
 // the level puts the player, as a camera. The name is checked by the game's own rule for level file names first.
 // Gives back false, with why, if the name is refused.
 bool LevelView_Open(const char *levelName, FlyCamera *startHere, char *why, size_t whySize);
+
+// The last level opened's MISSING PICTURES (the owner, 2026-11-17: users are told everything): how many of its pictures could not be loaded, or that it has no list
+// of pictures at all, and that their polygons are drawn as white lines, as inteng draws them, said in the log and given back for the status line. Gives back otherwise
+// when none is missing.
+const char *LevelView_SayMissingPictures(const char *otherwise);
 
 // Where the last level opened put things, in plain words for a run's report: the level's own start (its AVPSTART record), the player's
 // body, the player's display block, and the room the camera starts in. Empty until a level is open. (Added 2026-11-14 by Melanikus
@@ -255,6 +263,30 @@ bool LevelView_SetItemUv(const LevelViewShapeOf &shape, int32_t item, const int3
 // The game's item takes (on) or loses (not on) these bits of its flags (iflag_notvis 1, iflag_nolight 2, iflag_transparent 0x10, iflag_no_bfc 0x20, iflag_mirror 0x1000, ...) at once, so the view shows the flag now; the file's polygon is not touched here. (Added 2026-11-15 by Melanikus (Dietrich), Texture Map flags.)
 bool LevelView_SetItemFlagBits(const LevelViewShapeOf &shape, int32_t item, int32_t mask, bool on);
 
+// OBJECT PLACEMENT'S LIGHTING (OP-3, OP-44; added 2026-11-17 by Drake). on: the mode's look. Every item of every shape a module draws gets iflag_nolight, so the modules are drawn unlit (inteng's
+// entry FUN_004d68e0 0x4d84e6-0x4d8526), and the level's other shapes that hold baked colours (ShapeFlag_PreLit; FUN_004d67f0) are lit (objectsLit: the bit cleared) or unlit (set). Not on: every
+// item the look changed has its own bit back (inteng loads the level again when the mode ends). Each call does only what changed since the last, so it can be called every frame; a level opened in
+// between comes in with its own bits and is taken as new. inteng also swaps those items' types (5 <-> 6, 7 <-> 0x18); the game's loader has made every textured item of ours
+// I_ZB_Gouraud3dTexturedPolygon (post_process_shape, projload.cpp:3027-3080), so none holds those types and the bit is the whole of it for our renderer. NAMED: inteng's objects are its shapes from
+// DAT_008f588c on; ours are the level's shapes no module draws. Gives back how many items' bits it set or put back.
+int LevelView_PlacementLighting(bool on, bool objectsLit);
+
+// The look for a scenario's state line: "look <0|1> lit <0|1> modules <items> objects <items>", then " at x y z|..." for up to four blocks in play whose shape is an object's with baked
+// colours (the world's places: what a picture of the look can be aimed at). Empty when no level is open.
+std::string LevelView_PlacementLightingWords();
+
+// THE LIVE SCALE of Object Placement's '=' and '-' keys (OP-14; inteng's FUN_004e1340 scales the game's own shape of the block each frame the key is held): every point of the
+// shape the game has loaded for this object, its radius and its six extents are multiplied by factor, each cut toward zero as inteng's __ftol; the block takes its extents
+// from the shape again (as map.cpp makes a block). Nothing is changed when the shape is not in play, a number would leave the 32-bit range, or factor is not above 0 and at
+// most 1,000,000. The file's bytes are the caller's (shape_rescale_edit.h); this is only what the view draws.
+bool LevelView_ScaleObjectShape(const LevelViewShapeOf &shape, double factor);
+
+// THE LIVE QUARTER TURN of Construction's R (TB-C5; inteng FUN_004452b0 0x447474-0x447505 turns the game's own shape of the selected object as the file's): every point of the shape the
+// game has loaded for this module or object, every polygon normal and point normal, (x, y, z) -> (-z, y, x); the extents turned whole (max x = -min z, min x = -max z, max z = max x,
+// min z = min x: inteng's own turn of the loaded extents is wrong, the file's bug fixed the same way) and the block takes them. Nothing is changed when the shape is not in play or a
+// number has no negative (INT_MIN). The file's bytes are the caller's (ShapeEdit_TurnQuarter); this is only what the view draws.
+bool LevelView_TurnObjectShape(const LevelViewShapeOf &shape);
+
 // Objects that no module holds are drawn after the modules (the avpx hook R_SetEditorDrawObjectsOutsideModules): on for a file with no modules, whose objects the editor made display blocks of (hierarchy_view.h, ModelObjects_Build)
 void LevelView_DrawObjectsOutsideModules(bool on);
 
@@ -269,8 +301,88 @@ void LevelView_FlyEnd();
 void const *LevelView_FlyCopyBlock();
 bool LevelView_FlyActive();
 
+// A SECOND LIVE COPY of an object, drawn where it is put while the object itself stays drawn (or flies as the copy above): Track Editing's start marker, inteng's copy of the object at the
+// current section's start (FUN_004b2590 at the track's load, placed by FUN_004f0da0; T-3c). Begin false when the object is not in play, is a hierarchy, or a second copy is already shown.
+bool LevelView_GhostBegin(const uint8_t *id);
+void LevelView_GhostPut(const int32_t world[3], const float quat[4]);
+void LevelView_GhostEnd();
+bool LevelView_GhostActive();
+// Where the second copy is, as the game holds it (its ObWorld), for the scenario's state line; false when none is shown
+bool LevelView_GhostWorld(int32_t world[3]);
+
 // Where the live copy is, as the game holds it (its ObWorld), its radius and whether the game has it among the blocks it is drawing this frame (for the scenario's state line); false when none flies
 bool LevelView_FlyCopyState(int32_t world[3], int32_t *radius, bool *active);
+
+// The live copy's matrix as the game holds it (its ObMat: mat11 .. mat33, 16.16), false when none flies
+bool LevelView_FlyMatrix(int32_t matrix[9]);
+
+// THE ORBIT (V-17): inteng's camera object of kind 1 (FUN_00580a40, the kind R's link gives it), from the block it follows: C = the block's matrix turned by the orbit's yaw and then its pitch
+// (CreateEulerMatrix of (0, yaw, 0) and (pitch, 0, 0), MatrixMultiply: the game's own, as inteng's FUN_004b3370 and FUN_004b34b0 are), and the camera at the block's place plus C applied to
+// (0, 0, -distance) (RotateVector, AddVector: FUN_004b3860, FUN_004b3800), so it is that far back along C's forward and faces the way C does. The angles in 4096ths, the places in the world's units.
+void LevelView_OrbitOf(const int32_t blockPlace[3], const int32_t blockMatrix[9], int pitch, int yaw, int32_t distance, int32_t place[3], int32_t matrix[9]);
+
+// THE ENGINE'S OWN DYNAMICS ON CHOSEN BLOCKS (Object Placement's Gravity OP-47 and a flight's collisions OP-117 / OP-118; Bishop's ruling 11-17: the game's code, no physics of ours). inteng ran
+// its engine on its blocks; here avpx's ObjectDynamics (dynamics.cpp) runs once a frame with every block NOT chosen held static for that call (its IsStatic bit set and put back), so only the
+// chosen ones move, by the game's own gravity, collisions and relocation.
+// Gravity on: every placed inanimate object of type 1 (furniture), 2 (weapon), 3 (ammo), 4 (health), 5 (armour) or 15 (field charge) (inteng's FUN_004e3e30 by the object's +0x44) is chosen:
+// its GravityOn set, its IsStatic cleared; off: both put back, the objects left where the engine took them. False when no level is open or the game has no player block to run with.
+bool LevelView_SetGravity(bool on);
+// One frame of it (Object Placement's frame, while Gravity is on)
+void LevelView_GravityStep();
+// The chosen objects that the engine has moved since Gravity went on: each one's 8-byte ID, its place now in the game's units and its matrix (16.16, by rows), for the save that writes them
+struct LevelViewMovedObject { uint8_t id[8]; int32_t world[3]; int32_t matrix[9]; };
+void LevelView_GravityMoved(std::vector<LevelViewMovedObject> *moved);
+// A FLIGHT'S COLLISIONS (L, OP-118): the object whose 8-byte ID this is moved by the engine from `from` to `to` (the game's units) through its own strategy block's dynamics, gravity off,
+// colliding with the level as the game's objects do; *reached is where it got to. False (reached = to) when the object has no dynamics block or the engine can't run.
+bool LevelView_FlyCollideMove(const uint8_t *id, const int32_t from[3], const int32_t to[3], int32_t reached[3]);
+// B (OP-117, FUN_004df1e0 / FUN_004df2d0): the object's collision box (its display block's ObMaxX..ObMinZ, which the engine's box is made from) grown by 2000 on each side, or put back
+bool LevelView_FlyBoxGrow(const uint8_t *id, bool grow);
+
+// A view matrix in place of the camera's turn, look and roll for the draws that follow (the orbit's C: inteng's camera block takes it whole), or none again (nullptr). The camera's x y z stay its place.
+// form: the game's (the player's ObMat, as PutTheEyes puts it; 16.16, mat11 mat12 mat13 mat21 ...).
+void LevelView_SetViewMatrix(const int32_t *matrix);
+
+// The camera's turn, look and roll whose view (the look about x after the turn and roll, as the game's UpdateCamera makes it) is this matrix, the look kept within a quarter turn either way; in 4096ths
+// form: the game's VDB_Mat (local to world: the way the camera faces is column 3, mat13 mat23 mat33), NOT inteng's view block +0x38, which is it turned over (FUN_004c19a0).
+void LevelView_AnglesOfMatrix(const int32_t matrix[9], int *turn, int *look, int *roll);
+
+// The view's matrix of the camera's turn, look and roll, as the game's UpdateCamera makes it from PutTheEyes's player: pan(look) x CreateEulerMatrix(0, turn, roll) (MatrixMultiply(ObMat, pan))
+// form: the game's VDB_Mat, as LevelView_AnglesOfMatrix takes it. THE GAME'S OWN (avpx maths.cpp, not ours to comment there): form: CreateEulerMatrix(e) gives the game's (PutTheEyes's ObMat, VDB_Mat for no look);
+// form: MatrixToEuler(m) takes CreateEulerMatrix's TURNED OVER (editor_main.cpp CameraOfFileSlot and LevelView_CameraHeading turn it over first).
+void LevelView_MatrixOfAngles(int turn, int look, int roll, int32_t matrix[9]);
+
+// A-7 (OP-113), THE TURN KEYS' SPEEDS as inteng's mover FUN_0053db40 makes them (0x53dc1a-0x53dd3c): a matrix that starts as the identity is multiplied by a 10 degree turn for each key held, in the order
+// numpad 4, 6, 7, 9, 8, 2 (the exe's matrices at 0x5f0568, 0x5f0540, 0x5f0608, 0x5f05e0, 0x5f0590, 0x5f05b8, read: cos 64540 and sin 11380 of 65536; 4 / 6 about y, 7 / 9 about z, 8 / 2 about x), and its
+// Euler angles (MatrixToEuler, FUN_004b3d90) are the speeds x, y, z, each past half a turn taken as the negative; in 4096ths of a turn a second
+void LevelView_TurnSpeedsOfKeys(bool numpad4, bool numpad6, bool numpad7, bool numpad9, bool numpad8, bool numpad2, int speeds[3]);
+
+// A matrix (the game's ObMat) turned by a frame's angles x, y, z about its own axes (0x53dea7-0x53df8d): M = CreateEulerMatrix of the angles, the matrix multiplied by M (MatrixMultiply(matrix, M, matrix),
+// FUN_004b34b0), then squared again (MNormalise, FUN_004b4030)
+void LevelView_TurnMatrix(int32_t matrix[9], const int angles[3]);
+
+// THE ORBIT (camera-closeout-drake.md CAM-3; FUN_0053db40 0x53dec0-0x53e071, '/' or numpad / held): the frame's angles as a matrix (CreateEulerMatrix, FUN_004b3370), turned round (TransposeMatrixCH,
+// FUN_004b3710); about the CAMERA's own axes when cameraAxes (numpad /: the camera's matrix C, the turn made C^T x turn x C through MatrixMultiply(C, R, R), TransposeMatrixCH(C), MatrixMultiply(R, C^T, R)),
+// else about the world's ('/'); the place swung round the centre by it (place - centre, RotateVector (FUN_004b3860), + centre) and the matrix turned by it (MatrixMultiply(R, matrix, matrix), FUN_004b34b0, then
+// MNormalise, FUN_004b4030). The same calls in the same order as inteng's, the engine's own: so the centre keeps its place in the view while the camera swings round it.
+void LevelView_OrbitTurn(int32_t matrix[9], int32_t place[3], const int32_t centre[3], const int angles[3], bool cameraAxes);
+
+// The live copy put at a place with a matrix as its ObMat (the flown object's own, A-7), its Euler from that matrix as the mover writes it (FUN_004b3d90 into +0x1c)
+void LevelView_FlyPutMatrix(const int32_t world[3], const int32_t matrix[9]);
+
+// The file's turn (x y z w, as LevelView_FlyPut takes it) whose ObMat this matrix is: FlyPut's the other way (MatToQuat, then the file's signs)
+void LevelView_TurnOfMatrix(const int32_t matrix[9], float quat[4]);
+
+// The ObMat LevelView_FlyPut gives the live copy for a file's turn (x y z w), the same steps (QuatToMat, MatrixToEuler, CreateEulerMatrix, TransposeMatrixCH): for a pose put on the flown object (Move rel.
+// to poly) while its own matrix is its state (A-7)
+void LevelView_MatrixOfTurn(const float quat[4], int32_t matrix[9]);
+
+// A-7b, numpad '*' (the mover 0x53e41b-0x53e51a): the matrix LEVELLED: row 2 the forward with no up or down (its y 0, Normalise: FUN_004b3280), row 1 straight down (0, 65536, 0), row 0 their normal
+// (MakeNormal(0, row 1, row 2): FUN_004fd620); a forward straight up or down (x and z both 0) gives the identity. NAMED: avpx's Normalise is our own rewrite (normalise.h), inteng's may round a unit apart.
+void LevelView_LevelMatrix(int32_t matrix[9]);
+
+// A-7b, Shift + numpad '*' (FUN_0053d1e0, at 0x53e532): the matrix SNAPPED to right angles: row 0's largest component (by size; the first of two the same) becomes +-65536 and its others 0, row 1 the
+// same among the two axes row 0 did not take, row 2 their normal (MakeNormal(0, row 0, row 1))
+void LevelView_SquareMatrix(int32_t matrix[9]);
 
 int32_t LevelView_ModuleCount();
 bool LevelView_ModuleName(int32_t moduleIndex, std::string *name);
@@ -302,6 +414,8 @@ void LevelView_HideBlocks(const struct displayblock *const *blocks, size_t count
 void LevelView_HideBeyond(bool on, int32_t distance);
 // The object whose block the distance rule never hides (Object Placement's current object, FUN_004dd2f0); null: none
 void LevelView_HideBeyondKeep(const uint8_t *objectId);
+// The same for several objects or modules (up to kLevelViewMostHidden): Texture Map keeps every one with a selected polygon (FUN_00544070 0x5440d3). Replaces the earlier keep; count 0 keeps none.
+void LevelView_HideBeyondKeepShapes(const LevelViewShapeOf *shapes, size_t count);
 
 // THE VIEW RULE's own hiding, kept apart from the explicit Hide calls above so the two never undo each other (the hidden set drawn is the union): these modules (game numbers) and, with everyObject,
 // every placed object. Replaces the rule's earlier set; (nullptr, 0, false) lets go of it.

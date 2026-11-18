@@ -1,0 +1,27 @@
+# ACCEPTANCE (TB-C11, reassess/construction-closeout-frost.md): Construction > Miscellaneous > Module Overlaps as inteng's. The On lets go of the selection first (FUN_00445110 0x445124-0x445197);
+# then every module against every other (FUN_00445070). A click while On selects ONE module and shows only the modules that overlap IT (FUN_00444750 0x44493f-0x4449aa: every module plain,
+# the picked one green, FUN_00444c80(picked)); L works every module against every other again (0x446acc). Red on bishop-int (the selection stayed through the On; a click kept the
+# all-against-all colours), green on the hash with inteng's rules.
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+select-row 0
+expect-selected 1
+item 0x56
+expect-selected 0
+expect-status Module Overlaps on
+wait 300
+picture 1
+# a click on the module in the middle of the view (a module is held by its game number: not in the object count): its overlaps only
+click-view 0.5 0.5
+expect-status overlap the one picked
+wait 300
+picture 2
+expect-pixels-changed-since 1 picture 0 0 2000 2000 0.0005
+# L: nothing selected, every module against every other again
+key L
+expect-selected 0
+expect-status Module Overlaps on
+item 0x56
+expect-status Module Overlaps off

@@ -901,7 +901,7 @@ namespace host
 		return s;
 	}
 
-	SpecialStep SpecialMode_MoveCurrent(OpenLevelFile *file, SpecialMode *mode, int32_t const place[3])
+	SpecialStep SpecialMode_MoveCurrent(OpenLevelFile *file, SpecialMode *mode, int32_t const place[3], bool flown)
 	{
 		SpecialObject current;
 
@@ -914,7 +914,9 @@ namespace host
 
 		SpecialResult const done = SpecialObject_Write(file, current);
 
-		return Answer(done == SpecialResult::Done ? GeneratorName(current.kind) + " moved onto the vertex" : GeneratorName(current.kind) + ": " + SpecialWords(done));
+		// DECIDED OP-29-FLYSTOP (Drake 11-18): the end of a flight says what a placed object's says (editor_main.cpp PlacementFlyStop), not Snap To Vertex's words
+		return Answer(done != SpecialResult::Done ? GeneratorName(current.kind) + ": " + SpecialWords(done) : flown ? std::string("Fly selected object: off, the object is where it flew to") :
+			GeneratorName(current.kind) + " moved onto the vertex");
 	}
 
 	SpecialStep SpecialMode_SetParent(OpenLevelFile *file, SpecialMode *mode, uint8_t const id[8])

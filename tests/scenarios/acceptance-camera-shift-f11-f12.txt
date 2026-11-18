@@ -14,11 +14,15 @@ expect-status-not Camera position saved
 key F12 shift
 wait 200
 expect-status-not Camera position saved
-# the camera moved away: F11 has nothing of Shift's to give back (nothing saved slot 10 yet in this run)
+# the camera moved away: F11 has nothing of Shift's to give back (slot 10 holds only the start's origin)
 camera 0 0 0 0
 key F11
 wait 200
-expect-status-not Camera position restored
+# F11 without Shift RESTORES slot 10, as inteng's FUN_004705a0 does: the start set it to the origin (FUN_00447550 ends with FUN_00470550(10),
+# startup-trace.md section 6). So the proof that Shift+F11 saved nothing is where F11 puts the camera: the origin, not 1000 2000 3000.
+# (Changed 2026-11-17 by Dietrich: this step said "expect-status-not Camera position restored", which held only while the harness left
+# Shift down after "key F11 shift", so this F11 was a Shift+F11 too; since the harness lets Shift go, it is a plain F11.)
+expect-status Camera position restored (F11)
 expect-field camera 0 0 0 0 0
 # Shift+F10 still saves (slot 9), and F10 gives it back: the fix took nothing from F1 to F10
 camera 1000 2000 3000 512

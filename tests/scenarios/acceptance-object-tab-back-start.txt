@@ -1,0 +1,28 @@
+# ACCEPTANCE (red first; Drake 11-17, Bishop's ruling: OnScreenChanged, the one hook every screen change runs): A MODE'S OWN TAB RUNS THE START AND LEAVE HOOKS, on his path (Invasion, the file opened as a double click).
+# Object Placement's Tab enters Strategy Data, and Strategy's Tab goes back (FUN_00524e90 0x524eca). inteng goes back THROUGH THE HUB: its dispatcher FUN_004452b0 runs Object Placement's entry
+# FUN_004d68e0 again (0x445ac1..0x445b1e; its only other caller is the Shape Chooser), which turns Gravity off (DAT_008f4f50 = 0 at 0x4d83fe) and ticks Misc > Toggle Gravity by it (V-24).
+# Ours made both changes with ShowTheScreen, which sets barScreen itself and so never reached the frame's screen change, where the start and leave hooks were: Gravity came back on, ticked.
+# DECIDED V-24: Strategy's way back is a new start of Object Placement (FUN_004d68e0's callers are the hub and the chooser only).
+# RED on bishop-int eb42ac30 (the build ph3): after Tab and Tab back, Toggle Gravity is still ticked.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+click-bar Misc > Toggle Gravity
+expect-status Toggle Gravity: on
+click-bar Misc
+expect-drop-ticked Toggle Gravity
+key Esc
+# Tab: Strategy Data (Object Placement left: Gravity's places written, its blocks given back)
+key Tab
+expect-screen Strategy Data
+wait 300
+# Tab back: Strategy changed nothing, so no save question; Object Placement starts again, Gravity off
+key Tab
+expect-no-dialog
+expect-screen Object Placement
+wait 300
+click-bar Misc
+expect-drop-ticked none
+key Esc

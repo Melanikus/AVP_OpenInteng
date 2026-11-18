@@ -33,13 +33,31 @@
 
 static int checksFailed = 0;
 
+// ALLOW-FAIL (drive_scenario's "allow-fail <reason> | <check line>", Bishop / Dietrich 2026-11-18): while checkAllowedReason holds a reason, a check that fails is logged ALLOWED with the
+// reason and not counted as failed (checksAllowed counts it); one that passes counts in checkAllowedPassed, so the step can say the prefix may go
+static std::string checkAllowedReason;
+static int checksAllowed = 0, checkAllowedPassed = 0, checkAllowedFailed = 0;
+
 static void Check(bool good, std::string const &what)
 {
+	if (!good && !checkAllowedReason.empty())
+	{
+		printf("  ALLOWED  %s (%s)\n", what.c_str(), checkAllowedReason.c_str());
+		fflush(stdout);
+		checksAllowed++;
+		checkAllowedFailed++;
+		return;
+	}
+
 	printf("  %s  %s\n", good ? "ok" : "FAILED", what.c_str());
 	fflush(stdout);
 	if (!good)
 	{
 		checksFailed++;
+	}
+	else if (!checkAllowedReason.empty())
+	{
+		checkAllowedPassed++;
 	}
 }
 
@@ -58,6 +76,7 @@ struct Editor
 	HWND view = NULL;              // the level's view, a child window
 	bool keepLines = false;        // the scenario harness: the lines that came after the one waited for, in the same read, are kept for the next wait (a picture's line and its panels' line can come together)
 	std::vector<std::string> kept;
+	std::string startProblem;      // a start that failed: why (it ended by itself, with its exit code; no window; a window but no view; it couldn't be started)
 };
 
 struct FoundWindow
@@ -81,9 +100,11 @@ static BOOL CALLBACK FindTheEditorsWindow(HWND window, LPARAM context)
 	return TRUE;
 }
 
-// extraArguments: words added to the command line after -picture (the scenario harness starts on a screen with " -screen Waypoint"); empty for the other runs
-static bool StartTheEditor(std::wstring const &exe, std::wstring const &recordFolder, Editor *editor, std::wstring const &extraArguments = std::wstring())
+// extraArguments: words added to the command line after -picture (the scenario harness starts on a screen with " -screen Waypoint"); empty for the other runs.
+// mostMs: how long the window and its view may take (the level loads first). A start that fails says why in editor->startProblem.
+static bool StartTheEditor(std::wstring const &exe, std::wstring const &recordFolder, Editor *editor, std::wstring const &extraArguments = std::wstring(), DWORD mostMs = 60000)
 {
+	editor->startProblem = "it couldn't be started";
 	size_t const slash = exe.find_last_of(L"\\/");
 	if (slash == std::wstring::npos)
 	{
@@ -113,18 +134,37 @@ static bool StartTheEditor(std::wstring const &exe, std::wstring const &recordFo
 		return false;
 	}
 
-	// Its window, within 60 seconds: the level loads first
+	// Its window AND the view in it, within mostMs (60 seconds: the level loads first). The editor makes the two one after the other (editor_main.cpp:
+	// the window, then the view as its child), so a look between the two finds the window alone: the wait goes on until the view is there too.
+	// (Frost 11-18, "the editor didn't start under load": the view was looked for once, right after the window was found; under a round's load
+	// a look fell in that gap, the start was called failed, and the harness's close then ended an editor that was starting well, once its level
+	// had loaded: "0 frames", "the window 0 by 0". tests/drive_editor_start_test.cpp makes the gap on purpose.)
 	FoundWindow found = { editor->process.dwProcessId, NULL };
-	for (int tries = 0; tries < 600 && !found.window; tries++)
+	HWND view = NULL;
+	DWORD const began = GetTickCount();
+	while (!view && GetTickCount() - began < mostMs)
 	{
 		if (WaitForSingleObject(editor->process.hProcess, 100) == WAIT_OBJECT_0)
 		{
+			DWORD code = 0;
+			GetExitCodeProcess(editor->process.hProcess, &code);
+			editor->startProblem = "it ended by itself, with exit code " + std::to_string(code) + ", before its window and view were found";
+			editor->window = found.window;
 			return false;
 		}
-		EnumWindows(FindTheEditorsWindow, (LPARAM)&found);
+		if (!found.window)
+		{
+			EnumWindows(FindTheEditorsWindow, (LPARAM)&found);
+		}
+		if (found.window)
+		{
+			view = FindWindowExW(found.window, NULL, L"AVP_OpenInteng_View", NULL);
+		}
 	}
 	editor->window = found.window;
-	editor->view = found.window ? FindWindowExW(found.window, NULL, L"AVP_OpenInteng_View", NULL) : NULL;
+	editor->view = view;
+	editor->startProblem = !found.window ? "no window of its own within " + std::to_string(mostMs) + " ms" :
+		!view ? "its window, but no view in it, within " + std::to_string(mostMs) + " ms" : "";
 	return editor->window && editor->view;
 }
 
@@ -621,7 +661,7 @@ int wmain(int argc, wchar_t **argv)
 
 	Editor editor;
 	bool const started = StartTheEditor(exe, recordFolder, &editor);
-	Check(started, "the editor starts, with -picture, and its window and view are found");
+	Check(started, "the editor starts, with -picture, and its window and view are found" + (started ? std::string() : " (" + editor.startProblem + ")"));
 	if (started)
 	{
 		// The pictures first, from where the level starts the camera; the camera's own check last, as it moves the camera away, perhaps

@@ -1,0 +1,95 @@
+# ACCEPTANCE: the OBJECT PLACEMENT close-out's ninth chain (AvP-docs/director/strategy-100/PLAN.md THEN, "switch / door / lift objects"; Drake 2026-11-17): a DOOR made switch
+# activated and a SWITCH placed beside it to open it, saved and read back, on his path on Genshd1 (a read-only stock copy, the file opened as a double click):
+# 1. Object Placement: Object > Find opslev01 (a Binary Switch), the view put at the door medoor01 (6.5 m ahead of where Strategy Data's Find Object > medoor01 puts the camera), P:
+#    "chainDs" made at the view, a copy of the whole switch. Mode > Exit (saves).
+# 2. Strategy Data: Find Object medoor01 (a Door, 50: proximity, locked), the right button's Assign Strategy: "Object already has a strategy" Yes, Door: its view opens with the
+#    creation values (S-K50-0 / -2: a door with neither bit becomes a proximity door; open 1.0 s, close 0.5 s); a click on line 1 (S-K50-6): a switch activated door ("lift door").
+# 3. Find Object chainDs (the camera goes back where medoor01's Find put it), Assign Strategy (Yes) > Multi Switch, T (no target yet: the camera stays), a click on the door in the
+#    middle of the view, Return: medoor01 is its target, on.
+# 4. File > Save a copy; the game's loader reads the copy: medoor01 a Door with DoorFlags 8 (switch activated, not locked); chainDs a Multiple Target Switch whose target is
+#    medoor01, on; every other strategy byte for byte.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- 1. the switch placed at the door
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is opslev01
+expect-no-dialog
+wait 400
+camera -29510 -7793 70128 0 0
+wait 300
+key P
+expect-dialog Name Object
+form-field 1 chainDs
+click-button OK
+expect-no-dialog
+expect-status Object chainDs made at the view
+click-bar Mode > Exit
+wait 400
+
+# ---- 2. the door: a new Door, switch activated
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is medoor01
+expect-no-dialog
+wait 400
+expect-field camera -29510 -7793 63575 0 0
+click-win 500 300 right
+click-popup 4
+expect-dialog-kind confirm
+expect-dialog Object already has a strategy.
+click-button Yes
+expect-dialog Select Strategy
+click-button Door
+expect-no-dialog
+wait 400
+expect-field strategyview 200@0:medoor01 : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
+click-box 300 24
+wait 300
+expect-field-has strategyview 200@0:medoor01 : Door|16@16:Switch activated door ('lift door')|16@32:Closed|
+picture 1
+key Esc
+wait 300
+
+# ---- 3. the switch: a Multi Switch whose target is the door, picked in the view
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is chainDs
+expect-no-dialog
+wait 400
+expect-field camera -29510 -7793 63575 0 0
+click-win 500 300 right
+click-popup 4
+expect-dialog-kind confirm
+expect-dialog Object already has a strategy.
+click-button Yes
+expect-dialog Select Strategy
+click-button Multi_Switch
+expect-no-dialog
+wait 400
+expect-field-has strategyview 200@0:chainDs : Multiple Target Switch|
+key T
+wait 400
+expect-status Select targets for switch
+click-win 504 364
+wait 400
+expect-screen-text medoor01
+picture 2
+key Enter
+wait 400
+expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:medoor01 - Door
+picture 3
+key Esc
+wait 300
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} medoor01 DoorFlags 8 TimeToOpen 10 TimeToClose 5 also chainDs
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} chainDs targets 1 target.0 medoor01 target_request.0 1 also medoor01

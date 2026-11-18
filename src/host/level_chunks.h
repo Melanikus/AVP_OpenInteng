@@ -53,6 +53,10 @@ namespace host
 	// *out is null unless Found.
 	LevelChunkFound FindEnvironmentChild(File_Chunk *level, char const *name, Chunk **out);
 
+	// The level's own name: its REBENVDT's RIFFNAME, the RIF_Name_Chunk's rif_name (what inteng's Write Asc File puts in its name edit, FUN_004452b0 0x44545f / 0x4457c2), at most
+	// `most` letters, kept to printable ASCII (the name is the file's own, hostile input: any other byte becomes '_'). False, with *name empty, when the level has none.
+	bool LevelRiffName(File_Chunk *level, size_t most, std::string *name);
+
 	// Every child of the level's REBENVDT with that name (RANTEXID, FRAGTYPE, GAMEMODE), in the level's order, into *out (emptied first).
 	// NoneThere, with *out empty, when the level has none.
 	LevelChunkFound FindEnvironmentChildren(File_Chunk *level, char const *name, std::vector<Chunk *> *out);

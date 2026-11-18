@@ -36,6 +36,7 @@ avpx/3dc/win95/enumsch.cpp
 avpx/3dc/win95/environment_chunk.cpp
 avpx/3dc/win95/our_mem.cpp
 src/host/shape_edit.cpp
+src/host/polygon_items_read.cpp
 src/model/shape_model.cpp
 src/model/shape_maths.cpp
 /link user32.lib

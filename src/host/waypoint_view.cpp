@@ -265,6 +265,31 @@ namespace host
 			}
 		}
 
+		// W-4, THE MODULE LINKS (FUN_005867c0 0x58694b-0x586a19 when the list is read, FUN_00586c60 for mode 3's Add Link; FUN_00586700): each name of a waypoint's module links that is a module's of
+		// the level gets a line from the waypoint's aim point (+4..+0xc) to the module's place (+0x10..+0x18), green on both halves; Centre Edit does not hide them (FUN_005888c0 hides only
+		// the waypoint links). INTENG BUG W-B2, FIXED (named): inteng makes the line once and never moves it (FUN_00586e90's loop 0x586f74 moves only the waypoint links), so it is left where
+		// the aim point was; ours is made from the aim point as it is now.
+		for (WaypointRec const &wp : list)
+		{
+			for (WaypointModuleLink const &link : wp.moduleLinks)
+			{
+				int32_t place[3], from[3], to[3];
+
+				if (!mode.ModulePlace(link.name, place))
+				{
+					continue;
+				}
+
+				for (int i = 0; i < 3; i++)
+				{
+					from[i] = World(wp.centre[i], scale);
+					to[i] = World(place[i], scale);
+				}
+
+				Line(lines, from, to, kWaypointModuleLink);
+			}
+		}
+
 		// the links: ONE line of two halves for the pair (FUN_005835a0), made by the first link met in the list's order and shared by the other end's link back (FUN_005876c0 0x587a17-0x587ae6);
 		// its colours from that link (FUN_00586570): the half at the link's own waypoint red with flag 2, the half at the other waypoint red with flag 1, else green, yellow when the link has the
 		// highlighted flag

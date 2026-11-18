@@ -1,0 +1,36 @@
+# ACCEPTANCE (red first): Light Sourcing's O with PLACED lights (Frost, 2026-11-17; light-closeout-frost.md TB-L1). inteng's O (FUN_004acf30 0x4ad34e-0x4ad3f5) works on the selected light, a light of the
+# set or a placed object's, with the copied light of either kind: the copied light's numbers (brightness, spread, range, colour, engine flags) over the selected one's, both placed the 15 numbers of its
+# PLOBJLIT, the local flags with 4 (changed) in. Three Os on Invasion, then Exit (the write-back) and a copy read back by the game's loader (verify_copyover):
+#   1. C on the placed light light20 (object number 115), O on light 5 of the set;
+#   2. C on light 7 of the set, O on the placed light lighth (number 423): its UP colour takes light 7's colour;
+#   3. C on light20 again, O on the placed light light21 (number 410).
+# RED before (78c815fb): 1 says "a placed light's numbers over a light of the set is not built yet", 2 says "pick a light" (a placed light could not be the one O works on); nothing changes.
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+pick-module 115
+key C
+expect-status placed light copied
+face-light 5
+key O
+expect-status The copied light's numbers are over light 5
+picture 1
+face-light 7
+key C
+expect-status Light 7 copied
+pick-module 423
+key O
+expect-status The copied light's numbers are over the selected placed light
+pick-module 115
+key C
+expect-status placed light copied
+pick-module 410
+key O
+expect-status The copied light's numbers are over the selected placed light
+picture 2
+item 0xa
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_copyover/verify_copyover.exe {orig} {copy} 5 light20 7 lighth light21

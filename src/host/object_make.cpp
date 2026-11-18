@@ -14,6 +14,7 @@
 #include "mishchnk.hpp"       // File_Chunk::list_objects
 
 #include "level_file.h"
+#include "object_number.h"   // V-27: the number and the lock user
 #include "shape_import.h"
 
 namespace host
@@ -159,6 +160,7 @@ namespace host
 		struct LevelInfo
 		{
 			std::vector<std::string> objectNames;
+			std::vector<int32_t> numbers;   // every object's OBJHEAD1 number (index_num) that is 0 or more
 			int32_t nextIndex;
 			size_t lastObjectEnd;   // where the level's last top-level RBOBJECT ends (the new object goes there); 0 when there is none
 			std::vector<ShapeInfo> shapes;
@@ -210,6 +212,7 @@ namespace host
 		bool ReadLevel(Bytes const &bytes, LevelInfo *info)
 		{
 			info->objectNames.clear();
+			info->numbers.clear();
 			info->nextIndex = 0;
 			info->lastObjectEnd = 0;
 			info->shapes.clear();
@@ -256,9 +259,9 @@ namespace host
 
 							int32_t const index = IntAt(bytes, inner + HeadingBytes + IndexAt);
 
-							if (index >= info->nextIndex && index < 0x7fffffff)
+							if (index >= 0)
 							{
-								info->nextIndex = index + 1;
+								info->numbers.push_back(index);
 							}
 						}
 
@@ -600,6 +603,8 @@ namespace host
 				return ObjectMakeResult::NoNameFree;
 			}
 
+			info.nextIndex = ObjectNumber_LowestFree(info.numbers);
+
 			if (info.nextIndex < 0 || info.nextIndex > Object_Chunk::Max_Index_Num)
 			{
 				return ObjectMakeResult::TooManyObjects;
@@ -620,7 +625,12 @@ namespace host
 			Bytes header;
 
 			AddInt(header, (int32_t)(parts ? parts->headerFlags : NewObjectFlags));
-			header.insert(header.end(), 16, 0);                     // the lock user: nobody (named gap)
+			{
+				char lock[16];
+
+				ObjectNumber_LockUser(lock);                        // inteng's save's lock user (object_number.h)
+				header.insert(header.end(), lock, lock + sizeof(lock));
+			}
 			for (int axis = 0; axis < 3; axis++)
 			{
 				AddInt(header, place[axis]);
@@ -629,7 +639,7 @@ namespace host
 			{
 				AddFloat(header, turn[part]);
 			}
-			AddInt(header, info.nextIndex);                         // the number (named gap)
+			AddInt(header, info.nextIndex);                         // the number: the lowest free (object_number.h)
 			AddInt(header, 1);                                      // version_no: 0 at birth, +1 when written (Object_Header_Chunk::prepare_for_output)
 			AddInt(header, shape.fileId);                           // the shape's number
 			header.insert(header.end(), made.begin(), made.end());

@@ -120,8 +120,10 @@ expect-status-not Shape set collection
 wait 600
 picture 6
 expect-pixels-same-since 4 picture 420 130 180 250 0.002
-# Exit saves the changed file (a copy, HP-1) and the collections' ".txt" beside it holds the new one's number and name (HP-29)
+# Exit saves the changed file (a copy, HP-1) and the collections' text file beside it holds the new one's number and name (HP-29). inteng names
+# it ".txt" (its cut falls on the leading "."); since 4a4f81ce (INTENG BUG, FIXED, HP-29) ours names it after the model's RIFFNAME without its
+# extension: hnpcmarine.txt for ShotgunBot. (This step still read ".txt" until 2026-11-17, Dietrich: round 1's red.)
 click-bar Mode > Exit
 expect-screen Construction
 expect-status Saved a copy:
-verify findstr /R /C:"^12.Frost1" {exedir}AVP_OpenInteng\edited\.txt
+verify findstr /R /C:"^12.Frost1" {exedir}AVP_OpenInteng\edited\hnpcmarine.txt

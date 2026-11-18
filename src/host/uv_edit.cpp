@@ -223,6 +223,49 @@ namespace host
 		return UvEditResult::Done;
 	}
 
+	UvEditResult UvEdit_ReadAllPolygons(OpenLevelFile const *store, File_Chunk *level, uint8_t const *objectId, std::vector<model::PolygonUv> *out, std::string *why)
+	{
+		if (!out)
+		{
+			return UvEditResult::BadCall;
+		}
+
+		out->clear();
+
+		Gathered got = {};
+		UvEditResult const answer = Gather(store, level, objectId, 0, false, &got, why);
+
+		if (answer != UvEditResult::Done)
+		{
+			return answer;
+		}
+
+		out->resize(got.shape.polygons.size());
+
+		for (size_t p = 0; p < got.shape.polygons.size(); p++)
+		{
+			model::PolygonUv &one = (*out)[p];
+
+			if (model::ReadPolygonUv(got.shape, got.lists, (int32_t)p, &one) != model::UvModelResult::Ok)
+			{
+				// one the rules refuse is given as not textured, so nothing is written for it
+				one = {};
+				one.polygonNumber = (int32_t)p;
+				one.pictureNumber = -1;
+				one.uvListNumber = -1;
+				one.textured = false;
+				continue;
+			}
+
+			if (one.textured && one.pictureNumber >= 0 && (size_t)one.pictureNumber < got.names.size())
+			{
+				one.pictureName = got.names[(size_t)one.pictureNumber];
+			}
+		}
+
+		return UvEditResult::Done;
+	}
+
 	UvEditResult UvEdit_WritePolygons(OpenLevelFile *store, File_Chunk *level, uint8_t const *objectId, std::vector<model::PolygonUv> const &polygons, std::string *why)
 	{
 		if (polygons.empty())

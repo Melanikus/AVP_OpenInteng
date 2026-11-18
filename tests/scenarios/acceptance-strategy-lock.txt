@@ -21,7 +21,7 @@ wait 400
 expect-field-has strategyview medoor01 : Door|16@16:Proximity door|16@32:Door is locked
 picture 1
 # the lock line (y 32, clicked at window y 40): the door starts unlocked
-click-win 300 40
+click-box 300 40
 wait 300
 expect-field-has strategyview 16@32:Door is not locked
 picture 2

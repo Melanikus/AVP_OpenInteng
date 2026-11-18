@@ -29,7 +29,7 @@ key E
 wait 300
 expect-field strategyview 100@0:Target  -  train1 : Track object|16@16:{2}|32@16:Start track|32@32:Start track forward|32@48:Start track backward
 picture 1
-click-win 300 56
+click-box 300 56
 wait 300
 expect-field strategyview 100@0:Target  -  train1 : Track object|32@16:Start track|32@32:Start track forward|16@48:{2}|32@48:Start track backward
 picture 2
@@ -52,9 +52,9 @@ key E
 wait 300
 expect-field strategyview 100@0:Target  -  end : Mission Objectives|200@32:Current effect of on message (off ignored):|32@48:Make objective visible|16@48:{3}|32@64:Make objective possible|16@64:{3}|32@80:Complete mission (if currently possible)|16@80:{1}
 picture 3
-click-win 300 72
+click-box 300 72
 wait 300
-click-win 300 88
+click-box 300 88
 wait 300
 expect-field strategyview 100@0:Target  -  end : Mission Objectives|200@32:Current effect of on message (off ignored):|32@48:Make objective visible|16@48:{3}|32@64:Make objective possible|16@64:{1}|32@80:Complete mission (if currently possible)|16@80:{3}
 picture 4

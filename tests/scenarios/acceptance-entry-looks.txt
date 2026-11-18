@@ -53,12 +53,18 @@ expect-colour picture 0 0 1008 729 000000 0.40 16
 expect-colour picture 0 0 1008 729 ffffff 0.01 16
 click-bar Mode > Exit
 expect-screen Construction
-# R-13: Texture Map is textured (unlit, so its bright metal can be pure white: the test is that next to nothing is the black seen between wire lines)
+# R-13: Texture Map is textured and unlit (the state line's viewmode: polygon, no Gouraud: textures at 100%, no lights, view-state-table.md 2). The box is the
+# view below Texture Map's two bar rows (32 each): its bar shows by itself, as inteng draws the mode's menus every frame (FUN_00543fa0 -> FUN_0057b6f0, P on; Frost 11-18).
+# The picture: no more than a quarter pure black, against a wire look's most-black. The black here is the level beyond the view distance, which inteng's Texture Map frame hides
+# every frame (FUN_00544070 from FUN_00543fa0: each object whose distance from the camera less its radius is 1,000,000 or more in 1e-5 m, 10 m, unless it has a selected polygon;
+# bcc5d018): Invasion's start sees the wall and the corridor past 10 m as black, 0.146 of the box (0.042 before that rule). Dietrich 11-18, routed red: not the headlight.
 click-bar Mode > Texture Map
 expect-screen Texture Map
 wait 300
+expect-field-has viewmode polygon
+expect-field-has viewmode unlit
 picture 5
-expect-colour-at-most picture 0 0 1008 729 000000 0.10 16
+expect-colour-at-most picture 0 64 1008 665 000000 0.25 16
 click-bar Mode > Exit
 expect-screen Construction
 wait 300

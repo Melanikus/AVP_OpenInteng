@@ -1,0 +1,13 @@
+# ACCEPTANCE (red first): inteng writes its camera file at EVERY save of a camera position, not only when it ends: FUN_004704d0 (Shift+F1..F10, and every mode's Exit with slot 10) keeps the view in
+# the slot and calls FUN_00470610 at 0x47053c, which writes <RIFFNAME>.cam (dump-all-2.txt 4470; FUN_00470610's other callers are the program's end, FUN_0058c9e0, and FUN_00447d50). So a position saved
+# just before a crash or a hard kill is in the file. RED before: ours wrote the file only on its way out, so a killed editor left no .cam at all.
+# The file is checked by its bytes (verify_camera_file): slot 0 in inteng's form, 1000 2000 3000 mm as 100000 200000 300000 and the turn 512 as inteng's view keeps it (camera_file.h).
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-field camera 0 0 0 0 0
+camera 1000 2000 3000 512
+key F1 shift
+expect-status Camera position saved (F1)
+kill-editor
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_camera_file/verify_camera_file.exe {exedir}camera 0 100000 200000 300000 46341 0 -46341 0 65536 0 46341 0 46341

@@ -76,10 +76,11 @@ namespace host
 	// SquareUp(M x Nt) x N, N = NormalMatrix of the hit polygon's world normal (0x4f7139-0x4f71e4, FUN_004b34b0's order: out = second x first); then V = the moving block's own vertex
 	// (turned by M, moved by its place) nearest T, and its place moves by T - V. The left press keeps that; Esc puts the saved one back.
 	// SnapToVertex_Pose does it on the moving object's pose as the store holds it now (the live preview never writes it): the new place (file units) and turn (the file's four floats).
-	// Without align the turn is the store's, unchanged. Nothing is written. NAMED: the nearest-vertex sums are in doubles in file units (inteng: whole numbers in its own unit, 1e-5 m),
+	// Without align the turn is the store's, unchanged. Nothing is written. fromPlace / fromTurn, when given, are the moving pose to snap from in place of the store's (Track Editing's end
+	// marker, T-3b: inteng snaps the flying block's own place and matrix, which the end edit has moved off the object's record). NAMED: the nearest-vertex sums are in doubles in file units (inteng: whole numbers in its own unit, 1e-5 m),
 	// so a vertex at the same distance from two others may be chosen differently.
 	MoveRelPolyEditResult SnapToVertex_Pose(OpenLevelFile *store, File_Chunk *level, uint8_t const *movingId, uint8_t const *targetId, double const point[3], int32_t polygon, bool align,
-		int32_t place[3], float turn[4]);
+		int32_t place[3], float turn[4], int32_t const *fromPlace = nullptr, float const *fromTurn = nullptr);
 
 	// FUN_004f6ee0: the matrix (16.16, nine whole numbers in inteng's order) whose row 1 is the normal n: the axis is the world axis on which n is SMALLEST (x when |x| < |y| and |x| < |z|,
 	// else y when |y| < |z|, else z); row 2 = (axis x n) made length 65536, row 0 = (n x row 2) made length 65536 (FUN_004b5650: each product >> 16; FUN_004fd750)

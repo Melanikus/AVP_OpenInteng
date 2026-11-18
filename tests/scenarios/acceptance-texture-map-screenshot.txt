@@ -1,0 +1,14 @@
+# ACCEPTANCE (a proof, no change: the row was built by the generated menu): TM-B, Texture Map's Help > Screenshot (0xb6: FUN_0057fa60 draws the frame, FUN_00472930 saves it as
+# <level>P<nn>.bmp; the menu row is IntengWork::Screenshot, TakeAScreenshot as Light sourcing's 0x66). Q11 read (Dietrich 2026-11-18): no key of the Texture Map's tables gives 0xb6, and
+# Scroll Lock is WinMain's rotation centre pick in every mode (0x58d009 -> FUN_004720c0, slot 0x22): the menu is the only way, as in inteng. His path: Invasion, Mode > Texture Map,
+# Help > Screenshot: "Screenshot saved: ...InvasionP<nn>.bmp". State line.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+item 0x46
+expect-screen Texture Map
+item 0xb6
+wait 800
+state
+expect-status Screenshot saved:
+expect-status InvasionP

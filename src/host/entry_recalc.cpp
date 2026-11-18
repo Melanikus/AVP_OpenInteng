@@ -281,7 +281,7 @@ namespace host
 		}
 	}
 
-	bool PlanEntryRecalc(File_Chunk *level, PayloadStore const *store, std::vector<EntryChange> *changes, EntryRecalcCounts *counts)
+	bool PlanEntryRecalc(File_Chunk *level, PayloadStore const *store, std::vector<EntryChange> *changes, EntryRecalcCounts *counts, std::vector<EntryDelete> *deletes, int32_t onlyModule)
 	{
 		EntryRecalcCounts none;
 		EntryRecalcCounts &total = counts ? *counts : none;
@@ -291,6 +291,11 @@ namespace host
 		if (changes)
 		{
 			changes->clear();
+		}
+
+		if (deletes)
+		{
+			deletes->clear();
 		}
 
 		if (!level || !store || !changes)
@@ -328,6 +333,11 @@ namespace host
 
 				int32_t const mainIndex = (int32_t)object->object_data.index_num;
 
+				if (onlyModule >= 0 && mainIndex != onlyModule)
+				{
+					continue;
+				}
+
 				for (size_t entry = 0; entry < items; entry++)
 				{
 					size_t const at = CountBytes + entry * ItemBytes;
@@ -341,7 +351,19 @@ namespace host
 
 					if (found == byNumber.end())
 					{
-						total.skippedNoObject++;
+						if (deletes)
+						{
+							// asking mode: inteng takes the entry out (FUN_00403d50 0x403fb5-0x403fd4)
+							EntryDelete drop = { adjacency, mainIndex, adjacentIndex, entry };
+
+							deletes->push_back(drop);
+							total.noObject++;
+						}
+						else
+						{
+							total.skippedNoObject++;
+						}
+
 						continue;
 					}
 
@@ -354,8 +376,12 @@ namespace host
 						total.inGroups++;
 					}
 
-					// Both modules of the pair are in one group: each stands for itself alone (inteng, FUN_00402ae0 at 0x402c46)
-					if (Contains(mainObjects, found->second))
+					// Both modules of the pair are in one group: each stands for itself alone (inteng, FUN_00402ae0 at 0x402c46), and the pair is never asked about: the collapse
+					// clears local_67c (0x402e6d) and the don't-touch question needs it (0x40327d-0x403293), so such a pair goes on as after a No (0x403456). Until 2026-11-17 ours
+					// asked it too (AD-8 of reassess/adjacent-closeout-dietrich.md; Dietrich).
+					bool const collapsed = Contains(mainObjects, found->second);
+
+					if (collapsed)
 					{
 						mainObjects.assign(1, object);
 						adjacentObjects.assign(1, found->second);
@@ -400,26 +426,40 @@ namespace host
 					}
 
 					EntryResult const result = ComputeEntryPointOfLists(*ownMain, *ownAdjacent, mainList, adjacentList, flags, point, 0.0f, false);
+					bool const asked = result.warnedNoTouch && !collapsed;   // the question's gate (local_67c)
 
 					total.recalculated++;
-					total.notTouching += result.warnedNoTouch ? 1 : 0;
+					total.notTouching += asked ? 1 : 0;
 					total.failedToPlace += result.failedToPlace ? 1 : 0;
 
 					// The game's loader refuses a place farther than 2^24 from the middle (CheckPlace): never write one
-					if (result.point[0] > 16777216 || result.point[0] < -16777216 || result.point[1] > 16777216 || result.point[1] < -16777216 ||
-						result.point[2] > 16777216 || result.point[2] < -16777216)
+					bool const outOfRange = result.point[0] > 16777216 || result.point[0] < -16777216 || result.point[1] > 16777216 || result.point[1] < -16777216 ||
+						result.point[2] > 16777216 || result.point[2] < -16777216;
+
+					if (outOfRange)
 					{
 						total.outOfRange++;
-						continue;
 					}
-
-					if (result.flags == flags && result.point[0] == point[0] && result.point[1] == point[1] && result.point[2] == point[2])
+					else if (result.flags == flags && result.point[0] == point[0] && result.point[1] == point[1] && result.point[2] == point[2])
 					{
 						total.unchanged++;
+					}
+
+					bool const nothingToWrite = outOfRange || (result.flags == flags && result.point[0] == point[0] && result.point[1] == point[1] && result.point[2] == point[2]);
+
+					// asking mode keeps a pair that doesn't touch for its question (not a collapsed one, AD-8), and one that failed to place for its box (FUN_00402ae0 0x4036c9, AD-7), even with
+					// nothing to write
+					if (nothingToWrite && !(deletes && (asked || result.failedToPlace)))
+					{
 						continue;
 					}
 
 					EntryChange change;
+
+					change.keep = nothingToWrite;
+					// the names for the question, read within their fields (a name in a hostile file may have no zero)
+					change.mainName.assign(object->object_data.o_name, strnlen(object->object_data.o_name, sizeof(object->object_data.o_name)));
+					change.adjacentName.assign(found->second->object_data.o_name, strnlen(found->second->object_data.o_name, sizeof(found->second->object_data.o_name)));
 
 					change.adjacency = adjacency;
 					change.mainIndex = mainIndex;
@@ -434,7 +474,7 @@ namespace host
 						change.pointAfter[axis] = result.point[axis];
 					}
 
-					change.notTouching = result.warnedNoTouch;
+					change.notTouching = asked;
 					change.failedToPlace = result.failedToPlace;
 					changes->push_back(change);
 				}
@@ -482,6 +522,11 @@ namespace host
 						EntryChange const &change = changes[i];
 						size_t const place = CountBytes + change.entry * ItemBytes;
 
+						if (change.keep)
+						{
+							continue;   // kept only for its question: nothing to write (and not a refusal)
+						}
+
 						if (change.entry < items && Get32(bytes, place) == change.adjacentIndex)
 						{
 							Put32(&bytes, place + 4, (int32_t)change.flagsAfter);
@@ -501,8 +546,15 @@ namespace host
 					}
 				}
 
+				size_t kept = 0;
+
+				for (size_t i = at; i < end; i++)
+				{
+					kept += changes[i].keep ? 1 : 0;
+				}
+
 				written += put;
-				notWritten += (end - at) - put;
+				notWritten += (end - at) - kept - put;
 				at = end;
 			}
 		}

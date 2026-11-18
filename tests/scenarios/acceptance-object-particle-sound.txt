@@ -4,7 +4,8 @@
 #    unticked (the INDSOUND's bit 0 clear); Sound Loops ticked and Volume 80 %; OK, and the particle window ENDS too (FUN_004e79b0 case 4). The INDSOUND is made again from the record
 #    (FUN_004ec1b0): loops (flags 1), volume ftol((80 + 50/127) x 1.27) = 102, the rest as it was.
 # 2. SMOKE comm A (EdSteam.wav): Remove Sound: the label "None", the window STAYS (FUN_004ebd20); Ok: the generator has no INDSOUND.
-# 3. A new one (Create > Particle Generator, "ptS"): Sound makes inteng's record (FUN_004ebc80(0, 1): "Not Set", volume 127, pitch 0, loops) and Cancel keeps it as made.
+# 3. A new one (Create > Particle Generator, "ptS"): Sound makes inteng's record (FUN_004ebc80(0, 1): "Not Set", volume 127, pitch 0, loops) for its window. inteng keeps it on Cancel;
+#    INTENG BUG, FIXED (Bishop's ruling Q1, 11-17, as PH-8 and TB-T1): ours adds nothing, so ptS has no INDSOUND (red on vph-2, which kept it).
 # The copy is read back by the game's loader (verify_special's particle sound fields). RED on 0f6a1db: Sound and Remove Sound change nothing (the window answers without the sound).
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Vaults.RIF
 pictures on
@@ -51,7 +52,7 @@ click-button Ok
 expect-no-dialog
 wait 300
 
-# ---- 3. a new particle generator: Sound makes "Not Set"; Cancel keeps it
+# ---- 3. a new particle generator: Sound makes "Not Set" for its window; Cancel adds nothing (the named fix)
 click-bar Create > Particle Generator
 expect-dialog Name Object
 form-field 1 ptS
@@ -68,4 +69,4 @@ click-button Cancel
 expect-no-dialog
 wait 300
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_special.exe {copy} "particle|SPARKS comm A|psound=1|psoundwav=ed_spark01.wav|psoundflags=1|psoundvolume=102|psoundpitch=0|psoundinner=1250|psoundouter=18750" "particle|SMOKE comm A|psound=0" "particle|ptS|psound=1|psoundwav=Not Set|psoundvolume=127|psoundpitch=0|psoundflags=1"
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_special.exe {copy} "particle|SPARKS comm A|psound=1|psoundwav=ed_spark01.wav|psoundflags=1|psoundvolume=102|psoundpitch=0|psoundinner=1250|psoundouter=18750" "particle|SMOKE comm A|psound=0" "particle|ptS|psound=0"

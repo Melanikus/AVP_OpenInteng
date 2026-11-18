@@ -127,6 +127,11 @@ public:
 	// How many times ReplaceLevel has swapped the level since it was opened, so a view of the level knows to build itself again
 	unsigned Generation() const { return generation; }
 
+	// How many edits the level has taken since it was opened: every chunk marked changed (MarkChanged, SetPayload: the same size) and every level swapped in (ReplaceLevel). The view of the
+	// level (editor_main.cpp ShowTheWorkingBytes, the view gap) loads the working bytes again when it differs from the count it last loaded at; Generation() alone misses a same-size edit.
+	// (Added 2026-11-17 by Melanikus (Dietrich): Drake's find, a Rescale was not shown after a screen change.)
+	unsigned Changes() const { return changes; }
+
 	// Saves the level to the file the user picked: the one it was opened from, or another. The steps are at the top of this file.
 	LevelSaveResult SaveAs(const char * path);
 
@@ -189,6 +194,7 @@ private:
 
 	bool restructured;                                     // ReplaceLevel has made the level different from the file's: a save writes levelBytes
 	unsigned generation;                                   // ReplaceLevel's count
+	unsigned changes;                                      // Changes(): NoteChange's count and ReplaceLevel's
 	LevelOpenResult ReplaceLevelUnguarded(std::vector<char> const & image);
 };
 

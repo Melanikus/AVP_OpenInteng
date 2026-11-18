@@ -1,0 +1,26 @@
+# ACCEPTANCE (red first): AD-7 of reassess/adjacent-closeout-dietrich.md (Dietrich, 2026-11-17). inteng's FUN_00402ae0, after the don't-touch test, clamps the new entry point into the
+# adjacent list's box and tests it against every member of the merged list (0x40360c-0x4036c7); when no member holds it, the one-button box "Failed to placed entrypoint in adjacent module /
+# From %s To %s" (0x5c3874, inteng's own spelling; FUN_00474030, FUN_0057c800, one Ok, its answer not read), then the point is written all the same. It comes in all four callers of the
+# pass; ours counted it and showed nothing. His path: Fall (one such pair: openwat04A to openwat04, which touches, so no question), Mode > Adjacent Modules, Misc > Recalculate Entry Points:
+# the Failed box, Ok; then the run's "Entry points calculated", Ok.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Fall.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Adjacent Modules
+expect-screen Adjacent Modules
+wait 400
+click-bar Misc > Recalculate Entry Points
+expect-dialog-kind message
+expect-dialog Failed to placed entrypoint in adjacent module
+expect-dialog From openwat04A To openwat04
+state
+click-button Ok
+expect-dialog-kind message
+expect-dialog Entry points calculated
+click-button Ok
+expect-no-dialog
+wait 400
+state
+expect-status 1 failed to place in the adjacent module

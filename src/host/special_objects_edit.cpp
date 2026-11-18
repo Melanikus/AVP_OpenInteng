@@ -862,6 +862,64 @@ namespace host
 		return SpecialResult::Done;
 	}
 
+	// One INDSOUND as avpx's Indexed_Sound_Chunk reads it (chunk_sound.cpp): HOSTILE INPUT, every read measured against the chunk's own end; a name with no 0 in the chunk, or numbers
+	// past its end, leave read false
+	static PlacedHierarchySound ReadIndexedSound(Bytes const &b, Span const &chunk)
+	{
+		PlacedHierarchySound sound;
+		size_t const end = chunk.at + chunk.size;
+		size_t const name = chunk.at + kHeadingBytes + 4;
+
+		sound.raw.assign(b.begin() + (std::ptrdiff_t)chunk.at, b.begin() + (std::ptrdiff_t)end);
+
+		if (chunk.size < kHeadingBytes + 5)
+		{
+			return sound;
+		}
+
+		sound.index = IntAt(b, chunk.at + kHeadingBytes);
+
+		char const *const zero = (char const *)memchr(b.data() + name, 0, end - name);
+
+		if (!zero)
+		{
+			return sound;
+		}
+
+		size_t const nameLength = (size_t)(zero - (b.data() + name));
+		size_t at = name + ((nameLength + 4) & ~(size_t)3);
+
+		sound.wav.assign(b.data() + name, nameLength);
+
+		if (at > end || end - at < 24)
+		{
+			return sound;
+		}
+
+		sound.inner = (uint32_t)IntAt(b, at);
+		sound.outer = (uint32_t)IntAt(b, at + 4);
+		sound.volume = IntAt(b, at + 8);
+		sound.pitch = IntAt(b, at + 12);
+		sound.flags = IntAt(b, at + 16);
+
+		int32_t const count = IntAt(b, at + 20);
+
+		at += 24;
+
+		if (count < 0 || (size_t)count > (end - at) / 4)
+		{
+			return sound;
+		}
+
+		for (int32_t i = 0; i < count; i++)
+		{
+			sound.extra.push_back(IntAt(b, at + (size_t)i * 4));
+		}
+
+		sound.read = true;
+		return sound;
+	}
+
 	// Every placed hierarchy of SPECLOBJ, in the file's order; `where` gets each one's place among SPECLOBJ's children
 	static void PlacedHierarchiesOf(Where const &w, std::vector<PlacedHierarchyInfo> *out, std::vector<size_t> *where)
 	{
@@ -970,6 +1028,15 @@ namespace host
 				}
 
 				made.sequences.push_back(sequence);
+			}
+
+			// its sounds (INDSOUND, inteng FUN_004ebb80), in the file's order
+			for (Span const &part : parts)
+			{
+				if (NameIs(w.image, part.at, "INDSOUND"))
+				{
+					made.sounds.push_back(ReadIndexedSound(w.image, part));
+				}
 			}
 
 			out->push_back(made);
@@ -1101,6 +1168,330 @@ namespace host
 
 		copies[where[number]] = made;
 		return Rebuilt(file, w, copies);
+	}
+
+	SpecialResult PlacedHierarchy_WriteData(OpenLevelFile *file, size_t number, PlacedHierarchyInfo const &data)
+	{
+		// the place inside the game's 2^24, the turn real numbers (told from their bits: the build's fast arithmetic may not compare a NaN), the name one the game takes
+		if (!SpecialName_Good(data.name))
+		{
+			return SpecialResult::BadValue;
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			if (data.place[i] < -(1 << 24) || data.place[i] > (1 << 24))
+			{
+				return SpecialResult::BadValue;
+			}
+		}
+
+		for (int i = 0; i < 4; i++)
+		{
+			uint32_t bits;
+
+			memcpy(&bits, &data.turn[i], 4);
+
+			if (((bits >> 23) & 0xff) == 0xff)
+			{
+				return SpecialResult::BadValue;
+			}
+		}
+
+		Where w;
+		SpecialResult const found = Find(file, &w);
+
+		if (found != SpecialResult::Done)
+		{
+			return found;
+		}
+
+		std::vector<PlacedHierarchyInfo> all;
+		std::vector<size_t> where;
+
+		PlacedHierarchiesOf(w, &all, &where);
+
+		if (number >= where.size())
+		{
+			return SpecialResult::NotFound;
+		}
+
+		Span const &one = w.special[where[number]];
+		std::vector<Span> parts;
+
+		if (!Children(w.image, one.at + kHeadingBytes, one.at + one.size, &parts))
+		{
+			return SpecialResult::CantBuild;
+		}
+
+		size_t const dataAt = FirstNamed(w.image, parts, "PLACHIDT");
+
+		if (dataAt == parts.size())
+		{
+			return SpecialResult::NotFound;
+		}
+
+		// the old PLACHIDT's extra numbers, after its name and its fixed numbers (PlacedHierarchiesOf measured both): the count, then that many, each measured against the chunk
+		size_t const at = parts[dataAt].at + kHeadingBytes;
+		size_t const length = parts[dataAt].size - kHeadingBytes;
+		char const *const first = w.image.data() + at;
+		char const *const zero = (char const *)memchr(first, 0, length);
+		size_t const oldNameBytes = zero ? (((size_t)(zero - first) + 4) & ~(size_t)3) : length;
+		size_t const extraAt = oldNameBytes + 4 + 12 + 16 + 8;
+
+		if (!zero || length < extraAt + 4)
+		{
+			return SpecialResult::CantBuild;
+		}
+
+		int32_t const extraCount = IntAt(w.image, at + extraAt);
+
+		if (extraCount < 0 || (size_t)extraCount > (length - extraAt - 4) / 4)
+		{
+			return SpecialResult::CantBuild;
+		}
+
+		Bytes payload(data.name.begin(), data.name.end());
+
+		payload.resize((data.name.size() + 4) & ~(size_t)3, 0);   // the name, its 0, to a whole 4 bytes (fill_data_block: (length + 4) & ~3)
+		AddBytes(&payload, &data.hierarchyIndex, 4);
+		AddBytes(&payload, data.place, 12);
+		AddBytes(&payload, data.turn, 16);
+		AddBytes(&payload, data.id, 8);
+		payload.insert(payload.end(), w.image.begin() + (std::ptrdiff_t)(at + extraAt), w.image.begin() + (std::ptrdiff_t)(at + extraAt + 4 + (size_t)extraCount * 4));
+
+		Bytes chunk(kHeadingBytes, 0);
+
+		memcpy(chunk.data(), "PLACHIDT", 8);
+		chunk.insert(chunk.end(), payload.begin(), payload.end());
+		PutIntAt(&chunk, 8, (int32_t)chunk.size());
+
+		Bytes made(w.image.begin() + (std::ptrdiff_t)one.at, w.image.begin() + (std::ptrdiff_t)(one.at + kHeadingBytes));
+
+		for (size_t i = 0; i < parts.size(); i++)
+		{
+			if (i == dataAt)
+			{
+				made.insert(made.end(), chunk.begin(), chunk.end());
+			}
+			else
+			{
+				made.insert(made.end(), w.image.begin() + (std::ptrdiff_t)parts[i].at, w.image.begin() + (std::ptrdiff_t)(parts[i].at + parts[i].size));
+			}
+		}
+
+		PutIntAt(&made, 8, (int32_t)made.size());
+
+		std::vector<Bytes> copies = Copies(w);
+
+		copies[where[number]] = made;
+		return Rebuilt(file, w, copies);
+	}
+
+	PlacedHierarchyTimedSound PlacedHierarchy_NewTiming()
+	{
+		PlacedHierarchyTimedSound timing;
+
+		timing.soundIndex = 0;
+		timing.start = 0;
+		timing.end = 0x10000;
+		return timing;
+	}
+
+	std::string PlacedHierarchy_TimingRow(PlacedHierarchyTimedSound const &timing)
+	{
+		char row[64];
+
+		snprintf(row, sizeof(row), "%d start %d , end %d", (int)timing.soundIndex, (int)timing.start, (int)timing.end);
+		return row;
+	}
+
+	std::string PlacedHierarchy_SoundRow(PlacedHierarchySound const &sound)
+	{
+		return std::to_string(sound.index) + " " + sound.wav;
+	}
+
+	// FUN_0057d620: an optional '-' then decimal digits, nothing else; else 0
+	static int32_t FieldNumber(std::string const &text)
+	{
+		size_t at = 0;
+		bool const minus = !text.empty() && text[0] == '-';
+		int64_t value = 0;
+
+		at += minus ? 1 : 0;
+
+		if (at == text.size())
+		{
+			return 0;
+		}
+
+		for (; at < text.size(); at++)
+		{
+			if (text[at] < '0' || text[at] > '9')
+			{
+				return 0;
+			}
+
+			value = value * 10 + (text[at] - '0');
+
+			if (value > 0x7fffffff)
+			{
+				return 0;
+			}
+		}
+
+		return (int32_t)(minus ? -value : value);
+	}
+
+	void PlacedHierarchy_TimingFromFields(std::string const &start, std::string const &end, PlacedHierarchyTimedSound *timing)
+	{
+		int32_t const s = FieldNumber(start);
+		int32_t const e = FieldNumber(end);
+
+		if (s >= 0)
+		{
+			timing->start = s;
+		}
+
+		if (e >= 0)
+		{
+			timing->end = e;
+		}
+	}
+
+	int32_t PlacedHierarchy_FreeSoundIndex(std::vector<PlacedHierarchySound> const &sounds)
+	{
+		int32_t candidate = 0;
+
+		// FUN_004eab10: a match makes the candidate one more and the walk start again from the first sound; the walk ends with no match
+		for (bool again = true; again; )
+		{
+			again = false;
+
+			for (PlacedHierarchySound const &sound : sounds)
+			{
+				if (sound.index == candidate)
+				{
+					candidate++;
+					again = true;
+					break;
+				}
+			}
+		}
+
+		return candidate;
+	}
+
+	SpecialResult PlacedHierarchy_WriteSounds(OpenLevelFile *file, size_t number, std::vector<PlacedHierarchySound> const &sounds)
+	{
+		if (sounds.size() > 4096)
+		{
+			return SpecialResult::BadValue;
+		}
+
+		Bytes chunks;
+
+		for (PlacedHierarchySound const &sound : sounds)
+		{
+			if (!sound.read && !sound.raw.empty())
+			{
+				chunks.insert(chunks.end(), sound.raw.begin(), sound.raw.end());
+				continue;
+			}
+
+			bool plain = sound.wav.size() <= 255;
+
+			for (char const c : sound.wav)
+			{
+				plain = plain && (unsigned char)c >= 32 && (unsigned char)c <= 126;
+			}
+
+			if (!plain || sound.index < 0 || sound.index > 4095)
+			{
+				return SpecialResult::BadValue;
+			}
+
+			Bytes payload;
+			int32_t const after[6] = { (int32_t)sound.inner, (int32_t)sound.outer, sound.volume, sound.pitch, sound.flags, 0 };
+
+			AddBytes(&payload, &sound.index, 4);
+			payload.insert(payload.end(), sound.wav.begin(), sound.wav.end());
+			payload.resize(4 + ((sound.wav.size() + 4) & ~(size_t)3), 0);
+			AddBytes(&payload, after, sizeof(after));
+
+			Bytes chunk(kHeadingBytes, 0);
+
+			memcpy(chunk.data(), "INDSOUND", 8);
+			chunk.insert(chunk.end(), payload.begin(), payload.end());
+			PutIntAt(&chunk, 8, (int32_t)chunk.size());
+			chunks.insert(chunks.end(), chunk.begin(), chunk.end());
+		}
+
+		Where w;
+		SpecialResult const found = Find(file, &w);
+
+		if (found != SpecialResult::Done)
+		{
+			return found;
+		}
+
+		std::vector<PlacedHierarchyInfo> all;
+		std::vector<size_t> where;
+
+		PlacedHierarchiesOf(w, &all, &where);
+
+		if (number >= where.size())
+		{
+			return SpecialResult::NotFound;
+		}
+
+		Span const &one = w.special[where[number]];
+		std::vector<Span> parts;
+
+		if (!Children(w.image, one.at + kHeadingBytes, one.at + one.size, &parts))
+		{
+			return SpecialResult::CantBuild;
+		}
+
+		Bytes made(w.image.begin() + (std::ptrdiff_t)one.at, w.image.begin() + (std::ptrdiff_t)(one.at + kHeadingBytes));
+
+		for (Span const &part : parts)
+		{
+			if (!NameIs(w.image, part.at, "INDSOUND"))
+			{
+				made.insert(made.end(), w.image.begin() + (std::ptrdiff_t)part.at, w.image.begin() + (std::ptrdiff_t)(part.at + part.size));
+			}
+		}
+
+		made.insert(made.end(), chunks.begin(), chunks.end());
+		PutIntAt(&made, 8, (int32_t)made.size());
+
+		std::vector<Bytes> copies = Copies(w);
+
+		copies[where[number]] = made;
+		return Rebuilt(file, w, copies);
+	}
+
+	SpecialResult PlacedHierarchy_WritePlace(OpenLevelFile *file, size_t number, int32_t const place[3], float const turn[4])
+	{
+		std::vector<PlacedHierarchyInfo> all;
+		SpecialResult const read = PlacedHierarchies_Read(file, &all);
+
+		if (read != SpecialResult::Done)
+		{
+			return read;
+		}
+
+		if (number >= all.size())
+		{
+			return SpecialResult::NotFound;
+		}
+
+		PlacedHierarchyInfo data = all[number];
+
+		memcpy(data.place, place, sizeof(data.place));
+		memcpy(data.turn, turn, sizeof(data.turn));
+		return PlacedHierarchy_WriteData(file, number, data);
 	}
 
 	SpecialObject SpecialObject_Fresh(SpecialKind kind, SpecialPlace const &where, double levelScale)
@@ -1315,6 +1706,200 @@ namespace host
 		}
 
 		chunks.erase(chunks.begin() + (std::ptrdiff_t)at);
+		return Rebuilt(file, w, chunks);
+	}
+
+	namespace
+	{
+		// The text of a name chunk (AVPGENNM, SOUNDNAM: the name up to its first 0) among a chunk's children, or empty
+		std::string NameChunkText(Bytes const &b, std::vector<Span> const &parts, char const *which)
+		{
+			size_t const at = FirstNamed(b, parts, which);
+
+			if (at == parts.size() || parts[at].size <= kHeadingBytes)
+			{
+				return std::string();
+			}
+
+			char const *const first = b.data() + parts[at].at + kHeadingBytes;
+			size_t const room = parts[at].size - kHeadingBytes;
+			char const *const zero = (char const *)memchr(first, 0, room);
+
+			return std::string(first, zero ? (size_t)(zero - first) : room);
+		}
+
+		// A sound's SOUNDEXD: the SPECLOBJ child whose SOUNDNAM is the sound's name (chunk_sound.cpp Sound_Object_Chunk::get_extra_data_chunk), or w.special.size()
+		size_t SoundExtraAt(Where const &w, std::string const &name)
+		{
+			for (size_t i = 0; i < w.special.size(); i++)
+			{
+				std::vector<Span> parts;
+
+				if (NameIs(w.image, w.special[i].at, "SOUNDEXD") && Children(w.image, w.special[i].at + kHeadingBytes, w.special[i].at + w.special[i].size, &parts) &&
+				    NameChunkText(w.image, parts, "SOUNDNAM") == name)
+				{
+					return i;
+				}
+			}
+
+			return w.special.size();
+		}
+
+		// Which SPECLOBJ child holds the object's ALTLOCAT: holder (special.size() when that holder isn't made yet), and the object's name (what a new holder is found by)
+		struct AltHolder
+		{
+			size_t holder = 0;
+			std::string name;
+		};
+
+		SpecialResult FindAltHolder(Where const &w, SpecialKind kind, size_t number, AltHolder *h)
+		{
+			if (kind == SpecialKind::PlayerStart)
+			{
+				return SpecialResult::BadCall;   // inteng's Alt Locations take kinds 0, 1, 2, 3, 7 only; a player start has none
+			}
+
+			size_t const object = NthOfKind(w, kind, number);
+			SpecialObject one;
+
+			if (object == w.special.size() || !IsKindChunk(w.image, w.special[object], kind, &one))
+			{
+				return SpecialResult::NotFound;
+			}
+
+			h->name = one.name;
+			h->holder = kind == SpecialKind::ParticleGenerator ? object : kind == SpecialKind::Sound ? SoundExtraAt(w, one.name) : ExtraAt(w, one.name);
+			return SpecialResult::Done;
+		}
+	}
+
+	SpecialResult SpecialObject_ReadAlt(OpenLevelFile *file, SpecialKind kind, size_t number, std::vector<uint8_t> *payload, bool *has)
+	{
+		if (!payload || !has)
+		{
+			return SpecialResult::BadCall;
+		}
+
+		payload->clear();
+		*has = false;
+
+		Where w;
+		SpecialResult const found = Find(file, &w);
+
+		if (found != SpecialResult::Done)
+		{
+			return found;
+		}
+
+		AltHolder h;
+		SpecialResult const held = FindAltHolder(w, kind, number, &h);
+
+		if (held != SpecialResult::Done || h.holder >= w.special.size())
+		{
+			return held;
+		}
+
+		Span const holder = w.special.at(h.holder);
+		std::vector<Span> parts;
+
+		if (!Children(w.image, holder.at + kHeadingBytes, holder.at + holder.size, &parts))
+		{
+			return SpecialResult::CantBuild;
+		}
+
+		size_t const at = FirstNamed(w.image, parts, "ALTLOCAT");
+
+		if (at == parts.size())
+		{
+			return SpecialResult::Done;
+		}
+
+		payload->assign(w.image.begin() + (std::ptrdiff_t)(parts[at].at + kHeadingBytes), w.image.begin() + (std::ptrdiff_t)(parts[at].at + parts[at].size));
+		*has = true;
+		return SpecialResult::Done;
+	}
+
+	SpecialResult SpecialObject_WriteAlt(OpenLevelFile *file, SpecialKind kind, size_t number, std::vector<uint8_t> const *payload)
+	{
+		Where w;
+		SpecialResult const found = Find(file, &w);
+
+		if (found != SpecialResult::Done)
+		{
+			return found;
+		}
+
+		AltHolder h;
+		SpecialResult const held = FindAltHolder(w, kind, number, &h);
+
+		if (held != SpecialResult::Done)
+		{
+			return held;
+		}
+
+		if (h.holder == w.special.size() && !payload)
+		{
+			return SpecialResult::Done;   // no holder, nothing to take out
+		}
+
+		if (payload && payload->size() > 0x7fffff00)
+		{
+			return SpecialResult::BadValue;
+		}
+
+		char const *const holderName = kind == SpecialKind::ParticleGenerator ? "PARGENER" : kind == SpecialKind::Sound ? "SOUNDEXD" : "AVPGENEX";
+		Bytes inside;
+
+		if (h.holder < w.special.size())
+		{
+			// every child of the holder but its ALTLOCAT, in order
+			Span const holder = w.special[h.holder];
+			std::vector<Span> parts;
+
+			if (!Children(w.image, holder.at + kHeadingBytes, holder.at + holder.size, &parts))
+			{
+				return SpecialResult::CantBuild;
+			}
+
+			for (Span const &part : parts)
+			{
+				if (!NameIs(w.image, part.at, "ALTLOCAT"))
+				{
+					AddCopy(&inside, w.image, part);
+				}
+			}
+		}
+		else
+		{
+			// a new holder, found by the object's name
+			Bytes nameText;
+
+			AddText(&nameText, h.name, true);
+
+			Bytes const nameChunk = MakeChunk(kind == SpecialKind::Sound ? "SOUNDNAM" : "AVPGENNM", nameText);
+
+			inside.insert(inside.end(), nameChunk.begin(), nameChunk.end());
+		}
+
+		if (payload)
+		{
+			Bytes const alt = MakeChunk("ALTLOCAT", Bytes(payload->begin(), payload->end()));
+
+			inside.insert(inside.end(), alt.begin(), alt.end());
+		}
+
+		std::vector<Bytes> chunks = Copies(w);
+		Bytes const made = MakeChunk(holderName, inside);
+
+		if (h.holder != w.special.size())
+		{
+			chunks[h.holder] = made;
+		}
+		else
+		{
+			chunks.push_back(made);
+		}
+
 		return Rebuilt(file, w, chunks);
 	}
 }

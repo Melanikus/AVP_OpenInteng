@@ -1,0 +1,99 @@
+# ACCEPTANCE (red first): LINK WITH AVP, Module Linking's Misc > Link with AVP (0x190; AvP-docs reassess/module-linking.md, the four Link with AVP rows; src/host/module_link_avp.h).
+# inteng: the item is a switch with a tick (FUN_004c1a90 0x4c36b6-0x4c36da); the window procedure reads it on WM_ACTIVATEAPP (0x58ba6f-0x58bc26): with it on, the program LOSING the focus
+# writes the current module's tree into the level and then module.aaa (FUN_004c0f00: the level's name in 60 bytes, then per module with links its index, its count and its items'
+# object_index and branch_no), and GETTING it back reads module.bbb (FUN_004c19a0: the game's camera, VDB_World and VDB_Mat, 48 bytes), deletes it and puts the camera there. Exit clears it.
+# The game's side is in debug builds only (avpx projload.cpp LoadModuleData), so this plays the game: it plants module.bbb as the game writes it and reads module.aaa as the game reads it
+# (verify_module_link), in this run's own data folder ({datadir}\avp_rifs, where the game's avp_rifs/module.aaa is). INTENG BUG (3) FIXED: module.bbb is HOSTILE input: a file that is not
+# 48 bytes, a place past the camera's limit or a matrix that is not a turn moves nothing, says why, and is deleted as inteng deletes what it read.
+# RED before the build: the item said "The old editor never finished this item" and was no switch (linkavp never on the state line).
+# His path: Invasion, Module Linking, the Misc menu; APCmod made current and linked to module 21 by clicks (module-linking-main-job.txt's), then the program leaves and comes back (app-active).
+screen Module Linking
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Module Linking
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe remove {datadir}/avp_rifs/module.aaa
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe remove {datadir}/avp_rifs/module.bbb
+
+# ---- off at the start: no tick, and losing the focus writes nothing
+click-bar Misc
+expect-drop-ticked none
+key Esc
+expect-field linkavp off
+app-active 0
+state
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe absent {datadir}/avp_rifs/module.aaa
+
+# ---- the switch on: ticked (0x4c36da)
+click-bar Misc > Link with AVP
+expect-field linkavp on
+click-bar Misc
+expect-drop-ticked Link with AVP
+key Esc
+
+# ---- a link made, not yet written: APCmod current, Normal Link to module 21
+camera -7764 2852 10527 0 0
+click-view 0.5 0.5
+expect-status Picked: module
+item 0xc8
+expect-status Current module: APCmod
+camera -7764 2852 25527 1024 0
+click-view 0.85 0.3
+expect-status Picked: module 21
+item 0x32
+expect-status Normal Link: 1 of 1
+
+# ---- the program loses the focus: the tree into the level, then module.aaa (read back at the end, against the saved copy)
+app-active 0
+expect-field-has linkavpaaa wrote
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe present {datadir}/avp_rifs/module.aaa
+
+# ---- the program gets the focus back: module.bbb, the game's camera at APCmod's far side turned 45 degrees and looking 22.5 (P(look) x E(0, turn, 0), x 65536), is taken and deleted
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe plant {datadir}/avp_rifs/module.bbb -7764 2852 25527 46341 0 46341 17734 60547 -17734 -42813 25080 42813
+app-active 1
+expect-field camera -7764 2852 25527 512 256
+expect-field-has linkavpbbb taken
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe absent {datadir}/avp_rifs/module.bbb
+picture 1
+
+# ---- HOSTILE module.bbb (INTENG BUG (3) FIXED): each refused with why, the camera where it was, the file deleted
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe plant-size {datadir}/avp_rifs/module.bbb 47
+app-active 1
+expect-field camera -7764 2852 25527 512 256
+expect-field-has linkavpbbb 47 bytes, not 48
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe absent {datadir}/avp_rifs/module.bbb
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe plant {datadir}/avp_rifs/module.bbb 20000000 0 0 65536 0 0 0 65536 0 0 0 65536
+app-active 1
+expect-field camera -7764 2852 25527 512 256
+expect-field-has linkavpbbb outside the camera's limits
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe absent {datadir}/avp_rifs/module.bbb
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe plant {datadir}/avp_rifs/module.bbb 0 0 0 65536 0 0 0 65536 0 0 0 -65536
+app-active 1
+expect-field camera -7764 2852 25527 512 256
+expect-field-has linkavpbbb not a camera's turn
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe absent {datadir}/avp_rifs/module.bbb
+
+# ---- off again: no tick, and getting the focus reads nothing (the file stays)
+click-bar Misc > Link with AVP
+expect-field linkavp off
+click-bar Misc
+expect-drop-ticked none
+key Esc
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe plant {datadir}/avp_rifs/module.bbb 0 0 0 65536 0 0 0 65536 0 0 0 65536
+app-active 1
+state
+expect-field camera -7764 2852 25527 512 256
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe present {datadir}/avp_rifs/module.bbb
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe remove {datadir}/avp_rifs/module.bbb
+
+# ---- Exit clears it (FUN_004c3b90 0x4c3bb3): on, then Mode > Exit
+click-bar Misc > Link with AVP
+expect-field linkavp on
+item 0x64
+expect-screen Construction
+expect-field linkavp off
+
+# ---- module.aaa read as the game reads it: the name ends in the level's file name, its records are the saved copy's links, and they differ from the level as opened in APCmod alone
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe aaa {datadir}/avp_rifs/module.aaa {orig} {copy} Invasion.rif
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_module_link/verify_module_link.exe remove {datadir}/avp_rifs/module.aaa

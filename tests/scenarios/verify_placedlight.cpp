@@ -1,7 +1,7 @@
 // verify_placedlight: the check of the placed light scenario (tests/scenarios/light-placed.txt): the level the hidden editor run saved as a copy, read with the game's own loader. Written 2026-11-15 by Melanikus
 // (Drake) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
-// USE: verify_placedlight.exe <the level the editor opened> <the copy it saved> <the object (its number) that has the placed light>
+// USE: verify_placedlight.exe <the level the editor opened> <the copy it saved> <the object (its number, or its name as verify_list_objects prints it) that has the placed light>
 // CHECKS: both levels are read by the game's loader; the object's PLOBJLIT in the copy has a larger brightness (the + key held), the same UP colour, a DOWN colour whose red is larger (T, then the colour attribute Red and the
 // + key), its local flags with the changed bit (4) in, and every other byte of the chunk as it was; no other object's PLOBJLIT changed. Gives back 0 only if every check passed.
 
@@ -61,7 +61,25 @@ void Sound_ForgetAddressesInside(const void *, size_t)
 {
 }
 
-static bool Placed(OpenLevelFile *open, int32_t number, std::vector<unsigned char> *payload, std::vector<std::vector<unsigned char> > *others, std::vector<int32_t> *otherNumbers)
+// the object asked for: its number (OBJHEAD1 index_num) or, when the argument is not a plain number, its NAME as verify_list_objects prints it (Dietrich 2026-11-18: the owner-path walk on
+// his Genshd1 names yardlight01; the state line has no object numbers). A name is read as at most 64 bytes up to its first zero (the file is hostile input).
+static bool IsTheObject(Object_Chunk *object, std::string const &which)
+{
+	char *end = NULL;
+	long const number = strtol(which.c_str(), &end, 10);
+
+	if (!which.empty() && end && *end == 0)
+	{
+		return (int32_t)object->object_data.index_num == (int32_t)number;
+	}
+
+	char const *const name = object->object_data.o_name;
+	size_t const length = name ? strnlen(name, 64) : 0;
+
+	return name && length == which.size() && memcmp(name, which.data(), length) == 0;
+}
+
+static bool Placed(OpenLevelFile *open, std::string const &which, std::vector<unsigned char> *payload, std::vector<std::vector<unsigned char> > *others, std::vector<int32_t> *otherNumbers)
 {
 	::List<Object_Chunk *> objects;
 	bool found = false;
@@ -85,7 +103,7 @@ static bool Placed(OpenLevelFile *open, int32_t number, std::vector<unsigned cha
 			continue;
 		}
 
-		if ((int32_t)object->object_data.index_num == number)
+		if (!found && IsTheObject(object, which))
 		{
 			*payload = bytes;
 			found = true;
@@ -114,12 +132,12 @@ int main(int argc, char **argv)
 
 	if (argc < 4)
 	{
-		printf("usage: verify_placedlight <the level the editor opened> <the copy it saved> <the object's number>\n");
+		printf("usage: verify_placedlight <the level the editor opened> <the copy it saved> <the object's number, or its name>\n");
 		return 2;
 	}
 
 	OpenLevelFile before, after;
-	int32_t const number = atoi(argv[3]);
+	std::string const which = argv[3];
 
 	Check(before.Open(argv[1]) == LevelOpenResult::Opened && before.Level(), "the game's loader takes the level the editor opened");
 	Check(after.Open(argv[2]) == LevelOpenResult::Opened && after.Level(), "the game's loader takes the editor's copy");
@@ -133,7 +151,7 @@ int main(int argc, char **argv)
 	std::vector<std::vector<unsigned char> > wasOthers, nowOthers;
 	std::vector<int32_t> wasNumbers, nowNumbers;
 
-	Check(Placed(&before, number, &was, &wasOthers, &wasNumbers) && Placed(&after, number, &now, &nowOthers, &nowNumbers) && was.size() >= 60 && now.size() == was.size(), "the object has a placed light in both");
+	Check(Placed(&before, which, &was, &wasOthers, &wasNumbers) && Placed(&after, which, &now, &nowOthers, &nowNumbers) && was.size() >= 60 && now.size() == was.size(), "the object has a placed light in both");
 
 	if (was.size() < 60 || now.size() != was.size())
 	{

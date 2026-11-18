@@ -1,0 +1,20 @@
+# ACCEPTANCE (TB-C3, reassess/construction-closeout-frost.md): Construction > File > Write Asc File's name edit STARTS WITH THE LEVEL'S OWN NAME, its REBENVDT > RIFFNAME (FUN_004452b0 0x445422-0x44545f:
+# the RIF_Name_Chunk's name into the edit's +0x24), and Write Asc File (Doors closed)'s with "%sb" of it (0x4457c2, the format at 0x5cf99c). Cancel writes nothing.
+# Red on bishop-int 056fed50 (the edit started empty), green on the hash with the start text.
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-no-dialog
+item 0xe
+expect-dialog Write asc file
+expect-dialog-text Invasion
+picture 1
+click-button Cancel
+expect-no-dialog
+item 0x10
+expect-dialog Write asc file (doors closed)
+expect-dialog-text Invasionb
+picture 2
+click-button Cancel
+expect-no-dialog

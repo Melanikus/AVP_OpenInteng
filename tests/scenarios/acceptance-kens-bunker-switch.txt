@@ -1,0 +1,100 @@
+# ACCEPTANCE (red first): the kens-co-op BUNKER SWITCH on HIS path (the owner's question 11-18, through Bishop: "does Object Placement handle a switch with a linear animation?").
+# The level (survey 11-18, read-only, the game's own loader): "switch 1" is a placed object (flags 0x3fc00) whose strategy is a MULTIPLE TARGET SWITCH (kind 66, 76 bytes: two targets,
+# Door 01 66e3ef76 43b11300 and Door 02 e2ea808b b8b25600, request 1 each) and which holds a track of its own (OBJTRAK2: its linear animation, as AvP's switches play one: bs_track /
+# ls_track). Door 01 and Door 02 are Track objects (kind 72) with tracks; switch 2 is a simple object (kind 62) with none.
+# His path: Object > Find (inteng's "Select Object" list) picks switch 1; Object > Edit Track goes to Track Editing on its track and Play Track plays it to its end; back in Object
+# Placement, P (Create > With shape > Selected) makes a copy of the same shape at the view; Copy Track on switch 1 and Paste Track Relative on the copy give the copy the track (Track
+# Editing starts on it); then the level is saved as a COPY. Read back: both objects, both with a track, switch 1's Multiple Target strategy as it was (its two doors, request 1).
+# Opened as by a double click, read-only.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/kens-co-op.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+
+# ---- 1 Find: the Select Object list (inteng's column grid: switch 1 is in the second column), picked by its words. It is THE current object and the view goes to it
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is switch 1
+expect-no-dialog
+expect-status Selected: switch 1
+wait 400
+picture 1
+
+# ---- 2 Edit Track: Track Editing on its own track. Play Track (inteng's right-click pop-up there, never a bar: editor_bar.cpp) plays it: inteng's FUN_004f09e0 moves THE OBJECT along the
+#      track every frame (TE-4) and leaves it where the track ends, until Stop track play (0x515, FUN_004f0da0) puts it back at the current section's end, where Track Editing shows it before
+#      the play too (T-3c). The slide is quick (0.3 s: timer 19660), too quick for pictures, so the proof is the state line's trackplayed field: the object was put at the track's start
+#      (0 -832 2643) and moved frame by frame to its end (0 -376 2643). RED on vph-6: no such field (the switch never moved: only a cross in the three views). Stop track play says
+#      "Stopped: ..." (the pictures are for the eye only: no picture checks, the owner's rule 11-18). Then Mode > Stop Track Edit back to Object Placement.
+click-bar Object > Edit Track
+wait 600
+expect-screen Track Editing
+# T-4b: "Num Objects" is one global in inteng (DAT_008f4ef4, the placement list's size, printed by the same frame in both states): 54 here as in Object Placement (red before: 93,
+# every object of the level, modules too)
+expect-hierarchy-text Num Objects :54
+# Find put the view ON the switch (its place, 0 -832 2643; 448 x 124 x 112 mm): the view goes 1.5 m out along the open corridor and looks back at it. Its track slides it from y -832 to -376.
+camera 0 -604 4143 2048 0
+wait 400
+picture 2
+click-win 504 322 right
+expect-popup-rows Edit Section End Position|Next Section|Previous Section|Add Section|Play Track|Properties|Sound|Start Sound|End Sound|Delete
+click-popup 5
+# a picture at once, for the eye (the slide is 0.3 s, so it may catch the switch on its way, or already at the end)
+picture 7
+wait 4000
+expect-status The track has reached its end
+picture 3
+expect-field-has trackplayed from 0 -832 2643 to 0 -376 2643
+expect-number trackplayed moves_ 2 100000
+click-win 504 322 right
+expect-popup-rows Stop track play
+click-popup 1
+wait 400
+picture 6
+expect-status Stopped:
+click-bar Mode > Stop Track Edit
+expect-screen Object Placement
+
+# ---- 3 P: a copy of the same shape at the view, named switchcopy, THE current object (the view first 700 mm beside switch 1 and 0.55 m out from its wall, so the copy stands in the open beside it; turn 0, as switch 1 faces: P gives the copy the view's turn)
+camera 700 -832 3200 0 0
+wait 300
+key P
+expect-dialog Name Object
+form-field 1 switchcopy
+click-button OK
+expect-no-dialog
+expect-status Object switchcopy made at the view
+# OP-26c: the copy is in the game's view at once (red on vph-11: "no")
+expect-field inplay yes
+picture 4
+
+# ---- 4 Copy Track on switch 1 (no message), Paste Track Relative on switchcopy: Track Editing starts on it
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is switch 1
+expect-no-dialog
+expect-status Selected: switch 1
+click-bar Object > Copy Track
+wait 300
+expect-no-dialog
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is switchcopy
+expect-no-dialog
+expect-status Selected: switchcopy
+click-bar Object > Paste Track Relative
+wait 600
+expect-no-dialog
+expect-screen Track Editing
+picture 5
+# both switches for the eye: the view 2 m out, looking back at them; switchcopy (made at 700 -832 3200) at its pasted track's end (its two crosses), switch 1 beside it (OP-26c: the copy is
+# drawn since it is put in play when P makes it)
+camera 350 -604 5200 2048 0
+wait 400
+picture 8
+
+# ---- 5 saved as a copy; read back by the game's loader
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_objects/verify_objects.exe {copy} kept "switch 1" kept switchcopy track "switch 1" track switchcopy kept "Door 01" kept "Door 02"
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_strategy/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/kens-co-op.RIF {copy} "switch 1" size 76 targets 2 target.0 "Door 01" target.1 "Door 02" target_request.0 1 target_request.1 1

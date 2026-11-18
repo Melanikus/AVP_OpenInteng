@@ -1,0 +1,22 @@
+# ACCEPTANCE (TB-C8j, reassess/construction-closeout-frost.md): Construction > Object > Merge Objects WRITES THE LEVEL FILE when it is done, as inteng's merge ends: it marks the level
+# changed (DAT_00631264 = 1, FUN_0044a950 0x44ab98) and leaves the hub, which writes the file (FUN_004476d0 at 0x44aba2 -> FUN_004719e0), then enters it again (FUN_00447550, 0x44aba7).
+# Red on f7836227 (the merge was kept in the editor's bytes until a save: "kept in the editor's bytes until Save a copy", no file), green on the hash that saves.
+# His path: the file is opened, two rows of the object list are picked, Object > Merge Objects (item 0x58), Yes.
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+verify cmd /c del /q "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif" "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif.bak" 2>nul & exit 0
+pictures on
+state
+expect-screen Construction
+expect-no-dialog
+select-rows 0 1
+expect-selected 2
+item 0x58
+expect-dialog-kind confirm
+expect-dialog Do you want to merge the selected objects?
+click-button Yes
+expect-no-dialog
+expect-status Merged 1 object into the first
+expect-status Invasion-edited.rif
+expect-status-not Not saved
+picture 1
+verify cmd /c if exist "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif" (exit 0) else (exit 1)

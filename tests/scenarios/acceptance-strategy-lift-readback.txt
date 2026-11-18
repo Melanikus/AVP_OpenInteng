@@ -18,14 +18,14 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Airlock
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Airlock|200@669:Radius 19794.190284|200@689:Floor -1|200@709:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit same side
+expect-field strategyview 200@0:gARAGDOR : Airlock|200@420:Radius 19794.190284|200@440:Floor -1|200@460:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit same side
 picture 1
 # Exit side (y 160): flag 8
-click-win 300 168
+click-box 300 168
 wait 300
-expect-field strategyview 200@0:gARAGDOR : Airlock|200@669:Radius 19794.190284|200@689:Floor 0|200@709:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit opposite side
+expect-field strategyview 200@0:gARAGDOR : Airlock|200@420:Radius 19794.190284|200@440:Floor 0|200@460:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit opposite side
 # Lift positions (y 16): the collector; APCmod and Door; Return; the others made to agree: Yes
-click-win 300 24
+click-box 300 24
 wait 400
 click-win 120 500
 click-win 640 300
@@ -34,36 +34,36 @@ key Enter
 expect-dialog-kind confirm
 click-button Yes
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Airlock|200@669:Radius 19794.190284|200@689:Floor 2|200@709:Facing 0|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:None|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift has no start position|16@176:Exit opposite side
+expect-field strategyview 200@0:gARAGDOR : Airlock|200@420:Radius 19794.190284|200@440:Floor 2|200@460:Facing 0|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:None|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift has no start position|16@176:Exit opposite side
 picture 2
 # the start (now y 160): "Here"
-click-win 300 168
+click-box 300 168
 expect-dialog Select Lift Start Position
 click-button Here
 wait 300
 expect-field-has strategyview 16@160:Lift starts at gARAGDOR
 # the Door (y 64): APCmod
-click-win 300 72
+click-box 300 72
 wait 400
 expect-field-has strategyview 200@709:Select door for this lift position
 click-win 120 500
 key Enter
 wait 400
 # the Call Switch (y 96): Base
-click-win 300 104
+click-box 300 104
 wait 400
 expect-field-has strategyview 200@709:Select call switch
 click-win 900 300
 key Enter
 wait 400
 # the Floor Switch (y 128): Bend
-click-win 300 136
+click-box 300 136
 wait 400
 expect-field-has strategyview 200@709:Select floor switch
 click-win 560 320
 key Enter
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Airlock|200@669:Radius 19794.190284|200@689:Floor 2|200@709:Facing 3|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:APCmod|16@96:Call Switch :|80@112:Base|16@128:Floor Switch :|80@144:Bend|16@160:Lift starts at gARAGDOR|16@176:Exit opposite side
+expect-field strategyview 200@0:gARAGDOR : Airlock|200@420:Radius 19794.190284|200@440:Floor 2|200@460:Facing 3|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:APCmod|16@96:Call Switch :|80@112:Base|16@128:Floor Switch :|80@144:Bend|16@160:Lift starts at gARAGDOR|16@176:Exit opposite side
 picture 3
 key Esc
 wait 400

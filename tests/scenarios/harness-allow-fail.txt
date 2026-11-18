@@ -1,0 +1,10 @@
+# THE HARNESS'S ALLOW-FAIL PREFIX (Bishop 11-18; Dietrich): "allow-fail <reason> | <check line>" runs the check as usual; a failure is logged "  ALLOWED  step N: <check> (<reason>)" and is
+# not counted, so the file stays GREEN; a pass is logged ok with a NOTE to take the prefix away. For a check that can't SEE what it looks for after a couple of camera tries (the owner's
+# rule: allowed to fail, and he looks at the picture). Here: one allowed check that fails (GREEN, one ALLOWED line) and one that passes (ok, and the NOTE). The same failing check
+# without the prefix makes a file RED (proved when the prefix was made, not kept here).
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+expect-screen Construction
+allow-fail the prefix's own test: these words are never on the status line | expect-status no-such-words-on-the-status-line
+allow-fail the prefix's own test: a check that passes | expect-screen Construction
+expect-screen Construction

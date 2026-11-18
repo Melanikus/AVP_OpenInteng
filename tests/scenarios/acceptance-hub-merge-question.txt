@@ -1,0 +1,20 @@
+# ACCEPTANCE (TB-C1, reassess/construction-closeout-frost.md): Construction > Object > Merge Objects with more than one object selected FIRST asks inteng's question "Do you want to merge the selected
+# objects?" (FUN_004452b0 0x445cda-0x445cfe: FUN_00474a40 with the words at 0x5cf964, shown by FUN_0057c800(200, 100)); only Yes (3) merges (FUN_0044a950). No merges nothing: the two objects stay, still selected.
+# Red on bishop-int 056fed50 (the merge ran at once, no question), green on the hash that asks.
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-no-dialog
+select-rows 0 1
+expect-selected 2
+picture 1
+item 0x58
+expect-dialog-kind confirm
+expect-dialog Do you want to merge the selected objects?
+expect-pixels-changed panels 0 0 1000 700 0.005
+picture 2
+click-button No
+expect-no-dialog
+expect-selected 2
+picture 3

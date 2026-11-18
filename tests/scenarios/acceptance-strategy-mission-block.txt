@@ -26,11 +26,11 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Mission_Objective
 wait 400
-expect-field strategyview 200@0:MO1 : Mission Objective|100@689:P : Toggle 'Make Possible' setting for mission target|100@709:V : Toggle 'Make Visible' setting for mission target|16@16:Description :0|16@32:Completed Message :0|16@48:Order Number :0|16@64:Shown at start|16@80:Possible at start|16@96:Special :Nothing|16@112:Mission alterations upon completion :|32@128:None
+expect-field strategyview 200@0:MO1 : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :0|16@32:Completed Message :0|16@48:Order Number :0|16@64:Shown at start|16@80:Possible at start|16@96:Special :Nothing|16@112:Mission alterations upon completion :|32@128:None
 picture 1
 # ---- a click at inteng's y 400 (window 408): below the block (it ends at y 144: the label at 112, "None" at 128): nothing; the view is the same
-click-win 300 408
+click-box 300 408
 wait 400
-expect-field strategyview 200@0:MO1 : Mission Objective|100@689:P : Toggle 'Make Possible' setting for mission target|100@709:V : Toggle 'Make Visible' setting for mission target|16@16:Description :0|16@32:Completed Message :0|16@48:Order Number :0|16@64:Shown at start|16@80:Possible at start|16@96:Special :Nothing|16@112:Mission alterations upon completion :|32@128:None
+expect-field strategyview 200@0:MO1 : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :0|16@32:Completed Message :0|16@48:Order Number :0|16@64:Shown at start|16@80:Possible at start|16@96:Special :Nothing|16@112:Mission alterations upon completion :|32@128:None
 picture 2
 expect-pixels-same-since 1 picture 0 0 1008 700 0.002

@@ -1,0 +1,10 @@
+# ACCEPTANCE (red first): THE RELEASE ZIP'S OWN SETTINGS START A FRAMED 1280 x 720 WINDOW (the owner, 11-18: "We want to ship AVP_OpenInteng.ini with 1280x720 and with a windowed = true
+# flag"; reassess/startup-screen-frost.md SS-14). The release layout: the editor with the zip's AVP_OpenInteng.ini beside it (dist/AVP_OpenInteng.ini, StartWidth=1280, StartHeight=720,
+# Windowed=true; release-ini/release-layout.cmd puts its byte copy in the run folder with the run's own DataFolder= and Level= after it, as a mapper adds his) and no IntengOptions.ini.
+# A hidden run reads the start settings only with -options (SS-13): the folder given has no IntengOptions.ini, as the zip has none.
+# Red on exe-cache/3f1126fb.exe (StartWidth / StartHeight / Windowed not read: inteng's 640 x 480), green with them.
+make-level cmd /c {scenariodir}release-ini\release-layout.cmd {exedir}
+start-args -options {scenariodir}release-ini
+state
+expect-screen Construction
+expect-field-has window 1280 720 window

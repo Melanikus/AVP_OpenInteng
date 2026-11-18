@@ -1,0 +1,61 @@
+# ACCEPTANCE (red first; Drake 11-17, S-62's review finding 10, strategy-data-kinds.md S-KC-5, strategy-data.md S-79): THE OBJECT PICK READS NONE OF THE MODE'S KEYS, on his path (Invasion, the file opened as a double click).
+# inteng's pick loop FUN_00527540 reads the left click, Return (slot 0xd87a46) and the right button, and runs FUN_00529370's frame (the view distance, Insert / Home); the mode's own key reader
+# FUN_00524e90 (E = Edit Strategy 0x524ee7, Tab = back to Object Placement 0x524eca) does not run while it waits, nor the V of a view. Ours let E, V and Tab fall through to the mode: E opened the
+# view again, the pick's lines went, and the pick's choice stayed the selection, drawn red with nothing picked; Tab left the mode in the middle of the pick.
+# Strategy Data is entered with Object Placement's Tab, the only way its Tab does anything (strategyFromPlacement).
+# RED on bishop-int f9d3b628 + drake-svolfix e5de6cd0 (the build wt3c, without this fix): after E there is no "Press return when finished"; Tab in the pick asks the save question.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+key Tab
+expect-screen Strategy Data
+wait 400
+# the subject: the module at 640 130 (gARAGDOR, no strategy in stock Invasion, so no replace question), given a Switch Door
+click-win 640 130
+expect-selected 1
+click-win 640 130 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Switch_Door
+wait 400
+expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:None
+# the door lines: the object pick; in front of switch3, picked (red, S-62)
+click-box 300 24
+wait 400
+camera -27851 -14055 85500 0 0
+wait 500
+click-win 504 364
+wait 300
+expect-field-has strategyview Press return when finished
+expect-field-has strategyview 16@80:switch3
+# E: nothing. The pick goes on, its choice named and red
+key E
+wait 300
+expect-field-has strategyview Press return when finished
+expect-field-has strategyview 16@80:switch3
+picture 1
+expect-colour picture 430 290 150 150 ff0000 0.03 70
+# V: no volume editor either
+key V
+wait 300
+expect-status-not Edit Volume
+expect-field-has strategyview Press return when finished
+# Tab: nothing (not the way back to Object Placement, and no save question)
+key Tab
+wait 300
+expect-no-dialog
+expect-screen Strategy Data
+expect-field-has strategyview Press return when finished
+# Return ends the pick: switch3 is the door
+key Enter
+wait 400
+expect-field-has strategyview 80@32:switch3
+key Esc
+wait 300
+# the control: out of the pick and the view, Tab is the way back (Exit, which asks the save question: Strategy changed the level)
+key Tab
+expect-dialog Would you like to save first?
+click-button No
+expect-screen Object Placement

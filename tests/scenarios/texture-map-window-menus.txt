@@ -1,4 +1,4 @@
-# THE TEXTURE WINDOW'S OWN MENUS (hidden run, Invasion): one polygon selected, Tab opens the texture window and the bars change to its own (Mode, Texture, Help / Rotate Nodes, X-Flip, Y-Flip, Next Texture ...); Rotate Nodes > 90 Node Centre (0x16), X-Flip (0x6), Next Texture (0xa), Toggle Node Selection (0x102); Mode > Polygon (0x2) leaves the window and the bars come back. Pictures 940 to 942.
+# THE TEXTURE WINDOW'S OWN MENUS (hidden run, Invasion): one polygon selected, Tab opens the texture window and the bars change to its own (Mode, Texture, Help / Rotate Nodes, X-Flip, Y-Flip, Next Texture ...); Rotate Nodes > 90 Node Centre (0x16), X-Flip (0x6), Next Texture (0xa), and Nodes To Corners on its bars (page 1, as inteng; TM-B 2026-11-18: Toggle Node Selection is the multi-node window's); Mode > Polygon (0x2) leaves the window and the bars come back. Pictures 940 to 942.
 start-args -viewmode headlight
 level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
 pictures on
@@ -19,8 +19,8 @@ picture 941
 item 0xa
 wait 300
 expect-status picture
-item 0x102
-expect-status every node
+# inteng's single-node window shows page 1 (FUN_0054caf0 case 1, 0x54ced7): Nodes To Corners, not Toggle Node Selection (page 3, the multi-node window's, 0x54cbee)
+expect-bar2 Nodes To Corners
 item 0x2
 wait 300
 expect-bar2 Clear Selection

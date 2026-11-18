@@ -6,10 +6,12 @@ pictures on
 state
 expect-screen Construction
 item 0x5b
-expect-prompt 44
+# the tolerance is inteng's text dialog now (FUN_00474170: "Fixing tears for ALL objects" / "Type in tolerance level for tear fixing (in mm)", 5 to start with), not the typed prompt 44
+expect-dialog-kind form
+expect-dialog-text 5
 picture 1
 key Enter
-expect-prompt 0
+expect-no-dialog
 expect-status Fixing tears for all objects
 picture 2
 save-copy

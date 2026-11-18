@@ -28,7 +28,9 @@
 #include "mishchnk.hpp"
 #include "level_file.h"
 #include "object_make.h"
+#include "object_number.h"
 #include "quick_create.h"
+#include "shape_import.h"
 
 static int checksFailed = 0;
 
@@ -121,10 +123,11 @@ struct Made
 	std::string name;
 	int32_t place[3];
 	std::string shapeName;
+	int32_t number;         // V-27: the lowest number no object had when it was made
 };
 
 // What the file holds for the object with this ID: its header's place and name, read from the bytes the editor holds (the place at 20, the name at 60)
-static bool HeaderOf(OpenLevelFile const &open, uint8_t const *id, int32_t place[3], std::string *name)
+static bool HeaderOf(OpenLevelFile const &open, uint8_t const *id, int32_t place[3], std::string *name, std::string *lock = nullptr, int32_t *number = nullptr)
 {
 	List<Object_Chunk *> all;
 
@@ -149,6 +152,16 @@ static bool HeaderOf(OpenLevelFile const &open, uint8_t const *id, int32_t place
 
 		memcpy(place, &bytes[20], 3 * sizeof(int32_t));
 
+		if (lock)
+		{
+			*lock = std::string((char const *)&bytes[4], 16);   // the lock user, 4..19
+		}
+
+		if (number)
+		{
+			memcpy(number, &bytes[48], sizeof(int32_t));   // the number (index_num), 48
+		}
+
 		size_t end = 60;
 
 		while (end < bytes.size() && bytes[end] != 0)
@@ -161,6 +174,50 @@ static bool HeaderOf(OpenLevelFile const &open, uint8_t const *id, int32_t place
 	}
 
 	return false;
+}
+
+// V-27: the lowest number no object of the level has, worked out here on its own from every header's number (at 48)
+static int32_t LowestFreeOf(OpenLevelFile const &open)
+{
+	List<Object_Chunk *> all;
+	std::vector<bool> taken;
+
+	open.Level()->list_objects(&all);
+
+	for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
+	{
+		Object_Chunk *const object = each();
+		Bytes bytes;
+		Object_Header_Chunk *const header = object ? object->get_header() : nullptr;
+
+		if (!header || !open.PayloadOf(header, &bytes) || bytes.size() < 52)
+		{
+			continue;
+		}
+
+		int32_t number = 0;
+
+		memcpy(&number, &bytes[48], sizeof(number));
+
+		if (number >= 0 && number < 1000000)
+		{
+			if ((size_t)number >= taken.size())
+			{
+				taken.resize((size_t)number + 1, false);
+			}
+
+			taken[(size_t)number] = true;
+		}
+	}
+
+	int32_t free = 0;
+
+	while ((size_t)free < taken.size() && taken[(size_t)free])
+	{
+		free++;
+	}
+
+	return free;
 }
 
 int main(int argc, char **argv)
@@ -187,6 +244,38 @@ int main(int argc, char **argv)
 		Check(false, "the game's loader takes the level");
 		return 1;
 	}
+
+	// OP-141 (a), open-path-2 of the 11-17 review: a shape's name is the file <folder>\<name>.rif, and Windows opens a DEVICE for "NUL.rif" or "COM1.rif" in any folder. ShapeImport_Read
+	// refuses such a name (BadName) before anything is opened: NUL would open and read empty, COM1 would open a serial port. The copy folder is a plain folder with no such files.
+	{
+		char const *const devices[] = { "NUL", "nul", "CON", "PRN", "AUX", "COM1", "com9", "LPT1", "LPT9" };
+		bool allRefused = true;
+		std::string notRefused;
+
+		for (char const *const device : devices)
+		{
+			std::vector<char> bytes;
+
+			if (host::ShapeImport_Read(copyFolder.c_str(), device, &bytes, nullptr) != host::ShapeImportResult::BadName || !bytes.empty())
+			{
+				allRefused = false;
+				notRefused += std::string(" ") + device;
+			}
+		}
+
+		std::vector<char> none;
+
+		Check(allRefused, "a device's name (NUL, CON, PRN, AUX, COM1-9, LPT1-9, any capitals) is refused before a file is opened" + (notRefused.empty() ? std::string() : ": not" + notRefused));
+		Check(host::ShapeImport_Read(copyFolder.c_str(), "COM10", &none, nullptr) == host::ShapeImportResult::NotFound && host::ShapeImport_Read(copyFolder.c_str(), "NULL", &none, nullptr) ==
+			host::ShapeImportResult::NotFound, "names that only start like a device (COM10, NULL) are plain names: looked for, and not there");
+	}
+
+	// V-27: a new object's number is inteng's FUN_004bebc0's: the first empty slot of the file's object table (every object at its own number), or its size when it has no gap
+	Check(host::ObjectNumber_LowestFree({}) == 0 && host::ObjectNumber_LowestFree({ 0, 1, 2 }) == 3, "no object: 0; numbers 0, 1, 2 with no gap: 3 (the table's size)");
+	Check(host::ObjectNumber_LowestFree({ 0, 2, 3 }) == 1 && host::ObjectNumber_LowestFree({ 5 }) == 0,
+		"a gap is filled first: 0, 2, 3 gives 1 and a lone 5 gives 0 (the first empty slot, not the greatest + 1)");
+	Check(host::ObjectNumber_LowestFree({ 3, 1, 0, 1, -1 }) == 2, "out of order, a repeat and a negative (which holds no slot): 3, 1, 0, 1, -1 gives 2");
+	Check(host::ObjectNumber_LowestFree({ 0, 0x7fffffff }) == 1, "a hostile greatest number (2^31-1) is no limit: 0, 2^31-1 gives 1");
 
 	size_t const objectsBefore = CountObjects(open);
 	std::vector<Made> made;
@@ -215,6 +304,7 @@ int main(int argc, char **argv)
 		std::string name;
 
 		memset(entry.id, 0, sizeof(entry.id));
+		entry.number = LowestFreeOf(open);
 
 		host::ObjectMakeResult const result = host::CreateObjectFromShape(&open, shape, place, matrix, entry.id, &name);
 
@@ -273,14 +363,21 @@ int main(int argc, char **argv)
 
 	bool allThere = true;
 	bool namesRight = true;
+	bool locksPlayer = true;
+	bool numbersLowest = true;
 	std::string firstBad;
+	std::string firstLock;
+	std::string firstNumber;
+	std::string const player("Player\0\0\0\0\0\0\0\0\0\0", 16);
 
 	for (Made const &entry : made)
 	{
 		int32_t place[3] = { 0, 0, 0 };
 		std::string name;
+		std::string lock;
+		int32_t number = -1;
 
-		if (!HeaderOf(after, entry.id, place, &name))
+		if (!HeaderOf(after, entry.id, place, &name, &lock, &number))
 		{
 			allThere = false;
 			firstBad = "command 0x" + std::to_string(entry.command) + ": no object with its ID";
@@ -303,10 +400,25 @@ int main(int argc, char **argv)
 		}
 
 		namesRight = namesRight && name == entry.name && digitsAfter;
+
+		// V-27: the save's lock call (FUN_004bd890) sets the lock user DAT_005ce6f4, the static "Player", padded with zeros (code_004d1460's strncpy of 16)
+		if (lock != player && firstLock.empty())
+		{
+			locksPlayer = false;
+			firstLock = "command 0x" + std::to_string(entry.command) + ": the lock user's first letter is " + std::to_string((int)(unsigned char)lock[0]);
+		}
+
+		if (number != entry.number && firstNumber.empty())
+		{
+			numbersLowest = false;
+			firstNumber = "command 0x" + std::to_string(entry.command) + ": " + std::to_string(number) + ", not " + std::to_string(entry.number);
+		}
 	}
 
 	Check(allThere && firstBad.empty(), "every object made is in the copy under its ID, at the place it was given" + (firstBad.empty() ? std::string() : " (" + firstBad + ")"));
 	Check(namesRight, "every object made has the name it was given: the shape's name and a number");
+	Check(locksPlayer, "every object made has inteng's lock user, \"Player\" and ten zeros" + (firstLock.empty() ? std::string() : " (" + firstLock + ")"));
+	Check(numbersLowest, "every object made has the lowest number no object had when it was made" + (firstNumber.empty() ? std::string() : " (" + firstNumber + ")"));
 
 	DeleteFileA(copyPath.c_str());
 	printf("%s\n", checksFailed ? "SOME CHECKS FAILED" : "All checks passed");

@@ -22,7 +22,7 @@ expect-field-has strategyview 200@0:med02L : Placed Object
 expect-field-has strategyview 32@32:Turn Target On|32@48:Event Target : facehugga
 picture 1
 # y 48: the Event Target, picked: med09
-click-win 300 56
+click-box 300 56
 wait 1500
 expect-field-has strategyview Press return when finished
 click-view 0.3 0.6
@@ -32,13 +32,13 @@ key Enter
 wait 500
 expect-field-has strategyview 32@48:Event Target : med09
 # y 32: request bit 1 flips
-click-win 300 40
+click-box 300 40
 wait 300
 expect-field-has strategyview 32@32:Turn Target Off
 # y 80: flags bit 1 (destroyed) off; y 96: flags bit 2 (picked up) on
-click-win 300 88
+click-box 300 88
 wait 300
-click-win 300 104
+click-box 300 104
 wait 300
 expect-field-has strategyview 32@80:Object destroyed
 expect-field-has strategyview 32@96:Object picked up

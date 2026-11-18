@@ -1,0 +1,29 @@
+# ACCEPTANCE (red first): TM-B, the multiple node mode's own help (0x27; FUN_00552bb0 0x552dfc, FUN_005572d0; Dietrich, 2026-11-18): two text screens, inteng's words - the mouse's ("Mouse
+# Controls ... In node selection mode (S) ...", 0x5ff788), then after a click the keys' ("Keyboard Controls ... L Deselect all nodes ...", 0x5ff434). Ours: Help did nothing in the mode.
+# His path: Invasion, Mode > Texture Map, the quad at 0.50 0.60, M, Tab, Help: the mouse's page, a click: the keys' page, a click: back to the mode. State line only.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+key M
+wait 200
+key Tab
+wait 400
+state
+expect-status multiple node mode
+item 0x27
+wait 300
+state
+expect-text-screen Mouse Controls
+click-win 500 400
+wait 300
+state
+expect-text-screen Keyboard Controls
+click-win 500 400
+wait 300
+state
+expect-text-screen none
+expect-status multiple node mode

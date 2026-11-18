@@ -1,0 +1,23 @@
+# ACCEPTANCE (a proof, no change: the generated menu's row reaches the built command): TM-B, Texture Map's Misc > Move rel. to poly (0xca, FUN_0054d260 0x54edc4: FUN_00564b60 of the
+# view's own block, DAT_00962304 +0x68): "Move relative to which poly" waits for a click on a polygon, the window asks "distance to move from the poly in metres :" (a form: its words are not on the state line, the prompt is drawn on the frame), and the VIEW is put in
+# front of the polygon, looking along its normal, that far back (FUN_005633e0; Vasquez's OP-42 read, 11-17). His path: Invasion, Mode > Texture Map, Misc > Move rel. to poly, the quad at
+# 0.50 0.60, 2 metres, Ok: the camera moved. State line.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+remember-field camera
+item 0xca
+wait 300
+click-view 0.50 0.60
+wait 400
+expect-dialog-kind form
+expect-field-has dialogbuttons Ok
+form-field 1 2
+click-button Ok
+wait 400
+expect-no-dialog
+expect-field-changed camera
+picture 510

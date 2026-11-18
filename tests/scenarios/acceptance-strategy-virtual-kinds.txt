@@ -27,9 +27,9 @@ wait 400
 expect-field strategyview 200@0:Vmessage077 : Message|16@16:Message starts activated|16@32:String :25
 picture 1
 # line 1 (y 16): the start flag; the String rows (from y 32): the 500 x 400 window "Message", its number box
-click-win 300 24
+click-box 300 24
 wait 300
-click-win 300 40
+click-box 300 40
 expect-dialog-kind form
 form-field 1 120
 click-button Ok
@@ -54,20 +54,20 @@ wait 900
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field strategyview 200@0:Vdeathduct : Volume of Death|16@16:Starts Active|16@32:Only harmful on collision.|16@48:Damage : Infinite (instant death)|100@709:V : Edit Volume
+expect-field strategyview 200@0:Vdeathduct : Volume of Death|16@16:Starts Active|16@32:Only harmful on collision.|16@48:Damage : Infinite (instant death)|100@460:V : Edit Volume
 picture 3
 # line 1 (y 16): flags bit 1 (2026-11-17, strategy-closeout-drake.md E-4: every line); line 2 (y 32): flags bit 2; the Damage line (y 48): the whole-number dialog
-click-win 300 24
+click-box 300 24
 wait 300
 expect-field-has strategyview 16@16:Starts Inactive
-click-win 300 40
+click-box 300 40
 wait 300
-click-win 300 56
+click-box 300 56
 expect-dialog Type in the damage per second.
 type 40
 key Enter
 wait 300
-expect-field strategyview 200@0:Vdeathduct : Volume of Death|16@16:Starts Inactive|16@32:Collision not required.|16@48:Damage : 40/second|100@709:V : Edit Volume
+expect-field strategyview 200@0:Vdeathduct : Volume of Death|16@16:Starts Inactive|16@32:Collision not required.|16@48:Damage : 40/second|100@460:V : Edit Volume
 picture 4
 key Esc
 wait 400
@@ -88,7 +88,7 @@ click-popup 3
 wait 400
 expect-field strategyview 200@0:Vmessagedest194 : Self Destruct|16@16:Time : 0
 picture 5
-click-win 300 24
+click-box 300 24
 expect-dialog Time until destruction (seconds)
 expect-dialog-text 0
 key Back

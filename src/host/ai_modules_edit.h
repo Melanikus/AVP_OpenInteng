@@ -9,10 +9,14 @@
 // ITS list joins too (each given an AIMODSLA naming the new master, unless it already is there) and x's AIMODMAS is taken out; x gets an AIMODSLA naming the master; when x has a WAYPOINT
 // chunk its waypoints are moved into the master's (made when the master has none) after the master's own, and x's chunk is taken out (when it had waypoints).
 // REMOVE MODULE (FUN_00589570, first branch): the slave's AIMODSLA is taken out, so it is on its own again (a module that is not a master and not a slave).
+// ITS SECOND BRANCH (0x58992e-0x589b16; W-9 of reassess/waypoint-closeout-vasquez.md, Vasquez 11-17), the module being the MASTER itself: with an empty list its AIMODMAS is taken out and no
+// AI module is left; else the list's first slave n becomes the master: n's AIMODSLA goes and it gets an AIMODMAS (FUN_0058dcf0), every other slave names n (AddModule's re-pointing,
+// FUN_0058ddb0), the old master's AIMODMAS goes, its waypoints go after n's own (FUN_0058d850; its chunk taken out when it had waypoints, an empty one stays), and it is on its own.
 //
 // NAMED: (1) the master has to be a master or a module with no AI chunk at all (given an AIMODMAS, which inteng's Edit Module does before; here it is done by the Add); a slave is refused
 // ("pick its master"); (2) Remove Module leaves the master's waypoints as they are (inteng's second branch of FUN_00589570, for a module with no AIMODSLA, is not read); (3) one image, one loader
-// read for all the chunks of one command; the game's loader decides whether the result is a level it takes.
+// read for all the chunks of one command; the game's loader decides whether the result is a level it takes; (4) the master's "first" slave is the first in the FILE's order (inteng's list: the load's
+// order plus the session's adds).
 #pragma once
 
 #include <stddef.h>
@@ -47,7 +51,8 @@ namespace host
 	char const *AiModulesWords(AiModulesResult result);
 
 	AiModulesResult AiModules_Add(OpenLevelFile *open, int32_t masterIndex, int32_t moduleIndex, AiModulesCounts *counts, std::string *why);
-	AiModulesResult AiModules_Remove(OpenLevelFile *open, int32_t moduleIndex, AiModulesCounts *counts, std::string *why);
+	// *newMaster (when given): the module that became the master (W-9), or -1 (a slave taken out, or a master whose list was empty)
+	AiModulesResult AiModules_Remove(OpenLevelFile *open, int32_t moduleIndex, AiModulesCounts *counts, std::string *why, int32_t *newMaster = nullptr);
 
 	// Entry points > Delete (FUN_0058a0e0, "Delete this entry point?"; the sides are made by FUN_0058a530): the AI module of module a (its master and every slave) and the AI module of module b:
 	// every adjacency entry of a module of one that names a module of the other is taken out of its ADJMDLEP, both ways. *removed counts the entries taken out. Named: inteng picks the entry

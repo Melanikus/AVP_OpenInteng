@@ -1,0 +1,38 @@
+# ACCEPTANCE (red first; Drake 11-17, object-placement.md OP-85 / V-6, reassess/placed-hierarchy-drake.md): F FLIES A PLACED HIERARCHY, on his path (Invasion, the file opened as a double click).
+# inteng's F (vtable +0x48 = 0x4def60, the same for every class) flies the current object's block +4; a placed hierarchy's is made from its PLACHIDT (0x4e8d31) and the Hierarchy player lays the
+# model out from it each frame (FUN_004e9cb0 -> FUN_0047ef70), so the model flies; its save (FUN_004e96d0) writes the block's place into the PLACHIDT (0x4e96f1-0x4e97c6). Ours answered
+# "select an object first" for a current placed hierarchy. Now its place flies, the model follows, and F's stop writes the place (Vasquez's PlacedHierarchy_WritePlace; the turn kept, NAMED).
+# Invasion's one placed hierarchy is "dropship ken" (object-placement.md OP-105 / NA-6), at 72906 -27615 50151.
+# RED on bishop-int b7f8b540: F says "Fly selected object: select an object first".
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+# Find: the hierarchy current, the view at its place (OP-10, FUN_004d9af0 0x4da3df)
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is dropship ken
+expect-no-dialog
+wait 400
+expect-field camera 72906 -27615 50151 0 0
+# F: it flies (the fly lines in its text, FUN_004e9b60)
+key F
+expect-status Fly selected object: on
+expect-field-has hierarchylines Flying object
+remember-field flyat
+hold Numpad3 500
+expect-field-changed flyat
+picture 1
+key F
+expect-status Fly selected object: off, the object is where it flew to
+# the file holds the new place: Find puts the view there, not where it was (the camera stayed at the old place while it flew)
+remember-field camera
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is dropship ken
+expect-no-dialog
+wait 400
+expect-field-changed camera
+picture 2

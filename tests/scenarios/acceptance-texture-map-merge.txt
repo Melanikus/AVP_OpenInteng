@@ -1,0 +1,66 @@
+# ACCEPTANCE (red first): TM-B 2a / 2b, Texture Map's sub-mode 2, MERGE (Dietrich, 2026-11-18; AvP-docs/engine/inteng/reassess/tm-b-merge-map.md). Mode > Merge (0x4, FUN_0054caf0(2)) starts it on
+# bar page 2 (Mode, Help); a left click picks a shape (FUN_00559690, drawn red); M views its merged polygons (FUN_00559d20: the other shapes hidden, each polygon in a colour no neighbour has, a pair in
+# one); a click on a merged triangle picks it and its partner; B parts a picked pair or pairs two picked triangles that FUN_0055a360 lets pair (FUN_005511f0 0x5514c2), the pairing being the
+# working copy of the shape's SHPMRGDT numbers; X stops viewing; Tab (the table's 2) is Polygon, back to the polygons. Each pick's "%d\tverts: %d,%d,%d" line and the shape's name are drawn
+# (the state line's screentext). Ours had Merge as WIP: nothing. His path: Invasion, Mode > Texture Map, Mode > Merge, a click on the room (a shape picked), then flam014 (the object list's first
+# row, 72 merged pairs) picked by its polygon (pick-poly), M, its polygon 0 (with its partner 1), B (parted), 0 and 1 again, B (paired), X, Tab.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+item 0x4
+wait 300
+state
+expect-status Merge: click a shape
+expect-field bar1 Mode|Help
+click-view 0.5 0.5
+wait 300
+state
+expect-status (M views its merged polygons)
+pick-poly 0 0
+wait 300
+state
+expect-status Merge: flam014 (M views its merged polygons)
+key M
+wait 300
+state
+expect-status viewing flam014, 72 merged pairs; picked -1 -1
+pick-poly 0 0
+wait 300
+state
+expect-status picked 0 1
+expect-screen-text 0	verts: 0,7,6
+expect-screen-text 1	verts: 0,1,7
+expect-screen-text flam014
+key B
+wait 300
+state
+expect-status 71 merged pairs; picked -1 -1 (changed)
+pick-poly 0 0
+wait 300
+state
+expect-status picked 0 -1
+pick-poly 0 1
+wait 300
+state
+expect-status picked 0 1
+key B
+wait 300
+state
+expect-status 72 merged pairs; picked -1 -1 (changed)
+# X with a change asks the save question (2c, acceptance-texture-map-merge-save): No here, nothing written
+key X
+wait 300
+expect-dialog-kind confirm
+expect-dialog Would you like to save the changes
+click-button No
+expect-no-dialog
+wait 300
+state
+expect-status Merge: the changes were not saved
+key Tab
+wait 300
+state
+expect-status Texture Map: the polygons

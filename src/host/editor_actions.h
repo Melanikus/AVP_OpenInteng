@@ -58,6 +58,7 @@ struct EditorHostState
 	bool findNotDone;         // true: the modules without adjacent modules are listed (Adjacent Modules, Find Not Done)
 	bool recalcEntryPoints;    // true: every entry point between adjacent modules is worked out again (Adjacent Modules, Recalculate Entry Points)
 	bool showConstructionKeys; // true: Construction's controls are shown as a text over the level (Keys - Mode, inteng_help.h)
+	bool showMovementKeys;     // true: the camera keys' text is shown over the level (Construction's Keys - Movement 0x2be, FUN_005573c0: the words at 0x600394, TB-C6)
 	bool showPlacementKeys;    // true: Object Placement's Keys text (FUN_004d9af0 0x53: the string at 0x5e853c, FUN_004724f0) is shown over the level
 	bool showLinkHelp;         // true: Module Linking's Help text is shown over the level (inteng_help.h)
 	int32_t waypointCommand;   // an item of Waypoint mode's code-built menus was chosen: its inteng command number (waypoint_mode.h), or 0
@@ -139,6 +140,7 @@ int32_t const kLinkMixed = 25;          // Mixed (0x4a), Dietrich: the base used
 int32_t const kLinkShowAll = 26;        // Show All (0xca), Dietrich
 int32_t const kLinkViewDistance = 27;   // Toggle View Distance (0x49), Dietrich
 int32_t const kLinkOnlyLinked = 28;     // Only Draw Linked Modules (0x4b), Dietrich
+int32_t const kLinkWithAvp = 29;        // Misc > Link with AVP (0x190): the switch (module_link_avp.h), Vasquez
 int32_t const kLinkExit = 6;  // Module Linking, Exit: the links are written, the screen's state is let go of
 // The Shape Chooser's actions (shape_chooser.h)
 int32_t const kChooserNone = 0;
@@ -160,8 +162,8 @@ int32_t const kPromptAscDoors = 6;   // Write Asc File (Doors closed)
 int32_t const kPromptMoveRelPoly = 10; // Move rel. to poly: the distance from the polygon, in metres (inteng: "distance to move from the poly in metres :") (unused since 2026-11-17: the distance is inteng's number window; the number stays taken)
 
 int32_t const kPromptName = 3;       // a new name for the selected object
-int32_t const kPromptAltGroup = 4;   // Alt Locations, Assign Group Number: the group number (0 means no group)
-int32_t const kPromptAltIndex = 7;   // Alt Locations, Change shown location: the index for every object
+int32_t const kPromptAltGroup = 4;   // Alt Locations, Assign Group Number (unused since 2026-11-17: inteng's number window, OP-36; the number stays taken)
+int32_t const kPromptAltIndex = 7;   // Alt Locations, Change shown location (unused since 2026-11-17: inteng's number window, OP-38; the number stays taken)
 int32_t const kPromptSmallLimit = 8;  // Find Small Modules: the limit, in metres
 int32_t const kPromptSmallPick = 9;   // Find Small Modules: which of the small modules to go to (a number from the list)
 int32_t const kPromptVisibility = 17;   // AutoLink > Set Visibility (0xa4): the visible distance in whole metres (0 keeps every module) (registry number 17)
@@ -174,6 +176,7 @@ int32_t const kPromptAssignReplace = 33;    // Assign Strategy: "Object already 
 int32_t const kPromptDeleteMulti = 36;      // Strategy mode, Delete Multiple Strategies (0x42): the numbers of the groups to delete
 int32_t const kPromptVirtualName = 29;     // Strategy mode, Create Virtual Object (0x39-0x3f): "Type name for new virtual object"
 int32_t const kPromptStability = 28;       // Strategy mode, Stability flags (0x37): the six faces of the picked module, typed as six letters r (red: stable) or g (green: unstable)
+int32_t const kPromptWriteC = 48;          // Write C File (0xc): the name of the file for the selected object's shape, without ".c" (write_c_file.h). Taken 2026-11-18 by Frost.
 int32_t const kPromptExitSave = 47;        // Strategy Data's Exit (0x5) when the level changed: "Would you like to save first?" (yes or no)
 int32_t const kPromptTrackTime = 37;       // Track Edit, Properties > Section (0x51b): "Time for section", in seconds
 int32_t const kPromptTrackFlags = 38;      // Track Edit, Properties > Track (0x527): the letters of the flags that are on

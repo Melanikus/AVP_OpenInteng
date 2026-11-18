@@ -1,0 +1,37 @@
+# ACCEPTANCE (TM-A undo, the pairing): the undo of Unmerge puts the REAL pairing back, and leaves the FAKE merge data's as it is, as inteng's does. Inteng's record
+# (FUN_00567ba0 0x567bd6-0x567be6) keeps the polygon's partner in the REAL pairing (DAT_00914d48 while Fake Merge Data is on, else DAT_00914d3c), and its undo
+# (FUN_00567ac0 0x567af2) compares the pairing IN USE (DAT_00914d3c: the fake copy while it is on, FUN_005677d0 0x56791e) with it and, when they differ, swaps the record's
+# partner with the REAL pairing. So an Unmerge in the file's merge data is undone (the pair is back: a second Unmerge parts it again), and one made in the fake copy only
+# is not (the real pairing never changed: a second Unmerge parts nothing). DECIDED: inteng's way, not a bug: the edits ring holds the level's own data, and the fake copy
+# is the mode's scratch copy, which no undo touches.
+# Area52's CANSR01 (row 55, a shape of the level's own: imported=no in AvP-docs/tools/po/stock-merge-pairs.txt) has its polygons 0 and 1 paired.
+# Red on bishop-rc2's build of 3dac4c74 (11-18 03:51: frost-tma 6da113ed's undo, which put the FAKE pairing back: the second fake Unmerge parted 1 pair), green on the
+# hash that records and restores the real pairing.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Area52.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+pick-poly 55 0
+pick-poly 55 1
+expect-status 2 selected
+item 0x11a
+expect-status Unmerge selected polygons: 1 pairs parted
+key Comma
+expect-status undone on 2 polygons
+item 0x11a
+expect-status Unmerge selected polygons: 1 pairs parted
+key Comma
+expect-status undone on 2 polygons
+item 0x143
+expect-dialog Fake merge data turned on
+click-button Ok
+expect-no-dialog
+expect-status Fake merge data turned on
+item 0x11a
+expect-status 1 pairs parted (in the fake merge data only)
+key Comma
+expect-status undone on 2 polygons
+item 0x11a
+expect-status 0 pairs parted (in the fake merge data only)

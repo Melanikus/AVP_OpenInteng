@@ -1,0 +1,19 @@
+# ACCEPTANCE (Drake 11-18, the owner: test cameras "up/to side like 45 in all axis from subject (like aiming at the corner of a cube), that's how the click algorithms for humans works", "like
+# orbiting the subject, not a straight shot"): the harness's camera-orbit and camera-corner (src/host/orbit_command.h, camera_orbit.h) on Invasion, opened at a place by -at on Object Placement.
+# camera-orbit switch3: 45 round, 45 up, 2.5 half diagonals off, looking at its box's centre: turn 512, look 512 (down) on the state line; with numbers, 135 round and 30 up: turn 1536, look 341.
+# camera-corner: the first upper diagonal spot from which the middle of the view picks the subject (the editor's own pick on a frame drawn from there): none for switch3, set into a console
+# (said, the first spot kept); one for the platform lift liftplt, and a click in the middle of the view then selects it, the human's click on it.
+# RED on d5b14438 (the steps are ones the harness does not know).
+start-args Invasion -at -27851 -14055 85500 0 0 "Object Placement"
+pictures on
+state
+expect-screen Object Placement
+camera-orbit switch3
+expect-status camera-orbit switch3: the object's box, 45 round, 45 up
+expect-field-has camera 512 512
+camera-orbit switch3 135 30 4000
+expect-status 135 round, 30 up, 4000 from its centre
+expect-field-has camera 1536 341
+# camera-corner switch3: the first upper diagonal spot from which the middle of the view picks it
+camera-corner switch3
+expect-status camera-corner switch3: the object's box

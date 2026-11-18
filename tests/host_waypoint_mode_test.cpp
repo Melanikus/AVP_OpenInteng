@@ -633,6 +633,39 @@ int main(int argc, char **argv)
 
 		size_t const had = afterLink[(size_t)created].moduleLinks.size();
 
+		// W-4: the module link is drawn, a green line (FUN_005835a0's own) from the base waypoint's aim point to the module's place (FUN_00586700); the module's place as the level holds it
+		{
+			int32_t place[3] = { 0, 0, 0 };
+			bool found = false;
+			::List<Object_Chunk *> objects;
+
+			level.Level()->list_objects(&objects);
+
+			for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+			{
+				if (each() && each()->object_data.index_num == master)
+				{
+					place[0] = each()->object_data.location.x;
+					place[1] = each()->object_data.location.y;
+					place[2] = each()->object_data.location.z;
+					found = true;
+				}
+			}
+
+			std::vector<host::TrackLine> world;
+			host::WaypointRec const &base = mode.List()[(size_t)created];
+			size_t moduleLines = 0;
+
+			host::WaypointView_WorldLines(mode, 1.0, &world);
+
+			for (host::TrackLine const &line : world)
+			{
+				moduleLines += line.colour == host::kWaypointModuleLink && memcmp(line.from, base.centre, sizeof(line.from)) == 0 && memcmp(line.to, place, sizeof(line.to)) == 0 ? 1 : 0;
+			}
+
+			Check(found && moduleLines == 1, "W-4: the module link is ONE green line from the base waypoint's aim point to the module's place (" + std::to_string(moduleLines) + ")");
+		}
+
 		Check(mode.Command(8, picking).say.find("already") != std::string::npos, "the same module again is refused");
 		linkOut = mode.Command(0x10, picking);
 		SetOfModule(level, master, &readLinks);

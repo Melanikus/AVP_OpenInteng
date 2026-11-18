@@ -245,3 +245,60 @@ File_Chunk *LevelObjects_Level()
 {
 	return TheLevel();
 }
+
+bool LevelObjects_Places(std::vector<int32_t> *places)
+{
+	File_Chunk *const level = TheLevel();
+
+	if (!places)
+	{
+		return false;
+	}
+
+	places->clear();
+
+	if (!level)
+	{
+		return false;
+	}
+
+	List<Object_Chunk *> objects;
+
+	level->list_objects(&objects);
+
+	for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+	{
+		places->push_back(each()->object_data.location.x);
+		places->push_back(each()->object_data.location.y);
+		places->push_back(each()->object_data.location.z);
+	}
+
+	return true;
+}
+
+bool LevelObjects_PlaceOf(const uint8_t *id, int32_t place[3])
+{
+	File_Chunk *const level = TheLevel();
+
+	if (!level || !id || !place)
+	{
+		return false;
+	}
+
+	List<Object_Chunk *> objects;
+
+	level->list_objects(&objects);
+
+	for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+	{
+		if (memcmp(&each()->object_data.ID, id, sizeof(each()->object_data.ID)) == 0)
+		{
+			place[0] = each()->object_data.location.x;
+			place[1] = each()->object_data.location.y;
+			place[2] = each()->object_data.location.z;
+			return true;
+		}
+	}
+
+	return false;
+}

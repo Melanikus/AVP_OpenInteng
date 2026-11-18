@@ -153,6 +153,9 @@ namespace host
 		// W-6: how many module links of the list read named no module of the level and were dropped (FUN_005867c0); the mode's Exit writes the list without them (FUN_00587210)
 		size_t DroppedModuleLinks() const { return droppedModuleLinks; }
 
+		// W-4: the place (the file's units, its object's location) of the level's module of exactly this name, as the list was read; false for a name of no module (a module link to it was dropped, W-6)
+		bool ModulePlace(std::string const &name, int32_t place[3]) const;
+
 		// The one-line words of the state, for the status line
 		std::string Words() const;
 
@@ -180,6 +183,7 @@ namespace host
 		std::map<int32_t, uint32_t> paint;
 		bool paintMade;
 		size_t droppedModuleLinks;   // W-6: module links of names of no module, dropped when the list was read (written out at the mode's Exit)
+		std::map<std::string, std::vector<int32_t> > modulePlaces;   // W-4: each module's name and place (x y z, the file's units), as the list was read: the module-link lines end there
 
 		int32_t SnapTo(int axis, int32_t value) const;
 		void MakeEntryPaint(OpenLevelFile *open);

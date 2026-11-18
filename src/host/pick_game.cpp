@@ -239,10 +239,23 @@ host::PickReport PickGame_AtClickLeavingOut(int32_t clickX, int32_t clickY, int3
 			return report;
 		}
 
-		static_assert(sizeof(module->m_name) == host::kSelectionModuleNameBytes, "a module's own name is MODULE.m_name's bytes");
 		report.found = host::PickFound::Module;
 		report.moduleIndex = module->m_index;
-		memcpy(report.moduleName, module->m_name, host::kSelectionModuleNameBytes);
+
+		// The level's name for the module (MODULE.name, the one the top left shows, LevelView_ModuleName), at most kSelectionModuleNameBytes of it; the game's own 5 bytes
+		// (m_name) only when it has none: the RIF loader leaves m_name without the name, so a picked module said "(?)" (the owner, 11-17)
+		memset(report.moduleName, 0, sizeof(report.moduleName));
+
+		if (module->name)
+		{
+			memcpy(report.moduleName, module->name, strnlen(module->name, host::kSelectionModuleNameBytes));
+		}
+		else
+		{
+			static_assert(sizeof(module->m_name) <= host::kSelectionModuleNameBytes, "the game's own 5 bytes fit");
+			memcpy(report.moduleName, module->m_name, sizeof(module->m_name));
+		}
+
 		return report;
 	}
 

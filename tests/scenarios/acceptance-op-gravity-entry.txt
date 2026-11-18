@@ -1,0 +1,40 @@
+# ACCEPTANCE (red first; Drake 11-17, object-placement.md V-24 / OP-1): Object Placement STARTS WITH GRAVITY OFF, its Misc > Toggle Gravity item ticked by it, on his path (Invasion, the file opened as a
+# double click). inteng's entry FUN_004d68e0: unless it comes back from the Shape Chooser (DAT_008f4f38 = 1: 0x4d83b3 JNZ 0x4d8409 skips 0x4d83bb-0x4d8404), DAT_008f4f50 = 0 (0x4d83fe); then always the
+# item 0x58 is ticked by DAT_008f4f50 (0x4d8422-0x4d842c, the menu object's +0x2c); Toggle Gravity (0x4dc67c-0x4dc6e0) flips it and the tick follows. FUN_004d68e0's only callers are the hub
+# (FUN_004452b0) and the chooser, so every way into the mode but the chooser's return turns Gravity off. Ours kept the switch across screens and ticked nothing.
+# RED on bishop-int 755b2258: no tick, and Gravity left on across the hub (the last Toggle says off).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+# the start: Gravity off, nothing ticked
+click-bar Misc
+expect-drop-ticked none
+key Esc
+click-bar Misc > Toggle Gravity
+expect-status Toggle Gravity: on
+click-bar Misc
+expect-drop-ticked Toggle Gravity
+picture 1
+key Esc
+# the Shape Chooser and back (DAT_008f4f38 = 1): Gravity KEPT, still ticked
+click-bar Create > With shape: Choose
+expect-screen Shape Chooser
+key Esc
+expect-screen Object Placement
+click-bar Misc
+expect-drop-ticked Toggle Gravity
+key Esc
+# the hub and back: a new start, Gravity off again
+click-bar Mode > Exit
+wait 300
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+click-bar Misc
+expect-drop-ticked none
+picture 2
+key Esc
+click-bar Misc > Toggle Gravity
+expect-status Toggle Gravity: on

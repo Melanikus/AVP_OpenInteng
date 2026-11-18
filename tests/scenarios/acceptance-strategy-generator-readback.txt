@@ -20,7 +20,7 @@ wait 400
 expect-field-has strategyview 200@0:generator02 : Generator|16@16:Mission : Path follower|16@32:Path - 0
 picture 1
 # y 16: "Select Mission Type", Hunt
-click-win 300 24
+click-box 300 24
 wait 300
 expect-dialog Select Mission Type
 click-button Hunt

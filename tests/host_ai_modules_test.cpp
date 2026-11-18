@@ -271,6 +271,42 @@ int main(int argc, char **argv)
 		printf("  --  no second master with waypoints in this level: the merge is not run\n");
 	}
 
+	// W-9, REMOVE MODULE ON THE MASTER ITSELF (FUN_00589570's second branch, 0x58992e-0x589b16): the first slave (in the file's order) becomes the master, the other slaves name it, the
+	// old master is on its own and its waypoints are the new master's, after its own
+	{
+		std::vector<host::ModuleSnapshot> inOrder;
+		int32_t first = -1;
+
+		Check(host::ReadModuleSnapshots(&level, &inOrder) == host::ObjectEditResult::Done, "the modules read in the file's order");
+
+		for (host::ModuleSnapshot const &m : inOrder)
+		{
+			if (first < 0 && m.module && m.masterIndex == master)
+			{
+				first = m.index;
+			}
+		}
+
+		Modules const now = ModulesOf(level);
+		std::set<int32_t> expected = SlavesOf(now, master);
+		size_t const oldWaypoints = WaypointCount(now.at(master));
+		size_t const firstWaypoints = first >= 0 ? WaypointCount(now.at(first)) : 0;
+		int32_t newMaster = -2;
+		host::AiModulesResult const result = host::AiModules_Remove(&level, master, &counts, &why, &newMaster);
+
+		expected.erase(first);
+		Check(first >= 0 && result == host::AiModulesResult::Done && newMaster == first, std::string("W-9: Remove Module of the master: ") + host::AiModulesWords(result) + (why.empty() ? "" : " (" + why + ")") +
+			"; the new master is " + std::to_string(newMaster) + ", the first slave " + std::to_string(first));
+
+		Modules const after = ModulesOf(level);
+
+		Check(first >= 0 && after.at(first).isMaster && after.at(first).masterIndex < 0 && SlavesOf(after, first) == expected, "W-9: the first slave is the master now, its list every other slave of the old master (" +
+			std::to_string(expected.size()) + ")");
+		Check(!after.at(master).isMaster && after.at(master).masterIndex < 0 && SlavesOf(after, master).empty(), "W-9: the old master is on its own (no AIMODMAS, no AIMODSLA)");
+		Check(first >= 0 && WaypointCount(after.at(first)) == firstWaypoints + oldWaypoints && (oldWaypoints == 0 || !after.at(master).hasWaypoint), "W-9: the new master holds its own waypoints and the old master's (" +
+			std::to_string(firstWaypoints) + " + " + std::to_string(oldWaypoints) + "), and the old master's chunk is gone when it had any");
+	}
+
 	// the copy
 	std::string const folder = argv[2];
 	std::string const copyPath = folder + (folder.empty() || folder.back() == '\\' || folder.back() == '/' ? "" : "\\") + "ai-modules-test-copy.rif";

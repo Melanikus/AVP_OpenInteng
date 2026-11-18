@@ -1,0 +1,40 @@
+# ACCEPTANCE (red first; Bishop 11-18, strategy-data.md S-52, the row's open part): SHIFT+E IS E on Strategy's page 0, on his path (Invasion, the file opened as a double click).
+# inteng's key slots ignore Shift: FUN_0058c010 0x58c182 writes 0xd87a40 + VK for any VK from 0x1e to 0xff (briefs-phase1/S-59.md), so E's slot 0xd87a85 is set with Shift down as without it; the
+# page's dispatcher FUN_00524e90 takes it at 0x524ee3-0x524eec (dump-full-3.txt 58780-58789) with no look at Shift: command 7, Edit Strategy. Ours read E only with Shift up (editor_main.cpp "&& !shiftHeld").
+# RED on vph-23: Shift+E opened nothing (strategyview stayed empty).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+# the subject: gARAGDOR, the room in the middle of the view, given a Switch Door so that E has a view to open; Escape ends the view
+click-win 504 364
+expect-selected 1
+click-win 504 364 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Switch_Door
+wait 400
+expect-field-has strategyview gARAGDOR : Switch door
+key Esc
+wait 300
+expect-field-empty strategyview
+
+# E: Edit Strategy, the room's Switch door view (S-52 as built)
+key E
+wait 400
+expect-field-has strategyview gARAGDOR : Switch door
+key Esc
+wait 300
+expect-field-empty strategyview
+
+# SHIFT+E: the same (E's slot is set whatever Shift is)
+key E shift
+wait 400
+expect-field-has strategyview gARAGDOR : Switch door
+picture 1
+key Esc
+wait 300
+expect-field-empty strategyview

@@ -1,0 +1,57 @@
+# ACCEPTANCE (red first): AD-6a of reassess/adjacent-closeout-dietrich.md (Dietrich, 2026-11-17). Adjacent Modules' list write-back FUN_00404040 (at Set Current via FUN_004025d0, at Find Not
+# Done, at Exit) works each entry of the current module's new chunk out with FUN_00402ae0 (0x404449), which asks "Warning adjacent modules don't touch / From %s To %s / Would you like to delete
+# the adjacency?" for a pair that doesn't touch; a Yes takes the entry out; then the level file is written (FUN_004719e0 at 0x404511). At Exit the question comes BEFORE the screen is left
+# (FUN_004049d0 / FUN_00447550 come after). INTENG BUG, FIXED (NAMED): inteng's Yes flag is cleared once per write (0x404366), so the answered entry AND EVERY LATER ONE goes; ours takes out the
+# answered one only. Ours asked nothing and kept the data in the editor's bytes. His path, Caverns (DR-CAVERNC 19: CAVERNC-04 16, CAVEC-SR 21; CAVERNA-02 37: 38, TUNNELA-01 64, 39, 40, 221):
+#  - DR-CAVERNC current; CAVEC-SR deleted and added again (the list is changed, CAVERNC-04 stays FIRST, so inteng's bug would take CAVEC-SR too); CAVERNA-02 made current: the write of
+#    DR-CAVERNC asks "From DR-CAVERNC To CAVERNC-04": Yes; CAVERNA-02 is current after the answer, and the level is saved;
+#  - CAVERNA-02's last member deleted and added again (changed, same order); Exit asks "From CAVERNA-02 To TUNNELA-01" while still on Adjacent Modules: No; then the hub.
+# The saved copy: DR-CAVERNC lost CAVERNC-04 and only it (CAVEC-SR kept), CAVERNA-02's list as it was, every other list as it was.
+screen Adjacent Modules
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Caverns.RIF
+pictures on
+verify cmd /c del /q "{exedir}AVP_OpenInteng\edited\Caverns-edited.rif" "{exedir}AVP_OpenInteng\edited\Caverns-edited.rif.bak" 2>nul & exit 0
+state
+expect-screen Adjacent Modules
+pick-module 19
+item 0x64
+expect-status Current module: DR-CAVERNC
+pick-module 21
+item 0x34
+expect-status Delete
+pick-module 21
+item 0x32
+expect-status Add
+# Set Current: the list of DR-CAVERNC is written first, with its question
+pick-module 37
+item 0x64
+expect-dialog-kind confirm
+expect-dialog Warning adjacent modules don't touch
+expect-dialog From DR-CAVERNC To CAVERNC-04
+state
+click-button Yes
+expect-no-dialog
+wait 300
+state
+expect-status Current module: CAVERNA-02
+expect-status Saved a copy
+# Exit: CAVERNA-02's list is changed (its last member out and in again), and its question comes while the screen is still Adjacent Modules
+pick-module 221
+item 0x34
+expect-status Delete
+pick-module 221
+item 0x32
+expect-status Add
+item 0xa
+expect-dialog-kind confirm
+expect-dialog From CAVERNA-02 To TUNNELA-01
+state
+expect-screen Adjacent Modules
+click-button No
+expect-no-dialog
+wait 800
+state
+expect-screen Construction
+# the saved copy, read by the game's loader: DR-CAVERNC's entry to CAVERNC-04 is gone and only it (the Yes; CAVEC-SR after it is kept: the named fix), CAVERNA-02's to TUNNELA-01 kept (the No),
+# every other list as it was
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_adjacent/verify_adjacent.exe {orig} {exedir}AVP_OpenInteng\edited\Caverns-edited.rif touch DR-CAVERNC CAVERNC-04 CAVERNA-02 TUNNELA-01

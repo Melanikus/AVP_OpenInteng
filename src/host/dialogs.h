@@ -54,6 +54,7 @@ namespace host
 		std::string combos;     // a form's combo boxes: "<picked words>_<x> <y> <width> <height>" ... separated by |, the words with spaces as _ (the harness's click-combo presses one)
 		std::string comborows;  // the rows of the combo whose list is open: "<words>_<x> <y> <width> <height>" separated by | (the harness's click-combo-row presses one)
 		std::string cells;   // a list's rows on the PAGE SHOWN: "<row words>@x,y,width,height|..." (the harness's click-choice clicks one by its words)
+		std::string overlist;   // the window's words the panel pass paints OVER its open drop-down list, separated by | ("" none: the list covers them, as it must)
 	};
 
 	DialogsState Dialogs_State();

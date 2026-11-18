@@ -86,7 +86,7 @@ namespace host
 		return "the adjacent module data could not be made";
 	}
 
-	AdjacencyResult Adjacency_Generate(OpenLevelFile *open, bool newOnly, double levelScale, AdjacencyCounts *counts, std::string *why)
+	AdjacencyResult Adjacency_Generate(OpenLevelFile *open, bool newOnly, double levelScale, AdjacencyCounts *counts, std::string *why, bool workOutEntryPoints)
 	{
 		AdjacencyCounts none;
 		AdjacencyCounts &total = counts ? *counts : none;
@@ -278,6 +278,11 @@ namespace host
 				{
 					total.written += wrote[at] ? 1 : 0;
 				}
+			}
+
+			if (!workOutEntryPoints)
+			{
+				return AdjacencyResult::Done;   // the caller works the entry points out, with the questions (AD-6)
 			}
 
 			// FUN_00403d50: every entry's flags and point worked out again (entry_recalc.h)

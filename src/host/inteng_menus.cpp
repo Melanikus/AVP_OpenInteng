@@ -19,7 +19,7 @@ namespace host
 			{ "Quit", 0x10001, 0xa, IntengTag::None, IntengWork::Quit, -1, 0 },
 			// OURS, NAMED (docs/inteng/menu-status.json, additions): THE OWNER'S ADDITION (Melanikus 2026-11-16, through Bishop: "Let's put a save on the hub"): inteng's hub File has no Save. It sits second, after Quit, where every other screen keeps its Save, and does what Object Placement's Save does (SaveCopy). Its number is ours; it has no inteng command
 			{ "Save", 0x1ff01, 0x0, IntengTag::None, IntengWork::SaveCopy, -1, 0 },
-			{ "Write C File", 0x10002, 0xc, IntengTag::Wip, IntengWork::None, -1, -1 },
+			{ "Write C File", 0x10002, 0xc, IntengTag::None, IntengWork::WriteC, -1, -1 },
 			{ "Write Asc File", 0x10003, 0xe, IntengTag::None, IntengWork::WriteAsc, -1, -1 },
 			{ "Write Asc File (Doors closed)", 0x10004, 0x10, IntengTag::None, IntengWork::WriteAscDoorsClosed, -1, -1 },
 		};
@@ -275,7 +275,7 @@ namespace host
 		};
 		IntengItem const kItems4_8[] =
 		{
-			{ "Link with AVP", 0x5002f, 0x190, IntengTag::Unfinished, IntengWork::None, -1, -1 },
+			{ "Link with AVP", 0x5002f, 0x190, IntengTag::None, IntengWork::LinkWithAvp, -1, -1 },
 		};
 		IntengMenu const kMenus4[] =
 		{
@@ -839,15 +839,15 @@ namespace host
 		};
 		IntengItem const kItems11_2_6_3[] =
 		{
-			{ "Edit", 0xc5808, 0x7d4, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Add", 0xc5809, 0x7d3, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Remove", 0xc580a, 0x7d5, IntengTag::Wip, IntengWork::None, -1, -1 },
+			{ "Edit", 0xc5808, 0x7d4, IntengTag::None, IntengWork::PlacedHierarchy, -1, -1 },
+			{ "Add", 0xc5809, 0x7d3, IntengTag::None, IntengWork::PlacedHierarchy, -1, -1 },
+			{ "Remove", 0xc580a, 0x7d5, IntengTag::None, IntengWork::PlacedHierarchy, -1, -1 },
 		};
 		IntengItem const kItems11_2_6_4[] =
 		{
-			{ "Edit", 0xc580c, 0x7d7, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Add", 0xc580d, 0x7d6, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Remove", 0xc580e, 0x7d8, IntengTag::Wip, IntengWork::None, -1, -1 },
+			{ "Edit", 0xc580c, 0x7d7, IntengTag::None, IntengWork::PlacedHierarchy, -1, -1 },
+			{ "Add", 0xc580d, 0x7d6, IntengTag::None, IntengWork::PlacedHierarchy, -1, -1 },
+			{ "Remove", 0xc580e, 0x7d8, IntengTag::None, IntengWork::PlacedHierarchy, -1, -1 },
 		};
 		IntengMenu const kMenus11_2_6[] =
 		{
@@ -1689,7 +1689,7 @@ namespace host
 		{
 			{ "Polygon", 0x170001, 0x2, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
 			{ "Texture", 0x170002, 0x3, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
-			{ "Merge", 0x170003, 0x4, IntengTag::Wip, IntengWork::None, -1, 0 },
+			{ "Merge", 0x170003, 0x4, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
 			{ "--------", 0x170004, 0x0, IntengTag::Wip, IntengWork::None, -1, -1 },
 			{ "Exit", 0x170005, 0x5, IntengTag::None, IntengWork::ExitMode, -1, 0 },
 		};
@@ -1794,7 +1794,7 @@ namespace host
 		IntengItem const kItems22_1_1_1[] =
 		{
 			{ "Select", 0x170404, 0x2a, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
-			{ "Reset Source Rect", 0x170405, 0x9, IntengTag::Wip, IntengWork::None, -1, 0 },
+			{ "Reset Source Rect", 0x170405, 0x9, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
 		};
 		IntengItem const kItems22_1_1_2[] =
 		{
@@ -1809,7 +1809,7 @@ namespace host
 		IntengItem const kItems22_1_2_0[] =
 		{
 			{ "Polygon", 0x170801, 0x2, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
-			{ "Merge", 0x170802, 0x4, IntengTag::Wip, IntengWork::None, -1, 0 },
+			{ "Merge", 0x170802, 0x4, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
 			{ "--------", 0x170803, 0x0, IntengTag::Wip, IntengWork::None, -1, -1 },
 			{ "Exit", 0x170804, 0x5, IntengTag::None, IntengWork::ExitMode, -1, 0 },
 		};
@@ -1831,7 +1831,7 @@ namespace host
 		IntengItem const kItems22_1_3_1[] =
 		{
 			{ "Select", 0x170c04, 0x2a, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
-			{ "Reset Source Rect", 0x170c05, 0x9, IntengTag::Wip, IntengWork::None, -1, 0 },
+			{ "Reset Source Rect", 0x170c05, 0x9, IntengTag::None, IntengWork::TextureMapCommand, -1, 0 },
 		};
 		IntengItem const kItems22_1_3_2[] =
 		{
@@ -1923,14 +1923,14 @@ namespace host
 		};
 		IntengItem const kItems22_2_1_0[] =
 		{
-			{ "Clockwise: Top Left", 0x174402, 0x1e, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Clockwise: Top Right", 0x174403, 0x1f, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Clockwise: Bottom Right", 0x174404, 0x20, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Clockwise: Bottom Left", 0x174405, 0x21, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Anti-Clockwise: Top Left", 0x174407, 0x23, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Anti-Clockwise: Top Right", 0x174408, 0x24, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Anti-Clockwise: Bottom Right", 0x174409, 0x25, IntengTag::Wip, IntengWork::None, -1, -1 },
-			{ "Anti-Clockwise: Bottom Left", 0x17440a, 0x26, IntengTag::Wip, IntengWork::None, -1, -1 },
+			{ "Clockwise: Top Left", 0x174402, 0x1e, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Clockwise: Top Right", 0x174403, 0x1f, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Clockwise: Bottom Right", 0x174404, 0x20, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Clockwise: Bottom Left", 0x174405, 0x21, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Anti-Clockwise: Top Left", 0x174407, 0x23, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Anti-Clockwise: Top Right", 0x174408, 0x24, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Anti-Clockwise: Bottom Right", 0x174409, 0x25, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
+			{ "Anti-Clockwise: Bottom Left", 0x17440a, 0x26, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
 		};
 		IntengItem const kItems22_2_1_1[] =
 		{

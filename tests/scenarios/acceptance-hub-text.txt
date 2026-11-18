@@ -19,3 +19,13 @@ expect-screen-text View Distance :2
 type ]
 wait 200
 expect-screen-text Speed   :3
+# THE HUB'S OWN LINES (TB-C7, reassess/construction-closeout-frost.md; hub_text.h): "Polygon count : %d / %d" at (10, 0x32), his inteng picture's numbers on this file (FUN_00472720 at the
+# hub's start: every shape that an object uses, its polygons once, and those times its users)
+expect-screen-text Polygon count : 6256 / 6256
+# one object selected: its "<name> radius <r>" line and its "Location x y z" line under it (FUN_004452b0 0x446c56-0x4470df)
+select-row 0
+expect-selected 1
+wait 200
+expect-screen-text radius
+expect-screen-text Location
+picture 2

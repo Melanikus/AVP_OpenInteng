@@ -1,0 +1,13 @@
+# ACCEPTANCE (red first): TM-B, Shift+P in the Texture Map (0xe3, 0x54f328): inteng flips the current object animation sequence's flag only when one is current (DAT_00914da4), which in
+# AvP nothing makes current (only Texture Map commands no AvP menu, pop-up or key reaches: 0xd0-0xd3), so it does nothing (Dietrich, 2026-11-18). Ours said "that item is not built yet".
+# His path: Invasion, Mode > Texture Map, Shift+P: the status line is as it was, nothing changes. State line.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+item 0x46
+expect-screen Texture Map
+remember-field status
+key P shift
+wait 300
+expect-field-same status
+expect-status-not not built

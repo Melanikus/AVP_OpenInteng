@@ -1,0 +1,39 @@
+# ACCEPTANCE (TM-A, ruling 5: "undo as deep as inteng's"; texture-map-closeout-frost.md "RINGS' RECORDS READ", reassess/texture-map-undo-sites.md): the Texture Map's
+# edit UNDO and REDO. Before each edit to the selected polygons inteng records each of them as it is into its edits ring (FUN_00573570: a step, FUN_00567ba0 per
+# polygon); , undoes the newest step (0x36, FUN_0057e6d0: each polygon takes back what its record holds, FUN_00567ac0) and . does it again (0x37, FUN_0057e770).
+# Checked on the file: the level saved before an edit, after it, after its undo and after its redo; the undone copy is the level as it was before (verify_level_same),
+# the redone copy is the level as the edit made it. Both kinds of write: a flip (the coordinates, SHPUVCRD) and a flag (SHPPOLYS). Inteng says nothing on an undo;
+# the status line here says how many polygons came back (NAMED).
+# Red on bishop-int b7f8b540 (, and . did nothing), green on the hash with the edits ring.
+# His path: the level opened, Mode > Texture Map, a polygon clicked, X, then , and .
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+save-copy
+key X
+expect-status X-Flip done on 1 polygon
+save-copy
+key Comma
+expect-status undone on 1 polygon
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save3}
+key Period
+expect-status done again on 1 polygon
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save2} {save4}
+key Comma
+expect-status undone on 1 polygon
+key Comma
+expect-status nothing to undo
+# a flag (Flags > Add > Not Visible, 0x71): its undo puts the flag word back
+item 0x71
+expect-status Not Visible added to 1 polygon
+key Comma
+expect-status undone on 1 polygon
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save5}
+expect-screen Texture Map

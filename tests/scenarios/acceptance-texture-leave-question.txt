@@ -1,0 +1,79 @@
+# ACCEPTANCE (TM-A): the question when the Texture Map mode is left (FUN_0055c070(1) from the exit FUN_0054bfd0 at 0x54c0d6, after the selection's wrap). It is asked
+# only when something waits: a change since the last save (DAT_00914d18), polygons flagged for deletion (0x4000) or a split waiting; "Would you like to save the changes
+# you have made?. If you don't the changes will be lost." Yes = Return's save (FUN_00572440), then the deletions; No leaves the level as the last save had it, and the
+# flags are dropped. Checked on the state line and the saved files only: Invasion's polygon at the view's middle (no partner, a shape of the level's own).
+# 1. Entered and left with nothing done: no question. 2. Shifted 7 3, Exit, No: the level saved after it is the level saved before (verify_level_same). 3. Shifted, the
+# selection cleared (its wrap done), saved, Exit, Yes: the Yes save is that level. 4. Flagged for deletion only, Exit: asked; No: the polygon is still there.
+# Red on exe-cache/ac714841.exe (bishop-int with frost-tma's last HAND: no question when the mode is left, the edits kept), green on the hash with the question.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+item 0x5
+expect-no-dialog
+expect-screen Construction
+save-copy
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+item 0x133
+expect-dialog-kind text
+type 7
+key Tab
+type 3
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+item 0x5
+expect-dialog-kind confirm
+expect-dialog save the changes
+click-button No
+expect-no-dialog
+expect-screen Construction
+expect-status were not saved, and are undone
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save2}
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+item 0x133
+expect-dialog-kind text
+type 7
+key Tab
+type 3
+click-button Ok
+expect-no-dialog
+expect-status were shifted
+item 0x2b
+wait 200
+state
+expect-status all polygons deselected
+save-copy
+item 0x5
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+expect-screen Construction
+expect-status Saved a copy:
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save3} {save4}
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+item 0xc3
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+expect-status flagged for deletion
+item 0x5
+expect-dialog-kind confirm
+click-button No
+expect-no-dialog
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save4} {save5}

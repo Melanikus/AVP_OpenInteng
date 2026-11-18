@@ -365,6 +365,146 @@ namespace host
 		return sounding;
 	}
 
+	namespace
+	{
+		std::vector<std::unique_ptr<Held>> hierarchyHeld;   // the current placed hierarchy's sounds
+		std::vector<HierarchySoundIn> hierarchyIn;          // what they were made from
+
+		Held *HierarchyHeldOf(int32_t index)
+		{
+			for (size_t i = 0; i < hierarchyIn.size() && i < hierarchyHeld.size(); i++)
+			{
+				if (hierarchyIn[i].index == index)
+				{
+					return hierarchyHeld[i].get();
+				}
+			}
+
+			return nullptr;
+		}
+
+		bool HierarchyLoops(int32_t index)
+		{
+			for (HierarchySoundIn const &one : hierarchyIn)
+			{
+				if (one.index == index)
+				{
+					return (one.flags & 1) != 0;
+				}
+			}
+
+			return false;
+		}
+	}
+
+	void HierarchySounds_Sync(std::vector<HierarchySoundIn> const &sounds)
+	{
+		bool same = sounds.size() == hierarchyIn.size();
+
+		for (size_t i = 0; same && i < sounds.size(); i++)
+		{
+			HierarchySoundIn const &a = sounds[i], &b = hierarchyIn[i];
+
+			same = a.index == b.index && a.wav == b.wav && a.inner == b.inner && a.outer == b.outer && a.volume == b.volume && a.pitch == b.pitch && a.flags == b.flags;
+		}
+
+		if (same)
+		{
+			return;
+		}
+
+		HierarchySounds_LetGo();
+		hierarchyIn = sounds;
+
+		for (HierarchySoundIn const &one : sounds)
+		{
+			std::unique_ptr<Held> h(new Held);
+
+			h->sound.wav = one.wav;
+			h->sound.inner = one.inner;
+			h->sound.outer = one.outer;
+			h->sound.volume = one.volume;
+			h->sound.pitch = one.pitch;
+			h->loaded = Load(one.wav);
+			hierarchyHeld.push_back(std::move(h));
+		}
+	}
+
+	void HierarchySounds_Start(int32_t index, int32_t const place[3])
+	{
+		Held *const h = HierarchyHeldOf(index);
+
+		if (!h || !h->loaded)
+		{
+			return;
+		}
+
+		Stop(*h);
+		h->sound.place[0] = place[0];
+		h->sound.place[1] = place[1];
+		h->sound.place[2] = place[2];
+		Play(*h, HierarchyLoops(index) ? "nel" : "ne");   // FUN_004ebfe0: the looping format 0x5e9098 when bit 0 is set
+	}
+
+	void HierarchySounds_Move(int32_t index, int32_t const place[3])
+	{
+		Held *const h = HierarchyHeldOf(index);
+
+		if (!h || h->active == SOUND_NOACTIVEINDEX)
+		{
+			return;
+		}
+
+		h->sound.place[0] = place[0];
+		h->sound.place[1] = place[1];
+		h->sound.place[2] = place[2];
+
+		SOUND3DDATA s3d = ThreeD(h->sound);
+
+		Sound_UpdateNew3d(h->active, &s3d);   // FUN_004ec120
+	}
+
+	void HierarchySounds_Stop(int32_t index)
+	{
+		Held *const h = HierarchyHeldOf(index);
+
+		if (h)
+		{
+			Stop(*h);   // FUN_004ec190
+		}
+	}
+
+	void HierarchySounds_StopAll()
+	{
+		for (std::unique_ptr<Held> &one : hierarchyHeld)
+		{
+			Stop(*one);
+		}
+	}
+
+	void HierarchySounds_LetGo()
+	{
+		for (std::unique_ptr<Held> &one : hierarchyHeld)
+		{
+			LetGo(*one);
+		}
+
+		hierarchyHeld.clear();
+		hierarchyIn.clear();
+	}
+
+	int HierarchySounds_Playing()
+	{
+		int playing = 0;
+
+		for (std::unique_ptr<Held> const &one : hierarchyHeld)
+		{
+			playing += one->active != SOUND_NOACTIVEINDEX ? 1 : 0;
+		}
+
+		return playing;
+	}
+
 	bool PlacedSounds_SoundingAt(size_t index)
 	{
 		return index < held.size() && held[index]->active != SOUND_NOACTIVEINDEX;

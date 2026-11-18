@@ -1,0 +1,79 @@
+# ACCEPTANCE (red first): TM-B T, the texture window as inteng lays it out and Texture Resize (T, 0x103) (FUN_00555ad0 the layout, FUN_0055d290 / FUN_00555dd0 the start view, FUN_0055d350
+# the scale, FUN_00553be0 / FUN_005546b0 / FUN_00554ca0 the resize press, drag and release, FUN_00555070 the arrows; Dietrich, 2026-11-18; reassess/tm-b-window-layout.md). Ours: the window
+# fitted the picture in the middle of the screen at a whole-number scale, and T only said it was not built. Inteng: the window sits in the screen's bottom-right corner, the view's size
+# times the scale; T makes the window's left and top edges draggable and a drag inside it scroll the view. His path: Invasion, Mode > Texture Map, the quad at 0.50 0.60 (polygon 31, its
+# picture 128 x 128), Tab: the window 128 x 128 showing the whole picture at x1; 9: x2, 256 x 256; 6 from x1: x1/2, 64 x 64; 8: x1 again; 9: x2; T: Resizing Texture; the left edge
+# dragged 100 pixels in: the window 156 wide, the view 0..78 (its left stays at the edge); a drag inside 20 pixels left: the view 10..88 (whole texels after the release); the top edge 60
+# pixels down: 196 high, the view's bottom 98; Right: the view a quarter of its width on (19 texels); Down: a quarter of its height (24); Shift+Right: a whole width, held at the
+# picture's right (50..128); T again: off; node 2 (127, 67) dragged 10 pixels left at x2: on the texel under the mouse, 122 67, written. State line, saved file and pictures.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+save-copy
+save-copy
+click-view 0.50 0.60
+expect-status 1 selected
+key Tab
+wait 400
+state
+expect-texwin 128 128 0 0 128 128 1
+picture 490
+key 9
+wait 300
+expect-texwin 256 256 0 0 128 128 2
+key 7
+wait 300
+expect-texwin 128 128 0 0 128 128 1
+key 6
+wait 300
+expect-texwin 64 64 0 0 128 128 -2
+key 8
+wait 300
+expect-texwin 128 128 0 0 128 128 1
+key 9
+wait 300
+key T
+wait 300
+expect-field-has texwin resizing
+expect-status Resizing Texture on
+picture 491
+# the left edge (x within 3 of the window's left), 100 pixels in
+drag-texwin 0 100 100 100
+wait 400
+expect-texwin 156 256 0 0 78 128 2
+# inside: scroll 20 pixels left
+drag-texwin 60 100 40 100
+wait 400
+expect-texwin 156 256 10 0 88 128 2
+# the top edge, 60 pixels down
+drag-texwin 60 0 60 60
+wait 400
+expect-texwin 156 196 10 0 88 98 2
+picture 492
+key Right
+wait 300
+expect-texwin 156 196 29 0 107 98 2
+key Down
+wait 300
+expect-texwin 156 196 29 24 107 122 2
+key Right shift
+wait 300
+expect-texwin 156 196 50 24 128 122 2
+picture 493
+key T
+wait 300
+expect-status Resizing Texture off
+expect-texwin 156 196 50 24 128 122 2
+# node 2 (127, 67) is at (154, 86) from the window's top left: 10 pixels left is the texel 122, 67
+drag-texwin 154 86 144 86
+wait 400
+state
+expect-status the nodes were given to 1 polygon
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} uv 0 127 127 127 122 67 0 60 --baseline {save1} {save2}
+picture 494
+key Tab
+wait 300

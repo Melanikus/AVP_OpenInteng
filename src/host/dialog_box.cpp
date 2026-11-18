@@ -137,6 +137,35 @@ namespace host
 		text = message;
 		buttons.clear();
 		fields.clear();
+
+		// DECIDED (Bishop's Q9c, 11-17; the Strategy box batch): ONE field with no label is inteng's number / text box FUN_00474170 (whole number), FUN_004747f0 (decimal) or FUN_00474bc0 (a
+		// name): 400 x 200 (0x47419c, 0x47481c, 0x474bec), the text at 0x12, 0x12 in 0x172 x 0x28 (0x4741d6), the field at 0x1e, 100, 300 x 0x12 (0x47420c), Ok at 100, 0x96 and Cancel at
+		// 200, 0x96, 0x32 x 0x10 (0x474248 / 0x474287). Fields with labels, or more than one, are FUN_00474350's box: 400 x 250 (0x47437c), the text 0x50 high, each field 0x96 wide with its
+		// label at 0xbe (0x4743fd / 0x474438), the next at 0x7c. (Was: every text box 400 x 250.)
+		if (given.size() == 1 && given[0].label.empty())
+		{
+			Layout(screen, 400, 200, textWidth);
+			textArea = Placed(window, 0x12, 0x12, 0x172, 0x28);
+
+			DialogField f = given[0];
+
+			f.edit = Placed(window, 0x1e, 100, 300, 0x12);
+			f.labelBox = Placed(window, 0x1e + 300, 100, 0, 0x12);
+			fields.push_back(f);
+
+			DialogButton ok, cancel;
+
+			ok.label = "Ok";
+			ok.box = Placed(window, 100, 0x96, 0x32, 0x10);
+			ok.answer = kDialogOk;
+			cancel.label = "Cancel";
+			cancel.box = Placed(window, 200, 0x96, 0x32, 0x10);
+			cancel.answer = kDialogEscape;
+			buttons.push_back(ok);
+			buttons.push_back(cancel);
+			return;
+		}
+
 		Layout(screen, 400, 0xfa, textWidth);
 
 		int32_t const rows[3] = { 100, 0x7c, 0x94 };

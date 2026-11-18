@@ -18,7 +18,7 @@ expect-no-dialog
 key E
 wait 400
 picture 1
-expect-field strategyview 200@0:linktoeverything : Linked Switch|100@669:E : Edit extra message data for target|100@689:P : Change Properties|100@709:T : Change Target (+Ctrl to choose environment)|16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Target : immediatesrt - Multi switch|16@120:Links:|20@136:ls|64@136:genlev02|20@152:ls|64@152:genlev01|20@168:ls|64@168:genlev03|20@184:ls|64@184:genlev04
+expect-field strategyview 200@0:linktoeverything : Linked Switch|100@420:E : Edit extra message data for target|100@440:P : Change Properties|100@460:T : Change Target (+Ctrl to choose environment)|16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Target : immediatesrt - Multi switch|16@120:Links:|20@136:ls|64@136:genlev02|20@152:ls|64@152:genlev01|20@168:ls|64@168:genlev03|20@184:ls|64@184:genlev04
 
 # P: 52's form, filled the same way (Wait, Reversed). Time Delay (Autoexec), mode 5, is kept: "Mode : Time Delay -0.000 seconds (starts immediately)", and modes 3 to 5 have no switch-off line
 key P

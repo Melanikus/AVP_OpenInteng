@@ -1,0 +1,31 @@
+# ACCEPTANCE (red first): Track Editing shows inteng's TWO OBJECTS of the current section (T-3c of reassess/track-editing-closeout-vasquez.md; Vasquez, 2026-11-17; Bishop's ruling (b)).
+# inteng's FUN_004f0da0 (run at every section change) puts the OBJECT itself at the current section's END (place +0x28..0x30, matrix +0x58) and the START MARKER, a copy of the object made
+# when the track was loaded (FUN_004b2590 in FUN_004eff90), at its START (+0x1c..0x24, +0x34); O moves the start marker out of sight (0x4dc8d7); Stop Track Edit lets both go. Our grey track,
+# crosses and axes stay as a named addition. The state line's trackobjects says where the game draws the two (the world's units): "end x y z" for the object, "start x y z" for the copy.
+# RED before T-3c: the object stayed where its record is and no copy was drawn (and the field was not there).
+# Invasion, read from a copy: Platlift (row 75) sits at -13797 -8556 55040, its one-section track rises to -16344.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Object Placement
+select-row 75
+expect-selected 1
+click-bar Object > Edit Track
+expect-screen Track Editing
+state
+picture 1
+# 1. the object at the section's end, the copy at its start
+expect-field trackobjects end -13797 -16344 55040 start -13797 -8556 55040
+# 2. O: the start marker goes out of sight; O again: back
+key O
+state
+expect-field trackobjects end -13797 -16344 55040
+key O
+state
+expect-field trackobjects end -13797 -16344 55040 start -13797 -8556 55040
+# 3. Stop Track Edit: both let go, the object where its record says
+item 0x51c
+expect-screen Object Placement
+state
+expect-field-empty trackobjects

@@ -83,6 +83,7 @@ namespace
 }
 
 extern void R_SetEditorUntextured(bool on, unsigned int colour);   // avpx renderer.h (RenderList.cpp): the editor's Untextured
+extern void R_SetEditorFillUntextured(bool on, unsigned int lineColour);   // avpx renderer.h (RenderList.cpp): No Textures' filled untextured polygons
 
 static bool paintWhite = false;
 static bool mixed = false;
@@ -133,11 +134,15 @@ void ViewToggles_Apply()
 
 	// STRATEGY DATA's No Textures (0x3a: FUN_00524cc0 -> FUN_00522ab0 -> FUN_0046e700(0x93)) is a WHITE WIREFRAME, the Module Linking look: with load flag 0x80 no texture is loaded (FUN_0046e700 0x46ed57: the table is NULL), so the
 	// shape converter makes every textured polygon kind 0xe, a see-through line, with flag 2, unlit (FUN_004ff010 0x4ffc53-0x4ffc62), and FUN_00522ab0 0x522bca paints every level shape 0xffffff; the strategy colours (green has a
-	// strategy, red the current object) colour the lines. NAMED DIFFERENCE: inteng leaves the few untextured polygons (kinds 2 / 3) filled white; the game's wire switch is per category, so ours draws them as lines too.
+	// strategy, red the current object) colour the lines. The untextured polygons (kinds 2 / 3) are left as they are: FILLED, white, LIT (their flag 2 is not set), and a strategy object's in its colour. So here the game lights
+	// every polygon (full bright off) and the renderer fills the untextured ones and draws every other one again as a white unlit line over its lit one (R_SetEditorFillUntextured, avpx renderer.h).
+	// The Module Linking look (moduleWire) has no fill: FUN_0046daa0 makes every polygon a line there.
 	bool const wire = moduleWire || paintWhite;
+	bool const fillUntextured = paintWhite && !moduleWire;
 
-	DrawFullBright = wire ? 1 : switches.drawFullBright;
+	DrawFullBright = wire ? (fillUntextured ? 0 : 1) : switches.drawFullBright;
 	R_SetEditorUntextured(switches.untextured != 0 || wire, wire ? host::kUntexturedColour : switches.untexturedColour);
+	R_SetEditorFillUntextured(fillUntextured, host::kUntexturedColour);
 	WireFrameMode = wire ? host::kWireFrameEverything : switches.wireFrameMode;
 
 	// R-DRAWMODES-1's outlines: Polyline's and Filled polyline's white lines. Set every frame, like the others, so leaving a mode takes its

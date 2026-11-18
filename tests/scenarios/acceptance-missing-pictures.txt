@@ -1,0 +1,20 @@
+# ACCEPTANCE (the owner's release check, 2026-11-17: "if someone gives you a map it is very likely it won't have a texture"): a level one of whose PICTURES IS MISSING opens, says so,
+# edits and saves, and the save keeps its picture references. The level: Hangar with the first name of its list of pictures (BMPNAMES) made one no data folder has
+# (verify_missing_pictures make). The game's loader makes each polygon of a picture it can't have a white unlit line (I_Polyline, chunk_load.cpp), which the game never draws; inteng
+# draws it as a line (its kind 0xe, FUN_004ff010 0x4ffb2a-0x4ffc62), so the editor does (R_SetEditorDrawPolylines), and the status line says how many pictures are missing (the
+# owner: users are told everything), each name in the log.
+# Red on bishop-int (nothing said; the missing picture's polygons not drawn), green on the hash with the missing pictures' handling.
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_missing_pictures/verify_missing_pictures.exe make C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {exedir}HangarMissingPicture.rif
+start-args {exedir}HangarMissingPicture.rif
+pictures on
+state
+expect-screen Construction
+expect-status 1 of this level's pictures could not be loaded
+picture 1
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+key X
+save-copy
+expect-status-not Not saved
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_missing_pictures/verify_missing_pictures.exe same {exedir}HangarMissingPicture.rif {copy}

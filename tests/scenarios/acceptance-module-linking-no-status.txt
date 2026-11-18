@@ -1,0 +1,23 @@
+# ACCEPTANCE (red first): Module Linking draws NO STATUS LINE (module-linking-closeout-vasquez.md ML-T2; Vasquez 2026-11-17). inteng's frame FUN_004c1a90 draws only its own rows (the legend,
+# the picks' names, the counts, the view distance, the follow) and its link commands say nothing (ML-M-27); ours drew its own words on a status line ("Picked: ...", "Links: make a module the
+# current one first"). The words are still kept for the harness (the state line's status). His path: Invasion, Mode > Module Linking, a click on a module, N with no current module.
+#ini ViewDistance=100000000
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+wait 400
+picture 1
+# a click on a module: picked; the status band (the bottom of the window) stays as it was
+click-view 0.5 0.5
+wait 400
+picture 2
+expect-status Picked
+expect-pixels-same-since 1 panels 0 690 1008 39 0.0005
+# N with no current module: inteng says nothing; ours keeps its words for the state line only
+key N
+wait 400
+picture 3
+expect-pixels-same-since 1 panels 0 690 1008 39 0.0005

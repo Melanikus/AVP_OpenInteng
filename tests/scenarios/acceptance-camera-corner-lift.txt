@@ -1,0 +1,14 @@
+# ACCEPTANCE (Drake 11-18, the owner's orbit camera): camera-corner on Genshd1's platform lift liftplt (the lift chain's subject, Bishop's re-aim a701208a): the first upper diagonal spot (45 up)
+# from which the middle of the view picks it, the editor's own pick on a frame drawn from there; then a click in the middle of the view selects it, as a human's click would.
+# RED on d5b14438 (camera-corner is a step the harness does not know).
+start-args Genshd1 -at 0 0 0 0 0 "Object Placement"
+pictures on
+state
+expect-screen Object Placement
+camera-corner liftplt
+expect-status camera-corner liftplt: the object
+expect-status the click in the middle of the view picks it
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text liftplt

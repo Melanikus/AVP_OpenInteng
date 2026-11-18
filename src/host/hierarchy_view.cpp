@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "hierarchy_view.h"
+#include "level_view.h"   // LevelView_TurnMatrix: the preview's spin
 
 extern int NormalFrameTime;                          // io.cpp:74: how long the last frame took, 65536 = one second
 extern int GlobalFrameCounter;                       // io.cpp:93: the game's frame number; the model works its positions out once a frame
@@ -1718,20 +1719,104 @@ bool ModelObjects_Bounds(int32_t mins[3], int32_t maxs[3])
 static DISPLAYBLOCK *previewBlock = nullptr;
 static int const kPreviewZ = 1000000;   // millimetres: where the shape stands (the level is behind the camera)
 
-void ShapePreview_Close()
+// THE SPIN (FUN_004ddb60 0x4ddba2-0x4ddbc2): every frame inteng puts 300 in the preview block's +0x1ac and 600 in its +0x1b4 and runs FUN_0053c4f0 on it, which turns the block by those speeds,
+// 4096ths of a turn a second about its own x and z, this frame's share of each (FUN_0053c6c0: speed x the frame's time, the part of a 4096th carried to the next frame in +0x1b8..+0x1c0, the sign put back).
+// The block is made once a visit (FUN_004dd870 at the start only; a new shape only changes its shape, 0x4ddc5b), so the turn goes on across shapes: kept here, new at each visit.
+static int32_t previewTurn[9] = { 65536, 0, 0, 0, 65536, 0, 0, 0, 65536 };
+static int previewTurnCarry[3] = { 0, 0, 0 };
+static bool previewTurnKept = false;
+
+static void ShapePreview_Take()
 {
 	if (previewBlock)
 	{
 		DestroyActiveObject(previewBlock);
 		previewBlock = nullptr;
 	}
+}
 
+void ShapePreview_Close()
+{
+	ShapePreview_Take();
+	previewTurnKept = false;   // the next visit starts square, as a new block does
 	R_SetEditorDrawObjectsOutsideModules(false);
+}
+
+static void PreviewTurnOnBlock()
+{
+	if (!previewBlock)
+	{
+		return;
+	}
+
+	MATRIXCH &m = previewBlock->ObMat;
+
+	m.mat11 = previewTurn[0]; m.mat12 = previewTurn[1]; m.mat13 = previewTurn[2];
+	m.mat21 = previewTurn[3]; m.mat22 = previewTurn[4]; m.mat23 = previewTurn[5];
+	m.mat31 = previewTurn[6]; m.mat32 = previewTurn[7]; m.mat33 = previewTurn[8];
+}
+
+static void ShapePreview_SpinAngles(int frameTime, int carry[3], int angles[3])
+{
+	static int const speeds[3] = { 300, 0, 600 };   // +0x1ac (x), +0x1b0 (y), +0x1b4 (z): 4096ths of a turn a second
+
+	for (int k = 0; k < 3; k++)
+	{
+		long long const product = (long long)speeds[k] * frameTime;
+		bool const negative = product < 0;
+		unsigned long long const size = (unsigned long long)(negative ? -product : product);
+		int whole = (int)(size >> 16);
+
+		carry[k] -= (int)(size & 0xffff);
+
+		if (carry[k] < 0)
+		{
+			whole++;
+			carry[k] += 0x10000;
+		}
+
+		angles[k] = negative ? -whole : whole;
+	}
+}
+
+void ShapePreview_Spin()
+{
+	if (!previewBlock)
+	{
+		return;
+	}
+
+	int angles[3];
+
+	ShapePreview_SpinAngles(NormalFrameTime, previewTurnCarry, angles);
+	LevelView_TurnMatrix(previewTurn, angles);   // about its own axes (NAMED: inteng goes through a quaternion, FUN_004b39f0 / FUN_004b3b50; the same turn)
+	PreviewTurnOnBlock();
+}
+
+int ShapePreview_PlaceOf(char const *gameName)
+{
+	if (!gameName || !gameName[0])
+	{
+		return -1;
+	}
+
+	int const place = GetLoadedShapeMSL(gameName);
+
+	return place == GLS_NOTINLIST || place < 0 ? -1 : place;
 }
 
 bool ShapePreview_Show(int shapeNumber, int32_t *cameraZ)
 {
-	ShapePreview_Close();
+	ShapePreview_Take();
+
+	if (!previewTurnKept)
+	{
+		int32_t const square[9] = { 65536, 0, 0, 0, 65536, 0, 0, 0, 65536 };
+
+		memcpy(previewTurn, square, sizeof(previewTurn));
+		previewTurnCarry[0] = previewTurnCarry[1] = previewTurnCarry[2] = 0;
+		previewTurnKept = true;
+	}
 
 	SHAPEHEADER *const header = shapeNumber >= 0 ? GetShapeData(shapeNumber) : nullptr;
 
@@ -1772,6 +1857,7 @@ bool ShapePreview_Show(int shapeNumber, int32_t *cameraZ)
 	CreateEulerMatrix(&block->ObEuler, &block->ObMat);
 	TransposeMatrixCH(&block->ObMat);
 	previewBlock = block;
+	PreviewTurnOnBlock();   // the turn it had: the chooser keeps one block a visit
 
 	R_SetEditorDrawObjectsOutsideModules(true);
 

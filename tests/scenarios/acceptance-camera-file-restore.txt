@@ -7,3 +7,6 @@ expect-field camera 0 0 0 0 0
 key F1
 expect-status Camera position restored (F1)
 expect-field camera 1000 2000 3000 512 0
+# The file part 1 wrote, by its bytes (verify_camera_file, Vasquez 11-18): inteng's own form. Slot 0's place in inteng's 1/100 mm (1000 2000 3000 mm are 100000 200000 300000) and its turn as inteng's
+# view keeps it: the game's VDB_Mat of turn 512 TURNED OVER (FUN_004704d0 keeps the view's +0x10 and +0x38; FUN_004c19a0: +0x38 is VDB_Mat transposed). RED before: 1000 2000 3000 and the game's form.
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verify_camera_file/verify_camera_file.exe {exedir}camera 0 100000 200000 300000 46341 0 -46341 0 65536 0 46341 0 46341

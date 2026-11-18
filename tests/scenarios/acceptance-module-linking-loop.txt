@@ -37,6 +37,9 @@ picture 4
 key D
 # (the picture the key itself takes is the one compared with picture 4: a picture taken by the scenario right after would be compared with that one)
 expect-pixels-changed picture 0 0 2000 2000 0.0005
+# D takes each pick off the list (ML-M-34, 0x4c307b-0x4c30f2: "the pick's entry taken off the list"), so the module is clicked again before N (Vasquez 11-17: the N
+# check passed before only because our status line changed in the picture; Module Linking draws none, ML-T2)
+click-view 0.3 0.5
 key N
 expect-pixels-changed picture 0 0 2000 2000 0.0005
 # leaving with the adjacencies worked out: inteng's Yes / No question, then the hub

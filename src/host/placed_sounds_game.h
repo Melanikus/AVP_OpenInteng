@@ -73,6 +73,29 @@ namespace host
 	int PlacedSounds_Held();       // sounds in the list
 	int PlacedSounds_Loaded();     // whose wav the game loaded
 	int PlacedSounds_Sounding();   // playing now
+
+	// PH-2 / PH-3 / PH-14: the current PLACED HIERARCHY's sounds as its sound timings play them (reassess/ph8-13-map-vasquez.json; object-placement.md PH-2, PH-3, PH-14). FUN_004ebfe0
+	// starts one at the hierarchy's place, looping ("nel", 0x5e9098) when its bit 0 is set, else once ("ne"), then its volume and pitch as a placed sound's (FUN_004ecd40); FUN_004ec120
+	// moves a playing one to the place; FUN_004ec190 stops one. The ranges and the place are in the game's units (the file's x the level's scale), as the placed sounds'.
+	struct HierarchySoundIn
+	{
+		int32_t index = 0;
+		std::string wav;
+		int32_t inner = 0, outer = 0;     // the game's units
+		int32_t volume = 127, pitch = 0;
+		uint32_t flags = 0;               // bit 0: loops
+	};
+
+	// The hierarchy's sounds now: the same list keeps what it loaded; any other lets go of them all and loads anew
+	void HierarchySounds_Sync(std::vector<HierarchySoundIn> const &sounds);
+
+	// The FIRST sound of that index (a timing is linked so, PH-2) started at the place / moved there / stopped; nothing when there is none
+	void HierarchySounds_Start(int32_t index, int32_t const place[3]);
+	void HierarchySounds_Move(int32_t index, int32_t const place[3]);
+	void HierarchySounds_Stop(int32_t index);
+	void HierarchySounds_StopAll();
+	void HierarchySounds_LetGo();
+	int HierarchySounds_Playing();     // playing now (the scenario line)
 	bool PlacedSounds_SoundingAt(size_t index);   // the sound at `index` of the last list is playing now
 	bool SoundGame_DeviceOn();     // the sound system started (there is a sound device)
 }

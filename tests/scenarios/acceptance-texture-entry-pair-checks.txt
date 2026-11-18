@@ -1,0 +1,16 @@
+# ACCEPTANCE (TM-A): at Texture Map's start every slot's merged pairs are checked (FUN_00544510 0x5449cc -> FUN_0055d500): a pair whose polygons do not match (another
+# picture, or another place on it at a corner they share) is parted, and a polygon takes its partner's flags, type or colour as the checks say. Area52's FireSKA (row 682)
+# holds 2 such pairs (verify_survey_entry_checks: the only shape of the 38 stock levels the checks change). Checked on the saved file only: entered, left with nothing
+# asked (the checks alone make no question: DECIDED, they come before the save point), saved: verify_pairs_checked finds no pair the checks would still part.
+# Red on exe-cache/2fa1a574.exe (no checks at the start: FireSKA's 2 pairs still there), green on the hash with them.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Area52.RIF
+pictures off
+state
+item 0x46
+expect-screen Texture Map
+item 0x5
+expect-no-dialog
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_pairs_checked/verify_pairs_checked.exe {copy}

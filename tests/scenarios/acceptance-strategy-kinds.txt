@@ -26,25 +26,25 @@ wait 400
 expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
 picture 2
 # the black screen: the middle of the window, where the level was, is black
-expect-colour picture 300 250 600 300 000000 0.97 8
+expect-colour picture 300 250 500 300 000000 0.97 8
 # a click on "Door is not locked" (y 32-47) flips bit 1 (0x52cd9b): "Door is locked"
-click-win 300 40
+click-box 300 40
 wait 300
 expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
 # a click on "Door is vertical" (y 48-63) flips bit 0x10 (0x52cdd7): horizontal
-click-win 300 56
+click-box 300 56
 wait 300
 expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is locked|16@48:Door is horizontal (ie. in floor/ceiling)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
 # a click on the first line (y 16-31) makes it a switch activated door (bit 2 out, bit 8 in: 0x52ce53): its lines are "Switch activated door ('lift door')", "Closed", and the times one row higher
-click-win 300 24
+click-box 300 24
 wait 300
 expect-field strategyview 200@0:APCmod : Door|16@16:Switch activated door ('lift door')|16@32:Closed|16@48:Time take to open : 1.0 seconds|16@64:Time take to close : 0.5 seconds
 # "Closed" (y 32-47) flips bit 4: "Open"
-click-win 300 40
+click-box 300 40
 wait 300
 expect-field strategyview 200@0:APCmod : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 1.0 seconds|16@64:Time take to close : 0.5 seconds
 # the open time (now at y 48): the number dialog "Time take to open (0.1 - 25 sec)" holding 1 (FUN_004747f0: "%f" without its trailing zeros); 2.5 is taken as the byte 25 (0x52ceb2-0x52cee2)
-click-win 300 56
+click-box 300 56
 expect-dialog Time take to open (0.1 - 25 sec)
 picture 3
 key Back
@@ -54,7 +54,7 @@ expect-no-dialog
 wait 300
 expect-field strategyview 200@0:APCmod : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.5 seconds
 # 30 seconds is refused (x 10 is not below 255.0): the time stays
-click-win 300 72
+click-box 300 72
 expect-dialog Time take to close (0.1 - 25 sec)
 key Back
 key Back
@@ -66,12 +66,12 @@ wait 300
 expect-field strategyview 200@0:APCmod : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.5 seconds
 picture 4
 # the first line again: back to a proximity door (bit 8 out, bit 2 in), its lock and horizontal bits kept
-click-win 300 24
+click-box 300 24
 wait 300
 expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is locked|16@48:Door is horizontal (ie. in floor/ceiling)|16@64:Time take to open : 2.5 seconds|16@80:Time take to close : 0.5 seconds
 # Escape ends the view (0x52ce0d): the level is drawn again and the object is the current one
 key Esc
-expect-pixels-changed picture 300 250 600 300 0.3
+expect-pixels-changed picture 300 250 500 300 0.3
 wait 400
 picture 5
 expect-selected 1
@@ -80,9 +80,9 @@ click-win 120 500 right
 click-popup 3
 wait 400
 expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is locked|16@48:Door is horizontal (ie. in floor/ceiling)|16@64:Time take to open : 2.5 seconds|16@80:Time take to close : 0.5 seconds
-expect-colour picture 300 250 600 300 000000 0.97 8
+expect-colour picture 300 250 500 300 000000 0.97 8
 click-win 500 400 right
-expect-pixels-changed picture 300 250 600 300 0.3
+expect-pixels-changed picture 300 250 500 300 0.3
 wait 400
 picture 6
 # (no pop-up is opened by that right press: the picture shows none)
@@ -97,12 +97,12 @@ expect-dialog Select Strategy
 click-button Switch_Door
 wait 400
 expect-field strategyview 200@0:APCmod : Switch door|16@16:Associated door :|80@32:None
-expect-colour picture 300 250 600 300 000000 0.97 8
+expect-colour picture 300 250 500 300 000000 0.97 8
 picture 7
 # a click on the door lines (y 16 to 47) is the OBJECT PICK (FUN_0052d490 -> FUN_00527540): the screen is drawn again (not black) with "Press return when finished" and "Select associated door" along the foot
-click-win 300 24
+click-box 300 24
 wait 400
-expect-pixels-changed picture 300 250 600 300 0.3
+expect-pixels-changed picture 300 250 500 300 0.3
 picture 8
 # a click on the room's module picks it (red); Return ends the pick: the door is that module, and that module (no strategy before) gets a Switch Door naming APCmod (0x52d578-0x52d5c6)
 click-win 640 130
@@ -110,7 +110,7 @@ wait 300
 picture 9
 key Enter
 wait 400
-expect-colour picture 300 250 600 300 000000 0.97 8
+expect-colour picture 300 250 500 300 000000 0.97 8
 picture 10
 key Esc
 wait 400
@@ -125,7 +125,7 @@ click-button Yes
 expect-dialog Select Strategy
 click-button Airlock
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Airlock|200@669:Radius 19794.190284|200@689:Floor -1|200@709:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit same side
+expect-field strategyview 200@0:gARAGDOR : Airlock|200@420:Radius 19794.190284|200@440:Floor -1|200@460:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit same side
 picture 19
 key Esc
 wait 400
@@ -185,17 +185,17 @@ click-button Yes
 expect-dialog Select Strategy
 click-button Lift
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Lift|200@669:Radius 19794.190284|200@689:Floor -1|200@709:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit same side
-expect-colour picture 300 250 600 300 000000 0.97 8
+expect-field strategyview 200@0:gARAGDOR : Lift|200@420:Radius 19794.190284|200@440:Floor -1|200@460:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit same side
+expect-colour picture 300 250 500 300 000000 0.97 8
 picture 11
 # "Exit same side" (y 160 to 175) flips flag 8 and makes the positions agree (FUN_0052b770; none yet): "Exit opposite side", and the Floor is worked out again: 0 (no position lies before it)
-click-win 300 168
+click-box 300 168
 wait 300
-expect-field strategyview 200@0:gARAGDOR : Lift|200@669:Radius 19794.190284|200@689:Floor 0|200@709:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit opposite side
+expect-field strategyview 200@0:gARAGDOR : Lift|200@420:Radius 19794.190284|200@440:Floor 0|200@460:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit opposite side
 # "Lift positions :" (y 16): the COLLECTOR (FUN_0052b360 -> FUN_00526bf0): the screen is drawn as usual, "Select other positions for this lift" along the foot
-click-win 300 24
+click-box 300 24
 wait 400
-expect-pixels-changed picture 300 250 600 300 0.3
+expect-pixels-changed picture 300 250 500 300 0.3
 picture 12
 # APCmod (its Switch Door) and the object at 640 300 are clicked into the list; Return ends it; what is not a module goes; the confirm "Would you like the other positions altered\nto agree with this one?" -> Yes:
 # a strategy-less module gets a new Lift that agrees, the Switch Door is left alone
@@ -208,23 +208,23 @@ expect-dialog-kind confirm
 picture 14
 click-button Yes
 wait 400
-expect-colour picture 300 250 600 300 000000 0.97 8
+expect-colour picture 300 250 500 300 000000 0.97 8
 picture 15
-expect-field strategyview 200@0:gARAGDOR : Lift|200@669:Radius 19794.190284|200@689:Floor 2|200@709:Facing 0|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:None|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift has no start position|16@176:Exit opposite side
+expect-field strategyview 200@0:gARAGDOR : Lift|200@420:Radius 19794.190284|200@440:Floor 2|200@460:Facing 0|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:None|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift has no start position|16@176:Exit opposite side
 # "Lift starts at" (now y 160: r = 2 + 2, n = r + 6): the window "Select Lift Start Position" (600 x 400) with "Here" and one button per position; "Here": this lift starts here (flag 1)
-click-win 300 168
+click-box 300 168
 expect-dialog Select Lift Start Position
 picture 16
 click-button Here
 wait 300
-expect-field strategyview 200@0:gARAGDOR : Lift|200@669:Radius 19794.190284|200@689:Floor 2|200@709:Facing 0|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:None|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift starts at gARAGDOR|16@176:Exit opposite side
+expect-field strategyview 200@0:gARAGDOR : Lift|200@420:Radius 19794.190284|200@440:Floor 2|200@460:Facing 0|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:None|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift starts at gARAGDOR|16@176:Exit opposite side
 # the Door lines (y 64 to 95): the pick, then APCmod (at 120 500; the lift's own module, gARAGDOR, would be passed by: S-K51-8): its Switch Door is left alone; the door is it and the Facing is worked out from where it lies
-click-win 300 72
+click-box 300 72
 wait 400
 click-win 120 500
 key Enter
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Lift|200@669:Radius 19794.190284|200@689:Floor 2|200@709:Facing 3|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:APCmod|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift starts at gARAGDOR|16@176:Exit opposite side
+expect-field strategyview 200@0:gARAGDOR : Lift|200@420:Radius 19794.190284|200@440:Floor 2|200@460:Facing 3|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:APCmod|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift starts at gARAGDOR|16@176:Exit opposite side
 picture 17
 key Esc
 wait 400
@@ -233,7 +233,7 @@ click-win 640 300
 click-win 640 300 right
 click-popup 3
 wait 400
-expect-field strategyview 200@0:Door : Lift|200@669:Radius 12492.312236|200@689:Floor 0|200@709:Facing 0|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:gARAGDOR        R:19794.190284|16@64:Door :|80@80:None|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift starts at gARAGDOR|16@176:Exit opposite side
+expect-field strategyview 200@0:Door : Lift|200@420:Radius 12492.312236|200@440:Floor 0|200@460:Facing 0|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:gARAGDOR        R:19794.190284|16@64:Door :|80@80:None|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift starts at gARAGDOR|16@176:Exit opposite side
 picture 18
 key Esc
 wait 400
@@ -265,33 +265,33 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Mission_Objective
 wait 400
-expect-field strategyview 200@0:MO1 : Mission Objective|100@689:P : Toggle 'Make Possible' setting for mission target|100@709:V : Toggle 'Make Visible' setting for mission target|16@16:Description :0|16@32:Completed Message :0|16@48:Order Number :0|16@64:Shown at start|16@80:Possible at start|16@96:Special :Nothing|16@112:Mission alterations upon completion :|32@128:None
-expect-colour picture 300 250 600 300 000000 0.97 8
+expect-field strategyview 200@0:MO1 : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :0|16@32:Completed Message :0|16@48:Order Number :0|16@64:Shown at start|16@80:Possible at start|16@96:Special :Nothing|16@112:Mission alterations upon completion :|32@128:None
+expect-colour picture 300 250 500 300 000000 0.97 8
 picture 25
 # "Description :0" (y 16): the 500 x 400 text window (FUN_00532550); 5 typed, Ok: Description 5. Now Description > 0 and Completed <= 450: the (empty) text row at 32 ends at 32, so Completed moves to row 3
-click-win 300 24
+click-box 300 24
 expect-dialog-kind form
 picture 26
 form-field 1 5
 click-button Ok
 expect-no-dialog
 wait 300
-expect-field strategyview 200@0:MO1 : Mission Objective|100@689:P : Toggle 'Make Possible' setting for mission target|100@709:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :0|16@64:Order Number :0|16@80:Shown at start|16@96:Possible at start|16@112:Special :Nothing|16@128:Mission alterations upon completion :|32@144:None
+expect-field strategyview 200@0:MO1 : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :0|16@64:Order Number :0|16@80:Shown at start|16@96:Possible at start|16@112:Special :Nothing|16@128:Mission alterations upon completion :|32@144:None
 # "Shown at start" (y 80) flips bit 1: "Hidden at start " (its trailing space); the Special line (y 112): (0 + 1) % 2 = 1, "Special :Complete level"
-click-win 300 88
+click-box 300 88
 wait 300
-click-win 300 120
+click-box 300 120
 wait 300
-expect-field strategyview 200@0:MO1 : Mission Objective|100@689:P : Toggle 'Make Possible' setting for mission target|100@709:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :0|16@64:Order Number :0|16@80:Hidden at start |16@96:Possible at start|16@112:Special :Complete level|16@128:Mission alterations upon completion :|32@144:None
+expect-field strategyview 200@0:MO1 : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :0|16@64:Order Number :0|16@80:Hidden at start |16@96:Possible at start|16@112:Special :Complete level|16@128:Mission alterations upon completion :|32@144:None
 # "Order Number" (y 64): the number dialog "Mission Order Number"; 7
-click-win 300 72
+click-box 300 72
 expect-dialog Mission Order Number
 key Back
 type 7
 key Enter
 expect-no-dialog
 wait 300
-expect-field strategyview 200@0:MO1 : Mission Objective|100@689:P : Toggle 'Make Possible' setting for mission target|100@709:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :0|16@64:Order Number :7|16@80:Hidden at start |16@96:Possible at start|16@112:Special :Complete level|16@128:Mission alterations upon completion :|32@144:None
+expect-field strategyview 200@0:MO1 : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :0|16@64:Order Number :7|16@80:Hidden at start |16@96:Possible at start|16@112:Special :Complete level|16@128:Mission alterations upon completion :|32@144:None
 picture 27
 key Esc
 wait 400
@@ -307,11 +307,11 @@ click-button Message
 wait 400
 expect-field strategyview 200@0:MO1 : Message|16@16:Message starts activated|16@32:String :0
 # line 1 (y 16-31) flips flags bit 1 (0x5337d3)
-click-win 300 24
+click-box 300 24
 wait 300
 expect-field strategyview 200@0:MO1 : Message|16@16:Message starts deactivated|16@32:String :0
 # the String row (y 32-47): the 500 x 400 window of FUN_00532550 with the words "Message" (0x5337f2), the number box holding 0; 5 typed, Ok: String :5 (no check)
-click-win 300 40
+click-box 300 40
 expect-dialog-kind form
 picture 28
 form-field 1 5
@@ -320,7 +320,7 @@ expect-no-dialog
 wait 300
 expect-field strategyview 200@0:MO1 : Message|16@16:Message starts deactivated|16@32:String :5
 # with 0 < n <= 450 the message's (empty) text row is at 48, so the String rows now reach y 63: a click at 56 opens the same window, holding 5
-click-win 300 56
+click-box 300 56
 expect-dialog-kind form
 click-button Cancel
 expect-no-dialog
@@ -338,7 +338,7 @@ click-popup 3
 wait 400
 expect-field strategyview 200@0:Fan1 : Fan|16@16:speed up time : 10  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :100  (default is 100)
 # the speed-up line: the whole-number dialog holding 10; 5 taken (kept as 5 << 16)
-click-win 300 24
+click-box 300 24
 expect-dialog Speed up time (seconds)
 expect-dialog-text 10
 key Back
@@ -348,7 +348,7 @@ key Enter
 wait 300
 expect-field strategyview 200@0:Fan1 : Fan|16@16:speed up time : 5  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :100  (default is 100)
 # the wind line: 1500 is outside -1000 to 1000, nothing changes; 200 is taken
-click-win 300 56
+click-box 300 56
 expect-dialog Wind strength (-1000 to 1000)
 key Back
 key Back
@@ -357,7 +357,7 @@ type 1500
 key Enter
 wait 300
 expect-field strategyview 200@0:Fan1 : Fan|16@16:speed up time : 5  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :100  (default is 100)
-click-win 300 56
+click-box 300 56
 key Back
 key Back
 key Back
@@ -379,9 +379,9 @@ click-win 500 300 right
 click-popup 3
 wait 400
 expect-field strategyview 200@0:Platlift : Platform Lift|16@16:Starts disabled|16@32:Once enabled , continues working until switched off
-click-win 300 24
+click-box 300 24
 wait 300
-click-win 300 40
+click-box 300 40
 wait 300
 expect-field strategyview 200@0:Platlift : Platform Lift|16@16:Starts enabled|16@32:Becomes disabled after one use
 picture 30
@@ -408,17 +408,17 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Volume_of_Death
 wait 400
-expect-field strategyview 200@0:VD1 : Volume of Death|16@16:Starts Active|16@32:Only harmful on collision.|16@48:Damage : Infinite (instant death)|100@709:V : Edit Volume
-click-win 300 24
+expect-field strategyview 200@0:VD1 : Volume of Death|16@16:Starts Active|16@32:Only harmful on collision.|16@48:Damage : Infinite (instant death)|100@460:V : Edit Volume
+click-box 300 24
 wait 300
-click-win 300 40
+click-box 300 40
 wait 300
-click-win 300 56
+click-box 300 56
 expect-dialog Type in the damage per second.
 type 25
 key Enter
 wait 300
-expect-field strategyview 200@0:VD1 : Volume of Death|16@16:Starts Inactive|16@32:Collision not required.|16@48:Damage : 25/second|100@709:V : Edit Volume
+expect-field strategyview 200@0:VD1 : Volume of Death|16@16:Starts Inactive|16@32:Collision not required.|16@48:Damage : 25/second|100@460:V : Edit Volume
 # the view runs its own loop: no menu bar over it, even with the pointer in the bar's band after the clicks at y 24 (S-KC-1)
 expect-bar-hidden
 picture 31
@@ -433,7 +433,7 @@ expect-dialog Select Strategy
 click-button Self_Destruct
 wait 400
 expect-field strategyview 200@0:VD1 : Self Destruct|16@16:Time : 60
-click-win 300 24
+click-box 300 24
 expect-dialog Time until destruction (seconds)
 expect-dialog-text 60
 key Back
@@ -442,7 +442,7 @@ type 125
 key Enter
 wait 300
 expect-field strategyview 200@0:VD1 : Self Destruct|16@16:Time : 125
-click-win 300 24
+click-box 300 24
 key Back
 key Back
 key Back

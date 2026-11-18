@@ -1,0 +1,33 @@
+# ACCEPTANCE (red first): DELETE STRATEGY (command 0xc, the pop-up's fifth row) on a PLACED HIERARCHY, on Melanikus's path (reassess/strategy-data.md S-39; strategy-regen-suite-design.md F2 / V3;
+# Bishop 2026-11-17). inteng (FUN_00528790): with a current record whose holder (+0x14) is set, the Yes / No box "Are you sure you want to delete the \nstrategy on this object?" (0x5ee254); Yes
+# destroys the holder and clears +0x14. For a placed hierarchy the record is class 0x5afae0 (FUN_0053b5a0) and its holder is the PLACHIER's first AVPSTRAT child, so Yes takes that chunk alone:
+# the PLACHIER and its PLACHIDT stay. Invasion (a read-only stock copy): its one placed hierarchy "dropship ken" (kind 76, Hierarchy Object).
+# RED before: Delete Strategy looked for the object among the level's objects only (StrategyMode_Has), so a placed hierarchy got "Delete Strategy: no object has that name", and the placed-hierarchy
+# branch of the answer (RunStrategyDelete) could never be reached.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is dropship ken
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 5
+expect-dialog-kind confirm
+expect-dialog Are you sure you want to delete the
+picture 1
+click-button Yes
+expect-no-dialog
+expect-status The object's strategy is deleted
+click-win 500 300 right
+click-popup 3
+expect-status Selected object has no strategy
+picture 2
+save-copy
+# the copy through the game's loader: the placed hierarchy is still there and holds no strategy; every other strategy as the stock file has it (dropswitch's one target read, the rest byte for byte)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} nostrategy "dropship ken"
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} dropswitch targets 1 also "dropship ken"

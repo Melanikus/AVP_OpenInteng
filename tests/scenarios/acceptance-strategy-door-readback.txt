@@ -24,15 +24,15 @@ picture 1
 
 # ---- the proximity door's lines
 # y 48: horizontal (bit 0x10)
-click-win 300 56
+click-box 300 56
 wait 300
 expect-field-has strategyview 16@48:Door is horizontal (ie. in floor/ceiling)
 # y 32: not locked (bit 1)
-click-win 300 40
+click-box 300 40
 wait 300
 expect-field-has strategyview 16@32:Door is not locked
 # y 64: the open time, 2.5 seconds = 25 tenths
-click-win 300 72
+click-box 300 72
 expect-dialog Time take to open (0.1 - 25 sec)
 expect-dialog-text 1
 key Back
@@ -41,7 +41,7 @@ key Enter
 expect-no-dialog
 wait 300
 # y 80: the close time, 0.7 seconds = 7 tenths
-click-win 300 88
+click-box 300 88
 expect-dialog Time take to close (0.1 - 25 sec)
 expect-dialog-text 0.5
 key Back
@@ -55,10 +55,10 @@ expect-field strategyview 200@0:medoor01 : Door|16@16:Proximity door|16@32:Door 
 picture 2
 
 # ---- y 16: a switch activated door; its y 32: open (bit 4)
-click-win 300 24
+click-box 300 24
 wait 300
 expect-field strategyview 200@0:medoor01 : Door|16@16:Switch activated door ('lift door')|16@32:Closed|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.7 seconds
-click-win 300 40
+click-box 300 40
 wait 300
 expect-field strategyview 200@0:medoor01 : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.7 seconds
 picture 3

@@ -154,10 +154,32 @@ bool OpenWith_TakeLevel(const wchar_t *path, const char *dataFolder, char *level
 	DWORD const placeLength = GetFullPathNameW(placeWide.data(), MAX_PATH * 2, fullPlace, NULL);
 	bool const itself = givenLength > 0 && givenLength < MAX_PATH * 2 && placeLength > 0 && placeLength < MAX_PATH * 2 && _wcsicmp(fullGiven, fullPlace) == 0;
 
+	// A READ-ONLY FILE OPENS (TB-C10, OUR BUG, FIXED: inteng opens it and says "This file is read only" at the hub's start): Windows' copy keeps the read-only mark, so the editor's own
+	// copy would be read-only and the next copy over it refused. The copy is the editor's own file: an earlier one loses the mark before the copy, the new one after it.
+	if (!itself)
+	{
+		DWORD const before = GetFileAttributesW(placeWide.data());
+
+		if (before != INVALID_FILE_ATTRIBUTES && (before & FILE_ATTRIBUTE_READONLY) && !(before & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)))
+		{
+			SetFileAttributesW(placeWide.data(), before & ~FILE_ATTRIBUTE_READONLY);
+		}
+	}
+
 	if (!itself && !CopyFileW(path, placeWide.data(), FALSE))
 	{
 		Say(why, whySize, "the file couldn't be copied into the editor's own OpenedByEditor folder");
 		return false;
+	}
+
+	if (!itself)
+	{
+		DWORD const after = GetFileAttributesW(placeWide.data());
+
+		if (after != INVALID_FILE_ATTRIBUTES && (after & FILE_ATTRIBUTE_READONLY))
+		{
+			SetFileAttributesW(placeWide.data(), after & ~FILE_ATTRIBUTE_READONLY);
+		}
 	}
 
 	strcpy_s(levelName, levelNameSize, gameName.c_str());

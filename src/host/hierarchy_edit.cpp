@@ -3122,6 +3122,55 @@ namespace host
 			return true;
 		}
 
+		// TB-3, FUN_0041eae0 (after Attach 0x41f804 and Shift+V 0x47ad94): each SHPBONDT point record's +4..+0xc = the point's place relative to its bone in the reference pose: the shape's point
+		// turned by the object's quaternion (FUN_00430d70, then FUN_00430e80: M times the point, each result cut toward zero), the object's place added (+0x44, FUN_0042f8e0), the bone's reference
+		// place taken away (FUN_0042f910), then turned by the bone's reference matrix transposed (FUN_0041e750, FUN_00430f60; FUN_00430e80 again): NearestBone's sum. A bone the reference pose
+		// doesn't have (FUN_0041e750 gives 0) keeps the bytes it had: *offsets is read for those. NAMED: a hierarchy with two sections of one name, inteng takes the first in its walk (the parent
+		// before its children), ours the first MakeBones made (the children first).
+		void BonePointOffsets(std::vector<Bone> const &bones, Matrix3 const objectMatrix, int32_t const objectPlace[3], Image const &image, size_t verticesAt, size_t pointCount,
+			std::vector<std::pair<std::string, std::vector<int32_t>>> const &assigned, std::vector<std::vector<std::array<int32_t, 3>>> *offsets)
+		{
+			offsets->resize(assigned.size());
+
+			for (size_t b = 0; b < assigned.size(); b++)
+			{
+				(*offsets)[b].resize(assigned[b].second.size(), std::array<int32_t, 3>{ { 0, 0, 0 } });
+
+				Bone const *mine = nullptr;
+
+				for (Bone const &bone : bones)
+				{
+					if (!mine && bone.name == assigned[b].first)
+					{
+						mine = &bone;
+					}
+				}
+
+				for (size_t k = 0; mine && k < assigned[b].second.size(); k++)
+				{
+					int32_t const index = assigned[b].second[k];
+
+					if (index < 0 || (size_t)index >= pointCount)
+					{
+						continue;
+					}
+
+					int32_t place[3];
+
+					memcpy(place, image.data() + verticesAt + (size_t)index * 12, 12);
+					RotateVector(place, objectMatrix);
+
+					for (int axis = 0; axis < 3; axis++)
+					{
+						place[axis] = place[axis] + objectPlace[axis] - mine->place[axis];
+					}
+
+					RotateVector(place, mine->inverse);
+					(*offsets)[b][k] = { { place[0], place[1], place[2] } };
+				}
+			}
+		}
+
 		// FUN_0041f2b0: the name of the bone nearest the point (the point turned by the object's turn and moved to the object's place, then into each bone's own frame), or empty. A bone's distance is
 		// the length of the per-axis distance the point lies OUTSIDE the bone's box, cut toward zero; the first bone with the smallest wins.
 		bool NearestBone(std::vector<Bone> const &bones, Matrix3 const objectMatrix, int32_t const objectPlace[3], int32_t const point[3], std::string *name)
@@ -3247,6 +3296,7 @@ namespace host
 			int32_t number, subNumber, points;
 			std::string hierarchy;
 			std::vector<std::pair<std::string, std::vector<int32_t>>> bones;
+			std::vector<std::vector<std::array<int32_t, 3>>> offsets;   // each point's +4..+0xc, in the bones' order
 		};
 
 		// Every SHPBONHD child of the shape chunk, read
@@ -3346,15 +3396,21 @@ namespace host
 							}
 
 							std::pair<std::string, std::vector<int32_t>> bone;
+							std::vector<std::array<int32_t, 3>> places;
 
 							bone.first.assign(first, (size_t)(zero - first));
 
 							for (int32_t i = 0; i < count; i++)
 							{
-								bone.second.push_back(IntAt(image, at + (size_t)i * 20));
+								size_t const one = at + (size_t)i * 20;
+								std::array<int32_t, 3> const offset = { IntAt(image, one + 4), IntAt(image, one + 8), IntAt(image, one + 12) };
+
+								bone.second.push_back(IntAt(image, one));
+								places.push_back(offset);
 							}
 
 							made.bones.push_back(bone);
+							made.offsets.push_back(places);
 						}
 					}
 				}
@@ -3401,7 +3457,9 @@ namespace host
 		}
 
 		// SHPBONHD: SHPBONIN, then one SHPBONE (holding one SHPBONDT) for each bone that got points
-		Image BoneHeader(int32_t number, int32_t subNumber, int32_t pointCount, std::string const &hierarchy, std::vector<std::pair<std::string, std::vector<int32_t>>> const &assigned)
+		// offsets (when not null) holds each assigned point's place relative to its bone, in assigned's order (BonePointOffsets); none, or a missing one: 0, 0, 0
+		Image BoneHeader(int32_t number, int32_t subNumber, int32_t pointCount, std::string const &hierarchy, std::vector<std::pair<std::string, std::vector<int32_t>>> const &assigned,
+			std::vector<std::vector<std::array<int32_t, 3>>> const *offsets = nullptr)
 		{
 			Image header = ChunkStart("SHPBONHD");
 			Image info = ChunkStart("SHPBONIN");
@@ -3413,19 +3471,22 @@ namespace host
 			FinishChunk(&info);
 			header.insert(header.end(), info.begin(), info.end());
 
-			for (auto const &bone : assigned)
+			for (size_t b = 0; b < assigned.size(); b++)
 			{
+				auto const &bone = assigned[b];
 				Image data = ChunkStart("SHPBONDT");
 
 				PutText(&data, bone.first);
 				PutInt(&data, (int32_t)bone.second.size());
 
-				for (int32_t const index : bone.second)
+				for (size_t k = 0; k < bone.second.size(); k++)
 				{
-					PutInt(&data, index);
-					PutInt(&data, 0);
-					PutInt(&data, 0);
-					PutInt(&data, 0);
+					bool const has = offsets && b < offsets->size() && k < (*offsets)[b].size();
+
+					PutInt(&data, bone.second[k]);
+					PutInt(&data, has ? (*offsets)[b][k][0] : 0);
+					PutInt(&data, has ? (*offsets)[b][k][1] : 0);
+					PutInt(&data, has ? (*offsets)[b][k][2] : 0);
 					PutInt(&data, 0x3f800000);
 				}
 
@@ -3488,6 +3549,7 @@ namespace host
 				out->subNumber = each.subNumber;
 				out->points = each.points;
 				out->bones = each.bones;
+				out->offsets = each.offsets;
 				break;
 			}
 		}
@@ -3631,7 +3693,12 @@ namespace host
 			connected++;
 		}
 
-		Image const header = BoneHeader(number, subNumber, (int32_t)pointCount, hierarchy, assigned);
+		// TB-3: each point's place relative to its bone (FUN_0041eae0 at 0x41f804)
+		std::vector<std::vector<std::array<int32_t, 3>>> offsets;
+
+		BonePointOffsets(bones, objectMatrix, object.place, image, verticesAt, pointCount, assigned, &offsets);
+
+		Image const header = BoneHeader(number, subNumber, (int32_t)pointCount, hierarchy, assigned, &offsets);
 
 		Image out;
 
@@ -3872,11 +3939,20 @@ namespace host
 			current.bones.push_back(std::make_pair(bone, std::vector<int32_t>()));
 		}
 
+		// each point's offset beside it (TB-3): a point that moves takes its record's offset with it
+		current.offsets.resize(current.bones.size());
+
+		for (size_t b = 0; b < current.bones.size(); b++)
+		{
+			current.offsets[b].resize(current.bones[b].second.size(), std::array<int32_t, 3>{ { 0, 0, 0 } });
+		}
+
 		size_t changed = 0;
 
 		for (int32_t const point : points)
 		{
 			bool already = false;
+			std::array<int32_t, 3> carried = { { 0, 0, 0 } };
 
 			for (size_t b = 0; b < current.bones.size(); b++)
 			{
@@ -3892,7 +3968,9 @@ namespace host
 						}
 						else
 						{
+							carried = current.offsets[b][i];
 							list.erase(list.begin() + (std::ptrdiff_t)i);
+							current.offsets[b].erase(current.offsets[b].begin() + (std::ptrdiff_t)i);
 						}
 
 						break;
@@ -3903,11 +3981,32 @@ namespace host
 			if (!already)
 			{
 				current.bones[slot].second.push_back(point);
+				current.offsets[slot].push_back(carried);
 				changed++;
 			}
 		}
 
-		Image const header = BoneHeader(current.number, current.subNumber, current.points, hierarchy, current.bones);
+		// TB-3, FUN_0041eae0 at 0x47ad94: every bone's points worked out again in the reference pose (number, sub from SHPBONIN); a bone the pose doesn't have, or no reference sequence at
+		// all, keeps its offsets as they were
+		{
+			Span section, vertices;
+			bool walkable = false;
+			Matrix3 identity = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+			int32_t const origin[3] = { 0, 0, 0 };
+			std::vector<Bone> bones;
+			ReferenceFrame rootFrame;
+
+			if (RootSection(image, root, hierarchy, &section) == HierarchyEditResult::Done && MakeBones(image, section, current.number, current.subNumber, identity, origin, &bones, &rootFrame, 0) &&
+				FirstChild(image, object.shape, "SHPRAWVT", &vertices, &walkable) && vertices.size >= kHeadingBytes)
+			{
+				Matrix3 objectMatrix;
+
+				QuatToMatrix(object.turn, objectMatrix);
+				BonePointOffsets(bones, objectMatrix, object.place, image, vertices.at + kHeadingBytes, (vertices.size - kHeadingBytes) / 12, current.bones, &current.offsets);
+			}
+		}
+
+		Image const header = BoneHeader(current.number, current.subNumber, current.points, hierarchy, current.bones, &current.offsets);
 		Image out;
 
 		if (!Spliced(image, { root.at, object.shape.at }, mine->span.at, mine->span.size, header, &out))

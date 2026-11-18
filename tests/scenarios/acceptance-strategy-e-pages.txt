@@ -1,0 +1,64 @@
+# ACCEPTANCE (red first; Bishop 11-18, strategy-data.md S-52): E IS READ ON PAGE 0 ONLY, on his path (Invasion, the file opened as a double click).
+# inteng reads E's slot (0xd87a85) in one place on this screen: the page's dispatcher FUN_00524e90 0x524ee3-0x524eec (command 7, Edit Strategy), which only page 0's frame FUN_00522980 calls (0x522a0c).
+# The flag page FUN_00525700 and Stability FUN_00527370 are loops of their own (each runs FUN_00529370's frame) and neither reads 0xd87a85: E does nothing there. Ours sent E to Edit Strategy on both, so
+# the listed module's view opened over the flag page, and the current module's view over Stability's faces.
+# RED on bishop-int e378833e: E on the flag page and on Stability opens gARAGDOR's Switch door view (strategyview not empty).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+# the subject: gARAGDOR, the room in the middle of the view (no strategy in stock Invasion, so no replace question), given a Switch Door so that E has a view to open; Escape ends the view
+click-win 504 364
+expect-selected 1
+click-win 504 364 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Switch_Door
+wait 400
+expect-field-has strategyview gARAGDOR : Switch door
+key Esc
+wait 300
+expect-field-empty strategyview
+
+# THE FLAG PAGE (Mode > Module flags): the room put in the page's list, then E: no view
+click-bar Mode > Module flags
+expect-screen Strategy Data
+click-win 504 364
+expect-selected 1
+key E
+wait 400
+expect-field-empty strategyview
+expect-status-not Edit Strategy
+expect-no-dialog
+click-bar Mode > Exit
+expect-screen Strategy Data
+expect-bar1 Misc
+
+# STABILITY (Mode > Stability flags, on the current module): E, no view; Return asks to keep the changes, No
+click-win 504 364
+expect-selected 1
+click-bar Mode > Stability flags
+wait 300
+expect-field stability gggggg
+key E
+wait 400
+expect-field-empty strategyview
+expect-status-not Edit Strategy
+expect-field stability gggggg
+key Enter
+expect-dialog Would you like to keep the changes?
+click-button No
+expect-no-dialog
+
+# the control: on page 0, E is Edit Strategy, the room's view opens
+click-win 504 364
+expect-selected 1
+key E
+wait 400
+expect-field-has strategyview gARAGDOR : Switch door
+key Esc
+wait 300
+expect-field-empty strategyview

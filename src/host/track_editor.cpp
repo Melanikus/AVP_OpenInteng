@@ -114,17 +114,28 @@ namespace host
 		{
 			// THE MARKER OBJECT was turned with the keys since it was last taken (the editor says by how much): the section's end turn is the marker's (FUN_004f0cd0 0x4f0cd0 copies the marker's matrix into the end, when the
 			// section has no spin), and the object stays where the marker is, or turns about the pivot (P)
-			if ((ed->markerTurn[0] != 0.0 || ed->markerTurn[1] != 0.0 || ed->markerTurn[2] != 0.0) && !loaded->track.sections.empty() && ed->current < loaded->track.sections.size())
-			{
-				float quat[4];
+			// (T-3a: after Jump To Start the marker is turned from the start's turn it was given, markerBase, and that turn is the end's even with no key turn since)
+			bool const turned = ed->markerTurn[0] != 0.0 || ed->markerTurn[1] != 0.0 || ed->markerTurn[2] != 0.0;
+			bool const based = ed->markerBaseSet && ed->markerBaseSection == ed->current;
 
-				if (!turnFn || !turnFn(loaded->track.sections[ed->current].quatEnd, ed->markerTurn[0], ed->markerTurn[1], ed->markerTurn[2], quat) || !TrackData_SetEndTurn(&loaded->track, ed->current, quat, placeFn, !ed->markerAboutPivot))
+			if ((turned || based) && !loaded->track.sections.empty() && ed->current < loaded->track.sections.size())
+			{
+				float base[4], quat[4];
+
+				for (int i = 0; i < 4; i++)
+				{
+					base[i] = based ? ed->markerBase[i] : loaded->track.sections[ed->current].quatEnd[i];
+					quat[i] = base[i];
+				}
+
+				if ((turned && (!turnFn || !turnFn(base, ed->markerTurn[0], ed->markerTurn[1], ed->markerTurn[2], quat))) || !TrackData_SetEndTurn(&loaded->track, ed->current, quat, placeFn, !ed->markerAboutPivot))
 				{
 					action->words = "Finish End Pos Edit: that turn of the marker is not one the game's loader takes";
 					return false;
 				}
 
 				ed->markerTurn[0] = ed->markerTurn[1] = ed->markerTurn[2] = 0.0;
+				ed->markerBaseSet = false;
 				action->markerTurnTaken = true;
 			}
 
@@ -297,6 +308,71 @@ namespace host
 		return true;
 	}
 
+	bool TrackEdit_MarkerBase(TrackEditor const &ed, float out[4])
+	{
+		if (!ed.working || ed.current >= ed.working->track.sections.size())
+		{
+			return false;
+		}
+
+		bool const based = ed.markerBaseSet && ed.markerBaseSection == ed.current;
+
+		for (int i = 0; i < 4; i++)
+		{
+			out[i] = based ? ed.markerBase[i] : ed.working->track.sections[ed.current].quatEnd[i];
+		}
+
+		return true;
+	}
+
+	// The track in memory LET GO, as inteng's FUN_004eff90 lets a track go (Stop Track Edit, and each track of Shift+T): FUN_004f1300 writes it, FUN_004f0870 gives the object the track's pose at its
+	// timer start, the editing is over. False (the editing goes on, the track in memory kept) when the game's loader refuses either write.
+	static bool LetTheTrackGo(OpenLevelFile *file, TrackEditor *ed, TrackLoaded const &loaded, TrackAction *action)
+	{
+		// inteng writes the track when the editing stops (FUN_004eff90(0,0) -> FUN_004f1300): an object that had none gets the one-section track it started with. The game's loader checks it now; if it refuses, nothing is
+		// written and the editing goes on (the track in memory is kept)
+		bool const made = !loaded.had;
+
+		{
+			TrackEditResult const written = TrackStore(file, ed->id, loaded);
+
+			if (written != TrackEditResult::Done)
+			{
+				action->words = std::string("Stop Track Edit: the track could not be written, the editing goes on: ") + TrackEditWords(written);
+				return false;
+			}
+
+			action->changed = true;
+		}
+
+		// ... and the object takes the pose the track has at its timer start (FUN_004eff90 0x4effba, FUN_004f0870 writing the object's matrix and place): its record in the level now says so
+		if (poseFn && !loaded.track.sections.empty())
+		{
+			int32_t place[3];
+			float quat[4];
+
+			if (poseFn(loaded.track, place, quat))
+			{
+				TrackEditResult const posed = TrackSetObjectPose(file, ed->id, place, quat);
+
+				if (posed != TrackEditResult::Done)
+				{
+					action->words = std::string("Stop Track Edit: the object could not take the track's start pose: ") + TrackEditWords(posed);
+					return false;
+				}
+
+				action->changed = true;
+			}
+		}
+
+		action->stopPlay = ed->state == TrackState::Playing;
+		ed->state = TrackState::Off;
+		ed->working.reset();
+		action->leave = true;
+		action->words = made ? "Stop Track Edit: the object now has the one-section track" : "Stop Track Edit: the track is kept in the level's bytes until Save a copy";
+		return true;
+	}
+
 	bool TrackEdit_Enter(OpenLevelFile *file, uint8_t const *objectId, TrackEditor *editor, TrackAction *action, bool followTheObject)
 	{
 		*action = TrackAction();
@@ -388,6 +464,7 @@ namespace host
 
 		case 0x516:   // Edit Section End Position
 			ed->state = TrackState::EndEdit;
+			ed->markerBaseSet = false;   // the marker starts as the section's end (FUN_004f0c70)
 			CursorToEnd(loaded, ed->current, action);
 			action->words = "Edit Section End Position: " + Which(*ed, loaded) + " ends at the end marker (the 3D cursor): press F to fly it with the camera, F again to let it go, then Finish End Pos Edit";
 			return;
@@ -465,6 +542,8 @@ namespace host
 
 		case 0x524: case 0x528: case 0x52a:   // Sound / Start Sound / End Sound > Edit
 		{
+			// 0x4dce2b..0x4dcf75: the track's sound of that kind, or (none) a new one made by FUN_004f2a60: "Not Set", volume 127, pitch 0, flags 1 (it loops), and its ranges 500000 / 1000000 in
+			// inteng's OWN units (the file's x 100 x the scale): the editor puts those into the window as they are (TrackAction::soundNew). Then FUN_004f2bf0, edobtype's Sound Edit window.
 			int const index = command == 0x524 ? 0 : (command == 0x528 ? 1 : 2);
 			TrackSound const *have = FindSound(&loaded, index);
 			TrackSound now;
@@ -475,13 +554,14 @@ namespace host
 			}
 			else
 			{
-				now.wav.clear();   // inteng's "Not Set" is no name a person can type: the field starts empty
+				now.flags = 1;   // FUN_004f2a60 0x4f2ad0
 			}
 
+			now.index = index;
 			action->prompt = TrackPrompt::Sound;
 			action->soundIndex = index;
-			action->promptDefault = now.wav + "\t" + std::to_string(now.innerRange) + " " + std::to_string(now.outerRange) + " " + std::to_string(now.maxVolume) + " " + std::to_string(now.pitch) + " " +
-				((now.flags & 1) ? "1" : "0");
+			action->sound = now;
+			action->soundNew = have == nullptr;
 			action->words = std::string(SoundWords(index));
 			return;
 		}
@@ -590,7 +670,19 @@ namespace host
 
 			TrackData_MarkerAt(loaded.track, at, false, placeFn, action->cursor);
 			action->cursorSet = true;
-			action->words = std::string("Jump To Start: the 3D cursor is at the start of section ") + Number(at + 1);
+
+			// ... and its TURN (inteng: the end marker object takes the start marker's matrix with its place, 0x4dcda4 / 0x4dcdf5; T-3a): the marker is turned from that start's turn now, and
+			// Finish End makes it the end's
+			for (int i = 0; i < 4; i++)
+			{
+				ed->markerBase[i] = loaded.track.sections[at].quatStart[i];
+			}
+
+			ed->markerBaseSet = true;
+			ed->markerBaseSection = ed->current;
+			ed->markerTurn[0] = ed->markerTurn[1] = ed->markerTurn[2] = 0.0;
+			action->markerTurnTaken = true;   // the editor counts the keys' turn from here
+			action->words = std::string("Jump To Start: the end marker is at the start of section ") + Number(at + 1) + ", turned as it starts";
 			return;
 		}
 
@@ -601,47 +693,7 @@ namespace host
 				return;
 			}
 
-			// inteng writes the track when the editing stops (FUN_004eff90(0,0) -> FUN_004f1300): an object that had none gets the one-section track it started with. The game's loader checks it now; if it refuses, nothing is
-			// written and the editing goes on (the track in memory is kept)
-			bool const made = !loaded.had;
-
-			{
-				TrackEditResult const written = TrackStore(file, ed->id, loaded);
-
-				if (written != TrackEditResult::Done)
-				{
-					action->words = std::string("Stop Track Edit: the track could not be written, the editing goes on: ") + TrackEditWords(written);
-					return;
-				}
-
-				action->changed = true;
-			}
-
-			// ... and the object takes the pose the track has at its timer start (FUN_004eff90 0x4effba, FUN_004f0870 writing the object's matrix and place): its record in the level now says so
-			if (poseFn && !loaded.track.sections.empty())
-			{
-				int32_t place[3];
-				float quat[4];
-
-				if (poseFn(loaded.track, place, quat))
-				{
-					TrackEditResult const posed = TrackSetObjectPose(file, ed->id, place, quat);
-
-					if (posed != TrackEditResult::Done)
-					{
-						action->words = std::string("Stop Track Edit: the object could not take the track's start pose: ") + TrackEditWords(posed);
-						return;
-					}
-
-					action->changed = true;
-				}
-			}
-
-			action->stopPlay = ed->state == TrackState::Playing;
-			ed->state = TrackState::Off;
-			ed->working.reset();
-			action->leave = true;
-			action->words = made ? "Stop Track Edit: the object now has the one-section track" : "Stop Track Edit: the track is kept in the level's bytes until Save a copy";
+			LetTheTrackGo(file, ed, loaded, action);
 			return;
 		}
 		}
@@ -838,6 +890,52 @@ namespace host
 		}
 	}
 
+	void TrackEdit_SetSound(OpenLevelFile *file, TrackEditor *ed, int soundIndex, TrackSound const &given, TrackAction *action)
+	{
+		*action = TrackAction();
+
+		TrackLoaded loaded;
+
+		if (!ed || ed->state == TrackState::Off || soundIndex < 0 || soundIndex > 2 || !Load(file, ed, &loaded, action))
+		{
+			if (action->words.empty())
+			{
+				action->words = "Not editing a track";
+			}
+
+			return;
+		}
+
+		// the TRAKSOUN's name ends at its first zero and the game copies it whole (CopyNameFromChunk): a longer one or one with a zero inside is never written
+		if (given.wav.empty() || given.wav.size() > kTrackSoundNameMost || given.wav.find('\0') != std::string::npos)
+		{
+			action->words = std::string(SoundWords(soundIndex)) + ": the file name must be 1 to " + Number(kTrackSoundNameMost) + " letters";
+			return;
+		}
+
+		TrackSound sound = given;
+
+		sound.index = soundIndex;
+
+		if (TrackSound *const have = FindSound(&loaded, soundIndex))
+		{
+			*have = sound;
+		}
+		else
+		{
+			loaded.sounds.push_back(sound);
+		}
+
+		// the sounds go in the order middle, start, end (inteng saves them in that order: FUN_004f1300)
+		std::sort(loaded.sounds.begin(), loaded.sounds.end(), [](TrackSound const &a, TrackSound const &b) { return a.index < b.index; });
+
+		if (Store(file, ed, loaded, action))
+		{
+			action->words = std::string(SoundWords(soundIndex)) + ": " + sound.wav + ", ranges " + std::to_string(sound.innerRange) + " to " + std::to_string(sound.outerRange) +
+				", volume " + std::to_string(sound.maxVolume);
+		}
+	}
+
 	void TrackEdit_AnswerDelete(OpenLevelFile *file, TrackEditor *ed, std::string const &typed, TrackAction *action)
 	{
 		*action = TrackAction();
@@ -883,5 +981,67 @@ namespace host
 		{
 			ed->state = TrackState::Loaded;
 		}
+	}
+
+	void TrackEdit_UpdatePositions(OpenLevelFile *file, TrackEditor *ed, TrackAction *action)
+	{
+		*action = TrackAction();
+
+		if (!file)
+		{
+			action->words = "Updating track positions: no level is open";
+			return;
+		}
+
+		std::string notWritten;
+
+		// the track being edited, let go first, in whatever state the editing is (FUN_004efd50's first FUN_004eff90(block, 0) writes the sections as they are: an end marker being placed is not taken,
+		// unlike Stop Track Edit's Finish End Pos Edit); a play is stopped
+		if (ed && ed->state != TrackState::Off)
+		{
+			TrackLoaded loaded;
+			TrackAction stopped;
+
+			if (!Load(file, ed, &loaded, &stopped) || !LetTheTrackGo(file, ed, loaded, &stopped))
+			{
+				// the edited track could not be written: the editing goes on, as Stop Track Edit's own refusal leaves it, and nothing else is updated
+				action->changed = stopped.changed;
+				action->words = "Updating track positions: " + stopped.words;
+				return;
+			}
+
+			action->changed = true;
+			action->stopPlay = stopped.stopPlay;
+			action->leave = true;   // TB-T2: Track Editing is over (inteng leaves it on with no track)
+		}
+
+		// every object holding a track, in the list's order (the IDs taken first: each write puts the level together again); each loaded as Edit Track loads it (re-based) and let go
+		std::vector<TrackObjectId> const tracked = TrackObjectsWithTracks(file);
+		size_t updated = 0;
+
+		for (TrackObjectId const &id : tracked)
+		{
+			TrackEditor one;
+			TrackAction step;
+
+			if (TrackEdit_Enter(file, id.bytes, &one, &step, true) && one.working)
+			{
+				TrackLoaded const loaded = *one.working;
+
+				if (LetTheTrackGo(file, &one, loaded, &step))
+				{
+					action->changed = true;
+					updated++;
+					continue;
+				}
+
+				action->changed = action->changed || step.changed;
+			}
+
+			notWritten += (notWritten.empty() ? "" : "; ") + step.words;
+		}
+
+		action->words = "Updating track positions: " + Number(updated) + " of " + Number(tracked.size()) + " tracks re-based onto their objects and written" +
+			(notWritten.empty() ? std::string() : " (not written: " + notWritten + ")");
 	}
 }

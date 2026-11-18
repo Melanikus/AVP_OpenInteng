@@ -238,6 +238,55 @@ static void OneObject(OpenLevelFile *f, uint8_t const *id, std::string const &wh
 	host::TrackEdit_AnswerSound(f, &ed, 2, "x.wav 500 100", &act);
 	Check(!act.changed, where + ": ranges the wrong way round are refused");
 
+	// T-1: Sound > Edit hands the sound to edobtype's Sound Edit window (FUN_004f2bf0): the track's own, or (none) inteng's new one (FUN_004f2a60: "Not Set", flags 1, made in the editor's units)
+	host::TrackEdit_Command(f, &ed, 0x528, place, &act);
+	Check(act.prompt == host::TrackPrompt::Sound && act.soundIndex == 1 && !act.soundNew && act.sound.wav == "door_open.wav" && act.sound.innerRange == 100 && act.sound.outerRange == 200,
+		where + ": Start Sound > Edit hands over the start sound as the track holds it");
+	host::TrackEdit_Command(f, &ed, 0x52b, place, &act);
+	host::TrackEdit_Command(f, &ed, 0x52a, place, &act);
+	Check(act.prompt == host::TrackPrompt::Sound && act.soundIndex == 2 && act.soundNew && act.sound.wav == "Not Set" && act.sound.flags == 1 && act.sound.maxVolume == 127 && act.sound.pitch == 0,
+		where + ": End Sound > Edit with no end sound hands over inteng's new one (Not Set, loops, volume 127, pitch 0)");
+
+	// what the window gives back is taken whole, as inteng's __ftol takes it: "Not Set" (a Cancel on a new one), ranges the wrong way round
+	{
+		host::TrackSound back;
+
+		back.wav = "Not Set";
+		back.innerRange = 6250;
+		back.outerRange = 3125;
+		back.maxVolume = 101;
+		back.pitch = -128;
+		back.flags = 1;
+		host::TrackEdit_SetSound(f, &ed, 2, back, &act);
+		Check(act.changed, where + ": the window's sound is set whatever its numbers: " + act.words);
+
+		host::TrackLoaded now;
+		bool endIs = false;
+
+		if (ed.working)
+		{
+			now = *ed.working;
+		}
+
+		for (host::TrackSound const &s : now.sounds)
+		{
+			endIs = endIs || (s.index == 2 && s.wav == "Not Set" && s.innerRange == 6250 && s.outerRange == 3125 && s.maxVolume == 101 && s.pitch == -128 && s.flags == 1);
+		}
+
+		Check(endIs, where + ": the end sound in memory is the window's");
+
+		// HOSTILE: a name longer than the file's bound or with a zero inside is never written (the game copies the name to its first zero)
+		back.wav = std::string(host::kTrackSoundNameMost + 1, 'a');
+		host::TrackEdit_SetSound(f, &ed, 2, back, &act);
+		Check(!act.changed, where + ": a name longer than " + std::to_string(host::kTrackSoundNameMost) + " letters is refused");
+		back.wav = std::string("a\0b.wav", 7);
+		host::TrackEdit_SetSound(f, &ed, 2, back, &act);
+		Check(!act.changed, where + ": a name with a zero inside is refused");
+		back.wav.clear();
+		host::TrackEdit_SetSound(f, &ed, 2, back, &act);
+		Check(!act.changed, where + ": an empty name is refused");
+	}
+
 	host::TrackLoaded fin;
 
 	if (ed.working)
@@ -295,6 +344,181 @@ static void OneObject(OpenLevelFile *f, uint8_t const *id, std::string const &wh
 		where + ": a track pasted onto an object with no track is taken, the copied one");
 }
 
+// The track of each object as its numbers (TrackLoad's, as bytes), in the order of the IDs; an object whose track can't be read gives an empty entry
+static std::vector<std::vector<uint8_t> > TracksOf(OpenLevelFile *f, std::vector<host::TrackObjectId> const &ids)
+{
+	std::vector<std::vector<uint8_t> > tracks;
+
+	for (host::TrackObjectId const &id : ids)
+	{
+		host::TrackLoaded loaded;
+		std::vector<uint8_t> bytes;
+
+		if (host::TrackLoad(f, id.bytes, &loaded) == host::TrackEditResult::Done && loaded.had)
+		{
+			host::TrackData_Bytes(loaded.track, &bytes);
+		}
+
+		tracks.push_back(bytes);
+	}
+
+	return tracks;
+}
+
+static bool SameIds(std::vector<host::TrackObjectId> const &a, std::vector<host::TrackObjectId> const &b)
+{
+	if (a.size() != b.size())
+	{
+		return false;
+	}
+
+	for (size_t i = 0; i < a.size(); i++)
+	{
+		if (memcmp(a[i].bytes, b[i].bytes, 8) != 0)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+static bool SameQuat(float const a[4], float const b[4])
+{
+	return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3];
+}
+
+// JUMP TO START's TURN (T-3a; inteng 0x4dcda4 / 0x4dcdf5): in the end edit, Jump To Start > Next / This Section gives the end marker the start's turn with its place, so a Finish End right after
+// it makes that turn the section's end turn. On a level opened afresh, the first track whose next section starts turned otherwise than the current section ends.
+static void JumpTurn(char const *path, std::string const &where)
+{
+	OpenLevelFile f;
+
+	if (f.Open(path) != LevelOpenResult::Opened)
+	{
+		Check(false, where + ": the level opens afresh for Jump To Start");
+		return;
+	}
+
+	for (host::TrackObjectId const &id : host::TrackObjectsWithTracks(&f))
+	{
+		host::TrackLoaded loaded;
+
+		if (host::TrackLoad(&f, id.bytes, &loaded) != host::TrackEditResult::Done || loaded.track.sections.size() < 2 ||
+			SameQuat(loaded.track.sections[0].quatEnd, loaded.track.sections[1].quatStart) || SameQuat(loaded.track.sections[0].quatEnd, loaded.track.sections[0].quatStart))
+		{
+			continue;
+		}
+
+		float const nextStart[4] = { loaded.track.sections[1].quatStart[0], loaded.track.sections[1].quatStart[1], loaded.track.sections[1].quatStart[2], loaded.track.sections[1].quatStart[3] };
+		float const ownStart[4] = { loaded.track.sections[0].quatStart[0], loaded.track.sections[0].quatStart[1], loaded.track.sections[0].quatStart[2], loaded.track.sections[0].quatStart[3] };
+		host::TrackEditor ed;
+		host::TrackAction act;
+		float base[4];
+
+		// Next Section's start, then Finish End: section 1's end turn is section 2's start turn
+		Check(host::TrackEdit_Enter(&f, id.bytes, &ed, &act, false), where + ": Edit Track for Jump To Start");
+		host::TrackEdit_Command(&f, &ed, 0x516, act.cursor, &act);
+		host::TrackEdit_Command(&f, &ed, 0x522, act.cursor, &act);
+
+		int32_t const at[3] = { act.cursor[0], act.cursor[1], act.cursor[2] };
+
+		Check(act.cursorSet && act.markerTurnTaken && host::TrackEdit_MarkerBase(ed, base) && SameQuat(base, nextStart), where + ": Jump To Start > Next Section gives the end marker the next section's start turn");
+		host::TrackEdit_Command(&f, &ed, 0x517, at, &act);
+		Check(ed.working && SameQuat(ed.working->track.sections[0].quatEnd, nextStart) && !ed.markerBaseSet, where + ": Finish End right after it: section 1 ends turned as section 2 starts (" + act.words + ")");
+
+		// This Section's start: back to section 1's own start turn
+		host::TrackEdit_Command(&f, &ed, 0x516, at, &act);
+		Check(host::TrackEdit_MarkerBase(ed, base) && SameQuat(base, nextStart), where + ": Edit Section End Position again: the marker starts as the end, now turned as section 2 starts");
+		host::TrackEdit_Command(&f, &ed, 0x521, at, &act);
+
+		int32_t const own[3] = { act.cursor[0], act.cursor[1], act.cursor[2] };
+
+		host::TrackEdit_Command(&f, &ed, 0x517, own, &act);
+		Check(ed.working && SameQuat(ed.working->track.sections[0].quatEnd, ownStart), where + ": Jump To Start > This Section, Finish End: section 1 ends turned as it starts");
+		return;
+	}
+}
+
+// SHIFT+T, "Updating track positions" (T-2, FUN_004efd50), on a level opened afresh. This test passes no re-base and no pose function (the game's track code is the editor's), so every track
+// is written back as it was read: the same objects hold tracks, in the same order, with the same numbers. And TB-T2: a track being edited is written first, in whatever state its editing is
+// (an end position being placed is not taken), and the editing is over.
+static void ShiftT(char const *path, std::string const &where)
+{
+	OpenLevelFile f;
+
+	if (f.Open(path) != LevelOpenResult::Opened)
+	{
+		Check(false, where + ": the level opens afresh for Shift+T");
+		return;
+	}
+
+	std::vector<host::TrackObjectId> const tracked = host::TrackObjectsWithTracks(&f);
+	size_t byHand = 0;
+	List<Object_Chunk *> objects;
+
+	f.Level()->list_objects(&objects);
+
+	for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+	{
+		byHand += each() && each()->lookup_single_child("OBJTRAK2") ? 1 : 0;
+	}
+
+	Check(tracked.size() == byHand, where + ": Shift+T's list is every object holding an OBJTRAK2 (" + std::to_string(byHand) + ")");
+
+	// every track is written twice below and each write puts the level together again: the whole update is run on Invasion (his level, 50+ tracks) and on the first two other levels that hold
+	// tracks, so the test stays inside its time (the list itself is checked on every level, above)
+	static int shiftTLevels = 0;
+
+	if (!tracked.empty() && where != "Invasion.RIF" && shiftTLevels >= 2)
+	{
+		return;
+	}
+
+	if (!tracked.empty() && where != "Invasion.RIF")
+	{
+		shiftTLevels++;
+	}
+
+	if (tracked.empty())
+	{
+		host::TrackEditor idle;
+		host::TrackAction none;
+
+		host::TrackEdit_UpdatePositions(&f, &idle, &none);
+		Check(!none.changed && !none.leave && none.words == "Updating track positions: 0 of 0 tracks re-based onto their objects and written", where + ": Shift+T with no track changes nothing");
+		return;
+	}
+
+	std::vector<std::vector<uint8_t> > const before = TracksOf(&f, tracked);
+
+	// TB-T2: the first tracked object's track is being edited, its end position being placed (Edit Section End Position, state 3)
+	host::TrackEditor ed;
+	host::TrackAction act;
+	int32_t const farAway[3] = { 123456, 0, 0 };
+
+	Check(host::TrackEdit_Enter(&f, tracked[0].bytes, &ed, &act, true) && ed.state == host::TrackState::Loaded, where + ": Edit Track on the first tracked object");
+	host::TrackEdit_Command(&f, &ed, 0x516, farAway, &act);
+	Check(ed.state == host::TrackState::EndEdit, where + ": Edit Section End Position");
+
+	host::TrackEdit_UpdatePositions(&f, &ed, &act);
+
+	std::string const all = std::to_string(tracked.size());
+
+	Check(act.changed && act.leave && ed.state == host::TrackState::Off && !ed.working && act.words == "Updating track positions: " + all + " of " + all + " tracks re-based onto their objects and written",
+		where + ": Shift+T while a track is edited: every track written, the editing over and Track Editing left (TB-T2), said as \"" + act.words + "\"");
+	Check(SameIds(host::TrackObjectsWithTracks(&f), tracked), where + ": after Shift+T the same objects hold tracks, in the same order");
+	Check(TracksOf(&f, tracked) == before, where + ": after Shift+T each track is as it was (no re-base function here), the end marker being placed not taken");
+
+	// Shift+T with nothing edited: the same, and Track Editing is not asked to be left
+	host::TrackEdit_UpdatePositions(&f, &ed, &act);
+	Check(act.changed && !act.leave && TracksOf(&f, tracked) == before, where + ": Shift+T again, with nothing edited: every track written as it was, nothing to leave");
+
+	// with no level
+	host::TrackEdit_UpdatePositions(nullptr, &ed, &act);
+	Check(!act.changed && act.words == "Updating track positions: no level is open", where + ": Shift+T with no level open does nothing");
+}
+
 int main(int argc, char **argv)
 {
 	int levels = 0, tracks = 0, edited = 0, offsets = 0;
@@ -314,20 +538,58 @@ int main(int argc, char **argv)
 
 		f.Level()->list_objects(&objects);
 
-		// the IDs first: every edit replaces the level, so the list of chunks is not kept
+		std::string const name = argv[a];
+
+		// the IDs first: every edit replaces the level, so the list of chunks is not kept. ONLY THE OBJECTS THAT HOLD A TRACK (an OBJTRAK2, as the game's own chunk sees it, not the code
+		// under test): OneObject checks nothing on any other object, and every track call puts the whole level together (track_edit.cpp Find: BuildLevel), so walking each of a big
+		// level's ~1000 objects cost most of the test's time (Bishop's round 3, 11-17: over its 600 s limit). One object with no track, whose name no tracked object has (the calls find
+		// an object by its name), is checked to have none.
 		std::vector<std::vector<uint8_t> > ids;
+		std::vector<std::string> trackedNames;
+		std::vector<std::pair<std::string, std::vector<uint8_t> > > untracked;
 
 		for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
 		{
 			Object_Chunk *const o = each();
 
-			if (o)
+			if (!o)
 			{
-				ids.push_back(std::vector<uint8_t>((uint8_t const *)&o->object_data.ID, (uint8_t const *)&o->object_data.ID + 8));
+				continue;
+			}
+
+			std::vector<uint8_t> const id((uint8_t const *)&o->object_data.ID, (uint8_t const *)&o->object_data.ID + 8);
+			std::string const objectName = o->object_data.o_name ? o->object_data.o_name : "";
+
+			if (o->lookup_single_child("OBJTRAK2"))
+			{
+				ids.push_back(id);
+				trackedNames.push_back(objectName);
+			}
+			else if (untracked.size() < 8)
+			{
+				untracked.push_back(std::make_pair(objectName, id));
 			}
 		}
 
-		std::string const name = argv[a];
+		for (std::pair<std::string, std::vector<uint8_t> > const &one : untracked)
+		{
+			bool nameTracked = one.first.empty();
+
+			for (std::string const &n : trackedNames)
+			{
+				nameTracked = nameTracked || n == one.first;
+			}
+
+			if (!nameTracked)
+			{
+				host::TrackClip none;
+
+				Check(!host::TrackExists(&f, one.second.data()) && host::TrackCopy(&f, one.second.data(), &none) == host::TrackEditResult::NoTrack,
+					name.substr(name.find_last_of("/\\") + 1) + ": an object with no track (" + one.first + ") is known to have none, and Copy Track says so");
+				break;
+			}
+		}
+
 		int doneHere = 0;
 
 		for (std::vector<uint8_t> const &id : ids)
@@ -336,6 +598,8 @@ int main(int argc, char **argv)
 		}
 
 		edited += doneHere;
+		ShiftT(argv[a], name.substr(name.find_last_of("\\/") + 1));
+		JumpTurn(argv[a], name.substr(name.find_last_of("\\/") + 1));
 	}
 
 	Check(levels > 0 && tracks > 0, "levels were given and held tracks (a test that tests nothing is not a pass)");

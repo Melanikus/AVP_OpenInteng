@@ -1,0 +1,31 @@
+# ACCEPTANCE (red first; Drake 11-17): AutoLink > Module's "links added" on the owner's path, where he read "0 links added" as wrong while links were there (Genshd1, SHED06; Bishop's list).
+# It is RIGHT: AutoLink (not "delete old") keeps the links a module has (FUN_004c10c0(i, 0, 0) reads them first) and adds only modules its pictures see that the tree does not hold; SHED06's 20
+# links already hold every module its 47 pictures see. Module (delete old) starts from no links: 16 added, and the tree then holds 16 (the stock file's 4 more were made another way). The words
+# are ours (inteng says nothing at the end): they now say why when nothing was new. SHED06 = object number 216 (AvP-docs/tools/drake/path-graph: its one neighbour is SHDRMP01).
+# RED on bishop-int 056fed50: "0 links added, 1 modules written" with no reason.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Module Linking
+expect-screen Module Linking
+wait 400
+pick-module 216
+key S
+expect-status Current module: SHED06 (20 links)
+remember-field linktree
+pick-module 216
+click-bar AutoLink > Module
+wait-status 60000 AutoLink: 1 modules run
+expect-status 0 links added (every module seen was linked already; the links there are kept)
+expect-field-same linktree
+picture 1
+# ---- Module (delete old): the tree starts empty, every link the pictures find is new
+key S
+expect-status Current module: SHED06 (20 links)
+pick-module 216
+click-bar AutoLink > Module (delete old)
+wait-status 60000 AutoLink: 1 modules run
+expect-status 16 links added, 1 modules written
+expect-field-has linktree links 16
+picture 2

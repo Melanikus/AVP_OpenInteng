@@ -1,0 +1,42 @@
+# ACCEPTANCE (red first): TM-B, the multiple node mode's entry first gives the selected UNTEXTURED polygons the current texture with the window's corner nodes (FUN_00573f20 0x573f44 ->
+# FUN_00570040 -> FUN_005589e0; Dietrich, 2026-11-18), so they join the nodes. Ours: they joined no node, and with only untextured polygons selected the entry failed. His path: Invasion,
+# Mode > Texture Map, Misc > Find: Untextured polys (the camera goes in front of the first; G to the 7th, polygon 107), a click on it, M, Tab: the mode says one untextured polygon was given the current
+# texture first, with its nodes; Tab. State line only.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+item 0x46
+expect-screen Texture Map
+item 0xb7
+wait-status 30000 polygons haven't been done
+state
+expect-status (1 of
+# G six times: the 7th found, polygon 107, is one a click at the view's middle selects (the 1st to 6th are behind other polygons from where Find puts the camera)
+key G
+wait 200
+key G
+wait 200
+key G
+wait 200
+key G
+wait 200
+key G
+wait 200
+key G
+wait 300
+state
+expect-status polygon 107 (7 of
+click-view 0.50 0.50
+wait 300
+state
+expect-status polygon 107 selected
+key M
+wait 200
+key Tab
+wait-status 30000 multiple node mode:
+state
+expect-status nodes from 1 polygons (1 untextured ones given the current texture first)
+key Tab
+wait 400
+state
+expect-status the polygons

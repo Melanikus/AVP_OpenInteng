@@ -581,9 +581,261 @@ namespace host
 			bool addIfMissing = false;   // put the chunk at the end of the shape's chunks when it has none
 		};
 
+		// TM-C H1: what inteng's removal FUN_00435080 does last (Delete polys' FUN_00563d90, and Split's FUN_00564300 on its copy of the shape), through the removal's point map and the shape's new
+		// point count. FUN_00435a00, each SHPBONHD of the shape: SHPBONIN's point count (its third number) becomes the shape's (0x435aaf); each SHPBONE keeps the records (20 bytes: the point, then
+		// four more numbers) of the points kept, in their order, each moved whole with its point renumbered (0x435b23-0x435b4b), and a SHPBONE left with no record is deleted (0x435bb0).
+		// FUN_00435c80, each SHPVTINT of every object using the shape: one number per point of the shape, a kept point's old one, 0xffffffff for any other (0x435dde-0x435e25).
+		// NAMED (input is hostile): inteng reads its map past its end for a record whose point is past the old shape's points (FUN_00435a00 reads param_2[point]) and for a colour list longer than the
+		// old shape (FUN_00435c80 reads param_2[i] for every i of the list); here such a record goes, and such a colour is dropped.
+		struct PointRemap
+		{
+			std::vector<int32_t> const *map;   // one per old point: its new number, or -1 (PolyRemoveMap::point)
+			int32_t count;                     // the shape's points now
+		};
+
+		// A SHPBONDT (the bone's name with its zero, padded to 4; the number of records; the records; the numbers after them) with the records of the points kept, renumbered; *kept counts them
+		bool RemapBoneRecords(Image const &image, Span const &data, PointRemap const &remap, Image *out, size_t *kept)
+		{
+			size_t const end = data.at + data.size;
+			size_t const nameAt = data.at + kHeadingBytes;
+
+			if (nameAt >= end)
+			{
+				return false;
+			}
+
+			char const *const first = image.data() + nameAt;
+			char const *const zero = (char const *)memchr(first, 0, end - nameAt);
+
+			if (!zero)
+			{
+				return false;
+			}
+
+			size_t const padded = ((size_t)(zero - first) + 4) & ~(size_t)3;
+			size_t at = nameAt + padded;
+
+			if (at > end || end - at < 4)
+			{
+				return false;
+			}
+
+			int32_t const count = IntAt(image, at);
+
+			at += 4;
+
+			if (count < 0 || (size_t)count > (end - at) / 20)
+			{
+				return false;
+			}
+
+			Image made;
+
+			AppendBytes(&made, image, data.at, kHeadingBytes + padded);
+
+			size_t const countAt = made.size();
+			size_t n = 0;
+
+			made.resize(countAt + 4);
+
+			for (int32_t k = 0; k < count; k++, at += 20)
+			{
+				int32_t const point = IntAt(image, at);
+
+				if (point < 0 || (size_t)point >= remap.map->size() || (*remap.map)[(size_t)point] < 0)
+				{
+					continue;
+				}
+
+				size_t const recordAt = made.size();
+
+				AppendBytes(&made, image, at, 20);
+				PutIntAt(&made, recordAt, (*remap.map)[(size_t)point]);
+				n++;
+			}
+
+			AppendBytes(&made, image, at, end - at);   // the numbers after the records, as they were
+			PutIntAt(&made, countAt, (int32_t)n);
+			PutIntAt(&made, 8, (int32_t)made.size());
+			out->insert(out->end(), made.begin(), made.end());
+			*kept += n;
+			return true;
+		}
+
+		// A SHPBONE with its SHPBONDT remapped (anything else in it copied); nothing at all when none of its points is kept
+		bool RemapBone(Image const &image, Span const &bone, PointRemap const &remap, Image *out)
+		{
+			std::vector<Span> parts;
+
+			if (!Children(image, bone.at + kHeadingBytes, bone.at + bone.size, &parts))
+			{
+				return false;
+			}
+
+			Image made;
+			size_t kept = 0;
+
+			AppendBytes(&made, image, bone.at, kHeadingBytes);
+
+			for (Span const &part : parts)
+			{
+				if (!NameIs(image, part.at, "SHPBONDT"))
+				{
+					AppendBytes(&made, image, part.at, part.size);
+				}
+				else if (!RemapBoneRecords(image, part, remap, &made, &kept))
+				{
+					return false;
+				}
+			}
+
+			if (kept == 0)
+			{
+				return true;   // FUN_00435a00 0x435bb0: a bone left with no point is deleted
+			}
+
+			PutIntAt(&made, 8, (int32_t)made.size());
+			out->insert(out->end(), made.begin(), made.end());
+			return true;
+		}
+
+		// A SHPBONHD remapped: SHPBONIN's point count is the shape's, each SHPBONE as above, anything else copied
+		bool RemapBoneHeader(Image const &image, Span const &header, PointRemap const &remap, Image *out)
+		{
+			std::vector<Span> parts;
+
+			if (!Children(image, header.at + kHeadingBytes, header.at + header.size, &parts))
+			{
+				return false;
+			}
+
+			Image made;
+
+			AppendBytes(&made, image, header.at, kHeadingBytes);
+
+			for (Span const &part : parts)
+			{
+				if (NameIs(image, part.at, "SHPBONIN"))
+				{
+					if (part.size < kHeadingBytes + 12)
+					{
+						return false;
+					}
+
+					size_t const at = made.size();
+
+					AppendBytes(&made, image, part.at, part.size);
+					PutIntAt(&made, at + kHeadingBytes + 8, remap.count);
+				}
+				else if (NameIs(image, part.at, "SHPBONE"))
+				{
+					if (!RemapBone(image, part, remap, &made))
+					{
+						return false;
+					}
+				}
+				else
+				{
+					AppendBytes(&made, image, part.at, part.size);
+				}
+			}
+
+			PutIntAt(&made, 8, (int32_t)made.size());
+			out->insert(out->end(), made.begin(), made.end());
+			return true;
+		}
+
+		// Whether a top-level RBOBJECT names this shape (its OBJHEAD1's payload holds the shape's number at 56)
+		bool ObjectUsesShape(Image const &image, Span const &object, int32_t shapeNumber)
+		{
+			std::vector<Span> parts;
+
+			if (!NameIs(image, object.at, "RBOBJECT") || !Children(image, object.at + kHeadingBytes, object.at + object.size, &parts))
+			{
+				return false;
+			}
+
+			for (Span const &part : parts)
+			{
+				if (NameIs(image, part.at, "OBJHEAD1") && part.size >= kHeadingBytes + 60 && IntAt(image, part.at + kHeadingBytes + 56) == shapeNumber)
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		// An object's chunk with each SHPVTINT (the set's name, a pad, the count, one number per point: chunk_light.cpp Shape_Vertex_Intensities_Chunk) made one number per point of the shape
+		bool RemapObjectTints(Image const &image, Span const &object, PointRemap const &remap, Image *out)
+		{
+			std::vector<Span> parts;
+
+			if (!Children(image, object.at + kHeadingBytes, object.at + object.size, &parts))
+			{
+				return false;
+			}
+
+			Image made;
+
+			AppendBytes(&made, image, object.at, kHeadingBytes);
+
+			for (Span const &part : parts)
+			{
+				if (!NameIs(image, part.at, "SHPVTINT"))
+				{
+					AppendBytes(&made, image, part.at, part.size);
+					continue;
+				}
+
+				if (part.size < kHeadingBytes + 16)
+				{
+					return false;
+				}
+
+				int32_t const count = IntAt(image, part.at + kHeadingBytes + 12);
+
+				if (count < 0 || (size_t)count > (part.size - kHeadingBytes - 16) / 4)
+				{
+					return false;
+				}
+
+				std::vector<int32_t> now((size_t)remap.count, -1);
+
+				for (int32_t i = 0; i < count && (size_t)i < remap.map->size(); i++)
+				{
+					int32_t const to = (*remap.map)[(size_t)i];
+
+					if (to >= 0 && to < remap.count)
+					{
+						now[(size_t)to] = IntAt(image, part.at + kHeadingBytes + 16 + (size_t)i * 4);
+					}
+				}
+
+				size_t const start = made.size();
+
+				AppendBytes(&made, image, part.at, kHeadingBytes + 16);   // the heading, the set's name, the pad and the count
+				PutIntAt(&made, start + kHeadingBytes + 12, remap.count);
+				made.resize(start + kHeadingBytes + 16 + now.size() * 4);
+
+				if (!now.empty())
+				{
+					memcpy(made.data() + start + kHeadingBytes + 16, now.data(), now.size() * 4);
+				}
+
+				PutIntAt(&made, start + 8, (int32_t)(made.size() - start));
+			}
+
+			PutIntAt(&made, 8, (int32_t)made.size());
+			out->insert(out->end(), made.begin(), made.end());
+			return true;
+		}
+
 		// The level as the next save would write it, with the chunks named in `chunks` of the shape numbered shapeNumber made again from their payloads (each must be in the shape, the others are
-		// copied as they were), put in by ReplaceLevel, which reads it with the game's loader and swaps it in only if the loader takes it.
-		Rebuilt RebuildShape(OpenLevelFile *file, int32_t shapeNumber, NewChunk const *chunks, size_t chunkCount)
+		// copied as they were), put in by ReplaceLevel, which reads it with the game's loader and swaps it in only if the loader takes it. appendTop (none by default): a whole top-level chunk put at
+		// the end of the file in the same image (Merge's copy of a shared shape, TM-B 2d: inteng's copy is the file's last child, FUN_0050e880). remap (none by default): the shape's points were
+		// renumbered (a removal), so its bone attachments and the vertex colours of the objects using it follow, in the same image (PointRemap, TM-C H1).
+		Rebuilt RebuildShape(OpenLevelFile *file, int32_t shapeNumber, NewChunk const *chunks, size_t chunkCount, Image const *appendTop = nullptr, PointRemap const *remap = nullptr)
 		{
 			Image image;
 
@@ -640,7 +892,18 @@ namespace host
 			{
 				if (i != at_Shape)
 				{
-					AppendBytes(&out, image, top[i].at, top[i].size);
+					if (remap && ObjectUsesShape(image, top[i], shapeNumber))
+					{
+						if (!RemapObjectTints(image, top[i], *remap, &out))
+						{
+							return Rebuilt::CantBuild;
+						}
+					}
+					else
+					{
+						AppendBytes(&out, image, top[i].at, top[i].size);
+					}
+
 					continue;
 				}
 
@@ -669,7 +932,14 @@ namespace host
 						}
 					}
 
-					if (which == chunkCount)
+					if (which == chunkCount && remap && NameIs(image, child.at, "SHPBONHD"))
+					{
+						if (!RemapBoneHeader(image, child, *remap, &out))
+						{
+							return Rebuilt::CantBuild;
+						}
+					}
+					else if (which == chunkCount)
 					{
 						AppendBytes(&out, image, child.at, child.size);
 					}
@@ -697,6 +967,11 @@ namespace host
 				}
 
 				PutIntAt(&out, start + 8, (int32_t)(out.size() - start));
+			}
+
+			if (appendTop)
+			{
+				out.insert(out.end(), appendTop->begin(), appendTop->end());
 			}
 
 			PutIntAt(&out, 8, (int32_t)out.size());
@@ -1564,7 +1839,10 @@ namespace host
 			chunks[used++] = { "SHPCENTR", &centreBytes };
 		}
 
-		switch (RebuildShape(file, model.number, chunks, used))
+		// TM-C H1 (FUN_00435a00, FUN_00435c80): the bone attachments and the users' vertex colours follow the points
+		PointRemap const remap = { &made.point, (int32_t)model.points.size() };
+
+		switch (RebuildShape(file, model.number, chunks, used, nullptr, &remap))
 		{
 		case Rebuilt::Done:
 			if (map)
@@ -1956,6 +2234,317 @@ namespace host
 		return "unknown answer";
 	}
 
+	namespace
+	{
+		// FUN_0055cdf0's shared corners: each of a's first three corners at the same point as one of b's first three (inteng looks at three: a merged pair is two triangles). Their places on the
+		// picture are compared as whole texels, as the game's loader holds them (uv_model.h: chunk_load.cpp:2789, 2863). A corner a list lacks is no match.
+		bool SameUvsAtSharedCorners(model::ShapePolygon const &a, model::ShapePolygon const &b, model::UvList const *aList, model::UvList const *bList)
+		{
+			if (!aList || !bList)
+			{
+				return false;
+			}
+
+			for (int c = 0; c < 3; c++)
+			{
+				for (int k = 0; k < 3; k++)
+				{
+					if (a.corners[c] < 0 || a.corners[c] != b.corners[k])
+					{
+						continue;
+					}
+
+					if (c >= aList->cornerCount || k >= bList->cornerCount)
+					{
+						return false;
+					}
+
+					if ((int32_t)aList->corners[c].u != (int32_t)bList->corners[k].u || (int32_t)aList->corners[c].v != (int32_t)bList->corners[k].v)
+					{
+						return false;
+					}
+				}
+			}
+
+			return true;
+		}
+	}
+
+	size_t PolyEdit_CheckMergedPairs(model::ShapeModel *model, std::vector<model::UvList> const &lists, std::vector<int32_t> *merge, bool *polygonsChanged)
+	{
+		bool changed = false;
+		size_t parted = 0;
+
+		if (polygonsChanged)
+		{
+			*polygonsChanged = false;
+		}
+
+		if (!model || !merge || merge->size() != model->polygons.size())
+		{
+			return 0;
+		}
+
+		// the list of a polygon's texture coordinates, or null when the shape has none at its number
+		auto const listOf = [&lists](model::ShapePolygon const &polygon) -> const model::UvList *
+		{
+			uint32_t const number = (uint32_t)model::PolygonUvListNumber(polygon.colour);
+
+			return number < lists.size() ? &lists[number] : nullptr;
+		};
+
+		// the type as Texture Map holds it (FUN_0055d770): a textured type with no list or an empty one is 2 (0x55d8d2: the game's loader leaves it untextured, chunk_load.cpp:2849), 6 / 0x15 / 0x16
+		// are 5 (0x55da15), 0x17 / 0x18 / 0x19 are 7 (0x55da1e)
+		auto const heldType = [&listOf](model::ShapePolygon const &polygon) -> int32_t
+		{
+			int32_t const type = polygon.engineType;
+
+			if (!model::EngineTypeIsTextured(type))
+			{
+				return type;
+			}
+
+			model::UvList const *const list = listOf(polygon);
+
+			if (!list || list->cornerCount == 0)
+			{
+				return 2;
+			}
+
+			return type == 7 || type >= 0x17 ? 7 : 5;
+		};
+
+		for (size_t i = 0; i < merge->size(); i++)
+		{
+			int32_t const partner = (*merge)[i];
+
+			if (partner < 0 || (size_t)partner >= i)
+			{
+				continue;
+			}
+
+			model::ShapePolygon &a = model->polygons[i];
+			model::ShapePolygon &b = model->polygons[(size_t)partner];
+			bool part = false;
+
+			// the flags made one: each gets both (0x55d558)
+			if (a.flags != b.flags)
+			{
+				a.flags |= b.flags;
+				b.flags = a.flags;
+				changed = true;
+			}
+
+			int32_t const aType = heldType(a), bType = heldType(b);
+			bool const aTextured = model::EngineTypeIsTextured(aType), bTextured = model::EngineTypeIsTextured(bType);
+
+			// the types: an untextured one parts the pair (0x55d5e3); both textured, the higher-numbered takes its partner's (0x55d5d8)
+			if (aType != bType)
+			{
+				if (!aTextured || !bTextured)
+				{
+					part = true;
+				}
+				else
+				{
+					a.engineType = b.engineType;
+					changed = true;
+				}
+			}
+
+			if (!aTextured || part)
+			{
+				// the higher-numbered takes its partner's colour (0x55d6d6). INTENG BUG, FIXED: inteng copies the number it holds for the polygon whatever the two types are, and for a textured
+				// polygon that number is its picture: a pair parted for being one textured and one plain gave the plain one a picture's number for a colour, or the textured one a colour for a
+				// picture. Ours copies a colour only between two polygons the file holds untextured.
+				if (!model::EngineTypeIsTextured(a.engineType) && !model::EngineTypeIsTextured(b.engineType) && a.colour != b.colour)
+				{
+					a.colour = b.colour;
+					changed = true;
+				}
+			}
+			else if (model::PolygonPictureNumber(a.colour) != model::PolygonPictureNumber(b.colour) || !SameUvsAtSharedCorners(a, b, listOf(a), listOf(b)))
+			{
+				// both textured: another picture (0x55d636) or another place on it at a corner they share (0x55d684) parts the pair
+				part = true;
+			}
+
+			if (part)
+			{
+				(*merge)[i] = -1;
+				(*merge)[(size_t)partner] = -1;
+				parted++;
+			}
+		}
+
+		if (polygonsChanged)
+		{
+			*polygonsChanged = changed;
+		}
+
+		return parted;
+	}
+
+	namespace
+	{
+		// The shape's lists of texture coordinates (none when it has no SHPUVCRD); false when its chunk can't be read
+		bool ShapeUvLists(OpenLevelFile *file, Shape_Chunk *shape, std::vector<model::UvList> *lists)
+		{
+			Chunk *const uvChunk = shape->lookup_single_child("SHPUVCRD");
+			Payload bytes;
+
+			lists->clear();
+
+			return !uvChunk || (file->PayloadOf(uvChunk, &bytes) && model::ReadUvLists(bytes.data(), bytes.size(), lists) == model::UvModelResult::Ok);
+		}
+
+		// FUN_0055d500 on the pairing about to be written: *numbers parted where the checks part them, *polygonBytes (the shape's SHPPOLYS, same size) set when a polygon's flags, type or colour
+		// changed (left empty otherwise). False when the shape's lists or polygons can't be read or written.
+		bool CheckPairsForTheSave(OpenLevelFile *file, Shape_Chunk *shape, model::ShapeModel model, std::vector<int32_t> *numbers, Payload *polygonBytes, size_t *parted, std::string *why)
+		{
+			std::vector<model::UvList> lists;
+			bool polygonsChanged = false;
+
+			polygonBytes->clear();
+
+			if (!ShapeUvLists(file, shape, &lists))
+			{
+				Say(why, "the shape's list of texture coordinates could not be read");
+				return false;
+			}
+
+			size_t const broken = PolyEdit_CheckMergedPairs(&model, lists, numbers, &polygonsChanged);
+
+			if (parted)
+			{
+				*parted = broken;
+			}
+
+			if (!polygonsChanged)
+			{
+				return true;
+			}
+
+			Chunk *const polygonChunk = shape->lookup_single_child("SHPPOLYS");
+
+			if (!polygonChunk || !file->PayloadOf(polygonChunk, polygonBytes) || model::WriteShapePolygons(model, polygonBytes) != model::ShapeModelResult::Ok)
+			{
+				polygonBytes->clear();
+				Say(why, "the shape's polygons could not be written");
+				return false;
+			}
+
+			return true;
+		}
+	}
+
+	// The shape's SHPMRGDT numbers written as `merge` (one per polygon): a chunk of the same size put in place, then the loader reads the level again; a shape without one gets the chunk (inteng's save
+	// writes the pairing into SHPMRGDT: FUN_00566d60). subShapesToo (Merge's save, FUN_0055b900 0x55bb8e / 0x55bd84): each SUBSHAPE of the shape's first SHPMORPH and first ASALTTEX whose SHPMRGDT has the
+	// same count and whose points are as many (inteng compares the counts: +0x64 / +0x58 against the shape's +0x7c / +0x70) gets the same numbers. polygonBytes (when not null and not empty): the
+	// shape's SHPPOLYS put in too (Merge's checks, FUN_0055d500). On any refusal every chunk is put back.
+	static PolyMergeResult WriteMergeNumbers(OpenLevelFile *file, Shape_Chunk *shape, model::ShapeModel const &model, Chunk *mergeChunk, Payload const &original, std::vector<int32_t> const &merge, bool subShapesToo,
+		Payload const *polygonBytes = nullptr)
+	{
+		bool const withPolygons = polygonBytes && !polygonBytes->empty();
+
+		Payload mergeBytes(merge.size() * 4);
+
+		if (!mergeBytes.empty())
+		{
+			memcpy(mergeBytes.data(), merge.data(), mergeBytes.size());
+		}
+
+		if (mergeChunk)
+		{
+			std::vector<std::pair<Chunk *, Payload>> puts;   // every chunk written, with its bytes before, to put back
+
+			if (!file->SetPayload(mergeChunk, mergeBytes))
+			{
+				return PolyMergeResult::Unreadable;
+			}
+
+			puts.push_back(std::make_pair(mergeChunk, original));
+
+			if (withPolygons)
+			{
+				Chunk *const polygonChunk = shape->lookup_single_child("SHPPOLYS");
+				Payload before;
+
+				if (!polygonChunk || !file->PayloadOf(polygonChunk, &before) || !file->SetPayload(polygonChunk, *polygonBytes))
+				{
+					file->SetPayload(mergeChunk, original);
+					return PolyMergeResult::Unreadable;
+				}
+
+				puts.push_back(std::make_pair(polygonChunk, before));
+			}
+
+			for (char const *const holderName : { "SHPMORPH", "ASALTTEX" })
+			{
+				Chunk_With_Children *const holder = subShapesToo ? dynamic_cast<Chunk_With_Children *>(shape->lookup_single_child(holderName)) : nullptr;
+				List<Chunk *> subs;
+
+				if (!holder)
+				{
+					continue;
+				}
+
+				holder->lookup_child("SUBSHAPE", subs);
+
+				for (LIF<Chunk *> each(&subs); !each.done(); each.next())
+				{
+					Chunk_With_Children *const sub = dynamic_cast<Chunk_With_Children *>(each());
+					Chunk *const subMerge = sub ? sub->lookup_single_child("SHPMRGDT") : nullptr;
+					Chunk *const subPoints = sub ? sub->lookup_single_child("SHPRAWVT") : nullptr;
+					Payload subBefore, pointBytes;
+
+					if (!subMerge || !file->PayloadOf(subMerge, &subBefore) || subBefore.size() != mergeBytes.size() || !subPoints || !file->PayloadOf(subPoints, &pointBytes) ||
+						pointBytes.size() != model.points.size() * 12)
+					{
+						continue;
+					}
+
+					if (file->SetPayload(subMerge, mergeBytes))
+					{
+						puts.push_back(std::make_pair(subMerge, subBefore));
+					}
+				}
+			}
+
+			auto const putBack = [file, &puts]()
+			{
+				for (auto const &one : puts)
+				{
+					file->SetPayload(one.first, one.second);
+				}
+			};
+
+			Image image;
+
+			if (!file->BuildLevel(image))
+			{
+				putBack();
+				return PolyMergeResult::CantBuild;
+			}
+
+			switch (file->ReplaceLevel(image))
+			{
+			case LevelOpenResult::Opened: return PolyMergeResult::Done;
+			case LevelOpenResult::CantRead: putBack(); return PolyMergeResult::CantBuild;
+			default: putBack(); return PolyMergeResult::LoaderRefused;
+			}
+		}
+
+		NewChunk chunks[2] = { { "SHPMRGDT", &mergeBytes, true }, { "SHPPOLYS", polygonBytes } };
+
+		switch (RebuildShape(file, model.number, chunks, withPolygons ? 2 : 1))
+		{
+		case Rebuilt::Done: return PolyMergeResult::Done;
+		case Rebuilt::CantBuild: return PolyMergeResult::CantBuild;
+		default: return PolyMergeResult::LoaderRefused;
+		}
+	}
+
 	PolyMergeResult PolyEdit_Merge(OpenLevelFile *file, uint8_t const *id, int32_t const *polygons, size_t count, size_t *joined, std::string *why)
 	{
 		if (!file || !id || !polygons || count == 0 || !file->Level())
@@ -2015,44 +2604,399 @@ namespace host
 			return PolyMergeResult::Done;
 		}
 
-		Payload mergeBytes(merge.size() * 4);
+		return WriteMergeNumbers(file, shape, model, mergeChunk, bytes, merge, false);
+	}
 
-		memcpy(mergeBytes.data(), merge.data(), mergeBytes.size());
-
-		if (mergeChunk)
+	PolyMergeResult PolyEdit_SetMergeData(OpenLevelFile *file, uint8_t const *id, std::vector<int32_t> const &numbers, std::string *why, size_t *parted)
+	{
+		if (parted)
 		{
-			// same size: put in place, then the loader reads the level again
-			Payload const original = bytes;
+			*parted = 0;
+		}
 
-			if (!file->SetPayload(mergeChunk, mergeBytes))
+		if (!file || !id || !file->Level())
+		{
+			return PolyMergeResult::BadCall;
+		}
+
+		Object_Chunk *const object = ObjectWithId(file->Level(), id);
+
+		if (!object)
+		{
+			return PolyMergeResult::NoObject;
+		}
+
+		Shape_Chunk *const shape = object->get_assoc_shape();
+		model::ShapeModel model;
+
+		if (!shape || ShapeEdit_Read(file->Level(), file, id, &model, nullptr, why) != ShapeEditResult::Done)
+		{
+			return PolyMergeResult::NoShape;
+		}
+
+		if (numbers.size() != model.polygons.size())
+		{
+			return PolyMergeResult::Unreadable;
+		}
+
+		for (int32_t const n : numbers)
+		{
+			if (n < -1 || n >= (int32_t)numbers.size())
 			{
-				return PolyMergeResult::Unreadable;
-			}
-
-			Image image;
-
-			if (!file->BuildLevel(image))
-			{
-				file->SetPayload(mergeChunk, original);
-				return PolyMergeResult::CantBuild;
-			}
-
-			switch (file->ReplaceLevel(image))
-			{
-			case LevelOpenResult::Opened: return PolyMergeResult::Done;
-			case LevelOpenResult::CantRead: file->SetPayload(mergeChunk, original); return PolyMergeResult::CantBuild;
-			default: file->SetPayload(mergeChunk, original); return PolyMergeResult::LoaderRefused;
+				return PolyMergeResult::NoPolygon;   // a partner the shape does not have
 			}
 		}
 
-		// a shape without the chunk gets one (inteng's save writes the pairing into SHPMRGDT: FUN_00566d60)
-		NewChunk chunks[1] = { { "SHPMRGDT", &mergeBytes, true } };
+		Chunk *const mergeChunk = shape->lookup_single_child("SHPMRGDT");
+		Payload bytes;
 
-		switch (RebuildShape(file, model.number, chunks, 1))
+		if (mergeChunk && (!file->PayloadOf(mergeChunk, &bytes) || bytes.size() != model.polygons.size() * 4))
 		{
-		case Rebuilt::Done: return PolyMergeResult::Done;
-		case Rebuilt::CantBuild: return PolyMergeResult::CantBuild;
-		default: return PolyMergeResult::LoaderRefused;
+			return PolyMergeResult::Unreadable;
+		}
+
+		// FUN_0055d500 (0x55bb73), before the numbers are written
+		std::vector<int32_t> checked = numbers;
+		Payload polygonBytes;
+		size_t broken = 0;
+
+		if (!CheckPairsForTheSave(file, shape, model, &checked, &polygonBytes, &broken, why))
+		{
+			return PolyMergeResult::Unreadable;
+		}
+
+		PolyMergeResult const result = WriteMergeNumbers(file, shape, model, mergeChunk, bytes, checked, true, &polygonBytes);
+
+		if (result == PolyMergeResult::Done && parted)
+		{
+			*parted = broken;
+		}
+
+		return result;
+	}
+
+	PolyMergeResult PolyEdit_CheckPairsNow(OpenLevelFile *file, uint8_t const *id, bool write, size_t *parted, bool *polygonsChanged, std::string *why)
+	{
+		size_t broken = 0;
+		bool changed = false;
+
+		if (parted)
+		{
+			*parted = 0;
+		}
+
+		if (polygonsChanged)
+		{
+			*polygonsChanged = false;
+		}
+
+		if (!file || !id || !file->Level())
+		{
+			return PolyMergeResult::BadCall;
+		}
+
+		Object_Chunk *const object = ObjectWithId(file->Level(), id);
+		Shape_Chunk *const shape = object ? object->get_assoc_shape() : nullptr;
+		model::ShapeModel model;
+
+		if (!object)
+		{
+			return PolyMergeResult::NoObject;
+		}
+
+		if (!shape || ShapeEdit_Read(file->Level(), file, id, &model, nullptr, why) != ShapeEditResult::Done)
+		{
+			return PolyMergeResult::NoShape;
+		}
+
+		Chunk *const mergeChunk = shape->lookup_single_child("SHPMRGDT");
+		Payload bytes;
+
+		if (!mergeChunk)
+		{
+			return PolyMergeResult::Done;   // no pairing: nothing to check
+		}
+
+		if (!file->PayloadOf(mergeChunk, &bytes) || bytes.size() != model.polygons.size() * 4)
+		{
+			return PolyMergeResult::Unreadable;
+		}
+
+		std::vector<int32_t> numbers(model.polygons.size(), -1);
+
+		if (!bytes.empty())
+		{
+			memcpy(numbers.data(), bytes.data(), bytes.size());
+		}
+
+		for (int32_t const n : numbers)
+		{
+			if (n < -1 || n >= (int32_t)numbers.size())
+			{
+				return PolyMergeResult::NoPolygon;   // hostile input: a partner the shape does not have; left as the file holds it
+			}
+		}
+
+		std::vector<int32_t> checked = numbers;
+		Payload polygonBytes;
+
+		if (!CheckPairsForTheSave(file, shape, model, &checked, &polygonBytes, &broken, why))
+		{
+			return PolyMergeResult::Unreadable;
+		}
+
+		changed = !polygonBytes.empty();
+
+		if (parted)
+		{
+			*parted = broken;
+		}
+
+		if (polygonsChanged)
+		{
+			*polygonsChanged = changed;
+		}
+
+		if (!write || (broken == 0 && !changed))
+		{
+			return PolyMergeResult::Done;
+		}
+
+		return WriteMergeNumbers(file, shape, model, mergeChunk, bytes, checked, false, &polygonBytes);   // the shape's own SHPMRGDT only (FUN_0055d500 changes the working array)
+	}
+
+	namespace
+	{
+		// A shape's list of the objects that use it, as shape_merge_edit.cpp reads and writes it (Frost, TB-C8b): SHPHEAD1's payload holds 68 bytes of numbers, the count at 64, then each name and
+		// its zero, then zeros up to a whole number of 4 bytes (Shape_Header_Chunk::size_chunk). An object's OBJHEAD1 holds the number of its shape at 56.
+		size_t const kUsersCountAt = 64;
+		size_t const kUsersHeadBytes = 68;
+		size_t const kObjectShapeNumberAt = 56;
+
+		bool CloneShapeChunk(OpenLevelFile *file, int32_t oldNumber, NewChunk const *chunks, size_t chunkCount, Payload *header, int32_t knownHighest, int32_t *newNumber, Image *out,
+			PointRemap const *remap = nullptr);   // below, with Split
+
+		bool UsersInHead(Payload const &head, std::vector<std::string> *names)
+		{
+			names->clear();
+
+			if (head.size() < kUsersHeadBytes)
+			{
+				return false;
+			}
+
+			int32_t count;
+			size_t at = kUsersHeadBytes;
+
+			memcpy(&count, head.data() + kUsersCountAt, 4);
+
+			if (count < 0 || (size_t)count > head.size() - at)
+			{
+				return false;
+			}
+
+			for (int32_t i = 0; i < count; i++)
+			{
+				unsigned char const *const zero = at < head.size() ? (unsigned char const *)memchr(head.data() + at, 0, head.size() - at) : nullptr;
+
+				if (!zero)
+				{
+					return false;
+				}
+
+				names->push_back(std::string((char const *)head.data() + at, (size_t)(zero - (head.data() + at))));
+				at += names->back().size() + 1;
+			}
+
+			return true;
+		}
+
+		Payload HeadWithUsers(Payload const &head, std::vector<std::string> const &names)
+		{
+			Payload out(head.begin(), head.begin() + (std::ptrdiff_t)kUsersHeadBytes);
+			int32_t const count = (int32_t)names.size();
+
+			memcpy(out.data() + kUsersCountAt, &count, 4);
+
+			for (std::string const &name : names)
+			{
+				out.insert(out.end(), name.begin(), name.end());
+				out.push_back(0);
+			}
+
+			while ((kHeadingBytes + out.size()) % 4 != 0)
+			{
+				out.push_back(0);
+			}
+
+			return out;
+		}
+	}
+
+	bool PolyEdit_ShapeUserNames(OpenLevelFile *file, uint8_t const *id, std::vector<std::string> *names)
+	{
+		names->clear();
+
+		Object_Chunk *const object = file && id && file->Level() ? ObjectWithId(file->Level(), id) : nullptr;
+		Shape_Chunk *const shape = object ? object->get_assoc_shape() : nullptr;
+		Shape_Header_Chunk *const header = shape ? shape->get_header() : nullptr;
+		Payload head;
+
+		return header && file->PayloadOf(header, &head) && UsersInHead(head, names);
+	}
+
+	PolyMergeResult PolyEdit_SetMergeDataOnCopy(OpenLevelFile *file, uint8_t const *id, std::vector<std::string> const &movers, std::vector<int32_t> const &numbers, std::string *why, size_t *parted)
+	{
+		if (parted)
+		{
+			*parted = 0;
+		}
+
+		if (!file || !id || !file->Level() || movers.empty())
+		{
+			return PolyMergeResult::BadCall;
+		}
+
+		Object_Chunk *const object = ObjectWithId(file->Level(), id);
+		Shape_Chunk *const shape = object ? object->get_assoc_shape() : nullptr;
+		Shape_Header_Chunk *const header = shape ? shape->get_header() : nullptr;
+		model::ShapeModel model;
+		Payload head;
+		std::vector<std::string> users;
+
+		if (!object)
+		{
+			return PolyMergeResult::NoObject;
+		}
+
+		if (!shape || !header || ShapeEdit_Read(file->Level(), file, id, &model, nullptr, why) != ShapeEditResult::Done || !file->PayloadOf(header, &head) || !UsersInHead(head, &users))
+		{
+			return PolyMergeResult::NoShape;
+		}
+
+		if (numbers.size() != model.polygons.size())
+		{
+			return PolyMergeResult::Unreadable;
+		}
+
+		for (int32_t const n : numbers)
+		{
+			if (n < -1 || n >= (int32_t)numbers.size())
+			{
+				return PolyMergeResult::NoPolygon;
+			}
+		}
+
+		// the users that keep the shape as it was: every name of its list but the movers' (each once)
+		std::vector<std::string> keepers = users;
+
+		for (std::string const &mover : movers)
+		{
+			auto const at = std::find(keepers.begin(), keepers.end(), mover);
+
+			if (at == keepers.end())
+			{
+				Say(why, ("the shape's list does not name " + mover).c_str());
+				return PolyMergeResult::NoObject;
+			}
+
+			keepers.erase(at);
+		}
+
+		// THE COPY (FUN_0050e880): the shape's chunks with the movers as its users, the working pairing as its SHPMRGDT, numbered one past the level's highest (CloneShapeChunk puts the number in)
+		// FUN_0055d500 (0x55bb73) on the copy's pairing and polygons: the old shape keeps its own
+		std::vector<int32_t> checked = numbers;
+		Payload polygonBytes;
+		size_t broken = 0;
+
+		if (!CheckPairsForTheSave(file, shape, model, &checked, &polygonBytes, &broken, why))
+		{
+			return PolyMergeResult::Unreadable;
+		}
+
+		Payload copyHead = HeadWithUsers(head, movers);
+		Payload mergeBytes(checked.size() * 4);
+
+		if (!mergeBytes.empty())
+		{
+			memcpy(mergeBytes.data(), checked.data(), mergeBytes.size());
+		}
+
+		NewChunk copyChunks[3] = { { "SHPHEAD1", &copyHead }, { "SHPMRGDT", &mergeBytes, true }, { "SHPPOLYS", &polygonBytes } };
+		Image copyImage;
+		int32_t newNumber = -1;
+
+		if (!CloneShapeChunk(file, model.number, copyChunks, polygonBytes.empty() ? 2 : 3, &copyHead, -1, &newNumber, &copyImage))
+		{
+			return PolyMergeResult::CantBuild;
+		}
+
+		// the movers' headers name the copy (same size: put in place)
+		std::vector<std::pair<Chunk *, Payload>> puts;
+		auto const putBack = [file, &puts]()
+		{
+			for (auto const &one : puts)
+			{
+				file->SetPayload(one.first, one.second);
+			}
+		};
+		List<Object_Chunk *> objects;
+
+		file->Level()->list_objects(&objects);
+
+		for (std::string const &mover : movers)
+		{
+			bool found = false;
+
+			for (LIF<Object_Chunk *> each(&objects); !each.done() && !found; each.next())
+			{
+				Object_Chunk *const one = each();
+				Object_Header_Chunk *const objectHeader = one ? one->get_header() : nullptr;
+				Payload bytes;
+
+				if (!one || std::string(one->object_data.o_name, strnlen(one->object_data.o_name, sizeof(one->object_data.o_name))) != mover || !objectHeader ||
+					!file->PayloadOf(objectHeader, &bytes) || bytes.size() < kObjectShapeNumberAt + 4)
+				{
+					continue;
+				}
+
+				Payload changed = bytes;
+
+				memcpy(changed.data() + kObjectShapeNumberAt, &newNumber, 4);
+
+				if (!file->SetPayload(objectHeader, changed))
+				{
+					putBack();
+					return PolyMergeResult::CantBuild;
+				}
+
+				puts.push_back(std::make_pair((Chunk *)objectHeader, bytes));
+				found = true;
+			}
+
+			if (!found)
+			{
+				putBack();
+				Say(why, ("no object of the level is named " + mover).c_str());
+				return PolyMergeResult::NoObject;
+			}
+		}
+
+		// the old shape less the movers' names, and the copy at the end of the file, in ONE image the loader reads
+		Payload oldHead = HeadWithUsers(head, keepers);
+		NewChunk oldChunks[1] = { { "SHPHEAD1", &oldHead } };
+
+		switch (RebuildShape(file, model.number, oldChunks, 1, &copyImage))
+		{
+		case Rebuilt::Done:
+			if (parted)
+			{
+				*parted = broken;
+			}
+
+			return PolyMergeResult::Done;
+		case Rebuilt::CantBuild: putBack(); return PolyMergeResult::CantBuild;
+		default: putBack(); return PolyMergeResult::LoaderRefused;
 		}
 	}
 
@@ -2061,8 +3005,9 @@ namespace host
 	namespace
 	{
 		// A whole new REBSHAPE chunk made from the shape numbered oldNumber: its chunks named in `chunks` are made from their payloads (a null payload leaves the chunk out), the others are copied; the new shape's number
-		// (one more than the highest the level has) is put in the header payload (the chunk named SHPHEAD1 in `chunks`), whose list of users is left empty. *newNumber says it.
-		bool CloneShapeChunk(OpenLevelFile *file, int32_t oldNumber, NewChunk const *chunks, size_t chunkCount, Payload *header, int32_t knownHighest, int32_t *newNumber, Image *out)
+		// (one more than the highest the level has) is put in the header payload (the chunk named SHPHEAD1 in `chunks`), whose list of users is left empty. *newNumber says it. remap (none by default): the
+		// copy's points are a renumbering of the old shape's, so its bone attachments follow (TM-C H1; the copy has no user yet, so no vertex colours: FUN_00435c80 finds none on inteng's copy)
+		bool CloneShapeChunk(OpenLevelFile *file, int32_t oldNumber, NewChunk const *chunks, size_t chunkCount, Payload *header, int32_t knownHighest, int32_t *newNumber, Image *out, PointRemap const *remap)
 		{
 			Image image;
 
@@ -2187,7 +3132,14 @@ namespace host
 					}
 				}
 
-				if (which == chunkCount)
+				if (which == chunkCount && remap && NameIs(image, child.at, "SHPBONHD"))
+				{
+					if (!RemapBoneHeader(image, child, *remap, out))   // TM-C H1: Split's copy keeps its bones, through its own map (FUN_00564300 runs FUN_00435080 on the copy)
+					{
+						return false;
+					}
+				}
+				else if (which == chunkCount)
 				{
 					AppendBytes(out, image, child.at, child.size);
 				}
@@ -2521,7 +3473,9 @@ namespace host
 			}
 		}
 
-		if (!CloneShapeChunk(file, model.number, chunks, used, &fHeader, knownHighest, &newShapeNumber, &shapeChunk))
+		PointRemap const freshRemap = { &freshMap.point, (int32_t)fresh.points.size() };   // TM-C H1: the new shape's bones, through its own map
+
+		if (!CloneShapeChunk(file, model.number, chunks, used, &fHeader, knownHighest, &newShapeNumber, &shapeChunk, &freshRemap))
 		{
 			return PolySplitResult::CantBuild;
 		}

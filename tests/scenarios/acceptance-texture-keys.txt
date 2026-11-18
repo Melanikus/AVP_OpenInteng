@@ -1,0 +1,34 @@
+# ACCEPTANCE (TM-A, reassess/texture-map-closeout-frost.md; the table in texture-map-closeout-drake.md section K): the Texture Map's keys are inteng's key table's, FUN_00557ea0 (the
+# mode's menu object's key slot +0x40): each key gives a command, run by the same switch the menus feed (FUN_0054d260). The clashes go inteng's way (the owner's ruling): E turns
+# 90 anti-clockwise (0x1b, Turn B) and R clockwise (0x19, Turn A); C is Select Texture (0x2a), not tile. Q toggles Select As (0xe / 0xf by the node count), W Polys Shown (0x11 / 0x12),
+# B Show Gouraud (0xcd: the editor's own Gouraud key, the same switch); I is inteng's Texture Alignment (0x34: it asks for the polygon to alter; Esc stops it).
+# Red on bishop-int 4f62d6bb (E and R swapped, C tiled, Q / W / I did nothing in the mode), green on the hash with the table.
+# His path: the level opened, Mode > Texture Map, a polygon clicked, the keys pressed.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+key E
+expect-status Turn B done on 1 polygon
+key R
+expect-status Turn A done on 1 polygon
+key Q
+expect-status selecting as triangles
+key Q
+expect-status selecting as quads
+key W
+expect-status Polys Shown:
+key B
+expect-status Gouraud:
+key C
+expect-status the texture chooser
+picture 1
+key Esc
+expect-status texture chooser was cancelled
+key I
+expect-status Texture Alignment: Select polygon to be altered
+key Esc
+expect-status Texture Alignment: cancelled

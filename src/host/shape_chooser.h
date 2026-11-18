@@ -31,6 +31,10 @@ namespace host
 		std::string name;   // the outside file's name, without folder or extension
 		int32_t polygons;   // SHPHEAD1's polygon count
 		int32_t points;     // SHPHEAD1's point count
+		// The name the game's loader keeps this shape by in its main shape list (Shape_External_File_Chunk::get_shape_name: EXTOBJNM's "object@file", else RIFFNAME), empty when it
+		// has none. The game's GetLoadedShapeMSL takes it to the shape's place in that list, the number the game's drawing wants; `number` is the file's own id, another numbering
+		// (Drake 2026-11-17: the chooser's preview drew GetShapeData(number), so another shape than the one it named)
+		std::string gameName;
 	};
 
 	// Every outside shape of the level, in the library's order, into *out (emptied first). Gives how many. 0 for no level or none. Changes nothing. Hostile bytes: a header

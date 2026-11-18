@@ -19,10 +19,10 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field strategyview 200@0:end : Mission Objective|100@689:P : Toggle 'Make Possible' setting for mission target|100@709:V : Toggle 'Make Visible' setting for mission target|16@16:Description :0|16@32:Completed Message :0|16@48:Order Number :0|16@64:Shown at start|16@80:Possible at start|16@96:Special :Complete level|16@112:Mission alterations upon completion :|32@128:None
+expect-field strategyview 200@0:end : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :0|16@32:Completed Message :0|16@48:Order Number :0|16@64:Shown at start|16@80:Possible at start|16@96:Special :Complete level|16@112:Mission alterations upon completion :|32@128:None
 picture 1
 # "Description :0" (y 16): the text window; 5
-click-win 300 24
+click-box 300 24
 expect-dialog-kind form
 form-field 1 5
 click-button Ok
@@ -30,16 +30,16 @@ expect-no-dialog
 wait 300
 expect-field-has strategyview 16@16:Description :5|16@48:Completed Message :0|16@64:Order Number :0
 # "Completed Message :0" (now y 48): the text window; 9
-click-win 300 56
+click-box 300 56
 expect-dialog-kind form
 form-field 1 9
 click-button Ok
 expect-no-dialog
 wait 300
-expect-field strategyview 200@0:end : Mission Objective|100@689:P : Toggle 'Make Possible' setting for mission target|100@709:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :9|16@80:Order Number :0|16@96:Shown at start|16@112:Possible at start|16@128:Special :Complete level|16@144:Mission alterations upon completion :|32@160:None
+expect-field strategyview 200@0:end : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :9|16@80:Order Number :0|16@96:Shown at start|16@112:Possible at start|16@128:Special :Complete level|16@144:Mission alterations upon completion :|32@160:None
 picture 2
 # "Order Number" (y 80): the number dialog; 7
-click-win 300 88
+click-box 300 88
 expect-dialog Mission Order Number
 expect-dialog-text 0
 key Back
@@ -48,13 +48,13 @@ key Enter
 expect-no-dialog
 wait 300
 # Shown (y 96, bit 1), Possible (y 112, bit 2), Special (y 128: (1 + 1) % 2 = 0)
-click-win 300 104
+click-box 300 104
 wait 300
-click-win 300 120
+click-box 300 120
 wait 300
-click-win 300 136
+click-box 300 136
 wait 300
-expect-field strategyview 200@0:end : Mission Objective|100@689:P : Toggle 'Make Possible' setting for mission target|100@709:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :9|16@80:Order Number :7|16@96:Hidden at start |16@112:Not possible at start|16@128:Special :Nothing|16@144:Mission alterations upon completion :|32@160:None
+expect-field strategyview 200@0:end : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :9|16@80:Order Number :7|16@96:Hidden at start |16@112:Not possible at start|16@128:Special :Nothing|16@144:Mission alterations upon completion :|32@160:None
 picture 3
 key Esc
 wait 300

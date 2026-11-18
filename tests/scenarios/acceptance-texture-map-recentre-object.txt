@@ -1,0 +1,21 @@
+# ACCEPTANCE (red first): TM-B, Recentre Shape (0xd6, FUN_00565bd0) on a polygon of a named object (a module is one): inteng shows its box "Recentred %s" with the object's name (0x565f37-0x565f9c), OK to go on.
+# Ours (old code, verified 11-18 by Dietrich): the status line only. His path: Invasion, Mode > Texture Map, Misc > Recentre Shape, a click on the green vehicle at 0.15 0.62 (the module APCmod):
+# the box "Recentred APCmod" (the vehicle is the module APCmod), Ok. (A merged triangle's pair centre: host_shape_recentre_polygon_test.) State line.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+item 0xd6
+expect-status Recentre object
+click-view 0.15 0.62
+wait 400
+state
+expect-status Recentred
+expect-dialog-kind message
+expect-dialog Recentred APCmod
+picture 509
+click-button Ok
+wait 300
+expect-no-dialog

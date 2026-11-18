@@ -1,0 +1,13 @@
+# ACCEPTANCE (red first): a picked module's name on the status line is the module's name in the level, the one the top left shows (Drake, 2026-11-17; the owner hit it in Module Linking:
+# "module 252 (?)" / "(??)" while OPEN-05 / SHDRMP01 showed top left). The status words "Picked: module N (name), D m away" are OURS (inteng has no such line); their name came from
+# the game's MODULE.m_name, 5 bytes the RIF loader does not fill with the name (pick_game.cpp), so a level's module showed "?" for its odd bytes. Now the name is MODULE.name, the
+# level's own name for the module (as LevelView_ModuleName and the top left), cut to 48 bytes, every byte outside space to ~ shown as "?".
+# His path: Invasion opened, the start view's middle click picks gARAGDOR (module 16) on Construction, where the status line is drawn.
+# RED on drake-path a9b4ea42 (bishop-int cdd8455e merged): "Picked: module 16 (?), 22.6 m away".
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+wait 400
+click-view 0.5 0.5
+expect-status Picked: module 16 (gARAGDOR),

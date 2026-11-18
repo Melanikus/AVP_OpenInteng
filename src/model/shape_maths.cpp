@@ -299,6 +299,29 @@ namespace model
 		return ShapeMathsResult::Ok;
 	}
 
+	void TurnMatrix(float const turn[4], double m[9])
+	{
+		// FUN_00430d70 as the raw listing has it (0x430d7c-0x430e6b): the four floats loaded, then 2x, 2y, 2z and every product kept as DOUBLES (FSTP double), the sums in
+		// the listing's order. (The decompiler's float casts, which this once copied, are not in the code: Frost, 2026-11-17, TB-C8h.)
+		double const x = (double)turn[0];
+		double const y = (double)turn[1];
+		double const z = (double)turn[2];
+		double const w = (double)turn[3];
+		double const X = x + x;
+		double const Y = y + y;
+		double const Z = z + z;
+
+		m[0] = 1.0 - (Z * z + Y * y);
+		m[1] = Y * x - Z * w;
+		m[2] = x * Z + Y * w;
+		m[3] = Y * x + Z * w;
+		m[4] = 1.0 - (Z * z + X * x);
+		m[5] = Z * y - X * w;
+		m[6] = x * Z - Y * w;
+		m[7] = Z * y + X * w;
+		m[8] = 1.0 - (Y * y + X * x);
+	}
+
 	ShapeMathsResult RotateByTurn(float const turn[4], ShapePoint v, ShapePoint *out)
 	{
 		if (!turn || !out)
@@ -314,26 +337,9 @@ namespace model
 			}
 		}
 
-		// FUN_00430d70, line by line: x and w stay floats where inteng keeps them floats, y and z are doubles
-		float const x = turn[0];
-		double const y = (double)turn[1];
-		double const z = (double)turn[2];
-		float const w = turn[3];
-		double const twoY = y + y;
-		double const twoZ = z + z;
-		double const twoXw = (double)((x + x) * w);
-		float const twoXx = (x + x) * x;
 		double m[9];
 
-		m[0] = 1.0 - (twoZ * z + twoY * y);
-		m[3] = (double)((float)twoY * x) + (double)((float)twoZ * w);
-		m[6] = (double)(x * (float)twoZ - (float)twoY * w);
-		m[1] = (double)((float)twoY * x) - (double)((float)twoZ * w);
-		m[4] = 1.0 - (twoZ * z + (double)twoXx);
-		m[7] = twoZ * y + twoXw;
-		m[2] = (double)(x * (float)twoZ + (float)twoY * w);
-		m[5] = twoZ * y - twoXw;
-		m[8] = 1.0 - (twoY * y + (double)twoXx);
+		TurnMatrix(turn, m);
 
 		// FUN_00430e80: out = M x v, the sum of three products per row, then truncation toward zero
 		double const vx = (double)v.x, vy = (double)v.y, vz = (double)v.z;
@@ -350,6 +356,68 @@ namespace model
 		out->x = (int32_t)result[0];   // the conversion truncates toward zero, as __ftol does
 		out->y = (int32_t)result[1];
 		out->z = (int32_t)result[2];
+		return ShapeMathsResult::Ok;
+	}
+
+	ShapeMathsResult TurnShapeByTurn(ShapeModel *shape, float const turn[4])
+	{
+		if (!shape || !turn)
+		{
+			return ShapeMathsResult::NoPoints;
+		}
+
+		// All or nothing: the turned numbers are made in copies, and put in only when every point fits
+		std::vector<ShapePoint> points(shape->points.size());
+
+		for (size_t at = 0; at < points.size(); at++)
+		{
+			ShapeMathsResult const turned = RotateByTurn(turn, shape->points[at], &points[at]);   // FUN_00430e80 (and the turn's own checks)
+
+			if (turned != ShapeMathsResult::Ok)
+			{
+				return turned;
+			}
+		}
+
+		double m[9];
+
+		TurnMatrix(turn, m);
+
+		// FUN_00430f00 (0x430f0b-0x430f56): each row from the ORIGINAL normal, the float components times the doubles (x, then + y, then + z), stored as floats;
+		// then FUN_0042fb00: divided by its length unless the length is 0 (as RecalculateNormalsAndExtents makes a normal unit)
+		auto turnNormal = [&m](ShapeNormal &n)
+		{
+			double const x = (double)n.x, y = (double)n.y, z = (double)n.z;
+			ShapeNormal turned;
+
+			turned.x = (float)((x * m[0] + y * m[1]) + z * m[2]);
+			turned.y = (float)((x * m[3] + y * m[4]) + z * m[5]);
+			turned.z = (float)((x * m[6] + y * m[7]) + z * m[8]);
+
+			double const length = sqrt((double)turned.x * turned.x + (double)turned.y * turned.y + (double)turned.z * turned.z);
+
+			if (length != 0.0)
+			{
+				turned.x = (float)((double)turned.x / length);
+				turned.y = (float)((double)turned.y / length);
+				turned.z = (float)((double)turned.z / length);
+			}
+
+			n = turned;
+		};
+
+		shape->points = points;
+
+		for (ShapeNormal &n : shape->pointNormals)
+		{
+			turnNormal(n);
+		}
+
+		for (ShapeNormal &n : shape->polygonNormals)
+		{
+			turnNormal(n);
+		}
+
 		return ShapeMathsResult::Ok;
 	}
 

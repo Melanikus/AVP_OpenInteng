@@ -1,0 +1,35 @@
+# THE OWNER'S PATH (Dietrich 11-18, the walk before the beta, Bishop): Strategy Data's main job on Hangar in his run folder (the mel side: his data folder and ini; his Hangar.RIF is the
+# stock bytes): Find Object switch1 (a Multiple Target Switch), the right button's Edit Strategy, P (Switch Properties, the 66 form), its Rest State tick (the 4th) on, Ok: "Rest State : On", Escape, File > Save a copy; the copy read back by the
+# game's loader: switch1's RestState 1, every other strategy byte for byte the original's (verify_strategy).
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-try-run/data/avp_rifs/Hangar.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is switch1
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 200@0:switch1 : Multiple Target Switch
+expect-field-has strategyview 16@32:Rest State : Off
+picture 1
+key P
+wait 300
+expect-dialog Switch Properties
+expect-dialog-checks on,off,off,off,off,off,on,off,off
+click-check 4
+click-button Ok
+expect-no-dialog
+wait 300
+expect-field-has strategyview 16@32:Rest State : On
+picture 2
+key Esc
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-try-run/data/avp_rifs/Hangar.RIF {copy} switch1 RestState 1

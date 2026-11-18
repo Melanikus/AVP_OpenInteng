@@ -23,14 +23,14 @@ expect-field-has strategyview 200@0:dropship ken : Hierarchy
 expect-field-has strategyview 16@16:Key Frame Flag Effects :|32@32:Flag 0 : 1 targets
 picture 1
 # the effect's line: flag 0's page
-click-win 300 40
+click-box 300 40
 wait 300
 expect-field-has strategyview 16@16:Flag 0 targets :|0@32:(on)|50@32:(Both directions)|190@32:
 # on the target row: x < 50 turns it off, 50 <= x < 190 cycles Both directions -> Forward only
-click-win 20 40
+click-box 20 40
 wait 300
 expect-field-has strategyview 0@32:(off)
-click-win 100 40
+click-box 100 40
 wait 300
 expect-field-has strategyview 0@32:(off)|50@32:(Forward only)
 picture 2

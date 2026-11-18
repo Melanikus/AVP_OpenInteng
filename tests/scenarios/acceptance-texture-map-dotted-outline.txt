@@ -1,0 +1,31 @@
+# ACCEPTANCE (red first): TM-B, the texture windows' outline is inteng's dotted line (FUN_005564b0: one-pixel dots every 3 pixels, black and white by turns, crawling a pixel a frame with
+# DAT_00914d14, only inside the window; the multiple node mode's links the same; Dietrich, 2026-11-18). Ours drew a yellow line (2-pixel boxes, the multiple node mode's dashed), an
+# invented look. His path: Invasion, Mode > Texture Map, the quad at 0.50 0.60, Tab: no yellow in the window (880,565 128 x 128 at x1 on the harness's frame); M, Tab: the same.
+# Pictures.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+key Tab
+wait 400
+expect-texwin 128 128 0 0 128 128 1
+wait 400
+picture 511
+expect-colour-at-most picture 880 565 128 128 ffff00 0.002 60
+key Tab
+wait 300
+key M
+wait 200
+key Tab
+wait 400
+expect-status multiple node mode
+expect-texwin 128 128 0 0 128 128 1
+wait 400
+picture 512
+expect-colour-at-most picture 880 565 128 128 ffff00 0.002 60
+key Tab
+wait 300

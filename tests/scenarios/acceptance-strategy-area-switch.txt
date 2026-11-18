@@ -16,16 +16,16 @@ wait 400
 key E
 wait 400
 picture 1
-expect-field-has strategyview 200@0:dropswitch : Area Switch|100@609:V : Change Trigger Volume
+expect-field-has strategyview 200@0:dropswitch : Area Switch|100@360:V : Change Trigger Volume
 expect-field-has strategyview 16@32:Rest State : Off|16@48:Mode : Time Delay -5.000 seconds|16@80:Targets :|0@96:(on)|80@96:dropship ken
 # E with the pointer on the target row (y 96, the window's y 104): the placed hierarchy's page
-move-win 300 104
+move-box 300 104
 key E
 wait 400
 picture 2
 expect-field-has strategyview 100@0:Target  -  dropship ken : Placed hierarchy|16@16:Sequence index 0
 # a press on the sequence line: the list "Select Sequence Index" (dropship ken has one sequence, index 0); picking it keeps the word
-click-win 300 24
+click-box 300 24
 expect-dialog Select Sequence Index
 expect-dialog-rows 0
 click-row 1
@@ -60,14 +60,14 @@ expect-no-dialog
 wait 400
 key E
 wait 400
-move-win 300 104
+move-box 300 104
 key S
 wait 200
 expect-field-has strategyview |0@96:(off)|80@96:dropship ken
 key D
 wait 200
 expect-field-has strategyview |0@112:(off)|80@112:dropship ken
-move-win 300 120
+move-box 300 120
 key S
 wait 200
 expect-field-has strategyview |0@112:(on)|80@112:dropship ken

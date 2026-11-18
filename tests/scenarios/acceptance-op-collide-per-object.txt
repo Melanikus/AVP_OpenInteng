@@ -1,0 +1,38 @@
+# ACCEPTANCE (red first; Drake 11-17, object-placement.md V-7 / OP-86, reassess/op-a-preread-drake.md): L MARKS THE CURRENT OBJECT, not every object, on his path (Invasion, the file opened as a
+# double click). inteng's L (FUN_004d9af0 0x4dc124-0x4dc1db): with a current object, Gravity off and state 0 or 3, the CURRENT object's block gets +0x5c ^= 0x2000 (set: it does not collide); its
+# "Colliding" line (FUN_004df3c0 0x4df4ea, while it flies) reads that block. Ours flipped one switch for every object: with A made non-colliding and B made current straight after (A still in view, so
+# FUN_004dd2f0 would not clear it: it clears only with NO current object), inteng shows B "Colliding", ours did not.
+# A: switch3 (in front of it, as acceptance-object-fly). B: a new AVP generator (Create makes it current).
+# RED on bishop-int 0d6688e9: B is not "Colliding" after A's L.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+wait 300
+key F
+expect-status Fly selected object: on
+expect-hierarchy-text Colliding
+# L: A does not collide any more
+key L
+expect-status Collisions: off
+expect-hierarchy-count 0 Colliding
+key F
+expect-status Fly selected object: off
+# B made current straight from A (Create makes the new object current: no frame with nothing current between): B collides, A's mark is A's
+click-bar Create > AVP generator
+expect-dialog Name Object
+form-field 1 !colB
+click-button OK
+expect-no-dialog
+wait 300
+key F
+expect-hierarchy-text Flying object
+expect-hierarchy-text Colliding
+picture 1
+key F

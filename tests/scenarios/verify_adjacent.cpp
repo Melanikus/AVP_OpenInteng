@@ -1,7 +1,10 @@
 // verify_adjacent: the check of the Adjacent Modules scenarios (tests/scenarios/adjacent-*.txt): the level the hidden editor run saved as a copy, read with the game's own loader. Written 2026-11-15 by
 // Melanikus (Drake) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
-// USE: verify_adjacent.exe <the level the editor opened> <the copy it saved> delete <module> <member>   : the module's list lost exactly that member (the rest in their order, with the entries they had)
+// USE: verify_adjacent.exe <the level the editor opened> <the copy it saved> touch <module> <member> <module2> <member2> (names): Recalculate Entry Points's Yes / No (AD-2): the first entry gone, the second kept, every other list the same modules
+//      ... touch <module> <member> <module2> <member2> others-may-change: the same two checks, after Module Linking's Exit + New / All Adjacencies (AD-6), whose own work makes chunks and puts
+//      entries into other lists: those are counted and named, not failed
+//      verify_adjacent.exe <the level the editor opened> <the copy it saved> delete <module> <member>   : the module's list lost exactly that member (the rest in their order, with the entries they had)
 //      verify_adjacent.exe <the level the editor opened> <the copy it saved> reorder <module> <member> : the member was taken off and put on: last now, same entries
 //      verify_adjacent.exe <the level the editor opened> <the copy it saved> add                      : exactly one module's list gained at least one module on the end (the old entries first, as they were)
 // CHECKS (both): both levels are read by the game's loader; the number of objects, shapes, AI chunks, links and so on is what it was (only ADJMDLEP chunks may differ); exactly ONE module's adjacency
@@ -12,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -114,13 +118,15 @@ int main(int argc, char **argv)
 
 	if (argc < 4)
 	{
-		printf("usage: verify_adjacent <the level the editor opened> <the copy it saved> delete <module> <member> | add\n");
+		printf("usage: verify_adjacent <the level the editor opened> <the copy it saved> delete <module> <member> | add | touch <module> <member taken out> <module> <member kept>\n");
 		return 2;
 	}
 
 	bool const deleting = strcmp(argv[3], "delete") == 0;
 	bool const reordering = strcmp(argv[3], "reorder") == 0;
 	bool const moved = strcmp(argv[3], "marker") == 0;
+	bool const touch = strcmp(argv[3], "touch") == 0 && argc >= 8;   // touch <module> <member taken out> <module> <member kept>, by the objects' names
+	bool const othersMayChange = touch && argc >= 9 && strcmp(argv[8], "others-may-change") == 0;   // AD-6: the generate changed other lists itself
 	int32_t const wantModule = (deleting || reordering) && argc >= 6 ? atoi(argv[4]) : -1;
 	int32_t const wantMember = (deleting || reordering) && argc >= 6 ? atoi(argv[5]) : -1;
 	OpenLevelFile before, after;
@@ -150,6 +156,70 @@ int main(int argc, char **argv)
 	Check(host::ReadModuleSnapshots(&before, &was) == host::ObjectEditResult::Done && host::ReadModuleSnapshots(&after, &now) == host::ObjectEditResult::Done, "the modules of both levels are read");
 	Check(was.size() == now.size(), "the level has as many objects: " + std::to_string(now.size()));
 
+	// pairs: Recalculate Entry Points' plan in asking mode on the second level, printed: each pair that doesn't touch (the question) or failed to place (the Failed box, AD-7), with
+	// the names and numbers; prints only, to find a level for a scenario (AD-7)
+	if (strcmp(argv[3], "pairs") == 0)
+	{
+		host::LevelStore const store(&after);
+		std::vector<host::EntryChange> plan;
+		std::vector<host::EntryDelete> gone;
+		host::EntryRecalcCounts counts = {};
+
+		if (!host::PlanEntryRecalc(after.Level(), &store, &plan, &counts, &gone))
+		{
+			printf("  info  no plan\n");
+			return 1;
+		}
+
+		for (host::EntryChange const &c : plan)
+		{
+			if (c.notTouching || c.failedToPlace)
+			{
+				printf("  info  pair %s%s %s %d -> %s %d (entry %zu)\n", c.notTouching ? "don't-touch" : "", c.failedToPlace ? (c.notTouching ? "+failed" : "failed") : "", c.mainName.c_str(), (int)c.mainIndex,
+					c.adjacentName.c_str(), (int)c.adjacentIndex, c.entry);
+			}
+		}
+
+		printf("  info  counts: %zu entries, %zu worked out, %zu don't touch, %zu failed to place, %zu naming no object\n", counts.entries, counts.recalculated, counts.notTouching, counts.failedToPlace, counts.noObject);
+		return 0;
+	}
+
+	// names <module> ...: each named module's object number and its list (numbers and names) in the second level: prints only, to write a scenario's pick-module lines (AD-6a)
+	if (strcmp(argv[3], "names") == 0)
+	{
+		std::map<int32_t, std::string> nameOf;
+		List<Object_Chunk *> objects;
+
+		after.Level()->list_objects(&objects);
+
+		for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+		{
+			nameOf[(int32_t)each()->object_data.index_num] = std::string(each()->object_data.o_name, strnlen(each()->object_data.o_name, sizeof(each()->object_data.o_name)));
+		}
+
+		for (int a = 4; a < argc; a++)
+		{
+			for (host::ModuleSnapshot const &m : now)
+			{
+				if (nameOf[m.index] != argv[a])
+				{
+					continue;
+				}
+
+				printf("  info  %s = %d:", argv[a], (int)m.index);
+
+				for (host::ModuleAdjacencyEntry const &e : m.adjacency)
+				{
+					printf(" %d %s (flags %x)", (int)e.objectIndex, nameOf[e.objectIndex].c_str(), (unsigned)e.flags);
+				}
+
+				printf("\n");
+			}
+		}
+
+		return 0;
+	}
+
 	std::vector<size_t> changed;
 
 	for (size_t i = 0; i < was.size() && i < now.size(); i++)
@@ -158,6 +228,20 @@ int main(int argc, char **argv)
 		{
 			changed.push_back(i);
 		}
+	}
+
+	// same: nothing of the adjacency changed (every module's list, each entry's flags and point), with the chunk counts above: the "change nothing" check of the write-back (Dietrich, 2026-11-17)
+	if (strcmp(argv[3], "same") == 0)
+	{
+		Check(changed.empty(), "no module's adjacency changed (" + std::to_string(was.size()) + " objects compared, " + std::to_string(changed.size()) + " differ)");
+
+		for (size_t i = 0; i < changed.size() && i < 5; i++)
+		{
+			printf("  info  module %d's adjacency differs\n", (int)was[changed[i]].index);
+		}
+
+		printf("%s\n", checksFailed ? "SOME CHECKS FAILED" : "All checks passed");
+		return checksFailed ? 1 : 0;
 	}
 
 	if (moved)
@@ -201,6 +285,79 @@ int main(int argc, char **argv)
 		Check(entriesChanged >= 1, "entries changed: " + std::to_string(entriesChanged));
 		Check(flagged, "every entry that changed has the hand-set bit and its other flags as they were");
 		(void)same;
+		printf("%s\n", checksFailed ? "SOME CHECKS FAILED" : "All checks passed");
+		return checksFailed ? 1 : 0;
+	}
+
+	if (touch)
+	{
+		// AD-2 (Dietrich, 2026-11-17): Recalculate Entry Points with a Yes on the first don't-touch pair (that entry taken out) and a No on the second (kept); other
+		// entries may have their points worked out again, so only the LISTS (the modules, their order) are compared
+		std::map<std::string, int32_t> byName;
+		List<Object_Chunk *> objects;
+
+		after.Level()->list_objects(&objects);
+
+		for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+		{
+			byName[std::string(each()->object_data.o_name, strnlen(each()->object_data.o_name, sizeof(each()->object_data.o_name)))] = (int32_t)each()->object_data.index_num;
+		}
+
+		auto const indexOf = [&byName](char const *name) { auto const it = byName.find(name); return it == byName.end() ? -1 : it->second; };
+		int32_t const gone = indexOf(argv[4]), goneMember = indexOf(argv[5]), kept = indexOf(argv[6]), keptMember = indexOf(argv[7]);
+		auto const members = [](host::ModuleSnapshot const &m) { std::vector<int32_t> out; for (host::ModuleAdjacencyEntry const &e : m.adjacency) { out.push_back(e.objectIndex); } return out; };
+		auto const has = [](std::vector<int32_t> const &list, int32_t n) { for (int32_t v : list) { if (v == n) { return true; } } return false; };
+
+		Check(gone >= 0 && goneMember >= 0 && kept >= 0 && keptMember >= 0, std::string("the four modules are in the copy: ") + argv[4] + " " + argv[5] + " " + argv[6] + " " + argv[7]);
+
+		size_t otherListsSame = 0, otherListsDiffer = 0;
+
+		for (size_t i = 0; i < was.size() && i < now.size(); i++)
+		{
+			std::vector<int32_t> const before = members(was[i]), afterList = members(now[i]);
+
+			if (now[i].index == gone)
+			{
+				std::vector<int32_t> expected;
+
+				for (int32_t v : before)
+				{
+					if (v != goneMember)
+					{
+						expected.push_back(v);
+					}
+				}
+
+				Check(has(before, goneMember), std::string(argv[4]) + "'s list had " + argv[5] + " before");
+				Check(afterList == expected, std::string(argv[4]) + "'s list lost " + argv[5] + " and only it (" + std::to_string(before.size()) + " modules before, " + std::to_string(afterList.size()) + " after)");
+			}
+			else if (now[i].index == kept)
+			{
+				Check(has(afterList, keptMember) && afterList == before, std::string(argv[6]) + "'s list kept " + argv[7] + " (the No), its modules as they were");
+			}
+			else if (afterList == before)
+			{
+				otherListsSame++;
+			}
+			else
+			{
+				otherListsDiffer++;
+
+				if (othersMayChange)
+				{
+					printf("  info  module %d's list changed by the generate: %zu modules before, %zu after\n", (int)now[i].index, before.size(), afterList.size());
+				}
+			}
+		}
+
+		if (othersMayChange)
+		{
+			printf("  info  %zu other lists the same, %zu changed by the generate (others-may-change)\n", otherListsSame, otherListsDiffer);
+		}
+		else
+		{
+			Check(otherListsDiffer == 0, "every other module's list has the same modules in the same order (" + std::to_string(otherListsSame) + " compared)");
+		}
 		printf("%s\n", checksFailed ? "SOME CHECKS FAILED" : "All checks passed");
 		return checksFailed ? 1 : 0;
 	}

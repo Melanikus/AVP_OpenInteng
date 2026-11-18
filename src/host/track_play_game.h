@@ -25,6 +25,9 @@ namespace host
 		int32_t section;      // the section the game is in
 		int32_t timer;        // 16.16 seconds into that section
 		bool playing;         // false once a track that does not loop has reached its end
+		int32_t world[3];     // TE-4: the object's place in the GAME's units (the dynamics block's Position), where the view draws it while it plays
+		int32_t matrix[9];    // TE-4: its orientation as the game's 16.16 matrix, row by row (the dynamics block's OrientMat), when turned
+		bool turned;          // TE-4: the track turns the object (the controller's no_rotation is clear); otherwise the object keeps its own turn
 	};
 
 	// Makes the game's controller for these sections and puts it at its start. False for no sections. Any controller made before is let go.

@@ -1,0 +1,19 @@
+# ACCEPTANCE (red first): Object Placement's EXIT runs every placed shape's save (FUN_004d9af0 0x4d9d66: each object of the placement list, its +0xc = FUN_004e1f90; reassess/object-placement.md
+# OP-130a; Frost, 2026-11-17, light-closeout-frost.md TB-L2), with the fields its load gave it. Furyall's leadlite1 is a simple object of Type 0 and ExtraData 0 whose shape's outside file is in inteng's
+# shape-name table (read at run time from his inteng.exe, 0x5e7b58) as a Type 16 ("Placed light"): the load guesses the Type (FUN_004e05d0 0x4e0c3a -> FUN_004e44c0 0x4e473d), so the save at Exit writes
+# Type 16 and gives the object inteng's default placed light. No edit is made: Object Placement, then Exit. (The same Exit puts PSX and Saturn load into 53 other headers of this level, 0xfc00 -> 0x3fc00:
+# host_placed_light_type_test checks two on Invasion.) The copy is read back by the game's loader (verify_typelight).
+# RED before (490c12a6): nothing is saved at Exit; leadlite1 stays Type 0 with no light.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Furyall.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 600
+picture 1
+click-bar Mode > Exit
+wait 2500
+expect-screen Construction
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_typelight/verify_typelight.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Furyall.RIF {copy} leadlite1 scale

@@ -1,4 +1,4 @@
-# VIEW: NON-PLANAR QUADS after Split Object (NOT RUN YET: Split Object 0xc7 is [wip] in the menu until Hicks flips it, so the menu item says "Not in the editor yet"). Polygons 0 and 5 of RndSwitch1 (row 148) are picked, Split Object > As Module marks them (flag 0x80000000), the view must then find exactly 2.
+# VIEW: NON-PLANAR QUADS after Split Object (NOT RUN YET: Split Object 0xc7 is not built (IntengWork::None) until Hicks flips it, so a click on the menu item says "Not in the editor yet"). Polygons 0 and 5 of RndSwitch1 (row 148) are picked, Split Object > As Module marks them (flag 0x80000000), the view must then find exactly 2.
 start-args -viewmode headlight
 level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
 pictures on
@@ -11,6 +11,11 @@ pick-poly 148 0
 pick-poly 148 5
 expect-status 2 selected
 item 0xc7
+# inteng's confirm box (FUN_005746b0; TM-C H6, Drake 11-18: ours asked a typed y, which this never answered)
+expect-dialog-kind confirm
+expect-dialog Are you sure that you want to make these polys into
+click-button Yes
+expect-no-dialog
 expect-status marked to become
 item 0x11c
 expect-status 2 found

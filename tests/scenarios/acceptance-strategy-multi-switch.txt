@@ -21,7 +21,7 @@ key E
 wait 400
 picture 1
 # (expect-field-has finds its words as they stand in the field, one run of lines: a target's (on) / (off) and its name are two lines, so each target is looked for alone)
-expect-field-has strategyview 200@0:exitmultiswitch : Multiple Target Switch|100@629:D : Duplicate target{9} Shift D : Remove target|100@649:E : Edit extra message data for target|100@669:P : Change Properties|100@689:T : Change Target (+Ctrl to choose environment)|100@709:S : Toggle Target State|16@32:Rest State : On|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Targets :|0@96:(on)|80@96:
+expect-field-has strategyview 200@0:exitmultiswitch : Multiple Target Switch|100@380:D : Duplicate target{9} Shift D : Remove target|100@400:E : Edit extra message data for target|100@420:P : Change Properties|100@440:T : Change Target (+Ctrl to choose environment)|100@460:S : Toggle Target State|16@32:Rest State : On|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Targets :|0@96:(on)|80@96:
 expect-field-has strategyview |0@112:(on)|80@112:
 expect-field-has strategyview |0@128:(on)|80@128:
 expect-field-has strategyview |0@144:(on)|80@144:
@@ -31,22 +31,22 @@ expect-field-has strategyview |20@224:
 
 # ---- THE KEYS AND PRESSES (FUN_0052f700 0x52fbda-0x52feb0; S-K66-3..7), each on the target row under the POINTER (rows from y 96, 16 each; the view starts at the window's top)
 # S (slot 0xd87a93) on row 0 flips its request's bit 0: (on) -> (off)
-move-win 200 104
+move-box 200 104
 key S
 wait 200
 expect-field-has strategyview |0@96:(off)|80@96:
 # a press at x <= 0x31 on row 1 does the same
-click-win 20 120
+click-box 20 120
 wait 200
 expect-field-has strategyview |0@112:(off)|80@112:
 # S on the "Targets :" line itself (y 80..95): INTENG BUG, FIXED (MAPPING-ORDERS section 15): inteng's S skips the "from 16 below the line" test E and D make (0x52fde7), so it flipped
 # the page's FIRST target; ours takes no row there: row 0 stays (off)
-move-win 200 88
+move-box 200 88
 key S
 wait 200
 expect-field-has strategyview |0@96:(off)|80@96:
 # D on row 0 (0xd87a84, FUN_00530430): a copy of it after it: 5 targets, rows 0 and 1 both (off), the old rows 1..3 one row down, "Links:" one row down (y 176)
-move-win 200 104
+move-box 200 104
 key D
 wait 200
 expect-field-has strategyview |0@112:(off)|80@112:
@@ -58,7 +58,7 @@ key D shift
 wait 200
 expect-field-has strategyview |16@160:Links:|
 # E on row 3 (0xd87a85, FUN_00529b30): its target is the Multi Switch "delay temple sealed sound": its page (S-84, FUN_00530510) "Part of link switch set"; Escape ends the page
-move-win 200 152
+move-box 200 152
 key E
 wait 300
 expect-field-has strategyview Part of link switch set
@@ -78,7 +78,7 @@ wait 300
 expect-field-has strategyview |16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Same|
 # T (0xd87a94) with the pointer on row 0: the camera goes to its target (FUN_00529280), then "Select targets for switch" (FUN_0052ff10 -> the collector); Return keeps the list as it was
 remember-field camera
-move-win 200 104
+move-box 200 104
 key T
 wait 300
 expect-field-changed camera

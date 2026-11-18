@@ -1,0 +1,27 @@
+# ACCEPTANCE (red first): TM-B, the texture windows draw no background (FUN_00556250: the picture, the outline, the box and the node markers, no background; Dietrich, 2026-11-18;
+# reassess/tm-b-window-layout.md E5). Ours: a dark box (14181c) covered the level from under the bars to the status line, so the selected polygons that I (0x105) shows and hides
+# could not be seen. His path: Invasion, Mode > Texture Map, the quad at 0.50 0.60, Tab: the level stays in sight round the window in the bottom-right corner (at most a fifth of the
+# frame's middle the box's colour), the same in the multiple node mode (M, Tab). Pictures.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+key Tab
+wait 400
+picture 495
+expect-colour-at-most picture 200 150 500 300 14181c 0.20 6
+key Tab
+wait 300
+key M
+wait 200
+key Tab
+wait 400
+expect-status multiple node mode
+picture 496
+expect-colour-at-most picture 200 150 500 300 14181c 0.20 6
+key Tab
+wait 300

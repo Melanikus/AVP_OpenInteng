@@ -1,5 +1,5 @@
-// The test for src/host's editor bar (editor_bar.h): every screen's bar is made and loads into the menu bar, inteng's items come with
-// their tags, the editor's own menu and the hub's Screens menu are where they should be, every pick does what it says, the widest bar is
+// The test for src/host's editor bar (editor_bar.h): every screen's bar is made and loads into the menu bar, inteng's items show their
+// words alone (no tag after a name, as inteng draws them), the editor's own menu and the hub's Screens menu are where they should be, every pick does what it says, the widest bar is
 // measured, and titles past the toolbar's edge are named. Written 2026-11-15 by Melanikus (Dietrich) for AVP_OpenInteng (A6). AVP_OpenInteng's
 // own code: see License.txt, "AVP_OpenInteng's own code".
 //
@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <set>
 #include <string>
 
 #include "editor_bar.h"
@@ -90,6 +91,84 @@ static void TestEveryBar()
 		"a screen that isn't one, or no room, makes nothing");
 }
 
+// Every row of a made room and of its cascades: counts them, and those of an item inteng_menus tags as not built (so the check below reads some), and keeps the first row that shows a tag
+static void RowsOfRoom(const EditorBarRoom &made, size_t *rows, size_t *notBuilt, std::string *shownTag)
+{
+	for (size_t m = 0; m < made.menuCount; m++)
+	{
+		for (size_t i = 0; i < made.menus[m].count; i++)
+		{
+			const ui::MenuItem &item = made.menus[m].items[i];
+
+			for (size_t k = 0; k <= item.subCount; k++)
+			{
+				const ui::MenuItem &row = k == 0 ? item : item.subItems[k - 1];
+				const host::IntengItem *const inteng = host::IntengMenus_Find(row.action);
+
+				(*rows)++;
+				*notBuilt += inteng && inteng->tag != host::IntengTag::None ? 1 : 0;
+
+				if (row.tag && shownTag->empty())
+				{
+					*shownTag = std::string(row.name) + row.tag;
+				}
+			}
+		}
+	}
+}
+
+static void TestNoTags()
+{
+	puts("Every row as inteng draws it:");
+
+	// every page any screen has (Object Placement's pop-up pages are Track Editing's second-row pages), and page 0
+	std::set<int32_t> pages = { 0 };
+
+	for (size_t s = 0; s < kIntengScreenCount; s++)
+	{
+		for (size_t p = 0; p < kIntengScreens[s].pageCount; p++)
+		{
+			pages.insert(kIntengScreens[s].pages[p].page);
+		}
+	}
+
+	size_t rows = 0, notBuilt = 0;
+	std::string shownTag;
+
+	for (size_t s = 0; s < kIntengScreenCount; s++)
+	{
+		for (int32_t const page : pages)
+		{
+			EditorBar_SetPage(page);
+			EditorBar_SetPopupPage(page);
+
+			if (EditorBar_Make(s, KeyLayout::Classic, &room))
+			{
+				RowsOfRoom(room, &rows, &notBuilt, &shownTag);
+			}
+
+			if (EditorBar_MakeSecond(s, &room))
+			{
+				RowsOfRoom(room, &rows, &notBuilt, &shownTag);
+			}
+
+			for (int32_t group = -1; group < (int32_t)ui::kMenuMostItems; group++)
+			{
+				if (EditorBar_MakePopupLevel(s, group, &room))
+				{
+					RowsOfRoom(room, &rows, &notBuilt, &shownTag);
+				}
+			}
+		}
+	}
+
+	EditorBar_SetPage(0);
+	EditorBar_SetPopupPage(0);
+
+	Check(rows > 0 && notBuilt > 0 && shownTag.empty(), "no row of any screen's bars, pages, cascades or pop-up shows a tag after its name (" + std::to_string(rows) + " rows, " +
+		std::to_string(notBuilt) + " of them items with nothing built behind them" + (shownTag.empty() ? std::string() : "; not: \"" + shownTag + "\"") + ")");
+}
+
 static void TestTheHub()
 {
 	puts("The hub's bar:");
@@ -104,8 +183,8 @@ static void TestTheHub()
 	const ui::MenuItem *const write = ItemFor(0x10002);
 
 	Check(open == nullptr, "the editor's own Open level is not on the bar (Ctrl+O still does it)");
-	Check(quit && Is(quit->name, "Quit") && quit->tag == nullptr && write && Is(write->name, "Write C File") && Is(write->tag, " [wip]"),
-		"inteng's Quit, which works, has no tag; Write C File, which isn't built, has \" [wip]\"");
+	Check(quit && Is(quit->name, "Quit") && quit->tag == nullptr && write && Is(write->name, "Write C File") && write->tag == nullptr,
+		"inteng's Quit, which works, and Write C File, which isn't built, both show their name alone, as inteng draws every item (no \" [wip]\" after it)");
 }
 
 static void TestAScreen()
@@ -138,15 +217,22 @@ static void TestPicks()
 	Check(exit && EditorBar_Run(exit->action, &host) && host.exitMode, "placement's Exit is the mode's Exit: the bar asks the editor for it");
 	host.screen = host::kIntengHub;
 	host.statusWords = nullptr;
-	Check(EditorBar_Run(0x10002, &host) && host.screen == host::kIntengHub && Is(host.statusWords, host::IntengMenus_Why(host::IntengTag::Wip)),
+	// (Frost 11-18: Write C File, 0x10002, was the example; it is built now, so a still-[wip] item is: Light Sourcing's Acoustic type, 0xc1c03)
+	Check(EditorBar_Run(0xc1c03, &host) && host.screen == host::kIntengHub && Is(host.statusWords, host::IntengMenus_Why(host::IntengTag::Wip)),
 		"a [wip] item does nothing but say why, on the status line");
+	host.prompt = 0;
+	Check(EditorBar_Run(0x10002, &host) && host.screen == host::kIntengHub && host.prompt == kPromptWriteC,
+		"Write C File asks the editor for the file name (kPromptWriteC; write_c_file.h decides whether one object is selected)");
+	host.prompt = 0;
 	Check(EditorBar_Run(kActionScreenFirst + 12, &host) && host.screen == 12 && Is(host.statusWords, kIntengScreens[12].name),
 		"a Screens item opens that screen");
 	Check(EditorBar_Run(kActionBackToHub, &host) && host.screen == host::kIntengHub, "Back to Construction goes back to the hub");
 
 	host.statusWords = nullptr;
-	Check(EditorBar_Run(0x10021, &host) && Is(host.statusWords, EditorActions_KeysWords(KeyLayout::Classic)),
-		"construction's Keys - Movement lists the keys");
+	host.showMovementKeys = false;
+	// Construction's Keys - Movement shows the camera keys' text screen (FUN_005573c0; TB-C6): the bar asks for it, the hub draws no status words
+	Check(EditorBar_Run(0x10021, &host) && host.showMovementKeys && host.statusWords == nullptr,
+		"construction's Keys - Movement asks for the camera keys' text screen");
 	Check(EditorBar_Run(kActionViewPolygon, &host) && host.statusWords != nullptr && host.screen == host::kIntengHub,
 		"the editor's own items still do what they did");
 	Check(EditorBar_Run(0x10001, &host) && !host.running, "construction's Quit closes the editor");
@@ -213,6 +299,7 @@ int main()
 	setvbuf(stdout, NULL, _IONBF, 0);
 
 	TestEveryBar();
+	TestNoTags();
 	TestTheHub();
 	TestAScreen();
 	TestPicks();

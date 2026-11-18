@@ -24,6 +24,19 @@ milestone. The first release will be `v1.0.0-beta.0`.
 - **Everything else is ours:** the editor's window and loop, its UI (our own, no outside UI library), its modes and its save path.
 - **No precompiled code** is in this repository. The libraries it uses are built from pinned sources.
 
+## Its settings (AVP_OpenInteng.ini)
+
+The zip has an `AVP_OpenInteng.ini` beside the editor. Before the first start, add two lines under its `[Editor]`: `DataFolder=` (your
+own copy of the game's data, the folder that holds `avp_rifs`) and `Level=` (the level to open when none is given, without `.rif`).
+
+- `StartWidth=` and `StartHeight=` are the size the window starts at, inside its frame: 1280 x 720 in the zip. They're kept to at least
+  640 x 480 and at most your monitor.
+- `Windowed=true` keeps the window framed, as the command line's `-w` does. With `false`, a size as big as the monitor covers it whole,
+  as classic inteng's full screen does.
+- What wins: inteng's own 640 x 480, then `StartWidth` and `StartHeight`, then the command line's `-r<width>x<height>`, then a classic
+  `IntengOptions.ini` (beside the editor, or in the Tools folder `IntengTools=` names), whose `Screen Width` and `Screen Height` win, as in
+  inteng. The editor never writes to `IntengOptions.ini`.
+
 ## Opening a level file with the editor ("Open with")
 
 The editor opens a level named on its command line: `AVP_OpenInteng.exe <file.rif>`. With none, it opens the one named by `Level=`

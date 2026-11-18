@@ -1,0 +1,2 @@
+/std:c++17 /EHsc /MD /J /we4834 /W3 /sdl /FC /O2 /D_MSVC_STL_HARDENING=1 /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE
+tests/scenarios/verify_camera_file.cpp

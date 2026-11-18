@@ -84,8 +84,8 @@ namespace host
 	void SpecialMode_Cancel(SpecialMode *mode);
 	void SpecialMode_Reset(SpecialMode *mode);
 
-	// Puts the current special object at this place (file units), for Snap To Vertex; the answer's words say what happened
-	SpecialStep SpecialMode_MoveCurrent(OpenLevelFile *file, SpecialMode *mode, int32_t const place[3]);
+	// Puts the current special object at this place (file units), for Snap To Vertex, or, flown true, for the end of a flight (Fly selected object, F again); the answer's words say what happened
+	SpecialStep SpecialMode_MoveCurrent(OpenLevelFile *file, SpecialMode *mode, int32_t const place[3], bool flown = false);
 
 	// Sets the parent of the current particle generator to the object with this 8-byte ID ("Click on parent for generator", FUN_004e7100; Object Placement's Q key)
 	SpecialStep SpecialMode_SetParent(OpenLevelFile *file, SpecialMode *mode, uint8_t const id[8]);

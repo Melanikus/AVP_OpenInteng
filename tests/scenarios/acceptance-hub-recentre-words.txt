@@ -1,0 +1,31 @@
+# ACCEPTANCE (TB-C2, reassess/construction-closeout-frost.md): Construction > Shape > Recentre Shape > Move centre to top / bottom (0x14a / 0x14b) with inteng's words (FUN_004452b0 0x44647f-0x446631):
+# nothing selected: the message "Please select an object first" (0x44660c); something selected: FIRST the question "Recentre selected shapes?" (0x44649c), No moves nothing, Yes moves each selected shape.
+# (A morphing shape's "Recentreing not supported on morphing objects", 0x446509, comes in its turn: not in this run.) Red on bishop-int 056fed50 (no message, no question), green on the hash with the words.
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-no-dialog
+expect-selected 0
+item 0x14a
+expect-dialog-kind message
+expect-dialog Please select an object first
+picture 1
+click-button Ok
+expect-no-dialog
+select-row 0
+expect-selected 1
+item 0x14a
+expect-dialog-kind confirm
+expect-dialog Recentre selected shapes?
+expect-pixels-changed panels 0 0 1000 700 0.005
+picture 2
+click-button No
+expect-no-dialog
+expect-status Move centre: nothing moved
+item 0x14b
+expect-dialog Recentre selected shapes?
+click-button Yes
+expect-no-dialog
+expect-status Move centre to bottom: 1 shape moved
+picture 3

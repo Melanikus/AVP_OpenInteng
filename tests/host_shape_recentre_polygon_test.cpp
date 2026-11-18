@@ -19,6 +19,7 @@
 #include "level_file.h"
 #include "file_pick.h"
 #include "shape_edit.h"
+#include "polygon_items.h"   // PolygonItems_ReadMergeData: the merged pairs
 
 static int checksFailed = 0;
 static int checksRun = 0;
@@ -133,26 +134,48 @@ static void TestFile(std::string const & path)
 
 		FilePick_World(&file, level, id.data(), &after, &worldAfter, &normals);
 
-		// the polygon's centre is at the origin
-		model::ShapePolygon const & poly = after.polygons[(size_t)polygon];
+		// the polygon's centre is at the origin (a merged triangle's: the pair's, FUN_00565bd0; Dietrich 2026-11-18)
+		std::vector<int32_t> merge;
+		bool hasMerge = false;
+		int32_t partner = -1;
+
+		if (PolygonItems_ReadMergeData(&file, level, id.data(), &merge, &hasMerge) && hasMerge && (size_t)polygon < merge.size())
+		{
+			int32_t const q = merge[(size_t)polygon];
+
+			partner = q >= 0 && (size_t)q < after.polygons.size() && q != polygon && after.polygons[(size_t)polygon].cornerCount == 3 && after.polygons[(size_t)q].cornerCount == 3 ? q : -1;
+		}
+
 		double sum[3] = { 0, 0, 0 };
 		int n = 0;
+		int32_t seen[16];
 
-		for (int k = 0; k < poly.cornerCount; k++)
+		for (int32_t const which : { polygon, partner })
 		{
-			bool again = false;
-
-			for (int j = 0; j < k; j++)
+			if (which < 0)
 			{
-				again = again || poly.corners[j] == poly.corners[k];
+				continue;
 			}
 
-			if (!again)
+			model::ShapePolygon const & poly = after.polygons[(size_t)which];
+
+			for (int k = 0; k < poly.cornerCount; k++)
 			{
-				sum[0] += after.points[(size_t)poly.corners[k]].x;
-				sum[1] += after.points[(size_t)poly.corners[k]].y;
-				sum[2] += after.points[(size_t)poly.corners[k]].z;
-				n++;
+				bool again = false;
+
+				for (int j = 0; j < n; j++)
+				{
+					again = again || seen[j] == poly.corners[k];
+				}
+
+				if (!again && n < 16)
+				{
+					seen[n] = poly.corners[k];
+					sum[0] += after.points[(size_t)poly.corners[k]].x;
+					sum[1] += after.points[(size_t)poly.corners[k]].y;
+					sum[2] += after.points[(size_t)poly.corners[k]].z;
+					n++;
+				}
 			}
 		}
 
@@ -184,6 +207,96 @@ static void TestFile(std::string const & path)
 			break;
 		}
 	}
+
+	// A MERGED PAIR (Dietrich 2026-11-18, FUN_00565bd0 0x565cef-0x565e98): a triangle with a partner in the shape's merge data is recentred on the pair's centre, its three corners and the
+	// partner's other one, over 4; so after it the pair's distinct corners average to the origin
+	int pairs = 0;
+
+	for (LIF<Object_Chunk *> each(&found); !each.done() && pairs < 3; each.next())
+	{
+		uint8_t id[8];
+		std::vector<int32_t> merge;
+		bool hasMerge = false;
+		model::ShapeModel before;
+		std::vector<int32_t> world, normals;
+
+		memcpy(id, &each()->object_data.ID, 8);
+
+		if (!PolygonItems_ReadMergeData(&file, level, id, &merge, &hasMerge) || !hasMerge || FilePick_World(&file, level, id, &before, &world, &normals) != FilePickResult::Done)
+		{
+			continue;
+		}
+
+		int32_t polygon = -1, partner = -1;
+
+		for (size_t p = 0; p < merge.size() && p < before.polygons.size() && polygon < 0; p++)
+		{
+			int32_t const q = merge[p];
+
+			if (q >= 0 && (size_t)q < before.polygons.size() && q != (int32_t)p && before.polygons[p].cornerCount == 3 && before.polygons[(size_t)q].cornerCount == 3)
+			{
+				polygon = (int32_t)p;
+				partner = q;
+			}
+		}
+
+		if (polygon < 0)
+		{
+			continue;
+		}
+
+		size_t users = 0;
+		std::string why;
+
+		if (ShapeEdit_RecentreOnPolygon(&file, level, id, polygon, &users, &why) != ShapeEditResult::Done)
+		{
+			continue;   // a morph, or a place the game would refuse
+		}
+
+		model::ShapeModel after;
+
+		FilePick_World(&file, level, id, &after, &world, &normals);
+
+		int32_t corners[6];
+		int n = 0;
+		double sum[3] = { 0, 0, 0 };
+
+		for (int32_t const which : { polygon, partner })
+		{
+			model::ShapePolygon const &poly = after.polygons[(size_t)which];
+
+			for (int k = 0; k < poly.cornerCount; k++)
+			{
+				bool again = false;
+
+				for (int j = 0; j < n; j++)
+				{
+					again = again || corners[j] == poly.corners[k];
+				}
+
+				if (!again && n < 6)
+				{
+					corners[n++] = poly.corners[k];
+					sum[0] += after.points[(size_t)poly.corners[k]].x;
+					sum[1] += after.points[(size_t)poly.corners[k]].y;
+					sum[2] += after.points[(size_t)poly.corners[k]].z;
+				}
+			}
+		}
+
+		bool atOrigin = n == 4;
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			atOrigin = atOrigin && fabs(sum[axis] / n) <= 1.0;
+		}
+
+		Check(atOrigin, "polygon " + std::to_string(polygon) + " merged with " + std::to_string(partner) + ": the pair's centre (its " + std::to_string(n) + " corners) is at the origin (" +
+			std::to_string(sum[0] / (n ? n : 1)) + " " + std::to_string(sum[1] / (n ? n : 1)) + " " + std::to_string(sum[2] / (n ? n : 1)) + ")");
+		pairs++;
+	}
+
+	Check(pairs > 0, "a merged pair was found and recentred (" + std::to_string(pairs) + ")");
 
 	std::vector<char> built;
 

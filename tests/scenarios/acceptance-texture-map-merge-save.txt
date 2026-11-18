@@ -1,0 +1,73 @@
+# ACCEPTANCE (red first): TM-B 2c, Merge's save (FUN_0055b900; Dietrich, 2026-11-18; reassess/tm-b-merge-map.md). While viewing, X, Polygon (Tab) and Exit ask "Would you like to save the
+# changes\nto this shape?.\nIf you don't the changes will be lost." when B changed something; Yes writes the pairing into the shape's SHPMRGDT (and its SHPMORPH / ASALTTEX sub-shapes') and the
+# level file (FUN_004719e0 at 0x55bf68); No puts the numbers back (0x55c016). Ours had no save: X stopped viewing and the pairing was lost. His path: Invasion, Mode > Texture Map, Mode > Merge,
+# flam014 (the object list's first row: polygons 0 and 1 a pair), M, 0 picked (its pair with it), B (parted), X: the question, Yes: the saved copy has 0 and 1 parted, every other number as it
+# was; then M again (71 pairs, read from the level), 0 and 1 picked, B (paired again), Tab: the question, No: M again still shows 71 (nothing written).
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+verify cmd /c del /q "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif" "{exedir}AVP_OpenInteng\edited\Invasion-edited.rif.bak" 2>nul & exit 0
+state
+item 0x46
+expect-screen Texture Map
+item 0x4
+wait 300
+pick-poly 0 0
+wait 300
+key M
+wait 300
+state
+expect-status viewing flam014, 72 merged pairs
+pick-poly 0 0
+wait 300
+key B
+wait 300
+state
+expect-status 71 merged pairs; picked -1 -1 (changed)
+key X
+wait 300
+expect-dialog-kind confirm
+expect-dialog Would you like to save the changes
+state
+click-button Yes
+wait 300
+# flam014's shape has four other users (2d, acceptance-texture-map-merge-shared): All, every user takes the change
+expect-dialog-kind form
+click-button All
+expect-no-dialog
+wait 400
+state
+expect-status merged polygons were written
+expect-status Saved
+# the saved copy, read by the game's loader: flam014's polygons 0 and 1 parted, every other number as it was
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify_merge/verify_merge.exe {orig} {exedir}AVP_OpenInteng\edited\Invasion-edited.rif flam014 0 1 parted
+# No: the numbers put back, nothing written
+key M
+wait 300
+state
+expect-status viewing flam014, 71 merged pairs
+pick-poly 0 0
+wait 300
+pick-poly 0 1
+wait 300
+key B
+wait 300
+state
+expect-status 72 merged pairs; picked -1 -1 (changed)
+key Tab
+wait 300
+expect-dialog-kind confirm
+expect-dialog Would you like to save the changes
+click-button No
+expect-no-dialog
+wait 300
+state
+expect-status the changes were not saved
+item 0x4
+wait 300
+pick-poly 0 0
+wait 300
+key M
+wait 300
+state
+expect-status viewing flam014, 71 merged pairs

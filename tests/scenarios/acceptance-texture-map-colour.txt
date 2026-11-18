@@ -1,0 +1,46 @@
+# ACCEPTANCE (red first): TM-B, Ctrl+K and Shift+K (0x41 Apply Colour, FUN_00570490; 0x40 Select Colour, FUN_00560620; Dietrich, 2026-11-18). Ctrl+K makes the selected polygons plain
+# (type 2) in the current colour, 0 at the start; Shift+K covers the screen with a 16 x 16 grid of inteng's 256 colours (its table at 0x5d77c8, read from the user's inteng.exe), reads no
+# key, and a left press on a cell makes that colour the current one and applies it: the word is ((cell << 6 | r) << 16 | g << 8 | b) x 4; a right press takes none. Ours: both did nothing.
+# His path: Invasion, Mode > Texture Map, the quad at 0.50 0.60, Ctrl+K: plain, colour 00000000 (the saved copy, read by the game's loader: only that polygon changed, its corners, normal
+# and flags kept); Shift+K: the grid (cells 63 x 43 on the 1008 x 729 frame less the status line); Tab does nothing; a click on cell 149 (column 5, row 9; inteng's colour 21 0 0): colour
+# 95540000; Shift+K and a right press: no colour. State line, saved file and pictures.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+save-copy
+click-view 0.50 0.60
+expect-status 1 selected
+key K ctrl
+wait 400
+expect-status 1 polygon given the colour 00000000
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_colour/verify_colour.exe {prev} {copy} 1 00000000
+picture 504
+key K shift
+wait 400
+expect-status Select Colour: click a colour
+expect-field colourgrid 63 43
+picture 505
+key Tab
+wait 300
+expect-field colourgrid 63 43
+expect-field-empty texwin
+# cell 149's middle: column 5 x 63 + 31, row 9 x 43 + 21
+click-win 346 408
+wait 400
+expect-field-empty colourgrid
+expect-status 1 polygon given the colour 95540000
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_colour/verify_colour.exe {prev} {copy} 1 95540000
+picture 506
+key K shift
+wait 400
+expect-field colourgrid 63 43
+click-win 346 408 right
+wait 300
+expect-field-empty colourgrid
+expect-status Select Colour: no colour taken

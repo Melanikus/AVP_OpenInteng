@@ -96,4 +96,13 @@ namespace host
 
 	// Whether the object holds a track (an OBJTRAK2): what inteng asks of the object it pastes on (FUN_004f3330: the object's track pointer at +0x154 not 0)
 	bool TrackExists(OpenLevelFile *file, uint8_t const *id);
+
+	// An object's 8-byte ID (its OBJHEAD1's), as a value
+	struct TrackObjectId
+	{
+		uint8_t bytes[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+	};
+
+	// The IDs of the level's objects that hold a track (an OBJTRAK2), in the level's object order (the Object Placement list's, which Shift+T walks: FUN_004efd50). Empty when no level is open.
+	std::vector<TrackObjectId> TrackObjectsWithTracks(OpenLevelFile *file);
 }

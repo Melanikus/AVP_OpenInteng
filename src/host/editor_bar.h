@@ -1,12 +1,13 @@
 // editor_bar.h: the menu bar of each of the old editor's screens, and what a pick on it does. A screen's bar is inteng's own menus for it
-// (inteng_menus.h), each item with its tag, then the editor's own menu, "View (ours)", and on the hub also "Screens (ours)", which opens
+// (inteng_menus.h), each item's words alone as inteng draws them, then the editor's own menu, "View (ours)", and on the hub also "Screens (ours)", which opens
 // any screen. Written 2026-11-15 by Melanikus (Dietrich) for AVP_OpenInteng (A6, the all-menus build). AVP_OpenInteng's own code: see
 // License.txt, "AVP_OpenInteng's own code".
 //
 // Window-free and tested: the editor's loop makes the bar of the screen in use, loads it into its menu bar, and hands each pick here.
-// - An item inteng's screen has does what its work says (Quit, go to a screen, back to the hub, the keys). A tagged item does nothing but
-//   say why, so every item can be chosen, and every one gives Melanikus "clear feedback". (His words: "add all menu items and [wip]
-//   besides them".)
+// - An item inteng's screen has does what its work says (Quit, go to a screen, back to the hub, the keys). An item with nothing built behind
+//   it (IntengWork::None) does nothing but say why on the status line, so every item can be chosen, and every one gives Melanikus "clear
+//   feedback". Its row shows its name alone, as inteng's does (2026-11-18, the owner: "I dont think the color gray is in inteng at all";
+//   until then a tag followed the name: "add all menu items and [wip] besides them").
 // - The editor's own items are its table's (editor_actions.h), but for two that inteng's own items now do: Quit (2), which construction's
 //   File, Quit does, and Help, Keys (301), which construction's Keys - Movement and placement's Keys do. They're left off the bar.
 // - "Back to Construction" is ours, on every screen but the hub. Some of inteng's screens have no Exit of their own.
@@ -54,11 +55,11 @@ size_t EditorBar_PopupScreen(size_t screen);
 // row 2); the pop-up opens the same items at the pointer: the top level lists the table's entries, an entry with several items opens them as a second pop-up in the same place.
 int32_t const kEditorPopupGroupBase = 0x7e000000;   // a picked action from this number is "open the group m = action - base", not a command
 
-// Makes screen's pop-up in *room: group < 0 the top level, group >= 0 the items of the table's entry number group (one menu holding them, each with its tag's words). Gives back false, making nothing that counts,
+// Makes screen's pop-up in *room: group < 0 the top level, group >= 0 the items of the table's entry number group (one menu holding them, each with its words alone). Gives back false, making nothing that counts,
 // for no room, a screen with no pop-up, a group it does not have, or a table that wouldn't fit.
 bool EditorBar_MakePopupLevel(size_t screen, int32_t group, EditorBarRoom *room);
 
-// Makes screen's pop-up in *room: one menu holding every item of its pop-up table, each with its tag's words. Gives back false, making nothing
+// Makes screen's pop-up in *room: one menu holding every item of its pop-up table, each with its words alone. Gives back false, making nothing
 // that counts, for no room, a screen with no pop-up, or a table that wouldn't fit.
 bool EditorBar_MakePopup(size_t screen, EditorBarRoom *room);
 
@@ -67,7 +68,7 @@ bool EditorBar_MakePopup(size_t screen, EditorBarRoom *room);
 // fails.
 bool EditorBar_Make(size_t screen, KeyLayout layout, EditorBarRoom *room);
 
-// The screen's SECOND bar, under the first (inteng's code-built screens show two rows of menus: IntengScreen::secondRow, page 0), made in *room with the same item words and tags and none of
+// The screen's SECOND bar, under the first (inteng's code-built screens show two rows of menus: IntengScreen::secondRow, page 0), made in *room with the same item words and none of
 // the editor's own items. Gives back true with room->menuCount 0 for a screen that has no second row, and false (making nothing that counts) for no room, a screen that isn't one of
 // kIntengScreens, or a row that wouldn't fit the menu bar.
 bool EditorBar_MakeSecond(size_t screen, EditorBarRoom *room);

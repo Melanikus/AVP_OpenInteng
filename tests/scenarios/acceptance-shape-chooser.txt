@@ -45,5 +45,7 @@ expect-dialog Name Object
 type chosentest
 key Enter
 expect-no-dialog
+# OP-26c: the chosen shape's new object is in the game's view at once (red before: "no")
+expect-field inplay yes
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-harness-out/verify_chooser/verify_chooser.exe {orig} {copy} chosentest Smrtam01

@@ -493,6 +493,17 @@ void StrategySave()
 	SaveTheCopy();
 }
 
+// The y of the row under the pointer in a kind's Edit view, from the view's top: -1 (no row) when the pointer is outside the view's box (the owner's box, 11-17: the keys that act on
+// the row under the pointer read no row outside it, as a left click outside does nothing; inteng's page was the whole screen, so it had no outside). The pick shows no box: the whole window.
+static int32_t PointerRowInBox()
+{
+	bool const outside = strategyViewBox[2] > 0 && (barPointerX < strategyViewBox[0] || barPointerX >= strategyViewBox[0] + strategyViewBox[2] || barPointerY < strategyViewBox[1] ||
+		barPointerY >= strategyViewBox[1] + strategyViewBox[3]);
+
+	return outside ? -1 : barPointerY - strategyViewTop;
+}
+
+
 static void MultiTargetsStart(uint8_t const *subject, std::vector<uint8_t> const &payload, int32_t index);   // below, with the collector
 
 // S / D / Shift + D / T on a 66 view (S-K66-3 / -4 / -5), the target row under the pointer: S flips its request's bit 0 (0x52fe29-0x52fe3f); D puts a copy after it (FUN_00530430), Shift + D
@@ -509,7 +520,7 @@ void MultiKeyUnderPointer(int key, bool shift)
 	}
 
 	size_t index = 0;
-	bool const onRow = host::StrategyView_MultiTargetAt(payload, multiPage, barPointerY - strategyViewTop, &index);
+	bool const onRow = host::StrategyView_MultiTargetAt(payload, multiPage, PointerRowInBox(), &index);
 
 	if (key == 'T')
 	{
@@ -2087,7 +2098,7 @@ void MissionToggleUnderPointer(int32_t bit)
 	size_t index = 0;
 
 	if (!StrategyOfObject(strategyEditId, &kind, &payload) || kind != 70 || !host::StrategyView_MissionTargets(payload, &targets) ||
-	    !host::StrategyView_MissionTargetAt(payload, barPointerY - strategyViewTop, &index))
+	    !host::StrategyView_MissionTargetAt(payload, PointerRowInBox(), &index))
 	{
 		return;
 	}
@@ -2942,7 +2953,7 @@ void StrategyRequestE()
 		// S-K72-6, 0x534c21-0x534d1d: the target row under the pointer (y >= 48: (y - 48) / 16, else none), when the page has that row. A Hierarchy Object's flag page is one row higher
 		// (S-K76-5, 0x533e5d-0x533e6c: y > 31: (y - 32) / 16)
 		std::vector<host::TrackEffect> effects;
-		int32_t const y = barPointerY - strategyViewTop;
+		int32_t const y = PointerRowInBox();
 		int32_t const top = kind == 76 ? 32 : 48;
 
 		if (y < top || !host::StrategyView_TrackEffects(payload, &effects))
@@ -2976,7 +2987,7 @@ void StrategyRequestE()
 		std::vector<host::MultiTarget> targets;
 		size_t index = 0;
 
-		if (!host::StrategyView_MultiTargets(payload, &targets) || !host::StrategyView_MultiTargetAt(payload, multiPage, barPointerY - strategyViewTop, &index))
+		if (!host::StrategyView_MultiTargets(payload, &targets) || !host::StrategyView_MultiTargetAt(payload, multiPage, PointerRowInBox(), &index))
 		{
 			return;
 		}
@@ -3538,6 +3549,24 @@ static void AssignWindow(int32_t const *canTake, size_t canCount)
 	});
 }
 
+// Whether a virtual object (a VIOBJECT of SPECLOBJ, strategy_lookup.h) has this ID: Delete Strategy's question and its answer take one by its own branch (FUN_00528790 on inteng's virtual record)
+static bool IsVirtualObject(File_Chunk *level, uint8_t const *id)
+{
+	std::vector<host::VirtualObjectRef> virtuals;
+
+	host::ListVirtualObjects(level, &virtuals);
+
+	for (host::VirtualObjectRef const &one : virtuals)
+	{
+		if (memcmp(one.id, id, host::kSelectionIdBytes) == 0)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void StrategyModeCommand(int32_t command)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
@@ -3766,29 +3795,12 @@ void StrategyModeCommand(int32_t command)
 		return;
 	}
 
-	// V (0x101, our number): inteng's volume editor FUN_005277c0. NAMED STAND-IN FOR THE ENTRY: inteng reads V inside the kind's own Edit view (Volume of Death FUN_00535970 slot 0xd87a96, "V : Edit
-	// Volume"; Area Switch FUN_0052f700 -> FUN_00530900, "V : Change Trigger Volume"), not on the Strategy screen; those views are not built yet, so V on the screen with the object current starts it.
+	// V (0x101, our number): the volume editor FUN_005277c0 (VolumeBegin). inteng enters it from two Edit views only: a Volume of Death's FUN_00535970 (slot 0xd87a96, "V : Edit Volume", 0x535bd7) and an
+	// Area Switch's FUN_0052f700 -> FUN_00530900 ("V : Change Trigger Volume", 0x5309b2). Their V reaches it here (no view key takes V before it), and VolumeBegin starts nothing outside those two views
+	// (strategy-data.md S-59)
 	if (command == 0x101)
 	{
 		VolumeBegin();
-		return;
-	}
-
-	// T: Change Target (0x100, our number; NAMED STAND-IN: inteng's T is a key of the switch kinds' Edit views, FUN_0052f700 "T : Change Target (+Ctrl to choose environment)"): the next click in the
-	// 3D view is the pick: the object clicked (a module is found by its name) goes in the selected strategy's first object field (a switch's Target, an enemy's Death Target, a switch door's door).
-	if (command == 0x100)
-	{
-		uint8_t selected[8];
-		host::ObjectStrategy now;
-
-		if (!open || !SelectedObjectId(selected) || host::FindObjectStrategy(LevelObjects_Level(), selected, &now) != host::StrategyFound::Found || now.payload.size() < 12)
-		{
-			statusWords = "Select an object that has a strategy first";
-			return;
-		}
-
-		strategyPick = 1;
-		statusWords = "Change Target: click the object in the view that is to be the target";
 		return;
 	}
 
@@ -3838,42 +3850,6 @@ void StrategyModeCommand(int32_t command)
 	if (command == 0x37)
 	{
 		StabilityBegin();
-		return;
-	}
-
-	// Stability flags (0x37, FUN_00527370 / FUN_00527020 / FUN_00527210): the picked module's six faces, red = stable, green = unstable; the answer is typed here (the picture of the faces is not drawn)
-	if (command == 0x37)
-	{
-		std::vector<uint8_t> const ids = PickedModuleIdBytes();
-		uint32_t faces = 0;
-
-		if (!open || ids.empty())
-		{
-			statusWords = "Stability flags: pick a module first (click, Shift+click for more)";
-			return;
-		}
-
-		host::StrategyModeResult const got = host::StrategyMode_GetStability(open, ids.data(), &faces);
-
-		if (got != host::StrategyModeResult::Done)
-		{
-			strategyWords = std::string("Stability flags: ") + host::StrategyModeWords(got);
-			statusWords = strategyWords.c_str();
-			return;
-		}
-
-		memcpy(stabilityId, ids.data(), sizeof(stabilityId));
-		promptList.clear();
-
-		std::string now;
-
-		for (int face = 0; face < 6; face++)
-		{
-			now += (faces & (1u << face)) ? 'r' : 'g';
-		}
-
-		promptList.push_back("Red : stable   Green : unstable   (faces 1 to 6 now: " + now + ")");
-		OpenAPrompt(kPromptStability);
 		return;
 	}
 
@@ -4009,6 +3985,25 @@ void StrategyModeCommand(int32_t command)
 		return;
 	}
 
+	// a placed hierarchy or a virtual object (inteng's records of class 0x5afae0, FUN_0053b5a0, and 0x5af9e0, FUN_005393c0): FUN_00528790's holder (+0x14) is the FIRST AVPSTRAT child of its
+	// PLACHIER / VIOBJECT; with none, nothing (no question, no message). Until 11-17 both went to StrategyMode_Has, which knows the level's objects only: "no object has that name", no question
+	// (strategy-regen-suite-design.md F2, INTENG DIFFERENCE, FIXED)
+	host::PlacedHierarchyRef placedHierarchy;
+
+	if (host::FindPlacedHierarchy(LevelObjects_Level(), id, &placedHierarchy) || IsVirtualObject(LevelObjects_Level(), id))
+	{
+		host::ObjectStrategy had;
+
+		if (host::FindObjectStrategy(LevelObjects_Level(), id, &had) != host::StrategyFound::Found)
+		{
+			return;
+		}
+
+		memcpy(strategyDeleteId, id, sizeof(strategyDeleteId));
+		ConfirmAs(kPromptStrategyDelete, host::StrategyMode_DeleteQuestion());   // FUN_00528790: 0x5ee254 in a Yes / No box
+		return;
+	}
+
 	host::StrategyModeResult const has = host::StrategyMode_Has(open, id);
 
 	if (has != host::StrategyModeResult::Done)
@@ -4065,6 +4060,23 @@ void RunStrategyDelete(std::string const &typed)
 		if (taken != host::PlacedHierarchyStrategyResult::Done)
 		{
 			strategyWords = std::string("Delete Strategy: ") + host::PlacedHierarchyStrategyWords(taken);
+			statusWords = strategyWords.c_str();
+			return;
+		}
+
+		LoadTheObjectListAgain();
+		statusWords = "The object's strategy is deleted (kept in the editor's bytes until Save a copy)";
+		return;
+	}
+
+	// a virtual object: its VIOBJECT's first AVPSTRAT taken out, the VIOBJECT and its VOBJPROP kept (FUN_00528790 destroys the holder only; virtual_object.h VirtualObject_DeleteStrategy)
+	if (open && IsVirtualObject(open->Level(), strategyDeleteId))
+	{
+		host::VirtualObjectResult const taken = host::VirtualObject_DeleteStrategy(open, strategyDeleteId);
+
+		if (taken != host::VirtualObjectResult::Done)
+		{
+			strategyWords = std::string("Delete Strategy: ") + host::VirtualObjectWords(taken);
 			statusWords = strategyWords.c_str();
 			return;
 		}

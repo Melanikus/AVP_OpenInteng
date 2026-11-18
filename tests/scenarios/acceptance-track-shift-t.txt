@@ -1,0 +1,51 @@
+# ACCEPTANCE (red first): Object Placement's SHIFT+T, "Updating track positions" (inteng's FUN_004efd50, reassess/object-placement.md OP-83; T-2 of reassess/track-editing-closeout-vasquez.md;
+# Vasquez, 2026-11-17). inteng shows its message box "Updating track positions" (0x5e9324, FUN_00474030 + FUN_0057c800(100, 100): Ok), then, in the list's order, every object whose level
+# object holds an OBJTRAK2 has its track loaded as Edit Track loads it, turned and moved so that it starts where the object is now (FUN_004eff90(block, 0) -> FUN_004f0490), and let go as
+# Stop Track Edit lets it go (FUN_004f1300 writes it, FUN_004f0870 gives the object the track's start pose). So an object moved with Object Placement takes its track along.
+# The key test (0x4dd0cd) comes after FUN_004d9af0's state switch, so Track Editing takes Shift+T too: the edited track is written first. INTENG BUG TB-T2, FIXED (Bishop's ruling 11-17):
+# inteng then stays on Track Editing with no track (its last FUN_004eff90(0, 0) lets every track go, and the screen's next command reads freed sections); ours goes back to Object Placement.
+# RED before T-2: Shift+T did nothing (no box, the moved switch's track stayed where it was).
+# Invasion, read from a copy: switch3 (row 9) sits at -27851 -14055 88656 and its one-section track pivots there; Move relative puts it at -29263 -14055 87053 (as
+# acceptance-object-move-relative). Platlift (row 75) has a track of its own. Each of Invasion's 19 tracked objects keeps its place; its turn is written again from the track's start pose
+# through the game's matrix (the same turn: the quaternion comes back negated and rounded to the matrix's 1/65536), as every Stop Track Edit writes it, so no turn is compared here.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Object Placement
+# 1. switch3 moved with Move relative (x 1.25 m, y kept, z -2 m from its module): its track stays behind
+select-row 9
+expect-selected 1
+click-bar Object > Move relative
+expect-dialog RelMove Shape
+form-field 1 1.25
+form-field 2 abc
+form-field 3 -2
+click-button Ok
+expect-no-dialog
+# 2. Shift+T: inteng's box first
+key T shift
+expect-dialog Updating track positions
+expect-prompt 0
+picture 1
+click-button Ok
+expect-no-dialog
+expect-screen Object Placement
+expect-status Updating track positions:
+# 3. Track Editing on Platlift, then Shift+T there: the edited track is written, every track updated, and the screen is Object Placement again (TB-T2)
+select-row 75
+expect-selected 1
+click-bar Object > Edit Track
+expect-screen Track Editing
+key T shift
+expect-dialog Updating track positions
+click-button Ok
+expect-no-dialog
+expect-screen Object Placement
+picture 2
+# a Track Editing key now (Page Down, its Next Section) finds no track being edited: the screen stays, the editor answers
+key PageDown
+expect-screen Object Placement
+state
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_objects/verify_objects.exe {copy} at switch3|-29263|-14055|87053 track switch3 trackpivot switch3|0|-29263|-14055|87053|-29263|-14055|87053 at Platlift|-13797|-8556|55040 track Platlift at fan4|23677|-18400|64401

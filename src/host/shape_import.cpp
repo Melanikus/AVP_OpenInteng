@@ -3,6 +3,8 @@
 
 #include "shape_import.h"
 
+#include "level_file_name.h"   // LevelFileName_PartIsDevice: CON, PRN, AUX, NUL, COM1-9, LPT1-9
+
 #include <stdio.h>
 #include <string.h>
 
@@ -13,86 +15,13 @@ namespace host
 {
 	namespace
 	{
-		typedef std::vector<char> Bytes;
+		using namespace shape_chunks;
 
-		size_t const kHeadingBytes = 12;          // a chunk: its 8-letter name, then its size (which counts these 12 bytes too)
 		size_t const kHeadPayload = 68;           // SHPHEAD1 up to the count of the objects that use the shape
 		size_t const kMostNameBytes = 63;
 		int32_t const kMostNumber = 65535;        // Shape_Header_Chunk::Max_File_Id_Num
 		uint32_t const kOutsideShapeFlag = 0x1000;
 		int32_t const kMostChunkBytes = 0x7fffffff;
-
-		int32_t IntAt(Bytes const &bytes, size_t at)
-		{
-			int32_t value;
-
-			memcpy(&value, bytes.data() + at, sizeof(value));
-			return value;
-		}
-
-		void PutIntAt(Bytes *bytes, size_t at, int32_t value)
-		{
-			memcpy(bytes->data() + at, &value, sizeof(value));
-		}
-
-		void AddInt(Bytes *bytes, int32_t value)
-		{
-			char raw[sizeof(value)];
-
-			memcpy(raw, &value, sizeof(value));
-			bytes->insert(bytes->end(), raw, raw + sizeof(raw));
-		}
-
-		struct Span
-		{
-			size_t at;
-			size_t size;
-		};
-
-		bool ChunkSizeAt(Bytes const &bytes, size_t at, size_t end, size_t *size)
-		{
-			if (end > bytes.size() || at > end || end - at < kHeadingBytes)
-			{
-				return false;
-			}
-
-			int32_t const stored = IntAt(bytes, at + 8);
-
-			if (stored < (int32_t)kHeadingBytes || (size_t)stored > end - at)
-			{
-				return false;
-			}
-
-			*size = (size_t)stored;
-			return true;
-		}
-
-		bool NameIs(Bytes const &bytes, size_t at, char const *name)
-		{
-			return memcmp(bytes.data() + at, name, 8) == 0;
-		}
-
-		bool Children(Bytes const &bytes, size_t from, size_t to, std::vector<Span> *out)
-		{
-			out->clear();
-
-			for (size_t at = from; at < to; )
-			{
-				size_t size = 0;
-
-				if (!ChunkSizeAt(bytes, at, to, &size))
-				{
-					return false;
-				}
-
-				Span const span = { at, size };
-
-				out->push_back(span);
-				at += size;
-			}
-
-			return true;
-		}
 
 		bool Fail(std::string *why, char const *words)
 		{
@@ -102,29 +31,6 @@ namespace host
 			}
 
 			return false;
-		}
-
-		void PadToFour(Bytes *bytes)
-		{
-			while (bytes->size() % 4 != 0)
-			{
-				bytes->push_back(0);
-			}
-		}
-
-		Bytes MakeChunk(char const *name, Bytes const &payload)
-		{
-			Bytes chunk(kHeadingBytes, 0);
-
-			memcpy(chunk.data(), name, 8);
-			chunk.insert(chunk.end(), payload.begin(), payload.end());
-			PutIntAt(&chunk, 8, (int32_t)chunk.size());
-			return chunk;
-		}
-
-		void AddCopy(Bytes *out, Bytes const &from, Span const &span)
-		{
-			out->insert(out->end(), from.begin() + (std::ptrdiff_t)span.at, from.begin() + (std::ptrdiff_t)(span.at + span.size));
 		}
 
 		// A whole chunk of the name `as`, holding the payload of the chunk at `span`
@@ -137,7 +43,9 @@ namespace host
 
 		bool NameIsPlain(std::string const &name)
 		{
-			if (name.empty() || name.size() > kMostNameBytes)
+			// the file opened is <folder>\<name>.rif, and Windows opens a DEVICE for "COM1.rif" or "nul.rif" in any folder (level_file_name.h): such a name is refused before anything is
+			// opened (OP-141 (a); the GetFileAttributes test of the outside-shape update never sees a device). Found by the 11-17 review (open-path-2).
+			if (name.empty() || name.size() > kMostNameBytes || LevelFileName_PartIsDevice(name.c_str(), name.size()))
 			{
 				return false;
 			}
@@ -155,18 +63,6 @@ namespace host
 			return true;
 		}
 
-		size_t FirstNamed(Bytes const &bytes, std::vector<Span> const &inside, char const *name)
-		{
-			for (size_t i = 0; i < inside.size(); i++)
-			{
-				if (NameIs(bytes, inside[i].at, name))
-				{
-					return i;
-				}
-			}
-
-			return inside.size();
-		}
 	}
 
 	char const *ShapeImportWords(ShapeImportResult result)

@@ -203,6 +203,11 @@ void ModelObjects_Uncollapse();
 
 // THE SHAPE CHOOSER'S PREVIEW (inteng FUN_004dd870 / FUN_004dd6f0 / FUN_0053c4f0): the shape with that number drawn ALONE, turned by the identity matrix, at the origin, the camera 2 x its maxx behind it. Show makes the block and draws objects outside the modules (the renderer hook; the caller hides every module and placed object, LevelView_HideModules / HideObjects), and gives the camera's place (*cameraZ = -2 * shapemaxx); false when the game has no such shape. Close takes it all back.
 bool ShapePreview_Show(int shapeNumber, int32_t *cameraZ);
+// The number Show wants for an outside shape: its place in the game's main shape list, found by the name the game's loader kept it by (host::ShapeChoice::gameName; GetLoadedShapeMSL, as
+// the game finds its shapes by name). -1 for no name or a name the game's list does not hold. NOT the file's own shape number (SHPHEAD1 file_id_num), which is another numbering.
+int ShapePreview_PlaceOf(char const *gameName);
 void ShapePreview_Close();
+// The preview's spin (FUN_004ddb60 0x4ddba2-0x4ddbc2, FUN_0053c4f0): one frame of it, each frame the chooser is shown (300 and 600 4096ths of a turn a second about its own x and z)
+void ShapePreview_Spin();
 
 #endif

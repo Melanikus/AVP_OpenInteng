@@ -1,0 +1,48 @@
+# ACCEPTANCE: the camera's turn keys as inteng's (Dietrich, 2026-11-17; Bishop for Melanikus: "he feels it in every mode, every minute"; reassess/op-moving-dietrich.md A-7). The camera block has inteng's
+# mover FUN_0053db40: each held turn key a 10 degree matrix, its Euler angles the speeds (one key: 114 of 4096 a second), this frame's share of each by the frame's time, x 6 (0x53dd78), the view's matrix
+# turned about its own axes: about 684 of 4096 a second (60 degrees) for one key, at any frame rate. Numpad 8 pitches DOWN and 2 UP (inteng's manual, menu.txt: "8 Turn Down / Pitch Down"; its matrices
+# 0x5f0590 / 0x5f05b8). Ours turned 24 of 4096 every frame (the rate was the frame rate's: about 408 a second in a hidden run), and pitched the wrong way round (8 looked up). Measured in two modes, the
+# hub and Object Placement; and about its own axes (looking down, numpad 4 rolls it too). His path: Invasion, the fly acceptance's camera, the keys held. camangles: the camera's turn, look (signed: plus is down) and roll.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+camera -27851 -14055 85500 0 0
+camera-look 0 0
+wait 300
+expect-number camangles turn_ 0 0
+# the hub: numpad 4 held a second turns the camera about 684 of 4096 (inteng's rate is the time's; the hold and the frames around it allowed: ours turned 24 a frame, which at about 24 frames a
+# second is no different here, so this step shows the rate and the steps below tell the two apart)
+hold Numpad4 1000
+expect-number camangles turn_ 450 900
+# numpad 8 pitches down: the look goes plus (the floor comes into view)
+camera -27851 -14055 85500 0 0
+camera-look 0 0
+wait 300
+hold Numpad8 500
+expect-number camangles look_ 200 450
+# numpad 2 pitches up: a second of it takes the look past level, minus
+hold Numpad2 1000
+expect-number camangles look_ -520 -150
+# about the camera's OWN axes: looking 45 degrees down, numpad 4 turns it about its own (tipped) up axis, which as a turn, look and roll is a roll too (ours turned the heading alone, roll 0)
+camera -27851 -14055 85500 0 0
+camera-look 512 0
+wait 300
+expect-number camangles roll_ 0 0
+hold Numpad4 600
+expect-number camangles roll_ 30 4066
+# Object Placement: the same keys turn the camera the same way
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+camera-look 0 0
+wait 300
+expect-number camangles turn_ 0 0
+hold Numpad4 1000
+expect-number camangles turn_ 450 900
+camera -27851 -14055 85500 0 0
+camera-look 512 0
+wait 300
+expect-number camangles roll_ 0 0
+hold Numpad4 600
+expect-number camangles roll_ 30 4066

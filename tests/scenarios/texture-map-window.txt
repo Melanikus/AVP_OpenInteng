@@ -32,14 +32,15 @@ verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_te
 key Tab
 wait 300
 picture 403
-# the repeats view: Select Number of Repeats (0x10f) 2 across and 1 down, and the window is shown with the picture twice (picture 404)
-key Tab
-wait 300
+# the repeats view: Select Number of Repeats (0x10f, the polygons' Options menu; TM-B: inteng's grid, FUN_00557c00) 2 across and 1 down - the cell at (2 x 50, 1 x 40 + 12), a click at (110, 60) -
+# then Tab: the window is shown with the picture twice (picture 404)
 item 0x10f
-expect-prompt 43
-type 2 1
-key Enter
+wait 200
+expect-status Select number of repeats
+click-win 110 60
 wait 300
 expect-status 2X1
+key Tab
+wait 300
 picture 404
 key Tab

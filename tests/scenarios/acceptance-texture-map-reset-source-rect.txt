@@ -1,0 +1,61 @@
+# ACCEPTANCE (red first): TM-B, the texture area and Reset Source Rect (FUN_0055d290, FUN_00557c00, FUN_00555dd0, 0x14; Dietrich, 2026-11-18; reassess/tm-b-texture-area.md). Inteng keeps the
+# texture area (the texture screen's state +8 .. +0x14) that the flips, turns, corners, wrap and tile work over: Select Number of Repeats makes it the picture repeated, the window's entry with the
+# same texture keeps it, Reset Source Rect (0x9, the window's Texture menu; Shift+R) makes it the whole picture again, Add 1 to texture area makes it one larger each way. Ours had no area and
+# Reset Source Rect put the nodes back on the polygon's coordinates. INTENG BUG, FIXED: inteng's Reset leaves out Add 1 (0,0 to 128,128 with Add 1 on); ours gives 0,0 to 129,129, as the
+# tick says. His path: Invasion, Mode > Texture Map, the polygon at 0.50 0.60 (a 128 x 128 picture), Tab, Clockwise: Top Left (the status names the area); Tab, Select Number of Repeats 2 2,
+# Tab, Clockwise: Top Left: 0,0 to 256,256; Texture > Reset Source Rect: 0,0 to 128,128; Tab, Add 1 to texture area, Tab, Reset Source Rect: 0,0 to 129,129.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+click-view 0.50 0.60
+expect-status 1 selected
+key Tab
+wait 300
+item 0x1e
+wait 300
+state
+expect-status texture area 0,0 to 128,128, clockwise
+# Select Number of Repeats (the polygons' Options menu): 2 across, 2 down (a click on the grid's cell)
+key Tab
+wait 300
+item 0x10f
+wait 200
+expect-status Select number of repeats
+# inteng's grid (FUN_00557c00): the cell 2X2 is at (100..149, 80..119)
+click-win 110 100
+wait 300
+expect-status 2X2
+wait 200
+key Tab
+wait 300
+item 0x1e
+wait 300
+state
+expect-status texture area 0,0 to 256,256, clockwise
+# Reset Source Rect: the whole picture again
+item 0x9
+wait 200
+state
+expect-status Reset Source Rect: the texture area is the whole picture, 0,0 to 128,128
+item 0x1e
+wait 300
+state
+expect-status texture area 0,0 to 128,128, clockwise
+# Add 1 on (the polygons' bars), then Reset Source Rect: one larger each way (inteng: 0,0 to 128,128)
+key Tab
+wait 300
+item 0x14
+wait 200
+key Tab
+wait 300
+item 0x9
+wait 200
+state
+expect-status Reset Source Rect: the texture area is the whole picture, 0,0 to 129,129
+item 0x1e
+wait 300
+state
+expect-status texture area 0,0 to 129,129, clockwise

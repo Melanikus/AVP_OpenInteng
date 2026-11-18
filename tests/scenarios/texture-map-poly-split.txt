@@ -11,9 +11,10 @@ pick-poly 166 130
 pick-poly 166 131
 expect-status 2 selected
 item 0xc8
-expect-prompt 43
-type y
-key Enter
+# inteng's confirm box (FUN_005746b0; TM-C H6, Drake 11-18: it was a typed y)
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
 expect-prompt 43
 type Door
 key Enter

@@ -19,7 +19,8 @@ void ViewToggles_Apply();
 void ViewToggles_LevelOpenedAgain();
 
 // Strategy Data started with flag 0x80 (Construction's Mode > Strategy Data: No Textures, 0x3a; FUN_00522ab0 -> FUN_0046e700(0x93)): no texture is loaded, so every textured polygon becomes a white unlit LINE (FUN_004ff010
-// 0x4ffc53) and every level shape is painted white (FUN_00522ab0 0x522bca): the same white wireframe as Module Linking's, until it is turned off again.
+// 0x4ffc53) and every level shape is painted white (FUN_00522ab0 0x522bca): the same white wireframe as Module Linking's, but the untextured polygons (kinds 2 / 3) stay FILLED, in the level's
+// light (R_SetEditorFillUntextured), until it is turned off again.
 void ViewToggles_SetPaintWhite(bool on);
 
 // THE WHITE WIREFRAME of the screens whose start makes it (editor_main.cpp ScreenLookPass: the Construction hub FUN_00447550, Module Linking FUN_004c3a00 0x4c3a94-0x4c3aab, Adjacent

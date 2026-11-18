@@ -35,7 +35,7 @@ click-button Area_Switch
 expect-no-dialog
 expect-status The object has a new strategy
 # the new Area Switch's Edit view is open (Assign's last call, FUN_00528830 0x529141): V there (S-K68-10, FUN_0052f700 0x52fd91 -> FUN_00530900; Vasquez 11-16: the view is built, V on the screen is gone)
-expect-field-has strategyview : Area Switch|100@609:V : Change Trigger Volume
+expect-field-has strategyview : Area Switch|100@360:V : Change Trigger Volume
 # V: the volume editor takes the screen: the six lines of text, no field panel
 picture 1
 key V
@@ -85,6 +85,9 @@ key V
 wait 300
 expect-field-same volume
 expect-field-changed camera
+# the camera is 10 x its forward axis (6553 mm along +z, the view level) back from the cube's centre, not at it (FUN_00529280 0x5292c1-0x529321; S-VOL-2: red on 9123fee0 at 115 -383 1210)
+# (its x is the cube's centre, which the Plus / Minus holds above move by the frames' own time: 115 on one run, 130 on another; so y, z and the turn are what is pinned)
+expect-field-has camera -383 -5343 0 0
 expect-field volumeface -1
 expect-field volumemodule -1
 # the right button ends the editor too (FUN_005277c0 0x527d70: _DAT_00d8806a & 2; the buttons are cleared at 0x527d88, so no pop-up opens)

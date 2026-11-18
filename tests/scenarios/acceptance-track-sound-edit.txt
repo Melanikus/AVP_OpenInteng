@@ -1,0 +1,89 @@
+# ACCEPTANCE (red first): Track Editing's Sound / Start Sound / End Sound > Edit open edobtype's SOUND EDIT window, as inteng's FUN_004f2bf0 does (T-1 of reassess/track-editing-closeout-vasquez.md;
+# Vasquez, 2026-11-17). inteng hands the track's sound to the window the placed sounds and the particle generators open: the wav name; the two ranges in its memory units (the file's x 100 x the
+# level's scale, FUN_004f2af0 0x4f2b41) shown x 1e-5 m; the pitch x 0.0078125; the volume as a percentage; only Sound Loops live (mask 2), ticked when the sound's bit 0 is set. After OK OR Cancel
+# alike the four numbers come back through __ftol and the ranges go into the file's units as the save makes them (FUN_004f1300 0x4f17bd: ftol(memory / unit)). A track with no such sound gets
+# FUN_004f2a60's new one first ("Not Set", 500000 / 1000000 in memory units, volume 127, pitch 0, loops), and inteng keeps it on Cancel too: INTENG BUG TB-T1, FIXED (Bishop's ruling 11-17):
+# ours adds nothing on Cancel of a sound that Edit made (a "Not Set" sound is no wav the game can find); OK on it, and OK or Cancel on a sound the track had, are inteng's.
+# RED before T-1: ours was a gray form of its own ("Track Sound" / "Start Sound" / "End Sound", five edits and a Loop box). RED before TB-T1: switch6 got a "Not Set" start sound.
+# Invasion, read from a copy: Platlift (row 75) holds all three sounds (wil_viro_lift_03_mid_lp / _start / _end, 20000 / 30000, 127, 0; the middle one loops); switch6 (row 6) only the
+# middle one (TURNSWITCH.wav, 5000 / 10000, not looping).
+# Bar 2's items (Sound > Edit and the others) are reached by their numbers, as acceptance-track-dialogs does: the state line's barboxes holds only bar 1.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Object Placement
+# 1. Platlift: Object > Edit Track
+select-row 75
+expect-selected 1
+click-bar Object > Edit Track
+expect-screen Track Editing
+# 2. Sound > Edit (0x524): the middle sound as the window shows it: 20000 x 100 x 1e-5 = 20 m, 30 m, pitch 0, 127 shown as 100 %, Playing at Start unticked and grey, Sound Loops ticked
+item 0x524
+expect-dialog Sound Edit -
+expect-dialog-kind form
+expect-dialog-text wil_viro_lift_03_mid_lp.wav|20|30|0|100
+expect-dialog-checks off,on
+expect-prompt 0
+picture 1
+# 3. 25 m, 35 m, pitch 1, Sound Loops off; OK: 25000 / 35000 in the file, pitch ftol(1 x 128) = 128, volume ftol((100 + 50/127) x 0.01 x 127) = 127, the loop bit cleared
+form-field 2 25
+form-field 3 35
+form-field 4 1
+click-check 2
+click-button OK
+expect-no-dialog
+expect-screen Track Editing
+# 4. Sound > Edit again: what the track holds now, as the window shows it
+item 0x524
+expect-dialog Sound Edit -
+expect-dialog-text wil_viro_lift_03_mid_lp.wav|25|35|1|100
+expect-dialog-checks off,off
+click-button Cancel
+expect-no-dialog
+# 5. Start Sound > Edit (0x528): its own sound (not looping); Cancel brings the same numbers back, so the start sound is as it was
+item 0x528
+expect-dialog Sound Edit -
+expect-dialog-text wil_viro_lift_03_start.wav|20|30|0|100
+expect-dialog-checks off,off
+picture 2
+click-button Cancel
+expect-no-dialog
+# 6. End Sound > Edit (0x52a): its own sound; Cancel
+item 0x52a
+expect-dialog Sound Edit -
+expect-dialog-text wil_viro_lift_03_end.wav|20|30|0|100
+click-button Cancel
+expect-no-dialog
+item 0x51c
+expect-screen Object Placement
+# 7. switch6 (row 6): its track holds only the middle sound (TURNSWITCH.wav)
+select-row 6
+expect-selected 1
+click-bar Object > Edit Track
+expect-screen Track Editing
+# 8. Start Sound > Edit: no start sound, so the window shows FUN_004f2a60's new one; Cancel. INTENG BUG TB-T1, FIXED: inteng keeps that "Not Set" sound on Cancel; ours adds nothing
+item 0x528
+expect-dialog Sound Edit -
+expect-dialog-text Not Set|5|10|0|100
+expect-dialog-checks off,on
+picture 3
+click-button Cancel
+expect-no-dialog
+# 9. End Sound > Edit: a new one again; a wav typed and OK: the new sound is made, as inteng's (5000 / 10000 in the file, 127, 0, loops)
+item 0x52a
+expect-dialog Sound Edit -
+expect-dialog-text Not Set|5|10|0|100
+form-field 1 TURNSWITCH.wav
+click-button OK
+expect-no-dialog
+# again: the sound now held; the combo picks the list's own spelling of the name (CB_SELECTSTRING, as for every sound), the file keeps the name typed
+item 0x52a
+expect-dialog Sound Edit -
+expect-dialog-text turnswitch.wav|5|10|0|100
+click-button Cancel
+expect-no-dialog
+item 0x51c
+expect-screen Object Placement
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/hicks-builds/verify-out/verify_objects/verify_objects.exe {copy} tracksound Platlift|0|wil_viro_lift_03_mid_lp.wav|25000|35000|127|128|0 tracksound Platlift|1|wil_viro_lift_03_start.wav|20000|30000|127|0|0 tracksound Platlift|2|wil_viro_lift_03_end.wav|20000|30000|127|0|0 tracksound switch6|0|TURNSWITCH.wav|5000|10000|127|0|0 notracksound switch6|1 tracksound switch6|2|TURNSWITCH.wav|5000|10000|127|0|1

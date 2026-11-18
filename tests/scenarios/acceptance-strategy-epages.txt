@@ -26,11 +26,11 @@ picture 1
 # E: the Message page; request 2 is data 1, "Activate message"
 key E
 wait 300
-expect-field strategyview 100@0:Target  -  V In emergency break glass message 113 : Message|100@709:Left button : Cycle through options|200@32:Current effect of on/off message :|0@48:On :|64@48:Activate message|0@64:Off :|64@64:Deactivate message
-expect-colour picture 300 250 600 300 000000 0.97 8
+expect-field strategyview 100@0:Target  -  V In emergency break glass message 113 : Message|100@460:Left button : Cycle through options|200@32:Current effect of on/off message :|0@48:On :|64@48:Activate message|0@64:Off :|64@64:Deactivate message
+expect-colour picture 300 250 500 300 000000 0.97 8
 picture 2
 # a left click anywhere: the next option (data 2)
-click-win 400 300
+click-box 400 300
 wait 300
 expect-field-has strategyview 0@48:On :|64@48:Activate and display message|0@64:Off :|64@64:Deactivate message
 picture 3
@@ -58,7 +58,7 @@ wait 300
 expect-field-has strategyview 100@0:Target  -  LIGHTcomm01c : Placed object|32@16:Set integrity|16@16:{3}
 picture 4
 # the integrity line: "New integrity value" holding the target's integrity; 7 typed, Ok
-click-win 300 24
+click-box 300 24
 expect-dialog New integrity value
 key Back
 key Back
@@ -88,7 +88,7 @@ wait 400
 key E
 wait 300
 expect-field strategyview 100@0:Target  -  V fan off tank01 : Switch|32@48:Part of link switch set|16@48:{3}
-click-win 300 56
+click-box 300 56
 wait 300
 expect-field-has strategyview 16@48:{1}
 picture 6

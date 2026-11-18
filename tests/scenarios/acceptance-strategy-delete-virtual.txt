@@ -1,0 +1,47 @@
+# ACCEPTANCE (red first): DELETE STRATEGY (command 0xc, the pop-up's fifth row) on a VIRTUAL object, on Melanikus's path (reassess/strategy-data.md S-39; strategy-regen-suite-design.md F2 / V3;
+# Bishop 2026-11-17). inteng (FUN_00528790, 0x528790-0x52882a): with a current record whose holder (+0x14) is set, the Yes / No box "Are you sure you want to delete the \nstrategy on this object?"
+# (0x5ee254) at (200, 100); the answer 3 (Yes) sets the changed mark, destroys the holder (its destructor, flag 1) and clears +0x14; No changes nothing; no message either way. For a virtual object
+# the record is class 0x5af9e0 (FUN_005393c0) and its holder is the FIRST AVPSTRAT child of its VIOBJECT, so Yes takes that chunk alone: the VIOBJECT and its VOBJPROP stay (Destroy Virtual Object,
+# 0x40, is the command that takes the object). Vaults (a read-only stock copy): Vmessage077, a virtual Message (73).
+# RED before: Delete Strategy looked for the object among the level's objects only (StrategyMode_Has), so a virtual object got "Delete Strategy: no object has that name" and no question.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Vaults.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is Vmessage077
+expect-no-dialog
+expect-selected 1
+wait 400
+# the question, then No: nothing changes (its view still opens)
+click-win 500 300 right
+click-popup 5
+expect-dialog-kind confirm
+expect-dialog Are you sure you want to delete the
+picture 1
+click-button No
+expect-no-dialog
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 200@0:Vmessage077 : Message
+key Esc
+wait 400
+# the question, then Yes: its strategy goes; Edit Strategy then finds none (FUN_005286b0: "Selected object has no strategy", 0x5ee174)
+click-win 500 300 right
+click-popup 5
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+expect-status The object's strategy is deleted
+click-win 500 300 right
+click-popup 3
+expect-status Selected object has no strategy
+picture 2
+save-copy
+# the copy through the game's loader: the virtual object is still there and holds no strategy; every other strategy as the stock file has it (Vmessagedest194's timer read, the rest byte for byte)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} virtualkept Vmessage077 nostrategy Vmessage077
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Vaults.RIF {copy} Vmessagedest194 timer 0 also Vmessage077

@@ -21,8 +21,7 @@
 //  - How a shape's name is compared (FUN_0053ea00 is the name, FUN_005909e0 the compare: unread): the name is the shape's outside file name without its
 //    extension (SHPEXTFN: "Flam01.rif" is flam01), compared without regard to capitals. STOCK EVIDENCE: the 22 names inteng's cases pass (smrtam01, smart,
 //    armour01...) match the stock files' names (Smrtam01.RIF, Smart.RIF, Armour01.RIF) only so.
-//  - The object's lock-user text (stock has "Player", a Windows user's name written when an object is locked): left empty, as object_edit.h's copy is.
-//  - The object's number (index_num): inteng's counter DAT_00636f4c (where it starts: unread): here the greatest number the level has + 1, as object_edit.h does.
+//  - The object's lock user and number (index_num) are inteng's save's (V-27, object_number.h): "Player" and the lowest number no object has, as object_edit.h's copy gives.
 //  - FUN_004d21b0's header bit 0x100 for a shape with an outside file: stock objects of such shapes (174 of them in Invasion) do not have it, so it is not set.
 //  - The order of an object's chunks: the library's creation order (header, interface data, project data); stock has the reverse. The game reads both.
 //  - The 3 padding bytes after the notes' text: zeros (stock has what was in memory).

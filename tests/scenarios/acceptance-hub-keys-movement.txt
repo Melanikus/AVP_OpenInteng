@@ -1,0 +1,16 @@
+# ACCEPTANCE (TB-C6, reassess/construction-closeout-frost.md): Construction > Miscellaneous > Keys - Movement (0x2be) shows the camera keys' text screen, as inteng's FUN_004452b0 0x445f40 calls
+# FUN_005573c0 (the words at 0x600394: "2/8 Pitch up/down." first, the screen Texture Map's Help > Movement shows); a click closes it. Red on bishop-int 056fed50 (only status words, which the hub
+# never draws: nothing was shown), green on the hash that shows the text.
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-text-screen none
+picture 1
+item 0x2be
+expect-text-screen Pitch up/down.
+expect-pixels-changed picture 0 0 2000 2000 0.003
+picture 2
+click-win 500 300 left
+expect-text-screen none
+picture 3

@@ -25,8 +25,8 @@ namespace host
 			return dynamic_cast<Chunk_With_Children const *>(chunk);
 		}
 
-		// count(shape), as poly_counts.h says
-		int32_t CountOfShape(Shape_Chunk *shape)
+		// count(shape), as poly_counts.h says; bitDoubles false: every polygon once (FUN_004725b0 called with no record, the hub's count)
+		int32_t CountOfShape(Shape_Chunk *shape, bool bitDoubles = true)
 		{
 			if (!shape)
 			{
@@ -61,7 +61,7 @@ namespace host
 			{
 				if (merge->merge_data[i] < i)
 				{
-					bool const twice = data.poly_list && ((uint32_t)data.poly_list[i].flags & 0x80000000u) != 0;
+					bool const twice = bitDoubles && data.poly_list && ((uint32_t)data.poly_list[i].flags & 0x80000000u) != 0;
 
 					total += twice ? 2 : 1;
 				}
@@ -218,5 +218,58 @@ namespace host
 	std::string PolyCountText(PolyCountRow const &row)
 	{
 		return std::to_string((long long)row.count) + "\t" + std::to_string((long long)row.seen) + " m\t" + row.name;
+	}
+
+	bool PolyCounts_Level(File_Chunk *level, int64_t *shapes, int64_t *placed)
+	{
+		if (!shapes || !placed)
+		{
+			return false;
+		}
+
+		*shapes = 0;
+		*placed = 0;
+
+		if (!level)
+		{
+			return false;
+		}
+
+		try
+		{
+			List<Shape_Chunk *> listed;
+
+			level->list_shapes(&listed);
+
+			for (LIF<Shape_Chunk *> each(&listed); !each.done(); each.next())
+			{
+				Shape_Chunk *const shape = each();
+
+				if (!shape)
+				{
+					continue;
+				}
+
+				int64_t const users = shape->list_assoc_objs().size();
+
+				if (users == 0)
+				{
+					continue;   // 0x472807: a shape no object uses adds nothing
+				}
+
+				int64_t const count = CountOfShape(shape, false);
+
+				*shapes += count;
+				*placed += users * count;
+			}
+		}
+		catch (std::exception const &)
+		{
+			*shapes = 0;
+			*placed = 0;
+			return false;
+		}
+
+		return true;
 	}
 }

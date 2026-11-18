@@ -1,0 +1,91 @@
+# ACCEPTANCE (red first; Drake 11-18, OP-29, object-placement.md): CREATE > PLAYER STARTING POSITION on his path (Invasion, the file opened as a double click).
+# inteng, FUN_004d9af0 0x4db273-0x4db31a: no name dialog; FUN_004216d0 makes a player start (kind 8, "Default name" 0x5cd0cc) at the view's place (DAT_00962308 + 0x10) and turn;
+# it goes LAST on the placement list DAT_008f4ef0, FUN_00422110 then walks the list naming every kind-8 object "Player Start %d" from 1 (0x422138, FUN_0053eae0), and FUN_004d64a0
+# makes it current. FUN_00422110 also runs when the screen starts (FUN_004d68e0 0x4d90fb) and after a start goes (the start's delete slot +0x24, 0x422090: frees it, then 0x4220be),
+# so the starts left are numbered again. Drawn as inteng's shape 9, the human figure: red 0xfc0000 with a blue 0x0000fc edge (reassess/editor-icons.md). It flies as every placed
+# object does (slot +0x48, 0x4def60). The AVPSTART chunk holds the place, the turn and a module ID, no name (avp_chunk.cpp AVP_Player_Start_Chunk), so the numbers are the screen's,
+# the file holds the places in order; the game starts the player at the FIRST (projload.cpp setup_start_position).
+# Checked on the file: each save read back (verify_objects starts / startnear), and verify_level_same: nothing but the special objects' list changes, and making then deleting
+# the starts leaves the level as it was. The fly's stop says what a placed object's says (DECIDED OP-29-FLYSTOP: it said Snap To Vertex's "moved onto the vertex").
+# RED on bishop-int a42650de (drake-op29 before its fix, op29-1): the stop's words; the figure, too, with no #ini IntengTools (the icons are his inteng.exe's shapes, read at run time).
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} starts 1
+
+# ---- 1. Create at the view: no dialog, the new one current and named "Player Start 2" (Invasion has one)
+camera -27851 -14055 85500 0 0
+wait 400
+click-bar Create > Player starting position
+expect-no-dialog
+wait 300
+expect-status Player starting position made at the view
+expect-field-has hierarchylines Player Start 2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} starts 2 startnear 2|-27851|-14055|85500|2
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save2} --ignore SPECLOBJ
+
+# ---- 2. The human figure: the camera backs off, the start let go (the current object is drawn all red, OP-106), its red and blue on the screen
+hold Z 1800
+key Back
+wait 400
+picture 1
+expect-colour picture 0 0 1008 729 0000fc 0.0003 40
+expect-colour picture 0 0 1008 729 fc0000 0.0003 40
+
+# ---- 3. Found again by Object > Find, it flies as the others do; the save holds it moved, nothing else changed
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is Player Start 2
+expect-no-dialog
+wait 300
+expect-field-has hierarchylines Player Start 2
+key F
+expect-status Fly selected object: on
+remember-field flyat
+hold Numpad3 400
+expect-field-changed flyat
+key F
+wait 300
+expect-status Fly selected object: off, the object is where it flew to
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} starts 2 startnear 2|-27713|-14055|85500|100
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save2} {save3} --ignore SPECLOBJ
+
+# ---- 4. Two made: the second is "Player Start 3". The first made deleted: the second becomes "Player Start 2" (0x422090, FUN_00422110), and it is the one in the file at 80000
+camera -27851 -14055 80000 0 0
+wait 400
+click-bar Create > Player starting position
+expect-no-dialog
+wait 300
+expect-field-has hierarchylines Player Start 3
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is Player Start 2
+expect-no-dialog
+wait 300
+click-bar Object > Delete
+expect-no-dialog
+wait 300
+expect-status Player starting position deleted
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is Player Start 2
+expect-no-dialog
+wait 300
+expect-field-has hierarchylines Player Start 2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} starts 2 startnear 2|-27851|-14055|80000|2
+
+# ---- 5. Deleted too: the level is as it was opened, every byte
+click-bar Object > Delete
+expect-no-dialog
+wait 300
+expect-status Player starting position deleted
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} starts 1
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save5}

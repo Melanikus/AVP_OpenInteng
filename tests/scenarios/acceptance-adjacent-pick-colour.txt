@@ -1,0 +1,19 @@
+# ACCEPTANCE: AD-4 of reassess/adjacent-closeout-dietrich.md (Dietrich, 2026-11-17). inteng's Adjacent Modules paints its pick every frame, over its own paint: 0x7f007f
+# (FUN_00404a20 0x404a9b-0x404ac0: FUN_0046da70(the pick's object, DAT_00d876d8 ? 0x7f007f : palette 0xff); the true-colour branch, the same magenta as Module Linking's
+# picks, FUN_004c17a0). Checked 2026-11-17: ours already does (bishop-int f881eee9 and f0d4c0e6: 0.03 of the picture magenta, no selection green), so this is a regression check. His path: Invasion, Mode > Adjacent Modules, a click on a module (gARAGDOR): the view shows it
+# magenta, and no selection green.
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Adjacent Modules
+expect-screen Adjacent Modules
+wait 400
+click-view 0.5 0.5
+wait 600
+state
+expect-screen-text gARAGDOR
+picture 1
+expect-colour picture 0 0 4000 4000 7f007f 0.0001 24
+expect-colour-at-most picture 0 0 4000 4000 00ff00 1 24

@@ -1,0 +1,101 @@
+# ACCEPTANCE (Drake 11-18, THE OWNER'S PATH before the beta, Bishop): THE MAPPER'S JOURNEY (acceptance-mapper-journey's steps) on HIS OWN Genshd1.rif, the copy in his game
+# folder that our editor saved on 2026-11-17 (sha256 c3a0fcac154bd31b..., copied read-only to drake-ownerpath/his-originals; this scenario's own copy is the one it names below, so no
+# other editor opens the same file), opened as a double click. The level is made one nobody can start in (its one player start deleted), then given what a map needs, each by the
+# bars and the view: a player start where his level's own was (-120361 17351 5888, scale 1: read through the game's loader by verify_objects), an object of a shape HIS level has
+# (Medbox01, from the chooser's list of his level, not Invasion's Smrtam01), a texture on the polygon in the middle of the view, a light at the view, and the saves. The state line
+# is checked at each step and the file after each step and at the end (verify_journey). No picture checks (the owner, 11-18 04:5x).
+#
+# THE GAME (lane G, Hudson, never by hand), on the last copy: put in a run folder's own data as avp_rifs/Genshd1.rif (never his avp_rifs), then
+#   AvPx.exe -dev -hudson level=genshd1 frames=2000 seconds=120 meets=yes meetsagain=10
+# PASS as the Invasion journey's: the start is -120361 17351 5888; the first frame's he's at is at it, x and z within 100; the second reading's x and z within 100 of it too, its y
+# within 2000 below it (y points down), its room is not (none), its health the first frame's.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+pictures on
+state
+expect-field level OpenedByEditor/Genshd1
+expect-field levelbytes 1425512
+click-bar Mode > Object Placement
+expect-screen Object Placement
+
+# ---- 1. a level nobody can start in: its one player start deleted
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is Player Start 1
+expect-no-dialog
+wait 300
+click-bar Object > Delete
+expect-no-dialog
+wait 300
+expect-status Player starting position deleted
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} starts 0
+
+# ---- 2. the mapper's player start, at the view, where his level's own was
+camera -120361 17351 5888 0 0
+wait 400
+click-bar Create > Player starting position
+expect-no-dialog
+wait 300
+expect-status Player starting position made at the view
+expect-field-has hierarchylines Player Start 1
+key Back
+wait 300
+
+# ---- 3. an object: a shape from his level's list in the chooser, named
+camera -120361 17351 8888 0 0
+wait 400
+click-bar Create > With shape: Choose
+expect-screen Shape Chooser
+key S
+expect-dialog Select shape
+click-choice Medbox01
+expect-no-dialog
+key Enter
+expect-screen Object Placement
+expect-dialog Name Object
+type journeyThing
+key Enter
+expect-no-dialog
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-harness-out/verify_chooser/verify_chooser.exe {save1} {copy} journeyThing Medbox01
+
+# ---- 4. a texture on a polygon: Texture Map, the polygon in the middle of the view, Select Texture (its key C), a picture
+click-bar Mode > Exit
+wait 400
+expect-screen Construction
+click-bar Mode > Texture Map
+expect-screen Texture Map
+# the view at the start's place again
+camera -120361 17351 5888 0 0
+wait 400
+click-view 0.50 0.60
+expect-status 1 selected
+expect-bar2 Select Texture
+key C
+expect-status the texture chooser
+click-view 0.30 0.30
+wait 600
+expect-status picture graphics/Envrnmts/GenShd1/Lock01.RIM put on 1 polygon
+save-copy
+
+# ---- 5. a light at the view: Light Sourcing, D (leaving Texture Map asks to save its changes: Yes keeps the texture, as a mapper answers)
+click-bar Mode > Exit
+wait 400
+expect-dialog Would you like to save the changes you have made?
+click-button Yes
+expect-no-dialog
+wait 400
+expect-screen Construction
+click-bar Mode > Light Sourcing
+expect-screen Light Sourcing (with Doors)
+camera -120361 17351 7361 0 0
+wait 400
+key D
+expect-status Light dropped
+wait 300
+
+# ---- 6. saved: the map has its start, its object, its texture and its light
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_journey.exe {save1} {copy} -120361|17351|5888 journeyThing -120361|17351|7361 2 "Envrnmts/GenShd1/Lock01.RIM"

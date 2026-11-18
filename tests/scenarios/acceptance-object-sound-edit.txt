@@ -33,8 +33,9 @@ expect-dialog Please enter a number.
 click-button Ok
 expect-dialog Sound Edit -
 expect-dialog-text drip.wav|abc|10|0|100
-# 7.5 m, 50 %, Playing at Start off: OK writes them
+# 7.5 m, pitch 2, 50 %, Playing at Start off: OK writes them (the pitch moved here 11-18 from the retired object-placement-main-job: shown x 128 is stored, OP-133's x 0.0078125)
 form-field 2 7.5
+form-field 4 2
 form-field 5 50
 click-check 1
 click-button OK
@@ -43,8 +44,11 @@ expect-hierarchy-text sndE i_r 7.500000 o_r 10.000000
 # E again: what the sound holds now, as the window shows it
 key E
 expect-dialog Sound Edit -
-expect-dialog-text drip.wav|7.5|10|0|50
+expect-dialog-text drip.wav|7.5|10|2|50
 expect-dialog-checks off,on
 click-button Cancel
 expect-no-dialog
 expect-hierarchy-text sndE i_r 7.500000 o_r 10.000000
+# the saved copy: the wav and the pitch as stored (2 shown = 256 in the file)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_special/verify_special.exe {copy} "sound|sndE|wav=drip.wav|pitch=256"

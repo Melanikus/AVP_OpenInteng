@@ -1,0 +1,37 @@
+# ACCEPTANCE: the view gap for a SAME-SIZE edit (Dietrich, 2026-11-17; Drake's find). inteng's loader FUN_0046e700 loads the level from its tree in memory at every screen's entry, so whatever a mode
+# changed is in the next screen's picture. Ours loads the working bytes again when the level changed since the view's last load (ShowTheWorkingBytes); it went by OpenLevelFile::Generation(), which only
+# a ReplaceLevel moves, so an edit of a chunk at its own size (SetPayload: Object Placement's Rescale, OP-13, among many) was never shown. Now it goes by Changes(), which every edit moves. His path, after
+# Drake's acceptance-save-after-duplicate: Genshd1, Object Placement, Find bypass (its shape an outside file's and no other object's: locker02's Cabinet is shared, so its Rescale is refused), Rescale to 2, Exit to the hub (a screen change), Find bypass there: the game's view
+# holds it at its new size (selectedat: its box's middle and size as the game's view holds it).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is bypass
+expect-no-dialog
+wait 400
+remember-field selectedat
+click-bar Object > Rescale
+expect-dialog Rescale Shape
+form-field 1 2
+click-button OK
+expect-no-dialog
+wait 300
+state
+# the edit happened (a same-size SetPayload of the shape's points): the red can only be the view's
+expect-status Rescaled
+# the screen changes: Exit to the hub (inteng's save point too); the hub's view must hold the shape at its new size
+click-bar Mode > Exit
+wait 800
+state
+expect-screen Construction
+click-bar Object > Find Object
+expect-dialog Select Object
+click-choice-is bypass
+expect-no-dialog
+wait 400
+expect-field-changed selectedat

@@ -59,6 +59,20 @@ namespace host
 			return name;
 		}
 
+		size_t const kMostGameName = 255;   // longer is no name the game's list holds for us to find (its names come from the same chunks, but a hostile one may be any length)
+
+		// The name the game's loader keeps an outside shape by (chunk_load.cpp copy_to_mainshapelist: Shape_External_File_Chunk::get_shape_name, EXTOBJNM's "object@file", else
+		// RIFFNAME's), empty for none or one longer than kMostGameName. The chunk library read both names with their lengths (CopyNameFromChunk).
+		std::string GameName(Shape_Chunk *shape)
+		{
+			Chunk *const file = shape->lookup_single_child("SHPEXTFL");
+			Shape_External_File_Chunk *const outside = file && !file->r_u_miscellaneous() ? dynamic_cast<Shape_External_File_Chunk *>(file) : nullptr;
+			char const *const name = outside ? outside->get_shape_name() : nullptr;
+			size_t const length = name ? strnlen(name, kMostGameName + 1) : 0;
+
+			return length > kMostGameName ? std::string() : std::string(name ? name : "", length);
+		}
+
 		// The first SHPEXTFN inside the first SHPEXTFL of a shape chunk: its name (the bytes after the rescale double and the version number)
 		bool ExternalName(Shape_Chunk *shape, OpenLevelFile const *store, std::string *name)
 		{
@@ -155,6 +169,7 @@ namespace host
 				choice.points = IntAt(bytes, kHeaderPointsAt);
 				choice.polygons = IntAt(bytes, kHeaderPolygonsAt);
 				choice.name = name;
+				choice.gameName = GameName(shape);
 				out->push_back(choice);
 			}
 		}

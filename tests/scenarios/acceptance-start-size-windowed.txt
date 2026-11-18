@@ -1,0 +1,10 @@
+# ACCEPTANCE (red first): Windowed=true IN OUR OWN AVP_OpenInteng.ini FRAMES THE WINDOW AS -w DOES (the owner, 11-18; reassess/startup-screen-frost.md SS-14). The IntengOptions.ini of
+# acceptance-start-size-hostile asks for the monitor's width by 480 (its 99999 bounded, its 303-letter height not a number), which without -w is inteng's full screen, a popup
+# (acceptance-start-size-hostile). With Windowed=true the window stays framed, its client made narrower until the framed window fits the work area, and its height the 480, as with -w
+# (acceptance-start-size-w).
+# Red on exe-cache/3f1126fb.exe (Windowed not read: a popup), green with it.
+#ini Windowed=true
+start-args -options {scenariodir}start-size-hostile
+state
+expect-screen Construction
+expect-field-has window  480 window

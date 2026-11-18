@@ -1,0 +1,24 @@
+# ACCEPTANCE (red first; Drake 11-17, found in the Shape Chooser close-out, SC-4): the chooser's preview draws THE SHAPE IT NAMES, on his path (Invasion, the file opened as a double click).
+# inteng makes the preview of the current shape (FUN_004dd870: DAT_00634004[current], its own list of the level's shapes). Ours took the shape's SHPHEAD1 file_id_num to the game's
+# GetShapeData, which wants the place in the game's main shape list (another numbering), so the preview drew some other shape: "Shape 'Glass01'" (1 polygon, 3 points) over a room
+# piece that filled the view, "Shape 'Smrtam01'" over a corridor. The game's loader finds an outside shape by its name (EXTOBJNM "object@rif", else RIFFNAME: chunk_load.cpp
+# copy_to_mainshapelist, GetLoadedShapeMSL; Smrtam01's is "Smrtammo"), and so does the preview now. Glass01 is one glass triangle and Smrtam01 the smart gun's ammo box alone in the
+# middle, so with the right shape most of the view is black (measured: Glass01 0.995 black, the box 0.756 at one turn; the spin changes the box's share, hence the lower bar).
+# RED on eb30eea4 (bishop-int 40dafddc + the spin): 0.721 (the room piece; its open middle is black) and 0.549 (the corridor).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Create > With shape: Choose
+expect-screen Shape Chooser
+wait 600
+picture 1
+expect-colour picture 0 0 1008 729 000000 0.85 12
+key Period
+wait 600
+picture 2
+expect-colour picture 0 0 1008 729 000000 0.62 12
+key Esc
+expect-screen Object Placement

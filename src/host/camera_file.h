@@ -24,7 +24,11 @@ class File_Chunk;   // the game's chunk library (mishchnk.hpp): the open level a
 
 namespace host
 {
-	// A slot as the file holds it: a place and a 3 x 3 turn matrix of 16.16 numbers (the game's MATRIXCH in the order mat11, mat12, mat13, mat21 ...). The editor turns it into its own camera and back (editor_main.cpp).
+	// A slot in the editor's terms: the place in the game's millimetres and the turn as the game's view matrix (VDB_Mat: 16.16 numbers, mat11, mat12, mat13, mat21 ...). The FILE holds inteng's own: the view's
+	// +0x10 and +0x38 as FUN_004704d0 keeps them, the place in inteng's 1/100 mm (the offset taken off) and the matrix TURNED OVER (inteng's view keeps VDB_Mat transposed: FUN_004c19a0, FUN_004b3710). CameraFile_Read
+	// and CameraFile_Write convert both ways (a place to the nearest mm, halves away from 0; a place too far for the file is held at the largest number, never wrapped). Until 11-18 (Vasquez) the file held
+	// millimetres and the game's form, so an inteng-written file read 100 times too far and turned the other way; a file saved by those builds now reads 100 times too near. The editor turns a slot into its
+	// camera and back (editor_main.cpp).
 	struct CameraFileSlot
 	{
 		int32_t place[3];
@@ -41,8 +45,10 @@ namespace host
 	void CameraFile_Offset(File_Chunk *level, int32_t offset[3]);
 
 	// Read the eleven slots from folder + name; slots stay as they were when it can't be read (no file, or not exactly kCameraFileBytes). True when read.
+	// form: the file's matrices are inteng's view block +0x38 (VDB_Mat turned over); the slots get the game's (CreateEulerMatrix's own, VDB_Mat for no look)
 	bool CameraFile_Read(std::string const &path, int32_t const offset[3], CameraFileSlot slots[kCameraFileSlots]);
 
 	// Write the eleven slots (the folder is made if it isn't there). True when written.
+	// form: the slots' matrices are the game's (as Read gives them); the file gets inteng's +0x38, turned over
 	bool CameraFile_Write(std::string const &folder, std::string const &name, int32_t const offset[3], CameraFileSlot const slots[kCameraFileSlots]);
 }

@@ -1,0 +1,46 @@
+# ACCEPTANCE (built, untested until now; Bishop 11-18, strategy-data.md S-3): STRATEGY DATA'S EXIT SAVES THE CAMERA IN SLOT 10, on his path (Invasion, the file opened as a double click).
+# FUN_00524d80 (Exit, and Tab when entered from Object Placement: FUN_00524e90 case 5): only when the screen was NOT entered from Object Placement (DAT_0091493c == 0, 0x524dc4) it runs FUN_004704d0(10)
+# (0x524dd0: the camera in slot 10, "Camera position saved"), FUN_00500f00 and FUN_004704a0, before the hub. Entered by Object Placement's Tab, its Tab goes back with no save. Construction's own leave
+# saves slot 10 the moment before the screen starts (FUN_004476d0 0x447804, camera-saved-vasquez.md CS-2). The state line's camerasaved counts the saves (camerasaveddrawn the frames that drew the words);
+# F11 restores slot 10 (FUN_004705a0 -> FUN_00470550), so the camera there is the one Exit saved.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-field camerasaved 0
+# Construction left for Strategy Data: the hub's leave saves (1)
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 300
+expect-field camerasaved 1
+expect-field camerasaveddrawn 1
+# the camera moved in Strategy Data; Mode > Exit (nothing changed: no question): slot 10 saved (2), the hub shown
+camera 1000 -500 2000 1024
+wait 300
+expect-field-has camera 1000 -500 2000 1024
+click-bar Mode > Exit
+expect-no-dialog
+expect-screen Construction
+wait 300
+expect-field camerasaved 2
+expect-field camerasaveddrawn 2
+# the camera moved on the hub, then F11: back where Strategy Data's Exit saved it
+camera 0 0 0 0
+wait 300
+expect-field-has camera 0 0 0 0
+key F11
+wait 300
+expect-field-has camera 1000 -500 2000 1024
+
+# entered from Object Placement (its Tab), Strategy Data's Tab goes back with NO save (DAT_0091493c set: 0x524dc4 jumps over FUN_004704d0)
+click-bar Mode > Object Placement
+expect-screen Object Placement
+key Tab
+expect-screen Strategy Data
+wait 300
+remember-field camerasaved
+key Tab
+expect-no-dialog
+expect-screen Object Placement
+wait 300
+expect-field-same camerasaved

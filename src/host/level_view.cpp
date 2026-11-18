@@ -21,6 +21,7 @@
 #include "console.h"
 #include "language.h"
 #include "level_file_name.h"
+#include "logstring.h"
 #include "TextureManager.h"
 #include "renderer.h"
 #include "pvisible.h"
@@ -34,6 +35,7 @@
 #include <string.h>
 #include <math.h>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "level_view.h"
@@ -150,6 +152,10 @@ bool LevelView_Open(const char *levelName, FlyCamera *startHere, char *why, size
 		Say(why, whySize, "no level was named");
 		return false;
 	}
+
+	// each picture of the level that can't be loaded is named in the log and counted (LevelView_SayMissingPictures), once: the edited level shown again (LevelView_ShowFile)
+	// keeps the first open's count, and says nothing more
+	R_SetEditorCountMissingPictures(!showingAFile);
 
 	// The game's own rule for a level file's name (level_file_name.h), the one its -n switch is held to
 	const char *refused = LevelFileName_WhyRefused(levelName);
@@ -609,7 +615,11 @@ static size_t SelectedBlocks(const DISPLAYBLOCK **blocks)
 	return found;
 }
 
-// The shape a LevelViewShapeOf names: the display block of the module, or of the object found among the active blocks by its strategy's name; null when it is not in play
+struct displayblock *ModelObjects_BlockOfId(const uint8_t id[8]);   // hierarchy_view.cpp: the block the editor made for an object of a file with no modules
+
+// The shape a LevelViewShapeOf names: the display block of the module, or of the object found among the active blocks by its strategy's name, or (a model file, which has no
+// modules: its objects have no strategy) the block the editor made for that object (ModelObjects_Build); null when it is not in play. (The model file's case added 2026-11-18 by
+// Dietrich: the Texture Map highlight of a picked part of MelPyth_MarWep / marwep.rif was "not drawn", as no block was found for it.)
 static const DISPLAYBLOCK *BlockOfShape(const LevelViewShapeOf &shape)
 {
 	if (shape.isModule)
@@ -634,7 +644,7 @@ static const DISPLAYBLOCK *BlockOfShape(const LevelViewShapeOf &shape)
 		}
 	}
 
-	return nullptr;
+	return ModelObjects_BlockOfId(shape.objectId);
 }
 
 bool LevelView_LowestPictureSize(int32_t *width, int32_t *height)
@@ -816,6 +826,315 @@ bool LevelView_SetItemFlagBits(const LevelViewShapeOf &shape, int32_t item, int3
 	return true;
 }
 
+// ---- OBJECT PLACEMENT'S LIGHTING (level_view.h: OP-3, OP-44; Drake 2026-11-17) ----
+extern int maxshapes;   // compiled_shapes.cpp:65: how many places mainshapelist has (system.h:98 declares it the same way)
+
+static bool placementLightOn = false;           // the mode's look is on the open level
+static bool placementLightObjectsLit = false;   // and the objects' part of it: lit or not
+static std::unordered_map<int *, bool> placementLightKept;   // every item flags word the look changed, and whether it held iflag_nolight before the look
+static int placementLightModuleItems = 0, placementLightObjectItems = 0;   // how many items the look made unlit (the modules') and set by Lighting (the objects'), at its last change
+
+// One item's iflag_nolight (2) set (drawn unlit) or clear; its own bit kept the first time the look touches it (a later emplace keeps the first)
+static void PlacementLightItem(int *flags, bool unlit)
+{
+	placementLightKept.emplace(flags, (*flags & iflag_nolight) != 0);
+	*flags = unlit ? (*flags | iflag_nolight) : (*flags & ~iflag_nolight);
+}
+
+// Which of the game's shapes a module draws (inteng: the shapes before DAT_008f588c, which its loader fills with the modules'): the module's display block's shape, else its map's
+static std::vector<bool> ShapesOfModules()
+{
+	std::vector<bool> isModule(maxshapes > 0 ? (size_t)maxshapes : 0, false);
+	SCENEMODULE *const scene = Global_ModulePtr ? Global_ModulePtr[Global_Scene] : nullptr;
+
+	for (int m = 0; scene && m < ModuleArraySize; m++)
+	{
+		MODULE *const room = scene->sm_marray[m];
+		int const shape = !room ? -1 : room->m_dptr ? room->m_dptr->ObShape : (room->m_mapptr ? room->m_mapptr->MapShape : -1);
+
+		if (shape >= 0 && shape < maxshapes)
+		{
+			isModule[(size_t)shape] = true;
+		}
+	}
+
+	return isModule;
+}
+
+int LevelView_PlacementLighting(bool on, bool objectsLit)
+{
+	if (!levelIsOpen || !mainshapelist || (on == placementLightOn && (!on || objectsLit == placementLightObjectsLit)))
+	{
+		return 0;
+	}
+
+	bool const modulesToo = on != placementLightOn;   // the modules change only as the look comes and goes; Lighting changes the objects alone
+	int changed = 0;
+
+	if (!on)
+	{
+		for (auto const &kept : placementLightKept)
+		{
+			*kept.first = kept.second ? (*kept.first | iflag_nolight) : (*kept.first & ~iflag_nolight);
+			changed++;
+		}
+
+		placementLightKept.clear();
+	}
+	else
+	{
+		std::vector<bool> const isModule = ShapesOfModules();
+		int moduleItems = 0, objectItems = 0;
+
+		// the level's shapes (the game's precompiled ones, before start_of_loaded_shapes, are none of the level's)
+		for (int s = start_of_loaded_shapes > 0 ? start_of_loaded_shapes : 0; s < maxshapes; s++)
+		{
+			SHAPEHEADER *const shape = mainshapelist[s];
+
+			if (!shape || !shape->items || shape->numitems <= 0)
+			{
+				continue;
+			}
+
+			bool const module = isModule[(size_t)s];
+
+			// a module: every item unlit, on the look's start only (0x4d84e6-0x4d8526); an object: only a shape with baked colours (shape flag 0x1000, FUN_004d67f0 0x4d681b / 0x4d687e)
+			if (module ? !modulesToo : !(shape->shapeflags & ShapeFlag_PreLit))
+			{
+				continue;
+			}
+
+			for (int i = 0; i < shape->numitems; i++)
+			{
+				if (shape->items[i])
+				{
+					PlacementLightItem(&shape->items[i][2], module || !objectsLit);
+					changed++;
+					(module ? moduleItems : objectItems)++;
+				}
+			}
+		}
+
+		if (modulesToo)
+		{
+			placementLightModuleItems = moduleItems;
+		}
+
+		placementLightObjectItems = objectItems;
+	}
+
+	if (!on)
+	{
+		placementLightModuleItems = placementLightObjectItems = 0;
+	}
+
+	placementLightOn = on;
+	placementLightObjectsLit = objectsLit;
+
+	// the modules' baked colours read the bit when the list is built (static_level.cpp BakedColour: an unlit textured polygon is 0x00FFFFFF); objects are drawn each frame from their items (kshape.cpp)
+	if (modulesToo)
+	{
+		StaticLevel_BuildThisLevel();
+	}
+
+	return changed;
+}
+
+std::string LevelView_PlacementLightingWords()
+{
+	if (!levelIsOpen || !mainshapelist)
+	{
+		return std::string();
+	}
+
+	std::string words = std::string("look ") + (placementLightOn ? "1" : "0") + " lit " + (placementLightObjectsLit ? "1" : "0") + " modules " + std::to_string(placementLightModuleItems) +
+		" objects " + std::to_string(placementLightObjectItems);
+
+	// the objects' baked colours, their average per channel over every point (0..255): lit by them, an object differs from its plain (full) look only where they are under 255
+	{
+		std::vector<bool> const modulesHere = ShapesOfModules();
+		long long sum[3] = { 0, 0, 0 }, points = 0;
+
+		for (int s = start_of_loaded_shapes > 0 ? start_of_loaded_shapes : 0; s < maxshapes; s++)
+		{
+			SHAPEHEADER const *const shape = mainshapelist[s];
+
+			if (!shape || modulesHere[(size_t)s] || !(shape->shapeflags & ShapeFlag_PreLit) || !shape->sh_extraitemdata)
+			{
+				continue;
+			}
+
+			for (int p = 0; p < shape->sh_numextraitems && p < shape->numpoints; p++)
+			{
+				uint32_t const packed = (uint32_t)shape->sh_extraitemdata[p].EID_VertexI;
+
+				sum[0] += (packed >> 16) & 255;
+				sum[1] += (packed >> 8) & 255;
+				sum[2] += packed & 255;
+				points++;
+			}
+		}
+
+		words += " baked " + (points ? std::to_string(sum[0] / points) + " " + std::to_string(sum[1] / points) + " " + std::to_string(sum[2] / points) : std::string("none"));
+	}
+
+	// the blocks DRAWN this frame (the game's OnScreenBlockList, made by AVPGetInViewVolumeList, view.cpp:657-692: not every block in play is drawn, kzsort.cpp:369-396) whose shape is an
+	// object's with baked colours: how many, and up to four of their places in the world: what a picture of the look can be aimed at (the state line is printed after the frame's draw)
+	extern DISPLAYBLOCK *OnScreenBlockList[];   // view.cpp:45
+	extern int NumOnScreenBlocks;
+	std::vector<bool> const isModule = ShapesOfModules();
+	int const drawnCount = NumOnScreenBlocks < 0 ? 0 : (NumOnScreenBlocks < 2048 ? NumOnScreenBlocks : 2048);   // maxdisplayblocks (system.h)
+	int drawn = 0;
+	std::string places;
+
+	for (int i = 0; i < drawnCount; i++)
+	{
+		DISPLAYBLOCK const *const block = OnScreenBlockList[i];
+		int const index = block ? block->ObShape : -1;
+
+		if (!block || block->ObMyModule || block->HModelControlBlock || index < start_of_loaded_shapes || index >= maxshapes || isModule[(size_t)index] || !mainshapelist[index] ||
+			!(mainshapelist[index]->shapeflags & ShapeFlag_PreLit))
+		{
+			continue;
+		}
+
+		if (drawn < 4)
+		{
+			places += (drawn == 0 ? " at " : "|") + std::to_string(block->ObWorld.vx) + " " + std::to_string(block->ObWorld.vy) + " " + std::to_string(block->ObWorld.vz);
+		}
+
+		drawn++;
+	}
+
+	return words + " drawn " + std::to_string(drawn) + places;
+}
+
+bool LevelView_ScaleObjectShape(const LevelViewShapeOf &shape, double factor)
+{
+	DISPLAYBLOCK *const block = const_cast<DISPLAYBLOCK *>(BlockOfShape(shape));
+	SHAPEHEADER *const header = block && block->ObShape >= 0 ? GetShapeData(block->ObShape) : nullptr;
+
+	// plain compares (the build's /fp:fast does not keep isfinite): a factor above 0 and at most 1,000,000; a shape with points the game holds
+	if (!header || !header->points || !header->points[0] || header->numpoints <= 0 || header->numpoints > (1 << 20) || !(factor > 0.0 && factor <= 1000000.0))
+	{
+		return false;
+	}
+
+	int *const numbers = header->points[0];   // 3 ints a point
+	size_t const count = (size_t)header->numpoints * 3;
+	int *const extents[] = { &header->shaperadius, &header->shapemaxx, &header->shapeminx, &header->shapemaxy, &header->shapeminy, &header->shapemaxz, &header->shapeminz };
+	auto const fits = [factor](int v) { double const product = (double)v * factor; return product < 2147483648.0 && product > -2147483649.0; };
+
+	// every product checked before anything is changed
+	for (size_t i = 0; i < count; i++)
+	{
+		if (!fits(numbers[i]))
+		{
+			return false;
+		}
+	}
+
+	for (int *const one : extents)
+	{
+		if (!fits(*one))
+		{
+			return false;
+		}
+	}
+
+	for (size_t i = 0; i < count; i++)
+	{
+		numbers[i] = (int)((double)numbers[i] * factor);
+	}
+
+	for (int *const one : extents)
+	{
+		*one = (int)((double)*one * factor);
+	}
+
+	block->ObRadius = header->shaperadius;
+	block->ObMaxX = header->shapemaxx;
+	block->ObMinX = header->shapeminx;
+	block->ObMaxY = header->shapemaxy;
+	block->ObMinY = header->shapeminy;
+	block->ObMaxZ = header->shapemaxz;
+	block->ObMinZ = header->shapeminz;
+	return true;
+}
+
+bool LevelView_TurnObjectShape(const LevelViewShapeOf &shape)
+{
+	DISPLAYBLOCK *const block = const_cast<DISPLAYBLOCK *>(BlockOfShape(shape));
+	SHAPEHEADER *const header = block && block->ObShape >= 0 ? GetShapeData(block->ObShape) : nullptr;
+
+	if (!header || !header->points || !header->points[0] || header->numpoints <= 0 || header->numpoints > (1 << 20) || header->numitems < 0 || header->numitems > (1 << 20))
+	{
+		return false;
+	}
+
+	int *const points = header->points[0];   // 3 ints a point
+	int *const itemNormals = header->sh_normals && header->sh_normals[0] ? header->sh_normals[0] : nullptr;     // 3 ints an item
+	int *const pointNormals = header->sh_vnormals && header->sh_vnormals[0] ? header->sh_vnormals[0] : nullptr; // 3 ints a point
+	int const minInt = -2147483647 - 1;
+
+	// every number that is negated must have a negative: checked before anything is changed
+	for (int i = 0; i < header->numpoints; i++)
+	{
+		if (points[3 * i + 2] == minInt || (pointNormals && pointNormals[3 * i + 2] == minInt))
+		{
+			return false;
+		}
+	}
+
+	for (int i = 0; itemNormals && i < header->numitems; i++)
+	{
+		if (itemNormals[3 * i + 2] == minInt)
+		{
+			return false;
+		}
+	}
+
+	if (header->shapeminz == minInt || header->shapemaxz == minInt)
+	{
+		return false;
+	}
+
+	auto const turn = [](int *xyz)
+	{
+		int const x = xyz[0];
+
+		xyz[0] = -xyz[2];
+		xyz[2] = x;
+	};
+
+	for (int i = 0; i < header->numpoints; i++)
+	{
+		turn(points + 3 * i);
+
+		if (pointNormals)
+		{
+			turn(pointNormals + 3 * i);
+		}
+	}
+
+	for (int i = 0; itemNormals && i < header->numitems; i++)
+	{
+		turn(itemNormals + 3 * i);
+	}
+
+	int const maxX = header->shapemaxx, minX = header->shapeminx, maxZ = header->shapemaxz, minZ = header->shapeminz;
+
+	header->shapemaxx = -minZ;
+	header->shapeminx = -maxZ;
+	header->shapemaxz = maxX;
+	header->shapeminz = minX;
+	block->ObMaxX = header->shapemaxx;
+	block->ObMinX = header->shapeminx;
+	block->ObMaxZ = header->shapemaxz;
+	block->ObMinZ = header->shapeminz;
+	return true;
+}
+
 bool LevelView_SetItemUv(const LevelViewShapeOf &shape, int32_t item, const int32_t *uv, int count)
 {
 	int32_t texture = 0;
@@ -854,11 +1173,15 @@ static MODULE flyModule;
 static DISPLAYBLOCK *flyCopy = nullptr;
 static uint8_t flyObjectId[8];
 static bool flyOn = false;
+// THE SECOND COPY (Track Editing's start marker, T-3c): its own module and block, beside the flying one; the real object is not hidden for it
+static MODULE ghostModule;
+static DISPLAYBLOCK *ghostCopy = nullptr;
+static bool ghostOn = false;
 
 void LevelView_DrawObjectsOutsideModules(bool on)
 {
 	outsideModulesWanted = on;
-	R_SetEditorDrawObjectsOutsideModules(on || flyOn);
+	R_SetEditorDrawObjectsOutsideModules(on || flyOn || ghostOn);
 }
 
 extern MODULEMAPBLOCK VisibilityDefaultObjectMap;   // pvisible.cpp, as hierarchy_view.cpp has it
@@ -941,13 +1264,9 @@ bool LevelView_FlyBegin(const uint8_t *id)
 	return true;   // (the real one is not drawn while its copy flies: LevelView_Draw leaves it out)
 }
 
-void LevelView_FlyPut(const int32_t world[3], const float quat[4])
+// A copy's place (the game's units) and turn (the file's, x y z w), as the game's add_default_object reads a turn (object_setup.cpp)
+static void PutCopyAt(DISPLAYBLOCK *copy, const int32_t world[3], const float quat[4])
 {
-	if (!flyOn || !flyCopy)
-	{
-		return;
-	}
-
 	QUAT q;
 	MATRIXCH m;
 	EULER euler;
@@ -959,17 +1278,345 @@ void LevelView_FlyPut(const int32_t world[3], const float quat[4])
 	q.quatw = (int)(quat[3] * ONE_FIXED);
 	QuatToMat(&q, &m);
 	MatrixToEuler(&m, &euler);
-	flyCopy->ObWorld.vx = world[0];
-	flyCopy->ObWorld.vy = world[1];
-	flyCopy->ObWorld.vz = world[2];
-	flyCopy->ObEuler = euler;
-	CreateEulerMatrix(&flyCopy->ObEuler, &flyCopy->ObMat);
-	TransposeMatrixCH(&flyCopy->ObMat);
+	copy->ObWorld.vx = world[0];
+	copy->ObWorld.vy = world[1];
+	copy->ObWorld.vz = world[2];
+	copy->ObEuler = euler;
+	CreateEulerMatrix(&copy->ObEuler, &copy->ObMat);
+	TransposeMatrixCH(&copy->ObMat);
+}
+
+void LevelView_FlyPut(const int32_t world[3], const float quat[4])
+{
+	if (!flyOn || !flyCopy)
+	{
+		return;
+	}
+
+	PutCopyAt(flyCopy, world, quat);
 }
 
 void const *LevelView_FlyCopyBlock()
 {
 	return flyOn ? flyCopy : nullptr;
+}
+
+bool LevelView_FlyMatrix(int32_t matrix[9])
+{
+	if (!flyOn || !flyCopy)
+	{
+		return false;
+	}
+
+	MATRIXCH const &m = flyCopy->ObMat;
+	int32_t const each[9] = { m.mat11, m.mat12, m.mat13, m.mat21, m.mat22, m.mat23, m.mat31, m.mat32, m.mat33 };
+
+	memcpy(matrix, each, sizeof(each));
+	return true;
+}
+
+void LevelView_OrbitOf(const int32_t blockPlace[3], const int32_t blockMatrix[9], int pitch, int yaw, int32_t distance, int32_t place[3], int32_t matrix[9])
+{
+	EULER aroundY = { 0, yaw & wrap360, 0 };
+	EULER aroundX = { pitch & wrap360, 0, 0 };
+	MATRIXCH turnY, turnX, c;
+
+	CreateEulerMatrix(&aroundY, &turnY);
+	CreateEulerMatrix(&aroundX, &turnX);
+	c.mat11 = blockMatrix[0]; c.mat12 = blockMatrix[1]; c.mat13 = blockMatrix[2];
+	c.mat21 = blockMatrix[3]; c.mat22 = blockMatrix[4]; c.mat23 = blockMatrix[5];
+	c.mat31 = blockMatrix[6]; c.mat32 = blockMatrix[7]; c.mat33 = blockMatrix[8];
+
+	// FUN_00580a40 0x580a9c-0x580ad2: the block's matrix copied, then multiplied by the yaw's, then by the pitch's (MatrixMultiply(m1, m2, m3) is m2 x m1)
+	MatrixMultiply(&c, &turnY, &c);
+	MatrixMultiply(&c, &turnX, &c);
+
+	// 0x580ae0-0x580b13: the camera at the block's place, then (0, 0, -distance) turned by C added
+	VECTORCH back = { 0, 0, -distance };
+
+	RotateVector(&back, &c);
+	place[0] = blockPlace[0] + back.vx;
+	place[1] = blockPlace[1] + back.vy;
+	place[2] = blockPlace[2] + back.vz;
+
+	int32_t const each[9] = { c.mat11, c.mat12, c.mat13, c.mat21, c.mat22, c.mat23, c.mat31, c.mat32, c.mat33 };
+
+	memcpy(matrix, each, sizeof(each));
+}
+
+static bool viewMatrixOn = false;   // LevelView_SetViewMatrix's: PutTheEyes takes viewMatrix whole
+static MATRIXCH viewMatrix;
+
+void LevelView_SetViewMatrix(const int32_t *matrix)
+{
+	viewMatrixOn = matrix != nullptr;
+
+	if (matrix)
+	{
+		viewMatrix.mat11 = matrix[0]; viewMatrix.mat12 = matrix[1]; viewMatrix.mat13 = matrix[2];
+		viewMatrix.mat21 = matrix[3]; viewMatrix.mat22 = matrix[4]; viewMatrix.mat23 = matrix[5];
+		viewMatrix.mat31 = matrix[6]; viewMatrix.mat32 = matrix[7]; viewMatrix.mat33 = matrix[8];
+	}
+}
+
+void LevelView_MatrixOfAngles(int turn, int look, int roll, int32_t matrix[9])
+{
+	EULER eyes = { 0, turn & wrap360, roll & wrap360 };
+	EULER pan = { look & wrap360, 0, 0 };
+	MATRIXCH m, panMatrix;
+
+	CreateEulerMatrix(&eyes, &m);
+	CreateEulerMatrix(&pan, &panMatrix);   // UpdateCamera's look matrix: (1 0 0; 0 cos -sin; 0 sin cos), the same as this Euler's
+	MatrixMultiply(&m, &panMatrix, &m);
+
+	int32_t const each[9] = { m.mat11, m.mat12, m.mat13, m.mat21, m.mat22, m.mat23, m.mat31, m.mat32, m.mat33 };
+
+	memcpy(matrix, each, sizeof(each));
+}
+
+void LevelView_AnglesOfMatrix(const int32_t matrix[9], int *turn, int *look, int *roll)
+{
+	// The view is P(look) x E(0, turn, roll) (UpdateCamera: MatrixMultiply(ObMat, pan) = pan x ObMat; ObMat = CreateEulerMatrix(0, turn, roll), PutTheEyes). Written out, with y the turn, z the roll
+	// and x the look: row 1 = (cy cz, -cy sz, sy); m23 = -sx cy; m33 = cx cy. The sign of cy is taken so that cx >= 0 (the look within a quarter turn).
+	double const one = 65536.0;
+	double const m11 = matrix[0] / one, m12 = matrix[1] / one, m13 = matrix[2] / one;
+	double const m21 = matrix[3] / one, m22 = matrix[4] / one, m23 = matrix[5] / one, m33 = matrix[8] / one;
+	double const sign = m33 < 0.0 ? -1.0 : 1.0;
+	double const cy = sign * sqrt(m23 * m23 + m33 * m33);
+	double const toUnits = 4096.0 / (2.0 * 3.14159265358979323846);
+	double y = atan2(m13, cy), x = 0.0, z = 0.0;
+
+	if (fabs(cy) > 1e-6)
+	{
+		x = atan2(-m23 * sign, m33 * sign);
+		z = atan2(-m12 * sign, m11 * sign);
+	}
+	else
+	{
+		// facing straight along the y axis: the look and the roll turn about the same axis, so the look is 0 and the roll takes it all (row 2 = (sin z, cos z, 0))
+		z = atan2(m21, m22);
+	}
+
+	// the look kept SIGNED, -1024 .. 1024, as the camera holds it (FlyCamera_Hold: a quarter turn either way); a look wrapped to 0 .. 4095 (3640 for -456) was held to 1024, straight
+	// down, at the next frame the camera's own mover ran (after the orbit let it go)
+	*turn = (int)floor(y * toUnits + 0.5) & wrap360;
+	*look = (int)floor(x * toUnits + 0.5);
+	*roll = (int)floor(z * toUnits + 0.5) & wrap360;
+}
+
+void MatToQuat(MATRIXCH *m, QUAT *quat);   // the game's (hmodel.cpp), declared there only
+
+namespace
+{
+	MATRIXCH MatrixOf(const int32_t m[9])
+	{
+		MATRIXCH out;
+
+		out.mat11 = m[0]; out.mat12 = m[1]; out.mat13 = m[2];
+		out.mat21 = m[3]; out.mat22 = m[4]; out.mat23 = m[5];
+		out.mat31 = m[6]; out.mat32 = m[7]; out.mat33 = m[8];
+		return out;
+	}
+
+	void PutMatrix(const MATRIXCH &m, int32_t out[9])
+	{
+		int32_t const each[9] = { m.mat11, m.mat12, m.mat13, m.mat21, m.mat22, m.mat23, m.mat31, m.mat32, m.mat33 };
+
+		memcpy(out, each, sizeof(each));
+	}
+}
+
+void LevelView_TurnSpeedsOfKeys(bool numpad4, bool numpad6, bool numpad7, bool numpad9, bool numpad8, bool numpad2, int speeds[3])
+{
+	// 10 degrees as the exe holds it: 65536 x the cosine and the sine of 10 degrees, rounded (64540, 11380)
+	int const c = 64540, s = 11380;
+	int32_t const turns[6][9] = {
+		{ c, 0, -s, 0, 65536, 0, s, 0, c },   // numpad 4, 0x5f0568
+		{ c, 0, s, 0, 65536, 0, -s, 0, c },   // numpad 6, 0x5f0540
+		{ c, s, 0, -s, c, 0, 0, 0, 65536 },   // numpad 7, 0x5f0608
+		{ c, -s, 0, s, c, 0, 0, 0, 65536 },   // numpad 9, 0x5f05e0
+		{ 65536, 0, 0, 0, c, s, 0, -s, c },   // numpad 8, 0x5f0590
+		{ 65536, 0, 0, 0, c, -s, 0, s, c },   // numpad 2, 0x5f05b8
+	};
+	bool const held[6] = { numpad4, numpad6, numpad7, numpad9, numpad8, numpad2 };
+	MATRIXCH m;
+
+	m.mat11 = 65536; m.mat12 = 0; m.mat13 = 0;
+	m.mat21 = 0; m.mat22 = 65536; m.mat23 = 0;
+	m.mat31 = 0; m.mat32 = 0; m.mat33 = 65536;
+
+	for (int k = 0; k < 6; k++)
+	{
+		if (held[k])
+		{
+			MATRIXCH turn = MatrixOf(turns[k]);
+
+			MatrixMultiply(&m, &turn, &m);   // FUN_004b34b0(&local, &turn, &local)
+		}
+	}
+
+	EULER e;
+
+	MatrixToEuler(&m, &e);
+	speeds[0] = e.EulerX > 0x800 ? e.EulerX - 0x1000 : e.EulerX;
+	speeds[1] = e.EulerY > 0x800 ? e.EulerY - 0x1000 : e.EulerY;
+	speeds[2] = e.EulerZ > 0x800 ? e.EulerZ - 0x1000 : e.EulerZ;
+}
+
+void LevelView_TurnMatrix(int32_t matrix[9], const int angles[3])
+{
+	EULER e = { angles[0] & wrap360, angles[1] & wrap360, angles[2] & wrap360 };
+	MATRIXCH turn, m = MatrixOf(matrix);
+
+	CreateEulerMatrix(&e, &turn);
+	MatrixMultiply(&m, &turn, &m);
+	MNormalise(&m);
+	PutMatrix(m, matrix);
+}
+
+void LevelView_OrbitTurn(int32_t matrix[9], int32_t place[3], const int32_t centre[3], const int angles[3], bool cameraAxes)
+{
+	EULER e = { angles[0] & wrap360, angles[1] & wrap360, angles[2] & wrap360 };
+	MATRIXCH turn, m = MatrixOf(matrix);
+
+	CreateEulerMatrix(&e, &turn);   // 0x53debb
+	TransposeMatrixCH(&turn);       // 0x53dfbc
+
+	if (cameraAxes)
+	{
+		// 0x53dfcd-0x53e00d: the camera's own matrix copied, then turn = own x turn, own transposed, turn = turn x own
+		MATRIXCH own = m;
+
+		MatrixMultiply(&own, &turn, &turn);
+		TransposeMatrixCH(&own);
+		MatrixMultiply(&turn, &own, &turn);
+	}
+
+	// 0x53e010-0x53e059: the place less the centre, turned, the centre added back
+	VECTORCH offset = { place[0] - centre[0], place[1] - centre[1], place[2] - centre[2] };
+
+	RotateVector(&offset, &turn);
+	place[0] = offset.vx + centre[0];
+	place[1] = offset.vy + centre[1];
+	place[2] = offset.vz + centre[2];
+
+	// 0x53e05c-0x53e06c: the matrix turned by the same, squared again
+	MatrixMultiply(&turn, &m, &m);
+	MNormalise(&m);
+	PutMatrix(m, matrix);
+}
+
+void LevelView_FlyPutMatrix(const int32_t world[3], const int32_t matrix[9])
+{
+	if (!flyOn || !flyCopy)
+	{
+		return;
+	}
+
+	flyCopy->ObWorld.vx = world[0];
+	flyCopy->ObWorld.vy = world[1];
+	flyCopy->ObWorld.vz = world[2];
+	flyCopy->ObMat = MatrixOf(matrix);
+	MatrixToEuler(&flyCopy->ObMat, &flyCopy->ObEuler);
+}
+
+void LevelView_LevelMatrix(int32_t matrix[9])
+{
+	if (matrix[6] == 0 && matrix[8] == 0)
+	{
+		int32_t const identity[9] = { 65536, 0, 0, 0, 65536, 0, 0, 0, 65536 };
+
+		memcpy(matrix, identity, sizeof(identity));
+		return;
+	}
+
+	VECTORCH zero = { 0, 0, 0 };
+	VECTORCH down = { 0, 65536, 0 };
+	VECTORCH forward = { matrix[6], 0, matrix[8] };
+	VECTORCH right;
+
+	Normalise(&forward);
+	MakeNormal(&zero, &down, &forward, &right);
+
+	int32_t const levelled[9] = { right.vx, right.vy, right.vz, down.vx, down.vy, down.vz, forward.vx, forward.vy, forward.vz };
+
+	memcpy(matrix, levelled, sizeof(levelled));
+}
+
+void LevelView_SquareMatrix(int32_t m[9])
+{
+	// +-65536 by the sign: ((v < 1) - 1 & 0x20000) - 0x10000, so 0 counts as negative (FUN_0053d1e0's own way)
+	auto const one = [](int32_t v) { return v > 0 ? 65536 : -65536; };
+	auto const size = [](int32_t v) { return v < 1 ? -v : v; };
+
+	// row 0: x, unless y or z is larger (0x53d202-0x53d232)
+	int rowZeroAxis;
+
+	if (size(m[0]) < size(m[1]) || size(m[0]) < size(m[2]))
+	{
+		rowZeroAxis = size(m[1]) < size(m[2]) ? 2 : 1;
+	}
+	else
+	{
+		rowZeroAxis = 0;
+	}
+
+	int32_t const rowZero = one(m[rowZeroAxis]);
+
+	m[0] = m[1] = m[2] = 0;
+	m[rowZeroAxis] = rowZero;
+
+	// row 1: the larger of the two axes row 0 did not take (the first of the two when they are the same size)
+	int const first = rowZeroAxis == 0 ? 1 : 0;
+	int const second = rowZeroAxis == 2 ? 1 : 2;
+	int const rowOneAxis = size(m[3 + first]) < size(m[3 + second]) ? second : first;
+	int32_t const rowOne = one(m[3 + rowOneAxis]);
+
+	m[3] = m[4] = m[5] = 0;
+	m[3 + rowOneAxis] = rowOne;
+
+	// row 2: their normal (0x53d349)
+	VECTORCH zero = { 0, 0, 0 };
+	VECTORCH r0 = { m[0], m[1], m[2] };
+	VECTORCH r1 = { m[3], m[4], m[5] };
+	VECTORCH r2;
+
+	MakeNormal(&zero, &r0, &r1, &r2);
+	m[6] = r2.vx;
+	m[7] = r2.vy;
+	m[8] = r2.vz;
+}
+
+void LevelView_MatrixOfTurn(const float quat[4], int32_t matrix[9])
+{
+	QUAT q;
+	MATRIXCH m;
+	EULER euler;
+
+	// as LevelView_FlyPut: the turn as the game's add_default_object reads it
+	q.quatx = (int)-(quat[0] * ONE_FIXED);
+	q.quaty = (int)-(quat[1] * ONE_FIXED);
+	q.quatz = (int)-(quat[2] * ONE_FIXED);
+	q.quatw = (int)(quat[3] * ONE_FIXED);
+	QuatToMat(&q, &m);
+	MatrixToEuler(&m, &euler);
+	CreateEulerMatrix(&euler, &m);
+	TransposeMatrixCH(&m);
+	PutMatrix(m, matrix);
+}
+
+void LevelView_TurnOfMatrix(const int32_t matrix[9], float quat[4])
+{
+	MATRIXCH m = MatrixOf(matrix);
+	QUAT q;
+
+	MatToQuat(&m, &q);
+
+	// FlyPut takes the file's turn with x y z negated (add_default_object's way): so back
+	quat[0] = -(float)q.quatx / (float)ONE_FIXED;
+	quat[1] = -(float)q.quaty / (float)ONE_FIXED;
+	quat[2] = -(float)q.quatz / (float)ONE_FIXED;
+	quat[3] = (float)q.quatw / (float)ONE_FIXED;
 }
 
 void LevelView_FlyEnd()
@@ -987,7 +1634,100 @@ void LevelView_FlyEnd()
 		flyCopy = nullptr;
 	}
 
-	R_SetEditorDrawObjectsOutsideModules(outsideModulesWanted);
+	R_SetEditorDrawObjectsOutsideModules(outsideModulesWanted || ghostOn);
+}
+
+bool LevelView_GhostBegin(const uint8_t *id)
+{
+	if (ghostOn || !id)
+	{
+		return false;
+	}
+
+	LevelViewShapeOf shape = {};
+
+	shape.isModule = false;
+	memcpy(shape.objectId, id, 8);
+
+	DISPLAYBLOCK const *const original = BlockOfShape(shape);
+
+	if (!original || original->HModelControlBlock || original->ObShape < 0)
+	{
+		return false;
+	}
+
+	// as LevelView_FlyBegin's copy (AllocateModuleObject reads the map only while it makes the block), with a module of its own: DeallocateModuleObject frees the module's block
+	VisibilityDefaultObjectMap.MapShape = original->ObShape;
+	ghostModule.m_mapptr = &VisibilityDefaultObjectMap;
+	ghostModule.m_sbptr = (STRATEGYBLOCK *)NULL;
+	ghostModule.m_numlights = 0;
+	ghostModule.m_lightarray = (struct lightblock *)0;
+	ghostModule.m_extraitemdata = (struct extraitemdata *)0;
+	ghostModule.m_dptr = NULL;
+	ghostModule.name = NULL;
+	AllocateModuleObject(&ghostModule);
+	ghostCopy = ghostModule.m_dptr;
+
+	if (!ghostCopy)
+	{
+		return false;
+	}
+
+	ghostCopy->ObStrategyBlock = nullptr;
+	ghostCopy->ObMyModule = nullptr;   // drawn after the modules, wherever it is (kzsort.cpp)
+	ghostCopy->ObWorld = original->ObWorld;
+	ghostCopy->ObEuler = original->ObEuler;
+	ghostCopy->ObMat = original->ObMat;
+	ghostCopy->ObFlags = original->ObFlags;
+	ghostCopy->ObFlags2 = original->ObFlags2;
+	ghostCopy->ObFlags3 = original->ObFlags3;
+	ghostOn = true;
+	R_SetEditorDrawObjectsOutsideModules(true);
+	return true;
+}
+
+void LevelView_GhostPut(const int32_t world[3], const float quat[4])
+{
+	if (ghostOn && ghostCopy)
+	{
+		PutCopyAt(ghostCopy, world, quat);
+	}
+}
+
+void LevelView_GhostEnd()
+{
+	if (!ghostOn)
+	{
+		return;
+	}
+
+	ghostOn = false;
+
+	if (ghostCopy)
+	{
+		DeallocateModuleObject(&ghostModule);
+		ghostCopy = nullptr;
+	}
+
+	R_SetEditorDrawObjectsOutsideModules(outsideModulesWanted || flyOn);
+}
+
+bool LevelView_GhostActive()
+{
+	return ghostOn;
+}
+
+bool LevelView_GhostWorld(int32_t world[3])
+{
+	if (!ghostOn || !ghostCopy)
+	{
+		return false;
+	}
+
+	world[0] = ghostCopy->ObWorld.vx;
+	world[1] = ghostCopy->ObWorld.vy;
+	world[2] = ghostCopy->ObWorld.vz;
+	return true;
 }
 
 int32_t LevelView_ModuleCount()
@@ -1159,17 +1899,24 @@ void LevelView_HideBeyond(bool on, int32_t distance)
 	hideBeyondDistance = distance > 0 ? distance : 0;
 }
 
-static bool hideBeyondKeepOn = false;
-static uint8_t hideBeyondKeepId[8];
+static std::vector<LevelViewShapeOf> hideBeyondKeeps;   // the objects and modules the distance rule never hides
 
 void LevelView_HideBeyondKeep(const uint8_t *objectId)
 {
-	hideBeyondKeepOn = objectId != nullptr;
+	LevelViewShapeOf keep = {};
 
 	if (objectId)
 	{
-		memcpy(hideBeyondKeepId, objectId, sizeof(hideBeyondKeepId));
+		keep.isModule = false;
+		memcpy(keep.objectId, objectId, 8);
 	}
+
+	LevelView_HideBeyondKeepShapes(&keep, objectId ? 1 : 0);
+}
+
+void LevelView_HideBeyondKeepShapes(const LevelViewShapeOf *shapes, size_t count)
+{
+	hideBeyondKeeps.assign(shapes, shapes + (shapes ? (count < kLevelViewMostHidden ? count : kLevelViewMostHidden) : 0));
 }
 
 void LevelView_HideObjects(const uint8_t (*ids)[8], size_t count, bool everyObject)
@@ -1247,6 +1994,13 @@ static void PutTheEyes(const FlyCamera &camera)
 {
 	EULER turn = { 0, camera.turn & wrap360, camera.roll & wrap360 };
 	CreateEulerMatrix(&turn, &Player->ObMat);
+
+	// the orbit's matrix whole, when the editor gives one (LevelView_SetViewMatrix): the look is then 0, so the view is that matrix (UpdateCamera multiplies by the look's turn)
+	if (viewMatrixOn)
+	{
+		Player->ObMat = viewMatrix;
+	}
+
 	PLAYER_STATUS *const playerStatus = (PLAYER_STATUS *)(Player->ObStrategyBlock->SBdataptr);
 
 	// The game puts its eyes ABOVE the player: UpdateCamera/InteriorType_Body (view.cpp:448-501) adds the marine's eye height (CollisionExtents StandingTop, about 1750 mm up, plus 200 and the vertical speed over 16, which is 0 for
@@ -1263,7 +2017,7 @@ static void PutTheEyes(const FlyCamera &camera)
 	Player->ObWorld.vx = camera.x - eyeOffset.vx;
 	Player->ObWorld.vy = camera.y - eyeOffset.vy;
 	Player->ObWorld.vz = camera.z - eyeOffset.vz;
-	playerStatus->ViewPanX = camera.look & wrap360;
+	playerStatus->ViewPanX = viewMatrixOn ? 0 : camera.look & wrap360;
 }
 
 bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*addToFrame)(void *context), void *context)
@@ -1390,20 +2144,19 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 
 		if (hideBeyondOn)
 		{
-			const DISPLAYBLOCK *kept = nullptr;
+			std::vector<const DISPLAYBLOCK *> kept;
 
-			if (hideBeyondKeepOn)
+			for (LevelViewShapeOf const &keep : hideBeyondKeeps)
 			{
-				LevelViewShapeOf keep = {};
-
-				keep.isModule = false;
-				memcpy(keep.objectId, hideBeyondKeepId, 8);
-				kept = BlockOfShape(keep);
+				if (const DISPLAYBLOCK *const block = BlockOfShape(keep))
+				{
+					kept.push_back(block);
+				}
 			}
 
 			auto beyond = [&](const DISPLAYBLOCK *block)
 			{
-				if (!block || block == kept)
+				if (!block || std::find(kept.begin(), kept.end(), block) != kept.end())
 				{
 					return;
 				}
@@ -1457,6 +2210,7 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 
 		R_SetEditorHighlightedPolygons(blocks.data(), items.data(), (int)blocks.size(), 0xFFFFFF00u);
 	}
+	R_SetEditorDrawPolylines(true);   // a polygon whose picture isn't known is drawn as a white line, as inteng draws it (the game leaves it out)
 	R_SetEditorFillFollowsWire(true);   // a wire draw mode is wire for every drawing of the frame, near polygons too (d3d_render.cpp)
 
 	// The editor shows the whole level from wherever the camera is, outside every room too (the game draws only what is visible from the
@@ -1697,7 +2451,11 @@ void LevelView_Close()
 
 	// what this file keeps of the level's own memory goes first: a flying object's copy, the blocks given to hide (the level is loaded again by LevelView_ShowFile, its blocks new)
 	LevelView_FlyEnd();
+	LevelView_SetGravity(false);   // the blocks Gravity chose go with the level
+	LevelView_GhostEnd();
 	hiddenBlocksAsGiven.clear();
+	placementLightKept.clear();   // Object Placement's lighting: its kept words go with the shapes (a level opened next comes in with its own bits)
+	placementLightOn = false;
 
 	// winmain.cpp:1213-1231, without the steps that write the player's key settings, stop sound and music, or end a network game. Nor
 	// does it let go of the player's image in a mirror (winmain.cpp:1217): the editor never makes one (src/host/edge_own.cpp).
@@ -1735,6 +2493,50 @@ bool LevelView_ShowFile(const char *levelName, char *why, size_t whySize)
 
 	showingAFile = false;
 	return shown;
+}
+
+const char *LevelView_SayMissingPictures(const char *otherwise)
+{
+	static std::string words;   // the status line points at it
+	int missing = 0, lines = 0, pastLimit = 0;
+	bool noList = false;
+
+	R_EditorMissingPictures(&missing, &lines, &noList, &pastLimit);
+
+	if (!noList && missing == 0 && lines == 0 && pastLimit == 0)
+	{
+		return otherwise;
+	}
+
+	if (noList)
+	{
+		words = "This level has no list of pictures (BMPNAMES): its " + std::to_string(lines) + " textured polygons are drawn as white lines, as inteng draws them; the file keeps "
+			"their picture numbers";
+	}
+	else if (missing == 0 && pastLimit == 0)
+	{
+		// every named picture loaded, but some polygons give a picture number the list does not have
+		words = std::to_string(lines) + " textured polygons give a picture number this level's list does not have: they are drawn as white lines, as inteng draws them; the "
+			"file keeps their numbers";
+	}
+	else if (missing > 0)
+	{
+		words = std::to_string(missing) + " of this level's pictures could not be loaded (each is named in the log): their " + std::to_string(lines) + " polygons are drawn as "
+			"white lines, as inteng draws them; the file keeps the names";
+	}
+	else
+	{
+		words = "This level's " + std::to_string(lines) + " polygons whose pictures were not loaded are drawn as white lines, as inteng draws them; the file keeps the names";
+	}
+
+	if (pastLimit > 0)
+	{
+		// the names past the 4096 one file may ask for (chunk_load.cpp): not loaded, and not named one by one
+		words += "; " + std::to_string(pastLimit) + " more names are past the 4096 pictures one level file may ask for, so they were not loaded (the log says so once)";
+	}
+
+	LogString(words);
+	return words.c_str();
 }
 
 size_t LevelView_SetBakedColours(const std::vector<LevelViewBaked> &modules, double scale)
@@ -1947,4 +2749,274 @@ size_t LevelView_SetDoorsClosed(bool closed)
 	doorsClosedInView = closed;
 	StaticLevel_BuildThisLevel();
 	return exchanged;
+}
+
+// ---- THE ENGINE'S OWN DYNAMICS ON CHOSEN BLOCKS (level_view.h: Gravity OP-47, a flight's collisions OP-117 / OP-118; Drake 2026-11-17, Bishop's ruling: the game's code, no physics of ours) ----
+extern int NormalFrameTime;          // io.cpp:74: how long the last frame took, 65536 = one second (FrameCounterHandler sets it each frame)
+extern void ObjectDynamics(void);   // dynamics.cpp:293: every strategy block with a dynamics block that is not static is moved by gravity and collided with the level
+
+namespace
+{
+	struct ChosenBlock
+	{
+		STRATEGYBLOCK *sb;
+		unsigned isStatic;
+		unsigned gravityOn;
+		VECTORCH start;
+	};
+
+	std::vector<ChosenBlock> gravityChosen;   // the blocks Gravity gave the engine (their flags as they were), empty when it is off
+	bool gravityOnNow = false;
+
+	// inteng's FUN_004e3e30 (a placed shape's +0x50): its engine moves the placed shapes of type 1, 2, 3, 4, 5 and 15 (+0x44, the SimpleObject's type), which the game makes inanimate objects of
+	bool FallsWithGravity(STRATEGYBLOCK const *sb)
+	{
+		if (!sb || !sb->DynPtr || !sb->SBdptr || sb->I_SBtype != I_BehaviourInanimateObject || !sb->SBdataptr)
+		{
+			return false;
+		}
+
+		INANIMATEOBJECT_TYPE const type = ((INANIMATEOBJECT_STATUSBLOCK const *)sb->SBdataptr)->typeId;
+
+		return type == IOT_Furniture || type == IOT_Weapon || type == IOT_Ammo || type == IOT_Health || type == IOT_Armour || type == IOT_FieldCharge;
+	}
+
+	// ObjectDynamics reads the player's dynamics block on every call (its log line), and the level's lists must be the game's
+	bool DynamicsCanRun()
+	{
+		return levelIsOpen && Player && Player->ObStrategyBlock && Player->ObStrategyBlock->DynPtr && NumActiveStBlocks >= 0;
+	}
+
+	STRATEGYBLOCK *StrategyBlockOf(const uint8_t *id)
+	{
+		for (int i = 0; id && i < NumActiveStBlocks; i++)
+		{
+			STRATEGYBLOCK *const sb = ActiveStBlockList[i];
+
+			if (sb && memcmp(sb->SBname, id, 8) == 0)
+			{
+				return sb;
+			}
+		}
+
+		return nullptr;
+	}
+
+	// One call of the game's ObjectDynamics with every block that is not `moving` held static for it (its IsStatic set, then put back). The game copies a static block's dynamics place into
+	// its display block (UpdateDisplayBlockData); the editor places blocks without their dynamics (the player's body, a block the view put somewhere), so each held block's display place
+	// and matrix are put back as they were too: only the moving ones change
+	struct HeldBlock
+	{
+		DYNAMICSBLOCK *dyn;
+		unsigned isStatic;
+		DISPLAYBLOCK *shown;
+		VECTORCH world;
+		MATRIXCH matrix;
+	};
+
+	void RunDynamicsOn(bool (*moving)(STRATEGYBLOCK const *sb, void const *context), void const *context)
+	{
+		std::vector<HeldBlock> held;
+
+		for (int i = 0; i < NumActiveStBlocks; i++)
+		{
+			STRATEGYBLOCK *const sb = ActiveStBlockList[i];
+
+			if (sb && sb->DynPtr && !moving(sb, context))
+			{
+				HeldBlock h = { sb->DynPtr, (unsigned)sb->DynPtr->IsStatic, sb->SBdptr, {}, {} };
+
+				if (sb->SBdptr)
+				{
+					h.world = sb->SBdptr->ObWorld;
+					h.matrix = sb->SBdptr->ObMat;
+				}
+
+				held.push_back(h);
+				sb->DynPtr->IsStatic = 1;
+			}
+		}
+
+		ObjectDynamics();
+
+		for (HeldBlock const &h : held)
+		{
+			h.dyn->IsStatic = h.isStatic;
+
+			if (h.shown)
+			{
+				h.shown->ObWorld = h.world;
+				h.shown->ObMat = h.matrix;
+			}
+		}
+	}
+
+	bool IsGravityChosen(STRATEGYBLOCK const *sb, void const *)
+	{
+		for (ChosenBlock const &c : gravityChosen)
+		{
+			if (c.sb == sb)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	bool IsThisBlock(STRATEGYBLOCK const *sb, void const *context)
+	{
+		return sb == context;
+	}
+}
+
+bool LevelView_SetGravity(bool on)
+{
+	if (!on)
+	{
+		for (ChosenBlock const &c : gravityChosen)
+		{
+			c.sb->DynPtr->IsStatic = c.isStatic;
+			c.sb->DynPtr->GravityOn = c.gravityOn;
+			c.sb->DynPtr->LinVelocity.vx = c.sb->DynPtr->LinVelocity.vy = c.sb->DynPtr->LinVelocity.vz = 0;
+			c.sb->DynPtr->LinImpulse.vx = c.sb->DynPtr->LinImpulse.vy = c.sb->DynPtr->LinImpulse.vz = 0;
+		}
+
+		gravityChosen.clear();
+		gravityOnNow = false;
+		return true;
+	}
+
+	if (!DynamicsCanRun())
+	{
+		return false;
+	}
+
+	gravityChosen.clear();
+
+	for (int i = 0; i < NumActiveStBlocks; i++)
+	{
+		STRATEGYBLOCK *const sb = ActiveStBlockList[i];
+
+		if (FallsWithGravity(sb))
+		{
+			// the engine starts from where the view draws the object (an editor move, a flight's stop or Move relative, sets the display block; its dynamics block may still hold the load's place)
+			sb->DynPtr->Position = sb->SBdptr->ObWorld;
+			sb->DynPtr->PrevPosition = sb->SBdptr->ObWorld;
+			sb->DynPtr->OrientMat = sb->SBdptr->ObMat;
+			sb->DynPtr->PrevOrientMat = sb->SBdptr->ObMat;
+
+			ChosenBlock c = { sb, (unsigned)sb->DynPtr->IsStatic, (unsigned)sb->DynPtr->GravityOn, sb->DynPtr->Position };
+
+			gravityChosen.push_back(c);
+			sb->DynPtr->IsStatic = 0;
+			sb->DynPtr->GravityOn = 1;
+		}
+	}
+
+	gravityOnNow = true;
+	return true;
+}
+
+void LevelView_GravityStep()
+{
+	if (gravityOnNow && !gravityChosen.empty() && DynamicsCanRun())
+	{
+		RunDynamicsOn(IsGravityChosen, nullptr);
+	}
+}
+
+void LevelView_GravityMoved(std::vector<LevelViewMovedObject> *moved)
+{
+	if (!moved)
+	{
+		return;
+	}
+
+	moved->clear();
+
+	for (ChosenBlock const &c : gravityChosen)
+	{
+		VECTORCH const now = c.sb->DynPtr->Position;
+
+		if (now.vx == c.start.vx && now.vy == c.start.vy && now.vz == c.start.vz)
+		{
+			continue;
+		}
+
+		LevelViewMovedObject one;
+		MATRIXCH const &m = c.sb->DynPtr->OrientMat;
+		int32_t const rows[9] = { m.mat11, m.mat12, m.mat13, m.mat21, m.mat22, m.mat23, m.mat31, m.mat32, m.mat33 };
+
+		memcpy(one.id, c.sb->SBname, 8);
+		one.world[0] = now.vx;
+		one.world[1] = now.vy;
+		one.world[2] = now.vz;
+		memcpy(one.matrix, rows, sizeof(rows));
+		moved->push_back(one);
+	}
+}
+
+bool LevelView_FlyCollideMove(const uint8_t *id, const int32_t from[3], const int32_t to[3], int32_t reached[3])
+{
+	reached[0] = to[0];
+	reached[1] = to[1];
+	reached[2] = to[2];
+
+	STRATEGYBLOCK *const sb = DynamicsCanRun() ? StrategyBlockOf(id) : nullptr;
+
+	if (!sb || !sb->DynPtr || NormalFrameTime <= 0)
+	{
+		return false;
+	}
+
+	DYNAMICSBLOCK *const d = sb->DynPtr;
+	unsigned const wasStatic = d->IsStatic, wasGravity = d->GravityOn, wasPickup = d->IsPickupObject;
+	VECTORCH const wasVelocity = d->LinVelocity;
+
+	// the move asked for this frame as the engine's impulse: ObjectDynamics moves the block by (velocity + impulse) x the frame's time (dynamics.cpp), so the impulse is the move per second
+	d->Position.vx = from[0];
+	d->Position.vy = from[1];
+	d->Position.vz = from[2];
+	d->PrevPosition = d->Position;
+	d->LinVelocity.vx = d->LinVelocity.vy = d->LinVelocity.vz = 0;
+	d->LinImpulse.vx = (int)(((long long)(to[0] - from[0]) << 16) / NormalFrameTime);
+	d->LinImpulse.vy = (int)(((long long)(to[1] - from[1]) << 16) / NormalFrameTime);
+	d->LinImpulse.vz = (int)(((long long)(to[2] - from[2]) << 16) / NormalFrameTime);
+	d->IsStatic = 0;
+	d->GravityOn = 0;
+	d->IsPickupObject = 0;   // ObjectDynamics skips a pickup whose gravity is off (dynamics.cpp: "IsPickupObject && !GravityOn"): for this call it is an object like any other
+
+	RunDynamicsOn(IsThisBlock, sb);
+
+	reached[0] = d->Position.vx;
+	reached[1] = d->Position.vy;
+	reached[2] = d->Position.vz;
+	d->IsStatic = wasStatic;
+	d->GravityOn = wasGravity;
+	d->IsPickupObject = wasPickup;
+	d->LinVelocity = wasVelocity;
+	d->LinImpulse.vx = d->LinImpulse.vy = d->LinImpulse.vz = 0;
+	return true;
+}
+
+bool LevelView_FlyBoxGrow(const uint8_t *id, bool grow)
+{
+	STRATEGYBLOCK *const sb = levelIsOpen ? StrategyBlockOf(id) : nullptr;
+
+	if (!sb || !sb->SBdptr)
+	{
+		return false;
+	}
+
+	int const by = grow ? 2000 : -2000;
+	DISPLAYBLOCK *const b = sb->SBdptr;
+
+	b->ObMaxX += by;
+	b->ObMinX -= by;
+	b->ObMaxY += by;
+	b->ObMinY -= by;
+	b->ObMaxZ += by;
+	b->ObMinZ -= by;
+	return true;
 }
