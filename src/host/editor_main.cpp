@@ -226,7 +226,6 @@
 #include "view_toggles.h"
 #include "view_toggles_game.h"
 #include "window_events.h"
-#include "bar_letter.h"   // M-3: a title's underlined letter opens it while the bar waits (inteng's FUN_004b7740)
 #include "open_with.h"
 #include "open_at.h"   // -at / -shot: the editor opened at a place (Drake 11-18)
 #include "orbit_command.h"   // the harness's camera-orbit / camera-corner (Drake 11-18)
@@ -338,8 +337,7 @@ static int dialogKeySwallowChar = 0;   // a key opened one of inteng's windows (
 //  - the glide (block +0x168, inteng's units a second, 100 to the millimetre) moves the camera along the way it faces by glide x the frame's time, NOT held to 0.1 s (FUN_0053c7d0,
 //    0x53e582): nothing slows it, letting go of the keys keeps it going. Melanikus remembers exactly that: "A makes you move slowly, holding shift speeds you up, letting go of both
 //    makes you keep moving, pressing space stops you".
-//  - numpad * held (0x53e403): the view levelled, with Shift squared to the world's axes (0x53e41b-0x53e51a / FUN_0053d1e0; M-2, Drake 11-18), after the steps, before Space and the glide;
-// NOT HERE: the joystick's glide (DAT_00d881a0), and Object Placement's world-axis movement (DAT_00914af8, toggled by its key at
+// NOT HERE: numpad * levelling the view (0x53e41b-0x53e51a), the joystick's glide (DAT_00d881a0), and Object Placement's world-axis movement (DAT_00914af8, toggled by its key at
 // 0x4dc5bf: the same keys along the level's axes; its Down / numpad + add 0x3e87360 to the y sum where the others add 0x10000, 0x53e1ca: inteng's own oddity, named for Vasquez).
 static int const kGlidePerFrame = 100000;   // Shift+A / Shift+Z: the glide's change each frame (0x53e0b9 ADD +0x168, 0x186a0; 0x53e0f6 ADD +0x168, 0xfffe7960: listing read)
 static int32_t cameraGlide = 0;              // the camera block's +0x168: inteng's units a second along the way it faces
@@ -7607,8 +7605,6 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		case WM_SYSKEYDOWN:
 		case WM_CHAR:
 		{
-			if (message == WM_KEYDOWN && wParam == VK_PAUSE) { TakeAScreenshot(); return 0; }   // Pause: a screenshot in every mode (FUN_0058c010 case 0x13 sets DAT_0091c010, the frame loop 0x58cfae calls FUN_00472930; bible-check.md M-1)
-
 			if (textureColourPicking) { return 0; }   // Select Colour's grid: FUN_00560620's loop reads no key, only a mouse press (0x56086a)
 
 			// Scroll Lock's pick waiting (CAM-8): FUN_004720c0's loop reads no key, so no key acts; a key down is only HELD (inteng's key tables follow the keys during the loop, FUN_0058c010),
@@ -7885,22 +7881,6 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			if (chooserActive && message == WM_KEYDOWN && ShapeChooserKey(wParam))
 			{
 				return 0;
-			}
-
-			// M-3 (bar_letter.h; reassess/bible-check.md): while the bar waits (Control held, or the pointer on it; not over a Strategy Edit view, nor Texture Map's own bars, FUN_0057b6f0) and
-			// nothing else has the keyboard, a letter that is a first-row title's underlined one opens that title as a press on it would (inteng's FUN_004b7740, 0x4b7fb0), and is taken
-			if (message == WM_KEYDOWN && !(lParam & (1 << 30)) && !AMenuIsOpen() && !(fieldsHaveKeys && fieldHost.Showing()) && promptFor == kPromptNone && !host::Dialogs_IsOpen() &&
-				!strategyEditFan && !TextureBarsAlwaysShown() && (KeyHeldNow(VK_CONTROL) || barVisible))
-			{
-				int32_t const title = host::BarLetter_Title(barRows.menus[0], barRows.menuCount[0], (uint32_t)wParam);
-
-				if (title >= 0 && (size_t)title < barRows.menuCount[0])
-				{
-					ui::Box const box = menuBar.TitleBox((size_t)title);
-
-					AfterMenu(menuBar.Press(box.x + box.width / 2, box.y + box.height / 2), menuBar);
-					return 0;
-				}
 			}
 
 			ui::Event event;
@@ -9468,39 +9448,6 @@ static void MoveTheCamera(FlyCamera *camera, bool moves = true)
 			{
 				cameraGlide = (int32_t)((uint32_t)cameraGlide - (uint32_t)kGlidePerFrame);
 			}
-		}
-
-		// M-2 (reassess/bible-check.md, the Bible's MN-13), numpad '*' held (0x53e403, every frame it is held), after the steps and before Space and the glide, on the camera as on a flown object
-		// (A-7b): the view LEVELLED (0x53e41b-0x53e51a: its forward made level, the heading kept, straight down its down; LevelView_LevelMatrix), or with Shift SQUARED to the world's axes
-		// (FUN_0053d1e0 at 0x53e532; LevelView_SquareMatrix). Those take the block's matrix (rows: right, down, forward), which is the view's matrix turned over: so it is turned over,
-		// levelled or squared, turned back, and the camera's angles taken from it (as the turn keys' above). Was: NOT HERE, the flown object's only.
-		if (keyDown[VK_MULTIPLY])
-		{
-			int32_t view[9];
-			int32_t block[9];
-
-			LevelView_MatrixOfAngles(camera->turn, camera->look, camera->roll, view);
-
-			for (int i = 0; i < 9; i++)
-			{
-				block[(i % 3) * 3 + i / 3] = view[i];
-			}
-
-			if (ShiftDown())
-			{
-				LevelView_SquareMatrix(block);
-			}
-			else
-			{
-				LevelView_LevelMatrix(block);
-			}
-
-			for (int i = 0; i < 9; i++)
-			{
-				view[(i % 3) * 3 + i / 3] = block[i];
-			}
-
-			LevelView_AnglesOfMatrix(view, &camera->turn, &camera->look, &camera->roll);
 		}
 
 		// Space held: the glide stops (0x53e54d)

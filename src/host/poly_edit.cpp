@@ -2286,7 +2286,7 @@ namespace host
 		}
 
 		// the list of a polygon's texture coordinates, or null when the shape has none at its number
-		auto const listOf = [&lists](model::ShapePolygon const &polygon) -> model::UvList const *
+		auto const listOf = [&lists](model::ShapePolygon const &polygon) -> const model::UvList *
 		{
 			uint32_t const number = (uint32_t)model::PolygonUvListNumber(polygon.colour);
 
