@@ -1,0 +1,24 @@
+# ACCEPTANCE (red first): OPTIONS > USE POLYGON VIEW DISTANCE CUTS THE LEVEL POLYGON BY POLYGON (the Bible, control.txt: "the view distance will be checked against each polygon
+# instead of just against each object"; bible-check.md M-5). inteng: the switch 0x1f6 (DAT_00636f84) is read only by FUN_00474ee0, which the frame loop runs every frame
+# (0x58cedd): on, the view gets the hazing bit 0x100 and VDB_H1 = VDB_H2 = the view distance (DAT_005fd678, 1000000 at the start: 10 m), and its polygon pipeline culls
+# what is past it (0x509928) and fades it to the haze colour (0x4a5890); off, the bit is cleared. Ours: avpx R_SetEditorFarPlane, the far plane at the view distance.
+# Invasion's start, looking down its corridors: with the switch on, what is past 10 m goes from the view (the picture changes); off again, it comes back.
+# Red on exe-cache/5369427b.exe (the switch only ticks: the picture stays), green with avpx frost-bible 857e49bd and the frame's call.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+wait 600
+picture 1
+item 0x1f6
+expect-status Use Polygon View Distance: on
+wait 600
+picture 2
+expect-pixels-changed-since 1 picture 0 0 2000 2000 0.01
+item 0x1f6
+expect-status Use Polygon View Distance: off
+wait 600
+picture 3
+expect-pixels-changed-since 2 picture 0 0 2000 2000 0.01
+expect-pixels-same-since 1 picture 0 0 2000 2000 0.01

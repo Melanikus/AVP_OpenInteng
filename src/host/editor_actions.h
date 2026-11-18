@@ -81,6 +81,7 @@ struct EditorHostState
 	bool setBaseModule;        // true: the selected object becomes the base object (Construction, Set Base Module)
 	int32_t changeType;        // Construction's Object, Change Object Type: 1 = Module (0x12d), 2 = Placed (0x12e), for every selected object, or 0 (object_type_edit.h)
 	int32_t optionToggle;      // an Options switch was chosen: 1 Select by polygons, 2 Prefer .BMP over .RIM, 3 Use Polygon View Distance (editor_options.h), or 0
+	int32_t textScaleStep;     // an Options text size was chosen: 1 to 4 (text_scale.h, kTextScaleSteps), or 0
 	int32_t pathCommand;       // a Path mode item's command number (3 Add Module, 4 Delete Module, 5 Create Path, 6 Select Path, 7 Delete Path, 8 Keys, 9 Properties: path-menu-pairs.md), or 0 (path_mode.h)
 	int32_t trackCommand;      // a Track Edit item's command number (0x514 to 0x52b: track-menu-pairs.md), or 0 (track_editor.h)
 	int32_t acousticCommand;   // an Acoustic Mode item's command number (0xa Exit, 0xbb8 .. 0xbbd: reassess/object-placement.md AC-3 .. AC-8), or 0 (acoustic_mode.h)

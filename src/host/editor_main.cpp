@@ -227,12 +227,14 @@
 #include "view_toggles.h"
 #include "view_toggles_game.h"
 #include "window_events.h"
+#include "bar_letter.h"   // M-3: a title's underlined letter opens it while the bar waits (inteng's FUN_004b7740)
 #include "open_with.h"
 #include "open_at.h"   // -at / -shot: the editor opened at a place (Drake 11-18)
 #include "orbit_command.h"   // the harness's camera-orbit / camera-corner (Drake 11-18)
 #include "editor_shared.h"   // what this file shares with the files moved out of it (editor_shared.h names them)
 #include "placement_lighting.h"   // Object Placement's lighting (OP-3, OP-44)
 #include "state_line.h"   // the state line's fields added by their owners (StateLine_Add)
+#include "text_scale.h"   // the owner's text scale: the panels in the editor's own pixels, the window's divided by it (one-line hooks below; nothing changes at 1.0)
 #include "placement_special_alt.h"   // Alt Locations on the current special object (OP-34..38, OP-91; V-28)
 #include "placement_hierarchy_fly.h"   // F on a placed hierarchy (V-6)
 
@@ -254,7 +256,7 @@ size_t barScreen = host::kIntengHub;
 static int32_t barMinClientWidth = 0;     // the least the client area is wide, so no title of any screen's bar is past its edge
 char cutOffWords[160] = "";        // which titles are past the toolbar's edge, for the status line, while any are
 static AltTap altTap = { false, false };
-const char *statusWords = 0;
+StatusWords statusWords;   // a copy the status line owns (status_words.h): never a pointer into a string changed later
 
 // The key layout in use (key_layout.h), Classic inteng's until the settings say otherwise, and the settings file that keeps it
 // (Added 2026-11-14 by Melanikus (Dietrich), F3.)
@@ -277,6 +279,11 @@ bool LoadTheMenus();
 
 static ui::PanelLayout PlaceTheView(int windowWidth, int windowHeight)
 {
+	// TEXT SCALE (text_scale.h): the panels are laid out in the editor's own pixels, the window's divided by the scale; the view's child window keeps the window's
+	int const realWidth = windowWidth, realHeight = windowHeight;
+	windowWidth = windowWidth > 0 ? host::TextScale_ToOwn(windowWidth) : windowWidth;
+	windowHeight = windowHeight > 0 ? host::TextScale_ToOwn(windowHeight) : windowHeight;
+
 	// the bars' titles wrap to the window's width: when the width is another, the rows are made again (so the toolbar's height below is right for this width)
 	if (windowWidth > 0 && windowWidth != barWrapWidth)
 	{
@@ -294,8 +301,8 @@ static ui::PanelLayout PlaceTheView(int windowWidth, int windowHeight)
 	layout.view.width = windowWidth > 0 ? windowWidth : 0;
 	layout.view.height = windowHeight > 0 ? windowHeight : 0;
 
-	int const width = layout.view.width > 0 ? layout.view.width : 1;
-	int const height = layout.view.height > 0 ? layout.view.height : 1;
+	int const width = realWidth > 0 ? realWidth : 1;   // (the window's pixels: the level is drawn in all of them)
+	int const height = realHeight > 0 ? realHeight : 1;
 	RECT now = { 0, 0, 0, 0 };
 
 	GetWindowRect(hWndMain, &now);
@@ -338,7 +345,8 @@ static int dialogKeySwallowChar = 0;   // a key opened one of inteng's windows (
 //  - the glide (block +0x168, inteng's units a second, 100 to the millimetre) moves the camera along the way it faces by glide x the frame's time, NOT held to 0.1 s (FUN_0053c7d0,
 //    0x53e582): nothing slows it, letting go of the keys keeps it going. Melanikus remembers exactly that: "A makes you move slowly, holding shift speeds you up, letting go of both
 //    makes you keep moving, pressing space stops you".
-// NOT HERE: numpad * levelling the view (0x53e41b-0x53e51a), the joystick's glide (DAT_00d881a0), and Object Placement's world-axis movement (DAT_00914af8, toggled by its key at
+//  - numpad * held (0x53e403): the view levelled, with Shift squared to the world's axes (0x53e41b-0x53e51a / FUN_0053d1e0; M-2, Drake 11-18), after the steps, before Space and the glide;
+// NOT HERE: the joystick's glide (DAT_00d881a0), and Object Placement's world-axis movement (DAT_00914af8, toggled by its key at
 // 0x4dc5bf: the same keys along the level's axes; its Down / numpad + add 0x3e87360 to the y sum where the others add 0x10000, 0x53e1ca: inteng's own oddity, named for Vasquez).
 static int const kGlidePerFrame = 100000;   // Shift+A / Shift+Z: the glide's change each frame (0x53e0b9 ADD +0x168, 0x186a0; 0x53e0f6 ADD +0x168, 0xfffe7960: listing read)
 static int32_t cameraGlide = 0;              // the camera block's +0x168: inteng's units a second along the way it faces
@@ -2812,6 +2820,20 @@ static void HubReadOnlyBox()
 	}
 }
 
+// MODULE OVERLAPS OFF (row "00448440, 004484c0" of construction-closeout-frost.md; Dietrich 2026-11-18): inteng's Off is FUN_00445270, the hub's LEAVE FUN_004476d0 and then its START
+// FUN_00447550. The leave writes the level FILE when the hub changed it (DAT_00631264, 0x4476d0-0x4476eb: FUN_004719e0), frees Find Small Modules' list and the selection lists (0x4476f1,
+// SEL-2), turns the overlaps off (FUN_00448440 at 0x44777b) and saves the camera (0x447804, in ToggleModuleOverlaps); the start puts the rotation centre on the objects' average
+// (ToggleModuleOverlaps) and looks at the file again: the read-only box (FUN_00444be0). Gives the save's words when the level was written, else none (acceptance-hub-overlaps-off).
+static std::string ModuleOverlapsOffLeavesTheHub()
+{
+	std::string const saved = LevelChangedSinceSave() ? SaveAtIntengsPoint() : std::string();
+
+	SmallModulesForget();
+	host::Selection_Clear();
+	HubReadOnlyBox();
+	return saved;
+}
+
 void SaveTheCopy()
 {
 	// whatever stops this save, its words are this save's: an Exit reads them to say whether the level was saved, so the last save's "Saved a copy" must never stand
@@ -2831,7 +2853,7 @@ void SaveTheCopy()
 	// items; a copy saved now would lack them, so they are written first. What is written is the same; only the moment differs.
 	if (!WriteTheLinks())
 	{
-		std::string const why(statusWords && statusWords != savedWords.c_str() ? statusWords : "");   // WriteTheLinks said why (Answer), when it did
+		std::string const why(statusWords && !statusWords.From(savedWords.c_str()) ? statusWords : "");   // WriteTheLinks said why (Answer), when it did
 
 		savedWords = std::string("Not saved: the current module's links could not be written first") + (why.empty() ? std::string() : " (" + why + ")");
 		statusWords = savedWords.c_str();
@@ -5628,8 +5650,8 @@ static bool TrackSnapLiveStart()
 
 	if (GetCursorPos(&pointer) && ScreenToClient(hWndMain, &pointer) && GetClientRect(hWndMain, &inside) && PtInRect(&inside, pointer))   // (over the view only)
 	{
-		snapPointerX = pointer.x;
-		snapPointerY = pointer.y;
+		snapPointerX = host::TextScale_ToOwn(pointer.x);   // the editor's own pixels (text_scale.h)
+		snapPointerY = host::TextScale_ToOwn(pointer.y);
 	}
 
 	snapLive = true;
@@ -6203,6 +6225,9 @@ void RunAction(int32_t id)
 		return;
 	}
 
+	// An Options text size (the owner's addition, text_scale.h): set at once and kept; the next frame lays the panels out again; its tick is drawn from the scale every frame
+	if (host.textScaleStep != 0) { statusWords = host::TextScale_Choose(host.textScaleStep, layoutSettingsFile); }
+
 	// An Options switch (editor_options.h): flipped, kept in the settings file, said on the status line; its tick is drawn from the state every frame
 	if (host.optionToggle != 0)
 	{
@@ -6211,9 +6236,10 @@ void RunAction(int32_t id)
 		static std::string optionWords;
 
 		*slot = !*slot;
+		R_SetEditorPreferBmp(editorOptions.preferBmp);   // read by the level's picture loader at the next open (bible-check.md M-4)
 		optionWords = host.optionToggle == 1 ? (*slot ? "Select by polygons: on (a click takes the object under the pointer)" : "Select by polygons: off (a click takes the object whose centre is nearest the pointer)")
-			: host.optionToggle == 2 ? (*slot ? "Prefer .BMP over .RIM: on (the game's data has no .BMP pictures, so no picture changes)" : "Prefer .BMP over .RIM: off")
-			: (*slot ? "Use Polygon View Distance: on (kept as the setting: this renderer has no polygon view distance to apply)" : "Use Polygon View Distance: off");
+			: host.optionToggle == 2 ? (*slot ? "Prefer .BMP over .RIM: on (the pictures of the next level opened are tried as .bmp first)" : "Prefer .BMP over .RIM: off")
+			: (*slot ? "Use Polygon View Distance: on (the view distance cuts the level polygon by polygon)" : "Use Polygon View Distance: off");
 
 		if (!layoutSettingsFile[0] || !host::EditorOptions_Save(layoutSettingsFile, key, *slot))
 		{
@@ -6353,6 +6379,14 @@ void RunAction(int32_t id)
 	if (host.moduleOverlaps)
 	{
 		ToggleModuleOverlaps();
+
+		if (!moduleOverlapsOn)
+		{
+			std::string const saved = ModuleOverlapsOffLeavesTheHub();   // FUN_00445270: the hub left and started again
+			std::string const offWords = "Module Overlaps off" + (saved.empty() ? std::string() : "; " + saved);
+
+			statusWords = offWords.c_str();   // statusWords keeps a copy (status_words.h)
+		}
 	}
 
 	if (host.takeScreenshot)
@@ -6518,7 +6552,10 @@ void RunAction(int32_t id)
 	// draw modes are global and the status line and the buttons follow them (view_toggles.h).
 	// Object Placement's Misc > Lighting (0x54, OP-44; only Object Placement's and Track Editing's tables hold it): DAT_008f4f0c flips (0x4d9f31-0x4d9f5f), the objects follow at the next frame
 	// (LevelView_PlacementLighting) and the item is ticked by it (editor_panels.cpp). inteng says nothing; the status words are ours. Was: the whole level's Gouraud switch
-	host.viewMode = host.viewMode == 4 && PlacementLighting_Flip(&statusWords) ? 0 : host.viewMode;
+	char const *lightingWords = nullptr;
+
+	host.viewMode = host.viewMode == 4 && PlacementLighting_Flip(&lightingWords) ? 0 : host.viewMode;
+	statusWords = lightingWords ? lightingWords : (char const *)statusWords;
 
 	if (host.viewMode != 0)
 	{
@@ -7318,6 +7355,8 @@ static POINT InThePanels(HWND window, LPARAM lParam)
 		at.y = panelsY;
 	}
 
+	at.x = host::TextScale_ToOwn(at.x);   // the editor's own pixels (text_scale.h)
+	at.y = host::TextScale_ToOwn(at.y);
 	return at;
 }
 
@@ -7333,7 +7372,7 @@ static LRESULT CALLBACK NoFileProc(HWND window, UINT message, WPARAM wParam, LPA
 	switch (message)
 	{
 		case WM_LBUTTONDOWN:
-			DialogPress((int32_t)(short)LOWORD(lParam), (int32_t)(short)HIWORD(lParam));
+			DialogPress(host::TextScale_ToOwn((int32_t)(short)LOWORD(lParam)), host::TextScale_ToOwn((int32_t)(short)HIWORD(lParam)));   // in the editor's own pixels (text_scale.h)
 			return 0;
 		case WM_KEYDOWN:
 		case WM_CHAR:
@@ -7451,8 +7490,8 @@ static void RotationPickPress(HWND window, LPARAM lParam)
 	pickCtrl = false;
 	pickDelete = false;
 	pickWithS = false;
-	pickX = GET_X_LPARAM(lParam);
-	pickY = GET_Y_LPARAM(lParam);
+	pickX = host::TextScale_ToOwn(GET_X_LPARAM(lParam));   // the editor's own pixels, as the view's size the pick is made against (text_scale.h)
+	pickY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 	pickInBox = threeMainBox.width > 0;
 
 	if (pickInBox)
@@ -7606,6 +7645,8 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		case WM_SYSKEYDOWN:
 		case WM_CHAR:
 		{
+			if (message == WM_KEYDOWN && wParam == VK_PAUSE) { TakeAScreenshot(); return 0; }   // Pause: a screenshot in every mode (FUN_0058c010 case 0x13 sets DAT_0091c010, the frame loop 0x58cfae calls FUN_00472930; bible-check.md M-1)
+
 			if (textureColourPicking) { return 0; }   // Select Colour's grid: FUN_00560620's loop reads no key, only a mouse press (0x56086a)
 
 			// Scroll Lock's pick waiting (CAM-8): FUN_004720c0's loop reads no key, so no key acts; a key down is only HELD (inteng's key tables follow the keys during the loop, FUN_0058c010),
@@ -7884,6 +7925,22 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				return 0;
 			}
 
+			// M-3 (bar_letter.h; reassess/bible-check.md): while the bar waits (Control held, or the pointer on it; not over a Strategy Edit view, nor Texture Map's own bars, FUN_0057b6f0) and
+			// nothing else has the keyboard, a letter that is a first-row title's underlined one opens that title as a press on it would (inteng's FUN_004b7740, 0x4b7fb0), and is taken
+			if (message == WM_KEYDOWN && !(lParam & (1 << 30)) && !AMenuIsOpen() && !(fieldsHaveKeys && fieldHost.Showing()) && promptFor == kPromptNone && !host::Dialogs_IsOpen() &&
+				!strategyEditFan && !TextureBarsAlwaysShown() && (KeyHeldNow(VK_CONTROL) || barVisible))
+			{
+				int32_t const title = host::BarLetter_Title(barRows.menus[0], barRows.menuCount[0], (uint32_t)wParam);
+
+				if (title >= 0 && (size_t)title < barRows.menuCount[0])
+				{
+					ui::Box const box = menuBar.TitleBox((size_t)title);
+
+					AfterMenu(menuBar.Press(box.x + box.width / 2, box.y + box.height / 2), menuBar);
+					return 0;
+				}
+			}
+
 			ui::Event event;
 			bool const menuWasOpen = AMenuIsOpen();
 			bool const typingHere = fieldsHaveKeys && fieldHost.Showing();   // the keyboard is in the field panel (S3d)
@@ -8056,14 +8113,15 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 						ZoomReset();   // the Movement help's Home: back to the default zoom level
 						statusWords = "The zoom is back to the default level";
 					}
-					else if (wParam == VK_SCROLL && !(lParam & 0x40000000) && !onTextureMap && !(OnStrategyScreen() && (StrategyInASubLoop() || strategyEditFan)) && !volume.on && zoomStage == 0 &&
+					else if (wParam == VK_SCROLL && !(lParam & 0x40000000) && !(OnStrategyScreen() && (StrategyInASubLoop() || strategyEditFan)) && !volume.on && zoomStage == 0 &&
 						!host::ClickMode_Waiting() && !moveRelWaiting && !snapLive && !AutoLinkShow_On())
 					{
 						// nor while another of inteng's modal waits holds the frame (Insert's zoom FUN_00471cb0, a click-mode's or Move rel. to poly's wait, the live Snap To Vertex, AutoLink's run): WinMain
 						// does not get round to 0x58d004 until it ends (a review of the camera close-out, 11-17)
 						// Scroll Lock (WinMain 0x58d004-0x58d00d, after every screen's frame): the rotation centre's pick waits for its press (FUN_004720c0, CAM-8). Not where inteng's frame is inside a
 						// loop of its own and never gets back to WinMain: Strategy Data's flag page, Stability, the collectors, the pick loop and the volume editor (FUN_00529370's loops) and a kind's Edit
-						// view (FUN_0052cbb0's wait). TO CHECK: Texture Map (its menu's "Misc > Screenshot (Scroll Lock)"; the mode is paused), left out until read. NAMED: inteng runs it each frame the
+						// view (FUN_0052cbb0's wait). Texture Map too (read 11-18: WinMain reaches 0x58d009 after its frame, FUN_00543fa0, and its key tables give Scroll Lock nothing; the
+						// Bible's "Misc > Screenshot (Scroll Lock)" is the menu row 0xb6 alone: acceptance-camera-scroll-lock-texture-map). NAMED: inteng runs it each frame the
 						// key is HELD (a pick made with the key still down starts another); ours, once a press
 						rotationPickWaiting = true;
 					}
@@ -8555,8 +8613,8 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					// Rect (In or On) / Rect (In): the press is the rectangle's first corner (FUN_005590c0); the release picks
 					textureRectActive = true;
 					textureRectShift = ShiftDown() || (wParam & MK_SHIFT) != 0;
-					textureRectX0 = textureRectX1 = GET_X_LPARAM(lParam);
-					textureRectY0 = textureRectY1 = GET_Y_LPARAM(lParam);
+					textureRectX0 = textureRectX1 = host::TextScale_ToOwn(GET_X_LPARAM(lParam));   // the editor's own pixels (text_scale.h)
+					textureRectY0 = textureRectY1 = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 				}
 				else if (!OnAPanel(at.x, at.y) && window == hWndMain)
 				{
@@ -8565,8 +8623,8 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					pickCtrl = KeyHeldNow(VK_CONTROL) || (wParam & MK_CONTROL) != 0;
 					pickDelete = KeyHeldNow(VK_DELETE);   // Module Linking: Delete + click takes a module off the picks (slot 0x55 = VK 0x2e, FUN_004c3880)
 					pickWithS = keyLayout == KeyLayout::Classic && keyDown['S'] && barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && strategyFlagPage && !pickShift;   // S + click is the flag page's (FUN_00525700 0x525db2 / 0x525dbf), but Shift is tested first (0x525cba-0x525cc1: Shift down skips the S read): Shift + S + click is Shift + click (0x525cc7, out of the list, red off 0x525da8; S-69); page 0 takes it as a plain click (S-58)
-					pickX = GET_X_LPARAM(lParam);
-					pickY = GET_Y_LPARAM(lParam);
+					pickX = host::TextScale_ToOwn(GET_X_LPARAM(lParam));   // the editor's own pixels, as the view's size the pick is made against (text_scale.h)
+					pickY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 					pickInBox = threeMainBox.width > 0 && ui::BoxHolds(threeMainBox, at.x, at.y);
 
 					// With the three views shown, the 3D view is the bottom right quarter: a pick there is from the quarter's own pixels
@@ -8601,8 +8659,8 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			{
 				// the other corner: the drag is let go and the frame selects with it
 				textureRectActive = false;
-				textureRectX1 = GET_X_LPARAM(lParam);
-				textureRectY1 = GET_Y_LPARAM(lParam);
+				textureRectX1 = host::TextScale_ToOwn(GET_X_LPARAM(lParam));
+				textureRectY1 = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 				textureRectAsked = true;
 			}
 
@@ -8878,20 +8936,20 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 
 			if (snapLive && window == hWndMain)
 			{
-				snapPointerX = GET_X_LPARAM(lParam);
-				snapPointerY = GET_Y_LPARAM(lParam);
+				snapPointerX = host::TextScale_ToOwn(GET_X_LPARAM(lParam));   // the editor's own pixels (text_scale.h)
+				snapPointerY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 			}
 
 			if (OnAcousticScreen() && window == hWndMain)
 			{
-				acousticPointerX = GET_X_LPARAM(lParam);
-				acousticPointerY = GET_Y_LPARAM(lParam);
+				acousticPointerX = host::TextScale_ToOwn(GET_X_LPARAM(lParam));
+				acousticPointerY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 			}
 
 			if (onTextureMap && textureFlagList && window == hWndMain)
 			{
-				textureHoverX = GET_X_LPARAM(lParam);
-				textureHoverY = GET_Y_LPARAM(lParam);
+				textureHoverX = host::TextScale_ToOwn(GET_X_LPARAM(lParam));
+				textureHoverY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 				textureHoverSet = true;
 			}
 
@@ -9126,7 +9184,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			// least is of the client area, so the frame's own width is added.
 			if (window == editorWindow && lParam && barMinClientWidth > 0)
 			{
-				RECT least = { 0, 0, barMinClientWidth, 200 };
+				RECT least = { 0, 0, host::TextScale_ToWindow(barMinClientWidth), 200 };   // the bars' least, in the window's pixels (text_scale.h)
 
 				AdjustWindowRectEx(&least, (DWORD)GetWindowLongA(window, GWL_STYLE), FALSE, (DWORD)GetWindowLongA(window, GWL_EXSTYLE));
 				((MINMAXINFO *)lParam)->ptMinTrackSize.x = least.right - least.left;
@@ -9449,6 +9507,39 @@ static void MoveTheCamera(FlyCamera *camera, bool moves = true)
 			{
 				cameraGlide = (int32_t)((uint32_t)cameraGlide - (uint32_t)kGlidePerFrame);
 			}
+		}
+
+		// M-2 (reassess/bible-check.md, the Bible's MN-13), numpad '*' held (0x53e403, every frame it is held), after the steps and before Space and the glide, on the camera as on a flown object
+		// (A-7b): the view LEVELLED (0x53e41b-0x53e51a: its forward made level, the heading kept, straight down its down; LevelView_LevelMatrix), or with Shift SQUARED to the world's axes
+		// (FUN_0053d1e0 at 0x53e532; LevelView_SquareMatrix). Those take the block's matrix (rows: right, down, forward), which is the view's matrix turned over: so it is turned over,
+		// levelled or squared, turned back, and the camera's angles taken from it (as the turn keys' above). Was: NOT HERE, the flown object's only.
+		if (keyDown[VK_MULTIPLY])
+		{
+			int32_t view[9];
+			int32_t block[9];
+
+			LevelView_MatrixOfAngles(camera->turn, camera->look, camera->roll, view);
+
+			for (int i = 0; i < 9; i++)
+			{
+				block[(i % 3) * 3 + i / 3] = view[i];
+			}
+
+			if (ShiftDown())
+			{
+				LevelView_SquareMatrix(block);
+			}
+			else
+			{
+				LevelView_LevelMatrix(block);
+			}
+
+			for (int i = 0; i < 9; i++)
+			{
+				view[(i % 3) * 3 + i / 3] = block[i];
+			}
+
+			LevelView_AnglesOfMatrix(view, &camera->turn, &camera->look, &camera->roll);
 		}
 
 		// Space held: the glide stops (0x53e54d)
@@ -11677,19 +11768,22 @@ static int32_t ModuleGameIndexOfObject(uint8_t const *id)
 	return -1;
 }
 
+// S-9 (traced 11-18, Vasquez): case 0x37 runs FUN_00527370 on the CURRENT record, whatever it is (0x524f53); FUN_00527020 reads the six stability bits from that record's SHAPE header
+// (FUN_004d0fd0 -> FUN_0050e9e0, SHPHEAD1 +0x50), so a placed object's shape takes them as a module's does. Ours took modules only. A virtual object has no shape: refused with words
+// (inteng would read a header that is not there).
 void StabilityBegin()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	std::vector<uint8_t> const ids = PickedModuleIdBytes();
+	uint8_t id[8];
 	uint32_t faces = 0;
 
-	if (!open || ids.empty())
+	if (!open || !SelectedObjectId(id))
 	{
-		statusWords = "Stability flags: pick a module first (click, Shift+click for more)";
+		statusWords = "Stability flags: pick an object first";
 		return;
 	}
 
-	host::StrategyModeResult const got = host::StrategyMode_GetStability(open, ids.data(), &faces);
+	host::StrategyModeResult const got = host::StrategyMode_GetStability(open, id, &faces);
 
 	if (got != host::StrategyModeResult::Done)
 	{
@@ -11698,15 +11792,15 @@ void StabilityBegin()
 		return;
 	}
 
-	int32_t const index = ModuleGameIndexOfObject(ids.data());
+	int32_t const index = ModuleGameIndexOfObject(id);
 
-	if (index < 0 || !LevelView_ModuleBox(index, stabilityMin, stabilityMax))
+	if (index >= 0 ? !LevelView_ModuleBox(index, stabilityMin, stabilityMax) : !LevelView_ObjectBox(id, stabilityMin, stabilityMax))
 	{
-		statusWords = "Stability flags: the game has no shape for that module to draw the box of";
+		statusWords = "Stability flags: the game has no shape for that object to draw the box of";
 		return;
 	}
 
-	memcpy(stabilityObject, ids.data(), sizeof(stabilityObject));
+	memcpy(stabilityObject, id, sizeof(stabilityObject));
 	stabilityFaces = faces;
 	stabilityPolygons = false;   // FUN_00447f10: the faces start as polylines (strategy-data.md S-75)
 	stabilityActive = true;
@@ -14134,6 +14228,7 @@ int main(int, char **)
 		char const *optionWhy = nullptr;
 
 		editorOptions = host::EditorOptions_Load(settingsFile, &optionWhy);
+		R_SetEditorPreferBmp(editorOptions.preferBmp);   // Prefer .BMP over .RIM (0x1f5): the level's pictures are tried as .bmp first (FUN_0046df30; bible-check.md M-4)
 
 		if (optionWhy)
 		{
@@ -14149,6 +14244,13 @@ int main(int, char **)
 		UINT const saved = GetPrivateProfileIntA("Editor", "CameraSpeed", (INT)kSpeedStart, layoutSettingsFile);
 
 		speedUnits = CameraSpeedHeld(saved);
+	}
+
+	// THE TEXT SCALE (the owner's addition, text_scale.h): FontScale= in the same file, a plain number from 1 to 3 (1, inteng's own size, when it isn't there); anything else is refused
+	// and said, and the text stays inteng's size
+	if (!host::TextScale_Load(layoutSettingsFile))
+	{
+		statusWords = host::TextScale_Refusal();
 	}
 
 	// THE VIEW DISTANCE is saved too (view-state-table.md H-7: FUN_00473430 reads it FIRST from inteng.ini, ReadFile 0x4734b5 -> DAT_005fd678 0x4734d4; FUN_004732a0 writes it at the
@@ -14574,7 +14676,7 @@ int main(int, char **)
 		// (LevelView_SayMissingPictures, which hands back words of its own, so the warning can't be told by its pointer: 11-18, after bishop-int's ad73774b)
 		if (statusWords && statusWords[0])
 		{
-			outsideShapesWords += std::string(" - ") + statusWords;
+			outsideShapesWords += std::string(" - ") + (char const *)statusWords;
 		}
 
 		statusWords = outsideShapesWords.c_str();
@@ -14670,6 +14772,8 @@ int main(int, char **)
 		GetClientRect(hWndMain, &view);
 		frameViewWidth = view.right - view.left;   // the camera's wide-view turn (MoveTheCamera)
 		bool const canDraw = ViewSurface_BeforeFrame(view.right - view.left, view.bottom - view.top, windowWidth, windowHeight);
+		view.right = view.left + host::TextScale_ToOwn(view.right - view.left);   // from here the view's size is in the editor's own pixels, as the mouse is (text_scale.h)
+		view.bottom = view.top + host::TextScale_ToOwn(view.bottom - view.top);
 		if (!canDraw)
 		{
 			framesWaited++;
@@ -14761,17 +14865,35 @@ int main(int, char **)
 			lastFrameTick = GetTickCount();
 		}
 
-		// the view distance, kept for the next start whenever it changed (H-7; inteng writes it at the end, FUN_004732a0: kept at once here, as the speed is)
+		// the view distance, kept for the next start whenever it changed (H-7; inteng writes it at the end, FUN_004732a0: kept at once here, as the speed is). When the settings file can't
+		// be written the status line says so, and the log once with the file and the error (row ML-E-10 of module-linking-map-dietrich.md: "doesn't remember"; inteng says nothing)
 		{
 			static int32_t viewDistanceWritten = -1;
+			static bool viewDistanceNotKeptLogged = false;
 
 			if (viewDistance != viewDistanceWritten && layoutSettingsFile[0] && !viewDistanceFromCommandLine)
 			{
 				char number[16];
 
 				_snprintf_s(number, sizeof(number), _TRUNCATE, "%d", viewDistance);
-				WritePrivateProfileStringA("Editor", "ViewDistance", number, layoutSettingsFile);
+
+				bool const kept = WritePrivateProfileStringA("Editor", "ViewDistance", number, layoutSettingsFile) != FALSE;
+				DWORD const why = kept ? 0 : GetLastError();
+				bool const changedSinceStart = viewDistanceWritten != -1;   // the first write is the start's own distance: nothing was changed yet, so nothing is said
+
 				viewDistanceWritten = viewDistance;
+
+				if (!kept && changedSinceStart)
+				{
+					statusWords = "The view distance has changed, but AVP_OpenInteng.ini couldn't be written, so the editor starts with the distance it had before next time";
+
+					if (!viewDistanceNotKeptLogged)
+					{
+						LogString(std::string("view distance: not kept, ") + layoutSettingsFile + " couldn't be written (error " + std::to_string((unsigned long)why) + ")");
+					}
+				}
+
+				viewDistanceNotKeptLogged = changedSinceStart ? !kept : viewDistanceNotKeptLogged;
 			}
 		}
 
@@ -15021,7 +15143,7 @@ int main(int, char **)
 		// This frame's panels, worked out first and added to the game's own frame as it is drawn, over the level (L-1)
 		host::PaintText panelLines[kPanelPassMostExtras];
 		host::PaintBox panelBoxes[kPanelPassMostExtras];
-		FramePanels framePanels = { windowWidth, windowHeight, PlanThePanels(layout, panelLines, panelBoxes, drawnTitles) };
+		FramePanels framePanels = { host::TextScale_ToOwn(windowWidth), host::TextScale_ToOwn(windowHeight), PlanThePanels(layout, panelLines, panelBoxes, drawnTitles) };   // (the editor's own pixels)
 		// The selected object is drawn in green (level_view.h)
 		{
 			uint8_t ids[kLevelViewMostSelected][host::kSelectionIdBytes];
@@ -15039,7 +15161,7 @@ int main(int, char **)
 		{
 			bool const on = ThreeViewsOn() && !(placementSplit && barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Track Editing") == 0);
 
-			threeBox = ui::Box{ 0, layout.view.y, windowWidth, layout.view.height };
+			threeBox = ui::Box{ 0, layout.view.y, layout.view.width, layout.view.height };   // (the editor's own pixels, as the layout: text_scale.h)
 
 			// The lines in the 3D view (Waypoint mode's boxes, the entry point markers) are taken away when that mode is not shown
 			static bool worldLinesShown = false;
@@ -15056,6 +15178,8 @@ int main(int, char **)
 			AdjacencyEveryFrame();
 
 			PathTintsEveryFrame();
+
+			R_SetEditorFarPlane(editorOptions.polygonViewDistance ? (float)viewDistance / 100.0f : 0.0f);   // Use Polygon View Distance (0x1f6): FUN_00474ee0 every frame, in every mode (bible-check.md M-5)
 
 			if (!ModalWaitOn())
 			{
@@ -15089,8 +15213,15 @@ int main(int, char **)
 			// (an object by its ID) before the pick's colour, and the first colour given to a block wins: the door showed green, not 0x7f007f (Dietrich 11-16)
 			// Copy Strategy's collector: the source (the selection) is not red while it runs (FUN_00528340 0x5283a5 FUN_00529480; back at 0x5285bd); its members are (FlagViewTints)
 			// while a view's OBJECT PICK runs (FUN_00527540) the selection is the pick, and it IS red: 0x52754a / 0x527629 FUN_00529470, off at 0x527620 / 0x52763a / 0x527676 (S-62)
-			LevelView_SetSelectedColour(OnModuleLinkingScreen() || (OnStrategyScreen() && ((strategyEditFan && strategyPickField.empty()) || copyCollecting)) ? 0u :
-				(OnAPlacementScreen() || OnStrategyScreen() ? 0xFFFF0000u : (onTheHub ? hubSelection : 0xFF00FF00u)));
+			// LIGHT SOURCING (light-closeout-frost.md TB-L4, Vasquez 11-18): RED too. Its Object mode's pick sets item flag 0x80 on the object straight (FUN_004ab200 -> FUN_0046db60; the last one's
+			// taken off, FUN_0046db90, and by Select > Light, 0x4aac7a) and Light mode's pick marks the block 0x40000000 (0x4aaeb0), both drawn 0xff0000 by FUN_004980f0; ours was green there
+			uint32_t const selectedColour = OnModuleLinkingScreen() || (OnStrategyScreen() && ((strategyEditFan && strategyPickField.empty()) || copyCollecting)) ? 0u :
+				(OnAPlacementScreen() || OnStrategyScreen() || OnALightScreen() ? 0xFFFF0000u : (onTheHub ? hubSelection : 0xFF00FF00u));
+			char selectedColourWord[16];
+
+			LevelView_SetSelectedColour(selectedColour);
+			snprintf(selectedColourWord, sizeof(selectedColourWord), "%06x", (unsigned)(selectedColour & 0xFFFFFFu));
+			StateLine_Add("selectedcolour", selectedColour ? selectedColourWord : "");   // the harness's: the colour the selected objects are drawn in ("" none)
 
 			bool const iconsWanted = !OnALightScreen() && !(stabilityActive && OnStrategyScreen()) && (OnAPlacementScreen() || OnStrategyScreen()) && !placementSplit;   // (inteng's Edit view's black screen showed none, S-KC-1; the owner's box draws the level, its icons too, round the view's box, which covers what is behind it)
 
@@ -15411,7 +15542,11 @@ int main(int, char **)
 
 			threeMainBox = (on || split) && threeBox.width >= 64 && threeBox.height >= 48
 				? ui::Box{ threeBox.x + threeBox.width / 2, threeBox.y + threeBox.height / 2, threeBox.width / 2, threeBox.height / 2 } : ui::Box{ 0, 0, 0, 0 };
-			LevelView_MainBox(threeMainBox.width > 0, threeMainBox.x, threeMainBox.y, threeMainBox.width, threeMainBox.height);
+			{
+				int32_t mainX = 0, mainY = 0, mainWidth = 0, mainHeight = 0;   // the level is drawn in the window's pixels (text_scale.h)
+				host::TextScale_BoxToWindow(threeMainBox.x, threeMainBox.y, threeMainBox.width, threeMainBox.height, &mainX, &mainY, &mainWidth, &mainHeight);
+				LevelView_MainBox(threeMainBox.width > 0, mainX, mainY, mainWidth, mainHeight);
+			}
 
 			// Toggle Split Screen: three more cameras round the current object (or the view), 5 m (5000 mm, the game's unit) back along z, x and y
 			if (split && threeMainBox.width > 0)
@@ -15851,6 +15986,7 @@ int main(int, char **)
 			// OP-26c: whether the current placed object is in the game's view (has its display block), for the harness: "yes" / "no", empty when no placed object is current
 			host::ModuleLinkAvp_StateLine();
 			StateLine_Add("inplay", host::Selection_Get().kind == host::SelectedKind::Object ? (LevelView_SelectedIsInPlay() ? "yes" : "no") : "");
+			StateLine_Add("fontpx", std::to_string((long long)host::TextScale_ToWindow(PanelPass_HasMenuFont() ? PanelPass_MenuFontHeight() : kPanelPassLineHeight)));   // the text's height in the window's pixels (text_scale.h)
 
 			std::string titles1, titles2;
 

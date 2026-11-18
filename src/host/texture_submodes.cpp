@@ -540,6 +540,11 @@ namespace
 	{
 		mergeSaveWords.clear();   // only this question's words are said after it
 
+		if (statusWords.From(mergeSaveWords.c_str()))
+		{
+			statusWords = mergeSaveWords.c_str();   // the status line showed them: it is blank now, as when it pointed at them (status_words.h)
+		}
+
 		if (!mergeChanged)
 		{
 			then();

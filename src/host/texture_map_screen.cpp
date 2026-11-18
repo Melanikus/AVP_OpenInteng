@@ -1447,7 +1447,7 @@ static void TextureLeaveAnswer(bool yes)
 
 			TexturePolyApplyRemoved();
 
-			if (saved.compare(0, 5, "Saved") == 0 && (!statusWords || saved != statusWords))
+			if (saved.compare(0, 5, "Saved") == 0 && (!statusWords || saved != (char const *)statusWords))
 			{
 				textureWords = std::string(statusWords ? statusWords : "") + " | " + saved;   // both answers on the line: what was taken out, and the save
 				statusWords = textureWords.c_str();

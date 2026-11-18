@@ -1866,6 +1866,72 @@ static void CheckPairsInNumbers()
 	Check(wrongSize.parted == 0 && !wrongSize.changed && wrongSize.merge.size() == 1, "merge data that is not one number for each polygon is left");
 }
 
+// The copy's FRESH header (Bishop 2026-11-18, from Dietrich's TB-C8b read): inteng's FUN_0050e880 makes the copy's SHPHEAD1 anew (version 0, flags 0, number -1, no lock user), and
+// Texture Map's two copies of a shape go through it: Merge on a shared shape (FUN_0055aa50) and Split (FUN_00564300). Ours keeps the shape's own flags less the lock flag (inteng's 0 loses
+// them: INTENG BUG, FIXED, as shape_merge_edit.cpp FreshHead). Before the edit, the old shape is given a header the copy must NOT keep: the lock flag and a shape flag, a lock user, a
+// version. SHPHEAD1's payload: flags at 0, the lock user's 16 bytes at 4, the version at 60 (avpx chunk_shape.cpp Shape_Header_Chunk::fill_data_block); the save adds 1 to every
+// version (Shape_Header_Chunk::prepare_for_output).
+static int32_t const kLockedFlag = 0x1;             // GENERAL_FLAG_LOCKED (chunk.hpp)
+static int32_t const kUnstableBoundFlag = 0x4000;   // SHAPE_FLAG_UNSTABLEBOUND_ZPOS (chunk_shape.hpp): a flag of the shape's own, which the copy keeps
+static int32_t const kPlantedVersion = 41;
+
+static int32_t HeadNumberAt(std::vector<unsigned char> const &bytes, size_t at)
+{
+	int32_t number = -1;
+
+	if (bytes.size() >= at + 4)
+	{
+		memcpy(&number, bytes.data() + at, 4);
+	}
+
+	return number;
+}
+
+static bool PlantShapeHeader(OpenLevelFile *open, Object_Chunk *object, int32_t *flags)
+{
+	Shape_Chunk *const shape = object ? object->get_assoc_shape() : nullptr;
+	Shape_Header_Chunk *const head = shape ? shape->get_header() : nullptr;
+	std::vector<unsigned char> bytes;
+
+	if (!head || !open->PayloadOf(head, &bytes) || bytes.size() < 68)
+	{
+		return false;
+	}
+
+	int32_t const planted = HeadNumberAt(bytes, 0) | kLockedFlag | kUnstableBoundFlag;
+	char const user[16] = { 'f', 'r', 'o', 's', 't' };
+
+	memcpy(bytes.data(), &planted, 4);
+	memcpy(bytes.data() + 4, user, 16);
+	memcpy(bytes.data() + 60, &kPlantedVersion, 4);
+	*flags = planted;
+	return open->SetPayload(head, bytes);
+}
+
+// read back from the saved copy: copyUser's shape is the new one, oldUser's the one it was copied from
+static void CheckFreshHeader(std::string const &label, OpenLevelFile const &after, Object_Chunk *copyUser, Object_Chunk *oldUser, bool planted, int32_t plantedFlags)
+{
+	Shape_Chunk *const newShape = copyUser ? copyUser->get_assoc_shape() : nullptr;
+	Shape_Chunk *const oldShape = oldUser ? oldUser->get_assoc_shape() : nullptr;
+	std::vector<unsigned char> fresh, kept;
+	bool const read = planted && newShape && oldShape && newShape != oldShape && newShape->get_header() && oldShape->get_header() && after.PayloadOf(newShape->get_header(), &fresh) &&
+		after.PayloadOf(oldShape->get_header(), &kept) && fresh.size() >= 68 && kept.size() >= 68;
+	bool noUser = read;
+
+	for (size_t b = 4; noUser && b < 20; b++)
+	{
+		noUser = fresh[b] == 0;
+	}
+
+	Check(read, label + ": the old shape's header was given a lock flag, a lock user and version " + std::to_string(kPlantedVersion) + " before the edit, and both headers are read back");
+	Check(read && HeadNumberAt(fresh, 60) == 1, label + ": the new shape's version is a new shape's: 0, and 1 after the save (" + std::to_string(read ? HeadNumberAt(fresh, 60) : -1) + ")");
+	Check(noUser, label + ": the new shape has no lock user" + (read && !noUser ? std::string(" (it has \"") + std::string((char const *)fresh.data() + 4, strnlen((char const *)fresh.data() + 4, 16)) + "\")" : ""));
+	Check(read && HeadNumberAt(fresh, 0) == (plantedFlags & ~kLockedFlag), label + ": the new shape keeps the shape's own flags, without the lock flag: " + std::to_string(read ? HeadNumberAt(fresh, 0) : -1) +
+		" (the old shape's were " + std::to_string(plantedFlags) + ")");
+	Check(read && HeadNumberAt(kept, 60) == kPlantedVersion + 1 && HeadNumberAt(kept, 0) == plantedFlags && kept[4] == 'f', label + ": the old shape keeps its own header: version " +
+		std::to_string(read ? HeadNumberAt(kept, 60) : -1) + ", its flags and lock user");
+}
+
 // ================================================================= F. Split Object > As Placed Obj (PolyEdit_SplitAsObject) on a stock level
 
 static void SplitOnLevel(std::string const &levelPath, std::string const &copyFolder)
@@ -1970,6 +2036,8 @@ static void SplitOnLevel(std::string const &levelPath, std::string const &copyFo
 
 	uint8_t madeId[8] = { 0 };
 	std::string made, why;
+	int32_t plantedFlags = 0;
+	bool const planted = PlantShapeHeader(&work, FindObject(work, id), &plantedFlags);   // the new shape's header is a fresh one (CheckFreshHeader)
 	host::PolySplitResult const result = host::PolyEdit_SplitAsObject(&work, id, take.data(), take.size(), madeId, &made, &why);
 
 	Check(result == host::PolySplitResult::Done, label + ": " + std::to_string(take.size()) + " polygons are split off" + (result == host::PolySplitResult::Done ? "" : std::string(": ") + host::PolySplitWords(result) + " " + why));
@@ -2038,6 +2106,7 @@ static void SplitOnLevel(std::string const &levelPath, std::string const &copyFo
 	}
 
 	Check(newNow.number != oldNow.number && newNow.number != original.number, label + ": the new object has a shape of its own (number " + std::to_string(newNow.number) + ")");
+	CheckFreshHeader(label, edited, newObject, oldObject, planted, plantedFlags);
 	Check(newNow.polygons.size() == take.size() && oldNow.polygons.size() + take.size() == original.polygons.size(), label + ": the new shape has " + std::to_string(take.size()) + " polygons, the old one the rest (new " + std::to_string(newNow.polygons.size()) + ", old " + std::to_string(oldNow.polygons.size()) + ", was " + std::to_string(original.polygons.size()) + ")");
 
 	// each polygon split off is the old one in space (same corners), and the new object lies where the old one does
@@ -2270,6 +2339,8 @@ static void MergeOnCopyOnLevel(std::string const &levelPath, std::string const &
 	}
 
 	std::string why;
+	int32_t plantedFlags = 0;
+	bool const planted = PlantShapeHeader(&work, ObjectNamed(work, users[0]), &plantedFlags);   // the copy's header is a fresh one (CheckFreshHeader)
 	host::PolyMergeResult const result = host::PolyEdit_SetMergeDataOnCopy(&work, id, std::vector<std::string>(1, users[0]), changed, &why);
 
 	Check(result == host::PolyMergeResult::Done, label + ": " + users[0] + " gets a copy of the shape it shares with " + std::to_string(users.size() - 1) + " more" +
@@ -2312,6 +2383,7 @@ static void MergeOnCopyOnLevel(std::string const &levelPath, std::string const &
 		label + ": the old shape's users are the others, " + users[0] + " gone from its list");
 	Check(mover && MergeNumbers(edited, mover, &moverNumbers) && moverNumbers == changed, label + ": the copy holds the new pairing");
 	Check(keeper && MergeNumbers(edited, keeper, &keeperNumbers) && keeperNumbers == numbers, label + ": the old shape's pairing is as it was");
+	CheckFreshHeader(label, edited, mover, keeper, planted, plantedFlags);
 }
 
 // TM-B 2e (Dietrich, 2026-11-18): Merge's save runs FUN_0055d500's checks before it writes (0x55bb73). On a stock shape whose pairs all pass: the first pair's lower polygon given a flag its partner

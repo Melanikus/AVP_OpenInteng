@@ -28,6 +28,7 @@
 #include "object_edit.h"            // host::ObjectEditResult (an enum, used by value)
 #include "selection.h"              // host::PickReport (PlacementPick's report); host::Selected
 #include "special_objects_edit.h"   // host::SpecialKind (PlacementPick's kind, and its value Generator)
+#include "status_words.h"           // StatusWords (statusWords, used by value)
 #include "tool_buttons.h"           // host::kToolButtonMost (an array's size); host::ToolButton
 
 class OpenLevelFile;        // src/io/level_file.h
@@ -84,7 +85,7 @@ extern HWND editorWindow;
 extern size_t barRowCount;
 extern EditorBarRows barRows;
 extern size_t barScreen;
-extern const char *statusWords;
+extern StatusWords statusWords;   // the status line's words, a copy it owns (status_words.h)
 extern KeyLayout keyLayout;
 bool LoadTheMenus();
 extern bool keyDown[256];
@@ -514,7 +515,7 @@ extern size_t barRowCount;
 extern EditorBarRows barRows;
 extern size_t barScreen;
 extern char cutOffWords[160];
-extern const char *statusWords;
+extern StatusWords statusWords;   // the status line's words, a copy it owns (status_words.h)
 extern KeyLayout keyLayout;
 extern char layoutSettingsFile[MAX_PATH];
 extern host::EditorOptions editorOptions;

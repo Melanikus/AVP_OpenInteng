@@ -745,6 +745,9 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 		case host::IntengWork::SaveCopy:
 			host->saveCopy = true;
 			break;
+		case host::IntengWork::TextScale:
+			host->textScaleStep = (action & 0xff) - 1;   // the owner's text sizes, 0x1ff02 .. 0x1ff05: steps 1 to 4 (text_scale.h)
+			break;
 		case host::IntengWork::PathCommand:
 			host->pathCommand = item->command;
 			break;

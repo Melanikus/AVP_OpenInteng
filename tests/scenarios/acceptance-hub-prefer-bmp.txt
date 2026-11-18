@@ -1,0 +1,18 @@
+# ACCEPTANCE (red first): OPTIONS > PREFER .BMP OVER .RIM READS THE .BMP FIRST (the Bible, control.txt: "inteng will search for .BMP files in the texture directories, and try to
+# load them. If it fails to find a .BMP of the given name, it will then try to load the .RIM file as normal"; bible-check.md M-4). inteng: its picture loader FUN_0046df30, with
+# DAT_00636f88 (0x1f5) on, makes the ending after the picture name's last '.' ".bmp" (0x5d3d24) and loads that first. Ours: avpx load_rif_bitmap with R_SetEditorPreferBmp, the
+# .bmp read by bmp_picture.h (never D3DX: it is hostile input). The run's own data folder gets a magenta .bmp for each of Invasion's 23 pictures (prefer-bmp/twins.cmd), the
+# switch is on from the ini, and Texture Map draws the level magenta where those pictures were.
+# Red on exe-cache/5369427b.exe (the switch only ticked), green with avpx frost-bible's Tex_CreateFromBMP and the editor's call.
+#ini PreferBmp=1
+make-level cmd /c {scenariodir}prefer-bmp\twins.cmd {datadir}
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+item 0x46
+expect-screen Texture Map
+wait 800
+picture 1
+expect-colour picture 0 64 1008 665 ff00ff 0.05 40

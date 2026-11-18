@@ -450,18 +450,19 @@ void StrategySelectByTexture(host::PickReport const &report)
 	std::vector<host::LevelObject> rows;
 	size_t added = 0;
 	size_t using_ = 0;
-	size_t bestCount = 0, bestOf = 0;   // the module that uses the texture most: how many of how many polygons (told when no module reaches half)
+	size_t bestCount = 0, bestOf = 0;   // the object that uses the texture most: how many of how many polygons (told when none reaches half)
 	bool full = false;
 
 	LevelObjects_Read(&rows);
 
+	// THE OBJECTS THAT JOIN (0x525e1e-0x525e43, S-69's TO CHECK traced 11-18, Vasquez): every record whose block's shape is a LEVEL shape (ObShape >= DAT_008f588c) with an RBOBJECT (+0x154)
+	// and not 0x400: modules AND placed objects (as the flag page's plain click takes either). Ours took modules only. A virtual object has no shape of its own (ShapeEdit_Read refuses it).
 	for (host::LevelObject const &row : rows)
 	{
-		int32_t index = 0;
 		model::ShapeModel other;
 		std::string otherWhy;
 
-		if (!host::ModuleIndexOfId(LevelObjects_Level(), row.id, &index) || host::HiddenObjects_Is(row.id) || host::PolygonItems_ShapeHasOwnPictureList(open->Level(), row.id) ||
+		if (host::HiddenObjects_Is(row.id) || host::PolygonItems_ShapeHasOwnPictureList(open->Level(), row.id) ||
 			host::ShapeEdit_Read(open->Level(), open, row.id, &other, nullptr, &otherWhy) != host::ShapeEditResult::Done)
 		{
 			continue;
@@ -517,7 +518,7 @@ void StrategySelectByTexture(host::PickReport const &report)
 	}
 
 	strategyTextureCount = added;
-	cameraWords = "S + click: texture " + std::to_string((long long)texture) + " is most of " + std::to_string((unsigned long long)using_) + " module" + (using_ == 1 ? "" : "s") + "; " + std::to_string((unsigned long long)added) + " added to the selection" + (using_ == 0 ? " (the module that uses it most has " + std::to_string((unsigned long long)bestCount) + " of its " + std::to_string((unsigned long long)bestOf) + " polygons)" : "") + (full ? " (the selection holds at most 256)" : "");
+	cameraWords = "S + click: texture " + std::to_string((long long)texture) + " is most of " + std::to_string((unsigned long long)using_) + " object" + (using_ == 1 ? "" : "s") + "; " + std::to_string((unsigned long long)added) + " added to the selection" + (using_ == 0 ? " (the object that uses it most has " + std::to_string((unsigned long long)bestCount) + " of its " + std::to_string((unsigned long long)bestOf) + " polygons)" : "") + (full ? " (the selection holds at most 256)" : "");
 	statusWords = cameraWords.c_str();
 }
 

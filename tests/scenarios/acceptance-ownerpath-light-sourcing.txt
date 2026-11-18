@@ -1,8 +1,8 @@
 # ACCEPTANCE (Dietrich 11-18, THE OWNER'S PATH before the beta, Bishop): Light Sourcing's main job on his own Genshd1 (his game folder's copy, copied read-only to drake-ownerpath/his-originals,
 # SHA256SUMS there; this scenario opens its own copy, so no other editor opens the same file). Drake's walk could not convert acceptance-light-sourcing.txt: its light picks are at fixed
 # places of Invasion's screen. Here every pick is the editor's own click in the MIDDLE of the view, the camera put there by name (camera-corner, names from verify_list_objects):
-#   an ORDINARY light: light 123, 4.3 m from the trench's lamp trenchlite (found by face-light's distance from that spot; the view distance is 10 m): face-light turns the camera to it,
-#     Select > Object then Select > Light let go of it, and the click in the middle picks its marker; C copies it, > chooses Spread, + held makes it larger (its numbers block redrawn),
+#   an ORDINARY light: light 123, 4.3 m from the trench's lamp trenchlite (found by face-light's distance from that spot; the view distance is 10 m): camera-corner light 123 (an
+#     ordinary light has no name: "light <n>", from 1), Select > Object then Select > Light, and the click in the middle picks its marker; C copies it, > chooses Spread, + held makes it larger (its numbers block redrawn),
 #     D drops a light at the camera, V pastes the copy there, L flies the paste to where the camera is put, L puts it down;
 #   a PLACED light: the yard lamp yardlight01 (a PLOBJLIT): the click in the middle picks it; < back to Brightness (the attribute is kept between picks, DAT_00703e58), + held,
 #     T its DOWN colour, > to Red, + held, P its "Light properties" panel, the Fade up time typed 5000.
@@ -22,9 +22,13 @@ item 0xca
 expect-screen Light Sourcing (with Doors)
 
 # ---- an ORDINARY light, picked by its marker in the middle of the view
-camera-corner trenchlite
-face-light 123
+# the camera on the light itself: "light <n>" (from 1) is the level's light n for camera-orbit and camera-corner (an ordinary light has no name); camera-corner keeps the first
+# upper diagonal spot from which the middle of the view meets its MARKER with nothing nearer (Light Sourcing's own pick)
+camera-orbit light 123 135 30
+expect-status camera-orbit light 123: the light's marker's box, 135 round, 30 up
+camera-corner light 123
 wait 600
+expect-status the click in the middle of the view picks it
 item 0x48
 expect-status picks an object
 item 0x46
@@ -32,9 +36,8 @@ expect-status picks a light
 picture 1
 click-view 0.50 0.50
 wait 400
-# face-light turns the camera, it does not tilt it: the marker is low on the left, and the click in the middle takes the light whose centre is nearest it on the screen (FUN_0046ddb0)
 # RED before the fix of RelightTheView (2026-11-18): the light was picked, but the status line read freed memory ("Atten: y", "View Distance: 2")
-expect-status Picked: light 123
+expect-status Picked: light 123, its marker under the pointer
 expect-field selection light 122
 picture 2
 # the picked light's marker is drawn flat red (FUN_004aab60 0x4aaeb0: the selected light's block flag 0x40000000)

@@ -13,3 +13,12 @@ picture 1
 click-button Ok
 expect-no-dialog
 picture 2
+# Module Overlaps Off starts the hub again (FUN_00445270 -> FUN_00447550, Dietrich 2026-11-18: acceptance-hub-overlaps-off): the box comes again
+item 0x56
+expect-status Module Overlaps on
+expect-no-dialog
+item 0x56
+expect-dialog-kind message
+expect-dialog This file is read only
+click-button Ok
+expect-no-dialog

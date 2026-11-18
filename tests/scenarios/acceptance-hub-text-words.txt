@@ -1,0 +1,34 @@
+# ACCEPTANCE: the hub's line for a selected object ends with the words its flags give, as inteng's FUN_004452b0 (0x446c56-0x4470df; reassess/construction-closeout-frost.md row
+# "The text, something selected", TB-C7, hub_text.cpp): " (placed)" for 0x400, " (base)" for 0x100, and with 0x4000 " (not psx)" without 0x10000 and " (not saturn)" without 0x20000.
+# acceptance-hub-text checks the line's radius and Location on the owner's MelPyth_MarHUD; these are the words (Dietrich 2026-11-18, Bishop). Invasion's objects, by their
+# OBJHEAD1 flags (verify_list_objects): row 71 Base 0x300 (base only), row 177 3rdLift05 0xfc00 (placed, not psx, not saturn), row 0 flam014 0x3fc00 (placed only: it is
+# for psx and saturn too).
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+# a base: "(base)" and none of the others
+select-row 71
+expect-selected 1
+wait 200
+expect-screen-text Base radius
+expect-screen-text (base)
+expect-screen-text-not (placed)
+expect-screen-text-not (not psx)
+# a placed object for neither psx nor saturn: all three words, in inteng's order
+select-row 177
+expect-selected 1
+wait 200
+expect-screen-text 3rdLift05 radius
+expect-screen-text (placed) (not psx) (not saturn)
+expect-screen-text-not (base)
+# a placed object that is for psx and saturn: "(placed)" alone
+select-row 0
+expect-selected 1
+wait 200
+expect-screen-text flam014 radius
+expect-screen-text (placed)
+expect-screen-text-not (not psx)
+expect-screen-text-not (not saturn)
+picture 1

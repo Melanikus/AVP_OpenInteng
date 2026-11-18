@@ -1,0 +1,28 @@
+# ACCEPTANCE (red first; Bishop 11-18 package, strategy-data.md S-9's TO CHECK, traced by Vasquez): Mode > Stability flags works on a PLACED object too, as inteng, on his path (Invasion).
+# inteng's case 0x37 (0x524f53) runs FUN_00527370 on the CURRENT record, whatever it is; FUN_00527020 reads the six stability bits (0x80000 .. 0x4000) from that record's SHAPE header
+# (FUN_004d0fd0 -> FUN_0050e9e0: SHPHEAD1 +0x50) and draws the box round it; Return asks to keep the changes (FUN_00527210). So a placed object's shape takes the page as a module's does.
+# Ours took modules only ("pick a module first"). Fan1: a placed object (a Fan, 75) found by Find Object, so it is current and in play.
+# RED on vph-r4: no stability page (stability "").
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is Fan1
+expect-no-dialog
+wait 400
+click-bar Mode > Stability flags
+wait 300
+expect-status-not pick a module
+expect-field stability gggggg
+picture 1
+# Return: FUN_00527210 always asks; No keeps the shape as it was
+key Enter
+wait 300
+expect-dialog Would you like to keep the changes?
+click-button No
+expect-no-dialog
+expect-field-empty stability

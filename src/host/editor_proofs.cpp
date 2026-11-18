@@ -432,7 +432,7 @@ void RunTheStrategyProof(long frame)
 
 		if (statusWords && strstr(statusWords, "has a new strategy"))
 		{
-			say("Assign: object " + std::to_string((unsigned long long)candA + 1) + " of the list took strategy kind " + std::to_string((long long)kindMade) + ": " + statusWords);
+			say("Assign: object " + std::to_string((unsigned long long)candA + 1) + " of the list took strategy kind " + std::to_string((long long)kindMade) + ": " + (char const *)statusWords);
 			harnessPictureAsked = 1;
 			step = 2;
 		}
@@ -531,7 +531,7 @@ void RunTheStrategyProof(long frame)
 
 		if (statusWords && strstr(statusWords, "1 object(s) got the strategy"))
 		{
-			say(std::string("Copy: ") + statusWords);
+			say(std::string("Copy: ") + (char const *)statusWords);
 			harnessPictureAsked = 3;
 			step = 4;
 		}

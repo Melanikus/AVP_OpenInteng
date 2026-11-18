@@ -1,0 +1,14 @@
+# ACCEPTANCE (red first): row ML-E-10 of reassess/module-linking-map-dietrich.md, "why doesn't it remember": the view distance is kept in AVP_OpenInteng.ini beside the editor
+# (ViewDistance=, written whenever it changes), and when that file can't be written the editor now SAYS so: the status line, and the log once with the file and the error
+# (Dietrich 2026-11-18; inteng writes inteng.ini at its end, FUN_004732a0, and says nothing). Here the settings file is made read-only before the start (make-level), the hub's H raises
+# the distance (row ML-E-11), and the status line says it can't be kept; the file is made writable again at the end, so the shard's next run can write it.
+make-level cmd /c "attrib +r {exedir}AVP_OpenInteng.ini"
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+expect-status-not couldn't be written
+hold H 300
+wait 200
+expect-status The view distance has changed, but AVP_OpenInteng.ini couldn't be written
+verify cmd /c attrib -r "{exedir}AVP_OpenInteng.ini"

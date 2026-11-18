@@ -5,6 +5,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <vector>
@@ -21,6 +22,10 @@
 #include "pick_game.h"       // PickGame_AtClick
 #include "selection.h"
 
+// construction_modes_screen.cpp: Light Sourcing's markers (the set's lights, numbered from 0)
+bool LightMarkerBox(size_t light, int32_t mins[3], int32_t maxs[3]);
+size_t LightMarkerUnderPointer(host::PickCamera const &camera, int32_t x, int32_t y, double *distance);
+
 namespace
 {
 	size_t const kMostText = 256;
@@ -34,6 +39,7 @@ namespace
 		bool isObject = false;
 		uint8_t id[host::kSelectionIdBytes] = {};
 		int32_t module = -1;
+		int32_t light = -1;        // "light <n>": the set's light n - 1 (its marker is the subject)
 		int32_t mins[3] = {}, maxs[3] = {};
 	};
 
@@ -176,7 +182,35 @@ namespace
 			}
 		}
 
+		// "light <n>" (Dietrich 2026-11-18, Bishop: an ordinary light has no name): the set's light n, counted from 1 as face-light and Light Sourcing's words count; its marker's box
+		// (LightMarkerBox). Looked for after the objects and modules, so a name that meant one before still means it.
+		if (name.size() > 6 && name.size() <= 12 && name.compare(0, 6, "light ") == 0 && name.find_first_not_of("0123456789", 6) == std::string::npos && name[6] != '0')
+		{
+			long const number = atol(name.c_str() + 6);
+
+			if (number >= 1 && number <= 1000000 && LightMarkerBox((size_t)(number - 1), out->mins, out->maxs))
+			{
+				out->what = "the light's marker";
+				out->light = (int32_t)(number - 1);
+				return true;
+			}
+		}
+
 		return false;
+	}
+
+	// camera-corner's test for a light: the click in the middle meets its marker and nothing nearer on the game's line (Light Sourcing's own rule, PickTheLight in light_screen.cpp)
+	bool MiddlePicksTheLight(int32_t light, host::PickReport const &picked, int32_t viewWidth, int32_t viewHeight)
+	{
+		host::PickCamera camera;
+		double distance = 0.0;
+
+		if (!PickGame_Camera(viewWidth, viewHeight, &camera) || LightMarkerUnderPointer(camera, viewWidth / 2, viewHeight / 2, &distance) != (size_t)light)
+		{
+			return false;
+		}
+
+		return !((picked.found == host::PickFound::Module || picked.found == host::PickFound::Object) && (double)picked.distance < distance);
 	}
 
 	void Put(host::OrbitCamera const &camera)
@@ -259,7 +293,7 @@ bool OrbitCommand_Run(std::string const &text, std::string *words)
 
 	if (!Find(fields[1], &subject))
 	{
-		*words = "camera-orbit: no object or module named " + fields[1] + " is in play";
+		*words = "camera-orbit: no object or module named " + fields[1] + " is in play, nor is it a light of the level (light <n>, counted from 1)";
 		return false;
 	}
 
@@ -306,7 +340,8 @@ void OrbitCommand_Frame(int32_t viewWidth, int32_t viewHeight, std::string *word
 
 	host::PickReport const picked = PickGame_AtClick(viewWidth / 2, viewHeight / 2, viewWidth, viewHeight);
 	Subject const &subject = corner.subject;
-	bool const itsSubject = subject.isObject ? (picked.found == host::PickFound::Object && memcmp(picked.objectId, subject.id, host::kSelectionIdBytes) == 0)
+	bool const itsSubject = subject.light >= 0 ? MiddlePicksTheLight(subject.light, picked, viewWidth, viewHeight)
+		: subject.isObject ? (picked.found == host::PickFound::Object && memcmp(picked.objectId, subject.id, host::kSelectionIdBytes) == 0)
 		: (picked.found == host::PickFound::Module && picked.moduleIndex == subject.module);
 	host::OrbitCamera camera = {};
 	double used = 0.0;

@@ -28,8 +28,8 @@
 // SHARED SHAPES (TB-C8b, Frost 2026-11-17): a first shape other objects use too is not merged into: as inteng (0x449dba-0x449ddb: FUN_004d1090, FUN_0050e880, FUN_004d0ff0),
 // the first object gets a COPY of its own, numbered one past the highest shape number the level names (in a SHPHEAD1 or an OBJHEAD1; the library numbers a new shape
 // ++max_id, chunk_shape.cpp prepare_for_output), put after the last chunk (inteng's copy is a new child of the file), and the merge goes into the copy; the old shape stays
-// for its other users, less the first's name. TO CHECK: inteng's copy gets a FRESH SHPHEAD1 (0x50e90a-0x50e9ab: flags from the shape's +0x9c, lock and version probably 0);
-// ours keeps the old header's numbers but the shape number, the counts and the list.
+// for its other users, less the first's name. The copy's SHPHEAD1 is a FRESH one, as inteng's (FUN_0050e880 0x50e908-0x50e9ab; Dietrich 2026-11-18, FreshHead): version 0,
+// no lock user, the first's name alone; its flags kept less GENERAL_FLAG_LOCKED: INTENG BUG, FIXED (inteng's flags are 0, and its lock user is never written).
 // ONE SHAPE FOR BOTH (Frost 2026-11-17; an object and its copy, as most placed objects of the stock levels share their shape): the first gets its copy, the shape is
 // merged into it as the second's, and the shape goes when the two were its only users (0x44a830), else it stays less both names.
 //

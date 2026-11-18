@@ -1,0 +1,21 @@
+# ACCEPTANCE (red first; Bishop 11-18 package, strategy-data.md S-69's TO CHECK, traced by Vasquez): ON THE FLAG PAGE, S + CLICK JOINS PLACED OBJECTS TOO, on his path (Invasion, as a double click).
+# inteng's S + click (FUN_00525700, dump-full-3): the click must meet a record with an RBOBJECT (+0x154, 0x525cac: a placed object as well as a module); its polygon's texture is taken (0x525dbf);
+# then EVERY record whose block's shape is a level shape (ObShape >= DAT_008f588c), with an RBOBJECT (record[0x55], 0x525e1e) and not 0x400 (0x525e43), joins when more than half of its
+# polygons have that texture (0x525e9e): modules AND placed objects (autolink-meet-vasquez.md AM-12), as the page's plain click takes either. Ours let modules alone join.
+# The click: from Fan1's orbit, the middle of the view meets a wall of texture 12. Imported shapes (their own picture list) are still left out (Bishop's guard, named), and hidden objects.
+# RED on vph-r3 (modules only): "texture 12 is most of 85 modules; 85 added"; green: 133 objects (the 85 modules and 48 placed objects).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+click-bar Mode > Module flags
+expect-screen Strategy Data
+expect-selected 0
+camera-orbit Fan1
+wait 600
+click-win 504 364 s
+expect-status S + click: texture 12 is most of 133 objects; 133 added
+expect-selected 133
+picture 1

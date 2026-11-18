@@ -234,7 +234,35 @@ struct Before
 	size_t polygonsFirst;
 	size_t polygonsSecond;
 	std::vector<std::string> usersOfShared;   // the users of the shared shape, the merged object's ID taken out
+	bool planted = false;                     // CASE 1: the shared shape's SHPHEAD1 was given the numbers below before the merge
+	int32_t plantedFlags = 0;
 };
+
+// CASE 1's shared shape gets a header the copy must NOT keep as it is (TB-C8b's fresh header, FUN_0050e880): the lock flag and a shape flag, a lock user, a version. SHPHEAD1's
+// payload: flags at 0, the lock user's 16 bytes at 4, the version at 60 (avpx chunk_shape.cpp Shape_Header_Chunk::fill_data_block).
+static int32_t const kLockedFlag = 0x1;               // GENERAL_FLAG_LOCKED (chunk.hpp)
+static int32_t const kUnstableBoundFlag = 0x4000;     // SHAPE_FLAG_UNSTABLEBOUND_ZPOS (chunk_shape.hpp): a flag of the shape's own, which the copy keeps
+static int32_t const kPlantedVersion = 41;
+
+static bool PlantHeader(OpenLevelFile *open, Shape_Chunk *shape, int32_t *flags)
+{
+	Chunk *const head = shape ? shape->lookup_single_child("SHPHEAD1") : nullptr;
+	Bytes bytes;
+
+	if (!head || !open->PayloadOf(head, &bytes) || bytes.size() < 68)
+	{
+		return false;
+	}
+
+	int32_t const planted = IntIn(bytes, 0) | kLockedFlag | kUnstableBoundFlag;
+	char const user[16] = { 'd', 'i', 'e', 't', 'r', 'i', 'c', 'h' };
+
+	memcpy(bytes.data(), &planted, 4);
+	memcpy(bytes.data() + 4, user, 16);
+	memcpy(bytes.data() + 60, &kPlantedVersion, 4);
+	*flags = planted;
+	return open->SetPayload(head, std::vector<unsigned char>(bytes.begin(), bytes.end()));
+}
 
 // Merges the first pair the edit takes, the first chosen from `firsts` and the second from `seconds`; false when none is taken
 static bool MergeAPair(OpenLevelFile *open, std::vector<Object_Chunk *> const &firsts, std::vector<Object_Chunk *> const &seconds, bool firstShared, Before *was, std::string const &what)
@@ -274,6 +302,11 @@ static bool MergeAPair(OpenLevelFile *open, std::vector<Object_Chunk *> const &f
 
 			std::string const mine((char const *)&shared->object_data.ID, 8);
 			was->usersOfShared.erase(std::remove(was->usersOfShared.begin(), was->usersOfShared.end(), mine), was->usersOfShared.end());
+
+			if (firstShared)
+			{
+				was->planted = PlantHeader(open, shared->get_assoc_shape(), &was->plantedFlags);
+			}
 
 			tried++;
 			why.clear();
@@ -431,6 +464,22 @@ int main(int argc, char **argv)
 			Check(nowA == was.highest + 1, "the first object uses a NEW shape, numbered one past the highest: " + std::to_string(nowA) + " (the highest was " + std::to_string(was.highest) + ")");
 			Check(UserIds(objectA->get_assoc_shape()) == std::vector<std::string>(1, std::string((char const *)was.first, 8)), "the new shape's only user is the first object");
 			Check(ShapeNumbered(after, was.shapeOfSecond) == nullptr, "the second object's own shape (number " + std::to_string(was.shapeOfSecond) + ") is gone with it");
+
+			// the new shape's header is a FRESH one (FUN_0050e880, 0x50e908-0x50e9ab): version 0 (the save adds 1), no lock user; the shape's own flags kept without the lock flag
+			// (inteng's are 0: INTENG BUG, FIXED, shape_merge_edit.cpp FreshHead). The shared shape keeps the header it was given (its version + 1 at the save).
+			Chunk *const newHead = objectA->get_assoc_shape()->lookup_single_child("SHPHEAD1");
+			Chunk *const oldHead = sharedNow ? sharedNow->lookup_single_child("SHPHEAD1") : nullptr;
+			Bytes fresh, kept;
+			bool const read = was.planted && newHead && oldHead && after.PayloadOf(newHead, &fresh) && after.PayloadOf(oldHead, &kept) && fresh.size() >= 68 && kept.size() >= 68;
+			bool const noUser = read && std::all_of(fresh.begin() + 4, fresh.begin() + 20, [](char c) { return c == 0; });
+
+			Check(read, "the shared shape's header was given a lock flag, a lock user and version " + std::to_string(kPlantedVersion) + " before the merge, and both headers are read");
+			Check(read && IntIn(fresh, 60) == 1, "the new shape's version is a new shape's: 0, and 1 after the save (" + std::to_string(read ? IntIn(fresh, 60) : -1) + ")");
+			Check(noUser, "the new shape has no lock user");
+			Check(read && IntIn(fresh, 0) == (was.plantedFlags & ~kLockedFlag), "the new shape keeps the shape's own flags, without the lock flag: " + std::to_string(read ? IntIn(fresh, 0) : -1) +
+				" (the shared shape's were " + std::to_string(was.plantedFlags) + ")");
+			Check(read && IntIn(kept, 60) == kPlantedVersion + 1 && IntIn(kept, 0) == was.plantedFlags && kept[4] == 'd', "the shared shape keeps its own header: version " +
+				std::to_string(read ? IntIn(kept, 60) : -1) + ", its flags and lock user");
 		}
 		else
 		{

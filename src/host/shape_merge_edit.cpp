@@ -394,6 +394,31 @@ namespace host
 			return out;
 		}
 
+		// The first object's own copy of a shared shape gets a FRESH header, as inteng's copy (FUN_0050e880 0x50e908-0x50e9ab: the copied SHPHEAD1 is deleted and a new one
+		// made): version 0 (+0x54; the save adds 1), its number one past the highest (+0x58 = -1: the library numbers it), its name list the first object's alone. Two parts
+		// differ, named: INTENG BUG, FIXED: inteng's flags are 0 (+0x50), so the copy lost the shape's own SHAPE_FLAG_ bits the game reads (projload.cpp: SHAPE_FLAG_EXTERNALFILE);
+		// ours keeps them, less GENERAL_FLAG_LOCKED (a new shape is nobody's, as inteng's 0 has it). INTENG BUG, FIXED: inteng never writes the lock user (+0x2c..+0x3c), so the
+		// file got whatever its heap held there; ours writes none. (Dietrich 2026-11-18, TB-C8's "fresh SHPHEAD1, TO CHECK".)
+		size_t const kShapeFlagsAt = 0;
+		size_t const kShapeLockUserAt = 4;
+		size_t const kShapeLockUserBytes = 16;
+		size_t const kShapeVersionAt = 60;
+		int32_t const kGeneralFlagLocked = 0x1;   // chunk.hpp GENERAL_FLAG_LOCKED
+
+		Payload FreshHead(Payload const &head, std::string const &name, int32_t number)
+		{
+			Payload out = HeadWithNames(head, std::vector<std::string>(1, name), number);
+			int32_t flags = 0;
+			int32_t const version = 0;
+
+			memcpy(&flags, out.data() + kShapeFlagsAt, 4);
+			flags &= ~kGeneralFlagLocked;
+			memcpy(out.data() + kShapeFlagsAt, &flags, 4);
+			memset(out.data() + kShapeLockUserAt, 0, kShapeLockUserBytes);
+			memcpy(out.data() + kShapeVersionAt, &version, 4);
+			return out;
+		}
+
 		// The names without the first one that is `name`
 		std::vector<std::string> Without(std::vector<std::string> names, std::string const &name)
 		{
@@ -871,7 +896,7 @@ namespace host
 			return ShapeMergeEditResult::ModelRefused;   // Shape_Header_Chunk::Max_File_Id_Num: the game's loader refuses a higher number
 		}
 
-		Payload const copyHead = sharedA ? HeadWithNames(headerBytes, std::vector<std::string>(1, nameA), (int32_t)copyNumber) : Payload();
+		Payload const copyHead = sharedA ? FreshHead(headerBytes, nameA, (int32_t)copyNumber) : Payload();
 		Image copyShape;   // the merged shape, when it is the first object's new copy: it goes after the last chunk, as inteng's copy is a new child of the file (FUN_0050e880)
 
 		// The second object may not be named by any other object: the bytes of every other RBOBJECT are searched for its 8-byte ID
