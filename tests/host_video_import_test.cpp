@@ -211,6 +211,16 @@ static void TestFiles()
 
 	Check(MakeLongFile(atPath, 4096) && host::VideoImport_ReadFile(atPath, &bytes, &why) == host::VideoImportResult::Done && bytes.size() == 4096, "a file of 4096 bytes of 0 is read (the bound is on size, not on content)");
 
+	// the bound given per read (mp4-to-smk --max-input-mb): a byte under the file refuses it, with words saying how to raise it; the file's own size takes it; 0 and past the most are bad calls
+	why.clear();
+
+	bool const underRefused = host::VideoImport_ReadFile(atPath, &bytes, &why, 4095) == host::VideoImportResult::TooBig;
+
+	Check(underRefused && why.find("--max-input-mb") != std::string::npos, "a bound of 4095 bytes refuses the 4096-byte file, the words saying how to raise it (" + why + ")");
+	Check(host::VideoImport_ReadFile(atPath, &bytes, &why, 4096) == host::VideoImportResult::Done && bytes.size() == 4096, "a bound of exactly 4096 bytes takes it");
+	Check(host::VideoImport_ReadFile(atPath, &bytes, &why, 0) == host::VideoImportResult::BadCall &&
+		host::VideoImport_ReadFile(atPath, &bytes, &why, host::kVideoImportLongestBytes + 1) == host::VideoImportResult::BadCall, "a bound of 0, or past the most (2048 MB): a bad call, never a bigger read");
+
 	Check(host::VideoImport_ReadFile(InFolder(L"clip.txt"), &bytes, &why) == host::VideoImportResult::NotAVideoName, "clip.txt is refused by its name");
 	Check(host::VideoImport_ReadFile(std::wstring(), &bytes, &why) == host::VideoImportResult::NotAVideoName, "no name at all is refused");
 	Check(host::VideoImport_ReadFile(clipPath, nullptr, &why) == host::VideoImportResult::BadCall, "no place for the bytes: BadCall");

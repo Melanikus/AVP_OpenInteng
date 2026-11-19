@@ -1,0 +1,165 @@
+// host_waypoint_net_level_test.cpp: the alien waypoint checker on whole stock levels (src/host/waypoint_net_level.h): every AI module's network is read as the loader reads it, its exits
+// are one per neighbouring AI module, Invasion's known entry point is among them, and every level's networks are checked. What the checker finds in RAD's and Rebellion's own networks is
+// printed, kind by kind, for the auto-plot's measurements (AvP-docs/engine/inteng/reassess/alien-autoplot-design.md, open points): the stock networks were never checked by anything.
+// Written 2026-11-18 by Melanikus (Frost) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
+//
+// HOW IT RUNS: tests/host_waypoint_net_level_test.args builds it; host_waypoint_net_level_test <level file> [...]. A non-zero result means a check failed (not that a stock level has problems).
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <map>
+#include <string>
+#include <vector>
+
+#include <windows.h>
+
+#include "level_file.h"
+#include "waypoint_net_level.h"
+
+static int checks = 0, checksFailed = 0;
+
+static void Check(bool ok, std::string const &what)
+{
+	checks++;
+
+	if (!ok)
+	{
+		checksFailed++;
+	}
+
+	printf("  %s  %s\n", ok ? "ok" : "FAILED", what.c_str());
+}
+
+HANDLE avp_CreateFile(const char *name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES security, DWORD creation, DWORD flags, HANDLE model)
+{
+	if (access != GENERIC_READ || creation != OPEN_EXISTING)
+	{
+		return INVALID_HANDLE_VALUE;
+	}
+
+	return CreateFileA(name, access, share, security, creation, flags, model);
+}
+
+DWORD avp_GetFileAttributes(const char *name)
+{
+	return GetFileAttributesA(name);
+}
+
+void avp_MessageBox(const char *message, int)
+{
+	printf("  the game's code says: %s\n", message ? message : "");
+}
+
+void avp_exit(int code)
+{
+	printf("  FAILED  the game's code stopped the program (code %d)\n", code);
+	exit(code ? code : 1);
+}
+
+void LogErrorStringC(const char *)
+{
+}
+
+void Sound_ForgetAddressesInside(const void *, size_t)
+{
+}
+
+using namespace host;
+
+int main(int argc, char **argv)
+{
+	setvbuf(stdout, 0, _IONBF, 0);
+
+	std::map<std::string, size_t> allKinds;
+	size_t levels = 0, modules = 0, boxes = 0, clean = 0, exits = 0;
+	bool invasionSeen = false;
+
+	for (int a = 1; a < argc; a++)
+	{
+		OpenLevelFile open;
+
+		if (open.Open(argv[a]) != LevelOpenResult::Opened)
+		{
+			continue;
+		}
+
+		levels++;
+
+		std::string const whole = argv[a];
+		size_t const slash = whole.find_last_of("/\\");
+		std::string const name = slash == std::string::npos ? whole : whole.substr(slash + 1);
+		std::vector<WaypointNetModule> nets;
+		std::string why;
+
+		Check(WaypointNets_CheckLevel(&open, &nets, &why), name + ": its AI modules' networks are read" + (why.empty() ? "" : " (" + why + ")"));
+
+		bool onePerNeighbour = true;
+		std::map<std::string, size_t> kinds;
+
+		for (WaypointNetModule const &net : nets)
+		{
+			modules++;
+			boxes += net.boxes;
+			exits += net.exits.size();
+			clean += net.problems.empty() ? 1 : 0;
+
+			for (size_t i = 0; i < net.exitTo.size(); i++)
+			{
+				for (size_t j = i + 1; j < net.exitTo.size(); j++)
+				{
+					onePerNeighbour = onePerNeighbour && net.exitTo[i] != net.exitTo[j];
+				}
+			}
+
+			for (WaypointProblem const &p : net.problems)
+			{
+				kinds[WaypointProblemName(p.kind)]++;
+				allKinds[WaypointProblemName(p.kind)]++;
+			}
+
+			if (net.more)
+			{
+				kinds["(more than kept)"] += net.more;
+			}
+
+			// Invasion's module 54: its entry point 3816 -38 23130 is an exit of its AI module (host_entry_markers_test and acceptance-gizmo-entry-point use that marker)
+			if (name == "Invasion.RIF")
+			{
+				for (WaypointPoint const &e : net.exits)
+				{
+					invasionSeen = invasionSeen || (e.place[0] == 3816 && e.place[1] == -38 && e.place[2] == 23130);
+				}
+			}
+		}
+
+		Check(onePerNeighbour, name + ": one exit per neighbouring AI module");
+
+		std::string summary;
+
+		for (std::pair<std::string const, size_t> const &k : kinds)
+		{
+			summary += (summary.empty() ? "" : ", ") + k.first + " " + std::to_string(k.second);
+		}
+
+		printf("  %s: %u networks, scale %.3f; problems: %s\n", name.c_str(), (unsigned)nets.size(), WaypointNets_Scale(&open), summary.empty() ? "none" : summary.c_str());
+	}
+
+	bool const invasionGiven = [&]() { for (int a = 1; a < argc; a++) if (strstr(argv[a], "Invasion.RIF")) return true; return false; }();
+
+	Check(levels > 0, "at least one level opened (" + std::to_string(levels) + ")");
+	Check(!invasionGiven || invasionSeen, "Invasion: the entry point 3816 -38 23130 is an exit of its AI module");
+
+	std::string summary;
+
+	for (std::pair<std::string const, size_t> const &k : allKinds)
+	{
+		summary += (summary.empty() ? "" : ", ") + k.first + " " + std::to_string(k.second);
+	}
+
+	printf("STOCK: %u levels, %u networks (%u with no problem), %u boxes, %u exits; problems: %s\n", (unsigned)levels, (unsigned)modules, (unsigned)clean, (unsigned)boxes, (unsigned)exits,
+		summary.empty() ? "none" : summary.c_str());
+	printf("%d checks, %d failed\n", checks, checksFailed);
+	return checksFailed == 0 ? 0 : 1;
+}

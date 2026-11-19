@@ -131,6 +131,11 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <!-- Auto-plot alien ways, the generator (autoplot_plan.h; Bishop's design 11-18, the owner's addition) -->
+    <ClCompile Include="..\..\src\host\autoplot_plan.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <!-- Waypoint mode by mouse (waypoint_mouse.h, waypoint_pick.h; the owner's addition 11-18, P4) -->
     <ClCompile Include="..\..\src\host\waypoint_mouse.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -704,6 +709,14 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <ClCompile Include="..\..\src\host\waypoint_net_check.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\waypoint_net_level.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="..\..\src\host\ai_modules_edit.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -791,6 +804,14 @@
     <ClCompile Include="..\..\src\host\autolink_portal.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\autoplot_grid.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\autoplot_grid_game.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\src\host\gizmo.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>

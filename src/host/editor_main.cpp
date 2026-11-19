@@ -94,6 +94,8 @@
 #include "level_view.h"
 #include "world_overlay.h"   // the world lines of more than one owner, the gizmo's in front (P1)
 #include "gizmo_screen.h"    // the mouse gizmo on Object Placement (P1)
+#include "autoplot_grid.h"   // the alien auto-plot's pathfinder service (the harness's probe)
+#include "floor_is_lava.h"   // FloorIsLavaAsked: the game's own copy of the alien ways is never built in the editor
 #include "uv_project.h"
 #include "hierarchy_player.h"
 #include "hierarchy_view.h"
@@ -14394,6 +14396,11 @@ int main(int, char **)
 		speedUnits = CameraSpeedHeld(saved);
 	}
 
+	// THE ALIEN WAYS: the game builds its own grid at every level's start while FloorIsLavaAsked is set; the editor never needs it (32-bit memory: 28 to 47 MB a level), and
+	// builds its own only when the auto-plot asks (autoplot_grid.h). Before the level is opened below.
+	FloorIsLavaAsked = 0;
+	host::AutoPlotGrid_ProbeLoad(layoutSettingsFile);   // the harness's AutoPlotProbe=1
+
 	// THE TEXT SCALE (the owner's addition, text_scale.h): FontScale= in the same file, a plain number from 1 to 3 (1, inteng's own size, when it isn't there); anything else is refused
 	// and said, and the text stays inteng's size
 	if (!host::TextScale_Load(layoutSettingsFile))
@@ -15466,6 +15473,7 @@ int main(int, char **)
 			// the selection changes or the track does.
 			TrackPlayFrame();
 			TrackWorldLines();
+			host::AutoPlotGrid_ProbeFrame(LevelObjects_OpenForEdit());   // the harness's AutoPlotProbe (autoplot_grid.h)
 
 			// Edit Extents' three views: inteng's are cameras on the same scene (FUN_005846b0), so they show the boxes and links as the 3D view draws them (WaypointView_WorldLines, W-2 / W-3)
 			if (on && WaypointViewsOn())
@@ -16138,6 +16146,7 @@ int main(int, char **)
 			host::ModuleLinkAvp_StateLine();
 			StateLine_Add("inplay", host::Selection_Get().kind == host::SelectedKind::Object ? (LevelView_SelectedIsInPlay() ? "yes" : "no") : "");
 			GizmoScreen_StateLine();   // gizmo, gizmospace, gizmolast, gizmopoints
+			host::AutoPlotGrid_ProbeStateLine();   // autoplotgrid, autoplotways (only with AutoPlotProbe=1)
 			StateLine_Add("surfacelive", snapLive && snapForSurface ? "1" : "");   // P3: the object follows the surface under the pointer (SurfaceLiveStart)
 			StateLine_Add("surfacelast", surfaceLast);   // P3: what placement mode's last cast met (SurfaceLiveFrame)
 			StateLine_Add("fontpx", std::to_string((long long)host::TextScale_ToWindow(PanelPass_HasMenuFont() ? PanelPass_MenuFontHeight() : kPanelPassLineHeight)));   // the text's height in the window's pixels (text_scale.h)

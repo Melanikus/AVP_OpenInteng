@@ -3,6 +3,7 @@
 #include "video_import.h"
 
 #include <math.h>
+#include <new>
 #include <stdio.h>
 #include <string.h>
 #include <wchar.h>
@@ -138,11 +139,16 @@ namespace host
 		return nullptr;
 	}
 
-	VideoImportResult VideoImport_ReadFile(std::wstring const &path, std::vector<uint8_t> *bytes, std::string *why)
+	VideoImportResult VideoImport_ReadFile(std::wstring const &path, std::vector<uint8_t> *bytes, std::string *why, uint64_t mostBytes)
 	{
 		if (!bytes)
 		{
 			return Refuse(VideoImportResult::BadCall, "no place for the file's bytes", why);
+		}
+
+		if (mostBytes < 1 || mostBytes > kVideoImportLongestBytes)
+		{
+			return Refuse(VideoImportResult::BadCall, "Import video: the most bytes asked is not 1 to " + std::to_string((unsigned long long)(kVideoImportLongestBytes >> 20)) + " MB", why);
 		}
 
 		if (!VideoImport_ContentType(path))
@@ -243,14 +249,23 @@ namespace host
 			return Refuse(VideoImportResult::Empty, "Import video: " + Narrow(full) + " is empty", why);
 		}
 
-		if ((uint64_t)size.QuadPart > kVideoImportMostBytes)
+		if ((uint64_t)size.QuadPart > mostBytes)
 		{
 			return Refuse(VideoImportResult::TooBig, "Import video: " + Narrow(leaf) + " is " + std::to_string((unsigned long long)(size.QuadPart >> 20)) + " MB; at most " +
-				std::to_string((unsigned long long)(kVideoImportMostBytes >> 20)) + " MB is taken", why);
+				std::to_string((unsigned long long)(mostBytes >> 20)) + " MB is taken" + (mostBytes < kVideoImportLongestBytes ? " (mp4-to-smk: --max-input-mb raises it, up to " + std::to_string((unsigned long long)(kVideoImportLongestBytes >> 20)) + ")" : std::string()), why);
 		}
 
 		// read whole: no more than the size said (a file growing meanwhile is cut there), and all of it
-		std::vector<uint8_t> read((size_t)size.QuadPart);
+		std::vector<uint8_t> read;
+
+		try
+		{
+			read.resize((size_t)size.QuadPart);
+		}
+		catch (std::bad_alloc const &)
+		{
+			return Refuse(VideoImportResult::CantRead, "Import video: there is not the memory to hold " + Narrow(leaf) + " (" + std::to_string((unsigned long long)(size.QuadPart >> 20)) + " MB)", why);
+		}
 		size_t done = 0;
 
 		while (done < read.size())
@@ -1044,7 +1059,7 @@ namespace host
 				return Refuse(VideoImportResult::BadCall, "Import video: nothing to read", why);
 			}
 
-			if (bytes.size() > kVideoImportMostBytes)
+			if (bytes.size() > kVideoImportLongestBytes)
 			{
 				return Refuse(VideoImportResult::TooBig, "Import video: the file is too big", why);
 			}

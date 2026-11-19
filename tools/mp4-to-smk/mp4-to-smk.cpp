@@ -2,7 +2,7 @@
 // a user's own MP4 / M4V / AVI / WMV made into an AvP message video (.smk): 128 x 96, 15 frames a second, sound at 22050 Hz 8-bit mono. Written 2026-11-18 by Melanikus (Vasquez)
 // for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
-//   mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source] [--max-seconds N] [--dump <new folder>] [--encoder-sha256 HEX]
+//   mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source] [--max-input-mb N] [--max-seconds N] [--dump <new folder>] [--encoder-sha256 HEX]
 //
 // The video is read by src/host/video_import (Windows' own Media Foundation; the file is hostile input, its checks are there). A picture that isn't 4:3 makes the tool ASK: "[R]esize to
 // fit (whole picture, black bars) or [C]rop to fill (edges cut)?"; --fit or --crop answers before it is asked. The sound is brought to AvP's own message videos' level (--level). The
@@ -18,6 +18,7 @@
 #include <string.h>
 #include <wchar.h>
 
+#include <new>
 #include <string>
 #include <vector>
 
@@ -60,12 +61,13 @@ namespace
 
 	void Usage()
 	{
-		puts("usage: mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source] [--max-seconds N] [--dump DIR] [--encoder-sha256 HEX]");
+		puts("usage: mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source] [--max-input-mb N] [--max-seconds N] [--dump DIR] [--encoder-sha256 HEX]");
 		puts("  makes an AvP message video: 128 x 96, 15 fps, sound 22050 Hz 8-bit mono (.mp4 .m4v .avi .wmv in)");
 		puts("  --fit        a picture that isn't 4:3 is resized whole, with black bars (no question)");
 		puts("  --crop       a picture that isn't 4:3 is cropped to fill, its edges cut (no question)");
 		puts("  --overwrite  an output that exists is replaced");
 		printf("  --max-seconds N  takes a video up to N seconds long (default %lld, at most %lld)\n", (long long)host::kVideoImportMostSeconds, (long long)host::kVideoImportLongestSeconds);
+		printf("  --max-input-mb N  takes a file up to N MB (default %llu, at most %llu)\n", (unsigned long long)(host::kVideoImportMostBytes >> 20), (unsigned long long)(host::kVideoImportLongestBytes >> 20));
 		puts("  --dump DIR   also writes what is encoded into the new folder DIR (frames.rgb, sound.pcm, sound.wav, three .bmp)");
 		puts("  --encoder-sha256 HEX  uses your own build of libsmackerenc.dll (beside this program), whose SHA-256 is HEX; otherwise only the one shipped with it loads");
 		printf("  --level N    the sound's loudness, RMS in 8-bit steps (1 to 128; default %.1f, AvP's own message videos'); --level source keeps the source's\n", kStockLevel);
@@ -237,7 +239,7 @@ namespace
 	}
 }
 
-int wmain(int argc, wchar_t **argv)
+static int Run(int argc, wchar_t **argv)
 {
 	// no DLL from the current folder or PATH: Windows' own, and the encoder by its full path beside this program
 	SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -246,6 +248,7 @@ int wmain(int argc, wchar_t **argv)
 	bool fitGiven = false, cropGiven = false, overwrite = false;
 	std::wstring dumpFolder;
 	std::string encoderSha256;   // the user's own encoder build's SHA-256 (64 hex digits), or "" for the one this build pins
+	uint64_t mostBytes = host::kVideoImportMostBytes;      // the biggest file taken (--max-input-mb; a safety bound, raised only when asked)
 	int64_t mostSeconds = host::kVideoImportMostSeconds;   // the longest video taken (--max-seconds; a safety bound, raised only when asked)
 	double level = kStockLevel;
 
@@ -286,6 +289,19 @@ int wmain(int argc, wchar_t **argv)
 			}
 
 			encoderSha256 = hex;
+		}
+		else if (arg == L"--max-input-mb" && i + 1 < argc)
+		{
+			wchar_t *end = nullptr;
+			long long const number = wcstoll(argv[++i], &end, 10);
+
+			if (!end || *end != L'\0' || number < 1 || (uint64_t)number > (host::kVideoImportLongestBytes >> 20))
+			{
+				Usage();
+				return kExitUsage;
+			}
+
+			mostBytes = (uint64_t)number << 20;
 		}
 		else if (arg == L"--max-seconds" && i + 1 < argc)
 		{
@@ -353,7 +369,7 @@ int wmain(int argc, wchar_t **argv)
 
 	std::vector<uint8_t> bytes;
 	std::string why;
-	host::VideoImportResult result = host::VideoImport_ReadFile(input, &bytes, &why);
+	host::VideoImportResult result = host::VideoImport_ReadFile(input, &bytes, &why, mostBytes);
 
 	if (result != host::VideoImportResult::Done)
 	{
@@ -488,4 +504,16 @@ int wmain(int argc, wchar_t **argv)
 	printf("mp4-to-smk: wrote %s, %llu bytes\n", Utf8(fullOutput).c_str(), (unsigned long long)smk.size());
 	printf("%s\n", host::Smk_HeaderLine(smk, Utf8(slash == std::wstring::npos ? fullOutput : fullOutput.substr(slash + 1))).c_str());
 	return kExitDone;
+}
+
+int wmain(int argc, wchar_t **argv)
+{
+	try
+	{
+		return Run(argc, argv);
+	}
+	catch (std::bad_alloc const &)
+	{
+		return Refused(std::string("there is not the memory for this video in a ") + (sizeof(void *) == 8 ? "64" : "32") + "-bit program (a shorter --max-seconds, or the 64-bit build)");
+	}
 }

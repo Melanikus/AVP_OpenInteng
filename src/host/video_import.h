@@ -28,9 +28,14 @@ namespace host
 	int32_t const kVideoImportSoundRate = 22050;
 
 	// The bounds on a user's file (the owner's or Bishop's to change): its size, its length, its picture's sides as the file has them
-	uint64_t const kVideoImportMostBytes = 256ull * 1024 * 1024;
+	uint64_t const kVideoImportMostBytes = 256ull * 1024 * 1024;     // the default; a read may be given more (mp4-to-smk --max-input-mb), up to:
+	uint64_t const kVideoImportLongestBytes = 2048ull * 1024 * 1024;  // the most any read takes (a 32-bit program may still not find the memory: refused, not a crash)
 	int64_t const kVideoImportMostSeconds = 180;          // the default; a read may be given more (mp4-to-smk --max-seconds), up to:
+#if defined(_WIN64)
+	int64_t const kVideoImportLongestSeconds = 3600;      // the most any read takes in a 64-bit program: an hour of frames is 2 GB
+#else
 	int64_t const kVideoImportLongestSeconds = 600;       // the most any read takes: 600 s of frames is 332 MB in a 32-bit program, and the encoder takes them whole
+#endif
 	uint32_t const kVideoImportMostSide = 4096;
 
 	// Media Foundation's time: 100 ns
@@ -43,7 +48,7 @@ namespace host
 		NotAFile,      // missing, a folder, a link, a device, a file's own stream, or a name that isn't a plain path
 		NotAVideoName, // its name doesn't end in .mp4, .m4v, .avi or .wmv
 		Empty,
-		TooBig,        // over kVideoImportMostBytes
+		TooBig,        // over the read's most bytes (kVideoImportMostBytes unless given)
 		CantRead,      // Windows wouldn't open or read it
 		TooLong,       // over the read's most seconds (kVideoImportMostSeconds unless given)
 		TooLarge,      // a picture side over kVideoImportMostSide, or of 0
@@ -59,7 +64,8 @@ namespace host
 	wchar_t const *VideoImport_ContentType(std::wstring const &path);
 
 	// THE FILE: judged and read, all of it, into *bytes (see the top). *why says what was refused and why (for the status line).
-	VideoImportResult VideoImport_ReadFile(std::wstring const &path, std::vector<uint8_t> *bytes, std::string *why);
+	// mostBytes: 1 to kVideoImportLongestBytes (BadCall otherwise); a file the memory can't hold is refused (CantRead), never a crash
+	VideoImportResult VideoImport_ReadFile(std::wstring const &path, std::vector<uint8_t> *bytes, std::string *why, uint64_t mostBytes = kVideoImportMostBytes);
 
 	// THE STREAM'S BOUNDS: its picture's sides (as the file has them) and its length (100 ns; negative when the file doesn't say, which passes: the read stops at the bound itself)
 	// mostSeconds: 1 to kVideoImportLongestSeconds (BadCall otherwise)

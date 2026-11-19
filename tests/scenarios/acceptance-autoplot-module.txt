@@ -1,0 +1,23 @@
+# ACCEPTANCE (red first): THE ALIEN AUTO-PLOT ON ONE AI MODULE (the owner's: "For aliens, floor is lava" written as stock waypoints; AvP-docs/engine/inteng/reassess/alien-autoplot-design.md;
+# Dietrich's generator and command, Drake's pathfinder, Frost's checker). Invasion, Waypoint mode 0, module 54 picked (an AI module with a stock network of 28 boxes and 1 exit, whose box 14
+# has its centre outside it: the stock survey's kind of fault), Auto-plot AI module run. Its words say what was made, its exits all covered; the saved copy, read back by the game's own
+# loader, holds module 54's new network and the checker finds nothing in it (verify_waypoint_nets: a network, every exit in a box, every box reaching every other, 99 boxes at most, every
+# link in the list, no problem at all). Red before the command is there (no such menu).
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Waypoint
+# the stock network as it was: the checker finds module 54's centre fault
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 54 network exits most links
+pick-module 54
+wait 300
+click-bar Auto-plot AI module > Auto-plot AI module
+wait-status 120000 Auto-plot: AI module 54:
+expect-status boxes
+expect-status exits covered
+expect-status-not not written
+picture 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 54 network exits connected most links clean
