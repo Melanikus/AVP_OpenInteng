@@ -1,0 +1,49 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-18, P4 item 3a: Waypoint mode BY MOUSE, the owner's addition, Hicks's plan section 6, alien list only): a DRAG from one waypoint's box to another's
+# links them, as inteng's Add Link (FUN_00586b40: Waypoints_AddLink, the flags ORed in): plain both ways, Shift held at the press aliens only, Ctrl one way from the first; written at once
+# through WaypointMode::Write (the game's loader checks it); then the first is the base and the second the current one, the link between them selected. Read back from a saved copy through
+# the game's loader (verify_waypoint mouse: each link's flags at both ends, One way's mirror One way back).
+# HIS PATH: his own Genshd1 (his game folder's copy of 11-18, SHA256SUMS beside it), opened as a double click; genent01's room (AI module 232) gets two boxes on its floor by mouse
+# (acceptance-waypoint-mouse-floor), then the drags (the harness's drag-wp: from one box's drawn centre to another's), each on the same pair.
+# RED on the build before it (8395d9aa): a drag is a click on the first box and nothing more.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+wait 600
+click-view 0.5 0.95
+wait 400
+item 3
+wait 600
+expect-status Waypoints of AI module 232: alien list of 0
+# two boxes on the room's floor (from the start camera the room's nearer floor is all theirs then)
+click-view 0.5 0.95
+wait 400
+expect-status Waypoint 0 made on the floor
+click-view 0.2 0.9
+wait 400
+expect-status Waypoint 1 made on the floor
+picture 1
+
+# ---- 0 to 1, plain: both ways; base 0, current 1
+drag-wp 0 1 3d
+wait 400
+expect-status Link 0 - 1: both ways (base 0, current 1)
+expect-hierarchy-text Waypoint :1
+picture 2
+
+# ---- the same pair with Shift: Aliens only ORed in (inteng's Add Link adds flags, never takes them away)
+drag-wp 0 1 3d shift
+wait 400
+expect-status Link 0 - 1: both ways, aliens only (base 0, current 1)
+
+# ---- and with Ctrl: One way, 0 to 1, aliens only still
+drag-wp 0 1 3d ctrl
+wait 400
+expect-status Link 0 - 1: one way, 0 to 1, aliens only (base 0, current 1)
+picture 3
+
+# ---- written: a saved copy read back through the game's loader (0 to 1: One way + Aliens only = 5; 1 to 0 its mirror, One way back + Aliens only = 6)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify-wp/verify_waypoint.exe {orig} {copy} mouse 2 0-1:5

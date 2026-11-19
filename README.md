@@ -58,6 +58,40 @@ What happens to the file:
 - If a different level is already in the editor's `avp_rifs` under that name, it's never replaced: the editor asks you to rename
   yours. The same file, opened again, is simply opened.
 
+## Your own videos (mp4-to-smk)
+
+AvP plays its in-game videos (the messages on a level's monitors) as Smacker `.smk` files. `mp4-to-smk.exe`, in the zip beside the
+editor, turns your own video into one in AvP's own format:
+
+```
+mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source]
+```
+
+- **In:** `.mp4`, `.m4v`, `.avi` or `.wmv`, read by Windows' own Media Foundation. At most 256 MB, 180 seconds and 4096 pixels a side.
+- **Out, always:** 128 x 96 at 15 frames a second, sound at 22,050 Hz, 8-bit, mono: the format of AvP's own message videos.
+- **A video that isn't 4:3:** it asks whether to resize it to fit (the whole picture, with black bars) or crop it to fill (the edges
+  cut). `--fit` or `--crop` answers first.
+- **Sound:** made as loud as AvP's own videos (`--level`, 1 to 128; the default is their median) and never clipped. `--level source`
+  keeps your video's own level.
+- **An existing output** is refused unless you add `--overwrite`.
+
+**Putting it in the game:**
+
+1. Convert it: `mp4-to-smk.exe myvideo.mp4 message900.smk` (the name is `message` and the Message strategy's number).
+2. Copy the `.smk` into the `FMVs` folder of your game's folder, beside AvP's own `message*.smk` files.
+3. In the level, the Message strategy with that number plays it when it fires. The editor's Message view lists the videos it finds.
+
+**How a level plays it.** A Message strategy, when it fires, plays `FMVs\message<n>.smk` from the game's folder, where `<n>` is
+the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` in its name, and it shows those message videos.
+
+- For your own level, give its Message a number no stock level uses, and name your file after it. Replacing a stock
+  `messageNNN.smk` changes that stock level too.
+- A monitor shows nothing when a video named after its own picture exists in `FMVs\`, and no video plays while a cheat is on.
+
+**The encoder** is `libsmackerenc.dll`, built from Barry Duncan's libsmackerdec (LGPL 2.1; its licence and source are in the zip's
+`licences` folder). The tool loads only the DLL shipped with it. To use your own build of it, as the LGPL allows, pass its SHA-256
+with `--encoder-sha256 <hex>`.
+
 ## Where to read next
 
 - `docs/TAKING-OVER.md`: how to pick this up with nobody to ask. What each check proves, and what to do when a tool is gone.

@@ -140,6 +140,14 @@ namespace host
 	// third number is 0, so the mask FUN_004ebd60 passes is 0) and its flag bit 0 is cleared after the edit (FUN_004816f0 0x48171b). The ranges are inteng's unit: the file's x 100 x levelScale.
 	HierarchyStep HierarchyMode_SoundForm(OpenLevelFile *file, HierarchyMode *mode, std::vector<std::string> const &values);
 
+	// The same write with the numbers FUN_004ebd60 takes back (0x4ebf13-0x4ebf5d): the ranges in inteng's unit (into the file's: / (100 x levelScale), ftol), pitch, volume 0..127 (the
+	// DLL's OK has added 50/127 to the % first, edobtype 0x1001a998), the name as given. For edobtype's Sound Edit window shared with the placed sounds (special_windows.cpp
+	// SoundEditWindowOpen, row C-4e; Dietrich 2026-11-18): its answer through SoundEdit_IndexedBack.
+	HierarchyStep HierarchyMode_SoundWrite(OpenLevelFile *file, HierarchyMode *mode, std::string const &wav, int32_t inner, int32_t outer, int32_t pitch, int32_t volume);
+
+	// The sound's ranges in inteng's unit as FUN_004ebd60 gives them to the window (0x4ebe12: the file's x 100 x levelScale, ftol, as unsigned words)
+	void HierarchyMode_SoundRanges(HierarchyMode const &mode, uint32_t *inner, uint32_t *outer);
+
 	// What the Sound Edit window shows first for mode.soundBeingEdited, in the same order (the volume as a whole percent, the others as MFC shows a float: "%.6g")
 	std::vector<std::string> HierarchyMode_SoundFormShown(HierarchyMode const &mode);
 

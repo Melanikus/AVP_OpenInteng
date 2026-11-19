@@ -125,6 +125,11 @@ host::PickReport PickGame_AtClick(int32_t clickX, int32_t clickY, int32_t viewWi
 
 host::PickReport PickGame_AtClickLeavingOut(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight, void const *leaveOut)
 {
+	return PickGame_AtClickLeavingOutTwo(clickX, clickY, viewWidth, viewHeight, leaveOut, nullptr);
+}
+
+host::PickReport PickGame_AtClickLeavingOutTwo(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight, void const *leaveOut, void const *leaveOutToo)
+{
 	host::PickReport report;
 	memset(&report, 0, sizeof(report));
 	report.found = host::PickFound::NoLine;
@@ -145,29 +150,37 @@ host::PickReport PickGame_AtClickLeavingOut(int32_t clickX, int32_t clickY, int3
 	// los.cpp), which stopped our clicks on faces nobody sees (a Hierarchy click on the left arm gave RArm, a section seen through).
 	VECTORCH direction = { ray.direction[0], ray.direction[1], ray.direction[2] };
 	VECTORCH from = { ray.from[0], ray.from[1], ray.from[2] };
-	// The block leaveOut (the live Snap To Vertex's copy of the moving object) is taken out of the frame's list of what is on screen for this one search, and put back
-	// in its place after it: inteng leaves the moving block out of its pick the same way (FUN_004f7000 0x4f7020, block +0x64 bit 0x10000000)
-	int leftOutAt = -1;
+	// The blocks leaveOut (the live Snap To Vertex's copy of the moving object) and leaveOutToo (placement mode's: the real block, not drawn while its copy flies but still on the
+	// list) are taken out of the frame's list of what is on screen for this one search, each moved past the list's end, and put back in their places after it, the last first:
+	// inteng leaves the moving block out of its pick the same way (FUN_004f7000 0x4f7020, block +0x64 bit 0x10000000)
+	void const *const leaving[2] = { leaveOut, leaveOutToo };
+	int leftOutAt[2] = { -1, -1 };
 
-	for (int i = 0; leaveOut && i < NumOnScreenBlocks && leftOutAt < 0; i++)
+	for (int k = 0; k < 2; k++)
 	{
-		leftOutAt = OnScreenBlockList[i] == (DISPLAYBLOCK const *)leaveOut ? i : -1;
-	}
+		for (int i = 0; leaving[k] && i < NumOnScreenBlocks && leftOutAt[k] < 0; i++)
+		{
+			leftOutAt[k] = OnScreenBlockList[i] == (DISPLAYBLOCK const *)leaving[k] ? i : -1;
+		}
 
-	if (leftOutAt >= 0)
-	{
-		OnScreenBlockList[leftOutAt] = OnScreenBlockList[NumOnScreenBlocks - 1];
-		OnScreenBlockList[NumOnScreenBlocks - 1] = (DISPLAYBLOCK *)leaveOut;
-		NumOnScreenBlocks--;
+		if (leftOutAt[k] >= 0)
+		{
+			OnScreenBlockList[leftOutAt[k]] = OnScreenBlockList[NumOnScreenBlocks - 1];
+			OnScreenBlockList[NumOnScreenBlocks - 1] = (DISPLAYBLOCK *)leaving[k];
+			NumOnScreenBlocks--;
+		}
 	}
 
 	FindDrawnPolygonInLineOfSight(&direction, &from, 1, Player);
 
-	if (leftOutAt >= 0)
+	for (int k = 1; k >= 0; k--)
 	{
-		NumOnScreenBlocks++;
-		OnScreenBlockList[NumOnScreenBlocks - 1] = OnScreenBlockList[leftOutAt];
-		OnScreenBlockList[leftOutAt] = (DISPLAYBLOCK *)leaveOut;
+		if (leftOutAt[k] >= 0)
+		{
+			NumOnScreenBlocks++;
+			OnScreenBlockList[NumOnScreenBlocks - 1] = OnScreenBlockList[leftOutAt[k]];
+			OnScreenBlockList[leftOutAt[k]] = (DISPLAYBLOCK *)leaving[k];
+		}
 	}
 
 	DISPLAYBLOCK const *const hit = LOS_ObjectHitPtr;

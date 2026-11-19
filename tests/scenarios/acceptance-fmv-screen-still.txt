@@ -1,0 +1,17 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-18, THE OWNER'S ADDITION, 3b of the FMV package): AT LEVEL OPEN the editor says when a picture meant as a video screen will STAY STILL in the
+# game, and why, judged as the game's ScanImagesForFMVs judges it at every level load (FmvCutscenes.cpp:363-432; AvP-docs/engine/inteng/reassess/fmv-trace-dietrich.md FMV-T-6): a picture
+# whose name holds "FMVs" is a screen only when the .smk of its name is NOT in the game folder, it is 128 x 128, and 10 screens aren't made already (fmv_files.h FmvFiles_JudgeScreens,
+# unit-tested in host_fmv_files_test). Every such picture's verdict goes in the log. HIS PATH: his own Genshd1, whose video screen is FMVs\triggered_plot.RIM; this run's own data folder
+# gets a file FMVs\triggered_plot.smk (message-fmv\make-screen-smk.cmd), so the game would leave the screen still. (Without it, acceptance-strategy-message-fmv's open says nothing.)
+# RED on the build before it (c0d0ef81): nothing is said.
+make-level cmd /c {scenariodir}message-fmv\make-screen-smk.cmd {datadir}
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+# (the game holds the picture by its path in graphics, with / : the words name it so)
+expect-status graphics/FMVs/triggered_plot.RIM stays still: FMVs/triggered_plot.smk is in the game folder
+expect-status the game plays messages only on a screen whose own .smk is missing
+picture 1

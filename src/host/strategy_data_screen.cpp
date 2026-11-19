@@ -40,6 +40,7 @@
 #include "light_pick.h"
 #include "level_objects.h"
 #include "level_view.h"
+#include "world_overlay.h"   // the world lines of more than one owner, the gizmo's in front (P1)
 #include "uv_project.h"
 #include "hierarchy_player.h"
 #include "hierarchy_view.h"
@@ -1485,7 +1486,7 @@ void UpdateDummyObject()
 	{
 		if (drawn)
 		{
-			LevelView_WorldLines(nullptr, 0);
+			host::WorldOverlay_Lines(nullptr, 0);
 			drawn = false;
 		}
 
@@ -1639,7 +1640,7 @@ void UpdateDummyObject()
 		}
 	}
 
-	LevelView_WorldLines(lines.data(), count);
+	host::WorldOverlay_Lines(lines.data(), count);
 	drawn = true;
 }
 

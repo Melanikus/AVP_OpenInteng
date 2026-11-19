@@ -58,4 +58,8 @@ namespace host
 	};
 
 	DialogsState Dialogs_State();
+
+	// The open FORM's part number `index` (in its spec's order): its box in the screen's pixels; false when no form is open or it has no such part (the FMV preview plays in one;
+	// Dietrich 11-18)
+	bool Dialogs_FormWidgetBox(size_t index, DialogRect *out);
 }

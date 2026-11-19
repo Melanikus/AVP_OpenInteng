@@ -40,6 +40,7 @@
 #include "light_pick.h"
 #include "level_objects.h"
 #include "level_view.h"
+#include "world_overlay.h"   // the world lines of more than one owner, the gizmo's in front (P1)
 #include "uv_project.h"
 #include "hierarchy_player.h"
 #include "hierarchy_view.h"
@@ -149,6 +150,7 @@
 #include "sound_edit.h"
 #include "placed_sounds_game.h"
 #include "track_editor.h"
+#include "movable_track_end.h"
 #include "track_play_game.h"
 #include "three_view.h"
 #include "field_adapters.h"
@@ -279,6 +281,8 @@ int trackFlyBase[3] = { 0, 0, 0 };   // the camera's turn, look and roll when th
 int32_t trackFlyOffset[3] = { 0, 0, 0 };
 bool trackTurnAboutPivot = false;   // inteng's P: "Switch between rotation about pivot and about centre": the Turn End's rotation
 host::TrackEditor trackEd;
+// The mouse gizmo moves a section end of the track held here (movable_track_end.h). Given at start-up: the adapter's pointer is a plain one, set to null before any start-up code runs.
+static bool const trackEdGivenToTheGizmo = (host::MovableTrackEnd_UseEditor(&trackEd), true);
 
 bool TrackPivotEditing()
 {
@@ -572,7 +576,7 @@ static void TrackEditApply(host::TrackAction const &a)
 		uint32_t const memOuter = a.soundNew ? 1000000u : (uint32_t)ftol((double)sound.outerRange * unit);
 		host::SoundEditRecord const record = host::SoundEdit_IndexedRecord(sound.wav, memInner, memOuter, sound.pitch, sound.maxVolume, sound.flags, true);
 		std::string const soundDirectory = host::TrackLevelSoundDirectory(open);
-		std::string const folder = std::string(theGameFolder) + "\\sound\\" + soundDirectory + "\\";
+		std::string const folder = std::string(theGameFolder) + "\\Sound\\" + soundDirectory + "\\";
 		int const index = a.soundIndex;
 
 		trackPromptSound = index;
@@ -917,7 +921,7 @@ void TrackWorldLines()
 	{
 		if (shown)
 		{
-			LevelView_WorldLines(nullptr, 0);
+			host::WorldOverlay_Lines(nullptr, 0);
 			shown = false;
 			key = ~0ull;
 		}
@@ -1038,7 +1042,7 @@ void TrackWorldLines()
 		}
 	}
 
-	LevelView_WorldLines(world.data(), world.size());
+	host::WorldOverlay_Lines(world.data(), world.size());
 	shown = true;
 
 	if (!TrackPivotEditing())

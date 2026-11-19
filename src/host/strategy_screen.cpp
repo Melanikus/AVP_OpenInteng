@@ -54,6 +54,8 @@
 #include "object_type_edit.h"
 #include "strategy_mode.h"
 #include "strategy_views.h"
+#include "fmv_files.h"
+#include "fmv_preview.h"
 #include "small_modules.h"
 #include "alt_locations_edit.h"
 #include "quick_create.h"
@@ -935,6 +937,16 @@ static bool StrategyViewIsADialog(int32_t kind, uint8_t const *id, std::vector<u
 	return false;
 }
 
+// THE OWNER'S ADDITION (11-18, through Bishop: the editor reads the user's FMVs): what the game makes of a Message strategy's number as an FMV, on the status line. Strategy n plays
+// FMVs\message<n>.smk from the data folder (FMV-T-3, FMV-T-5 of reassess/fmv-trace-dietrich.md); fmv_files.h reads the file's header as hostile input and says what it is
+static std::string messageFmvWords;   // the last words SayMessageFmv said (the Edit Strategy press shows them in place of its own for a Message's view)
+
+static void SayMessageFmv(int32_t number)
+{
+	messageFmvWords = host::FmvFiles_MessageWords(host::FmvFiles_Folder(theGameFolder), number);
+	statusWords = messageFmvWords.c_str();
+}
+
 bool StrategyViewOpen()
 {
 	std::vector<uint8_t> payload;
@@ -983,6 +995,16 @@ bool StrategyViewOpen()
 	for (host::StrategyViewFix const &fix : fixes)
 	{
 		StrategyViewApply(id, kind, fix.field.c_str(), fix.value);
+	}
+
+	// a Message's view: its FMV said (ours, SayMessageFmv)
+	int32_t messageNumber = 0;
+
+	messageFmvWords.clear();
+
+	if (kind == 73 && host::StrategyView_FieldNumber(73, payload, "message_string", &messageNumber))
+	{
+		SayMessageFmv(messageNumber);
 	}
 
 	return true;
@@ -1813,7 +1835,11 @@ static bool MissionWithTargets(std::vector<uint8_t> const &payload, std::vector<
 // FUN_00532550 (S-K70-2, -3): a window 500 x 400, centred: "Mission Description" (0x5ef6a8) or "Completed Message" (0x5ef694) at (0x12, 0x12), a number box at (0x1e, 0x24), 300 x 0x12, holding the number, "Ok" (200, 0x15e)
 // and "Cancel" (300, 0x15e), and a text area at (0x12, 0x50), 400 x 0xfa, with the message's text: always empty here (the table is never filled off Rebellion's network; ours draws an empty label there).
 // Ok: the number is stored with no range check (FUN_00474340)
-static void MissionTextWindow(uint8_t const *subject, int32_t which, int32_t wanted = 70)
+// THE OWNER'S ADDITION for a Message (11-18, the video picker): Play shows the number's FMV in the window's text area (fmv_preview.h) and the window comes back holding what was typed
+// (`typed`); Ok, Cancel and Escape stop it
+static int32_t const kMessageFmvPlay = 0x7311;   // ours: Play's answer (no inteng command)
+
+static void MissionTextWindow(uint8_t const *subject, int32_t which, int32_t wanted = 70, std::string const *typed = nullptr)
 {
 	int32_t kind = 0, number = 0;
 	std::vector<uint8_t> payload;
@@ -1833,9 +1859,32 @@ static void MissionTextWindow(uint8_t const *subject, int32_t which, int32_t wan
 	words.text = wanted == 73 ? "Message" : (which == 0 ? "Mission Description" : "Completed Message");   // 0x5edb98, 0x5ef6a8, 0x5ef694
 	words.box = { 0x12, 0x12, 300, 16 };
 	box.type = host::DialogWidgetType::Edit;
-	box.text = std::to_string((long long)number);
+	box.text = typed ? *typed : std::to_string((long long)number);
 	box.box = { 0x1e, 0x24, 300, 0x12 };
 	box.most = 10;
+
+	// THE OWNER'S ADDITION for a Message (11-18): the number box lists the message numbers the data folder's FMVs\ holds an FMV for (fmv_files.h), lowest first; it still takes a typed
+	// number, as inteng's box does. A pick says that FMV (SayMessageFmv)
+	if (wanted == 73)
+	{
+		box.type = host::DialogWidgetType::Combo;
+		box.editable = true;
+
+		for (int32_t const one : host::FmvFiles_MessageNumbers(host::FmvFiles_Folder(theGameFolder)))
+		{
+			box.items.push_back(std::to_string((long long)one));
+			box.selected = box.text == box.items.back() ? (int32_t)box.items.size() - 1 : box.selected;
+		}
+
+		spec.onChange = [](std::vector<host::DialogWidget> &widgets, size_t changed)
+		{
+			if (changed == 1 && changed < widgets.size())
+			{
+				SayMessageFmv((int32_t)strtol(widgets[changed].text.c_str(), nullptr, 10));
+			}
+		};
+	}
+
 	ok.type = host::DialogWidgetType::Button;
 	ok.text = "Ok";
 	ok.box = { 200, 0x15e, 0x32, 0x10 };
@@ -1848,18 +1897,82 @@ static void MissionTextWindow(uint8_t const *subject, int32_t which, int32_t wan
 	text.box = { 0x12, 0x50, 400, 0xfa };
 	spec.widgets = { words, box, ok, cancel, text };
 
+	if (wanted == 73)
+	{
+		host::DialogWidget play = ok;
+
+		play.text = "Play";
+		play.box = { 0x1e + 300 + 10, 0x24, 0x32, 0x12 };
+		play.answer = kMessageFmvPlay;
+		spec.widgets.push_back(play);   // after the text area, which stays part 4: the preview plays in it
+	}
+
 	std::array<uint8_t, 8> objective;
 	std::string const fieldName = field;
 
 	memcpy(objective.data(), subject, 8);
-	host::Dialogs_Form(spec, [objective, fieldName, wanted](int32_t answer, std::vector<host::DialogWidget> const &widgets)
+	host::Dialogs_Form(spec, [objective, fieldName, wanted, which](int32_t answer, std::vector<host::DialogWidget> const &widgets)
 	{
+		if (wanted == 73 && answer == kMessageFmvPlay && widgets.size() >= 2)
+		{
+			// Play: the typed number's FMV in the text area of the window that comes back (part 4); it stops with that window
+			std::string const typedText = widgets[1].text;
+			int32_t const playNumber = (int32_t)strtol(typedText.c_str(), nullptr, 10);
+			std::string const folder = host::FmvFiles_Folder(theGameFolder);
+			std::string playWords;
+
+			if (playNumber < 0 || playNumber > model::kMostMessageNumber)
+			{
+				playWords = host::FmvFiles_MessageWords(folder, playNumber);
+			}
+			else
+			{
+				host::FmvPreview_Start(folder, model::MessageFmvName(playNumber), layoutSettingsFile, [](int32_t *x, int32_t *y, int32_t *w, int32_t *h)
+				{
+					// this window only: its text area (part 4) and its Play (part 5)
+					host::DialogRect area, play;
+
+					if (!host::Dialogs_FormWidgetBox(4, &area) || !host::Dialogs_FormWidgetBox(5, &play))
+					{
+						return false;
+					}
+
+					*x = area.x;
+					*y = area.y;
+					*w = area.width;
+					*h = area.height;
+					return true;
+				}, &playWords);
+			}
+
+			messageFmvWords = playWords;
+			statusWords = messageFmvWords.c_str();
+			MissionTextWindow(objective.data(), which, 73, &typedText);
+			return;
+		}
+
+		if (wanted == 73)
+		{
+			host::FmvPreview_Stop();   // the window is closing
+		}
+
 		if (answer != host::kDialogOk || widgets.size() < 2)
 		{
 			return;
 		}
 
-		StrategyViewApply(objective.data(), wanted, fieldName.c_str(), (double)(int32_t)strtol(widgets[1].text.c_str(), nullptr, 10));
+		int32_t const value = (int32_t)strtol(widgets[1].text.c_str(), nullptr, 10);
+
+		StrategyViewApply(objective.data(), wanted, fieldName.c_str(), (double)value);
+
+		// ours: the new number's FMV, once the strategy holds it (a number it refused keeps the refusal's words)
+		int32_t storedKind = 0, stored = 0;
+		std::vector<uint8_t> storedPayload;
+
+		if (wanted == 73 && StrategyOfObject(objective.data(), &storedKind, &storedPayload) && storedKind == 73 && host::StrategyView_FieldNumber(73, storedPayload, "message_string", &stored) && stored == value)
+		{
+			SayMessageFmv(value);
+		}
 	});
 }
 
@@ -3833,7 +3946,8 @@ void StrategyModeCommand(int32_t command)
 		{
 			if (strategyEditFan)
 			{
-				statusWords = "Edit Strategy: click a line to change it; Escape ends";
+				// a Message's view says its FMV instead (SayMessageFmv, in StrategyViewOpen)
+				statusWords = strategyEditKind == 73 && !messageFmvWords.empty() ? messageFmvWords.c_str() : "Edit Strategy: click a line to change it; Escape ends";
 			}
 
 			return;

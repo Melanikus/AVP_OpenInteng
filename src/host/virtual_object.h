@@ -77,6 +77,12 @@ namespace host
 	// Cuts the first VIOBJECT whose ID is that one. NotFound when there is none (the level is as it was).
 	VirtualObjectResult VirtualObject_Destroy(OpenLevelFile *file, uint8_t const *id);
 
+	// THE MOUSE GIZMO's move (movable.h, movable_virtual_object.cpp; the owner's addition, 11-18: inteng has no way to move one, and nothing here did): the first VOBJPROP holding that ID
+	// gets this place (file units) in its first three numbers, and everything else stays as it was (the chunk keeps its size). The level is replaced through the game's loader, whose
+	// reader refuses a place farther than 2^24 from the middle (strategy_chunk.cpp Virtual_Object_Properties_Chunk, chunk.hpp CheckPlace): LoaderRefused, nothing changed.
+	// NotFound when no virtual object has that ID (the level is as it was).
+	VirtualObjectResult VirtualObject_SetPlace(OpenLevelFile *file, uint8_t const *id, int32_t const place[3]);
+
 	// Gives the virtual object with that ID a new strategy of that kind (model::MakeNewStrategy: every field at its creation value), in place of the AVPSTRAT its VIOBJECT holds, if any (FUN_00528830
 	// on a virtual object: the class takes Binary / Linked / Multi / Area Switch, Mission Objective, Message, Volume of Death, Self Destruct). The strategy goes last in the VIOBJECT, after its VOBJPROP.
 	VirtualObjectResult VirtualObject_AssignStrategy(OpenLevelFile *file, uint8_t const *id, int32_t kind);

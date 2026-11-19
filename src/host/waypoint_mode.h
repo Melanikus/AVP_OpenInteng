@@ -140,6 +140,28 @@ namespace host
 		// pick_centre.h) becomes the current one, unless it is the current one already or the base; false when nothing changes
 		bool PickBox(int32_t index);
 
+		// WAYPOINT BY MOUSE (the owner's addition 11-18; Hicks's plan section 6, waypoint_pick.h; the ALIEN list only, the one the game loads): mode 1's click takes ANY waypoint of the
+		// list, the current one and the base too (inteng's PickBox refuses those), or -1 lets the current go (the base stays); false when nothing changes, outside mode 1 or on the
+		// ground list, or for a number not in the list
+		bool MousePick(int32_t index);
+
+		// Item 1 by mouse: the box (the file's units, waypoint_pick.h WaypointPick_NewBox) put at the end of the alien list in mode 1, made the current one and WRITTEN at once (Write: the
+		// game's loader checks it; refused, the lists, the current and the base go back as they were and the words say why)
+		WaypointOutcome MouseCreate(OpenLevelFile *open, WaypointRec const &box);
+
+		// Item 3 by mouse, a DRAG from box a to box b: Add Link (Waypoints_AddLink, inteng's FUN_00586b40: the flags ORed in) from a to b with flags (0 both ways, kLinkAlien, kLinkOneWay,
+		// or both), written at once as MouseCreate; then a is the base and b the current one, and the link between them is SELECTED (LinkSelected)
+		WaypointOutcome MouseLink(OpenLevelFile *open, int32_t a, int32_t b, int32_t flags);
+
+		// Item 3b: a CLICK on the link between a and b (alien list, mode 1) selects it: a the base, b the current one; nothing is written. MouseSetLinkFlags gives the selected link exactly
+		// these flags (Waypoints_SetLinkFlags, base to current; the mirror back), written at once as MouseCreate. LinkFlagsOf: a's link to b's flags, -1 for none.
+		WaypointOutcome MouseSelectLink(int32_t a, int32_t b);
+		WaypointOutcome MouseSetLinkFlags(OpenLevelFile *open, int32_t flags);
+		int32_t LinkFlagsOf(int32_t a, int32_t b) const;
+
+		// The link selected by mouse: base to current, while they are still the pair it was selected with (any other change of either ends it)
+		bool LinkSelected() const { return linkFrom >= 0 && linkFrom == wpBase && linkTo == wpCurrent; }
+
 		// Mode 1: the next / previous waypoint of the list is the current one (wraps)
 		void Step(int delta);
 
@@ -180,6 +202,7 @@ namespace host
 		std::vector<int32_t> group;
 		int32_t picked;           // DAT_0091bed4 (mode 0)
 		int32_t lastSeenPick;     // the context's pickedModule last taken as a click
+		int32_t linkFrom, linkTo;   // the link selected by mouse (LinkSelected), -1 for none
 		std::map<int32_t, uint32_t> paint;
 		bool paintMade;
 		size_t droppedModuleLinks;   // W-6: module links of names of no module, dropped when the list was read (written out at the mode's Exit)

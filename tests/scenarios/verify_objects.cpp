@@ -2,7 +2,7 @@
 // by Melanikus (Frost) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // USE: verify_objects.exe <the copy it saved> gone|kept|track|notrack <an object's name> [gone|kept|track|notrack <name>] ...
-//      ... tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>   ... notracksound <name>|<index>   ... trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>   ... at <name>|<x>|<y>|<z>   ... near <name>|<x>|<y>|<z>|<within>
+//      ... tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>   ... notracksound <name>|<index>   ... trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>   ... at <name>|<x>|<y>|<z>   ... near <name>|<x>|<y>|<z>|<within>   ... up <name>|<ux>|<uy>|<uz>|<within>
 // CHECKS: the copy is read by the game's loader; for "gone <name>" no object of the copy (module or placed object) has that exact name; for "kept <name>" one has; for
 // "track <name>" the object of that name holds a track of its own (OBJTRAK2), for "notrack <name>" it holds none (added 2026-11-17 by Frost, OP-20 / OP-21).
 // For "alt <name>=<count>,<group>" the object's alternate locations (its ALTLOCAT, read by alt_locations_edit.cpp's loader from the copy the game's loader took) are that many, in that group
@@ -23,6 +23,7 @@
 // Gives back 0 only if every check passed.
 
 #include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -199,6 +200,60 @@ static void CheckAt(OpenLevelFile &level, std::string const &asked)
 
 	Check(object && object->object_data.location.x == at[0] && object->object_data.location.y == at[1] && object->object_data.location.z == at[2],
 		"the copy's object \"" + fields[0] + "\" is at " + fields[1] + " " + fields[2] + " " + fields[3] + " (it is at: " + held + ")");
+}
+
+// "up <name>|<ux>|<uy>|<uz>|<within>": the object's UP as the game draws it is (ux uy uz) thousandths, each within <within> thousandths: its local (0, -1, 0) (the world is y down)
+// turned by its OBJHEAD1 turn (x y z w) with the turn's own matrix R, which is what the game's loader (QuatToMat of (-x, -y, -z, w)) and _RotateVector give (src/host/surface_place.h).
+// For placement mode's turn (P3: the base flat on a wall or floor). Added 2026-11-18 by Vasquez.
+static void CheckUp(OpenLevelFile &level, std::string const &asked)
+{
+	std::vector<std::string> const fields = BarFields(asked, 5);
+	long long wanted[3] = {};
+	long long within = 0;
+	bool good = fields.size() == 5 && !fields[0].empty() && WholeNumber(fields[4], 0, 2000, &within);
+
+	for (int i = 0; good && i < 3; i++)
+	{
+		good = WholeNumber(fields[(size_t)i + 1], -1000, 1000, &wanted[i]);
+	}
+
+	if (!good)
+	{
+		Check(false, "an up check as <name>|<ux>|<uy>|<uz>|<within>, thousandths from -1000 to 1000, not \"" + asked + "\"");
+		return;
+	}
+
+	Object_Chunk *const object = ObjectNamed(level, fields[0].c_str());
+
+	if (!object)
+	{
+		Check(false, "the copy's object \"" + fields[0] + "\" has its up along " + fields[1] + " " + fields[2] + " " + fields[3] + " (no object of that name)");
+		return;
+	}
+
+	double x = object->object_data.orientation.x, y = object->object_data.orientation.y, z = object->object_data.orientation.z, w = object->object_data.orientation.w;
+	double const length = sqrt(x * x + y * y + z * z + w * w);
+	bool close = length > 1e-6 && length < 1e6;   // (a turn of no length, or not a number, is not a turn: the comparisons fail)
+	long long up[3] = { 0, 0, 0 };
+
+	if (close)
+	{
+		x /= length;
+		y /= length;
+		z /= length;
+		w /= length;
+
+		double const turned[3] = { -2.0 * (x * y - z * w), -(1.0 - 2.0 * (x * x + z * z)), -2.0 * (y * z + x * w) };
+
+		for (int i = 0; i < 3; i++)
+		{
+			up[i] = (long long)floor(turned[i] * 1000.0 + 0.5);
+			close = close && up[i] >= wanted[i] - within && up[i] <= wanted[i] + within;
+		}
+	}
+
+	Check(close, "the copy's object \"" + fields[0] + "\" has its up within " + fields[4] + " thousandths of " + fields[1] + " " + fields[2] + " " + fields[3] + " (it is: " +
+		std::to_string(up[0]) + " " + std::to_string(up[1]) + " " + std::to_string(up[2]) + ")");
 }
 
 // "near <name>|<x>|<y>|<z>|<within>": the object's place (OBJHEAD1) is within <within> of (x y z) on each of the three
@@ -667,13 +722,17 @@ int main(int argc, char **argv)
 		{
 			CheckNear(copy, argv[a + 1]);
 		}
+		else if (what == "up")
+		{
+			CheckUp(copy, argv[a + 1]);
+		}
 		else if (what == "modflags")
 		{
 			CheckModFlags(copy, argv[a + 1]);
 		}
 		else
 		{
-			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, trackendmoved, at, near, alt, specialalt, virtualgone, virtualkept, nostrategy or modflags), not \"" + what + "\"");
+			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, trackendmoved, at, near, up, alt, specialalt, virtualgone, virtualkept, nostrategy or modflags), not \"" + what + "\"");
 		}
 	}
 

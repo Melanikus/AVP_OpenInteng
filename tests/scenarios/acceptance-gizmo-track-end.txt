@@ -1,0 +1,55 @@
+# ACCEPTANCE (red first): THE MOUSE GIZMO ON A TRACK SECTION'S END in Track Editing (P2 of Hicks's plan .claude/plans/streamed-twirling-spindle.md; the owner's addition, inteng had none: it
+# moves an end with the marker object and Finish End Pos Edit). The owner's Genshd1 copy, as a double click: med02I selected (row 5) and Edit Track (0x36), so the track is held in memory and
+# the tracked object stays selected; Track Editing's source goes BEFORE the selection (Drake's efbeb081), so the gizmo is on section 0's end, not on the object. The camera at the 45-degree
+# corner of that end (2 m on each axis, Numpad 8 held to look down about 35 degrees). Arrows and rings show (a section end turns); the x arrow moves the end, put as Finish End Pos Edit puts
+# it (TrackEdit_SetSectionEnd), the end marker with it; a drag given up with Esc leaves it as it was; the y ring with Shift turns the end; Stop Track Edit (0x51c) writes the track, and the
+# saved copy's section 0 no longer ends where it did (verify_objects trackendmoved: this track's object offset is 0, so its pivot is the marker). Red on the gizmo without Track Editing's
+# source (drake-gizmo efbeb081): no gizmo for the end.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-track-editing/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-track-editing/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1425512
+expect-screen Object Placement
+select-row 5
+wait 300
+expect-hierarchy-text med02I
+item 0x36
+expect-screen Track Editing
+camera -52650 -9793 55345 3584
+hold Numpad8 580
+expect-number camangles look_ 250 550
+wait 400
+state
+expect-field trackobjects end -50650 -7793 57345 start -50650 -7793 57345
+expect-field-has gizmopoints move x
+expect-field-has gizmopoints turn y
+expect-field-has gizmopose -50650 -7793 57345
+remember-field gizmopose
+remember-field trackobjects
+picture 1
+# the x arrow, 60 px along: the end moves, the end marker with it, in memory
+drag-gizmo move x 60 0
+expect-status Gizmo: the track section end moved
+expect-status along x
+expect-field-changed gizmopose
+expect-field-changed trackobjects
+picture 2
+# a drag given up with Esc: the end as it was
+remember-field gizmopose
+drag-gizmo move y 0 40 esc
+expect-status the drag was given up
+expect-field-same gizmopose
+# the y ring with Shift: the end turned in whole 15-degree steps
+drag-gizmo turn y 150 0 shift
+expect-status Gizmo: the track section end turned
+expect-status-not turned 0 degrees
+expect-field-has gizmolast snapped
+expect-field-changed gizmopose
+picture 3
+# Stop Track Edit writes the track; the saved copy's section 0 ends elsewhere
+item 0x51c
+wait 400
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} trackendmoved med02I|0|-50650|-7793|57345

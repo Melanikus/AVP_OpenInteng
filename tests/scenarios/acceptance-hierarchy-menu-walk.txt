@@ -50,7 +50,18 @@ expect-dialog-text 13
 click-button Ok
 expect-dialog-kind form
 expect-dialog Sound Edit
-expect-dialog-text Not Set|5|0|40|100
+expect-dialog-text Not Set|5|40|0|100
+# edobtype's own Sound Edit window, the one the placed sounds, the tracks and the placed hierarchies open (Dietrich 2026-11-18, row C-4e): the wav name an editable combo of the sound
+# folder's wavs, the Play button (1065), the caption "Sound Edit - %s" with DAT_008f4dac: the game's folder, "Sound\", the level's SOUNDDIR and "\" (FUN_004f68b0; the base 0x57a909)
+expect-field-has dialogbuttons Play
+expect-dialog \Sound\Hud\
+# the list shows only while it is open (the state line's dialogcomborows): opened, this file's SOUNDDIR "Hud" lists the fastfiles' wavs one folder down, as the loader holds them
+# (lowercase; no raw folder in this run's game folder: sound_edit.h SoundEdit_WavNamesFromFiles, Bishop's ruling 11-16), its own sounds' marine\ among them; a second press closes it
+click-combo 1
+expect-field-has dialogcomborows marine\ed_nade_ready.wav
+expect-field-has dialogcomborows predator\
+click-combo 1
+expect-field-empty dialogcomborows
 picture 3
 form-field 1 step.wav
 click-button OK
@@ -80,7 +91,7 @@ expect-status Listening to Marine\Ed_nade_ready.wav
 click-row 13
 expect-dialog-kind form
 expect-dialog Sound Edit
-expect-dialog-text step.wav|5|0|40|100
+expect-dialog-text step.wav|5|40|0|100
 # the DLL's own limit on the inner range (DDV_MinMaxFloat 0 .. 1000): 2000 is refused with MFC's words from the DLL's strings, and the window comes back
 form-field 2 2000
 click-button OK

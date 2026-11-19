@@ -121,6 +121,7 @@ namespace host
 		group.clear();
 		picked = -1;
 		lastSeenPick = -1;
+		linkFrom = linkTo = -1;
 		paint.clear();
 		paintMade = false;
 		droppedModuleLinks = 0;
@@ -445,6 +446,158 @@ namespace host
 
 		wpCurrent = index;
 		return true;
+	}
+
+	bool WaypointMode::MousePick(int32_t index)
+	{
+		if (mode != 1 || !alien || index < -1 || (index >= 0 && (size_t)index >= List().size()) || index == wpCurrent)
+		{
+			return false;
+		}
+
+		wpCurrent = index;
+		linkFrom = linkTo = -1;
+		return true;
+	}
+
+	WaypointOutcome WaypointMode::MouseCreate(OpenLevelFile *open, WaypointRec const &box)
+	{
+		if (mode != 1 || !alien || !open || !open->Level() || current < 0)
+		{
+			return Said("A waypoint is made by mouse on the alien list of an AI module only");
+		}
+
+		WaypointSet const backupSet = set;
+		int32_t const backupCurrent = wpCurrent;
+		int32_t const backupBase = wpBase;
+		std::string why;
+
+		set.alien.push_back(box);
+		wpCurrent = (int32_t)set.alien.size() - 1;
+
+		if (!Write(open, &why))
+		{
+			set = backupSet;
+			wpCurrent = backupCurrent;
+			wpBase = backupBase;
+			return Said(("The waypoint could not be written: " + why).c_str());
+		}
+
+		WaypointOutcome out = Said(("Waypoint " + std::to_string((long long)wpCurrent) + " made on the floor: 2 x 2 x 2 m, the current one").c_str());
+
+		out.levelChanged = true;
+		return out;
+	}
+
+	namespace
+	{
+		// a link's flags as words, seen from its own waypoint a toward b (One way 1: only a to b; One way back 2: only b to a)
+		std::string LinkWords(int32_t flags, int32_t a, int32_t b)
+		{
+			std::string words = (flags & kLinkOneWay) ? "one way, " + std::to_string((long long)a) + " to " + std::to_string((long long)b) :
+				((flags & kLinkOneWayBack) ? "one way, " + std::to_string((long long)b) + " to " + std::to_string((long long)a) : std::string("both ways"));
+
+			words += (flags & kLinkAlien) ? ", aliens only" : "";
+			words += (flags & kLinkDeviation) ? ", deviation allowed" : "";
+			return words;
+		}
+
+		int32_t FlagsOf(std::vector<WaypointRec> const &list, int32_t a, int32_t b)
+		{
+			if (a < 0 || (size_t)a >= list.size())
+			{
+				return -1;
+			}
+
+			for (WaypointLinkRec const &link : list[(size_t)a].links)
+			{
+				if (link.index == b)
+				{
+					return link.flags;
+				}
+			}
+
+			return -1;
+		}
+	}
+
+	WaypointOutcome WaypointMode::MouseLink(OpenLevelFile *open, int32_t a, int32_t b, int32_t flags)
+	{
+		if (mode != 1 || !alien || !open || !open->Level() || a < 0 || b < 0 || a == b || (size_t)a >= set.alien.size() || (size_t)b >= set.alien.size())
+		{
+			return Said("A link is made by mouse from one waypoint's box to another's, on the alien list");
+		}
+
+		WaypointSet const backupSet = set;
+		int32_t const backupCurrent = wpCurrent;
+		int32_t const backupBase = wpBase;
+		std::string why;
+
+		Waypoints_AddLink(&set.alien, a, b, flags);
+
+		if (!Write(open, &why))
+		{
+			set = backupSet;
+			wpCurrent = backupCurrent;
+			wpBase = backupBase;
+			return Said(("The link could not be written: " + why).c_str());
+		}
+
+		wpBase = a;
+		wpCurrent = b;
+		linkFrom = a;
+		linkTo = b;
+
+		WaypointOutcome out = Said(("Link " + std::to_string((long long)a) + " - " + std::to_string((long long)b) + ": " + LinkWords(FlagsOf(set.alien, a, b), a, b) +
+			" (base " + std::to_string((long long)a) + ", current " + std::to_string((long long)b) + ")").c_str());
+
+		out.levelChanged = true;
+		return out;
+	}
+
+	int32_t WaypointMode::LinkFlagsOf(int32_t a, int32_t b) const
+	{
+		return FlagsOf(List(), a, b);
+	}
+
+	WaypointOutcome WaypointMode::MouseSelectLink(int32_t a, int32_t b)
+	{
+		if (mode != 1 || !alien || FlagsOf(set.alien, a, b) < 0)
+		{
+			return Said("No such link on the alien list");
+		}
+
+		wpBase = a;
+		wpCurrent = b;
+		linkFrom = a;
+		linkTo = b;
+		return Said(("Link " + std::to_string((long long)a) + " - " + std::to_string((long long)b) + " selected: " + LinkWords(FlagsOf(set.alien, a, b), a, b) +
+			"; click it again to change it, Delete takes it out").c_str());
+	}
+
+	WaypointOutcome WaypointMode::MouseSetLinkFlags(OpenLevelFile *open, int32_t flags)
+	{
+		if (mode != 1 || !alien || !open || !open->Level() || !LinkSelected())
+		{
+			return Said("Click a link first: its flags change on the next click");
+		}
+
+		WaypointSet const backupSet = set;
+		std::string why;
+
+		Waypoints_SetLinkFlags(&set.alien, wpBase, wpCurrent, flags);
+
+		if (!Write(open, &why))
+		{
+			set = backupSet;
+			return Said(("The link could not be written: " + why).c_str());
+		}
+
+		WaypointOutcome out = Said(("Link " + std::to_string((long long)wpBase) + " - " + std::to_string((long long)wpCurrent) + ": " + LinkWords(FlagsOf(set.alien, wpBase, wpCurrent), wpBase,
+			wpCurrent)).c_str());
+
+		out.levelChanged = true;
+		return out;
 	}
 
 	bool WaypointMode::PickNear(int32_t const place[3], int axisMask)
@@ -985,6 +1138,7 @@ namespace host
 					}
 
 					wpCurrent = -1;
+					linkFrom = linkTo = -1;   // the waypoints after it are numbered again
 					out.say = "Waypoint " + std::to_string(cur) + " deleted";
 					changed = true;
 					break;
@@ -1028,6 +1182,7 @@ namespace host
 					}
 
 					out.say = "Link between " + std::to_string(base) + " and " + std::to_string(cur) + " deleted";
+					linkFrom = linkTo = -1;   // the link selected by mouse, if it was this one, is gone
 					changed = true;
 					break;
 

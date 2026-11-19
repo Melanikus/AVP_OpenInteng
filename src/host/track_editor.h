@@ -74,6 +74,16 @@ namespace host
 	// The turn the end marker is turned from now (markerBase after a Jump To Start, else the current section's end turn), x y z w; false when no track is held or the section is not there
 	bool TrackEdit_MarkerBase(TrackEditor const &editor, float out[4]);
 
+	// THE MOUSE GIZMO's section end (movable.h, movable_track_end.cpp; the owner's addition, 11-18): the place the OBJECT takes at the END of section `section` of the track held,
+	// as its end marker shows it (TrackData_MarkerAt with the editor's place function), and that end's turn (x y z w). false when no track is held or there is no such section.
+	bool TrackEdit_SectionEnd(TrackEditor const &editor, size_t section, int32_t place[3], float quat[4]);
+
+	// The end of section `section` put at a place and a turn, as Finish End Pos Edit puts it (FUN_004f0cd0): the turn first when it is another (TrackData_SetEndTurn: the object
+	// keeps its places at the end of this section and the start of the next), then the place when it is another (TrackData_FinishEnd: the next section starts there). The track is
+	// kept in memory, as every edit is (Stop Track Edit writes it). Once a turn is taken, a Jump To Start's turn of that section is let go, as Finish End lets it go. false, with
+	// nothing changed, when no track is held, there is no such section, or the track's own checks refuse the place or the turn.
+	bool TrackEdit_SetSectionEnd(TrackEditor *editor, size_t section, int32_t const place[3], float const quat[4]);
+
 	// What a command asks the editor to do besides what it already did to the level and the state
 	struct TrackAction
 	{

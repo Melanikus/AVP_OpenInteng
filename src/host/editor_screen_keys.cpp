@@ -304,7 +304,11 @@ bool RunScreenKey(uint8_t key, bool shift)
 		host.layout = keyLayout;
 		host.screen = barScreen;
 		host.prompt = kPromptNone;
-		DoWaypointCommand(command, host);
+
+		// Delete (ours, P4): the link selected by mouse goes by inteng's Delete Link (0x10), else the current waypoint by Delete Waypoint (6)
+		int32_t const waypointCommand = command == host::kScreenKeyWaypointDelete ? (waypointMode.LinkSelected() ? 0x10 : 6) : command;
+
+		DoWaypointCommand(waypointCommand, host);
 		return true;
 	}
 

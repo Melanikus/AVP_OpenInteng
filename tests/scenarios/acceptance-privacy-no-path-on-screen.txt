@@ -1,0 +1,34 @@
+# ACCEPTANCE (red first): NO FULL PATH ON THE SCREEN (Bishop's privacy item for alpha.1; Hicks found it picking pictures for the wiki). Everything the editor draws shows a file's or
+# folder's NAME, never its full path: a screenshot of it must never carry the user's name (C:\Users\<name>\...). Ours drew Sound Edit's title as "Sound Edit - <the game folder>\sound\
+# <the level's sound folder>\" (inteng's "Sound Edit - %s", given the folder whole) and a save's words as "Saved a copy: <the copies folder>\<level>".
+# Invasion, Object Placement: a new sound, E opens Sound Edit (its title names its folder, not the path), Cancel; Mode > Exit saves the copy (its words name the level, not the path).
+# Red on exe-cache/a2d4fac8.exe (the title and the words held C:\Users\...), green with it.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-bar Create > Sound
+expect-dialog Name Object
+form-field 1 sndP
+click-button OK
+expect-no-dialog
+key E
+expect-dialog Sound Edit -
+expect-field-not-has dialog :\
+expect-field-not-has dialog :/
+expect-field-not-has dialog Users
+expect-field-not-has dialog AvP-play-release
+picture 1
+click-button Cancel
+expect-no-dialog
+click-bar Mode > Exit
+expect-screen Construction
+expect-status Saved a copy:
+expect-status Invasion
+expect-field-not-has status :\
+expect-field-not-has status :/
+expect-field-not-has status Users
+picture 2

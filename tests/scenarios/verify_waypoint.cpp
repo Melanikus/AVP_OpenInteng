@@ -218,6 +218,99 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	// MOUSE (Dietrich 11-18, Waypoint by mouse, P4): verify_waypoint <opened> <copy> mouse <alien count after> [<a>-<b>:<flags> ...]. Exactly one module's WAYPOINT chunk differs (it may be
+	// new: an AI module's first); its ground list is as it was; its alien list has that many waypoints, each one past the old count a box 2000 across each way and 2000 high (scale 1)
+	// with its aim point in its middle; each a-b:flags: a's link to b has exactly those flags, b's to a the mirror (One way 1 and One way back 2 swapped). Every other module as it was.
+	if (argc >= 5 && strcmp(argv[3], "mouse") == 0)
+	{
+		std::vector<host::ModuleSnapshot> const was = SnapshotsOf(before), now = SnapshotsOf(after);
+		std::vector<size_t> changedAt;
+		bool othersSame = was.size() == now.size();
+
+		Check(was.size() == now.size(), "the level has as many objects: " + std::to_string(now.size()));
+
+		for (size_t i = 0; i < was.size() && i < now.size(); i++)
+		{
+			if (!was[i].module)
+			{
+				continue;
+			}
+
+			if (was[i].hasWaypoint != now[i].hasWaypoint || was[i].waypoint != now[i].waypoint)
+			{
+				changedAt.push_back(i);
+			}
+
+			othersSame = othersSame && now[i].module && was[i].index == now[i].index && was[i].adjacency.size() == now[i].adjacency.size() && was[i].links.size() == now[i].links.size() && was[i].isMaster == now[i].isMaster &&
+				was[i].masterIndex == now[i].masterIndex;
+		}
+
+		Check(othersSame, "every module's adjacency, links and AI module are as they were");
+		Check(changedAt.size() == 1, "exactly one module's WAYPOINT chunk differs: " + std::to_string(changedAt.size()));
+
+		if (changedAt.size() != 1)
+		{
+			return 1;
+		}
+
+		host::ModuleSnapshot const &w = was[changedAt[0]], &n = now[changedAt[0]];
+		host::WaypointSet setBefore, setAfter;
+
+		Check((!w.hasWaypoint || SetOf(&w, &setBefore)) && SetOf(&n, &setAfter), "its WAYPOINT chunk read with the library, before (" + std::string(w.hasWaypoint ? "had one" : "had none") + ") and after: module " +
+			std::to_string(n.index));
+
+		bool groundSame = setAfter.ground.size() == setBefore.ground.size();
+
+		for (size_t i = 0; groundSame && i < setAfter.ground.size(); i++)
+		{
+			groundSame = SameWaypoint(setAfter.ground[i], setBefore.ground[i]);
+		}
+
+		Check(groundSame, "the ground list is as it was");
+
+		long const want = strtol(argv[4], nullptr, 10);
+
+		Check((long)setAfter.alien.size() == want, "the alien list has " + std::to_string(want) + ": " + std::to_string(setAfter.alien.size()));
+
+		for (size_t i = setBefore.alien.size(); i < setAfter.alien.size(); i++)
+		{
+			host::WaypointRec const &box = setAfter.alien[i];
+			bool const sized = (int64_t)box.max[0] - box.min[0] == 2000 && (int64_t)box.max[1] - box.min[1] == 2000 && (int64_t)box.max[2] - box.min[2] == 2000;
+			bool const middle = box.centre[0] == (int32_t)(((int64_t)box.min[0] + box.max[0]) / 2) && box.centre[1] == (int32_t)(((int64_t)box.min[1] + box.max[1]) / 2) &&
+				box.centre[2] == (int32_t)(((int64_t)box.min[2] + box.max[2]) / 2);
+
+			Check(sized && middle, "alien waypoint " + std::to_string(i) + " is a new 2000 x 2000 x 2000 box with its aim point in its middle");
+		}
+
+		for (int a = 5; a < argc; a++)
+		{
+			int from = -1, to = -1, flags = -1;
+
+			if (sscanf(argv[a], "%d-%d:%d", &from, &to, &flags) != 3 || from < 0 || to < 0 || (size_t)from >= setAfter.alien.size() || (size_t)to >= setAfter.alien.size())
+			{
+				Check(false, std::string("a link to check: ") + argv[a]);
+				continue;
+			}
+
+			int const mirror = (flags & ~3) | ((flags & 1) ? 2 : 0) | ((flags & 2) ? 1 : 0);
+			int got = -1, back = -1;
+
+			for (host::WaypointLinkRec const &link : setAfter.alien[(size_t)from].links)
+			{
+				got = link.index == to ? link.flags : got;
+			}
+
+			for (host::WaypointLinkRec const &link : setAfter.alien[(size_t)to].links)
+			{
+				back = link.index == from ? link.flags : back;
+			}
+
+			Check(got == flags && back == mirror, std::string("link ") + argv[a] + ": " + std::to_string(from) + " to " + std::to_string(to) + " has " + std::to_string(got) + ", back " + std::to_string(back));
+		}
+
+		return checksFailed ? 1 : 0;
+	}
+
 	std::vector<size_t> const countsBefore = CountsOf(before), countsAfter = CountsOf(after);
 
 	Check(countsBefore == countsAfter, "the chunk-name counts are the same (objects, shapes, modules, AI chunks, adjacency, links, paths)");

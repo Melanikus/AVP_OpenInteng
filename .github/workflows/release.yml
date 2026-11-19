@@ -8,9 +8,10 @@
 # Why it's started by hand, and not by pushing a tag: a workflow comes from the commit it runs on, so a tag could point at a commit with
 # these checks taken out. Started from main, this file comes from main, where changing it has to get past the same checks as anything else.
 #
-# The zip holds the editor, the runtime files it needs beside it, and their licences. Those runtime files (OpenAL Soft and fmt, Microsoft's
-# D3DX and its shader compiler, and Microsoft's C++ runtime) come from AvPx's own package, built here by AvPx's own script at the commit
-# avpx/ is pinned to, so each one comes with the licence text, and OpenAL Soft with the source, that AvPx's package gives it.
+# The zip holds the editor, mp4-to-smk.exe (a user's own video made into an AvP message video), the runtime files they need beside them,
+# and their licences. Those runtime files (OpenAL Soft and fmt, Microsoft's D3DX and its shader compiler, Microsoft's C++ runtime, and the
+# Smacker encoder and decoder, libsmackerenc and libsmackerdec) come from AvPx's own package, built here by AvPx's own script at the commit
+# avpx/ is pinned to, so each one comes with the licence text, and OpenAL Soft and libsmackerenc with the source, that AvPx's package gives it.
 name: Release
 
 on:
@@ -119,17 +120,32 @@ jobs:
           New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\vcpkg-archives", $env:VCPKG_DOWNLOADS | Out-Null
           ./tools/build-and-package.ps1 -OutFolder "$env:RUNNER_TEMP\avpx-package"
 
-      - name: Build the editor
+      # The Smacker encoder and decoder DLLs (LGPL, from AvPx's package) are loaded while the programs run, pinned to the very files this
+      # package ships (the owner's ruling, 11-18): their SHA-256 goes into both builds (SMACKER_ENCODER_SHA256 / SMACKER_DECODER_SHA256).
+      # A user's own build of either is let in by AVP_OpenInteng.ini (LGPL 2.1 section 6); README.md says how.
+      - name: Build the editor and mp4-to-smk
         shell: pwsh
         run: |
+          $pins = @{}
+          foreach ($dll in 'libsmackerenc.dll', 'libsmackerdec.dll') {
+            $file = Join-Path "$env:RUNNER_TEMP\avpx-package\bin" $dll
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "AvPx's package has no $dll" }
+            $pins[$dll] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$dll SHA-256 $($pins[$dll]), pinned into the builds"
+          }
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
           $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
           if (-not $msbuild) { throw 'MSBuild was not found' }
           & $msbuild win32\VS2026\AVP_OpenInteng.vcxproj /nologo /v:minimal /m /nodeReuse:false /p:Configuration=Release /p:Platform=Win32 `
             /p:ImportDirectoryBuildProps=false /p:ImportDirectoryBuildTargets=false /p:VcpkgManifestInstall=false /p:VcpkgApplocalDeps=false `
-            "/p:VcpkgInstalledDir=$env:GITHUB_WORKSPACE/avpx/vcpkg_installed/" /p:VcpkgTriplet=x86-windows
+            "/p:VcpkgInstalledDir=$env:GITHUB_WORKSPACE/avpx/vcpkg_installed/" /p:VcpkgTriplet=x86-windows `
+            "/p:SmackerEncoderSha256=$($pins['libsmackerenc.dll'])" "/p:SmackerDecoderSha256=$($pins['libsmackerdec.dll'])"
           if ($LASTEXITCODE -ne 0) { throw "The editor didn't build (MSBuild exit $LASTEXITCODE)" }
           if (-not (Test-Path -LiteralPath 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe')) { throw 'MSBuild gave back 0 but made no AVP_OpenInteng.exe' }
+          & $msbuild win32\VS2026\mp4-to-smk.vcxproj /nologo /v:minimal /m /nodeReuse:false /p:Configuration=Release /p:Platform=Win32 `
+            /p:ImportDirectoryBuildProps=false /p:ImportDirectoryBuildTargets=false "/p:SmackerEncoderSha256=$($pins['libsmackerenc.dll'])"
+          if ($LASTEXITCODE -ne 0) { throw "mp4-to-smk didn't build (MSBuild exit $LASTEXITCODE)" }
+          if (-not (Test-Path -LiteralPath 'win32\VS2026\Win32\Release\mp4-to-smk.exe')) { throw 'MSBuild gave back 0 but made no mp4-to-smk.exe' }
 
       # The package: the editor, and every file of AvPx's bin it asks for (and what those ask for in turn), read from the programs' own
       # import lists by dumpbin. A file that isn't in AvPx's bin is Windows' own. Then the licences of exactly those files, with AvPx's
@@ -143,6 +159,7 @@ jobs:
           $package = "$env:RUNNER_TEMP\package"
           New-Item -ItemType Directory -Force $package | Out-Null
           Copy-Item 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe' $package
+          Copy-Item 'win32\VS2026\Win32\Release\mp4-to-smk.exe' $package
 
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
           $visualStudio = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
@@ -150,6 +167,12 @@ jobs:
           if (-not $dumpbin) { throw 'dumpbin was not found' }
           $avpxBin = @{}
           Get-ChildItem -LiteralPath "$from\bin" -File -Filter '*.dll' | ForEach-Object { $avpxBin[$_.Name.ToLowerInvariant()] = $_.FullName }
+          # The Smacker encoder (mp4-to-smk, Import video) and decoder (the FMV preview) are loaded by name while the programs run, so no import
+          # list names them; they go in first, so the loop below brings what they ask for too. They are the files the builds pinned (the step above).
+          foreach ($dll in 'libsmackerenc.dll', 'libsmackerdec.dll') {
+            if (-not $avpxBin.ContainsKey($dll)) { throw "AvPx's package has no $dll" }
+            Copy-Item -LiteralPath $avpxBin[$dll] -Destination (Join-Path $package $dll)
+          }
           do {
             $copied = 0
             foreach ($binary in @(Get-ChildItem -LiteralPath $package -File | Where-Object { $_.Extension -in '.exe', '.dll' })) {
@@ -184,9 +207,12 @@ jobs:
               Copy-Item -LiteralPath "$from\licences\$named" -Destination $licenceFolder -Force
             }
           }
-          # OpenAL Soft's source goes with it, as in AvPx's package
-          if (Test-Path -LiteralPath (Join-Path $package 'openal32.dll')) {
+          # OpenAL Soft's source and libsmackerenc's go with them, as in AvPx's package (libsmackerdec's line links to its source)
+          if ((Test-Path -LiteralPath (Join-Path $package 'openal32.dll')) -or (Test-Path -LiteralPath (Join-Path $package 'libsmackerenc.dll'))) {
             Copy-Item -Recurse -LiteralPath "$from\licences\sources" -Destination (Join-Path $licenceFolder 'sources')
+          }
+          if ((Test-Path -LiteralPath (Join-Path $package 'libsmackerenc.dll')) -and -not (Test-Path -LiteralPath (Join-Path $licenceFolder 'sources\libsmackerenc\COPYING'))) {
+            throw "libsmackerenc.dll ships without its source (AvPx's licences/sources/libsmackerenc)"
           }
           $readme = @(
             "The runtime files the editor needs beside it, and each one's licence, as AvPx's own package gives them. Each line names a file,"
@@ -207,9 +233,13 @@ jobs:
           $hashes = Get-ChildItem -Recurse -File | Resolve-Path -Relative | ForEach-Object {
             '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_).Hash.ToLower(), ($_ -replace '^\.\\', '' -replace '\\', '/')
           }
-          $hashes | Out-File -Encoding ascii SHA256SUMS.txt
           Pop-Location
-          Get-Content (Join-Path $package 'SHA256SUMS.txt')
+          # LF line ends and no byte-order mark, so sha256sum -c reads it on Linux and WSL too (Out-File wrote CRLF: the CR stuck to every name)
+          $sumsFile = Join-Path $package 'SHA256SUMS.txt'
+          [System.IO.File]::WriteAllText($sumsFile, (($hashes -join "`n") + "`n"), [System.Text.UTF8Encoding]::new($false))
+          $bytes = [System.IO.File]::ReadAllBytes($sumsFile)
+          if ($bytes -contains 13 -or ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)) { throw 'SHA256SUMS.txt must be LF with no byte-order mark' }
+          Get-Content $sumsFile
 
       - name: Zip the package, and work out its hash
         shell: pwsh
@@ -221,8 +251,12 @@ jobs:
           $name = "AVP_OpenInteng-$env:VERSION-windows-x86.zip"
           Compress-Archive -Path "$env:RUNNER_TEMP\package\*" -DestinationPath (Join-Path $folder $name)
           $hash = (Get-FileHash -Algorithm SHA256 (Join-Path $folder $name)).Hash.ToLower()
-          "$hash  $name" | Out-File -Encoding ascii (Join-Path $folder 'SHA256SUMS')
-          Get-Content (Join-Path $folder 'SHA256SUMS')
+          # LF and no byte-order mark (as SHA256SUMS.txt above): sha256sum -c on Linux and WSL reads it; the jobs below read it with Get-Content, which takes LF too
+          $sumsFile = Join-Path $folder 'SHA256SUMS'
+          [System.IO.File]::WriteAllText($sumsFile, "$hash  $name`n", [System.Text.UTF8Encoding]::new($false))
+          $bytes = [System.IO.File]::ReadAllBytes($sumsFile)
+          if ($bytes -contains 13 -or $bytes[0] -eq 0xEF) { throw 'SHA256SUMS must be LF with no byte-order mark' }
+          Get-Content $sumsFile
 
       - name: Keep the package for the next jobs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

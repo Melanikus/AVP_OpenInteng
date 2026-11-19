@@ -733,7 +733,7 @@ static void ParticleWindowShow()
 			host::SoundEditRecord const record = host::SoundEdit_IndexedRecord(draft.particleSoundWav, memInner, memOuter, draft.particleSoundPitch, draft.particleSoundVolume, draft.particleSoundFlags, true);
 			OpenLevelFile *const open = LevelObjects_OpenForEdit();
 			std::string const soundDirectory = host::TrackLevelSoundDirectory(open);
-			std::string const folder = std::string(theGameFolder) + "\\sound\\" + soundDirectory + "\\";
+			std::string const folder = std::string(theGameFolder) + "\\Sound\\" + soundDirectory + "\\";
 
 			SoundEditWindowOpen(record, folder, soundDirectory, [unit, ftol, made](host::SoundEditRecord const &back, bool ok)
 			{
@@ -1713,7 +1713,7 @@ void PlacedSoundEdit()
 	uint32_t const outer = (uint32_t)ftol((double)(uint32_t)sound->outer * unit);
 	host::SoundEditRecord const record = host::SoundEdit_Record(sound->wav, inner, outer, sound->pitch, sound->volume, (uint32_t)sound->soundFlags, sound->probability);
 	std::string const soundDirectory = host::TrackLevelSoundDirectory(open);
-	std::string const folder = std::string(theGameFolder) + "\\sound\\" + soundDirectory + "\\";
+	std::string const folder = std::string(theGameFolder) + "\\Sound\\" + soundDirectory + "\\";
 	size_t const number = sound->number;
 
 	// 0x4ed13e-0x4ed1ac: the sound stops and its wav is let go before the window (placed_sounds_game.h)

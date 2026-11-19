@@ -79,6 +79,14 @@ namespace host
 	// L (fly light): the light is put at the place given (the camera's), the changed flag put in; refused past 2^24 from the middle
 	LightEditResult LightPlace_Set(OpenLevelFile *file, size_t light, int32_t const place[3]);
 
+	// THE MOUSE GIZMO's move and turn of a light (movable.h, movable_light.cpp; the owner's addition, 11-18): the place and the orientation (orientation9: nine numbers,
+	// 16.16, row by row, its third row the light's direction, as LightDefaultDrop takes the camera's) put in ONE write, with the changed flag, as L puts the place; the
+	// rest of the light as it was. Refused past 2^24 from the middle (PlaceOutOfRange), and nothing is changed when the game's loader refuses the level.
+	LightEditResult LightPose_Set(OpenLevelFile *file, size_t light, int32_t const place[3], int32_t const orientation9[9]);
+
+	// A light's place and orientation as its STDLIGHT holds them (the payload's +4 and +16)
+	LightEditResult LightPose_Get(OpenLevelFile *file, size_t light, int32_t place[3], int32_t orientation9[9]);
+
 	// Shift + and Shift -: the ambience changed by `steps` hundredths; *percent is what it is then
 	LightEditResult Ambience_Change(OpenLevelFile *file, int steps, int *percent);
 

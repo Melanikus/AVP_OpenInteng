@@ -857,7 +857,7 @@ static void PlacedHierarchySoundWindow(host::PlacedHierarchySound sound, bool is
 	uint32_t const memOuter = isNew ? 4000000u : (uint32_t)ftol((double)sound.outer * unit);
 	host::SoundEditRecord const record = host::SoundEdit_IndexedRecord(sound.wav, memInner, memOuter, sound.pitch, sound.volume, sound.flags, true);
 	std::string const soundDirectory = host::TrackLevelSoundDirectory(open);
-	std::string const folder = std::string(theGameFolder) + "\\sound\\" + soundDirectory + "\\";
+	std::string const folder = std::string(theGameFolder) + "\\Sound\\" + soundDirectory + "\\";
 
 	SoundEditWindowOpen(record, folder, soundDirectory, [sound, isNew, unit, ftol](host::SoundEditRecord const &back, bool ok)
 	{

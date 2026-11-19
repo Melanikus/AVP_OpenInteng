@@ -600,6 +600,17 @@ namespace host
 		return over;
 	}
 
+	bool Dialogs_FormWidgetBox(size_t index, DialogRect *out)
+	{
+		if (!out || !box.IsOpen() || box.Kind() != DialogKind::Form || index >= box.Widgets().size())
+		{
+			return false;
+		}
+
+		*out = box.Widgets()[index].box;
+		return true;
+	}
+
 	DialogsState Dialogs_State()
 	{
 		DialogsState s;

@@ -297,8 +297,17 @@ void LevelView_DrawObjectsOutsideModules(bool on);
 bool LevelView_FlyBegin(const uint8_t *id);
 void LevelView_FlyPut(const int32_t world[3], const float quat[4]);
 void LevelView_FlyEnd();
+// THE REAL OBJECT AT A NEW POSE: its display block's place (the game's units) and turn (the file's, x y z w) set as the copy's are (PutCopyAt), for after the level was written
+// with that pose: the level's bytes alone never move a block already made (Vasquez 11-18: FlyEnd shows the real one where the level was loaded). inteng moves the object itself
+// (FUN_004dd280 / the frame code 0x4dc9a6). False when it has no plain block (a hierarchy, or none in play). Drake 2026-11-18 (the mouse gizmo's release).
+bool LevelView_PutObjectAt(const uint8_t *id, const int32_t world[3], const float quat[4]);
+// Where the object's real display block is now (the game's units); false when it has none (for the harness's state line)
+bool LevelView_ObjectBlockAt(const uint8_t *id, int32_t world[3]);
 // The flying copy's display block, for a pick that leaves it out (PickGame_AtClickLeavingOut); null when nothing flies
 void const *LevelView_FlyCopyBlock();
+// The REAL display block of the object whose copy flies (not drawn while it flies, but still on the frame's on-screen list), for a pick that leaves both out; null when nothing
+// flies. (Added 2026-11-18 by Vasquez, P3 placement mode.)
+void const *LevelView_FlyOriginalBlock();
 bool LevelView_FlyActive();
 
 // A SECOND LIVE COPY of an object, drawn where it is put while the object itself stays drawn (or flies as the copy above): Track Editing's start marker, inteng's copy of the object at the

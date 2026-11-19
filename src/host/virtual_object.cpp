@@ -302,6 +302,60 @@ namespace host
 		return result == LevelOpenResult::CantRead ? VirtualObjectResult::CantBuild : VirtualObjectResult::LoaderRefused;
 	}
 
+	VirtualObjectResult VirtualObject_SetPlace(OpenLevelFile *file, uint8_t const *id, int32_t const place[3])
+	{
+		if (!file || !file->Level() || !id || !place)
+		{
+			return VirtualObjectResult::BadCall;
+		}
+
+		Bytes image;
+		std::vector<Span> top, inside, special;
+		size_t envAt = 0, specAt = 0;
+
+		if (!Walk(file, &image, &top) || !SpecialOf(image, top, &envAt, &inside, &specAt, &special))
+		{
+			return VirtualObjectResult::CantBuild;
+		}
+
+		for (Span const &one : special)
+		{
+			std::vector<Span> parts;
+
+			if (!NameIs(image, one.at, "VIOBJECT") || !Children(image, one.at + kHeadingBytes, one.at + one.size, &parts))
+			{
+				continue;
+			}
+
+			size_t const propAt = FirstNamed(image, parts, "VOBJPROP");
+			uint8_t held[8];
+
+			if (propAt == parts.size() || !IdOfProp(image, parts[propAt], held) || memcmp(held, id, 8) != 0)
+			{
+				continue;
+			}
+
+			// IdOfProp found the ID past the place, so the chunk holds the three numbers whole; the image keeps every size, as only they change
+			size_t const payload = parts[propAt].at + kHeadingBytes;
+			Bytes out = image;
+
+			PutIntAt(&out, payload, place[0]);
+			PutIntAt(&out, payload + 4, place[1]);
+			PutIntAt(&out, payload + 8, place[2]);
+
+			LevelOpenResult const result = file->ReplaceLevel(out);
+
+			if (result == LevelOpenResult::Opened)
+			{
+				return VirtualObjectResult::Done;
+			}
+
+			return result == LevelOpenResult::CantRead ? VirtualObjectResult::CantBuild : VirtualObjectResult::LoaderRefused;
+		}
+
+		return VirtualObjectResult::NotFound;
+	}
+
 	// The VIOBJECT with that ID made again with these strategy bytes in place of its AVPSTRAT (if any), last after its VOBJPROP; the level replaced through the game's loader. With no payload (Delete
 	// Strategy) only its FIRST AVPSTRAT goes and every other child stays where it is (NoStrategy when it has none)
 	static VirtualObjectResult PutStrategyBytes(OpenLevelFile *file, uint8_t const *id, uint8_t const *payload, size_t length)

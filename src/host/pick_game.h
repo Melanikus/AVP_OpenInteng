@@ -32,3 +32,7 @@ host::PickReport PickGame_AtClick(int32_t clickX, int32_t clickY, int32_t viewWi
 // The same, the display block leaveOut (one LevelView gave: LevelView_FlyCopyBlock) left out of the line of sight (taken out of the frame's on-screen list for that one search): what
 // lies behind it is hit instead. inteng's Snap To Vertex leaves the moving block out of its pick the same way (FUN_004f7000 0x4f7020: block +0x64 bit 0x10000000). Null: the same as PickGame_AtClick.
 host::PickReport PickGame_AtClickLeavingOut(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight, void const *leaveOut);
+
+// The same with a second block left out too (placement mode, P3: the flying copy AND the real block, which is not drawn while its copy flies but is still on the frame's list:
+// LevelView_FlyOriginalBlock). Either may be null. (Added 2026-11-18 by Vasquez.)
+host::PickReport PickGame_AtClickLeavingOutTwo(int32_t clickX, int32_t clickY, int32_t viewWidth, int32_t viewHeight, void const *leaveOut, void const *leaveOutToo);

@@ -48,6 +48,7 @@ namespace host
 			{ "", "Waypoint", 1, 'L', true, 0xa, "Add alien link" },
 			{ "", "Waypoint", 1, 'V', false, 0xc, "Add deviation allowed link" },
 			{ "", "Waypoint", 1, 'W', false, 0x27, "Toggle can crawl flag" },
+			{ "", "Waypoint", 1, 0x2e, false, kScreenKeyWaypointDelete, "Delete the selected link or waypoint (ours: Waypoint by mouse)" },
 			{ "", "Waypoint", 1, 'Y', false, 0x28, "Cycle the link flag highlight (yellow links)" },
 			{ "", "Waypoint", 2, 'C', false, 0x5, "Create waypoint" },
 			{ "", "Waypoint", 2, 'R', false, 0x1f, "Toggle edit waypoint centre" },

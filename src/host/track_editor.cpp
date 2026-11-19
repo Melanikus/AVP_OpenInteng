@@ -325,6 +325,69 @@ namespace host
 		return true;
 	}
 
+	bool TrackEdit_SectionEnd(TrackEditor const &ed, size_t section, int32_t place[3], float quat[4])
+	{
+		if (!ed.working || section >= ed.working->track.sections.size())
+		{
+			return false;
+		}
+
+		TrackData_MarkerAt(ed.working->track, section, true, placeFn, place);
+
+		for (int i = 0; i < 4; i++)
+		{
+			quat[i] = ed.working->track.sections[section].quatEnd[i];
+		}
+
+		return true;
+	}
+
+	bool TrackEdit_SetSectionEnd(TrackEditor *ed, size_t section, int32_t const place[3], float const quat[4])
+	{
+		if (!ed || !ed->working || section >= ed->working->track.sections.size())
+		{
+			return false;
+		}
+
+		// worked on a copy, so a refusal changes nothing
+		TrackData track = ed->working->track;
+		float const *const had = track.sections[section].quatEnd;
+
+		// a turn and its negative are the same turn; the gizmo gives one made 1 long, so the file's own may be a hair apart from it
+		double same = 0.0, opposite = 0.0;
+
+		for (int i = 0; i < 4; i++)
+		{
+			same += fabs((double)had[i] - (double)quat[i]);
+			opposite += fabs((double)had[i] + (double)quat[i]);
+		}
+
+		bool const turned = same > 1e-5 && opposite > 1e-5;
+
+		if (turned && !TrackData_SetEndTurn(&track, section, quat, placeFn, true))
+		{
+			return false;
+		}
+
+		int32_t now[3];
+
+		TrackData_MarkerAt(track, section, true, placeFn, now);
+
+		if ((now[0] != place[0] || now[1] != place[1] || now[2] != place[2]) && !TrackData_FinishEnd(&track, section, place, placeFn))
+		{
+			return false;
+		}
+
+		ed->working->track = track;
+
+		if (turned && ed->markerBaseSet && ed->markerBaseSection == section)
+		{
+			ed->markerBaseSet = false;
+		}
+
+		return true;
+	}
+
 	// The track in memory LET GO, as inteng's FUN_004eff90 lets a track go (Stop Track Edit, and each track of Shift+T): FUN_004f1300 writes it, FUN_004f0870 gives the object the track's pose at its
 	// timer start, the editing is over. False (the editing goes on, the track in memory kept) when the game's loader refuses either write.
 	static bool LetTheTrackGo(OpenLevelFile *file, TrackEditor *ed, TrackLoaded const &loaded, TrackAction *action)

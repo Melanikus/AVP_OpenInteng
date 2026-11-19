@@ -1,0 +1,39 @@
+# ACCEPTANCE: the Hierarchy mode's Sound Edit window LISTS the sound folder's wavs, and a row picked from the list is what OK writes (Dietrich 2026-11-18, row C-4e of
+# reassess/hierarchy-view-sound-dietrich.md; acceptance-hierarchy-menu-walk reads MarHUD's list, whose SOUNDDIR "Hud" has its wavs one folder down). His ShotgunBot's SOUNDDIR is "npc\Marine":
+# no raw folder in this run's game folder, so the list is the fastfiles' wavs under sound\npc\Marine\ (27 of them), lowercase as the game's loader holds them (special_windows.cpp
+# SoundEditWindowOpen, Bishop's ruling 11-16). His path: his file opened by start-args (the double click), the bar, the window's own combo and buttons. The file is a read-only copy (hostile
+# input, as every rif).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/ShotgunBot.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-bar Sound > New sound
+expect-dialog-kind text
+expect-dialog Select sound index
+click-button Ok
+# the new sound's window (FUN_004ebc80 then FUN_004ebd60): "Not Set" begins no row, so the combo keeps the name as typed (CB_SELECTSTRING 0x10006ae8 finds nothing)
+expect-dialog-kind form
+expect-dialog Sound Edit
+expect-dialog \Sound\npc\Marine\
+expect-dialog-text Not Set|5|40|0|100
+expect-field-empty dialogcomborows
+# the combo opened: the folder's wavs, one row each
+click-combo 1
+expect-field-has dialogcomborows bodyfall02.wav
+expect-field-has dialogcomborows ed_largeweapondrop.wav
+picture 1
+# a row picked: it becomes the name, and OK writes it into the sound
+click-combo-row bodyfall02.wav
+expect-field-empty dialogcomborows
+expect-dialog-text bodyfall02.wav|5|40|0|100
+click-button OK
+expect-no-dialog
+click-bar Sound > Edit sound
+expect-dialog-kind list
+expect-dialog Select sound to edit
+expect-field-has dialogrows bodyfall02.wav
+picture 2
+key Esc
+expect-no-dialog

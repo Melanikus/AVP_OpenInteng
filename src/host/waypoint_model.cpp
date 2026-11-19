@@ -319,6 +319,39 @@ namespace host
 		return true;
 	}
 
+	bool Waypoints_SetLinkFlags(std::vector<WaypointRec> *list, int32_t a, int32_t b, int32_t flags)
+	{
+		if (!list || a < 0 || b < 0 || a == b || (size_t)a >= list->size() || (size_t)b >= list->size())
+		{
+			return false;
+		}
+
+		int32_t const mine = (flags & 1) && (flags & 2) ? flags & ~3 : flags;
+		int32_t const back = (mine & ~3) | ((mine & 1) ? 2 : 0) | ((mine & 2) ? 1 : 0);
+		int32_t const ends[2][3] = { { a, b, mine }, { b, a, back } };
+
+		for (auto const &end : ends)
+		{
+			WaypointRec &wp = (*list)[(size_t)end[0]];
+			int const at = FindLink(wp.links, end[1]);
+
+			if (at >= 0)
+			{
+				wp.links[(size_t)at].flags = end[2];
+			}
+			else
+			{
+				WaypointLinkRec link;
+
+				link.index = end[1];
+				link.flags = end[2];
+				wp.links.push_back(link);
+			}
+		}
+
+		return true;
+	}
+
 	bool Waypoints_DeleteLink(std::vector<WaypointRec> *list, int32_t a, int32_t b)
 	{
 		if (!list || a < 0 || b < 0 || (size_t)a >= list->size() || (size_t)b >= list->size())

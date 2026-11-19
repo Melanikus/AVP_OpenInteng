@@ -1,0 +1,44 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-18, P4 item 1: Waypoint mode BY MOUSE, the owner's addition, Hicks's plan section 6, alien list only): in mode 1 a click on a FLOOR (a face within
+# 45 degrees of up) of the AI module that meets no box makes a new waypoint there: a box 2 m across each way and 2 m up from the floor, its aim point in its middle, the current one, WRITTEN at
+# once through WaypointMode::Write (the game's loader checks it; refused, the lists go back). A floor of another AI module is refused, with why. Read back from a saved copy through the game's
+# loader (verify_waypoint mouse: exactly that module's WAYPOINT chunk, its alien list 0 -> 2, each a 2000 x 2000 x 2000 box).
+# HIS PATH: his own Genshd1 (his game folder's copy of 11-18, SHA256SUMS beside it), opened as a double click; the start camera stands in genent01's room (AI module 232, no alien waypoint),
+# whose floor is under the view's bottom; the floor further off (the view's 0.5 0.8) is another AI module's.
+# RED on the build before it (61eb4384): a floor click lets the current one go and makes nothing.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+wait 600
+# the room underfoot's AI module, its alien list (empty)
+click-view 0.5 0.95
+wait 400
+item 3
+wait 600
+expect-status Waypoints of AI module 232: alien list of 0
+picture 1
+
+# ---- a floor of ANOTHER AI module: refused, nothing made
+click-view 0.5 0.8
+wait 300
+expect-status That floor is not in AI module 232
+expect-status no waypoint made
+expect-hierarchy-count 0 Waypoint :
+
+# ---- the room's floor: waypoint 0, then a second one further left: waypoint 1, each the current one at once
+click-view 0.5 0.95
+wait 400
+expect-status Waypoint 0 made on the floor: 2 x 2 x 2 m, the current one
+expect-hierarchy-text Waypoint :0
+picture 2
+click-view 0.2 0.9
+wait 400
+expect-status Waypoint 1 made on the floor
+expect-hierarchy-text Waypoint :1
+picture 3
+
+# ---- written: a saved copy read back through the game's loader
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify-wp/verify_waypoint.exe {orig} {copy} mouse 2

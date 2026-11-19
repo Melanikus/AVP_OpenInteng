@@ -1296,9 +1296,72 @@ void LevelView_FlyPut(const int32_t world[3], const float quat[4])
 	PutCopyAt(flyCopy, world, quat);
 }
 
+bool LevelView_PutObjectAt(const uint8_t *id, const int32_t world[3], const float quat[4])
+{
+	if (!id || !world || !quat)
+	{
+		return false;
+	}
+
+	LevelViewShapeOf shape = {};
+
+	shape.isModule = false;
+	memcpy(shape.objectId, id, 8);
+
+	// the block is the game's own (BlockOfShape gives it read-only for the picks): its place and turn are set here only, as the game's own mover sets them
+	DISPLAYBLOCK *const block = const_cast<DISPLAYBLOCK *>(BlockOfShape(shape));
+
+	if (!block || block->HModelControlBlock || block->ObShape < 0)
+	{
+		return false;
+	}
+
+	PutCopyAt(block, world, quat);
+	return true;
+}
+
+bool LevelView_ObjectBlockAt(const uint8_t *id, int32_t world[3])
+{
+	if (!id || !world)
+	{
+		return false;
+	}
+
+	LevelViewShapeOf shape = {};
+
+	shape.isModule = false;
+	memcpy(shape.objectId, id, 8);
+
+	DISPLAYBLOCK const *const block = BlockOfShape(shape);
+
+	if (!block)
+	{
+		return false;
+	}
+
+	world[0] = block->ObWorld.vx;
+	world[1] = block->ObWorld.vy;
+	world[2] = block->ObWorld.vz;
+	return true;
+}
+
 void const *LevelView_FlyCopyBlock()
 {
 	return flyOn ? flyCopy : nullptr;
+}
+
+void const *LevelView_FlyOriginalBlock()
+{
+	if (!flyOn || !flyCopy)
+	{
+		return nullptr;
+	}
+
+	LevelViewShapeOf flying = {};
+
+	flying.isModule = false;
+	memcpy(flying.objectId, flyObjectId, 8);
+	return BlockOfShape(flying);
 }
 
 bool LevelView_FlyMatrix(int32_t matrix[9])
