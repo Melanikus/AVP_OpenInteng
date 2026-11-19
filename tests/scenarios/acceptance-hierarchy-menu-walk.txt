@@ -54,7 +54,9 @@ expect-dialog-text Not Set|5|40|0|100
 # edobtype's own Sound Edit window, the one the placed sounds, the tracks and the placed hierarchies open (Dietrich 2026-11-18, row C-4e): the wav name an editable combo of the sound
 # folder's wavs, the Play button (1065), the caption "Sound Edit - %s" with DAT_008f4dac: the game's folder, "Sound\", the level's SOUNDDIR and "\" (FUN_004f68b0; the base 0x57a909)
 expect-field-has dialogbuttons Play
-expect-dialog \Sound\Hud\
+# the title names the folder, not its path: inteng's caption is "Sound Edit - %s" with the full folder (the game's folder, "Sound\", SOUNDDIR, "\"), but the editor
+# never DRAWS a full path (screen_names.h, the privacy item: it put the user's name in every picture), so the title is cut to the folder's last part; the rows below say which
+expect-dialog Sound Edit - Hud
 # the list shows only while it is open (the state line's dialogcomborows): opened, this file's SOUNDDIR "Hud" lists the fastfiles' wavs one folder down, as the loader holds them
 # (lowercase; no raw folder in this run's game folder: sound_edit.h SoundEdit_WavNamesFromFiles, Bishop's ruling 11-16), its own sounds' marine\ among them; a second press closes it
 click-combo 1

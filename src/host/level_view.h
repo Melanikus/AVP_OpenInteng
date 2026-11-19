@@ -295,6 +295,7 @@ void LevelView_DrawObjectsOutsideModules(bool on);
 // R_SetEditorDrawObjectsOutsideModules, so it shows wherever it is); Put moves the copy (the place in the game's units, the turn as the file has it, x y z w); End takes the copy away and shows the real one
 // again, which the level's own bytes decide (the caller writes the place and turn into the level, then End). False from Begin when the object is not in play or is a hierarchy.
 bool LevelView_FlyBegin(const uint8_t *id);
+char const *LevelView_FlyRefused();   // why the last LevelView_FlyBegin gave false, in words ("" after one that gave true): the state line says it while the object can't be drawn moving
 void LevelView_FlyPut(const int32_t world[3], const float quat[4]);
 void LevelView_FlyEnd();
 // THE REAL OBJECT AT A NEW POSE: its display block's place (the game's units) and turn (the file's, x y z w) set as the copy's are (PutCopyAt), for after the level was written

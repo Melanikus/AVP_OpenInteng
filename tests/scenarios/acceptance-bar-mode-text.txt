@@ -1,0 +1,99 @@
+# ACCEPTANCE (red first): BAR-8 FOR PATH AND ADJACENT MODULES (reassess/dialog-look-drake.md BAR-8). While inteng's menu loop is up (the bar shown, or a menu or the pop-up
+# open: FUN_004b7c50 runs it modally from the mode's command step), what the mode draws AFTER that step is not on the screen. Path (FUN_004f9d10) calls its command at 0x4f9d38
+# and draws its rows from 0x4f9f80; Adjacent Modules (FUN_00404a20) calls its command at 0x404ae2, then draws its picked module's name and "View Distance :%d". So with the
+# bar up (the pointer at the top edge, BAR-1) neither has any text; with it gone the text is back. (Module Linking draws its rows BEFORE its command: they stay, not here.)
+# Invasion, as acceptance-path and acceptance-adjacent-text reach them. STRATEGY DATA (FUN_00522980): "View Distance" is drawn at 0x5229e0, BEFORE FUN_00524e90 calls the command (0x524eab),
+# so it stays; the current object's name and "ID - 0x%x %x" are drawn after it (0x52525a-0x5252bf), so they go. THE SHAPE CHOOSER (FUN_004ddb60, command 0x4ddb69, its lines from 0x4ddedd):
+# its lines go. TRACK EDITING is Object Placement's frame too (FUN_004d9af0): a track's states 2-4 reach its command step 0x4d9d1b before their text (0x4dc742-0x4dc79f), so it
+# goes (Pivot Edit, state 5, returns before the step at 0x4d9b51 and draws no text). Red on bishop-int's exe (each kept its text under the bar), green with it.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0xce
+expect-screen Path
+move-win 500 300
+expect-bar-hidden
+expect-field-has pathlines View Distance
+move-win 400 1
+expect-bar-shown
+expect-field-empty pathlines
+picture 1
+move-win 500 300
+expect-bar-hidden
+expect-field-has pathlines View Distance
+click-bar Mode > Exit
+expect-screen Construction
+click-bar Mode > Adjacent Modules
+expect-screen Adjacent Modules
+wait 400
+click-view 0.5 0.5
+wait 400
+move-win 500 300
+expect-bar-hidden
+expect-screen-text gARAGDOR
+move-win 400 1
+expect-bar-shown
+expect-screen-text-not gARAGDOR
+picture 2
+move-win 500 300
+expect-bar-hidden
+expect-screen-text gARAGDOR
+# ---- STRATEGY DATA: the current object's two lines go under the bar, View Distance stays
+click-bar Mode > Exit
+expect-screen Construction
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is dropswitch
+expect-no-dialog
+wait 400
+move-win 500 300
+expect-bar-hidden
+expect-screen-text ID - 0x
+expect-screen-text View Distance :
+move-win 400 1
+expect-bar-shown
+expect-screen-text-not ID - 0x
+expect-screen-text View Distance :
+picture 3
+move-win 500 300
+expect-bar-hidden
+expect-screen-text ID - 0x
+# ---- THE SHAPE CHOOSER (Object Placement, item 0x32): its lines go under the bar
+click-bar Mode > Exit
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+item 0x32
+expect-screen Shape Chooser
+wait 400
+move-win 500 300
+expect-bar-hidden
+expect-screen-text S : Select shape from list
+move-win 400 1
+expect-bar-shown
+expect-screen-text-not S : Select shape from list
+picture 4
+move-win 500 300
+expect-bar-hidden
+expect-screen-text S : Select shape from list
+key Esc
+expect-screen Object Placement
+# ---- TRACK EDITING (smrtam010's track, state 2): its text goes under the bar
+select-row 5
+wait 300
+item 0x36
+expect-screen Track Editing
+wait 300
+move-win 500 300
+expect-bar-hidden
+expect-field-has hierarchylines Track Edit
+move-win 400 1
+expect-bar-shown
+expect-field-not-has hierarchylines Track Edit
+picture 5
+move-win 500 300
+expect-bar-hidden
+expect-field-has hierarchylines Track Edit

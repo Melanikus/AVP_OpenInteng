@@ -1,0 +1,49 @@
+# ACCEPTANCE (Drake 2026-11-19, THE OWNER'S through Bishop: "Get them to finish this drag and place for object mode", item 3, PLACE; Vasquez's P3, acceptance-gizmo-surface-place,
+# taken over while his window is closed). HIS PATH: his Genshd1 copy opened as a double click, Object Placement, asasas picked from the 45-degree corner. The gizmo's centre ball,
+# HELD (drag-gizmo ... hold): the object follows the floor or wall under the pointer and is DRAWN there as it goes (surfacelive: its live copy, "drawn 1", away from where it was);
+# let go, it is kept there and the real object drawn there (gizmodrawn), with no save and no mode change; Esc while held puts it back where it was.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera-corner asasas
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text asasas
+wait 300
+state
+expect-field-empty surfacelive
+remember-field gizmodrawn
+picture 1
+
+# ---- the ball held over the floor in front of it: the object follows, drawn on the floor under the pointer
+drag-gizmo centre ball 0 120 hold
+expect-status Placement: the object follows the wall or floor under the pointer
+expect-field-has surfacelive drawn 1
+expect-field-has surfacelast module, normal 0 -65535
+expect-away surfacelive gizmodrawn 100 100000
+picture 2
+# ---- let go: kept there, the real object drawn there
+release-gizmo
+expect-status Placement: the object stands on the surface
+expect-screen Object Placement
+expect-field-empty surfacelive
+expect-near gizmodrawn -37709 1797 79316 5
+picture 3
+
+# ---- held over the rock wall behind it: drawn standing out of the wall, as it goes
+remember-field gizmodrawn
+drag-gizmo centre ball 300 -320 hold
+expect-field-has surfacelive drawn 1
+expect-field-has surfacelast module, normal 0 0 -65536
+expect-away surfacelive gizmodrawn 100 100000
+picture 4
+# ---- Esc while held: given up, drawn where it was (on the floor)
+esc-gizmo
+expect-status Placement: given up, the object is where it was
+expect-field-empty surfacelive
+expect-field-same gizmodrawn
+picture 5

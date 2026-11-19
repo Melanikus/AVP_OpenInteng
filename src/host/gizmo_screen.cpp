@@ -17,6 +17,7 @@
 #include "level_view.h"
 #include "menu_bar.h"
 #include "movable.h"
+#include "movable_live.h"   // Frost's P2 kinds drawn where the drag has them (agreed with Drake 11-19)
 #include "pick_game.h"
 #include "selection.h"
 #include "state_line.h"
@@ -102,6 +103,7 @@ namespace
 	// the drag
 	bool dragging = false;
 	bool flying = false;          // the live copy shows the object as it is dragged (LevelView_FlyBegin)
+	int32_t viewX = 0, viewY = 0;   // the 3D view's top left in the editor's own pixels: 0 0, or the split screen's bottom right quarter (GizmoScreen_ViewAt)
 	host::GizmoHandle handle = host::GizmoHandle::None;
 	host::PickCamera dragCamera = {};
 	host::GizmoFrame dragFrame;
@@ -194,13 +196,16 @@ namespace
 
 		flying = false;
 		dragging = false;
+		host::MovableLive_Clear();   // Frost's P2 kinds: drawn as the level holds them again (movable_live.h)
 	}
 
-	// Whether the gizmo may show at all on this frame
+	// Whether the gizmo may show at all on this frame. Not while a pick waits for its press (Scroll Lock's centre, Move relative's, Strategy's collectors: "Select targets for switch",
+	// Copy Strategy's objects, a lift's positions, a mission's objectives): inteng has no gizmo, so that press is the pick's, never a drag's or the centre ball's (acceptance-op-chain-door:
+	// the switch's target click landed on the gizmo, a placement started and the door was never picked)
 	bool Usable(char const *screen)
 	{
 		return GizmoScreen(screen) && !PlacementFlyHoldsTheCopy() && !ThreeViewsOn() && !ADialogIsOpen() && promptFor == kPromptNone &&
-			!AMenuIsOpen() && !popupBar.IsOpen() && zoomStage == 0 && !rotationPickWaiting && !moveRelWaiting;
+			!AMenuIsOpen() && !popupBar.IsOpen() && zoomStage == 0 && !rotationPickWaiting && !moveRelWaiting && !copyCollecting;
 	}
 
 	// The window's pixel (for the harness) of a world place, the editor's own pixel scaled as the window has it (text_scale.h); false when it is not ahead of the camera
@@ -219,8 +224,8 @@ namespace
 			return false;
 		}
 
-		*x = host::TextScale_ToWindow((int32_t)floor(px));
-		*y = host::TextScale_ToWindow((int32_t)floor(py));
+		*x = host::TextScale_ToWindow((int32_t)floor(px) + viewX);
+		*y = host::TextScale_ToWindow((int32_t)floor(py) + viewY);
 		return true;
 	}
 
@@ -408,9 +413,20 @@ void GizmoScreen_Frame(int32_t viewWidth, int32_t viewHeight, char const *screen
 	host::WorldOverlay_Extra(lines);
 }
 
+bool GizmoScreen_HoldsTheCopy()
+{
+	return dragging && flying;
+}
+
+void GizmoScreen_ViewAt(int32_t x, int32_t y)
+{
+	viewX = x;
+	viewY = y;
+}
+
 bool GizmoScreen_CentreAt(int32_t x, int32_t y)
 {
-	return shown && !dragging && host::Gizmo_Hit(camera, frame, canRotate, x, y) == host::GizmoHandle::Centre;
+	return shown && !dragging && host::Gizmo_Hit(camera, frame, canRotate, x - viewX, y - viewY) == host::GizmoHandle::Centre;
 }
 
 bool GizmoScreen_Press(int32_t x, int32_t y)
@@ -419,6 +435,9 @@ bool GizmoScreen_Press(int32_t x, int32_t y)
 	{
 		return false;
 	}
+
+	x -= viewX;   // from the 3D view's top left (the split screen's bottom right quarter), as the frame's camera counts its pixels
+	y -= viewY;
 
 	host::GizmoHandle const hit = host::Gizmo_Hit(camera, frame, canRotate, x, y);
 	int const axis = host::Gizmo_AxisOf(hit);
@@ -453,6 +472,8 @@ bool GizmoScreen_Press(int32_t x, int32_t y)
 
 bool GizmoScreen_Pointer(int32_t x, int32_t y, bool shift)
 {
+	x -= viewX;   // as Press
+	y -= viewY;
 	pointerX = x;
 	pointerY = y;
 
@@ -504,6 +525,10 @@ bool GizmoScreen_Pointer(int32_t x, int32_t y, bool shift)
 	if (flying)
 	{
 		LevelView_FlyPut(nowWorld, now.turn);
+	}
+	else
+	{
+		host::MovableLive_Show(dragRef, now);   // Frost's P2 kinds: their icon (or a placed hierarchy's model) drawn where the drag has it (movable_live.h)
 	}
 
 	Say(std::string("Gizmo: the ") + host::Movable_KindName(dragRef.kind) + " " + Amount() + (snapped ? " (15-degree steps)" : "") + " (let go to keep it, Esc puts it back)");
@@ -582,6 +607,18 @@ bool GizmoScreen_Key(unsigned key, bool shift, bool ctrl)
 	return false;
 }
 
+char const *GizmoScreen_LiveCopyWords()
+{
+	static std::string words;
+	int32_t live[3] = { 0, 0, 0 };
+	int32_t radius = 0;
+	bool drawn = false;
+
+	words = LevelView_FlyCopyState(live, &radius, &drawn) ? std::to_string(live[0]) + " " + std::to_string(live[1]) + " " + std::to_string(live[2]) + " drawn " + (drawn ? "1" : "0") :
+		std::string();
+	return words.c_str();
+}
+
 void GizmoScreen_StateLine()
 {
 	StateLine_Add("gizmo", !shown ? "off" : (dragging ? std::string("dragging ") + host::Gizmo_HandleName(handle) : std::string(host::Gizmo_HandleName(hover))));
@@ -604,6 +641,10 @@ void GizmoScreen_StateLine()
 
 	StateLine_Add("gizmodrawn", shown && ref.kind == host::MovableKind::PlacedObject && LevelView_ObjectBlockAt(ref.id, drawn) ? std::to_string(drawn[0]) + " " +
 		std::to_string(drawn[1]) + " " + std::to_string(drawn[2]) : std::string());
+
+	// DURING a drag (the owner 11-19: "the object doesn't move with it"): where the live copy that stands for the object is, and whether the game draws it; empty when no drag is
+	// going; "none: <why>" when the object got no live copy (LevelView_FlyRefused), so the state line says why it is not drawn moving
+	StateLine_Add("gizmolive", !dragging ? std::string() : (flying ? std::string(GizmoScreen_LiveCopyWords()) : std::string("none: ") + LevelView_FlyRefused()));
 
 	std::string points;
 

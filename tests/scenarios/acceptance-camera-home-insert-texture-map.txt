@@ -1,0 +1,44 @@
+# ACCEPTANCE (red first): CAM-9, HOME AND INSERT IN TEXTURE MAP TOO (camera-closeout-drake.md CAM-9). inteng's frame loop FUN_0058c9e0 reads the Home byte (0xd880b7) at 0x58cfe8 and calls
+# FUN_004721a0 (the zoom back to its default), then the Insert byte (0xd880b4) at 0x58cff6 and calls FUN_00471cb0 (the zoom), after EVERY mode's frame, Texture Map's (mode 2, FUN_00543fa0)
+# included, and Texture Map's key tables (FUN_00557ea0) give Insert and Home nothing of their own. Ours left Texture Map out of both.
+# A wait of Texture Map's that is a loop of its own in inteng keeps them out (its frame never gets back to WinMain): here the texture chooser (C, 0x2a: FUN_005575a0 waits in FUN_0058b700).
+# Copy Texturing > Object's pick is not one (0xb5 only sets DAT_00914d80; the frame goes on): Insert starts the zoom there.
+# Invasion, Texture Map from the start's camera: Insert, a press in the middle and one near it zoom in (the scale over 1000), Home puts it back (1000).
+# Red on exe-cache/67c7def4.exe (Insert and Home did nothing in Texture Map), green with it.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Construction
+item 0x46
+expect-screen Texture Map
+expect-number zoom stage 0 0
+expect-number zoom scale 1000 1000
+picture 1
+key Insert
+expect-field-has status Zoom... Choose centre
+expect-number zoom stage 1 1
+click-view 0.5 0.5
+click-view 0.56 0.5
+expect-field-has status Zoom: in
+expect-number zoom stage 0 0
+expect-number zoom scale 1500 1000000
+picture 2
+key Home
+expect-field-has status The zoom is back to the default level
+expect-number zoom scale 1000 1000
+picture 3
+# the texture chooser: a loop of its own in inteng, so Insert does nothing while it is up
+key C
+expect-field-has status the texture chooser
+key Insert
+expect-number zoom stage 0 0
+key Esc
+expect-field-has status the texture chooser was cancelled
+# Copy Texturing > Object: kept in inteng's frame, so Insert starts the zoom; Escape gives the zoom up
+item 0xb5
+expect-field-has status Select object to copy from
+key Insert
+expect-field-has status Zoom... Choose centre
+expect-number zoom stage 1 1
+key Esc
+expect-number zoom stage 0 0

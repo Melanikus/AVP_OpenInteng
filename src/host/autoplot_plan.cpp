@@ -179,16 +179,20 @@ namespace host
 
 			b.surface = s.surface;
 
-			for (std::vector<double> const &p : s.points)
+			// over each point, half the reach off the surface first (the alien's middle), then a quarter and three quarters (where the others leave room)
+			for (double const part : { 0.5, 0.25, 0.75 })
 			{
-				std::vector<double> hint = p;
-
-				if (axis >= 0)
+				for (std::vector<double> const &p : s.points)
 				{
-					hint[(size_t)axis] += sign * kAutoPlotReach / 2.0;
-				}
+					std::vector<double> hint = p;
 
-				b.hints.push_back(hint);
+					if (axis >= 0)
+					{
+						hint[(size_t)axis] += sign * kAutoPlotReach * part;
+					}
+
+					b.hints.push_back(hint);
+				}
 			}
 
 			return b;
@@ -294,6 +298,47 @@ namespace host
 			links->Remap(from);
 		}
 
+		// parts that don't reach each other linked where their boxes touch
+		void JoinParts(std::vector<Box> const &boxes, Links *links)
+		{
+			std::vector<size_t> part;
+
+			if (Parts(boxes.size(), *links, &part) <= 1)
+			{
+				return;
+			}
+
+			for (size_t a = 0; a < boxes.size(); a++)
+			{
+				for (size_t b = a + 1; b < boxes.size(); b++)
+				{
+					if (part[a] != part[b] && Touch(boxes[a], boxes[b]))
+					{
+						links->Add(a, b, LinkFlags(boxes[a].surface, boxes[b].surface));
+					}
+				}
+			}
+		}
+
+		// box d taken out, with its links (the last box takes its place)
+		void TakeOut(std::vector<Box> *boxes, Links *links, size_t d)
+		{
+			size_t const last = boxes->size() - 1;
+			Links again;
+
+			for (auto const &one : links->flags)
+			{
+				if (one.first.first != d && one.first.second != d)
+				{
+					again.Add(one.first.first == last ? d : one.first.first, one.first.second == last ? d : one.first.second, one.second);
+				}
+			}
+
+			(*boxes)[d] = (*boxes)[last];
+			boxes->pop_back();
+			*links = again;
+		}
+
 		std::string Place(std::vector<int32_t> const &p)
 		{
 			return std::to_string((long long)p[0]) + " " + std::to_string((long long)p[1]) + " " + std::to_string((long long)p[2]);
@@ -304,6 +349,43 @@ namespace host
 			double const v = floor(world / scale);
 
 			return v > 2147483000.0 ? 2147483000 : (v < -2147483000.0 ? -2147483000 : (int32_t)v);
+		}
+
+		// a box in the file's numbers, as step 8 writes it: the stock loader takes 1 off each max (inside is min <= p <= max - 1: Frost's measures, waypoint_net_check.h), so
+		// the max is one past the box, held to the cap too
+		struct FileBox
+		{
+			int32_t min[3], max[3];
+		};
+
+		FileBox FileOf(Box const &b, double scale)
+		{
+			FileBox f;
+
+			for (int a = 0; a < 3; a++)
+			{
+				f.min[a] = File(b.lo[a], scale);
+				f.max[a] = std::max(std::min(File(b.hi[a], scale) + 1, kAutoPlotMostPlace), f.min[a] + 2);
+			}
+
+			return f;
+		}
+
+		// The game's own test of a place in a box (WaypointContainsPoint, as Frost's checker does it): each number times the level's scale with what's after the point cut
+		// off, inside = lowest <= place <= highest - 1. widen grows the box that many of the file's units each way (the "clear of it" test). In doubles: no sum is put in 32 bits
+		bool GameHolds(FileBox const &f, int32_t const at[3], double scale, int32_t widen)
+		{
+			for (int a = 0; a < 3; a++)
+			{
+				double const p = trunc((double)at[a] * scale);
+
+				if (p < trunc(((double)f.min[a] - widen) * scale) || p > trunc(((double)f.max[a] + widen) * scale) - 1.0)
+				{
+					return false;
+				}
+			}
+
+			return true;
 		}
 	}
 
@@ -474,19 +556,7 @@ namespace host
 		// 4. parts that don't reach each other linked where their boxes touch
 		std::vector<size_t> part;
 
-		if (Parts(boxes.size(), links, &part) > 1)
-		{
-			for (size_t a = 0; a < boxes.size(); a++)
-			{
-				for (size_t b = a + 1; b < boxes.size(); b++)
-				{
-					if (part[a] != part[b] && Touch(boxes[a], boxes[b]))
-					{
-						links.Add(a, b, LinkFlags(boxes[a].surface, boxes[b].surface));
-					}
-				}
-			}
-		}
+		JoinParts(boxes, &links);
 
 		// 5. down to the stock game's most: the merge that grows the boxes least, those that link or touch first
 		while ((int32_t)boxes.size() > kAutoPlotMostBoxes)
@@ -515,80 +585,207 @@ namespace host
 			Merge(&boxes, &links, bestA, bestB);
 		}
 
-		plan.parts = boxes.empty() ? 0 : Parts(boxes.size(), links, &part);
+		// 6. each centre, in the file's numbers and by the game's own test: inside its own box only, clear of the others by half an alien's width; else inside its own and
+		// outside the others. A box with no such place (the others cover it: a 3 m wall between a floor's box and a ceiling's, each reaching 1.5 m) is taken out, or if that
+		// would lose an exit or split the network, made one with the box that holds its best place; then every centre is picked again, until each is its own box's only:
+		// Frost's checker refuses a network with a centre in another box ("box 1: its centre is in box 3 too", Genshd1's genent01). Each round takes one box away, so it ends
+		int32_t const clear = (int32_t)std::min(ceil(kAutoPlotHalfWidth / 2.0 / scale), 1000000.0);
+		std::vector<FileBox> files;
+		std::vector<std::vector<int32_t> > centres;
+		size_t joined = 0, takenOut = 0;
 
-		if (plan.parts > 1)
+		for (bool again = true; again;)
 		{
-			plan.notes.push_back(std::to_string((long long)plan.parts) + " parts don't reach each other: no way and no box joins them");
-		}
+			again = false;
+			files.clear();
 
-		// 6. each centre: inside its own box only, clear of the others by half an alien's width; else inside its own and outside the others; else the fewest others
-		std::vector<std::vector<double> > centres(boxes.size());
-
-		for (size_t i = 0; i < boxes.size(); i++)
-		{
-			Box const &b = boxes[i];
-			std::vector<std::vector<double> > candidates;
-
-			candidates.push_back(std::vector<double>{ (b.lo[0] + b.hi[0]) / 2.0, (b.lo[1] + b.hi[1]) / 2.0, (b.lo[2] + b.hi[2]) / 2.0 });
-			candidates.insert(candidates.end(), b.hints.begin(), b.hints.end());
-
-			for (double fx : { 0.25, 0.5, 0.75 })
+			for (Box const &b : boxes)
 			{
-				for (double fy : { 0.25, 0.5, 0.75 })
+				files.push_back(FileOf(b, scale));
+			}
+
+			centres.assign(boxes.size(), std::vector<int32_t>(3, 0));
+			plan.centresShared = 0;
+
+			// the wall and ceiling boxes first: an alien route on a floor route's line is the one that goes, and the floor route keeps its plain links (a marine may go)
+			std::vector<size_t> order;
+
+			for (int floors = 0; floors < 2; floors++)
+			{
+				for (size_t i = 0; i < boxes.size(); i++)
 				{
-					for (double fz : { 0.25, 0.5, 0.75 })
+					if ((boxes[i].surface == AutoPlotSurface::Floor) == (floors == 1))
 					{
-						candidates.push_back(std::vector<double>{ b.lo[0] + fx * (b.hi[0] - b.lo[0]), b.lo[1] + fy * (b.hi[1] - b.lo[1]), b.lo[2] + fz * (b.hi[2] - b.lo[2]) });
+						order.push_back(i);
 					}
 				}
 			}
 
-			int bestTier = 3;
-			size_t bestOthers = (size_t)-1;
-			std::vector<double> best = candidates[0];
-
-			for (std::vector<double> const &c : candidates)
+			for (size_t const i : order)
 			{
-				double const p[3] = { c[0], c[1], c[2] };
+				Box const &b = boxes[i];
+				std::vector<std::vector<double> > candidates;
 
-				if (!Holds(b, p, 0.0))
+				candidates.push_back(std::vector<double>{ (b.lo[0] + b.hi[0]) / 2.0, (b.lo[1] + b.hi[1]) / 2.0, (b.lo[2] + b.hi[2]) / 2.0 });
+				candidates.insert(candidates.end(), b.hints.begin(), b.hints.end());
+
+				for (double fx : { 0.25, 0.5, 0.75 })
 				{
+					for (double fy : { 0.25, 0.5, 0.75 })
+					{
+						for (double fz : { 0.25, 0.5, 0.75 })
+						{
+							candidates.push_back(std::vector<double>{ b.lo[0] + fx * (b.hi[0] - b.lo[0]), b.lo[1] + fy * (b.hi[1] - b.lo[1]), b.lo[2] + fz * (b.hi[2] - b.lo[2]) });
+						}
+					}
+				}
+
+				// a place in the file's numbers, held inside the box's own
+				auto const placeOf = [&files, i, scale](std::vector<double> const &c)
+				{
+					std::vector<int32_t> at(3);
+
+					for (int a = 0; a < 3; a++)
+					{
+						at[(size_t)a] = std::min(std::max(File(c[(size_t)a], scale), files[i].min[a]), files[i].max[a] - 1);
+					}
+
+					return at;
+				};
+
+				int bestTier = 3;
+				size_t bestOthers = (size_t)-1;
+				std::vector<int32_t> best = placeOf(candidates[0]);
+
+				for (std::vector<double> const &c : candidates)
+				{
+					std::vector<int32_t> const at = placeOf(c);
+
+					if (!GameHolds(files[i], at.data(), scale, 0))
+					{
+						continue;
+					}
+
+					size_t inOthers = 0, nearOthers = 0;
+
+					for (size_t j = 0; j < boxes.size(); j++)
+					{
+						if (j != i)
+						{
+							inOthers += GameHolds(files[j], at.data(), scale, 0) ? 1 : 0;
+							nearOthers += GameHolds(files[j], at.data(), scale, clear) ? 1 : 0;
+						}
+					}
+
+					int const tier = nearOthers == 0 ? 0 : (inOthers == 0 ? 1 : 2);
+
+					if (tier < bestTier || (tier == bestTier && tier == 2 && inOthers < bestOthers))
+					{
+						bestTier = tier;
+						bestOthers = inOthers;
+						best = at;
+					}
+				}
+
+				if (bestTier != 2)
+				{
+					centres[i] = best;
 					continue;
 				}
 
-				size_t inOthers = 0, nearOthers = 0;
+				// covered: taken out when every exit it holds is held by another too, and the network stays as whole as it was (parts that come apart linked where their boxes
+				// touch); b is not used after this
+				bool exitsElsewhere = true;
+
+				for (std::vector<int32_t> const &e : exits)
+				{
+					if (e.size() != 3)
+					{
+						continue;
+					}
+
+					double const p[3] = { Held(e[0]), Held(e[1]), Held(e[2]) };
+					bool other = false;
+
+					for (size_t j = 0; j < boxes.size(); j++)
+					{
+						other = other || (j != i && Holds(boxes[j], p, 0.0));
+					}
+
+					exitsElsewhere = exitsElsewhere && (other || !Holds(boxes[i], p, 0.0));
+				}
+
+				if (exitsElsewhere)
+				{
+					std::vector<size_t> partsNow;
+					size_t const before = Parts(boxes.size(), links, &partsNow);
+					std::vector<Box> const keptBoxes = boxes;
+					Links const keptLinks = links;
+
+					TakeOut(&boxes, &links, i);
+					JoinParts(boxes, &links);
+
+					if (Parts(boxes.size(), links, &partsNow) <= before)
+					{
+						takenOut++;
+						again = true;
+						break;
+					}
+
+					boxes = keptBoxes;
+					links = keptLinks;
+				}
+
+				// else made one with the box that holds its best place, the one it overlaps most
+				size_t holder = i;
+				double most = -1.0;
 
 				for (size_t j = 0; j < boxes.size(); j++)
 				{
-					if (j != i)
+					if (j != i && GameHolds(files[j], best.data(), scale, 0) && Overlap(boxes[i], boxes[j]) > most)
 					{
-						inOthers += Holds(boxes[j], p, 0.0) ? 1 : 0;
-						nearOthers += Holds(boxes[j], p, -kAutoPlotHalfWidth / 2.0) ? 1 : 0;
+						most = Overlap(boxes[i], boxes[j]);
+						holder = j;
 					}
 				}
 
-				int const tier = nearOthers == 0 ? 0 : (inOthers == 0 ? 1 : 2);
-
-				if (tier < bestTier || (tier == bestTier && tier == 2 && inOthers < bestOthers))
+				if (holder == i)
 				{
-					bestTier = tier;
-					bestOthers = inOthers;
-					best = c;
+					plan.centresShared++;   // no box holds it after all (it can't be: tier 2 is "in another"); kept, and the checker says so
+					centres[i] = best;
+					continue;
 				}
-			}
 
-			if (bestTier == 2)
-			{
-				plan.centresShared++;
+				Merge(&boxes, &links, std::min(i, holder), std::max(i, holder));
+				joined++;
+				again = true;
+				break;
 			}
+		}
 
-			centres[i] = best;
+		if (takenOut)
+		{
+			plan.notes.push_back(takenOut == 1 ? std::string("1 box the others covered taken out (each centre must be in its own box only)") :
+				std::to_string((long long)takenOut) + " boxes the others covered taken out (each centre must be in its own box only)");
+		}
+
+		if (joined)
+		{
+			plan.notes.push_back(joined == 1 ? std::string("1 box made one with a box that covered it (each centre must be in its own box only)") :
+				std::to_string((long long)joined) + " boxes made one with boxes that covered them (each centre must be in its own box only)");
 		}
 
 		if (plan.centresShared)
 		{
 			plan.notes.push_back(std::to_string((long long)plan.centresShared) + " box centres could not be kept out of every other box");
+		}
+
+		// the networks the boxes make, after the joins (a join only joins parts)
+		plan.parts = boxes.empty() ? 0 : Parts(boxes.size(), links, &part);
+
+		if (plan.parts > 1)
+		{
+			plan.notes.push_back(std::to_string((long long)plan.parts) + " parts don't reach each other: no way and no box joins them");
 		}
 
 		// 7. the exits held at the end
@@ -617,10 +814,9 @@ namespace host
 
 			for (int a = 0; a < 3; a++)
 			{
-				wp.min[a] = File(boxes[i].lo[a], scale);
-				// the stock loader takes 1 off each max (inside is min <= p <= max - 1: Frost's measures, waypoint_net_check.h), so the max is one past the box
-				wp.max[a] = std::max(std::min(File(boxes[i].hi[a], scale) + 1, kAutoPlotMostPlace), wp.min[a] + 2);   // held to the cap too
-				wp.centre[a] = std::min(std::max(File(centres[i][(size_t)a], scale), wp.min[a]), wp.max[a] - 1);
+				wp.min[a] = files[i].min[a];   // FileOf: the max one past the box
+				wp.max[a] = files[i].max[a];
+				wp.centre[a] = centres[i][(size_t)a];
 			}
 
 			wp.flags = 0;

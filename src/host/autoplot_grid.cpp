@@ -144,6 +144,27 @@ namespace host
 			return theBuild.Grid();
 		}
 
+		// A start or goal with no cell the body fits on within the search's own reach (kNpcGridReach, 1.5 m) is moved to the nearest such cell within kAutoPlotSnapReach:
+		// a level's exit points (ADJMDLEP) lie in the middle of a doorway, about 2 m off the floor in a high corridor (Colony, 11-18: 49 of 187 searches between exits
+		// found no cell near their ends). The way's first and last points are then that cell's, which shows how far it was moved.
+		void SnapToTheGrid(NpcGrid const &grid, NpcGridBody body, AlienWaysXYZ *at)
+		{
+			if (grid.NearestCell(at->x, at->y, at->z, body, kNpcGridReach) != kNpcGridNoCell)
+			{
+				return;
+			}
+
+			uint32_t const cell = grid.NearestCell(at->x, at->y, at->z, body, kAutoPlotSnapReach);
+			double middle[3];
+
+			if (cell != kNpcGridNoCell && grid.Middle(cell, middle))
+			{
+				at->x = (int)floor(middle[0] + 0.5);
+				at->y = (int)floor(middle[1] + 0.5);
+				at->z = (int)floor(middle[2] + 0.5);
+			}
+		}
+
 		int32_t ModuleOfMapPolygon(int polygon)
 		{
 			if (polygon < 0 || (size_t)polygon >= mapToListed.size())
@@ -230,9 +251,14 @@ namespace host
 			return false;
 		}
 
-		AlienWaysXYZ const start = { from[0], from[1], from[2] };
-		AlienWaysXYZ const goal = { to[0], to[1], to[2] };
-		char const *const refused = grid->StartSearch(start, goal, alien ? kNpcGridAlien : kNpcGridMarine, alien ? kAutoPlotAlienFloorPrice : 1, kAutoPlotMostLooks);
+		NpcGridBody const body = alien ? kNpcGridAlien : kNpcGridMarine;
+		AlienWaysXYZ start = { from[0], from[1], from[2] };
+		AlienWaysXYZ goal = { to[0], to[1], to[2] };
+
+		SnapToTheGrid(*grid, body, &start);
+		SnapToTheGrid(*grid, body, &goal);
+
+		char const *const refused = grid->StartSearch(start, goal, body, alien ? kAutoPlotAlienFloorPrice : 1, kAutoPlotMostLooks);
 
 		if (refused)
 		{
@@ -276,37 +302,97 @@ namespace host
 		return true;
 	}
 
+	bool AutoPlotGrid_Size(size_t *cells, size_t *bytesKept)
+	{
+		std::lock_guard<std::mutex> hold(gridLock);
+		std::string reason;
+		NpcGrid *const grid = ReadyGrid(&reason);
+
+		*cells = grid ? grid->Cells() : 0;
+		*bytesKept = grid ? grid->BytesKept() : 0;
+		return grid != nullptr;
+	}
+
+	namespace
+	{
+		// With the lock held: every cell a marine stands on in the game module (its floor point: the cell's middle on its sheet), at most `most`; false (with why) past it
+		bool StandingCells(NpcGrid const &grid, int32_t module, size_t most, std::vector<AutoPlotPoint> *out, std::string *why)
+		{
+			out->clear();
+
+			for (uint32_t cell = 0; cell < (uint32_t)grid.Cells(); cell++)
+			{
+				double middle[3];
+
+				if ((grid.Flags(cell) & kNpcGridStands) == 0 || ModuleOfMapPolygon(grid.PolygonOf(cell)) != module || !grid.Middle(cell, middle))
+				{
+					continue;
+				}
+
+				if (out->size() >= most)
+				{
+					out->clear();
+					*why = "more floor cells in game module " + std::to_string(module) + " than " + std::to_string((unsigned long long)most);
+					return false;
+				}
+
+				AutoPlotPoint p;
+
+				p.place[0] = (int32_t)floor(middle[0] + 0.5);
+				p.place[1] = (int32_t)floor(middle[1] + 0.5);
+				p.place[2] = (int32_t)floor(middle[2] + 0.5);
+				p.surface = AutoPlotPoint::Surface::Floor;
+				p.module = module;
+				out->push_back(p);
+			}
+
+			return true;
+		}
+	}
+
+	bool AutoPlotGrid_FloorCells(int32_t module, std::vector<AutoPlotPoint> *cells, int32_t *cellEdge, std::string *why)
+	{
+		std::lock_guard<std::mutex> hold(gridLock);
+		NpcGrid *const grid = ReadyGrid(why);
+
+		cells->clear();
+		*cellEdge = kNpcGridCell;
+
+		if (!grid)
+		{
+			return false;
+		}
+
+		if (module < 0)
+		{
+			*why = "no game module";
+			return false;
+		}
+
+		if (!StandingCells(*grid, module, kAutoPlotMostFloorCells, cells, why))
+		{
+			return false;
+		}
+
+		if (cells->empty())
+		{
+			*why = "no floor cells in game module " + std::to_string(module);
+			return false;
+		}
+
+		return true;
+	}
+
 	std::vector<AutoPlotPoint> AutoPlotGrid_StandSpots(int32_t module, size_t most)
 	{
 		std::lock_guard<std::mutex> hold(gridLock);
 		std::string reason;
 		NpcGrid *const grid = ReadyGrid(&reason);
-		std::vector<AutoPlotPoint> spots;
+		std::vector<AutoPlotPoint> spots, standing;
 
-		if (!grid || module < 0)
+		if (!grid || module < 0 || !StandingCells(*grid, module, kAutoPlotMostFloorCells, &standing, &reason))
 		{
 			return spots;
-		}
-
-		std::vector<AutoPlotPoint> standing;
-
-		for (uint32_t cell = 0; cell < (uint32_t)grid->Cells(); cell++)
-		{
-			double middle[3];
-
-			if ((grid->Flags(cell) & kNpcGridStands) == 0 || ModuleOfMapPolygon(grid->PolygonOf(cell)) != module || !grid->Middle(cell, middle))
-			{
-				continue;
-			}
-
-			AutoPlotPoint p;
-
-			p.place[0] = (int32_t)floor(middle[0] + 0.5);
-			p.place[1] = (int32_t)floor(middle[1] + 0.5);
-			p.place[2] = (int32_t)floor(middle[2] + 0.5);
-			p.surface = AutoPlotPoint::Surface::Floor;
-			p.module = module;
-			standing.push_back(p);
 		}
 
 		for (size_t at : AutoPlot_Spread(standing, most))

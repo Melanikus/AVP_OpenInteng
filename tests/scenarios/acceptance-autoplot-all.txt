@@ -2,12 +2,14 @@
 # Hangar, Waypoint mode 0, Auto-plot all AI modules run: its words count the AI modules written and refused. The saved copy, read back by the game's own loader, holds a network in every AI
 # module that was written, and the checker finds nothing in any of them (verify_waypoint_nets all: every exit in a box, every box reaching every other, 99 boxes at most, every link in the
 # list, no problem at all). The stock networks fail the checker (the stock survey: 309 of 332), so the copy's being clean is the auto-plot's own doing. Red before the command is there.
+# the owner's "hide auto pilot" (11-19): the items are only there with AutoPlot=1 (autoplot_switch.h; acceptance-autoplot-hidden is the shipped ini)
+#ini AutoPlot=1
 screen Waypoint
 level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
 pictures on
 state
 expect-screen Waypoint
-click-bar Auto-plot all AI modules > Auto-plot all AI modules
+click-bar Auto-plot all AI modules
 wait-status 600000 AI modules written
 # none refused: a refused AI module keeps its stock network, which the checker would find faults in
 expect-status 0 refused

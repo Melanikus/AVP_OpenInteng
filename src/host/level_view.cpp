@@ -1173,6 +1173,7 @@ static MODULE flyModule;
 static DISPLAYBLOCK *flyCopy = nullptr;
 static uint8_t flyObjectId[8];
 static bool flyOn = false;
+static char flyRefused[160] = "";   // why the last LevelView_FlyBegin gave false
 // THE SECOND COPY (Track Editing's start marker, T-3c): its own module and block, beside the flying one; the real object is not hidden for it
 static MODULE ghostModule;
 static DISPLAYBLOCK *ghostCopy = nullptr;
@@ -1215,10 +1216,18 @@ bool LevelView_FlyCopyState(int32_t world[3], int32_t *radius, bool *active)
 	return true;
 }
 
+char const *LevelView_FlyRefused()
+{
+	return flyRefused;
+}
+
 bool LevelView_FlyBegin(const uint8_t *id)
 {
+	flyRefused[0] = 0;
+
 	if (flyOn || !id)
 	{
+		_snprintf_s(flyRefused, sizeof(flyRefused), _TRUNCATE, "%s", flyOn ? "another live copy is up" : "no object");
 		return false;
 	}
 
@@ -1231,6 +1240,7 @@ bool LevelView_FlyBegin(const uint8_t *id)
 
 	if (!original || original->HModelControlBlock || original->ObShape < 0)
 	{
+		_snprintf_s(flyRefused, sizeof(flyRefused), _TRUNCATE, "%s", !original ? "the object has no display block in play" : (original->HModelControlBlock ? "the object is a hierarchy" : "the object has no shape"));
 		return false;
 	}
 
@@ -1247,6 +1257,7 @@ bool LevelView_FlyBegin(const uint8_t *id)
 
 	if (!flyCopy)
 	{
+		_snprintf_s(flyRefused, sizeof(flyRefused), _TRUNCATE, "the game has no free display block (%d in play, %d at most)", NumActiveBlocks, (int)maxobjects);
 		return false;
 	}
 
@@ -2083,6 +2094,105 @@ static void PutTheEyes(const FlyCamera &camera)
 	playerStatus->ViewPanX = viewMatrixOn ? 0 : camera.look & wrap360;
 }
 
+// The objects the editor hides, their blocks found now (an ID of no object in play is left out), and the view distance's rule measured from camera's place.
+// The split screen calls it for each view with that view's own camera, as inteng draws each view from its own place (Drake 11-19: with the main camera 25 m
+// away, the objects round the hierarchy the three views looked at were hidden in them).
+static void PutTheHiddenBlocks(const FlyCamera &camera)
+{
+	std::vector<const struct displayblock *> hidden(hiddenBlocksAsGiven.begin(), hiddenBlocksAsGiven.end());
+
+	for (std::vector<uint8_t> const &id : hiddenIds)
+	{
+		LevelViewShapeOf shape = {};
+
+		shape.isModule = false;
+		memcpy(shape.objectId, id.data(), 8);
+
+		if (const DISPLAYBLOCK *const block = BlockOfShape(shape))
+		{
+			hidden.push_back(block);
+		}
+	}
+
+	if (flyOn)
+	{
+		LevelViewShapeOf flying = {};
+
+		flying.isModule = false;
+		memcpy(flying.objectId, flyObjectId, 8);
+
+		if (const DISPLAYBLOCK *const block = BlockOfShape(flying))
+		{
+			hidden.push_back(block);
+		}
+	}
+
+	std::vector<int32_t> allHiddenModules = hiddenModules;
+
+	allHiddenModules.insert(allHiddenModules.end(), ruleModules.begin(), ruleModules.end());
+
+	for (int32_t const module : allHiddenModules)
+	{
+		LevelViewShapeOf shape = {};
+
+		shape.isModule = true;
+		shape.moduleIndex = module;
+
+		if (const DISPLAYBLOCK *const block = BlockOfShape(shape))
+		{
+			hidden.push_back(block);
+		}
+	}
+
+	if (hideBeyondOn)
+	{
+		std::vector<const DISPLAYBLOCK *> kept;
+
+		for (LevelViewShapeOf const &keep : hideBeyondKeeps)
+		{
+			if (const DISPLAYBLOCK *const block = BlockOfShape(keep))
+			{
+				kept.push_back(block);
+			}
+		}
+
+		auto beyond = [&](const DISPLAYBLOCK *block)
+		{
+			if (!block || std::find(kept.begin(), kept.end(), block) != kept.end())
+			{
+				return;
+			}
+
+			double const dx = (double)block->ObWorld.vx - camera.x, dy = (double)block->ObWorld.vy - camera.y, dz = (double)block->ObWorld.vz - camera.z;
+
+			if (sqrt(dx * dx + dy * dy + dz * dz) - block->ObRadius >= hideBeyondDistance)
+			{
+				hidden.push_back(block);
+			}
+		};
+
+		SCENEMODULE *const scene = Global_ModulePtr ? Global_ModulePtr[Global_Scene] : nullptr;
+
+		for (int m = 0; scene && m < ModuleArraySize; m++)
+		{
+			if (scene->sm_marray[m])
+			{
+				beyond(scene->sm_marray[m]->m_dptr);
+			}
+		}
+
+		for (int i = 0; i < NumActiveBlocks; i++)
+		{
+			if (ActiveBlockList[i] && ActiveBlockList[i]->ObStrategyBlock && !ActiveBlockList[i]->ObMyModule)
+			{
+				beyond(ActiveBlockList[i]);
+			}
+		}
+	}
+
+	R_SetEditorHiddenBlocks(hidden.data(), (int)hidden.size(), hideEveryObject || ruleEveryObject, hideEveryModule);
+}
+
 bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*addToFrame)(void *context), void *context)
 {
 	if (!levelIsOpen)
@@ -2158,101 +2268,8 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 
 		R_SetEditorTintedBlocks(tintBlocks, tintColours, (int)tinted);
 	}
-	// The objects the editor hides: their blocks found now (an ID of no object in play is left out)
-	{
-		std::vector<const struct displayblock *> hidden(hiddenBlocksAsGiven.begin(), hiddenBlocksAsGiven.end());
-
-		for (std::vector<uint8_t> const &id : hiddenIds)
-		{
-			LevelViewShapeOf shape = {};
-
-			shape.isModule = false;
-			memcpy(shape.objectId, id.data(), 8);
-
-			if (const DISPLAYBLOCK *const block = BlockOfShape(shape))
-			{
-				hidden.push_back(block);
-			}
-		}
-
-		if (flyOn)
-		{
-			LevelViewShapeOf flying = {};
-
-			flying.isModule = false;
-			memcpy(flying.objectId, flyObjectId, 8);
-
-			if (const DISPLAYBLOCK *const block = BlockOfShape(flying))
-			{
-				hidden.push_back(block);
-			}
-		}
-
-		std::vector<int32_t> allHiddenModules = hiddenModules;
-
-		allHiddenModules.insert(allHiddenModules.end(), ruleModules.begin(), ruleModules.end());
-
-		for (int32_t const module : allHiddenModules)
-		{
-			LevelViewShapeOf shape = {};
-
-			shape.isModule = true;
-			shape.moduleIndex = module;
-
-			if (const DISPLAYBLOCK *const block = BlockOfShape(shape))
-			{
-				hidden.push_back(block);
-			}
-		}
-
-		if (hideBeyondOn)
-		{
-			std::vector<const DISPLAYBLOCK *> kept;
-
-			for (LevelViewShapeOf const &keep : hideBeyondKeeps)
-			{
-				if (const DISPLAYBLOCK *const block = BlockOfShape(keep))
-				{
-					kept.push_back(block);
-				}
-			}
-
-			auto beyond = [&](const DISPLAYBLOCK *block)
-			{
-				if (!block || std::find(kept.begin(), kept.end(), block) != kept.end())
-				{
-					return;
-				}
-
-				double const dx = (double)block->ObWorld.vx - camera.x, dy = (double)block->ObWorld.vy - camera.y, dz = (double)block->ObWorld.vz - camera.z;
-
-				if (sqrt(dx * dx + dy * dy + dz * dz) - block->ObRadius >= hideBeyondDistance)
-				{
-					hidden.push_back(block);
-				}
-			};
-
-			SCENEMODULE *const scene = Global_ModulePtr ? Global_ModulePtr[Global_Scene] : nullptr;
-
-			for (int m = 0; scene && m < ModuleArraySize; m++)
-			{
-				if (scene->sm_marray[m])
-				{
-					beyond(scene->sm_marray[m]->m_dptr);
-				}
-			}
-
-			for (int i = 0; i < NumActiveBlocks; i++)
-			{
-				if (ActiveBlockList[i] && ActiveBlockList[i]->ObStrategyBlock && !ActiveBlockList[i]->ObMyModule)
-				{
-					beyond(ActiveBlockList[i]);
-				}
-			}
-		}
-
-		R_SetEditorHiddenBlocks(hidden.data(), (int)hidden.size(), hideEveryObject || ruleEveryObject, hideEveryModule);
-	}
+	// The objects the editor hides, and the view distance's rule from this camera
+	PutTheHiddenBlocks(camera);
 
 	// The polygons the editor highlights: their blocks found now, with the items that are really in their shapes
 	{
@@ -2289,12 +2306,14 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 		for (size_t i = 0; i < extraViewCount; i++)
 		{
 			PutTheEyes(extraViews[i].camera);
+			PutTheHiddenBlocks(extraViews[i].camera);   // the view distance from this view's own place
 			R_SetEditorMainViewport(true, extraViews[i].left, extraViews[i].top, extraViews[i].width, extraViews[i].height);
 			AvpShowViews();
 			R_EditorFlushWorld();
 		}
 
 		PutTheEyes(camera);
+		PutTheHiddenBlocks(camera);   // and the main view's from its own again
 		R_SetEditorMainViewport(true, mainBox[0], mainBox[1], mainBox[2], mainBox[3]);
 	}
 

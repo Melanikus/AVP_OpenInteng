@@ -180,6 +180,7 @@
 #include "open_at.h"   // -at / -shot: the editor opened at a place (Drake 11-18)
 #include "orbit_command.h"   // the harness's camera-orbit / camera-corner (Drake 11-18)
 #include "editor_shared.h"   // what this file shares with the files moved out of it (editor_shared.h names them)
+#include "gizmo_screen.h"    // GizmoScreen_HoldsTheCopy: a gizmo drag's live copy is not Track Editing's to take away
 #include "placement_lighting.h"   // Object Placement's lighting (OP-3, OP-44)
 #include "state_line.h"   // the state line's fields added by their owners (StateLine_Add)
 #include "placement_special_alt.h"   // Alt Locations on the current special object (OP-34..38, OP-91; V-28)
@@ -841,7 +842,7 @@ void TrackWorldLines()
 				LevelView_FlyPut(world, turned);
 			}
 		}
-		else if (!flyWanted && LevelView_FlyActive() && !PlacementFlyHoldsTheCopy() && !TrackObjectAtEndWanted() && !trackPlayFlying)   // (Object Placement's F holds the copy itself; the play holds it: TE-4)
+		else if (!flyWanted && LevelView_FlyActive() && !PlacementFlyHoldsTheCopy() && !GizmoScreen_HoldsTheCopy() && !TrackObjectAtEndWanted() && !trackPlayFlying)   // (Object Placement's F holds the copy itself; the play holds it: TE-4; a gizmo drag holds it: the owner 11-19, "the object doesn't move with it")
 		{
 			LevelView_FlyEnd();
 		}

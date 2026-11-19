@@ -16,7 +16,9 @@ click-button Ok
 # the new sound's window (FUN_004ebc80 then FUN_004ebd60): "Not Set" begins no row, so the combo keeps the name as typed (CB_SELECTSTRING 0x10006ae8 finds nothing)
 expect-dialog-kind form
 expect-dialog Sound Edit
-expect-dialog \Sound\npc\Marine\
+# the title names the folder, not its path: inteng's caption is "Sound Edit - %s" with the full folder (the game's folder, "Sound\", SOUNDDIR, "\"), but the editor
+# never DRAWS a full path (screen_names.h, the privacy item: it put the user's name in every picture), so the title is cut to the folder's last part; the rows below say which
+expect-dialog Sound Edit - Marine
 expect-dialog-text Not Set|5|40|0|100
 expect-field-empty dialogcomborows
 # the combo opened: the folder's wavs, one row each

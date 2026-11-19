@@ -22,6 +22,7 @@
 
 #include "level_file.h"
 #include "movable.h"
+#include "movable_matrix.h"
 #include "special_objects_edit.h"
 
 static int checks = 0, checksFailed = 0;
@@ -375,6 +376,39 @@ int main(int argc, char **argv)
 	MovablePose none;
 
 	Check(MovableSpecial_Get(nullptr, RefOf(MovableKind::Sound, 0), &none) == MovableResult::NothingOpen, "no level open: NothingOpen");
+
+	// A PLAYER START'S ICON (Bishop's item 4, 11-19): its axes are its AVPSTART matrix's rows, unit length; the third the way it faces
+	{
+		int32_t const identity[9] = { 65536, 0, 0, 0, 65536, 0, 0, 0, 65536 };
+		int32_t const quarter[9] = { 0, 0, -65536, 0, 65536, 0, 65536, 0, 0 };   // a quarter turn about y: it faces +x
+		int32_t const long2[9] = { 131072, 0, 0, 0, 0, 65536, 0, -98304, 0 };   // rows 2 and 1.5 long
+		int32_t const zero[9] = { 65536, 0, 0, 0, 0, 0, 0, 0, 65536 };
+		double axes[9], kept[9];
+
+		for (int i = 0; i < 9; i++)
+		{
+			kept[i] = 7.0;
+		}
+
+		bool const one = Movable_MatrixAxes(identity, axes) && axes[0] == 1.0 && axes[4] == 1.0 && axes[8] == 1.0 && axes[1] == 0.0;
+		bool const faces = Movable_MatrixAxes(quarter, axes) && axes[6] == 1.0 && axes[7] == 0.0 && axes[8] == 0.0 && axes[2] == -1.0;
+		bool const unit = Movable_MatrixAxes(long2, axes) && axes[0] == 1.0 && axes[5] == 1.0 && axes[7] == -1.0;
+		bool const refused = !Movable_MatrixAxes(zero, kept) && kept[0] == 7.0;
+
+		Check(one && faces && unit, "Movable_MatrixAxes: the rows as the icon's axes, made 1 long; a quarter turn about y faces +x (its third row)");
+		Check(refused, "a row of zeros (a hostile file's): false, nothing written, the icon drawn unturned");
+
+		// the round trip the drag draws through: a turn written as the matrix, that matrix's third row the turn's facing
+		float const turn[4] = { 0.0f, 0.38268343f, 0.0f, 0.92387953f };   // 45 degrees about y
+		int32_t matrix[9];
+		float back[4];
+
+		Movable_MatrixOfTurn(turn, matrix);
+		Movable_TurnOfMatrix(matrix, back);
+		Check(Movable_MatrixAxes(matrix, axes) && fabs(axes[6] * axes[6] + axes[7] * axes[7] + axes[8] * axes[8] - 1.0) < 1e-9 && fabs(axes[7]) < 1e-4 && fabs(fabs(axes[6]) - 0.7071) < 1e-3 &&
+			fabs(back[1] - turn[1]) < 1e-4, "a 45-degree turn about y: written as a matrix whose third row faces 45 degrees off z, and read back as the same turn");
+	}
+
 	printf("%d checks, %d failed\n", checks, checksFailed);
 	return checksFailed == 0 ? 0 : 1;
 }

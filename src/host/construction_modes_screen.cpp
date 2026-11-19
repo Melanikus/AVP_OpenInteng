@@ -132,6 +132,7 @@
 #include "adjacency_generate.h"
 #include "waypoint_mode.h"
 #include "waypoint_view.h"
+#include "autoplot_command.h"
 #include "track_pages.h"
 #include "editor_options.h"
 #include "shape_chooser.h"
@@ -1988,6 +1989,12 @@ int32_t WaypointPickedObject(OpenLevelFile *open)
 
 void DoWaypointCommand(int32_t command, EditorHostState &host)
 {
+	// Auto-plot alien ways (ours, the owner's addition 11-18: autoplot_command.h)
+	if (AutoPlotCommand(command, EntryMarkerModule()))
+	{
+		return;
+	}
+
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	host::WaypointContext context;
 

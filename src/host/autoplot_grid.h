@@ -36,6 +36,8 @@ namespace host
 	int const kAutoPlotAlienFloorPrice = 10;     // the design's alien search: a metre of floor costs as much as 10 of wall or ceiling
 	size_t const kAutoPlotMostLooks = 200000;    // the cells one search may look at (the design's)
 	size_t const kAutoPlotMostSpots = 64;        // the most stand spots one call gives
+	int const kAutoPlotSnapReach = 4000;         // a way's start or goal with no cell within the grid's own reach (1.5 m) is moved to the nearest cell within this many mm: an
+	                                             // exit point lies mid-doorway, ~2 m off the floor (Colony 11-18); the way's first and last points are the cells it was moved to
 
 	struct AutoPlotPoint
 	{
@@ -66,9 +68,21 @@ namespace host
 	// Places in a game module where a marine can stand (cells of the grid a marine stands on), spread out, at most `most`: the interior goals
 	std::vector<AutoPlotPoint> AutoPlotGrid_StandSpots(int32_t module, size_t most);
 
+	// EVERY cell a marine stands on in a game module (what StandSpots spreads from), for covering a module's walkable floor with boxes (Bishop's addendum, 11-18: stock
+	// drops the waypoints when the NPC or its target is in no box). Each: the floor point under the cell's middle (the world's mm, y down), surface Floor, the module.
+	// *cellEdge: a cell's side in mm (one cell covers cellEdge x cellEdge of floor). False (with why) when the grid isn't ready, the module has no such cells, or it has
+	// more than kAutoPlotMostFloorCells (a hostile level can't make the caller tile for ever). One caller at a time, as Way.
+	size_t const kAutoPlotMostFloorCells = 200000;
+	bool AutoPlotGrid_FloorCells(int32_t module, std::vector<AutoPlotPoint> *cells, int32_t *cellEdge, std::string *why);
+
+	// The grid's size once it is ready: its cells and the bytes it keeps (false, both 0, before)
+	bool AutoPlotGrid_Size(size_t *cells, size_t *bytesKept);
+
 	// THE HARNESS'S PROBE (autoplot_grid_game.cpp; a stock level's proof, no menu): with AutoPlotProbe=1 in the editor's settings, once the level is open the grid is
 	// started, and when it is ready an alien and a marine search run between stand spots of the first two game modules that have them; the state line says how it went
-	// (autoplotgrid: "done 0|1 ready 0|1 ms <build>", autoplotways: "alien found 0|1 points <n> ms <t> from <module> to <module>; floor ..."). One line each in editor_main.cpp.
+	// (autoplotgrid: "done 0|1 ready 0|1 ms <build> cells <n> kb <kept>", autoplotways: "alien found 0|1 points <n> ms <t> from <module> to <module>; floor ...").
+	// AutoPlotProbe=2 instead searches between every AI module's EXITS (its ADJMDLEP entry points, entry_markers.h), pair by pair, as the auto-plot will: autoplotexits
+	// "modules <n> pairs <p> found <f> climbing <c> toofar <t> noway <w> floorfound <ff> ms <total> max <slowest>". One line each in editor_main.cpp.
 	void AutoPlotGrid_ProbeLoad(char const *settingsFile);
 	void AutoPlotGrid_ProbeFrame(OpenLevelFile *open);
 	void AutoPlotGrid_ProbeStateLine();

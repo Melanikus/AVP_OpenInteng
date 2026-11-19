@@ -109,3 +109,34 @@ namespace host
 		turn[3] = (float)w;
 	}
 }
+
+namespace host
+{
+	bool Movable_MatrixAxes(int32_t const matrix[9], double axes[9])
+	{
+		double rows[9];
+
+		for (int r = 0; r < 3; r++)
+		{
+			double const x = (double)matrix[r * 3] / 65536.0, y = (double)matrix[r * 3 + 1] / 65536.0, z = (double)matrix[r * 3 + 2] / 65536.0;
+			double const length = sqrt(x * x + y * y + z * z);
+
+			// 16.16 numbers can't be more than 2^15 long; a row about 0 long is no axis
+			if (!(length > 1e-3))
+			{
+				return false;
+			}
+
+			rows[r * 3] = x / length;
+			rows[r * 3 + 1] = y / length;
+			rows[r * 3 + 2] = z / length;
+		}
+
+		for (int i = 0; i < 9; i++)
+		{
+			axes[i] = rows[i];
+		}
+
+		return true;
+	}
+}

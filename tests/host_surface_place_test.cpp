@@ -67,6 +67,9 @@ static host::SurfacePlaceInput Input(int32_t const hit[3], int32_t const normal[
 	}
 
 	in.canTurn = canTurn;
+	// these cases are the 11-18 rule, "up to surface" (G while the ball is held, Frost 11-19); the default is now CLOSEST: TestClosest below and host_surface_turn_test
+	in.align = host::SurfaceAlign::Up;
+	in.previousAxis = -1;
 	return in;
 }
 
@@ -372,9 +375,149 @@ static host::SurfaceLiveInput Live(int32_t const hit[3], int32_t const normal[3]
 	}
 
 	in.scale = scale;
-	in.baseWorld = base;
+	in.boxMaxWorld[1] = base;   // its base below its place (these cases are UP's, which takes the y extent; Bishop 11-19 gave _Live the whole box)
 	in.canTurn = canTurn;
+	in.align = host::SurfaceAlign::Up;   // as Input's (Frost 11-19)
+	in.previousAxis = -1;
 	return in;
+}
+
+// THE DEFAULT SINCE 11-19, CLOSEST (the owner: "the 'Closest cardinal axis' ... on the object's local coordinates to be the side that snaps"; Frost): through SurfacePlace_Pose and _Live
+static void TestClosest()
+{
+	puts("CLOSEST, the default (the owner's order 11-19):");
+
+	int32_t const hit[3] = { -5000, 1200, 700 };
+	int32_t const wallX[3] = { 65536, 0, 0 };
+	int32_t const floorUp[3] = { 0, -65536, 0 };
+	host::SurfacePlaceInput in = Input(hit, wallX, kUpright, true);
+	host::SurfacePlacePose pose;
+
+	in.align = host::SurfaceAlign::Closest;
+
+	bool const onWall = host::SurfacePlace_Pose(in, &pose);
+
+	Check(onWall && pose.axis == 0 && fabs(pose.turn[0]) < 1e-6 && fabs(pose.turn[1]) < 1e-6 && fabs(pose.turn[2]) < 1e-6 && fabs(pose.turn[3] - 1.0) < 1e-6,
+		"an upright crate slid onto a wall facing +x: its +x meets it, its turn kept exactly (UP turned its up onto the wall)");
+	Check(onWall && pose.place[0] == -4700 && pose.place[1] == 1200 && pose.place[2] == 700,
+		"and its place 300 out along the normal, its -x side's extent: the side that meets the wall (Bishop 11-19; the rule before took its base's 500) (" + Words(pose.place) + ")");
+
+	in = Input(hit, floorUp, kQuarterAboutY, true);
+	in.align = host::SurfaceAlign::Closest;
+
+	bool const onFloor = host::SurfacePlace_Pose(in, &pose);
+
+	Check(onFloor && pose.axis == 3 && fabs(fabs(pose.turn[1]) - fabs(kQuarterAboutY[1])) < 1e-6 && fabs(fabs(pose.turn[3]) - fabs(kQuarterAboutY[3])) < 1e-6,
+		"a crate turned a quarter about y, on a floor: its -y meets it, its quarter turn kept");
+
+	in = Input(hit, wallX, kUpright, true);
+	in.align = host::SurfaceAlign::Up;
+
+	bool const up = host::SurfacePlace_Pose(in, &pose);
+
+	Check(up && pose.axis == 3, "UP (G): the same wall, its -y (up) meets it");
+
+	// _Live passes the align and the previous axis through: near a tie the previous axis is kept
+	int32_t const tie[3] = { 0, -46341, -46341 };   // 45 degrees from both -y and -z
+	int32_t const above[3] = { 0, -20000, -20000 };
+	host::SurfaceLiveInput live = Live(hit, tie, above, 1.0, 500, kUpright, true);
+
+	live.align = host::SurfaceAlign::Closest;
+	live.previousAxis = 5;
+
+	bool const kept = host::SurfacePlace_Live(live, &pose);
+
+	Check(kept && pose.axis == 5, "_Live near a tie, -z the frame before: -z kept");
+	live.previousAxis = -1;
+
+	bool const fresh = host::SurfacePlace_Live(live, &pose);
+
+	Check(fresh && pose.axis == 3, "_Live at the same tie with none before: -y (the lower number)");
+}
+
+// Of the eight corners of the input's box, turned by the pose's turn (inteng's RotateByTurn, as the game draws them) and put at its place: the deepest along the unit normal, measured from
+// the plane through the hit point (0: the box touches the surface; more: it floats off it; less: it is sunk into it)
+static double DeepestCorner(host::SurfacePlaceInput const &in, host::SurfacePlacePose const &pose, double const unitNormal[3])
+{
+	double deepest = 0.0;
+
+	for (int corner = 0; corner < 8; corner++)
+	{
+		double world[3];
+
+		if (!Turned(pose.turn, (corner & 1) ? in.boxMax[0] : in.boxMin[0], (corner & 2) ? in.boxMax[1] : in.boxMin[1], (corner & 4) ? in.boxMax[2] : in.boxMin[2], world))
+		{
+			return 1e9;
+		}
+
+		double along = 0.0;
+
+		for (int i = 0; i < 3; i++)
+		{
+			along += unitNormal[i] * ((double)pose.place[i] + world[i] - (double)in.hitPoint[i]);
+		}
+
+		deepest = corner == 0 || along < deepest ? along : deepest;
+	}
+
+	return deepest;
+}
+
+// CLOSEST'S PUSH-OUT (Bishop's order 11-19, the owner's: "with CLOSEST, the push-out off the surface must use the object's extent along the SNAPPED axis (the side that meets the surface),
+// not always its y extent"; "with UP (G) it stays the y extent"): the snapped axis points out of the surface, so the box's face on the other side meets it, and the object is pushed out
+// by that face's distance from its place. The smart gun's own box (smart1 in his Genshd1: -199 -181 -1210 .. 181 225 1476, uneven on every axis, so each face gives its own number):
+// upright onto each of a box room's six faces; turned a quarter about x (its +z up) onto a floor, which tells the snapped LOCAL axis from the normal's world axis; and UP on a wall. Each
+// case is checked twice: the place by the numbers, and its box's deepest corner on the surface (turned as the game draws it). The rule before pushed every case out by 225 (its +y side).
+static void TestClosestPushOut()
+{
+	puts("CLOSEST's push-out, by the side that meets the surface (Bishop's order 11-19):");
+
+	int32_t const hit[3] = { -5000, 1200, 700 };
+
+	struct Case
+	{
+		int32_t normal[3];
+		float turn[4];
+		host::SurfaceAlign align;
+		int axis;
+		int32_t place[3];
+		char const *words;
+	};
+
+	Case const cases[8] = {
+		{ { 65536, 0, 0 }, { 0.0f, 0.0f, 0.0f, 1.0f }, host::SurfaceAlign::Closest, 0, { -4801, 1200, 700 }, "upright onto a wall facing +x: its +x out, its -x side meets it, 199 out" },
+		{ { -65536, 0, 0 }, { 0.0f, 0.0f, 0.0f, 1.0f }, host::SurfaceAlign::Closest, 1, { -5181, 1200, 700 }, "a wall facing -x: its -x out, its +x side meets it, 181 out" },
+		{ { 0, 65536, 0 }, { 0.0f, 0.0f, 0.0f, 1.0f }, host::SurfaceAlign::Closest, 2, { -5000, 1381, 700 }, "a ceiling (facing +y, down): its +y out, its -y side meets it, 181 out" },
+		{ { 0, -65536, 0 }, { 0.0f, 0.0f, 0.0f, 1.0f }, host::SurfaceAlign::Closest, 3, { -5000, 975, 700 }, "a floor (facing -y, up): its -y out, its base meets it, 225 out (the rule before)" },
+		{ { 0, 0, 65536 }, { 0.0f, 0.0f, 0.0f, 1.0f }, host::SurfaceAlign::Closest, 4, { -5000, 1200, 1910 }, "a wall facing +z: its +z out, its -z side meets it, 1210 out" },
+		{ { 0, 0, -65536 }, { 0.0f, 0.0f, 0.0f, 1.0f }, host::SurfaceAlign::Closest, 5, { -5000, 1200, -776 }, "a wall facing -z: its -z out, its +z side meets it, 1476 out" },
+		{ { 0, -65536, 0 }, { 0.70710678f, 0.0f, 0.0f, 0.70710678f }, host::SurfaceAlign::Closest, 4, { -5000, -10, 700 },
+			"turned a quarter about x (its +z up) onto a floor: its LOCAL +z out, its -z side meets it, 1210 out (the floor's own axis, y, would give 225)" },
+		{ { 65536, 0, 0 }, { 0.0f, 0.0f, 0.0f, 1.0f }, host::SurfaceAlign::Up, 3, { -4775, 1200, 700 }, "UP (G) onto a wall facing +x: its up out, its base meets it, 225 out (the y extent, as before)" },
+	};
+
+	for (Case const &one : cases)
+	{
+		host::SurfacePlaceInput in = Input(hit, one.normal, one.turn, true);
+		host::SurfacePlacePose pose;
+
+		in.boxMin[0] = -199;
+		in.boxMin[1] = -181;
+		in.boxMin[2] = -1210;
+		in.boxMax[0] = 181;
+		in.boxMax[1] = 225;
+		in.boxMax[2] = 1476;
+		in.align = one.align;
+
+		double const unit[3] = { one.normal[0] / 65536.0, one.normal[1] / 65536.0, one.normal[2] / 65536.0 };
+		bool const done = host::SurfacePlace_Pose(in, &pose);
+		double const deepest = done ? DeepestCorner(in, pose, unit) : 1e9;
+		char gap[48];
+
+		snprintf(gap, sizeof(gap), "%.1f", deepest);
+		Check(done && pose.axis == one.axis && memcmp(pose.place, one.place, sizeof(pose.place)) == 0 && Near(deepest, 0.0, 1.5), std::string(one.words) + ": axis " +
+			std::to_string(pose.axis) + ", place " + Words(pose.place) + " (" + Words(one.place) + " wanted), its deepest corner " + gap + " off the surface");
+	}
 }
 
 static void TestLive()
@@ -439,6 +582,8 @@ int main()
 	TestMoveOnly();
 	TestRefused();
 	TestLive();
+	TestClosest();
+	TestClosestPushOut();
 	printf("%d checks, %d failed\n", checks, checksFailed);
 	return checksFailed ? 1 : 0;
 }

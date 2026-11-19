@@ -1,0 +1,12 @@
+# ACCEPTANCE (Drake 2026-11-19, the other half of acceptance-autoplot-hidden): with AutoPlot=1 under [Editor] (the owner's "hide auto pilot" keeps the code testable: autoplot_switch.h),
+# Waypoint mode's two Auto-plot items are on its bar again, after inteng's own menus, as before the ruling. Hangar, as acceptance-autoplot-all.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+expect-screen Waypoint
+expect-bar1 Help
+expect-bar1 Auto-plot AI module
+expect-bar1 Auto-plot all AI modules
+picture 1

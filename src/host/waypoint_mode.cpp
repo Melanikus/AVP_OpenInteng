@@ -600,6 +600,69 @@ namespace host
 		return out;
 	}
 
+	WaypointOutcome WaypointMode::AutoPlotWrite(OpenLevelFile *open, int32_t master, std::vector<WaypointRec> const &alienList)
+	{
+		if (!open || !open->Level())
+		{
+			return Said("Auto-plot: no level is held to write into");
+		}
+
+		// the mode's own state, as it was
+		int32_t const keptCurrent = current, keptWpCurrent = wpCurrent, keptWpBase = wpBase, keptLinkFrom = linkFrom, keptLinkTo = linkTo;
+		WaypointSet const keptSet = set;
+		std::vector<int32_t> const keptGroup = group;
+		size_t const keptDropped = droppedModuleLinks;
+		std::map<std::string, std::vector<int32_t> > const keptPlaces = modulePlaces;
+
+		auto const restore = [&]()
+		{
+			current = keptCurrent;
+			set = keptSet;
+			group = keptGroup;
+			wpCurrent = keptWpCurrent;
+			wpBase = keptWpBase;
+			linkFrom = keptLinkFrom;
+			linkTo = keptLinkTo;
+			droppedModuleLinks = keptDropped;
+			modulePlaces = keptPlaces;
+		};
+
+		std::string why;
+
+		if (!Load(open, master, &why))
+		{
+			restore();
+			return Said(("Auto-plot: AI module " + std::to_string((long long)master) + " not written: " + why).c_str());
+		}
+
+		set.alien = alienList;
+
+		bool const written = Write(open, &why);
+
+		restore();
+
+		if (!written)
+		{
+			return Said(("Auto-plot: AI module " + std::to_string((long long)master) + " not written: " + why).c_str());
+		}
+
+		// the AI module the mode works on was this one: its lists read again (the new ones), nothing current
+		if (keptCurrent == master)
+		{
+			std::string again;
+
+			if (Load(open, master, &again))
+			{
+				linkFrom = linkTo = -1;
+			}
+		}
+
+		WaypointOutcome out = Said(("Auto-plot: AI module " + std::to_string((long long)master) + " written").c_str());
+
+		out.levelChanged = true;
+		return out;
+	}
+
 	bool WaypointMode::PickNear(int32_t const place[3], int axisMask)
 	{
 		std::vector<WaypointRec> const &list = List();

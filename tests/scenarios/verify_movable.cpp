@@ -5,11 +5,14 @@
 //
 // USAGE: verify_movable <the level as opened> <the saved copy> <kind> <which> <check> [<check> ...]
 //   kind: start, particle, sound, generator, badguy (their number among their kind, from 0), hierarchy (its number), light (its place in the set, from 0),
-//         virtual (its name), entry (<module object index>:<marker number>)
+//         virtual (its name), entry (<module object index>:<marker number>), placed (a placed object's name: the first of that exact name in the level as opened, then by its ID;
+//         Frost 11-19, placement mode's closest axis)
 //   check: moved x | moved y | moved z   the copy's place is 10 mm or more from the opened one's along that axis, and within 1 mm on the other two (the turn as it was)
 //          moved-any                     the copy's place is 10 mm or more from the opened one's (an entry point is held inside a box by its writer)
 //          turned                        the copy's turn is 5 degrees or more from the opened one's, and its place within 1 mm
 //          same                          the copy's place within 1 mm and its turn within half a degree
+//          turn-kept                     the copy's turn within half a degree of the opened one's, its place anything (placement slid it: the closest axis kept its turn)
+//          turn-apart <least> <most>     the copy's turn that many degrees from the opened one's, from least to most, its place anything
 // It passes (exit 0) when every check does; the lines say what was found.
 
 #include <math.h>
@@ -21,6 +24,9 @@
 
 #include <windows.h>
 
+#include "chunk.hpp"
+#include "chunk_object.hpp"
+#include "mishchnk.hpp"
 #include "level_file.h"
 #include "movable.h"
 #include "virtual_object.h"
@@ -133,6 +139,27 @@ static host::MovableRef RefOf(std::string const &kind, char const *which)
 	return ref;
 }
 
+// "placed <name>": the ID of the level's first object of exactly that name (modules and placed objects, as File_Chunk::list_objects gives them); false for none
+static bool PlacedIdOf(OpenLevelFile &level, char const *name, uint8_t id[8])
+{
+	List<Object_Chunk *> objects;
+
+	level.Level()->list_objects(&objects);
+
+	for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+	{
+		Object_Chunk *const object = each();
+
+		if (object && object->object_data.o_name && strcmp(object->object_data.o_name, name) == 0)
+		{
+			memcpy(id, &object->object_data.ID, 8);
+			return true;
+		}
+	}
+
+	return false;
+}
+
 // The angle between two turns, in degrees (a turn and its negative are the same)
 static double DegreesApart(float const a[4], float const b[4])
 {
@@ -167,7 +194,13 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	host::MovableRef const ref = RefOf(argv[3], argv[4]);
+	host::MovableRef ref = RefOf(argv[3], argv[4]);
+	bool const byName = strcmp(argv[3], "placed") == 0 && strlen(argv[4]) > 0;
+
+	if (byName)
+	{
+		ref.kind = host::MovableKind::PlacedObject;   // its ID once the level is open
+	}
 
 	if (ref.kind == host::MovableKind::None)
 	{
@@ -184,6 +217,16 @@ int main(int argc, char **argv)
 	if (failed)
 	{
 		return 1;
+	}
+
+	if (byName)
+	{
+		Check(before.Level() && PlacedIdOf(before, argv[4], ref.id), std::string("an object named ") + argv[4] + " is in the level as opened");
+
+		if (failed)
+		{
+			return 1;
+		}
 	}
 
 	bool const wasRead = host::Movable_Get(&before, ref, &was) == host::MovableResult::Done;
@@ -234,6 +277,17 @@ int main(int argc, char **argv)
 		else if (check == "same")
 		{
 			Check(farthest <= 1.0 && turnApart < 0.5, "as it was: " + std::to_string((int)farthest) + " mm and " + std::to_string(turnApart) + " degrees apart");
+		}
+		else if (check == "turn-kept")
+		{
+			Check(turnApart < 0.5, "its turn kept: " + std::to_string(turnApart) + " degrees apart (its place " + std::to_string((int)farthest) + " mm on its farthest axis)");
+		}
+		else if (check == "turn-apart" && a + 2 < argc)
+		{
+			double const least = atof(argv[a + 1]), most = atof(argv[a + 2]);
+
+			a += 2;
+			Check(turnApart >= least && turnApart <= most, "turned " + std::to_string(turnApart) + " degrees (" + argv[a - 1] + " to " + argv[a] + " wanted)");
 		}
 		else
 		{

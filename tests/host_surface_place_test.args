@@ -4,3 +4,4 @@
 tests/host_surface_place_test.cpp
 src/host/surface_place.cpp
 src/model/shape_maths.cpp
+src/host/surface_turn.cpp

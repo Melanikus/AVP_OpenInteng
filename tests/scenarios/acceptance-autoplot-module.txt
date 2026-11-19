@@ -3,6 +3,8 @@
 # has its centre outside it: the stock survey's kind of fault), Auto-plot AI module run. Its words say what was made, its exits all covered; the saved copy, read back by the game's own
 # loader, holds module 54's new network and the checker finds nothing in it (verify_waypoint_nets: a network, every exit in a box, every box reaching every other, 99 boxes at most, every
 # link in the list, no problem at all). Red before the command is there (no such menu).
+# the owner's "hide auto pilot" (11-19): the items are only there with AutoPlot=1 (autoplot_switch.h; acceptance-autoplot-hidden is the shipped ini)
+#ini AutoPlot=1
 screen Waypoint
 level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
@@ -13,7 +15,11 @@ save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 54 network exits most links
 pick-module 54
 wait 300
-click-bar Auto-plot AI module > Auto-plot AI module
+# the items are on the top bar (no drop-down); module 54 has 28 stock alien waypoints, so the command asks before it replaces them (Dietrich 11-18)
+click-bar Auto-plot AI module
+expect-dialog-kind confirm
+expect-dialog replace
+click-button Yes
 wait-status 120000 Auto-plot: AI module 54:
 expect-status boxes
 expect-status exits covered

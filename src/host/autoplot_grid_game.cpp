@@ -18,10 +18,19 @@
 #include "autoplot_grid.h"
 #include "autoplot_grid_feed.h"
 #include "state_line.h"
+#include "entry_markers.h"
+#include "level_objects.h"
+#include "object_list.h"
 
 #include <windows.h>
 
 #include <math.h>
+
+#include <algorithm>
+#include <map>
+#include <set>
+
+extern double local_scale;   // the level's scale (projload.cpp): the world's units are the file's times it
 
 namespace host
 {
@@ -96,6 +105,9 @@ namespace host
 namespace
 {
 	bool probeAsked = false, probeStarted = false, probeDone = false;
+	int probeMode = 0;   // 1: two stand spots of one module; 2: every AI module's exits, pair by pair
+	std::string probeExits = "done 0";
+	std::string probeFails;   // the pairs no alien way joined, named
 	DWORD probeStartTick = 0;
 	std::string probeGrid = "done 0 ready 0 ms 0", probeWays;
 
@@ -108,9 +120,123 @@ namespace
 
 namespace host
 {
+	// AutoPlotProbe=2: what the auto-plot will search: for each AI module (its exits: ADJMDLEP entry points into the neighbours, EntryMarkers_Of, each AI module once), an
+	// alien's way and a marine's between each pair of its exits (at most 12 pairs a module, 300 in all), the exits' points in the world's units (the file's times
+	// local_scale). "climbing": a way found that is on a wall or the ceiling somewhere.
+	static void ExitsProbe(OpenLevelFile *open)
+	{
+		std::vector<host::LevelObject> objects;
+		std::set<std::string> seen;
+		double const scale = local_scale > 0.0 ? local_scale : 1.0;
+		int modules = 0, pairs = 0, found = 0, climbing = 0, tooFar = 0, noWay = 0, floorFound = 0;
+		DWORD total = 0, slowest = 0;
+		std::map<std::string, int> whys;   // each no-way reason, counted
+
+		LevelObjects_Read(&objects);
+
+		for (size_t i = 0; i < objects.size() && pairs < 300; i++)
+		{
+			std::vector<EntryMarker> exits;
+
+			if (!EntryMarkers_Of(open, (int32_t)i, &exits) || exits.size() < 2)
+			{
+				continue;
+			}
+
+			std::string key;
+
+			for (EntryMarker const &e : exits)
+			{
+				key += std::to_string(e.main) + "," + std::to_string(e.adjacent) + ";";
+			}
+
+			if (!seen.insert(key).second)
+			{
+				continue;   // this AI module's exits, met again from another of its modules
+			}
+
+			modules++;
+
+			int inModule = 0;
+
+			for (size_t a = 0; a < exits.size() && inModule < 12 && pairs < 300; a++)
+			{
+				for (size_t b = a + 1; b < exits.size() && inModule < 12 && pairs < 300; b++)
+				{
+					int32_t from[3], to[3];
+
+					for (int k = 0; k < 3; k++)
+					{
+						from[k] = (int32_t)floor((double)exits[a].point[k] * scale + 0.5);
+						to[k] = (int32_t)floor((double)exits[b].point[k] * scale + 0.5);
+					}
+
+					std::vector<AutoPlotPoint> way, ground;
+					std::string why, groundWhy;
+					DWORD const t0 = GetTickCount();
+					bool const ok = AutoPlotGrid_Way(from, to, true, &way, &why);
+					DWORD const took = GetTickCount() - t0;
+
+					pairs++;
+					inModule++;
+					total += took;
+					slowest = took > slowest ? took : slowest;
+
+					if (ok)
+					{
+						found++;
+
+						for (AutoPlotPoint const &p : way)
+						{
+							if (p.surface != AutoPlotPoint::Surface::Floor)
+							{
+								climbing++;
+								break;
+							}
+						}
+					}
+					else if (why.find("as far as it may") != std::string::npos)
+					{
+						tooFar++;
+					}
+					else
+					{
+						noWay++;
+						whys[why.substr(0, 48)]++;
+					}
+
+					if (!ok)
+					{
+						auto const nameOf = [&objects](int32_t index) { return index >= 0 && (size_t)index < objects.size() && objects[(size_t)index].name ? std::string(objects[(size_t)index].name) : std::string("?"); };
+						int const failsListed = (int)std::count(probeFails.begin(), probeFails.end(), '|');
+
+						if (failsListed < 24)
+						{
+							probeFails += (probeFails.empty() ? "" : " | ") + std::string("AI ") + std::to_string(exits[a].main) + " " + nameOf(exits[a].main) + " exits to " +
+								std::to_string(exits[a].adjacent) + " " + nameOf(exits[a].adjacent) + " and " + std::to_string(exits[b].adjacent) + " " + nameOf(exits[b].adjacent) + ": " +
+								(why.find("pieces") != std::string::npos ? "pieces that don't join" : why.substr(8));
+						}
+					}
+
+					floorFound += AutoPlotGrid_Way(from, to, false, &ground, &groundWhy) ? 1 : 0;
+				}
+			}
+		}
+
+		probeExits = "done 1 modules " + std::to_string(modules) + " pairs " + std::to_string(pairs) + " found " + std::to_string(found) + " climbing " + std::to_string(climbing) +
+			" toofar " + std::to_string(tooFar) + " noway " + std::to_string(noWay) + " floorfound " + std::to_string(floorFound) + " ms " +
+			std::to_string((unsigned long long)total) + " max " + std::to_string((unsigned long long)slowest);
+
+		for (auto const &one : whys)
+		{
+			probeExits += " | " + std::to_string(one.second) + " x " + one.first;
+		}
+	}
+
 	void AutoPlotGrid_ProbeLoad(char const *settingsFile)
 	{
-		probeAsked = settingsFile && GetPrivateProfileIntA("Editor", "AutoPlotProbe", 0, settingsFile) == 1;
+		probeMode = settingsFile ? (int)GetPrivateProfileIntA("Editor", "AutoPlotProbe", 0, settingsFile) : 0;
+		probeAsked = probeMode == 1 || probeMode == 2;
 	}
 
 	void AutoPlotGrid_ProbeFrame(OpenLevelFile *open)
@@ -148,7 +274,17 @@ namespace host
 		}
 
 		probeDone = true;
-		probeGrid = "done 1 ready 1 ms " + std::to_string((unsigned long long)(GetTickCount() - probeStartTick));
+		size_t cells = 0, kept = 0;
+
+		AutoPlotGrid_Size(&cells, &kept);
+		probeGrid = "done 1 ready 1 ms " + std::to_string((unsigned long long)(GetTickCount() - probeStartTick)) + " cells " + std::to_string((unsigned long long)cells) +
+			" kb " + std::to_string((unsigned long long)(kept / 1024));
+
+		if (probeMode == 2)
+		{
+			ExitsProbe(open);
+			return;
+		}
 
 		// what the auto-plot asks: ways INSIDE one AI module (between its goals; the design's exits lie just inside the neighbours). Two stand spots, spread apart, of the first
 		// game modules that have two, up to 8 modules, until a way joins them (a module may hold a vent or a ledge a marine can't reach). A way across the whole level can look
@@ -193,6 +329,8 @@ namespace host
 		{
 			StateLine_Add("autoplotgrid", probeGrid);
 			StateLine_Add("autoplotways", probeWays);
+			StateLine_Add("autoplotexits", probeMode == 2 ? probeExits : std::string());
+			StateLine_Add("autoplotfails", probeMode == 2 ? probeFails : std::string());
 		}
 	}
 }

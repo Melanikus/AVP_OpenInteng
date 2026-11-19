@@ -5,6 +5,8 @@
 #include <math.h>
 #include <string.h>
 
+#include "surface_turn.h"   // CLOSEST: the axis and the turn (Frost 11-19, the owner's order)
+
 namespace host
 {
 	namespace
@@ -100,9 +102,23 @@ namespace host
 			return false;
 		}
 
+		if (in.align == SurfaceAlign::Closest)
+		{
+			// CLOSEST (the default): the axis pointing most out of the surface from the drag's start pose, turned onto the normal by the smallest rotation (surface_turn.h)
+			int const axis = SurfaceAxis_Closest(in.turn, n, in.previousAxis, kSurfaceAxisMarginDegrees);
+
+			if (axis < 0 || !SurfaceTurn_AxisOnto(in.turn, axis, n, pose.turn))
+			{
+				return false;
+			}
+
+			pose.axis = axis;
+		}
+		else
+		{
 		double const x = q[0], y = q[1], z = q[2], w = q[3];
 
-		// the object's up, R (0, -1, 0) (minus R's middle column), and its x axis, R (1, 0, 0) (R's first column)
+		// UP ("up to surface", the 11-18 rule): the object's up, R (0, -1, 0) (minus R's middle column), and its x axis, R (1, 0, 0) (R's first column)
 		double const up[3] = { -2.0 * (x * y - z * w), -(1.0 - 2.0 * (x * x + z * z)), -2.0 * (y * z + x * w) };
 		double const xAxis[3] = { 1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y + z * w), 2.0 * (x * z - y * w) };
 		double const c = Dot(up, n);
@@ -138,13 +154,23 @@ namespace host
 		pose.turn[1] = (float)(r[3] * y + r[1] * w + (r[2] * x - r[0] * z));
 		pose.turn[2] = (float)(r[3] * z + r[2] * w + (r[0] * y - r[1] * x));
 		pose.turn[3] = (float)(r[3] * w - (r[0] * x + r[1] * y + r[2] * z));
+		pose.axis = 3;   // -y, the object's up
+		}
 
-		// the place: the hit point, pushed out along the normal by the base's extent (the local box's largest y: its base, as y is down)
-		double const base = (double)in.boxMax[1];
+		// the place: the hit point, pushed out along the normal by the box's extent on the side that MEETS the surface (Bishop's order 11-19, the owner's): the snapped axis points out of
+		// the surface, so the box's face on its other side meets it. For +x, +y or +z (0, 2, 4) that is the box's least on the axis (pushed out by minus it), for -x, -y or -z (1, 3, 5)
+		// its most. UP's -y gives the base, the largest y (y is down), as the 11-18 rule did
+		if (pose.axis < 0 || pose.axis > 5)
+		{
+			return false;
+		}
+
+		int const side = pose.axis / 2;
+		double const push = pose.axis % 2 == 0 ? -(double)in.boxMin[side] : (double)in.boxMax[side];
 
 		for (int i = 0; i < 3; i++)
 		{
-			double const place = (double)in.hitPoint[i] + n[i] * base;
+			double const place = (double)in.hitPoint[i] + n[i] * push;
 
 			if (!(place > -kMostPlace && place < kMostPlace))
 			{
@@ -192,8 +218,16 @@ namespace host
 		}
 
 		world.turn[3] = in.turn[3];
-		world.boxMax[1] = in.baseWorld;
+
+		for (int i = 0; i < 3; i++)
+		{
+			world.boxMin[i] = in.boxMinWorld[i];
+			world.boxMax[i] = in.boxMaxWorld[i];
+		}
+
 		world.canTurn = in.canTurn;
+		world.align = in.align;
+		world.previousAxis = in.previousAxis;
 
 		SurfacePlacePose pose;
 

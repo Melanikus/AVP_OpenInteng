@@ -1,0 +1,74 @@
+# ACCEPTANCE (Drake 2026-11-19, Bishop's ask on my finding; the owner's "drawn moving with the gizmo ... in the 3D view and the three views"): Object Placement's SPLIT SCREEN
+# DRAWS its three other views (Misc > Toggle Split Screen: three cameras 5 m from the object, back along z, x and y; the 3D view is the bottom right quarter). Each view runs the
+# game's AvpShowViews into its own box (level_view.cpp), and the game's backdrop (D3D_DrawBackdrop: in a wire mode, or with the player outside every module) filled the WHOLE
+# window at each one's start, so every view wiped the ones drawn before it and only the bottom right was left: the three others were black in every picture, and the picture is
+# the back buffer the window shows (acceptance-object-split-fixed's "same since" check passed on black). Now a view after the frame's first fills only its own box.
+# HIS PATH: his Genshd1 copy as a double click, liftplt from the 45-degree corner. Each of the three boxes (clear of the text at the top left, the field panel at the top right and
+# the status line) is mostly NOT black. RED on exe-cache/45a32d96.exe (all three 1.0000 black), GREEN with avpx 9f4bc88e (0.47, 0.53, 0.09 black). Then the object part below.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera-corner liftplt
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text liftplt
+wait 300
+click-bar Misc > Toggle Split Screen
+expect-status Toggle Split Screen: on
+wait 600
+picture 1
+# the main view, bottom right, as before
+expect-colour-at-most picture 504 364 504 340 000000 0.6 8
+# the three others: top left (below its text), top right (left of the field panel), bottom left (above the status line)
+expect-colour-at-most picture 0 150 500 210 000000 0.9 8
+expect-colour-at-most picture 508 0 340 360 000000 0.9 8
+expect-colour-at-most picture 0 368 500 330 000000 0.9 8
+# a held drag of liftplt, drawn moving in the 3D view (acceptance-gizmo-drag-live). The flat platform is edge-on from the z and x cameras, so the object part below uses asasas
+drag-gizmo move x 60 0 hold
+expect-field-has gizmolive drawn 1
+picture 2
+release-gizmo
+expect-status Gizmo: the placed object moved
+picture 3
+
+# ---- THE OBJECT IN THE THREE VIEWS (the owner's "drawn moving ... in the three views"): asasas, the health pack (solid from every side), made current, so the views are put
+# round it (FUN_004d58e0). Each view shows it where it is: during a held drag and after the release, each of the three boxes changes. RED before the cameras were turned: the x
+# camera had turn 1024 and the y camera look 3072, which in the editor's camera face AWAY from the object (along -x, and up), so it was in the z view only
+click-bar Misc > Toggle Split Screen
+expect-status Toggle Split Screen: off
+camera-corner asasas
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text asasas
+wait 300
+click-bar Misc > Toggle Split Screen
+expect-status Toggle Split Screen: on
+wait 600
+picture 4
+# along x: sideways in the z view (top left) and the y view (bottom left); along the x view's own line of sight, so that one is checked with the z drag below
+drag-gizmo move x 200 0 hold
+expect-field-has gizmolive drawn 1
+picture 5
+expect-pixels-changed-since 4 picture 0 150 500 210 0.002
+expect-pixels-changed-since 4 picture 0 368 500 330 0.002
+release-gizmo
+expect-status Gizmo: the placed object moved
+wait 400
+picture 6
+expect-pixels-changed-since 4 picture 0 150 500 210 0.002
+expect-pixels-changed-since 4 picture 0 368 500 330 0.002
+# along z: sideways in the x view (top right)
+drag-gizmo move z 120 -120 hold
+expect-field-has gizmolive drawn 1
+picture 7
+expect-pixels-changed-since 6 picture 508 0 340 360 0.002
+release-gizmo
+expect-status Gizmo: the placed object moved
+wait 400
+picture 8
+expect-pixels-changed-since 6 picture 508 0 340 360 0.002

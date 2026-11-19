@@ -132,6 +132,7 @@
 #include "adjacency_generate.h"
 #include "waypoint_mode.h"
 #include "waypoint_view.h"
+#include "autoplot_command.h"
 #include "track_pages.h"
 #include "editor_options.h"
 #include "shape_chooser.h"
@@ -938,7 +939,8 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 
 		// THE CURRENT OBJECT'S TWO LINES (FUN_00524e90 0x52525a-0x5252bf, drawn every frame the screen's own loop runs while an object is current): its wrapper's name (method +4) and "ID - 0x%x %x" (005edddc, the two words
 		// of its id) on the rows 3 and 4 (FUN_00522980 sets the row counter to 3 at 0x5229d4 before them): y 48 and 64 from the window's top (strategy-data.md S-66)
-		if (!strategyFlagPage && !copyCollecting && !stabilityActive && !volume.on && !strategyEditFan && !fieldHost.Showing() && lineCount + 2 <= kPanelPassMostExtras)
+		// BAR-8: not while inteng's menu loop is up: FUN_00524e90 calls its command (0x524eab) before these lines; "View Distance" above is drawn before it (FUN_00522980 0x5229e0) and stays
+		if (!strategyFlagPage && !copyCollecting && !stabilityActive && !volume.on && !strategyEditFan && !fieldHost.Showing() && !MenuLoopUp() && lineCount + 2 <= kPanelPassMostExtras)
 		{
 			uint8_t currentId[8];
 			host::FoundObject currentFound;
@@ -1345,7 +1347,8 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	// PATH MODE'S DRAWN TEXT (FUN_004f9d10 0x4f9f70 on, FUN_0057b1b0 at x 0, rows of 16 from row 2): "View Distance :%d" (the distance in 500000s), "Path :%d  %s" (the working path) when there is one, a line "%s" with the module's name for each node the person put in (not the ones the route added), and the picked module's name
 	pathLinesNow.clear();
 
-	if (OnThePathScreen() && !textPanelText && lineCount + 4 <= kPanelPassMostExtras)
+	// BAR-8: not while inteng's menu loop is up: FUN_004f9d10 calls the command (0x4f9d38) before this text (0x4f9f80-0x4fa0e1)
+	if (OnThePathScreen() && !textPanelText && !MenuLoopUp() && lineCount + 4 <= kPanelPassMostExtras)
 	{
 		int32_t const base = layout.toolbar.y + layout.toolbar.height;
 
@@ -1588,7 +1591,8 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	// Linking's above): the picked module's name at (10, 0x32) ("%s" 0x5c39c4 of its record +0x154, +100) while a module is picked, and "View Distance :%d" (0x5c39b0, the
 	// distance / 500000) at (10, 0x22) while Toggle View Distance is on (0x4055f0-0x405638). Not while Show All's paint is held: inteng's hold returns before the text is drawn
 	// (DAT_00606784, the top of FUN_00404a20). (Added 2026-11-17 by Melanikus (Dietrich).)
-	if (!adjacentShowAllPaint && OnAdjacentModulesScreen() && LevelObjects_Level())
+	// BAR-8: not while inteng's menu loop is up either: FUN_00404a20 calls the command (0x404ae2) before its text
+	if (!adjacentShowAllPaint && OnAdjacentModulesScreen() && LevelObjects_Level() && !MenuLoopUp())
 	{
 		int32_t const base = layout.toolbar.y + layout.toolbar.height;
 
@@ -1661,7 +1665,7 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	host::Dialogs_SetScreen(layout.view.x, layout.view.y, layout.view.width, layout.view.height);
 
 	// Adjacent Modules, Link > Delete: inteng draws the text "BOO!" at (10, 0x50) of the screen (FUN_0057b1b0 at 0x404cbc, the string at 0x5c3a28); it stays until the screen is left
-	if (!adjacentBoo.empty() && lineCount < kPanelPassMostExtras)
+	if (!adjacentBoo.empty() && !MenuLoopUp() && lineCount < kPanelPassMostExtras)   // BAR-8: drawn after the command step (0x404ae2 before 0x404cbc)
 	{
 		host::PaintText boo;
 
@@ -1711,7 +1715,7 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	}
 
 	// The Shape Chooser's text (FUN_004ddb60 0x4ddedd-0x4ddf55)
-	if (chooserActive && !chooserList.empty() && lineCount + 6 <= kPanelPassMostExtras)
+	if (chooserActive && !chooserList.empty() && !MenuLoopUp() && lineCount + 6 <= kPanelPassMostExtras)   // BAR-8: its command (0x4ddb69) before its text
 	{
 		int32_t const screenH = layout.status.y + layout.status.height > 0 ? layout.status.y + layout.status.height : 729;
 		host::ShapeChoice const &now = chooserList[chooserAt];
@@ -1731,6 +1735,7 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 			line.x = one.x;
 			line.y = one.y;
 			lines[lineCount++] = line;
+			screenTextNow += (screenTextNow.empty() ? "" : "|") + one.text;   // the state line's screentext: a test reads the chooser's lines as the screen shows them
 		}
 	}
 
@@ -1740,6 +1745,7 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	if (OnTheTrackScreen())
 	{
 		TrackTextLines(&hierarchyTextNow);
+		textAfterTheCommand = trackEd.state != host::TrackState::PivotEdit;   // FUN_004d9af0 (Track Editing's frame too): states 2-4 reach its command step 0x4d9d1b, their text after it (0x4dc742); Pivot Edit returns at 0x4d9b51 before it
 	}
 	else if (OnAcousticScreen())
 	{
@@ -1749,6 +1755,7 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Waypoint") == 0)
 	{
 		WaypointTextLines(&hierarchyTextNow);
+		AutoPlotCommand_Frame();   // a running auto-plot's progress, its networks written when done (autoplot_command.h)
 		textAfterTheCommand = true;   // FUN_00586450: each sub-state (FUN_00583d00 / 584ee0 / 585750 / 584d80) calls the command at its top, the list is drawn after them (0x58649f)
 	}
 	else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Object Placement") == 0)
@@ -1763,8 +1770,8 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	}
 
 	// While the bar or the pop-up is up, inteng's frame is stopped inside its menu loop (FUN_004b7c50 -> FUN_004b7dd0, modal) at the mode's command step: a mode that draws its text after that
-	// step has none of it on the screen then (reassess/dialog-look-drake.md BAR-6, BAR-8, BAR-9: as render state 0 shows it). NOT MAPPED YET: Track Editing (Object Placement's sub-state; its
-	// text may come from FUN_00501080, which runs before FUN_004d9af0), whose text is kept until its order is read
+	// step has none of it on the screen then (reassess/dialog-look-drake.md BAR-6, BAR-8, BAR-9: as render state 0 shows it). Track Editing is Object Placement's frame too
+	// (FUN_004d9af0): its states 2-4 go through the command step before their text; Pivot Edit (state 5) returns before the step (0x4d9b3d-0x4d9b51), and FUN_004f3e30 draws no text
 	// Insert's zoom waiting for its centre: FUN_00471cb0 0x471ccb writes "Zoom... Choose centre" at (200, 100) (FUN_0057bd40); the status line keeps saying it too. It shows on every screen, the volume
 	// editor's too, where the status line is blank (a review of S-VOL-11, 11-17: nothing showed there)
 	if (zoomStage == 1)

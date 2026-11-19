@@ -14,7 +14,9 @@
 // at most kAutoPlotStretch long (a stretch's last point is the next one's first, so their boxes meet); each stretch a box round its points, reaching kAutoPlotReach off the surface (the
 // alien's body), kAutoPlotInto into it (a floor box a little below the floor: y is down) and kAutoPlotHalfWidth to each side; boxes of one surface that mostly overlap merged; an exit no box
 // holds gets a box of its own, linked to those it touches or else its nearest; links between boxes that follow each other on a way; parts that don't reach each other linked where their
-// boxes touch; then merged, the least growth first, down to kAutoPlotMostBoxes; each centre picked; all in the file's units (the world's over the level's scale).
+// boxes touch; then merged, the least growth first, down to kAutoPlotMostBoxes; each centre picked by the game's own test of a place in a box (the scaled numbers), a box the others
+// cover (no place in it outside them) taken out, or made one with the one that holds its best place when taking it out would lose an exit or split the network, until every centre is
+// its own box's only; all in the file's units (the world's over the level's scale).
 #pragma once
 
 #include <stddef.h>
@@ -62,7 +64,7 @@ namespace host
 		std::vector<WaypointRec> list;   // the alien list to write (the file's units), links both ways
 		size_t exits = 0, exitsCovered = 0;
 		size_t parts = 0;                // how many networks the boxes make (1: all reach each other)
-		size_t centresShared = 0;        // centres the picking could not keep out of every other box
+		size_t centresShared = 0;        // centres the picking could not keep out of every other box (0: such a box is taken out or made one with a box that covers it)
 		std::vector<std::string> notes;  // what didn't go to plan, in words
 	};
 

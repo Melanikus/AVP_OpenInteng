@@ -30,4 +30,7 @@ bool GizmoScreen_Pointer(int32_t x, int32_t y, bool shift);    // WM_MOUSEMOVE o
 bool GizmoScreen_Release();                                    // WM_LBUTTONUP: true when a drag ended (and was written)
 bool GizmoScreen_Key(unsigned key, bool shift, bool ctrl);     // a key's first press: true when the gizmo took it (G, Esc while dragging, Ctrl+Z)
 void GizmoScreen_Frame(int32_t viewWidth, int32_t viewHeight, char const *screen);   // each frame, before the level is drawn: the gizmo's lines
-void GizmoScreen_StateLine();                                  // the harness's fields: gizmo, gizmospace, gizmopoints, gizmolast
+void GizmoScreen_StateLine();                                  // the harness's fields: gizmo, gizmospace, gizmopoints, gizmolast, gizmodrawn, gizmolive
+bool GizmoScreen_HoldsTheCopy();                               // a drag holds the live copy that shows the object moving: no one else takes it away meanwhile
+void GizmoScreen_ViewAt(int32_t x, int32_t y);                 // the 3D view's top left in the editor's own pixels (the split screen's bottom right quarter), before each Frame
+char const *GizmoScreen_LiveCopyWords();                       // the live copy that stands for a moving object: "<x> <y> <z> drawn <0|1>" (the world's units), "" when none

@@ -1,0 +1,57 @@
+# ACCEPTANCE (red first): THE THING ITSELF FOLLOWS THE GIZMO, THE PLAYER START (the owner, 11-19, on his Tools build 7d97f2a2: "I see the gizmo, works perfectly, but the
+# object doesn't move with it, you can only see it after you save/leave object mode"; Bishop's order: each of Frost's P2 kinds). currenticon is where the screen draws its current thing
+# (movable_live.h: its icon, or a placed hierarchy's model). DURING a held drag (drag-gizmo ... hold, Drake's) it is drawn where the drag has it; after the release, where it was
+# written, with no save; Ctrl+Z draws it back where it was; a drag given up with Esc leaves it drawn where it was. The camera 2 m from it on each axis, Numpad 8 held (about 35 degrees
+# down), the 45-degree corner. Red before the fix (frost-live bb947fa1, the field alone): the icon stays put during the drag, and after it until a save. The turn: see below.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+pictures on
+state
+expect-screen Object Placement
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is Player Start 1
+expect-no-dialog
+camera -122361 15351 3888 3584
+hold Numpad8 580
+expect-number camangles look_ 250 550
+wait 400
+state
+expect-field-has currenticon player start
+expect-field-has gizmopoints move x
+remember-field currenticon
+picture 1
+# DURING the drag: the thing is drawn where the drag has it
+drag-gizmo move x 60 0 hold
+expect-field-changed currenticon
+picture 2
+release-gizmo
+# released: written, and drawn where it was written (no save)
+expect-status the player start moved
+expect-field-changed currenticon
+picture 3
+# Ctrl+Z: drawn back where it was
+key Z ctrl
+expect-status the last drag was taken back
+expect-field-same currenticon
+# a drag given up with Esc: drawn where it was
+drag-gizmo move y 0 40 hold
+expect-field-changed currenticon
+esc-gizmo
+expect-status the drag was given up
+expect-field-same currenticon
+picture 4
+# THE TURN (Bishop 11-19, item 4: "he'd see a turn drag do nothing"): a ring drag (turn y, 15-degree steps) turns the icon DURING the drag and after the release (currenticon's
+# facing: its third axis, as the game reads the AVPSTART matrix's third row, P2-LIGHT-TURN), and the saved copy holds the turn, its place as it was. Red before the icon took its
+# turn from the matrix (its reader leaves o.turn the identity, so the cube never turned)
+remember-field currenticon
+drag-gizmo turn y 150 0 shift hold
+expect-field-changed currenticon
+picture 5
+release-gizmo
+expect-status the player start turned
+expect-field-changed currenticon
+picture 6
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_movable.exe {orig} {copy} start 0 turned

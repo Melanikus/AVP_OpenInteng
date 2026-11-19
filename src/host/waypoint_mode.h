@@ -159,6 +159,11 @@ namespace host
 		WaypointOutcome MouseSetLinkFlags(OpenLevelFile *open, int32_t flags);
 		int32_t LinkFlagsOf(int32_t a, int32_t b) const;
 
+		// AUTO-PLOT ALIEN WAYS (the owner's addition 11-18, autoplot_plan.h): AI module `master`'s ALIEN list replaced by `alien` and written at once (Write: the game's loader checks it); its
+		// ground list kept. The mode's own state (the AI module it works on, its lists, current, base, the selected link) comes back as it was, read again when it was that AI module.
+		// Refused (not a module of the level, its waypoints unreadable, the loader): nothing changed, the words say why.
+		WaypointOutcome AutoPlotWrite(OpenLevelFile *open, int32_t master, std::vector<WaypointRec> const &alienList);
+
 		// The link selected by mouse: base to current, while they are still the pair it was selected with (any other change of either ends it)
 		bool LinkSelected() const { return linkFrom >= 0 && linkFrom == wpBase && linkTo == wpCurrent; }
 

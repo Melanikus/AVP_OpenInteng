@@ -5,6 +5,7 @@
 
 #include <string.h>
 
+#include "autoplot_switch.h"   // the owner's "hide auto pilot": the two Auto-plot items left out unless AutoPlot=1
 #include "menu_paint.h"
 
 using host::kIntengScreenCount;
@@ -185,6 +186,11 @@ static bool AddIntengItems(EditorBarRoom *room, const host::IntengItem *items, s
 			continue;   // a cascade's row: taken with the level-1 item above it
 		}
 
+		if (host::AutoPlot_CommandHidden(item.command, host::AutoPlot_Shown()))
+		{
+			continue;   // hidden by the owner's ruling (autoplot_switch.h): not on the bar, not in the pop-up
+		}
+
 		if (*used >= most)
 		{
 			return false;
@@ -260,6 +266,11 @@ bool EditorBar_MakePopupLevel(size_t screen, int32_t group, EditorBarRoom *room)
 				return false;
 			}
 
+			if (menus[m].count == 1 && host::AutoPlot_CommandHidden(menus[m].items[0].command, host::AutoPlot_Shown()))
+			{
+				continue;   // hidden by the owner's ruling (autoplot_switch.h)
+			}
+
 			if (menus[m].count == 1)
 			{
 				const host::IntengItem &item = menus[m].items[0];
@@ -313,10 +324,12 @@ bool EditorBar_Make(size_t screen, KeyLayout layout, EditorBarRoom *room)
 
 	size_t used = 0, subUsed = 0;
 
-	// inteng's own menus, each item with its words alone, and each cascade with its rows (BAR-10)
+	// inteng's own menus, each item with its words alone, and each cascade with its rows (BAR-10). A menu whose items are all hidden (autoplot_switch.h) is not on the bar
+	size_t kept = 0;
+
 	for (size_t m = 0; m < inteng.count; m++)
 	{
-		ui::Menu &menu = room->menus[m];
+		ui::Menu &menu = room->menus[kept];
 
 		menu.title = inteng.menus[m].title;
 		menu.titleAccess = inteng.menus[m].access;
@@ -327,12 +340,15 @@ bool EditorBar_Make(size_t screen, KeyLayout layout, EditorBarRoom *room)
 		{
 			return false;
 		}
+
+		kept += menu.count > 0 || inteng.menus[m].count == 0 ? 1 : 0;
 	}
 
 	// NO MENUS OF OURS ON THE BAR (ruling 10b, Bishop 2026-11-16: "remove everything our window shows that inteng never had"): the "View (ours)" menu and the hub's "Screens (ours)" menu are gone, and with them "Back to
 	// Construction". The bar is inteng's own tables and nothing else. The actions of the editor's table (editor_actions.cpp) are still done by their keys (Ctrl+O, Ctrl+E, 7, 8, 9, B, Ctrl+B).
 
-	room->menuCount = menuCount;
+	(void)menuCount;
+	room->menuCount = kept;
 	return true;
 }
 
@@ -359,9 +375,11 @@ bool EditorBar_MakeSecond(size_t screen, EditorBarRoom *room)
 
 	size_t used = 0, subUsed = 0;
 
+	size_t kept = 0;   // a menu whose items are all hidden (autoplot_switch.h) is not on the bar
+
 	for (size_t m = 0; m < inteng.secondRowCount; m++)
 	{
-		ui::Menu &menu = room->menus[m];
+		ui::Menu &menu = room->menus[kept];
 
 		menu.title = inteng.secondRow[m].title;
 		menu.titleAccess = inteng.secondRow[m].access;
@@ -372,9 +390,11 @@ bool EditorBar_MakeSecond(size_t screen, EditorBarRoom *room)
 		{
 			return false;
 		}
+
+		kept += menu.count > 0 || inteng.secondRow[m].count == 0 ? 1 : 0;
 	}
 
-	room->menuCount = inteng.secondRowCount;
+	room->menuCount = kept;
 	return true;
 }
 

@@ -19,4 +19,9 @@ namespace host
 	// The turn of a matrix, by its largest diagonal sum, so no division is by a small number. A matrix that is no turn (a hostile file's zeros) still
 	// gives real numbers; one that gives nothing usable gives the identity.
 	void Movable_TurnOfMatrix(int32_t const matrix[9], float turn[4]);
+
+	// The three axes the matrix turns a thing to, as the editor's icons take them (editor_icons.h EditorIcon_Add: rows of the game's matrix, unit length): the game takes a player
+	// start's AVPSTART matrix as the player's own (projload.cpp setup_start_position), its third row the way it faces (P2-LIGHT-TURN). false, with nothing written, when a row is
+	// about 0 long (a hostile file's zeros): the icon is then drawn unturned. Added 2026-11-19 (Bishop's item 4: a player start's icon never turned).
+	bool Movable_MatrixAxes(int32_t const matrix[9], double axes[9]);
 }

@@ -83,24 +83,24 @@ static AlienWaysPolygon Ceiling(int x0, int x1, int z0, int z1, int y) { return 
 static AlienWaysPolygon WallAtX(int x, int z0, int z1, int top, int bottom, int facesX) { return Facing({ { x, bottom, z0 }, { x, bottom, z1 }, { x, top, z1 }, { x, top, z0 } }, facesX, 0, 0); }
 static AlienWaysPolygon WallAtZ(int z, int x0, int x1, int top, int bottom, int facesZ) { return Facing({ { x0, bottom, z }, { x1, bottom, z }, { x1, top, z }, { x0, top, z } }, 0, 0, facesZ); }
 
-// Two long rooms, x 0..3000 (module 0) and 3000..6000 (module 1), z 0..20000, floor at y 0, ceiling 3 m up (y -3000), the wall between them open only near the far
+// Two long halls, x 0..8000 (module 0) and 8000..16000 (module 1), z 0..20000, floor at y 0, ceiling 6 m up (y -6000), the wall between them open only near the far
 // end, from z 16000 to 17500, up to 2.4 m: a way from one near end to the other runs 16 m along each room, so floor is lava shows (a floor metre costs 10). Every polygon
 // of the left room, its side of the middle wall included, is module 0's, every one of the right room module 1's
 static void TwoRooms(std::vector<AlienWaysPolygon> *polygons, std::vector<int32_t> *modules)
 {
 	for (int side = 0; side < 2; side++)
 	{
-		int const x0 = side == 0 ? 0 : 3000, x1 = side == 0 ? 3000 : 6000, outer = side == 0 ? 0 : 6000, facesOuter = side == 0 ? 1 : -1, facesMiddle = side == 0 ? -1 : 1;
+		int const x0 = side == 0 ? 0 : 8000, x1 = side == 0 ? 8000 : 16000, outer = side == 0 ? 0 : 16000, facesOuter = side == 0 ? 1 : -1, facesMiddle = side == 0 ? -1 : 1;
 		size_t const before = polygons->size();
 
 		polygons->push_back(Floor(x0, x1, 0, 20000, 0));
-		polygons->push_back(Ceiling(x0, x1, 0, 20000, -3000));
-		polygons->push_back(WallAtX(outer, 0, 20000, -3000, 0, facesOuter));
-		polygons->push_back(WallAtZ(0, x0, x1, -3000, 0, 1));
-		polygons->push_back(WallAtZ(20000, x0, x1, -3000, 0, -1));
-		polygons->push_back(WallAtX(3000, 0, 16000, -3000, 0, facesMiddle));
-		polygons->push_back(WallAtX(3000, 17500, 20000, -3000, 0, facesMiddle));
-		polygons->push_back(WallAtX(3000, 16000, 17500, -3000, -2400, facesMiddle));
+		polygons->push_back(Ceiling(x0, x1, 0, 20000, -6000));
+		polygons->push_back(WallAtX(outer, 0, 20000, -6000, 0, facesOuter));
+		polygons->push_back(WallAtZ(0, x0, x1, -6000, 0, 1));
+		polygons->push_back(WallAtZ(20000, x0, x1, -6000, 0, -1));
+		polygons->push_back(WallAtX(8000, 0, 16000, -6000, 0, facesMiddle));
+		polygons->push_back(WallAtX(8000, 17500, 20000, -6000, 0, facesMiddle));
+		polygons->push_back(WallAtX(8000, 16000, 17500, -6000, -2400, facesMiddle));
 		modules->resize(polygons->size(), -1);
 
 		for (size_t i = before; i < polygons->size(); i++)
@@ -182,7 +182,7 @@ int main()
 		Check(host::AutoPlotGrid_StartFrom(std::move(polygons), std::move(modules), &why), "the two rooms start building");
 		Check(host::AutoPlotGrid_Ready(&why), "and are ready (" + why + ")");
 
-		int32_t const left[3] = { 1500, -500, 1500 }, right[3] = { 4500, -500, 1500 };   // the near ends: the way goes 16 m along each room to the doorway
+		int32_t const left[3] = { 1500, -500, 1500 }, right[3] = { 14500, -500, 1500 };   // the near ends: the way goes 16 m along each room to the doorway
 		std::vector<AutoPlotPoint> alien, marine;
 
 		bool const alienFound = host::AutoPlotGrid_Way(left, right, true, &alien, &why);   // (found first: an argument's words are made in no set order)
@@ -232,12 +232,44 @@ int main()
 
 		Check(!outsideFound && none.empty(), "to a place 100 m out of the rooms: no way (" + why + ")");
 
+		// a goal with no cell within the grid's reach (1.5 m) but one within 4 m (an exit point mid-doorway, 2 m and more off the floor): moved to that cell, and the way
+		// ends on it. The middle of the left hall, 3 m off its floor and its ceiling and 4 m from its walls: nothing is within reach
+		int32_t const beyond[3] = { 4000, -3000, 10000 };
+		std::vector<AutoPlotPoint> snapped;
+		bool const snappedFound = host::AutoPlotGrid_Way(left, beyond, true, &snapped, &why);
+
+		double const movedBy = snapped.empty() ? 0.0 : sqrt(pow((double)snapped.back().place[0] - beyond[0], 2.0) + pow((double)snapped.back().place[1] - beyond[1], 2.0) +
+			pow((double)snapped.back().place[2] - beyond[2], 2.0));
+
+		Check(snappedFound && !snapped.empty() && movedBy > 1500.0 && movedBy <= 4000.0 && snapped.back().module == 0,
+			"a goal in the middle of a hall, out of the grid's reach, is moved to the nearest cell within 4 m and the way ends there (" + (snapped.empty() ? "none: " + why :
+			std::to_string((int)movedBy) + " mm") + ")");
+
+		// every floor cell of a module, for covering its walkable floor with boxes
+		std::vector<AutoPlotPoint> floorCells;
+		int32_t edge = 0;
+		bool const haveCells = host::AutoPlotGrid_FloorCells(0, &floorCells, &edge, &why);
+		bool cellsOk = haveCells && !floorCells.empty();
+
+		for (AutoPlotPoint const &c : floorCells)
+		{
+			cellsOk = cellsOk && c.module == 0 && c.surface == AutoPlotPoint::Surface::Floor && c.place[1] == 0 && c.place[0] >= 0 && c.place[0] <= 8000;
+		}
+
+		Check(cellsOk && edge == 300, "module 0's floor cells: all on its floor (y 0), in the left hall, a cell 300 mm a side (" + std::to_string(floorCells.size()) + " cells)");
+		Check(floorCells.size() * 300.0 * 300.0 > 8000.0 * 20000.0 * 0.5, "they cover more than half of its 8 x 20 m floor (a marine's square keeps off the walls)");
+
+		std::vector<AutoPlotPoint> noCells;
+
+		Check(!host::AutoPlotGrid_FloorCells(7, &noCells, &edge, &why) && noCells.empty(), "a module with no floor: false (" + why + ")");
+		Check(!host::AutoPlotGrid_FloorCells(-1, &noCells, &edge, &why), "no module: false (" + why + ")");
+
 		std::vector<AutoPlotPoint> const spots = host::AutoPlotGrid_StandSpots(0, 4);
 		bool ownModule = !spots.empty(), apart = true;
 
 		for (size_t i = 0; i < spots.size(); i++)
 		{
-			ownModule = ownModule && spots[i].module == 0 && spots[i].place[0] < 3000 && spots[i].surface == AutoPlotPoint::Surface::Floor;
+			ownModule = ownModule && spots[i].module == 0 && spots[i].place[0] < 8000 && spots[i].surface == AutoPlotPoint::Surface::Floor;
 
 			for (size_t j = 0; j < i; j++)
 			{
