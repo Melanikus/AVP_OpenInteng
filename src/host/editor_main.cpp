@@ -59,6 +59,7 @@
 #include "gameplat.h"
 #include "platform.h"
 #include "renderer.h"
+#include "shader_text.h"   // the renderer's shaders, built into the editor (the owner's "baked in", 11-19)
 #include "d3_func.h"
 
 #include <windows.h>
@@ -92,6 +93,14 @@
 #include "light_pick.h"
 #include "level_objects.h"
 #include "level_view.h"
+#include "world_overlay.h"   // the world lines of more than one owner, the gizmo's in front (P1)
+#include "surface_turn.h"    // placement's closest axis: its words on the state line (SurfaceAxis_Name)
+#include "gizmo_screen.h"    // the mouse gizmo on Object Placement (P1)
+#include "movable_live.h"    // the dragged thing drawn live; where the current thing was drawn (the harness's currenticon)
+#include "movable_matrix.h"  // a player start's icon turned by its AVPSTART matrix
+#include "autoplot_grid.h"   // the alien auto-plot's pathfinder service (the harness's probe)
+#include "autoplot_switch.h"   // the owner's "hide auto pilot": AutoPlot= read at start-up
+#include "floor_is_lava.h"   // FloorIsLavaAsked: the game's own copy of the alien ways is never built in the editor
 #include "uv_project.h"
 #include "hierarchy_player.h"
 #include "hierarchy_view.h"
@@ -185,6 +194,8 @@
 #include "adjacency_generate.h"
 #include "waypoint_mode.h"
 #include "waypoint_view.h"
+#include "waypoint_mouse.h"   // Waypoint mode by mouse (the owner's addition 11-18)
+#include "fmv_preview.h"   // the FMV preview, drawn over its window (the owner's addition 11-18)
 #include "track_pages.h"
 #include "editor_options.h"
 #include "shape_chooser.h"
@@ -234,6 +245,7 @@
 #include "editor_shared.h"   // what this file shares with the files moved out of it (editor_shared.h names them)
 #include "placement_lighting.h"   // Object Placement's lighting (OP-3, OP-44)
 #include "state_line.h"   // the state line's fields added by their owners (StateLine_Add)
+#include "surface_place.h"   // P3 placement mode's pose (the owner's addition 11-18)
 #include "text_scale.h"   // the owner's text scale: the panels in the editor's own pixels, the window's divided by it (one-line hooks below; nothing changes at 1.0)
 #include "placement_special_alt.h"   // Alt Locations on the current special object (OP-34..38, OP-91; V-28)
 #include "placement_hierarchy_fly.h"   // F on a placed hierarchy (V-6)
@@ -4440,6 +4452,12 @@ static float snapNowTurn[4];
 static int snapPointerX = -1, snapPointerY = -1;
 static int32_t snapViewHeight = 0;
 static bool snapForTrack = false;   // T-3b: the live snap is Track Editing's, on the flying end marker (the marker's pose, not the object's record, is what it keeps)
+static bool snapForSurface = false; // P3 placement mode (the owner's addition): the live loop puts the object on the surface under the pointer (surface_place.h), not on a vertex
+static int32_t surfaceBoxMinWorld[3] = {}, surfaceBoxMaxWorld[3] = {};  // the object's box about its place, in the game's units, read at the start (its box less its place; Bishop 11-19)
+static bool surfaceReleaseWaiting = false;   // P3 step 3: the centre ball was let go; the next frame casts at the release's pointer, then keeps (the pick needs a drawn frame)
+static std::string surfaceLast;              // the harness's: what the last cast met (state line surfacelast)
+static bool surfaceAlignUp = false;          // the owner's G while the centre ball is held (11-19): UP ("up to surface") instead of CLOSEST; every drag starts CLOSEST
+static int surfaceAxis = -1;                 // the local axis CLOSEST last chose (surface_turn.h), kept near a tie (no flicker), kept while UP is on; -1 at each drag's start
 
 bool PlacementFlyHoldsTheCopy()
 {
@@ -4858,7 +4876,8 @@ static void PlacementFrame()
 
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
-	if (open && (placementRowsOpen != open || placementRowsFor != open->Generation()))
+	// read again on every change of the level (Changes(): Generation() misses a same-size edit, as a moved special object or placed hierarchy is)
+	if (open && (placementRowsOpen != open || placementRowsFor != open->Changes()))
 	{
 		placementRows.clear();
 		placementSpecials.clear();
@@ -4871,7 +4890,7 @@ static void PlacementFrame()
 		host::SpecialObjects_Read(open, &placementSpecials);
 		host::PlacedHierarchies_Read(open, &placementHierarchies);
 		placementRowsOpen = open;
-		placementRowsFor = open->Generation();
+		placementRowsFor = open->Changes();
 	}
 
 	// THE PLACED SOUNDS (placed_sounds_game.h): made when the screen shows them (FUN_004d68e0 -> FUN_004ecd40) and when the level's objects changed, then FUN_004ed7e0 for each, every frame
@@ -5172,7 +5191,7 @@ void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 	out->clear();
 
 	// the live Snap To Vertex's words (0x5e8364, three lines) at x 20, y = the window's height - 60 (0x4dc6f9-0x4dc73f), a new line the letters' height (16) down
-	if (snapLive && snapViewHeight > 60)
+	if (snapLive && !snapForSurface && snapViewHeight > 60)   // (placement mode, ours, says its words on the status line)
 	{
 		static char const *const kSnapWords[3] = { "Press LMB to snap to vertex", "Hold shift to align to polygon", "Press escape to cancel (and return to original position)" };
 
@@ -5518,6 +5537,7 @@ static void PlacementFlyStop()
 
 		flyReal = false;
 		LevelView_FlyEnd();
+		if (result == host::TrackEditResult::Done) { LevelView_PutObjectAt(flyId, flyWorld, flyTurnNow); }   // the real block where it flew: the level's bytes never move it (Vasquez 11-18)
 		Answer(result == host::TrackEditResult::Done ? "Fly selected object: off, the object is where it flew to" : std::string("Fly selected object: not moved: ") + host::TrackEditWords(result));
 		LoadTheObjectListAgain();
 	}
@@ -5557,6 +5577,11 @@ static void SnapLiveEnd(bool keep)
 
 	snapLive = false;
 
+	bool const forSurface = snapForSurface;
+
+	snapForSurface = false;
+	surfaceReleaseWaiting = false;
+
 	// Track Editing's (T-3b): the marker flies on (its live copy stays); a left press makes the pose shown the marker's: the 3D cursor its place, its turn the one the keys turn from, the
 	// camera's carry counted from here (inteng: DAT_008f4f10 = 0 with the flying marker where the snap put it, 0x4dca24); Escape: the marker as it was (0x4dca33)
 	if (snapForTrack)
@@ -5572,6 +5597,11 @@ static void SnapLiveEnd(bool keep)
 
 	if (!keep || (memcmp(snapNowPlace, snapSavedPlace, sizeof(snapNowPlace)) == 0 && memcmp(snapNowTurn, snapSavedTurn, sizeof(snapNowTurn)) == 0))
 	{
+		if (forSurface)
+		{
+			statusWords = keep ? "Placement: not moved (no wall or floor was under the pointer)" : "Placement: given up, the object is where it was";
+		}
+
 		return;
 	}
 
@@ -5580,11 +5610,24 @@ static void SnapLiveEnd(bool keep)
 
 	if (result != host::TrackEditResult::Done)
 	{
-		Answer(std::string("Snap To Vertex: not moved: ") + host::TrackEditWords(result));
+		Answer(std::string(forSurface ? "Placement: not moved: " : "Snap To Vertex: not moved: ") + host::TrackEditWords(result));
 		return;
 	}
 
+	// the real object drawn at the pose written (the level's bytes alone never move a block already made: LevelView_PutObjectAt, as the gizmo's release does)
+	{
+		double const scale = local_scale > 0.0 ? local_scale : 1.0;
+		int32_t const world[3] = { (int32_t)floor((double)snapNowPlace[0] * scale + 0.5), (int32_t)floor((double)snapNowPlace[1] * scale + 0.5), (int32_t)floor((double)snapNowPlace[2] * scale + 0.5) };
+
+		LevelView_PutObjectAt(snapId, world, snapNowTurn);
+	}
+
 	LoadTheObjectListAgain();
+
+	if (forSurface)
+	{
+		statusWords = "Placement: the object stands on the surface (the state line's surfacelast has the place)";
+	}
 }
 
 // The start (FUN_004dd280) for a placed object: false when the current object is none of those (a special object keeps the click's snap)
@@ -5690,8 +5733,130 @@ static void TrackMarkerSnapPut(int32_t const place[3], float const turn[4], bool
 	statusWords = kept ? "Snap To Vertex: the end marker is on the vertex (Finish End Pos Edit takes it)" : "Snap To Vertex: cancelled, the end marker is where it was";
 }
 
+// P3 PLACEMENT MODE (the owner's addition 11-18, Hicks's plan section 5; inteng had none): the selected placed object slides over walls and floors under the pointer, its base on
+// the surface, on Snap To Vertex's live loop: its live copy shows the pose, Esc puts the saved pose back, the left press keeps what is shown (step 3: the gizmo's centre ball starts it and
+// its release keeps it). The pointer is in the editor's own pixels. False when no placed object is selected (SnapLiveStart's own refusal).
+static bool SurfaceLiveStart(int pointerX, int pointerY)
+{
+	if (!SnapLiveStart() || !snapLive)
+	{
+		return false;
+	}
+
+	double const scale = local_scale > 0.0 ? local_scale : 1.0;
+	int32_t mins[3], maxs[3];
+
+	if (!LevelView_ObjectBox(snapId, mins, maxs))
+	{
+		SnapLiveEnd(false);
+		Answer("Placement: the object's box couldn't be read");
+		return true;
+	}
+
+	// the whole box, not only its base: with the closest axis the side that meets the surface pushes it out (Bishop's order 11-19)
+	for (int i = 0; i < 3; i++)
+	{
+		int32_t const placeWorld = (int32_t)floor((double)snapSavedPlace[i] * scale + 0.5);
+
+		surfaceBoxMinWorld[i] = mins[i] - placeWorld;
+		surfaceBoxMaxWorld[i] = maxs[i] - placeWorld;
+	}
+
+	snapForSurface = true;
+	snapPointerX = pointerX;
+	snapPointerY = pointerY;
+	surfaceAlignUp = false;   // every drag starts CLOSEST (the owner, 11-19)
+	surfaceAxis = -1;
+	statusWords = "Placement: the object follows the wall or floor under the pointer (Esc puts it back); Align: closest axis (G: up to surface)";
+	return true;
+}
+
+// The owner's G while the centre ball is held (11-19: "as you drag, if you are dragging and press G it aligns objects normal to face normal, pressing again goes back to our 'align
+// closest angle'"): the align toggled between CLOSEST and UP; the next frame makes the pose again from the drag's start (SurfaceLiveFrame). False when no placement drag is held:
+// G is then the gizmo's own (world / local)
+static bool SurfaceAlignKey()
+{
+	if (!(snapLive && snapForSurface))
+	{
+		return false;
+	}
+
+	// both rules start from the drag's start pose, never the shown one, and CLOSEST keeps its own no-flicker memory while UP is on: G then G at one spot gives back exactly the pose
+	// shown before (the owner, 11-19: "what if I press G again?")
+	surfaceAlignUp = !surfaceAlignUp;
+	statusWords = surfaceAlignUp ? "Align: up to surface (G: closest axis)" : "Align: closest axis (G: up to surface)";
+	return true;
+}
+
+// One frame of it: the surface under the pointer (a module's face or another object's), the object turned and placed on it from the pose the drag started from; over nothing, the last
+// pose shown stays (surface_place.h SurfacePlace_Live)
+static void SurfaceLiveFrame(int32_t viewX, int32_t viewY, int32_t viewWidth, int32_t viewHeight)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !open->Level() || !theCamera || snapPointerX < 0 || snapPointerY < 0)
+	{
+		return;
+	}
+
+	host::PickReport const pick = PickGame_AtClickLeavingOutTwo(snapPointerX - viewX, snapPointerY - viewY, viewWidth, viewHeight, LevelView_FlyCopyBlock(), LevelView_FlyOriginalBlock());   // the live copy and the real block both left out
+
+	// never the moving object's own face (its live copy is left out of the pick and the real one isn't drawn: this is for safety)
+	if (!pick.hasHit || (pick.found != host::PickFound::Module && pick.found != host::PickFound::Object))
+	{
+		surfaceLast = "nothing under the pointer";
+		return;
+	}
+
+	if (pick.found == host::PickFound::Object && memcmp(pick.objectId, snapId, sizeof(snapId)) == 0)
+	{
+		surfaceLast = "the object itself";
+		return;
+	}
+
+	host::SurfaceLiveInput in = {};
+
+	memcpy(in.hitWorld, pick.hitPoint, sizeof(in.hitWorld));
+	memcpy(in.hitNormal, pick.hitNormal, sizeof(in.hitNormal));
+	in.cameraWorld[0] = theCamera->x;
+	in.cameraWorld[1] = theCamera->y;
+	in.cameraWorld[2] = theCamera->z;
+	in.scale = local_scale > 0.0 ? local_scale : 1.0;
+	memcpy(in.boxMinWorld, surfaceBoxMinWorld, sizeof(in.boxMinWorld));
+	memcpy(in.boxMaxWorld, surfaceBoxMaxWorld, sizeof(in.boxMaxWorld));
+	memcpy(in.turn, snapSavedTurn, sizeof(in.turn));
+	in.canTurn = true;   // a placed object holds a turn (movable.h's table)
+	in.align = surfaceAlignUp ? host::SurfaceAlign::Up : host::SurfaceAlign::Closest;   // the owner's rule, 11-19 (G toggles it)
+	in.previousAxis = surfaceAxis;
+
+	host::SurfacePlacePose pose;
+	std::string const met = std::string(pick.found == host::PickFound::Module ? "module" : "object") + ", normal " + std::to_string(pick.hitNormal[0]) + " " + std::to_string(pick.hitNormal[1]) + " " +
+		std::to_string(pick.hitNormal[2]);
+
+	if (host::SurfacePlace_Live(in, &pose))
+	{
+		memcpy(snapNowPlace, pose.place, sizeof(snapNowPlace));
+		memcpy(snapNowTurn, pose.turn, sizeof(snapNowTurn));
+		if (!surfaceAlignUp)
+		{
+			surfaceAxis = pose.axis;   // CLOSEST's own memory (UP's frames don't touch it)
+		}
+
+		surfaceLast = met + ", place " + std::to_string(pose.place[0]) + " " + std::to_string(pose.place[1]) + " " + std::to_string(pose.place[2]) + ", axis " + host::SurfaceAxis_Name(pose.axis) +
+			(surfaceAlignUp ? " (up to surface)" : " (closest)") + ", turn " + std::to_string((long long)floor(pose.turn[0] * 10000.0 + 0.5)) + " " +
+			std::to_string((long long)floor(pose.turn[1] * 10000.0 + 0.5)) + " " + std::to_string((long long)floor(pose.turn[2] * 10000.0 + 0.5)) + " " +
+			std::to_string((long long)floor(pose.turn[3] * 10000.0 + 0.5));
+	}
+	else
+	{
+		surfaceLast = met + ": refused";
+	}
+}
+
 // Every frame while it is on, after the frame was drawn (its list of what is on screen is the pick's): the saved pose, then the snap under the pointer
-static void SnapLiveFrame(int32_t viewWidth, int32_t viewHeight)
+// viewX, viewY: the 3D view's top left in the editor's own pixels (the split screen's bottom right quarter, else 0 0), viewWidth x viewHeight its size: the pointer is counted
+// from there, as the picks count theirs (pickX = at.x - threeMainBox.x)
+static void SnapLiveFrame(int32_t viewX, int32_t viewY, int32_t viewWidth, int32_t viewHeight)
 {
 	if (!snapLive)
 	{
@@ -5705,7 +5870,23 @@ static void SnapLiveFrame(int32_t viewWidth, int32_t viewHeight)
 		return;
 	}
 
-	snapViewHeight = viewHeight;
+	snapViewHeight = viewY + viewHeight;   // (the help lines sit above the 3D view's bottom, the window's on the split screen too)
+
+	// P3 placement mode: the surface under the pointer instead of a vertex
+	if (snapForSurface)
+	{
+		SurfaceLiveFrame(viewX, viewY, viewWidth, viewHeight);
+		SnapLiveShow(snapNowPlace, snapNowTurn);
+
+		// the ball let go: this frame's cast was at the release's pointer, so its pose is kept now
+		if (surfaceReleaseWaiting)
+		{
+			SnapLiveEnd(true);
+		}
+
+		return;
+	}
+
 	memcpy(snapNowPlace, snapSavedPlace, sizeof(snapNowPlace));   // 0x4da865-0x4da89b: back to the saved place and matrix first
 	memcpy(snapNowTurn, snapSavedTurn, sizeof(snapNowTurn));
 
@@ -5713,7 +5894,7 @@ static void SnapLiveFrame(int32_t viewWidth, int32_t viewHeight)
 
 	if (open && open->Level() && snapPointerX >= 0 && snapPointerY >= 0)
 	{
-		host::PickReport const pick = PickGame_AtClickLeavingOut(snapPointerX, snapPointerY, viewWidth, viewHeight, LevelView_FlyCopyBlock());
+		host::PickReport const pick = PickGame_AtClickLeavingOut(snapPointerX - viewX, snapPointerY - viewY, viewWidth, viewHeight, LevelView_FlyCopyBlock());
 		uint8_t target[8];
 		bool found = false;
 
@@ -7954,6 +8135,10 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			}
 
 			// Esc, with no menu open (an open menu took it: menuWasOpen), closes the panel opened last (L-1)
+			// the mouse gizmo's keys first (gizmo_screen.h): G, Esc while a drag is held, Ctrl+Z (none of them a key of inteng's Object Placement)
+			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && wParam == 'G' && !ctrlHeld && SurfaceAlignKey()) { return 0; }   // G while the centre ball is held: the align (the owner, 11-19)
+			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && GizmoScreen_Key((unsigned)wParam, shiftHeld, ctrlHeld)) { return 0; }
+
 			// Esc in the field panel (S3d) gives up the edit (the panel did, as it got the key) and takes the keyboard out of the panel; it
 			// closes nothing
 			if (message == WM_KEYDOWN && wParam == VK_ESCAPE && typingHere)
@@ -8104,11 +8289,13 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					{
 						// Object Placement's keys (inteng's help)
 					}
-					else if (wParam == VK_INSERT && !onTextureMap && (!OnStrategyScreen() || StrategyInASubLoop()))
+					else if (wParam == VK_INSERT && !(onTextureMap && TextureMapLoopWaits()) && (!OnStrategyScreen() || StrategyInASubLoop()))
 					{
+						// CAM-9: in Texture Map too (WinMain 0x58cff6 after every screen's frame, Texture Map's FUN_00543fa0 included; its key tables give Insert and Home nothing), not while
+						// one of its waits that are loops of their own is up (TextureMapLoopWaits)
 						ZoomStart();   // the Movement help's Insert
 					}
-					else if (wParam == VK_HOME && !onTextureMap && (!OnStrategyScreen() || StrategyInASubLoop()))
+					else if (wParam == VK_HOME && !(onTextureMap && TextureMapLoopWaits()) && (!OnStrategyScreen() || StrategyInASubLoop()))
 					{
 						ZoomReset();   // the Movement help's Home: back to the default zoom level
 						statusWords = "The zoom is back to the default level";
@@ -8616,6 +8803,9 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					textureRectX0 = textureRectX1 = host::TextScale_ToOwn(GET_X_LPARAM(lParam));   // the editor's own pixels (text_scale.h)
 					textureRectY0 = textureRectY1 = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 				}
+				else if (!OnAPanel(at.x, at.y) && window == hWndMain && GizmoScreen_CentreAt(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam))) &&
+					SurfaceLiveStart(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)))) {}   // P3: the gizmo's centre ball: placement mode (no pick)
+				else if (!OnAPanel(at.x, at.y) && window == hWndMain && GizmoScreen_Press(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)))) {}   // a gizmo handle took it: no pick
 				else if (!OnAPanel(at.x, at.y) && window == hWndMain)
 				{
 					pickAsked = true;
@@ -8645,6 +8835,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				rotationPickButtonHeld = false;
 				return 0;
 			}
+
+			// P3: the centre ball let go: the next frame casts at this pointer and keeps (SnapLiveFrame)
+			if (snapLive && snapForSurface && window == hWndMain) { snapPointerX = host::TextScale_ToOwn(GET_X_LPARAM(lParam)); snapPointerY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam)); surfaceReleaseWaiting = true; return 0; }
+
+			if (GizmoScreen_Release()) { return 0; }   // a gizmo drag let go: written (gizmo_screen.h)
+			if (OnWaypointScreen() && WaypointMouse_Release(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)))) { return 0; }   // a waypoint box dragged onto another: linked (waypoint_mouse.h)
 
 			if (textureWinDrag)
 			{
@@ -8926,6 +9122,8 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				return 0;
 			}
 
+			if (window == hWndMain && GizmoScreen_Pointer(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)), (wParam & MK_SHIFT) != 0 || ShiftDown())) { return 0; }   // a gizmo drag has the pointer
+
 			if (onTextureMap && textureChooserOn)
 			{
 				POINT const over = InThePanels(window, lParam);
@@ -9067,7 +9265,9 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			if (NobodyWatching())
 			{
 				SaveTheCopy();
-				printf("AVP_OpenInteng: copy: %s\n", statusWords ? statusWords : "");   // said at once: the next frame's own status words may replace these
+				// said at once (the next frame's own status words may replace them), and the save's OWN words: this line is the harness's, never on the screen, so it keeps the
+				// copy's full path ({copy}, {save1}, ...); the status line's copy of them has its path cut to the name (screen_names.h)
+				printf("AVP_OpenInteng: copy: %s\n", savedWords.c_str());
 				fflush(stdout);
 				harnessScenarioAsked = true;
 			}
@@ -10059,7 +10259,7 @@ static int Stop(const char *why)
 	fprintf(stderr, "AVP_OpenInteng: %s\n", why);
 	if (!NobodyWatching())
 	{
-		MessageBoxA(NULL, why, "AVP_OpenInteng", MB_OK | MB_ICONWARNING);
+		MessageBoxA(NULL, host::ScreenNames_Cut(why).c_str(), "AVP_OpenInteng", MB_OK | MB_ICONWARNING);   // on the screen: no full path (screen_names.h); the error output keeps it
 	}
 	return 1;
 }
@@ -12879,12 +13079,12 @@ struct SpecialWorldLinesFlush
 	{
 		if (!specialWorldLines.empty())
 		{
-			LevelView_WorldLines(specialWorldLines.data(), specialWorldLines.size());
+			host::WorldOverlay_Lines(specialWorldLines.data(), specialWorldLines.size());
 			specialWorldLinesDrawn = true;
 		}
 		else if (specialWorldLinesDrawn)
 		{
-			LevelView_WorldLines(nullptr, 0);
+			host::WorldOverlay_Lines(nullptr, 0);
 			specialWorldLinesDrawn = false;
 		}
 	}
@@ -13444,17 +13644,20 @@ void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
+	if (!forPick) { host::MovableLive_ForgetDrawn(); }   // the harness's currenticon: noted again below for the current thing it draws (movable_live.h)
+
 	if (!open || !open->Level())
 	{
 		return;
 	}
 
-	if (specialMarkersOpen != open || specialMarkersFor != open->Generation())
+	// read again on every change of the level (Changes(): Generation() misses a same-size edit, and a moved place is one: the icon stayed where it was until a save)
+	if (specialMarkersOpen != open || specialMarkersFor != open->Changes())
 	{
 		specialMarkers.clear();
 		host::SpecialObjects_Read(open, &specialMarkers);
 		specialMarkersOpen = open;
-		specialMarkersFor = open->Generation();
+		specialMarkersFor = open->Changes();
 	}
 
 	double const scale = local_scale > 0.0 ? local_scale : 1.0;
@@ -13509,7 +13712,10 @@ void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 			continue;
 		}
 
-		double const place[3] = { o.place[0] * scale, o.place[1] * scale, o.place[2] * scale };
+		// the one a gizmo drag is moving is drawn where the drag has it (movable_live.h; the owner, 11-19: "the object doesn't move with it")
+		host::MovablePose live;
+		bool const isLive = host::MovableLive_PoseOfSpecial(o.kind, o.number, &live);
+		double const place[3] = { (isLive ? live.place[0] : o.place[0]) * scale, (isLive ? live.place[1] : o.place[1]) * scale, (isLive ? live.place[2] : o.place[2]) * scale };
 		double axes[9];
 		bool haveAxes = false;
 		float turned[4];
@@ -13521,12 +13727,25 @@ void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 
 			haveAxes = host::TrackPlay_TurnedBy(identity, (double)(o.heading & 4095) * 360.0 / 4096.0, 0.0, 0.0, turned) && host::TrackPlay_QuatAxes(turned, axes);
 		}
-		else if (o.kind == host::SpecialKind::ParticleGenerator || o.kind == host::SpecialKind::PlayerStart)
+		else if (o.kind == host::SpecialKind::ParticleGenerator)
 		{
-			haveAxes = host::TrackPlay_QuatAxes(o.turn, axes);
+			// its live turn is its PARGENDA turn as the gizmo has it (movable_special.cpp)
+			haveAxes = host::TrackPlay_QuatAxes(isLive ? live.turn : o.turn, axes);
+		}
+		else if (o.kind == host::SpecialKind::PlayerStart)
+		{
+			// turned by its AVPSTART matrix, which the game takes as the player's own (its reader leaves o.turn the identity, so the icon never turned: Bishop's item 4, 11-19); while a
+			// drag holds it, by the matrix that drag's turn is written as (movable_matrix.h)
+			int32_t startMatrix[9];
+
+			if (isLive) { host::Movable_MatrixOfTurn(live.turn, startMatrix); } else { memcpy(startMatrix, o.matrix, sizeof(startMatrix)); }
+
+			haveAxes = host::Movable_MatrixAxes(startMatrix, axes);
 		}
 
 		bool const current = !strategy && specialMode.haveCurrent && specialMode.kind == o.kind && specialMode.number == o.number;
+
+		if (current && !forPick) { host::MovableLive_NoteDrawn(o.kind == host::SpecialKind::PlayerStart ? "player start" : o.kind == host::SpecialKind::ParticleGenerator ? "particle generator" : o.kind == host::SpecialKind::Sound ? "sound" : o.kind == host::SpecialKind::BadGuy ? "bad guy" : "generator", place, haveAxes ? axes : nullptr); }
 
 		// Object Placement's view distance (FUN_004dd2f0): an object whose distance from the camera less its radius is not below the distance is hidden; the current object never is
 		if (!strategy && placementHideOn && !current)
@@ -13570,10 +13789,21 @@ void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 
 		for (host::PlacedHierarchyInfo const &one : hierarchies)
 		{
-			double const place[3] = { one.place[0] * scale, one.place[1] * scale, one.place[2] * scale };
+			// the one a gizmo drag is moving is drawn where the drag has it (movable_live.h)
+			host::MovablePose live;
+			bool const isLive = host::MovableLive_PoseOfHierarchy(one.id, one.number, &live);
+			double const place[3] = { (isLive ? live.place[0] : one.place[0]) * scale, (isLive ? live.place[1] : one.place[1]) * scale, (isLive ? live.place[2] : one.place[2]) * scale };
 			double axes[9];
-			bool const haveAxes = host::TrackPlay_QuatAxes(one.turn, axes);
+			bool const haveAxes = host::TrackPlay_QuatAxes(isLive ? live.turn : one.turn, axes);
 			bool const current = placedHierarchyCurrent == (int)one.number;
+			int32_t modelAt[3];
+
+			// its MODEL, while shown in its place (PH-1), is kept where the drag has it, else where the level holds it (written, Esc, Ctrl+Z: the list is read again on each change)
+			if (current && placedHierarchyShown == (int)one.number && HierarchyView_IsShown()) { int32_t const at[3] = { (int32_t)place[0], (int32_t)place[1], (int32_t)place[2] }; HierarchyView_MovePlaced(at, isLive ? live.turn : one.turn); }
+
+			// the harness's currenticon (movable_live.h): its model when that is shown in its place (PH-1), else its icon
+			if (current && placedHierarchyShown == (int)one.number && HierarchyView_ShownPlace(modelAt)) { double const at[3] = { (double)modelAt[0], (double)modelAt[1], (double)modelAt[2] }; host::MovableLive_NoteDrawn("hierarchy model", at); }
+			else if (current) { host::MovableLive_NoteDrawn("placed hierarchy", place); }
 
 			// PH-1: while it is current its model is shown and its own icon is not (FUN_004e9520 0x4e95ac: the object's record +0x64 |= 0x800000)
 			if (current && placedHierarchyShown == (int)one.number && HierarchyView_IsShown())
@@ -13611,11 +13841,16 @@ void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 
 			for (host::VirtualObjectInfo const &v : virtuals)
 			{
-				double const place[3] = { v.place[0] * scale, v.place[1] * scale, v.place[2] * scale };
+				// the one a gizmo drag is moving is drawn where the drag has it (movable_live.h)
+				host::MovablePose live;
+				bool const isLive = host::MovableLive_PoseOfVirtual(v.id, &live);
+				double const place[3] = { (isLive ? live.place[0] : v.place[0]) * scale, (isLive ? live.place[1] : v.place[1]) * scale, (isLive ? live.place[2] : v.place[2]) * scale };
 
 				// a virtual object's record is coloured as every record of the screen (S-61 / S-62): the CURRENT one red (+0x64 0x40000000 -> FUN_004a7cd0 0x4a7eca item 0x80 -> FUN_004980f0
 				// 0xff0000), else one holding a strategy green (FUN_00522680 0x522935 0x2000000 -> item 0x100 -> 0x00ff00), else its own colours
 				bool const current = selected.kind == host::SelectedKind::Object && memcmp(selected.objectId, v.id, sizeof(v.id)) == 0;
+
+				if (current && !forPick) { host::MovableLive_NoteDrawn("virtual object", place); }
 				uint32_t const tint = isRed(current, v.id) ? 0xFFFF0000u : (v.hasStrategy ? 0xFF00FF00u : 0u);
 
 				Piece piece;
@@ -13712,12 +13947,13 @@ void AddSpecialMarkers(const ui::PanelLayout &layout, host::PaintText *lines, si
 		return;
 	}
 
-	if (specialMarkersOpen != open || specialMarkersFor != open->Generation())
+	// read again on every change of the level (Changes(): Generation() misses a same-size edit, and a moved place is one: the icon stayed where it was until a save)
+	if (specialMarkersOpen != open || specialMarkersFor != open->Changes())
 	{
 		specialMarkers.clear();
 		host::SpecialObjects_Read(open, &specialMarkers);
 		specialMarkersOpen = open;
-		specialMarkersFor = open->Generation();
+		specialMarkersFor = open->Changes();
 	}
 
 	struct Seen
@@ -13834,6 +14070,7 @@ static void AddThePanels(void *context)
 		// AutoLink's display, while a run is on: the owner's grid of pictures, then over it inteng's counter and words (AD-5 .. AD-7); the menu bar and the dialogs over all
 		AutoLinkShow_Draw(frame->width, frame->height);
 		PanelPass_AddToFrame(frame->width, frame->height, frame->extras);
+		host::FmvPreview_Draw(frame->width, frame->height);   // the FMV preview, over the window that plays it (fmv_preview.h)
 		TextureColourDraw(frame->width, frame->height);   // Select Colour's grid, over the bars too (Shift+K, FUN_00560620)
 	}
 }
@@ -14246,6 +14483,12 @@ int main(int, char **)
 		speedUnits = CameraSpeedHeld(saved);
 	}
 
+	// THE ALIEN WAYS: the game builds its own grid at every level's start while FloorIsLavaAsked is set; the editor never needs it (32-bit memory: 28 to 47 MB a level), and
+	// builds its own only when the auto-plot asks (autoplot_grid.h). Before the level is opened below.
+	FloorIsLavaAsked = 0;
+	host::AutoPlotGrid_ProbeLoad(layoutSettingsFile);   // the harness's AutoPlotProbe=1
+	host::AutoPlot_SetShown(GetPrivateProfileIntA("Editor", "AutoPlot", 0, layoutSettingsFile) == 1);   // the owner's "hide auto pilot" (11-19): Waypoint's Auto-plot items only with AutoPlot=1 (autoplot_switch.h)
+
 	// THE TEXT SCALE (the owner's addition, text_scale.h): FontScale= in the same file, a plain number from 1 to 3 (1, inteng's own size, when it isn't there); anything else is refused
 	// and said, and the text stays inteng's size
 	if (!host::TextScale_Load(layoutSettingsFile))
@@ -14452,6 +14695,8 @@ int main(int, char **)
 	}
 	WindowMode = WindowModeSubWindow;
 
+	R_SetShaderTextSource(&host::ShaderText_Find);   // the renderer's shaders from the editor itself, never a shaders folder (shader_text.h): set before Direct3D starts
+
 	// Direct3D couldn't start: the box says why, with the last error the game's own start noted (logString.h), as plain text. The game
 	// writes the same line into its log, avp_log.txt.
 	if (!InitialiseDirect3D())
@@ -14521,6 +14766,7 @@ int main(int, char **)
 	}
 
 	statusWords = LevelView_SayMissingPictures(statusWords);   // MISSING PICTURES: the user is told how many (level_view.h)
+	statusWords = host::FmvScreens_SayAtOpen(theGameFolder, statusWords);   // VIDEO SCREENS that will stay still, and why (fmv_preview.h)
 
 	// THE FIRST FRAME, as inteng's: the hub (FUN_00447550) ends with FUN_00470550(10), the camera from slot 10, which holds the origin (0, 0, 0) and the identity turn (DAT_00636f90 + 0x78,
 	// DAT_005d3b38 + 0x168: nothing but a camera file beside the level, <RIFFNAME>.cam, written by inteng's own Exit, fills them in, and the level's CAMORIGN adds its offset to every slot
@@ -15274,7 +15520,7 @@ int main(int, char **)
 				LightMarkerTriangles(&lightTriangles, markerFrame++);
 				worldLinesShown = true;
 				trianglesShown = true;
-				LevelView_WorldLines(nullptr, 0);
+				host::WorldOverlay_Lines(nullptr, 0);
 				LevelView_WorldTriangles(lightTriangles.data(), lightTriangles.size());
 			}
 			else if (iconsWanted)
@@ -15294,7 +15540,7 @@ int main(int, char **)
 				StabilityShapes(&boxLines, &boxTriangles);
 				worldLinesShown = true;
 				trianglesShown = true;
-				LevelView_WorldLines(boxLines.data(), boxLines.size());
+				host::WorldOverlay_Lines(boxLines.data(), boxLines.size());
 				LevelView_WorldTriangles(boxTriangles.data(), boxTriangles.size());
 			}
 			else if (!entryMarkers.empty())
@@ -15303,18 +15549,22 @@ int main(int, char **)
 
 				EntryMarkerLines(&markerLines);
 				worldLinesShown = true;
-				LevelView_WorldLines(markerLines.data(), markerLines.size());
+				host::WorldOverlay_Lines(markerLines.data(), markerLines.size());
 			}
 			else if (worldLinesShown && !WaypointWorldOn())
 			{
-				LevelView_WorldLines(nullptr, 0);
+				host::WorldOverlay_Lines(nullptr, 0);
 				worldLinesShown = false;
 			}
+
+			GizmoScreen_ViewAt(threeMainBox.width > 0 ? threeMainBox.x : 0, threeMainBox.width > 0 ? threeMainBox.y : 0);   // the split screen's 3D view is its bottom right quarter (its pick's box)
+			GizmoScreen_Frame(threeMainBox.width > 0 ? threeMainBox.width : layout.view.width, threeMainBox.width > 0 ? threeMainBox.height : layout.view.height, barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : nullptr);   // the mouse gizmo's lines (P1)
 
 			// inteng's 3-view screen shows the TRACK of the selected object, in the object's own space, centre at 0, 0, 0 (run 18). Its lines are made again when
 			// the selection changes or the track does.
 			TrackPlayFrame();
 			TrackWorldLines();
+			host::AutoPlotGrid_ProbeFrame(LevelObjects_OpenForEdit());   // the harness's AutoPlotProbe (autoplot_grid.h)
 
 			// Edit Extents' three views: inteng's are cameras on the same scene (FUN_005846b0), so they show the boxes and links as the 3D view draws them (WaypointView_WorldLines, W-2 / W-3)
 			if (on && WaypointViewsOn())
@@ -15422,7 +15672,7 @@ int main(int, char **)
 
 				host::WaypointView_WorldLines(waypointMode, local_scale, &worldWaypoints);
 				worldLinesShown = true;
-				LevelView_WorldLines(worldWaypoints.data(), worldWaypoints.size());
+				host::WorldOverlay_Lines(worldWaypoints.data(), worldWaypoints.size());
 			}
 
 			// The current module of the module screens is drawn purple, as inteng draws the picked module there (Construction, Adjacent Modules, Module Linking)
@@ -15566,8 +15816,8 @@ int main(int, char **)
 				LevelViewExtra views[3] =
 				{
 					{ { centre[0], centre[1], centre[2] - 5000, 0, 0 }, threeBox.x, threeBox.y, halfW, halfH },                   // along +z
-					{ { centre[0] - 5000, centre[1], centre[2], 1024, 0 }, threeBox.x + halfW, threeBox.y, halfW, halfH },        // along +x (a quarter turn)
-					{ { centre[0], centre[1] - 5000, centre[2], 0, 3072 }, threeBox.x, threeBox.y + halfH, halfW, halfH },        // along +y: down (the look counts up from 0)
+					{ { centre[0] - 5000, centre[1], centre[2], 3072, 0 }, threeBox.x + halfW, threeBox.y, halfW, halfH },        // along +x: turn 3072 in the editor's camera (1024 looked along -x, away from the object; Drake 11-19)
+					{ { centre[0], centre[1] - 5000, centre[2], 0, 1024 }, threeBox.x, threeBox.y + halfH, halfW, halfH },        // along +y: down, look +1024 (the editor's look is plus-down; 3072 looked up; Drake 11-19)
 				};
 
 				LevelView_SetExtraViews(views, 3);
@@ -15703,7 +15953,8 @@ int main(int, char **)
 		}
 
 		// the live Snap To Vertex: the snap under the pointer, every frame (FUN_004d9af0 0x4da855-0x4da8ce)
-		SnapLiveFrame(view.right - view.left, view.bottom - view.top);
+		SnapLiveFrame(threeMainBox.width > 0 ? threeMainBox.x : 0, threeMainBox.width > 0 ? threeMainBox.y : 0, threeMainBox.width > 0 ? threeMainBox.width : view.right - view.left,
+			threeMainBox.width > 0 ? threeMainBox.height : view.bottom - view.top);   // (the split screen's 3D view is its bottom right quarter)
 
 		{
 			std::string cornerWords;
@@ -15830,7 +16081,7 @@ int main(int, char **)
 			{
 				// Waypoint mode's waypoints: the box nearest the click on the screen (FUN_00584ee0 0x58542d), not the current one or the base; Edit Extents' press in the 3D quarter the same
 				// (FUN_00585750 0x585cff)
-				WaypointBoxClick(pickX, pickY, pickInBox ? threeMainBox.width : view.right - view.left, pickInBox ? threeMainBox.height : view.bottom - view.top);
+				WaypointMouseClick(picked, pickX, pickY, pickInBox ? threeMainBox.width : view.right - view.left, pickInBox ? threeMainBox.height : view.bottom - view.top, pickShift, pickCtrl);   // ours by mouse in mode 1 (alien list), else inteng's WaypointBoxClick
 			}
 			else if (OnALightScreen() && clickPicksLights)
 			{
@@ -15986,6 +16237,14 @@ int main(int, char **)
 			// OP-26c: whether the current placed object is in the game's view (has its display block), for the harness: "yes" / "no", empty when no placed object is current
 			host::ModuleLinkAvp_StateLine();
 			StateLine_Add("inplay", host::Selection_Get().kind == host::SelectedKind::Object ? (LevelView_SelectedIsInPlay() ? "yes" : "no") : "");
+			StateLine_Add("zoom", "stage " + std::to_string(zoomStage) + " scale " + std::to_string((long long)(zoomScale * 1000.0f + 0.5f)));   // Insert's zoom: stage 0 none, 1 the centre, 2 the rectangle; its scale x 1000 (Home's: 1000)
+			GizmoScreen_StateLine();   // gizmo, gizmospace, gizmolast, gizmopoints
+			host::MovableLive_StateLine();   // currenticon: where the current thing was drawn (movable_live.h)
+			host::AutoPlotGrid_ProbeStateLine();   // autoplotgrid, autoplotways (only with AutoPlotProbe=1)
+			StateLine_Add("shaders", "built-in " + std::to_string(host::ShaderText_Served()) + " missing " + std::to_string(host::ShaderText_Missing()));   // shader_text.h: the renderer's asks, served from the editor's own set and not
+			std::string const surfaceCopy = GizmoScreen_LiveCopyWords();
+			StateLine_Add("surfacelive", !(snapLive && snapForSurface) ? std::string() : (surfaceCopy.empty() ? std::string("on") : surfaceCopy));   // P3: while the object follows the surface (SurfaceLiveStart), its live copy: "x y z drawn 0|1" (as gizmolive)
+			StateLine_Add("surfacelast", surfaceLast);   // P3: what placement mode's last cast met (SurfaceLiveFrame)
 			StateLine_Add("fontpx", std::to_string((long long)host::TextScale_ToWindow(PanelPass_HasMenuFont() ? PanelPass_MenuFontHeight() : kPanelPassLineHeight)));   // the text's height in the window's pixels (text_scale.h)
 
 			std::string titles1, titles2;

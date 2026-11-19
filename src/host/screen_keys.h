@@ -16,6 +16,7 @@
 namespace host
 {
 	// Commands that are no menu item's: the editor does them itself
+	int32_t const kScreenKeyWaypointDelete = 0x7201;   // Waypoint mode 1, Delete (ours, the owner's addition P4, 11-18): the link selected by mouse (inteng's Delete Link 0x10), else the current waypoint (Delete Waypoint 6)
 	int32_t const kScreenKeyLinkFollow = 0x7001;   // Module Linking, Shift+S: the base follows the module the camera is in (DAT_00704384; FUN_004c96f0 every frame)
 	int32_t const kScreenKeyLightOn = 0x7101;      // Light Sourcing, S: the selected light on (FUN_004ac240(light, 1))
 	int32_t const kScreenKeyLightOff = 0x7102;      // Light Sourcing, X: the selected light off (FUN_004ac240(light, 0))

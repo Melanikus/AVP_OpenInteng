@@ -6,10 +6,14 @@
 //   (char const *)statusWords  the words, or null; they stay as they are until the next setting
 //   statusWords.From(p)        true when the words were last set from that very pointer: the address is kept only to be compared, never read through (the two places that ask
 //                              which buffer the words came from: the bar's cut-off titles, a save's own words)
+// NO FULL PATH (2026-11-18, Drake, Bishop's privacy item for alpha.1): the status line is on the screen, and so in screenshots: the copy has every full path in the words cut to
+// its file's or folder's name (screen_names.h), "Saved a copy: C:\Users\<name>\...\Invasion.RIF" says "Saved a copy: Invasion.RIF". The log keeps its own full words.
 
 #pragma once
 
 #include <string>
+
+#include "screen_names.h"
 
 class StatusWords
 {
@@ -29,7 +33,7 @@ public:
 			return *this;
 		}
 
-		std::string copy(text);   // copied first: text may point into words itself
+		std::string copy(host::ScreenNames_Cut(text));   // copied first (text may point into words itself), every full path cut to its name
 
 		words.swap(copy);
 		held = true;

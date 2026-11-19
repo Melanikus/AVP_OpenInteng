@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- mp4-to-smk's project: the command-line tool that makes a user's own video (.mp4 .m4v .avi .wmv) into an AvP message video (.smk, 128 x 96,
+     15 fps, 22050 Hz 8-bit mono). Written 2026-11-18 by Melanikus (Vasquez) for AVP_OpenInteng; its source is AVP_OpenInteng's own code (MIT,
+     License.txt). It reads the video through Windows' own Media Foundation (src\host\video_import) and encodes it with libsmackerenc.dll (LGPL,
+     AvPx's dependencies\libsmackerenc), which it loads at run time from its own folder: no part of the encoder is compiled in.
+     The settings follow the editor's (AVP_OpenInteng.vcxproj): Release|Win32, v145, /MD, /sdl, Control Flow Guard, /J and /we4834; it is a
+     console program, Unicode (it takes wide arguments), C++17. Its objects go to their own folder, so the two projects never share an .obj or
+     a .pdb; the program goes beside the editor's in win32\VS2026\Win32\Release\. -->
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{1E96C66C-6BFA-4EB6-8D17-F72F0FF0786A}</ProjectGuid>
+    <RootNamespace>mp4_to_smk</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>Unicode</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <!-- Build output stays under win32\VS2026\Win32\, which .gitignore keeps out of the repository. -->
+    <TargetName>mp4-to-smk</TargetName>
+    <OutDir>$(MSBuildProjectDirectory)\Win32\Release\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\Win32\Release\obj-mp4-to-smk\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- SMACKER_ENCODER_SHA256: the SHA-256 of the libsmackerenc.dll this build ships beside it (release.yml gives /p:SmackerEncoderSha256=<64 hex digits>; a
+           local build gives its own DLL's), the only one the tool loads unless its option encoder-sha256 names another (the owner's ruling, 11-18). The define is the hex after an x
+           (x alone: none pinned), so it is never empty: dll_pins.h takes the x off. -->
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;_CRT_SECURE_NO_DEPRECATE;_WIN32_WINNT=0x0602;_MSVC_STL_HARDENING=1;SMACKER_ENCODER_SHA256=x$(SmackerEncoderSha256);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <SDLCheck>true</SDLCheck>
+      <ControlFlowGuard>Guard</ControlFlowGuard>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <AdditionalOptions> /J /we4834</AdditionalOptions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ProgramDataBaseFileName>$(IntDir)vc.pdb</ProgramDataBaseFileName>
+      <WarningLevel>Level3</WarningLevel>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <!-- Windows' own Media Foundation and its Audio Resampler (its class ID from wmcodecdspuuid), and BCrypt for the encoder's SHA-256 (dll_load), and nothing else -->
+      <AdditionalDependencies>bcrypt.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;ole32.lib;wmcodecdspuuid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
+      <SubSystem>Console</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <RandomizedBaseAddress>true</RandomizedBaseAddress>
+      <DataExecutionPrevention>true</DataExecutionPrevention>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\host\dll_load.cpp" />
+    <ClCompile Include="..\..\src\host\smk_encoder.cpp" />
+    <ClCompile Include="..\..\src\host\video_import.cpp" />
+    <ClCompile Include="..\..\tools\mp4-to-smk\mp4-to-smk.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\host\dll_load.h" />
+    <ClInclude Include="..\..\src\host\dll_pins.h" />
+    <ClInclude Include="..\..\src\host\smk_encoder.h" />
+    <ClInclude Include="..\..\src\host\video_import.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

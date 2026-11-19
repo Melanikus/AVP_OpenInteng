@@ -1,0 +1,54 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-18, P4 item 3c: Waypoint mode BY MOUSE, the owner's addition, Hicks's plan section 6): in mode 1 the DELETE key takes out what the mouse selected: the
+# link selected (by a click on it or a drag: its ends the base and the current one) by inteng's own Delete Link (0x10, FUN_00586d00), else the current waypoint by inteng's Delete Waypoint (6,
+# FUN_00587c10: the links to it out of every waypoint, the ones after it numbered again); each written at once through WaypointMode::Write (the game's loader checks it). inteng's Waypoint
+# mode has no key for either (its help: D Delete link needs a base; Delete Waypoint none). The key is ours (screen_keys.cpp kScreenKeyWaypointDelete). Read back from a saved copy through the
+# game's loader (verify_waypoint mouse: one alien waypoint left).
+# HIS PATH: his own Genshd1 (his game folder's copy of 11-18, SHA256SUMS beside it), opened as a double click; genent01's room (AI module 232) gets two boxes and a link by mouse first.
+# RED on the build before it (3fb1e731): Delete does nothing in mode 1.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+wait 600
+click-view 0.5 0.95
+wait 400
+item 3
+wait 600
+click-view 0.5 0.95
+wait 400
+expect-status Waypoint 0 made on the floor
+click-view 0.2 0.9
+wait 400
+expect-status Waypoint 1 made on the floor
+drag-wp 0 1 3d
+wait 400
+expect-status Link 0 - 1: both ways
+picture 1
+
+# ---- the link selected by the drag: Delete takes the LINK out, both boxes stay
+key Delete
+wait 400
+expect-status Link between 0 and 1 deleted
+expect-status-not Waypoint 1 deleted
+picture 2
+
+# ---- waypoint 1 clicked (current): Delete takes the BOX out
+click-wp 1 3d
+wait 400
+expect-status Waypoint 1 is the current one
+key Delete
+wait 400
+expect-status Waypoint 1 deleted
+expect-hierarchy-count 0 Waypoint :
+picture 3
+
+# ---- nothing current and no link: Delete says so
+key Delete
+wait 400
+expect-status Delete Waypoint: pick a waypoint first
+
+# ---- written: one alien waypoint left, read back through the game's loader
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify-wp/verify_waypoint.exe {orig} {copy} mouse 1

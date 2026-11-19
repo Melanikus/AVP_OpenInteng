@@ -131,6 +131,7 @@ extern host::HierarchyMode hierarchyMode;
 // made in texture_map_screen.cpp
 void TextureMapCommand(int32_t command);
 bool TextureMapKeyCommandRun(uint8_t key, bool shift, bool ctrl);   // a key as inteng's key table gives it (texture_map_screen.cpp, TM-A); true when it had a command
+bool TextureMapLoopWaits();   // one of Texture Map's waits inteng runs as a loop of its own is up: Home and Insert do nothing then (CAM-9)
 
 // made in editor_main.cpp
 extern std::vector<std::string> promptList;

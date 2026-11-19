@@ -1,0 +1,16 @@
+# ACCEPTANCE (red first): THE ALIEN AUTO-PLOT'S PATHFINDER ON COLONY (colony_c.rif, stock f1919cad: the level the owner will play in stock Steam with the plotted
+# waypoints; Bishop's top priority, 11-18). The editor's own grid (autoplot_grid.h) builds on it, and the searches the auto-plot makes find ways between the exits:
+# for every AI module, an alien's way (floor is lava) and a marine's between each pair of its exits (ADJMDLEP entry points, EntryMarkers_Of), as the harness's probe
+# AutoPlotProbe=2 runs them. autoplotgrid "done 1 ready 1 ms <build> cells <n> kb <kept>", autoplotexits "done 1 modules <n> pairs <p> found <f> climbing <c> toofar <t>
+# noway <w> floorfound <ff> ms <total> max <slowest>".
+# Red on bishop-int's exe (no service: the fields never come), green with it.
+#ini AutoPlotProbe=2
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/colony_c.rif
+state
+wait-field autoplotgrid done 1 120000
+expect-number autoplotgrid ready 1 1
+wait-field autoplotexits done 1 300000
+expect-number autoplotexits modules 1 100000
+expect-number autoplotexits found 1 100000
+expect-number autoplotexits climbing 1 100000
+expect-number autoplotexits floorfound 1 100000

@@ -1,0 +1,72 @@
+# ACCEPTANCE (Drake 2026-11-19, THE OWNER'S through Bishop: "I see the gizmo, works perfectly, but the object doesn't move with it, you can only see it after you save/leave object
+# mode"; "Get them to finish this drag and place for object mode"). HIS PATH: his Genshd1 copy opened as a double click, Object Placement, the lift platform picked from the 45-degree
+# corner (camera-corner). 1. DURING a drag (the button still down: drag-gizmo ... hold) the OBJECT is drawn moving with the gizmo: its live copy is among the blocks the game draws
+# (gizmolive "... drawn 1") and stands away from where the object was (expect-away against gizmodrawn remembered before); the pictures show it, in the 3D view and, with
+# Misc > Toggle Split Screen on, in the three views as well. 2. After the release, Ctrl+Z and Esc: the object drawn where the level has it (gizmodrawn: its display block), with no
+# save and no mode change. RED on exe-cache/21d1c3fe.exe (6 failed: mid-drag gizmolive is empty, the platform not drawn moving in pictures 2, 5, 8: Track Editing's frame ended
+# the gizmo's live copy the frame after the press), GREEN with the fix.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera-corner liftplt
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text liftplt
+wait 300
+state
+expect-field-empty gizmolive
+remember-field gizmodrawn
+picture 1
+
+# ---- 1a. an arrow drag, held: the live copy drawn, 60 px along x from where the platform was
+drag-gizmo move x 60 0 hold
+expect-field-has gizmo dragging move x
+expect-field-has gizmolive drawn 1
+expect-away gizmolive gizmodrawn 100 100000
+picture 2
+# ---- 2a. let go: written, and the real block drawn there (no save, no mode change)
+release-gizmo
+expect-status Gizmo: the placed object moved
+expect-screen Object Placement
+expect-field-empty gizmolive
+expect-away gizmodrawn gizmodrawn 100 100000
+picture 3
+# ---- 2b. Ctrl+Z: drawn back where it was
+key Z ctrl
+expect-status the last drag was taken back
+expect-field-same gizmodrawn
+picture 4
+
+# ---- 1b. a ring turn, held: the live copy drawn (turned in place: the picture shows it)
+drag-gizmo turn y 40 30 hold
+expect-field-has gizmo dragging turn y
+expect-field-has gizmolive drawn 1
+expect-away gizmolive gizmodrawn 0 50
+picture 5
+# ---- 2c. Esc while held: given up, drawn where it was
+esc-gizmo
+expect-status the drag was given up
+expect-field-same gizmodrawn
+expect-field-empty gizmolive
+picture 6
+
+# ---- 1c. THE THREE VIEWS (Misc > Toggle Split Screen: three more cameras 5 m from the object, the main view the bottom right quarter): the gizmo's arrow found and dragged
+# there, and the live copy drawn moving in the four views
+click-bar Misc > Toggle Split Screen
+expect-status Toggle Split Screen: on
+wait 400
+state
+picture 7
+drag-gizmo move x 60 0 hold
+expect-field-has gizmo dragging move x
+expect-field-has gizmolive drawn 1
+expect-away gizmolive gizmodrawn 100 100000
+picture 8
+release-gizmo
+expect-status Gizmo: the placed object moved
+expect-away gizmodrawn gizmodrawn 100 100000
+picture 9

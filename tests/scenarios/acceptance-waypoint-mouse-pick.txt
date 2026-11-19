@@ -1,0 +1,55 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-18, P4 item 2: Waypoint mode BY MOUSE, the owner's addition, Hicks's plan section 6, alien list only): in mode 1 a click takes the box the line
+# from the camera meets first (waypoint_pick.h: its way in nearest, not behind the wall the game's line of sight met), ANY box, the current one and the BASE too (inteng's PickBox refuses
+# those); a click that meets no box lets the current one go. Read from inteng's own line "Waypoint :%d" (the current one, FUN_00584ee0 0x585562) and the status words (the state line's:
+# the Waypoint screen draws none, the owner's question).
+# HIS PATH: his own Genshd1 (his game folder's copy of 11-18, SHA256SUMS beside it), opened as a double click. The AI module the start camera sees (shedent03's) has no alien waypoint, so
+# one is made first with inteng's own Create Waypoint and its sizing drags (as acceptance-ownerpath-waypoint).
+# RED on the bishop-int before it (7d97f2a2): a click on nothing keeps the current one (inteng picks the nearest centre, here the current one, and changes nothing), and the base can't be
+# clicked.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+wait 600
+# shedent03's AI module, its alien list (empty)
+click-view 0.5 0.5
+wait 400
+item 3
+wait 600
+expect-hierarchy-text Alien Mode
+expect-status alien list of 0
+# a box made as inteng makes one: Create Waypoint, two drags to size it, Finish Extent Edit
+item 5
+drag-face current top right 20 20
+drag-face current side right 20 20
+item 0x13
+wait 400
+expect-status alien list of 1, current 0
+expect-hierarchy-text Waypoint :0
+picture 1
+
+# ---- a click that meets no box (the top left corner of the view, a wall far from it): the current one let go
+click-view 0.02 0.02
+wait 400
+expect-status none is current now
+expect-hierarchy-count 0 Waypoint :
+picture 2
+
+# ---- a click on the box: it is current again
+click-wp 0 3d
+wait 400
+expect-status Waypoint 0 is the current one
+expect-hierarchy-text Waypoint :0
+
+# ---- the box made the BASE (Set Base lets the current go), then clicked: current AND base
+item 7
+wait 300
+expect-hierarchy-count 0 Waypoint :
+expect-status Base is waypoint 0
+click-wp 0 3d
+wait 400
+expect-hierarchy-text Waypoint :0
+expect-status Waypoint 0 is the current one
+picture 3

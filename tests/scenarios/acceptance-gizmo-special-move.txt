@@ -1,0 +1,79 @@
+# ACCEPTANCE (red first): THE MOUSE GIZMO ON OBJECT PLACEMENT'S THINGS THAT ONLY MOVE (P2 of Hicks's plan .claude/plans/streamed-twirling-spindle.md; the owner's addition, inteng had none):
+# Invasion's sound sound1, AVP generator generator01 and bad guy badguydroponyou, each made current by Object > Find, the camera put 3 m before it. For each: arrows show and NO rings (the
+# owner's ruling: they hold no turn; a generator's heading is kept as it is); the x arrow moves it along x and the saved copy holds it so (verify_movable against the level as opened: along
+# x only, its turn the identity as before); a drag given up with Esc leaves it where it was. Red on the gizmo without Object Placement's source (drake-gizmo efbeb081): no gizmo for them.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Object Placement
+
+# ---- the sound sound1
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is sound1
+expect-no-dialog
+camera 13386 -6509 91007 0 0
+wait 400
+state
+expect-field-has hierarchylines sound1
+expect-field-has gizmopoints move x
+expect-field-not-has gizmopoints turn
+remember-field gizmopose
+drag-gizmo move x 60 0
+expect-status Gizmo: the sound moved
+expect-status along x
+expect-field-changed gizmopose
+picture 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_movable.exe {orig} {copy} sound 0 moved x
+remember-field gizmopose
+drag-gizmo move y 0 40 esc
+expect-status the drag was given up
+expect-field-same gizmopose
+
+# ---- the AVP generator generator01
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is generator01
+expect-no-dialog
+camera -27110 -10989 24271 0 0
+wait 400
+state
+expect-field-has hierarchylines generator01
+expect-field-has gizmopoints move x
+expect-field-not-has gizmopoints turn
+remember-field gizmopose
+drag-gizmo move x 60 0
+expect-status Gizmo: the AVP generator moved
+expect-field-changed gizmopose
+picture 2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_movable.exe {orig} {copy} generator 0 moved x
+remember-field gizmopose
+drag-gizmo move y 0 40 esc
+expect-status the drag was given up
+expect-field-same gizmopose
+
+# ---- the bad guy badguydroponyou
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is badguydroponyou
+expect-no-dialog
+camera 56460 -58141 12422 0 0
+wait 400
+state
+expect-field-has hierarchylines badguydroponyou
+expect-field-has gizmopoints move x
+expect-field-not-has gizmopoints turn
+remember-field gizmopose
+drag-gizmo move x 60 0
+expect-status Gizmo: the bad guy moved
+expect-field-changed gizmopose
+picture 3
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_movable.exe {orig} {copy} badguy 0 moved x
+remember-field gizmopose
+drag-gizmo move y 0 40 esc
+expect-status the drag was given up
+expect-field-same gizmopose

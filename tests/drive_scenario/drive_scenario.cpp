@@ -233,6 +233,10 @@ struct Scenario
 	bool threeViewsOn = false;
 	std::map<std::string, std::string> remembered;   // remember-field: a field's words as they were
 	std::map<std::string, std::array<long long, 3>> cameraNotes;   // camera-note <name>: the camera's place then
+	bool dragHeld = false;            // drag-gizmo ... hold: the button is still down at heldX, heldY in heldTarget (release-gizmo lets it go)
+	HWND heldTarget = nullptr;
+	int heldX = 0, heldY = 0;
+	bool heldShift = false;
 };
 
 // The words of a field of the scenario line: <name> "<words>"
@@ -472,7 +476,8 @@ static HWND TargetOf(Scenario *s, int *x, int *y)
 }
 
 // A press at the first place, the pointer moved to the second in steps with the button down, then let go
-static void DragWindow(Scenario *s, int x0, int y0, int x1, int y1, bool right = false, bool control = false)
+// holdOn: the button is NOT let go: it stays down at the second place (s->dragHeld), so a state and a picture can be taken in the middle of the drag (release-gizmo)
+static void DragWindow(Scenario *s, int x0, int y0, int x1, int y1, bool right = false, bool control = false, bool shift = false, bool escapeFirst = false, bool holdOn = false)
 {
 	int ax = x0, ay = y0, bx = x1, by = y1;
 	HWND const target = TargetOf(s, &ax, &ay);
@@ -483,7 +488,8 @@ static void DragWindow(Scenario *s, int x0, int y0, int x1, int y1, bool right =
 	bx = x1 - (x0 - ax);
 	by = y1 - (y0 - ay);
 
-	WPARAM const held = (right ? MK_RBUTTON : MK_LBUTTON) | (control ? MK_CONTROL : 0);
+	// shift: Shift held through the drag, as the button's flags say it (the mouse gizmo's 15-degree snap, Drake 11-18)
+	WPARAM const held = (right ? MK_RBUTTON : MK_LBUTTON) | (control ? MK_CONTROL : 0) | (shift ? MK_SHIFT : 0);
 
 	PostMessageW(target, WM_MOUSEMOVE, control ? MK_CONTROL : 0, MAKELPARAM(ax, ay));
 	PostMessageW(target, right ? WM_RBUTTONDOWN : WM_LBUTTONDOWN, held, MAKELPARAM(ax, ay));
@@ -493,6 +499,26 @@ static void DragWindow(Scenario *s, int x0, int y0, int x1, int y1, bool right =
 	{
 		PostMessageW(target, WM_MOUSEMOVE, held, MAKELPARAM(ax + (bx - ax) * step / 8, ay + (by - ay) * step / 8));
 		Sleep(80);
+	}
+
+	// escapeFirst: Esc pressed while the button is still down (the mouse gizmo gives the drag up), then the release
+	if (escapeFirst)
+	{
+		PostMessageW(s->editor.window, WM_KEYDOWN, VK_ESCAPE, 1 | (MapVirtualKeyW(VK_ESCAPE, MAPVK_VK_TO_VSC) << 16));
+		Sleep(80);
+		PostMessageW(s->editor.window, WM_KEYUP, VK_ESCAPE, 1 | (MapVirtualKeyW(VK_ESCAPE, MAPVK_VK_TO_VSC) << 16) | (1u << 30) | (1u << 31));
+		Sleep(150);
+	}
+
+	if (holdOn)
+	{
+		s->dragHeld = true;
+		s->heldTarget = target;
+		s->heldX = bx;
+		s->heldY = by;
+		s->heldShift = shift;
+		Sleep(600);
+		return;
 	}
 
 	PostMessageW(target, right ? WM_RBUTTONUP : WM_LBUTTONUP, control ? MK_CONTROL : 0, MAKELPARAM(bx, by));
@@ -624,6 +650,7 @@ static UINT KeyOf(std::string const &name)
 	if (name == "Space") return VK_SPACE;
 	if (name == "Home") return VK_HOME;
 	if (name == "Insert") return VK_INSERT;
+	if (name == "Delete") return VK_DELETE;   // Waypoint by mouse's Delete (Dietrich 11-18, P4)
 	// F1 to F9: the camera slots' keys (Shift+F1 saves slot 0, F1 restores it)
 	if (name.size() == 2 && name[0] == 'F' && name[1] >= '1' && name[1] <= '9') return VK_F1 + (UINT)(name[1] - '1');
 	if (name == "F10") return VK_F10;
@@ -721,6 +748,15 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		std::string const said = WaitForLine(&s->editor, "AVP_OpenInteng: item ", 10000);
 
+		// item <command> refused: the editor must REFUSE it (no item of the bars has that command: a hidden item, Drake 11-19, the owner's "hide auto pilot"); its state is asked anew
+		if (w.size() >= 3 && w[2] == "refused")
+		{
+			Check(said.find(" refused") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : From(said, "item ")));
+			AskState(s);
+			PictureAfter(s, line);
+			return true;
+		}
+
 		Check(said.find(" done:") != std::string::npos, label + " -> " + (said.empty() ? "no answer" : From(said, "item ")));
 
 		// the state line the item itself asked for comes with the next frame, then its geometry line
@@ -789,9 +825,18 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		std::string choices = fresh ? Field(s->last, "choices") : std::string();
 		bool clicked = false;
 
-		// a list of many rows is paged: when the row is not on the page shown, the Next button is clicked and the page searched again (at most 12 pages)
-		for (int page = 0; page < 12 && !clicked; page++)
+		// a list of many rows is paged: when the row is not on the page shown, the Next button is clicked and the page searched again, until there is no Next, the pages come round to the
+		// first again, or 500 pages (inteng's page since 11-18 is 640 x 480's: 18 rows of 2 columns on Temple's Select Object, which runs past the 12 pages this stopped at before; the
+		// chooser opens at its first page, as inteng's FUN_00475bf0 does: Find Object's call at 0x4467e2 turns no page)
+		std::string const firstPage = choices;
+
+		for (int page = 0; page < 500 && !clicked; page++)
 		{
+			if (page > 0 && choices == firstPage)
+			{
+				break;
+			}
+
 		size_t from = 0;
 
 		while (from < choices.size() && !clicked)
@@ -951,6 +996,20 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		}
 
 		Check(Field(s->last, w[1]) == Rest(line, 2), label + " (" + w[1] + " is \"" + Field(s->last, w[1]) + "\")");
+		return true;
+	}
+
+	// expect-field-not-has <name> <words>: a field of the editor's scenario line does NOT contain the words (no full path on the screen: "dialog" and "status" never hold ":\",
+	// Drake 2026-11-18, the privacy item)
+	if (verb == "expect-field-not-has" && w.size() >= 3)
+	{
+		if (!AskState(s))
+		{
+			Check(false, label + " (the editor gave no state line)");
+			return false;
+		}
+
+		Check(Field(s->last, w[1]).find(Rest(line, 2)) == std::string::npos, label + " (" + w[1] + " is \"" + Field(s->last, w[1]).substr(0, 300) + "\")");
 		return true;
 	}
 
@@ -1214,6 +1273,66 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		bool const same = was->second == now;
 
 		Check(verb == "expect-field-same" ? same : !same, label + " (" + w[1] + " was \"" + was->second + "\", is \"" + now + "\")");
+		return true;
+	}
+
+	// expect-away <field> <remembered field> <least> <most>: the place (its first three numbers) the field says now lies at least <least> and at most <most> (the field's units)
+	// from the place the remembered field held (remember-field first). Drake 2026-11-19: DURING a gizmo drag, the live copy (gizmolive) is away from where the object was
+	// (gizmodrawn remembered before it), so the object is drawn moving, not only the gizmo
+	if (verb == "expect-away" && w.size() >= 5)
+	{
+		if (!AskState(s))
+		{
+			Check(false, label + " (the editor gave no state line)");
+			return false;
+		}
+
+		std::string const now = Field(s->last, w[1]);
+		auto const was = s->remembered.find(w[2]);
+		double a[3] = {}, b[3] = {};
+
+		if (was == s->remembered.end())
+		{
+			Check(false, label + " (remember-field " + w[2] + " first)");
+			return true;
+		}
+
+		if (sscanf_s(now.c_str(), "%lf %lf %lf", &a[0], &a[1], &a[2]) != 3 || sscanf_s(was->second.c_str(), "%lf %lf %lf", &b[0], &b[1], &b[2]) != 3)
+		{
+			Check(false, label + " (no place: " + w[1] + " is \"" + now + "\", " + w[2] + " was \"" + was->second + "\")");
+			return true;
+		}
+
+		double const away = sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
+
+		Check(away >= atof(w[3].c_str()) && away <= atof(w[4].c_str()), label + " (" + std::to_string((long long)floor(away + 0.5)) + " away: " + w[1] + " is \"" + now + "\", " +
+			w[2] + " was \"" + was->second + "\")");
+		return true;
+	}
+
+	// expect-near <field> <x> <y> <z> <most>: the place (its first three numbers) the field says now lies at most <most> from x y z (the field's units). Drake 2026-11-19: on the split
+	// screen, the centre ball's placement lands where the same drag lands in the full view
+	if (verb == "expect-near" && w.size() >= 6)
+	{
+		if (!AskState(s))
+		{
+			Check(false, label + " (the editor gave no state line)");
+			return false;
+		}
+
+		std::string const now = Field(s->last, w[1]);
+		double a[3] = {};
+
+		if (sscanf_s(now.c_str(), "%lf %lf %lf", &a[0], &a[1], &a[2]) != 3)
+		{
+			Check(false, label + " (no place: " + w[1] + " is \"" + now + "\")");
+			return true;
+		}
+
+		double const dx = a[0] - atof(w[2].c_str()), dy = a[1] - atof(w[3].c_str()), dz = a[2] - atof(w[4].c_str());
+		double const away = sqrt(dx * dx + dy * dy + dz * dz);
+
+		Check(away <= atof(w[5].c_str()), label + " (" + std::to_string((long long)floor(away + 0.5)) + " away: " + w[1] + " is \"" + now + "\")");
 		return true;
 	}
 
@@ -2085,6 +2204,57 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		return true;
 	}
 
+	if ((verb == "drag-wp" || verb == "click-link") && w.size() >= 4)
+	{
+		// drag-wp <from> <to> <view> [shift] [ctrl]: press on waypoint <from>'s box where that view draws its centre (as click-wp), move to waypoint <to>'s, let go: Waypoint by mouse's link drag
+		// (Dietrich 11-18, P4). Shift held at the press: an aliens-only link; ctrl: one way
+		bool const shift = std::find(w.begin(), w.end(), "shift") != w.end();
+		bool const control = std::find(w.begin(), w.end(), "ctrl") != w.end();
+		int places[2][2] = { { -1, -1 }, { -1, -1 } };
+		std::string const key = w[3] + " ";
+
+		for (int end = 0; end < 2; end++)
+		{
+			AskState(s);
+			PostMessageW(s->editor.window, WM_APP + 7, (WPARAM)atoi(w[1 + end].c_str()), 0);
+
+			std::string const said = WaitForLine(&s->editor, "AVP_OpenInteng: locate: ", 10000);
+			size_t const at = said.find("; " + key);
+
+			if (at != std::string::npos)
+			{
+				sscanf_s(said.c_str() + at + 2 + key.size(), "%d %d", &places[end][0], &places[end][1]);
+			}
+
+			if (said.empty() || at == std::string::npos || places[end][0] < 0 || places[end][1] < 0)
+			{
+				Check(false, label + " -> " + (said.empty() ? "no answer" : said));
+				return false;
+			}
+		}
+
+		if (w[0] == "click-link")
+		{
+			// click-link <a> <b> <view>: a click halfway between the two boxes' drawn centres, which is on the link between their aim points when those are the boxes' middles (a line
+			// stays a line on the screen); Waypoint by mouse's link pick (Dietrich 11-18, P4)
+			int const midX = (places[0][0] + places[1][0]) / 2, midY = (places[0][1] + places[1][1]) / 2;
+
+			ClickWindow(s, midX, midY, false, false);
+			AskState(s);
+			Check(true, label + " at " + std::to_string(midX) + "," + std::to_string(midY));
+			printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
+			PictureAfter(s, line);
+			return true;
+		}
+
+		DragWindow(s, places[0][0], places[0][1], places[1][0], places[1][1], false, control, shift);
+		AskState(s);
+		Check(true, label + " from " + std::to_string(places[0][0]) + "," + std::to_string(places[0][1]) + " to " + std::to_string(places[1][0]) + "," + std::to_string(places[1][1]));
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
+		PictureAfter(s, line);
+		return true;
+	}
+
 	if (verb == "drag-face" && w.size() >= 6)
 	{
 		// drag-face <index|current> <top|side|front> <left|right|up|down> <dx> <dy>: press on that face of the waypoint's box in that view, move by (dx, dy) window pixels, let go
@@ -2144,13 +2314,122 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 	if (verb == "drag-win" && w.size() >= 5)
 	{
-		// drag-win <x0> <y0> <x1> <y1> [right] [ctrl]: the right button's drag, and with Control held (Dietrich, TM-B 2026-11-18: the texture windows' right drag)
-		bool const right = (w.size() >= 6 && w[5] == "right") || (w.size() >= 7 && w[6] == "right");
-		bool const control = (w.size() >= 6 && w[5] == "ctrl") || (w.size() >= 7 && w[6] == "ctrl");
+		// drag-win <x0> <y0> <x1> <y1> [right] [ctrl] [shift]: the right button's drag, and with Control held (Dietrich, TM-B 2026-11-18: the texture windows' right drag); shift: Shift
+		// held at the press (Dietrich 11-18, P4: Waypoint by mouse's Shift drag, an aliens-only link). The words in any order after the four numbers.
+		bool right = false, control = false, shift = false;
 
-		DragWindow(s, atoi(w[1].c_str()), atoi(w[2].c_str()), atoi(w[3].c_str()), atoi(w[4].c_str()), right, control);
+		for (size_t k = 5; k < w.size(); k++)
+		{
+			right = right || w[k] == "right";
+			control = control || w[k] == "ctrl";
+			shift = shift || w[k] == "shift";
+		}
+
+		DragWindow(s, atoi(w[1].c_str()), atoi(w[2].c_str()), atoi(w[3].c_str()), atoi(w[4].c_str()), right, control, shift);
 		AskState(s);
 		Check(true, label);
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
+		PictureAfter(s, line);
+		return true;
+	}
+
+	// drag-gizmo <move|turn> <x|y|z> <dx> <dy> [shift] [esc] [hold]: a drag from where the editor's gizmopoints field says that handle of the mouse gizmo is (window pixels: "move x 612 377|..."),
+	// by dx, dy; shift: Shift held through it (the turn's 15-degree snap); esc: Esc pressed before the button is let go (the drag given up). Drake 2026-11-18 (P1): the handles move
+	// with the camera and the object, so no fixed pixel. hold (Drake 2026-11-19, the owner's "the object doesn't move with it"): the button stays down there, so the steps after it
+	// (state, expect-field, picture) see the drag IN THE MIDDLE; release-gizmo lets it go (or esc-gizmo gives it up)
+	if (verb == "drag-gizmo" && w.size() >= 5)
+	{
+		AskState(s);
+
+		std::string const name = w[1] + " " + w[2] + " ";
+		std::string const all = Field(s->last, "gizmopoints");
+		int x = 0, y = 0;
+		bool found = false;
+
+		for (size_t at = 0; at <= all.size() && !found;)
+		{
+			size_t const end = all.find('|', at);
+			std::string const part = all.substr(at, end == std::string::npos ? std::string::npos : end - at);
+
+			found = part.compare(0, name.size(), name) == 0 && sscanf_s(part.c_str() + name.size(), "%d %d", &x, &y) == 2;
+			at = end == std::string::npos ? all.size() + 1 : end + 1;
+		}
+
+		if (!found)
+		{
+			Check(false, label + " (no \"" + w[1] + " " + w[2] + "\" in gizmopoints \"" + all.substr(0, 200) + "\")");
+			return true;
+		}
+
+		bool const shift = std::find(w.begin() + 5, w.end(), "shift") != w.end();
+		bool const escape = std::find(w.begin() + 5, w.end(), "esc") != w.end();
+		bool const holdOn = std::find(w.begin() + 5, w.end(), "hold") != w.end();
+
+		if (s->dragHeld)
+		{
+			Check(false, label + " (a drag is held already: release-gizmo first)");
+			return true;
+		}
+
+		DragWindow(s, x, y, x + atoi(w[3].c_str()), y + atoi(w[4].c_str()), false, false, shift, escape && !holdOn, holdOn);
+		AskState(s);
+		Check(true, label + " (from " + std::to_string(x) + "," + std::to_string(y) + ")");
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
+		PictureAfter(s, line);
+		return true;
+	}
+
+	// release-gizmo: the button held by drag-gizmo ... hold let go where it is (the drag kept, as a real release); esc-gizmo: Esc first, then the release (the drag given up)
+	// move-held <dx> <dy> (Frost 11-19, the owner's G toggle while the centre ball is held: "slide a little with UP on"): the pointer moved by (dx, dy) window pixels from where the
+	// drag-gizmo ... hold left it, the button still down; the state and a picture after it
+	if (verb == "move-held" && w.size() >= 3)
+	{
+		if (!s->dragHeld)
+		{
+			Check(false, label + " (no drag is held: drag-gizmo ... hold first)");
+			return true;
+		}
+
+		int const tx = s->heldX + atoi(w[1].c_str()), ty = s->heldY + atoi(w[2].c_str());
+		WPARAM const held = MK_LBUTTON | (s->heldShift ? MK_SHIFT : 0);
+
+		for (int step = 1; step <= 4; step++)
+		{
+			PostMessageW(s->heldTarget, WM_MOUSEMOVE, held, MAKELPARAM(s->heldX + (tx - s->heldX) * step / 4, s->heldY + (ty - s->heldY) * step / 4));
+			Sleep(80);
+		}
+
+		s->heldX = tx;
+		s->heldY = ty;
+		Sleep(400);
+		AskState(s);
+		Check(true, label + " (to " + std::to_string(tx) + "," + std::to_string(ty) + ")");
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
+		PictureAfter(s, line);
+		return true;
+	}
+
+	if (verb == "release-gizmo" || verb == "esc-gizmo")
+	{
+		if (!s->dragHeld)
+		{
+			Check(false, label + " (no drag is held: drag-gizmo ... hold first)");
+			return true;
+		}
+
+		if (verb == "esc-gizmo")
+		{
+			PostMessageW(s->editor.window, WM_KEYDOWN, VK_ESCAPE, 1 | (MapVirtualKeyW(VK_ESCAPE, MAPVK_VK_TO_VSC) << 16));
+			Sleep(80);
+			PostMessageW(s->editor.window, WM_KEYUP, VK_ESCAPE, 1 | (MapVirtualKeyW(VK_ESCAPE, MAPVK_VK_TO_VSC) << 16) | (1u << 30) | (1u << 31));
+			Sleep(150);
+		}
+
+		PostMessageW(s->heldTarget, WM_LBUTTONUP, 0, MAKELPARAM(s->heldX, s->heldY));
+		s->dragHeld = false;
+		Sleep(600);
+		AskState(s);
+		Check(true, label + " (at " + std::to_string(s->heldX) + "," + std::to_string(s->heldY) + ")");
 		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;

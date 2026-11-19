@@ -1,0 +1,42 @@
+# ACCEPTANCE (red first): THE MOUSE GIZMO ON A STRATEGY VIRTUAL OBJECT (P2 of Hicks's plan .claude/plans/streamed-twirling-spindle.md; the owner's addition, inteng had none: nothing could
+# move a virtual object before, VirtualObject_SetPlace is new). Vaults' Vmessage077, made current by Find Object (the current object is then the selection, a virtual object's ID: the
+# placed-object read finds none, so Strategy Data's own source gives it), the camera at the 45-degree corner of it (2 m on each axis, Numpad 8 held to look down about 35 degrees).
+# Arrows show and NO rings (a virtual object holds no turn); the x arrow moves it along x and the saved copy holds it so (verify_movable against the level as opened: along x only); a
+# drag given up with Esc leaves it where it was. Red on the gizmo without Strategy Data's source (drake-gizmo efbeb081): no gizmo for it.
+# THE CAMERA IN THE WORLD'S UNITS (Frost 11-19): Vaults' scale is 0.8, so Vmessage077's VOBJPROP place 49657 -2907 21443 (the file's) is drawn, and its gizmo shown, at 39726 -2326
+# 17154 (the file's times the scale: the editor's icon, and the gizmo since Drake's 61478b4b). The camera was first aimed 2 m from the file's place (the gizmo stood there before
+# 61478b4b, away from the icon), so after it the gizmo was behind the camera and never showed (round 10b: red, alone too). It now stands 2 m from the icon on each axis.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Vaults.RIF
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Vaults.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is Vmessage077
+expect-no-dialog
+expect-selected 1
+camera 37726 -4326 15154 3584
+hold Numpad8 580
+expect-number camangles look_ 250 550
+wait 400
+state
+expect-field-has gizmopoints move x
+expect-field-not-has gizmopoints turn
+remember-field gizmopose
+picture 1
+# the x arrow, 60 px along: the release writes the VOBJPROP's new place
+drag-gizmo move x 60 0
+expect-status Gizmo: the virtual object moved
+expect-status along x
+expect-field-changed gizmopose
+picture 2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_movable.exe {orig} {copy} virtual Vmessage077 moved x
+# a drag given up with Esc: the place as it was
+remember-field gizmopose
+drag-gizmo move y 0 40 esc
+expect-status the drag was given up
+expect-field-same gizmopose

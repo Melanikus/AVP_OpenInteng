@@ -58,6 +58,19 @@ What happens to the file:
 - If a different level is already in the editor's `avp_rifs` under that name, it's never replaced: the editor asks you to rename
   yours. The same file, opened again, is simply opened.
 
+## Your own videos
+
+AvP plays its in-game videos (the messages on a level's monitors) as Smacker `.smk` files: 128 x 96 at 15 frames a second,
+with sound at 22,050 Hz, 8-bit, mono. The editor's Message view lists the videos it finds in your game's `FMVs` folder and plays them
+with their sound. A converter from your own video files comes back in a later release.
+
+**How a level plays it.** A Message strategy, when it fires, plays `FMVs\message<n>.smk` from the game's folder, where `<n>` is
+the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` in its name, and it shows those message videos.
+
+- For your own level, give its Message a number no stock level uses, and name your file after it. Replacing a stock
+  `messageNNN.smk` changes that stock level too.
+- A monitor shows nothing when a video named after its own picture exists in `FMVs\`, and no video plays while a cheat is on.
+
 ## Where to read next
 
 - `docs/TAKING-OVER.md`: how to pick this up with nobody to ask. What each check proves, and what to do when a tool is gone.

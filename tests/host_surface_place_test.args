@@ -1,0 +1,7 @@
+/std:c++17 /EHsc /MD /J /we4834 /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DNDEBUG /D_CRT_SECURE_NO_DEPRECATE /D_WIN32_WINNT=0x0602
+/Isrc/host /Isrc/model
+tests/host_surface_place_test.cpp
+src/host/surface_place.cpp
+src/model/shape_maths.cpp
+src/host/surface_turn.cpp

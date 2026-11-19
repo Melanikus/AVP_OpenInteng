@@ -1,0 +1,19 @@
+# ACCEPTANCE (red first; Drake 2026-11-19, THE OWNER'S RULING through Bishop: "hide auto pilot", while waypoints are on hold): with the ini as shipped (no AutoPlot= under [Editor]),
+# Waypoint mode's two Auto-plot items, "Auto-plot AI module" (0x7330) and "Auto-plot all AI modules" (0x7331), are NOT on its bar, and their command does nothing however it comes
+# (inteng's command number asked straight, as a key would). The code stays (autoplot_switch.h): AutoPlot=1 brings them back (acceptance-autoplot-shown, and the autoplot acceptances
+# set it). Hangar, as acceptance-autoplot-all. RED on exe-cache/202dbe74.exe: both items are on the bar, and the command starts a run ("Auto-plot: building the grid").
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF
+pictures on
+state
+expect-screen Waypoint
+expect-bar1 Mode
+expect-bar1 Help
+expect-field-not-has bar1 Auto-plot
+picture 1
+# the command itself, asked straight (as a key or the harness would): the editor refuses it, no item of its bars has it; nothing happens (no run, no question)
+item 0x7331 refused
+wait 600
+expect-status-not Auto-plot
+expect-no-dialog
+expect-field-not-has bar1 Auto-plot

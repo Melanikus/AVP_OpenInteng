@@ -20,6 +20,8 @@ click-bar Mode > Exit
 expect-screen Construction
 # the Exit's words are Save's own: not saved, why, and the folder by its path (ours said "the level was NOT saved (see the log)", the folder "Documents\AVP_OpenInteng" by no path)
 expect-status Not saved: the folder for copies can't be used: the editor couldn't make
-expect-status AVP_OpenInteng.exe\AVP_OpenInteng
+# (the folder by its NAME since 2026-11-18, Bishop's privacy item: no full path on the screen, screen_names.h; the log keeps the path)
+expect-status couldn't make AVP_OpenInteng (Windows error
+expect-field-not-has status :\
 expect-status-not see the log
 expect-status-not Saved a copy

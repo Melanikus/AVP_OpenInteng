@@ -412,8 +412,8 @@ static void TestTheBuiltScreens()
 		size_t pages, firstBar, secondBar;
 	};
 
-	// pages live for game kind 0, the titles on the first bar and on the second (row 2, page 0)
-	const Want wants[] = { { "Strategy Data", 6, 4, 8 }, { "Path", 2, 2, 6 }, { "Waypoint", 8, 3, 3 }, { "Texture Map", 7, 6, 11 }, { "Hierarchy", 2, 7, 7 }, { "Track Editing", 13, 3, 0 } };
+	// pages live for game kind 0, the titles on the first bar and on the second (row 2, page 0); Waypoint's first bar is inteng's 3 and our 2 auto-plot items (menu-status.json extras)
+	const Want wants[] = { { "Strategy Data", 6, 4, 8 }, { "Path", 2, 2, 6 }, { "Waypoint", 8, 5, 3 }, { "Texture Map", 7, 6, 11 }, { "Hierarchy", 2, 7, 7 }, { "Track Editing", 13, 3, 0 } };
 	bool counts = true, numbers = true, inBar = true;
 
 	for (const Want &want : wants)

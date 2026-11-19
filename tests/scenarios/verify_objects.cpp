@@ -2,7 +2,8 @@
 // by Melanikus (Frost) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // USE: verify_objects.exe <the copy it saved> gone|kept|track|notrack <an object's name> [gone|kept|track|notrack <name>] ...
-//      ... tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>   ... notracksound <name>|<index>   ... trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>   ... at <name>|<x>|<y>|<z>   ... near <name>|<x>|<y>|<z>|<within>
+//      ... tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>   ... notracksound <name>|<index>   ... trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>   ... at <name>|<x>|<y>|<z>   ... near <name>|<x>|<y>|<z>|<within>   ... up <name>|<ux>|<uy>|<uz>|<within>
+//      ... touching <name>|<px>|<py>|<pz>|<nx>|<ny>|<nz>|<within> (the object's box meets the surface through that point: see CheckTouching)
 // CHECKS: the copy is read by the game's loader; for "gone <name>" no object of the copy (module or placed object) has that exact name; for "kept <name>" one has; for
 // "track <name>" the object of that name holds a track of its own (OBJTRAK2), for "notrack <name>" it holds none (added 2026-11-17 by Frost, OP-20 / OP-21).
 // For "alt <name>=<count>,<group>" the object's alternate locations (its ALTLOCAT, read by alt_locations_edit.cpp's loader from the copy the game's loader took) are that many, in that group
@@ -23,6 +24,7 @@
 // Gives back 0 only if every check passed.
 
 #include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,6 +36,7 @@
 
 #include "chunk.hpp"
 #include "chunk_object.hpp"
+#include "chunk_shape.hpp"
 #include "mishchnk.hpp"
 #include "level_file.h"
 #include "alt_locations_edit.h"
@@ -199,6 +202,142 @@ static void CheckAt(OpenLevelFile &level, std::string const &asked)
 
 	Check(object && object->object_data.location.x == at[0] && object->object_data.location.y == at[1] && object->object_data.location.z == at[2],
 		"the copy's object \"" + fields[0] + "\" is at " + fields[1] + " " + fields[2] + " " + fields[3] + " (it is at: " + held + ")");
+}
+
+// "up <name>|<ux>|<uy>|<uz>|<within>": the object's UP as the game draws it is (ux uy uz) thousandths, each within <within> thousandths: its local (0, -1, 0) (the world is y down)
+// turned by its OBJHEAD1 turn (x y z w) with the turn's own matrix R, which is what the game's loader (QuatToMat of (-x, -y, -z, w)) and _RotateVector give (src/host/surface_place.h).
+// For placement mode's turn (P3: the base flat on a wall or floor). Added 2026-11-18 by Vasquez.
+static void CheckUp(OpenLevelFile &level, std::string const &asked)
+{
+	std::vector<std::string> const fields = BarFields(asked, 5);
+	long long wanted[3] = {};
+	long long within = 0;
+	bool good = fields.size() == 5 && !fields[0].empty() && WholeNumber(fields[4], 0, 2000, &within);
+
+	for (int i = 0; good && i < 3; i++)
+	{
+		good = WholeNumber(fields[(size_t)i + 1], -1000, 1000, &wanted[i]);
+	}
+
+	if (!good)
+	{
+		Check(false, "an up check as <name>|<ux>|<uy>|<uz>|<within>, thousandths from -1000 to 1000, not \"" + asked + "\"");
+		return;
+	}
+
+	Object_Chunk *const object = ObjectNamed(level, fields[0].c_str());
+
+	if (!object)
+	{
+		Check(false, "the copy's object \"" + fields[0] + "\" has its up along " + fields[1] + " " + fields[2] + " " + fields[3] + " (no object of that name)");
+		return;
+	}
+
+	double x = object->object_data.orientation.x, y = object->object_data.orientation.y, z = object->object_data.orientation.z, w = object->object_data.orientation.w;
+	double const length = sqrt(x * x + y * y + z * z + w * w);
+	bool close = length > 1e-6 && length < 1e6;   // (a turn of no length, or not a number, is not a turn: the comparisons fail)
+	long long up[3] = { 0, 0, 0 };
+
+	if (close)
+	{
+		x /= length;
+		y /= length;
+		z /= length;
+		w /= length;
+
+		double const turned[3] = { -2.0 * (x * y - z * w), -(1.0 - 2.0 * (x * x + z * z)), -2.0 * (y * z + x * w) };
+
+		for (int i = 0; i < 3; i++)
+		{
+			up[i] = (long long)floor(turned[i] * 1000.0 + 0.5);
+			close = close && up[i] >= wanted[i] - within && up[i] <= wanted[i] + within;
+		}
+	}
+
+	Check(close, "the copy's object \"" + fields[0] + "\" has its up within " + fields[4] + " thousandths of " + fields[1] + " " + fields[2] + " " + fields[3] + " (it is: " +
+		std::to_string(up[0]) + " " + std::to_string(up[1]) + " " + std::to_string(up[2]) + ")");
+}
+
+// "touching <name>|<px>|<py>|<pz>|<nx>|<ny>|<nz>|<within>": the object's box TOUCHES the surface through (px py pz) whose normal, pointing out of it, is (nx ny nz) (65536 = length 1, any
+// length but 0): of the eight corners of its shape's box (its SHAPE chunk's min and max, the shape's own frame), turned by its OBJHEAD1 turn with the turn's own matrix R (as "up" above) and
+// put at its place, the one deepest along the normal is on that plane, within <within> (the file's units) either way: not floating off it, not sunk into it. For placement mode's place
+// (Frost 11-19, Bishop's order: the push-out off the surface is the box's extent on the side that meets it).
+static void CheckTouching(OpenLevelFile &level, std::string const &asked)
+{
+	std::vector<std::string> const fields = BarFields(asked, 8);
+	long long point[3] = {}, normal[3] = {};
+	long long within = 0;
+	bool good = fields.size() == 8 && !fields[0].empty() && WholeNumber(fields[7], 0, 100000, &within);
+
+	for (int i = 0; good && i < 3; i++)
+	{
+		good = WholeNumber(fields[(size_t)i + 1], INT_MIN, INT_MAX, &point[i]) && WholeNumber(fields[(size_t)i + 4], -1000000, 1000000, &normal[i]);
+	}
+
+	double const normalLength = good ? sqrt((double)(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2])) : 0.0;
+
+	if (!good || !(normalLength > 0.5))
+	{
+		Check(false, "a touching check as <name>|<px>|<py>|<pz>|<nx>|<ny>|<nz>|<within>, a normal of some length, not \"" + asked + "\"");
+		return;
+	}
+
+	Object_Chunk *const object = ObjectNamed(level, fields[0].c_str());
+	Shape_Chunk *const shape = object ? object->get_assoc_shape() : nullptr;
+
+	if (!object || !shape)
+	{
+		Check(false, "the copy's object \"" + fields[0] + "\" touches the surface (" + (object ? "it has no shape" : "no object of that name") + ")");
+		return;
+	}
+
+	double x = object->object_data.orientation.x, y = object->object_data.orientation.y, z = object->object_data.orientation.z, w = object->object_data.orientation.w;
+	double const length = sqrt(x * x + y * y + z * z + w * w);
+
+	if (!(length > 1e-6 && length < 1e6))
+	{
+		Check(false, "the copy's object \"" + fields[0] + "\" touches the surface (its turn has no length)");
+		return;
+	}
+
+	x /= length;
+	y /= length;
+	z /= length;
+	w /= length;
+
+	double const turn[3][3] = {
+		{ 1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - z * w), 2.0 * (x * z + y * w) },
+		{ 2.0 * (x * y + z * w), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - x * w) },
+		{ 2.0 * (x * z - y * w), 2.0 * (y * z + x * w), 1.0 - 2.0 * (x * x + y * y) },
+	};
+	double const n[3] = { normal[0] / normalLength, normal[1] / normalLength, normal[2] / normalLength };
+	double const place[3] = { (double)object->object_data.location.x, (double)object->object_data.location.y, (double)object->object_data.location.z };
+	double const least[3] = { (double)shape->shape_data.min.x, (double)shape->shape_data.min.y, (double)shape->shape_data.min.z };
+	double const most[3] = { (double)shape->shape_data.max.x, (double)shape->shape_data.max.y, (double)shape->shape_data.max.z };
+	double deepest = 0.0;
+
+	for (int corner = 0; corner < 8; corner++)
+	{
+		double const local[3] = { (corner & 1) ? most[0] : least[0], (corner & 2) ? most[1] : least[1], (corner & 4) ? most[2] : least[2] };
+		double along = 0.0;
+
+		for (int i = 0; i < 3; i++)
+		{
+			double const world = place[i] + turn[i][0] * local[0] + turn[i][1] * local[1] + turn[i][2] * local[2];
+
+			along += n[i] * (world - (double)point[i]);
+		}
+
+		deepest = corner == 0 || along < deepest ? along : deepest;
+	}
+
+	char words[320];
+
+	_snprintf_s(words, sizeof(words), _TRUNCATE, "%.1f off the surface (its deepest corner; + floating, - sunk), its box %d %d %d .. %d %d %d, its place %d %d %d", deepest,
+		shape->shape_data.min.x, shape->shape_data.min.y, shape->shape_data.min.z, shape->shape_data.max.x, shape->shape_data.max.y, shape->shape_data.max.z, object->object_data.location.x,
+		object->object_data.location.y, object->object_data.location.z);
+	Check(fabs(deepest) <= (double)within, "the copy's object \"" + fields[0] + "\" touches the surface through " + fields[1] + " " + fields[2] + " " + fields[3] + ", normal " + fields[4] + " " +
+		fields[5] + " " + fields[6] + ", within " + fields[7] + ": " + words);
 }
 
 // "near <name>|<x>|<y>|<z>|<within>": the object's place (OBJHEAD1) is within <within> of (x y z) on each of the three
@@ -667,13 +806,21 @@ int main(int argc, char **argv)
 		{
 			CheckNear(copy, argv[a + 1]);
 		}
+		else if (what == "up")
+		{
+			CheckUp(copy, argv[a + 1]);
+		}
+		else if (what == "touching")
+		{
+			CheckTouching(copy, argv[a + 1]);
+		}
 		else if (what == "modflags")
 		{
 			CheckModFlags(copy, argv[a + 1]);
 		}
 		else
 		{
-			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, trackendmoved, at, near, alt, specialalt, virtualgone, virtualkept, nostrategy or modflags), not \"" + what + "\"");
+			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, trackendmoved, at, near, up, touching, alt, specialalt, virtualgone, virtualkept, nostrategy or modflags), not \"" + what + "\"");
 		}
 	}
 

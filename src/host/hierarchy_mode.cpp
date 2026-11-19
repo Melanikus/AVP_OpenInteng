@@ -2080,20 +2080,41 @@ namespace host
 			}
 		}
 
-		// back (0x4ebf13-0x4ebf5d): ftol(m x 100000), ftol(semitones x 128), ftol((% + 50/127) x 0.01 x 127); the file's ranges are inteng's / (100 x levelScale)
+		// back (0x4ebf13-0x4ebf5d): ftol(m x 100000), ftol(semitones x 128), ftol((% + 50/127) x 0.01 x 127)
+		return HierarchyMode_SoundWrite(file, mode, values[0], Ftol(read[0] * 100000.0), Ftol(read[1] * 100000.0), Ftol(read[2] * 128.0), Ftol((read[3] + 0.3937007874) * 0.01 * 127.0));
+	}
+
+	HierarchyStep HierarchyMode_SoundWrite(OpenLevelFile *file, HierarchyMode *mode, std::string const &wav, int32_t inner, int32_t outer, int32_t pitch, int32_t volume)
+	{
+		HierarchyStep step;
+
+		if (!mode)
+		{
+			return step;
+		}
+
+		// the file's ranges are inteng's / (100 x levelScale)
 		double const unit = InteUnit(mode->levelScale);
 		SoundInfo s = mode->soundBeingEdited;
 
-		s.wav = values[0];
-		s.inner = Ftol((double)Ftol(read[0] * 100000.0) / unit);
-		s.outer = Ftol((double)Ftol(read[1] * 100000.0) / unit);
-		s.pitch = Ftol(read[2] * 128.0);
-		s.volume = Ftol((read[3] + 0.3937007874) * 0.01 * 127.0);
+		s.wav = wav;
+		s.inner = Ftol((double)inner / unit);
+		s.outer = Ftol((double)outer / unit);
+		s.pitch = pitch;
+		s.volume = volume;
 
 		char const *why = nullptr;
 		HierarchyEditResult const done = HierarchyEdit_EditSound(file, s.index, s.wav, s.inner, s.outer, s.volume, s.pitch, &why);
 
 		step.answer = done == HierarchyEditResult::Done ? "Sound " + std::to_string((long long)s.index) + " edited" : "Edit sound: " + Why(done, why);
 		return step;
+	}
+
+	void HierarchyMode_SoundRanges(HierarchyMode const &mode, uint32_t *inner, uint32_t *outer)
+	{
+		double const unit = InteUnit(mode.levelScale);
+
+		*inner = (uint32_t)Ftol(mode.soundBeingEdited.inner * unit);
+		*outer = (uint32_t)Ftol(mode.soundBeingEdited.outer * unit);
 	}
 }

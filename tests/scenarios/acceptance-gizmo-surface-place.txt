@@ -1,0 +1,50 @@
+# ACCEPTANCE (red first): PLACEMENT MODE, the gizmo's centre ball (P3 of Hicks's plan .claude/plans/streamed-twirling-spindle.md, section 5; the owner's addition, inteng had none).
+# On the owner's Genshd1 copy, opened as a double click: the camera at the 45-degree corner of the lift platform (camera-corner), a click in the middle selects it, its gizmo shows with
+# its centre ball. Dragging the ball, the platform follows the floor or wall under the pointer, its base flat on it; the release keeps it, and the saved copy holds its place and turn
+# (verify_objects near and up: its up as the game draws it). Dragged onto the floor it stays upright; given up with Esc it stays where it was; dragged onto a wall with G pressed
+# while held ("up to surface"; Frost 11-19: the default became the closest axis) it stands out of the wall, its up along the wall's normal. Red on a build without the ball's hook
+# (exe-cache of bishop-int: the press on the ball picks, nothing follows), green with it.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera-corner asasas
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text asasas
+wait 300
+state
+expect-field-has gizmopoints centre ball
+remember-field gizmopose
+picture 1
+# the ball dragged down, onto the floor in front of it: it slides over the floor, upright
+drag-gizmo centre ball 0 120
+expect-status Placement: the object stands on the surface
+expect-field-has surfacelast module, normal 0 -65535
+expect-field-changed gizmopose
+# and DRAWN there, not where the level was loaded (LevelView_PutObjectAt after the write; the game's units, the level's scale is 1)
+expect-field gizmodrawn -37709 1797 79316
+picture 2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} up asasas|0|-1000|0|30 near asasas|-37709|1797|79316|30
+# given up with Esc: where it was
+remember-field gizmopose
+drag-gizmo centre ball 60 0 esc
+expect-status Placement: given up, the object is where it was
+expect-field-same gizmopose
+# the ball dragged up and right, onto the rock wall behind it (its face looks along -z), G pressed while it is held ("up to surface", the 11-18 rule; since 11-19 the default is the
+# closest axis, Frost: acceptance-placement-closest-*): the object stands out of the wall, its up along the wall's normal, its base on the wall
+drag-gizmo centre ball 300 -320 hold
+key G
+expect-status Align: up to surface
+release-gizmo
+expect-status Placement: the object stands on the surface
+expect-field-has surfacelast module, normal 0 0 -65536
+# drawn at the wall too (x and y exact; z within the 81600s: against the wall the game's own frame nudges the block a few millimetres, 81679 for 81683; the saved copy's place is checked exactly below)
+expect-field-has gizmodrawn -37978 1707 816
+picture 3
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} up asasas|0|0|-1000|30 near asasas|-37978|1707|81683|30

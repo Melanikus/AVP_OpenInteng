@@ -31,6 +31,14 @@ bool HierarchyView_Show(const char *modelName, const char *hierarchyName, int se
 // at `place` in the game's units. Added 2026-11-16 by Melanikus (Vasquez).
 bool HierarchyView_ShowPlaced(const char *modelName, const char *hierarchyName, int sequence, int sub, int32_t seconds, const int32_t place[3], const float quaternion[4], std::string *why);
 
+// Where the shown model's display block is (the world's units, its ObWorld); false when none is shown. Added 2026-11-19 by Melanikus (Frost) for the harness (movable_live.h).
+bool HierarchyView_ShownPlace(int32_t place[3]);
+
+// The shown model moved to `place` (the world's units) and turned by a placed hierarchy's quaternion (x y z w, as HierarchyView_ShowPlaced takes it), its sequence and its position
+// left as they are: the gizmo's drag draws a placed hierarchy's model where the drag has it, and where it was written after (movable_live.h). false when none is shown or no turn
+// is given. Added 2026-11-19 by Melanikus (Frost).
+bool HierarchyView_MovePlaced(const int32_t place[3], const float quaternion[4]);
+
 // The shown sequence's length in 16.16 seconds, set as it is (a placed hierarchy's record time, PH-2), the position kept
 void HierarchyView_SetSequenceSeconds(int32_t seconds);
 

@@ -1,0 +1,55 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-18, P4 item 3b: Waypoint mode BY MOUSE, the owner's addition, Hicks's plan section 6, alien list only): a CLICK on a link (the line between two aim
+# points as the 3D view draws it; within 4 px of it, 12 px clear of its ends: waypoint_pick.h) SELECTS it: its ends the base and the current one, nothing written. Clicked AGAIN, its flags go
+# one on in the cycle both ways, one way base to current, one way back, then those Aliens only, then Deviation allowed (Waypoints_SetLinkFlags: exactly those flags, the mirror back; ours,
+# as inteng's Add Link only ORs bits in), each written at once through WaypointMode::Write (the game's loader checks it). Read back from a saved copy through the game's loader.
+# HIS PATH: his own Genshd1 (his game folder's copy of 11-18, SHA256SUMS beside it), opened as a double click; genent01's room (AI module 232) gets two boxes on its floor and a link by
+# mouse (acceptance-waypoint-mouse-floor, -link); the harness's click-link clicks halfway between the two boxes' drawn centres (their aim points: on the link).
+# RED on the build before it (e8a05b02): a click there is a click on whatever box or floor the line meets.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+wait 600
+click-view 0.5 0.95
+wait 400
+item 3
+wait 600
+click-view 0.5 0.95
+wait 400
+expect-status Waypoint 0 made on the floor
+click-view 0.2 0.9
+wait 400
+expect-status Waypoint 1 made on the floor
+drag-wp 0 1 3d
+wait 400
+expect-status Link 0 - 1: both ways
+# a click on no box lets the current go, so the link is no longer selected
+click-view 0.02 0.02
+wait 400
+expect-status none is current now
+picture 1
+
+# ---- a click on the link: selected, base 0 and current 1, nothing changed
+click-link 0 1 3d
+wait 400
+expect-status Link 0 - 1 selected: both ways; click it again to change it
+expect-hierarchy-text Waypoint :1
+picture 2
+
+# ---- clicked again: one way 0 to 1; again: one way 1 to 0; again: both ways, aliens only
+click-link 0 1 3d
+wait 400
+expect-status Link 0 - 1: one way, 0 to 1
+click-link 0 1 3d
+wait 400
+expect-status Link 0 - 1: one way, 1 to 0
+click-link 0 1 3d
+wait 400
+expect-status Link 0 - 1: both ways, aliens only
+picture 3
+
+# ---- written: a saved copy read back through the game's loader (0 to 1: Aliens only = 4, back 4)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify-wp/verify_waypoint.exe {orig} {copy} mouse 2 0-1:4

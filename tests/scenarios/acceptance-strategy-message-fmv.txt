@@ -1,0 +1,123 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-18, THE OWNER'S ADDITION through Bishop: "the editor reads the user's FMVs"): a MESSAGE strategy's number names an FMV. Strategy n plays
+# FMVs\message<n>.smk from the data folder only (FmvCutscenes.cpp StartTriggerPlotFMV; (n - 1) + TEXTSTRING_LEVELMSG_001 = n; avp_fopen, no other folder: AvP-docs/engine/inteng/reassess/
+# fmv-trace-dietrich.md FMV-T-1..5). inteng never lists or checks one (FMV-I-1): ours lists the data folder's message FMVs in the Message window's number box (still typed into, as inteng's box)
+# and says on the status line what the game makes of the number: its FMV's numbers, that it is not AvP's message format, that it is not a video the game can play, or that there is none
+# (the game shows the text only). Every file is read as hostile input (fmv_files.h: 104 bytes, our own checks).
+# HIS PATH: his own Genshd1 (his game folder's copy of 11-18 ~19:30, read-only, SHA256SUMS beside it; messages 47 on message13 and 48 on messageending), opened as a double click; the run's
+# own data folder gets three of his own FMVs and two hostile files (message-fmv\make-fmvs.cmd: 47, 167 his; 238 his 11025 Hz 16-bit; 165 a Bink start; 166 50 bytes).
+# RED on the bishop-int before it (2037ce93): no FMV words, and the number box is inteng's plain box.
+make-level cmd /c {scenariodir}message-fmv\make-fmvs.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+# its video screen FMVs	riggered_plot.RIM works (no FMVs	riggered_plot.smk in this data folder): the open says nothing of it (acceptance-fmv-screen-still: the other way)
+expect-status-not stays still
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+# ---- message13: Message 47, his message47.smk in AvP's format. Its view says so as it opens
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is message13
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 16@32:String :47
+expect-status FMVs\message47.smk: SMK2 128 x 96,
+expect-status 15 fps
+expect-status 22050 Hz 8-bit mono
+expect-status-not not AvP's
+picture 1
+# the String row: the window, its number box now a list of the data folder's message FMVs, lowest first (the folder is only those five); 47 picked as it opens
+click-box 300 40
+expect-dialog-kind form
+expect-dialog-text 47
+click-combo 1
+expect-field-has dialogcomborows |165
+expect-field-has dialogcomborows |166
+expect-field-has dialogcomborows |167
+expect-field-has dialogcomborows |238
+picture 2
+# a pick says that FMV at once: 238 is the game's own, 11025 Hz 16-bit, so not AvP's message format (a note: the game plays it)
+click-combo-row 238
+expect-field-empty dialogcomborows
+expect-dialog-text 238
+expect-status FMVs\message238.smk: SMK2 128 x 96
+expect-status not AvP's message format: sound 11025 Hz 16-bit mono
+# Cancel keeps 47 in the level
+click-button Cancel
+expect-no-dialog
+wait 300
+expect-field-has strategyview 16@32:String :47
+
+# 47 is the list's first row (picked, nothing changes); then 167 picked, Ok: written, and said
+click-box 300 40
+expect-dialog-kind form
+click-combo 1
+click-combo-row 47
+expect-dialog-text 47
+click-combo 1
+click-combo-row 167
+click-button Ok
+expect-no-dialog
+wait 300
+expect-field-has strategyview 16@32:String :167
+expect-status FMVs\message167.smk: SMK2 128 x 96
+expect-status-not not AvP's
+
+# typed numbers, as inteng's box takes them: 165 is a Bink start, 166 is too short, 48 has no FMV; 451, a number the game refuses, the editor refuses too (the field's 0 .. 450:
+# inteng stores it), and its words are the refusal's, not ours
+click-box 300 40
+expect-dialog-kind form
+form-field 1 165
+click-button Ok
+expect-no-dialog
+wait 300
+expect-field-has strategyview 16@32:String :165
+expect-status FMVs\message165.smk is not a Smacker video
+click-box 300 40
+expect-dialog-kind form
+form-field 1 166
+click-button Ok
+expect-no-dialog
+wait 300
+expect-status FMVs\message166.smk is too short for a Smacker video
+click-box 300 40
+expect-dialog-kind form
+form-field 1 48
+click-button Ok
+expect-no-dialog
+wait 300
+expect-status No FMVs\message48.smk: the game shows message 48 as text only
+click-box 300 40
+expect-dialog-kind form
+form-field 1 451
+click-button Ok
+expect-no-dialog
+wait 300
+expect-field-has strategyview 16@32:String :48
+expect-status Edit Strategy: the strategy would not take it
+expect-status-not Message 451
+key Esc
+wait 400
+
+# ---- messageending: Message 48, which has no FMV in the folder: its view says so as it opens
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is messageending
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 16@32:String :48
+expect-status No FMVs\message48.smk: the game shows message 48 as text only
+picture 3
+key Esc
+wait 400

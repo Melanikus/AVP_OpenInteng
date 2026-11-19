@@ -1,0 +1,36 @@
+# ACCEPTANCE (red first): PLACEMENT BY THE CLOSEST CARDINAL AXIS (the owner, 11-19: "lights (and I assume all other assets) are snapping their 'UP' to the normal ... We want the
+# 'Closest cardinal axis' (in dot product/angle), on the object's local coordinates to be the side that snaps"; "say a long weapon like smart gun slides on ground/wall, same for
+# backpack"; the G toggle while the centre ball is held: "aligns objects normal to face normal, pressing again goes back to our 'align closest angle'"). On his Genshd1 (the
+# double-click path), the camera at the subject's 45-degree corner (camera-corner), the centre ball dragged onto the surface found by the probe from that corner; surfacelast says
+# what was met, which local axis meets it and the live turn; the saved copy is read back by the game's loader and compared with the level as opened (verify_movable placed ...).
+# Red before the fix (bishop-int 406d85ef): the old rule turns every subject's -y onto the surface.
+# THE "BACKPACK": no object of that name in his Genshd1 nor in any stock level (Area52's Bag01..18 are sandbags), so armour010, a body-armour pickup (a small, not cubic
+# box, 1110 x 607 x 622), stands in. ALONG THE FLOOR: its -y meets it, its pose kept
+level C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera-corner armour010
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text armour010
+wait 300
+state
+expect-field-has gizmopoints centre ball
+picture 1
+drag-gizmo centre ball 120 0 hold
+expect-field-has surfacelast normal 0 -65536 0
+expect-field-has surfacelast axis -y (closest)
+picture 2
+release-gizmo
+expect-status Placement: the object stands on the surface
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_movable.exe {orig} {copy} placed armour010 moved-any turn-kept
+# and its box TOUCHES the floor (Bishop 11-19, the owner's order: with CLOSEST the push-out is the box's extent on the side that meets the surface; its box -555 -250 -313 .. 555 357 309):
+# its -y out, its base's 357 meets the floor, the saved copy's deepest corner on the floor's plane (y 1947, the hit: the probe) within 2. The same side as the rule before took: this one
+# stays green on both (a guard that the base is still used when the base is what meets it)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} touching armour010|-11274|1947|41808|0|-65536|0|2

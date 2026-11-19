@@ -569,7 +569,10 @@
 		{ "table": "built:Texture Map", "command": "0xca", "does": "moverelpoly" },
 		{ "table": "0x5e51b8", "command": "0x52d", "does": "pastetrackrel" }
 	],
-	"extras": [],
+	"extras": [
+		{ "table": "built:Waypoint", "row": 1, "page": 0, "title": "Auto-plot AI module", "command": "0x7330", "does": "waypoint" },
+		{ "table": "built:Waypoint", "row": 1, "page": 0, "title": "Auto-plot all AI modules", "command": "0x7331", "does": "waypoint" }
+	],
 	"additions": [
 		{ "table": "0x5ced30", "title": "File", "after": "Quit", "words": "&Save", "action": "0x1ff01", "does": "savecopy", "note": "THE OWNER'S ADDITION (Melanikus 2026-11-16, through Bishop: \"Let's put a save on the hub\"): inteng's hub File has no Save. It sits second, after Quit, where every other screen keeps its Save, and does what Object Placement's Save does (SaveCopy). Its number is ours; it has no inteng command" },
 		{ "table": "0x5ced30", "title": "Options", "after": "Use Polygon View Distance", "words": "Text size 1", "action": "0x1ff02", "does": "textscale", "note": "THE OWNER'S ADDITION (Melanikus 2026-11-16, 16 px too small at 2560 x 1440; Bishop 11-18): the text scale's first step, 1, inteng's own size (text_scale.h). Ticked while it is the scale; kept as FontScale= in AVP_OpenInteng.ini. Its number is ours; it has no inteng command" },

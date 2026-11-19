@@ -1,0 +1,61 @@
+# ACCEPTANCE (red first): THE MOUSE GIZMO ON OBJECT PLACEMENT (P1 of Hicks's plan .claude/plans/streamed-twirling-spindle.md; the owner's addition, inteng had none).
+# On the owner's Genshd1 copy, opened as a double click: the camera at the 45-degree corner of the lift platform (camera-corner), a click in the middle selects it, and its gizmo shows
+# (three arrows, three rings: a placed object turns). Dragging the x arrow moves it along x, live, and the release writes it: the saved copy holds it there (verify_objects near).
+# A drag given up with Esc leaves it where it was; a ring dragged with Shift turns it by whole 15-degree steps; Ctrl+Z takes the last drag back; G switches the axes to the object's own.
+# The centre ball (Vasquez's surface placement takes its press) has its own grab point. After a written drag the view draws the object at its new place (gizmodrawn: its display block). Red on exe-cache/699f00b4.exe (no gizmo: the fields are not there and a press on the arrow picks), green with it.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera-corner liftplt
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text liftplt
+wait 300
+state
+expect-field gizmospace world
+expect-field-has gizmopoints centre ball
+expect-field-has gizmopoints move x
+expect-field-has gizmopoints turn y
+remember-field gizmopose
+remember-field gizmodrawn
+picture 1
+# the x arrow, 60 px along: the object follows, the release writes it
+drag-gizmo move x 60 0
+expect-status Gizmo: the placed object moved
+expect-status along x
+expect-field-has gizmolast move x
+expect-field-changed gizmopose
+# and the VIEW draws it there: the real block is moved, not only the level (Vasquez 11-18: it stayed where the level was loaded)
+expect-field-changed gizmodrawn
+picture 2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} near liftplt|-72356|2325|109112|20
+# a drag given up with Esc: the pose as it was
+remember-field gizmopose
+remember-field gizmodrawn
+drag-gizmo move y 0 40 esc
+expect-status the drag was given up
+expect-field-same gizmopose
+expect-field-same gizmodrawn
+# a ring with Shift: whole 15-degree steps
+drag-gizmo turn y 40 30 shift
+expect-status degrees about y
+expect-field-has gizmolast snapped
+expect-field-changed gizmopose
+picture 3
+# Ctrl+Z takes that turn back
+key Z ctrl
+expect-status the last drag was taken back
+expect-field-same gizmopose
+# one step: the move before it stays (only the turn was taken back)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} near liftplt|-72356|2325|109112|20
+# G: the object's own axes
+key G
+expect-field gizmospace local
+key G
+expect-field gizmospace world

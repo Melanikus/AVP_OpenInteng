@@ -1482,91 +1482,37 @@ void HierarchyRunCommand(int32_t command)
 	}
 }
 
-// THE SOUND EDIT WINDOW of a hierarchy's sound (New sound and Edit sound: FUN_004ebd60 -> edobtype's edit_sound, resource 132 "Sound Edit", 245 x 178 dialog units in MS Sans Serif 8, each control
-// where the resource puts it): the wav name, Inner Range (m), Outer Range (m), Pitch +/- semitones, Volume %, the boxes Playing at Start and Sound Loops (OFF for a hierarchy's sound: FUN_004ebd60
-// passes the mask 0, FUN_004ebc80's third number being 0), OK and Cancel. The probability (1060 / 1061) is hidden in AvP (edobtype 0x10006930). The caption is "Sound Edit - %s" with the sound
-// folder FUN_004ebd60 passes (DAT_008f4dac, made by FUN_004f68b0 from the level's SOUNDDIR: the folder's first part is still to trace). NOT BUILT: the wav name is an edit, where the DLL's is a
-// combo of the folder's *.wav; the Play button (1065).
+// THE SOUND EDIT WINDOW of a hierarchy's sound (New sound and Edit sound: FUN_004ebd60 -> edobtype's edit_sound, resource 132 "Sound Edit"): the DLL's own window, the one the placed
+// sounds, the tracks and the placed hierarchies open (special_windows.cpp SoundEditWindowOpen: the wav name an EDITABLE combo of the sound folder's wavs, the four numbers, the boxes,
+// Play (1065), OK and Cancel, with the DLL's limits and words). In (0x4ebe12-0x4ebe91): the name, the ranges in inteng's unit (HierarchyMode_SoundRanges), pitch, volume, the flags word
+// from bit 0, the MASK 0: both boxes off for a hierarchy's sound (FUN_004ebc80's third number is 0, 0x4ebe3b). The caption's folder is DAT_008f4dac, made by FUN_004f68b0: the base
+// FUN_0057a850 makes from inteng's own path with "Sound\" after it (DAT_00915060, 0x57a909-0x57a930), then the level's SOUNDDIR and "\" (0x4f6913-0x4f69a8; DAT_00606824 before it
+// is empty): ours, the game folder's "Sound\<SOUNDDIR>\". Back after OK (0x4ebf13-0x4ebf5d, SoundEdit_IndexedBack) into the sound (HierarchyMode_SoundWrite); Cancel writes nothing.
+// (Row C-4e of hierarchy-view-sound-dietrich.md, Dietrich 2026-11-18: until then a form of our own with the name as a plain edit and no Play.)
 static void HierarchySoundFormOpen()
 {
-	auto const dx = [](int32_t u) { return (int32_t)(u * 3 / 2); };
-	auto const dy = [](int32_t u) { return (int32_t)(u * 13 / 8); };
-	std::vector<std::string> const shown = host::HierarchyMode_SoundFormShown(hierarchyMode);
-	host::DialogFormSpec spec;
+	uint32_t inner = 0, outer = 0;
 
-	spec.title = "Sound Edit - " + host::TrackLevelSoundDirectory(LevelObjects_OpenForEdit());
-	spec.width = dx(245) + 10;
-	spec.height = dy(178) + 10;
+	host::HierarchyMode_SoundRanges(hierarchyMode, &inner, &outer);
 
-	auto const add = [&spec](host::DialogWidgetType kind, std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h, int32_t answer, size_t most, bool enabled)
+	host::SoundEditRecord const record = host::SoundEdit_IndexedRecord(hierarchyMode.soundBeingEdited.wav, inner, outer, hierarchyMode.soundBeingEdited.pitch,
+		hierarchyMode.soundBeingEdited.volume, (int32_t)hierarchyMode.soundBeingEdited.flags, false);
+	std::string const soundDirectory = host::TrackLevelSoundDirectory(LevelObjects_OpenForEdit());
+	std::string const folder = std::string(theGameFolder) + "\\Sound\\" + soundDirectory + "\\";
+
+	SoundEditWindowOpen(record, folder, soundDirectory, [](host::SoundEditRecord const &back, bool ok)
 	{
-		host::DialogWidget one;
-
-		one.type = kind;
-		one.text = words;
-		one.box = { x, y, w, h };
-		one.answer = answer;
-		one.most = most;
-		one.enabled = enabled;
-		spec.widgets.push_back(one);
-	};
-
-	add(host::DialogWidgetType::Label, "Wav file name", dx(13), dy(9), dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, shown.size() > 0 ? shown[0] : std::string(), dx(13), dy(25), dx(216), 18, 0, 255, true);
-	add(host::DialogWidgetType::Label, "Inner Range (m)", dx(13), dy(44), dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, shown.size() > 1 ? shown[1] : std::string(), dx(15), dy(55), dx(63), 18, 0, 20, true);
-	add(host::DialogWidgetType::Label, "Pitch +/- semitones", dx(91), dy(44), dx(70), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, shown.size() > 3 ? shown[3] : std::string(), dx(91), dy(56), dx(63), 18, 0, 20, true);
-	add(host::DialogWidgetType::Label, "Outer Range (m)", dx(13), dy(76), dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, shown.size() > 2 ? shown[2] : std::string(), dx(15), dy(90), dx(63), 18, 0, 20, true);
-	add(host::DialogWidgetType::Label, "Volume %", dx(91), dy(76), dx(62), 16, 0, 10, true);
-	add(host::DialogWidgetType::Edit, shown.size() > 4 ? shown[4] : std::string(), dx(91), dy(88), dx(63), 18, 0, 20, true);
-
-	// the two flag boxes, off (greyed) for a hierarchy's sound; what they show: Playing at Start is checked when the flag bit 0 is clear, Sound Loops when the bit 1 FUN_004ebd60 makes is clear
-	// (it sets that bit when the sound's bit 0 is clear: 0x4ebe2b), so for a hierarchy's sound exactly one of them is checked
-	bool const bitZero = (hierarchyMode.soundBeingEdited.flags & 1u) != 0;
-
-	add(host::DialogWidgetType::Check, std::string(), dx(90), dy(115), 12, 12, 0, 10, false);
-	spec.widgets.back().checked = true;   // the flags word FUN_004ebd60 passes has no bit 0 (0x4ebe2b: only bit 1)
-	add(host::DialogWidgetType::Label, "Playing at Start", dx(90) + 16, dy(115) - 2, dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Check, std::string(), dx(90), dy(129), 12, 12, 0, 10, false);
-	spec.widgets.back().checked = bitZero;
-	add(host::DialogWidgetType::Label, "Sound Loops", dx(90) + 16, dy(129) - 2, dx(60), 16, 0, 10, true);
-	add(host::DialogWidgetType::Button, "OK", dx(35), dy(155), dx(50), 20, host::kDialogOk, 10, true);
-	add(host::DialogWidgetType::Button, "Cancel", dx(170), dy(155), dx(50), 20, host::kDialogEscape, 10, true);
-
-	host::Dialogs_Form(spec, [](int32_t answer, std::vector<host::DialogWidget> const &widgets)
-	{
-		if (answer != host::kDialogOk)
-		{
-			// Cancel: the DLL writes nothing back, so the sound keeps what it had (a new sound its start values); FUN_004816f0 still marks the file changed
-			return;
-		}
-
-		// the edits in the window's order are name, inner, pitch, outer, volume: the mode takes name, inner, outer, pitch, volume
-		std::vector<std::string> edits;
-
-		for (host::DialogWidget const &one : widgets)
-		{
-			if (one.type == host::DialogWidgetType::Edit)
-			{
-				edits.push_back(one.text);
-			}
-		}
-
-		if (edits.size() < 5)
-		{
-			return;
-		}
-
 		OpenLevelFile *const open = HierarchyFile();
 
-		if (!open || !open->Level())
+		if (!ok || !open || !open->Level())
 		{
-			return;
+			return;   // Cancel: the sound keeps what it had (a new sound its start values); FUN_004816f0 still marks the file changed
 		}
 
-		HierarchyShow(host::HierarchyMode_SoundForm(open, &hierarchyMode, { edits[0], edits[1], edits[3], edits[2], edits[4] }));
+		int32_t backInner = 0, backOuter = 0, pitch = 0, volume = 0, flags = 0;
+
+		host::SoundEdit_IndexedBack(back, (int32_t)hierarchyMode.soundBeingEdited.flags, &backInner, &backOuter, &pitch, &volume, &flags);
+		HierarchyShow(host::HierarchyMode_SoundWrite(open, &hierarchyMode, back.name, backInner, backOuter, pitch, volume));
 	});
 }
 

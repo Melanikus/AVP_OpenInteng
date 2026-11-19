@@ -363,6 +363,59 @@ namespace host
 		return file->SetPayload(chunk, payload) ? LightEditResult::Done : LightEditResult::LoaderRefused;
 	}
 
+	LightEditResult LightPose_Set(OpenLevelFile *file, size_t light, int32_t const place[3], int32_t const orientation9[9])
+	{
+		Chunk *chunk = nullptr;
+		std::vector<unsigned char> payload;
+
+		if (!Read(file, light, &chunk, &payload))
+		{
+			return file && file->Level() ? LightEditResult::NoSuchLight : LightEditResult::NothingOpen;
+		}
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			if (place[axis] > (1 << 24) || place[axis] < -(1 << 24))
+			{
+				return LightEditResult::PlaceOutOfRange;
+			}
+
+			Put(&payload, 4 + 4 * (size_t)axis, place[axis]);
+		}
+
+		// the orientation: a ChunkMatrix right after the place (chunk_light.cpp Light_Chunk: number, place, orientation, brightness ...)
+		for (int i = 0; i < 9; i++)
+		{
+			Put(&payload, 16 + 4 * (size_t)i, orientation9[i]);
+		}
+
+		Put(&payload, kLocalFlags, (int32_t)((uint32_t)Get(payload, kLocalFlags) | kLocalChanged));
+		return file->SetPayload(chunk, payload) ? LightEditResult::Done : LightEditResult::LoaderRefused;
+	}
+
+	LightEditResult LightPose_Get(OpenLevelFile *file, size_t light, int32_t place[3], int32_t orientation9[9])
+	{
+		Chunk *chunk = nullptr;
+		std::vector<unsigned char> payload;
+
+		if (!Read(file, light, &chunk, &payload))
+		{
+			return file && file->Level() ? LightEditResult::NoSuchLight : LightEditResult::NothingOpen;
+		}
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			place[axis] = Get(payload, 4 + 4 * (size_t)axis);
+		}
+
+		for (int i = 0; i < 9; i++)
+		{
+			orientation9[i] = Get(payload, 16 + 4 * (size_t)i);
+		}
+
+		return LightEditResult::Done;
+	}
+
 	LightEditResult LightPasteOver(OpenLevelFile *file, size_t light, LightData const &clipboard)
 	{
 		Chunk *chunk = nullptr;

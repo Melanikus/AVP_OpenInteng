@@ -71,6 +71,10 @@ namespace host
 	// Delete Link (FUN_00586d00(a, b)): a's link to b is taken out, then b's link to a. False when neither was there.
 	bool Waypoints_DeleteLink(std::vector<WaypointRec> *list, int32_t a, int32_t b);
 
+	// OURS (Waypoint by mouse, P4, 11-18; Add Link only ORs bits in): a's link to b gets EXACTLY these flags (made when there is none), b's link to a their mirror (One way and One way
+	// the other direction swapped); both of those set at once clear both, as Add Link does. False when a or b is not in the list, or they are the same.
+	bool Waypoints_SetLinkFlags(std::vector<WaypointRec> *list, int32_t a, int32_t b, int32_t flags);
+
 	// Delete Waypoint (FUN_00587c10): the links to it are taken out of every waypoint of the list, it is taken out, and the waypoints after it are renumbered (every link past it counts one less).
 	bool Waypoints_Delete(std::vector<WaypointRec> *list, int32_t at);
 

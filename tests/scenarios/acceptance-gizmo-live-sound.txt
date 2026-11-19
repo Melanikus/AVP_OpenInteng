@@ -1,0 +1,44 @@
+# ACCEPTANCE (red first): THE THING ITSELF FOLLOWS THE GIZMO, A SOUND (SHFTRN2) (the owner, 11-19, on his Tools build 7d97f2a2: "I see the gizmo, works perfectly, but the
+# object doesn't move with it, you can only see it after you save/leave object mode"; Bishop's order: each of Frost's P2 kinds). currenticon is where the screen draws its current thing
+# (movable_live.h: its icon, or a placed hierarchy's model). DURING a held drag (drag-gizmo ... hold, Drake's) it is drawn where the drag has it; after the release, where it was
+# written, with no save; Ctrl+Z draws it back where it was; a drag given up with Esc leaves it drawn where it was. The camera 2 m from it on each axis, Numpad 8 held (about 35 degrees
+# down), the 45-degree corner. Red before the fix (frost-live bb947fa1, the field alone): the icon stays put during the drag, and after it until a save.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+pictures on
+state
+expect-screen Object Placement
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is shftrn2
+expect-no-dialog
+camera -39755 -18758 106424 3584
+hold Numpad8 580
+expect-number camangles look_ 250 550
+wait 400
+state
+expect-field-has currenticon sound
+expect-field-has gizmopoints move x
+remember-field currenticon
+picture 1
+# DURING the drag: the thing is drawn where the drag has it
+drag-gizmo move x 60 0 hold
+expect-field-changed currenticon
+picture 2
+release-gizmo
+# released: written, and drawn where it was written (no save)
+expect-status the sound moved
+expect-field-changed currenticon
+picture 3
+# Ctrl+Z: drawn back where it was
+key Z ctrl
+expect-status the last drag was taken back
+expect-field-same currenticon
+# a drag given up with Esc: drawn where it was
+drag-gizmo move y 0 40 hold
+expect-field-changed currenticon
+esc-gizmo
+expect-status the drag was given up
+expect-field-same currenticon
+picture 4

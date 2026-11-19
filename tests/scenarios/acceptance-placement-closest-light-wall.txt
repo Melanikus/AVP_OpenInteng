@@ -1,0 +1,52 @@
+# ACCEPTANCE (red first): PLACEMENT BY THE CLOSEST CARDINAL AXIS (the owner, 11-19: "lights (and I assume all other assets) are snapping their 'UP' to the normal ... We want the
+# 'Closest cardinal axis' (in dot product/angle), on the object's local coordinates to be the side that snaps"; "say a long weapon like smart gun slides on ground/wall, same for
+# backpack"; the G toggle while the centre ball is held: "aligns objects normal to face normal, pressing again goes back to our 'align closest angle'"). On his Genshd1 (the
+# double-click path), the camera at the subject's 45-degree corner (camera-corner), the centre ball dragged onto the surface found by the probe from that corner; surfacelast says
+# what was met, which local axis meets it and the live turn; the saved copy is read back by the game's loader and compared with the level as opened (verify_movable placed ...).
+# Red before the fix (bishop-int 406d85ef): the old rule turns every subject's -y onto the surface.
+# THE LAMP yardlight01 ONTO A WALL (facing +x): its +x meets it, its pose kept. G outside a drag: the gizmo's axes (world / local) as before. While held: G gives "up to surface"
+# (its -y meets the wall), G again gives back EXACTLY the pose shown before (surfacelast, the live pose, the same); G, a small slide with UP on, G: the closest axis's pose for that spot
+# from the drag's start; the release keeps it and the saved copy holds it
+level C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera-corner yardlight01
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text yardlight01
+wait 300
+state
+expect-field-has gizmopoints centre ball
+picture 1
+key G
+expect-status Gizmo axes: the object's own
+key G
+expect-status Gizmo axes: the world's
+drag-gizmo centre ball 0 -280 hold
+expect-field-has surfacelast normal 65536 0 0
+expect-field-has surfacelast axis +x (closest)
+expect-status Align: closest axis
+remember-field surfacelast
+picture 2
+key G
+expect-status Align: up to surface
+expect-field-has surfacelast axis -y (up to surface)
+picture 3
+key G
+expect-status Align: closest axis
+expect-field-same surfacelast
+key G
+move-held 8 0
+expect-field-has surfacelast (up to surface)
+key G
+expect-field-has surfacelast axis +x (closest)
+picture 4
+release-gizmo
+expect-status Placement: the object stands on the surface
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_movable.exe {orig} {copy} placed yardlight01 moved-any turn-kept

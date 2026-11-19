@@ -1,0 +1,34 @@
+# ACCEPTANCE (red first): PLACEMENT BY THE CLOSEST CARDINAL AXIS (the owner, 11-19: "lights (and I assume all other assets) are snapping their 'UP' to the normal ... We want the
+# 'Closest cardinal axis' (in dot product/angle), on the object's local coordinates to be the side that snaps"; "say a long weapon like smart gun slides on ground/wall, same for
+# backpack"; the G toggle while the centre ball is held: "aligns objects normal to face normal, pressing again goes back to our 'align closest angle'"). On his Genshd1 (the
+# double-click path), the camera at the subject's 45-degree corner (camera-corner), the centre ball dragged onto the surface found by the probe from that corner; surfacelast says
+# what was met, which local axis meets it and the live turn; the saved copy is read back by the game's loader and compared with the level as opened (verify_movable placed ...).
+# Red before the fix (bishop-int 406d85ef): the old rule turns every subject's -y onto the surface.
+# THE SMART GUN smart1 (a long weapon lying on its side: its +x is up, the probe) ALONG THE FLOOR: its +x meets it, its pose kept
+level C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera-corner smart1
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text smart1
+wait 300
+state
+expect-field-has gizmopoints centre ball
+picture 1
+drag-gizmo centre ball 120 0 hold
+expect-field-has surfacelast normal 0 -65536 0
+expect-field-has surfacelast axis +x (closest)
+picture 2
+release-gizmo
+expect-status Placement: the object stands on the surface
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_movable.exe {orig} {copy} placed smart1 moved-any turn-kept
+# and its box TOUCHES the floor (Bishop 11-19, the owner's order: with CLOSEST the push-out is the box's extent on the side that meets the surface; its box -199 -181 -1210 .. 181 225 1476):
+# its +x out, its -x side's 199 meets the floor, the saved copy's deepest corner on the floor's plane (y -3118, the hit: the probe) within 2. Red before: always its +y side's 225, 26 off it
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} touching smart1|26833|-3118|13925|0|-65536|0|2

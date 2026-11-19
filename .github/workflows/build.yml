@@ -96,6 +96,21 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           "Built $exe, $((Get-Item -LiteralPath $exe).Length) bytes, SHA-256 $hash"
 
+      # mp4-to-smk.exe, the tool that makes a user's own video into an AvP message video (win32/VS2026/mp4-to-smk.vcxproj): Windows'
+      # libraries only, so no vcpkg settings. The encoder DLL it loads isn't built here (it comes from AvPx's package, in the release).
+      - name: Build mp4-to-smk
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild was not found' }
+          & $msbuild win32\VS2026\mp4-to-smk.vcxproj /nologo /v:minimal /m /nodeReuse:false /p:Configuration=Release /p:Platform=Win32 `
+            /p:ImportDirectoryBuildProps=false /p:ImportDirectoryBuildTargets=false
+          if ($LASTEXITCODE -ne 0) { throw "mp4-to-smk didn't build (MSBuild exit $LASTEXITCODE)" }
+          $exe = 'win32\VS2026\Win32\Release\mp4-to-smk.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "MSBuild gave back 0 but made no $exe" }
+          "Built $exe, $((Get-Item -LiteralPath $exe).Length) bytes, SHA-256 $((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant())"
+
       # The unit tests that include the libraries vcpkg built (vcpkg_installed/, at the repository's root as their .args say) run here,
       # where those libraries are. The Unit tests jobs run every other one.
       - name: The unit tests that need the libraries

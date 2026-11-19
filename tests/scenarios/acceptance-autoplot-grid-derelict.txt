@@ -1,0 +1,19 @@
+# ACCEPTANCE (red first): THE ALIEN AUTO-PLOT'S PATHFINDER ON A STOCK LEVEL, Derelict (Bishop's design, reassess/alien-autoplot-design.md; Drake's package: the service,
+# src/host/autoplot_grid.h, API agreed with Dietrich). The editor never lets the game build its own copy of the alien ways (FloorIsLavaAsked = 0); it builds ITS OWN grid
+# when asked, on a thread (AvPx's npc_grid on alien_ways_map, from the level the view holds). The harness's probe (AutoPlotProbe=1) asks: once the grid is ready, an
+# alien's search (floor is lava) and a marine's (the ground route) run between two stand spots of one game module, as the auto-plot asks (ways inside an AI
+# module), StartSearch + Work: the first module with two that joins up, of up to 8.
+# The state line: autoplotgrid "done 1 ready 1 ms <build>", autoplotways "alien found 1 points <n> ms <t> from <module> to <module>; floor ...".
+# Red on bishop-int's exe (no service: the fields never come), green with it.
+#ini AutoPlotProbe=1
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
+state
+wait-field autoplotgrid done 1 90000
+expect-number autoplotgrid ready 1 1
+expect-number autoplotgrid ms 1 90000
+expect-number autoplotways alien_found 1 1
+expect-number autoplotways points 2 100000
+expect-number autoplotways from 0 100000
+expect-number autoplotways tries 1 8
+expect-number autoplotways floor_found 1 1
+expect-number autoplotways points 2 100000 2

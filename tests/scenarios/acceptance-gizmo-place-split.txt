@@ -1,0 +1,32 @@
+# ACCEPTANCE (Drake 2026-11-19, THE OWNER'S "finish this drag and place for object mode", item 3 with the three views): the centre ball's placement on the SPLIT SCREEN
+# (Misc > Toggle Split Screen: the 3D view is the window's bottom right quarter, the same camera at half the size). HIS PATH as acceptance-gizmo-place-live, asasas. The ball held
+# 60 px down in the quarter is the full view's 120 px down, so the object follows the floor under the pointer THERE and lands where acceptance-gizmo-place-live's 0 120 lands
+# (-37709 1797 79316), drawn as it goes. RED on exe-cache/300edd2e.exe (27 ok, 2 failed: the cast went through the window's pixels with the whole view's size, and the object
+# landed 652 mm off, at -37083 1797 79499), GREEN with the fix.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera-corner asasas
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text asasas
+wait 300
+click-bar Misc > Toggle Split Screen
+expect-status Toggle Split Screen: on
+wait 400
+state
+expect-field-has gizmopoints centre ball
+picture 1
+drag-gizmo centre ball 0 60 hold
+expect-field-has surfacelive drawn 1
+expect-field-has surfacelast module, normal 0 -65535
+expect-near surfacelive -37709 1797 79316 60
+picture 2
+release-gizmo
+expect-status Placement: the object stands on the surface
+expect-near gizmodrawn -37709 1797 79316 60
+picture 3

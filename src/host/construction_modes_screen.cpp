@@ -120,6 +120,8 @@
 #include "adjacent_write.h"
 #include "screen_keys.h"
 #include "entry_markers.h"
+#include "gizmo_screen.h"
+#include "movable.h"
 #include "light_keys.h"
 #include "reverse_links.h"
 #include "autolink_edit.h"
@@ -130,6 +132,7 @@
 #include "adjacency_generate.h"
 #include "waypoint_mode.h"
 #include "waypoint_view.h"
+#include "autoplot_command.h"
 #include "track_pages.h"
 #include "editor_options.h"
 #include "shape_chooser.h"
@@ -1404,6 +1407,10 @@ void RefreshTheEntryMarkers()
 		StopFlyingTheEntryPoint("another module was picked");
 	}
 
+	// THE MOUSE GIZMO (ours): the same module's markers made again after a write that was not the Fly's (whose stop forces this with ~0u, as before) keep the marker picked,
+	// by its place in the list: the list is the same entries in the same order (EntryMarkers_Of), so the gizmo stays on the marker it moved. NAMED: inteng had no gizmo.
+	int const keepPicked = module == entryMarkersOf && entryMarkersGeneration != ~0u ? entryMarkerPicked : -1;
+
 	entryMarkersOf = module;
 	entryMarkersGeneration = open->Generation();
 	entryMarkerPicked = -1;
@@ -1413,7 +1420,31 @@ void RefreshTheEntryMarkers()
 	{
 		host::EntryMarkers_Of(open, module, &entryMarkers);
 	}
+
+	if (keepPicked >= 0 && (size_t)keepPicked < entryMarkers.size())
+	{
+		entryMarkerPicked = keepPicked;
+	}
 }
+
+// THE MOUSE GIZMO's entry point (gizmo_screen.h; gizmo_sources.cpp has the other screens'): the marker picked, by the module the markers are of and its place in their list
+// (movable_entry_point.cpp); none while Fly moves it, or when no marker is picked
+static host::MovableRef EntryPointSource()
+{
+	host::MovableRef ref;
+
+	if (entryFlying || entryMarkersOf < 0 || entryMarkerPicked < 0 || (size_t)entryMarkerPicked >= entryMarkers.size())
+	{
+		return ref;
+	}
+
+	ref.kind = host::MovableKind::EntryPoint;
+	ref.module = entryMarkersOf;
+	ref.number = entryMarkerPicked;
+	return ref;
+}
+
+static bool const entryPointGivenToTheGizmo = (GizmoScreen_UseRefSource("Waypoint", &EntryPointSource), true);
 
 // The marker's place in the game's world (millimetres) and the cube's twelve edges there
 void EntryMarkerLines(std::vector<host::TrackLine> *lines)
@@ -1958,6 +1989,12 @@ int32_t WaypointPickedObject(OpenLevelFile *open)
 
 void DoWaypointCommand(int32_t command, EditorHostState &host)
 {
+	// Auto-plot alien ways (ours, the owner's addition 11-18: autoplot_command.h)
+	if (AutoPlotCommand(command, EntryMarkerModule()))
+	{
+		return;
+	}
+
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	host::WaypointContext context;
 

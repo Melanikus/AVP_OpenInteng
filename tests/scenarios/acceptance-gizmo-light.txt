@@ -1,0 +1,39 @@
+# ACCEPTANCE (red first): THE MOUSE GIZMO ON A LIGHT SOURCING LIGHT (P2 of Hicks's plan .claude/plans/streamed-twirling-spindle.md; the owner's addition, inteng had none).
+# Invasion's light 7, selected and faced (face-light): its gizmo shows with arrows and rings (a light turns: its third row is its direction). Dragging the x arrow moves it along x and the
+# release writes it (LightPose_Set): the saved copy holds it moved along x only (verify_movable, against the level as opened). A drag given up with Esc leaves it where it was; the y ring
+# with Shift turns it by whole 15-degree steps, and the next copy holds it turned, its place kept. Red on the gizmo without Light Sourcing's source (drake-gizmo efbeb081): no gizmo there.
+screen Light Sourcing (with Doors)
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Light Sourcing (with Doors)
+face-light 7
+wait 400
+state
+expect-field-has gizmopoints move x
+expect-field-has gizmopoints turn y
+remember-field gizmopose
+picture 1
+# the x arrow, 60 px along: the release writes the light's new place
+drag-gizmo move x 60 0
+expect-status Gizmo: the light moved
+expect-status along x
+expect-field-has gizmolast move x
+expect-field-changed gizmopose
+picture 2
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_movable.exe {orig} {copy} light 6 moved x
+# a drag given up with Esc: the pose as it was
+remember-field gizmopose
+drag-gizmo move y 0 40 esc
+expect-status the drag was given up
+expect-field-same gizmopose
+# the y ring with Shift: whole 15-degree steps, the place kept
+drag-gizmo turn y 40 30 shift
+expect-status Gizmo: the light turned
+expect-status degrees about y
+expect-field-has gizmolast snapped
+expect-field-changed gizmopose
+picture 3
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_movable.exe {prev} {copy} light 6 turned

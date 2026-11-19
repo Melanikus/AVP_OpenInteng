@@ -6,11 +6,12 @@
 // PRINTS one line per holder, in the level's order, then a count line:
 //   object | <name> | id <8 bytes hex> | flags <OBJHEAD1 flags hex> | track yes|no | strategy <kind>|none | at <x y z> | box <w h d>|none   (modules and placed objects:
 //            File_Chunk::list_objects; at = the OBJHEAD1 place, box = its shape's extents, max - min on each axis, so objects on top of each other show at once; added 11-18 for Bishop)
+//            | imported no|yes|yes, own pictures|no shape   (imported_shape.h: its shape's outside file, and its own picture list there, which S + click refuses; added 11-19)
 //   virtual | <name> | id ... | strategy <kind>|none                                                            (virtual objects)
 //   generator | <name> | id ... | type <n> | strategy <kind>|none                                               (enemies and generators)
 //   placedhier | <name> | id ... | strategy <kind>|none                                                         (placed hierarchies)
 //   sound | <name> | id ... | strategy <kind>|none   and   particle | <name> | id ... | strategy <kind>|none     (SOUNDOB2s and particle generators, as a switch may name them)
-//   count | objects <n> | with a track <n> | with a strategy <n> | virtual <n> | generators <n> | placedhier <n> | sounds <n> | particles <n>
+//   count | objects <n> | with a track <n> | with a strategy <n> | virtual <n> | generators <n> | placedhier <n> | sounds <n> | particles <n> | imported <n>
 // <kind> is the AVPSTRAT's kind word (strategy_chunk.hpp: 52 Binary Switch, 61 Link Switch, 62 New Simple Object, 66 Multiple Target Switch, 68 Area Switch, 72 Track, 79 Generator ...).
 // The file is HOSTILE INPUT: a name is printed as at most 63 bytes up to its first zero, any byte outside 32..126 (and '|') as '?'; at most 100000 lines of each sort are printed.
 // GIVES BACK 0 when the level was read, 2 when the game's loader refused it or the call is wrong.
@@ -31,6 +32,7 @@
 #include "level_file.h"
 #include "special_objects_edit.h"
 #include "strategy_lookup.h"
+#include "imported_shape.h"
 
 // what the game's chunk code calls
 HANDLE avp_CreateFile(const char *name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES security, DWORD creation, DWORD flags, HANDLE model)
@@ -129,7 +131,7 @@ int main(int argc, char **argv)
 		return 2;
 	}
 
-	size_t objects = 0, tracked = 0, withStrategy = 0;
+	size_t objects = 0, tracked = 0, withStrategy = 0, imported = 0;
 	List<Object_Chunk *> all;
 
 	level.Level()->list_objects(&all);
@@ -170,12 +172,15 @@ int main(int argc, char **argv)
 				std::to_string((int64_t)data.max.z - (int64_t)data.min.z);
 		}
 
-		printf("object | %s | id %s | flags %x | track %s | strategy %s | at %d %d %d | box %s\n", Plain(object->object_data.o_name, 64).c_str(), IdWords(id).c_str(),
+		ImportedShape const outside = ImportedShapeOf(object);
+
+		printf("object | %s | id %s | flags %x | track %s | strategy %s | at %d %d %d | box %s | imported %s\n", Plain(object->object_data.o_name, 64).c_str(), IdWords(id).c_str(),
 			header ? (unsigned)header->flags : 0u, track ? "yes" : "no", strategy.c_str(), object->object_data.location.x, object->object_data.location.y, object->object_data.location.z,
-			box.c_str());
+			box.c_str(), ImportedShapeWords(outside));
 		objects++;
 		tracked += track ? 1 : 0;
 		withStrategy += has ? 1 : 0;
+		imported += outside == ImportedShape::Yes || outside == ImportedShape::YesOwnPictures ? 1 : 0;
 	}
 
 	std::vector<host::VirtualObjectRef> virtuals;
@@ -233,7 +238,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	printf("count | objects %zu | with a track %zu | with a strategy %zu | virtual %zu | generators %zu | placedhier %zu | sounds %zu | particles %zu\n", objects, tracked, withStrategy,
-		virtuals.size(), generators.size(), placed.size(), sounds, particles);
+	printf("count | objects %zu | with a track %zu | with a strategy %zu | virtual %zu | generators %zu | placedhier %zu | sounds %zu | particles %zu | imported %zu\n", objects, tracked,
+		withStrategy, virtuals.size(), generators.size(), placed.size(), sounds, particles, imported);
 	return 0;
 }

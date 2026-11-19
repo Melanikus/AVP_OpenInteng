@@ -1,0 +1,30 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-18, THE OWNER'S ADDITION, Bishop's design AvP-docs/engine/inteng/reassess/alien-autoplot-design.md): Waypoint mode 0's AUTO-PLOT AI MODULE plots the
+# picked module's AI module with AvPx's own pathfinder (autoplot_grid.h, Drake's: the alien's floor-is-lava ways and the marine's floor route between its exits and a few stand spots), makes
+# them stock alien waypoints (autoplot_plan.h), refuses what the stock game would choke on (waypoint_net_check.h, Frost's checker) and writes the rest at once (WaypointMode::AutoPlotWrite:
+# the game's loader checks it). The searches run on a worker: the status words say the progress, then what was made. Read back from a saved copy through the game's loader (Frost's
+# verify_waypoint_nets: the network is there, every exit in a box, every box reaches every other, 99 at most, every link in the list, no problem of any kind).
+# HIS PATH: his own Genshd1 (his game folder's copy of 11-18, SHA256SUMS beside it), opened as a double click; the start camera's room, genent01 (AI module 232), has no alien waypoint, so
+# no question is asked.
+# RED on the build before it: there is no such item.
+# the owner's "hide auto pilot" (11-19): the items are only there with AutoPlot=1 (autoplot_switch.h; acceptance-autoplot-hidden is the shipped ini)
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+wait 600
+# genent01, picked in the AI modules
+click-view 0.5 0.95
+wait 400
+expect-status Picked: module
+click-bar Auto-plot AI module
+wait-status 180000 Auto-plot: AI module 232:
+expect-status exits covered
+expect-status-not not written
+picture 1
+
+# ---- written: a saved copy read back through the game's loader, the network as the stock game would use it
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verify-nets/verify_waypoint_nets.exe {copy} 232 network exits connected most links clean

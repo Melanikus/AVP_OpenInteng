@@ -171,6 +171,7 @@
 #include "open_with.h"
 #include "texture_quad.h"
 #include "texture_area.h"   // the texture area (TM-B)
+#include "texture_loop_waits.h"   // CAM-9: the waits that keep Home and Insert out
 #include "texture_window.h"   // the texture window's layout and Texture Resize (TM-B T)
 #include "texture_shared.h"
 #include "state_line.h"       // texwin: the window's layout on the scenario line
@@ -8326,6 +8327,25 @@ static void TexturePolyShowHide(bool hide)
 bool TexturePolyAnyWaiting()
 {
 	return !polyRemoved.empty() || !polySplit.empty();
+}
+
+// CAM-9: a wait of Texture Map's that inteng runs as a loop of its own (FUN_0058b700 waits for the press), so its WinMain never gets round to Home and Insert (0x58cfe8 / 0x58cff6)
+// while it is up: the texture chooser and Select Number of Repeats' grid (0x2a FUN_005575a0, 0x10f FUN_00557c00), Wrap's and Tile's plane polygon (0x2e FUN_0055e400, 0x2f
+// FUN_0055e5d0), Get UV coords / Get Anim from which polygon (0x31 / 0xb3 FUN_0055c210), Anim's Select (0x9d FUN_005406a0), the base polygon (Shift+B, 0xe7 FUN_00556ff0) and Invert's
+// object (0x101's own wait in FUN_0054d260). Not Copy Texturing's Object and Multiple picks (0xb5, 0x13f / 0x140): inteng keeps those in its frame (0xb5 only sets DAT_00914d80;
+// FUN_00576360, FUN_005765e0 wait for nothing), so Home and Insert act there as on every screen. The cases read from inteng.exe's switch table 0x550ca4 (AvP-docs/tools/drake/camera/tm-command-cases.js).
+bool TextureMapLoopWaits()
+{
+	host::TextureLoopWaitState s;   // the rule itself: texture_loop_waits.h (its unit test: host_texture_loop_waits_test)
+
+	s.chooser = textureChooserOn;
+	s.planeMode = texturePlaneMode;
+	s.getUv = textureCopyPending;
+	s.getAnim = textureAnimCopyPick;
+	s.animSelect = textureAnimPick;
+	s.basePolygon = textureBasePick;
+	s.invertObject = textureInvertPending;
+	return host::TextureLoopWaits(s);
 }
 
 // The leave question's No: the flags and the waiting splits are dropped (inteng's teardown frees the records that hold them); the hidden ones are drawn again

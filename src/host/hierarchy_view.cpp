@@ -205,6 +205,47 @@ bool HierarchyView_IsShown()
 	return shown != nullptr;
 }
 
+bool HierarchyView_ShownPlace(int32_t place[3])
+{
+	if (!shown || !place)
+	{
+		return false;
+	}
+
+	place[0] = shown->ObWorld.vx;
+	place[1] = shown->ObWorld.vy;
+	place[2] = shown->ObWorld.vz;
+	return true;
+}
+
+bool HierarchyView_MovePlaced(const int32_t place[3], const float quaternion[4])
+{
+	if (!shown || !place || !quaternion)
+	{
+		return false;
+	}
+
+	// the turn as HierarchyView_ShowPlaced makes it (the game's own for a placed hierarchy: x, y and z negated, QuatToMat, MatrixToEuler)
+	QUAT q;
+	MATRIXCH m;
+	EULER turn;
+
+	q.quatx = (int)-(quaternion[0] * ONE_FIXED);
+	q.quaty = (int)-(quaternion[1] * ONE_FIXED);
+	q.quatz = (int)-(quaternion[2] * ONE_FIXED);
+	q.quatw = (int)(quaternion[3] * ONE_FIXED);
+	QuatToMat(&q, &m);
+	MatrixToEuler(&m, &turn);
+
+	shown->ObWorld.vx = place[0];
+	shown->ObWorld.vy = place[1];
+	shown->ObWorld.vz = place[2];
+	shown->ObEuler = turn;
+	CreateEulerMatrix(&shown->ObEuler, &shown->ObMat);
+	TransposeMatrixCH(&shown->ObMat);
+	return true;
+}
+
 static bool ShowWithTurn(const char *modelName, const char *hierarchyName, int sequence, int sub, int32_t seconds, const int32_t place[3], EULER turn, std::string *why);
 
 static int showCount = 0;

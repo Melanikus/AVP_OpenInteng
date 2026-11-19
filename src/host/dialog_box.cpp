@@ -2,11 +2,27 @@
 
 #include "dialog_box.h"
 
+#include "screen_names.h"
+
 namespace host
 {
 	namespace
 	{
 		size_t const kMostFieldLetters = 10;   // FUN_00474350 builds its fields with FUN_0057de30, an edit of up to 10 letters
+
+		// NO FULL PATH ON THE SCREEN (Drake 2026-11-18, Bishop's privacy item for alpha.1: Sound Edit's title showed "C:\Users\<name>\..."): the words a dialog SHOWS, its title, its
+		// text, its labels, buttons, check boxes and group boxes, have every full path cut to its file's or folder's name (screen_names.h). An edit's contents and a combo's rows are
+		// left as they are: they are what the user types or picks, and what the dialog gives back.
+		void CutPathsShown(std::vector<DialogWidget> *widgets)
+		{
+			for (DialogWidget &w : *widgets)
+			{
+				if (w.type == DialogWidgetType::Label || w.type == DialogWidgetType::Button || w.type == DialogWidgetType::Check || w.type == DialogWidgetType::Group)
+				{
+					w.text = ScreenNames_Cut(w.text);
+				}
+			}
+		}
 
 		bool Holds(DialogRect const &r, int32_t x, int32_t y)
 		{
@@ -98,7 +114,7 @@ namespace host
 	void InDialog::OpenMessage(std::string const &message, DialogRect screen, std::function<int32_t(std::string const &)> const &textWidth)
 	{
 		kind = DialogKind::Message;
-		text = message;
+		text = ScreenNames_Cut(message);
 		buttons.clear();
 		fields.clear();
 		Layout(screen, 400, 200, textWidth);
@@ -114,7 +130,7 @@ namespace host
 	void InDialog::OpenConfirm(std::string const &message, DialogRect screen, std::function<int32_t(std::string const &)> const &textWidth)
 	{
 		kind = DialogKind::Confirm;
-		text = message;
+		text = ScreenNames_Cut(message);
 		buttons.clear();
 		fields.clear();
 		Layout(screen, 400, 200, textWidth);
@@ -134,7 +150,7 @@ namespace host
 	void InDialog::OpenText(std::string const &message, std::vector<DialogField> const &given, DialogRect screen, std::function<int32_t(std::string const &)> const &textWidth)
 	{
 		kind = DialogKind::Text;
-		text = message;
+		text = ScreenNames_Cut(message);
 		buttons.clear();
 		fields.clear();
 
@@ -149,6 +165,7 @@ namespace host
 
 			DialogField f = given[0];
 
+			f.label = ScreenNames_Cut(f.label);   // shown words (the edit's own text is the user's)
 			f.edit = Placed(window, 0x1e, 100, 300, 0x12);
 			f.labelBox = Placed(window, 0x1e + 300, 100, 0, 0x12);
 			fields.push_back(f);
@@ -174,6 +191,7 @@ namespace host
 		{
 			DialogField f = given[i];
 
+			f.label = ScreenNames_Cut(f.label);
 			f.edit = Placed(window, 0x1e, rows[i], 0x96, 0x12);
 			f.labelBox = Placed(window, 0xbe, rows[i], 0x96, 0x12);
 			fields.push_back(f);
@@ -195,10 +213,11 @@ namespace host
 	{
 		kind = DialogKind::Form;
 		text.clear();
-		title = spec.title;
+		title = ScreenNames_Cut(spec.title);
 		buttons.clear();
 		fields.clear();
 		widgets = spec.widgets;
+		CutPathsShown(&widgets);
 		changeHook = spec.onChange;
 		checkHook = spec.onCheck;
 		Layout(screen, spec.width, spec.height, textWidth);
@@ -280,6 +299,7 @@ namespace host
 					if (changed && changeHook)
 					{
 						changeHook(widgets, i);
+						CutPathsShown(&widgets);   // the hook may have given parts new words
 					}
 
 					return false;
@@ -346,6 +366,7 @@ namespace host
 				if (checkHook)
 				{
 					checkHook(widgets, i);
+					CutPathsShown(&widgets);
 				}
 			}
 		}
