@@ -460,6 +460,26 @@ void LevelView_HideBeyondKeepShapes(const LevelViewShapeOf *shapes, size_t count
 // every placed object. Replaces the rule's earlier set; (nullptr, 0, false) lets go of it.
 void LevelView_HideByRule(const int32_t *moduleIndex, size_t count, bool everyObject);
 
+// THE PLOT'S PREVIEW's own hiding (plot_preview_view.h), kept apart from the rule's and the explicit sets so none undoes another (the union is drawn): every module
+// but these (game numbers) and every placed object is not drawn. Replaces the preview's earlier set; (nullptr, 0) lets go of it.
+void LevelView_HideForPreview(const int32_t *shownModules, size_t count);
+
+// THE PLOT'S PREVIEW's INSET (the owner 11-21, 05:4x: "Full map + inset on top"): a second view, drawn AFTER the main view and OVER it, in a box of the window
+// (pixels). The main view is drawn whole first, as on any frame; then the depth is cleared and this camera's view is drawn into the box, with the preview's own
+// hidden set (LevelView_HideForPreview counts for this view only) and the frame's world lines. A NAMED DIFFERENCE: the world lines are drawn in the frame's last
+// drawing only, so while an inset is drawn the main view has none. After the frame the eyes are the main camera's again, so what reads the last frame's eyes
+// (the fly keys' LevelView_CameraAxes, LevelView_EyePlace, picks) reads the main view. Set it each frame before LevelView_Draw: on, with the camera and the box;
+// off (false), none. A box under 16 x 12 is none. The game's renderer is not changed: these are the split screen's own steps (renderer.h R_EditorFlushWorld,
+// R_ClearZBuffer, R_SetEditorMainViewport).
+void LevelView_Inset(bool on, const FlyCamera &camera, int boxLeft, int boxTop, int boxWidth, int boxHeight);
+
+// whether the last frame drew an inset over its main view (LevelView_Inset): the preview's state line
+bool LevelView_InsetDrawn();
+
+// how long the last frame's inset took to make, on the processor (ms): its view made, from the depth's clearing to its lists filled. The card's part (its lists
+// drawn, in the frame's last drawing) is not in it: that shows only in the whole plot's time. 0 when the last frame drew none
+double LevelView_InsetMs();
+
 // Every selected object in green: the 8-byte IDs of up to kLevelViewMostSelected of them (more are not drawn green), none for count 0
 size_t const kLevelViewMostSelected = 1024;   // was 256: the stock levels have up to 608 modules, and Show All colours every one
 void LevelView_SelectObjects(const uint8_t (*ids)[8], size_t count);

@@ -179,8 +179,11 @@
 #include <thread>
 
 #include "autoplot_command.h"
+#include "autoplot_preview.h"
+#include "autoplot_waits.h"   // AN EDIT WAITS FOR THE PLOT: which bar items wait while a run goes
 #include "autoplot_switch.h"   // the owner's "hide auto pilot" (11-19): nothing done unless AutoPlot=1
 #include "autoplot_arrival.h"
+#include "autoplot_closers.h"   // the gap closers stop a body under each final aim point (Vasquez 11-21)
 #include "autoplot_progress.h"
 #include "autoplot_grid.h"
 #include "autoplot_lane.h"
@@ -244,6 +247,11 @@ namespace
 	std::thread worker;
 	std::atomic<bool> workerDone(false), stopAsked(false);
 	std::atomic<size_t> jobAt(0), wayAt(0), wayCount(0);
+	// THE PLOT'S PREVIEW (autoplot_preview.h, the owner 11-21): the jobs whose plan is done, published by the worker as each one ends, so the main thread may read
+	// jobs[k] for k below it (the worker never touches a job again once it is past it); the run's frames and the preview's drawing, for the whole plot's time line
+	std::atomic<size_t> jobsPlanned(0);
+	size_t plotFrames = 0;
+	double previewDrawMs = 0.0;
 	std::string commandWords;
 	std::chrono::steady_clock::time_point runStart;   // the run's start (the grid's), for the end line's time
 	std::map<int32_t, size_t> runStock;               // each AI module's own alien waypoints as the run was asked (AiModules' count), for "kept Rebellion's"
@@ -653,12 +661,14 @@ namespace
 
 				job.plan = host::AutoPlot_PlanVolumes(ways, job.exitsWorld, floorCells, job.doors, plotScale, job.counts);   // the owner's counts (the run's, taken at Begin)
 				host::AutoPlot_RepairVolumes(&job.plan, job.exitsFile, plotScale);   // Drake's volume repair (autoplot_volume_repair.h): a scrap box out, a centre in another box moved flat
+				host::AutoPlot_CloserClearAims(&job.plan, plotScale);   // then no closer reaches into the body at a final aim point (autoplot_closers.h)
 				job.planMs = MsSince(planFrom);
 
 				// a kind it has no rule for yet: NO network (Bishop's ruling 11-20: the way Rebellion left most modules, never the old small boxes), named in the summary
 				job.notShaped = !job.plan.volumes;
 				job.planned = !stopAsked;
 				job.pairLines = PairLines(job);
+				jobsPlanned.store(j + 1, std::memory_order_release);   // (the preview may read job j from now on)
 			}
 			catch (std::exception const &)
 			{
@@ -785,6 +795,8 @@ namespace
 
 		stage = Stage::Grid;
 		runStart = std::chrono::steady_clock::now();
+		plotFrames = 0;
+		previewDrawMs = 0.0;
 		Say("Auto-plot: building the grid for " + Number((long long)jobs.size()) + " AI modules");
 	}
 
@@ -1195,7 +1207,16 @@ namespace
 			LoadTheObjectListAgain();
 		}
 
-		std::string const tail = host::AutoPlot_TimeWords(MsSince(runStart) / 1000.0);
+		// the end line's last words: the run's time, then the counts and sizes it plotted with (Tao 2: the words, and the log, say how the networks were made; the owner's
+		// dialog sizes, Bishop 11-21: "the values used go into the plot notes and the status line's end line")
+		std::string const values = host::AutoPlot_ValuesWords(runCounts);
+		std::string const tail = host::AutoPlot_TimeWords(MsSince(runStart) / 1000.0) + values;
+
+		printf("AVP_OpenInteng: auto-plot: plotted%s\n", values.substr(values.empty() ? 0 : 1).c_str());   // ("; with ..." without its ";": "plotted with climb-ins 1, ...")
+
+		// THE WHOLE PLOT'S TIME (Frost's timing of the preview, 11-21), printed always: from Ok to the last module written, its frames, and the preview's own drawing
+		printf("AVP_OpenInteng: auto-plot: the whole plot took %.0f ms (from Ok to the last module written), %zu frames, preview %s, preview drawing %.0f ms\n", MsSince(runStart),
+			plotFrames, host::PlotPreview_On() ? "on" : "off", previewDrawMs);
 
 		Say(everyOne ? "Auto-plot: " + Number((long long)written) + " AI modules written, " + Number((long long)refused) + " refused" + host::AutoPlot_KeptWords(kept) + (notShaped ? ", " + Number((long long)notShaped) +
 			" not shaped (no network written: " + notShapedNames + ")" : std::string()) + (noExits ? ", " + Number((long long)noExits) +
@@ -1362,6 +1383,11 @@ bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 
 void AutoPlotCommand_Frame()
 {
+	if (stage != Stage::Idle)
+	{
+		plotFrames++;   // (the whole plot's time line)
+	}
+
 	if (stage == Stage::Grid)
 	{
 		std::string why;
@@ -1568,6 +1594,7 @@ void AutoPlotCommand_Frame()
 		wayAt = 0;
 		wayCount = total;
 		jobAt = 0;
+		jobsPlanned = 0;
 		workerDone = false;
 		stopAsked = false;
 		worker = std::thread(Work);
@@ -1589,6 +1616,12 @@ void AutoPlotCommand_Frame()
 		finishing = Finishing();
 		finishing.open = LevelObjects_OpenForEdit();
 		stage = Stage::Writing;
+
+		// THE LAST MODULE SHOWN (Frost 11-21: a one-room plot never showed its module in the preview): the writing starts on the NEXT frame. Before, this frame
+		// went on to write, and a plot whose last module was planned and written within one frame went Idle before the preview's turn in the frame
+		// (plot_preview_view.h), so that module was never drawn. One frame more for every plot
+		Say(host::AutoPlot_WritingWords(0, jobs.size(), jobs.empty() ? std::string() : jobs[0].name));
+		return;
 	}
 
 	if (stage != Stage::Writing)
@@ -1713,4 +1746,83 @@ bool AutoPlotCommand_Run(std::vector<int32_t> const &modules, host::AutoPlotVolu
 host::AutoPlotVolumeCounts AutoPlotCommand_RunCounts()
 {
 	return gRunCounts;
+}
+
+// THE PLOT'S PREVIEW (autoplot_preview.h, plot_preview_view.h): the jobs planned so far, while a run goes (0 when none); job k's module and plan, for k below that
+size_t AutoPlotCommand_PreviewPlanned()
+{
+	return stage == Stage::Idle ? 0 : jobsPlanned.load(std::memory_order_acquire);
+}
+
+bool AutoPlotCommand_PreviewJob(size_t k, int32_t *head, std::vector<int32_t> const **gameModules, std::vector<host::WaypointRec> const **list)
+{
+	if (stage == Stage::Idle || k >= jobsPlanned.load(std::memory_order_acquire) || k >= jobs.size())
+	{
+		return false;
+	}
+
+	Job const &job = jobs[k];
+
+	if (head)
+	{
+		*head = job.head;
+	}
+
+	if (gameModules)
+	{
+		*gameModules = &job.gameModules;
+	}
+
+	if (list)
+	{
+		*list = &job.plan.list;
+	}
+
+	return true;
+}
+
+void AutoPlotCommand_PreviewDrew(double ms)
+{
+	previewDrawMs += ms > 0.0 ? ms : 0.0;
+}
+
+bool AutoPlotCommand_ItemWaits(int32_t action)
+{
+	if (stage == Stage::Idle)
+	{
+		return false;
+	}
+
+	host::IntengItem const *const item = host::IntengMenus_Find(action);
+
+	if (item && !host::AutoPlot_ItemWaits(item->work))
+	{
+		return false;   // (an item that only looks, or Quit)
+	}
+
+	Say(host::AutoPlot_WaitWords(item ? item->name : nullptr));
+	return true;
+}
+
+bool AutoPlotCommand_Waits(char const *what)
+{
+	if (stage == Stage::Idle)
+	{
+		return false;
+	}
+
+	Say(host::AutoPlot_WaitWords(what));
+	return true;
+}
+
+void AutoPlotCommand_Stop()
+{
+	// (the same as the WorkerEnd at the program's end, but now, while the level and the grid the worker reads are still there: the order the program's own
+	// ends run in, file by file, is not fixed)
+	stopAsked = true;
+
+	if (worker.joinable())
+	{
+		worker.join();
+	}
 }

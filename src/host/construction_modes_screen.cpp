@@ -2021,6 +2021,12 @@ void DoWaypointCommand(int32_t command, EditorHostState &host)
 		return;
 	}
 
+	// AN EDIT WAITS FOR THE PLOT (autoplot_waits.h): every other Waypoint command, by the bar or by its key, while a run is going (its Exit writes the waypoints)
+	if (AutoPlotCommand_Waits("That Waypoint command"))
+	{
+		return;
+	}
+
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	host::WaypointContext context;
 

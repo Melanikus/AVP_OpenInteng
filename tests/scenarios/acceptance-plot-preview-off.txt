@@ -1,0 +1,27 @@
+# ACCEPTANCE, HIDDEN (pictures off; red first; Vasquez 2026-11-21): THE PLOT'S PREVIEW'S SWITCH. With [Editor] PlotPreview=0 (autoplot_preview.h, read at start; Frost's
+# timing with and without) the plot runs and ends as ever, and the inset is never shown: the "plotpreview" field stays exactly "off" (no redraw counted).
+# One room plotted (PROC11), as acceptance-plot-preview-wide.txt.
+# RED on exe-cache/7b2f9624.exe (no plotpreview field). NOT RUN YET (tests held 11-21 05:0x; handed to Frost with the branch).
+#ini AutoPlot=1
+#ini PlotPreview=0
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-screen Waypoint
+expect-field plotpreview off
+
+wait 600
+camera-corner PROC11
+click-view 0.50 0.50
+wait 400
+expect-status PROC11
+
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
+wait-status 300000 written
+expect-status Auto-plot: 1 AI modules written, 0 refused
+wait 600
+expect-field plotpreview off

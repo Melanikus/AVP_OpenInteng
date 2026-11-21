@@ -99,9 +99,13 @@
 #include "movable_live.h"    // the dragged thing drawn live; where the current thing was drawn (the harness's currenticon)
 #include "movable_matrix.h"  // a player start's icon turned by its AVPSTART matrix
 #include "waypoint_gizmo.h"  // the waypoint-box gizmo on Waypoint mode 1 (P4 item 4)
+#include "autoplot_closers.h"   // the auto-plot's gap closers: their switch (AutoPlotClosers=1)
 #include "autoplot_grid.h"   // the alien auto-plot's pathfinder service (the harness's probe)
 #include "autoplot_switch.h"   // the owner's "hide auto pilot": AutoPlot= read at start-up
 #include "autoplot_command.h"  // a running auto-plot's busy cursor (the window's WM_SETCURSOR)
+#include "autoplot_preview.h"  // THE PLOT'S PREVIEW: its switch (PlotPreview= read at start-up)
+#include "plot_preview_state.h"
+#include "plot_preview_view.h"   // its view and its state line, each frame before the level is drawn
 #include "floor_is_lava.h"   // FloorIsLavaAsked: the game's own copy of the alien ways is never built in the editor
 #include "uv_project.h"
 #include "hierarchy_player.h"
@@ -6397,6 +6401,8 @@ static bool HierarchyKey(WPARAM key)
 
 void RunAction(int32_t id)
 {
+	if (AutoPlotCommand_ItemWaits(id)) return;   // AN EDIT WAITS FOR THE PLOT (autoplot_waits.h): while Alien auto waypoint plots, what would change the level waits, and the status line says so
+
 	EditorHostState host = {};
 
 	host.running = running;
@@ -14498,7 +14504,9 @@ int main(int, char **)
 	// builds its own only when the auto-plot asks (autoplot_grid.h). Before the level is opened below.
 	FloorIsLavaAsked = 0;
 	host::AutoPlotGrid_ProbeLoad(layoutSettingsFile);   // the harness's AutoPlotProbe=1
+	host::AutoPlotClosers_Load(layoutSettingsFile);   // the gap closers' switch (autoplot_closers.h): AutoPlotClosers=1, a scored candidate, off unless asked
 	host::AutoPlot_SetShown(GetPrivateProfileIntA("Editor", "AutoPlot", 0, layoutSettingsFile) == 1);   // the owner's "hide auto pilot" (11-19): Waypoint's Auto-plot items only with AutoPlot=1 (autoplot_switch.h)
+	host::PlotPreview_SetOn(GetPrivateProfileIntA("Editor", "PlotPreview", 1, layoutSettingsFile) != 0);   // THE PLOT'S PREVIEW: on unless the ini says 0 (Frost's timing)
 
 	// THE TEXT SCALE (the owner's addition, text_scale.h): FontScale= in the same file, a plain number from 1 to 3 (1, inteng's own size, when it isn't there); anything else is refused
 	// and said, and the text stays inteng's size
@@ -15686,7 +15694,7 @@ int main(int, char **)
 				worldLinesShown = true;
 				host::WorldOverlay_Lines(worldWaypoints.data(), worldWaypoints.size());
 			}
-			else if (WaypointAllPass()) worldLinesShown = true;   // THE WAYPOINT DISPLAY (Vasquez 11-19): mode 0 draws every AI module's alien network (strategy_data_screen.cpp)
+			else if (!PlotPreviewView_Shown().on && WaypointAllPass()) worldLinesShown = true;   // THE WAYPOINT DISPLAY (Vasquez 11-19): mode 0 draws every AI module's alien network (strategy_data_screen.cpp); not while THE PLOT'S PREVIEW sends its own lines (plot_preview_view.h)
 
 			// The current module of the module screens is drawn purple, as inteng draws the picked module there (Construction, Adjacent Modules, Module Linking)
 			{
@@ -15917,7 +15925,9 @@ int main(int, char **)
 		// Object Placement's look (OP-3 / OP-44): the call does only what changed since the last frame (the look's start or end, a Lighting flip, a level opened again)
 		PlacementLighting_Frame(barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : nullptr);
 		char const *const savedTo = askedPicture ? askedPicture : (screenshotTo ? screenshotTo : shotTo);
-		bool const drawn = LevelView_Draw(camera, savedTo, AddThePanels, &framePanels);
+		FlyCamera const drawCamera = PlotPreviewView_Frame(camera, 0, 0, windowWidth, windowHeight);   // THE PLOT'S PREVIEW (plot_preview_view.h): its camera while the plot runs
+		PlotPreviewState_Line();
+		bool const drawn = LevelView_Draw(drawCamera, savedTo, AddThePanels, &framePanels);
 
 		if (shotTo)
 		{
@@ -16673,6 +16683,8 @@ int main(int, char **)
 			fflush(stdout);
 		}
 	}
+
+	AutoPlotCommand_Stop();   // a plot's worker still searching is stopped and waited for first, while the level and its grid are still there (autoplot_command.h)
 
 	// The editor's hold of the level goes before the game's level does, so no chunk of it is let go of after the game's own teardown
 	theCamera = nullptr;

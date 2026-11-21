@@ -1,0 +1,48 @@
+# ACCEPTANCE, HIDDEN (pictures off; red first; Vasquez 2026-11-21): THE PLOT'S PREVIEW KEEPS THE VIEW'S ASPECT (acceptance-plot-preview.txt does 4:3). A 16:9 view,
+# -r1280x720: the inset is 40% of each side at the bottom right, width 512, height 288 (16:9 too), left 1280 - 512 = 768, top 720 - 288 = 432.
+# Three rooms plotted (PROC11, MOD-03, MOD-11): while they plot the inset's four numbers; after them, off with three redraws (one a module).
+# (Frost 11-21, Dietrich's reading: PROC11 alone plans, and on the next frame AutoPlotCommand_Frame writes it in one slice and goes idle before the preview's hook sees a
+# running plot, so one small room shows no inset at all: a named difference in the HAND. The two slowest rooms to plan, as acceptance-plot-preview, so the plot outlasts the fly.)
+# RED on exe-cache/7b2f9624.exe (no plotpreview field). NOT RUN YET (tests held 11-21 05:0x; handed to Frost with the branch).
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args -r1280x720 C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-screen Waypoint
+expect-field-has window 1280 720 window
+expect-field plotpreview off
+
+wait 600
+camera-corner PROC11
+click-view 0.50 0.50
+wait 400
+expect-status PROC11
+
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+# MOD-03 and MOD-11 by their names in the dialog's list (PROC11 is picked already)
+type ,MOD-03,MOD-11
+click-button Ok
+# one of MOD-03 / MOD-11 has stock alien waypoints, so the editor asks to replace them, as the owner answers it (acceptance-autoplot-genshd1)
+expect-dialog-kind confirm
+expect-dialog replace
+click-button Yes
+
+wait-field plotpreview redraws_ 1 120000
+expect-field-has plotpreview on left 768 top 432 width 512 height 288
+# THE NEW SHAPE (the owner 11-21: "Full map + inset on top"; Frost): the inset is drawn OVER the whole main view ("main 1"), and the main view stays usable while the plot
+# runs: a number-pad fly key held mid-plot moves the editor's camera (the state line's camera is the main view's: Dietrich's view gives it back every frame), the inset still on.
+# A named difference: while the inset shows, the main view draws no world lines (they are drawn only in the frame's last drawing, the inset's). RED on a6d98a0f: no "main" word.
+expect-number plotpreview main_ 1 1
+remember-field camera
+hold Numpad8 580
+expect-field-changed camera
+expect-field-has plotpreview on left
+
+wait-status 300000 written
+expect-status Auto-plot: 3 AI modules written, 0 refused
+wait 600
+expect-field-has plotpreview off job
+expect-number plotpreview redraws_ 3 3

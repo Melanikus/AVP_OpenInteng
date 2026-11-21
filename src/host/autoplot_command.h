@@ -56,3 +56,22 @@ bool AutoPlotCommand_Run(std::vector<int32_t> const &modules, host::AutoPlotVolu
 
 // The counts of the run going (or the last one): the defaults unless AutoPlotCommand_Run gave them
 host::AutoPlotVolumeCounts AutoPlotCommand_RunCounts();
+
+// THE PLOT'S PREVIEW (autoplot_preview.h; the owner 11-21): while a run goes, how many of its jobs are planned (the worker publishes each as its plan is done;
+// 0 when no run goes), and job k's (k below that) AI module head, game modules and plan list, which stay as they are until the run ends. False otherwise.
+size_t AutoPlotCommand_PreviewPlanned();
+bool AutoPlotCommand_PreviewJob(size_t k, int32_t *head, std::vector<int32_t> const **gameModules, std::vector<host::WaypointRec> const **list);
+// The preview's drawing time this frame (ms), added up for the whole plot's time line
+void AutoPlotCommand_PreviewDrew(double ms);
+
+// AN EDIT WAITS FOR THE PLOT (autoplot_waits.h): true, and the status line says the item waits, when a run is going and the bar item numbered action would
+// change the level or leave the Waypoint screen (an item no bar has waits too); false otherwise, and the item is done as always. editor_main's RunAction asks it first
+bool AutoPlotCommand_ItemWaits(int32_t action);
+
+// The same for what reaches the level without the bar (the Waypoint screen's keys, its clicks in the view): true, and the status line says that what waits, while
+// a run is going; false when none is. A click waits too: while the plot's inset is drawn, the frame's last view is the inset's, which a pick would read
+bool AutoPlotCommand_Waits(char const *what);
+
+// The editor is closing: a run's worker still searching is asked to stop and waited for, before the level and the game go (it stops between two AI modules,
+// so this can take as long as one module's search). Nothing happens when no worker runs
+void AutoPlotCommand_Stop();

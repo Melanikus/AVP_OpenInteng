@@ -1,7 +1,9 @@
 // See autoplot_volumes.h. Written 2026-11-20 by Melanikus (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 #include "autoplot_volumes.h"
+#include "autoplot_closers.h"  // the gap closers on the walls' band (Vasquez 11-21)
 #include "autoplot_levels.h"   // the levels' rule: stairs or levels, and ducts (Frost 11-20)
 #include "autoplot_rooms.h"    // the rooms' wall test (Drake 11-20)
+#include "autoplot_stairs.h"   // the stair between two floors (Dietrich 11-21)
 
 #include <math.h>
 #include <stdio.h>
@@ -28,6 +30,8 @@ namespace host
 			Low,       // a sloped side's climb over its lower face (it stands for the climb-in)
 			High,      // a sloped side's upper face, one piece an entry over it
 			Exit,
+			Closer,    // a gap closer on a wall's band, between the floor box and the entries (autoplot_closers.h; Vasquez 11-21)
+			StairCeiling,   // the ceiling over a stair's treads, between the two floors' entries (autoplot_stairs.h; Dietrich 11-21). Never an Entry: it has no exit of its own
 		};
 
 		struct Vol
@@ -1083,21 +1087,73 @@ namespace host
 
 			return door;
 		};
-		auto const floorBeyond = [&](size_t i, int a, int s)
+		// THE WALL FOOT (Bishop's spec 11-21, the floor-only corridors: SHED04's north side, a ragged one-row strip of floor under its wall, 46 of 61 cells, took the
+		// corridor's only climb side, and it got no climb-in and no entry): read with rows = kAutoPlotVolumeFloorOnRows, the floor counts as going on past a side only where
+		// it goes on that many lines (a cell at its height in the line just past the side AND in the line past that one). A one-row strip is the wall's foot: the side stays a
+		// wall, and the climb box reaches over the strip to it (its reach is the AI module's own box past the side). rows = 1: one line past the side is enough (as before).
+		// Used for a floor that has NO climb side read with one line (below, THE CLIMB SIDE): the whole-map plot of 505f1c0f, which read every side with two, moved
+		// genent01's working climb (the owner's tunnel path) to its other side and gave seven shaped modules more catchers; the floor-only corridors were the spec
+		// whether the floor goes on past side (a, s) of rectangle i at cell k along it, read with `rows` lines (THE WALL FOOT, above)
+		auto const goesOnAt = [&](size_t i, int a, int s, int rows, int k)
 		{
 			Rect const &r = rects[i];
 			int const line = a == 0 ? (s > 0 ? r.ix1 + 1 : r.ix0 - 1) : (s > 0 ? r.iz1 + 1 : r.iz0 - 1);
+			bool goesOn = true;
+
+			for (int out = 0; out < rows && goesOn; out++)
+			{
+				int const l = line + s * out;   // `out` lines past the first line past the side
+				auto const c = cells.find(a == 0 ? std::make_pair(l, k) : std::make_pair(k, l));
+
+				goesOn = c != cells.end() && c->second >= r.floorTop - kAutoPlotVolumeFlatStep && c->second <= r.floorLow + kAutoPlotVolumeFlatStep;
+			}
+
+			return goesOn;
+		};
+		auto const floorBeyond = [&](size_t i, int a, int s, int rows)
+		{
+			Rect const &r = rects[i];
 			int const from = a == 0 ? r.iz0 : r.ix0, to = a == 0 ? r.iz1 : r.ix1;
 			double beyond = 0.0;
 
 			for (int k = from; k <= to; k++)
 			{
-				auto const c = cells.find(a == 0 ? std::make_pair(line, k) : std::make_pair(k, line));
-
-				beyond += c != cells.end() && c->second >= r.floorTop - kAutoPlotVolumeFlatStep && c->second <= r.floorLow + kAutoPlotVolumeFlatStep ? e : 0.0;
+				beyond += goesOnAt(i, a, s, rows, k) ? e : 0.0;
 			}
 
 			return beyond;   // mm along the side
+		};
+
+		// THE WALL PART (Bishop's spec (b) 11-21: new02's north side is a wall for 3.3 m and an arm of floor goes on past the rest, so no WHOLE side was left to climb):
+		// the longest run of cells along side (a, s) of rectangle i past which the floor does not go on (read with `rows` lines), its span along the side in the
+		// world's mm (lo .. hi); its length, 0 when there is none
+		auto const wallPart = [&](size_t i, int a, int s, int rows, double *lo, double *hi)
+		{
+			Rect const &r = rects[i];
+			int const from = a == 0 ? r.iz0 : r.ix0, to = a == 0 ? r.iz1 : r.ix1;
+			int best = 0, bestFrom = from, run = 0;
+
+			for (int k = from; k <= to; k++)
+			{
+				run = goesOnAt(i, a, s, rows, k) ? 0 : run + 1;
+
+				if (run > best)
+				{
+					best = run;
+					bestFrom = k - run + 1;
+				}
+			}
+
+			if (best == 0)
+			{
+				return 0.0;
+			}
+
+			double const o = a == 0 ? oz : ox;   // the side runs along the other axis
+
+			*lo = cellLo(bestFrom, o);
+			*hi = cellHi(bestFrom + best - 1, o);
+			return *hi - *lo;
 		};
 
 		// A ROOM'S WALL TEST (autoplot_rooms.h, Drake 11-20): in a room the module's flat ceiling can go on past a floor's side (a desk, a pit, a raised band left out of the
@@ -1115,6 +1171,9 @@ namespace host
 			int axis = -1;     // 0 x, 2 z: the axis the side faces along
 			int sign = 0;      // +1: the side at the rectangle's high edge
 			double edge = 0.0, reach = 0.0;
+			int rows = 1;      // the lines of floor past it that count as the floor going on, as it was chosen with (THE WALL FOOT: 2 when 1 left the floor no side)
+			bool part = false; // THE WALL PART: the climb on the side's wall part only (from .. to), its floor having no whole side
+			double from = 0.0, to = 0.0;   // the climb's span along the side (the world's mm): the whole floor's, or the wall part's
 		};
 
 		std::vector<Side> sides(rects.size());
@@ -1129,46 +1188,70 @@ namespace host
 			Vol const &f = vols[i];
 			double bestScore = -1e300;
 
-			for (int const a : { 0, 2 })
+			// one line of floor past a side first (as before); THE WALL FOOT's two only when that leaves the floor no side; THE WALL PART only when neither leaves it one
+			for (int const pass : { 0, 1, 2 })
 			{
-				int const b = a == 0 ? 2 : 0;
+				int const rows = pass == 0 ? 1 : kAutoPlotVolumeFloorOnRows;
+				bool const parts = pass == 2;
 
-				for (int const s : { 1, -1 })
+				if (sides[i].axis >= 0)
 				{
-					double const edge = s > 0 ? f.hi[a] : f.lo[a], length = f.hi[b] - f.lo[b];
-					bool const door = doorOn(i, a, s);
-					double seam = 0.0, outer = 0.0;
+					break;
+				}
 
-					for (size_t j = 0; j < floors; j++)
+				for (int const a : { 0, 2 })
+				{
+					int const b = a == 0 ? 2 : 0;
+
+					for (int const s : { 1, -1 })
 					{
-						if (j == i)
+						double const edge = s > 0 ? f.hi[a] : f.lo[a], length = f.hi[b] - f.lo[b];
+						bool const door = doorOn(i, a, s);
+						double seam = 0.0, outer = 0.0;
+
+						for (size_t j = 0; j < floors; j++)
+						{
+							if (j == i)
+							{
+								continue;
+							}
+
+							Vol const &o = vols[j];
+
+							if (fabs((s > 0 ? o.lo[a] : o.hi[a]) - edge) <= e)   // it starts at this side's line
+							{
+								seam += std::max(0.0, std::min(o.hi[b], f.hi[b]) - std::max(o.lo[b], f.lo[b]));
+							}
+
+							outer += fabs(edge - (o.lo[a] + o.hi[a]) / 2.0);
+						}
+
+						if (door || seam > e / 2.0 || ceilingBeyond(i, a, s) > length / 4.0 || (!parts && floorBeyond(i, a, s, rows) > length / 4.0))   // (any seam: a side another floor starts at gets no catchers, so a LOW there led up into nothing: doormp09, newcol03 on 9f781c00)
 						{
 							continue;
 						}
 
-						Vol const &o = vols[j];
+						// THE WALL PART (pass 2): the side's longest run of wall, kAutoPlotVolumeWallPart or more, the climb's span; scored by that length
+						double partLo = f.lo[b], partHi = f.hi[b], climbable = length;
 
-						if (fabs((s > 0 ? o.lo[a] : o.hi[a]) - edge) <= e)   // it starts at this side's line
+						if (parts && (climbable = wallPart(i, a, s, rows, &partLo, &partHi)) < (double)kAutoPlotVolumeWallPart)
 						{
-							seam += std::max(0.0, std::min(o.hi[b], f.hi[b]) - std::max(o.lo[b], f.lo[b]));
+							continue;
 						}
 
-						outer += fabs(edge - (o.lo[a] + o.hi[a]) / 2.0);
-					}
+						double const score = floor(climbable / e + 0.5) * 1e9 + outer * 10.0 + (s > 0 ? 1.0 : 0.0);
 
-					if (door || seam > e / 2.0 || floorBeyond(i, a, s) > length / 4.0 || ceilingBeyond(i, a, s) > length / 4.0)   // (any seam: a side another floor starts at gets no catchers, so a LOW there led up into nothing: doormp09, newcol03 on 9f781c00)
-					{
-						continue;
-					}
-
-					double const score = floor(length / e + 0.5) * 1e9 + outer * 10.0 + (s > 0 ? 1.0 : 0.0);
-
-					if (score > bestScore)
-					{
-						bestScore = score;
-						sides[i].axis = a;
-						sides[i].sign = s;
-						sides[i].edge = edge;
+						if (score > bestScore)
+						{
+							bestScore = score;
+							sides[i].axis = a;
+							sides[i].sign = s;
+							sides[i].edge = edge;
+							sides[i].rows = rows;
+							sides[i].part = parts;
+							sides[i].from = partLo;
+							sides[i].to = partHi;
+						}
 					}
 				}
 			}
@@ -1180,6 +1263,15 @@ namespace host
 
 				sd.reach = std::min(std::max((boxEdge - sd.edge) * sd.sign, 0.0), 3000.0);
 
+				// a WALL PART: the AI module's own box past that side is the arm of floor beside the part (new02's north arm), not this wall; the wall is taken as a flat one at
+				// most kAutoPlotVolumeSloped past the floor's edge (the grid's cells stop short of a wall: new02's floor goes on to 450 past its last cell, none at 750), and
+				// the climb's centre goes past that (below), so a floor alien heading for it walks into the wall and climbs (lanes up on 730ab69a: with the wall at the edge,
+				// the centre stood in open air over the aliens' heads, new02 74 stall places, new01 322, corr10 590)
+				if (sd.part)
+				{
+					sd.reach = std::min(sd.reach, (double)kAutoPlotVolumeSloped);
+				}
+
 				// a SLOPED side's two 45-degree faces meet half the room's height out (Genshd1's tubes: 1,948 of 3,896); the module's box goes further where clutter stands
 				// (gencor03's south ledge took its catchers 1 m too deep: Drake's gold compare on 64764f17)
 				sd.reach = sd.reach > kAutoPlotVolumeSloped ? std::min(sd.reach, (rects[i].floorTop - rects[i].ceilTop) / 2.0) : sd.reach;
@@ -1189,8 +1281,10 @@ namespace host
 		// THE OWNER'S COUNTS (autoplot_volumes.h; the owner 11-20 on hand6g: "too many climb points"): at most climbIns climbs, the biggest floors' first (hand6g's
 		// candidates: each doorway floor's climb side); a floor whose climb goes keeps its side for the entries' and the get-out's places, and its HIGH pieces as jump
 		// catchers. At most getOuts get-outs (hand6g's one)
-		int32_t const climbsWanted = counts.climbIns < 0 ? kAutoPlotDefaultClimbIns : std::min(std::max(counts.climbIns, kAutoPlotLeastClimbIns), kAutoPlotMostClimbIns);
-		int32_t const getOutsWanted = counts.getOuts < 0 ? kAutoPlotDefaultGetOuts : std::min(std::max(counts.getOuts, kAutoPlotLeastGetOuts), kAutoPlotMostGetOuts);
+		// (AutoPlot_UsedCounts: -1 the default, any other number held to its range: Tao 3, the dialog is not the only caller; THE OWNER'S SIZES, the HIGH aim's, below)
+		AutoPlotVolumeCounts const used = AutoPlot_UsedCounts(counts);
+		int32_t const climbsWanted = used.climbIns;
+		int32_t const getOutsWanted = used.getOuts;
 		std::vector<bool> climbKept(rects.size(), false);
 		size_t climbsKept = 0, climbCandidates = 0;
 		{
@@ -1206,13 +1300,28 @@ namespace host
 
 			auto const area = [&vols](size_t i) { return (vols[i].hi[0] - vols[i].lo[0]) * (vols[i].hi[2] - vols[i].lo[2]); };
 
-			std::stable_sort(order.begin(), order.end(), [&area](size_t p, size_t q) { return area(p) > area(q); });
+			// WHOLE SIDES FIRST (med02 on fe3ea91a: its biggest floor, with no side before, got a wall part, took the one climb from floor 5's whole side, its centre
+			// inside the entry over it, and the module was refused): a side from THE WALL FOOT or THE WALL PART is for a floor that has no other; every floor with a
+			// side read as before comes first, the biggest first, then the others
+			auto const wholeSide = [&sides](size_t i) { return sides[i].axis >= 0 && sides[i].rows == 1 && !sides[i].part; };
+
+			std::stable_sort(order.begin(), order.end(), [&area, &wholeSide](size_t p, size_t q) { return wholeSide(p) != wholeSide(q) ? wholeSide(p) : area(p) > area(q); });
 			climbCandidates = order.size();
 
 			for (size_t k = 0; k < order.size() && (int32_t)k < climbsWanted; k++)
 			{
 				climbKept[order[k]] = true;
 				climbsKept++;
+			}
+		}
+
+		// a side from THE WALL FOOT or THE WALL PART that got no climb is taken back: it was only ever for that climb, and the floor plans as it did before (its entries,
+		// the get-out, the catchers: med02's floor 0 on fe3ea91a). A whole side keeps its place without a climb (THE OWNER'S COUNTS, above)
+		for (size_t i = 0; i < rects.size(); i++)
+		{
+			if (sides[i].axis >= 0 && !climbKept[i] && (sides[i].rows != 1 || sides[i].part))
+			{
+				sides[i] = Side();
 			}
 		}
 
@@ -1230,10 +1339,17 @@ namespace host
 				continue;   // (a climb the owner's count leaves out)
 			}
 
+			if (sd.part)
+			{
+				plan.notes.push_back("the climb on a wall part: floor " + std::to_string((unsigned long long)i) + "'s " +
+					(sd.axis == 0 ? (sd.sign > 0 ? "+x" : "-x") : (sd.sign > 0 ? "+z" : "-z")) + " side, " + std::to_string((long long)sd.from) + " .. " +
+					std::to_string((long long)sd.to) + " along it (the floor goes on past the rest of it)");
+			}
+
 			Rect const &r = rects[i];
 			Vol const &f = vols[i];
 			int const a = sd.axis, b = a == 0 ? 2 : 0;
-			double const mid = (f.lo[b] + f.hi[b]) / 2.0, half = std::min((double)kAutoPlotVolumeClimbLength, f.hi[b] - f.lo[b]) / 2.0;
+			double const mid = (sd.from + sd.to) / 2.0, half = std::min((double)kAutoPlotVolumeClimbLength, sd.to - sd.from) / 2.0;   // the whole side, or THE WALL PART
 			Vol v;
 
 			v.kind = Kind::Climb;
@@ -1247,7 +1363,7 @@ namespace host
 
 			std::vector<double> c(3);
 
-			c[(size_t)a] = sd.edge + sd.sign * (std::min(sd.reach, (double)kAutoPlotVolumeUnder) + kAutoPlotInto / 2.0);
+			c[(size_t)a] = sd.edge + sd.sign * ((sd.part ? sd.reach : std::min(sd.reach, (double)kAutoPlotVolumeUnder)) + kAutoPlotInto / 2.0);   // (a wall part's: past its wall)
 			c[(size_t)b] = mid;
 			c[1] = r.ceilTop + kAutoPlotVolumeUnder;
 
@@ -1298,14 +1414,24 @@ namespace host
 			int best = -1;
 			double bestArea = 0.0;
 
-			for (size_t i = 0; i < rects.size(); i++)
+			// the biggest ceiled floor with a side; a side read as before first (WHOLE SIDES FIRST, above: med02's get-out followed its climb to the wall part's floor)
+			for (bool const wholeOnly : { true, false })
 			{
-				double const area = (vols[i].hi[0] - vols[i].lo[0]) * (vols[i].hi[2] - vols[i].lo[2]);
-
-				if (rects[i].ceiled && sides[i].axis >= 0 && area > bestArea)
+				if (best >= 0)
 				{
-					bestArea = area;
-					best = (int)i;
+					break;
+				}
+
+				for (size_t i = 0; i < rects.size(); i++)
+				{
+					double const area = (vols[i].hi[0] - vols[i].lo[0]) * (vols[i].hi[2] - vols[i].lo[2]);
+					bool const whole = sides[i].axis >= 0 && sides[i].rows == 1 && !sides[i].part;
+
+					if (rects[i].ceiled && sides[i].axis >= 0 && (whole || !wholeOnly) && area > bestArea)
+					{
+						bestArea = area;
+						best = (int)i;
+					}
 				}
 			}
 
@@ -1505,6 +1631,29 @@ namespace host
 					double const mid = (f.lo[b] + f.hi[b]) / 2.0;
 
 					(d.middle[b] < mid ? v.hi[b] : v.lo[b]) = mid;
+
+					// THE STUB'S CEILING (Bishop's spec (A) 11-21: opscor02's two doorways both lie in its north half, so its south 7.5 m had no ceiling box, the closers left
+					// its end wall, and aliens climbing it out of the floor box were in no box: Hudson 658 stalled frames in whole-2b): when the corridor's other doorway is in
+					// the same half, the floor runs on past the last doorway into a stub, and the entry of the doorway nearer it (the first lane of two as near) reaches on
+					// over the stub to the floor's end, so the ceiling lane ends at the dead end. Only the box's reach changes: its aim point is set below, as before
+					for (int const o : lanes)
+					{
+						if (o == l || laneRect[(size_t)o] != R || (d.middle[b] < mid) != (doors[(size_t)o].middle[b] < mid))
+						{
+							continue;   // not the other doorway of this corridor's floor, or in the other half (no stub)
+						}
+
+						double const here = d.middle[b], there = doors[(size_t)o].middle[b];
+
+						if (here >= mid && (here < there || (here == there && l < o)))
+						{
+							v.lo[b] = f.lo[b];   // the stub is the low half, and this doorway the nearer it
+						}
+						else if (here < mid && (here > there || (here == there && l < o)))
+						{
+							v.hi[b] = f.hi[b];   // the stub is the high half
+						}
+					}
 				}
 				else if (corridor || funnel)
 				{
@@ -1641,6 +1790,19 @@ namespace host
 				AutoPlotDoor const &d = doors[(size_t)l];
 
 				c[(size_t)b] = fabs(climb.lo[b] - d.middle[b]) <= fabs(climb.hi[b] - d.middle[b]) ? climb.lo[b] : climb.hi[b];   // the climb-in's end nearer its doorway
+
+				// THE ENTRIES' AIMS ON A WALL PART (Bishop's spec (c) 11-21): a whole side's climb (2.4 m at the side's middle) reaches into both halves, its ends 1.2 m
+				// either side of the middle line where the two entries meet; a wall part's climb can lie anywhere along the side, wholly in one half (new01: the west entry
+				// aimed 150 mm into the east one's box, none fit and the volume repair moved it) or with its end near the line (new01's east entry, 150 mm from it), where a
+				// hanging body (450 each way) is in both entries and the game, taking the last box holding it as its own, never goes on (Hudson floor-only round 1: 291 of
+				// new01's 449 stalled frames there, held by both). So on a wall part each entry's aim stays at least kAutoPlotVolumeEntryClear inside its own half, at
+				// both its ends (the middle line and the doorway's), or at its middle when the half is narrower than that twice
+				if (sd.part)
+				{
+					double const clear = (double)kAutoPlotVolumeEntryClear;
+
+					c[(size_t)b] = v.hi[b] - v.lo[b] < 2.0 * clear ? (v.lo[b] + v.hi[b]) / 2.0 : std::min(std::max(c[(size_t)b], v.lo[b] + clear), v.hi[b] - clear);
+				}
 			}
 			else
 			{
@@ -1750,7 +1912,7 @@ namespace host
 				{
 					double const edge = s > 0 ? f.hi[a] : f.lo[a], length = f.hi[b] - f.lo[b];
 					bool const door = doorOn(i, a, s);
-					double const beyond = floorBeyond(i, a, s);
+					double const beyond = floorBeyond(i, a, s, sides[i].axis == a && sides[i].sign == s ? sides[i].rows : 1);   // (the climb side as it was chosen; THE WALL FOOT)
 					double seam = 0.0;
 
 					for (size_t j = 0; j < floors; j++)
@@ -1920,14 +2082,14 @@ namespace host
 
 			// its centre 100 under the ceiling's edge, just past the floor's edge (outside its entry): on the upper face's line, so a climber on the face heads along it,
 			// never into the chamfer (Bishop's rule 11-20; Drake's hand6g had it 200 over the edge, inside the rock). A climb-side piece's straight over the
-			// climb when it runs on past both ends of the climb's middle (hand6g's corner pieces), else kAutoPlotVolumeHighAlong off that middle on its side (a corridor's
-			// halves), kept kAutoPlotVolumeHighEndClear in from the piece's ends; another's at its middle
+			// climb when it runs on past both ends of the climb's middle (hand6g's corner pieces), else the run's along (THE OWNER'S SIZES: kAutoPlotVolumeHighAlong unless the
+			// dialog gave another) off that middle on its side (a corridor's halves), kept kAutoPlotVolumeHighEndClear in from the piece's ends; another's at its middle
 			if (touchesLow)
 			{
 				double const mid = (p.lowLo + p.lowHi) / 2.0;
 				bool const over = mid > from + kAutoPlotVolumeSide && mid < to - kAutoPlotVolumeSide;
 
-				along = over ? mid : ((from + to) / 2.0 < mid ? mid - kAutoPlotVolumeHighAlong : mid + kAutoPlotVolumeHighAlong);
+				along = over ? mid : ((from + to) / 2.0 < mid ? mid - used.highAlong : mid + used.highAlong);
 
 				if (!over)
 				{
@@ -1937,8 +2099,9 @@ namespace host
 				along = std::min(std::max(along, from + 1.0), to - 1.0);
 			}
 
-			// ACROSS AND IN HEIGHT: a CLIMB-SIDE piece's aim on the upper face near the crease, kAutoPlotVolumeHighUp up it and kAutoPlotVolumeHighUnder under it (Vasquez's
-			// rule 2: from where the climb lands it heads along the face it is on, never into it), when the face is long enough and the aim clears LOW; else (a jump
+			// ACROSS AND IN HEIGHT: a CLIMB-SIDE piece's aim on the upper face near the crease, the run's up (kAutoPlotVolumeHighUp unless the dialog gave another) up it and its
+			// under (kAutoPlotVolumeHighUnder) under it (Vasquez's rule 2: from where the climb lands it heads along the face it is on, never into it), when the face is
+			// long enough and the aim clears LOW; else (a jump
 			// catcher, a short face) 100 under the ceiling's edge, just past the floor's edge. Out from the side: the crease reach out at the vertex's height, the
 			// ceiling's edge at the side over the floor's edge
 			double acrossAim = p.edge + p.s * 1.0, heightAim = p.ceilTop + kAutoPlotVolumeAimUnder;
@@ -1948,11 +2111,11 @@ namespace host
 				double const reach = (p.s > 0 ? p.h.hi[a] - p.edge : p.edge - p.h.lo[a]) - kAutoPlotInto, vy = p.h.hi[1] + 1.0, rise = vy - p.ceilTop;
 				double const face = sqrt(reach * reach + rise * rise);
 
-				if (reach > 0.0 && rise > 0.0 && face >= kAutoPlotVolumeHighUp + kAutoPlotVolumeHighUnder)
+				if (reach > 0.0 && rise > 0.0 && face >= used.highUp + used.highUnder)
 				{
 					// (out from the side: up the face goes back toward the side and up; under it, back out from the side and down)
-					double const out = reach - kAutoPlotVolumeHighUp * reach / face - kAutoPlotVolumeHighUnder * rise / face;
-					double const y = vy - kAutoPlotVolumeHighUp * rise / face + kAutoPlotVolumeHighUnder * reach / face;
+					double const out = reach - used.highUp * reach / face - used.highUnder * rise / face;
+					double const y = vy - used.highUp * rise / face + used.highUnder * reach / face;
 
 					if (out > 1.0 && y < vy - kAutoPlotVolumeLowOver - 50.0 && y > p.ceilTop)
 					{
@@ -2093,6 +2256,374 @@ namespace host
 			plan.doorWords[x] = plan.doorWords[x].empty() ? "lane (through exit " + std::to_string((long long)first) + "'s doorway)" : plan.doorWords[x];
 		}
 
+		// THE STAIR BETWEEN TWO FLOORS (autoplot_stairs.h; Dietrich 11-21: the owner's POC rooms opscen03 / opscen02 were refused, "box 0 cannot reach box 1"). The treads
+		// no floor rectangle holds, between two floors more than a step apart, get ONE FLOOR BOX over them, its top kAutoPlotStairUnderCeiling under the lowest ceiling over
+		// them (every floor box keeps clear of a hanging alien), linked to both floors; and ONE BOX IN THE CEILING over them, made as an entry is (into the ceiling, and a
+		// climbing alien's reach under its lowest part), linked to every entry it touches. So the floor walks from one floor to the other, and the ceiling goes from one
+		// doorway's entry to the other's, as in Drake's hand-built hand4 (the owner's in-game PASS). Made before the gap closers, so they see these boxes in the walls' band.
+		// The links are made with the others, below (THE STAIRS' LINKS)
+		struct StairVols
+		{
+			size_t floor = 0;
+			int ceiling = -1;          // -1: no ceiling over the treads, so no box there
+			std::vector<int> joins;    // the floor rectangles it meets (vols[i] is rects[i]'s floor box for i < floors)
+		};
+
+		std::vector<StairVols> stairs;
+
+		{
+			std::vector<AutoPlotStairFloor> flats;
+
+			for (Rect const &r : rects)
+			{
+				AutoPlotStairFloor f;
+
+				f.ix0 = r.ix0;
+				f.ix1 = r.ix1;
+				f.iz0 = r.iz0;
+				f.iz1 = r.iz1;
+				f.floorTop = r.floorTop;
+				flats.push_back(f);
+			}
+
+			for (AutoPlotStair const &s : AutoPlot_Stairs(cells, ceilings, flats))
+			{
+				std::string between;
+
+				for (int const f : s.joins)
+				{
+					between += (between.empty() ? "floors " : " and ") + std::to_string((long long)f);
+				}
+
+				// the floor box: the treads' cells across, 200 under the lowest tread, up to kAutoPlotReach over the highest or kAutoPlotStairUnderCeiling under the
+				// lowest ceiling over them, whichever is lower. Too low over the highest tread to hold an alien standing there: no stair box, said
+				Vol v;
+
+				v.kind = Kind::Floor;
+				v.lo[0] = cellLo(s.ix0, ox);
+				v.hi[0] = cellHi(s.ix1, ox);
+				v.lo[2] = cellLo(s.iz0, oz);
+				v.hi[2] = cellHi(s.iz1, oz);
+				v.lo[1] = s.ceiled ? std::max(s.floorTop - kAutoPlotReach, s.ceilLow + kAutoPlotStairUnderCeiling) : s.floorTop - kAutoPlotReach;
+				v.hi[1] = s.floorLow + kAutoPlotInto;
+
+				if (v.lo[1] > s.floorTop - kAutoPlotStairBody)
+				{
+					plan.notes.push_back("a stair between " + between + " left out: the ceiling over it is too low over its highest tread for a floor box");
+					continue;
+				}
+
+				for (double const fx : { 0.5, 0.25, 0.75 })
+				{
+					for (double const fz : { 0.5, 0.25, 0.75 })
+					{
+						v.centres.push_back(std::vector<double>{ v.lo[0] + fx * (v.hi[0] - v.lo[0]), s.floorTop - kAutoPlotStairBody / 2.0, v.lo[2] + fz * (v.hi[2] - v.lo[2]) });
+					}
+				}
+
+				StairVols sv;
+
+				sv.floor = vols.size();
+				sv.joins = s.joins;
+				vols.push_back(v);
+
+				// the ceiling box over the treads, as an entry is made: kAutoPlotInto into the ceiling at its highest, kAutoPlotClimbReach under it at its lowest; its centre
+				// kAutoPlotVolumeAimUnder under the ceiling over the cells nearest its middle (the ceiling rises with the treads)
+				if (s.ceiled)
+				{
+					Vol c;
+					double const mx = (v.lo[0] + v.hi[0]) / 2.0, mz = (v.lo[2] + v.hi[2]) / 2.0;
+					std::vector<std::pair<double, std::vector<double> > > byMiddle;
+
+					c.kind = Kind::StairCeiling;
+					c.lo[0] = v.lo[0];
+					c.hi[0] = v.hi[0];
+					c.lo[2] = v.lo[2];
+					c.hi[2] = v.hi[2];
+					c.lo[1] = s.ceilTop - kAutoPlotInto;
+					c.hi[1] = s.ceilLow + kAutoPlotClimbReach;
+
+					for (int ix = s.ix0; ix <= s.ix1; ix++)
+					{
+						for (int iz = s.iz0; iz <= s.iz1; iz++)
+						{
+							auto const floorAt = cells.find(std::make_pair(ix, iz));
+							auto const roof = ceilings.find(std::make_pair(ix, iz));
+
+							if (floorAt != cells.end() && roof != ceilings.end() && floorAt->second - roof->second >= kAutoPlotStairRoofLeast)
+							{
+								double const x = ox + ix * e, z = oz + iz * e;
+
+								byMiddle.push_back(std::make_pair((x - mx) * (x - mx) + (z - mz) * (z - mz), std::vector<double>{ x, roof->second + kAutoPlotVolumeAimUnder, z }));
+							}
+						}
+					}
+
+					std::sort(byMiddle.begin(), byMiddle.end(), [](std::pair<double, std::vector<double> > const &p, std::pair<double, std::vector<double> > const &q) { return p.first < q.first; });
+
+					for (size_t k = 0; k < byMiddle.size() && k < 12; k++)
+					{
+						c.centres.push_back(byMiddle[k].second);
+					}
+
+					if (c.centres.empty())
+					{
+						c.centres.push_back(std::vector<double>{ mx, s.ceilTop + kAutoPlotVolumeAimUnder, mz });   // (never so: ceiled means one such cell at least)
+					}
+
+					sv.ceiling = (int)vols.size();
+					vols.push_back(c);
+				}
+
+				stairs.push_back(sv);
+				plan.notes.push_back("a stair between " + between + ": a floor box over its treads" + (s.ceiled ? std::string(" and a box in the ceiling over them") : std::string()));
+			}
+		}
+
+		// THE GAP CLOSERS (autoplot_closers.h; Vasquez 11-21, the owner: "Gaps first", "fitter boxes as large as possible within the space we have and 'tetris together'").
+		// With the switch on: along each upright wall side of a ceiled floor, the band from the floor box's top up to the entries over it, less whatever box or aim point
+		// already stands in it, is closed by the fewest, largest boxes that fit (kAutoPlotCloserLeast..kAutoPlotCloserMost along and in height, kAutoPlotCloserDepth out
+		// from the face), touching what is there. Each side the rule leaves is named in the notes, with why
+		if (AutoPlotClosers_On() && !slab)
+		{
+			size_t const before = vols.size();
+			std::vector<std::string> made, left;
+			auto const mm = [](double v) { return std::to_string((long long)floor(v + 0.5)); };
+
+			for (size_t i = 0; i < floors && i < rects.size(); i++)
+			{
+				if (!rects[i].ceiled)
+				{
+					continue;   // no ceiling over the floor: no entry, no band (open sky is its own rule)
+				}
+
+				for (int const a : { 0, 2 })
+				{
+					int const b = a == 0 ? 2 : 0;
+
+					for (int const s : { 1, -1 })
+					{
+						Vol const f = vols[i];   // (a copy: vols grows below)
+						double const edge = s > 0 ? f.hi[a] : f.lo[a], length = f.hi[b] - f.lo[b];
+						std::string const sideName = "floor " + std::to_string((unsigned long long)i) + "'s " + (s > 0 ? "+" : "-") + (a == 0 ? "x" : "z") + " side";
+						double seam = 0.0;
+
+						// THE WALL TESTS, the climb side's own (above): no doorway on it, no other floor along it, the floor and the ceiling not going on past it
+						for (size_t j = 0; j < floors; j++)
+						{
+							if (j != i && fabs((s > 0 ? vols[j].lo[a] : vols[j].hi[a]) - edge) <= e)
+							{
+								seam += std::max(0.0, std::min(vols[j].hi[b], f.hi[b]) - std::max(vols[j].lo[b], f.lo[b]));
+							}
+						}
+
+						if (doorOn(i, a, s))
+						{
+							left.push_back(sideName + ": a doorway on it (the doorway sides are the next rule)");
+							continue;
+						}
+
+						if (seam > e / 2.0 || floorBeyond(i, a, s, sides[i].axis == a && sides[i].sign == s ? sides[i].rows : 1) > length / 4.0 || ceilingBeyond(i, a, s) > length / 4.0)
+						{
+							left.push_back(sideName + ": open (another floor along it, or the floor or the ceiling going on past it)");
+							continue;
+						}
+
+						// THE FACE: as the climb side's, where the AI module's own box ends past the floor's edge (a wall at the edge or near it); a tube's sloped side is LOW and HIGH's
+						double const boxEdge = !floorIn.boxFound ? edge : (s > 0 ? (double)floorIn.boxHi[a] : (double)floorIn.boxLo[a]);
+						double const reach = std::min(std::max((boxEdge - edge) * s, 0.0), 3000.0);
+
+						if (reach > kAutoPlotVolumeSloped)
+						{
+							left.push_back(sideName + ": sloped (its face " + mm(reach) + " mm past the floor: a tube's, LOW and HIGH climb there)");
+							continue;
+						}
+
+						double const face = edge + s * reach;
+						double lo[3], hi[3];
+
+						lo[a] = s > 0 ? face - kAutoPlotCloserDepth : face - kAutoPlotInto;
+						hi[a] = s > 0 ? face + kAutoPlotInto : face + kAutoPlotCloserDepth;
+						lo[b] = f.lo[b];
+						hi[b] = f.hi[b];
+						hi[1] = f.lo[1];   // the band's foot: the floor box's top (y is down)
+
+						// THE BAND'S TOP: the lowest bottom of the entries over this side (so no entry reaches into it)
+						bool entryOver = false;
+
+						lo[1] = -1e300;
+
+						for (size_t j = floors; j < vols.size(); j++)
+						{
+							Vol const &en = vols[j];
+
+							if (en.kind == Kind::Entry && std::min(en.hi[0], hi[0]) > std::max(en.lo[0], lo[0]) && std::min(en.hi[2], hi[2]) > std::max(en.lo[2], lo[2]))
+							{
+								lo[1] = std::max(lo[1], en.hi[1]);
+								entryOver = true;
+							}
+						}
+
+						if (!entryOver)
+						{
+							left.push_back(sideName + ": no entry over it");
+							continue;
+						}
+
+						double const band = hi[1] - lo[1];
+
+						if (band < kAutoPlotCloserLeast)
+						{
+							left.push_back(sideName + ": its band is " + mm(band) + " mm, under a body's height (a body there is always in the floor box or an entry)");
+							continue;
+						}
+
+						// WHAT ALREADY STANDS IN THE BAND along this side: every box reaching into it, and every aim point in it (no closer may hold another box's)
+						std::vector<std::pair<double, double> > blocked;
+						int climbHere = -1;
+
+						for (size_t j = 0; j < vols.size(); j++)
+						{
+							Vol const &o = vols[j];
+							bool in = j != i;
+
+							for (int k = 0; k < 3 && in; k++)
+							{
+								in = o.lo[k] < hi[k] && lo[k] < o.hi[k];
+							}
+
+							if (in)
+							{
+								blocked.push_back(std::make_pair(o.lo[b], o.hi[b]));
+								climbHere = o.kind == Kind::Climb ? (int)j : climbHere;
+							}
+
+							for (std::vector<double> const &c : o.centres)
+							{
+								if (j != i && c.size() == 3 && c[(size_t)a] >= lo[a] && c[(size_t)a] <= hi[a] && c[1] >= lo[1] && c[1] <= hi[1])
+								{
+									blocked.push_back(std::make_pair(c[(size_t)b] - 1.0, c[(size_t)b] + 1.0));
+								}
+							}
+						}
+
+						int placed = 0;
+
+						for (std::pair<double, double> const &stretch : AutoPlot_CloserFree(lo[b], hi[b], blocked))
+						{
+							double const along = stretch.second - stretch.first;
+
+							if (along < kAutoPlotCloserLeast)
+							{
+								// A SLIVER: the climb-in takes it when it stands right beside it and the part it grows meets nothing it didn't meet already; else named
+								bool taken = false;
+
+								if (climbHere >= 0)
+								{
+									Vol const &c = vols[(size_t)climbHere];
+									bool const below = fabs(c.lo[b] - stretch.second) <= 1.0, above = fabs(c.hi[b] - stretch.first) <= 1.0;
+
+									if (below || above)
+									{
+										Vol grown = c, part = c;
+
+										(below ? grown.lo[b] : grown.hi[b]) = below ? stretch.first : stretch.second;
+										part.lo[b] = below ? stretch.first : c.hi[b];
+										part.hi[b] = below ? c.lo[b] : stretch.second;
+
+										bool clear = true;
+
+										for (size_t j = 0; j < vols.size() && clear; j++)
+										{
+											if ((int)j == climbHere)
+											{
+												continue;
+											}
+
+											bool const meetsPart = std::min(part.hi[0], vols[j].hi[0]) > std::max(part.lo[0], vols[j].lo[0]) &&
+												std::min(part.hi[1], vols[j].hi[1]) > std::max(part.lo[1], vols[j].lo[1]) && std::min(part.hi[2], vols[j].hi[2]) > std::max(part.lo[2], vols[j].lo[2]);
+											bool const metBefore = std::min(c.hi[0], vols[j].hi[0]) > std::max(c.lo[0], vols[j].lo[0]) &&
+												std::min(c.hi[1], vols[j].hi[1]) > std::max(c.lo[1], vols[j].lo[1]) && std::min(c.hi[2], vols[j].hi[2]) > std::max(c.lo[2], vols[j].lo[2]);
+
+											clear = !meetsPart || metBefore;
+
+											for (std::vector<double> const &p : vols[j].centres)
+											{
+												clear = clear && !(p.size() == 3 && p[0] >= part.lo[0] && p[0] <= part.hi[0] && p[1] >= part.lo[1] && p[1] <= part.hi[1] && p[2] >= part.lo[2] && p[2] <= part.hi[2]);
+											}
+										}
+
+										if (clear)
+										{
+											vols[(size_t)climbHere] = grown;
+											made.push_back(sideName + ": the climb-in stretched " + mm(along) + " mm along it over a sliver");
+											taken = true;
+										}
+									}
+								}
+
+								if (!taken)
+								{
+									left.push_back(sideName + ": a " + mm(along) + " mm stretch at " + mm(stretch.first) + ".." + mm(stretch.second) + ", under the least, nothing beside it to take it");
+								}
+
+								continue;
+							}
+
+							// THE PIECES along and THE ROWS up: the fewest, evenly (one row when the band is at most the most)
+							int const rows = band <= kAutoPlotCloserMost ? 1 : (int)ceil(band / (double)kAutoPlotCloserMost - 1e-9);
+
+							for (std::pair<double, double> const &piece : AutoPlot_CloserPieces(stretch.first, stretch.second))
+							{
+								for (int row = 0; row < rows; row++)
+								{
+									Vol v;
+
+									v.kind = Kind::Closer;
+									v.floor = (int)i;
+									v.lo[a] = lo[a];
+									v.hi[a] = hi[a];
+									v.lo[b] = piece.first;
+									v.hi[b] = piece.second;
+									v.lo[1] = lo[1] + band * row / rows;
+									v.hi[1] = row + 1 == rows ? hi[1] : lo[1] + band * (row + 1) / rows;
+
+									// its aim: half a body out from the face (an alien on the wall holds it), in the middle along and up
+									std::vector<double> c(3);
+
+									c[(size_t)a] = face - s * (kAutoPlotCloserDepth / 2.0);
+									c[(size_t)b] = (piece.first + piece.second) / 2.0;
+									c[1] = (v.lo[1] + v.hi[1]) / 2.0;
+									v.centres.push_back(c);
+									vols.push_back(v);
+									placed++;
+								}
+							}
+						}
+
+						if (placed > 0)
+						{
+							made.push_back(sideName + ": " + std::to_string((long long)placed) + " closer(s), band " + mm(band) + " mm");
+						}
+					}
+				}
+			}
+
+			std::string note = "closers: " + std::to_string((unsigned long long)(vols.size() - before)) + " made";
+
+			for (std::string const &w : made)
+			{
+				note += "; " + w;
+			}
+
+			for (std::string const &w : left)
+			{
+				note += "; left " + w;
+			}
+
+			plan.notes.push_back(note);
+		}
+
 		// in the file's numbers; each centre the first candidate held by its own box and no other (else the first, counted)
 		for (Vol const &v : vols)
 		{
@@ -2108,8 +2639,10 @@ namespace host
 			wp.flags = 0;
 			wp.spare2 = 0;
 			plan.list.push_back(wp);
-			plan.climbing.push_back(v.kind == Kind::Climb || v.kind == Kind::Entry || v.kind == Kind::GetOut || v.kind == Kind::Low || v.kind == Kind::High);
-			plan.volumeRoles.push_back(v.kind == Kind::Low ? "LOW" : v.kind == Kind::High ? "HIGH" : v.kind == Kind::Entry ? "entry" : v.kind == Kind::Exit ? "exit" : v.kind == Kind::GetOut ? "get-out" : v.kind == Kind::Climb ? "climb" : "floor");   // Drake's volume repair: LOW and HIGH centres stay
+			plan.climbing.push_back(v.kind == Kind::Climb || v.kind == Kind::Entry || v.kind == Kind::GetOut || v.kind == Kind::Low || v.kind == Kind::High || v.kind == Kind::Closer ||
+				v.kind == Kind::StairCeiling);
+			plan.volumeRoles.push_back(v.kind == Kind::Low ? "LOW" : v.kind == Kind::High ? "HIGH" : v.kind == Kind::Entry ? "entry" : v.kind == Kind::Exit ? "exit" : v.kind == Kind::GetOut ? "get-out" : v.kind == Kind::Climb ? "climb" :
+				v.kind == Kind::Closer ? "closer" : v.kind == Kind::StairCeiling ? "stair ceiling" : "floor");   // Drake's volume repair: LOW and HIGH centres stay
 		}
 
 		for (size_t i = 0; i < vols.size(); i++)
@@ -2342,6 +2875,27 @@ namespace host
 			{
 				oneWay(k, (size_t)v.floor);
 			}
+			else if (v.kind == Kind::Closer)
+			{
+				// AS THE CLIMB-IN (autoplot_closers.h): the floor -> the closer; the closer -> each entry over it (touching, or under a body's height off: a body there is in
+				// both); closer <-> each closer it touches (a row along the wall, and a corner's). No closer -> floor: down, it goes the lane's way (entry -> get-out -> floor)
+				oneWay((size_t)v.floor, k);
+
+				for (size_t j = floors; j < vols.size(); j++)
+				{
+					Vol const &o = vols[j];
+					bool const over = std::min(v.hi[0], o.hi[0]) > std::max(v.lo[0], o.lo[0]) && std::min(v.hi[2], o.hi[2]) > std::max(v.lo[2], o.lo[2]);
+
+					if (o.kind == Kind::Entry && over && v.lo[1] - o.hi[1] < (double)kAutoPlotCloserLeast && v.lo[1] >= o.hi[1] - 1.0)
+					{
+						oneWay(k, j);
+					}
+					else if (o.kind == Kind::Closer && j > k && Touch(v, o, 1.0))
+					{
+						twoWay(k, j);
+					}
+				}
+			}
 			else if (v.kind == Kind::Exit)
 			{
 				// into the floor nearest it; with no entry (no ceiling: open sky) both ways
@@ -2415,6 +2969,30 @@ namespace host
 			}
 		}
 
+		// THE STAIRS' LINKS (THE STAIR BETWEEN TWO FLOORS, above), both ways and aliens only, as every link here: the stair's floor box with each floor it meets; its
+		// ceiling box with each entry it touches (the upper floor's and the lower floor's)
+		for (StairVols const &sv : stairs)
+		{
+			for (int const f : sv.joins)
+			{
+				if (f >= 0 && (size_t)f < floors)
+				{
+					twoWay(sv.floor, (size_t)f);
+				}
+			}
+
+			if (sv.ceiling >= 0 && (size_t)sv.ceiling < vols.size())
+			{
+				for (size_t j = floors; j < vols.size(); j++)
+				{
+					if (vols[j].kind == Kind::Entry && Touch(vols[(size_t)sv.ceiling], vols[j], 100.0))
+					{
+						twoWay((size_t)sv.ceiling, j);
+					}
+				}
+			}
+		}
+
 		// the words: each exit's lane, its door box (the entry) and its own box; the parts; the cells inside a box
 		for (size_t x = 0; x < exits.size(); x++)
 		{
@@ -2482,6 +3060,11 @@ namespace host
 			for (size_t i = 0; i < floors && !in; i++)
 			{
 				in = GameHolds(plan.list[i], at, scale);
+			}
+
+			for (size_t k = 0; k < stairs.size() && !in; k++)
+			{
+				in = stairs[k].floor < plan.list.size() && GameHolds(plan.list[stairs[k].floor], at, scale);   // a tread, in its stair's floor box
 			}
 
 			plan.cellsCovered += in ? 1 : 0;

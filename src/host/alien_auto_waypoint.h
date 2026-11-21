@@ -30,6 +30,7 @@ namespace host
 	size_t const kAlienAutoWaypointMostLetters = 2000;         // the line dialog's edit takes at most this many letters
 	size_t const kAlienAutoWaypointMostWordLetters = 64;       // a typed word longer than this is refused (no module name is so long)
 	size_t const kAlienAutoWaypointMostRefusalsNamed = 8;      // the status line names at most this many refused words, and counts the rest
+	size_t const kAlienAutoWaypointHelpLetters = 80;           // a help line under a dialog field holds at most this many letters (the dialog's width at inteng's ~7 px a letter)
 
 	// One object of the level as the parse needs it: its name, its object index, and whether it is a module
 	struct AlienAutoWaypointObject
@@ -54,11 +55,16 @@ namespace host
 	// was typed (its printable letters, cut), for anything else: letters, a sign, a fraction, a number outside the range, more than 9 digits. *value is set only on true
 	bool AlienAutoWaypoint_ParseCount(std::string const &typed, int32_t least, int32_t most, int32_t fallback, char const *label, int32_t *value, std::string *why);
 
-	// THE PLOT DIALOG, from inteng's own parts: the 400 x 250 window of its TEXT dialog (FUN_00474350, dialog_box.h) with its words at (0x12, 0x12), Ok at (100, 0xbe) and
-	// Cancel at (200, 0xbe). Modules' names go in Write asc file's long edit (300 wide, at (0x1e, 100)). Each count is a TEXT field (0x96 x 0x12) with its label to the
-	// right at x 0xbe, started with the planner's default. Under the two counts is the AIRDUCT TICK BOX (the owner 11-20 night; unticked by default since his 19:06):
-	// inteng's own check box (FUN_0057d670, 12 x 12) at the fields' x, with its label to its right, as Path's Loop box has (path_screen.cpp). It is UNTICKED as the dialog opens (AutoPlotVolumeCounts().airduct).
-	// withNames: Modules' dialog, started with `names`; false: Environment's (the counts and the box only)
+	// THE PLOT DIALOG, from inteng's own parts: its TEXT dialog's window (FUN_00474350, dialog_box.h) with its words at (0x12, 0x12), Ok a quarter and Cancel half way across
+	// under the last field. 620 wide (inteng's is 400: the help lines need the room) and as tall as its fields, inside inteng's 640 x 480 screen. Modules' names go in Write
+	// asc file's long edit (300 wide). Then, each a TEXT field (0x96 x 0x12) started with its default, its label to the right at x 0xbe naming its range and its default,
+	// and its plain help lines under it (what it does, what more and less do, with the scored runs' numbers; at most kAlienAutoWaypointHelpLetters letters a line):
+	//   - the two COUNTS, climb-ins and get-outs (the owner 11-20);
+	//   - the AIRDUCT TICK BOX (the owner 11-20 night; unticked by default since his 19:06): inteng's own check box (FUN_0057d670, 12 x 12) at the fields' x, with its label
+	//     to its right, as Path's Loop box has (path_screen.cpp); UNTICKED as the dialog opens (AutoPlotVolumeCounts().airduct);
+	//   - THE OWNER'S SIZES (11-21: "If we could make these boxes sizes as variables on the auto link page with defaults, that would help me understand a lot";
+	//     autoplot_volumes.h): corridor aim along, upper-face aim up and under, in mm.
+	// withNames: Modules' dialog, started with `names`; false: Environment's (the fields and the box only)
 	DialogFormSpec AlienAutoWaypoint_PlotForm(bool withNames, std::string const &names);
 
 	// What the plot dialog holds when Ok is pressed: the typed words as they are, and the tick
@@ -68,14 +74,18 @@ namespace host
 		std::string climbIns;   // the climb-ins field's words
 		std::string getOuts;    // the get-outs field's words
 		bool airduct = false;   // the Airduct box ticked
+		std::string highAlong;  // THE OWNER'S SIZES (autoplot_volumes.h): the corridor aim along field's words
+		std::string highUp;     // the upper-face aim, up, field's words
+		std::string highUnder;  // the upper-face aim, under, field's words
 	};
 
 	// The plot dialog's parts (as Dialogs_Form gives them back on Ok) read into *answers. False when the parts are not the dialog's own: fewer or more fields than it has, or
 	// no check box, or more than one (nothing is plotted then)
 	bool AlienAutoWaypoint_ReadPlotForm(bool withNames, std::vector<DialogWidget> const &widgets, AlienAutoWaypointPlotAnswers *answers);
 
-	// The answers' two counts (AlienAutoWaypoint_ParseCount, in the planner's ranges, empty is the default) and the tick, into the planner's counts. False, with *why naming the
-	// field, when a count is refused (*counts is then not changed)
+	// The answers' two counts and three sizes (AlienAutoWaypoint_ParseCount, in the planner's ranges, empty is the default) and the tick, into the planner's counts. False,
+	// with *why naming the field and what was typed, when one is refused; a size's refusal also gives the reason for its range (along: "under 2500 every value tried broke
+	// the climb"; up and under: "only 1000 with 300 and 1200 with 550 were tested"). *counts is then not changed
 	bool AlienAutoWaypoint_PlotCounts(AlienAutoWaypointPlotAnswers const &answers, AutoPlotVolumeCounts *counts, std::string *why);
 
 	// THE EDITOR'S SIDE (alien_auto_waypoint_editor.cpp, not in the pure tests): Waypoint mode's command for Modules (true when it was it): the line dialog, then the run on Ok.

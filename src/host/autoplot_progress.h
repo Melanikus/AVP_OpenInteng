@@ -9,6 +9,8 @@
 
 #include <string>
 
+#include "autoplot_volumes.h"   // AutoPlotVolumeCounts, AutoPlot_UsedCounts (the values a run plotted with)
+
 namespace host
 {
 	// While AI module `at` (counted from 0) of `of` is plotted: "Auto-plot: module 3 of 251 (corr04A), way 120 of 9840" (the ways counted over the whole run). An `at` past the
@@ -54,5 +56,17 @@ namespace host
 		}
 
 		return text;
+	}
+
+	// THE VALUES A RUN PLOTTED WITH (the owner's dialog, autoplot_volumes.h THE OWNER'S COUNTS / SIZES; Tao 2: the words say how the networks were made), for the end line
+	// before its time and the run's log: "; with climb-ins 1, get-outs 1, corridor aim along 2500 mm, upper-face aim up 1000 mm and under 300 mm, Airduct off". The numbers are
+	// the ones the planner used (a number not asked is its default; one out of range, held to the range)
+	inline std::string AutoPlot_ValuesWords(AutoPlotVolumeCounts const &asked)
+	{
+		AutoPlotVolumeCounts const used = AutoPlot_UsedCounts(asked);
+		auto const n = [](int32_t v) { return std::to_string((long long)v); };
+
+		return "; with climb-ins " + n(used.climbIns) + ", get-outs " + n(used.getOuts) + ", corridor aim along " + n(used.highAlong) + " mm, upper-face aim up " + n(used.highUp) +
+			" mm and under " + n(used.highUnder) + " mm, Airduct " + (used.airduct ? "on" : "off");
 	}
 }

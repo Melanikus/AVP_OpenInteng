@@ -312,44 +312,112 @@ namespace host
 			return w;
 		}
 
-		std::string CountLabel(char const *what, int32_t least, int32_t most)
+		// One count or size of the dialog: its label's name, its range and default, the help lines under it (plain words, each at most kAlienAutoWaypointHelpLetters
+		// letters: what it is, what more and what less do, with the scored runs' numbers), and the reason a refusal of it gives (none for the counts)
+		struct PlotField
 		{
-			return std::string(what) + " (" + std::to_string((long long)least) + " to " + std::to_string((long long)most) + ")";
+			char const *name;
+			int32_t least, most, fallback;
+			bool size;                         // a size in mm (its label "name: least to most, default d"); a count's is "name (least to most, default d)"
+			std::vector<char const *> help;
+			char const *refusalReason;
+		};
+
+		// THE FIELDS, in the dialog's order. The sizes' help and reasons are Vasquez's dialog-knobs-2026-11-21.md, part A (AvP-docs/tools/vasquez/gridgaps/out), from the
+		// scored runs: whole batch 2 (29 AI modules) for along; candidate 4's pair against every whole plot's for up and under
+		std::vector<PlotField> const &PlotFields()
+		{
+			static std::vector<PlotField> const fields = {
+				{ "Climb-ins", kAutoPlotLeastClimbIns, kAutoPlotMostClimbIns, kAutoPlotDefaultClimbIns, false,
+					{ "The most floor-to-ceiling climbs per AI module; 0: each floor goes straight up." }, nullptr },
+				{ "Get-outs", kAutoPlotLeastGetOuts, kAutoPlotMostGetOuts, kAutoPlotDefaultGetOuts, false,
+					{ "The most ceiling-to-floor attack drops per AI module; 0: drop where lanes end." }, nullptr },
+				{ "Corridor aim along (mm)", kAutoPlotLeastHighAlong, kAutoPlotMostHighAlong, kAutoPlotVolumeHighAlong, true,
+					{ "How far along a corridor a climber aims after a sloped side. Less: it wedges in",
+						"the crease (600: 1,636 stalled frames, 2500: 26); more slides it to the far end." }, "under 2500 every value tried broke the climb" },
+				{ "Upper-face aim, up (mm)", kAutoPlotLeastHighUp, kAutoPlotMostHighUp, kAutoPlotVolumeHighUp, true,
+					{ "How far up the sloped ceiling face the aim sits. More turns the climber into",
+						"the face (it backs off). Less, or a face shorter than up + under: the edge.",
+						"Scored only as 1000 with 300 and 1200 with 550: better on stretch 1, worse on 2." }, "only 1000 with 300 and 1200 with 550 were tested" },
+				{ "Upper-face aim, under (mm)", kAutoPlotLeastHighUnder, kAutoPlotMostHighUnder, kAutoPlotVolumeHighUnder, true,
+					{ "How far under that face the aim sits (tested only with up). More: the body may",
+						"never hold it; less nears the face, where no box holds it (the gencor01 loop)." }, "only 1000 with 300 and 1200 with 550 were tested" },
+			};
+
+			return fields;
+		}
+
+		std::string FieldLabel(PlotField const &f)
+		{
+			std::string const range = std::to_string((long long)f.least) + " to " + std::to_string((long long)f.most) + ", default " + std::to_string((long long)f.fallback);
+
+			return f.size ? std::string(f.name) + ": " + range : std::string(f.name) + " (" + range + ")";
+		}
+
+		// one field at y: its TEXT field (0x96 x 0x12) started with its default, its label to its right, its help lines under it 0x12 apart; the y after it
+		int32_t AddField(DialogFormSpec *spec, PlotField const &f, int32_t y)
+		{
+			spec->widgets.push_back(Part(DialogWidgetType::Edit, { 0x1e, y, 0x96, 0x12 }, std::to_string((long long)f.fallback)));
+			spec->widgets.push_back(Part(DialogWidgetType::Label, { 0xbe, y, 0x190, 0x12 }, FieldLabel(f)));
+			y += 0x14;
+
+			for (char const *line : f.help)
+			{
+				spec->widgets.push_back(Part(DialogWidgetType::Label, { 0x1e, y, 0x230, 0x12 }, line));
+				y += 0x12;
+			}
+
+			return y + 6;
 		}
 	}
 
 	DialogFormSpec AlienAutoWaypoint_PlotForm(bool withNames, std::string const &names)
 	{
+		std::vector<PlotField> const &fields = PlotFields();
 		DialogFormSpec spec;
+
 		spec.title = "Alien auto waypoint";
-		spec.width = 400;
-		spec.height = 0xfa;
-		spec.widgets.push_back(Part(DialogWidgetType::Label, { 0x12, 0x12, 0x172, 0x50 }, withNames ?
-			"Type the modules' names (spaces between them),\nand how many climb-ins and get-outs each AI module gets" :
-			"Every AI module of the level:\nhow many climb-ins and get-outs each one gets"));
-		int32_t y = 100;
+		spec.width = 620;   // (wider than inteng's TEXT dialog's 400: the help lines, kAlienAutoWaypointHelpLetters letters at its ~7 px a letter, inside inteng's 640 x 480 screen)
+		spec.widgets.push_back(Part(DialogWidgetType::Label, { 0x12, 0x12, 0x230, 0x24 }, withNames ?
+			"Type the modules' names (spaces between them), then the counts and sizes\neach AI module is plotted with (each field starts with its default)" :
+			"Every AI module of the level, plotted with these counts and sizes\n(each field starts with its default)"));
+
+		int32_t y = 0x3c;
+
 		if (withNames)
 		{
-			spec.widgets.push_back(Part(DialogWidgetType::Edit, { 0x1e, 100, 300, 0x12 }, names, kAlienAutoWaypointMostLetters));
-			y = 0x7c;
+			spec.widgets.push_back(Part(DialogWidgetType::Edit, { 0x1e, y, 300, 0x12 }, names, kAlienAutoWaypointMostLetters));
+			y += 0x18;
 		}
-		spec.widgets.push_back(Part(DialogWidgetType::Edit, { 0x1e, y, 0x96, 0x12 }, std::to_string((long long)kAutoPlotDefaultClimbIns)));
-		spec.widgets.push_back(Part(DialogWidgetType::Label, { 0xbe, y, 0xb4, 0x12 }, CountLabel("Climb-ins", kAutoPlotLeastClimbIns, kAutoPlotMostClimbIns)));
-		y += 0x18;
-		spec.widgets.push_back(Part(DialogWidgetType::Edit, { 0x1e, y, 0x96, 0x12 }, std::to_string((long long)kAutoPlotDefaultGetOuts)));
-		spec.widgets.push_back(Part(DialogWidgetType::Label, { 0xbe, y, 0xb4, 0x12 }, CountLabel("Get-outs", kAutoPlotLeastGetOuts, kAutoPlotMostGetOuts)));
-		// the Airduct box, one row under the get-outs field (the TEXT dialog's rows are 0x18 apart), its label 16 to its right (path_screen.cpp's Loop box: 0x10 and 0x20)
-		y += 0x18;
+
+		y = AddField(&spec, fields[0], y);
+		y = AddField(&spec, fields[1], y);
+
+		// the Airduct box under the two counts, its label 16 to its right (path_screen.cpp's Loop box: 0x10 and 0x20)
 		DialogWidget airduct = Part(DialogWidgetType::Check, { 0x1e, y, 12, 12 }, std::string());
+
 		airduct.checked = AutoPlotVolumeCounts().airduct;   // unticked as it opens: the planner's default (the owner 11-20 19:06)
 		spec.widgets.push_back(airduct);
 		spec.widgets.push_back(Part(DialogWidgetType::Label, { 0x1e + 0x10, y, 0x150, 0x12 }, "Airduct on the modules it plots (aliens crawl there)"));
-		DialogWidget ok = Part(DialogWidgetType::Button, { 100, 0xbe, 0x32, 0x10 }, "Ok");
+		y += 0x18;
+
+		// THE OWNER'S SIZES (autoplot_volumes.h): where a climber aims after a sloped side
+		for (size_t f = 2; f < fields.size(); f++)
+		{
+			y = AddField(&spec, fields[f], y);
+		}
+
+		// Ok and Cancel a quarter and a half across, as inteng's 400-wide TEXT dialog has them at 100 and 200; the window 0x3c under them, as that dialog's 0xbe in 0xfa
+		DialogWidget ok = Part(DialogWidgetType::Button, { spec.width / 4, y + 6, 0x32, 0x10 }, "Ok");
+
 		ok.answer = kDialogOk;
 		spec.widgets.push_back(ok);
-		DialogWidget cancel = Part(DialogWidgetType::Button, { 200, 0xbe, 0x32, 0x10 }, "Cancel");
+
+		DialogWidget cancel = Part(DialogWidgetType::Button, { spec.width / 2, y + 6, 0x32, 0x10 }, "Cancel");
+
 		cancel.answer = kDialogEscape;
 		spec.widgets.push_back(cancel);
+		spec.height = y + 6 + 0x3c;
 		return spec;
 	}
 
@@ -377,16 +445,19 @@ namespace host
 			}
 		}
 
-		size_t const want = withNames ? 3 : 2;
+		size_t const first = withNames ? 1 : 0;
 
-		if (edits.size() != want || boxes != 1)
+		if (edits.size() != first + PlotFields().size() || boxes != 1)
 		{
 			return false;
 		}
 
 		answers->names = withNames ? edits[0] : std::string();
-		answers->climbIns = edits[want - 2];
-		answers->getOuts = edits[want - 1];
+		answers->climbIns = edits[first];
+		answers->getOuts = edits[first + 1];
+		answers->highAlong = edits[first + 2];
+		answers->highUp = edits[first + 3];
+		answers->highUnder = edits[first + 4];
 		answers->airduct = ticked;
 		return true;
 	}
@@ -399,11 +470,22 @@ namespace host
 		}
 
 		AutoPlotVolumeCounts read;
+		std::vector<PlotField> const &fields = PlotFields();
+		std::string const *const typed[] = { &answers.climbIns, &answers.getOuts, &answers.highAlong, &answers.highUp, &answers.highUnder };
+		int32_t *const into[] = { &read.climbIns, &read.getOuts, &read.highAlong, &read.highUp, &read.highUnder };
 
-		if (!AlienAutoWaypoint_ParseCount(answers.climbIns, kAutoPlotLeastClimbIns, kAutoPlotMostClimbIns, -1, "Climb-ins", &read.climbIns, why) ||
-			!AlienAutoWaypoint_ParseCount(answers.getOuts, kAutoPlotLeastGetOuts, kAutoPlotMostGetOuts, -1, "Get-outs", &read.getOuts, why))
+		// each field in its range (nothing typed: -1, the default); a refusal names the field, says what was typed, and gives the reason its range is what it is
+		for (size_t f = 0; f < fields.size() && f < sizeof(into) / sizeof(into[0]); f++)
 		{
-			return false;
+			if (!AlienAutoWaypoint_ParseCount(*typed[f], fields[f].least, fields[f].most, -1, fields[f].name, into[f], why))
+			{
+				if (why && fields[f].refusalReason)
+				{
+					*why += std::string(" (") + fields[f].refusalReason + ")";
+				}
+
+				return false;
+			}
 		}
 
 		read.airduct = answers.airduct;

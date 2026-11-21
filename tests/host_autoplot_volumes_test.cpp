@@ -5,11 +5,13 @@
 // Written 2026-11-20 by Melanikus (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <algorithm>
 #include <string>
 #include <vector>
 
+#include "autoplot_closers.h"
 #include "autoplot_lane.h"
 #include "autoplot_plan.h"
 #include "autoplot_volumes.h"
@@ -61,6 +63,124 @@ static std::string Said(host::WaypointRec const &b)
 {
 	return "min " + std::to_string((long long)b.min[0]) + " " + std::to_string((long long)b.min[1]) + " " + std::to_string((long long)b.min[2]) + " max " +
 		std::to_string((long long)b.max[0]) + " " + std::to_string((long long)b.max[1]) + " " + std::to_string((long long)b.max[2]);
+}
+
+// THE BODY AT ANOTHER BOX'S POINT (Vasquez 11-21, the gap closers' rounds; Bishop: "a closer must not reach into the body of an alien standing at ANY other box's point
+// within reach, above it (an entry's aim) or below it (a floor's point), whatever that box's role"). Two places an alien sent to a box's point ends up:
+//   AT THE POINT: its body 450 each way across the floor, and from a body over the point (standing) to a body under it (hanging: on a ceiling an alien's position is
+//     900 under it); opscen01's alien a12 hung 398 frames at entry 4's point, 651 mm deep, with a closer right under it;
+//   AT THE POINT'S FOOT on a closer's wall: an alien on the wall crawls to the place straight across from the point (its height, its place along the wall) and stops,
+//     the way on being straight out from the wall; med18's alien a2 stood 88 s across from the floor's point (batch 18, run 115116). Counted when the body there (across
+//     the closer's own 1100 from the wall: 900 out and 200 in; the wall's way is the closer's side that is 1100 long) is in that box too: then the game can send it there.
+// If that body (with "margin" more every way) is in a closer as well, the game holds the alien in two boxes and sends it back to the start box's point, so it never
+// moves on. This names each such pair ("entry 4 / closer 9", "floor 0 foot / closer 12"), and is empty when there is none. Another closer's own point is left out: the
+// planner keeps every centre in its own box alone (checked on its own), and closers along a wall meet end to end
+static std::string BodyAtPointInCloser(host::AutoPlotPlan const &plan, int32_t margin)
+{
+	std::string said;
+	size_t const n = std::min(plan.list.size(), plan.volumeRoles.size());
+	auto const over = [](int32_t const lo[3], int32_t const hi[3], host::WaypointRec const &b)
+	{
+		bool in = true;
+
+		for (int a = 0; a < 3 && in; a++)
+		{
+			in = lo[a] < b.max[a] - 1 && b.min[a] < hi[a] - 1;   // more than touching (boxes meet edge to edge)
+		}
+
+		return in;
+	};
+
+	for (size_t o = 0; o < n; o++)
+	{
+		std::string const &role = plan.volumeRoles[o];
+
+		if (role == "closer")
+		{
+			continue;
+		}
+
+		int32_t const *p = plan.list[o].centre;
+
+		for (size_t k = 0; k < n; k++)
+		{
+			if (plan.volumeRoles[k] != "closer")
+			{
+				continue;
+			}
+
+			host::WaypointRec const &c = plan.list[k];
+			int32_t const lo[3] = { p[0] - 450 - margin, p[1] - 900 - margin, p[2] - 450 - margin }, hi[3] = { p[0] + 450 + margin, p[1] + 900 + margin, p[2] + 450 + margin };
+
+			if (over(lo, hi, c))
+			{
+				said += (said.empty() ? "" : ", ") + role + " " + std::to_string((unsigned long long)o) + " / closer " + std::to_string((unsigned long long)k);
+				continue;
+			}
+
+			for (int a : { 0, 2 })
+			{
+				if (abs(c.max[a] - c.min[a] - 1101) > 2)
+				{
+					continue;   // not the way across this closer's wall
+				}
+
+				int const b = 2 - a;
+				int32_t footLo[3], footHi[3], bodyLo[3], bodyHi[3];
+
+				footLo[a] = bodyLo[a] = c.min[a];
+				footHi[a] = bodyHi[a] = c.max[a];
+				footLo[b] = p[b] - 450 - margin; footHi[b] = p[b] + 450 + margin;
+				bodyLo[b] = p[b] - 450; bodyHi[b] = p[b] + 450;
+				footLo[1] = p[1] - 900 - margin; footHi[1] = p[1] + 900 + margin;
+				bodyLo[1] = p[1] - 900; bodyHi[1] = p[1] + 900;
+
+				if (over(bodyLo, bodyHi, plan.list[o]) && over(footLo, footHi, c))
+				{
+					said += (said.empty() ? "" : ", ") + role + " " + std::to_string((unsigned long long)o) + " foot / closer " + std::to_string((unsigned long long)k);
+				}
+			}
+		}
+	}
+
+	return said;
+}
+
+// Two lists the same to the last number: every box, centre, flag, link and module link (what the file is written from)
+static bool SameList(std::vector<host::WaypointRec> const &a, std::vector<host::WaypointRec> const &b)
+{
+	if (a.size() != b.size())
+	{
+		return false;
+	}
+
+	for (size_t i = 0; i < a.size(); i++)
+	{
+		host::WaypointRec const &x = a[i], &y = b[i];
+		bool same = x.flags == y.flags && x.spare2 == y.spare2 && x.links.size() == y.links.size() && x.moduleLinks.size() == y.moduleLinks.size();
+
+		for (int k = 0; k < 3; k++)
+		{
+			same = same && x.min[k] == y.min[k] && x.max[k] == y.max[k] && x.centre[k] == y.centre[k];
+		}
+
+		for (size_t l = 0; same && l < x.links.size(); l++)
+		{
+			same = x.links[l].index == y.links[l].index && x.links[l].flags == y.links[l].flags;
+		}
+
+		for (size_t l = 0; same && l < x.moduleLinks.size(); l++)
+		{
+			same = x.moduleLinks[l].name == y.moduleLinks[l].name && x.moduleLinks[l].flags == y.moduleLinks[l].flags;
+		}
+
+		if (!same)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 // THE GAME'S OWN BOX (Vasquez 11-20: SweepWaypoints takes the alien's own box to be the HIGHEST-numbered box any corner of its body is in, and it heads on to the route's
@@ -627,6 +747,60 @@ int main()
 			Check(fromMiddle, "from the corridor's middle, every alien's route is LOW next, crawling");
 			Check(atTop, "AT THE CLIMB'S TOP, heading back for door A: every alien starts at ENTRY A, not a HIGH piece (no tie)");
 		}
+	}
+
+	// ---- THE OWNER'S SIZES (11-21, through Bishop: "If we could make these boxes sizes as variables on the auto link page with defaults, that would help me understand a lot";
+	// autoplot_volumes.h): the same tube, planned with the plot dialog's numbers for the climb-side HIGH aim.
+	// - As the dialog opens (2500, 1000, 300), and with nothing typed (-1): the default's plan, to the last number (what the file is written from).
+	// - Along 4000: both climb-side aims 4000 from the climb's middle at x 6000 (2000 and 10000), their height and across kept.
+	// - Up 1200 and under 550 (candidate 4's pair): the face is at 45 degrees, so 200 more up it is 141 in and 141 up, and 250 more under it is 177 out and 177 down: the aim
+	//   318 nearer the room's middle (z) and 35 lower (y, which counts down), its along kept.
+	// - A number out of its range is held to the range (Tao 3: the dialog is not the planner's only caller): along 600 is 2500's plan, 99999 is 10000's; up 0 / under 0 are
+	//   1000 / 300 (the default's), up 5000 / under 9000 are 1200 / 550
+	{
+		host::AutoPlotFloor floor;
+
+		Cells(&floor, 0, 12000, 0, 3000);
+		floor.boxFound = true;
+		floor.boxLo[0] = -300;
+		floor.boxLo[1] = -1000;
+		floor.boxLo[2] = -300 - 1948;
+		floor.boxHi[0] = 12300;
+		floor.boxHi[1] = 2000;
+		floor.boxHi[2] = 3300 + 1948;
+
+		std::vector<std::vector<int32_t> > exits = { { -400, 750, 1500 }, { 12400, 750, 1500 } };
+		std::vector<host::AutoPlotDoor> doors = { Door(-300, 1500, -1.0, 0.0), Door(12300, 1500, 1.0, 0.0) };
+		auto const planWith = [&](int32_t along, int32_t up, int32_t under)
+		{
+			host::AutoPlotVolumeCounts sizes;
+
+			sizes.highAlong = along;
+			sizes.highUp = up;
+			sizes.highUnder = under;
+			return host::AutoPlot_PlanVolumes({}, exits, floor, doors, 1.0, sizes).list;
+		};
+		std::vector<host::WaypointRec> const base = host::AutoPlot_PlanVolumes({}, exits, floor, doors, 1.0).list;
+		auto const at = [](std::vector<host::WaypointRec> const &list, size_t b) { return b < list.size() ? std::to_string((long long)list[b].centre[0]) + " " +
+			std::to_string((long long)list[b].centre[1]) + " " + std::to_string((long long)list[b].centre[2]) : std::string("(none)"); };
+
+		Check(base.size() == 11 && SameList(base, planWith(2500, 1000, 300)), "THE OWNER'S SIZES AS THE DIALOG OPENS (2500, 1000, 300): the default's plan, every box, centre, flag and link");
+		Check(SameList(base, planWith(-1, -1, -1)), "nothing typed (-1, -1, -1): the default's plan");
+
+		std::vector<host::WaypointRec> const far = planWith(4000, -1, -1);
+
+		Check(far.size() == 11 && base.size() == 11 && far[5].centre[0] == 2000 && far[6].centre[0] == 10000 && far[5].centre[1] == base[5].centre[1] &&
+			far[5].centre[2] == base[5].centre[2], "ALONG 4000: both climb-side HIGH aims 4000 from the climb's middle, their height and across kept (" + at(far, 5) + " / " + at(far, 6) + ")");
+		Check(SameList(base, planWith(600, -1, -1)), "along 600 (under the least, 2500): held to 2500, the default's plan");
+		Check(SameList(planWith(10000, -1, -1), planWith(99999, -1, -1)), "along 99999 (past the most): held to 10000");
+
+		std::vector<host::WaypointRec> const pair = planWith(-1, 1200, 550);
+		int32_t const dz = pair.size() == 11 && base.size() == 11 ? pair[5].centre[2] - base[5].centre[2] : 0, dy = pair.size() == 11 && base.size() == 11 ? pair[5].centre[1] - base[5].centre[1] : 0;
+
+		Check(pair.size() == 11 && dz >= -319 && dz <= -317 && dy >= 34 && dy <= 36 && pair[5].centre[0] == base[5].centre[0], "UP 1200, UNDER 550: the aim 318 nearer the room's middle and 35 "
+			"lower, its along kept (" + at(base, 5) + " -> " + at(pair, 5) + ")");
+		Check(SameList(base, planWith(-1, 0, 0)), "up 0, under 0 (under the least): held to 1000 and 300, the default's plan");
+		Check(SameList(pair, planWith(-1, 5000, 9000)), "up 5000, under 9000 (past the most): held to 1200 and 550");
 	}
 
 	// ---- A T (Drake's hand6e SHED10): a bar along x (x 0..12000, z 0..3000), doorways W (x -300) and E (x 12300); a funnel off its south side (x 4800..7200, z -3600..-600)
@@ -1337,6 +1511,286 @@ int main()
 		Check(plan.volumes && plan.volumeKind.find("open sky") != std::string::npos && plan.list.size() <= 6 && noClimb, "OPEN SKY: the levels' floor walk, a few room-sized "
 			"boxes, never the old small ones, no climbing box (" + plan.volumeKind + ", " + std::to_string((long long)plan.list.size()) + " boxes" + (plan.notes.empty() ? std::string() :
 			": " + plan.notes[0]) + ")");
+	}
+
+	// ---- THE WALL BAND AND ITS GAP CLOSERS (Vasquez 11-21, autoplot_closers.h; the owner: "Gaps first", "fitter boxes as large as possible within the space we have and
+	// 'tetris together' to not leave gaps"). Hudson's whole-2b runs: 1,507 of 3,073 frames of aliens stuck in NO box were on a wall just above the floor box's top, away
+	// from the 2.4 m climb-in (medent06's alien at x -7799, 750 past its climb-in's end). THE STRAIGHT CORRIDOR at Genshd1's height: the floor at y 2000, the ceiling and
+	// the doorways' tops at y -1900 (3.9 m), so the band from the floor box's top (y 500) up to the entries' bottom is taller than a body
+	{
+		host::AutoPlotFloor floor;
+
+		Cells(&floor, 0, 12000, 0, 3000);
+
+		for (std::vector<int32_t> &c : floor.ceilings)
+		{
+			c[1] = -1900;
+		}
+
+		std::vector<std::vector<int32_t> > exits = { { -400, 750, 1500 }, { 12400, 750, 1500 } };
+		host::AutoPlotDoor d0 = Door(-300, 1500, -1.0, 0.0), d1 = Door(12300, 1500, 1.0, 0.0);
+
+		d0.soffit[1] = -1900;
+		d1.soffit[1] = -1900;
+
+		std::vector<host::AutoPlotDoor> doors = { d0, d1 };
+
+		// THE ALIEN medent06's frame stands for: on the climb side's wall (z 3300), its position 450 off the face, at x 9500 (2.3 m past the climb-in's end at x 7200), half
+		// way up the band. The game's box round it: x and z 450 each way, from 900 above its position down to it; it is IN a box when any of its 8 corners is
+		auto const corners = [](int32_t x, int32_t y, int32_t z)
+		{
+			std::vector<std::vector<int32_t> > c;
+
+			for (int32_t const dx : { -450, 450 })
+			{
+				for (int32_t const dy : { -900, 0 })
+				{
+					for (int32_t const dz : { -450, 450 })
+					{
+						c.push_back(std::vector<int32_t>{ x + dx, y + dy, z + dz });
+					}
+				}
+			}
+
+			return c;
+		};
+		auto const inABox = [&corners](host::AutoPlotPlan const &p, int32_t x, int32_t y, int32_t z)
+		{
+			for (std::vector<int32_t> const &c : corners(x, y, z))
+			{
+				int32_t const q[3] = { c[0], c[1], c[2] };
+
+				for (host::WaypointRec const &b : p.list)
+				{
+					if (Holds(b, q))
+					{
+						return true;
+					}
+				}
+			}
+
+			return false;
+		};
+
+		host::AutoPlotClosers_SetOn(false);
+
+		host::AutoPlotPlan const without = host::AutoPlot_PlanVolumes({}, exits, floor, doors, 1.0);
+
+		Check(without.volumes && without.list.size() == 7, "THE TALL CORRIDOR without closers: the 7 volumes as ever (" + std::to_string((long long)without.list.size()) + ")");
+		Check(!inABox(without, 9500, 0, 2850), "without closers the alien on the wall 2.3 m past the climb-in is in NO box (medent06's gap)");
+
+		host::AutoPlotClosers_SetOn(true);
+
+		host::AutoPlotPlan const plan = host::AutoPlot_PlanVolumes({}, exits, floor, doors, 1.0);
+
+		host::AutoPlotClosers_SetOn(false);
+
+		Check(inABox(plan, 9500, 0, 2850), "WITH CLOSERS that alien is in a box");
+		Check(inABox(plan, 9500, 0, 150), "and one on the other long wall (z -300) too");
+		Check(inABox(plan, 1500, 0, 2850), "and one on the climb side's other end, past the climb-in toward the west doorway");
+
+		size_t closers = 0, before = 0;
+		bool sizes = true, sameFirst = true;
+
+		for (size_t b = 0; b < plan.list.size(); b++)
+		{
+			if (b < plan.volumeRoles.size() && plan.volumeRoles[b] == "closer")
+			{
+				host::WaypointRec const &c = plan.list[b];
+				int32_t const alongX = c.max[0] - c.min[0], alongZ = c.max[2] - c.min[2], up = c.max[1] - c.min[1];
+				int32_t const along = alongX > alongZ ? alongX : alongZ;
+
+				closers++;
+				sizes = sizes && along >= host::kAutoPlotCloserLeast && along <= host::kAutoPlotCloserMost + 2 && up >= host::kAutoPlotCloserLeast && up <= host::kAutoPlotCloserMost + 2;
+			}
+			else
+			{
+				before++;
+			}
+		}
+
+		for (size_t b = 0; b < without.list.size() && b < plan.list.size(); b++)
+		{
+			sameFirst = sameFirst && plan.list[b].min[0] == without.list[b].min[0] && plan.list[b].max[0] == without.list[b].max[0] && plan.list[b].min[1] == without.list[b].min[1] &&
+				plan.list[b].max[1] == without.list[b].max[1] && plan.list[b].min[2] == without.list[b].min[2] && plan.list[b].max[2] == without.list[b].max[2];
+		}
+
+		// the two long walls, each with the climb-in's 2.4 m (or the get-out's, on the other wall) out of its 12.6 m: 5.1 m each side of it, 3 closers of 1.7 m
+		Check(closers == 12, "12 closers: the two long walls, 3 of 1.7 m each side of the middle 2.4 m (" + std::to_string((long long)closers) + ")");
+		Check(before == 7 && sameFirst, "the 7 volumes the planner made stay as they were, first in the list (the closers come after)");
+		Check(sizes, "every closer at least 900 and at most 2400 along the wall and in height (the band whole: one row)");
+
+		// NEVER WORSE: a closer overlaps no box (they touch), holds no other box's centre, and its own centre is in it alone
+		bool overlapsNone = true, centresOwn = true;
+		std::string where;
+
+		for (size_t b = 0; b < plan.list.size(); b++)
+		{
+			for (size_t o = 0; o < plan.list.size(); o++)
+			{
+				if (o == b)
+				{
+					continue;
+				}
+
+				bool const closerPair = plan.volumeRoles[b] == "closer" || plan.volumeRoles[o] == "closer";
+				host::WaypointRec const &p = plan.list[b], &q = plan.list[o];
+				bool const overlap = p.min[0] < q.max[0] - 1 && q.min[0] < p.max[0] - 1 && p.min[1] < q.max[1] - 1 && q.min[1] < p.max[1] - 1 && p.min[2] < q.max[2] - 1 && q.min[2] < p.max[2] - 1;
+
+				if (closerPair && overlap)
+				{
+					overlapsNone = false;
+					where += " " + std::to_string((long long)b) + "/" + std::to_string((long long)o);
+				}
+
+				centresOwn = centresOwn && !Holds(q, p.centre);
+			}
+
+			centresOwn = centresOwn && Holds(plan.list[b], plan.list[b].centre);
+		}
+
+		Check(overlapsNone, "no closer overlaps another box (they meet edge to edge)" + where);
+		Check(centresOwn, "every centre in its own box and no other");
+		Check(AllReach(plan.list), "every box still reaches every other (the checker's rule)");
+		// THE BODY AT ANOTHER BOX'S POINT (the closers' rounds; Bishop 11-21: one rule, every role, a 100 mm margin): the planner's closers reach into the body of an
+		// alien at the two entries' points, over the climb-in's ends (entry 3 / closer 9, entry 4 / closer 10: opscen01's shape, where a12 hung 398 frames). The pass
+		// that runs after the repair, on the final points, moves each such closer's top or bottom clear of the body and the margin, and changes nothing else
+		Check(!BodyAtPointInCloser(plan, 0).empty(), "the planner's closers reach into the body at another box's point (" + BodyAtPointInCloser(plan, 0) + "): the pass below is what stops it");
+
+		host::AutoPlotPlan fixed = plan;
+		int const cleared = host::AutoPlot_CloserClearAims(&fixed, 1.0);
+		bool onlyTopsAndBottoms = fixed.list.size() == plan.list.size();
+		int moved = 0;
+
+		for (size_t b = 0; b < plan.list.size() && onlyTopsAndBottoms; b++)
+		{
+			bool const closer = plan.volumeRoles[b] == "closer";
+
+			onlyTopsAndBottoms = fixed.list[b].min[0] == plan.list[b].min[0] && fixed.list[b].max[0] == plan.list[b].max[0] && fixed.list[b].min[2] == plan.list[b].min[2] &&
+				fixed.list[b].max[2] == plan.list[b].max[2] && (closer || (fixed.list[b].min[1] == plan.list[b].min[1] && fixed.list[b].max[1] == plan.list[b].max[1])) &&
+				fixed.list[b].links.size() == plan.list[b].links.size();
+			moved += closer && (fixed.list[b].min[1] != plan.list[b].min[1] || fixed.list[b].max[1] != plan.list[b].max[1]) ? 1 : 0;
+		}
+
+		Check(cleared >= 2 && cleared == moved, "the pass moves the closers the bodies reach (" + std::to_string((long long)cleared) + " said, " + std::to_string((long long)moved) + " moved)");
+		Check(BodyAtPointInCloser(fixed, 100).empty(), "after it, no body at another box's point or its foot, nor the 100 mm round it, is in a closer (" + BodyAtPointInCloser(fixed, 100) + ")");
+		Check(onlyTopsAndBottoms, "and it changed only closers' tops and bottoms: every other number, every box and every link as they were");
+
+		bool fixedOwn = true, leastKept = true;
+
+		for (size_t b = 0; b < fixed.list.size(); b++)
+		{
+			fixedOwn = fixedOwn && Holds(fixed.list[b], fixed.list[b].centre);
+			leastKept = leastKept && (fixed.volumeRoles[b] != "closer" || fixed.list[b].max[1] - fixed.list[b].min[1] >= host::kAutoPlotCloserLeast);
+
+			for (size_t o = 0; o < fixed.list.size(); o++)
+			{
+				fixedOwn = fixedOwn && (o == b || !Holds(fixed.list[o], fixed.list[b].centre));
+			}
+		}
+
+		Check(fixedOwn, "every centre still in its own box and no other (a moved closer's aim point stays in its middle)");
+		Check(leastKept, "every closer still at least a body tall (the 0.9 m least)");
+
+		bool noted = false;
+
+		for (std::string const &n : fixed.notes)
+		{
+			noted = noted || (n.find("closers cleared of the body at another box's point: " + std::to_string((long long)cleared) + " ") != std::string::npos &&
+				n.find("left as they are") == std::string::npos);
+		}
+
+		Check(noted, "the plan's notes say it, and leave none of this corridor's closers as they are");
+
+		// ... AND THE WALL UNDER THOSE AIM POINTS STAYS CLOSED (Bishop 11-21: what the fix leaves under an aim point must not become a new no-box spot): under each entry's
+		// aim point that reaches a closer's footprint, a body anywhere up the wall, its foot from a body under the entries' bottom (y -1445) down to the floor box's top
+		// (y 500), is in a box
+		bool columnHeld = true, anyColumn = false;
+		std::string column;
+
+		for (size_t o = 0; o < fixed.list.size() && o < fixed.volumeRoles.size(); o++)
+		{
+			if (fixed.volumeRoles[o] != "entry")
+			{
+				continue;
+			}
+
+			int32_t const *p = fixed.list[o].centre;
+			bool nearCloser = false;
+
+			for (size_t k = 0; k < fixed.list.size() && k < fixed.volumeRoles.size(); k++)
+			{
+				host::WaypointRec const &c = fixed.list[k];
+
+				nearCloser = nearCloser || (fixed.volumeRoles[k] == "closer" && p[0] - 450 < c.max[0] - 1 && c.min[0] < p[0] + 450 - 1 && p[2] - 450 < c.max[2] - 1 && c.min[2] < p[2] + 450 - 1);
+			}
+
+			for (int32_t y = -545; nearCloser && y <= 500; y += 100)
+			{
+				anyColumn = true;
+
+				if (!inABox(fixed, p[0], y, p[2]))
+				{
+					columnHeld = false;
+					column += " entry " + std::to_string((unsigned long long)o) + " at y " + std::to_string((long long)y);
+				}
+			}
+		}
+
+		Check(anyColumn && columnHeld, "and a body anywhere up the wall under such an aim point is in a box (no new gap)" + column);
+
+		// ... AND THE WALL UNDER A RAISED CLOSER STAYS CLOSED: for each closer whose bottom the pass raised (the floor's point's foot), a body anywhere up the wall at its
+		// aim point, its top from the closer's top down to the floor box's top (where the closer's bottom was), is in a box: the slot left is shorter than a body
+		bool footHeld = true;
+		std::string footColumn;
+
+		for (size_t k = 0; k < fixed.list.size() && k < fixed.volumeRoles.size(); k++)
+		{
+			if (fixed.volumeRoles[k] != "closer" || fixed.list[k].max[1] == plan.list[k].max[1])
+			{
+				continue;
+			}
+
+			int32_t const *c = fixed.list[k].centre;
+
+			for (int32_t y = fixed.list[k].min[1] + 900; y <= plan.list[k].max[1] + 900; y += 25)
+			{
+				if (!inABox(fixed, c[0], y, c[2]))
+				{
+					footHeld = false;
+					footColumn += " closer " + std::to_string((unsigned long long)k) + " at y " + std::to_string((long long)y);
+				}
+			}
+		}
+
+		Check(footHeld, "and a body anywhere up the wall over a raised closer's old bottom is in a box (no new gap)" + footColumn);
+
+		// THE LINKS, as the climb-in's: the floor -> a closer only; a closer -> the entry over it only; closer <-> closer along the wall
+		bool floorTo = true, toEntry = true, neighbours = false;
+
+		for (size_t b = 7; b < plan.list.size(); b++)
+		{
+			floorTo = floorTo && FlagsOf(plan.list[0], (int32_t)b) == 5 && FlagsOf(plan.list[b], 0) == 6;
+			toEntry = toEntry && (FlagsOf(plan.list[b], 3) == 5 || FlagsOf(plan.list[b], 4) == 5);
+
+			for (size_t o = 7; o < plan.list.size(); o++)
+			{
+				neighbours = neighbours || (o != b && FlagsOf(plan.list[b], (int32_t)o) == 4 && FlagsOf(plan.list[o], (int32_t)b) == 4);
+			}
+		}
+
+		Check(floorTo, "floor -> each closer only (as floor -> climb-in)");
+		Check(toEntry, "each closer -> an entry over it, one way");
+		Check(neighbours, "closers side by side linked both ways");
+
+		bool named = false;
+
+		for (std::string const &n : plan.notes)
+		{
+			named = named || n.find("closers: 12 made") != std::string::npos;
+		}
+
+		Check(named, "the plan's notes name what was made and what was left");
 	}
 
 	printf("%d checks, %d failed\n", checks, checksFailed);
