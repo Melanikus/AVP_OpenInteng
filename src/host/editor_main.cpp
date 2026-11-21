@@ -101,6 +101,7 @@
 #include "waypoint_gizmo.h"  // the waypoint-box gizmo on Waypoint mode 1 (P4 item 4)
 #include "autoplot_grid.h"   // the alien auto-plot's pathfinder service (the harness's probe)
 #include "autoplot_switch.h"   // the owner's "hide auto pilot": AutoPlot= read at start-up
+#include "autoplot_command.h"  // a running auto-plot's busy cursor (the window's WM_SETCURSOR)
 #include "floor_is_lava.h"   // FloorIsLavaAsked: the game's own copy of the alien ways is never built in the editor
 #include "uv_project.h"
 #include "hierarchy_player.h"
@@ -7733,6 +7734,8 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 	{
 		message = message == WM_SYSKEYDOWN ? WM_KEYDOWN : WM_KEYUP;
 	}
+
+	if (message == WM_SETCURSOR && LOWORD(lParam) == HTCLIENT && AutoPlotCommand_BusyCursor()) return TRUE;   // a running auto-plot: the busy cursor (autoplot_command.h)
 
 	if (message == WM_MOUSEMOVE || message == WM_LBUTTONDOWN || message == WM_LBUTTONUP || message == WM_RBUTTONDOWN || message == WM_RBUTTONUP)
 	{

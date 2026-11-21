@@ -175,11 +175,13 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <thread>
 
 #include "autoplot_command.h"
 #include "autoplot_switch.h"   // the owner's "hide auto pilot" (11-19): nothing done unless AutoPlot=1
 #include "autoplot_arrival.h"
+#include "autoplot_progress.h"
 #include "autoplot_grid.h"
 #include "autoplot_lane.h"
 #include "autoplot_plan.h"
@@ -209,6 +211,9 @@ namespace
 		std::vector<std::vector<int32_t> > alienGoals;   // the goals the alien search goes between: an exit's soffit where it has one (the lanes run soffit to soffit)
 		std::vector<std::vector<int32_t> > backs;   // each exit: the neighbour's exit point back (inside this AI module: where an alien from there lands), empty when not known
 		bool written = false;
+		std::string name;                           // its head's name, for the progress words (taken as the run begins, so the frame never looks it up)
+		size_t stockAliens = 0;                     // Rebellion's own alien waypoints it held as the run began (not written: it keeps them; the end line's "kept Rebellion's")
+		double searchMs = 0.0, planMs = 0.0, writeMs = 0.0;   // THE RUN'S TIME (Bishop 11-21): the worker's searches, its plan and repair, the check and write
 		std::vector<int32_t> members;               // its modules' object indexes (the Airduct flag goes on each)
 		host::AutoPlotVolumeCounts counts;          // the run's tunables (autoplot_volumes.h), taken as the run begins
 		std::vector<int> ceilingPast;               // OPEN SKY PER DOORWAY (the owner 11-20): each exit, 1 a ceiling over the floor just past the doorway (the lane must go on), 0 none (it may end), -1 not known
@@ -228,6 +233,7 @@ namespace
 		Idle,
 		Grid,        // the pathfinder's grid building (autoplot_grid.h, its own thread)
 		Searching,   // our worker searching and planning
+		Writing,     // the networks checked and written, a slice a frame (FinishOne), then FinishEnd
 	};
 
 	Stage stage = Stage::Idle;
@@ -239,6 +245,13 @@ namespace
 	std::atomic<bool> workerDone(false), stopAsked(false);
 	std::atomic<size_t> jobAt(0), wayAt(0), wayCount(0);
 	std::string commandWords;
+	std::chrono::steady_clock::time_point runStart;   // the run's start (the grid's), for the end line's time
+	std::map<int32_t, size_t> runStock;               // each AI module's own alien waypoints as the run was asked (AiModules' count), for "kept Rebellion's"
+
+	double MsSince(std::chrono::steady_clock::time_point from)
+	{
+		return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
+	}
 
 	// a run still going when the editor ends is stopped and waited for (a joinable thread at exit ends the program)
 	struct WorkerEnd
@@ -254,10 +267,12 @@ namespace
 		}
 	} workerEnd;
 
+	// the auto-plot's own words: the Waypoint screen draws them (StatusSayer::WaypointPlot; the owner 11-21, "When I try to run alien auto link I don't see anything": as plain
+	// settings, since alpha.3's status-line call, every one was kept and none drawn)
 	void Say(std::string const &words)
 	{
 		commandWords = words;
-		statusWords = commandWords.c_str();
+		statusWords.Say(commandWords.c_str(), StatusSayer::WaypointPlot);
 	}
 
 	std::string Number(long long n)
@@ -404,6 +419,7 @@ namespace
 			{
 				std::vector<host::AutoPlotWay> ways;
 				size_t pairs = 0;
+				auto const searchFrom = std::chrono::steady_clock::now();
 
 				for (size_t a = 0; a < job.goals.size() && pairs < host::kAutoPlotMostPairs && !stopAsked; a++)
 				{
@@ -503,6 +519,10 @@ namespace
 
 					ways.push_back(way);
 				}
+
+				job.searchMs = MsSince(searchFrom);
+
+				auto const planFrom = std::chrono::steady_clock::now();
 
 				// the floor a marine stands on: every cell of the AI module's game modules (Drake's FloorCells), the plan tiles it
 				host::AutoPlotFloor floorCells;
@@ -633,6 +653,7 @@ namespace
 
 				job.plan = host::AutoPlot_PlanVolumes(ways, job.exitsWorld, floorCells, job.doors, plotScale, job.counts);   // the owner's counts (the run's, taken at Begin)
 				host::AutoPlot_RepairVolumes(&job.plan, job.exitsFile, plotScale);   // Drake's volume repair (autoplot_volume_repair.h): a scrap box out, a centre in another box moved flat
+				job.planMs = MsSince(planFrom);
 
 				// a kind it has no rule for yet: NO network (Bishop's ruling 11-20: the way Rebellion left most modules, never the old small boxes), named in the summary
 				job.notShaped = !job.plan.volumes;
@@ -675,6 +696,8 @@ namespace
 			std::vector<host::EntryMarker> markers;
 
 			job.head = head;
+			job.name = ModuleNameOfIndex(head);
+			job.stockAliens = runStock.count(head) ? runStock.at(head) : 0;
 			job.members = groups.at(head);
 			job.counts = runCounts;
 
@@ -761,18 +784,46 @@ namespace
 		}
 
 		stage = Stage::Grid;
-		Say("Auto-plot: building the grid");
+		runStart = std::chrono::steady_clock::now();
+		Say("Auto-plot: building the grid for " + Number((long long)jobs.size()) + " AI modules");
 	}
 
 	// the networks the worker made: each checked as the stock game would take it, the good ones written over their AI module's alien list
-	void Finish()
+	// THE WRITING, A SLICE A FRAME (Drake 11-21, the timed whole Genshd1 plot: the check and write, 14 s of its 78, ran on the main thread in one go and froze the window): the
+	// networks are checked and written kAutoPlotWriteSliceMs a frame, FinishOne for each AI module in turn, its sums kept here across the frames, then FinishEnd once
+	double const kAutoPlotWriteSliceMs = 100.0;   // a frame's writing at most (then the frame is drawn: the status line's "writing module i of N", the busy cursor)
+
+	struct Finishing
 	{
-		OpenLevelFile *const open = LevelObjects_OpenForEdit();
+		OpenLevelFile *open = nullptr;   // the level the networks go into (the one open when the writing began; another open since: the writing stops)
+		size_t at = 0;                   // the next AI module to check and write
 		size_t written = 0, refused = 0, boxes = 0, noExits = 0, exceptions = 0, notShaped = 0;
 		std::string last, lastRefused, noExitNames, notShapedNames;
+	};
 
-		for (Job &job : jobs)
+	Finishing finishing;
+
+	// one AI module's network: checked as the stock game would take it and, when good, written over its alien list (what the one-go Finish did for each)
+	void FinishOne(Job &job)
+	{
+		OpenLevelFile *const open = finishing.open;
+		size_t &written = finishing.written, &refused = finishing.refused, &boxes = finishing.boxes, &noExits = finishing.noExits, &exceptions = finishing.exceptions,
+			&notShaped = finishing.notShaped;
+		std::string &last = finishing.last, &lastRefused = finishing.lastRefused, &noExitNames = finishing.noExitNames, &notShapedNames = finishing.notShapedNames;
+
 		{
+			// (its check and write timed by every way out of this loop: a clock that writes the time down as it goes)
+			struct WriteClock
+			{
+				Job &job;
+				std::chrono::steady_clock::time_point from;
+
+				~WriteClock()
+				{
+					job.writeMs = MsSince(from);
+				}
+			} const writeClock{ job, std::chrono::steady_clock::now() };
+
 			std::string const name = "Auto-plot: AI module " + Number(job.head);
 			std::string const named = name + " (" + ModuleNameOfIndex(job.head) + ")";   // the report's: which room it is
 
@@ -844,7 +895,7 @@ namespace
 				noExitNames += noExits > 10 ? std::string(noExits == 11 ? ", ..." : "") : std::string(noExits > 1 ? ", " : "") + ModuleNameOfIndex(job.head);
 				last = name + ": no exits, nothing to plot (no entry points: no route goes through it)";
 				tell(named + last.substr(name.size()));
-				continue;
+				return;
 			}
 
 			// THE VOLUME SHAPE: its kind on the report, and a kind with no rule yet left as it is (NO network written), counted and named
@@ -859,7 +910,7 @@ namespace
 				notShaped++;
 				notShapedNames += notShaped > 10 ? std::string(notShaped == 11 ? ", ..." : "") : std::string(notShaped > 1 ? ", " : "") + ModuleNameOfIndex(job.head) + " (" + job.plan.volumeKind + ")";
 				last = name + ": not shaped, no network written (" + job.plan.volumeKind + ")";
-				continue;
+				return;
 			}
 
 			if (!job.planned || job.plan.list.empty())
@@ -868,7 +919,7 @@ namespace
 				last = name + " not written: " + (!job.why.empty() ? job.why : (job.planned ? std::string("no way was found through it") : std::string("the run was stopped")));
 				lastRefused = last;
 				tell(named + last.substr(name.size()));
-				continue;
+				return;
 			}
 
 			std::vector<host::WaypointProblem> problems = host::Waypoints_Check(job.plan.list, job.exitsFile, plotScale, 50), excepted;
@@ -882,7 +933,7 @@ namespace
 				last = name + " not written: " + problems[0].words + (problems.size() > 1 ? " (and " + Number((long long)problems.size() - 1) + " more)" : std::string());
 				lastRefused = last;
 				tell(named + last.substr(name.size()) + (job.plan.notes.empty() || job.plan.notes.back().compare(0, 7, "repair:") != 0 ? std::string() : "; " + job.plan.notes.back()));   // what the repair did first
-				continue;
+				return;
 			}
 
 			for (host::WaypointProblem const &p : excepted)   // Frost's words for the finding
@@ -899,7 +950,7 @@ namespace
 				last = done.say;
 				lastRefused = name + " not written: " + last;
 				tell(named + " not written: " + last);
-				continue;
+				return;
 			}
 
 			written++;
@@ -951,6 +1002,14 @@ namespace
 
 			tell(named + last.substr(name.size()) + more);
 		}
+	}
+
+	// after the last AI module's network: the lane table, open sky per doorway, the run's time and the end line (the rest of what the one-go Finish did)
+	void FinishEnd()
+	{
+		size_t &written = finishing.written, &refused = finishing.refused, &boxes = finishing.boxes, &noExits = finishing.noExits, &exceptions = finishing.exceptions,
+			&notShaped = finishing.notShaped;
+		std::string &last = finishing.last, &lastRefused = finishing.lastRefused, &noExitNames = finishing.noExitNames, &notShapedNames = finishing.notShapedNames;
 
 		// THE LANE TABLE: each doorway with a lane on both sides, a hanging alien carried through it from AI module A (heading for its exit to B) into B (heading for each of B's
 		// other exits), by the stock game's own choice on the lists as written (autoplot_lane.h); then along B's ceiling from its door box back to A toward that exit
@@ -1118,6 +1177,17 @@ namespace
 			}
 		}
 
+		// THE RUN'S TIME (Bishop 11-21, after the owner's 112 s whole-level plot): each AI module's searches, plan and check-and-write, for the report (the slowest found by
+		// reading these lines); the AI modules not written that keep Rebellion's own waypoints, for the end line
+		size_t kept = 0;
+
+		for (Job const &job : jobs)
+		{
+			printf("AVP_OpenInteng: auto-plot: AI module %d (%s) took: search %.0f ms, plan %.0f ms, check and write %.0f ms\n", (int)job.head, job.name.c_str(), job.searchMs,
+				job.planMs, job.writeMs);
+			kept += !job.written && job.stockAliens > 0 ? 1 : 0;
+		}
+
 		fflush(stdout);
 
 		if (written)
@@ -1125,14 +1195,16 @@ namespace
 			LoadTheObjectListAgain();
 		}
 
-		Say(everyOne ? "Auto-plot: " + Number((long long)written) + " AI modules written, " + Number((long long)refused) + " refused" + (notShaped ? ", " + Number((long long)notShaped) +
+		std::string const tail = host::AutoPlot_TimeWords(MsSince(runStart) / 1000.0);
+
+		Say(everyOne ? "Auto-plot: " + Number((long long)written) + " AI modules written, " + Number((long long)refused) + " refused" + host::AutoPlot_KeptWords(kept) + (notShaped ? ", " + Number((long long)notShaped) +
 			" not shaped (no network written: " + notShapedNames + ")" : std::string()) + (noExits ? ", " + Number((long long)noExits) +
 			" with no exits (nothing to plot: " + noExitNames + ")" : std::string()) + (exceptions ? ", " + Number((long long)exceptions) + " checker exception(s) by rule 6(a)" :
 			// (Bishop 11-20: the lane numbers are the editor's own rough count, not the lane gate's; the gate, Drake's lanes.exe, is the measure until the shared lane rules
 			// replace this table: on the stock copy this said 34 ends under a ceiling where the gate says 0)
 			std::string()) + "; " + Number((long long)boxes) + " boxes; lanes (the editor's rough count; the measure is the lane gate) " +
 			Number((long long)continuous) + " of " + Number((long long)lanes) + " continuous, ends under a ceiling " + Number((long long)endsUnderCeiling) + ", at open sky " +
-			Number((long long)endsAtOpenSky) + (refused ? " (the last refused: " + lastRefused + ")" : std::string()) : last);
+			Number((long long)endsAtOpenSky) + (refused ? " (the last refused: " + lastRefused + ")" : std::string()) + tail : last + tail);
 	}
 }
 
@@ -1194,6 +1266,8 @@ bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 		Say("Auto-plot: the level's modules can't be read");
 		return true;
 	}
+
+	runStock = alienCounts;   // (Rebellion's own alien waypoints in each, for the end line's "kept Rebellion's")
 
 	std::vector<int32_t> heads;
 	bool const selected = command == host::kWaypointAutoPlotSelected;
@@ -1501,27 +1575,67 @@ void AutoPlotCommand_Frame()
 		return;
 	}
 
-	if (stage != Stage::Searching)
+	if (stage == Stage::Searching)
+	{
+		if (!workerDone)
+		{
+			size_t const at = jobAt;
+
+			Say(host::AutoPlot_ProgressWords(at, jobs.size(), at < jobs.size() ? jobs[at].name : std::string(), wayAt, wayCount));
+			return;
+		}
+
+		worker.join();
+		finishing = Finishing();
+		finishing.open = LevelObjects_OpenForEdit();
+		stage = Stage::Writing;
+	}
+
+	if (stage != Stage::Writing)
 	{
 		return;
 	}
 
-	if (!workerDone)
+	// THE WRITING, A SLICE A FRAME: into the level open when it began, and only while that one is still open (the frames between let anything else happen)
+	if (!finishing.open || LevelObjects_OpenForEdit() != finishing.open)
 	{
-		size_t const at = jobAt;
-
-		Say("Auto-plot: AI module " + Number(at < jobs.size() ? jobs[at].head : -1) + ", way " + Number((long long)wayAt) + " of " + Number((long long)wayCount));
+		stage = Stage::Idle;
+		Say("Auto-plot: stopped: another level was opened while the networks were being saved (" + Number((long long)finishing.written) + " of " +
+			Number((long long)jobs.size()) + " AI modules done)");
 		return;
 	}
 
-	worker.join();
+	auto const sliceFrom = std::chrono::steady_clock::now();
+
+	while (finishing.at < jobs.size() && MsSince(sliceFrom) < kAutoPlotWriteSliceMs)
+	{
+		FinishOne(jobs[finishing.at++]);
+	}
+
+	if (finishing.at < jobs.size())
+	{
+		Say(host::AutoPlot_WritingWords(finishing.at, jobs.size(), jobs[finishing.at].name));
+		return;
+	}
+
 	stage = Stage::Idle;
-	Finish();
+	FinishEnd();
 }
 
 bool AutoPlotCommand_Busy()
 {
 	return stage != Stage::Idle;
+}
+
+bool AutoPlotCommand_BusyCursor()
+{
+	if (stage == Stage::Idle)
+	{
+		return false;
+	}
+
+	SetCursor(LoadCursor(NULL, IDC_APPSTARTING));
+	return true;
 }
 
 bool AutoPlotCommand_Run(std::vector<int32_t> const &modules)
