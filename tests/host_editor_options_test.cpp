@@ -117,6 +117,15 @@ static void TestTheStart()
 	char data[16];
 	GetPrivateProfileStringA("Editor", "DataFolder", "none", data, sizeof(data), full);
 	Check(strcmp(data, "none") == 0, "it names no data folder: that is each mapper's own (the editor says so at its start)");
+
+	// THE AUTO-PLOT SHIPS ON (the owner 11-21, "Ship AutoPlot=1 in the ini"): Waypoint's Alien auto waypoint menu shows only with AutoPlot=1 under [Editor], read at the
+	// editor's start exactly so (editor_main.cpp: GetPrivateProfileIntA("Editor", "AutoPlot", 0, ...) == 1; autoplot_switch.h). The gap closers stay off, opt-in:
+	// AutoPlotClosers is on only with the text "1" (autoplot_closers.h), and the shipped file does not say it
+	Check(GetPrivateProfileIntA("Editor", "AutoPlot", 0, full) == 1, "it shows the Alien auto waypoint menu: AutoPlot=1 under [Editor] (the owner 11-21)");
+
+	char closers[16];
+	GetPrivateProfileStringA("Editor", "AutoPlotClosers", "", closers, sizeof(closers), full);
+	Check(strcmp(closers, "1") != 0, "and it leaves the gap closers off: no AutoPlotClosers=1");
 }
 
 int main()
