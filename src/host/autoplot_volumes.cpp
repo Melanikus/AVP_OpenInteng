@@ -1,6 +1,7 @@
 // See autoplot_volumes.h. Written 2026-11-20 by Melanikus (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 #include "autoplot_volumes.h"
 #include "autoplot_closers.h"  // the gap closers on the walls' band (Vasquez 11-21)
+#include "autoplot_entry_reach.h"  // an entry's reach toward its doorway's top never holds another box's aim (Dietrich 11-21)
 #include "autoplot_levels.h"   // the levels' rule: stairs or levels, and ducts (Frost 11-20)
 #include "autoplot_nest.h"     // the nested boxes' order, the last step (Dietrich 11-21)
 #include "autoplot_rooms.h"    // the rooms' wall test (Drake 11-20)
@@ -42,6 +43,8 @@ namespace host
 			std::vector<std::vector<double> > centres; // the centre's candidates, the first preferred
 			int exit = -1;                             // an entry's or an exit box's exit
 			int floor = -1;                            // a climb-in's floor rectangle
+			bool banded = false;                       // an entry: its own ceiling band known (bandLo..bandHi, y), before its doorway's top stretched it
+			double bandLo = 0.0, bandHi = 0.0;
 		};
 
 		// a floor rectangle of cells: its cell range, its floor's highest and lowest (y down), and its ceiling's (when any place over it has one)
@@ -1715,6 +1718,11 @@ namespace host
 				}
 			}
 
+			// the entry's own ceiling band, before the doorway's top stretches it (autoplot_entry_reach.h: a stretch that would hold another box's aim is cut back)
+			v.banded = top < 1e299 && low > -1e299;
+			v.bandLo = top - kAutoPlotInto;
+			v.bandHi = low + kAutoPlotClimbReach;
+
 			if (d.soffitFound)
 			{
 				top = std::min(top, (double)d.soffit[1]);
@@ -2646,6 +2654,8 @@ namespace host
 				v.kind == Kind::Closer ? "closer" : v.kind == Kind::StairCeiling ? "stair ceiling" : "floor");   // Drake's volume repair: LOW and HIGH centres stay
 		}
 
+		std::vector<bool> sharedAt(vols.size(), false);   // the boxes whose centre the picking could not keep out of every other box
+
 		for (size_t i = 0; i < vols.size(); i++)
 		{
 			bool chosen = false;
@@ -2704,6 +2714,100 @@ namespace host
 				}
 
 				plan.centresShared++;
+				sharedAt[i] = true;
+			}
+		}
+
+		// AN ENTRY'S REACH TOWARD ITS DOORWAY'S TOP NEVER HOLDS ANOTHER BOX'S AIM (autoplot_entry_reach.h; Bishop's spec (a) 11-21: opsstr01, liftshft02 and strwll01 were
+		// refused for it). Every box's aim is known now: each entry's stretch past its band that holds one stops short of the body there, before the links are made.
+		// ONLY WHERE THE REPAIR CAN'T (Bishop's (a')): an aim whose box has a place of its own at its height, one the repair's V2 would move it to, is the repair's and
+		// cuts nothing (STEPS04's and genstrs' get-outs 1 mm inside their entry, yard19's HIGHs); judged once, on the list as the planner has it, every entry whole
+		{
+			std::vector<std::vector<double> > aims(vols.size());
+
+			for (size_t j = 0; j < vols.size(); j++)
+			{
+				if (vols[j].kind == Kind::High)
+				{
+					continue;   // a HIGH's aim is V3's: the repair slides it along its face past the entry's end (yard19); where it can't, Drake's V3 seam (newcol03)
+				}
+
+				std::vector<double> const a = { (double)plan.list[j].centre[0] * scale, (double)plan.list[j].centre[1] * scale, (double)plan.list[j].centre[2] * scale };
+				bool inStretch = false;   // (V2's test is asked only for an aim some entry's stretch holds: it is the costly part)
+
+				for (size_t i = 0; i < vols.size() && !inStretch; i++)
+				{
+					Vol const &e = vols[i];
+
+					inStretch = i != j && e.kind == Kind::Entry && e.banded && a[0] >= e.lo[0] && a[0] <= e.hi[0] && a[2] >= e.lo[2] && a[2] <= e.hi[2] && a[1] >= e.lo[1] && a[1] <= e.hi[1] &&
+						(a[1] < e.bandLo || a[1] > e.bandHi);
+				}
+
+				if (inStretch && !AutoPlot_PlaceOfItsOwn(plan.list, j, scale))
+				{
+					aims[j] = a;
+				}
+			}
+
+			bool cut = false;
+
+			for (size_t i = 0; i < vols.size(); i++)
+			{
+				Vol &v = vols[i];
+
+				if (v.kind != Kind::Entry || !v.banded)
+				{
+					continue;
+				}
+
+				std::vector<double> const own = aims[i];
+
+				aims[i].clear();   // (its own aim is not another box's)
+
+				double const was[2] = { v.lo[1], v.hi[1] };
+				std::vector<AutoPlotEntryReachCut> const cuts = AutoPlot_EntryReachClear(v.lo, v.hi, v.bandLo, v.bandHi, aims);
+
+				aims[i] = own;
+
+				if (cuts.empty())
+				{
+					continue;
+				}
+
+				WaypointRec &wp = plan.list[i];
+
+				wp.min[1] = File(Held(v.lo[1]), scale);
+				wp.max[1] = std::max(std::min(File(Held(v.hi[1]), scale) + 1, kAutoPlotMostPlace), wp.min[1] + 2);
+				wp.centre[1] = std::min(std::max(wp.centre[1], wp.min[1]), wp.max[1] - 1);   // (an entry's aim is in its band: kept)
+
+				std::string words;
+
+				for (AutoPlotEntryReachCut const &c : cuts)
+				{
+					words += (words.empty() ? "" : ", ") + std::string("box ") + std::to_string((unsigned long long)c.aim) + " (" + (c.aim < plan.volumeRoles.size() ? plan.volumeRoles[c.aim] : std::string("?")) + ")'s";
+				}
+
+				plan.notes.push_back("an entry's reach toward its doorway's top cut clear of another box's aim (autoplot_entry_reach.h): entry box " + std::to_string((unsigned long long)i) +
+					(v.exit >= 0 ? " (doorway " + std::to_string((long long)v.exit) + ")" : std::string()) + " y " + std::to_string((long long)was[0]) + ".." + std::to_string((long long)was[1]) + " -> " +
+					std::to_string((long long)v.lo[1]) + ".." + std::to_string((long long)v.hi[1]) + ", clear of the body at " + words + " aim");
+				cut = true;
+			}
+
+			// an aim the picking left shared that no other box holds any more is not shared
+			for (size_t k = 0; k < vols.size() && cut; k++)
+			{
+				bool other = false;
+
+				for (size_t j = 0; j < vols.size() && sharedAt[k] && !other; j++)
+				{
+					other = j != k && GameHolds(plan.list[j], plan.list[k].centre, scale);
+				}
+
+				if (sharedAt[k] && !other && GameHolds(plan.list[k], plan.list[k].centre, scale))
+				{
+					sharedAt[k] = false;
+					plan.centresShared--;
+				}
 			}
 		}
 

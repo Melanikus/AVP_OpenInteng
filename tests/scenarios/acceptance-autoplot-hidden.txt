@@ -1,4 +1,5 @@
-# ACCEPTANCE (red first; Drake 2026-11-19, THE OWNER'S RULING through Bishop: "hide auto pilot", while waypoints are on hold): with the ini as shipped (no AutoPlot= under [Editor]),
+# ACCEPTANCE (red first; Drake 2026-11-19, THE OWNER'S RULING through Bishop: "hide auto pilot", while waypoints are on hold): with no AutoPlot= under [Editor] (the run folder's
+# clean ini; the switch's default is off. The SHIPPED ini says AutoPlot=1 since 11-21, the owner's "Ship AutoPlot=1 in the ini": host_editor_options_test checks that),
 # Waypoint mode's two Auto-plot items, "Auto-plot AI module" (0x7330) and "Auto-plot all AI modules" (0x7331), are NOT on its bar, and their command does nothing however it comes
 # (inteng's command number asked straight, as a key would). The code stays (autoplot_switch.h): AutoPlot=1 brings them back (acceptance-autoplot-shown, and the autoplot acceptances
 # set it). Hangar, as acceptance-autoplot-all. RED on exe-cache/202dbe74.exe: both items are on the bar, and the command starts a run ("Auto-plot: building the grid").

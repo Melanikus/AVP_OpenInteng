@@ -37,6 +37,7 @@ when none is given, without `.rif`).
   640 x 480 and at most your monitor.
 - `Windowed=true` keeps the window framed, as the command line's `-w` does. With `false`, a size as big as the monitor covers it whole,
   as classic inteng's full screen does.
+- `AutoPlot=1` shows the Waypoint screen's Alien auto waypoint menu, which plots the alien waypoints for you: on in the zip. `0` hides it.
 - What wins: inteng's own 640 x 480, then `StartWidth` and `StartHeight`, then the command line's `-r<width>x<height>`, then a classic
   `IntengOptions.ini` (beside the editor, or in the Tools folder `IntengTools=` names), whose `Screen Width` and `Screen Height` win, as in
   inteng. The editor never writes to `IntengOptions.ini`.

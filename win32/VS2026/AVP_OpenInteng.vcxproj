@@ -155,6 +155,11 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <!-- Auto-plot alien ways, an entry's reach toward its doorway's top never holds another box's aim (autoplot_entry_reach.h; Dietrich 11-21, Bishop's spec (a)) -->
+    <ClCompile Include="..\..\src\host\autoplot_entry_reach.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <!-- Auto-plot alien ways, the lanes' proof (autoplot_lane.h: the stock route choice copied; Bishop 11-19, the owner's continuous lanes) -->
     <ClCompile Include="..\..\src\host\autoplot_lane.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>

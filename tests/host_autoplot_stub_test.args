@@ -3,6 +3,7 @@
 /Isrc/host
 tests/host_autoplot_stub_test.cpp
 src/host/autoplot_volumes.cpp
+src/host/autoplot_entry_reach.cpp
 src/host/autoplot_nest.cpp
 src/host/autoplot_stairs.cpp
 src/host/autoplot_rooms.cpp
