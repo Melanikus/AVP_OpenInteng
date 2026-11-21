@@ -1638,6 +1638,56 @@ bool AutoPlotCommand_BusyCursor()
 	return true;
 }
 
+bool AutoPlotCommand_AirductOn(int32_t module, size_t *flagged, size_t *of, std::string *name)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	std::map<int32_t, std::vector<int32_t> > groups;
+	std::map<int32_t, size_t> alienCounts;
+
+	if (!flagged || !of || !name || !open || !open->Level() || !AiModules(open, &groups, &alienCounts))
+	{
+		return false;
+	}
+
+	for (auto const &group : groups)
+	{
+		if (group.first != module && std::find(group.second.begin(), group.second.end(), module) == group.second.end())
+		{
+			continue;
+		}
+
+		// (the plot's own way: FinishOne's Airduct, each module of the AI module by its id)
+		std::vector<uint8_t> ids;
+
+		for (int32_t const member : group.second)
+		{
+			uint8_t id[host::kSelectionIdBytes];
+
+			if (host::ModuleIdOfIndex(LevelObjects_Level(), member, id))
+			{
+				ids.insert(ids.end(), id, id + host::kSelectionIdBytes);
+			}
+		}
+
+		size_t done = 0;
+		bool const set = !ids.empty() && host::StrategyMode_SetModuleFlag(open, ids.data(), ids.size() / host::kSelectionIdBytes, host::kAutoPlotAirduct, true, &done) ==
+			host::StrategyModeResult::Done;
+
+		*flagged = done;
+		*of = group.second.size();
+		*name = ModuleNameOfIndex(group.first);
+
+		if (set)
+		{
+			LoadTheObjectListAgain();
+		}
+
+		return set;
+	}
+
+	return false;
+}
+
 bool AutoPlotCommand_Run(std::vector<int32_t> const &modules)
 {
 	return AutoPlotCommand_Run(modules, host::AutoPlotVolumeCounts());

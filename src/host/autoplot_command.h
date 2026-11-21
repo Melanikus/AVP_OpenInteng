@@ -7,8 +7,10 @@
 // Written 2026-11-18 by Melanikus (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
+#include <string>
 #include <vector>
 
 #include "autoplot_volumes.h"
@@ -38,6 +40,11 @@ bool AutoPlotCommand_Busy();
 // While a run goes: the busy cursor (the arrow with the hourglass: the editor still answers) set, true; else nothing done, false. The window's WM_SETCURSOR (editor_main.cpp)
 // asks it (the owner 11-21, a whole-level plot of about 112 s with nothing shown)
 bool AutoPlotCommand_BusyCursor();
+
+// THE CAN CRAWL OFFER's Apply Module Flag (can_crawl_offer.h; the owner 11-21): the Airduct flag on every module of the AI module that holds `module` (any module's object
+// index), by the plot's own way (Strategy mode's Add Flag > Airduct, as its Airduct box). flagged: the modules newly flagged; of: its modules; name: its head's name. False when
+// the level or its modules can't be read, or the flag could not be set
+bool AutoPlotCommand_AirductOn(int32_t module, size_t *flagged, size_t *of, std::string *name);
 
 // Auto-plot these modules' AI modules (any module's object index, each taken to the head of the AI module that holds it, once, in the order given), or EVERY AI module when the
 // list is empty: the same run and status line as Auto-plot selected / all (Vasquez's "Alien auto waypoint" menu, the owner 11-20: "a drop down with environment or modules and

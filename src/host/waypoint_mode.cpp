@@ -1530,6 +1530,7 @@ namespace host
 
 					list[(size_t)cur].flags ^= kWaypointCanCrawl;
 					out.say = std::string((list[(size_t)cur].flags & kWaypointCanCrawl) ? "Can Crawl on" : "Can Crawl off") + " for waypoint " + std::to_string(cur);
+					out.offerAirduct = (list[(size_t)cur].flags & kWaypointCanCrawl) != 0;   // turned on: the module's Airduct flag offered instead (can_crawl_offer.h)
 					changed = true;
 					break;
 
@@ -1563,6 +1564,7 @@ namespace host
 					}
 
 					out.say = std::string(command == 0x16 ? "Can Crawl on" : "Can Crawl off") + " for waypoint " + std::to_string(cur);
+					out.offerAirduct = command == 0x16;   // Add: the module's Airduct flag offered instead (can_crawl_offer.h); Remove offers nothing
 					changed = true;
 					break;
 

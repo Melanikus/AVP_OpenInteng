@@ -65,6 +65,8 @@ namespace host
 		bool leaveScreen;        // Exit of mode 0: back to Construction
 		bool levelChanged;       // the level's bytes were swapped: what the editor made of the old one has to be made again
 		bool askExtents;         // (not used by the editor any more: Edit Extents is mode 2; ApplyExtentsText stays for the tests)
+		bool offerAirduct = false;   // THE CAN CRAWL OFFER (the owner 11-21): Can Crawl was just turned ON (Add Can Crawl, or W to on): the editor offers the module's Airduct flag
+		                             // instead (can_crawl_offer.h), as the bit itself does nothing in the game (read only inside an "#if 0", bh_waypoint.cpp 870-883)
 	};
 
 	class WaypointMode
