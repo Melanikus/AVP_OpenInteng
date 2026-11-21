@@ -46,6 +46,28 @@ static void Cells(host::AutoPlotFloor *floor, int ix0, int ix1, int iz0, int iz1
 	}
 }
 
+// which box's centre lies in which other box, for a check's words
+static std::string Shared(host::AutoPlotPlan const &plan)
+{
+	std::string where;
+
+	for (size_t b = 0; b < plan.list.size(); b++)
+	{
+		for (size_t o = 0; o < plan.list.size(); o++)
+		{
+			host::WaypointRec const &w = plan.list[o];
+			int32_t const *const c = plan.list[b].centre;
+
+			if (o != b && w.min[0] <= c[0] && c[0] < w.max[0] && w.min[1] <= c[1] && c[1] < w.max[1] && w.min[2] <= c[2] && c[2] < w.max[2])
+			{
+				where += "; box " + std::to_string((long long)b) + "'s centre in box " + std::to_string((long long)o);
+			}
+		}
+	}
+
+	return where;
+}
+
 static int Count(host::AutoPlotLevelPlan const &plan, int kind)
 {
 	int n = 0;
@@ -576,6 +598,342 @@ int main()
 
 		Check(lv.volumes && lv.centresShared == 0 && lv.exitsCovered == 2, "A DOORWAY INSIDE THE FLOOR'S FOOTPRINT: the exit's centre on along the way through, out of the "
 			"floor box: no centre in another box, both exits held (shared " + std::to_string((long long)lv.centresShared) + ", exits " + std::to_string((long long)lv.exitsCovered) + ")");
+	}
+
+	// ---- AN EXIT POINT IN ITS OWN FLOOR BOX (SHED04, AI 225, in Hudson's whole-map runs 220016 and 221129, Vasquez: the levels' floor box ran 107 past the doorway's middle
+	// and held the entry point, so the route was 0>0..0, one box with no aliens-only link: AlienShouldBeCrawling said no and the hunter stood, why=HUNT-STANDING). A floor that
+	// runs 150 past its east doorway's middle, the exit point there 750 over the floor. (B), Bishop 11-21: the cut along the way through is taken out; on the fully covered base it uncovered floor (MOD-01, Genshd1 AI 70: 34 m2, 8,362 standing bodies in no
+	// box), and bishop-int never had it. SHED04's case is queued as "a cut that never uncovers a floor cell". So the floor box keeps its
+	// floor to its end and holds the point too, every floor cell held, both exits held, no centre shared (as bishop-int plots it today)
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 300;
+		Cells(&floor, 0, 19, 0, 9, 2000, 300);
+
+		std::vector<std::vector<int32_t> > const exits = { { -300, 1250, 1350 }, { 5700, 1250, 1350 } };
+		std::vector<host::AutoPlotDoor> doors(2);
+
+		doors[1].throughFound = true, doors[1].middle[0] = 5700, doors[1].middle[1] = 1250, doors[1].middle[2] = 1350, doors[1].through[0] = 1.0;
+		doors[1].soffitFound = true, doors[1].soffit[0] = 5700, doors[1].soffit[1] = -500, doors[1].soffit[2] = 1350;
+
+		host::AutoPlotPlan const lv = host::AutoPlot_LevelsVolumes(floor, exits, doors, 1.0, "corridor, floor only");
+		int floorsHolding = 0;
+
+		for (size_t b = 0; b < lv.list.size(); b++)
+		{
+			host::WaypointRec const &w = lv.list[b];
+			bool const isExit = lv.exitBox.size() == 2 && (int)b == lv.exitBox[1];
+
+			floorsHolding += !isExit && w.min[0] <= 5700 && w.max[0] > 5700 && w.min[1] <= 1250 && w.max[1] > 1250 && w.min[2] <= 1350 && w.max[2] > 1350 ? 1 : 0;
+		}
+
+		Check(lv.volumes && floorsHolding == 1 && lv.cellsCovered == lv.cells && lv.exitsCovered == 2 && lv.centresShared == 0, "AN EXIT POINT IN ITS OWN FLOOR BOX: "
+			"no cut along the way through (B): the floor box keeps its floor and holds the point too, every floor cell held, both exits held, no centre shared (" +
+			std::to_string((long long)floorsHolding) + " other boxes hold it, cells " + std::to_string((unsigned long long)lv.cellsCovered) + " of " +
+			std::to_string((unsigned long long)lv.cells) + ", shared " + std::to_string((long long)lv.centresShared) + ")");
+	}
+
+	// ---- AN EXIT INTO A PIT (corr10 into lift03, liftplt's pit, in Hudson's run 220016, Vasquez: its entry point lies on the pit floor 768 under corr10's floor, and on
+	// the aliens-only lane the alien crawled with gravity off and flipped at the lip 900 times instead of dropping in). A floor with its west exit level and its east exit
+	// 768 under it: the east exit's link to its floor is a GROUND link (no kLinkAlien: the alien walks with gravity and drops in), the west one stays aliens only
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 300;
+		Cells(&floor, 0, 19, 0, 9, 2000, 300);
+
+		std::vector<std::vector<int32_t> > const exits = { { -300, 1250, 1350 }, { 6000, 2768, 1350 } };
+		std::vector<host::AutoPlotDoor> const doors(2);
+		host::AutoPlotPlan const lv = host::AutoPlot_LevelsVolumes(floor, exits, doors, 1.0, "corridor, floor only");
+		int pitFlags = -1, levelFlags = -1;
+
+		for (int k = 0; k < 2 && lv.exitBox.size() == 2; k++)
+		{
+			int const xb = lv.exitBox[(size_t)k];
+
+			for (size_t b = 0; xb >= 0 && b < lv.list.size(); b++)
+			{
+				for (host::WaypointLinkRec const &l : lv.list[b].links)
+				{
+					if ((int)b != xb && l.index == xb)
+					{
+						(k == 1 ? pitFlags : levelFlags) = l.flags;
+					}
+				}
+			}
+		}
+
+		Check(lv.volumes && pitFlags >= 0 && (pitFlags & host::kLinkAlien) == 0 && levelFlags >= 0 && (levelFlags & host::kLinkAlien) != 0, "AN EXIT INTO A PIT (768 under the "
+			"floor): its link from the floor is a ground link, the level exit's stays aliens only (pit " + std::to_string((long long)pitFlags) + ", level " +
+			std::to_string((long long)levelFlags) + ")");
+	}
+
+	// ---- AN EXIT IN MID-AIR OVER A TRENCH (trench01, Genshd1 AI 371, exit 1 to air06, in whole-0a1abdea: its point 4.6 m over the trench floor, over its middle; the rule that
+	// stops a floor box short of an exit point cut the box along the doorway's way through, so 12.4 m of the trench was in no box, 1572 of 3349 floor cells held; the same in
+	// procpath01, 2154 of 4800). The trench of A TRENCH with banks 4.5 m high and an exit 4.6 m over the floor's middle, its way through along -x: the floor's west end is
+	// still held by a floor box, the exit point only by its exit box, every exit held, no centre shared
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 300;
+		Cells(&floor, 0, 39, 16, 40, 2725, 300);   // the trench floor
+
+		for (int row = 0; row < 15; row++)   // the banks: 300 up each row away from the floor, to 4.5 m over it
+		{
+			Cells(&floor, 0, 39, 15 - row, 15 - row, 2425 - 300 * row, 300);
+			Cells(&floor, 0, 39, 41 + row, 41 + row, 2425 - 300 * row, 300);
+		}
+
+		Cells(&floor, 40, 41, 15, 41, 2425, 300);   // the ledge along the east side, from bank to bank
+
+		// (exit 1 just past the banks' top row, 750 over it, as in A TRENCH)
+		std::vector<std::vector<int32_t> > const exits = { { -300, 1975, 8400 }, { 6000, -2525, 16800 }, { 6000, -1900, 8400 } };
+		std::vector<host::AutoPlotDoor> doors(3);
+
+		doors[2].throughFound = true, doors[2].middle[0] = 6000, doors[2].middle[1] = -1900, doors[2].middle[2] = 8400, doors[2].through[0] = -1.0;
+
+		host::AutoPlotPlan const lv = host::AutoPlot_LevelsVolumes(floor, exits, doors, 1.0, "open sky");
+		auto const holds = [](host::WaypointRec const &w, int32_t x, int32_t y, int32_t z) { return w.min[0] <= x && x < w.max[0] && w.min[1] <= y && y < w.max[1] && w.min[2] <= z && z < w.max[2]; };
+		int westHeld = 0, pointHeld = 0;
+
+		for (size_t b = 0; b < lv.list.size(); b++)
+		{
+			bool const isExit = lv.exitBox.size() == 3 && ((int)b == lv.exitBox[0] || (int)b == lv.exitBox[1] || (int)b == lv.exitBox[2]);
+
+			westHeld += !isExit && holds(lv.list[b], 1500, 2725, 8400) ? 1 : 0;   // (a floor cell 1.5 m from the trench's west end, on its middle line)
+			pointHeld += lv.exitBox.size() == 3 && (int)b != lv.exitBox[2] && holds(lv.list[b], 6000, -1900, 8400) ? 1 : 0;
+		}
+
+		Check(lv.volumes && westHeld >= 1 && pointHeld == 0 && lv.exitsCovered == 3 && lv.centresShared == 0, "AN EXIT IN MID-AIR OVER A TRENCH: the trench's west end "
+			"still in a floor box, the point only in its exit box, every exit held, no centre shared (west held by " + std::to_string((long long)westHeld) + ", the point by " +
+			std::to_string((long long)pointHeld) + " other boxes, exits " + std::to_string((long long)lv.exitsCovered) + ", shared " + std::to_string((long long)lv.centresShared) + Shared(lv) + ")");
+	}
+
+	// ---- AN EXIT ON A STAIR'S SIDE (PROC04, Genshd1 AI 349, in whole-adc1d8d6: one stair 9.5 m high, its exit to AI 106 on its side at mid-height; taken for an exit in mid-air,
+	// the box's top came down under the point and 147 of its 164 floor cells were in no box; PROC05 the same). A bottom level and a stair rising 300 a row to 8.7 m over it, an
+	// exit on the stair's -z side 750 over its tread there, its way through -z: the point stands on the stair, so the box keeps its height: the top tread still held,
+	// both exits held, no centre shared. (B), Bishop 11-21: the cut along the way through is taken out; on the fully covered base it uncovered floor (MOD-01, Genshd1 AI 70: 34 m2, 8,362 standing bodies in no
+	// box), and bishop-int never had it. SHED04's case is queued as "a cut that never uncovers a floor cell". So the stair
+	// box holds the point too
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 300;
+		Cells(&floor, -10, -1, 0, 9, 2000, 300);   // the bottom level
+
+		for (int row = 0; row < 30; row++)   // the stair: 300 up a row, a step the grid walks
+		{
+			Cells(&floor, row, row, 0, 9, 2000 - 300 * row, 300);
+		}
+
+		std::vector<std::vector<int32_t> > const exits = { { -3300, 1250, 1350 }, { 4500, -3250, 100 } };
+		std::vector<host::AutoPlotDoor> doors(2);
+
+		doors[1].throughFound = true, doors[1].middle[0] = 4500, doors[1].middle[1] = -3250, doors[1].middle[2] = 100, doors[1].through[1] = -1.0;
+
+		host::AutoPlotPlan const lv = host::AutoPlot_LevelsVolumes(floor, exits, doors, 1.0, "stairs or levels");
+		auto const holds = [](host::WaypointRec const &w, int32_t x, int32_t y, int32_t z) { return w.min[0] <= x && x < w.max[0] && w.min[1] <= y && y < w.max[1] && w.min[2] <= z && z < w.max[2]; };
+		int topHeld = 0, pointHeld = 0;
+
+		for (size_t b = 0; b < lv.list.size(); b++)
+		{
+			bool const isExit = lv.exitBox.size() == 2 && ((int)b == lv.exitBox[0] || (int)b == lv.exitBox[1]);
+
+			topHeld += !isExit && holds(lv.list[b], 8700, -6700, 1350) ? 1 : 0;   // (the top tread's middle)
+			pointHeld += lv.exitBox.size() == 2 && (int)b != lv.exitBox[1] && holds(lv.list[b], 4500, -3250, 100) ? 1 : 0;
+		}
+
+		Check(lv.volumes && topHeld >= 1 && pointHeld == 1 && lv.exitsCovered == 2 && lv.centresShared == 0, "AN EXIT ON A STAIR'S SIDE: the stair box keeps its height (the top "
+			"tread held) and holds the point too (no cut along the way through: (B)), both exits held, no centre shared (top held by " + std::to_string((long long)topHeld) + ", the point by " +
+			std::to_string((long long)pointHeld) + " other boxes, exits " + std::to_string((long long)lv.exitsCovered) + ", shared " + std::to_string((long long)lv.centresShared) + ")");
+	}
+
+	// ---- AN EXIT POINT PAST THE STAIR'S CELLS (PROC04 as it is, the debug dump of whole-05e764b6: its exit point lies inside the stair's bounding box with no floor cell
+	// within 1.2 m of it in plan, the nearest 2.2 m away and 3.4 m over it; taken for an exit in mid-air, the box's top came down under the point and 147 of its 164 cells
+	// were in no box). The stair of AN EXIT ON A STAIR'S SIDE with a low wing off its +z side along its foot, so its bounding box runs 6 m along z over the whole stair; the
+	// exit point in that box over the stair's middle, 1.8 m past its cells, its way through +z: no floor under it, so it is no exit in mid-air: the box keeps its height
+	// (the top tread held), both exits held, no centre shared. (B), Bishop 11-21: the cut along the way through is taken out; on the fully covered base it uncovered floor (MOD-01, Genshd1 AI 70: 34 m2, 8,362 standing bodies in no
+	// box), and bishop-int never had it. SHED04's case is queued as "a cut that never uncovers a floor cell". So
+	// the stair box holds the point too
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 300;
+		Cells(&floor, -10, -1, 0, 9, 2000, 300);   // the bottom level
+
+		for (int row = 0; row < 30; row++)   // the stair: 300 up a row
+		{
+			Cells(&floor, row, row, 0, row < 6 ? 20 : 9, 2000 - 300 * row, 300);   // (its first 6 rows run on to z 6000: the wing)
+		}
+
+		std::vector<std::vector<int32_t> > const exits = { { -3300, 1250, 1350 }, { 4500, -3250, 4500 } };
+		std::vector<host::AutoPlotDoor> doors(2);
+
+		doors[1].throughFound = true, doors[1].middle[0] = 4500, doors[1].middle[1] = -3250, doors[1].middle[2] = 4500, doors[1].through[1] = 1.0;
+
+		host::AutoPlotPlan const lv = host::AutoPlot_LevelsVolumes(floor, exits, doors, 1.0, "stairs or levels");
+		auto const holds = [](host::WaypointRec const &w, int32_t x, int32_t y, int32_t z) { return w.min[0] <= x && x < w.max[0] && w.min[1] <= y && y < w.max[1] && w.min[2] <= z && z < w.max[2]; };
+		int topHeld = 0, pointHeld = 0;
+
+		for (size_t b = 0; b < lv.list.size(); b++)
+		{
+			bool const isExit = lv.exitBox.size() == 2 && ((int)b == lv.exitBox[0] || (int)b == lv.exitBox[1]);
+
+			topHeld += !isExit && holds(lv.list[b], 8700, -6700, 1350) ? 1 : 0;
+			pointHeld += lv.exitBox.size() == 2 && (int)b != lv.exitBox[1] && holds(lv.list[b], 4500, -3250, 4500) ? 1 : 0;
+		}
+
+		Check(lv.volumes && topHeld >= 1 && pointHeld == 1 && lv.exitsCovered == 2 && lv.centresShared == 0, "AN EXIT POINT PAST THE STAIR'S CELLS: the stair box keeps its "
+			"height (the top tread held) and holds the point too (no cut along the way through: (B)), both exits held, no centre shared (top held by " + std::to_string((long long)topHeld) + ", the point by " +
+			std::to_string((long long)pointHeld) + " other boxes, exits " + std::to_string((long long)lv.exitsCovered) + ", shared " + std::to_string((long long)lv.centresShared) + Shared(lv) + ")");
+	}
+
+	// ---- A POINT JUST PAST THE REACH (Frost's review of the mid-air rule 11-21: the floor 1.6 m under the point, just past kAutoPlotLevelExitReach, so the box's top comes down
+	// to 300 under the point; is the box still tall enough?). Only a stair's box reaches that high (a level's reaches kAutoPlotLevelReach over its floor), so: the trench of
+	// AN EXIT IN MID-AIR OVER A TRENCH with the point 1.6 m over its floor's middle. The box under it at least the game's 900 mm arrival box tall (by the rule at least
+	// kAutoPlotLevelExitReach - kAutoPlotLevelExitClear + kAutoPlotLevelInto), the west end held, the point only in its exit box, every exit held
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 300;
+		Cells(&floor, 0, 39, 16, 40, 2725, 300);   // the trench floor
+
+		for (int row = 0; row < 15; row++)   // the banks, to 4.5 m over the floor
+		{
+			Cells(&floor, 0, 39, 15 - row, 15 - row, 2425 - 300 * row, 300);
+			Cells(&floor, 0, 39, 41 + row, 41 + row, 2425 - 300 * row, 300);
+		}
+
+		Cells(&floor, 40, 41, 15, 41, 2425, 300);   // the ledge along the east side
+
+		std::vector<std::vector<int32_t> > const exits = { { -300, 1975, 8400 }, { 6000, -2525, 16800 }, { 6000, 1125, 8400 } };
+		std::vector<host::AutoPlotDoor> doors(3);
+
+		doors[2].throughFound = true, doors[2].middle[0] = 6000, doors[2].middle[1] = 1125, doors[2].middle[2] = 8400, doors[2].through[0] = -1.0;
+
+		host::AutoPlotPlan const lv = host::AutoPlot_LevelsVolumes(floor, exits, doors, 1.0, "open sky");
+		auto const holds = [](host::WaypointRec const &w, int32_t x, int32_t y, int32_t z) { return w.min[0] <= x && x < w.max[0] && w.min[1] <= y && y < w.max[1] && w.min[2] <= z && z < w.max[2]; };
+		int shortest = 1 << 30, westHeld = 0, pointHeld = 0;
+
+		for (size_t b = 0; b < lv.list.size(); b++)
+		{
+			bool const isExit = lv.exitBox.size() == 3 && ((int)b == lv.exitBox[0] || (int)b == lv.exitBox[1] || (int)b == lv.exitBox[2]);
+
+			if (!isExit && holds(lv.list[b], 6000, 2724, 8400))   // (the floor right under the point)
+			{
+				shortest = std::min(shortest, (int)(lv.list[b].max[1] - lv.list[b].min[1]));
+			}
+
+			westHeld += !isExit && holds(lv.list[b], 1500, 2724, 8400) ? 1 : 0;
+			pointHeld += lv.exitBox.size() == 3 && (int)b != lv.exitBox[2] && holds(lv.list[b], 6000, 1125, 8400) ? 1 : 0;
+		}
+
+		Check(lv.volumes && shortest >= 900 && shortest < (1 << 30) && westHeld >= 1 && pointHeld == 0 && lv.exitsCovered == 3, "A POINT JUST PAST THE REACH: the box under "
+			"it at least the 900 mm arrival box tall, the west end held, the point only in its exit box, every exit held (" + std::to_string((long long)shortest) + " mm, west " +
+			std::to_string((long long)westHeld) + ", the point by " + std::to_string((long long)pointHeld) + " other boxes, exits " + std::to_string((long long)lv.exitsCovered) +
+			", shared " + std::to_string((long long)lv.centresShared) + Shared(lv) + ")");
+	}
+
+	// ---- A BANK BESIDE AN EXIT OVER THE FLOOR (Frost's review 11-21: the trench floor 4.6 m under the point but a bank 0.5 m under it within reach in plan, so it is no exit in
+	// mid-air). The trench of AN EXIT IN MID-AIR OVER A TRENCH with the exit point beside the -z bank, 0.5 m over its row there: the stair box keeps its height (the bank's
+	// top row held). (B), Bishop 11-21: the cut along the way through is taken out; on the fully covered base it uncovered floor (MOD-01, Genshd1 AI 70: 34 m2, 8,362 standing bodies in no
+	// box), and bishop-int never had it. SHED04's case is queued as "a cut that never uncovers a floor cell". So the stair box
+	// holds the point too, and the exit box's centre is then in the stair box: 1 centre shared, NAMED (the repair's V2 moves it or the checker refuses the module: the
+	// queued item's case)
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 300;
+		Cells(&floor, 0, 39, 16, 40, 2725, 300);   // the trench floor
+
+		for (int row = 0; row < 15; row++)   // the banks, to 4.5 m over the floor
+		{
+			Cells(&floor, 0, 39, 15 - row, 15 - row, 2425 - 300 * row, 300);
+			Cells(&floor, 0, 39, 41 + row, 41 + row, 2425 - 300 * row, 300);
+		}
+
+		Cells(&floor, 40, 41, 15, 41, 2425, 300);   // the ledge along the east side
+
+		// (the point over the trench floor's first row, z 4800, 600 from the bank's row at z 4200, 2425 - 300 * 1 = 2125 there: 500 under the point)
+		std::vector<std::vector<int32_t> > const exits = { { -300, 1975, 8400 }, { 6000, -2525, 16800 }, { 6000, 1625, 4800 } };
+		std::vector<host::AutoPlotDoor> doors(3);
+
+		doors[2].throughFound = true, doors[2].middle[0] = 6000, doors[2].middle[1] = 1625, doors[2].middle[2] = 4800, doors[2].through[0] = -1.0;
+
+		host::AutoPlotPlan const lv = host::AutoPlot_LevelsVolumes(floor, exits, doors, 1.0, "open sky");
+		auto const holds = [](host::WaypointRec const &w, int32_t x, int32_t y, int32_t z) { return w.min[0] <= x && x < w.max[0] && w.min[1] <= y && y < w.max[1] && w.min[2] <= z && z < w.max[2]; };
+		int topHeld = 0, pointHeld = 0;
+
+		for (size_t b = 0; b < lv.list.size(); b++)
+		{
+			bool const isExit = lv.exitBox.size() == 3 && ((int)b == lv.exitBox[0] || (int)b == lv.exitBox[1] || (int)b == lv.exitBox[2]);
+
+			topHeld += !isExit && holds(lv.list[b], 9000, -1775, 300) ? 1 : 0;   // (the -z bank's top row, z 300, at 4.5 m, east of the point)
+			pointHeld += lv.exitBox.size() == 3 && (int)b != lv.exitBox[2] && holds(lv.list[b], 6000, 1625, 4800) ? 1 : 0;
+		}
+
+		Check(lv.volumes && topHeld >= 1 && pointHeld == 1 && lv.exitsCovered == 3 && lv.centresShared == 1, "A BANK BESIDE AN EXIT OVER THE FLOOR: no exit in mid-air, the "
+			"stair box keeps its height (the bank's top row held) and holds the point too (no cut along the way through: (B)), its exit box's centre in it: 1 shared, "
+			"named (top held by " + std::to_string((long long)topHeld) + ", the point by " +
+			std::to_string((long long)pointHeld) + " other boxes, exits " + std::to_string((long long)lv.exitsCovered) + ", shared " + std::to_string((long long)lv.centresShared) + Shared(lv) + ")");
+	}
+
+	// ---- THE CUT NEVER LEAVES A BOX NO PLACE OF ITS OWN (Bishop's (B) 11-21: there is no cut along the way through any more, so this pins that no box is left without a
+	// place of its own. The case: trench07, Genshd1 AI 375, in whole-48ef59c2: refused, "box 6: its centre is in box 0 too", Drake's V2 "no place in it
+	// outside the other boxes": its floor box's only place outside the stair boxes over it was the strip by exit 1, and the cut along exit 1's way through took it; in whole4,
+	// with no cut, V2 put the centre there). The trench of A TRENCH with its banks joined at the WEST end, so the stair's box covers the floor, and the floor running 1.8 m on
+	// east past the banks; an exit point near the floor's east end, its way through +x: every box but the exits keeps a place outside all the others (V2's test)
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 300;
+		Cells(&floor, 0, 45, 16, 40, 2725, 300);   // the trench floor, 6 rows past the banks' east end
+
+		for (int row = 0; row < 10; row++)   // the banks, to 3 m over the floor
+		{
+			Cells(&floor, 0, 39, 15 - row, 15 - row, 2425 - 300 * row, 300);
+			Cells(&floor, 0, 39, 41 + row, 41 + row, 2425 - 300 * row, 300);
+		}
+
+		Cells(&floor, -2, -1, 15, 41, 2425, 300);   // the ledge joining the banks at the west end
+
+		std::vector<std::vector<int32_t> > const exits = { { 12000, 1975, 8400 }, { 6000, -1025, 15300 } };
+		std::vector<host::AutoPlotDoor> doors(2);
+
+		doors[0].throughFound = true, doors[0].middle[0] = 12000, doors[0].middle[1] = 1975, doors[0].middle[2] = 8400, doors[0].through[0] = 1.0;
+
+		host::AutoPlotPlan const lv = host::AutoPlot_LevelsVolumes(floor, exits, doors, 1.0, "open sky");
+		std::string covered;
+
+		for (size_t b = 0; b < lv.list.size(); b++)
+		{
+			bool const isExit = lv.exitBox.size() == 2 && ((int)b == lv.exitBox[0] || (int)b == lv.exitBox[1]);
+			host::WaypointRec const &w = lv.list[b];
+			bool place = false;
+
+			for (int32_t x = w.min[0]; !isExit && !place && x < w.max[0]; x += 150)   // (at its centre's height, as V2 looks)
+			{
+				for (int32_t z = w.min[2]; !place && z < w.max[2]; z += 150)
+				{
+					bool inOther = false;
+
+					for (size_t o = 0; o < lv.list.size() && !inOther; o++)
+					{
+						host::WaypointRec const &v = lv.list[o];
+
+						inOther = o != b && v.min[0] <= x && x < v.max[0] && v.min[1] <= w.centre[1] && w.centre[1] < v.max[1] && v.min[2] <= z && z < v.max[2];
+					}
+
+					place = !inOther;
+				}
+			}
+
+			covered += !isExit && !place ? " box " + std::to_string((long long)b) : std::string();
+		}
+
+		Check(lv.volumes && covered.empty() && lv.exitsCovered == 2, "THE CUT NEVER LEAVES A BOX NO PLACE OF ITS OWN: every box but the exits has a place outside all "
+			"the others, both exits held (with no place:" + (covered.empty() ? std::string(" none") : covered) + "; exits " + std::to_string((long long)lv.exitsCovered) + Shared(lv) + ")");
 	}
 
 	printf("%d checks, %d failed\n", checks, checksFailed);

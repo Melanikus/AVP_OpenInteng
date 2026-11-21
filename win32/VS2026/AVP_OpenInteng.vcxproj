@@ -170,6 +170,11 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <!-- Auto-plot alien ways, THE NESTED BOXES' ORDER (autoplot_nest.h: a box lying inside another comes after it, the planner's last step; Dietrich 11-21) -->
+    <ClCompile Include="..\..\src\host\autoplot_nest.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="..\..\src\host\autoplot_plan.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>

@@ -2,6 +2,7 @@
 #include "autoplot_volumes.h"
 #include "autoplot_closers.h"  // the gap closers on the walls' band (Vasquez 11-21)
 #include "autoplot_levels.h"   // the levels' rule: stairs or levels, and ducts (Frost 11-20)
+#include "autoplot_nest.h"     // the nested boxes' order, the last step (Dietrich 11-21)
 #include "autoplot_rooms.h"    // the rooms' wall test (Drake 11-20)
 #include "autoplot_stairs.h"   // the stair between two floors (Dietrich 11-21)
 
@@ -3079,6 +3080,12 @@ namespace host
 			(getOut >= 0 ? std::string("1 get-out, ") : std::string("no get-out (the room is under 2.6 m), ")) +
 			std::to_string((long long)std::count_if(vols.begin(), vols.end(), [](Vol const &v) { return v.kind == Kind::Entry; })) + " entry, " +
 			std::to_string((long long)std::count_if(vols.begin(), vols.end(), [](Vol const &v) { return v.kind == Kind::Exit; })) + " exit volumes");
+
+		// THE NESTED BOXES (autoplot_nest.h), the last two steps. THE SPLIT (Bishop's (C') 11-21, the owner's tetris rule): a ceiling entry with another entry inside
+		// it is cut round that one into touching rectangles, so the two no longer overlap. THE ORDER (Bishop's (1), Drake's read of MED05), the numbering only: a box
+		// still lying inside another comes after it, so at its centre it is the alien's own (the game takes the last box holding the body)
+		AutoPlot_SplitNestedEntries(&plan, exits, scale);
+		AutoPlot_OrderNested(&plan);
 		return plan;
 	}
 }

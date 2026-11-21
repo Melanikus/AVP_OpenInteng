@@ -174,10 +174,15 @@ namespace
 	}
 }
 
-void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extras)
+void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extras, void (*underTop)(int32_t width, int32_t height))
 {
 	if (width < 1 || height < 1)
 	{
+		if (underTop)
+		{
+			underTop(width, height);   // nothing of the panels to draw; what plays under the top is still called (panel_pass.h)
+		}
+
 		return;
 	}
 
@@ -188,6 +193,12 @@ void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extr
 	AddLines(extras, width, height, 0);
 	AddBoxes(extras, width, height, 1);
 	AddLines(extras, width, height, 1);
+
+	if (underTop)
+	{
+		underTop(width, height);   // what plays inside a window (the FMV preview): over the window, under its open list
+	}
+
 	AddBoxes(extras, width, height, 2);   // a dialog's open drop-down list, over its window's words
 	AddLines(extras, width, height, 2);
 }

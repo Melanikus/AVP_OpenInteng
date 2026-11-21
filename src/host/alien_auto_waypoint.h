@@ -62,6 +62,9 @@ namespace host
 	//   - the two COUNTS, climb-ins and get-outs (the owner 11-20);
 	//   - the AIRDUCT TICK BOX (the owner 11-20 night; unticked by default since his 19:06): inteng's own check box (FUN_0057d670, 12 x 12) at the fields' x, with its label
 	//     to its right, as Path's Loop box has (path_screen.cpp); UNTICKED as the dialog opens (AutoPlotVolumeCounts().airduct);
+	//   - THE OVERWRITE TICK BOX under it (the owner 11-21: "put a checkbox (default off) asking 'Overwrite already linked modules' (explaining these are likely hand made by
+	//     Rebellion and overwritting them is off by default)"): inteng's check box as the Airduct one, its label to its right, its plain help lines under it; UNTICKED as the
+	//     dialog opens. Off: an AI module that already has alien waypoints is kept as it is (AlienAutoWaypoint_SplitLinked); on: as before, the replace question then the plot;
 	//   - THE OWNER'S SIZES (11-21: "If we could make these boxes sizes as variables on the auto link page with defaults, that would help me understand a lot";
 	//     autoplot_volumes.h): corridor aim along, upper-face aim up and under, in mm.
 	// withNames: Modules' dialog, started with `names`; false: Environment's (the fields and the box only)
@@ -74,14 +77,24 @@ namespace host
 		std::string climbIns;   // the climb-ins field's words
 		std::string getOuts;    // the get-outs field's words
 		bool airduct = false;   // the Airduct box ticked
+		bool overwrite = false; // the Overwrite already linked modules box ticked (off as the dialog opens: linked modules are kept)
 		std::string highAlong;  // THE OWNER'S SIZES (autoplot_volumes.h): the corridor aim along field's words
 		std::string highUp;     // the upper-face aim, up, field's words
 		std::string highUnder;  // the upper-face aim, under, field's words
 	};
 
-	// The plot dialog's parts (as Dialogs_Form gives them back on Ok) read into *answers. False when the parts are not the dialog's own: fewer or more fields than it has, or
-	// no check box, or more than one (nothing is plotted then)
+	// The plot dialog's parts (as Dialogs_Form gives them back on Ok) read into *answers: its check boxes in order, Airduct then Overwrite. False when the parts are not the
+	// dialog's own: fewer or more fields than it has, or other than its two check boxes (nothing is plotted then)
 	bool AlienAutoWaypoint_ReadPlotForm(bool withNames, std::vector<DialogWidget> const &widgets, AlienAutoWaypointPlotAnswers *answers);
+
+	// THE KEEP (the Overwrite box, the owner 11-21): the run's AI modules (their heads, in order) split by their alien waypoints as the run is asked (alienCounts: an AI
+	// module's count; one not in it has none). overwrite false: every one with alien waypoints goes to *kept (kept as it is: most likely Rebellion's own; the file doesn't say
+	// whose they are, so one we plotted before is kept too), the rest to *plot; true: every one to *plot, none kept. Either pointer may be null
+	void AlienAutoWaypoint_SplitLinked(std::vector<int32_t> const &heads, std::map<int32_t, size_t> const &alienCounts, bool overwrite, std::vector<int32_t> *plot,
+		std::vector<int32_t> *kept);
+
+	// The end line's AI modules kept because they were linked already: ", 3 kept, already linked"; none: nothing (so the end line reads as the scenarios have always read it)
+	std::string AlienAutoWaypoint_LinkedKeptWords(size_t kept);
 
 	// The answers' two counts and three sizes (AlienAutoWaypoint_ParseCount, in the planner's ranges, empty is the default) and the tick, into the planner's counts. False,
 	// with *why naming the field and what was typed, when one is refused; a size's refusal also gives the reason for its range (along: "under 2500 every value tried broke

@@ -34,6 +34,8 @@ click-bar Alien auto waypoint > Modules
 expect-dialog Alien auto waypoint
 # MOD-03 and MOD-11 by their names in the dialog's list (PROC11 is picked already)
 type ,MOD-03,MOD-11
+# (the Overwrite already linked modules box ticked, so its modules with alien waypoints are replaced after the question, as before the box: Vasquez 11-21)
+click-check 2
 click-button Ok
 # one of MOD-03 / MOD-11 has stock alien waypoints, so the editor asks to replace them, as the owner answers it (acceptance-autoplot-genshd1)
 expect-dialog-kind confirm

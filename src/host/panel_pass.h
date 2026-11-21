@@ -50,7 +50,11 @@ bool PanelPass_Draw(IDirect3DSwapChain9 *chain, int32_t width, int32_t height, c
 // Adds extras to the game's own frame, as it is being drawn: the boxes, then the lines over them, cut to a window of width by height pixels. It
 // has to be called inside the frame (LevelView_Draw's addToFrame), where the places are in pixels; the game draws them at the end of the frame,
 // over the level. Nothing is drawn at once, and nothing is presented here. (Added 2026-11-15 by Melanikus (Dietrich), L-1.)
-void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extras);
+// underTop, when given, is called between the overlay (the bar, its drop-downs, the pop-up, a dialog) and the top (a dialog's open drop-down list), with the same width and
+// height: for what plays INSIDE a window and must stay under that window's open list, as everything in an inteng dialog does: the FMV preview (fmv_preview.h; the owner
+// 11-21, Message window, Play on, the number's list opened: "the menu is drawing over the video though"). Whatever it adds is drawn in that place in the frame's order.
+// It is called even for a window of no size (when nothing of the panels is), as the preview was before (it keeps its clock and its state field).
+void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extras, void (*underTop)(int32_t width, int32_t height) = nullptr);
 
 // How wide the small menu font draws a letter: the same rule as the game's own OnlinePage_SmallWidth (online_screens_page.cpp:176), which the
 // editor doesn't compile. The letter's width from the font's table, looked up as 0 to 255, never below 0 and never above 17, its widest.
