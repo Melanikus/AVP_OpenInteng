@@ -15927,6 +15927,7 @@ int main(int, char **)
 		FlyCamera const drawCamera = PlotPreviewView_Frame(camera, 0, 0, windowWidth, windowHeight);   // THE PLOT'S PREVIEW (plot_preview_view.h): its camera while the plot runs
 		PlotPreviewState_Line();
 		bool const drawn = LevelView_Draw(drawCamera, savedTo, AddThePanels, &framePanels);
+		PlotPreviewView_Drawn();   // IN STEP WITH THE PLOT (plot_preview_view.h): the copy this frame showed is drawn, the plot's worker may go on
 
 		if (shotTo)
 		{

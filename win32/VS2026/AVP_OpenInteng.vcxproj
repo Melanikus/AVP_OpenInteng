@@ -160,6 +160,11 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <!-- THE PLOT AND THE WINDOW IN STEP (autoplot_handoff.h: each AI module's copy handed from the worker to the window, the worker waiting until it is drawn; the owner 11-21, "Show every module in order") -->
+    <ClCompile Include="..\..\src\host\autoplot_handoff.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <!-- Auto-plot alien ways, the lanes' proof (autoplot_lane.h: the stock route choice copied; Bishop 11-19, the owner's continuous lanes) -->
     <ClCompile Include="..\..\src\host\autoplot_lane.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>

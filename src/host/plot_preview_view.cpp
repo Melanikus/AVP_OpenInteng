@@ -1,18 +1,24 @@
 // plot_preview_view.cpp: THE PLOT'S PREVIEW's view (plot_preview_view.h; Drake's piece on Dietrich's skeleton).
 // Written 2026-11-21 by Melanikus (Dietrich, the skeleton; Drake, the view) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
-// HOW IT GOES, a frame at a time while Alien auto waypoint plots:
-// 1. The worker says how many AI modules it has planned. When that is more than the one shown, the newest is taken (PlotPreview_Next): its modules' box (the
-//    union of each module's own box), its planned boxes and links as the lines Waypoint mode draws (WaypointView_AllLines), and every other module hidden.
-// 2. Every frame it is up, the level is drawn into the inset at the view's bottom right (LevelView_MainBox), from the owner's 45-degree corner of that box
-//    (CameraOrbit_Place, 45 round and 45 up), far enough back that the whole box fits (PlotPreview_Distance), with the module's lines (WorldOverlay_Lines).
-// 3. When the plot ends, the hiding is let go and the editor's own camera is given back: the next frame is the normal view.
+// HOW IT GOES, a frame at a time while Alien auto waypoint plots (IN STEP WITH THE PLOT, autoplot_handoff.h; the owner 11-21: "Show every module in order"):
+// 1. The worker hands over a copy of the AI module it is on: as its search begins, then its ways as they are found, then its last copy with its volumes, and it
+//    waits until that last copy has been drawn. Each frame the window takes the newest copy (AutoPlotHandOff::Newest) and keeps its own pointer to it.
+// 2. A copy of a new module: its modules' box (the union of each module's own box) and every other module hidden. Any new copy: its lines, the search's ways (in
+//    the colours Waypoint mode gives an alien-only link and a plain link) and its planned boxes and links as Waypoint mode draws them (WaypointView_AllLines).
+// 3. Every frame it is up, the level is drawn into the inset at the view's bottom right (LevelView_MainBox), from the owner's 45-degree corner of that box
+//    (CameraOrbit_Place, 45 round and 45 up), far enough back that the whole box fits (PlotPreview_Distance), with the copy's lines (WorldOverlay_Lines).
+// 4. On the next frame, once the inset was drawn (LevelView_InsetDrawn), the window says so (Drawn): a worker waiting on that copy goes on. While the inset is up
+//    the window is WATCHING; when it isn't (the plot ended, the preview off, another screen), it is not, and the worker never waits for it.
+// 5. When the plot ends, the hiding is let go and the editor's own camera is given back: the next frame is the normal view.
 #include "plot_preview_view.h"
 
 #include <chrono>
+#include <memory>
 #include <vector>
 
 #include "autoplot_command.h"
+#include "autoplot_handoff.h"
 #include "camera_orbit.h"
 #include "track_view.h"
 #include "waypoint_view.h"
@@ -31,6 +37,10 @@ namespace
 	int32_t boxMaxs[3] = { 0, 0, 0 };
 	bool framed = false;                   // a module is up: its box, its lines and its hiding are set
 	bool wasBusy = false;                  // a run was going last frame (a new run starts the counts again)
+	// THE COPY SHOWN (autoplot_handoff.h WHO OWNS WHAT): the window's own pointer to the worker's constant copy, kept while it is drawn from; and the number of the
+	// copy set into the last frame's inset (0: none), said Drawn once that frame was drawn
+	std::shared_ptr<host::AutoPlotShown const> showing;
+	uint64_t setNumber = 0;
 
 	// The box round all of these modules (the game's module numbers): the smallest box that holds each one's own box. False when none of them has a box
 	bool ModulesBox(std::vector<int32_t> const &modules, int32_t mins[3], int32_t maxs[3])
@@ -58,39 +68,62 @@ namespace
 		return any;
 	}
 
-	// Job k becomes the one shown: its box, its lines and its hiding. False (and nothing changed) when the job can't be read or none of its modules has a box:
-	// the one shown before stays up
-	bool TakeJob(size_t k)
+	// A copy becomes the one shown (the window holds it from here). A new module: its box and its hiding, and a redraw counted (PlotPreview_Next: once a module).
+	// Every copy: its lines. A new module none of whose modules has a box keeps the module shown before up, with its lines (the words still name the new one)
+	void TakeCopy(std::shared_ptr<host::AutoPlotShown const> const &copy)
 	{
-		int32_t head = -1;
-		std::vector<int32_t> const *gameModules = nullptr;
-		std::vector<host::WaypointRec> const *list = nullptr;
-		int32_t mins[3], maxs[3];
+		bool const newModule = !showing || showing->job != copy->job || !framed;
 
-		if (!AutoPlotCommand_PreviewJob(k, &head, &gameModules, &list) || !gameModules || !list || gameModules->empty() || !ModulesBox(*gameModules, mins, maxs))
+		showing = copy;
+
+		if (newModule)
 		{
-			return false;
+			int32_t mins[3], maxs[3];
+
+			if (copy->gameModules.empty() || !ModulesBox(copy->gameModules, mins, maxs))
+			{
+				return;
+			}
+
+			for (int a = 0; a < 3; a++)
+			{
+				boxMins[a] = mins[a];
+				boxMaxs[a] = maxs[a];
+			}
+
+			// only this AI module's modules drawn, no placed object (Waypoint modes 1 to 3 show an AI module this way)
+			LevelView_HideForPreview(copy->gameModules.data(), copy->gameModules.size());
+			framed = true;
+			host::PlotPreview_Next(&state, copy->job + 1);
 		}
 
-		for (int a = 0; a < 3; a++)
+		lines.clear();
+
+		// the search's ways found so far, point to point, in the colours Waypoint mode's every-network view gives an alien-only link and a plain link
+		for (host::AutoPlotShownWay const &way : copy->ways)
 		{
-			boxMins[a] = mins[a];
-			boxMaxs[a] = maxs[a];
+			for (size_t p = 3; p + 2 < way.points.size(); p += 3)
+			{
+				host::TrackLine line;
+
+				for (int a = 0; a < 3; a++)
+				{
+					line.from[a] = way.points[p - 3 + (size_t)a];
+					line.to[a] = way.points[p + (size_t)a];
+				}
+
+				line.colour = way.alien ? host::kWaypointLinkHighlighted : host::kWaypointLinkPlain;
+				lines.push_back(line);
+			}
 		}
 
 		// the planned boxes and links as Waypoint mode draws an AI module's network (its colours: white boxes, the links in their kinds' colours)
-		lines.clear();
+		host::WaypointAllCounts const counts = host::WaypointView_AllLines({ &copy->volumes }, local_scale > 0.0 ? local_scale : 1.0, &lines);
 
-		host::WaypointAllCounts const counts = host::WaypointView_AllLines({ list }, local_scale > 0.0 ? local_scale : 1.0, &lines);
-
-		// only this AI module's modules drawn, no placed object (Waypoint modes 1 to 3 show an AI module this way)
-		LevelView_HideForPreview(gameModules->data(), gameModules->size());
-		framed = true;
-		shown.head = head;
-		shown.job = k;
+		shown.head = copy->head;
+		shown.job = copy->job;
 		shown.boxes = counts.boxes;
 		shown.links = counts.links;
-		return true;
 	}
 
 	// The camera at the owner's corner of the shown box (45 degrees round, 45 up), far enough back that the whole box fits in the inset. False when the box gives
@@ -128,6 +161,9 @@ namespace
 			framed = false;
 		}
 
+		AutoPlotCommand_HandOff().Watching(false);   // (nobody watches: a worker waiting on its copy goes on)
+		showing.reset();
+		setNumber = 0;
 		host::PlotPreview_End(&state);
 		shown.on = false;
 		shown.inset = host::PlotPreviewRect();
@@ -145,6 +181,17 @@ FlyCamera PlotPreviewView_Frame(FlyCamera const &camera, int viewLeft, int viewT
 	bool const busy = AutoPlotCommand_Busy();
 
 	shown.over = LevelView_InsetDrawn();   // (the last frame's: the state line is read before this frame is drawn)
+
+	host::AutoPlotHandOff &handOff = AutoPlotCommand_HandOff();
+
+	// IN STEP: the frame the copy was set into has been drawn, so a worker waiting on it goes on (autoplot_handoff.h). Said even when the level view drew no inset
+	// that frame (shown.over false): a picture that can't be drawn never holds the plot up
+	if (setNumber != 0)
+	{
+		handOff.Drawn(setNumber);
+	}
+
+	setNumber = 0;
 
 	// THE INSET'S DRAWING TIME (Frost 11-21: "preview drawing 0 ms" in every run, the bookkeeping below being all that was timed): the last frame's inset, made in
 	// level_view (LevelView_InsetMs, the processor's part), counted once, on the frame after it. The frame a plot ends on is the one not counted
@@ -183,16 +230,20 @@ FlyCamera PlotPreviewView_Frame(FlyCamera const &camera, int viewLeft, int viewT
 
 	host::PlotPreviewRect const inset = host::PlotPreview_Inset(view);
 
-	if (host::PlotPreview_Next(&state, AutoPlotCommand_PreviewPlanned()))
+	// the newest copy the worker handed over (the window's own from here)
+	std::shared_ptr<host::AutoPlotShown const> const newest = handOff.Newest();
+
+	if (newest && (!showing || newest->number != showing->number))
 	{
-		TakeJob(state.shown);   // (when it can't be read, the module shown before stays up)
+		TakeCopy(newest);
 	}
 
 	FlyCamera corner = camera;
 
-	// nothing to show yet (the grid building, the first module still searched), or a view too small for an inset: the normal view
+	// nothing to show yet (the grid building, no copy yet, a first module with no box), or a view too small for an inset: the normal view, and nobody watching
 	if (!framed || inset.w <= 0 || inset.h <= 0 || !CornerCamera(inset, &corner))
 	{
+		handOff.Watching(false);
 		shown.on = false;
 		return camera;
 	}
@@ -200,6 +251,10 @@ FlyCamera PlotPreviewView_Frame(FlyCamera const &camera, int viewLeft, int viewT
 	// the whole level from the editor's own camera, as always, and the module over it in the inset (the owner 11-21: "Full map + inset on top")
 	LevelView_Inset(true, corner, inset.x, inset.y, inset.w, inset.h);
 	host::WorldOverlay_Lines(lines.empty() ? nullptr : lines.data(), lines.size());
+
+	// WATCHING: the inset is drawn this frame with the copy shown (its words on the status line), said Drawn on the next frame
+	handOff.Watching(true);
+	setNumber = showing ? showing->number : 0;
 
 	double const ms = MsSince(from);
 
@@ -210,6 +265,16 @@ FlyCamera PlotPreviewView_Frame(FlyCamera const &camera, int viewLeft, int viewT
 	shown.drawMs += ms;
 	AutoPlotCommand_PreviewDrew(ms);
 	return camera;
+}
+
+void PlotPreviewView_Drawn()
+{
+	// (the next frame's start says it too, when this was not called: Drawn is said once for a copy, either way)
+	if (setNumber != 0)
+	{
+		AutoPlotCommand_HandOff().Drawn(setNumber);
+		setNumber = 0;
+	}
 }
 
 PlotPreviewShown PlotPreviewView_Shown()

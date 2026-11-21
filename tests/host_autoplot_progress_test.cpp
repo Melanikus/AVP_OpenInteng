@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include <string>
+#include <vector>
 
 #include "autoplot_progress.h"
 
@@ -64,6 +65,36 @@ int main()
 	asked.highUnder = 9000;
 	Check(host::AutoPlot_ValuesWords(asked) == "; with climb-ins 8, get-outs 0, corridor aim along 2500 mm, upper-face aim up 1200 mm and under 550 mm, Airduct on", "out of range: "
 		"the numbers the planner used, held to the ranges (" + host::AutoPlot_ValuesWords(asked) + ")");
+
+	// WHAT THE PICTURE SHOWS (the owner 11-21, through Bishop: the status line's module and the picture's the same, or the words say which)
+	Check(host::AutoPlot_PictureWords(2, 2, "14 volumes placed") == ": 14 volumes placed", "the same module: what it came to (" +
+		host::AutoPlot_PictureWords(2, 2, "14 volumes placed") + ")");
+	Check(host::AutoPlot_PictureWords(3, 2, "not shaped (no floor), nothing drawn") == "; showing module 3: not shaped (no floor), nothing drawn",
+		"another module: which one, counted from 1, and what it came to (" + host::AutoPlot_PictureWords(3, 2, "not shaped (no floor), nothing drawn") + ")");
+	Check(host::AutoPlot_PictureWords(2, 2, "").empty() && host::AutoPlot_PictureWords(4, 0, "") == "; showing module 1", "no words: only which module (" +
+		host::AutoPlot_PictureWords(4, 0, "") + ")");
+
+	// THE PLOT'S FRAMES (the owner 11-21: "it's slow and sluggish"): one stage's frame times, the median, the time 95 in 100 are within, the longest, and how many took
+	// over 50 ms (a frame a person sees as a stall)
+	std::vector<double> frames;
+
+	for (int i = 0; i < 19; i++)
+	{
+		frames.push_back(16.0);
+	}
+
+	frames.push_back(140.4);   // one long frame of the 20: the 95th in 100 is the 19th, 16 ms
+	std::string const f = host::AutoPlot_FrameWords("search", frames);
+
+	Check(f == "search 20 frames, median 16 ms, 95% within 16 ms, longest 140 ms, 1 over 50 ms", "20 frames, one long: median, 95%, longest, over 50 ms (" + f + ")");
+
+	std::vector<double> const unsorted = { 70.0, 10.0, 30.0, 50.0, 90.0 };
+	std::string const u = host::AutoPlot_FrameWords("writing", unsorted);
+
+	Check(u == "writing 5 frames, median 50 ms, 95% within 90 ms, longest 90 ms, 2 over 50 ms", "out of order: sorted first; exactly 50 is not over 50 (" + u + ")");
+	Check(host::AutoPlot_FrameWords("grid", std::vector<double>()) == "grid no frames", "no frames (" + host::AutoPlot_FrameWords("grid", std::vector<double>()) + ")");
+	Check(host::AutoPlot_FrameWords("grid", std::vector<double>(1, -3.0)) == "grid 1 frames, median 0 ms, 95% within 0 ms, longest 0 ms, 0 over 50 ms",
+		"a clock that went back: 0 (" + host::AutoPlot_FrameWords("grid", std::vector<double>(1, -3.0)) + ")");
 
 	printf("%d checks, %d failed\n", checks, checksFailed);
 	return checksFailed == 0 ? 0 : 1;
