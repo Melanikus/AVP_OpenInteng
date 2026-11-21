@@ -17,6 +17,9 @@
 
 namespace host
 {
+	class AutoPlotHandOff;   // autoplot_handoff.h
+
+
 	int32_t const kWaypointAutoPlotModule = 0x7330;   // ours: the picked module's AI module
 	int32_t const kWaypointAutoPlotAll = 0x7331;      // ours: every AI module
 	int32_t const kWaypointAutoPlotSelected = 0x7332; // ours: the AI modules selected in Waypoint mode 0 (Vasquez's Ctrl+click set; the owner 11-19, through Bishop: "select multiple
@@ -60,10 +63,10 @@ bool AutoPlotCommand_Run(std::vector<int32_t> const &modules, host::AutoPlotVolu
 // The counts of the run going (or the last one): the defaults unless AutoPlotCommand_Run gave them
 host::AutoPlotVolumeCounts AutoPlotCommand_RunCounts();
 
-// THE PLOT'S PREVIEW (autoplot_preview.h; the owner 11-21): while a run goes, how many of its jobs are planned (the worker publishes each as its plan is done;
-// 0 when no run goes), and job k's (k below that) AI module head, game modules and plan list, which stay as they are until the run ends. False otherwise.
-size_t AutoPlotCommand_PreviewPlanned();
-bool AutoPlotCommand_PreviewJob(size_t k, int32_t *head, std::vector<int32_t> const **gameModules, std::vector<host::WaypointRec> const **list);
+// THE PLOT'S PREVIEW, IN STEP WITH THE PLOT (autoplot_handoff.h; the owner 11-21, "Show every module in order"): the hand-over between the worker and the window.
+// The worker hands each AI module over as a constant copy (its search's ways as they are found, then its volumes) and waits until the window has drawn its last
+// copy; the window (plot_preview_view.cpp) takes the newest and says when it drew it. The copies are the window's own once taken: nothing of the run's jobs is read.
+host::AutoPlotHandOff &AutoPlotCommand_HandOff();
 // The preview's drawing time this frame (ms), added up for the whole plot's time line
 void AutoPlotCommand_PreviewDrew(double ms);
 

@@ -14,6 +14,10 @@
 // camera (the owner 11-21: "Full map + inset on top"; the inset goes to level_view.h LevelView_Inset)
 FlyCamera PlotPreviewView_Frame(FlyCamera const &camera, int viewLeft, int viewTop, int viewWidth, int viewHeight);
 
+// each frame, from editor_main just after the level was drawn: IN STEP WITH THE PLOT (autoplot_handoff.h), the copy this frame showed has been drawn, so a worker
+// waiting on it goes on now rather than at the next frame's start (the owner's lockstep then costs about a frame less a module)
+void PlotPreviewView_Drawn();
+
 // what this frame showed, for the state line (plot_preview_state.h): on, the inset (window px), the module's head, the job, the redraws, the drawing time so far (ms);
 // and the shown module's planned network as drawn (Drake): its boxes, its links, the world lines sent
 struct PlotPreviewShown

@@ -7,7 +7,9 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include <algorithm>
 #include <string>
+#include <vector>
 
 #include "autoplot_volumes.h"   // AutoPlotVolumeCounts, AutoPlot_UsedCounts (the values a run plotted with)
 
@@ -68,5 +70,46 @@ namespace host
 
 		return "; with climb-ins " + n(used.climbIns) + ", get-outs " + n(used.getOuts) + ", corridor aim along " + n(used.highAlong) + " mm, upper-face aim up " + n(used.highUp) +
 			" mm and under " + n(used.highUnder) + " mm, Airduct " + (used.airduct ? "on" : "off");
+	}
+
+	// WHAT THE PICTURE SHOWS, after the progress words (the owner 11-21, through Bishop: the status line's module and the picture's module the same, or the words say
+	// which): the preview shows module `shown` (counted from 0) while module `planning` is planned, and what that module came to. The same one: ": 14 volumes placed";
+	// another: "; showing module 3: 14 volumes placed". With no words, only which module ("" when it is the same one)
+	inline std::string AutoPlot_PictureWords(size_t planning, size_t shown, std::string const &words)
+	{
+		std::string const after = words.empty() ? std::string() : ": " + words;
+
+		return planning == shown ? after : "; showing module " + std::to_string((unsigned long long)(shown + 1)) + after;
+	}
+
+	// THE PLOT'S FRAMES (the owner 11-21, through Bishop: "it's slow and sluggish"; the measure his live plot is judged by): one stage's frames, each the time from one of
+	// the plot's frames to the next (the whole frame: the window drawn and the plot's own share), as "search 812 frames, median 16 ms, 95% within 18 ms, longest 140 ms,
+	// 3 over 50 ms". No frames: "search no frames". The times are whole milliseconds, rounded
+	inline std::string AutoPlot_FrameWords(char const *stage, std::vector<double> ms)
+	{
+		std::string const named(stage ? stage : "");
+
+		if (ms.empty())
+		{
+			return named + " no frames";
+		}
+
+		size_t over = 0;
+
+		for (double &one : ms)
+		{
+			one = one > 0.0 ? one : 0.0;   // (a clock that went back counts as 0)
+			over += one > 50.0 ? 1 : 0;
+		}
+
+		std::sort(ms.begin(), ms.end());
+
+		// the median: the middle one (of an even count, the upper of the two); 95%: the frame that 95 in 100 are no longer than (the 19th of 20)
+		size_t const n = ms.size();
+		size_t const p95 = (n * 95 + 99) / 100 - 1;
+		auto const whole = [](double v) { return std::to_string((long long)(v + 0.5)); };
+
+		return named + " " + std::to_string((unsigned long long)n) + " frames, median " + whole(ms[n / 2]) + " ms, 95% within " + whole(ms[p95]) + " ms, longest " +
+			whole(ms[n - 1]) + " ms, " + std::to_string((unsigned long long)over) + " over 50 ms";
 	}
 }

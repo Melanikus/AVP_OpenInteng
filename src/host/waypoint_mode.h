@@ -191,6 +191,15 @@ namespace host
 		// Refused (not a module of the level, its waypoints unreadable, the loader): nothing changed, the words say why.
 		WaypointOutcome AutoPlotWrite(OpenLevelFile *open, int32_t master, std::vector<WaypointRec> const &alienList);
 
+		// THE SAME FOR MANY AI MODULES AT ONCE (Drake 11-21, the owner's "slow and sluggish": AutoPlotWrite reads the whole level three times and loads it again once, about
+		// 70 ms whatever the module, and a whole Genshd1 plot wrote 273 that way, 14 s): each `masters[i]`'s alien list replaced by `*alienLists[i]`, its ground list kept and
+		// its module links kept as AutoPlotWrite keeps them (inteng's W-6 drop of the names that are no module's), every network put into ONE new level image that the game's
+		// loader checks once. `written[i]`: that one is in the level now. When the loader refuses the image, nothing of it is kept and each is tried again alone
+		// (AutoPlotWrite), so one bad network costs only itself, as before. The file is meant to be the same, byte for byte, as AutoPlotWrite one after another leaves it
+		// (each edit touches its own module only). `words[i]`: the words AutoPlotWrite would say for each.
+		void AutoPlotWriteMany(OpenLevelFile *open, std::vector<int32_t> const &masters, std::vector<std::vector<WaypointRec> const *> const &alienLists,
+			std::vector<bool> *written, std::vector<std::string> *words);
+
 		// THE WAYPOINT-BOX GIZMO (Frost 11-18, waypoint_box_gizmo.h; mode 1, the alien list; defined in waypoint_box_mode.cpp): MouseShowBox puts box's corners, aim point and flags (its
 		// links stay) on waypoint `index` in memory only, so the 3D view draws it as a drag goes (nothing is written; the drag's start is put back the same way). MouseSetBox puts them there
 		// and WRITES it at once, as MouseCreate (refused: the lists as they were, and the words say why); `what` is the edit's words ("the box moved 120 along x").

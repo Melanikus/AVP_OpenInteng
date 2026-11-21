@@ -915,6 +915,156 @@ namespace host
 		return out;
 	}
 
+	void WaypointMode::AutoPlotWriteMany(OpenLevelFile *open, std::vector<int32_t> const &masters, std::vector<std::vector<WaypointRec> const *> const &alienLists,
+		std::vector<bool> *written, std::vector<std::string> *words)
+	{
+		written->assign(masters.size(), false);
+		words->assign(masters.size(), std::string());
+
+		auto const named = [](int32_t master) { return "Auto-plot: AI module " + std::to_string((long long)master); };
+
+		// each alone, as before (no level, the level unreadable, or the loader refused the one image)
+		auto const oneByOne = [&]()
+		{
+			for (size_t i = 0; i < masters.size(); i++)
+			{
+				WaypointOutcome const one = i < alienLists.size() && alienLists[i] ? AutoPlotWrite(open, masters[i], *alienLists[i]) :
+					Said((named(masters[i]) + " not written: no list was given").c_str());
+
+				(*written)[i] = one.levelChanged;
+				(*words)[i] = one.say;
+			}
+		};
+
+		if (!open || !open->Level() || masters.empty())
+		{
+			oneByOne();
+			return;
+		}
+
+		// the level read ONCE: every module's snapshot (its waypoint chunk as it is), and the names of the level's modules for the W-6 drop (as Load reads them)
+		std::map<int32_t, ModuleSnapshot> modules;
+
+		if (!Snapshots(open, &modules))
+		{
+			oneByOne();
+			return;
+		}
+
+		std::set<std::string> names;
+
+		{
+			::List<Object_Chunk *> all;
+
+			open->Level()->list_objects(&all);
+
+			for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
+			{
+				Object_Chunk *const object = each();
+
+				if (object && modules.count((int32_t)object->object_data.index_num))
+				{
+					size_t length = 0;
+
+					while (length < sizeof(object->object_data.o_name) && object->object_data.o_name[length] != 0)
+					{
+						length++;
+					}
+
+					names.insert(std::string(object->object_data.o_name, length));
+				}
+			}
+		}
+
+		// each network's new WAYPOINT chunk, made as Load then Write make it: both lists read from the module's own chunk, the module links naming no module dropped
+		// (W-6), the alien list replaced, the ground list as it was
+		std::vector<ModuleChildEdit> edits;
+		std::vector<size_t> editOf;   // edits[k] is for masters[editOf[k]]
+
+		for (size_t i = 0; i < masters.size(); i++)
+		{
+			// (looked up by count, then at: CI's Snyk Code parser can't read a template's nested type with const after it, checks.yml)
+			if (!modules.count(masters[i]) || i >= alienLists.size() || !alienLists[i])
+			{
+				(*words)[i] = named(masters[i]) + " not written: that is not a module of the level";
+				continue;
+			}
+
+			ModuleSnapshot const &snapshot = modules.at(masters[i]);
+			WaypointSet lists;
+			std::string why;
+
+			if (snapshot.hasWaypoint && !Waypoints_Parse(snapshot.waypoint.data(), snapshot.waypoint.size(), &lists, &why))
+			{
+				(*words)[i] = named(masters[i]) + " not written: " + why;
+				continue;
+			}
+
+			for (std::vector<WaypointRec> *each : { &lists.alien, &lists.ground })
+			{
+				for (WaypointRec &wp : *each)
+				{
+					wp.moduleLinks.erase(std::remove_if(wp.moduleLinks.begin(), wp.moduleLinks.end(), [&](WaypointModuleLink const &link) { return !names.count(link.name); }),
+						wp.moduleLinks.end());
+				}
+			}
+
+			lists.alien = *alienLists[i];
+
+			ModuleChildEdit edit;
+
+			edit.objectIndex = masters[i];
+			memset(edit.name, 0, sizeof(edit.name));
+			memcpy(edit.name, "WAYPOINT", 8);
+			edit.remove = lists.alien.empty() && lists.ground.empty();
+
+			if (!edit.remove)
+			{
+				edit.chunk = Waypoints_Serialize(lists);
+			}
+
+			edits.push_back(edit);
+			editOf.push_back(i);
+		}
+
+		if (edits.empty())
+		{
+			return;
+		}
+
+		// ONE new image of the level with every network in it, checked once by the game's loader
+		std::vector<bool> wrote;
+		ObjectEditResult const result = SetModuleChildrenMany(open, edits, &wrote);
+
+		if (result != ObjectEditResult::Done || wrote.size() != edits.size())
+		{
+			oneByOne();   // (the loader refused the image: nothing of it was kept)
+			return;
+		}
+
+		bool currentWritten = false;
+
+		for (size_t k = 0; k < edits.size(); k++)
+		{
+			size_t const i = editOf[k];
+
+			(*written)[i] = wrote[k];
+			(*words)[i] = wrote[k] ? named(masters[i]) + " written" : named(masters[i]) + " not written: the module's waypoints could not be written";
+			currentWritten = currentWritten || (wrote[k] && masters[i] == current);
+		}
+
+		// the AI module the mode works on was one of them: its lists read again (the new ones), nothing current (as AutoPlotWrite does)
+		if (currentWritten)
+		{
+			std::string again;
+
+			if (Load(open, current, &again))
+			{
+				linkFrom = linkTo = -1;
+			}
+		}
+	}
+
 	bool WaypointMode::PickNear(int32_t const place[3], int axisMask)
 	{
 		std::vector<WaypointRec> const &list = List();

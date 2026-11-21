@@ -23,6 +23,13 @@ expect-dialog-kind confirm
 expect-dialog replace
 click-button Yes
 wait-status 1800000 AI modules written
+# EVERY MODULE SHOWN, IN ORDER (the owner 11-21, through Bishop: "On the bottom left I see modules updating with no image update sometimes", "Show every module in order";
+# Drake's live plot, autoplot_handoff.h): the preview framed each of the 273 AI modules of the run in turn, its last one the 273rd (job 272). RED on exe-cache/3caac751.exe
+# (bishop-int before the step: the inset took the newest planned module each frame and skipped the ones planned between two frames; 6fd81100's run showed 213 of 273)
+wait 600
+expect-field-has plotpreview off job
+expect-number plotpreview redraws_ 273 273
+expect-number plotpreview job_ 272 272
 # a refused module keeps stock's network (named above when the checker faults it); the count is the report's, not a pass rule
 allow-fail the refused count is the report's: refused modules keep stock's network | expect-status , 0 refused
 expect-status lanes
