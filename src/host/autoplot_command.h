@@ -51,8 +51,11 @@ bool AutoPlotCommand_AirductOn(int32_t module, size_t *flagged, size_t *of, std:
 // accept a string of multiple modules"). What AutoPlotCommand gives back
 bool AutoPlotCommand_Run(std::vector<int32_t> const &modules);
 
-// The same, with the owner's counts for every AI module of the run (autoplot_volumes.h AutoPlotVolumeCounts: climb-ins and get-outs; Vasquez's plot dialog)
-bool AutoPlotCommand_Run(std::vector<int32_t> const &modules, host::AutoPlotVolumeCounts const &counts);
+// The same, with the owner's counts for every AI module of the run (autoplot_volumes.h AutoPlotVolumeCounts: climb-ins and get-outs; Vasquez's plot dialog). overwriteLinked:
+// the dialog's "Overwrite already linked modules" box (alien_auto_waypoint.h, the owner 11-21; off as the dialog opens): false keeps every AI module of the run that already
+// has alien waypoints as it is (not plotted, not asked about; the end line's ", N kept, already linked"); true, the default for every other caller, plots them all as before,
+// after the replace question
+bool AutoPlotCommand_Run(std::vector<int32_t> const &modules, host::AutoPlotVolumeCounts const &counts, bool overwriteLinked = true);
 
 // The counts of the run going (or the last one): the defaults unless AutoPlotCommand_Run gave them
 host::AutoPlotVolumeCounts AutoPlotCommand_RunCounts();

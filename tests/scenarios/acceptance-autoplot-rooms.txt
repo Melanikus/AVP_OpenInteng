@@ -27,7 +27,7 @@ expect-status PROC11
 # ---- the box as it opens: unticked, no Airduct
 click-bar Alien auto waypoint > Modules
 expect-dialog Alien auto waypoint
-expect-dialog-checks off
+expect-dialog-checks off,off
 # med16 by its name in the dialog's list (its corner view picks obs01 in front of it)
 type ,med16
 click-button Ok
@@ -48,10 +48,12 @@ verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/veri
 expect-status-not AI modules written
 click-bar Alien auto waypoint > Modules
 expect-dialog Alien auto waypoint
-expect-dialog-checks off
+expect-dialog-checks off,off
 click-check 1
-expect-dialog-checks on
+expect-dialog-checks on,off
 type ,med16
+# (the Overwrite already linked modules box ticked, so its modules with alien waypoints are replaced after the question, as before the box: Vasquez 11-21)
+click-check 2
 click-button Ok
 expect-dialog-kind confirm
 expect-dialog replace

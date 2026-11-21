@@ -605,8 +605,13 @@ namespace host
 
 			k.from = (int)plan.boxes.size();
 			k.to = b.floor;
-			k.flagsAtFrom = kLinkAlien;
-			k.flagsAtTo = kLinkAlien;
+			// AN EXIT INTO A PIT (corr10 into lift03's pit, Vasquez's run 220016: its point on the pit floor 768 under the floor, and on an aliens-only link the alien
+			// crawled with gravity off and flipped at the lip instead of dropping in): a point more than kAutoPlotLevelStep under its floor's lowest gets a GROUND link
+			// (no kLinkAlien: the alien walks with gravity and drops in; the pit's own network takes it on)
+			bool const pit = (double)exits[x][1] > units[(size_t)exitUnit[x]].floorLow + kAutoPlotLevelStep;
+
+			k.flagsAtFrom = pit ? 0 : kLinkAlien;
+			k.flagsAtTo = pit ? 0 : kLinkAlien;
 			plan.links.push_back(k);
 			plan.boxes.push_back(b);
 			placedExit[x] = true;
@@ -845,6 +850,47 @@ namespace host
 				b.hi[2] = p[2] + kAutoPlotVolumeSide;
 				b.lo[1] = p[1] - kAutoPlotHangClear;
 				b.centres.push_back(std::vector<double>{ p[0], p[1], p[2] });
+			}
+		}
+
+		// AN EXIT IN MID-AIR (trench01's exit 1 to air06, 4.6 m over the trench floor, over its middle; procpath01 the same): a point with floor cells under it
+		// (kAutoPlotLevelMinSide either way in plan) and none of them within kAutoPlotLevelExitReach under it is over the floor, not in a doorway on it, so a floor box that
+		// holds it has its top stop kAutoPlotLevelExitClear under the point, keeping its floor; then only the exit box holds the point. Not by the point's height over the
+		// box's lowest floor: an exit standing on a stair, and a point past the floor's cells with none under it, are not in mid-air (PROC04's exit, past its stair's cells,
+		// lost 147 of its 164 cells to that cut).
+		// NO CUT ALONG THE WAY THROUGH (Bishop's (B) 11-21): an exit point that is not in mid-air stays in the floor box that holds it. The cut that stopped such a box short
+		// of the point along the doorway's way through (SHED04 of Hudson's whole-map runs, b96c9080, and its guard 9682dbe4) uncovered real floor on the fully covered base
+		// (MOD-01, AI 70: a 3.06 m x 11.1 m strip, 8,362 standing bodies in no box), so it was taken out; SHED04's case is queued as "a cut that never uncovers a floor cell"
+		for (AutoPlotLevelBox const &x : boxes)
+		{
+			if (x.kind != kAutoPlotLevelExit || x.exit < 0 || (size_t)x.exit >= exits.size() || exits[(size_t)x.exit].size() != 3)
+			{
+				continue;
+			}
+
+			std::vector<int32_t> const &p = exits[(size_t)x.exit];
+			bool floorUnder = false, floorNear = false;   // floor cells under the point in plan reach; any of them within the reach under it
+
+			for (std::vector<int32_t> const &c : floorIn.cells)
+			{
+				if (c.size() == 3 && fabs((double)c[0] - p[0]) <= kAutoPlotLevelMinSide && fabs((double)c[2] - p[2]) <= kAutoPlotLevelMinSide && (double)c[1] >= (double)p[1] - kAutoPlotLevelStep)
+				{
+					floorUnder = true;
+					floorNear = floorNear || (double)c[1] - p[1] <= kAutoPlotLevelExitReach;
+				}
+			}
+
+			if (!floorUnder || floorNear)
+			{
+				continue;   // (not in mid-air)
+			}
+
+			for (AutoPlotLevelBox &fl : boxes)
+			{
+				if (fl.kind == kAutoPlotLevelFloor && p[0] >= fl.lo[0] && p[0] <= fl.hi[0] && p[1] >= fl.lo[1] && p[1] <= fl.hi[1] && p[2] >= fl.lo[2] && p[2] <= fl.hi[2])
+				{
+					fl.lo[1] = p[1] + kAutoPlotLevelExitClear;   // (in mid-air over the floor: the top stops under the point)
+				}
 			}
 		}
 

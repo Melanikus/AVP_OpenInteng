@@ -47,9 +47,9 @@ expect-field waypointselection gencor01|gencor02|gencor03|gencor04|gencor05|SHED
 # opens (the owner 11-20 19:06), ticked by a press; Ok plots them
 click-bar Alien auto waypoint > Modules
 expect-dialog Alien auto waypoint
-expect-dialog-checks off
+expect-dialog-checks off,off
 click-check 1
-expect-dialog-checks on
+expect-dialog-checks on,off
 click-button Ok
 wait-status 300000 written
 expect-status AI modules written

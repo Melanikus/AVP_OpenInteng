@@ -1,0 +1,56 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-21, the owner's report 15:0x through Bishop: in Strategy's Message window, message101, Play on, then the number's drop-down opened: "the menu is drawing
+# over the video though", his picture: the open number list and the playing preview painted over each other). INTENG: a dialog's open drop-down list is drawn over everything in its window
+# (panel_paint.h: the top layer, after the overlay's boxes and words), and the FMV preview is the owner's addition, played "over the window that asked for it" (fmv_preview.h). So the preview
+# goes over its window and UNDER that window's open list: the list's rows are whole, the video plays on behind them where the list doesn't cover it.
+# HIS PATH: as acceptance-strategy-message-fmv-play (his own Genshd1, Message 47 on message13, his FMVs in the run's own {datadir}\FMVs): Play 47, then the number's list opened while it plays.
+# RED on 650248e9: the preview is drawn after the panel pass's top layer, so the rows under the video show the video, not the list's blue.
+make-level cmd /c (echo.& echo SmackerDecoderSha256=53c033525df722d870c0d3b26a6d1a319fe6dbe8f97141580ccc29dcf4742021)>>"{exedir}AVP_OpenInteng.ini"
+make-level cmd /c {scenariodir}message-fmv\make-fmvs.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
+make-level cmd /c copy /y "C:\Users\Melanikus\source\AvP-builds-excluded\AvP-play-alienways\bin\libsmackerdec.dll" "{exedir}libsmackerdec.dll"
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is message13
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 16@32:String :47
+click-box 300 40
+expect-dialog-kind form
+expect-field-has dialogbuttons Play
+
+# ---- Play 47: it plays in the window's text area
+click-button Play
+wait 300
+expect-field-has fmvpreview message47.smk frame
+picture 1
+
+# ---- the number's list opened while it plays: its rows drawn, the video going on behind them
+# (the window 1008 by 729 of a hidden run: the closed box at 284,200, 300 by 18; its five rows under it, 47 165 166 167 238, y 218 to 308; the video fitted into the window's text area,
+# from about 272,244, as acceptance-strategy-message-fmv-play reads it)
+click-combo 1
+wait 600
+expect-field-has dialogcomborows 47 284 218 300 18|165 284 236 300 18|166 284 254 300 18|167 284 272 300 18|238 284 290 300 18
+expect-field-has fmvpreview message47.smk frame
+expect-field-empty dialogoverlist
+state
+picture 2
+# THE ROWS OVER THE VIDEO ARE THE LIST'S: rows 166, 167 and 238 where the video plays under them, inteng's blue (0000ff) over most of the box (the rest: their white words and lines)
+expect-colour panels 310 256 260 50 0000ff 0.5 40
+# ... AND THE VIDEO PLAYS ON where the list doesn't cover it, under the list's foot
+remember-field fmvpreview
+wait 1500
+expect-field-changed fmvpreview
+picture 3
+expect-pixels-changed-since 2 panels 300 320 330 150 0.02
+expect-colour panels 310 256 260 50 0000ff 0.5 40

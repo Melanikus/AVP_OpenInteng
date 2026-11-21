@@ -399,7 +399,17 @@ namespace host
 		airduct.checked = AutoPlotVolumeCounts().airduct;   // unticked as it opens: the planner's default (the owner 11-20 19:06)
 		spec.widgets.push_back(airduct);
 		spec.widgets.push_back(Part(DialogWidgetType::Label, { 0x1e + 0x10, y, 0x150, 0x12 }, "Airduct on the modules it plots (aliens crawl there)"));
-		y += 0x18;
+		y += 0x12;
+
+		// THE OVERWRITE BOX under it (the owner 11-21), as the Airduct box, UNTICKED as it opens; its plain help on its own row, right of its label (a line under it would
+		// take the Modules dialog past inteng's 480: the two box rows are a line each, 0x12, where the Airduct row alone was 0x18)
+		DialogWidget overwrite = Part(DialogWidgetType::Check, { 0x1e, y, 12, 12 }, std::string());
+
+		overwrite.checked = false;   // off: the modules that have alien waypoints, most likely Rebellion's own, are kept
+		spec.widgets.push_back(overwrite);
+		spec.widgets.push_back(Part(DialogWidgetType::Label, { 0x1e + 0x10, y, 0xe0, 0x12 }, "Overwrite already linked modules"));
+		spec.widgets.push_back(Part(DialogWidgetType::Label, { 0x118, y, 0x150, 0x12 }, "unticked: kept, most likely Rebellion's own"));
+		y += 0x12;
 
 		// THE OWNER'S SIZES (autoplot_volumes.h): where a climber aims after a sloped side
 		for (size_t f = 2; f < fields.size(); f++)
@@ -429,8 +439,7 @@ namespace host
 		}
 
 		std::vector<std::string> edits;
-		int boxes = 0;
-		bool ticked = false;
+		std::vector<bool> ticks;   // the check boxes in order: Airduct, then Overwrite
 
 		for (DialogWidget const &w : widgets)
 		{
@@ -440,14 +449,13 @@ namespace host
 			}
 			else if (w.type == DialogWidgetType::Check)
 			{
-				boxes++;
-				ticked = w.checked;
+				ticks.push_back(w.checked);
 			}
 		}
 
 		size_t const first = withNames ? 1 : 0;
 
-		if (edits.size() != first + PlotFields().size() || boxes != 1)
+		if (edits.size() != first + PlotFields().size() || ticks.size() != 2)
 		{
 			return false;
 		}
@@ -458,8 +466,38 @@ namespace host
 		answers->highAlong = edits[first + 2];
 		answers->highUp = edits[first + 3];
 		answers->highUnder = edits[first + 4];
-		answers->airduct = ticked;
+		answers->airduct = ticks[0];
+		answers->overwrite = ticks[1];
 		return true;
+	}
+
+	void AlienAutoWaypoint_SplitLinked(std::vector<int32_t> const &heads, std::map<int32_t, size_t> const &alienCounts, bool overwrite, std::vector<int32_t> *plot,
+		std::vector<int32_t> *kept)
+	{
+		std::vector<int32_t> toPlot, toKeep;
+
+		for (int32_t const head : heads)
+		{
+			auto const found = alienCounts.find(head);
+			bool const linked = found != alienCounts.end() && found->second > 0;
+
+			(linked && !overwrite ? toKeep : toPlot).push_back(head);
+		}
+
+		if (plot)
+		{
+			*plot = toPlot;
+		}
+
+		if (kept)
+		{
+			*kept = toKeep;
+		}
+	}
+
+	std::string AlienAutoWaypoint_LinkedKeptWords(size_t kept)
+	{
+		return kept == 0 ? std::string() : ", " + std::to_string((unsigned long long)kept) + " kept, already linked";
 	}
 
 	bool AlienAutoWaypoint_PlotCounts(AlienAutoWaypointPlotAnswers const &answers, AutoPlotVolumeCounts *counts, std::string *why)

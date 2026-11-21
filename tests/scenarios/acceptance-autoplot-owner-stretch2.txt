@@ -20,6 +20,8 @@ expect-status MED01
 click-bar Alien auto waypoint > Modules
 expect-dialog Alien auto waypoint
 type ,office01,office,new03,doormp06,pipes05A,pipes05,doormp03,Object06,Object07,BEND-01,Object03,Object05,Object04,corr04,corr04A,shft14,shft18,shft21
+# (the Overwrite already linked modules box ticked, so its modules with alien waypoints are replaced after the question, as before the box: Vasquez 11-21)
+click-check 2
 click-button Ok
 # one of the 19 has a stock network (8 alien waypoints): the replace question, answered Yes
 expect-dialog-kind confirm

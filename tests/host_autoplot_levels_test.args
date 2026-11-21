@@ -4,6 +4,7 @@
 tests/host_autoplot_levels_test.cpp
 src/host/autoplot_levels.cpp
 src/host/autoplot_volumes.cpp
+src/host/autoplot_nest.cpp
 src/host/autoplot_stairs.cpp
 src/host/autoplot_rooms.cpp
 src/host/autoplot_lane.cpp

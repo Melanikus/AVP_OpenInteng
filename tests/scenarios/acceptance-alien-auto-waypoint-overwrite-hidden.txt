@@ -1,0 +1,46 @@
+# ACCEPTANCE, HIDDEN (red first; Vasquez 2026-11-21, THE OWNER'S WORD through Bishop: "in the Auto linker screen, put a checkbox (default off) asking 'Overwrite already linked
+# modules' (explaining these are likely hand made by Rebellion and overwritting them is off by default)"; alien_auto_waypoint.h). The Alien auto waypoint dialog has a second
+# tick box, "Overwrite already linked modules", UNTICKED as it opens, with its plain help beside it. OFF: an AI module that already has alien waypoints is kept as it is (no
+# question asked, nothing written there), and the end line counts it ("1 kept, already linked"). ON: as before, the replace question, and on Yes it is plotted again.
+# HIS PATH: his Genshd1 copy as acceptance-alien-auto-waypoint-sizes-hidden (genent01, AI module 232, has no alien waypoint, so the first run plots it with no question).
+# NOTE (the HAND says it): with the box off, a module WE plotted before is kept too, as this run's second plot shows: the file doesn't mark whose waypoints they are.
+# (the box's label and its help are the unit test's: a form's dialogtext is its edit fields' words)
+# RED on 6b678cba (bishop-int): its dialog has one tick box ("off"), so the second is not there, and the second run asks the replace question (9 alien waypoints).
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+pictures off
+state
+expect-screen Waypoint
+expect-field levelbytes 1781232
+# genent01 picked in the AI modules; Modules: the dialog's two tick boxes, both unticked as it opens (Airduct, then Overwrite already linked modules); plotted, no question
+click-view 0.5 0.95
+wait 400
+expect-status Picked: module
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+expect-dialog-checks off,off
+click-button Ok
+expect-no-dialog
+wait-status 180000 AI modules written
+expect-status Auto-plot: 1 AI modules written, 0 refused
+# again with the box as it opens (off): genent01 now has alien waypoints (ours, from the run above), so it is KEPT: no question, nothing written, the end line counts it
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+expect-dialog-checks off,off
+click-button Ok
+expect-no-dialog
+wait-status 30000 kept, already linked
+expect-status Auto-plot: 0 AI modules written, 0 refused, 1 kept, already linked
+# again with Overwrite ticked: as before, the replace question, and on Yes it is plotted again
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-check 2
+expect-dialog-checks off,on
+click-button Ok
+expect-dialog-kind confirm
+expect-dialog replace the 9 alien waypoints of 1 AI modules
+click-button Yes
+wait-status 180000 AI modules written, 0 refused;
+expect-status Auto-plot: 1 AI modules written, 0 refused

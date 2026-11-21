@@ -185,6 +185,7 @@
 #include "autoplot_arrival.h"
 #include "autoplot_closers.h"   // the gap closers stop a body under each final aim point (Vasquez 11-21)
 #include "autoplot_progress.h"
+#include "alien_auto_waypoint.h"   // the Overwrite box's keep (AlienAutoWaypoint_SplitLinked) and its end-line words (Vasquez 11-21)
 #include "autoplot_grid.h"
 #include "autoplot_lane.h"
 #include "autoplot_plan.h"
@@ -255,6 +256,7 @@ namespace
 	std::string commandWords;
 	std::chrono::steady_clock::time_point runStart;   // the run's start (the grid's), for the end line's time
 	std::map<int32_t, size_t> runStock;               // each AI module's own alien waypoints as the run was asked (AiModules' count), for "kept Rebellion's"
+	size_t runLinkedKept = 0;                         // the run's AI modules kept because they were linked already (the Overwrite box off), for the end line
 
 	double MsSince(std::chrono::steady_clock::time_point from)
 	{
@@ -1218,7 +1220,7 @@ namespace
 		printf("AVP_OpenInteng: auto-plot: the whole plot took %.0f ms (from Ok to the last module written), %zu frames, preview %s, preview drawing %.0f ms\n", MsSince(runStart),
 			plotFrames, host::PlotPreview_On() ? "on" : "off", previewDrawMs);
 
-		Say(everyOne ? "Auto-plot: " + Number((long long)written) + " AI modules written, " + Number((long long)refused) + " refused" + host::AutoPlot_KeptWords(kept) + (notShaped ? ", " + Number((long long)notShaped) +
+		Say(everyOne ? "Auto-plot: " + Number((long long)written) + " AI modules written, " + Number((long long)refused) + " refused" + host::AutoPlot_KeptWords(kept) + host::AlienAutoWaypoint_LinkedKeptWords(runLinkedKept) + (notShaped ? ", " + Number((long long)notShaped) +
 			" not shaped (no network written: " + notShapedNames + ")" : std::string()) + (noExits ? ", " + Number((long long)noExits) +
 			" with no exits (nothing to plot: " + noExitNames + ")" : std::string()) + (exceptions ? ", " + Number((long long)exceptions) + " checker exception(s) by rule 6(a)" :
 			// (Bishop 11-20: the lane numbers are the editor's own rough count, not the lane gate's; the gate, Drake's lanes.exe, is the measure until the shared lane rules
@@ -1235,6 +1237,9 @@ static std::vector<int32_t> const *gRunModules = nullptr;
 // the owner's counts: the next run's (AutoPlotCommand_Run's), taken as the run's when it starts; any other start takes the defaults
 static host::AutoPlotVolumeCounts gNextCounts, gRunCounts;
 
+// the dialog's Overwrite box for the next run (AutoPlotCommand_Run's); any other start overwrites, as before
+static bool gNextOverwrite = true;
+
 bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 {
 	if (command != host::kWaypointAutoPlotModule && command != host::kWaypointAutoPlotAll && command != host::kWaypointAutoPlotSelected)
@@ -1246,6 +1251,10 @@ bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 	host::AutoPlotVolumeCounts const counts = gNextCounts;
 
 	gNextCounts = host::AutoPlotVolumeCounts();
+
+	bool const overwriteLinked = gNextOverwrite;
+
+	gNextOverwrite = true;
 
 	if (stage == Stage::Idle)
 	{
@@ -1341,6 +1350,21 @@ bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 
 		heads.push_back(head);
 	}
+
+	// THE OVERWRITE BOX (alien_auto_waypoint.h, the owner 11-21: off as the Alien auto waypoint dialog opens): an AI module that already has alien waypoints, most likely
+	// Rebellion's own (or ours from an earlier plot: the file doesn't say whose), is kept as it is: not plotted, not asked about, counted on the end line
+	std::vector<int32_t> keptLinked;
+
+	host::AlienAutoWaypoint_SplitLinked(std::vector<int32_t>(heads), alienCounts, overwriteLinked, &heads, &keptLinked);
+
+	if (heads.empty())
+	{
+		Say("Auto-plot: 0 AI modules written, 0 refused" + host::AlienAutoWaypoint_LinkedKeptWords(keptLinked.size()) +
+			" (tick Overwrite already linked modules to plot them)");
+		return true;
+	}
+
+	runLinkedKept = keptLinked.size();
 
 	// alien waypoints there already (an artist's, maybe): replaced only after a Yes
 	size_t replaced = 0, modulesWithSome = 0;
@@ -1726,9 +1750,10 @@ bool AutoPlotCommand_Run(std::vector<int32_t> const &modules)
 	return AutoPlotCommand_Run(modules, host::AutoPlotVolumeCounts());
 }
 
-bool AutoPlotCommand_Run(std::vector<int32_t> const &modules, host::AutoPlotVolumeCounts const &counts)
+bool AutoPlotCommand_Run(std::vector<int32_t> const &modules, host::AutoPlotVolumeCounts const &counts, bool overwriteLinked)
 {
 	gNextCounts = counts;
+	gNextOverwrite = overwriteLinked;
 
 	if (modules.empty())
 	{

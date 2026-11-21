@@ -14086,8 +14086,7 @@ static void AddThePanels(void *context)
 
 		// AutoLink's display, while a run is on: the owner's grid of pictures, then over it inteng's counter and words (AD-5 .. AD-7); the menu bar and the dialogs over all
 		AutoLinkShow_Draw(frame->width, frame->height);
-		PanelPass_AddToFrame(frame->width, frame->height, frame->extras);
-		host::FmvPreview_Draw(frame->width, frame->height);   // the FMV preview, over the window that plays it (fmv_preview.h)
+		PanelPass_AddToFrame(frame->width, frame->height, frame->extras, host::FmvPreview_Draw);   // the FMV preview over the window that plays it, under its open list (panel_pass.h)
 		TextureColourDraw(frame->width, frame->height);   // Select Colour's grid, over the bars too (Shift+K, FUN_00560620)
 	}
 }

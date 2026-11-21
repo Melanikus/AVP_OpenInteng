@@ -76,10 +76,11 @@ namespace
 		return true;
 	}
 
-	// THE RUN: Dietrich's entry point (see the file's head) with the counts; false only when a run is going already
-	void RunTheModules(std::vector<int32_t> const &modules, host::AutoPlotVolumeCounts const &counts)
+	// THE RUN: Dietrich's entry point (see the file's head) with the counts and the Overwrite box (off: the AI modules already linked are kept); false only when a run is
+	// going already
+	void RunTheModules(std::vector<int32_t> const &modules, host::AutoPlotVolumeCounts const &counts, bool overwriteLinked)
 	{
-		if (!AutoPlotCommand_Run(modules, counts))
+		if (!AutoPlotCommand_Run(modules, counts, overwriteLinked))
 		{
 			Say("Alien auto waypoint: a run is going: wait for its end");
 		}
@@ -150,7 +151,7 @@ bool host::AlienAutoWaypointCommand(int32_t command, int32_t pickedModule)
 			AutoPlotVolumeCounts counts;
 			if (ReadTheCounts(answers, &counts))
 			{
-				RunTheModules({}, counts);
+				RunTheModules({}, counts, answers.overwrite);
 			}
 		});
 		return true;
@@ -199,7 +200,7 @@ bool host::AlienAutoWaypointCommand(int32_t command, int32_t pickedModule)
 
 		if (ReadTheCounts(answers, &counts))
 		{
-			RunTheModules(modules, counts);
+			RunTheModules(modules, counts, answers.overwrite);
 		}
 	});
 	return true;

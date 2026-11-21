@@ -28,7 +28,7 @@ wait 600
 # a count out of the planner's range (0 to 8: "1" with "9" typed after it) is NAMED and nothing is plotted (the whole level is not run here: acceptance-autoplot-all does)
 click-bar Alien auto waypoint > Environment
 expect-dialog Alien auto waypoint
-expect-dialog-checks off
+expect-dialog-checks off,off
 picture 4
 type 9
 click-button Ok
@@ -53,11 +53,11 @@ expect-status-not Auto-plot:
 # Modules again, Ok on the picked module's name as it starts: its AI module plotted, as Auto-plot AI module did; the Airduct box unticked as it opens, ticked by a press, unticked by another
 click-bar Alien auto waypoint > Modules
 expect-dialog Alien auto waypoint
-expect-dialog-checks off
+expect-dialog-checks off,off
 click-check 1
-expect-dialog-checks on
+expect-dialog-checks on,off
 click-check 1
-expect-dialog-checks off
+expect-dialog-checks off,off
 picture 5
 click-button Ok
 expect-no-dialog

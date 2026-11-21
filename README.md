@@ -96,6 +96,54 @@ the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` i
 `licences` folder). The tool loads only the DLL shipped with it. To use your own build of it, as the LGPL allows, pass its SHA-256
 with `--encoder-sha256 <hex>`.
 
+## Animated objects from Blender: the track import
+
+An animation baked in Blender becomes a set of **track objects** that move together in a level, one for each rigid part of the model
+(an arm's segments, a mech's limbs). The game's own track code plays them, so nothing new runs in the game. It was proven on
+2026-11-19 with a three-part arm in Colony (`Genshd1`), played in Steam AvP.
+
+**What you need:**
+
+- `track-import.exe`, a command-line tool built from this repository's `tools/track-import` with its `.args`, as the verifiers are.
+  It isn't in the release zip yet.
+- Blender, to bake the animation and write it as `anim.json` (below). `AvP-docs\tools\frost\mech\mech_arm.py` is the script the proof
+  used. It builds the arm and its IK in Blender, then bakes it.
+
+**Steps:**
+
+1. **Bake.** In Blender, bake each part's origin and turn at a fixed rate, in the level's units (millimetres, y down). The proof used
+   15 keys a second. Make the last key the same pose as the first, so the animation loops. Write it as `anim.json`: the format is at
+   the top of `tools/track-import/track-import.cpp`.
+2. **Find a spot.** `track-import probe <level.rif> <x> <y> <z>` gives the floor below that point and the ceiling above it, so the
+   model fits.
+3. **Make the parts.** `track-import parts <level.rif> <out.rif> <source> <scale> <name> [...]` makes each part a NEW placed object,
+   around a copy of an existing object's shape, rescaled. The level's own objects stay as they were.
+4. **Import.** `track-import import <out.rif> <anim.json> <final.rif> [linear|smooth]` turns each part into a Track object
+   (strategy 72). Its track has one section for each pair of keys, loops, and plays from the level's start, so all parts keep in step.
+   - `linear` (the default) turns each part about its root joint.
+   - `smooth` lets the game smooth the motion through the keys. The game then ignores the part's offset, so each part turns about
+     its own origin.
+5. **Check.** `track-import check <final.rif> <anim.json>` plays every part together with the game's own track code, 100 loops at
+   60 frames a second and again at an uneven frame rate. It reports:
+   - the gap at each joint two parts share;
+   - how far each part drifts from the bake;
+   - the loop's seam;
+   - how near any part comes to the player's start.
+6. **Look in the editor.** Open `final.rif`, go to Object Placement and pick a part. **Object > Edit Track** opens it in Track
+   Editing, and **Play Track** moves it. The editor plays one track at a time, as inteng does.
+   `track-import posecopy <final.rif> <anim.json> <seconds> <copy.rif>` makes a still copy at any moment, for pictures.
+7. **In the game.** Put the level in the game's `avp_rifs` folder, keeping a copy of the original, and play it. The parts move from
+   the level's start, in step.
+
+**Limits:**
+
+- Each part is a rigid object. There's no bending skin, so a model is as many objects as it has parts.
+- The shapes are copies of objects already in the level, rescaled. Blender's own models don't come in yet.
+- The parts loop from the level's start. Nothing starts or stops them yet, but a switch could, as with any track object.
+- A track holds at most 5,825 sections, and all the import's tracks stay under 4 MB of the level's memory. The tool refuses more,
+  because the game's loader would trust the count.
+- `anim.json` is read as hostile input: its size, depth, strings and counts all have bounds, and every number is checked before use.
+
 ## Where to read next
 
 - `docs/TAKING-OVER.md`: how to pick this up with nobody to ask. What each check proves, and what to do when a tool is gone.

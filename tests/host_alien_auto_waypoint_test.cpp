@@ -197,6 +197,7 @@ int main()
 		host::DialogFormSpec const form = host::AlienAutoWaypoint_PlotForm(withNames == 1, "SHED05 gencor01");
 		std::vector<size_t> editsAt;
 		size_t boxAt = (size_t)-1, okAt = (size_t)-1;
+		std::vector<size_t> boxesAt;   // the check boxes in order: the Airduct box, then the Overwrite box (the owner 11-21)
 		int boxes = 0;
 
 		for (size_t i = 0; i < form.widgets.size(); i++)
@@ -210,7 +211,8 @@ int main()
 			else if (w.type == host::DialogWidgetType::Check)
 			{
 				boxes++;
-				boxAt = i;
+				boxesAt.push_back(i);
+				boxAt = boxesAt.front();   // the Airduct box, the first
 			}
 			else if (w.type == host::DialogWidgetType::Button && w.text == "Ok")
 			{
@@ -221,10 +223,12 @@ int main()
 		size_t const first = withNames ? 1 : 0;
 
 		Check(editsAt.size() == first + fieldCount, which + ": its fields, the names (Modules), the two counts and the three sizes (" + std::to_string(editsAt.size()) + ")");
-		Check(boxes == 1 && boxAt != (size_t)-1 && !form.widgets[boxAt].checked && form.widgets[boxAt].group < 0, which + ": one check box, unticked as it opens, in no radio group");
+		Check(boxes == 2 && boxesAt.size() == 2 && !form.widgets[boxesAt[0]].checked && !form.widgets[boxesAt[1]].checked && form.widgets[boxesAt[0]].group < 0 &&
+			form.widgets[boxesAt[1]].group < 0, which + ": two check boxes, Airduct then Overwrite already linked modules, both unticked as it opens, in no radio group (" +
+			std::to_string(boxes) + ")");
 		Check(okAt != (size_t)-1, which + ": an Ok button");
 
-		if (editsAt.size() != first + fieldCount || boxAt == (size_t)-1 || okAt == (size_t)-1)
+		if (editsAt.size() != first + fieldCount || boxAt == (size_t)-1 || boxesAt.size() != 2 || okAt == (size_t)-1)
 		{
 			continue;
 		}
@@ -286,6 +290,24 @@ int main()
 		Check(boxWords.compare(0, 7, "Airduct") == 0 && form.widgets[boxAt + 1].box.x == box.x + 0x10 && form.widgets[boxAt + 1].box.y == box.y, which + ": its label to its right: '" +
 			boxWords + "'");
 
+		// THE OWNER'S OVERWRITE BOX (11-21: "put a checkbox (default off) asking 'Overwrite already linked modules' (explaining these are likely hand made by Rebellion and
+		// overwritting them is off by default)"): under the Airduct box at the fields' x, 12 x 12, its label to its right, its plain help lines under it, all over the sizes
+		host::DialogRect const over = form.widgets[boxesAt[1]].box;
+		bool const overLabelled = boxesAt[1] + 2 < form.widgets.size() && form.widgets[boxesAt[1] + 1].type == host::DialogWidgetType::Label &&
+			form.widgets[boxesAt[1] + 2].type == host::DialogWidgetType::Label;
+		host::DialogWidget const &overLabel = form.widgets[overLabelled ? boxesAt[1] + 1 : boxesAt[1]];
+		host::DialogWidget const &overHelp = form.widgets[overLabelled ? boxesAt[1] + 2 : boxesAt[1]];
+
+		// its plain help on its own row, right of its label (a line under it would take the Modules dialog past inteng's 480), a line at most kAlienAutoWaypointHelpLetters
+		Check(over.x == 0x1e && over.width == 12 && over.height == 12 && over.y >= box.y + box.height && over.y + 0x12 <= form.widgets[editsAt[first + 2]].box.y, which +
+			": the Overwrite box under the Airduct box, at the fields' x, 12 x 12, its row over the sizes (at " + std::to_string(over.x) + ", " + std::to_string(over.y) + ")");
+		Check(overLabelled && overLabel.text == "Overwrite already linked modules" && overLabel.box.x == over.x + 0x10 && overLabel.box.y == over.y, which +
+			": its label to its right: '" + overLabel.text + "'");
+		Check(overLabelled && overHelp.box.y == over.y && overHelp.box.x >= overLabel.box.x + (int32_t)overLabel.text.size() * 7 && !overHelp.text.empty() &&
+			overHelp.text.size() <= host::kAlienAutoWaypointHelpLetters && overHelp.text.find('\n') == std::string::npos && overHelp.text.find("Rebellion") != std::string::npos &&
+			lower(overHelp.text).find("kept") != std::string::npos && lower(overHelp.text).find("ticked") != std::string::npos, which + ": its help on its row, past its label: "
+			"unticked, the linked modules are kept, most likely Rebellion's own ('" + overHelp.text + "')");
+
 		// inside the window: each part's box, and a label's longest line at inteng's ~7 px a letter (a label's words are drawn from its x on, not cut at its box)
 		bool inside = true;
 		std::string outside;
@@ -325,6 +347,7 @@ int main()
 	host::AlienAutoWaypointPlotAnswers answers;
 	ok = host::AlienAutoWaypoint_ReadPlotForm(true, form.widgets, &answers);
 	Check(ok && answers.names == "SHED05 gencor01" && answers.climbIns == "1" && answers.getOuts == "1" && !answers.airduct, "Modules' form read as it opens: its names, 1 and 1, Airduct unticked");
+	Check(ok && !answers.overwrite, "as it opens, Overwrite already linked modules is unticked: the modules that have alien waypoints are kept (the owner 11-21: off by default)");
 	host::AutoPlotVolumeCounts counts;
 	Check(!counts.airduct, "the planner's own default: no Airduct (set only when the box is ticked)");
 	counts.airduct = true;
@@ -340,6 +363,36 @@ int main()
 
 	ok = host::AlienAutoWaypoint_ReadPlotForm(true, form.widgets, &answers);
 	Check(ok && answers.airduct, "ticked: read as Airduct on");
+	Check(ok && answers.overwrite, "both ticked: read as Overwrite on too");
+
+	// each box read as itself: the first is Airduct, the second Overwrite
+	for (int only = 0; only < 2; only++)
+	{
+		int at = 0;
+
+		for (host::DialogWidget &w : form.widgets)
+		{
+			if (w.type == host::DialogWidgetType::Check)
+			{
+				w.checked = at++ == only;
+			}
+		}
+
+		host::AlienAutoWaypointPlotAnswers alone;
+
+		ok = host::AlienAutoWaypoint_ReadPlotForm(true, form.widgets, &alone);
+		Check(ok && alone.airduct == (only == 0) && alone.overwrite == (only == 1), only == 0 ? "only the first box ticked: Airduct on, Overwrite off" : "only the second box ticked: Overwrite on, Airduct off");
+	}
+
+	for (host::DialogWidget &w : form.widgets)
+	{
+		if (w.type == host::DialogWidgetType::Check)
+		{
+			w.checked = true;
+		}
+	}
+
+	ok = host::AlienAutoWaypoint_ReadPlotForm(true, form.widgets, &answers);
 	counts = host::AutoPlotVolumeCounts();
 	Check(host::AlienAutoWaypoint_PlotCounts(answers, &counts, &why) && counts.airduct, "ticked: the planner's counts have Airduct");
 
@@ -357,7 +410,37 @@ int main()
 		}
 	}
 
-	Check(!host::AlienAutoWaypoint_ReadPlotForm(false, lost, &answers), "a form that lost its check box: not read (nothing plotted)");
+	Check(!host::AlienAutoWaypoint_ReadPlotForm(false, lost, &answers), "a form that lost its check boxes: not read (nothing plotted)");
+
+	std::vector<host::DialogWidget> oneBox;
+	int checksSeen = 0;
+
+	for (host::DialogWidget const &w : environment.widgets)
+	{
+		if (w.type != host::DialogWidgetType::Check || checksSeen++ == 0)
+		{
+			oneBox.push_back(w);
+		}
+	}
+
+	Check(!host::AlienAutoWaypoint_ReadPlotForm(false, oneBox, &answers), "a form with one check box (the Overwrite box lost): not read (nothing plotted)");
+
+	// THE KEEP (the owner 11-21): with Overwrite off, an AI module that has alien waypoints is kept as it is and only the rest are plotted, in the order given; with it on,
+	// every one is plotted (and the replace question asks, as before)
+	{
+		std::map<int32_t, size_t> const aliens = { { 7, 12 }, { 9, 0 }, { 11, 3 } };
+		std::vector<int32_t> plot, kept;
+
+		host::AlienAutoWaypoint_SplitLinked({ 5, 7, 9, 11 }, aliens, false, &plot, &kept);
+		Check(plot == std::vector<int32_t>({ 5, 9 }) && kept == std::vector<int32_t>({ 7, 11 }), "Overwrite off: 7 and 11 (12 and 3 alien waypoints) kept; 5 (none counted) and 9 (0) plotted");
+		host::AlienAutoWaypoint_SplitLinked({ 5, 7, 9, 11 }, aliens, true, &plot, &kept);
+		Check(plot == std::vector<int32_t>({ 5, 7, 9, 11 }) && kept.empty(), "Overwrite on: every one plotted, none kept");
+		host::AlienAutoWaypoint_SplitLinked({ 7, 11 }, aliens, false, &plot, &kept);
+		Check(plot.empty() && kept.size() == 2, "Overwrite off, every one linked: nothing to plot, both kept");
+		host::AlienAutoWaypoint_SplitLinked({ 7 }, aliens, false, nullptr, nullptr);
+		Check(host::AlienAutoWaypoint_LinkedKeptWords(0).empty(), "none kept, already linked: nothing said (the end line as the scenarios read it)");
+		Check(host::AlienAutoWaypoint_LinkedKeptWords(3) == ", 3 kept, already linked", "3 kept, already linked (" + host::AlienAutoWaypoint_LinkedKeptWords(3) + ")");
+	}
 	Check(!host::AlienAutoWaypoint_ReadPlotForm(true, environment.widgets, &answers), "Environment's parts read as Modules' (a field short): not read");
 	Check(!host::AlienAutoWaypoint_ReadPlotForm(true, form.widgets, nullptr), "no answers given: false");
 
