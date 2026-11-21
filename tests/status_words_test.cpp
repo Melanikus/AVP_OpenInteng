@@ -113,6 +113,11 @@ int main()
 		"and no other words (the view's own hint is not drawn)");
 	Check(!StatusWords_ShownWhereIntengHidesIt(StatusSayer::WaypointMouse, false, false) && !StatusWords_ShownWhereIntengHidesIt(StatusSayer::StrategyView, false, false),
 		"elsewhere it has no say");
+	// THE AUTO-PLOT'S WORDS (the owner 11-21: "When I try to run alien auto link I don't see anything", "It takes forever?"): its progress and end line were plain settings,
+	// so the Waypoint screen hid them all through a 112 s whole-level plot
+	Check(StatusWords_ShownWhereIntengHidesIt(StatusSayer::WaypointPlot, true, false), "the Waypoint screen draws the auto-plot's progress and end line");
+	Check(!StatusWords_ShownWhereIntengHidesIt(StatusSayer::WaypointPlot, false, true) && !StatusWords_ShownWhereIntengHidesIt(StatusSayer::WaypointPlot, false, false),
+		"and only there");
 
 	printf("%d checks, %d failed\n", checks, checksFailed);
 	return checksFailed == 0 ? 0 : 1;

@@ -1,0 +1,31 @@
+# ACCEPTANCE, HIDDEN (pictures off; red first; Drake 2026-11-21, Bishop's release item from the owner's own use of Tools 53c29335: "When I try to run alien auto link I
+# don't see anything", "It takes forever?", "Finished it"): THE AUTO-PLOT SHOWS ITSELF. The plot said its progress and its end line all along, as plain settings, and since
+# alpha.3's status-line call (129afd80) the Waypoint screen draws the line only for its mouse tool's words: every word was kept (the state line's "status") and none drawn
+# ("statusdrawn"). Now the auto-plot's own words (StatusSayer::WaypointPlot) are drawn there, and its end line ends with the run's time.
+# Two rooms of stock Genshd1 plotted through the owner's menu (Alien auto waypoint > Modules), as acceptance-autoplot-rooms: PROC11 and med16.
+# Finished = the end line DRAWN on the Waypoint screen: its start as the scenarios read it ("Auto-plot: 2 AI modules written, 0 refused") and its time ("; in ").
+# RED on exe-cache/53c29335.exe (bishop-int): statusdrawn is empty after the run (the words kept, not drawn).
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-screen Waypoint
+
+wait 600
+camera-corner PROC11
+click-view 0.50 0.50
+wait 400
+expect-status PROC11
+
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+# med16 by its name in the dialog's list (its corner view picks obs01 in front of it)
+type ,med16
+click-button Ok
+wait-status 300000 written
+expect-status Auto-plot: 2 AI modules written, 0 refused
+wait 600
+expect-field-has statusdrawn Auto-plot: 2 AI modules written, 0 refused
+expect-field-has statusdrawn ; in

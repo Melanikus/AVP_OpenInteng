@@ -25,6 +25,8 @@ enum class StatusSayer
 	Other,           // any plain setting (statusWords = text)
 	WaypointMouse,   // Waypoint mode by mouse: a pick, a link, a refusal with its reason (waypoint_mouse.cpp)
 	StrategyView,    // Strategy's edit view: a Message's FMV, an edit refused with its reason (strategy_screen.cpp)
+	WaypointPlot,    // Waypoint mode's auto-plot: its progress while it plots and its end line (autoplot_command.cpp; the owner 11-21, "When I try to run alien auto link I
+	                 // don't see anything")
 };
 
 class StatusWords
@@ -86,9 +88,9 @@ private:
 	StatusSayer sayer = StatusSayer::Other;
 };
 
-// The status line on a screen where inteng draws none: drawn there only while its words are that screen's own mouse tool's (the Waypoint screen: Waypoint by mouse; Strategy's
-// edit view: the view's FMV and refusal words). Elsewhere this has no say (false)
+// The status line on a screen where inteng draws none: drawn there only while its words are that screen's own tools' (the Waypoint screen: Waypoint by mouse, and its auto-plot's
+// progress and end line, the owner 11-21; Strategy's edit view: the view's FMV and refusal words). Elsewhere this has no say (false)
 inline bool StatusWords_ShownWhereIntengHidesIt(StatusSayer sayer, bool onWaypointScreen, bool inStrategyEditView)
 {
-	return (onWaypointScreen && sayer == StatusSayer::WaypointMouse) || (inStrategyEditView && sayer == StatusSayer::StrategyView);
+	return (onWaypointScreen && (sayer == StatusSayer::WaypointMouse || sayer == StatusSayer::WaypointPlot)) || (inStrategyEditView && sayer == StatusSayer::StrategyView);
 }

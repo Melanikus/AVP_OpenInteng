@@ -35,6 +35,10 @@ void AutoPlotCommand_Frame();
 // A run is going (the grid building or the worker searching)
 bool AutoPlotCommand_Busy();
 
+// While a run goes: the busy cursor (the arrow with the hourglass: the editor still answers) set, true; else nothing done, false. The window's WM_SETCURSOR (editor_main.cpp)
+// asks it (the owner 11-21, a whole-level plot of about 112 s with nothing shown)
+bool AutoPlotCommand_BusyCursor();
+
 // Auto-plot these modules' AI modules (any module's object index, each taken to the head of the AI module that holds it, once, in the order given), or EVERY AI module when the
 // list is empty: the same run and status line as Auto-plot selected / all (Vasquez's "Alien auto waypoint" menu, the owner 11-20: "a drop down with environment or modules and
 // accept a string of multiple modules"). What AutoPlotCommand gives back
