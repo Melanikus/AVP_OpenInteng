@@ -1,0 +1,56 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-19, THE OWNER'S CALL through Bishop, alpha.3 "Status line call"): inteng draws no status line on the Waypoint screen (FUN_00584ee0 draws only
+# its own lines); ours draws it there WHILE the mouse tools have something to say (a named difference, chosen by the owner): Waypoint by mouse's words (waypoint_mouse.cpp: a pick, a
+# link, a refusal with its reason) are drawn; any other words (a menu item's, a key's) are not, as inteng's. The drawn words are the state line's "statusdrawn" (editor_panels.cpp: what
+# the status line draws this frame, "" for none); "status" keeps every word for the harness, drawn or not.
+# HIS PATH: his own Genshd1 (the copy acceptance-waypoint-mouse-pick opens, read-only), opened as a double click; a box made with inteng's own Create Waypoint, as that scenario does.
+# RED on the bishop-int before it (284c0877): the Waypoint screen draws no status line at all, so statusdrawn never holds the mouse's words.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+wait 600
+# shedent03's AI module, its alien list (empty): a menu item's words, not drawn (inteng's)
+click-view 0.5 0.5
+wait 400
+item 3
+wait 600
+expect-hierarchy-text Alien Mode
+expect-status alien list of 0
+expect-field-empty statusdrawn
+# a box made as inteng makes one: Create Waypoint, two drags to size it, Finish Extent Edit (inteng's own items: their words are not drawn)
+item 5
+drag-face current top right 20 20
+drag-face current side right 20 20
+item 0x13
+wait 400
+expect-status alien list of 1, current 0
+expect-field-empty statusdrawn
+
+# ---- the mouse: a click that meets no box lets the current one go, and says so ON THE SCREEN
+click-view 0.02 0.02
+wait 400
+expect-status none is current now
+expect-field-has statusdrawn No waypoint under the pointer: none is current now
+picture 1
+
+# ---- a click on the box: current again, said on the screen
+click-wp 0 3d
+wait 400
+expect-status Waypoint 0 is the current one
+expect-field-has statusdrawn Waypoint 0 is the current one
+
+# ---- a menu item after it (Set Base): its words replace the mouse's, and the line is gone again, as inteng's
+item 7
+wait 300
+expect-status Base is waypoint 0
+expect-field-empty statusdrawn
+picture 2
+
+# ---- the mouse again: drawn again
+click-wp 0 3d
+wait 400
+expect-status Waypoint 0 is the current one
+expect-field-has statusdrawn Waypoint 0 is the current one
+picture 3

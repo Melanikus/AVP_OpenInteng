@@ -224,7 +224,19 @@ bool OnThePathScreen()
 
 // PATH MODE'S COLOURS (FUN_004fa1c0, every pick and change; RGB values, the palette values of the 256-colour game are 0xfe, 0xfd, 0xfc, 0xff): the modules the person put in (flags bit 1 clear) blue (0x0000ff), the modules the route put in (flags bit 1 set) green (0x00ff00), the modules the route
 // WOULD put in between the last node and the picked module (FUN_004f8c10) yellow (0xffff00), the picked module purple (0x7f007f). NAMED: FUN_004fa5a0's cycling colour over the nodes every frame (the node it marks and its colour are not read) is not drawn.
-// a module's number in the level (the chunk's index, what a path node and ModuleIndexOfId name) -> the game's module number (what the tints name), found through the object's ID; made again when the level's bytes change
+// a module's number in the level (the chunk's index, what a path node and ModuleIndexOfId name) -> the game's module number (what the tints name), found through the object's ID; made again when the level's bytes change.
+// EVERY module of the game's array goes in the map, in play or not (Vasquez 11-20, Drake's catch: 13 selected in Waypoint, 5 painted red). The map is first made on the editor's first frame,
+// before the view's first draw gives every module a display block. ModuleObject asks for one (LevelView_ModuleName), so the modules not seen from where the level starts (the U's 8)
+// were left out, and they stayed out until the level changed. Here a module is found by its own name and place, as ModuleObject finds it, with no display block asked for
+static bool ModuleObjectInPlayOrNot(OpenLevelFile *open, int32_t moduleIndex, uint8_t id[8])
+{
+	std::string name;
+	int32_t world[3];
+
+	return open && open->Level() && LevelView_ModuleOwnName(moduleIndex, &name) && LevelView_ModuleWorld(moduleIndex, world) &&
+		host::PolygonItems_ModuleObject(open->Level(), name.c_str(), world, local_scale > 0.0 ? local_scale : 1.0, id);
+}
+
 int32_t GameModuleOfNumber(int32_t number)
 {
 	static std::map<int32_t, int32_t> known;
@@ -246,7 +258,7 @@ int32_t GameModuleOfNumber(int32_t number)
 			uint8_t id[8];
 			int32_t index = 0;
 
-			if (ModuleObject(open, m, id) && host::ModuleIndexOfId(open->Level(), id, &index))
+			if (ModuleObjectInPlayOrNot(open, m, id) && host::ModuleIndexOfId(open->Level(), id, &index))
 			{
 				known[index] = m;
 			}

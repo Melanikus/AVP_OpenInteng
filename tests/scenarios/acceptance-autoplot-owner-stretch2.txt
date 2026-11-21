@@ -1,0 +1,31 @@
+# ACCEPTANCE, HIDDEN (pictures off): THE OWNER'S SECOND STRETCH plotted by the volume planner (the owner 11-20, his editor's Selected line: "I want him from underneath the
+# med area, autowalking all the way to the other side via the main corridor, ducking in the vent, path finding across the stair while you guys spawn aliens around him,
+# light the whole place up too"). His 19 modules on a private copy of STOCK Genshd1 (19f00eae): MED01 picked by a click, the other 18 typed into Alien auto waypoint >
+# Modules (the dialog starts with the picked module's name), Ok at the default counts, the Airduct box unticked (no Airduct). The first test of the auto-plot away from the
+# modules it was tuned on: the saved copy is the quick checks' input (Drake's whole-gate2.sh), and Drake's start, lights and generators go on it.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-screen Waypoint
+
+wait 600
+camera-corner MED01
+click-view 0.50 0.50
+wait 400
+expect-status MED01
+
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+type ,office01,office,new03,doormp06,pipes05A,pipes05,doormp03,Object06,Object07,BEND-01,Object03,Object05,Object04,corr04,corr04A,shft14,shft18,shft21
+click-button Ok
+# one of the 19 has a stock network (8 alien waypoints): the replace question, answered Yes
+expect-dialog-kind confirm
+expect-dialog replace
+click-button Yes
+wait-status 300000 written
+expect-status AI modules written
+
+save-copy

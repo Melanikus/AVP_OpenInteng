@@ -8,10 +8,12 @@
 # Why it's started by hand, and not by pushing a tag: a workflow comes from the commit it runs on, so a tag could point at a commit with
 # these checks taken out. Started from main, this file comes from main, where changing it has to get past the same checks as anything else.
 #
-# The zip holds the editor, the runtime files it needs beside it, and their licences. (mp4-to-smk.exe, a user's own video made into an
-# AvP message video, and its encoder are left out for now: the owner, 11-19.) Those runtime files (OpenAL Soft and fmt, Microsoft's
-# D3DX and its shader compiler, Microsoft's C++ runtime, and the Smacker decoder, libsmackerdec) come from AvPx's own package, built here by AvPx's own script at the commit avpx/ is pinned to, so each
-# one comes with the licence text, and OpenAL Soft with the source, that AvPx's package gives it.
+# The zip holds the editor, mp4-to-smk.exe (a user's own video made into an AvP message video), the runtime files they need beside them,
+# and their licences. Those runtime files (OpenAL Soft and fmt, Microsoft's D3DX and its shader compiler, Microsoft's C++ runtime, and the
+# Smacker encoder and decoder, libsmackerenc and libsmackerdec) come from AvPx's own package, built here by AvPx's own script at the commit
+# avpx/ is pinned to, so each one comes with the licence text, and OpenAL Soft and libsmackerenc with the source, that AvPx's package gives it
+# (a source only with its own library). mp4-to-smk was left out of alpha.2 while an antivirus false positive was looked into; it is back
+# with a version resource and a manifest (0 of 71 on VirusTotal, exe and DLL, 11-19).
 name: Release
 
 on:
@@ -123,9 +125,7 @@ jobs:
       # The Smacker encoder and decoder DLLs (LGPL, from AvPx's package) are loaded while the programs run, pinned to the very files this
       # package ships (the owner's ruling, 11-18): their SHA-256 goes into both builds (SMACKER_ENCODER_SHA256 / SMACKER_DECODER_SHA256).
       # A user's own build of either is let in by AVP_OpenInteng.ini (LGPL 2.1 section 6); README.md says how.
-      # mp4-to-smk and its encoder are LEFT OUT of the release for now (the owner, 11-19: "leave encoder out for now", while an antivirus
-      # false positive on mp4-to-smk.exe is looked into). The pins step still reads both DLLs, so putting it back is the lines below only.
-      - name: Build the editor
+      - name: Build the editor and mp4-to-smk
         shell: pwsh
         run: |
           $pins = @{}
@@ -144,6 +144,10 @@ jobs:
             "/p:SmackerEncoderSha256=$($pins['libsmackerenc.dll'])" "/p:SmackerDecoderSha256=$($pins['libsmackerdec.dll'])"
           if ($LASTEXITCODE -ne 0) { throw "The editor didn't build (MSBuild exit $LASTEXITCODE)" }
           if (-not (Test-Path -LiteralPath 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe')) { throw 'MSBuild gave back 0 but made no AVP_OpenInteng.exe' }
+          & $msbuild win32\VS2026\mp4-to-smk.vcxproj /nologo /v:minimal /m /nodeReuse:false /p:Configuration=Release /p:Platform=Win32 `
+            /p:ImportDirectoryBuildProps=false /p:ImportDirectoryBuildTargets=false "/p:SmackerEncoderSha256=$($pins['libsmackerenc.dll'])"
+          if ($LASTEXITCODE -ne 0) { throw "mp4-to-smk didn't build (MSBuild exit $LASTEXITCODE)" }
+          if (-not (Test-Path -LiteralPath 'win32\VS2026\Win32\Release\mp4-to-smk.exe')) { throw 'MSBuild gave back 0 but made no mp4-to-smk.exe' }
 
       # The package: the editor, and every file of AvPx's bin it asks for (and what those ask for in turn), read from the programs' own
       # import lists by dumpbin. A file that isn't in AvPx's bin is Windows' own. Then the licences of exactly those files, with AvPx's
@@ -157,6 +161,7 @@ jobs:
           $package = "$env:RUNNER_TEMP\package"
           New-Item -ItemType Directory -Force $package | Out-Null
           Copy-Item 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe' $package
+          Copy-Item 'win32\VS2026\Win32\Release\mp4-to-smk.exe' $package
 
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
           $visualStudio = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
@@ -164,9 +169,9 @@ jobs:
           if (-not $dumpbin) { throw 'dumpbin was not found' }
           $avpxBin = @{}
           Get-ChildItem -LiteralPath "$from\bin" -File -Filter '*.dll' | ForEach-Object { $avpxBin[$_.Name.ToLowerInvariant()] = $_.FullName }
-          # The Smacker decoder (the FMV preview) is loaded by name while the editor runs, so no import list names it; it goes in first, so the
-          # loop below brings what it asks for too. It is the file the build pinned (the step above). The encoder is left out with mp4-to-smk.
-          foreach ($dll in @('libsmackerdec.dll')) {
+          # The Smacker encoder (mp4-to-smk, Import video) and decoder (the FMV preview) are loaded by name while the programs run, so no import
+          # list names them; they go in first, so the loop below brings what they ask for too. They are the files the builds pinned (the step above).
+          foreach ($dll in 'libsmackerenc.dll', 'libsmackerdec.dll') {
             if (-not $avpxBin.ContainsKey($dll)) { throw "AvPx's package has no $dll" }
             Copy-Item -LiteralPath $avpxBin[$dll] -Destination (Join-Path $package $dll)
           }
@@ -204,12 +209,26 @@ jobs:
               Copy-Item -LiteralPath "$from\licences\$named" -Destination $licenceFolder -Force
             }
           }
-          # OpenAL Soft's source and libsmackerenc's go with them, as in AvPx's package (libsmackerdec's line links to its source)
-          if ((Test-Path -LiteralPath (Join-Path $package 'openal32.dll')) -or (Test-Path -LiteralPath (Join-Path $package 'libsmackerenc.dll'))) {
-            Copy-Item -Recurse -LiteralPath "$from\licences\sources" -Destination (Join-Path $licenceFolder 'sources')
+          # The sources AvPx's package holds go with their own library, and only with it: OpenAL Soft's with openal32.dll, libsmackerenc's with
+          # libsmackerenc.dll (left out with mp4-to-smk for now), each folder of its licences/sources copied only when its library is in this package
+          # (11-19: the whole folder was copied whenever OpenAL was there, so libsmackerenc's source went out with no libsmackerenc.dll). libsmackerdec's
+          # line links to its source. A library that is here and whose source is not is refused, each with its own words.
+          $sourceOf = [ordered]@{ 'openal32.dll' = @('openal-soft', '*.tar.gz'); 'libsmackerenc.dll' = @('libsmackerenc', 'COPYING') }
+          foreach ($dll in $sourceOf.Keys) {
+            if (-not (Test-Path -LiteralPath (Join-Path $package $dll))) { continue }
+            $folder, $mark = $sourceOf[$dll]
+            if (Test-Path -LiteralPath "$from\licences\sources\$folder") {
+              New-Item -ItemType Directory -Force (Join-Path $licenceFolder 'sources') | Out-Null
+              Copy-Item -Recurse -LiteralPath "$from\licences\sources\$folder" -Destination (Join-Path $licenceFolder "sources\$folder")
+            }
+            if (-not (Get-ChildItem -LiteralPath (Join-Path $licenceFolder "sources\$folder") -Filter $mark -File -ErrorAction SilentlyContinue)) {
+              throw "$dll ships without its source (AvPx's licences/sources/$folder, its $mark)"
+            }
           }
-          if ((Test-Path -LiteralPath (Join-Path $package 'libsmackerenc.dll')) -and -not (Test-Path -LiteralPath (Join-Path $licenceFolder 'sources\libsmackerenc\COPYING'))) {
-            throw "libsmackerenc.dll ships without its source (AvPx's licences/sources/libsmackerenc)"
+          # and no source of a library that isn't here
+          foreach ($folder in @(Get-ChildItem -LiteralPath (Join-Path $licenceFolder 'sources') -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })) {
+            $owner = @($sourceOf.Keys | Where-Object { $sourceOf[$_][0] -eq $folder })
+            if ($owner.Count -ne 1 -or -not (Test-Path -LiteralPath (Join-Path $package $owner[0]))) { throw "licences/sources/$folder ships without its library" }
           }
           $readme = @(
             "The runtime files the editor needs beside it, and each one's licence, as AvPx's own package gives them. Each line names a file,"

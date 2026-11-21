@@ -1,0 +1,94 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-19, THE OWNER'S ASK through Bishop: "Maybe we changed it in a way that we can select multiple modules and apply to them?", "Inteng hides unselected
+# modules"): MULTI-MODULE SELECTION in Waypoint mode, a named difference (more than one pick). In the AI modules mode (0) a plain click is inteng's pick (FUN_00583d00 0x58402a: a module of
+# another AI module picks its master) and clears the set; Shift is unchanged; Ctrl+click adds or takes out the clicked module's AI module (the first one starts the set from the pick).
+# The set's AI modules are painted red, as inteng paints its pick. Show Alien Waypoints (3) then opens the picked AI module as inteng does, and shows EVERY selected AI module with it: their
+# modules are not hidden (inteng hides all but the AI module, FUN_00583b40) and their alien networks are drawn in inteng's colours. Only the current one is edited. The state line's
+# "waypointselection" names the set (mode 0); "waypointnets" names each AI module whose network the view draws, with its boxes and links (modes 1 to 3; the current one first).
+# THE SUBJECT (genshd1-corridors.md, chain A): stock Genshd1's opscen03 (#153) - Ops01 (#158) - opscen02 (#154), the straight 53 m ceiling. Stock has no alien networks there, so the
+# setup gives each one with the auto-plot (Dietrich's, behind AutoPlot=1), picked by the harness; the selection itself is made by clicks, as the user makes it.
+# RED on the bishop-int before it (18cd3023): no set (a Ctrl+click is a plain pick), and Show Alien Waypoints shows one AI module.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Waypoint
+
+# ---- setup: an alien network on each of the three (the auto-plot of one AI module, the picked one's)
+pick-module 153
+wait 300
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
+wait-status 120000 Auto-plot: AI module 153:
+expect-status-not not written
+pick-module 158
+wait 300
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
+wait-status 120000 Auto-plot: AI module 158:
+expect-status-not not written
+pick-module 154
+wait 300
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
+wait-status 120000 Auto-plot: AI module 154:
+expect-status-not not written
+
+# ---- inteng's pick stays inteng's: a plain click picks opscen03, and there is no set
+camera-corner opscen03
+click-view 0.50 0.50
+wait 400
+expect-field-empty waypointselection
+
+# ---- Ctrl+click adds Ops01 (the set starts from the pick), then opscen02
+camera-corner Ops01
+click-view 0.50 0.50 ctrl
+wait 400
+expect-field waypointselection opscen03|Ops01
+camera-corner opscen02
+click-view 0.50 0.50 ctrl
+wait 400
+expect-field waypointselection opscen03|Ops01|opscen02
+picture 1
+
+# ---- Ctrl+click on one of the set takes it out; again puts it back (at the end)
+click-view 0.50 0.50 ctrl
+wait 400
+expect-field waypointselection opscen03|Ops01
+click-view 0.50 0.50 ctrl
+wait 400
+expect-field waypointselection opscen03|Ops01|opscen02
+
+# ---- Show Alien Waypoints: the picked AI module (opscen03) is the current one, as inteng's; all three networks are drawn together, from one camera
+click-bar Mode > Show Alien Waypoints
+wait 600
+expect-field-has waypointnets opscen03 boxes
+expect-field-has waypointnets Ops01 boxes
+expect-field-has waypointnets opscen02 boxes
+expect-number waypointnets opscen03_boxes 1 99
+expect-number waypointnets Ops01_boxes 1 99
+expect-number waypointnets opscen02_boxes 1 99
+# one camera over the chain, 45 degrees round and up, far enough for all three (50 m)
+camera-orbit Ops01 45 45 50000
+wait 400
+picture 2
+
+# ---- back to the AI modules: the set is kept
+click-bar Mode > Exit
+wait 400
+expect-field waypointselection opscen03|Ops01|opscen02
+
+# ---- a plain click clears it: inteng's single pick again, and Show Alien Waypoints shows that one AI module only
+camera-corner Ops01
+click-view 0.50 0.50
+wait 400
+expect-field-empty waypointselection
+click-bar Mode > Show Alien Waypoints
+wait 600
+expect-field-has waypointnets Ops01 boxes
+expect-field-not-has waypointnets opscen03
+expect-field-not-has waypointnets opscen02
+picture 3

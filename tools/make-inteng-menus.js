@@ -390,7 +390,12 @@ function readStatus(bytes, menus) {
 		status.extras.forEach((extra, i) => {
 			const at = `status extra ${i}`;
 
-			exactKeys(extra, ['table', 'row', 'page', 'title', 'command', 'does'], at);
+			// "menu" is optional (Vasquez 11-20, the owner's "Alien auto waypoint" drop-down): extras with the same menu on one page are the items of ONE menu of that title
+			exactKeys(extra, ['table', 'row', 'page', 'title', 'command', 'does'].concat('menu' in extra ? ['menu'] : []), at);
+
+			if ('menu' in extra && (typeof extra.menu !== 'string' || extra.menu.length < 1 || extra.menu.length > kNameMost || !/^[ -~]+$/.test(extra.menu))) {
+				refuse(`${at}: its menu`);
+			}
 
 			if (typeof extra.table !== 'string' || !extra.table.startsWith('built:') || !kBuiltScreens.includes(extra.table.slice(6))) {
 				refuse(`${at}: no built screen ${extra.table}`);
@@ -621,12 +626,17 @@ function builtPageMenus(screen, page, s, status, screenOf, tag) {
 		addItem(menus[menus.length - 1], [...chain, shown(record.words)].join(': '), record.words);
 	});
 
-	// Items of ours on this page (status "extras"): each a menu of one item, after inteng's, with an action number past the page's records
+	// Items of ours on this page (status "extras"), after inteng's, each with an action number past the page's records: a menu of one item, or (with "menu") an item of that menu, the
+	// menu where its first item is, its items in the order given
 	(status.extras || []).filter((e) => e.table === tableKey && e.row === page.row && e.page === page.page).forEach((extra, k) => {
-		menus.push({
-			title: extra.title,
-			items: [{ name: extra.title, action: (s + 1) * 0x10000 + (page.row - 1) * 0x4000 + page.page * 0x400 + 0x3ff - k, command: parseInt(extra.command, 16), tag: 'none', work: extra.does, toScreen: -1 }]
-		});
+		const item = { name: extra.title, action: (s + 1) * 0x10000 + (page.row - 1) * 0x4000 + page.page * 0x400 + 0x3ff - k, command: parseInt(extra.command, 16), tag: 'none', work: extra.does, toScreen: -1 };
+		const into = 'menu' in extra ? menus.find((m) => m.extraMenu === extra.menu) : undefined;
+
+		if (into) {
+			into.items.push(item);
+		} else {
+			menus.push('menu' in extra ? { title: extra.menu, extraMenu: extra.menu, items: [item] } : { title: extra.title, items: [item] });
+		}
 	});
 
 	return menus;

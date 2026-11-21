@@ -1,0 +1,68 @@
+# ACCEPTANCE (red first; Drake 2026-11-20, Bishop's order for the owner's "the whole genshd mapped": COVERAGE, the biggest unshaped kind "junction or room", 31 AI
+# modules on Dietrich's 6342c5de, plus 5 "rooms with 2 doorways"; seam agreed with Dietrich): a room gets the gold standard's shape. One entry on the ceiling per doorway
+# (the ceiling places nearest it), linked where they meet; its floor rectangles; a climb-in on a side that is a WALL and a get-out (the owner's counts, 1 and 1); aims a
+# hanging alien's box holds. THE AIRDUCT BOX (the owner 11-20 19:06, "Let's not auto set it anymore"; ac998c8d): unticked as the dialog opens, so a plot leaves the
+# modules' Airduct flag clear; ticked, the plot sets it.
+# Two rooms of stock Genshd1, picked and plotted through the owner's menu (Alien auto waypoint > Modules): PROC11 (AI module 352, one 14 x 8 m floor, 4 doorways) and
+# med16 (AI module 172, 3.6 x 7.5 m, 3 doorways; its ceiling goes on 3.9 m past the floor's south edge, so that side is no wall).
+# Finished = both written, nothing refused; each one's network clean by Frost's checker on the saved copy (verify_waypoint_nets: a network, every exit in a box, every box
+# reaching every other, nothing wrong); with the box as it opens, neither module Airduct; plotted again with the box ticked (the replace question answered Yes), both
+# Airduct (verify_objects modflags, read back by the game's loader).
+# RED on exe-cache/6342c5de.exe: both NOT SHAPED ("junction or room": no rule for it yet), no network written. Until 11-21 the first plot expected both modules Airduct:
+# stale since ac998c8d (the box opens unticked), red on bishop-int's own exe (Dietrich 11-21).
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-screen Waypoint
+
+wait 600
+camera-corner PROC11
+click-view 0.50 0.50
+wait 400
+expect-status PROC11
+
+# ---- the box as it opens: unticked, no Airduct
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+expect-dialog-checks off
+# med16 by its name in the dialog's list (its corner view picks obs01 in front of it)
+type ,med16
+click-button Ok
+wait-status 300000 written
+expect-status Auto-plot: 2 AI modules written, 0 refused
+
+wait 600
+wait 600
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 352 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 172 network exits connected most links clean
+# (gameflags: the bits as the game's loader takes them; an unticked plot writes no MODFLAGS, and the loader ORs one in only when it is there, projload.cpp 2232-2234)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/verify_objects.exe {copy} gameflags PROC11|80000000|0 gameflags med16|80000000|0
+
+# ---- the box ticked: the same two plotted again (their networks replaced), both Airduct
+# (the status must have moved on from the first plot's "written", or the wait below would pass at once)
+expect-status-not AI modules written
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+expect-dialog-checks off
+click-check 1
+expect-dialog-checks on
+type ,med16
+click-button Ok
+expect-dialog-kind confirm
+expect-dialog replace
+click-button Yes
+wait-status 300000 written
+expect-status Auto-plot: 2 AI modules written, 0 refused
+
+wait 600
+wait 600
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 352 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 172 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/verify_objects.exe {copy} modflags PROC11|80000000|80000000 modflags med16|80000000|80000000

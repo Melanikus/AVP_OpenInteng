@@ -1,0 +1,67 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-20, THE OWNER'S WORD through Bishop: "I want the auto waypoint to say "Alien auto waypoint" and be a drop down with environment or modules and
+# accept a string of multiple modules"; alien_auto_waypoint.h): with AutoPlot=1, Waypoint mode's first bar has ONE menu of ours, "Alien auto waypoint", a drop-down with Environment
+# (every AI module of the level) and Modules (a line dialog, inteng's own TEXT kind, that takes several module names, started with the Ctrl+click set's names or the picked module's), in
+# place of the three Auto-plot items. A typed name the level has no module for is NAMED on the status line and NOTHING is plotted; Ok on the picked module's name plots its AI module, as
+# Auto-plot AI module did. HIS PATH: his Genshd1 copy as acceptance-autoplot-command (genent01, AI module 232, has no alien waypoint, so no question is asked).
+# RED on exe-cache/b967d602.exe: there is no such menu (the bar has the three Auto-plot items). The COUNTS (Environment's dialog, the out-of-range climb-ins named): red on
+# vam-2 (55ce4579's menu: Environment ran at once, with no dialog). THE AIRDUCT BOX (the owner 11-20 night; UNTICKED as they open since 19:06: "Let's not auto set it anymore"): in both dialogs, unticked as
+# they open, a press ticks it and a second unticks it, and the Modules run goes with it unticked (its "Airduct set on" line is then not in the editor's output). Red on
+# exe-cache/6342c5de.exe: its dialogs have no check box; red on exe-cache/7353c40d.exe: its dialogs open ticked.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+pictures on
+state
+expect-screen Waypoint
+expect-field levelbytes 1781232
+expect-bar1 Alien auto waypoint
+expect-field-not-has bar1 Auto-plot
+# the drop-down: its two items
+click-bar Alien auto waypoint
+expect-field-has dropboxes Environment~
+expect-field-has dropboxes |Modules~
+picture 1
+key Esc
+wait 600
+# Environment (the owner's tunable counts, 11-20): its dialog asks how many climb-ins and get-outs each AI module gets, started with the planner's defaults (1 and 1);
+# a count out of the planner's range (0 to 8: "1" with "9" typed after it) is NAMED and nothing is plotted (the whole level is not run here: acceptance-autoplot-all does)
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+expect-dialog-checks off
+picture 4
+type 9
+click-button Ok
+expect-no-dialog
+expect-status Alien auto waypoint: nothing plotted: Climb-ins: '19' is not a whole number from 0 to 8
+wait 1000
+expect-status-not Auto-plot:
+# genent01, picked in the AI modules
+click-view 0.5 0.95
+wait 400
+expect-status Picked: module
+# Modules: the line dialog, started with the picked module's name; an unknown name typed after it (a comma between: the harness's type drops a leading space): named, nothing plotted
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+picture 2
+type ,nosuchmodule
+click-button Ok
+expect-no-dialog
+expect-status Alien auto waypoint: nothing plotted: no module named nosuchmodule
+wait 1000
+expect-status-not Auto-plot:
+# Modules again, Ok on the picked module's name as it starts: its AI module plotted, as Auto-plot AI module did; the Airduct box unticked as it opens, ticked by a press, unticked by another
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+expect-dialog-checks off
+click-check 1
+expect-dialog-checks on
+click-check 1
+expect-dialog-checks off
+picture 5
+click-button Ok
+expect-no-dialog
+# (Dietrich's planner ends every run with its summary: "Auto-plot: 1 AI modules written, 0 refused; <boxes>; lanes ...")
+wait-status 180000 AI modules written
+expect-status Auto-plot: 1 AI modules written, 0 refused
+picture 3

@@ -7,6 +7,6 @@ pictures on
 state
 expect-screen Waypoint
 expect-bar1 Help
-expect-bar1 Auto-plot AI module
-expect-bar1 Auto-plot all AI modules
+expect-bar1 Alien auto waypoint
+expect-field-not-has bar1 Auto-plot
 picture 1

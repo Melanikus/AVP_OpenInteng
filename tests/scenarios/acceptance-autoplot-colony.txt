@@ -1,0 +1,22 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-18, THE OWNER'S TOP PRIORITY through Bishop: "let me open the rif and play it to see how it goes"): AUTO-PLOT ALL AI MODULES ON COLONY.
+# colony_c.rif as Steam ships it (sha256 f1919cad, the same as his), Waypoint mode 0, Auto-plot all AI modules, no question asked (stock Colony has no alien waypoints).
+# The saved copy read back by the game's own loader: every AI module written has a network the checker finds nothing in (verify_waypoint_nets all), and against the stock file nothing
+# but the waypoint chunks changed (verify_level_same --ignore WAYPOINT). RED before the command is there (no such item).
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/colony_c.rif
+pictures on
+state
+expect-screen Waypoint
+# the stock networks as they were (the checker gates only ours: Frost's survey, 309 of 332 stock modules fail it)
+save-copy
+allow-fail the stock networks fail the checker (Frost's survey) | verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} all network exits connected most links clean
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+click-button Ok
+wait-status 1200000 AI modules written
+expect-status , 0 refused
+expect-status boxes
+picture 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} all network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {orig} {copy} --ignore WAYPOINT

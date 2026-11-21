@@ -67,9 +67,13 @@ namespace host
 			}
 		}
 
+		std::vector<bool> stillObject(polygons.size(), false);   // a polygon in no module's range: a still object's (RoofOver takes no roof from it, as the gate)
+
 		for (size_t i = 0; i < polygons.size(); i++)
 		{
 			int32_t module = listedModule[i];
+
+			stillObject[i] = module < 0;
 
 			// a still object's polygon is in no module's range: the module the game finds at its middle (the listing has checked its corners)
 			if (module < 0 && polygons[i].corners > 0 && polygons[i].corners <= kAlienWaysMostCorners)
@@ -97,7 +101,7 @@ namespace host
 			listedModule[i] = module;
 		}
 
-		return AutoPlotGrid_StartFrom(std::move(polygons), std::move(listedModule), why);
+		return AutoPlotGrid_StartFrom(std::move(polygons), std::move(listedModule), why, stillObject);
 	}
 }
 

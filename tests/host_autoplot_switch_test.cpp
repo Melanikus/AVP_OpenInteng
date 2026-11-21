@@ -27,9 +27,15 @@ int main()
 	Check(host::AutoPlot_CommandHidden(0x7331, false), "Auto-plot all AI modules (0x7331) hidden while the switch is off");
 	Check(!host::AutoPlot_CommandHidden(0x7330, true), "Auto-plot AI module shown with AutoPlot=1");
 	Check(!host::AutoPlot_CommandHidden(0x7331, true), "Auto-plot all AI modules shown with AutoPlot=1");
+	Check(host::AutoPlot_CommandHidden(0x7332, false), "Auto-plot selected AI modules (0x7332) hidden while the switch is off");
+	Check(!host::AutoPlot_CommandHidden(0x7332, true), "Auto-plot selected AI modules shown with AutoPlot=1");
+	Check(host::AutoPlot_CommandHidden(0x7334, false), "Alien auto waypoint > Modules (0x7334, the owner's 11-20) hidden while the switch is off");
+	Check(!host::AutoPlot_CommandHidden(0x7334, true), "Alien auto waypoint > Modules shown with AutoPlot=1");
+	Check(host::AutoPlot_CommandHidden(0x7335, false), "Alien auto waypoint > Environment (0x7335, the counts asked) hidden while the switch is off");
+	Check(!host::AutoPlot_CommandHidden(0x7335, true), "Alien auto waypoint > Environment shown with AutoPlot=1");
 
-	// inteng's own Waypoint commands (Fly 0x25, Delete 0x24, Recalculate all 0x26, Help 0x15), a command next to the two, 0 and a negative: never hidden, either way
-	int32_t const others[] = { 0x25, 0x24, 0x26, 0x15, 0x732f, 0x7332, 0, -1 };
+	// inteng's own Waypoint commands (Fly 0x25, Delete 0x24, Recalculate all 0x26, Help 0x15), commands next to the four, 0 and a negative: never hidden, either way
+	int32_t const others[] = { 0x25, 0x24, 0x26, 0x15, 0x732f, 0x7333, 0x7336, 0, -1 };
 
 	for (int32_t const command : others)
 	{

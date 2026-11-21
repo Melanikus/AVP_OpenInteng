@@ -2,7 +2,7 @@
 // loader, and its AI modules' alien networks checked as the stock game would use them (src/host/waypoint_net_level.h, waypoint_net_check.h). Written 2026-11-18 by Melanikus (Frost) for
 // AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
-// USAGE: verify_waypoint_nets <the saved copy> <master> <check> [<check> ...]
+// USAGE: verify_waypoint_nets <the saved copy> <master> [except <master>:<exit> ...] <check> [<check> ...]
 //   master: the AI module's master's object index (as Waypoint mode counts modules), or "all" for every AI module that has a network
 //   check: network     it has an alien network (one box at least)
 //          exits       every exit point lies in a box (EXIT OUTSIDE: none)
@@ -10,12 +10,16 @@
 //          most        99 boxes at most (TOO MANY: none)
 //          links       every link in the list (LINK OUTSIDE: none), and no large target into a box with no room
 //          clean       no problem of any kind
+//   except: the exits named after it, each "<master>:<exit>" (e.g. except 364:3 367:3: AI module 364's exit 3 and 367's), print as an EXCEPTION with the reason (no alien route
+//          to this exit: an alien heading there walks the floor way, D4), not as a failure, in exits and in clean; only EXIT OUTSIDE, only the exits named; anything not named
+//          fails as before, and a name that finds no such exit in no box fails (Bishop 11-20, his rule-6(a) ruling: verify_waypoint_nets_except.h). Without except, as before.
 // It passes (exit 0) when every check does; the lines say what was found.
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <set>
 #include <string>
 #include <vector>
 
@@ -23,6 +27,7 @@
 
 #include "level_file.h"
 #include "waypoint_net_level.h"
+#include "verify_waypoint_nets_except.h"
 
 HANDLE avp_CreateFile(const char *name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES security, DWORD creation, DWORD flags, HANDLE model)
 {
@@ -86,7 +91,48 @@ int main(int argc, char **argv)
 
 	if (argc < 4)
 	{
-		printf("  FAILED  usage: verify_waypoint_nets <the saved copy> <master|all> <check> [<check> ...]\n");
+		printf("  FAILED  usage: verify_waypoint_nets <the saved copy> <master|all> [except <master>:<exit> ...] <check> [<check> ...]\n");
+		return 1;
+	}
+
+	// the checks, and the exits named after except (each word after it that reads <master>:<exit>; at least one)
+	std::vector<std::string> checks;
+	std::vector<verify_nets::ExceptedExit> excepted;
+	char const *stockFile = nullptr;   // "stock <file>": the copy saved before the plot, so "<master>:*" can tell a module that keeps stock's network
+
+	for (int a = 3; a < argc; a++)
+	{
+		if (strcmp(argv[a], "stock") == 0 && a + 1 < argc)
+		{
+			stockFile = argv[++a];
+			continue;
+		}
+
+		if (strcmp(argv[a], "except") != 0)
+		{
+			checks.push_back(argv[a]);
+			continue;
+		}
+
+		verify_nets::ExceptedExit e;
+		size_t const before = excepted.size();
+
+		while (a + 1 < argc && verify_nets::ParseExceptedExit(argv[a + 1], &e))
+		{
+			excepted.push_back(e);
+			a++;
+		}
+
+		if (excepted.size() == before)
+		{
+			printf("  FAILED  usage: except is followed by one exit or more, each <master>:<exit> (e.g. except 364:3 367:3)\n");
+			return 1;
+		}
+	}
+
+	if (checks.empty())
+	{
+		printf("  FAILED  usage: verify_waypoint_nets <the saved copy> <master|all> [except <master>:<exit> ...] <check> [<check> ...]: no check given\n");
 		return 1;
 	}
 
@@ -104,6 +150,33 @@ int main(int argc, char **argv)
 
 	Check(WaypointNets_CheckLevel(&open, &nets, &why), "its AI modules' networks are read" + (why.empty() ? std::string() : " (" + why + ")"));
 
+	// THE STOCK SET (Frost's rule 11-20 for "<master>:*"): the AI modules whose network is the same in the copy as in the stock file (refused or not shaped by the
+	// auto-plot, so they kept stock's): only those can be excepted whole
+	// (matched by the master's object index: the auto-plot writes only WAYPOINT chunks and never renumbers a module, which verify_level_same {save1} {copy} --ignore
+	// WAYPOINT checks on the same run; a tool that renumbers modules would have to match by the master's name too: Frost's review 11-20)
+	std::set<int32_t> stock;
+
+	if (stockFile)
+	{
+		OpenLevelFile stockOpen;
+		std::vector<WaypointNetModule> stockNets;
+		std::string stockWhy;
+
+		Check(stockOpen.Open(stockFile) == LevelOpenResult::Opened && WaypointNets_CheckLevel(&stockOpen, &stockNets, &stockWhy), std::string("the stock file's networks are read: ") +
+			stockFile + (stockWhy.empty() ? std::string() : " (" + stockWhy + ")"));
+
+		for (WaypointNetModule const &net : nets)
+		{
+			for (WaypointNetModule const &s : stockNets)
+			{
+				if (s.master == net.master && s.waypointHash == net.waypointHash)
+				{
+					stock.insert(net.master);
+				}
+			}
+		}
+	}
+
 	bool const all = strcmp(argv[2], "all") == 0;
 	char *end = nullptr;
 	long const master = all ? -1 : strtol(argv[2], &end, 10);
@@ -112,6 +185,38 @@ int main(int argc, char **argv)
 	{
 		Check(false, std::string("\"") + argv[2] + "\" is neither a module's number nor all");
 		return 1;
+	}
+
+	// each named exception: the finding it excepts, said with the reason, or a failure when the copy has no such finding
+	for (verify_nets::ExceptedExit const &e : excepted)
+	{
+		WaypointProblem const *const p = verify_nets::FindExcepted(nets, e, &stock);
+		std::string const name = std::to_string(e.master) + ":" + (e.whole ? std::string("*") : std::to_string(e.exit));
+
+		if (e.whole)
+		{
+			if (p)
+			{
+				printf("  EXCEPTION  AI module %d: %s: %s (named: except %s)\n", (int)e.master, p->words.c_str(), verify_nets::kStockWhy, name.c_str());
+			}
+			else
+			{
+				Check(false, "except " + name + ": AI module " + std::to_string(e.master) + (stock.count(e.master) ? " keeps stock's network but has no finding (a named exception must name a "
+					"real finding)" : std::string(stockFile ? " has a network the planner wrote (not stock's): a whole-module exception covers only one that keeps stock's" :
+					" cannot be told stock's: give the stock file (stock <file>)")));
+			}
+
+			continue;
+		}
+
+		if (p)
+		{
+			printf("  EXCEPTION  AI module %d: %s: %s (named: except %s)\n", (int)e.master, p->words.c_str(), verify_nets::kExceptionWhy, name.c_str());
+		}
+		else
+		{
+			Check(false, "except " + name + ": AI module " + std::to_string(e.master) + " has no exit " + std::to_string(e.exit) + " that lies in no box (a named exception must name a real finding)");
+		}
 	}
 
 	std::vector<WaypointNetModule const *> chosen;
@@ -124,9 +229,8 @@ int main(int argc, char **argv)
 		}
 	}
 
-	for (int a = 3; a < argc; a++)
+	for (std::string const &check : checks)
 	{
-		std::string const check = argv[a];
 
 		if (check == "network")
 		{
@@ -174,28 +278,11 @@ int main(int argc, char **argv)
 
 		for (WaypointNetModule const *net : chosen)
 		{
-			size_t found = 0;
-			std::string first;
+			verify_nets::Tally const t = verify_nets::Count(*net, kinds, check == "clean", excepted, &stock);
+			std::string const exceptions = t.excepted ? " (" + std::to_string(t.excepted) + " excepted by name)" : std::string();
 
-			for (WaypointProblem const &p : net->problems)
-			{
-				bool counts = check == "clean";
-
-				for (WaypointProblemKind const k : kinds)
-				{
-					counts = counts || p.kind == k;
-				}
-
-				if (counts)
-				{
-					found++;
-					first = first.empty() ? p.words : first;
-				}
-			}
-
-			found += check == "clean" ? net->more : 0;
-			Check(found == 0, "AI module " + std::to_string(net->master) + " (" + std::to_string(net->boxes) + " boxes, " + std::to_string(net->exits.size()) + " exits): " + check + ": " +
-				(found ? std::to_string(found) + " problems, e.g. " + first : std::string("none")));
+			Check(t.found == 0, "AI module " + std::to_string(net->master) + " (" + std::to_string(net->boxes) + " boxes, " + std::to_string(net->exits.size()) + " exits): " + check + ": " +
+				(t.found ? std::to_string(t.found) + " problems, e.g. " + t.first : std::string("none")) + exceptions);
 		}
 	}
 

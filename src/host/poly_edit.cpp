@@ -3213,6 +3213,90 @@ namespace host
 		return "unknown answer";
 	}
 
+	PolySplitResult PolyEdit_CopyShapeAsObject(OpenLevelFile *file, uint8_t const *id, char const *name, int32_t const *place, float const *turn, uint8_t *newId, std::string *newName, std::string *why)
+	{
+		if (!file || !id || !name || !*name || !place || !turn || !file->Level())
+		{
+			return PolySplitResult::BadCall;
+		}
+
+		File_Chunk *const level = file->Level();
+		Object_Chunk *const object = ObjectWithId(level, id);
+		Shape_Chunk *const shape = object ? object->get_assoc_shape() : nullptr;
+
+		if (!object)
+		{
+			return PolySplitResult::NoObject;
+		}
+
+		model::ShapeModel model;
+
+		if (!shape || ShapeEdit_Read(level, file, id, &model, nullptr, why) != ShapeEditResult::Done)
+		{
+			return PolySplitResult::NoShape;
+		}
+
+		// the copy's header: the shape's own, its list of users emptied (CreateObjectWithShapeChunk names the new object as its one user)
+		Chunk *const headerChunk = shape->lookup_single_child("SHPHEAD1");
+		Payload headerBytes;
+
+		if (!headerChunk || !file->PayloadOf(headerChunk, &headerBytes) || headerBytes.size() < kUsersHeadBytes)
+		{
+			return PolySplitResult::Unreadable;
+		}
+
+		Payload copyHead = HeadWithUsers(headerBytes, std::vector<std::string>());
+
+		// the highest shape number any object of the level reads (as Split: the library's own lists have missed some)
+		int32_t knownHighest = -1;
+		List<Object_Chunk *> everyObject;
+
+		level->list_objects(&everyObject);
+
+		for (LIF<Object_Chunk *> each(&everyObject); !each.done(); each.next())
+		{
+			model::ShapeModel probe;
+			std::string skip;
+
+			if (each() && each()->get_assoc_shape() && ShapeEdit_Read(level, file, (uint8_t const *)&each()->object_data.ID, &probe, nullptr, &skip) == ShapeEditResult::Done)
+			{
+				knownHighest = probe.number > knownHighest ? probe.number : knownHighest;
+			}
+		}
+
+		// every other chunk of the shape (points, polygons, pictures, its external file's record) is copied as it is
+		NewChunk const chunks[1] = { { "SHPHEAD1", &copyHead } };
+		Image shapeChunk;
+		int32_t newShapeNumber = 0;
+
+		if (!CloneShapeChunk(file, model.number, chunks, 1, &copyHead, knownHighest, &newShapeNumber, &shapeChunk))
+		{
+			return PolySplitResult::CantBuild;
+		}
+
+		ObjectMakeResult const made = CreateObjectWithShapeChunk(file, shapeChunk, name, place, turn, newId, newName, true);
+
+		// the maker's own words say what was wrong; only a name it can't use is a bad NAME
+		switch (made)
+		{
+			case ObjectMakeResult::Done:
+				return PolySplitResult::Done;
+			case ObjectMakeResult::LoaderRefused:
+				return PolySplitResult::LoaderRefused;
+			case ObjectMakeResult::BadShapeName:
+			case ObjectMakeResult::SubNameNotCopied:
+			case ObjectMakeResult::NoNameFree:
+				Say(why, ObjectMakeWords(made));
+				return PolySplitResult::BadName;
+			case ObjectMakeResult::PlaceOutOfRange:
+				Say(why, ObjectMakeWords(made));
+				return PolySplitResult::BadCall;
+			default:
+				Say(why, ObjectMakeWords(made));
+				return PolySplitResult::CantBuild;
+		}
+	}
+
 	PolySplitResult PolyEdit_SplitAsObject(OpenLevelFile *file, uint8_t const *id, int32_t const *polygons, size_t count, uint8_t *newId, std::string *newName, std::string *why, bool asModule, char const *name)
 	{
 		if (!file || !id || !polygons || count == 0 || !file->Level())

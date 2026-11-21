@@ -2342,7 +2342,9 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		AskState(s);
 
 		std::string const name = w[1] + " " + w[2] + " ";
-		std::string const all = Field(s->last, "gizmopoints");
+		// the waypoint-box gizmo's handles first (Frost 11-18, waypoint_gizmo.h: "min x" .. "max z" and its own "move x" / "centre ball"; it takes the press before Drake's gizmo on
+		// its screen), then Drake's
+		std::string const all = Field(s->last, "boxgizmopoints") + "|" + Field(s->last, "gizmopoints");
 		int x = 0, y = 0;
 		bool found = false;
 

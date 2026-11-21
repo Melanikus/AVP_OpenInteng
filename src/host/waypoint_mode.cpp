@@ -125,6 +125,11 @@ namespace host
 		paint.clear();
 		paintMade = false;
 		droppedModuleLinks = 0;
+		selection.clear();
+		selectionNames.clear();
+		currentName.clear();
+		shownGroup.clear();
+		shownNets.clear();
 	}
 
 	// FUN_005846b0: the three views of Edit Extents, centred on the picked module's place (after Show Waypoints the AI module's master: DAT_0091bed4 +0x10..+0x18)
@@ -234,6 +239,9 @@ namespace host
 			return;
 		}
 
+		// ours: a plain click clears the set (multi-module selection), its AI modules back to their colours before inteng's pick paints
+		ClearSelection(open);
+
 		// the pick let go of: one module of the current AI module back to the current's colour; another AI module (its master) back to green or white
 		if (picked >= 0)
 		{
@@ -266,6 +274,206 @@ namespace host
 			picked = master;
 			PaintAiModule(open, master, kWaypointModuleRed);
 		}
+	}
+
+	// MULTI-MODULE SELECTION (ours, named; see the header): the set's AI modules back to their colours (the pick's red, the current one's, else green or white by its own WAYPOINT), the set empty
+	void WaypointMode::ClearSelection(OpenLevelFile *open)
+	{
+		if (selection.empty())
+		{
+			return;
+		}
+
+		std::map<int32_t, ModuleSnapshot> modules;
+
+		Snapshots(open, &modules);
+
+		int32_t const pickMaster = picked >= 0 && modules.count(picked) ? MasterOf(modules, picked) : -1;
+
+		for (int32_t const master : selection)
+		{
+			PaintAiModule(open, master, master == pickMaster ? kWaypointModuleRed : (master == current ? kWaypointModuleCurrent :
+				(HoldsWaypoints(modules, master) ? kWaypointModuleGreen : kWaypointModuleWhite)));
+		}
+
+		selection.clear();
+		selectionNames.clear();
+	}
+
+	// Mode 0's Ctrl+click: the clicked module's AI module in or out of the set; the first one starts the set from the pick's AI module
+	bool WaypointMode::SelectToggle(OpenLevelFile *open, int32_t module)
+	{
+		lastSeenPick = module;   // the editor's selection holds this module now: Command must not take it as a plain click again
+
+		if (mode != 0 || !open || !open->Level() || module < 0)
+		{
+			return false;
+		}
+
+		ModulePaint(open);
+
+		std::map<int32_t, ModuleSnapshot> modules;
+
+		if (!Snapshots(open, &modules) || !modules.count(module))
+		{
+			return false;
+		}
+
+		int32_t const master = MasterOf(modules, module);
+		int32_t const pickMaster = picked >= 0 && modules.count(picked) ? MasterOf(modules, picked) : -1;
+		int32_t place[3];
+
+		if (selection.empty() && pickMaster >= 0 && pickMaster != master)
+		{
+			selection.push_back(pickMaster);
+			NameAndPlace(open, pickMaster, &selectionNames[pickMaster], place);
+			PaintAiModule(open, pickMaster, kWaypointModuleRed);
+		}
+
+		const std::vector<int32_t>::iterator at = std::find(selection.begin(), selection.end(), master);
+
+		if (at != selection.end())
+		{
+			selection.erase(at);
+			selectionNames.erase(master);
+			PaintAiModule(open, master, master == pickMaster ? kWaypointModuleRed : (master == current ? kWaypointModuleCurrent :
+				(HoldsWaypoints(modules, master) ? kWaypointModuleGreen : kWaypointModuleWhite)));
+			return true;
+		}
+
+		selection.push_back(master);
+		NameAndPlace(open, master, &selectionNames[master], place);
+		PaintAiModule(open, master, kWaypointModuleRed);
+		return true;
+	}
+
+	std::string WaypointMode::SelectionWords() const
+	{
+		std::string words;
+
+		for (int32_t const master : selection)
+		{
+			const std::map<int32_t, std::string>::const_iterator name = selectionNames.find(master);
+
+			words += (words.empty() ? "" : "|") + (name != selectionNames.end() ? name->second : std::to_string((long long)master));
+		}
+
+		return words;
+	}
+
+	// Show Alien / Ground Waypoints with a set: every other AI module of it is shown with the current one, its list of the same kind read now (an unreadable one is shown empty)
+	void WaypointMode::ShowSelection(OpenLevelFile *open, bool alienList)
+	{
+		shownGroup.clear();
+		shownNets.clear();
+
+		std::map<int32_t, ModuleSnapshot> modules;
+
+		if (selection.empty() || !Snapshots(open, &modules))
+		{
+			return;
+		}
+
+		for (int32_t const master : selection)
+		{
+			if (master == current || !modules.count(master))
+			{
+				continue;
+			}
+
+			ShownNet net;
+			WaypointSet other;
+			std::string why;
+			int32_t place[3];
+			ModuleSnapshot const &snapshot = modules[master];
+
+			net.master = master;
+			NameAndPlace(open, master, &net.name, place);
+
+			if (snapshot.hasWaypoint && !Waypoints_Parse(snapshot.waypoint.data(), snapshot.waypoint.size(), &other, &why))
+			{
+				other = WaypointSet();
+			}
+
+			net.list = alienList ? other.alien : other.ground;
+			shownNets.push_back(net);
+			shownGroup.push_back(master);
+
+			for (std::map<int32_t, ModuleSnapshot>::const_iterator it = modules.begin(); it != modules.end(); ++it)
+			{
+				if (it->second.masterIndex == master)
+				{
+					shownGroup.push_back(it->first);
+				}
+			}
+
+			PaintAiModule(open, master, kWaypointModuleWhite);   // shown as the current one is (0x583b95-0x583bba)
+		}
+	}
+
+	std::vector<int32_t> WaypointMode::ShownGroup() const
+	{
+		std::vector<int32_t> all = group;
+
+		if (mode >= 1)
+		{
+			all.insert(all.end(), shownGroup.begin(), shownGroup.end());
+		}
+
+		return all;
+	}
+
+	namespace
+	{
+		// the links a list's lines draw: one for each pair (WaypointView_WorldLines: a waypoint earlier in the list with a link back has drawn the pair)
+		size_t DrawnLinks(std::vector<WaypointRec> const &list)
+		{
+			size_t links = 0;
+
+			for (size_t w = 0; w < list.size(); w++)
+			{
+				for (WaypointLinkRec const &link : list[w].links)
+				{
+					if (link.index < 0 || (size_t)link.index >= list.size())
+					{
+						continue;
+					}
+
+					std::vector<WaypointLinkRec> const &back = list[(size_t)link.index].links;
+
+					if ((size_t)link.index < w && std::any_of(back.begin(), back.end(), [&](WaypointLinkRec const &b) { return b.index == (int32_t)w; }))
+					{
+						continue;
+					}
+
+					links++;
+				}
+			}
+
+			return links;
+		}
+
+		std::string NetWords(std::string const &name, std::vector<WaypointRec> const &list)
+		{
+			return name + " boxes " + std::to_string((unsigned long long)list.size()) + " links " + std::to_string((unsigned long long)DrawnLinks(list));
+		}
+	}
+
+	std::string WaypointMode::NetsWords() const
+	{
+		if (mode < 1 || current < 0)
+		{
+			return std::string();
+		}
+
+		std::string words = NetWords(currentName, List());
+
+		for (ShownNet const &net : shownNets)
+		{
+			words += "|" + NetWords(net.name, net.list);
+		}
+
+		return words;
 	}
 
 	// Edit Module (0x19, FUN_00583d00 0x583df3-0x583e80): the current AI module back to green or white, the picked one's AI module current (0xffffffff), the pick let go
@@ -355,6 +563,13 @@ namespace host
 		wpCurrent = -1;
 		wpBase = -1;
 		RefreshGroup(open);
+
+		{
+			int32_t place[3];
+
+			currentName.clear();
+			NameAndPlace(open, master, &currentName, place);
+		}
 
 		// W-6 (Bishop 11-17: copy inteng's drop 1:1): FUN_005867c0 0x58694b-0x586a5e keeps only the module links whose name is a module's of the level (the bytes compared exactly); the others
 		// are dropped when the list is read, and the write-back of the mode's Exit (FUN_00583c10 -> FUN_00587210) leaves them out of the file. The 63 stock levels hold no module link.
@@ -446,6 +661,43 @@ namespace host
 
 		wpCurrent = index;
 		return true;
+	}
+
+	// THE WAYPOINT DISPLAY'S CLICK (ours, named; see the header): inteng's pick of the AI module (its master), then Show Alien Waypoints (command 3), then the box current
+	WaypointOutcome WaypointMode::OpenAt(OpenLevelFile *open, int32_t master, int32_t box)
+	{
+		if (mode != 0 || !open || !open->Level())
+		{
+			return Said("The waypoint display opens a box from the AI modules page only");
+		}
+
+		// no AI module (-1): refused before inteng's click, whose pick of nothing would make Show Alien Waypoints do Edit Module's work (Frost's host_waypoint_open_at_test)
+		if (master < 0)
+		{
+			return Said("That box's AI module could not be picked");
+		}
+
+		Click(open, master);
+
+		if (picked != master)
+		{
+			return Said("That box's AI module could not be picked");
+		}
+
+		WaypointContext context;
+
+		context.open = open;
+		context.pickedModule = master;
+
+		WaypointOutcome out = Command(3, context);
+
+		if (mode == 1 && alien && box >= 0 && (size_t)box < List().size())
+		{
+			wpCurrent = box;
+			out.say = "Waypoint " + std::to_string((long long)box) + " is the current one: " + Words();
+		}
+
+		return out;
 	}
 
 	bool WaypointMode::MousePick(int32_t index)
@@ -814,6 +1066,16 @@ namespace host
 				group.clear();
 				lastSeenPick = context.pickedModule;
 				PaintAiModule(open, picked, kWaypointModuleRed);
+
+				// the set is kept (multi-module selection): the shown ones are put away and painted red again
+				shownGroup.clear();
+				shownNets.clear();
+
+				for (int32_t const master : selection)
+				{
+					PaintAiModule(open, master, kWaypointModuleRed);
+				}
+
 				out.page = 0;
 				out.say = "AI modules: " + Words();
 				return out;
@@ -962,6 +1224,7 @@ namespace host
 					PaintAiModule(open, master, kWaypointModuleWhite);
 					mode = 1;
 					alien = command == 3;
+					ShowSelection(open, alien);   // ours: the set's other AI modules shown with it (multi-module selection)
 					out.page = 1;
 					out.say = Words();
 					return out;

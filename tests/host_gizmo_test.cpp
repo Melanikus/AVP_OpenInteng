@@ -1,11 +1,14 @@
 // host_gizmo_test.cpp: the mouse gizmo's maths (src/host/gizmo.h): the frame's size on the screen, the hit test, an arrow's drag, a ring's drag and its angle, Shift's
 // 15-degree snap, the moved place and the turned matrix, the lines and their pull toward the camera, and the refusals. A camera at the world's middle looking along +z
-// (the identity turn) at a 1024 x 768 view; the expected pixels come from PickRay_Project, the game's own drawing, so the checks hold whatever its signs are.
+// (the identity turn) at a 1024 x 768 view; the expected pixels come from PickRay_Project, the game's own drawing, so the checks hold whatever its signs are. THE
+// HIT looks from the owner's cube corner (45 degrees on every axis, 11-18), where no ring lies edge-on on an arrow's line, and each of its checks wins by 2 px or
+// more (THE MARGIN, measured here): looking straight down an axis, three sat on exact ties that a CI machine's last bits decided (PR #87, the owner 11-21).
 // Written 2026-11-18 by Melanikus (Drake) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
+#include <algorithm>
 #include <limits>
 #include <string>
 #include <vector>
@@ -38,6 +41,25 @@ static host::PickCamera Camera()
 	return c;
 }
 
+// THE CUBE CORNER (the owner's test camera, 11-18: "45 degrees on every axis, up and to the side, like a cube corner"; 11-21 for this test): the same view, looking
+// along (1, 1, 1) at the object 4 m ahead, so it sees every axis at the same slant and no ring edge-on on an arrow's line. The matrix's columns are the camera's
+// right (1, 0, -1), down (-1, 2, -1) and ahead (1, 1, 1), each made 1 long (PickRay_Project: each view number is one column times the place)
+static host::PickCamera CornerCamera(int32_t const object[3])
+{
+	host::PickCamera c = Camera();
+	double const r[3] = { 1.0 / sqrt(2.0), 0.0, -1.0 / sqrt(2.0) }, d[3] = { -1.0 / sqrt(6.0), 2.0 / sqrt(6.0), -1.0 / sqrt(6.0) }, f[3] = { 1.0 / sqrt(3.0), 1.0 / sqrt(3.0), 1.0 / sqrt(3.0) };
+
+	for (int row = 0; row < 3; row++)
+	{
+		c.turn[row][0] = (int32_t)floor(r[row] * host::kPickOne + 0.5);
+		c.turn[row][1] = (int32_t)floor(d[row] * host::kPickOne + 0.5);
+		c.turn[row][2] = (int32_t)floor(f[row] * host::kPickOne + 0.5);
+		c.place[row] = (int32_t)floor(object[row] - f[row] * 4000.0 + 0.5);
+	}
+
+	return c;
+}
+
 static bool Pixel(host::PickCamera const &camera, double x, double y, double z, double *px, double *py)
 {
 	int32_t const world[3] = { (int32_t)floor(x + 0.5), (int32_t)floor(y + 0.5), (int32_t)floor(z + 0.5) };
@@ -52,6 +74,107 @@ static std::string N(double v)
 
 	sprintf_s(text, "%.3f", v);
 	return text;
+}
+
+static double ToSegment(double x, double y, double ax, double ay, double bx, double by)
+{
+	double const dx = bx - ax, dy = by - ay, length2 = dx * dx + dy * dy;
+	double t = length2 > 0.0 ? ((x - ax) * dx + (y - ay) * dy) / length2 : 0.0;
+
+	t = t < 0.0 ? 0.0 : (t > 1.0 ? 1.0 : t);
+	return sqrt((x - ax - t * dx) * (x - ax - t * dx) + (y - ay - t * dy) * (y - ay - t * dy));
+}
+
+// THE MARGIN (the owner 11-21, "it's probably an angle of the camera issue again": PR #87's CI failed "12 px out along the x arrow" on one runner, an exact
+// arrow/ring tie that the last bits of cos and sin decided). Each handle's distance on the screen from (x, y), measured here, not by the product: the centre
+// point; each arrow, its centre to its tip; each ring, a fine circle of the frame's radius about its axis (the product's 48 straight pieces lie under 0.15 px
+// inside it). [0] the centre, [1..3] move x/y/z, [4..6] turn x/y/z
+static void HandleDistances(host::PickCamera const &camera, host::GizmoFrame const &frame, double x, double y, double out[7])
+{
+	double cx = 0.0, cy = 0.0;
+
+	Pixel(camera, frame.centre[0], frame.centre[1], frame.centre[2], &cx, &cy);
+	out[0] = sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+
+	for (int a = 0; a < 3; a++)
+	{
+		double tx = 0.0, ty = 0.0;
+
+		Pixel(camera, frame.centre[0] + frame.axis[a][0] * frame.length, frame.centre[1] + frame.axis[a][1] * frame.length, frame.centre[2] + frame.axis[a][2] * frame.length, &tx, &ty);
+		out[1 + a] = ToSegment(x, y, cx, cy, tx, ty);
+
+		// the ring about axis a: two directions square to it and to each other
+		double const *n = frame.axis[a];
+		double const pick[3] = { fabs(n[0]) < 0.9 ? 1.0 : 0.0, fabs(n[0]) < 0.9 ? 0.0 : 1.0, 0.0 };
+		double u[3] = { n[1] * pick[2] - n[2] * pick[1], n[2] * pick[0] - n[0] * pick[2], n[0] * pick[1] - n[1] * pick[0] };
+		double const ul = sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+
+		u[0] /= ul;
+		u[1] /= ul;
+		u[2] /= ul;
+
+		double const v[3] = { n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0] };
+		double best = 1e9, px = 0.0, py = 0.0;
+
+		for (int k = 0; k <= 720; k++)
+		{
+			double const t = 2.0 * 3.14159265358979323846 * k / 720.0, c = cos(t), s = sin(t);
+			double qx = 0.0, qy = 0.0;
+
+			Pixel(camera, frame.centre[0] + frame.radius * (u[0] * c + v[0] * s), frame.centre[1] + frame.radius * (u[1] * c + v[1] * s),
+				frame.centre[2] + frame.radius * (u[2] * c + v[2] * s), &qx, &qy);
+
+			if (k > 0)
+			{
+				double const d = ToSegment(x, y, px, py, qx, qy);
+				best = d < best ? d : best;
+			}
+
+			px = qx;
+			py = qy;
+		}
+
+		out[4 + a] = best;
+	}
+}
+
+// How clearly the expected handle wins at (x, y), in pixels: for a handle, how much nearer it is than every other one (and inside the hit's reach, and outside the
+// centre ball's); for the centre ball, how far inside it; for none, how far outside every handle's reach. Under 2 px the check sits on (or near) a tie, and the
+// machine's last bits can decide it
+static double Margin(host::PickCamera const &camera, host::GizmoFrame const &frame, bool canRotate, double x, double y, host::GizmoHandle expected)
+{
+	double d[7];
+
+	HandleDistances(camera, frame, x, y, d);
+
+	int const last = canRotate ? 6 : 3;
+
+	if (expected == host::GizmoHandle::Centre)
+	{
+		return host::kGizmoCentrePixels - d[0];
+	}
+
+	if (expected == host::GizmoHandle::None)
+	{
+		double nearest = d[0] - host::kGizmoCentrePixels;
+
+		for (int i = 1; i <= last; i++)
+		{
+			nearest = (std::min)(nearest, d[i] - host::kGizmoHitPixels);
+		}
+
+		return nearest;
+	}
+
+	int const want = host::Gizmo_IsTurn(expected) ? 4 + host::Gizmo_AxisOf(expected) : 1 + host::Gizmo_AxisOf(expected);
+	double margin = (std::min)(host::kGizmoHitPixels - d[want], d[0] - host::kGizmoCentrePixels);
+
+	for (int i = 1; i <= last; i++)
+	{
+		margin = i == want ? margin : (std::min)(margin, d[i] - d[want]);
+	}
+
+	return margin;
 }
 
 int main()
@@ -90,24 +213,73 @@ int main()
 			"local axes are the matrix's rows (the object's x along the world's y)");
 	}
 
-	printf("THE HIT\n");
+	printf("THE HIT (the cube-corner camera: the owner's 45 degrees on every axis, so no ring lies edge-on on an arrow's line)\n");
 	{
-		double cx, cy, mx, my, yx, yy;
+		host::PickCamera const corner = CornerCamera(place);
+		host::GizmoFrame cf;
 
-		Pixel(camera, 0, 0, 4000, &cx, &cy);
-		Pixel(camera, frame.length / 2, 0, 4000, &mx, &my);
-		Pixel(camera, 0, frame.length / 2, 4000, &yx, &yy);
-		Check(host::Gizmo_Hit(camera, frame, true, mx, my + 3) == host::GizmoHandle::MoveX, "3 px off the x arrow's middle: move x");
-		Check(host::Gizmo_Hit(camera, frame, true, yx + 3, yy) == host::GizmoHandle::MoveY, "beside the y arrow: move y");
-		Check(host::Gizmo_Hit(camera, frame, true, mx, my + 30) == host::GizmoHandle::None, "30 px off: nothing");
-		Check(host::Gizmo_Hit(camera, frame, true, cx, cy) == host::GizmoHandle::Centre && host::Gizmo_Hit(camera, frame, false, cx + 6, cy - 6) == host::GizmoHandle::Centre,
-			"on the centre, where all three arrows start, and 8.5 px off it: the centre ball (before the arrows), for a kind with no turn too");
-		Check(host::Gizmo_Hit(camera, frame, true, cx + (mx > cx ? 12 : -12), cy) == host::GizmoHandle::MoveX, "12 px out along the x arrow: the arrow again");
+		bool const framed = host::Gizmo_Frame(corner, place, nullptr, false, &cf);   // (first: a check's words are made before or after its test, as the compiler likes)
 
-		double const d = 70.0 / sqrt(2.0);
+		Check(framed && fabs(cf.ahead - 4000.0) < 2.0, "the cube-corner camera sees the object 4 m ahead (" + N(cf.ahead) + ")");
 
-		Check(host::Gizmo_Hit(camera, frame, true, cx + d, cy + d) == host::GizmoHandle::TurnZ, "on the ring that faces the camera, between the arrows: turn z");
-		Check(host::Gizmo_Hit(camera, frame, false, cx + d, cy + d) == host::GizmoHandle::None, "a kind with no turn has no rings");
+		double cx, cy, ax[3], ay[3];
+
+		Pixel(corner, cf.centre[0], cf.centre[1], cf.centre[2], &cx, &cy);
+
+		for (int a = 0; a < 3; a++)   // each arrow's middle on the screen
+		{
+			Pixel(corner, cf.centre[0] + cf.axis[a][0] * cf.length / 2, cf.centre[1] + cf.axis[a][1] * cf.length / 2, cf.centre[2] + cf.axis[a][2] * cf.length / 2, &ax[a], &ay[a]);
+		}
+
+		// every hit check also says how clearly its handle wins, and wants 2 px: a check on a tie passes or fails by the machine's last bits (PR #87's CI)
+		auto const hit = [&](bool canRotate, double x, double y, host::GizmoHandle expected, std::string const &what)
+		{
+			host::GizmoHandle const got = host::Gizmo_Hit(corner, cf, canRotate, x, y);
+			double const margin = Margin(corner, cf, canRotate, x, y, expected);
+
+			Check(got == expected && margin >= 2.0, what + " (" + host::Gizmo_HandleName(got) + ", by " + N(margin) + " px)");
+		};
+
+		// a place `off` px square to arrow a's line at its middle, on the side where `expected` wins more clearly (the view decides which side is open)
+		auto const beside = [&](int a, double off, bool canRotate, host::GizmoHandle expected, double *x, double *y)
+		{
+			double const dx = ax[a] - cx, dy = ay[a] - cy, l = sqrt(dx * dx + dy * dy), nx = -dy / l, ny = dx / l;
+			double const m1 = Margin(corner, cf, canRotate, ax[a] + off * nx, ay[a] + off * ny, expected), m2 = Margin(corner, cf, canRotate, ax[a] - off * nx, ay[a] - off * ny, expected);
+
+			*x = ax[a] + (m1 >= m2 ? off : -off) * nx;
+			*y = ay[a] + (m1 >= m2 ? off : -off) * ny;
+		};
+		double x, y;
+
+		beside(0, 3.0, true, host::GizmoHandle::MoveX, &x, &y);
+		hit(true, x, y, host::GizmoHandle::MoveX, "3 px off the x arrow's middle: move x");
+		beside(1, 3.0, true, host::GizmoHandle::MoveY, &x, &y);
+		hit(true, x, y, host::GizmoHandle::MoveY, "beside the y arrow: move y");
+		{
+			// (30 px square to the arrow's middle lands on the x ring in this view: 30 px past its tip, along it, every ring is far off too)
+			double tx, ty;
+
+			Pixel(corner, cf.centre[0] + cf.axis[0][0] * cf.length, cf.centre[1] + cf.axis[0][1] * cf.length, cf.centre[2] + cf.axis[0][2] * cf.length, &tx, &ty);
+
+			double const dx = tx - cx, dy = ty - cy, l = sqrt(dx * dx + dy * dy);
+
+			hit(true, tx + 30 * dx / l, ty + 30 * dy / l, host::GizmoHandle::None, "30 px off the x arrow, past its tip: nothing");
+		}
+		hit(true, cx, cy, host::GizmoHandle::Centre, "on the centre, where all three arrows start: the centre ball (before the arrows)");
+		hit(false, cx + 6, cy, host::GizmoHandle::Centre, "6 px off it (inside its 9), for a kind with no turn: the centre ball");
+		{
+			double const dx = ax[0] - cx, dy = ay[0] - cy, l = sqrt(dx * dx + dy * dy);
+
+			hit(true, cx + 12 * dx / l, cy + 12 * dy / l, host::GizmoHandle::MoveX, "12 px out along the x arrow: the arrow again");
+		}
+
+		// on the z ring, half way round between the x and the y arrows (the ring about z lies in the x-y plane)
+		double rx, ry;
+		double const h = cf.radius / sqrt(2.0);
+
+		Pixel(corner, cf.centre[0] + h * (cf.axis[0][0] + cf.axis[1][0]), cf.centre[1] + h * (cf.axis[0][1] + cf.axis[1][1]), cf.centre[2] + h * (cf.axis[0][2] + cf.axis[1][2]), &rx, &ry);
+		hit(true, rx, ry, host::GizmoHandle::TurnZ, "on the z ring, between the x and y arrows: turn z");
+		hit(false, rx, ry, host::GizmoHandle::None, "a kind with no turn has no rings");
 	}
 
 	printf("AN ARROW'S DRAG\n");

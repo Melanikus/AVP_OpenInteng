@@ -619,11 +619,50 @@ static void CheckModFlags(OpenLevelFile &level, std::string const &asked)
 	Check(flags && ((uint32_t)flags->Flags & mask) == want, "the copy's module \"" + fields[0] + "\" has the flag word " + fields[2] + " under the mask " + fields[1] + " (" + held + ")");
 }
 
+// "gameflags <name>|<mask>|<word>": the module's flag bits AS THE GAME'S LOADER TAKES THEM, ANDed with the mask, are the word. The loader ORs a MODFLAGS's word into
+// the module's flags only when it has one (projload.cpp 2232-2234, "if(mfc) ... m_flags|=mfc->Flags"), so a module with no MODFLAGS has none of these bits: for a
+// check that a bit is CLEAR (Drake 11-21: an auto-plot with the Airduct box unticked writes no MODFLAGS, and stock PROC11 and med16 have none). modflags, above,
+// still wants the chunk itself
+static void CheckGameFlags(OpenLevelFile &level, std::string const &asked)
+{
+	std::vector<std::string> const fields = BarFields(asked, 3);
+	uint32_t mask = 0, want = 0;
+
+	if (fields.size() != 3 || fields[0].empty() || !HexWord(fields[1], &mask) || !HexWord(fields[2], &want))
+	{
+		Check(false, "a gameflags check as <name>|<mask hex>|<word hex>, not \"" + asked + "\"");
+		return;
+	}
+
+	Object_Chunk *const object = ObjectNamed(level, fields[0].c_str());
+	Chunk *const moduleChunk = object ? object->lookup_single_child("MODULEDT") : nullptr;
+	Chunk_With_Children *const module = moduleChunk && !moduleChunk->r_u_miscellaneous() ? dynamic_cast<Chunk_With_Children *>(moduleChunk) : nullptr;
+	Chunk *const flagsChunk = module ? module->lookup_single_child("MODFLAGS") : nullptr;
+	Module_Flag_Chunk *const flags = flagsChunk && !flagsChunk->r_u_miscellaneous() ? dynamic_cast<Module_Flag_Chunk *>(flagsChunk) : nullptr;
+	bool const unreadFlags = flagsChunk && !flags;   // a MODFLAGS the loader could not read: the check can't say what the game takes
+	uint32_t const word = flags ? (uint32_t)flags->Flags : 0u;
+	char held[64];
+
+	_snprintf_s(held, sizeof(held), _TRUNCATE, "%s", !object ? "no object of that name" : (!module ? "it is not a module" : (unreadFlags ? "its MODFLAGS is unreadable" : "")));
+
+	if (module && !unreadFlags && flags)
+	{
+		_snprintf_s(held, sizeof(held), _TRUNCATE, "its MODFLAGS word is %08x", (unsigned)word);
+	}
+	else if (module && !unreadFlags)
+	{
+		_snprintf_s(held, sizeof(held), _TRUNCATE, "%s", "no MODFLAGS: the game takes no bits");
+	}
+
+	Check(module && !unreadFlags && (word & mask) == want, "the copy's module \"" + fields[0] + "\" has, as the game takes it, the flag word " + fields[2] + " under the mask " +
+		fields[1] + " (" + held + ")");
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 4 || (argc - 2) % 2 != 0)
 	{
-		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [trackendmoved <name>|<section>|<x>|<y>|<z>] [alt <name>=<count>,<group>] [virtualgone|virtualkept <name>] [nostrategy <name>] [modflags <name>|<mask hex>|<word hex>]\n");
+		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [trackendmoved <name>|<section>|<x>|<y>|<z>] [alt <name>=<count>,<group>] [virtualgone|virtualkept <name>] [nostrategy <name>] [modflags <name>|<mask hex>|<word hex>] [gameflags <name>|<mask hex>|<word hex>]\n");
 		return 2;
 	}
 
@@ -818,9 +857,13 @@ int main(int argc, char **argv)
 		{
 			CheckModFlags(copy, argv[a + 1]);
 		}
+		else if (what == "gameflags")
+		{
+			CheckGameFlags(copy, argv[a + 1]);
+		}
 		else
 		{
-			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, trackendmoved, at, near, up, touching, alt, specialalt, virtualgone, virtualkept, nostrategy or modflags), not \"" + what + "\"");
+			Check(false, "a word the check knows (gone, kept, track, notrack, tracksound, notracksound, trackpivot, trackendmoved, at, near, up, touching, alt, specialalt, virtualgone, virtualkept, nostrategy, modflags or gameflags), not \"" + what + "\"");
 		}
 	}
 

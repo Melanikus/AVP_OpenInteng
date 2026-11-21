@@ -7,6 +7,8 @@
 // - A changed chunk is written by the game's chunk library into memory filled with zeros first. Every chunk nobody changed is written
 //   as the very bytes it was read from. Every chunk holding a changed one, and the level itself, gets its size worked out again.
 // - A packed level saved with nothing changed is its own bytes. A changed one is packed again, and loads back.
+// - Each Open gives the level held a Generation() the run never gave before, in this file object or another (a cache made for one level is never taken for
+//   another).
 // - What opening refuses: a file too short or too long, a chunk whose size runs past the end of what holds it, a chunk size below a
 //   heading, a level heading that doesn't give the file's size, chunks inside chunks deeper than the game allows, a package that
 //   can't be unpacked, a name the library can't keep whole, and a file that isn't the same for the editor's read and the game's.
@@ -626,6 +628,33 @@ static void TestNothingOpen()
 	Check(opened.Level() == 0 && opened.SaveAs(path.c_str()) == LevelSaveResult::NothingOpen,
 		"and after it no level is open: the one open before was closed first, whatever happened (level_file.cpp:179)");
 	Check(NamesIn(room) == Names{ "level.rif" }, "and nothing was written in the folder");
+}
+
+// EACH OPEN IS A NEW GENERATION (Vasquez 11-20, raised with the Waypoint paint fix e374d1e7): the editor's caches know the level they were made for by its Generation()
+// (path_screen.cpp's game module numbers, strategy_data_screen.cpp's, placement_special_alt.cpp's lists, ...). An Open that started again from 0 gave a second level the number
+// the first one had, so a cache made for the first was taken for the second. Now no Open, in this file or another, gives a number the run has given before
+static void TestEachOpenIsANewGeneration()
+{
+	std::string const room = Room("new-generation");
+	std::string const first = room + "\\first.rif", second = room + "\\second.rif";
+	Make(first, BaseLevel().Make());
+	Make(second, BaseLevel().Make());
+
+	OpenLevelFile opened;
+	Check(opened.Open(first.c_str()) == LevelOpenResult::Opened, "the first level opens");
+	unsigned const g1 = opened.Generation();
+	Check(opened.Open(second.c_str()) == LevelOpenResult::Opened, "a second level opens into the same file object");
+	unsigned const g2 = opened.Generation();
+	std::string const seen = std::to_string(g1) + " then " + std::to_string(g2);
+	Check(g2 != g1, Words("and its Generation() is not the first level's (a cache made for the first is not taken for it)", seen.c_str()));
+	Check(opened.Open(first.c_str()) == LevelOpenResult::Opened && opened.Generation() != g1 && opened.Generation() != g2,
+		"the first level opened again: a number neither open had (the file may have changed on disk in between)");
+
+	OpenLevelFile other;
+	Check(other.Open(second.c_str()) == LevelOpenResult::Opened && other.Generation() != opened.Generation() && other.Generation() != g1 && other.Generation() != g2,
+		"another file object's open: a number of its own, never one this run gave before");
+	Check(opened.Open((room + "\\not-there.rif").c_str()) == LevelOpenResult::CantRead && opened.Level() == 0,
+		"a refused open holds no level (its number is not asked of it)");
 }
 
 // A save with nothing changed writes the file's very bytes and makes a .bak of them
@@ -1510,6 +1539,7 @@ int main()
 
 	TestTheTestsOwnLevel();
 	TestNothingOpen();
+	TestEachOpenIsANewGeneration();
 	TestSaveWithNothingChanged();
 	TestBackupIsMadeOnce();
 	TestChangedChunkIsWrittenIntoZeros();

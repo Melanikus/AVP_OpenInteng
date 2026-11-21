@@ -443,17 +443,11 @@ void LevelView_ThreeViewLines(const host::TrackLine *lines, size_t count)
 
 void LevelView_WorldLines(const host::TrackLine *lines, size_t count)
 {
-	static EditorWorldLine converted[4096];
-	size_t const used = lines ? (count < 4096 ? count : 4096) : 0;
+	// up to kLevelViewWorldLinesMax (the waypoint display's ~235k lines; was a fixed 4096), in one vector kept from call to call; WorldOverlay sends only a changed list
+	static std::vector<EditorWorldLine> converted;
+	size_t const used = LevelView_ConvertWorldLines(lines, count, kLevelViewWorldLinesMax, &converted);
 
-	for (size_t i = 0; i < used; i++)
-	{
-		converted[i].x0 = lines[i].from[0]; converted[i].y0 = lines[i].from[1]; converted[i].z0 = lines[i].from[2];
-		converted[i].x1 = lines[i].to[0];   converted[i].y1 = lines[i].to[1];   converted[i].z1 = lines[i].to[2];
-		converted[i].colour = lines[i].colour;
-	}
-
-	R_SetEditorWorldLines(converted, (int)used);
+	R_SetEditorWorldLines(used ? converted.data() : nullptr, (int)used);
 }
 
 void LevelView_WorldTriangles(const LevelViewTriangle *triangles, size_t count)
@@ -1816,6 +1810,20 @@ bool LevelView_ModuleName(int32_t moduleIndex, std::string *name)
 	SCENEMODULE *const scene = Global_ModulePtr ? Global_ModulePtr[Global_Scene] : nullptr;
 
 	if (!name || !scene || moduleIndex < 0 || moduleIndex >= ModuleArraySize || !scene->sm_marray[moduleIndex] || !scene->sm_marray[moduleIndex]->m_dptr || !scene->sm_marray[moduleIndex]->name)
+	{
+		return false;
+	}
+
+	*name = std::string(scene->sm_marray[moduleIndex]->name, strnlen(scene->sm_marray[moduleIndex]->name, 255));
+	return !name->empty();
+}
+
+// the same name, with no display block asked for (level_view.h says why)
+bool LevelView_ModuleOwnName(int32_t moduleIndex, std::string *name)
+{
+	SCENEMODULE *const scene = Global_ModulePtr ? Global_ModulePtr[Global_Scene] : nullptr;
+
+	if (!name || !scene || moduleIndex < 0 || moduleIndex >= ModuleArraySize || !scene->sm_marray[moduleIndex] || !scene->sm_marray[moduleIndex]->name)
 	{
 		return false;
 	}

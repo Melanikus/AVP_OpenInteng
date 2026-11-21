@@ -266,4 +266,9 @@ namespace host
 
 		return problems.list;
 	}
+
+	bool Waypoint_Holds(WaypointRec const &box, int32_t const place[3], double scale)
+	{
+		return place != nullptr && Holds(box, place, scale);
+	}
 }

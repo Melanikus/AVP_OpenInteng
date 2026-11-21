@@ -1,0 +1,49 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-20, Drake's catch through Bishop: "with 13 modules selected the multi-select red paint shows only 5 of them", the owner selects his paths this
+# way): the owner's 13 modules (SHED05, gencor04, gencor05, SHED01, gencor03, gencor01, SHED10, gencor02, shedent02, shedent03, genent03, genent02, genent01) Ctrl+clicked in Waypoint
+# mode on a private copy of STOCK Genshd1, as Drake's ownerpath-selection scenario does, and EVERY ONE of them painted red in the view. The state line's waypointtints says how many of the
+# red modules the view was given a tint for. RED on the build of the commit that adds this file (the field in, the fix not): "5 of 13 red", the 8 of the U (SHED05 .. gencor02) left white: the game module number of
+# a module was looked up in a map made on the first frame, before the view gave every module a display block, and the map was kept for the level's life (path_screen.cpp GameModuleOfNumber).
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+camera-corner SHED05
+click-view 0.50 0.50
+camera-corner gencor04
+click-view 0.50 0.50 ctrl
+camera-corner gencor05
+click-view 0.50 0.50 ctrl
+camera-corner SHED01
+click-view 0.50 0.50 ctrl
+camera-corner gencor03
+click-view 0.50 0.50 ctrl
+camera-corner gencor01
+click-view 0.50 0.50 ctrl
+camera-corner SHED10
+click-view 0.50 0.50 ctrl
+camera-corner gencor02
+click-view 0.50 0.50 ctrl
+camera-corner shedent02
+click-view 0.50 0.50 ctrl
+camera-corner shedent03
+click-view 0.50 0.50 ctrl
+camera-corner genent03
+click-view 0.50 0.50 ctrl
+camera-corner genent02
+click-view 0.50 0.50 ctrl
+camera-corner genent01
+click-view 0.50 0.50 ctrl
+wait 400
+state
+expect-field-has waypointselection SHED05
+expect-field-has waypointselection gencor02
+expect-field-has waypointselection genent01
+# every one of the 13 painted red in the view
+expect-field-has waypointtints 13 of 13 red
+# seen as the owner saw them: from the north (beyond SHED10) looking south and down
+camera-orbit SHED10 180 55 45000
+wait 600
+state
+expect-field-has waypointtints 13 of 13 red
+picture 1

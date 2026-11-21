@@ -131,13 +131,66 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <!-- The owner's "Alien auto waypoint" menu (alien_auto_waypoint.h: Environment / Modules, the typed names; Vasquez 11-20) -->
+    <ClCompile Include="..\..\src\host\alien_auto_waypoint.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\alien_auto_waypoint_editor.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- Auto-plot alien ways, one-way doorways (autoplot_arrival.h: B's arrival where A's aliens come in; Vasquez 11-20, Drake's whole-level gate) -->
+    <ClCompile Include="..\..\src\host\autoplot_arrival.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <!-- Auto-plot alien ways, the command (autoplot_command.h: Waypoint mode 0's two items, the worker, the checker before the write) -->
     <ClCompile Include="..\..\src\host\autoplot_command.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <!-- Auto-plot alien ways, the lanes' proof (autoplot_lane.h: the stock route choice copied; Bishop 11-19, the owner's continuous lanes) -->
+    <ClCompile Include="..\..\src\host\autoplot_lane.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- Auto-plot alien ways, the levels (autoplot_levels.h: the stairs and levels rule, Frost 11-20, Dietrich's seam) -->
+    <ClCompile Include="..\..\src\host\autoplot_levels.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <!-- Auto-plot alien ways, the generator (autoplot_plan.h; Bishop's design 11-18, the owner's addition) -->
+    <ClCompile Include="..\..\src\host\autoplot_merge.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="..\..\src\host\autoplot_plan.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- Auto-plot alien ways, the repair before the checker (autoplot_repair.h: the refused modules' problems fixed by rule; Bishop 11-20) -->
+    <ClCompile Include="..\..\src\host\autoplot_repair.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- Auto-plot alien ways, THE ROOMS' WALL TEST (autoplot_rooms.h: a room's side is a wall only where its ceiling does not go on past it; Drake 11-20) -->
+    <ClCompile Include="..\..\src\host\autoplot_rooms.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- Auto-plot alien ways, the floor shortcuts after the repair (autoplot_shortcut.h: the lanes' floor ways cut by rule; Vasquez 11-20) -->
+    <ClCompile Include="..\..\src\host\autoplot_shortcut.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- Auto-plot alien ways, THE VOLUME REPAIR (autoplot_volume_repair.h: a scrap box out, a centre in another box moved flat; Drake 11-20) -->
+    <ClCompile Include="..\..\src\host\autoplot_volume_repair.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- Auto-plot alien ways, THE VOLUME SHAPE (autoplot_volumes.h: the owner's few room-sized volumes a module; Dietrich 11-20) -->
+    <ClCompile Include="..\..\src\host\autoplot_volumes.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -197,6 +250,10 @@
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\src\host\track_edit_screen.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\waypoint_gizmo.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -714,6 +771,18 @@
     <ClCompile Include="..\..\src\host\vertex_pick.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\waypoint_all.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\waypoint_box_gizmo.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\waypoint_box_mode.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\src\host\waypoint_mode.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>

@@ -14,8 +14,10 @@
 namespace host
 {
 	// Builds the grid from these polygons (the game's numbers), each with its game module (listedModule: one for each polygon, -1 for none), on the build's own
-	// thread. Whatever grid there was is stopped and let go first. False (with why) when the two lists don't match.
-	bool AutoPlotGrid_StartFrom(std::vector<AlienWaysPolygon> &&polygons, std::vector<int32_t> &&listedModule, std::string *why);
+	// thread. Whatever grid there was is stopped and let go first. False (with why) when the two lists don't match. stillObject (when given, one for each polygon):
+	// a still object's polygon, which RoofOver does not take for a roof (as the gate, which reads the modules' shapes only).
+	bool AutoPlotGrid_StartFrom(std::vector<AlienWaysPolygon> &&polygons, std::vector<int32_t> &&listedModule, std::string *why,
+		std::vector<bool> const &stillObject = std::vector<bool>());
 
 	// Says why the last start couldn't build (the listing refused the level, say), for AutoPlotGrid_Ready; empty clears it
 	void AutoPlotGrid_StartRefused(std::string const &why);

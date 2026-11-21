@@ -16,7 +16,9 @@ verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/veri
 pick-module 54
 wait 300
 # the items are on the top bar (no drop-down); module 54 has 28 stock alien waypoints, so the command asks before it replaces them (Dietrich 11-18)
-click-bar Auto-plot AI module
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
 expect-dialog-kind confirm
 expect-dialog replace
 click-button Yes

@@ -1,0 +1,49 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-19, THE OWNER'S ASK through Bishop, all hands: "as I enter inteng to see and be able to edit all alien paths and volumes across all modules",
+# "POC, I just need to vizualize it"): THE WAYPOINT DISPLAY, a named difference. On entering Waypoint mode (the AI modules mode, 0) the 3D view draws EVERY AI module's alien network at
+# once, no module hidden: each box white, each linked pair one line of two halves, green, YELLOW when only aliens use it (inteng's highlighted colour: the lanes), red on the half a one-way
+# link may not be gone along from (waypoint_view.h WaypointView_AllLines). inteng shows one AI module's list, in mode 1 only. Modes 1 to 3 stay inteng's (and the multi-module set's).
+# The state line's "waypointall" says what mode 0 drew: "networks <n> boxes <n> links <n> lines <n>" ("" elsewhere); "lines" is every world line sent, the entry-point markers' with them.
+# HIS FILE: his Steam Genshd1 is Dietrich's auto-plot v2d (21f1578e); this is a private copy of it (vasquez-wpall-level, never the Steam file), opened as a double click. The editor's own
+# parser counts 244 alien networks and 15,954 boxes in it (colony_watch, 11-19). THE CHAIN (genshd1-corridors.md, chain A): opscen03 - Ops01 - opscen02, its lanes meeting at both doorways.
+# RED on the bishop-int before it (07680a68): mode 0 draws no waypoint at all.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-wpall-level/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-wpall-level/Genshd1.RIF
+pictures on
+state
+expect-field levelbytes 2117984
+expect-screen Waypoint
+wait 800
+
+# ---- every network at once, on entering: 244 networks, 15,954 boxes, each box's 12 edges and each pair's 2 halves sent
+expect-number waypointall networks 244 244
+expect-number waypointall boxes 15954 15954
+expect-number waypointall links 1 999999
+expect-number waypointall lines 191448 9999999
+
+# ---- one camera over chain A, 45 degrees round and up (the owner's test camera), far enough for all three modules
+camera-orbit Ops01 45 45 50000
+wait 600
+picture 1
+camera-orbit opscen03 45 45 30000
+wait 600
+picture 2
+camera-orbit opscen02 45 45 30000
+wait 600
+picture 3
+
+# ---- a click on a box of Ops01 opens its AI module in mode 1 (acceptance-waypoint-all-pick): its list as inteng draws it, mode 0's display not sent there
+camera-corner Ops01
+click-view 0.50 0.50
+wait 400
+# a second click on a box of the AI module just picked opens it (the first is inteng's pick)
+click-view 0.50 0.50
+wait 600
+expect-field-empty waypointall
+expect-field-has waypointnets Ops01 boxes
+expect-field-not-has waypointnets opscen03
+
+# ---- back to the AI modules: every network again
+click-bar Mode > Exit
+wait 600
+expect-number waypointall networks 244 244

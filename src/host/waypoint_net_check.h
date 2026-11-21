@@ -14,6 +14,9 @@
 //     0x4 links too, Global_NPC_Type 1).
 //   - EXIT OUTSIDE: every exit point of the module (the place an NPC heads for to leave it, waypoint_net_level.h) must lie in a box, or no route leads out.
 //   - CENTRE OUTSIDE / CENTRE IN ANOTHER BOX: a box's centre (where aliens aim) must be in its own box and in no other (an alien that stands at a centre must be in that box alone).
+//     That is the rule for the networks the editor makes. In stock levels a centre outside its box can be Rebellion's own climb trick: inteng's manual says "if you wish an alien
+//     to crawl up a wall, the center of the waypoint should be placed inside the wall" (AvP-docs/engine/inteng/raw/bible/text/introduction/glossary.txt:220-223). So what the
+//     checker finds is a FACT, said as such ("its centre is outside it"), never called wrong; the waypoint-box gizmo's report says it the same way.
 // INSIDE A BOX is the game's own test (WaypointContainsPoint): min <= p <= max - 1 on each axis, every number first scaled as the loader scales it.
 #pragma once
 
@@ -64,4 +67,8 @@ namespace host
 
 	// The words of a kind, short ("too many boxes", "no room", ...): static text, never null
 	char const *WaypointProblemName(WaypointProblemKind kind);
+
+	// INSIDE A BOX as the checker tests it (the game's WaypointContainsPoint on the loader's scaled numbers: min <= p <= max - 1 on each axis); false when a number cannot be scaled.
+	// The waypoint-box gizmo keeps an aim point inside its box by this same test (waypoint_box_gizmo.h).
+	bool Waypoint_Holds(WaypointRec const &box, int32_t const place[3], double scale);
 }

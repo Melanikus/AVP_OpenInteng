@@ -1,0 +1,48 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-19, THE OWNER'S ASK: "see and be able to edit all alien paths and volumes across all modules"; a named difference): THE WAYPOINT DISPLAY'S CLICK.
+# On the AI modules page (Waypoint mode 0) every AI module's alien network is drawn; a plain click on one of its boxes (the box the line from the camera meets first, among every network)
+# opens that box's AI module as inteng's pick + Show Alien Waypoints would (mode 1, its alien list, the others hidden) with that box current, so inteng's editing works on it; Exit goes
+# back to every network. Shift and Ctrl clicks stay the editor's (the selection, the multi-module set).
+# HIS FILE: a private copy of his Steam Genshd1, Dietrich's auto-plot v2d (21f1578e: vasquez-wpall-level), opened as a double click. Chain A: opscen03 (73 boxes), Ops01 (82), opscen02 (84).
+# RED on the bishop-int before it (896b59b4): the click is inteng's module pick, and mode 0 stays.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-wpall-level/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-wpall-level/Genshd1.RIF
+pictures on
+state
+expect-field levelbytes 2117984
+expect-screen Waypoint
+wait 800
+expect-number waypointall networks 244 244
+
+# ---- a box of opscen03: its AI module opens in mode 1, that box current
+camera-corner opscen03
+click-view 0.50 0.50
+wait 400
+# a second click on a box of the AI module just picked opens it (the first is inteng's pick)
+click-view 0.50 0.50
+wait 600
+expect-field-empty waypointall
+expect-field-has waypointnets opscen03 boxes 73
+expect-status is the current one
+expect-hierarchy-text Waypoint :
+# the other 243 networks dimmed behind it, no module hidden (Drake's background layer; the state line's waypointothers)
+expect-number waypointothers networks 243 243
+picture 1
+camera-orbit opscen03 45 45 30000
+wait 600
+picture 11
+
+# ---- Exit: every network again; then a box of Ops01
+click-bar Mode > Exit
+wait 600
+expect-number waypointall networks 244 244
+expect-field-empty waypointothers
+camera-corner Ops01
+click-view 0.50 0.50
+wait 400
+# a second click on a box of the AI module just picked opens it (the first is inteng's pick)
+click-view 0.50 0.50
+wait 600
+expect-field-has waypointnets Ops01 boxes 82
+expect-status is the current one
+picture 2

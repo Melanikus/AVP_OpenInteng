@@ -1,0 +1,68 @@
+# ACCEPTANCE (the mech proof, Frost 11-19): each of the arm's three parts in demo-mech/Genshd1.RIF is a track object the editor's Track Editing opens and plays (inteng's Edit Track and
+# Play Track: the editor plays ONE object's track at a time, as inteng does; all three together are played by the game's own code in track-import check)
+level C:/Users/Melanikus/source/AvP-builds-excluded/demo-mech/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/demo-mech/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera-corner mecharm1
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text mecharm1
+click-bar Object > Edit Track
+expect-screen Track Editing
+state
+expect-field-has trackobjects end
+item 0x514
+state
+remember-field trackplayed
+wait 1000
+state
+expect-field-has trackplayed moves
+expect-field-changed trackplayed
+picture 1
+item 0x515
+item 0x51c
+expect-screen Object Placement
+camera-corner mecharm2
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text mecharm2
+click-bar Object > Edit Track
+expect-screen Track Editing
+state
+expect-field-has trackobjects end
+item 0x514
+state
+remember-field trackplayed
+wait 1000
+state
+expect-field-has trackplayed moves
+expect-field-changed trackplayed
+picture 2
+item 0x515
+item 0x51c
+expect-screen Object Placement
+camera-corner mecharm3
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text mecharm3
+click-bar Object > Edit Track
+expect-screen Track Editing
+state
+expect-field-has trackobjects end
+item 0x514
+state
+remember-field trackplayed
+wait 1000
+state
+expect-field-has trackplayed moves
+expect-field-changed trackplayed
+picture 3
+item 0x515
+item 0x51c
+expect-screen Object Placement

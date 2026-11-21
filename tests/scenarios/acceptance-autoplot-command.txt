@@ -19,7 +19,9 @@ wait 600
 click-view 0.5 0.95
 wait 400
 expect-status Picked: module
-click-bar Auto-plot AI module
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
 wait-status 180000 Auto-plot: AI module 232:
 expect-status exits covered
 expect-status-not not written

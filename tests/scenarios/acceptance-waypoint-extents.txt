@@ -19,7 +19,8 @@ item 5
 wait 400
 picture 1
 expect-hierarchy-count 0 Alien Mode
-expect-hierarchy-count 3 0
+# the three sizes, rows 2 to 4, each 0 (read as those rows exactly: the module's name lines below them can hold a 0 too, the waypoint display's names, Vasquez 11-20)
+expect-field-has hierarchylines 2:0|3:0|4:0
 # no menu command is read while the box is sized
 item 0x13
 wait 300

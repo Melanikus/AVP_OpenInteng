@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "autoplot_command.h"
+#include "alien_auto_waypoint.h"   // kWaypointAlienAutoModules
 
 namespace host
 {
@@ -28,9 +29,11 @@ namespace host
 		return AutoPlotShownFlag();
 	}
 
-	// The rule, a plain sum: an item of inteng's tables (its command number, IntengItem::command) is left out while the switch is off when it is one of the two
+	// The rule, a plain sum: an item of inteng's tables (its command number, IntengItem::command) is left out while the switch is off when it is one of the three (the third,
+	// Auto-plot selected AI modules, added 2026-11-19 by Melanikus (Dietrich)), or the owner's "Alien auto waypoint" > Modules and > Environment (added 2026-11-20 by Melanikus
+	// (Vasquez))
 	inline bool AutoPlot_CommandHidden(int32_t command, bool shown)
 	{
-		return !shown && (command == kWaypointAutoPlotModule || command == kWaypointAutoPlotAll);
+		return !shown && (command == kWaypointAutoPlotModule || command == kWaypointAutoPlotAll || command == kWaypointAutoPlotSelected || command == kWaypointAlienAutoModules || command == kWaypointAlienAutoEnvironment);
 	}
 }

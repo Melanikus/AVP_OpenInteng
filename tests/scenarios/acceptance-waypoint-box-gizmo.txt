@@ -1,0 +1,74 @@
+# ACCEPTANCE (red first): THE WAYPOINT-BOX GIZMO (Bishop's P4 item 4, 11-18; the owner's addition: inteng sizes a box only in Edit Extents' three views). Invasion, module 54's AI module's
+# alien list (Show Alien Waypoints), box 14 clicked (Dietrich's Waypoint by mouse). Module 54 is one hall cut into boxes: box 14 is its upper band along -x, box 13 the band below it.
+# Box 14's aim point is 46 below its lowest x,
+# inside the wall, the user's and Can Crawl (flags 0x80000001): as inteng's manual has a climbing centre (glossary.txt:220-223), and the checker says so as a fact ("its centre is outside it").
+# The camera is in box 13 (a click takes no box the camera is inside), about 1.5 m to the side and 2.9 m below box 14's middle on each axis, looking up at it (Numpad 2 held), so the click
+# on box 14 meets no other box first. The gizmo shows its arrows and the face handles; a click on the centre ball switches the
+# arrows to the aim point; its x arrow moves it, held inside its box, written at once, and the status line's checker report for the AI module then finds nothing; the saved copy, read
+# back by the game's loader, holds module 54's network clean (verify_waypoint_nets). Ctrl+Z takes the edit back (the report names box 14's centre again); a click on the ball again gives
+# the box back to the arrows; a drag given up with Esc changes nothing; a face handle (min x) moves the box's lowest x, written. Red before the gizmo (no boxgizmopoints field).
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Waypoint
+# the camera in box 13, below and to the side of box 14's middle, looking up at it; a click in the middle of the view picks module 54's AI module (as a person picks it:
+# pick-module selects an object, which Waypoint mode's pick does not read), and Show Alien Waypoints opens its alien list of 28
+camera -12100 600 7500 512
+hold Numpad2 700
+state
+click-view 0.5 0.5
+wait 400
+# a second click on a box of the AI module just picked opens it (the first is inteng's pick: the waypoint display, Vasquez 11-19)
+click-view 0.5 0.5
+wait 600
+expect-status alien list of 28
+# box 14 clicked: the current one
+click-wp 14 3d
+wait 400
+expect-status Waypoint 14 is the current one
+expect-hierarchy-text Waypoint :14
+expect-field-has waypointbox 14: -15591 -4635 3102 -11537 -28 14862 -15637 -4378 9042 0x80000001
+expect-field-has boxgizmo box
+expect-field-has boxgizmopoints move x
+expect-field-has boxgizmopoints min x
+expect-field-not-has boxgizmopoints turn
+picture 1
+
+# ---- G: the arrows move the aim point (the centre ball takes no click: a click there is inteng's pick)
+key G
+expect-status the arrows move its aim point
+expect-field-has boxgizmo aim
+remember-field waypointbox
+picture 2
+# its x arrow: the aim point moved, held inside its box, written; the checker's report for the AI module now finds nothing
+drag-gizmo move x 40 40
+expect-status Waypoint 14: its aim point moved to
+expect-status inside its box
+expect-status checker: nothing found
+expect-status-not its centre is outside it
+expect-field-changed waypointbox
+picture 3
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 54 network exits connected most links clean
+
+# ---- Ctrl+Z: the edit taken back, the report names box 14's centre again
+key Z ctrl
+expect-status the last edit taken back
+expect-status box 14: its centre is outside it
+expect-field-has waypointbox 14: -15591 -4635 3102 -11537 -28 14862 -15637 -4378 9042 0x80000001
+
+# ---- G again: the arrows move the box; a drag given up with Esc leaves it as it was
+key G
+expect-status the arrows move the box
+remember-field waypointbox
+drag-gizmo move z 0 40 esc
+expect-status the drag was given up
+expect-field-same waypointbox
+
+# ---- a face handle: the box's lowest x moved, written
+drag-gizmo min x 40 40
+expect-status Waypoint 14: its lowest x moved
+expect-status checker:
+expect-field-changed waypointbox
+picture 4

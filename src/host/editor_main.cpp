@@ -98,6 +98,7 @@
 #include "gizmo_screen.h"    // the mouse gizmo on Object Placement (P1)
 #include "movable_live.h"    // the dragged thing drawn live; where the current thing was drawn (the harness's currenticon)
 #include "movable_matrix.h"  // a player start's icon turned by its AVPSTART matrix
+#include "waypoint_gizmo.h"  // the waypoint-box gizmo on Waypoint mode 1 (P4 item 4)
 #include "autoplot_grid.h"   // the alien auto-plot's pathfinder service (the harness's probe)
 #include "autoplot_switch.h"   // the owner's "hide auto pilot": AutoPlot= read at start-up
 #include "floor_is_lava.h"   // FloorIsLavaAsked: the game's own copy of the alien ways is never built in the editor
@@ -4339,6 +4340,8 @@ void WaypointTextLines(std::vector<HierarchyTextLine> *out)
 			}
 		}
 	}
+
+	WaypointNames_Lines(out);   // ours (Vasquez 11-20): the modules' names, the owner: "I don't know module names" (waypoint_mouse.h)
 }
 
 
@@ -6736,7 +6739,7 @@ void RunAction(int32_t id)
 	char const *lightingWords = nullptr;
 
 	host.viewMode = host.viewMode == 4 && PlacementLighting_Flip(&lightingWords) ? 0 : host.viewMode;
-	statusWords = lightingWords ? lightingWords : (char const *)statusWords;
+	if (lightingWords) statusWords = lightingWords;   // (not re-set from its own words otherwise: that forgets who said them, status_words.h; Vasquez 11-19)
 
 	if (host.viewMode != 0)
 	{
@@ -8137,6 +8140,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			// Esc, with no menu open (an open menu took it: menuWasOpen), closes the panel opened last (L-1)
 			// the mouse gizmo's keys first (gizmo_screen.h): G, Esc while a drag is held, Ctrl+Z (none of them a key of inteng's Object Placement)
 			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && wParam == 'G' && !ctrlHeld && SurfaceAlignKey()) { return 0; }   // G while the centre ball is held: the align (the owner, 11-19)
+			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && WaypointGizmo_Key((unsigned)wParam, shiftHeld, ctrlHeld)) { return 0; }   // the waypoint-box gizmo's Esc / Ctrl+Z first (waypoint_gizmo.h)
 			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && GizmoScreen_Key((unsigned)wParam, shiftHeld, ctrlHeld)) { return 0; }
 
 			// Esc in the field panel (S3d) gives up the edit (the panel did, as it got the key) and takes the keyboard out of the panel; it
@@ -8803,6 +8807,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					textureRectX0 = textureRectX1 = host::TextScale_ToOwn(GET_X_LPARAM(lParam));   // the editor's own pixels (text_scale.h)
 					textureRectY0 = textureRectY1 = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 				}
+				else if (!OnAPanel(at.x, at.y) && window == hWndMain && WaypointGizmo_Press(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)))) {}   // a waypoint-box handle took it: no pick (waypoint_gizmo.h)
 				else if (!OnAPanel(at.x, at.y) && window == hWndMain && GizmoScreen_CentreAt(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam))) &&
 					SurfaceLiveStart(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)))) {}   // P3: the gizmo's centre ball: placement mode (no pick)
 				else if (!OnAPanel(at.x, at.y) && window == hWndMain && GizmoScreen_Press(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)))) {}   // a gizmo handle took it: no pick
@@ -8839,6 +8844,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			// P3: the centre ball let go: the next frame casts at this pointer and keeps (SnapLiveFrame)
 			if (snapLive && snapForSurface && window == hWndMain) { snapPointerX = host::TextScale_ToOwn(GET_X_LPARAM(lParam)); snapPointerY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam)); surfaceReleaseWaiting = true; return 0; }
 
+			if (WaypointGizmo_Release()) { return 0; }   // a waypoint-box drag let go: written (waypoint_gizmo.h)
 			if (GizmoScreen_Release()) { return 0; }   // a gizmo drag let go: written (gizmo_screen.h)
 			if (OnWaypointScreen() && WaypointMouse_Release(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)))) { return 0; }   // a waypoint box dragged onto another: linked (waypoint_mouse.h)
 
@@ -9122,6 +9128,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				return 0;
 			}
 
+			if (window == hWndMain && WaypointGizmo_Pointer(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)), (wParam & MK_SHIFT) != 0 || ShiftDown())) { return 0; }   // a waypoint-box drag has the pointer
 			if (window == hWndMain && GizmoScreen_Pointer(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)), (wParam & MK_SHIFT) != 0 || ShiftDown())) { return 0; }   // a gizmo drag has the pointer
 
 			if (onTextureMap && textureChooserOn)
@@ -9143,6 +9150,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				acousticPointerX = host::TextScale_ToOwn(GET_X_LPARAM(lParam));
 				acousticPointerY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 			}
+			if (OnWaypointScreen() && window == hWndMain) WaypointNames_Pointer(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)));   // the names under the mouse (Vasquez 11-20)
 
 			if (onTextureMap && textureFlagList && window == hWndMain)
 			{
@@ -15543,7 +15551,7 @@ int main(int, char **)
 				host::WorldOverlay_Lines(boxLines.data(), boxLines.size());
 				LevelView_WorldTriangles(boxTriangles.data(), boxTriangles.size());
 			}
-			else if (!entryMarkers.empty())
+			else if (!entryMarkers.empty() && !OnWaypointModules())   // (Waypoint mode 0: WaypointAllPass sends the markers with every network, one list)
 			{
 				std::vector<host::TrackLine> markerLines;
 
@@ -15551,7 +15559,7 @@ int main(int, char **)
 				worldLinesShown = true;
 				host::WorldOverlay_Lines(markerLines.data(), markerLines.size());
 			}
-			else if (worldLinesShown && !WaypointWorldOn())
+			else if (worldLinesShown && !WaypointWorldOn() && !OnWaypointModules())   // (mode 0: WaypointAllPass)
 			{
 				host::WorldOverlay_Lines(nullptr, 0);
 				worldLinesShown = false;
@@ -15559,6 +15567,7 @@ int main(int, char **)
 
 			GizmoScreen_ViewAt(threeMainBox.width > 0 ? threeMainBox.x : 0, threeMainBox.width > 0 ? threeMainBox.y : 0);   // the split screen's 3D view is its bottom right quarter (its pick's box)
 			GizmoScreen_Frame(threeMainBox.width > 0 ? threeMainBox.width : layout.view.width, threeMainBox.width > 0 ? threeMainBox.height : layout.view.height, barScreen < host::kIntengScreenCount ? host::kIntengScreens[barScreen].name : nullptr);   // the mouse gizmo's lines (P1)
+			WaypointGizmo_Frame(layout.view.width, layout.view.height);   // the waypoint-box gizmo's lines, after Drake's (waypoint_gizmo.h)
 
 			// inteng's 3-view screen shows the TRACK of the selected object, in the object's own space, centre at 0, 0, 0 (run 18). Its lines are made again when
 			// the selection changes or the track does.
@@ -15674,6 +15683,7 @@ int main(int, char **)
 				worldLinesShown = true;
 				host::WorldOverlay_Lines(worldWaypoints.data(), worldWaypoints.size());
 			}
+			else if (WaypointAllPass()) worldLinesShown = true;   // THE WAYPOINT DISPLAY (Vasquez 11-19): mode 0 draws every AI module's alien network (strategy_data_screen.cpp)
 
 			// The current module of the module screens is drawn purple, as inteng draws the picked module there (Construction, Adjacent Modules, Module Linking)
 			{
@@ -15973,6 +15983,7 @@ int main(int, char **)
 		{
 			AcousticPointerFrame(view.right - view.left, view.bottom - view.top);
 		}
+		if (OnWaypointScreen()) WaypointNames_Frame(view.right - view.left, view.bottom - view.top);   // the AI module whose box is under the mouse (Vasquez 11-20)
 
 		if (onTextureMap && textureFlagList && textureHoverSet)
 		{
@@ -16077,6 +16088,7 @@ int main(int, char **)
 			{
 				// Waypoint mode, AI modules: the click took an entry point marker (statusWords says which)
 			}
+			else if (!pickShift && !pickCtrl && WaypointAllClick(picked, pickX, pickY, pickInBox ? threeMainBox.width : view.right - view.left, pickInBox ? threeMainBox.height : view.bottom - view.top)) {}   // THE WAYPOINT DISPLAY (Vasquez 11-19): mode 0, a box of any network opens its AI module in mode 1
 			else if (OnWaypointScreen() && (waypointMode.Mode() == 1 || waypointMode.Mode() == 2))
 			{
 				// Waypoint mode's waypoints: the box nearest the click on the screen (FUN_00584ee0 0x58542d), not the current one or the base; Edit Extents' press in the 3D quarter the same
@@ -16151,7 +16163,7 @@ int main(int, char **)
 						{
 							OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
-							waypointMode.Click(open, WaypointPickedObject(open));
+							pickCtrl ? (void)waypointMode.SelectToggle(open, WaypointPickedObject(open)) : waypointMode.Click(open, WaypointPickedObject(open));   // Ctrl: ours, the multi-module set (waypoint_mode.h)
 						}
 					}
 				}
@@ -16240,6 +16252,7 @@ int main(int, char **)
 			StateLine_Add("zoom", "stage " + std::to_string(zoomStage) + " scale " + std::to_string((long long)(zoomScale * 1000.0f + 0.5f)));   // Insert's zoom: stage 0 none, 1 the centre, 2 the rectangle; its scale x 1000 (Home's: 1000)
 			GizmoScreen_StateLine();   // gizmo, gizmospace, gizmolast, gizmopoints
 			host::MovableLive_StateLine();   // currenticon: where the current thing was drawn (movable_live.h)
+			WaypointGizmo_StateLine();   // boxgizmo, boxgizmopoints, boxgizmolast, waypointbox
 			host::AutoPlotGrid_ProbeStateLine();   // autoplotgrid, autoplotways (only with AutoPlotProbe=1)
 			StateLine_Add("shaders", "built-in " + std::to_string(host::ShaderText_Served()) + " missing " + std::to_string(host::ShaderText_Missing()));   // shader_text.h: the renderer's asks, served from the editor's own set and not
 			std::string const surfaceCopy = GizmoScreen_LiveCopyWords();

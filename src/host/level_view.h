@@ -161,6 +161,32 @@ void LevelView_WorldLines(const host::TrackLine *lines, size_t count);
 // The same lines drawn in the 3D view in the level's world places (R_SetEditorWorldLines: depth-tested, about three pixels wide); count 0 takes them away
 void LevelView_WorldLines(const host::TrackLine *lines, size_t count);
 
+// The most world lines LevelView_WorldLines hands the engine (Vasquez's waypoint display 2026-11-19: every AI module's boxes and links at once, ~235k lines on v2d;
+// it was 4096). Frost lifts avpx's R_SetEditorWorldLines to the same number (renderer.h); until that lands the engine itself still keeps only its first 4096.
+size_t const kLevelViewWorldLinesMax = 524288;
+
+// The engine's lines from the editor's (what LevelView_WorldLines gives R_SetEditorWorldLines): each line's from, to and colour as they are, at most `most` of them,
+// none for null or 0, into `out` (kept from call to call, so a big list is not allocated again each time). EngineLine has the fields x0 y0 z0 x1 y1 z1 colour
+// (avpx renderer.h EditorWorldLine). Gives how many.
+template <class EngineLine>
+size_t LevelView_ConvertWorldLines(const host::TrackLine *lines, size_t count, size_t most, std::vector<EngineLine> *out)
+{
+	size_t const used = lines ? (count < most ? count : most) : 0;
+
+	out->resize(used);
+
+	for (size_t i = 0; i < used; i++)
+	{
+		EngineLine &line = (*out)[i];
+
+		line.x0 = lines[i].from[0]; line.y0 = lines[i].from[1]; line.z0 = lines[i].from[2];
+		line.x1 = lines[i].to[0];   line.y1 = lines[i].to[1];   line.z1 = lines[i].to[2];
+		line.colour = lines[i].colour;
+	}
+
+	return used;
+}
+
 // Flat FILLED triangles in the 3D view, in the game's world units (millimetres), each in its own ARGB colour (opaque): the avpx hook R_SetEditorWorldTriangles (the light markers' pyramids, Stability flags' faces). count 0 takes them away.
 struct LevelViewTriangle
 {
@@ -396,6 +422,9 @@ void LevelView_SquareMatrix(int32_t matrix[9]);
 
 int32_t LevelView_ModuleCount();
 bool LevelView_ModuleName(int32_t moduleIndex, std::string *name);
+// Module m's own name, whether or not the game has it in play. LevelView_ModuleName answers only for a module with a display block, and the game gives one only to the modules
+// seen from where the level starts, until the view's first draw shows every module. Vasquez 11-20, the 13-module paint (path_screen.cpp GameModuleOfNumber)
+bool LevelView_ModuleOwnName(int32_t moduleIndex, std::string *name);
 int32_t LevelView_ModuleAt(const int32_t place[3]);
 bool LevelView_ModuleRadius(int32_t moduleIndex, int32_t *radius);   // the module's shape radius (shaperadius), in the game's units (mm)
 bool LevelView_ModuleWorld(int32_t moduleIndex, int32_t world[3]);   // where the game puts module m, in millimetres (MODULE.m_world)

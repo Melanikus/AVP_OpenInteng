@@ -124,7 +124,10 @@ public:
 	// it (LoaderRefused: the game wouldn't take that level). (Added 2026-11-15 by Melanikus (Drake), S5.)
 	LevelOpenResult ReplaceLevel(std::vector<char> const & image);
 
-	// How many times ReplaceLevel has swapped the level since it was opened, so a view of the level knows to build itself again
+	// Which level, and which swap of it, this is, so a view of the level (and every cache made for it) knows to build itself again. Each ReplaceLevel makes it one more.
+	// Each Open (and each Close) moves it to a number the run never gave before, in this file object or in any other (kGenerationsAnOpen apart, from one count for the
+	// whole program), so a cache made for one level is never taken for the next one opened (Vasquez 11-20: it went back to 0, and the Waypoint paint's game module
+	// numbers were a first level's on a second one)
 	unsigned Generation() const { return generation; }
 
 	// How many edits the level has taken since it was opened: every chunk marked changed (MarkChanged, SetPayload: the same size) and every level swapped in (ReplaceLevel). The view of the

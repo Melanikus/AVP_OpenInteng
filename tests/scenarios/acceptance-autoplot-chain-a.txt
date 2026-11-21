@@ -1,0 +1,41 @@
+# ACCEPTANCE (a TEST for the owner, not a release; Bishop 11-20: "I want a test, not a release"): THE CONSOLIDATED AUTO-PLOT on chain A only, opscen03 (#153) - Ops01 (#158) - opscen02
+# (#154), on a private copy of the owner's v2d Genshd1 (autoplot-genshd1-v2, sha 21f1578e; dietrich-chain/Genshd1-v2d.RIF). The owner after playing v2d: "the game is not dealing well with
+# discreet squares", "we need to consolidate": fewer, bigger boxes (the floor tiles merged into rectangles of at most 4 m a side, the ceiling in lanes of up to 12 m), every lane rule kept.
+# The three selected by clicks and re-plotted with Auto-plot selected AI modules (it asks to replace the v2d waypoints: Yes); every other AI module stays as v2d. The yardstick: the chain was 239 boxes in v2d
+# (73 + 82 + 84), 63 in Drake's hand-built reference. The gate is Drake's lanes.exe (check + lane + up) on the saved copy.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-chain/Genshd1-v2d.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-chain/Genshd1-v2d.RIF
+pictures on
+state
+expect-screen Waypoint
+expect-field levelbytes 2117984
+
+# ---- the chain selected by clicks (Vasquez's acceptance-autoplot-selected): opscen03, then Ctrl+click Ops01 and opscen02
+wait 600
+camera-corner opscen03
+click-view 0.50 0.50
+wait 400
+camera-corner Ops01
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner opscen02
+click-view 0.50 0.50 ctrl
+wait 400
+expect-field waypointselection opscen03|Ops01|opscen02
+
+# ---- Auto-plot selected AI modules: v2d has waypoints in all three, so it asks to replace them
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
+expect-dialog-kind confirm
+expect-dialog replace the
+click-button Yes
+wait-status 300000 written
+expect-status 3 AI modules written
+expect-status 0 refused
+
+# ---- the saved copy, for Drake's lanes.exe and the owner
+save-copy
+picture 1

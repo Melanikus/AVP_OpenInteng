@@ -3139,6 +3139,154 @@ static void BonesAndTintsOnLevel(std::string const &levelPath, std::string const
 	}
 }
 
+// ================================================================= COPY SHAPE AS OBJECT (Frost 2026-11-19, the mech proof's stand-ins; track-import parts)
+
+static void CopyShapeOnLevel(std::string const &levelPath, std::string const &copyFolder)
+{
+	std::string const level = BaseName(levelPath);
+	std::string const label = level + " CopyShapeAsObject";
+
+	printf("COPY SHAPE %s\n", level.c_str());
+
+	OpenLevelFile baseline;
+
+	if (baseline.Open(levelPath.c_str()) != LevelOpenResult::Opened || !baseline.Level())
+	{
+		Check(false, "the game's loader takes the level");
+		return;
+	}
+
+	// a shape of 8 to 6000 polygons with one user, nothing on it that animates
+	uint8_t id[8] = { 0 };
+	bool have = false;
+	model::ShapeModel original;
+	std::string sourceName;
+	List<Object_Chunk *> all;
+
+	baseline.Level()->list_objects(&all);
+
+	for (LIF<Object_Chunk *> each(&all); !have && !each.done(); each.next())
+	{
+		Object_Chunk *const object = each();
+
+		if (!object || !object->get_assoc_shape() || HasChunk(object, "SHPMORPH") || HasChunk(object, "ANIMSEQU"))
+		{
+			continue;
+		}
+
+		model::ShapeModel shape;
+		std::string why;
+		size_t users = 0;
+		uint8_t const *const thisId = (uint8_t const *)&object->object_data.ID;
+
+		if (host::ShapeEdit_Read(baseline.Level(), &baseline, thisId, &shape, &users, &why) == host::ShapeEditResult::Done && users == 1 && shape.polygons.size() >= 8 && shape.polygons.size() <= 6000)
+		{
+			have = true;
+			memcpy(id, thisId, 8);
+			original = shape;
+			sourceName.assign(object->object_data.o_name, strnlen(object->object_data.o_name, sizeof(object->object_data.o_name)));
+		}
+	}
+
+	if (!have)
+	{
+		printf("  --  %s: no shape to copy\n", level.c_str());
+		return;
+	}
+
+	OpenLevelFile work;
+	std::vector<char> imageBefore, now;
+
+	Check(work.Open(levelPath.c_str()) == LevelOpenResult::Opened && work.BuildLevel(imageBefore), label + ": the level is opened again");
+
+	int32_t const place[3] = { 1234, -2345, 3456 };
+	float const turn[4] = { 0.0f, 0.6f, 0.0f, 0.8f };
+	char const *const name = "frostcopy1";
+
+	// refusals leave the level as it was
+	{
+		uint8_t const nobody[8] = { 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef };
+		int32_t const tooFar[3] = { (1 << 24) + 1, 0, 0 };
+		std::string why;
+
+		Check(host::PolyEdit_CopyShapeAsObject(&work, nobody, name, place, turn, nullptr, nullptr, &why) == host::PolySplitResult::NoObject, label + ": an ID no object has is refused");
+		Check(host::PolyEdit_CopyShapeAsObject(&work, id, "", place, turn, nullptr, nullptr, &why) == host::PolySplitResult::BadCall, label + ": an empty name is refused");
+		Check(host::PolyEdit_CopyShapeAsObject(&work, id, sourceName.c_str(), place, turn, nullptr, nullptr, &why) == host::PolySplitResult::BadName, label + ": a name an object has (" + sourceName + ") is refused as a bad name");
+
+		// a place past the game's bound (2^24, CheckPlace) is a bad CALL, not a bad name: the words say what was wrong
+		why.clear();
+		host::PolySplitResult const outside = host::PolyEdit_CopyShapeAsObject(&work, id, name, tooFar, turn, nullptr, nullptr, &why);
+
+		Check(outside == host::PolySplitResult::BadCall && why.find("name") == std::string::npos, label + ": a place past 2^24 is refused as a bad call, and the words don't blame the name (" + std::string(host::PolySplitWords(outside)) + ": " + why + ")");
+		Check(work.BuildLevel(now) && now == imageBefore, label + ": after the refusals the level is as it was");
+	}
+
+	uint8_t madeId[8] = { 0 };
+	std::string made, why;
+	host::PolySplitResult const result = host::PolyEdit_CopyShapeAsObject(&work, id, name, place, turn, madeId, &made, &why);
+
+	Check(result == host::PolySplitResult::Done && made == name, label + ": " + sourceName + "'s shape is copied as a new object " + made + (result == host::PolySplitResult::Done ? "" : std::string(": ") + host::PolySplitWords(result) + " " + why));
+
+	if (result != host::PolySplitResult::Done)
+	{
+		return;
+	}
+
+	std::string const copyPath = CopyPathIn(copyFolder, (level + "-poly-copyshape.rif").c_str());
+
+	DeleteFileA(copyPath.c_str());
+	Check(work.SaveAs(copyPath.c_str()) == LevelSaveResult::Saved, label + ": the level is saved as a COPY");
+
+	OpenLevelFile edited;
+
+	Check(edited.Open(copyPath.c_str()) == LevelOpenResult::Opened && edited.Level(), label + ": the game's loader takes the copy");
+
+	if (!edited.Level())
+	{
+		return;
+	}
+
+	Check(ObjectCount(edited) == ObjectCount(baseline) + 1, label + ": the level has one object more");
+
+	Object_Chunk *const oldObject = FindObject(edited, id);
+	Object_Chunk *const newObject = FindObject(edited, madeId);
+
+	Check(oldObject && newObject && ObjectNamed(edited, name) == newObject, label + ": the new object is there under its name, the old one is still there");
+
+	if (!oldObject || !newObject)
+	{
+		return;
+	}
+
+	ChunkObject const &got = newObject->object_data;
+
+	Check(got.location.x == place[0] && got.location.y == place[1] && got.location.z == place[2], label + ": the new object stands at the place given (" + std::to_string(got.location.x) + " " + std::to_string(got.location.y) + " " + std::to_string(got.location.z) + ")");
+	Check(got.orientation.x == turn[0] && got.orientation.y == turn[1] && got.orientation.z == turn[2] && got.orientation.w == turn[3], label + ": the new object is turned as given");
+
+	model::ShapeModel oldNow, newNow;
+	size_t oldUsers = 0, newUsers = 0;
+	std::string ignore;
+	bool const read = host::ShapeEdit_Read(edited.Level(), &edited, id, &oldNow, &oldUsers, &ignore) == host::ShapeEditResult::Done &&
+		host::ShapeEdit_Read(edited.Level(), &edited, madeId, &newNow, &newUsers, &ignore) == host::ShapeEditResult::Done;
+
+	Check(read, label + ": both shapes are read");
+
+	if (!read)
+	{
+		return;
+	}
+
+	Check(SameShape(oldNow, original), label + ": the old object's shape is as it was");
+	Check(newNow.number != original.number && ShapeNumberOf(edited, newObject) == newNow.number && ShapeNumberOf(edited, oldObject) == original.number,
+		label + ": the new object has a shape of its own (number " + std::to_string(newNow.number) + ", the old " + std::to_string(original.number) + ")");
+	Check(oldUsers == 1 && newUsers == 1, label + ": each shape has one user (old " + std::to_string(oldUsers) + ", new " + std::to_string(newUsers) + ")");
+
+	model::ShapeModel sameNumber = newNow;
+
+	sameNumber.number = original.number;
+	Check(SameShape(sameNumber, original), label + ": the copy's points, polygons and normals are the original's");
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 3)
@@ -3173,6 +3321,7 @@ int main(int argc, char **argv)
 		MergeOnCopyOnLevel(argv[i], copyFolder);
 		CheckPairsOnLevel(argv[i], copyFolder);
 		SplitOnLevel(argv[i], copyFolder);
+		CopyShapeOnLevel(argv[i], copyFolder);
 		BonesAndTintsOnLevel(argv[i], copyFolder);
 	}
 
