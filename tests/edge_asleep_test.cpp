@@ -23,9 +23,11 @@
 #include <vector>
 
 #include "hudson.h"
+#include "hudson_lanes.h"
 #include "hudson_plan.h"
 #include "hudson_play.h"
 #include "hudson_play_ribbon.h"
+#include "hudson_saymarks.h"
 #include "BinkDecoder.h"
 #include "SmackerDecoder.h"
 #include <vorbis/vorbisfile.h>
@@ -62,6 +64,7 @@ static void TestHudsonsData()
 	Check(HudsonWayOfDying == -1, "HudsonWayOfDying starts at -1 (hudson.cpp:259)");
 	Check(!HudsonWorldIsLive, "HudsonWorldIsLive starts false (hudson.cpp:260)");
 	Check(!HudsonMarineHoldsFire, "HudsonMarineHoldsFire starts false (hudson.cpp:261)");
+	Check(!HudsonLanesAreOn, "HudsonLanesAreOn starts false (hudson.cpp:272)");
 }
 
 // The hooks that answer something, each with the real definition's answer when HudsonRunIsOn is false
@@ -102,6 +105,7 @@ static void TestAnswers()
 	Check(!Hudson_SiegeTurnsAwayHit(nullptr, nullptr, 1), "Hudson_SiegeTurnsAwayHit gives false (hudson.cpp:10288)");
 	Check(Hudson_YesPagePress() == kHudsonYesPageNone, "Hudson_YesPagePress gives kHudsonYesPageNone (hudson.cpp:5347)");
 	Check(!HudsonPlay_RibbonIsOn(), "HudsonPlay_RibbonIsOn gives false (hudson_play.cpp:2859)");
+	Check(Same(HudsonPlay_StatusLine(), ""), "HudsonPlay_StatusLine gives \"\", so the game draws no status line (hudson_play.cpp:4224)");
 }
 
 // The hooks with something to fill in: each says no and leaves it exactly as it was
@@ -169,6 +173,25 @@ static void TestDoNothing()
 		"NetWhileDead 8292, NoteDamage 10334, PictureThisFrame 5369, PlayInput 6781, PointTheCamera 5514, SaveLampCompareScreen 1419, "
 		"SaveLampCompareSurface 1456, SaveThePage 5274, SayWhereTheWindowWent 1305, SayWhichShaderWasCompiled 1169, SetTheMode 4604, "
 		"StopIfTheGameWantsToAsk 11442, TakePictureIfDue 5395, TheLevelStartedAgain 5687)");
+}
+
+// The watch-only hooks of the lane probe and of SAY marks (Frost 2026-11-21): each real one first asks whether a run of Hudson's or SAY marks
+// is on, "if ((!HudsonRunIsOn && !SayMarksAreOn) || ...)" or "if (!SayMarksAreOn || HudsonRunIsOn)", and returns. In the editor neither is ever
+// on: HudsonRunIsOn is the game's first value, false, and SayMarksAreOn is set only by hudson_saymarks.cpp:27, which the editor doesn't
+// compile. So each comes back at once, and the words handed to SAY marks are left as they were.
+static void TestWatchOnly()
+{
+	char const said[] = "stuck";
+
+	HudsonLanes_AlienBefore(nullptr);
+	HudsonLanes_AlienAfter(nullptr);
+	HudsonLanes_HuntWent(nullptr, 1);
+	HudsonLanes_Searched(nullptr, nullptr, nullptr, 1);
+	HudsonSayMarks_Said(said);
+
+	Check(strcmp(said, "stuck") == 0 && !HudsonRunIsOn && !HudsonLanesAreOn,
+		"the 5 watch-only hooks come back at once with Hudson and SAY marks off, and change none of Hudson's data (hudson_lanes.cpp: AlienBefore "
+		"1527, HuntWent 1584, Searched 1600, AlienAfter 1669; hudson_saymarks.cpp: Said 44)");
 }
 
 // The film and music calls that answer quietly: each answers what the real library answers for a file that won't open
@@ -265,6 +288,7 @@ int main()
 	TestAnswers();
 	TestNothingFilledIn();
 	TestDoNothing();
+	TestWatchOnly();
 	TestQuietMedia();
 	TestStayingOutOfTheWay();
 	TestSettingsInMemory();

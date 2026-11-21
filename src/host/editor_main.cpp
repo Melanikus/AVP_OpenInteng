@@ -9124,6 +9124,13 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 
 			rightButtonDown = false;
 			return 0;
+		case WM_MOUSEWHEEL:
+			if (ADialogIsOpen() && host::Dialogs_Wheel((int32_t)GET_WHEEL_DELTA_WPARAM(wParam)))   // an open combo list scrolls (dialog_box.h); the editor had no use for the wheel before
+			{
+				return 0;
+			}
+
+			break;
 		case WM_MOUSEMOVE:
 			// Scroll Lock's pick waiting with the left or middle button still held: a press that hit nothing picks again where the pointer is now (FUN_004720c0 0x472166 jumps back with the button
 			// bits kept, and the pointer is read again each time round, so dragging onto an object picks it); nothing else follows the pointer meanwhile

@@ -1428,6 +1428,7 @@
     <ClCompile Include="..\..\avpx\3dc\avp\secstats.cpp" />
     <ClCompile Include="..\..\avpx\3dc\avp\sfx.cpp" />
     <ClCompile Include="..\..\avpx\3dc\avp\shapes\cube.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\avp\stock_flags.cpp" />
     <ClCompile Include="..\..\avpx\3dc\avp\strategy_def.cpp" />
     <ClCompile Include="..\..\avpx\3dc\avp\near_wake.cpp" />
     <ClCompile Include="..\..\avpx\3dc\avp\support\console_batch.cpp" />
@@ -1514,6 +1515,7 @@
          instead (docs\avpx-files.md, "The player's game settings"). -->
     <ClCompile Include="..\..\avpx\3dc\console.cpp" />
     <ClCompile Include="..\..\avpx\3dc\d3d_render.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\debug_view.cpp" />
     <ClCompile Include="..\..\avpx\3dc\FastFile.cpp" />
     <ClCompile Include="..\..\avpx\3dc\FileStream.cpp" />
     <ClCompile Include="..\..\avpx\3dc\FmvCutscenes.cpp" />

@@ -892,6 +892,11 @@ static void BadGuyWindowShow()
 	put(kBgRightEdit, host::DialogWidgetType::Edit, std::string(), 165, 60, dx(105), dy(12) + 2, 0); // 1020
 	put(kBgTextureLabel, host::DialogWidgetType::Label, "Texturing ID", 10, 85, dx(70), 16, 0);      // 1019
 	put(kBgTexture, host::DialogWidgetType::Combo, std::string(), 10, 95, dx(115), 18, 0);           // 1022
+	// each list shows the rows its dialog resource drops it to, then scrolls (dialog_box.h DialogBox_ComboListRows): 1002 is 74 dialog units high, 1001, 1018 and 1022 81
+	spec.widgets[kBgType].listRows = host::DialogBox_ComboListRows(74);
+	spec.widgets[kBgLeftCombo].listRows = host::DialogBox_ComboListRows(81);
+	spec.widgets[kBgRightCombo].listRows = host::DialogBox_ComboListRows(81);
+	spec.widgets[kBgTexture].listRows = host::DialogBox_ComboListRows(81);
 	put(kBgInactive, host::DialogWidgetType::Check, std::string(), 10, 130, 12, 12, 0);              // 1008 "Starts Inactive"
 	spec.widgets[kBgInactive].checked = badGuyShown.startsInactive;
 	put(kBgInactiveLabel, host::DialogWidgetType::Label, "Starts Inactive", 10, 130, dx(104), 16, 0);
@@ -1010,6 +1015,7 @@ static void SimpleEditShow()
 
 	typeBox.type = host::DialogWidgetType::Combo;
 	typeBox.box = { dx(10), dy(24) - 4, dx(115), 18 };
+	typeBox.listRows = host::DialogBox_ComboListRows(74);   // 1002: 74 dialog units high with its list (dialog_box.h)
 	typeBox.items = items[0].choices;
 	typeBox.text = items[0].value;
 
@@ -1030,6 +1036,7 @@ static void SimpleEditShow()
 
 	extraBox.type = host::DialogWidgetType::Combo;
 	extraBox.box = { dx(10), dy(60) - 4, dx(115), 18 };
+	extraBox.listRows = host::DialogBox_ComboListRows(81);   // 1001: 81 dialog units high with its list (dialog_box.h)
 	spec.widgets.push_back(extraBox);
 
 	// 4 label, 5 Mass, 6 label, 7 Integrity
@@ -1544,6 +1551,7 @@ static void SoundEditWindowShow(SoundEditTyped const &typed)
 	spec.widgets.back().items = soundEditWindow.wavs;
 	spec.widgets.back().selected = typed.picked;
 	spec.widgets.back().editable = true;
+	spec.widgets.back().listRows = host::DialogBox_ComboListRows(121);   // 1019: 121 dialog units high with its list (dialog_box.h)
 	add(host::DialogWidgetType::Label, "Inner Range (m)", dx(13), dy(44), dx(60), 16, 0, 10, true);
 	add(host::DialogWidgetType::Edit, typed.fields[0], dx(15), dy(55), dx(63), 18, 0, 20, true);
 	add(host::DialogWidgetType::Label, "Outer Range (m)", dx(13), dy(76), dx(60), 16, 0, 10, true);

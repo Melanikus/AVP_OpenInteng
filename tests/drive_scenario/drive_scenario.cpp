@@ -560,6 +560,27 @@ static void ClickWindow(Scenario *s, int x, int y, bool right, bool shift, DWORD
 	Sleep(settle);   // the frame that answers a pick is drawn after the press, so the state is asked after it
 }
 
+// The mouse wheel turned by notches (Windows' WHEEL_DELTA, 120, a notch; positive: toward the person, which scrolls a list DOWN), the pointer in the middle of the editor's window.
+// Windows hands WM_MOUSEWHEEL to the window with the keyboard's focus, and a child window that doesn't take it passes it on to its parent (DefWindowProc): so it goes to the editor's
+// own window here. Added 2026-11-21 by Melanikus (Vasquez), for the combo lists that scroll.
+static void WheelWindow(Scenario *s, int notches, DWORD settle = 300)
+{
+	RECT client = {};
+	POINT middle = { 0, 0 };
+
+	notches = notches < -200 ? -200 : (notches > 200 ? 200 : notches);   // WM_MOUSEWHEEL's delta is a short
+
+	if (GetClientRect(s->editor.window, &client))
+	{
+		middle.x = client.right / 2;
+		middle.y = client.bottom / 2;
+	}
+
+	ClientToScreen(s->editor.window, &middle);   // the wheel's place is in the screen's pixels
+	PostMessageW(s->editor.window, WM_MOUSEWHEEL, MAKEWPARAM(0, (WORD)(short)(-120 * notches)), MAKELPARAM(middle.x, middle.y));
+	Sleep(settle);   // the frame that scrolls is drawn after the message, so the state is asked after it
+}
+
 // Runs a program, capturing its lines; gives its exit code, or -1 if it didn't start
 static int RunProgram(std::string const &commandLine, std::vector<std::string> *lines)
 {
@@ -1920,12 +1941,12 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 	// FORM COMBO BOXES (dialog_box.h): the state line's dialogcombos "<picked words>_<x> <y> <w> <h>|..." (spaces in the words are _) in the form's order. click-combo <n> opens the n-th list (from 1); click-combo-row <words> presses the row
 	// with those words (any capitals, in the list that is open); expect-dialog-combo-rows <word>,<word>,... says which rows the open list holds.
+	// A LIST THAT SCROLLS (Vasquez 2026-11-21, the owner's "We can't scroll down to see message 1001..."): dialogcomborows names EVERY row, a row scrolled out of view with the box
+	// 0 0 0 0. click-combo-row turns the mouse wheel toward a row that isn't shown, a notch at a time (at most a notch for every 3 rows, and 3 more), as a person does, then presses it.
+	// It refuses a row whose box lies past the editor's window: no person can press it there.
 	if ((verb == "click-combo" && w.size() >= 2) || (verb == "click-combo-row" && w.size() >= 2))
 	{
-		AskState(s);
-
 		bool const row = verb == "click-combo-row";
-		std::string const list = Field(s->last, row ? "dialogcomborows" : "dialogcombos");
 		std::string want = line.substr(line.find(w[1]));
 
 		for (char &c : want)
@@ -1933,44 +1954,110 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 			c = (char)tolower((unsigned char)c);
 		}
 
-		int at = 0;
-		size_t from = 0;
+		struct ShownRow
+		{
+			std::string words;
+			int x = 0, y = 0, width = 0, height = 0;
+		};
+
+		std::string list, why;
+		int notches = 0, mostNotches = -1;
 		bool clicked = false;
 
-		while (!clicked && !list.empty() && from <= list.size())
+		while (!clicked)
 		{
-			size_t const to = list.find('|', from);
-			std::string const one = list.substr(from, to == std::string::npos ? std::string::npos : to - from);
-			std::vector<std::string> const parts = Words(one);
-			std::string words = parts.empty() ? std::string() : parts[0];
+			AskState(s);
+			list = Field(s->last, row ? "dialogcomborows" : "dialogcombos");
 
-			for (char &c : words)
+			std::vector<ShownRow> rows;
+			size_t from = 0;
+
+			while (!list.empty() && from <= list.size())
 			{
-				c = c == '_' ? ' ' : (char)tolower((unsigned char)c);
+				size_t const to = list.find('|', from);
+				std::vector<std::string> const parts = Words(list.substr(from, to == std::string::npos ? std::string::npos : to - from));
+
+				if (parts.size() >= 5)
+				{
+					ShownRow r;
+
+					r.words = parts[0];
+					r.x = atoi(parts[1].c_str());
+					r.y = atoi(parts[2].c_str());
+					r.width = atoi(parts[3].c_str());
+					r.height = atoi(parts[4].c_str());
+
+					for (char &c : r.words)
+					{
+						c = c == '_' ? ' ' : (char)tolower((unsigned char)c);
+					}
+
+					rows.push_back(r);
+				}
+
+				if (to == std::string::npos)
+				{
+					break;
+				}
+
+				from = to + 1;
 			}
 
-			if (parts.size() >= 5 && (row ? words == want : ++at == atoi(w[1].c_str())))
-			{
-				// a row is pressed in its middle; a combo on its ARROW (8 pixels in from its right side), as a person opens one: an editable combo's box takes letters left of its
-				// arrow (dialog_box.h), and a plain combo opens anywhere in its box (Vasquez 11-16)
-				int const x = row ? atoi(parts[1].c_str()) + atoi(parts[3].c_str()) / 2 : atoi(parts[1].c_str()) + atoi(parts[3].c_str()) - 8;
+			int found = -1, firstShown = -1;
 
-				ClickWindow(s, x, atoi(parts[2].c_str()) + atoi(parts[4].c_str()) / 2, false, false);
-				clicked = true;
+			for (size_t i = 0; i < rows.size(); i++)
+			{
+				firstShown = firstShown < 0 && rows[i].width > 0 ? (int)i : firstShown;
+				found = found < 0 && (row ? rows[i].words == want : (int)i + 1 == atoi(w[1].c_str())) ? (int)i : found;
 			}
 
-			if (to == std::string::npos)
+			if (found < 0)
 			{
+				why = "nothing to press in \"" + list + "\"";
 				break;
 			}
 
-			from = to + 1;
+			ShownRow const &r = rows[(size_t)found];
+
+			if (row && r.width <= 0)
+			{
+				mostNotches = mostNotches < 0 ? (int)rows.size() / 3 + 3 : mostNotches;
+
+				if (notches >= mostNotches)
+				{
+					why = "the row is still out of view after " + std::to_string(notches) + " notches of the wheel";
+					break;
+				}
+
+				WheelWindow(s, firstShown >= 0 && found < firstShown ? -1 : 1);
+				notches++;
+				continue;
+			}
+
+			RECT client = {};
+
+			if (row && GetClientRect(s->editor.window, &client) && (r.x < 0 || r.y < 0 || r.x + r.width > client.right || r.y + r.height > client.bottom))
+			{
+				why = "the row's box " + std::to_string(r.x) + " " + std::to_string(r.y) + " " + std::to_string(r.width) + " " + std::to_string(r.height) + " lies past the window (" +
+					std::to_string(client.right) + " x " + std::to_string(client.bottom) + "): no person can press it";
+				break;
+			}
+
+			// a row is pressed in its middle; a combo on its ARROW (8 pixels in from its right side), as a person opens one: an editable combo's box takes letters left of its
+			// arrow (dialog_box.h), and a plain combo opens anywhere in its box (Vasquez 11-16)
+			ClickWindow(s, row ? r.x + r.width / 2 : r.x + r.width - 8, r.y + r.height / 2, false, false);
+			clicked = true;
 		}
 
 		if (!clicked)
 		{
-			Check(false, label + " (nothing to press in \"" + list + "\")");
+			Check(false, label + " (" + why + ")");
 			return true;
+		}
+
+		if (notches > 0)
+		{
+			printf("  (the mouse wheel turned %d notch%s first, to bring the row into view)\n", notches, notches == 1 ? "" : "es");
 		}
 
 		AskState(s);
@@ -2566,6 +2653,30 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		PostMessageW(s->editor.window, WM_KEYUP, key, 1 | (scan << 16) | (1u << 30) | (1u << 31));
 		Sleep(200);
+		AskState(s);
+		Check(true, label);
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
+		PictureAfter(s, line);
+		return true;
+	}
+
+	// wheel up|down <notches>: the mouse wheel turned, a notch at a time, the pointer in the window's middle (Vasquez 2026-11-21: an open combo list scrolls by it, 3 rows a notch)
+	if (verb == "wheel" && w.size() >= 3 && (w[1] == "up" || w[1] == "down"))
+	{
+		int const notches = atoi(w[2].c_str());
+
+		if (notches < 1 || notches > 200)
+		{
+			Check(false, label + " (1 to 200 notches)");
+			return false;
+		}
+
+		for (int n = 0; n < notches; n++)
+		{
+			WheelWindow(s, w[1] == "up" ? -1 : 1, 60);
+		}
+
+		Sleep(300);
 		AskState(s);
 		Check(true, label);
 		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());

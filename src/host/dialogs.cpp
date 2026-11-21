@@ -225,6 +225,13 @@ namespace host
 		return false;
 	}
 
+	bool Dialogs_Wheel(int32_t delta)
+	{
+		// only a combo's open list takes the wheel (dialog_box.h, the list that scrolls); with a dialog open the wheel goes nowhere else (the dialogs are modal)
+		box.Wheel(delta);
+		return box.IsOpen() || list.IsOpen();
+	}
+
 	bool Dialogs_Key(bool isChar, uint32_t key)
 	{
 		// the virtual keys the dialogs read (windows.h values, so this file needs no windows.h)
@@ -232,6 +239,20 @@ namespace host
 
 		if (box.IsOpen())
 		{
+			// A COMBO'S OPEN LIST takes its keys first (dialog_box.h, the list that scrolls): the arrows, Page Up and Down, Home and End move the row the keys are on; Return picks it and
+			// Escape closes the list, and neither leaves the dialog
+			if (!isChar && box.ListOpen())
+			{
+				bool const taken = key == kReturn ? box.ListReturn() : key == kEscape ? box.ListEscape() :
+					key == kUp ? box.ListKey(DialogListKey::Up) : key == kDown ? box.ListKey(DialogListKey::Down) : key == kPrior ? box.ListKey(DialogListKey::PageUp) :
+					key == kNext ? box.ListKey(DialogListKey::PageDown) : key == kHome ? box.ListKey(DialogListKey::Home) : key == kEnd ? box.ListKey(DialogListKey::End) : false;
+
+				if (taken)
+				{
+					return true;
+				}
+			}
+
 			if (isChar)
 			{
 				if (key >= 32 && key <= 126)
@@ -449,12 +470,43 @@ namespace host
 						continue;
 					}
 
+					// the rows in view (a long list scrolls: dialog_box.h), the one the keys are on red, as the picked one was
 					for (size_t row = 0; row < w.items.size(); row++)
 					{
 						DialogRect const r = InDialog::ComboRow(w, row);
 
-						framed(r, kDialogWhite, (int32_t)row == w.selected ? kDialogRed : kDialogBlue);
+						if (r.width <= 0)
+						{
+							continue;
+						}
+
+						framed(r, kDialogWhite, (int32_t)row == w.listLit ? kDialogRed : kDialogBlue);
 						text(w.items[row], r.x + 1, r.y - 1);
+					}
+
+					// ITS SCROLL BAR, of the toolkit's own parts: the column a field's black framed white, the thumb a button's blue framed white, and at its ends two buttons, each with
+					// its arrow drawn as Windows draws a scroll bar's arrows, a small white triangle (inteng's font may have no "^"; the box's own arrow keeps its "v")
+					DialogScrollBar const bar = InDialog::ComboScrollBar(w);
+
+					if (bar.column.width > 0)
+					{
+						framed(bar.column, kDialogWhite, kDialogBlack);
+						framed(bar.thumb, kDialogWhite, kDialogBlue);
+
+						for (int32_t end = 0; end < 2; end++)
+						{
+							DialogRect const arrow = end == 0 ? bar.up : bar.down;
+
+							framed(arrow, kDialogWhite, kDialogBlue);
+
+							for (int32_t step = 0; step < 4; step++)   // 7, 5, 3 and 1 pixels wide, its point up for the top arrow and down for the bottom one
+							{
+								int32_t const across = 7 - 2 * step;
+								int32_t const y = arrow.y + arrow.height / 2 + (end == 0 ? 1 - step : step - 2);
+
+								fill({ arrow.x + (arrow.width - across) / 2, y, across, 1 }, kDialogWhite);
+							}
+						}
 					}
 				}
 
@@ -545,7 +597,10 @@ namespace host
 		{
 			for (size_t row = 0; w.type == DialogWidgetType::Combo && w.visible && w.listOpen && row < w.items.size(); row++)
 			{
-				rows.push_back({ InDialog::ComboRow(w, row), w.items[row] });
+				if (InDialog::ComboRow(w, row).width > 0)   // the rows in view only: a row scrolled out of it isn't drawn
+				{
+					rows.push_back({ InDialog::ComboRow(w, row), w.items[row] });
+				}
 			}
 		}
 

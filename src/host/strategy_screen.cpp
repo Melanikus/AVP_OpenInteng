@@ -1870,6 +1870,10 @@ static void MissionTextWindow(uint8_t const *subject, int32_t which, int32_t wan
 		box.type = host::DialogWidgetType::Combo;
 		box.editable = true;
 
+		// its open list shows 13 rows and then scrolls (the owner 11-21: "We can't scroll down to see message 1001..."; dialog_box.h). Inteng's box took a typed number only, so
+		// the list has no resource of its own: NAMED, it shows the rows of the DLL's own list of files, Sound Edit's wav names (121 dialog units high)
+		box.listRows = host::DialogBox_ComboListRows(121);
+
 		for (int32_t const one : host::FmvFiles_MessageNumbers(host::FmvFiles_Folder(theGameFolder)))
 		{
 			box.items.push_back(std::to_string((long long)one));

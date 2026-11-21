@@ -44,6 +44,10 @@ namespace host
 	bool Dialogs_RightPress(int32_t x, int32_t y);   // a RIGHT press: a list's onRight on the row under it; true when a dialog is open (it takes the press)
 	bool Dialogs_Key(bool isChar, uint32_t key);
 
+	// The mouse wheel (delta as WM_MOUSEWHEEL gives it, 120 a notch): an open combo list scrolls by it (dialog_box.h). True when a dialog is open (it takes the wheel). Added 2026-11-21
+	// by Melanikus (Vasquez).
+	bool Dialogs_Wheel(int32_t delta);
+
 	// What to paint: gray behind the window, then boxes and lines (the editor's panel pass takes both lists)
 	void Dialogs_Draw(std::vector<PaintBox> *boxes, std::vector<PaintText> *lines, uint32_t grayColour, uint32_t litColour);
 
