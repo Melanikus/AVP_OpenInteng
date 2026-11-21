@@ -38,6 +38,7 @@ namespace host
 	int32_t const kAutoPlotLevelRiseAlone = 900;     // mm: a group of treads rising more than this by itself is a stair even when it meets only one level
 	int32_t const kAutoPlotLevelRiserMost = 3900;    // mm: levels whose cells are neighbours this far apart in height are linked over the riser (aliens climb it)
 	int32_t const kAutoPlotLevelExitReach = 1500;    // mm: an exit stands on a floor cell this near its height
+	int32_t const kAutoPlotLevelExitFar = 2800;      // mm: an exit box's centre at most this far past its doorway's middle (the floor running on past it: BLOCK-01)
 	int32_t const kAutoPlotLevelInto = kAutoPlotInto;    // a floor box reaches this far under its floor
 	int32_t const kAutoPlotLevelReach = kAutoPlotReach;  // and this far over it
 	int32_t const kAutoPlotLevelMinSide = 1200;      // mm: a level's rectangle is at least this across both ways (2 cells at 600, 4 at 300)

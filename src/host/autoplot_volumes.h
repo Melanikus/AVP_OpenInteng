@@ -59,6 +59,8 @@ namespace host
 	                                                   // y row turns, and both arrivals pass the entry
 	int32_t const kAutoPlotVolumeHighEndClear = 1050;  // a split piece's aim at least this far in from its ends (600, an exit box's reach inside its doorway, and the body's
 	                                                   // 450): on a short half it comes back toward the middle, never into the exit's box or the other half
+	int32_t const kAutoPlotVolumeTwinRise = 1200;     // two exits through one doorway (TWINS) have their doorways' middles at most this apart in height: start's and
+	                                                   // tolift's two exits through one doorway lie 780 apart (the whole-level plot on 242d5fc8); a storey over is 2.4 m or more
 	int32_t const kAutoPlotVolumePast = 600;           // an entry reaches this far past its doorway's middle; an exit box starts this far inside it
 	int32_t const kAutoPlotVolumeExitPast = 1200;      // an exit box reaches this far past its doorway's middle
 	int32_t const kAutoPlotVolumeSide = 600;           // an entry's and an exit box's half width at the doorway

@@ -30,6 +30,7 @@ namespace host
 		std::vector<int32_t> exitTo;          // the neighbouring AI module (its master's object index) of each
 		std::vector<WaypointProblem> problems;
 		size_t more = 0;                      // problems found past the ones kept
+		uint64_t waypointHash = 0;            // its master's WAYPOINT chunk's bytes, hashed (FNV-1a): the same as another file's = the same network (verify_waypoint_nets' stock)
 	};
 
 	// The level's scale (ENVSDSCL), 1 when it has none

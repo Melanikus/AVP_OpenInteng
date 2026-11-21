@@ -88,6 +88,12 @@ namespace host
 
 			module.master = one.index;
 			module.boxes = set.alien.size();
+			module.waypointHash = 14695981039346656037ull;
+
+			for (uint8_t const byte : one.waypoint)
+			{
+				module.waypointHash = (module.waypointHash ^ byte) * 1099511628211ull;
+			}
 
 			if (!EntryMarkers_Of(open, one.index, &markers))
 			{

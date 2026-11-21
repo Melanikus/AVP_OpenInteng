@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <set>
 #include <string>
 #include <vector>
 
@@ -97,9 +98,16 @@ int main(int argc, char **argv)
 	// the checks, and the exits named after except (each word after it that reads <master>:<exit>; at least one)
 	std::vector<std::string> checks;
 	std::vector<verify_nets::ExceptedExit> excepted;
+	char const *stockFile = nullptr;   // "stock <file>": the copy saved before the plot, so "<master>:*" can tell a module that keeps stock's network
 
 	for (int a = 3; a < argc; a++)
 	{
+		if (strcmp(argv[a], "stock") == 0 && a + 1 < argc)
+		{
+			stockFile = argv[++a];
+			continue;
+		}
+
 		if (strcmp(argv[a], "except") != 0)
 		{
 			checks.push_back(argv[a]);
@@ -142,6 +150,33 @@ int main(int argc, char **argv)
 
 	Check(WaypointNets_CheckLevel(&open, &nets, &why), "its AI modules' networks are read" + (why.empty() ? std::string() : " (" + why + ")"));
 
+	// THE STOCK SET (Frost's rule 11-20 for "<master>:*"): the AI modules whose network is the same in the copy as in the stock file (refused or not shaped by the
+	// auto-plot, so they kept stock's): only those can be excepted whole
+	// (matched by the master's object index: the auto-plot writes only WAYPOINT chunks and never renumbers a module, which verify_level_same {save1} {copy} --ignore
+	// WAYPOINT checks on the same run; a tool that renumbers modules would have to match by the master's name too: Frost's review 11-20)
+	std::set<int32_t> stock;
+
+	if (stockFile)
+	{
+		OpenLevelFile stockOpen;
+		std::vector<WaypointNetModule> stockNets;
+		std::string stockWhy;
+
+		Check(stockOpen.Open(stockFile) == LevelOpenResult::Opened && WaypointNets_CheckLevel(&stockOpen, &stockNets, &stockWhy), std::string("the stock file's networks are read: ") +
+			stockFile + (stockWhy.empty() ? std::string() : " (" + stockWhy + ")"));
+
+		for (WaypointNetModule const &net : nets)
+		{
+			for (WaypointNetModule const &s : stockNets)
+			{
+				if (s.master == net.master && s.waypointHash == net.waypointHash)
+				{
+					stock.insert(net.master);
+				}
+			}
+		}
+	}
+
 	bool const all = strcmp(argv[2], "all") == 0;
 	char *end = nullptr;
 	long const master = all ? -1 : strtol(argv[2], &end, 10);
@@ -155,8 +190,24 @@ int main(int argc, char **argv)
 	// each named exception: the finding it excepts, said with the reason, or a failure when the copy has no such finding
 	for (verify_nets::ExceptedExit const &e : excepted)
 	{
-		WaypointProblem const *const p = verify_nets::FindExcepted(nets, e);
-		std::string const name = std::to_string(e.master) + ":" + std::to_string(e.exit);
+		WaypointProblem const *const p = verify_nets::FindExcepted(nets, e, &stock);
+		std::string const name = std::to_string(e.master) + ":" + (e.whole ? std::string("*") : std::to_string(e.exit));
+
+		if (e.whole)
+		{
+			if (p)
+			{
+				printf("  EXCEPTION  AI module %d: %s: %s (named: except %s)\n", (int)e.master, p->words.c_str(), verify_nets::kStockWhy, name.c_str());
+			}
+			else
+			{
+				Check(false, "except " + name + ": AI module " + std::to_string(e.master) + (stock.count(e.master) ? " keeps stock's network but has no finding (a named exception must name a "
+					"real finding)" : std::string(stockFile ? " has a network the planner wrote (not stock's): a whole-module exception covers only one that keeps stock's" :
+					" cannot be told stock's: give the stock file (stock <file>)")));
+			}
+
+			continue;
+		}
 
 		if (p)
 		{
@@ -227,7 +278,7 @@ int main(int argc, char **argv)
 
 		for (WaypointNetModule const *net : chosen)
 		{
-			verify_nets::Tally const t = verify_nets::Count(*net, kinds, check == "clean", excepted);
+			verify_nets::Tally const t = verify_nets::Count(*net, kinds, check == "clean", excepted, &stock);
 			std::string const exceptions = t.excepted ? " (" + std::to_string(t.excepted) + " excepted by name)" : std::string();
 
 			Check(t.found == 0, "AI module " + std::to_string(net->master) + " (" + std::to_string(net->boxes) + " boxes, " + std::to_string(net->exits.size()) + " exits): " + check + ": " +

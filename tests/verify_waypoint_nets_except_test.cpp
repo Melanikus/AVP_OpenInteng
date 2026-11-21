@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <set>
 #include <string>
 #include <vector>
 
@@ -182,6 +183,32 @@ int main()
 	}
 
 	// ---- the words
+	// ---- A MODULE THAT KEEPS STOCK'S NETWORK (Bishop 11-20, Frost's rule for "<master>:*": the whole-level plot leaves its refused and not-shaped AI modules with
+	// stock's own network, which the checker faults, strwll01 (149) and shft21 (305) on Genshd1). "<master>:*" names the whole module, and excepts every finding of
+	// it only when the module really keeps stock's network (its master in the stock set: its WAYPOINT the same as the stock file's); one the planner wrote still fails
+	{
+		ExceptedExit whole;
+
+		Check(verify_nets::ParseExceptedExit("305:*", &whole) && whole.master == 305 && whole.whole, "\"305:*\" names AI module 305 whole");
+
+		std::vector<ExceptedExit> const named = { whole };
+		std::set<int32_t> const stock = { 305 }, written;
+		WaypointNetModule shft21 = air06;
+
+		shft21.master = 305;
+
+		verify_nets::Tally const kept = verify_nets::Count(shft21, kExits, true, named, &stock);
+		verify_nets::Tally const ours = verify_nets::Count(shft21, kExits, true, named, &written);
+		std::vector<WaypointNetModule> const nets = { shft21 };
+
+		Check(kept.found == 0 && kept.excepted == 3, "305:* on a module that keeps stock's network: every finding an exception (" + std::to_string(kept.found) + " found, " +
+			std::to_string(kept.excepted) + " excepted)");
+		Check(ours.found == 3 && ours.excepted == 0, "305:* on a network the planner wrote: every finding still fails (" + std::to_string(ours.found) + " found)");
+		Check(verify_nets::FindExcepted(nets, whole, &stock) != nullptr && verify_nets::FindExcepted(nets, whole, &written) == nullptr,
+			"the finding 305:* names: there when it keeps stock's network, none when the planner wrote it (so the verifier fails that name)");
+		Check(strcmp(verify_nets::kStockWhy, "keeps stock's network: refused / not shaped") == 0, std::string("such an exception says why: ") + verify_nets::kStockWhy);
+	}
+
 	Check(strcmp(verify_nets::kExceptionWhy, "no alien route to this exit: an alien heading there walks the floor way (D4)") == 0, std::string("an exception says why: ") +
 		verify_nets::kExceptionWhy);
 

@@ -513,6 +513,71 @@ int main()
 		CHECK(!plan.shaped && !plan.notes.empty(), "not shaped, and said (" + Notes(plan) + ")");
 	}
 
+	// ---- A TRENCH (trench01, Genshd1 AI 371, in whole-b90f37bb: refused, "box 0: its centre is in box 1 too", Drake's V2 "no place in it outside the other boxes"): a flat
+	// trench floor (a level) between two sloping banks, the banks joined by a narrow ledge along its east side, so the banks and the ledge are ONE stair whose box (the
+	// bounding box of its cells) holds the whole level. A box inside another merges into it (Frost's rule 11-20): no centre in another box, both exits held, one network
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 300;
+		Cells(&floor, 0, 39, 16, 40, 2725, 300);   // the trench floor
+
+		for (int row = 0; row < 10; row++)   // the banks: 300 up each row away from the floor (a step the grid walks), to 3000 over it
+		{
+			Cells(&floor, 0, 39, 15 - row, 15 - row, 2425 - 300 * row, 300);
+			Cells(&floor, 0, 39, 41 + row, 41 + row, 2425 - 300 * row, 300);
+		}
+
+		Cells(&floor, 40, 41, 15, 41, 2425, 300);   // the ledge along the east side, 300 over the floor, from bank to bank (too narrow to be a level)
+
+		std::vector<std::vector<int32_t> > const exits = { { -300, 1975, 8400 }, { 6000, -1025, 15300 } };
+		std::vector<host::AutoPlotDoor> const doors(2);
+		host::AutoPlotPlan const lv = host::AutoPlot_LevelsVolumes(floor, exits, doors, 1.0, "open sky");
+
+		Check(lv.volumes && lv.centresShared == 0 && lv.exitsCovered == 2 && lv.parts == 1, "A TRENCH: the stair round both banks holds the trench's level whole, so the level "
+			"merges into it: no centre in another box, both exits held, one network (" + std::to_string((long long)lv.floorBoxes) + " floors, shared " +
+			std::to_string((long long)lv.centresShared) + ", exits " + std::to_string((long long)lv.exitsCovered) + ", parts " + std::to_string((long long)lv.parts) + ")");
+	}
+
+	// ---- EXITS AT ONE POINT (yard04, Genshd1 AI 108, in whole-b90f37bb: refused, "box 1: its centre is in box 3 too": exits 0 and 2 stand at one point, so do 1 and 3, and
+	// each had a box, two the same). A yard floor with its four exits at two points: one exit box a point, both exits held by it, no centre in another box
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 300;
+		Cells(&floor, 0, 19, 0, 19, 2000, 300);
+
+		std::vector<std::vector<int32_t> > const exits = { { -300, 1250, 3000 }, { 6000, 1250, 3000 }, { -300, 1250, 3000 }, { 6000, 1250, 3000 } };
+		std::vector<host::AutoPlotDoor> const doors(4);
+		host::AutoPlotPlan const lv = host::AutoPlot_LevelsVolumes(floor, exits, doors, 1.0, "open sky");
+
+		Check(lv.volumes && lv.centresShared == 0 && lv.exitsCovered == 4 && lv.exitBox.size() == 4 && lv.exitBox[0] >= 0 && lv.exitBox[0] == lv.exitBox[2] &&
+			lv.exitBox[1] >= 0 && lv.exitBox[1] == lv.exitBox[3] && lv.exitBox[0] != lv.exitBox[1], "EXITS AT ONE POINT: one exit box a point, both its exits held by it, no "
+			"centre in another box (shared " + std::to_string((long long)lv.centresShared) + ", exits " + std::to_string((long long)lv.exitsCovered) + ", boxes " +
+			std::to_string((long long)lv.list.size()) + ")");
+	}
+
+	// ---- A DOORWAY INSIDE THE FLOOR'S FOOTPRINT (BLOCK-01 and OPEN-16, on Hudson's route, in the whole-level plot on 5e58207f: refused "box 2: its centre is in box 0
+	// too": an open-sky floor runs on 1.9 m past a doorway's middle, so the exit box's centre, 1000 past it, is in the floor box and V2 has nowhere to move it). A yard
+	// whose floor runs 1350 past its east doorway's middle: the exit's centre goes on along the way through until no floor box holds it
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 300;
+		Cells(&floor, 0, 19, 0, 9, 2000, 300);
+
+		std::vector<std::vector<int32_t> > const exits = { { -300, 1250, 1350 }, { 4500, 1250, 1350 } };
+		std::vector<host::AutoPlotDoor> doors(2);
+
+		doors[1].throughFound = true, doors[1].middle[0] = 4500, doors[1].middle[1] = 1250, doors[1].middle[2] = 1350, doors[1].through[0] = 1.0;
+		doors[1].soffitFound = true, doors[1].soffit[0] = 4500, doors[1].soffit[1] = -500, doors[1].soffit[2] = 1350;
+
+		host::AutoPlotPlan const lv = host::AutoPlot_LevelsVolumes(floor, exits, doors, 1.0, "open sky");
+
+		Check(lv.volumes && lv.centresShared == 0 && lv.exitsCovered == 2, "A DOORWAY INSIDE THE FLOOR'S FOOTPRINT: the exit's centre on along the way through, out of the "
+			"floor box: no centre in another box, both exits held (shared " + std::to_string((long long)lv.centresShared) + ", exits " + std::to_string((long long)lv.exitsCovered) + ")");
+	}
+
 	printf("%d checks, %d failed\n", checks, checksFailed);
 	return checksFailed ? 1 : 0;
 }

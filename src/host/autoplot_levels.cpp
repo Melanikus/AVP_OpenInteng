@@ -354,6 +354,46 @@ namespace host
 			u.hi[1] = u.floorLow + kAutoPlotLevelInto;
 		}
 
+		// NESTED BOXES MERGE (Frost's rule 11-20, trench01 of the whole-level plot: a stair round both banks of a trench, boxed by its cells' bounding box, held the trench
+		// floor's level whole, so no place in the level was outside it and the checker refused the module): a unit whose box lies inside another's along x and z, and
+		// over more than half its own height, merges
+		// into it, its cells and heights with them; the merged one keeps no cells (and gets no box)
+		for (bool merged = true; merged;)
+		{
+			merged = false;
+
+			for (size_t a = 0; a < units.size() && !merged; a++)
+			{
+				for (size_t b = 0; b < units.size() && !merged; b++)
+				{
+					Unit &A = units[a];
+					Unit &B = units[b];
+
+					double const oy = std::min(A.hi[1], B.hi[1]) - std::max(A.lo[1], B.lo[1]);   // their heights' overlap: a storey over another, apart in height, never merges
+
+					if (a == b || A.cells.empty() || B.cells.empty() || B.lo[0] < A.lo[0] - 1.0 || B.hi[0] > A.hi[0] + 1.0 || B.lo[2] < A.lo[2] - 1.0 || B.hi[2] > A.hi[2] + 1.0 ||
+						oy <= (B.hi[1] - B.lo[1]) / 2.0)
+					{
+						continue;
+					}
+
+					for (int const c : B.cells)
+					{
+						cells[(size_t)c].unit = (int)a;
+						A.cells.push_back(c);
+					}
+
+					A.floorTop = std::min(A.floorTop, B.floorTop);
+					A.floorLow = std::max(A.floorLow, B.floorLow);
+					A.lo[1] = std::min(A.lo[1], B.lo[1]);
+					A.hi[1] = std::max(A.hi[1], B.hi[1]);
+					A.patch = A.patch < 0 ? B.patch : A.patch;   // a level merged into a stair keeps its room patch (Frost's review 11-20)
+					B.cells.clear();
+					merged = true;
+				}
+			}
+		}
+
 		// 4. THE LINKS between floor boxes whose cells are neighbours: a step, or a riser (the lower box reaching up to the upper)
 		std::map<std::pair<int, int>, double> nearest;   // each pair of units next to each other: the smallest height step between neighbouring cells
 
@@ -468,6 +508,11 @@ namespace host
 
 		for (size_t u = 0; u < units.size(); u++)
 		{
+			if (units[u].cells.empty())
+			{
+				continue;   // (merged into the box round it)
+			}
+
 			if (!reached[u] && !exits.empty())
 			{
 				dropped++;
@@ -520,9 +565,25 @@ namespace host
 		}
 
 		size_t exitsPlaced = 0;
+		std::vector<bool> placedExit(exits.size(), false);
 
 		for (size_t x = 0; x < exits.size(); x++)
 		{
+			// EXITS AT ONE POINT (yard04 of the whole-level plot: exits 0 and 2 stood at one doorway point, so did 1 and 3, and each had a box, two the same): the later one
+			// shares the earlier one's box (AutoPlot_LevelsVolumes points it there)
+			bool atPlaced = false;
+
+			for (size_t y = 0; y < x && !atPlaced && exits[x].size() == 3; y++)
+			{
+				atPlaced = placedExit[y] && exits[y].size() == 3 && fabs((double)exits[y][0] - exits[x][0]) < 1.0 && fabs((double)exits[y][1] - exits[x][1]) < 1.0 &&
+					fabs((double)exits[y][2] - exits[x][2]) < 1.0;
+			}
+
+			if (atPlaced)
+			{
+				continue;
+			}
+
 			if (exitUnit[x] < 0 || boxOf[(size_t)exitUnit[x]] < 0)
 			{
 				plan.notes.push_back("exit " + std::to_string((long long)x) + ": no floor cell under it within " + std::to_string((long long)kAutoPlotLevelExitReach) + " mm of its height");
@@ -548,6 +609,7 @@ namespace host
 			k.flagsAtTo = kLinkAlien;
 			plan.links.push_back(k);
 			plan.boxes.push_back(b);
+			placedExit[x] = true;
 			exitsPlaced++;
 		}
 
@@ -744,6 +806,36 @@ namespace host
 
 				b.centres.push_back(std::vector<double>{ d.middle[0] + tx * kAutoPlotAimPast, midDoor, d.middle[2] + tz * kAutoPlotAimPast });
 				b.centres.push_back(std::vector<double>{ p[0], p[1], p[2] });
+
+				// A DOORWAY INSIDE THE FLOOR'S FOOTPRINT (BLOCK-01, OPEN-16 of the whole-level plot: an open-sky floor runs on past the doorway, so the centre above is in a floor
+				// box): further on along the way through, every 300 to kAutoPlotLevelExitFar past the doorway's middle, the box grown to hold them; the emit takes the first no
+				// other box holds. Only then: every other exit box is as before
+				auto const inFloor = [&boxes](double x, double y, double z)
+				{
+					for (AutoPlotLevelBox const &o : boxes)
+					{
+						if (o.kind == kAutoPlotLevelFloor && x >= o.lo[0] && x <= o.hi[0] && y >= o.lo[1] && y <= o.hi[1] && z >= o.lo[2] && z <= o.hi[2])
+						{
+							return true;
+						}
+					}
+
+					return false;
+				};
+
+				if (inFloor(d.middle[0] + tx * kAutoPlotAimPast, midDoor, d.middle[2] + tz * kAutoPlotAimPast))
+				{
+					for (double along = kAutoPlotAimPast + 300.0; along <= kAutoPlotLevelExitFar + 0.5; along += 300.0)
+					{
+						double const cx = d.middle[0] + tx * along, cz = d.middle[2] + tz * along;
+
+						b.centres.push_back(std::vector<double>{ cx, midDoor, cz });
+						b.lo[0] = std::min(b.lo[0], cx - 1.0);
+						b.hi[0] = std::max(b.hi[0], cx + 1.0);
+						b.lo[2] = std::min(b.lo[2], cz - 1.0);
+						b.hi[2] = std::max(b.hi[2], cz + 1.0);
+					}
+				}
 			}
 			else
 			{
@@ -836,6 +928,19 @@ namespace host
 			if (boxes[i].kind == kAutoPlotLevelExit && boxes[i].exit >= 0 && (size_t)boxes[i].exit < exits.size())
 			{
 				plan.exitBox[(size_t)boxes[i].exit] = (int32_t)i;
+			}
+		}
+
+		// an exit at another's point shares that one's box (EXITS AT ONE POINT, above)
+		for (size_t x = 0; x < exits.size(); x++)
+		{
+			for (size_t y = 0; y < x && plan.exitBox[x] < 0 && exits[x].size() == 3; y++)
+			{
+				if (plan.exitBox[y] >= 0 && exits[y].size() == 3 && fabs((double)exits[y][0] - exits[x][0]) < 1.0 && fabs((double)exits[y][1] - exits[x][1]) < 1.0 &&
+					fabs((double)exits[y][2] - exits[x][2]) < 1.0)
+				{
+					plan.exitBox[x] = plan.exitBox[y];
+				}
 			}
 		}
 

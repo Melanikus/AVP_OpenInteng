@@ -842,7 +842,7 @@ namespace host
 					AutoPlotDoor const &dk = doors[(size_t)k];
 
 					if (twinOf[(size_t)x] < 0 && fabs(dk.middle[0] - dx.middle[0]) <= kAutoPlotVolumeSide && fabs(dk.middle[2] - dx.middle[2]) <= kAutoPlotVolumeSide &&
-						fabs(dk.middle[1] - dx.middle[1]) <= kAutoPlotLevelStep && dk.through[0] * dx.through[0] + dk.through[1] * dx.through[1] > 0.7)
+						fabs(dk.middle[1] - dx.middle[1]) <= kAutoPlotVolumeTwinRise && dk.through[0] * dx.through[0] + dk.through[1] * dx.through[1] > 0.7)
 					{
 						twinOf[(size_t)x] = k;
 						lanesAt[(size_t)laneRect[(size_t)x]]--;
@@ -969,8 +969,9 @@ namespace host
 			plan.volumeKind = !ceiled ? "open sky" : (apart >= 1 && rects.size() >= 3) ? "stairs or levels" : lanes.empty() ? "no doorway" : lanes.size() == 1 ? "dead end" :
 				oneRect ? "corridor" : twoRects ? "corner" : lanes.size() == 2 ? "room with 2 doorways" : funnelRect >= 0 ? "junction (T)" : "junction or room";
 
-			// STAIRS OR LEVELS: the levels' rule (Frost 11-20, autoplot_levels.h); when it can't shape them either, named below
-			if (plan.volumeKind == "stairs or levels")
+			// STAIRS OR LEVELS, and OPEN SKY (no ceiling: nothing to climb to, no lane; Bishop 11-20 for Hudson's full Genshd1 run, 60 of its modules): the levels' rule
+			// (Frost 11-20, autoplot_levels.h: its floor walk); when it can't shape them either, named below
+			if (plan.volumeKind == "stairs or levels" || plan.volumeKind == "open sky")
 			{
 				AutoPlotPlan const levels = AutoPlot_LevelsVolumes(floorIn, exits, doors, levelScale, plan.volumeKind);
 

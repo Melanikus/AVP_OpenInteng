@@ -1070,6 +1070,39 @@ int main()
 			" LOW, " + std::to_string((long long)westLows) + " west; " + plan.volumeKind + ")");
 	}
 
+	// ---- OPEN SKY (Bishop 11-20 ~21:40, for Hudson's full Genshd1 run: the whole-level plot ac998c8d left 60 open-sky modules NOT SHAPED, "no rule for it yet", so they kept
+	// stock's networks: OPEN-*, yard*, STREETB-*, PROC*, trench*, the streets and yards aliens walk). A floor with NO ceiling over it, 6 x 3 m, a doorway at each end: the
+	// levels' rule's floor walk (floor boxes, an exit box at each doorway, floor <-> exit; no climb, no ceiling lane), every box reaching every other
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 300;
+
+		for (int32_t iz = 0; iz <= 9; iz++)
+		{
+			for (int32_t ix = 0; ix <= 19; ix++)
+			{
+				floor.cells.push_back(std::vector<int32_t>{ ix * 300, 2000, iz * 300 });   // (no ceiling over any)
+			}
+		}
+
+		std::vector<std::vector<int32_t> > exits = { { -250, 750, 1350 }, { 5950, 750, 1350 } };
+		std::vector<host::AutoPlotDoor> doors = { Door(-150, 1350, -1.0, 0.0), Door(5850, 1350, 1.0, 0.0) };
+		host::AutoPlotPlan const plan = host::AutoPlot_PlanVolumes({}, exits, floor, doors, 1.0);
+		int const floors = (int)plan.floorBoxes;   // (the levels' rule counts its floor boxes; it names no volume roles)
+		int climbing = 0;
+
+		for (size_t b = 0; b < plan.list.size() && b < plan.climbing.size(); b++)
+		{
+			climbing += plan.climbing[b] ? 1 : 0;
+		}
+
+		Check(plan.volumes && plan.volumeKind.find("open sky") != std::string::npos && floors >= 1 && climbing == 0, "OPEN SKY: shaped by the levels' floor walk (" + plan.volumeKind +
+			", " + std::to_string((long long)floors) + " floor boxes, " + std::to_string((long long)climbing) + " climbing" + (plan.notes.empty() ? std::string() : "; " + plan.notes[0]) + ")");
+		Check(plan.exitsCovered == 2 && plan.exitBox.size() == 2 && plan.exitBox[0] >= 0 && plan.exitBox[1] >= 0, "both doorways' exits covered, each by its own box");
+		Check(!plan.list.empty() && AllReach(plan.list) && plan.parts == 1 && plan.centresShared == 0, "every box reaches every other, one network, no centre shared");
+	}
+
 	// ---- A DOOR SLAB (Drake's count on d523d3b3, 8 modules "box 1 cannot reach box 0": medoor01, medoor02, shdr01, door01, MNDR01, opsdr01, opsdr02): a door frame's
 	// module, its floor one 300 mm cell deep along the passage (x) and 6.9 m across (z), a doorway on each face. As a corridor its climb went on a 300 mm end and led up
 	// into nothing. THE DOORWAY KIND: the floor, ONE entry over the whole slab past both doorways, the two exits; no climb, no get-out. Floor <-> entry (the way up, so
@@ -1185,6 +1218,29 @@ int main()
 			"the twin's exit point is in the first one's exit box, and it has the same entry; all 3 exits covered");
 	}
 
+	// ---- TWO EXITS THROUGH ONE DOORWAY AT TWO HEIGHTS (the whole-level plot on 242d5fc8: start and tolift, on Hudson's route, refused "box 3: its centre is in box 4
+	// too": two exits through one doorway with their points 780 mm apart in height, start's 14417 and 15196, so the twin test's 450 missed them and each had an entry
+	// of its own, the same box). The bar above with its twin's middle and point 780 higher: still one doorway, one entry, no centre shared
+	{
+		host::AutoPlotFloor floor;
+
+		Cells(&floor, 0, 12000, 0, 3000);
+		Cells(&floor, 4800, 7200, -3600, -600);
+
+		std::vector<std::vector<int32_t> > exits = { { 6000, 750, -4000 }, { 12400, 750, 1500 }, { 12400, -30, 1700 } };
+		std::vector<host::AutoPlotDoor> doors = { Door(6000, -3900, 0.0, -1.0), Door(12300, 1500, 1.0, 0.0), Door(12300, 1500, 1.0, 0.0) };
+
+		doors[2].middle[1] = -30;   // (780 over the first one's)
+
+		host::AutoPlotPlan const plan = host::AutoPlot_PlanVolumes({}, exits, floor, doors, 1.0);
+
+		Check(plan.volumes && !plan.list.empty() && AllReach(plan.list) && plan.parts == 1 && plan.centresShared == 0, "TWO EXITS THROUGH ONE DOORWAY AT TWO HEIGHTS (780 "
+			"apart): one doorway, every box reaching every other, no centre shared (" + std::to_string((long long)plan.list.size()) + " volumes, shared " +
+			std::to_string((long long)plan.centresShared) + ")");
+		Check(plan.exitBox.size() == 3 && plan.exitBox[1] >= 0 && plan.exitBox[1] == plan.exitBox[2] && plan.doorBox[1] == plan.doorBox[2] && plan.exitsCovered == 3,
+			"the twin's exit point is in the first one's exit box, and it has the same entry; all 3 exits covered");
+	}
+
 	// ---- A RAMP WEST OF THE FIRST CELL (Genshd1's MOD-01, 11-20: the first build never came back from it). The cells' grid starts at the first cell given, so cells west of
 	// it have NEGATIVE indices; a rectangle whose floor rises more than kAutoPlotFloorRise is halved, and (ix0 + ix1) / 2 rounds toward zero: -5 and -4 gave -4, the same
 	// rectangle for ever. 12 m of floor rising 2 m eastward (y down), the first cell its east end; walls along z -300 and 3300
@@ -1259,7 +1315,8 @@ int main()
 		Check(plan.cellsCovered == 6 && plan.cells == 12, "the first column's cells in its floor box, the one-cell row left out (" + std::to_string((long long)plan.cellsCovered) + " of " + std::to_string((long long)plan.cells) + ")");
 	}
 
-	// ---- OPEN SKY (no ceiling over the floor): not shaped, NO network (Bishop's ruling 11-20: never the old small boxes), named
+	// ---- OPEN SKY (no ceiling over the floor): never the old small boxes (Bishop's ruling 11-20); since Hudson's full-level run (Bishop 11-20 ~21:40) the levels' floor walk
+	// shapes it: a few room-sized boxes (its floor and an exit box at each doorway), no climbing box
 	{
 		host::AutoPlotFloor floor;
 
@@ -1270,8 +1327,16 @@ int main()
 		std::vector<host::AutoPlotDoor> doors = { Door(-300, 1500, -1.0, 0.0), Door(6300, 1500, 1.0, 0.0) };
 		host::AutoPlotPlan const plan = host::AutoPlot_PlanVolumes({}, exits, floor, doors, 1.0);
 
-		Check(!plan.volumes && plan.volumeKind == "open sky" && !plan.notes.empty() && plan.notes[0].compare(0, 11, "NOT SHAPED:") == 0, "OPEN SKY: not shaped, named (" + plan.volumeKind +
-			(plan.notes.empty() ? std::string() : ": " + plan.notes[0]) + ")");
+		bool noClimb = true;
+
+		for (size_t b = 0; b < plan.climbing.size(); b++)
+		{
+			noClimb = noClimb && !plan.climbing[b];
+		}
+
+		Check(plan.volumes && plan.volumeKind.find("open sky") != std::string::npos && plan.list.size() <= 6 && noClimb, "OPEN SKY: the levels' floor walk, a few room-sized "
+			"boxes, never the old small ones, no climbing box (" + plan.volumeKind + ", " + std::to_string((long long)plan.list.size()) + " boxes" + (plan.notes.empty() ? std::string() :
+			": " + plan.notes[0]) + ")");
 	}
 
 	printf("%d checks, %d failed\n", checks, checksFailed);
