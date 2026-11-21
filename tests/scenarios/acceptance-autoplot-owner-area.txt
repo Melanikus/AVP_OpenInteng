@@ -1,0 +1,75 @@
+# ACCEPTANCE (a TEST for the owner, not a release): HIS AREA PLOTTED BY THE VOLUME PLANNER (the owner 11-20: "I did not get the pieces I asked plotted", "we don't want manual
+# plots anymore, we know it works, we need to get our auto-plot waypoint system to work"; Bishop's order: Auto-plot selected on his modules must reproduce Drake's hand6g,
+# f2f95742, his in-game proof). His modules on a private copy of STOCK Genshd1 (19f00eae): gencor01..05, SHED01, SHED05, SHED10, STEPS04, selected by clicks (as the
+# series acceptance), then Auto-plot selected AI modules (stock has no network in them, so no replace question). Pictures: gencor03 straight down, then 45 degrees round
+# and up over gencor03 and SHED01. The saved copy is the gate's input: Drake's gold compare against hand6g (AvP-docs/tools/drake/lanes/gold-compare.sh <copy> <out>
+# <editor-output>: on 544831f0 all five of hand6g's modules pair, 57 boxes, 156 links the same), Frost's checker, climbwalk.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Waypoint
+
+# ---- his modules selected by clicks
+wait 600
+camera-corner gencor01
+click-view 0.50 0.50
+wait 400
+camera-corner gencor02
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor03
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor04
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor05
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner SHED01
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner SHED05
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner SHED10
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner STEPS04
+click-view 0.50 0.50 ctrl
+wait 400
+expect-field waypointselection gencor01|gencor02|gencor03|gencor04|gencor05|SHED01|SHED05|SHED10|STEPS04
+
+# ---- Alien auto waypoint > Modules (the volume planner): its dialog starts with the Ctrl+click set's names and the default counts; the Airduct box, unticked as it
+# opens (the owner 11-20 19:06), ticked by a press; Ok plots them
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+expect-dialog-checks off
+click-check 1
+expect-dialog-checks on
+click-button Ok
+wait-status 300000 written
+expect-status AI modules written
+
+# ---- the pictures: gencor03 straight down, then 45 degrees round and up
+camera 42188 -22000 27276 0
+camera-look 1024 0
+wait 600
+picture 1
+camera-orbit gencor03 45 45 16000
+wait 600
+picture 2
+camera-orbit SHED01 45 45 20000
+wait 600
+picture 3
+
+# ---- the saved copy, for the gate
+save-copy
+
+# AIRDUCT, the box ticked, on every module the planner shaped (Bishop 11-20, Drake's read-back of 435ff6c7: hand6g has it on all its shaped modules, the owner's force-crawl), read back
+# through the game's own loader (red on 6948a055's copy: none of the nine had a MODFLAGS). STEPS04, a staircase, is not shaped since 4cd2bc76 (a door slab is flat) until
+# Frost's levels call takes it, so it is not in the list
+verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/verify_objects.exe {copy} modflags gencor01|80000000|80000000 modflags gencor02|80000000|80000000 modflags gencor03|80000000|80000000 modflags gencor04|80000000|80000000 modflags gencor05|80000000|80000000 modflags SHED01|80000000|80000000 modflags SHED05|80000000|80000000 modflags SHED10|80000000|80000000

@@ -1,0 +1,58 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-19, THE OWNER'S ASK: "see and be able to edit all alien paths and volumes across all modules"; Bishop's gate): EDITING ACROSS MODULES from the
+# waypoint display. In Waypoint mode 0 every network is drawn; a click on a box of opscen03 opens its AI module with that box current, inteng's Edit Extents moves one face of it, Finish
+# Extent Edit, Exit (every network again); then the same on a box of Ops01; File > Save a copy. The copy, read back by the game's own loader (verify_waypoint_boxes), holds exactly one
+# moved box in each of the two AI modules (153, 158) and no other change in any of the 244 networks. Every edit is written into the level at once (waypoint_mode.h "named (1)").
+# HIS FILE: a private copy of his Steam Genshd1, Dietrich's auto-plot v2d (21f1578e: vasquez-wpall-level), opened as a double click.
+# Edit Extents and Finish Extent Edit are on the lower bar, which click-bar does not reach: sent as their items (0x14, 0x13), as the other waypoint scenarios do.
+# RED on the bishop-int before it (896b59b4): the click is inteng's module pick, so no box opens.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-wpall-level/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-wpall-level/Genshd1.RIF
+pictures on
+state
+expect-field levelbytes 2117984
+expect-screen Waypoint
+wait 800
+expect-number waypointall networks 244 244
+
+# ---- a box of opscen03: opened, one face moved in Edit Extents' top view, written
+camera-corner opscen03
+click-view 0.50 0.50
+wait 400
+# a second click on a box of the AI module just picked opens it (the first is inteng's pick)
+click-view 0.50 0.50
+wait 600
+expect-field-has waypointnets opscen03 boxes 73
+item 0x14
+wait 600
+drag-face current top right 20 20
+wait 400
+item 0x13
+wait 400
+click-bar Mode > Exit
+wait 600
+expect-number waypointall networks 244 244
+picture 1
+
+# ---- a box of Ops01 the same way
+camera-corner Ops01
+click-view 0.50 0.50
+wait 400
+# a second click on a box of the AI module just picked opens it (the first is inteng's pick)
+click-view 0.50 0.50
+wait 600
+expect-field-has waypointnets Ops01 boxes 82
+item 0x14
+wait 600
+drag-face current side right 20 20
+wait 400
+item 0x13
+wait 400
+click-bar Mode > Exit
+wait 600
+expect-number waypointall networks 244 244
+picture 2
+
+# ---- saved and read back: one box moved in each, nothing else
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_boxes.exe {copy} C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-wpall-level/Genshd1.RIF 153 158

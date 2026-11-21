@@ -91,6 +91,29 @@ int main()
 	status = "";
 	Check(Says(status, ""), "set to empty words: an empty line, not null");
 
+	// WHO SAID THEM (Vasquez 11-19, the owner's status line call): Say keeps the sayer, any plain setting is Other's, and the screens inteng draws no status line on draw it only
+	// while the words are their own mouse tool's
+	Check(status.Sayer() == StatusSayer::Other, "a plain setting is Other's");
+	status.Say("No waypoint under the pointer: none is current now", StatusSayer::WaypointMouse);
+	Check(Says(status, "No waypoint under the pointer: none is current now") && status.Sayer() == StatusSayer::WaypointMouse, "Say sets the words (copied, as a plain setting) and the sayer");
+	status = "Base is waypoint 0";
+	Check(status.Sayer() == StatusSayer::Other, "the next plain setting (a menu item's words) is Other's again");
+	status.Say("FMVs\\message47.smk: SMK2 128 x 96", StatusSayer::StrategyView);
+	Check(status.Sayer() == StatusSayer::StrategyView, "the edit view's words are the StrategyView's");
+	status.Say(nullptr, StatusSayer::StrategyView);
+	Check((char const *)status == nullptr && status.Sayer() == StatusSayer::Other, "Say with nothing to say: nothing said, and no sayer");
+	status.Say("C:\\Users\\someone\\Documents\\Genshd1.RIF opened", StatusSayer::WaypointMouse);
+	Check(Says(status, "Genshd1.RIF opened"), "Say cuts a full path to its name too (the privacy rule)");
+
+	Check(StatusWords_ShownWhereIntengHidesIt(StatusSayer::WaypointMouse, true, false), "the Waypoint screen draws its mouse tool's words");
+	Check(!StatusWords_ShownWhereIntengHidesIt(StatusSayer::Other, true, false) && !StatusWords_ShownWhereIntengHidesIt(StatusSayer::StrategyView, true, false),
+		"and no other words (inteng's: none)");
+	Check(StatusWords_ShownWhereIntengHidesIt(StatusSayer::StrategyView, false, true), "Strategy's edit view draws its own words");
+	Check(!StatusWords_ShownWhereIntengHidesIt(StatusSayer::Other, false, true) && !StatusWords_ShownWhereIntengHidesIt(StatusSayer::WaypointMouse, false, true),
+		"and no other words (the view's own hint is not drawn)");
+	Check(!StatusWords_ShownWhereIntengHidesIt(StatusSayer::WaypointMouse, false, false) && !StatusWords_ShownWhereIntengHidesIt(StatusSayer::StrategyView, false, false),
+		"elsewhere it has no say");
+
 	printf("%d checks, %d failed\n", checks, checksFailed);
 	return checksFailed == 0 ? 0 : 1;
 }

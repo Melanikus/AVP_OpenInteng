@@ -5,6 +5,8 @@ open source. Like inteng, it works on a level once its geometry is built: place 
 behaviour, map textures onto the polygons, light the level, set its sounds and acoustics, lay out the AI's paths and waypoints, link
 its modules, and set the level-wide settings. It works exactly like inteng, minus bugs and... you can move the camera with your mouse.
 
+**It runs on a plain Steam AvP, no AvPx needed:** the editor brings its own shaders (since alpha.2).
+
 **Aliens versus Predator was created by Rebellion, who own it.** The source code to Aliens vs Predator is copyright (c) 1999-2000
 Rebellion, and this editor compiles part of it. It may not be used, in full or in part, for commercial purposes. A huge thank you to
 Rebellion for the most awesome game. AVP_OpenInteng's own code is MIT (it belongs to everyone who loves this game); the game's code and
@@ -28,7 +30,8 @@ inteng's quoted words stay Rebellion's. See `License.txt`.
 ## Its settings (AVP_OpenInteng.ini)
 
 The zip has an `AVP_OpenInteng.ini` beside the editor. Before the first start, add two lines under its `[Editor]`: `DataFolder=` (your
-own copy of the game's data, the folder that holds `avp_rifs`) and `Level=` (the level to open when none is given, without `.rif`).
+game's folder or a copy of it, the one that holds `avp_rifs`; a plain Steam install works as it is) and `Level=` (the level to open
+when none is given, without `.rif`).
 
 - `StartWidth=` and `StartHeight=` are the size the window starts at, inside its frame: 1280 x 720 in the zip. They're kept to at least
   640 x 480 and at most your monitor.
@@ -50,19 +53,37 @@ registry**: Windows keeps the choice itself.
 
 What happens to the file:
 
-- It's copied into the editor's own data folder (`DataFolder=` in `AVP_OpenInteng.ini`), into its `avp_rifs`, under its own name,
-  and opened from there, as the game opens its levels. The file you picked is only read.
+- It's copied into the editor's own data folder (`DataFolder=` in `AVP_OpenInteng.ini`), into its `avp_rifs\OpenedByEditor`, under its
+  own name, and opened from there. Only the editor puts files in that folder. The file you picked is only read.
 - Only a regular `.rif` file of at most 16 MB is taken: not a folder, a link or a device.
 - Its name, without `.rif`, has to be one a game file could have: plain letters and digits, and `_ - . + & @` and spaces. Otherwise
   the editor asks you to rename it.
-- If a different level is already in the editor's `avp_rifs` under that name, it's never replaced: the editor asks you to rename
-  yours. The same file, opened again, is simply opened.
+- A file opened before under the same name is replaced by the new copy, since that folder is the editor's own. Opening that copy
+  itself simply opens it.
 
-## Your own videos
+## Your own videos (mp4-to-smk)
 
-AvP plays its in-game videos (the messages on a level's monitors) as Smacker `.smk` files: 128 x 96 at 15 frames a second,
-with sound at 22,050 Hz, 8-bit, mono. The editor's Message view lists the videos it finds in your game's `FMVs` folder and plays them
-with their sound. A converter from your own video files comes back in a later release.
+AvP plays its in-game videos (the messages on a level's monitors) as Smacker `.smk` files. `mp4-to-smk.exe`, in the zip beside the
+editor, turns your own video into one in AvP's own format:
+
+```
+mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source] [--max-seconds N] [--max-input-mb N]
+```
+
+- **In:** `.mp4`, `.m4v`, `.avi` or `.wmv`, read by Windows' own Media Foundation. By default at most 256 MB and 180 seconds, and 4096 pixels a side;
+  `--max-input-mb` (up to 2048) and `--max-seconds` (up to 600) take more. A video too big for the program's memory is refused in words.
+- **Out, always:** 128 x 96 at 15 frames a second, sound at 22,050 Hz, 8-bit, mono: the format of AvP's own message videos.
+- **A video that isn't 4:3:** it asks whether to resize it to fit (the whole picture, with black bars) or crop it to fill (the edges
+  cut). `--fit` or `--crop` answers first.
+- **Sound:** made as loud as AvP's own videos (`--level`, 1 to 128; the default is their median) and never clipped. `--level source`
+  keeps your video's own level.
+- **An existing output** is refused unless you add `--overwrite`.
+
+**Putting it in the game:**
+
+1. Convert it: `mp4-to-smk.exe myvideo.mp4 message900.smk` (the name is `message` and the Message strategy's number).
+2. Copy the `.smk` into the `FMVs` folder of your game's folder, beside AvP's own `message*.smk` files.
+3. In the level, the Message strategy with that number plays it when it fires. The editor's Message view lists the videos it finds.
 
 **How a level plays it.** A Message strategy, when it fires, plays `FMVs\message<n>.smk` from the game's folder, where `<n>` is
 the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` in its name, and it shows those message videos.
@@ -70,6 +91,10 @@ the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` i
 - For your own level, give its Message a number no stock level uses, and name your file after it. Replacing a stock
   `messageNNN.smk` changes that stock level too.
 - A monitor shows nothing when a video named after its own picture exists in `FMVs\`, and no video plays while a cheat is on.
+
+**The encoder** is `libsmackerenc.dll`, built from Barry Duncan's libsmackerdec (LGPL 2.1; its licence and source are in the zip's
+`licences` folder). The tool loads only the DLL shipped with it. To use your own build of it, as the LGPL allows, pass its SHA-256
+with `--encoder-sha256 <hex>`.
 
 ## Where to read next
 

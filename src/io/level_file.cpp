@@ -4,6 +4,7 @@
 #include "level_file.h"
 
 #include <algorithm>
+#include <atomic>
 #include <limits.h>
 #include <memory>
 #include <stddef.h>
@@ -39,6 +40,17 @@ size_t const MostChunks = 1u << 18;
 
 // Bytes of zeros after the memory a changed chunk is written into: if the library writes past the size it gave, it shows here
 size_t const GuardBytes = 256;
+
+// GENERATIONS (level_file.h Generation(); Vasquez 11-20): each open of a level, in any file object, starts at a number of its own, this far from the last open's, from
+// one count for the whole program. ReplaceLevel adds one within it. No editing session swaps a level 65,536 times in one open, and the count wraps only after 65,536 opens.
+// The count is atomic, because the planner may open levels away from the editor's own thread
+unsigned const kGenerationsAnOpen = 1u << 16;
+std::atomic<unsigned> theOpensCount(0);
+
+unsigned NextOpensGeneration()
+{
+	return (theOpensCount.fetch_add(1) + 1) * kGenerationsAnOpen;
+}
 
 // A chunk's size, from the 4 bytes after its name
 int SizeAt(std::vector<char> const & bytes, size_t at)
@@ -726,7 +738,7 @@ void OpenLevelFile::Close()
 	standsForPath.clear();
 	standsForKnown = false;
 	restructured = false;
-	generation = 0;
+	generation = NextOpensGeneration();   // the next open's own number, never the one before (GENERATIONS above)
 	changes = 0;
 }
 

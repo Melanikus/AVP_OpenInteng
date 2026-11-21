@@ -131,6 +131,7 @@
 #include "adjacency_generate.h"
 #include "waypoint_mode.h"
 #include "waypoint_view.h"
+#include "waypoint_all.h"   // THE WAYPOINT DISPLAY: every AI module's alien list (Dietrich)
 #include "track_pages.h"
 #include "editor_options.h"
 #include "shape_chooser.h"
@@ -172,6 +173,7 @@
 #include "view_toggles_game.h"
 #include "window_events.h"
 #include "open_with.h"
+#include "state_line.h"
 
 #include "editor_shared.h"
 
@@ -1813,8 +1815,149 @@ static void FlagViewTints(OpenLevelFile *open)
 	flagViewTintCount = modules.size();
 }
 
+// THE WAYPOINT DISPLAY (Vasquez 2026-11-19, the owner's ask through Bishop: "as I enter inteng to see ... all alien paths and volumes across all modules", "POC, I just need to vizualize it";
+// a named difference): on the AI modules page (Waypoint mode 0) the 3D view draws EVERY AI module's alien network (waypoint_all.h reads them, waypoint_view.h WaypointView_AllLines
+// draws them), no module hidden (mode 0 hides none). The view holds one list of world lines, so the picked module's entry-point markers go in front of them in the same list. The
+// list is made again only when the level was read again (WaypointAll_Reads), the markers changed, or the scale; between those it is the same list, so the overlay need not convert it.
+// The state line's "waypointall" says what was drawn ("" on the Waypoint screen's other modes). False when nothing was sent (not mode 0, no level).
+bool WaypointAllPass()
+{
+	static std::vector<host::TrackLine> lines;
+	static std::vector<host::TrackLine> markersFor;
+	static size_t readsFor = ~(size_t)0;
+	static double scaleFor = -1.0;
+	static std::string words;
+	static uint64_t made = 0;   // the list's change number: the overlay does not even read a list it was given under the same number (world_overlay.h)
+
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!OnWaypointScreen() || waypointMode.Mode() != 0 || !open || !open->Level())
+	{
+		if (OnWaypointScreen())
+		{
+			StateLine_Add("waypointall", "");
+		}
+
+		return false;
+	}
+
+	std::vector<host::TrackLine> markers;
+
+	if (!entryMarkers.empty())
+	{
+		EntryMarkerLines(&markers);
+	}
+
+	std::vector<host::AlienNet> const &nets = host::WaypointAll_AlienNets(open);
+	bool const sameMarkers = markers.size() == markersFor.size() && (markers.empty() || memcmp(markers.data(), markersFor.data(), markers.size() * sizeof(host::TrackLine)) == 0);
+
+	if (host::WaypointAll_Reads() != readsFor || local_scale != scaleFor || !sameMarkers)
+	{
+		std::vector<std::vector<host::WaypointRec> const *> lists;
+
+		for (host::AlienNet const &net : nets)
+		{
+			lists.push_back(&net.alien);
+		}
+
+		lines = markers;
+
+		host::WaypointAllCounts const counts = host::WaypointView_AllLines(lists, local_scale, &lines, false);   // (mode 0: red is inteng's pick, so no red closed halves)
+
+		words = "networks " + std::to_string((unsigned long long)counts.networks) + " boxes " + std::to_string((unsigned long long)counts.boxes) + " links " +
+			std::to_string((unsigned long long)counts.links) + " lines " + std::to_string((unsigned long long)lines.size());
+		markersFor = markers;
+		readsFor = host::WaypointAll_Reads();
+		scaleFor = local_scale;
+		made++;
+	}
+
+	host::WorldOverlay_Lines(lines.empty() ? nullptr : lines.data(), lines.size(), made);
+	StateLine_Add("waypointall", words);
+	return true;
+}
+
+// EDIT ACROSS MODULES (Vasquez 11-19; a NAMED DIFFERENCE: inteng shows one AI module's network and hides every other module): in Waypoint's modes 1 to 3 every OTHER AI module's
+// alien network is drawn DIMMED behind the current one (world_overlay.h WorldOverlay_Background, its own layer: the gizmo, the background, then the current network bright),
+// so the owner always sees which network an edit lands in. Made again, and sent under a new change number, only when the networks are read again, the level's scale, the
+// current AI module or the Ctrl set change. The Ctrl set's networks are left out of it (WaypointView_WorldLines draws them in inteng's plain colours with the current one).
+// Out of modes 1 to 3 it is taken away (mode 0 draws every network plain: WaypointAllPass). True while it shows.
+static bool WaypointOthersPass(OpenLevelFile *open)
+{
+	static std::vector<host::TrackLine> lines;
+	static size_t readsFor = ~(size_t)0;
+	static double scaleFor = -1.0;
+	static int32_t currentFor = -2;
+	static std::vector<int32_t> setFor;
+	static uint64_t made = 0;
+	static bool shown = false;
+	static std::string words;
+
+	if (!WaypointWorldOn() || !open || !open->Level())
+	{
+		if (shown)
+		{
+			host::WorldOverlay_Background(nullptr, 0, 0);
+			shown = false;
+		}
+
+		if (OnWaypointScreen())
+		{
+			StateLine_Add("waypointothers", "");
+		}
+
+		return false;
+	}
+
+	std::vector<host::AlienNet> const &nets = host::WaypointAll_AlienNets(open);
+	int32_t const current = waypointMode.CurrentModule();
+	std::vector<int32_t> set;
+
+	for (host::WaypointMode::ShownNet const &net : waypointMode.ShownNets())
+	{
+		set.push_back(net.master);
+	}
+
+	if (host::WaypointAll_Reads() != readsFor || local_scale != scaleFor || current != currentFor || set != setFor)
+	{
+		std::vector<std::vector<host::WaypointRec> const *> lists;
+
+		for (host::AlienNet const &net : nets)
+		{
+			if (net.master != current && std::find(set.begin(), set.end(), net.master) == set.end())
+			{
+				lists.push_back(&net.alien);
+			}
+		}
+
+		lines.clear();
+
+		host::WaypointAllCounts const counts = host::WaypointView_AllLines(lists, local_scale, &lines);
+
+		host::WorldOverlay_DimLines(&lines);
+		words = "networks " + std::to_string((unsigned long long)counts.networks) + " boxes " + std::to_string((unsigned long long)counts.boxes) + " links " +
+			std::to_string((unsigned long long)counts.links) + " lines " + std::to_string((unsigned long long)lines.size());
+		readsFor = host::WaypointAll_Reads();
+		scaleFor = local_scale;
+		currentFor = current;
+		setFor = set;
+		made++;
+	}
+
+	host::WorldOverlay_Background(lines.empty() ? nullptr : lines.data(), lines.size(), made);
+	StateLine_Add("waypointothers", words);   // the harness's: the dimmed networks behind the current one
+	shown = true;
+	return true;
+}
+
 // Waypoint's modes 1 to 3: only the AI module's modules are drawn (FUN_00583b40 0x583b69-0x583b8d sets +0x5c bit 4 on every module, then FUN_005890c0 clears it on the master and its slaves;
 // mode 1's Exit shows them all again, FUN_00583c10 -> FUN_004d41f0). The view rule's own hidden set carries it (Module Linking and Adjacent Modules set that set only on their screens).
+// MULTI-MODULE SELECTION (Vasquez 11-19, named; waypoint_mode.h): every other AI module of the set is kept with it (ShownGroup), and the state line says the set and the networks drawn.
+// EDIT ACROSS MODULES (Vasquez 11-19, named): while the other networks are drawn dimmed (WaypointOthersPass) NO module is hidden, so the dim networks have their rooms around them.
+// The harness's "waypointtints" (Vasquez 11-20, Drake's catch: 13 selected, 5 painted red): how many of Waypoint's painted modules the view was given a tint for, "<n> of <n> red, <n> of
+// <n> in all" (UpdateModuleTints below). A module the paint names that the view is not given (its game module number not found) shows white
+static std::string waypointTintWords;
+
 void WaypointHidePass()
 {
 	static bool hiding = false;
@@ -1824,7 +1967,16 @@ void WaypointHidePass()
 
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
-	if (!WaypointWorldOn() || !open || !open->Level())
+	if (OnWaypointScreen())
+	{
+		StateLine_Add("waypointselection", waypointMode.SelectionWords());   // the harness's: the set's AI modules ("" none)
+		StateLine_Add("waypointnets", waypointMode.NetsWords());             // the harness's: "<name> boxes <n> links <n>" of each network the view draws ("" in mode 0)
+		StateLine_Add("waypointtints", waypointTintWords);                   // the harness's: the paint the view was given (see above)
+	}
+
+	bool const othersShown = WaypointOthersPass(open);
+
+	if (!WaypointWorldOn() || !open || !open->Level() || othersShown)
 	{
 		if (hiding)
 		{
@@ -1836,7 +1988,7 @@ void WaypointHidePass()
 		return;
 	}
 
-	std::vector<int32_t> const group = waypointMode.CurrentGroup();
+	std::vector<int32_t> const group = waypointMode.ShownGroup();
 
 	if (!hiding || group != hiddenFor || hiddenGeneration != open->Generation())
 	{
@@ -1920,18 +2072,25 @@ void UpdateModuleTints(bool onAdjacent)
 		std::map<int32_t, uint32_t> const &paint = waypointMode.ModulePaint(open);
 		std::vector<int32_t> games;
 		std::vector<uint32_t> colours;
+		size_t reds = 0, redsGiven = 0;
 
 		for (std::map<int32_t, uint32_t>::const_iterator it = paint.begin(); it != paint.end(); ++it)
 		{
 			int32_t const game = GameModuleOfNumber(it->first);
+			bool const red = it->second == host::kWaypointModuleRed;
+
+			reds += red ? 1 : 0;
 
 			if (game >= 0)
 			{
 				games.push_back(game);
 				colours.push_back(it->second);
+				redsGiven += red ? 1 : 0;
 			}
 		}
 
+		waypointTintWords = std::to_string((unsigned long long)redsGiven) + " of " + std::to_string((unsigned long long)reds) + " red, " + std::to_string((unsigned long long)games.size()) + " of " +
+			std::to_string((unsigned long long)paint.size()) + " in all";
 		LevelView_SetObjectTints(nullptr, nullptr, 0);
 		LevelView_SetModuleTints(games.data(), colours.data(), games.size());
 		drawn = true;

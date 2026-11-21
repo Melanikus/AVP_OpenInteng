@@ -1,0 +1,115 @@
+# ACCEPTANCE, A SCREENSHOT TEST (Drake 2026-11-20, alpha.3 lock-in step 4; the owner: "Lock it in", through Bishop): THE AUTO-PLOT ON THE OWNER'S OK'D PATH, READ OFF THE SCREEN.
+# Stock Genshd1 (a private copy); the owner's 13 AI modules (SHED05, gencor04, gencor05, SHED01, gencor03, gencor01, SHED10, gencor02, shedent02, shedent03, genent03, genent02,
+# genent01: his "Yes, that's it", 11-20) Ctrl+clicked in Waypoint mode, then plotted by his own menu, Alien auto waypoint > Modules (the counts dialog left as it opens:
+# 1 climb-in, 1 get-out, Airduct as the box opens: unticked since the owner's 11-20 19:06 "Let's not auto set it anymore"). Then Mode > Show Alien Waypoints draws the 13 networks together, and the camera stands at 45 degrees on every axis (the owner's
+# rule 11-18, camera-corner) on three places of the path: the U's corner SHED01, the junction SHED10, and the long corridor's genent02. Each picture must SHOW the networks:
+# the links' green (inteng's colour for a link, Vasquez's W-2) over a share of the view. The pictures are kept for the owner.
+# Finished = all 13 written, 0 refused; all 13 networks drawn (waypointnets); the green links on every picture; each network clean by Frost's checker on the saved copy.
+# RED on a build without the volume planner and the menu (bishop-int before them): no "Alien auto waypoint" on Waypoint's bar.
+# Runs with pictures: it claims lane G (RUN-SLOT.txt) when FREE, as Bishop's rule says (11-20).
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Waypoint
+expect-bar1 Alien auto waypoint
+
+# ---- the owner's 13, Ctrl+clicked
+wait 600
+camera-corner SHED05
+click-view 0.50 0.50
+wait 400
+camera-corner gencor04
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor05
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner SHED01
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor03
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor01
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner SHED10
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor02
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner shedent02
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner shedent03
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner genent03
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner genent02
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner genent01
+click-view 0.50 0.50 ctrl
+wait 400
+expect-field waypointselection SHED05|gencor04|gencor05|SHED01|gencor03|gencor01|SHED10|gencor02|shedent02|shedent03|genent03|genent02|genent01
+
+# ---- plotted by his menu
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
+wait-status 300000 written
+expect-status Auto-plot: 13 AI modules written, 0 refused
+
+# ---- the 13 networks drawn together
+click-bar Mode > Show Alien Waypoints
+wait 600
+state
+expect-field-has waypointnets SHED05 
+expect-field-has waypointnets gencor04 
+expect-field-has waypointnets gencor05 
+expect-field-has waypointnets SHED01 
+expect-field-has waypointnets gencor03 
+expect-field-has waypointnets gencor01 
+expect-field-has waypointnets SHED10 
+expect-field-has waypointnets gencor02 
+expect-field-has waypointnets shedent02 
+expect-field-has waypointnets shedent03 
+expect-field-has waypointnets genent03 
+expect-field-has waypointnets genent02 
+expect-field-has waypointnets genent01 
+
+# ---- READ THE SCREEN at 45 degrees on every axis: three places of the path, the links' green on each
+camera-corner SHED01
+wait 800
+picture 1
+expect-colour picture 0 0 1000 700 00ff00 0.0005 40
+camera-corner SHED10
+wait 800
+picture 2
+expect-colour picture 0 0 1000 700 00ff00 0.0005 40
+camera-corner genent02
+wait 800
+picture 3
+expect-colour picture 0 0 1000 700 00ff00 0.0005 40
+
+# ---- the saved copy: each network clean by Frost's checker
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 212 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 237 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 235 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 213 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 236 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 228 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 217 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 229 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 230 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 231 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 234 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 233 network exits connected most links clean
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 232 network exits connected most links clean

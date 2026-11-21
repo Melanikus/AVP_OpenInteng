@@ -5,7 +5,9 @@
      AvPx's dependencies\libsmackerenc), which it loads at run time from its own folder: no part of the encoder is compiled in.
      The settings follow the editor's (AVP_OpenInteng.vcxproj): Release|Win32, v145, /MD, /sdl, Control Flow Guard, /J and /we4834; it is a
      console program, Unicode (it takes wide arguments), C++17. Its objects go to their own folder, so the two projects never share an .obj or
-     a .pdb; the program goes beside the editor's in win32\VS2026\Win32\Release\. -->
+     a .pdb; the program goes beside the editor's in win32\VS2026\Win32\Release\.
+     Like any ordinary tool it says what it is (Bishop's order 11-19, the owner's antivirus question): a version resource (tools\mp4-to-smk\mp4-to-smk.rc)
+     and an application manifest naming Windows 10 and 11 (tools\mp4-to-smk\mp4-to-smk.manifest), with the linker's asInvoker. -->
 <Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Release|Win32">
@@ -68,6 +70,8 @@
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
       <DataExecutionPrevention>true</DataExecutionPrevention>
       <TargetMachine>MachineX86</TargetMachine>
+      <!-- no more rights than the user's own: the manifest's trustInfo -->
+      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -81,6 +85,12 @@
     <ClInclude Include="..\..\src\host\dll_pins.h" />
     <ClInclude Include="..\..\src\host\smk_encoder.h" />
     <ClInclude Include="..\..\src\host\video_import.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\..\tools\mp4-to-smk\mp4-to-smk.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="..\..\tools\mp4-to-smk\mp4-to-smk.manifest" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

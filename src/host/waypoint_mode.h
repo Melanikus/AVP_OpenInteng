@@ -92,6 +92,26 @@ namespace host
 		// Mode 0: the picked module (inteng's DAT_0091bed4: a module of the current AI module, or another AI module's master), or -1
 		int32_t PickedModule() const { return picked; }
 
+		// MULTI-MODULE SELECTION (Vasquez 2026-11-19, the owner's ask through Bishop: "select multiple modules and apply to them", "Inteng hides unselected modules"; a named difference):
+		// - mode 0's Ctrl+click (SelectToggle) adds the clicked module's AI module (its master) to the SET, or takes it out; the first one starts the set from the pick's AI module. A plain
+		//   click (Click) clears the set, and so does the screen's entry; Shift is not touched. The set's AI modules are painted RED, as inteng paints its pick.
+		// - Show Alien / Ground Waypoints (3 / 4) opens the picked AI module as inteng's, and SHOWS every other AI module of the set with it: its modules are not hidden (ShownGroup) and its
+		//   list of the same kind is drawn (ShownNets: read as the waypoints are shown). Only the current AI module's list is edited. Mode 1's Exit keeps the set.
+		// SelectToggle gives false when nothing changed (not mode 0, no level, no module there).
+		struct ShownNet
+		{
+			int32_t master;                  // the AI module's master (object index)
+			std::string name;                // its name
+			std::vector<WaypointRec> list;   // its list of the shown kind (alien or ground)
+		};
+
+		bool SelectToggle(OpenLevelFile *open, int32_t module);
+		std::vector<int32_t> const &Selection() const { return selection; }   // the set's masters, in the order added
+		std::string SelectionWords() const;                                   // their names joined by '|' (the state line's "waypointselection")
+		std::vector<int32_t> ShownGroup() const;                              // modes 1 to 3: the current AI module's modules, then each shown one's
+		std::vector<ShownNet> const &ShownNets() const { return shownNets; }
+		std::string NetsWords() const;   // modes 1 to 3: "<name> boxes <n> links <n>" for the current AI module, then each shown one, joined by '|' (the state line's "waypointnets")
+
 		// The module colours of the AI modules mode by object index (the entry's paint made on the first call after Enter)
 		std::map<int32_t, uint32_t> const &ModulePaint(OpenLevelFile *open);
 
@@ -140,6 +160,11 @@ namespace host
 		// pick_centre.h) becomes the current one, unless it is the current one already or the base; false when nothing changes
 		bool PickBox(int32_t index);
 
+		// THE WAYPOINT DISPLAY'S CLICK (Vasquez 2026-11-19, the owner's "see and be able to edit all alien paths and volumes across all modules"; named): mode 0 shows every AI module's
+		// alien network; a click on one of its boxes opens that AI module as inteng's pick + Show Alien Waypoints would (Click(master), command 3: mode 1, the alien list, the pick's colours,
+		// the others hidden), with that box the CURRENT waypoint. Outside mode 0, or a master that is not one, nothing changes and the words say why; the outcome's page is 1 when it opened.
+		WaypointOutcome OpenAt(OpenLevelFile *open, int32_t master, int32_t box);
+
 		// WAYPOINT BY MOUSE (the owner's addition 11-18; Hicks's plan section 6, waypoint_pick.h; the ALIEN list only, the one the game loads): mode 1's click takes ANY waypoint of the
 		// list, the current one and the base too (inteng's PickBox refuses those), or -1 lets the current go (the base stays); false when nothing changes, outside mode 1 or on the
 		// ground list, or for a number not in the list
@@ -163,6 +188,12 @@ namespace host
 		// ground list kept. The mode's own state (the AI module it works on, its lists, current, base, the selected link) comes back as it was, read again when it was that AI module.
 		// Refused (not a module of the level, its waypoints unreadable, the loader): nothing changed, the words say why.
 		WaypointOutcome AutoPlotWrite(OpenLevelFile *open, int32_t master, std::vector<WaypointRec> const &alienList);
+
+		// THE WAYPOINT-BOX GIZMO (Frost 11-18, waypoint_box_gizmo.h; mode 1, the alien list; defined in waypoint_box_mode.cpp): MouseShowBox puts box's corners, aim point and flags (its
+		// links stay) on waypoint `index` in memory only, so the 3D view draws it as a drag goes (nothing is written; the drag's start is put back the same way). MouseSetBox puts them there
+		// and WRITES it at once, as MouseCreate (refused: the lists as they were, and the words say why); `what` is the edit's words ("the box moved 120 along x").
+		bool MouseShowBox(int32_t index, WaypointRec const &box);
+		WaypointOutcome MouseSetBox(OpenLevelFile *open, int32_t index, WaypointRec const &box, std::string const &what);
 
 		// The link selected by mouse: base to current, while they are still the pair it was selected with (any other change of either ends it)
 		bool LinkSelected() const { return linkFrom >= 0 && linkFrom == wpBase && linkTo == wpCurrent; }
@@ -212,8 +243,15 @@ namespace host
 		bool paintMade;
 		size_t droppedModuleLinks;   // W-6: module links of names of no module, dropped when the list was read (written out at the mode's Exit)
 		std::map<std::string, std::vector<int32_t> > modulePlaces;   // W-4: each module's name and place (x y z, the file's units), as the list was read: the module-link lines end there
+		std::vector<int32_t> selection;                // the set (multi-module selection): masters in the order added
+		std::map<int32_t, std::string> selectionNames;   // their names
+		std::string currentName;                       // the current AI module's master's name (NetsWords)
+		std::vector<int32_t> shownGroup;               // modes 1 to 3: the other selected AI modules' modules
+		std::vector<ShownNet> shownNets;               // and their lists
 
 		int32_t SnapTo(int axis, int32_t value) const;
+		void ShowSelection(OpenLevelFile *open, bool alienList);
+		void ClearSelection(OpenLevelFile *open);
 		void MakeEntryPaint(OpenLevelFile *open);
 		void PaintAiModule(OpenLevelFile *open, int32_t module, uint32_t colour);
 		WaypointOutcome EditModule(OpenLevelFile *open);
@@ -223,4 +261,8 @@ namespace host
 		std::vector<WaypointRec> &Active();
 		void RefreshGroup(OpenLevelFile *open);
 	};
+
+	// For the commands that work on the set (Dietrich's "Auto-plot selected AI modules"): the editor's Waypoint mode's set (its masters' object indexes, in the order added); with none,
+	// the picked module alone (inteng's pick); empty when nothing is picked. Defined beside the editor's waypointMode (construction_modes_screen.cpp).
+	std::vector<int32_t> WaypointMode_SelectedModules();
 }

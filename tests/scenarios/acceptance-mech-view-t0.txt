@@ -1,0 +1,15 @@
+# ACCEPTANCE (the mech proof, Frost 11-19; the owner: "floating magical animated arm simulating IK one meter from my view"): the arm as the PLAYER sees it at the start of Genshd1, at
+# 0 s into its 2-second loop. The level is Genshd1.RIF in demo-mech (t 0: the demo itself, whose parts stand at their first key; otherwise a pose copy whose parts' own place and turn
+# are the game's track pose at that moment, from track-import posecopy, the game's own track code). The camera is the marine's eye: the start's place (-120361 17351 5888) on the
+# floor below it (18704, track-import probe), 1750 up (view.cpp: CE_MARINE StandingTop -1950 plus 200), facing the start's way (its turn: (0.519, 0, -0.855), the editor's turn 2404).
+# The picture should show the three-part arm floating about a metre ahead, in the middle of the view.
+level C:/Users/Melanikus/source/AvP-builds-excluded/demo-mech/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/demo-mech/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -120361 16954 5888 2404
+camera-look 0 0
+wait 800
+picture 1

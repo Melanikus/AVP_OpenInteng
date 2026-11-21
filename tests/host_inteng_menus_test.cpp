@@ -412,8 +412,9 @@ static void TestTheBuiltScreens()
 		size_t pages, firstBar, secondBar;
 	};
 
-	// pages live for game kind 0, the titles on the first bar and on the second (row 2, page 0); Waypoint's first bar is inteng's 3 and our 2 auto-plot items (menu-status.json extras)
-	const Want wants[] = { { "Strategy Data", 6, 4, 8 }, { "Path", 2, 2, 6 }, { "Waypoint", 8, 5, 3 }, { "Texture Map", 7, 6, 11 }, { "Hierarchy", 2, 7, 7 }, { "Track Editing", 13, 3, 0 } };
+	// pages live for game kind 0, the titles on the first bar and on the second (row 2, page 0); Waypoint's first bar is inteng's 3 and ONE of ours, "Alien auto waypoint" (the named
+	// addition, checked by name below)
+	const Want wants[] = { { "Strategy Data", 6, 4, 8 }, { "Path", 2, 2, 6 }, { "Waypoint", 8, 4, 3 }, { "Texture Map", 7, 6, 11 }, { "Hierarchy", 2, 7, 7 }, { "Track Editing", 13, 3, 0 } };
 	bool counts = true, numbers = true, inBar = true;
 
 	for (const Want &want : wants)
@@ -450,6 +451,29 @@ static void TestTheBuiltScreens()
 	}
 
 	Check(counts, "Strategy Data, Path, Waypoint, Texture Map, Hierarchy and Track Editing (13 pages on its table) have the pages and the bars inteng registers (game kind 0)");
+
+	// THE NAMED ADDITION on Waypoint's first bar (the owner 11-20, through Bishop: "I want the auto waypoint to say "Alien auto waypoint" and be a drop down with environment or modules";
+	// alien_auto_waypoint.h, menu-status.json extras): inteng's own three titles first and unchanged (Mode, Entry points, Help), then ONE menu of ours, "Alien auto waypoint", with
+	// Environment (0x7335) and Modules (0x7334), in place of the three Auto-plot items there were; no other title of ours, and no Auto-plot title left
+	const IntengScreen *const waypoint = Built("Waypoint");
+	bool named = waypoint && waypoint->count == 4 && strcmp(waypoint->menus[0].title, "Mode") == 0 && strcmp(waypoint->menus[1].title, "Entry points") == 0 &&
+		strcmp(waypoint->menus[2].title, "Help") == 0;
+
+	if (named)
+	{
+		const IntengMenu &ours = waypoint->menus[3];
+
+		named = strcmp(ours.title, "Alien auto waypoint") == 0 && ours.count == 2 && strcmp(ours.items[0].name, "Environment") == 0 && ours.items[0].command == 0x7335 &&
+			strcmp(ours.items[1].name, "Modules") == 0 && ours.items[1].command == 0x7334 && ours.items[0].work == IntengWork::WaypointCommand &&
+			ours.items[1].work == IntengWork::WaypointCommand && ours.items[0].tag == IntengTag::None && ours.items[1].tag == IntengTag::None;
+	}
+
+	for (size_t m = 0; waypoint && m < waypoint->count; m++)
+	{
+		named = named && strncmp(waypoint->menus[m].title, "Auto-plot", 9) != 0;
+	}
+
+	Check(named, "Waypoint's first bar: inteng's Mode, Entry points and Help, then the named addition \"Alien auto waypoint\" (Environment 0x7335, Modules 0x7334, both working), and no Auto-plot title");
 	Check(numbers, "no two items of a code-built screen have the same number, across all its pages");
 	Check(inBar, "every page of a code-built screen fits the menu bar's limits");
 

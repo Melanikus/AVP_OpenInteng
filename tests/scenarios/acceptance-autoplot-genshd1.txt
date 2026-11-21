@@ -1,0 +1,28 @@
+# ACCEPTANCE (Dietrich 2026-11-19, Bishop for the owner, alpha.3: AUTO-PLOT v2, CONTINUOUS CEILING LANES on GENSHD1, his Colony: "an alien finishing a module on the ceiling and the
+# next module has a ceiling box connecting to it so it never chooses to drop down"). Genshd1.RIF as Steam ships it (sha256 19f00eae), Waypoint mode 0, Auto-plot all AI modules; stock
+# Genshd1 has alien waypoints, so the question comes, answered Yes. The editor's output keeps the report's lines: one an exit's doorway (lane or why not), one a lane through a doorway
+# (CONTINUOUS or BREAKS, by the stock game's own route choice on the lists as written: autoplot_lane.h). The saved copy read back by the game's own loader: every AI module written has
+# a network the checker finds nothing in (verify_waypoint_nets all), and against the copy saved before it nothing but the waypoint chunks changed. The in-game proof is Frost's lane
+# probe on the saved copy (aliens staying up across every lane reported CONTINUOUS).
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Waypoint
+save-copy
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+click-button Ok
+expect-dialog-kind confirm
+expect-dialog replace
+click-button Yes
+wait-status 1800000 AI modules written
+expect-status , 0 refused
+expect-status lanes
+picture 1
+save-copy
+# THE CHECKER'S EXCEPTIONS BY RULE 6 (a) (Bishop 11-20; Frost's "except"): air06 (364) and apcend (367) exit 3, the exits the auto-plot's repair left out (no alien way to the
+# rest of the module; written all the same). Named here, each printed as an EXCEPTION; any other exit in no box still fails, and so does a name no longer needed.
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} all except 364:3 367:3 network exits connected most links clean
+allow-fail verify_level_same cannot skip an ADDED chunk (modules that had no alien list get one); the save-to-save proof is the report's | verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {copy} --ignore WAYPOINT

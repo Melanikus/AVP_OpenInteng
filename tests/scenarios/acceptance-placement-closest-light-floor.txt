@@ -27,5 +27,12 @@ expect-field-has surfacelast axis +z (closest)
 picture 2
 release-gizmo
 expect-status Placement: the object stands on the surface
+# the camera re-aimed at the object where it is NOW (Bishop 11-19: camera-corner reads the game's own block, which the release moved), so the picture the owner looks at when a test
+# fails has it in the middle after a long move: the click in the middle of the view picks it from one of the 4 upper diagonal spots
+camera-corner yardlight01
+wait 400
+state
+expect-status the click in the middle of the view picks it
+picture 3
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_movable.exe {orig} {copy} placed yardlight01 moved-any turn-kept

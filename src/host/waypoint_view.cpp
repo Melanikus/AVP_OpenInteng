@@ -190,7 +190,7 @@ namespace host
 
 		std::vector<WaypointRec> const &list = mode.List();
 
-		if (mode.Mode() < 1 || list.empty())
+		if (mode.Mode() < 1 || (list.empty() && mode.ShownNets().empty()))
 		{
 			return;
 		}
@@ -327,6 +327,177 @@ namespace host
 				Line(lines, middle, to, (link.flags & kLinkOneWay) ? kWaypointLinkClosed : plain);
 			}
 		}
+
+		// MULTI-MODULE SELECTION (Vasquez 11-19, named; waypoint_mode.h): every other AI module of the set is drawn with it in inteng's colours, as a list with no current and no base
+		// waypoint (plain white boxes, minimised as the others are; module links green; links green, yellow when highlighted, the closed half red)
+		for (WaypointMode::ShownNet const &net : mode.ShownNets())
+		{
+			std::vector<WaypointRec> const &shown = net.list;
+
+			for (WaypointRec const &wp : shown)
+			{
+				int32_t low[3], high[3];
+
+				for (int i = 0; i < 3; i++)
+				{
+					int32_t const aim = World(wp.centre[i], scale);
+
+					low[i] = mode.Minimised() ? aim - kWaypointMinimisedHalf : World(wp.min[i], scale);
+					high[i] = mode.Minimised() ? aim + kWaypointMinimisedHalf : World(wp.max[i], scale);
+				}
+
+				for (int axis = 0; axis < 3; axis++)
+				{
+					int const u = (axis + 1) % 3, v = (axis + 2) % 3;
+
+					for (int corner = 0; corner < 4; corner++)
+					{
+						int32_t a[3], b[3];
+
+						a[axis] = low[axis];
+						b[axis] = high[axis];
+						a[u] = b[u] = (corner & 1) ? high[u] : low[u];
+						a[v] = b[v] = (corner & 2) ? high[v] : low[v];
+						Line(lines, a, b, kWaypointBoxPlain);
+					}
+				}
+
+				for (WaypointModuleLink const &link : wp.moduleLinks)
+				{
+					int32_t place[3], from[3], to[3];
+
+					if (!mode.ModulePlace(link.name, place))
+					{
+						continue;
+					}
+
+					for (int i = 0; i < 3; i++)
+					{
+						from[i] = World(wp.centre[i], scale);
+						to[i] = World(place[i], scale);
+					}
+
+					Line(lines, from, to, kWaypointModuleLink);
+				}
+			}
+
+			for (size_t w = 0; w < shown.size() && !centreEdit; w++)
+			{
+				for (WaypointLinkRec const &link : shown[w].links)
+				{
+					if (link.index < 0 || (size_t)link.index >= shown.size())
+					{
+						continue;
+					}
+
+					WaypointRec const &other = shown[(size_t)link.index];
+
+					if ((size_t)link.index < w && std::any_of(other.links.begin(), other.links.end(), [&](WaypointLinkRec const &back) { return back.index == (int32_t)w; }))
+					{
+						continue;
+					}
+
+					int32_t from[3], to[3], middle[3];
+
+					for (int i = 0; i < 3; i++)
+					{
+						from[i] = World(shown[w].centre[i], scale);
+						to[i] = World(other.centre[i], scale);
+						middle[i] = World(((int64_t)shown[w].centre[i] + other.centre[i]) / 2, scale);
+					}
+
+					uint32_t const plain = (link.flags & mode.HighlightFlag()) != 0 ? kWaypointLinkHighlighted : kWaypointLinkPlain;
+
+					Line(lines, from, middle, (link.flags & kLinkOneWayBack) ? kWaypointLinkClosed : plain);
+					Line(lines, middle, to, (link.flags & kLinkOneWay) ? kWaypointLinkClosed : plain);
+				}
+			}
+		}
+	}
+
+	WaypointAllCounts WaypointView_AllLines(std::vector<std::vector<WaypointRec> const *> const &lists, double levelScale, std::vector<TrackLine> *lines, bool closedRed)
+	{
+		WaypointAllCounts counts;
+		double const scale = levelScale > 0.0 ? levelScale : 1.0;
+
+		for (std::vector<WaypointRec> const *each : lists)
+		{
+			if (!each || each->empty())
+			{
+				continue;
+			}
+
+			std::vector<WaypointRec> const &list = *each;
+
+			counts.networks++;
+
+			// the boxes: twelve edges each (FUN_00583130), white
+			for (WaypointRec const &wp : list)
+			{
+				int32_t low[3], high[3];
+
+				for (int i = 0; i < 3; i++)
+				{
+					low[i] = World(wp.min[i], scale);
+					high[i] = World(wp.max[i], scale);
+				}
+
+				for (int axis = 0; axis < 3; axis++)
+				{
+					int const u = (axis + 1) % 3, v = (axis + 2) % 3;
+
+					for (int corner = 0; corner < 4; corner++)
+					{
+						int32_t a[3], b[3];
+
+						a[axis] = low[axis];
+						b[axis] = high[axis];
+						a[u] = b[u] = (corner & 1) ? high[u] : low[u];
+						a[v] = b[v] = (corner & 2) ? high[v] : low[v];
+						Line(lines, a, b, kWaypointBoxPlain);
+					}
+				}
+
+				counts.boxes++;
+			}
+
+			// the links: one line of two halves for the pair, made by the first link met in the list's order (FUN_005876c0 0x587a17-0x587ae6), coloured by that link (FUN_00586570)
+			for (size_t w = 0; w < list.size(); w++)
+			{
+				for (WaypointLinkRec const &link : list[w].links)
+				{
+					if (link.index < 0 || (size_t)link.index >= list.size())
+					{
+						continue;
+					}
+
+					WaypointRec const &other = list[(size_t)link.index];
+
+					if ((size_t)link.index < w && std::any_of(other.links.begin(), other.links.end(), [&](WaypointLinkRec const &back) { return back.index == (int32_t)w; }))
+					{
+						continue;
+					}
+
+					int32_t from[3], to[3], middle[3];
+
+					for (int i = 0; i < 3; i++)
+					{
+						from[i] = World(list[w].centre[i], scale);
+						to[i] = World(other.centre[i], scale);
+						middle[i] = World(((int64_t)list[w].centre[i] + other.centre[i]) / 2, scale);
+					}
+
+					uint32_t const plain = (link.flags & kLinkAlien) != 0 ? kWaypointLinkHighlighted : kWaypointLinkPlain;
+					uint32_t const closed = closedRed ? kWaypointLinkClosed : plain;
+
+					Line(lines, from, middle, (link.flags & kLinkOneWayBack) ? closed : plain);
+					Line(lines, middle, to, (link.flags & kLinkOneWay) ? closed : plain);
+					counts.links++;
+				}
+			}
+		}
+
+		return counts;
 	}
 
 	void WaypointView_FileUnits(int32_t const world[3], double levelScale, int32_t file[3])

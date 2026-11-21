@@ -177,6 +177,10 @@
 
 #include "waypoint_mouse.h"
 #include "waypoint_pick.h"
+#include "chunk.hpp"          // the level's object names (WaypointNames_Lines)
+#include "chunk_object.hpp"
+#include "mishchnk.hpp"
+#include "waypoint_all.h"   // THE WAYPOINT DISPLAY: every AI module's alien list (WaypointAllClick)
 
 namespace
 {
@@ -189,10 +193,11 @@ namespace
 	bool linkEndAsked = false;
 	int32_t const kDragLeast = 6;   // pixels the pointer must move between the press and the release for a drag (less is a click)
 
+	// said by Waypoint by mouse: the Waypoint screen draws them (the owner's call 11-19, status_words.h)
 	void Say(std::string const &words)
 	{
 		mouseWords = words;
-		statusWords = mouseWords.c_str();
+		statusWords.Say(mouseWords.c_str(), StatusSayer::WaypointMouse);
 	}
 }
 
@@ -397,4 +402,229 @@ void WaypointMouseClick(host::PickReport const &picked, int32_t x, int32_t y, in
 
 	waypointMode.MousePick(-1);
 	Say(had ? "No waypoint under the pointer: none is current now" : "No waypoint under the pointer");
+}
+
+bool WaypointAllClick(host::PickReport const &picked, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!OnWaypointScreen() || waypointMode.Mode() != 0 || !open || !open->Level())
+	{
+		return false;
+	}
+
+	host::PickRay ray;
+
+	if (!PickGame_RayAtClick(x, y, viewWidth, viewHeight, &ray))
+	{
+		return false;
+	}
+
+	double const from[3] = { (double)ray.from[0], (double)ray.from[1], (double)ray.from[2] };
+	double const direction[3] = { (double)ray.direction[0], (double)ray.direction[1], (double)ray.direction[2] };
+	bool const metSomething = picked.found == host::PickFound::Module || picked.found == host::PickFound::Object;
+	double const wallAt = metSomething ? (double)picked.distance : -1.0;
+	std::vector<host::AlienNet> const &nets = host::WaypointAll_AlienNets(open);
+	int32_t bestMaster = -1, bestBox = -1;
+	double bestDistance = 0.0;
+
+	// each network's first box on the line, then the nearest of those
+	for (host::AlienNet const &net : nets)
+	{
+		int32_t const box = host::WaypointPick_BoxOnRay(net.alien, local_scale, false, -1, from, direction, wallAt);
+
+		if (box < 0 || (size_t)box >= net.alien.size())
+		{
+			continue;
+		}
+
+		double lo[3], hi[3], distance = 0.0;
+
+		host::WaypointPick_WorldBox(net.alien[(size_t)box], local_scale, false, lo, hi);
+
+		if (host::WaypointPick_RayEnters(from, direction, lo, hi, &distance) && (bestBox < 0 || distance < bestDistance))
+		{
+			bestMaster = net.master;
+			bestBox = box;
+			bestDistance = distance;
+		}
+	}
+
+	// the FIRST click is inteng's pick (FUN_00583d00: the AI module under the pointer, red); a click on a box of the AI module ALREADY picked opens it (in inteng that click changes
+	// nothing): so inteng's single click, Edit Module, Show Waypoints and the multi-module set work as they did
+	if (bestBox < 0 || bestMaster != waypointMode.PickedModule())
+	{
+		return false;
+	}
+
+	host::WaypointOutcome const out = waypointMode.OpenAt(open, bestMaster, bestBox);
+
+	Say(out.say);
+
+	if (out.page >= 0)
+	{
+		EditorBar_SetPage(out.page);
+
+		if (!LoadTheMenus())
+		{
+			LogString("menus: the bar of the Waypoint screen's page couldn't be made after the display's click");
+		}
+	}
+
+	return true;
+}
+
+namespace
+{
+	int32_t namesX = -1, namesY = -1;     // the pointer on the view (the editor's pixels), -1 before it moved there
+	std::string underMouse;                // "<name> (box <n>)" of the box under the pointer this frame, or empty
+
+	// the level's object names by object index, read again when the level changes
+	std::string NameOfObject(OpenLevelFile *open, int32_t index)
+	{
+		static std::map<int32_t, std::string> names;
+		static OpenLevelFile *namesOpen = nullptr;
+		static unsigned namesGeneration = ~0u, namesChanges = ~0u;
+
+		if (!open || !open->Level())
+		{
+			return std::string();
+		}
+
+		if (open != namesOpen || open->Generation() != namesGeneration || open->Changes() != namesChanges)
+		{
+			names.clear();
+
+			::List<Object_Chunk *> all;
+
+			open->Level()->list_objects(&all);
+
+			for (LIF<Object_Chunk *> each(&all); !each.done(); each.next())
+			{
+				size_t length = 0;
+
+				while (length < sizeof(each()->object_data.o_name) && each()->object_data.o_name[length] != 0)
+				{
+					length++;
+				}
+
+				names[(int32_t)each()->object_data.index_num] = std::string(each()->object_data.o_name, length);
+			}
+
+			namesOpen = open;
+			namesGeneration = open->Generation();
+			namesChanges = open->Changes();
+		}
+
+		const std::map<int32_t, std::string>::const_iterator found = names.find(index);   // const first: Snyk Code cannot parse an iterator declared "<type> const" (11-19, 11-20)
+
+		return found == names.end() ? std::string() : found->second;
+	}
+}
+
+void WaypointNames_Pointer(int32_t x, int32_t y)
+{
+	namesX = x;
+	namesY = y;
+}
+
+void WaypointNames_Frame(int32_t viewWidth, int32_t viewHeight)
+{
+	underMouse.clear();
+
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	host::PickRay ray;
+
+	if (!OnWaypointScreen() || !open || !open->Level() || namesX < 0 || namesY < 0 || !PickGame_RayAtClick(namesX, namesY, viewWidth, viewHeight, &ray))
+	{
+		return;
+	}
+
+	double const from[3] = { (double)ray.from[0], (double)ray.from[1], (double)ray.from[2] };
+	double const direction[3] = { (double)ray.direction[0], (double)ray.direction[1], (double)ray.direction[2] };
+	std::vector<host::AlienNet> const &nets = host::WaypointAll_AlienNets(open);
+	std::string bestName;
+	int32_t bestBox = -1;
+	double bestDistance = 0.0;
+
+	// the box the line meets first among every network (the wall not asked: the name of what is drawn there)
+	for (host::AlienNet const &net : nets)
+	{
+		int32_t const box = host::WaypointPick_BoxOnRay(net.alien, local_scale, false, -1, from, direction, -1.0);
+
+		if (box < 0 || (size_t)box >= net.alien.size())
+		{
+			continue;
+		}
+
+		double lo[3], hi[3], distance = 0.0;
+
+		host::WaypointPick_WorldBox(net.alien[(size_t)box], local_scale, false, lo, hi);
+
+		if (host::WaypointPick_RayEnters(from, direction, lo, hi, &distance) && (bestBox < 0 || distance < bestDistance))
+		{
+			bestName = net.name;
+			bestBox = box;
+			bestDistance = distance;
+		}
+	}
+
+	if (bestBox >= 0)
+	{
+		underMouse = bestName + " (box " + std::to_string((long long)bestBox) + ")";
+	}
+}
+
+void WaypointNames_Lines(std::vector<HierarchyTextLine> *out)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!OnWaypointScreen() || !open || !open->Level())
+	{
+		return;
+	}
+
+	int32_t row = 2;
+
+	for (HierarchyTextLine const &line : *out)
+	{
+		row = line.row >= row ? line.row + 1 : row;
+	}
+
+	auto put = [&](std::string const &text)
+	{
+		HierarchyTextLine line = { 0, row++, text };
+
+		line.grayBehind = true;   // readable over the networks' lines
+		out->push_back(line);
+	};
+
+	if (waypointMode.Mode() == 0)
+	{
+		if (waypointMode.PickedModule() >= 0)
+		{
+			put("Picked: " + NameOfObject(open, waypointMode.PickedModule()));
+		}
+
+		if (!waypointMode.Selection().empty())
+		{
+			std::string words;
+
+			for (int32_t const master : waypointMode.Selection())
+			{
+				words += (words.empty() ? "" : ", ") + NameOfObject(open, master);
+			}
+
+			put("Selected: " + words);
+		}
+	}
+	else if (waypointMode.CurrentModule() >= 0)
+	{
+		put("Module: " + NameOfObject(open, waypointMode.CurrentModule()));
+	}
+
+	if (!underMouse.empty())
+	{
+		put("Under the mouse: " + underMouse);
+	}
 }

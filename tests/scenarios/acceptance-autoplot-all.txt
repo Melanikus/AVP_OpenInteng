@@ -9,7 +9,9 @@ level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Ha
 pictures on
 state
 expect-screen Waypoint
-click-bar Auto-plot all AI modules
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+click-button Ok
 wait-status 600000 AI modules written
 # none refused: a refused AI module keeps its stock network, which the checker would find faults in
 expect-status 0 refused

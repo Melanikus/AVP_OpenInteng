@@ -1,6 +1,8 @@
 // host_waypoint_net_level_test.cpp: the alien waypoint checker on whole stock levels (src/host/waypoint_net_level.h): every AI module's network is read as the loader reads it, its exits
 // are one per neighbouring AI module, Invasion's known entry point is among them, and every level's networks are checked. What the checker finds in RAD's and Rebellion's own networks is
 // printed, kind by kind, for the auto-plot's measurements (AvP-docs/engine/inteng/reassess/alien-autoplot-design.md, open points): the stock networks were never checked by anything.
+// THE REPORT the waypoint-box gizmo gives after each edit (WaypointNets_ReportWords, WaypointNets_ReportModule): its words for none, one and many problems, and on Invasion the report
+// of module 54's AI module names box 14's centre outside it (acceptance-waypoint-box-gizmo moves it inside).
 // Written 2026-11-18 by Melanikus (Frost) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // HOW IT RUNS: tests/host_waypoint_net_level_test.args builds it; host_waypoint_net_level_test <level file> [...]. A non-zero result means a check failed (not that a stock level has problems).
@@ -74,7 +76,38 @@ int main(int argc, char **argv)
 
 	std::map<std::string, size_t> allKinds;
 	size_t levels = 0, modules = 0, boxes = 0, clean = 0, exits = 0;
-	bool invasionSeen = false;
+	bool invasionSeen = false, invasionReported = false;
+
+	// THE REPORT's words
+	{
+		std::vector<WaypointProblem> problems;
+
+		Check(WaypointNets_ReportWords(problems, 0) == "checker: nothing found", "no problem: \"checker: nothing found\"");
+
+		WaypointProblem one;
+
+		one.kind = WaypointProblemKind::CentreOutside;
+		one.box = 14;
+		one.words = "box 14: its centre is outside it";
+		problems.push_back(one);
+		Check(WaypointNets_ReportWords(problems, 0) == "checker: box 14: its centre is outside it", "one: its own words");
+
+		for (int k = 0; k < 4; k++)
+		{
+			WaypointProblem more;
+
+			more.kind = WaypointProblemKind::CannotReach;
+			more.words = "box " + std::to_string(k) + " cannot reach box 0";
+			problems.push_back(more);
+		}
+
+		std::string const five = WaypointNets_ReportWords(problems, 0);
+		std::string const past = WaypointNets_ReportWords(problems, 10);
+
+		Check(five == "checker: 5 found: box 14: its centre is outside it; box 0 cannot reach box 0; box 1 cannot reach box 0; and 2 more", "five: the count, the first three, how many more: " + five);
+		Check(past.compare(0, 19, "checker: 15 found: ") == 0 && past.find("; and 12 more") != std::string::npos, "and those past the ones kept count too: " + past);
+		Check(WaypointNets_ReportModule(nullptr, 54).compare(0, 38, "checker: the level could not be read: ") == 0, "no level: the report says it could not be read");
+	}
 
 	for (int a = 1; a < argc; a++)
 	{
@@ -129,9 +162,25 @@ int main(int argc, char **argv)
 			{
 				for (WaypointPoint const &e : net.exits)
 				{
-					invasionSeen = invasionSeen || (e.place[0] == 3816 && e.place[1] == -38 && e.place[2] == 23130);
+					bool const that = e.place[0] == 3816 && e.place[1] == -38 && e.place[2] == 23130;
+
+					invasionSeen = invasionSeen || that;
+
+					// that AI module's report, as the gizmo gives it after an edit: box 14's centre is outside it
+					if (that)
+					{
+						std::string const report = WaypointNets_ReportModule(&open, net.master);
+
+						invasionReported = report.find("box 14: its centre is outside it") != std::string::npos;
+						printf("  Invasion, the AI module of master %d: %s\n", (int)net.master, report.c_str());
+					}
 				}
 			}
+		}
+
+		if (name == "Invasion.RIF")
+		{
+			Check(WaypointNets_ReportModule(&open, -5) == "checker: no alien waypoints", "Invasion: a master of no alien network's report says so");
 		}
 
 		Check(onePerNeighbour, name + ": one exit per neighbouring AI module");
@@ -150,6 +199,7 @@ int main(int argc, char **argv)
 
 	Check(levels > 0, "at least one level opened (" + std::to_string(levels) + ")");
 	Check(!invasionGiven || invasionSeen, "Invasion: the entry point 3816 -38 23130 is an exit of its AI module");
+	Check(!invasionGiven || invasionReported, "Invasion: that AI module's report names box 14's centre outside it");
 
 	std::string summary;
 

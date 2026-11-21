@@ -899,6 +899,7 @@ struct HierarchyTextLine
 	int32_t row;
 	std::string text;
 	int32_t pixelY = -1;   // a line inteng places from the window's foot (Snap To Vertex's, at height - 60): drawn there, its row its place / 16 for the state line
+	bool grayBehind = false;   // ours: drawn on the status line's gray, as wide as its words (the waypoint display's names over its dense lines, Vasquez 11-20); inteng's lines never
 };
 
 // made in editor_main.cpp
@@ -985,6 +986,7 @@ void ModuleOverlapsPicked(uint8_t const *id);   // TB-C11: a click on the hub wh
 void ModuleOverlapsAll();                        // TB-C11: L on the hub while Module Overlaps is on (every module against every other)
 void UpdateDummyObject();
 void WaypointHidePass();
+bool WaypointAllPass();   // THE WAYPOINT DISPLAY (Vasquez 11-19): mode 0 sends every AI module's alien network with the markers; true when it sent them (strategy_data_screen.cpp)
 void WriteTheAsc(std::string const &typed, bool doorsClosed);
 
 // made in path_screen.cpp

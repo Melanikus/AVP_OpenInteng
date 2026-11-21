@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- mp4-to-smk's application manifest (Bishop's order 11-19, the owner's antivirus question): the Windows it is made for. The linker adds the rest of the manifest it
+     always writes, which asks for no more rights than the user's own (asInvoker: mp4-to-smk.vcxproj's UACExecutionLevel). Written 2026-11-19 by Melanikus (Drake)
+     for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code". -->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 and Windows 11 (one ID for both) -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+    </application>
+  </compatibility>
+</assembly>

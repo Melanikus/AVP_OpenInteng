@@ -1,0 +1,51 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-20, THE OWNER: "I don't know module names"; a named difference): THE MODULES' NAMES on the Waypoint screen. After the mode's own top-left text
+# (inteng's rows from 2) the editor writes the AI module whose box is under the mouse ("Under the mouse: <name> (box <n>)", among every network drawn), in mode 0 the pick
+# ("Picked: <name>") and the Ctrl+click set ("Selected: a, b, c"), in modes 1 to 3 the AI module being edited ("Module: <name>"). GATE (Bishop): on his Genshd1 the chain is found by
+# reading names alone: opscen03, Ops01, opscen02 each read under the mouse, then selected by clicks and read back.
+# HIS FILE: a private copy of his Genshd1 as it was before tonight's plot, Dietrich's v2d (21f1578e: vasquez-wpall-level), opened as a double click.
+# RED on vasquez-one e817d906: no such lines.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-wpall-level/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-wpall-level/Genshd1.RIF
+pictures on
+state
+expect-field levelbytes 2117984
+expect-screen Waypoint
+wait 800
+
+# ---- each module of the chain, read under the mouse (the pointer in the view's middle)
+camera-corner opscen03
+move-win 504 364
+wait 400
+expect-hierarchy-text Under the mouse: opscen03 (box
+picture 1
+camera-corner Ops01
+move-win 505 364
+wait 400
+expect-hierarchy-text Under the mouse: Ops01 (box
+camera-corner opscen02
+move-win 504 365
+wait 400
+expect-hierarchy-text Under the mouse: opscen02 (box
+picture 2
+
+# ---- picked and selected, by name
+camera-corner opscen03
+click-view 0.50 0.50
+wait 400
+expect-hierarchy-text Picked: opscen03
+camera-corner Ops01
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner opscen02
+click-view 0.50 0.50 ctrl
+wait 400
+expect-hierarchy-text Selected: opscen03, Ops01, opscen02
+picture 3
+
+# ---- a box of the picked module opened: the module being edited, by name
+camera-corner opscen03
+click-view 0.50 0.50
+wait 600
+expect-hierarchy-text Module: opscen03
+picture 4

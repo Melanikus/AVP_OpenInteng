@@ -1,0 +1,62 @@
+# ACCEPTANCE (red first; Frost 2026-11-19, THE OWNER'S ASK: "see and be able to edit all alien paths and volumes across all modules"; Vasquez's split: moving a box): EDITING A VOLUME
+# ACROSS MODULES WITH THE WAYPOINT-BOX GIZMO. In Waypoint mode 0 every network is drawn; a click on a box of opscen03 opens its AI module with that box current (Vasquez's pick,
+# WaypointMode::OpenAt); the gizmo shows on the current box (its arrows and face handles: inteng moves a box only by its faces in Edit Extents' three views); its x arrow moves the
+# whole box, written into the level at once (WaypointMode::MouseSetBox, as every waypoint edit); Exit (every network again). Then the same on a box of Ops01 with its z arrow; File >
+# Save a copy. The copy, read back by the game's own loader (verify_waypoint_boxes, Vasquez's gate), holds exactly one moved box in each of the two AI modules (153 opscen03, 158 Ops01)
+# and no other change in any of the 244 networks.
+# HIS FILE: a private copy of his Steam Genshd1, Dietrich's auto-plot v2d (21f1578e: vasquez-wpall-level), opened as a double click.
+# RED on vasquez-wpedit before it (26119a42): the box opens, but no gizmo is shown on it (no boxgizmo field).
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-wpall-level/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-wpall-level/Genshd1.RIF
+pictures on
+state
+expect-field levelbytes 2117984
+expect-screen Waypoint
+wait 800
+expect-number waypointall networks 244 244
+
+# ---- a box of opscen03: opened by a click in the all view, the gizmo on it, its x arrow moves the whole box, written
+camera-corner opscen03
+click-view 0.50 0.50
+wait 400
+# a second click on a box of the AI module just picked opens it (the first is inteng's pick)
+click-view 0.50 0.50
+wait 600
+expect-field-has waypointnets opscen03 boxes 73
+expect-field-has boxgizmo box
+expect-field-has boxgizmopoints move x
+remember-field waypointbox
+picture 1
+drag-gizmo move x 40 40
+wait 400
+expect-status the box moved
+expect-field-changed waypointbox
+picture 2
+click-bar Mode > Exit
+wait 600
+expect-number waypointall networks 244 244
+
+# ---- a box of Ops01 the same way, with its z arrow
+camera-corner Ops01
+click-view 0.50 0.50
+wait 400
+# a second click on a box of the AI module just picked opens it (the first is inteng's pick)
+click-view 0.50 0.50
+wait 600
+expect-field-has waypointnets Ops01 boxes 82
+expect-field-has boxgizmo box
+expect-field-has boxgizmopoints move z
+remember-field waypointbox
+drag-gizmo move z 40 40
+wait 400
+expect-status the box moved
+expect-field-changed waypointbox
+picture 3
+click-bar Mode > Exit
+wait 600
+expect-number waypointall networks 244 244
+
+# ---- saved and read back: one box moved in each, nothing else
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_boxes.exe {copy} C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-wpall-level/Genshd1.RIF 153 158

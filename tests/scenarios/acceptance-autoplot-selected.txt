@@ -1,0 +1,43 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-19, Bishop's order for the owner's chain test): "Auto-plot selected AI modules" (0x7332, Dietrich's) on Waypoint mode 0's Ctrl+click set
+# (WaypointMode_SelectedModules, waypoint_mode.h): chain A, opscen03 + Ops01 + opscen02 (genshd1-corridors.md), selected by clicks as the owner selects them, plotted in ONE go;
+# Show Alien Waypoints then shows the three new networks together (the multi-module set's view).
+# A stock Genshd1 (no alien network on the chain), opened as a double click; the auto-plot items need AutoPlot=1 (autoplot_switch.h).
+# RED on dietrich-apv2 6eeadea0: its stand-in plots the PICK alone (opscen03), and there is no set.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Waypoint
+wait 600
+
+# ---- the set by clicks: opscen03 picked, Ops01 and opscen02 Ctrl+clicked
+camera-corner opscen03
+click-view 0.50 0.50
+wait 400
+camera-corner Ops01
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner opscen02
+click-view 0.50 0.50 ctrl
+wait 400
+expect-field waypointselection opscen03|Ops01|opscen02
+
+# ---- one go
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
+wait-status 300000 written
+expect-status 3 AI modules
+picture 1
+
+# ---- all three now hold a network, shown together
+click-bar Mode > Show Alien Waypoints
+wait 600
+expect-number waypointnets opscen03_boxes 1 999
+expect-number waypointnets Ops01_boxes 1 999
+expect-number waypointnets opscen02_boxes 1 999
+camera-orbit Ops01 45 45 50000
+wait 600
+picture 2

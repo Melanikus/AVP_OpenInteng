@@ -27,6 +27,13 @@ expect-field-has surfacelast (closest)
 picture 2
 release-gizmo
 expect-status Placement: the object stands on the surface
+# the camera re-aimed at the object where it is NOW (Bishop 11-19: camera-corner reads the game's own block, which the release moved), so the picture the owner looks at when a test
+# fails has it in the middle after a long move: the click in the middle of the view picks it from one of the 4 upper diagonal spots
+camera-corner smart1
+wait 400
+state
+expect-status the click in the middle of the view picks it
+picture 3
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_movable.exe {orig} {copy} placed smart1 moved-any turn-apart 30.09 30.69
 # and its box TOUCHES the wall (Bishop 11-19, the owner's order: with CLOSEST the push-out is the box's extent on the side that meets the surface; its box -199 -181 -1210 .. 181 225 1476):

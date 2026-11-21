@@ -38,4 +38,13 @@ namespace host
 	// Every AI module of the level whose master holds alien waypoints, in the masters' order, each with its exits and its problems. False, with the reason, when the level cannot be read,
 	// or a WAYPOINT chunk cannot be (the game's own reader refuses it too).
 	bool WaypointNets_CheckLevel(OpenLevelFile *open, std::vector<WaypointNetModule> *out, std::string *why);
+
+	// THE REPORT after an edit by the waypoint-box gizmo (waypoint_box_gizmo.h; Bishop's order 11-18: "a REPORT, never a refusal"): what the checker finds, as one part of the status line:
+	// "checker: nothing found", "checker: box 14: its centre is outside it", or "checker: 5 found: <the first kReportNamed>; and 2 more". more: the problems past the ones kept.
+	size_t const kWaypointReportNamed = 3;
+	std::string WaypointNets_ReportWords(std::vector<WaypointProblem> const &problems, size_t more);
+
+	// The report for the AI module whose master is `master` (an object index), from the level as it is now (the written copy, read as the stock loader reads it): "checker: no alien
+	// waypoints" when its master holds none, "checker: the level could not be read: <why>" when the level cannot be
+	std::string WaypointNets_ReportModule(OpenLevelFile *open, int32_t master);
 }

@@ -133,6 +133,7 @@
 #include "waypoint_mode.h"
 #include "waypoint_view.h"
 #include "autoplot_command.h"
+#include "alien_auto_waypoint.h"   // the owner's "Alien auto waypoint" > Modules (Vasquez 11-20)
 #include "track_pages.h"
 #include "editor_options.h"
 #include "shape_chooser.h"
@@ -1987,8 +1988,32 @@ int32_t WaypointPickedObject(OpenLevelFile *open)
 	return -1;
 }
 
+// waypoint_mode.h: the multi-module set (Vasquez 11-19), else inteng's pick alone, for the commands that work on the set (Dietrich's "Auto-plot selected AI modules")
+std::vector<int32_t> host::WaypointMode_SelectedModules()
+{
+	if (!waypointMode.Selection().empty())
+	{
+		return waypointMode.Selection();
+	}
+
+	std::vector<int32_t> one;
+
+	if (waypointMode.PickedModule() >= 0)
+	{
+		one.push_back(waypointMode.PickedModule());
+	}
+
+	return one;
+}
+
 void DoWaypointCommand(int32_t command, EditorHostState &host)
 {
+	// Alien auto waypoint > Modules (ours, the owner's 11-20: alien_auto_waypoint.h); its Environment is the Auto-plot all command below
+	if (host::AlienAutoWaypointCommand(command, EntryMarkerModule()))
+	{
+		return;
+	}
+
 	// Auto-plot alien ways (ours, the owner's addition 11-18: autoplot_command.h)
 	if (AutoPlotCommand(command, EntryMarkerModule()))
 	{

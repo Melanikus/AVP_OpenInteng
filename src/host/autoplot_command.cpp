@@ -179,8 +179,14 @@
 
 #include "autoplot_command.h"
 #include "autoplot_switch.h"   // the owner's "hide auto pilot" (11-19): nothing done unless AutoPlot=1
+#include "autoplot_arrival.h"
 #include "autoplot_grid.h"
+#include "autoplot_lane.h"
 #include "autoplot_plan.h"
+#include "autoplot_repair.h"
+#include "autoplot_shortcut.h"
+#include "autoplot_volume_repair.h"
+#include "autoplot_volumes.h"
 #include "waypoint_net_check.h"
 
 namespace
@@ -194,8 +200,28 @@ namespace
 		std::vector<std::vector<int32_t> > goals;   // exits and stand spots, the world's mm
 		host::AutoPlotPlan plan;
 		bool planned = false;
+		bool notShaped = false;                     // the volume planner has no rule for its kind yet: NO network written (Bishop 11-20: never the old small boxes), named
 		std::string why;                            // the worker's own failure, if any
+		std::map<std::pair<size_t, size_t>, std::pair<bool, bool> > exitWays;   // each pair of exits (a < b): the alien search found a way, the ground search did
+		std::vector<std::string> pairLines;         // one line a pair: what the searches found and what the plan joins (the report's; Frost's floor-route gate)
+		std::vector<int32_t> exitTo;                // THE LANES: each exit's neighbouring AI module (its head), -1 when not known
+		std::vector<host::AutoPlotDoor> doors;      // each exit's doorway: its middle and way through (from the neighbour's exit back), its soffit (the grid's)
+		std::vector<std::vector<int32_t> > alienGoals;   // the goals the alien search goes between: an exit's soffit where it has one (the lanes run soffit to soffit)
+		std::vector<std::vector<int32_t> > backs;   // each exit: the neighbour's exit point back (inside this AI module: where an alien from there lands), empty when not known
+		bool written = false;
+		std::vector<int32_t> members;               // its modules' object indexes (the Airduct flag goes on each)
+		host::AutoPlotVolumeCounts counts;          // the run's tunables (autoplot_volumes.h), taken as the run begins
+		std::vector<int> ceilingPast;               // OPEN SKY PER DOORWAY (the owner 11-20): each exit, 1 a ceiling over the floor just past the doorway (the lane must go on), 0 none (it may end), -1 not known
+		std::vector<int> ceilingHere;               // the same on this side of the doorway (no ceiling here: no lane can start, so no lane end)
+		size_t floorCellsSeen = 0, floorCellsCeiled = 0;   // OPEN SKY (the owner 11-20: "Stop only at exits modules with open sky"): its floor cells, and those under a ceiling of its own
 	};
+
+	// ONE-WAY DOORWAYS (autoplot_arrival.h; Vasquez 11-20): the first exitsFile.size() exits are the level's own; any after them in exitsWorld (and exitTo, doors, backs) are
+	// ARRIVALS, where another AI module's aliens come in through a doorway this one has no exit back through. No alien here heads for one: never a lane's A side nor its target
+	bool IsArrival(Job const &job, size_t e)
+	{
+		return e >= job.exitsFile.size();
+	}
 
 	enum class Stage
 	{
@@ -207,6 +233,7 @@ namespace
 	Stage stage = Stage::Idle;
 	bool everyOne = false;
 	double plotScale = 1.0;
+	host::AutoPlotVolumeCounts runCounts;   // the run's tunables, set by AutoPlotCommand as the run starts (each job takes a copy)
 	std::vector<Job> jobs;
 	std::thread worker;
 	std::atomic<bool> workerDone(false), stopAsked(false);
@@ -271,6 +298,99 @@ namespace
 		return true;
 	}
 
+	// The box an exit is in, by the game's own test (each number times the scale, cut to a whole one; inside = lowest <= place <= highest - 1), -1 for none
+	int ExitBox(std::vector<host::WaypointRec> const &list, host::WaypointPoint const &exit)
+	{
+		for (size_t i = 0; i < list.size(); i++)
+		{
+			bool in = true;
+
+			for (int a = 0; a < 3 && in; a++)
+			{
+				double const at = trunc((double)exit.place[a] * plotScale);
+
+				in = at >= trunc((double)list[i].min[a] * plotScale) && at <= trunc((double)list[i].max[a] * plotScale) - 1.0;
+			}
+
+			if (in)
+			{
+				return (int)i;
+			}
+		}
+
+		return -1;
+	}
+
+	// Whether the plan joins box `from` to box `to`: by any link (the alien route), or by plain ones only (the floor route: a marine, a predator and a praetorian skip 0x4,
+	// and a one-way link goes only its way)
+	bool Joins(std::vector<host::WaypointRec> const &list, int from, int to, bool plainOnly)
+	{
+		if (from < 0 || to < 0)
+		{
+			return false;
+		}
+
+		std::vector<bool> seen(list.size(), false);
+		std::vector<int> next(1, from);
+
+		seen[(size_t)from] = true;
+
+		while (!next.empty())
+		{
+			int const at = next.back();
+
+			next.pop_back();
+
+			if (at == to)
+			{
+				return true;
+			}
+
+			for (host::WaypointLinkRec const &l : list[(size_t)at].links)
+			{
+				if (l.index >= 0 && (size_t)l.index < list.size() && !seen[(size_t)l.index] && (!plainOnly || (l.flags & (host::kLinkAlien | 0x1)) == 0))
+				{
+					seen[(size_t)l.index] = true;
+					next.push_back(l.index);
+				}
+			}
+		}
+
+		return false;
+	}
+
+	// One line for each pair of exits: what the two searches found, what the plan joins, and for a floor route missing, which it is: "no ground way" (the ground search
+	// found none: right, a vent only an alien climbs) or "DROPPED BY THE PLANNER" (a bug)
+	std::vector<std::string> PairLines(Job const &job)
+	{
+		std::vector<std::string> lines;
+
+		for (auto const &one : job.exitWays)
+		{
+			size_t const a = one.first.first, b = one.first.second;
+
+			if (IsArrival(job, a) || IsArrival(job, b))
+			{
+				continue;   // an arrival is no exit of the level's: no pair line (the lane table tells its lanes)
+			}
+
+			int const boxA = ExitBox(job.plan.list, job.exitsFile[a]), boxB = ExitBox(job.plan.list, job.exitsFile[b]);
+			bool const floorRoute = Joins(job.plan.list, boxA, boxB, true) && Joins(job.plan.list, boxB, boxA, true);
+			bool const alienRoute = Joins(job.plan.list, boxA, boxB, false) && Joins(job.plan.list, boxB, boxA, false);
+			std::string line = "exits " + Number((long long)a) + "-" + Number((long long)b) + ": ground way " + (one.second.second ? "yes" : "no") + ", alien way " +
+				(one.second.first ? "yes" : "no") + "; in the plan floor route " + (floorRoute ? "yes" : "NO") + ", alien route " + (alienRoute ? "yes" : "NO");
+
+			if (!floorRoute)
+			{
+				line += one.second.second ? " (DROPPED BY THE PLANNER)" : " (no ground way)";
+			}
+
+			lines.push_back(line);
+		}
+
+		return lines;
+	}
+
 	// the worker: every job's ways (alien and floor, each pair of goals), then its plan; it reads only its jobs and calls only the grid (one caller) and pure sums
 	void Work()
 	{
@@ -294,7 +414,17 @@ namespace
 							std::vector<host::AutoPlotPoint> points;
 							std::string why;
 
-							if (host::AutoPlotGrid_Way(job.goals[a].data(), job.goals[b].data(), alien, &points, &why))
+							std::vector<std::vector<int32_t> > const &goals = alien && job.alienGoals.size() == job.goals.size() ? job.alienGoals : job.goals;
+							bool const found = host::AutoPlotGrid_Way(goals[a].data(), goals[b].data(), alien, &points, &why);
+
+							if (a < job.exitsWorld.size() && b < job.exitsWorld.size())
+							{
+								std::pair<bool, bool> &got = job.exitWays[std::make_pair(a, b)];
+
+								(alien ? got.first : got.second) = found;
+							}
+
+							if (found)
 							{
 								host::AutoPlotWay way;
 
@@ -324,8 +454,190 @@ namespace
 					}
 				}
 
-				job.plan = host::AutoPlot_Plan(ways, job.exitsWorld, plotScale);
+				// THE CLIMB STATIONS (Drake's AutoPlotGrid_ClimbStation): at each exit with a doorway's ceiling, where an alien coming from that neighbour lands (its exit point
+				// back, inside this AI module: a far alien lands there upright, Vasquez's drop audit S3), its way across the floor on this side to the nearest side wall, up it,
+				// onto the ceiling; its top is where the door box's centre goes, so an alien there heads for that wall and climbs
+				for (size_t e = 0; e < job.exitsWorld.size() && e < job.doors.size() && e < job.backs.size() && !stopAsked; e++)
+				{
+					std::vector<host::AutoPlotPoint> points;
+					std::string why;
+					host::AutoPlotDoor const &d = job.doors[e];
+					int32_t const into[3] = { (int32_t)(-d.through[0] * 65536.0), 0, (int32_t)(-d.through[1] * 65536.0) };   // from the neighbour into this AI module
+					int32_t top[3] = { 0, 0, 0 };
+
+					if (!d.soffitFound || !d.throughFound || job.backs[e].size() != 3 ||
+						!host::AutoPlotGrid_ClimbStation(job.backs[e].data(), into, host::kAutoPlotStationReach, &points, top, &why))
+					{
+						continue;
+					}
+
+					host::AutoPlotWay way;
+					bool walled = false;
+
+					way.alien = true;
+
+					for (host::AutoPlotPoint const &p : points)
+					{
+						host::AutoPlotStep step;
+
+						for (int i = 0; i < 3; i++)
+						{
+							step.place[i] = p.place[i];
+							step.facing[i] = p.facing[i];
+						}
+
+						step.surface = p.surface == host::AutoPlotPoint::Surface::Floor ? host::AutoPlotSurface::Floor :
+							(p.surface == host::AutoPlotPoint::Surface::Ceiling ? host::AutoPlotSurface::Ceiling : host::AutoPlotSurface::Wall);
+						step.inside = std::find(job.gameModules.begin(), job.gameModules.end(), p.module) != job.gameModules.end();
+						way.steps.push_back(step);
+
+						walled = walled || step.surface == host::AutoPlotSurface::Wall;
+					}
+
+					job.doors[e].stationFound = walled;
+
+					for (int i = 0; i < 3; i++)
+					{
+						job.doors[e].stationTop[i] = top[i];
+					}
+
+					ways.push_back(way);
+				}
+
+				// the floor a marine stands on: every cell of the AI module's game modules (Drake's FloorCells), the plan tiles it
+				host::AutoPlotFloor floorCells;
+
+				for (int32_t const module : job.gameModules)
+				{
+					std::vector<host::AutoPlotPoint> cells;
+					int32_t edge = 0;
+					std::string why;
+
+					if (!stopAsked && host::AutoPlotGrid_FloorCells(module, &cells, &edge, &why))
+					{
+						floorCells.cellEdge = edge;
+
+						for (host::AutoPlotPoint const &cell : cells)
+						{
+							if (floorCells.cells.size() < host::kAutoPlotMostCells)
+							{
+								floorCells.cells.push_back(std::vector<int32_t>{ cell.place[0], cell.place[1], cell.place[2] });
+							}
+
+							// THE CEILING over it (the plan tiles it: Drake's rule, autoplot_plan.h AutoPlotFloor), when it is this AI module's own
+							host::AutoPlotPoint over;
+							std::string none;
+
+							// at any height (Bishop 11-20: "a tall ceiling is still a ceiling"; the grid holds the look to its own most)
+							job.floorCellsSeen++;
+
+							// where no cell an alien clings to is over it, the roof's own polygon (Drake's AutoPlotGrid_RoofOver, the lane gate's open-sky test: a door's polygons get
+							// no cells but their floor, and a roof with no room to cling none; 28 of Genshd1's AI modules were open sky by the cells and roofed by the polygons, 11-20)
+							// (the roof of its OWN modules only, Drake's onlyModules: a cling cell of another module over a door's floor, MAIN03's over medoor01, kept the || from asking)
+							// and last ANY module's down-facing roof whose hanging alien would be in this AI module's own space (Bishop's ruling 11-20, Drake's RoofHungIn: the
+							// game runs an alien on the network of the module its position is in): office under new03's ceiling at doormp06's doorway, and not water under top's
+							if (!stopAsked && floorCells.ceilings.size() < host::kAutoPlotMostCells &&
+								((host::AutoPlotGrid_CeilingOver(cell.place, host::kAutoPlotCeilingLook, &over, &none) &&
+									std::find(job.gameModules.begin(), job.gameModules.end(), over.module) != job.gameModules.end()) ||
+									host::AutoPlotGrid_RoofOver(cell.place, host::kAutoPlotCeilingLook, &over, &none, &job.gameModules) ||
+									host::AutoPlotGrid_RoofHungIn(cell.place, host::kAutoPlotCeilingLook, job.gameModules, &over, &none)))
+							{
+								floorCells.ceilings.push_back(std::vector<int32_t>{ over.place[0], over.place[1], over.place[2] });
+								job.floorCellsCeiled++;
+							}
+						}
+					}
+				}
+
+				// every floor a marine stands on in the AI module's floor-to-ceiling extent, of ANY module or still object (Drake's AutoPlotGrid_FloorsIn): a platform under its
+				// lane boxes that isn't its own polygons (Object11's at y -581, 11-20) keeps them over its standing heads too
+				if (!stopAsked && !floorCells.cells.empty())
+				{
+					int32_t lo[3], hi[3];
+
+					for (int i = 0; i < 3; i++)
+					{
+						lo[i] = hi[i] = floorCells.cells[0][(size_t)i];
+					}
+
+					for (std::vector<std::vector<int32_t> > const *list : { &floorCells.cells, &floorCells.ceilings })
+					{
+						for (std::vector<int32_t> const &c : *list)
+						{
+							for (int i = 0; i < 3; i++)
+							{
+								lo[i] = (std::min)(lo[i], c[(size_t)i]);
+								hi[i] = (std::max)(hi[i], c[(size_t)i]);
+							}
+						}
+					}
+
+					std::vector<host::AutoPlotPoint> standing;
+					std::string none;
+
+					if (host::AutoPlotGrid_FloorsIn(lo, hi, &standing, &none))
+					{
+						for (host::AutoPlotPoint const &p : standing)
+						{
+							if (floorCells.standFloors.size() < host::kAutoPlotMostCells)
+							{
+								floorCells.standFloors.push_back(std::vector<int32_t>{ p.place[0], p.place[1], p.place[2] });
+							}
+						}
+					}
+				}
+
+				// NO CELL A MARINE STANDS ON in any of its game modules: the cells a crouched alien stands on (Drake's CrawlCells: a duct), a crawl floor for the levels' rule
+				// (Frost 11-20, autoplot_levels.h)
+				if (floorCells.cells.empty())
+				{
+					for (int32_t const module : job.gameModules)
+					{
+						std::vector<host::AutoPlotPoint> cells;
+						int32_t edge = 0;
+						std::string why;
+
+						if (!stopAsked && host::AutoPlotGrid_CrawlCells(module, &cells, &edge, &why))
+						{
+							floorCells.cellEdge = edge;
+							floorCells.crawl = true;
+
+							for (host::AutoPlotPoint const &cell : cells)
+							{
+								if (floorCells.cells.size() < host::kAutoPlotMostCells)
+								{
+									floorCells.cells.push_back(std::vector<int32_t>{ cell.place[0], cell.place[1], cell.place[2] });
+								}
+							}
+						}
+					}
+				}
+
+				// THE VOLUME SHAPE first (the owner 11-20: a few room-sized volumes, autoplot_volumes.h); a module it can't shape keeps the old tiles, and the note says so.
+				// It takes the AI module's own box too: how far its sides (a tube's 45-degree faces) reach past the floor
+				for (int32_t const module : job.gameModules)
+				{
+					int32_t lo[3], hi[3];
+
+					if (host::AutoPlotGrid_ModuleBox(module, lo, hi))
+					{
+						for (int i = 0; i < 3; i++)
+						{
+							floorCells.boxLo[i] = floorCells.boxFound ? (std::min)(floorCells.boxLo[i], lo[i]) : lo[i];
+							floorCells.boxHi[i] = floorCells.boxFound ? (std::max)(floorCells.boxHi[i], hi[i]) : hi[i];
+						}
+
+						floorCells.boxFound = true;
+					}
+				}
+
+				job.plan = host::AutoPlot_PlanVolumes(ways, job.exitsWorld, floorCells, job.doors, plotScale, job.counts);   // the owner's counts (the run's, taken at Begin)
+				host::AutoPlot_RepairVolumes(&job.plan, job.exitsFile, plotScale);   // Drake's volume repair (autoplot_volume_repair.h): a scrap box out, a centre in another box moved flat
+
+				// a kind it has no rule for yet: NO network (Bishop's ruling 11-20: the way Rebellion left most modules, never the old small boxes), named in the summary
+				job.notShaped = !job.plan.volumes;
 				job.planned = !stopAsked;
+				job.pairLines = PairLines(job);
 			}
 			catch (std::exception const &)
 			{
@@ -344,12 +656,27 @@ namespace
 		plotScale = local_scale > 0.0 ? local_scale : 1.0;
 		jobs.clear();
 
+		// each module's AI module (its head), for the lanes' neighbours
+		std::map<int32_t, int32_t> headOf;
+
+		for (auto const &group : groups)
+		{
+			for (int32_t const member : group.second)
+			{
+				headOf[member] = group.first;
+			}
+		}
+
+		auto const headOfModule = [&headOf](int32_t module) { auto const found = headOf.find(module); return found != headOf.end() ? found->second : -1; };
+
 		for (int32_t const head : heads)
 		{
 			Job job;
 			std::vector<host::EntryMarker> markers;
 
 			job.head = head;
+			job.members = groups.at(head);
+			job.counts = runCounts;
 
 			for (int32_t const member : groups.at(head))
 			{
@@ -377,6 +704,48 @@ namespace
 
 					job.exitsFile.push_back(file);
 					job.exitsWorld.push_back(world);
+					job.exitTo.push_back(headOfModule(m.adjacent));
+				}
+			}
+
+			// THE LANES: each exit's doorway, its middle half way to the neighbour's exit point back (inside this AI module), the way through from that one to this one, flat
+			job.doors.assign(job.exitsWorld.size(), host::AutoPlotDoor());
+			job.backs.assign(job.exitsWorld.size(), std::vector<int32_t>());
+
+			for (size_t e = 0; e < job.exitsWorld.size(); e++)
+			{
+				std::vector<host::EntryMarker> back;
+
+				if (job.exitTo[e] < 0 || !host::EntryMarkers_Of(open, job.exitTo[e], &back))
+				{
+					continue;
+				}
+
+				for (host::EntryMarker const &m : back)
+				{
+					if (headOfModule(m.adjacent) != head)
+					{
+						continue;
+					}
+
+					double const bx = (double)m.point[0] * plotScale, by = (double)m.point[1] * plotScale, bz = (double)m.point[2] * plotScale;
+					double const dx = job.exitsWorld[e][0] - bx, dz = job.exitsWorld[e][2] - bz, flat = sqrt(dx * dx + dz * dz);
+
+					if (flat < 10.0 || flat > 4000.0)
+					{
+						break;   // the two points on one spot, or too far apart to be one doorway: no way through known
+					}
+
+					host::AutoPlotDoor &d = job.doors[e];
+
+					d.throughFound = true;
+					d.middle[0] = (int32_t)floor((job.exitsWorld[e][0] + bx) / 2.0 + 0.5);
+					d.middle[1] = (int32_t)floor((job.exitsWorld[e][1] + by) / 2.0 + 0.5);
+					d.middle[2] = (int32_t)floor((job.exitsWorld[e][2] + bz) / 2.0 + 0.5);
+					d.through[0] = dx / flat;
+					d.through[1] = dz / flat;
+					job.backs[e] = std::vector<int32_t>{ (int32_t)floor(bx + 0.5), (int32_t)floor(by + 0.5), (int32_t)floor(bz + 0.5) };
+					break;
 				}
 			}
 
@@ -399,27 +768,127 @@ namespace
 	void Finish()
 	{
 		OpenLevelFile *const open = LevelObjects_OpenForEdit();
-		size_t written = 0, refused = 0, boxes = 0;
-		std::string last;
+		size_t written = 0, refused = 0, boxes = 0, noExits = 0, exceptions = 0, notShaped = 0;
+		std::string last, lastRefused, noExitNames, notShapedNames;
 
-		for (Job const &job : jobs)
+		for (Job &job : jobs)
 		{
 			std::string const name = "Auto-plot: AI module " + Number(job.head);
+			std::string const named = name + " (" + ModuleNameOfIndex(job.head) + ")";   // the report's: which room it is
+
+			// the report's lines (the harness keeps the editor's output): one a pair of exits, one an exit's doorway (THE LANES)
+			for (std::string const &line : job.pairLines)
+			{
+				printf("AVP_OpenInteng: auto-plot: AI module %d, %s\n", (int)job.head, line.c_str());
+			}
+
+			for (size_t e = 0; e < job.plan.doorWords.size(); e++)
+			{
+				// Vasquez's drop audit D4 (bh_waypoint.cpp:118-124): the target, this exit's point, is looked for only in THIS AI module's boxes; the game takes the last box
+				// that holds it (SweepWaypoints): none, and every alien heading through this doorway drops out
+				int target = -1;
+
+				for (size_t i = 0; e < job.exitsFile.size() && i < job.plan.list.size(); i++)
+				{
+					std::vector<host::WaypointRec> const one(1, job.plan.list[i]);
+
+					target = ExitBox(one, job.exitsFile[e]) == 0 ? (int)i : target;
+				}
+
+				std::string const d4 = IsArrival(job, e) ? "an ARRIVAL (a one-way doorway: this AI module has no exit back, so no alien here heads for it: no D4)" :
+					target < 0 ? "D4 FAILS: no box of this AI module holds its point" : "D4: its point in box " + Number(target) +
+					((size_t)target < job.plan.climbing.size() && job.plan.climbing[(size_t)target] ? " (a CLIMBING box: an alien there is in its target's box)" : " (a floor box)");
+
+				printf("AVP_OpenInteng: auto-plot: AI module %d, exit %d (to AI module %d): %s; %s\n", (int)job.head, (int)e, e < job.exitTo.size() ? (int)job.exitTo[e] : -1,
+					job.plan.doorWords[e].c_str(), d4.c_str());
+			}
+
+			// every box, for the report and for reading a break: its kind (door / exit / climb / floor), its numbers (the file's), its links (index, flags)
+			for (size_t i = 0; i < job.plan.list.size(); i++)
+			{
+				host::WaypointRec const &w = job.plan.list[i];
+				std::string kind = i < job.plan.climbing.size() && job.plan.climbing[i] ? "climb" : "floor";
+				std::string links;
+
+				for (size_t e = 0; e < job.plan.doorBox.size(); e++)
+				{
+					kind += job.plan.doorBox[e] == (int32_t)i ? " door" + Number((long long)e) : std::string();
+					kind += e < job.plan.exitBox.size() && job.plan.exitBox[e] == (int32_t)i ? " exit" + Number((long long)e) : std::string();
+				}
+
+				// the volume planner's own word for the box last (LOW, HIGH, entry, get-out, ...; Dietrich 11-20: after the old words, so "floor exit0" / "climb doorN" still read)
+				kind += i < job.plan.volumeRoles.size() && !job.plan.volumeRoles[i].empty() ? " " + job.plan.volumeRoles[i] : std::string();
+
+				for (host::WaypointLinkRec const &l : w.links)
+				{
+					// "o" after it: one-way (inteng's Add Link "only W to V"; the stock search never takes it this way: Vasquez's floor-shortcut pass stops steps so)
+					links += " " + Number(l.index) + ((l.flags & host::kLinkAlien) ? "a" : "p") + ((l.flags & host::kLinkOneWay) ? "o" : "");
+				}
+
+				printf("AVP_OpenInteng: auto-plot: AI module %d box %d %s: min %d %d %d max %d %d %d centre %d %d %d links%s\n", (int)job.head, (int)i, kind.c_str(), w.min[0], w.min[1],
+					w.min[2], w.max[0], w.max[1], w.max[2], w.centre[0], w.centre[1], w.centre[2], links.c_str());
+			}
+
+			fflush(stdout);
+
+			auto const tell = [](std::string const &words)
+			{
+				printf("AVP_OpenInteng: auto-plot: %s\n", words.c_str());
+				fflush(stdout);
+			};
+
+			// NO EXITS (no entry points, ADJMDLEP): no route goes through it, so it needs no list. Bishop 11-20: "no exits, nothing to plot", counted and named, not refused
+			if (job.planned && job.why.empty() && job.exitsFile.empty() && job.plan.list.empty())
+			{
+				noExits++;
+				noExitNames += noExits > 10 ? std::string(noExits == 11 ? ", ..." : "") : std::string(noExits > 1 ? ", " : "") + ModuleNameOfIndex(job.head);
+				last = name + ": no exits, nothing to plot (no entry points: no route goes through it)";
+				tell(named + last.substr(name.size()));
+				continue;
+			}
+
+			// THE VOLUME SHAPE: its kind on the report, and a kind with no rule yet left as it is (NO network written), counted and named
+			if (job.planned && job.why.empty())
+			{
+				tell(named + ": KIND " + (job.plan.volumeKind.empty() ? std::string("?") : job.plan.volumeKind) + (job.notShaped ? std::string(", NOT SHAPED: ") +
+					(job.plan.notes.empty() ? std::string("no reason given") : job.plan.notes[0]) : std::string(", shaped as volumes")));
+			}
+
+			if (job.planned && job.why.empty() && job.notShaped)
+			{
+				notShaped++;
+				notShapedNames += notShaped > 10 ? std::string(notShaped == 11 ? ", ..." : "") : std::string(notShaped > 1 ? ", " : "") + ModuleNameOfIndex(job.head) + " (" + job.plan.volumeKind + ")";
+				last = name + ": not shaped, no network written (" + job.plan.volumeKind + ")";
+				continue;
+			}
 
 			if (!job.planned || job.plan.list.empty())
 			{
 				refused++;
 				last = name + " not written: " + (!job.why.empty() ? job.why : (job.planned ? std::string("no way was found through it") : std::string("the run was stopped")));
+				lastRefused = last;
+				tell(named + last.substr(name.size()));
 				continue;
 			}
 
-			std::vector<host::WaypointProblem> const problems = host::Waypoints_Check(job.plan.list, job.exitsFile, plotScale, 50);
+			std::vector<host::WaypointProblem> problems = host::Waypoints_Check(job.plan.list, job.exitsFile, plotScale, 50), excepted;
+
+			// the checker's exceptions by rule 6 (a) (Bishop 11-20; Frost's checker unchanged): the exits the repair left out, no alien way to them (printed below, when written)
+			host::AutoPlot_RepairExceptions(&problems, job.plan.exitsLeftOut, &excepted);
 
 			if (!problems.empty())
 			{
 				refused++;
 				last = name + " not written: " + problems[0].words + (problems.size() > 1 ? " (and " + Number((long long)problems.size() - 1) + " more)" : std::string());
+				lastRefused = last;
+				tell(named + last.substr(name.size()) + (job.plan.notes.empty() || job.plan.notes.back().compare(0, 7, "repair:") != 0 ? std::string() : "; " + job.plan.notes.back()));   // what the repair did first
 				continue;
+			}
+
+			for (host::WaypointProblem const &p : excepted)   // Frost's words for the finding
+			{
+				exceptions++;
+				tell(named + ": checker exception by rule 6(a): " + p.words + "; exit " + Number((long long)p.other) + ": no alien route to this exit: an alien heading there walks the floor way (D4)");
 			}
 
 			host::WaypointOutcome const done = waypointMode.AutoPlotWrite(open, job.head, job.plan.list);
@@ -428,29 +897,267 @@ namespace
 			{
 				refused++;
 				last = done.say;
+				lastRefused = name + " not written: " + last;
+				tell(named + " not written: " + last);
 				continue;
 			}
 
 			written++;
+			job.written = true;
+
+			// AIRDUCT on every module of an AI module the planner SHAPED (Bishop 11-20, Drake's read-back of 435ff6c7: hand6g, the gold standard, has it on all its shaped
+			// modules, and it is the owner's force-crawl: "the flag worked and they are trying to climb"), through Strategy mode's own Add Flag > Airduct; only when asked (counts.airduct, the dialog's
+			// box: off by default since the owner's 19:06)
+			if (job.plan.volumes && job.counts.airduct)
+			{
+				std::vector<uint8_t> ids;
+
+				for (int32_t const member : job.members)
+				{
+					uint8_t id[host::kSelectionIdBytes];
+
+					if (host::ModuleIdOfIndex(LevelObjects_Level(), member, id))
+					{
+						ids.insert(ids.end(), id, id + host::kSelectionIdBytes);
+					}
+				}
+
+				size_t flagged = 0;
+
+				if (!ids.empty() && host::StrategyMode_SetModuleFlag(open, ids.data(), ids.size() / host::kSelectionIdBytes, host::kAutoPlotAirduct, true, &flagged) ==
+					host::StrategyModeResult::Done && flagged > 0)
+				{
+					tell(named + ": Airduct set on " + Number((long long)flagged) + " of its " + Number((long long)(ids.size() / host::kSelectionIdBytes)) + " modules (the force-crawl)");
+				}
+			}
 			boxes += job.plan.list.size();
 			last = name + ": " + host::AutoPlot_Words(job.plan);
+
+			std::string more = "; floor boxes " + Number((long long)job.plan.floorBoxes) + ", climbing " + Number((long long)(job.plan.list.size() - job.plan.floorBoxes)) +
+				(job.plan.floorTile > 0.0 ? ", tiles " + Number((long long)job.plan.floorTile) + " mm, floor cells covered " + Number((long long)job.plan.cellsCovered) + " of " +
+					Number((long long)job.plan.cells) : std::string(", no floor cells")) +
+				(job.plan.ceilingTile > 0.0 ? ", ceiling tiles " + Number((long long)job.plan.ceilingBoxes) + " of " + Number((long long)job.plan.ceilingTile) + " mm" :
+					std::string(", no ceiling over the floor")) +
+				(job.plan.floorMost <= 0.0 ? std::string(", the floor not merged (a merge broke a lane)") : job.plan.floorMost >= 1.0e8 ? std::string(", the floor in whole rectangles") :
+					", the floor merged up to " + Number((long long)job.plan.floorMost) + " mm") +
+				(job.floorCellsSeen == 0 ? std::string() : 2 * job.floorCellsCeiled < job.floorCellsSeen ?
+					", OPEN SKY (" + Number((long long)(100 - 100 * job.floorCellsCeiled / job.floorCellsSeen)) + "% of the floor under no ceiling)" :
+					", ceiling over " + Number((long long)(100 * job.floorCellsCeiled / job.floorCellsSeen)) + "% of the floor");
+
+			for (std::string const &note : job.plan.notes)
+			{
+				more += "; " + note;
+			}
+
+			tell(named + last.substr(name.size()) + more);
 		}
+
+		// THE LANE TABLE: each doorway with a lane on both sides, a hanging alien carried through it from AI module A (heading for its exit to B) into B (heading for each of B's
+		// other exits), by the stock game's own choice on the lists as written (autoplot_lane.h); then along B's ceiling from its door box back to A toward that exit
+		size_t lanes = 0, continuous = 0;
+		std::map<int32_t, size_t> jobOf;
+		std::set<std::pair<int32_t, size_t> > brokeAt, noLaneBack;   // the doorways (AI module, exit) a lane through breaks, and those with no lane on the other side
+
+		for (size_t j = 0; j < jobs.size(); j++)
+		{
+			jobOf[jobs[j].head] = j;
+		}
+
+		for (Job const &a : jobs)
+		{
+			for (size_t e = 0; e < a.plan.doorWords.size() && e < a.exitTo.size() && e < a.doors.size(); e++)
+			{
+				auto const found = jobOf.find(a.exitTo[e]);
+
+				if (a.plan.doorWords[e].compare(0, 4, "lane") != 0 || found == jobOf.end() || IsArrival(a, e))
+				{
+					continue;   // (an arrival: no alien of A goes out through it)
+				}
+
+				Job const &b = jobs[found->second];
+				int back = -1;
+
+				for (size_t g = 0; g < b.exitTo.size(); g++)
+				{
+					// (an arrival is this exit's own when its point back is this exit's point: A may have two exits into B)
+					bool const itsOwn = !IsArrival(b, g) || (g < b.backs.size() && e < a.exitsWorld.size() && b.backs[g] == a.exitsWorld[e]);
+
+					back = b.exitTo[g] == a.head && itsOwn ? (int)g : back;
+				}
+
+				// B's own exits a lane goes on toward: the level's, other than the one back (no alien of B heads for an arrival)
+				size_t onward = 0;
+
+				for (size_t f = 0; f < b.exitsWorld.size(); f++)
+				{
+					onward += (int)f != back && !IsArrival(b, f) ? 1 : 0;
+				}
+
+				if (back < 0 || (size_t)back >= b.plan.doorWords.size() || b.plan.doorWords[(size_t)back].compare(0, 4, "lane") != 0 || (size_t)back >= b.plan.doorBox.size() ||
+					b.plan.doorBox[(size_t)back] < 0)
+				{
+					noLaneBack.insert(std::make_pair(a.head, e));
+					continue;   // no lane on B's side of this doorway: its own line says why
+				}
+
+				// A ROOFED DEAD END (Bishop's ruling 11-20 under the owner's rule: the lane goes INTO it and ends inside, at its far side; only stopping at its doorway is a fault):
+				// the crossing toward the centre of B's box farthest from the doorway
+				if (onward == 0 && !b.plan.list.empty())
+				{
+					host::LaneSide sideA, sideB;
+					double farthest = -1.0;
+
+					sideA.list = &a.plan.list;
+					sideB.list = &b.plan.list;
+
+					for (int i = 0; i < 3; i++)
+					{
+						sideA.target[i] = a.exitsWorld[e][(size_t)i];
+					}
+
+					for (host::WaypointRec const &w : b.plan.list)
+					{
+						double const ox = w.centre[0] * plotScale - a.doors[e].middle[0], oz = w.centre[2] * plotScale - a.doors[e].middle[2];
+
+						if (ox * ox + oz * oz > farthest)
+						{
+							farthest = ox * ox + oz * oz;
+
+							for (int i = 0; i < 3; i++)
+							{
+								sideB.target[i] = (int32_t)floor(w.centre[i] * plotScale + 0.5);
+							}
+						}
+					}
+
+					host::LaneCrossing const into = host::Lane_Cross(sideA, sideB, plotScale, a.doors[e].soffit, a.doors[e].middle, a.doors[e].through, host::kAutoPlotLaneOver,
+						host::kAutoPlotLaneOver, 50);
+
+					lanes++;
+					continuous += into.continuous && a.written && b.written ? 1 : 0;
+
+					if (!into.continuous || !a.written || !b.written)
+					{
+						brokeAt.insert(std::make_pair(a.head, e));
+					}
+
+					printf("AVP_OpenInteng: auto-plot: lane AI module %d (%s) exit %d -> AI module %d (%s), a dead end, into its far side: %s\n", (int)a.head,
+						ModuleNameOfIndex(a.head).c_str(), (int)e, (int)b.head, ModuleNameOfIndex(b.head).c_str(), into.continuous ? "CONTINUOUS" : ("BREAKS: " + into.why).c_str());
+				}
+
+				for (size_t f = 0; f < b.exitsWorld.size(); f++)
+				{
+					if ((int)f == back || IsArrival(b, f))
+					{
+						continue;
+					}
+
+					host::LaneSide sideA, sideB;
+
+					sideA.list = &a.plan.list;
+					sideB.list = &b.plan.list;
+
+					for (int i = 0; i < 3; i++)
+					{
+						sideA.target[i] = a.exitsWorld[e][(size_t)i];
+						sideB.target[i] = b.exitsWorld[f][(size_t)i];
+					}
+
+					host::LaneCrossing const cross = host::Lane_Cross(sideA, sideB, plotScale, a.doors[e].soffit, a.doors[e].middle, a.doors[e].through, host::kAutoPlotLaneOver,
+						host::kAutoPlotLaneOver, 50);
+					host::LaneCrossing const along = host::Lane_Through(b.plan.list, plotScale, b.plan.doorBox[(size_t)back], sideB.target, b.plan.climbing);
+					bool const both = cross.continuous && along.continuous && a.written && b.written;
+
+					lanes++;
+					continuous += both ? 1 : 0;
+
+					if (!both)
+					{
+						brokeAt.insert(std::make_pair(a.head, e));
+					}
+					printf("AVP_OpenInteng: auto-plot: lane AI module %d (%s) exit %d -> AI module %d (%s) toward its exit %d (to AI module %d): %s; doorway %s; along %s\n",
+						(int)a.head, ModuleNameOfIndex(a.head).c_str(), (int)e, (int)b.head, ModuleNameOfIndex(b.head).c_str(), (int)f, f < b.exitTo.size() ? (int)b.exitTo[f] : -1,
+						both ? "CONTINUOUS" : "BREAKS", cross.continuous ? "continuous" : ("breaks: " + cross.why).c_str(),
+						along.continuous ? "continuous" : ("breaks: " + along.why).c_str());
+					printf("%s", (!a.written || !b.written) ? "AVP_OpenInteng: auto-plot: (that lane: a side was not written)\n" : "");
+				}
+			}
+		}
+
+		// OPEN SKY PER DOORWAY (the owner's choice 11-20): a lane may end only at a doorway with no ceiling over the floor just past it. Every doorway into a plotted AI module
+		// with a ceiling there where the lane does not go on is a fault: no lane on this side, none on the other, or a lane through it that breaks
+		size_t endsUnderCeiling = 0, endsAtOpenSky = 0;
+
+		for (Job const &a : jobs)
+		{
+			for (size_t e = 0; e < a.exitTo.size() && e < a.ceilingPast.size() && e < a.plan.doorWords.size(); e++)
+			{
+				if (jobOf.find(a.exitTo[e]) == jobOf.end() || a.ceilingPast[e] < 0 || (e < a.ceilingHere.size() && a.ceilingHere[e] == 0) || IsArrival(a, e))
+				{
+					continue;   // into an AI module not plotted here (a series' way out is fine), or not known; or an arrival (no lane goes out through it: A's exit is the lane)
+				}
+
+				std::pair<int32_t, size_t> const at(a.head, e);
+				std::string const reason = a.plan.doorWords[e].compare(0, 4, "lane") != 0 ? "no lane on this side (" + a.plan.doorWords[e] + ")" :
+					(noLaneBack.count(at) ? std::string("no lane on the other side") : (brokeAt.count(at) ? std::string("a lane through it breaks") : std::string()));
+
+				if (reason.empty())
+				{
+					continue;   // the lane goes on
+				}
+
+				if (a.ceilingPast[e] == 0)
+				{
+					endsAtOpenSky++;
+					continue;
+				}
+
+				endsUnderCeiling++;
+				printf("AVP_OpenInteng: auto-plot: lane end UNDER A CEILING: AI module %d (%s) exit %d -> AI module %d (%s): %s\n", (int)a.head, ModuleNameOfIndex(a.head).c_str(),
+					(int)e, (int)a.exitTo[e], ModuleNameOfIndex(a.exitTo[e]).c_str(), reason.c_str());
+			}
+		}
+
+		fflush(stdout);
 
 		if (written)
 		{
 			LoadTheObjectListAgain();
 		}
 
-		Say(everyOne ? "Auto-plot: " + Number((long long)written) + " AI modules written, " + Number((long long)refused) + " refused; " + Number((long long)boxes) + " boxes" +
-			(refused ? " (the last refused: " + last + ")" : std::string()) : last);
+		Say(everyOne ? "Auto-plot: " + Number((long long)written) + " AI modules written, " + Number((long long)refused) + " refused" + (notShaped ? ", " + Number((long long)notShaped) +
+			" not shaped (no network written: " + notShapedNames + ")" : std::string()) + (noExits ? ", " + Number((long long)noExits) +
+			" with no exits (nothing to plot: " + noExitNames + ")" : std::string()) + (exceptions ? ", " + Number((long long)exceptions) + " checker exception(s) by rule 6(a)" :
+			// (Bishop 11-20: the lane numbers are the editor's own rough count, not the lane gate's; the gate, Drake's lanes.exe, is the measure until the shared lane rules
+			// replace this table: on the stock copy this said 34 ends under a ceiling where the gate says 0)
+			std::string()) + "; " + Number((long long)boxes) + " boxes; lanes (the editor's rough count; the measure is the lane gate) " +
+			Number((long long)continuous) + " of " + Number((long long)lanes) + " continuous, ends under a ceiling " + Number((long long)endsUnderCeiling) + ", at open sky " +
+			Number((long long)endsAtOpenSky) + (refused ? " (the last refused: " + lastRefused + ")" : std::string()) : last);
 	}
 }
 
+// AutoPlotCommand_Run's list (Vasquez's "Alien auto waypoint" menu), taken in place of the Ctrl+click set while that call runs
+static std::vector<int32_t> const *gRunModules = nullptr;
+
+// the owner's counts: the next run's (AutoPlotCommand_Run's), taken as the run's when it starts; any other start takes the defaults
+static host::AutoPlotVolumeCounts gNextCounts, gRunCounts;
+
 bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 {
-	if (command != host::kWaypointAutoPlotModule && command != host::kWaypointAutoPlotAll)
+	if (command != host::kWaypointAutoPlotModule && command != host::kWaypointAutoPlotAll && command != host::kWaypointAutoPlotSelected)
 	{
 		return false;
+	}
+
+	// the counts this call brings (AutoPlotCommand_Run's), else the defaults; kept while a run goes (a call that starts none leaves the run's as they were)
+	host::AutoPlotVolumeCounts const counts = gNextCounts;
+
+	gNextCounts = host::AutoPlotVolumeCounts();
+
+	if (stage == Stage::Idle)
+	{
+		gRunCounts = counts;
+		runCounts = counts;
 	}
 
 	// hidden by the owner's ruling (autoplot_switch.h): the items are not shown, and their command, however it comes (a key, the harness's item), does nothing
@@ -489,14 +1196,36 @@ bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 	}
 
 	std::vector<int32_t> heads;
+	bool const selected = command == host::kWaypointAutoPlotSelected;
 
-	everyOne = command == host::kWaypointAutoPlotAll;
+	everyOne = command == host::kWaypointAutoPlotAll || selected;   // a run over many: its summary on the status line
 
-	if (everyOne)
+	if (command == host::kWaypointAutoPlotAll)
 	{
 		for (auto const &one : groups)
 		{
 			heads.push_back(one.first);
+		}
+	}
+	else if (selected)
+	{
+		// the selected set, as AI module heads: Waypoint mode 0's Ctrl+click set in the order added, else the pick alone (waypoint_mode.h WaypointMode_SelectedModules; Vasquez 11-19),
+		// or AutoPlotCommand_Run's list; each module named is taken to the head of the AI module that holds it, once
+		for (int32_t const module : gRunModules ? *gRunModules : host::WaypointMode_SelectedModules())
+		{
+			for (auto const &one : groups)
+			{
+				if (std::find(one.second.begin(), one.second.end(), module) != one.second.end() && std::find(heads.begin(), heads.end(), one.first) == heads.end())
+				{
+					heads.push_back(one.first);
+				}
+			}
+		}
+
+		if (heads.empty())
+		{
+			Say("Auto-plot selected AI modules: select the AI modules first");
+			return true;
 		}
 	}
 	else
@@ -538,7 +1267,8 @@ bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 		return true;
 	}
 
-	std::string const question = everyOne ? "Auto-plot all AI modules: replace the " + Number((long long)replaced) + " alien waypoints of " + Number((long long)modulesWithSome) +
+	std::string const question = everyOne ? std::string(selected ? "Auto-plot selected AI modules" : "Auto-plot all AI modules") + ": replace the " + Number((long long)replaced) +
+		" alien waypoints of " + Number((long long)modulesWithSome) +
 		" AI modules with the auto-plot's?" : "Auto-plot AI module " + Number(heads[0]) + ": replace its " + Number((long long)replaced) + " alien waypoints with the auto-plot's?";
 
 	host::Dialogs_Confirm(question, [heads, groups](bool yes)
@@ -593,6 +1323,169 @@ void AutoPlotCommand_Frame()
 				}
 			}
 
+			// A DOORWAY WITH NO EXIT POINT BACK (Drake's whole-level gate 11-20: 26 lane ends, one-way links in Genshd1's data): the way through from this AI module's stand spot
+			// nearest the exit point to it, flat and square to x or z, the doorway's middle kAutoPlotExitPast short of the exit point (exits lie about 100 inside the next module:
+			// Frost's measures), the point back mirrored across it
+			for (size_t e = 0; e < job.exitsWorld.size() && e < job.doors.size(); e++)
+			{
+				if (job.doors[e].throughFound || job.exitsWorld[e].size() != 3)
+				{
+					continue;
+				}
+
+				double best = 1e300, dx = 0.0, dz = 0.0;
+
+				for (size_t g = job.exitsWorld.size(); g < job.goals.size(); g++)
+				{
+					double const ox = job.exitsWorld[e][0] - job.goals[g][0], oz = job.exitsWorld[e][2] - job.goals[g][2];
+
+					if (ox * ox + oz * oz < best)
+					{
+						best = ox * ox + oz * oz;
+						dx = ox;
+						dz = oz;
+					}
+				}
+
+				if (best >= 1e300 || (fabs(dx) < 10.0 && fabs(dz) < 10.0))
+				{
+					continue;
+				}
+
+				bool const alongX = fabs(dx) >= fabs(dz);
+				host::AutoPlotDoor &d = job.doors[e];
+
+				d.through[0] = alongX ? (dx < 0.0 ? -1.0 : 1.0) : 0.0;
+				d.through[1] = alongX ? 0.0 : (dz < 0.0 ? -1.0 : 1.0);
+				d.middle[0] = (int32_t)floor(job.exitsWorld[e][0] - d.through[0] * host::kAutoPlotExitPast + 0.5);
+				d.middle[1] = job.exitsWorld[e][1];
+				d.middle[2] = (int32_t)floor(job.exitsWorld[e][2] - d.through[1] * host::kAutoPlotExitPast + 0.5);
+				d.throughFound = true;
+				job.backs[e] = std::vector<int32_t>{ (int32_t)floor(job.exitsWorld[e][0] - d.through[0] * 2.0 * host::kAutoPlotExitPast + 0.5), job.exitsWorld[e][1],
+					(int32_t)floor(job.exitsWorld[e][2] - d.through[1] * 2.0 * host::kAutoPlotExitPast + 0.5) };
+			}
+		}
+
+		// ONE-WAY DOORWAYS (autoplot_arrival.h; Vasquez 11-20, Drake's whole-level gate: 31 lane ends "no exit back"): once every AI module's doorways are known (the loop above),
+		// each B with no exit back to an A that has one into it gets an ARRIVAL there, after its own exits (its goal after theirs), so its plan makes a door box where A's
+		// aliens come in and its lanes go on from it. Only the level's exits are read (none is added before all are found)
+		{
+			std::vector<host::AutoPlotExits> sides(jobs.size());
+
+			for (size_t j = 0; j < jobs.size(); j++)
+			{
+				sides[j].head = jobs[j].head;
+				sides[j].points = jobs[j].exitsWorld;
+				sides[j].to = jobs[j].exitTo;
+				sides[j].doors = jobs[j].doors;
+				sides[j].backs = jobs[j].backs;
+			}
+
+			for (host::AutoPlotArrival const &arrival : host::AutoPlot_Arrivals(sides))
+			{
+				Job &b = jobs[arrival.into];
+
+				host::AutoPlot_AddArrival(arrival, &b.exitsWorld, &b.exitTo, &b.doors, &b.backs, &b.goals);
+			}
+		}
+
+		for (Job &job : jobs)
+		{
+			// THE LANES: the ceiling over each exit point (the doorway's top), and the alien's goal there instead of the exit point, so its ways run soffit to soffit. At any height
+			// (a tall ceiling is still a ceiling), and where there is none over the exit point itself, over the floor kAutoPlotSkyPast past the doorway's middle (Drake's gate: 16
+			// lane ends where another module's roof or an opening was over the point but a ceiling went on past it)
+			job.alienGoals = job.goals;
+
+			for (size_t e = 0; e < job.exitsWorld.size() && e < job.doors.size(); e++)
+			{
+				host::AutoPlotPoint soffit;
+				std::string why;
+				bool found = host::AutoPlotGrid_CeilingOver(job.exitsWorld[e].data(), host::kAutoPlotCeilingLook, &soffit, &why);
+
+				if (!found && job.doors[e].throughFound)
+				{
+					int32_t const past[3] = { (int32_t)floor(job.doors[e].middle[0] + job.doors[e].through[0] * host::kAutoPlotSkyPast + 0.5), job.exitsWorld[e][1],
+						(int32_t)floor(job.doors[e].middle[2] + job.doors[e].through[1] * host::kAutoPlotSkyPast + 0.5) };
+
+					found = host::AutoPlotGrid_CeilingOver(past, host::kAutoPlotCeilingLook, &soffit, &why);
+
+					// no cell an alien clings to over either: the roof's own polygon there (Drake's RoofOver: a door's roof, one with no room to cling), the exit point's first
+					found = found || host::AutoPlotGrid_RoofOver(job.exitsWorld[e].data(), host::kAutoPlotCeilingLook, &soffit, &why) ||
+						host::AutoPlotGrid_RoofOver(past, host::kAutoPlotCeilingLook, &soffit, &why);
+				}
+				else if (!found)
+				{
+					found = host::AutoPlotGrid_RoofOver(job.exitsWorld[e].data(), host::kAutoPlotCeilingLook, &soffit, &why);
+				}
+
+				// THE DOORWAY'S TOP IS THE LOWER CEILING (Drake's gate 11-20, his soffit since lanes10): the roof's polygon straight over the exit point, and over the point back
+				// inside this AI module, where either is more than kAutoPlotSoffitLower under the one found (y is down: greater); an alien crosses at the doorway's top. medoor02:
+				// its door boxes went to a 5.8 m ceiling cell further back, past the 3.9 m lintel that no cell an alien clings to is on
+				for (int side = 0; found && side < 2; side++)
+				{
+					std::vector<int32_t> const &at = side == 0 ? job.exitsWorld[e] : (e < job.backs.size() ? job.backs[e] : job.exitsWorld[e]);
+					host::AutoPlotPoint roof;
+					std::string none;
+
+					if (at.size() == 3 && host::AutoPlotGrid_RoofOver(at.data(), host::kAutoPlotCeilingLook, &roof, &none) &&
+						roof.place[1] > soffit.place[1] + host::kAutoPlotSoffitLower)
+					{
+						soffit = roof;
+					}
+				}
+
+				if (found)
+				{
+					job.doors[e].soffitFound = true;
+
+					for (int i = 0; i < 3; i++)
+					{
+						job.doors[e].soffit[i] = soffit.place[i];
+					}
+
+					job.alienGoals[e] = std::vector<int32_t>{ soffit.place[0], soffit.place[1], soffit.place[2] };
+				}
+			}
+
+			// OPEN SKY PER DOORWAY (the owner's choice 11-20, through Bishop: "Stop only at exits modules with open sky", read at each exit): the floor just past the doorway, where
+			// the lane would go on (kAutoPlotSkyPast past its middle, at the exit point's height), under a ceiling of ANY module at any height: then the lane must go on there
+			job.ceilingPast.assign(job.exitsWorld.size(), -1);
+			job.ceilingHere.assign(job.exitsWorld.size(), -1);
+
+			for (size_t e = 0; e < job.exitsWorld.size() && e < job.doors.size(); e++)
+			{
+				if (job.exitsWorld[e].size() != 3)
+				{
+					continue;
+				}
+
+				int32_t past[3] = { job.exitsWorld[e][0], job.exitsWorld[e][1], job.exitsWorld[e][2] };
+
+				if (job.doors[e].throughFound)
+				{
+					past[0] = (int32_t)floor(job.doors[e].middle[0] + job.doors[e].through[0] * host::kAutoPlotSkyPast + 0.5);
+					past[2] = (int32_t)floor(job.doors[e].middle[2] + job.doors[e].through[1] * host::kAutoPlotSkyPast + 0.5);
+				}
+
+				host::AutoPlotPoint over;
+				std::string why;
+
+				// by the roof's polygons (Drake's AutoPlotGrid_RoofOver: the very test of his lane gate, any module, doors too, at least 300 over), not the cells an alien clings
+				// to (no cells under a door's roof, nor a roof with no room to cling: 28 Genshd1 AI modules were open sky by the cells, roofed by the polygons, 11-20)
+				job.ceilingPast[e] = host::AutoPlotGrid_RoofOver(past, host::kAutoPlotCeilingLook, &over, &why) ? 1 : 0;
+
+				// and this side's (Drake's gate: a lane can't start under open sky, so a doorway with none on this side is no lane end)
+				int32_t here[3] = { job.exitsWorld[e][0], job.exitsWorld[e][1], job.exitsWorld[e][2] };
+
+				if (job.doors[e].throughFound)
+				{
+					here[0] = (int32_t)floor(job.doors[e].middle[0] - job.doors[e].through[0] * host::kAutoPlotSkyPast + 0.5);
+					here[2] = (int32_t)floor(job.doors[e].middle[2] - job.doors[e].through[1] * host::kAutoPlotSkyPast + 0.5);
+				}
+
+				job.ceilingHere[e] = host::AutoPlotGrid_RoofOver(here, host::kAutoPlotCeilingLook, &over, &why) ? 1 : 0;
+			}
+
 			size_t const n = job.goals.size();
 
 			total += 2 * (std::min)(n * (n > 0 ? n - 1 : 0) / 2, host::kAutoPlotMostPairs);
@@ -629,4 +1522,31 @@ void AutoPlotCommand_Frame()
 bool AutoPlotCommand_Busy()
 {
 	return stage != Stage::Idle;
+}
+
+bool AutoPlotCommand_Run(std::vector<int32_t> const &modules)
+{
+	return AutoPlotCommand_Run(modules, host::AutoPlotVolumeCounts());
+}
+
+bool AutoPlotCommand_Run(std::vector<int32_t> const &modules, host::AutoPlotVolumeCounts const &counts)
+{
+	gNextCounts = counts;
+
+	if (modules.empty())
+	{
+		return AutoPlotCommand(host::kWaypointAutoPlotAll, -1);
+	}
+
+	gRunModules = &modules;
+
+	bool const done = AutoPlotCommand(host::kWaypointAutoPlotSelected, -1);
+
+	gRunModules = nullptr;
+	return done;
+}
+
+host::AutoPlotVolumeCounts AutoPlotCommand_RunCounts()
+{
+	return gRunCounts;
 }

@@ -121,4 +121,51 @@ namespace host
 
 		return true;
 	}
+
+	std::string WaypointNets_ReportWords(std::vector<WaypointProblem> const &problems, size_t more)
+	{
+		size_t const found = problems.size() + more;
+
+		if (found == 0)
+		{
+			return "checker: nothing found";
+		}
+
+		std::string words = found == 1 ? "checker: " : "checker: " + std::to_string(found) + " found: ";
+
+		for (size_t p = 0; p < problems.size() && p < kWaypointReportNamed; p++)
+		{
+			words += (p ? "; " : "") + problems[p].words;
+		}
+
+		size_t const named = problems.size() < kWaypointReportNamed ? problems.size() : kWaypointReportNamed;
+
+		if (found > named)
+		{
+			words += "; and " + std::to_string(found - named) + " more";
+		}
+
+		return words;
+	}
+
+	std::string WaypointNets_ReportModule(OpenLevelFile *open, int32_t master)
+	{
+		std::vector<WaypointNetModule> modules;
+		std::string why;
+
+		if (!WaypointNets_CheckLevel(open, &modules, &why))
+		{
+			return "checker: the level could not be read: " + why;
+		}
+
+		for (WaypointNetModule const &module : modules)
+		{
+			if (module.master == master)
+			{
+				return WaypointNets_ReportWords(module.problems, module.more);
+			}
+		}
+
+		return "checker: no alien waypoints";
+	}
 }

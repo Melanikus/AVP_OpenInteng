@@ -944,7 +944,7 @@ static std::string messageFmvWords;   // the last words SayMessageFmv said (the 
 static void SayMessageFmv(int32_t number)
 {
 	messageFmvWords = host::FmvFiles_MessageWords(host::FmvFiles_Folder(theGameFolder), number);
-	statusWords = messageFmvWords.c_str();
+	statusWords.Say(messageFmvWords.c_str(), StatusSayer::StrategyView);   // the view draws it (the owner's call 11-19, status_words.h)
 }
 
 bool StrategyViewOpen()
@@ -1032,7 +1032,7 @@ static void StrategyViewApplyBody(uint8_t const *id, int32_t kind, char const *f
 		static std::string refused;
 
 		refused = std::string("Edit Strategy: the strategy would not take it") + (why ? std::string(" (") + why + ")" : std::string());   // (ours: inteng says nothing)
-		statusWords = refused.c_str();
+		statusWords.Say(refused.c_str(), StatusSayer::StrategyView);   // the view draws it (the owner's call 11-19)
 	}
 }
 
@@ -1556,7 +1556,7 @@ void LiftPositionsEnd()
 	if (!open || !StrategyOfObject(subject, &kind, &payload) || kind != 51 || !LiftWithPositions(payload, kept, &bytes) ||
 	    WriteStrategyBytes(open, subject, bytes) != host::ObjectEditResult::Done)
 	{
-		statusWords = "Edit Strategy: the lift's positions could not be written";   // (ours: a lift whose bytes do not hold their lists, or a store that refused)
+		statusWords.Say("Edit Strategy: the lift's positions could not be written", StatusSayer::StrategyView);   // (ours: a lift whose bytes do not hold their lists, or a store that refused)
 		return;
 	}
 
@@ -1946,7 +1946,7 @@ static void MissionTextWindow(uint8_t const *subject, int32_t which, int32_t wan
 			}
 
 			messageFmvWords = playWords;
-			statusWords = messageFmvWords.c_str();
+			statusWords.Say(messageFmvWords.c_str(), StatusSayer::StrategyView);   // the view draws it (the owner's call 11-19, status_words.h)
 			MissionTextWindow(objective.data(), which, 73, &typedText);
 			return;
 		}
@@ -3947,7 +3947,14 @@ void StrategyModeCommand(int32_t command)
 			if (strategyEditFan)
 			{
 				// a Message's view says its FMV instead (SayMessageFmv, in StrategyViewOpen)
-				statusWords = strategyEditKind == 73 && !messageFmvWords.empty() ? messageFmvWords.c_str() : "Edit Strategy: click a line to change it; Escape ends";
+				if (strategyEditKind == 73 && !messageFmvWords.empty())
+				{
+					statusWords.Say(messageFmvWords.c_str(), StatusSayer::StrategyView);   // drawn in the view (the owner's call 11-19)
+				}
+				else
+				{
+					statusWords = "Edit Strategy: click a line to change it; Escape ends";   // the hint: kept for the harness, not drawn (inteng's view draws none)
+				}
 			}
 
 			return;

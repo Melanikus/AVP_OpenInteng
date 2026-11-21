@@ -1,0 +1,57 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-19, THE OWNER'S CALL through Bishop, alpha.3 "Status line call"): inteng draws no status line in Strategy's edit view (FUN_005356b0 draws its
+# own four lines; editor_panels.cpp strategyEditFan); ours draws it there WHILE the mouse tools have something to say (a named difference, chosen by the owner): a Message's FMV words
+# (the owner's addition, fmv_files.h) and a click's edit refused with its reason are drawn; any other words (the view's own "click a line" hint) are not, as inteng's. The drawn words are
+# the state line's "statusdrawn" (what the status line draws this frame, "" for none); "status" keeps every word for the harness, drawn or not.
+# A read-only stock Genshd1 opened as a double click: medoor01 (a Door) and message03 (a Message), whose number names FMVs\message<n>.smk in the run's data folder (there or not: the
+# words start "FMVs\message" or "No FMVs\message" either way).
+# RED on the bishop-int before it (284c0877): the edit view draws no status line at all, so statusdrawn never holds the FMV's or the refusal's words.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+# ---- a Door's view: the view's own hint is kept for the harness, not drawn (inteng's)
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is medoor01
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 200@0:medoor01 : Door
+expect-status Edit Strategy: click a line to change it
+expect-field-empty statusdrawn
+picture 1
+key Esc
+wait 400
+
+# ---- a Message's view: what the game makes of its number as an FMV, drawn as the view opens
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is message03
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 16@32:String :
+expect-status FMVs\message
+expect-field-has statusdrawn FMVs\message
+picture 2
+
+# ---- a click's edit refused: 451, a number the game refuses (the field's 0 .. 450), drawn with its reason
+click-box 300 40
+expect-dialog-kind form
+form-field 1 451
+click-button Ok
+expect-no-dialog
+wait 300
+expect-status Edit Strategy: the strategy would not take it
+expect-field-has statusdrawn Edit Strategy: the strategy would not take it
+picture 3
+key Esc
+wait 400
+

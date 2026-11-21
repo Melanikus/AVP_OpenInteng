@@ -616,7 +616,13 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	// The hub draws no status words either (FUN_004452b0 draws only the view, the bar and its dialogs: its strings are all prompts): the words are still kept for the harness' state line
 	// Neither does MODULE LINKING (module-linking-closeout-vasquez.md ML-T2; Vasquez 11-17): FUN_004c1a90 draws only its own rows (the legend, the picks, the counts, the view distance, the follow) and
 	// its link commands say nothing (ML-M-27); the words are kept for the state line
-	texts.status = (onHierarchy || (OnTheTrackScreen() && trackEd.state != host::TrackState::Off) || (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Waypoint") == 0) || barScreen == host::kIntengHub || OnModuleLinkingScreen() || textPanelText || polyScreenOpen || chooserActive || (strategyEditFan && OnStrategyScreen())) ? "" : (statusWords ? statusWords : "");
+	// THE OWNER'S CALL (11-19, through Bishop; a named difference): inteng draws none on the Waypoint screen or in Strategy's edit view (FUN_005356b0's own four lines); ours draws
+	// it there WHILE the words are that screen's mouse tool's (status_words.h StatusSayer), and hides it again at the next words of anything else
+	bool const onWaypointScreen = barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Waypoint") == 0;
+	bool const inStrategyEditView = strategyEditFan && OnStrategyScreen();
+	bool const mouseToolSays = StatusWords_ShownWhereIntengHidesIt(statusWords.Sayer(), onWaypointScreen, inStrategyEditView);
+	texts.status = (onHierarchy || (OnTheTrackScreen() && trackEd.state != host::TrackState::Off) || (onWaypointScreen && !mouseToolSays) || barScreen == host::kIntengHub || OnModuleLinkingScreen() || textPanelText || polyScreenOpen || chooserActive || (inStrategyEditView && !mouseToolSays)) ? "" : (statusWords ? statusWords : "");
+	StateLine_Add("statusdrawn", texts.status);   // the harness's: the words the status line draws this frame ("" none); "status" keeps every word, drawn or not
 	hitStatus = ui::Box{ 0, 0, 0, 0 };
 
 	size_t const statusCount = host::PanelPaint_Plan(layout, texts, PanelPass_MenuWidth, kPanelPassLineHeight, statusLines, 4);
@@ -1824,6 +1830,19 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 		text.text = one.text;
 		text.x = layout.view.x + one.x;   // inteng's x, a line at 0 on the window's left edge exactly (panel_pass.cpp AddLines)
 		text.y = one.pixelY >= 0 ? one.pixelY : one.row * 16;
+
+		if (one.grayBehind && boxCount < kPanelPassMostExtras)
+		{
+			int32_t width = 2 * host::kPaintMarginAcross;
+
+			for (size_t c = 0; c < text.text.size(); c++)
+			{
+				width += PanelPass_MenuWidth((unsigned char)text.text[c]);
+			}
+
+			boxes[boxCount++] = GrayBehind(text.x - host::kPaintMarginAcross, text.y, width, kPanelPassLineHeight);
+		}
+
 		lines[lineCount++] = text;
 	}
 

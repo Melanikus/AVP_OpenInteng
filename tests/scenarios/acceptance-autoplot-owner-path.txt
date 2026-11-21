@@ -1,0 +1,74 @@
+# ACCEPTANCE (a TEST for the owner, not a release): THE OWNER'S PATH PLOTTED BY THE VOLUME PLANNER. The owner 11-20: "this is the path I want mapped, tested and hudson to
+# walk with lamp on, throwing flares when aliens approach him"; Drake named the modules from his picture and he OK'd them ("Yes, that's it"): 13 AI modules in path order,
+# SHED05, gencor04, gencor05, SHED01, gencor03, gencor01, SHED10, gencor02, shedent02, shedent03, genent03, genent02, genent01. On a private copy of STOCK Genshd1 (19f00eae),
+# selected by clicks in that order, then Alien auto waypoint > Modules at the default counts (1 climb-in, 1 get-out an AI module) with the Airduct box unticked as it opens (the owner 11-20 19:06: no Airduct). The saved
+# copy is the input of the quick checks (Drake's whole-gate2.sh: Frost's checker, lanes, Vasquez's climbwalk) and of the gold compare on hand6g's five
+# (AvP-docs/tools/drake/lanes/gold-compare.sh); Drake adds the start, the lights and the generator for Hudson's walk.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Waypoint
+
+# ---- his path selected by clicks, in path order
+wait 600
+camera-corner SHED05
+click-view 0.50 0.50
+wait 400
+camera-corner gencor04
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor05
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner SHED01
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor03
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor01
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner SHED10
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor02
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner shedent02
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner shedent03
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner genent03
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner genent02
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner genent01
+click-view 0.50 0.50 ctrl
+wait 400
+expect-field waypointselection SHED05|gencor04|gencor05|SHED01|gencor03|gencor01|SHED10|gencor02|shedent02|shedent03|genent03|genent02|genent01
+
+# ---- Alien auto waypoint > Modules (the volume planner): its dialog starts with the Ctrl+click set's names and the default counts; Ok plots them, the Airduct box unticked (no Airduct)
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
+wait-status 300000 written
+expect-status AI modules written
+
+# ---- the pictures: SHED01 and gencor03 from 45 degrees round and up
+camera-orbit SHED01 45 45 20000
+wait 600
+picture 1
+camera-orbit gencor03 45 45 16000
+wait 600
+picture 2
+
+# ---- the saved copy, for the quick checks and the gold compare
+save-copy

@@ -1,0 +1,43 @@
+# ACCEPTANCE (a TEST for the owner, not a release): A SERIES PLOTTED AS ONE RUN (the owner's "I want to pick a series of modules and plot too", Bishop's #2 11-20), the series
+# with an ARRIVAL in it: doormp06 - new03 - office, on a private copy of the owner's v2d Genshd1 (dietrich-chain/Genshd1-v2d.RIF, as chain A's). office names doormp06 only at
+# another doorway (7.8 m off), so its plan gets an arrival where doormp06's exit 0 comes in (Vasquez's 8c94a34f); that is made only when doormp06 is plotted in the same run,
+# the one way a series' plans differ from the whole level's (every other rule reads one AI module's own geometry). The three selected by clicks and re-plotted with Auto-plot
+# selected AI modules (it asks to replace the v2d waypoints: Yes); every other AI module stays as v2d, and a lane leaving the series into one is fine (Bishop). The gate is
+# Drake's lanes.exe (check + lane + up) on the saved copy, over the three: doormp06 exit 0 -> office toward office01 and toward new03 CONTINUOUS (the whole level's last FAIL,
+# fixed by the arrival), and no problem inside the series.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-chain/Genshd1-v2d.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-chain/Genshd1-v2d.RIF
+pictures on
+state
+expect-screen Waypoint
+expect-field levelbytes 2117984
+
+# ---- the series selected by clicks (as chain A's): doormp06, then Ctrl+click new03 and office
+wait 600
+camera-corner doormp06
+click-view 0.50 0.50
+wait 400
+camera-corner new03
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner office
+click-view 0.50 0.50 ctrl
+wait 400
+expect-field waypointselection doormp06|new03|office
+
+# ---- Auto-plot selected AI modules: v2d has waypoints in all three, so it asks to replace them
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
+expect-dialog-kind confirm
+expect-dialog replace the
+click-button Yes
+wait-status 300000 written
+expect-status 3 AI modules written
+expect-status 0 refused
+
+# ---- the saved copy, for Drake's lanes.exe and the owner
+save-copy
+picture 1

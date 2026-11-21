@@ -286,6 +286,12 @@ namespace host
 
 	PolySplitResult PolyEdit_SplitAsObject(OpenLevelFile *file, uint8_t const *id, int32_t const *polygons, size_t count, uint8_t *newId, std::string *newName, std::string *why, bool asModule = false, char const *name = nullptr);
 
+	// A NEW placed object named `name` (plain letters, no object of the level has it), at place (millimetres) and turned as turn (an object header's four floats), around a COPY of the shape of
+	// the object with that ID: every chunk of the shape copied as it is but its SHPHEAD1, whose list of users is emptied and which gets the number one past the level's highest (as Split's
+	// copy, CloneShapeChunk). The copy is the new object's alone, so Rescale can then size it without touching the original. One change, read by the game's loader before it is swapped in.
+	// (Frost 2026-11-19, the mech proof: small stand-ins from the level's own shapes, its own objects left as they are.)
+	PolySplitResult PolyEdit_CopyShapeAsObject(OpenLevelFile *file, uint8_t const *id, char const *name, int32_t const *place, float const *turn, uint8_t *newId, std::string *newName, std::string *why);
+
 	// Whether polygons of the object's shape may be flagged for deletion: inteng's Delete polys refuses a shape with a SHPMORPH or an ANIMSEQU ("Can't alter shapes with morphing data", FUN_0056fd40). False for an object that is not there.
 	bool PolyEdit_CanFlagForDeletion(OpenLevelFile *file, uint8_t const *id);
 

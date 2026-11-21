@@ -10,10 +10,13 @@ expect-screen Waypoint
 expect-bar1 Mode
 expect-bar1 Help
 expect-field-not-has bar1 Auto-plot
+expect-field-not-has bar1 Alien auto waypoint
 picture 1
 # the command itself, asked straight (as a key or the harness would): the editor refuses it, no item of its bars has it; nothing happens (no run, no question)
 item 0x7331 refused
+item 0x7334 refused
 wait 600
 expect-status-not Auto-plot
 expect-no-dialog
 expect-field-not-has bar1 Auto-plot
+expect-field-not-has bar1 Alien auto waypoint

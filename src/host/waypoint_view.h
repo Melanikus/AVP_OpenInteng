@@ -48,6 +48,20 @@ namespace host
 
 	void WaypointView_WorldLines(WaypointMode const &mode, double levelScale, std::vector<TrackLine> *lines);
 
+	// EVERY AI MODULE'S ALIEN NETWORK AT ONCE (Vasquez 2026-11-19, the owner's ask: "as I enter inteng to see ... all alien paths and volumes across all modules"; a named difference: inteng
+	// shows one AI module's list, in mode 1 only). Each list's boxes and links are APPENDED to *lines in inteng's colours as mode 1 draws them with nothing current (white boxes, green
+	// links, the half a one-way link may not be gone along from red), except that a link only aliens use is drawn in inteng's highlighted yellow, as its Highlight item would draw it:
+	// the aliens' lanes show. A pair of linked boxes is one line of two halves (FUN_005835a0). Gives how many lists, boxes and pairs it drew.
+	struct WaypointAllCounts
+	{
+		size_t networks = 0;
+		size_t boxes = 0;
+		size_t links = 0;
+	};
+
+	// closedRed false (mode 0, where inteng's red means the PICK): a one-way link's closed half takes its link's own colour instead of red
+	WaypointAllCounts WaypointView_AllLines(std::vector<std::vector<WaypointRec> const *> const &lists, double levelScale, std::vector<TrackLine> *lines, bool closedRed = true);
+
 	// Where the block of the waypoint's box is (its centre, the world's units): FUN_0046ddb0 measures the click to it (the pick of mode 1, FUN_00584ee0 0x58542d)
 	void WaypointView_BoxCentre(WaypointMode const &mode, size_t index, double levelScale, int32_t out[3]);
 }
