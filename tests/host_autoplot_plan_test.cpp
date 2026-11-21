@@ -393,11 +393,11 @@ int main()
 		for (std::vector<int32_t> const &c : f.cells)
 		{
 			int32_t const place[3] = { (int32_t)floor(c[0] / scale), (int32_t)floor(c[1] / scale), (int32_t)floor(c[2] / scale) };
-			bool in = false;
+			bool held = false;
 
-			for (host::WaypointRec const &wp : seen.list) in = in || GameHolds(wp, place, scale);
+			for (host::WaypointRec const &wp : seen.list) held = held || GameHolds(wp, place, scale);
 
-			out += in ? 0 : 1;
+			out += held ? 0 : 1;
 		}
 
 		return out;
