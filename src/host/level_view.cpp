@@ -31,6 +31,7 @@
 #include "camera_start.h"
 
 #include <algorithm>
+#include <chrono>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -1937,6 +1938,14 @@ static int32_t hideBeyondDistance = 0;
 static bool hideBeyondOn = false;
 static std::vector<int32_t> ruleModules;
 static bool ruleEveryObject = false;
+static std::vector<int32_t> previewHidden;   // THE PLOT'S PREVIEW's own set (LevelView_HideForPreview)
+static bool previewHiding = false;
+static bool insetOn = false;                 // THE PLOT'S PREVIEW's INSET (LevelView_Inset): asked for this frame
+static FlyCamera insetCamera = {};
+static int insetBox[4] = { 0, 0, 0, 0 };
+static bool insetDrawing = false;            // the inset's own view is being drawn: the preview's hidden set counts only then (PutTheHiddenBlocks)
+static bool insetDrawn = false;              // the last frame drew it (LevelView_InsetDrawn)
+static double insetMs = 0.0;                 // and how long it took to make (LevelView_InsetMs)
 
 void LevelView_HideByRule(const int32_t *moduleIndex, size_t count, bool everyObject)
 {
@@ -1947,6 +1956,40 @@ void LevelView_HideByRule(const int32_t *moduleIndex, size_t count, bool everyOb
 	{
 		ruleModules.push_back(moduleIndex[i]);
 	}
+}
+
+void LevelView_HideForPreview(const int32_t *shownModules, size_t count)
+{
+	previewHidden.clear();
+	previewHiding = shownModules && count > 0;
+
+	for (int32_t m = 0; previewHiding && m < LevelView_ModuleCount() && previewHidden.size() < kLevelViewMostHidden; m++)
+	{
+		if (std::find(shownModules, shownModules + count, m) == shownModules + count)
+		{
+			previewHidden.push_back(m);
+		}
+	}
+}
+
+void LevelView_Inset(bool on, const FlyCamera &camera, int boxLeft, int boxTop, int boxWidth, int boxHeight)
+{
+	insetOn = on && boxWidth >= 16 && boxHeight >= 12;   // (R_SetEditorMainViewport's own least box)
+	insetCamera = camera;
+	insetBox[0] = boxLeft;
+	insetBox[1] = boxTop;
+	insetBox[2] = boxWidth;
+	insetBox[3] = boxHeight;
+}
+
+bool LevelView_InsetDrawn()
+{
+	return insetDrawn;
+}
+
+double LevelView_InsetMs()
+{
+	return insetDrawn ? insetMs : 0.0;
 }
 
 void LevelView_HideModules(const int32_t *moduleIndex, size_t count, bool everyModule)
@@ -2139,6 +2182,11 @@ static void PutTheHiddenBlocks(const FlyCamera &camera)
 
 	allHiddenModules.insert(allHiddenModules.end(), ruleModules.begin(), ruleModules.end());
 
+	if (insetDrawing)
+	{
+		allHiddenModules.insert(allHiddenModules.end(), previewHidden.begin(), previewHidden.end());   // (the preview's set: the inset's view only, LevelView_Inset)
+	}
+
 	for (int32_t const module : allHiddenModules)
 	{
 		LevelViewShapeOf shape = {};
@@ -2198,7 +2246,7 @@ static void PutTheHiddenBlocks(const FlyCamera &camera)
 		}
 	}
 
-	R_SetEditorHiddenBlocks(hidden.data(), (int)hidden.size(), hideEveryObject || ruleEveryObject, hideEveryModule);
+	R_SetEditorHiddenBlocks(hidden.data(), (int)hidden.size(), hideEveryObject || ruleEveryObject || (insetDrawing && previewHiding), hideEveryModule);
 }
 
 bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*addToFrame)(void *context), void *context)
@@ -2327,6 +2375,37 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 
 	AvpShowViews();
 
+	// THE PLOT'S PREVIEW's INSET (LevelView_Inset): the main view's lists drawn NOW, into its box or the whole window (as the split screen draws its views), and
+	// its eyes kept for after the frame. The depth is then cleared, all of it: outside the drawing of the lists the whole window is the viewport, and the
+	// main view is done with it. Then the inset's camera, its hidden set and its box: its lists and the world lines go in the frame's last drawing, over
+	// the main view (its backdrop fills only its own box: FillTheBackdrop, a later view of the frame)
+	bool const inset = insetOn && Global_VDB_Ptr;
+	VECTORCH mainWorld = {};
+	MATRIXCH mainMat = {}, mainHorizon = {};
+	EULER mainEuler = {};
+
+	insetDrawn = false;
+
+	if (inset)
+	{
+		R_EditorFlushWorld();
+		mainWorld = Global_VDB_Ptr->VDB_World;
+		mainMat = Global_VDB_Ptr->VDB_Mat;
+		mainHorizon = Global_VDB_Ptr->VDB_HorizonMat;
+		mainEuler = Global_VDB_Ptr->VDB_MatrixEuler;
+		auto const insetFrom = std::chrono::steady_clock::now();
+
+		R_ClearZBuffer();
+		insetDrawing = true;
+		PutTheEyes(insetCamera);
+		PutTheHiddenBlocks(insetCamera);
+		R_SetEditorMainViewport(true, insetBox[0], insetBox[1], insetBox[2], insetBox[3]);
+		AvpShowViews();
+		insetDrawing = false;
+		insetDrawn = true;
+		insetMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - insetFrom).count();
+	}
+
 	// What the editor puts over the level, in the game's own frame, as the game puts its HUD: added to the screen list, which the game draws at
 	// the end of this frame, over everything, and which the picture below and the shown frame hold. Its places are in pixels (renderer.h).
 	if (addToFrame)
@@ -2337,6 +2416,19 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 	}
 
 	ThisFramesRenderingHasFinished();
+
+	// the inset drawn: the eyes, the hidden set and the box are the main view's again (the next frame starts from them, and what reads the last frame's eyes reads them)
+	if (inset)
+	{
+		Global_VDB_Ptr->VDB_World = mainWorld;
+		Global_VDB_Ptr->VDB_Mat = mainMat;
+		Global_VDB_Ptr->VDB_HorizonMat = mainHorizon;
+		Global_VDB_Ptr->VDB_MatrixEuler = mainEuler;
+		PutTheEyes(camera);
+		PutTheHiddenBlocks(camera);
+		R_SetEditorMainViewport(mainBoxOn, mainBox[0], mainBox[1], mainBox[2], mainBox[3]);
+	}
+
 	bool const saved = savePictureTo == nullptr || SaveThePicture(savePictureTo);
 	FlipBuffers();
 	FrameCounterHandler();

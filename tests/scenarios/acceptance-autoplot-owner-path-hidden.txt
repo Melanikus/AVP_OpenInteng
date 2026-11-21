@@ -1,0 +1,64 @@
+# ACCEPTANCE, HIDDEN (pictures off: runs while the owner holds lane G, Bishop 11-20 18:45): acceptance-autoplot-owner-path's plot of the owner's 13-module path, the
+# same clicks and Alien auto waypoint > Modules, no picture and no camera orbit. The harness is hidden anyway (-picture, window messages only); only pictures need the lane.
+# The saved copy is the quick checks' and Frost's scorecard run's input (committed 11-21 so every tree has it: AvP-docs/tools/drake/plots/plot-three.sh plots it with
+# stretch 2 and the whole level).
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-screen Waypoint
+
+# ---- his path selected by clicks, in path order
+wait 600
+camera-corner SHED05
+click-view 0.50 0.50
+wait 400
+camera-corner gencor04
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor05
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner SHED01
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor03
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor01
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner SHED10
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner gencor02
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner shedent02
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner shedent03
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner genent03
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner genent02
+click-view 0.50 0.50 ctrl
+wait 400
+camera-corner genent01
+click-view 0.50 0.50 ctrl
+wait 400
+expect-field waypointselection SHED05|gencor04|gencor05|SHED01|gencor03|gencor01|SHED10|gencor02|shedent02|shedent03|genent03|genent02|genent01
+
+# ---- Alien auto waypoint > Modules (the volume planner): its dialog starts with the Ctrl+click set's names and the default counts; Ok plots them, Airduct on what it shapes
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
+wait-status 300000 written
+expect-status AI modules written
+
+# ---- the saved copy, for the quick checks and the gold compare
+save-copy

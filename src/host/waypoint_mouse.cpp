@@ -181,6 +181,7 @@
 #include "chunk_object.hpp"
 #include "mishchnk.hpp"
 #include "waypoint_all.h"   // THE WAYPOINT DISPLAY: every AI module's alien list (WaypointAllClick)
+#include "autoplot_command.h"   // AN EDIT WAITS FOR THE PLOT: a click in the view while a run is going (AutoPlotCommand_Waits)
 
 namespace
 {
@@ -207,6 +208,11 @@ bool WaypointMouse_Release(int32_t x, int32_t y)
 
 	pressBox = -1;
 
+	if (from >= 0 && AutoPlotCommand_Waits("A box dragged in the view"))
+	{
+		return true;   // (the drag let go of, nothing moved)
+	}
+
 	if (from < 0 || !OnWaypointScreen() || waypointMode.Mode() != 1 || !waypointMode.AlienList() || abs(x - pressX) + abs(y - pressY) < kDragLeast)
 	{
 		return false;
@@ -224,6 +230,11 @@ bool WaypointMouse_Release(int32_t x, int32_t y)
 
 void WaypointMouseClick(host::PickReport const &picked, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight, bool shift, bool ctrl)
 {
+	if (AutoPlotCommand_Waits("A click in the view"))
+	{
+		return;
+	}
+
 	bool const linkEnd = linkEndAsked;
 	int32_t const linkFrom = pressBox;
 
@@ -406,6 +417,11 @@ void WaypointMouseClick(host::PickReport const &picked, int32_t x, int32_t y, in
 
 bool WaypointAllClick(host::PickReport const &picked, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight)
 {
+	if (AutoPlotCommand_Waits("A click in the view"))
+	{
+		return true;   // (taken: nothing picked)
+	}
+
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
 	if (!OnWaypointScreen() || waypointMode.Mode() != 0 || !open || !open->Level())

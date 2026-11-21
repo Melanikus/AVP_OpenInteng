@@ -9,6 +9,7 @@
 // THE AIRDUCT TICK BOX (11-20 night): in both dialogs one check box, UNTICKED as it opens (the owner 11-20 19:06 through Bishop, after playing his gold path with it off ("It was perfect"): "Let's not auto set it anymore"), under the two counts with its label to its right, above Ok; the form read on Ok
 // (the tick both ways, a form that lost a part refused); the tick and the counts to the planner's AutoPlotVolumeCounts (a count out of range named).
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -171,17 +172,32 @@ int main()
 	Check(!ok && why == "Get-outs: '4?' is not a whole number from 0 to 16", "a byte that is no letter: shown as ?, refused: " + why);
 	Check(!host::AlienAutoWaypoint_ParseCount("3", 0, 16, 2, "Get-outs", nullptr, &why), "no value given: false");
 
-	// THE AIRDUCT TICK BOX (the owner 11-20 night; unticked by default since the owner 11-20 19:06 through Bishop, after playing his gold path with it off ("It was perfect"): "Let's not auto set it anymore"): inteng's own check box (FUN_0057d670, 12 x 12) with its label to its right, under
-	// the two counts, in both dialogs, unticked as it opens; its tick is the planner's counts.airduct
+	// THE PLOT DIALOG'S PARTS, in both dialogs and in this order: [Modules' names], Climb-ins, Get-outs, the AIRDUCT TICK BOX (the owner 11-20 night; unticked by default
+	// since the owner 11-20 19:06 through Bishop, after playing his gold path with it off ("It was perfect"): "Let's not auto set it anymore"; inteng's own check box,
+	// FUN_0057d670, 12 x 12, with its label to its right), then THE OWNER'S SIZES (11-21, through Bishop: "If we could make these boxes sizes as variables on the auto link
+	// page with defaults, that would help me understand a lot"; "explaining what increasing or decreasing means expected behavior is with caveats"): corridor aim along,
+	// upper-face aim up and under (autoplot_volumes.h). Each count and size field starts with its default, has its label to its right naming its range and its default,
+	// and plain help lines under it (a size's say what more and what less do); every part inside the window and above Ok
+	struct Field
+	{
+		char const *name;
+		char const *first;
+		char const *range;
+	};
+
+	Field const fields[] = { { "Climb-ins", "1", "0 to 8, default 1" }, { "Get-outs", "1", "0 to 8, default 1" },
+		{ "Corridor aim along (mm)", "2500", "2500 to 10000, default 2500" }, { "Upper-face aim, up (mm)", "1000", "1000 to 1200, default 1000" },
+		{ "Upper-face aim, under (mm)", "300", "300 to 550, default 300" } };
+	size_t const fieldCount = sizeof(fields) / sizeof(fields[0]);
+	auto const lower = [](std::string words) { for (char &c : words) { c = (char)tolower((unsigned char)c); } return words; };
+
 	for (int withNames = 0; withNames < 2; withNames++)
 	{
 		std::string const which = withNames ? "Modules" : "Environment";
 		host::DialogFormSpec const form = host::AlienAutoWaypoint_PlotForm(withNames == 1, "SHED05 gencor01");
-		int boxes = 0, edits = 0;
-		bool ticked = false;
-		int32_t group = 0;
-		host::DialogRect lastEdit, box, label, ok;
-		std::string labelWords;
+		std::vector<size_t> editsAt;
+		size_t boxAt = (size_t)-1, okAt = (size_t)-1;
+		int boxes = 0;
 
 		for (size_t i = 0; i < form.widgets.size(); i++)
 		{
@@ -189,34 +205,119 @@ int main()
 
 			if (w.type == host::DialogWidgetType::Edit)
 			{
-				edits++;
-				lastEdit = w.box;
+				editsAt.push_back(i);
 			}
 			else if (w.type == host::DialogWidgetType::Check)
 			{
 				boxes++;
-				box = w.box;
-				ticked = w.checked;
-				group = w.group;
-
-				if (i + 1 < form.widgets.size() && form.widgets[i + 1].type == host::DialogWidgetType::Label)
-				{
-					label = form.widgets[i + 1].box;
-					labelWords = form.widgets[i + 1].text;
-				}
+				boxAt = i;
 			}
 			else if (w.type == host::DialogWidgetType::Button && w.text == "Ok")
 			{
-				ok = w.box;
+				okAt = i;
 			}
 		}
 
-		Check(boxes == 1 && !ticked && group < 0, which + ": one check box, unticked as it opens, in no radio group");
-		Check(edits == (withNames ? 3 : 2), which + ": its fields as before (" + std::to_string(edits) + ")");
-		Check(box.x == 0x1e && box.y == lastEdit.y + 0x18 && box.width == 12 && box.height == 12, which + ": the box under the two counts, at the fields' x, 12 x 12 (at " +
-			std::to_string(box.x) + ", " + std::to_string(box.y) + ")");
-		Check(labelWords.compare(0, 7, "Airduct") == 0 && label.x == box.x + 0x10 && label.y == box.y, which + ": its label to its right: '" + labelWords + "'");
-		Check(box.y + box.height <= ok.y, which + ": above Ok");
+		size_t const first = withNames ? 1 : 0;
+
+		Check(editsAt.size() == first + fieldCount, which + ": its fields, the names (Modules), the two counts and the three sizes (" + std::to_string(editsAt.size()) + ")");
+		Check(boxes == 1 && boxAt != (size_t)-1 && !form.widgets[boxAt].checked && form.widgets[boxAt].group < 0, which + ": one check box, unticked as it opens, in no radio group");
+		Check(okAt != (size_t)-1, which + ": an Ok button");
+
+		if (editsAt.size() != first + fieldCount || boxAt == (size_t)-1 || okAt == (size_t)-1)
+		{
+			continue;
+		}
+
+		host::DialogRect const ok = form.widgets[okAt].box;
+		int32_t helpBottom[fieldCount] = {};
+
+		for (size_t f = 0; f < fieldCount; f++)
+		{
+			size_t const at = editsAt[first + f];
+			host::DialogWidget const &edit = form.widgets[at];
+			bool const labelled = at + 1 < form.widgets.size() && form.widgets[at + 1].type == host::DialogWidgetType::Label;
+			host::DialogWidget const &label = form.widgets[labelled ? at + 1 : at];
+			std::string helps;
+			int helpLines = 0;
+			bool helpsUnder = true, helpsFit = true;
+			int32_t bottom = edit.box.y + edit.box.height;
+
+			Check(edit.text == fields[f].first, which + ": " + fields[f].name + " starts with its default " + fields[f].first + " ('" + edit.text + "')");
+			Check(labelled && label.box.y == edit.box.y && label.box.x >= edit.box.x + edit.box.width && label.text.compare(0, strlen(fields[f].name), fields[f].name) == 0 &&
+				label.text.find(fields[f].range) != std::string::npos, which + ": " + fields[f].name + "'s label to its right names its range and default ('" + label.text + "')");
+
+			// its help lines: the labels after its own, down to the next field, box or button, each at the field's x, under the one before, at most kAlienAutoWaypointHelpLetters
+			for (size_t h = at + 2; h < form.widgets.size() && form.widgets[h].type == host::DialogWidgetType::Label; h++)
+			{
+				host::DialogWidget const &help = form.widgets[h];
+
+				helpsUnder = helpsUnder && help.box.x == edit.box.x && help.box.y >= bottom;
+				helpsFit = helpsFit && !help.text.empty() && help.text.size() <= host::kAlienAutoWaypointHelpLetters && help.text.find('\n') == std::string::npos;
+				bottom = help.box.y + help.box.height;
+				helps += (helps.empty() ? "" : " ") + help.text;
+				helpLines++;
+			}
+
+			helpBottom[f] = bottom;
+			Check(helpLines >= 1 && helpsUnder && helpsFit, which + ": " + fields[f].name + " has its help under it, a line at most " + std::to_string((unsigned long long)host::kAlienAutoWaypointHelpLetters) +
+				" letters each (" + std::to_string(helpLines) + " lines: '" + helps + "')");
+
+			if (f >= 2)
+			{
+				Check(lower(helps).find("more") != std::string::npos && lower(helps).find("less") != std::string::npos, which + ": " + fields[f].name + "'s help says what more and what less do ('" +
+					helps + "')");
+			}
+
+			if (f + 1 < fieldCount)
+			{
+				int32_t const next = form.widgets[f == 1 ? boxAt : editsAt[first + f + 1]].box.y;
+
+				Check(bottom <= next, which + ": " + fields[f].name + "'s help ends before the next part (" + std::to_string(bottom) + " <= " + std::to_string(next) + ")");
+			}
+		}
+
+		host::DialogRect const box = form.widgets[boxAt].box;
+		bool const boxLabelled = boxAt + 1 < form.widgets.size() && form.widgets[boxAt + 1].type == host::DialogWidgetType::Label;
+		std::string const boxWords = boxLabelled ? form.widgets[boxAt + 1].text : std::string();
+
+		Check(box.x == 0x1e && box.width == 12 && box.height == 12 && box.y >= helpBottom[1] && box.y + box.height <= form.widgets[editsAt[first + 2]].box.y, which + ": the box under the "
+			"two counts' help and over the sizes, at the fields' x, 12 x 12 (at " + std::to_string(box.x) + ", " + std::to_string(box.y) + ")");
+		Check(boxWords.compare(0, 7, "Airduct") == 0 && form.widgets[boxAt + 1].box.x == box.x + 0x10 && form.widgets[boxAt + 1].box.y == box.y, which + ": its label to its right: '" +
+			boxWords + "'");
+
+		// inside the window: each part's box, and a label's longest line at inteng's ~7 px a letter (a label's words are drawn from its x on, not cut at its box)
+		bool inside = true;
+		std::string outside;
+
+		for (host::DialogWidget const &w : form.widgets)
+		{
+			bool const button = w.type == host::DialogWidgetType::Button;
+			size_t longest = 0, lineAt = 0;
+
+			while (w.type == host::DialogWidgetType::Label && lineAt <= w.text.size())
+			{
+				size_t const newline = w.text.find('\n', lineAt);
+				size_t const letters = (newline == std::string::npos ? w.text.size() : newline) - lineAt;
+
+				longest = letters > longest ? letters : longest;
+
+				if (newline == std::string::npos)
+				{
+					break;
+				}
+
+				lineAt = newline + 1;
+			}
+
+			bool const in = w.box.x >= 0 && w.box.x + w.box.width <= form.width && (button || w.box.y + w.box.height <= ok.y) && w.box.x + (int32_t)longest * 7 <= form.width;
+
+			outside += in || !outside.empty() ? "" : " '" + w.text + "'";
+			inside = inside && in;
+		}
+
+		Check(inside && ok.y + ok.height + 0x10 <= form.height && form.width <= 640 && form.height <= 480, which + ": every part inside the window (" + std::to_string(form.width) + " x " +
+			std::to_string(form.height) + ", inteng's screen 640 x 480) and above Ok" + outside);
 	}
 
 	// the form read on Ok: the typed words and the tick; the tick to the planner's counts
@@ -267,6 +368,54 @@ int main()
 	answers.getOuts = "x";
 	Check(!host::AlienAutoWaypoint_PlotCounts(answers, &counts, &why) && why == "Get-outs: 'x' is not a whole number from 0 to 8", "a get-outs count refused: named: " + why);
 	Check(!host::AlienAutoWaypoint_PlotCounts(answers, nullptr, &why), "no counts given: false");
+
+	// THE OWNER'S SIZES read on Ok (autoplot_volumes.h): the fields as they open are the defaults; a number out of its range is REFUSED, named, with the reason (Vasquez's
+	// dialog-knobs-2026-11-21.md: under 2500 along every value tried broke the climb; up and under were scored only as the pairs 1000 / 300 and 1200 / 550), and nothing is
+	// changed; nothing typed is the default (-1)
+	form = host::AlienAutoWaypoint_PlotForm(false, std::string());
+	ok = host::AlienAutoWaypoint_ReadPlotForm(false, form.widgets, &answers);
+	Check(ok && answers.highAlong == "2500" && answers.highUp == "1000" && answers.highUnder == "300", "the sizes read as the form opens: 2500, 1000, 300 ('" + answers.highAlong + "', '" +
+		answers.highUp + "', '" + answers.highUnder + "')");
+	counts = host::AutoPlotVolumeCounts();
+	Check(host::AlienAutoWaypoint_PlotCounts(answers, &counts, &why) && counts.highAlong == 2500 && counts.highUp == 1000 && counts.highUnder == 300, "as it opens: the planner's sizes "
+		"are the defaults, 2500, 1000, 300");
+
+	struct Refused
+	{
+		char const *along, *up, *under, *words;
+	};
+
+	Refused const refused[] = {
+		{ "2499", "1000", "300", "Corridor aim along (mm): '2499' is not a whole number from 2500 to 10000 (under 2500 every value tried broke the climb)" },
+		{ "600", "1000", "300", "Corridor aim along (mm): '600' is not a whole number from 2500 to 10000 (under 2500 every value tried broke the climb)" },
+		{ "10001", "1000", "300", "Corridor aim along (mm): '10001' is not a whole number from 2500 to 10000 (under 2500 every value tried broke the climb)" },
+		{ "2500", "1300", "300", "Upper-face aim, up (mm): '1300' is not a whole number from 1000 to 1200 (only 1000 with 300 and 1200 with 550 were tested)" },
+		{ "2500", "999", "300", "Upper-face aim, up (mm): '999' is not a whole number from 1000 to 1200 (only 1000 with 300 and 1200 with 550 were tested)" },
+		{ "2500", "1000", "200", "Upper-face aim, under (mm): '200' is not a whole number from 300 to 550 (only 1000 with 300 and 1200 with 550 were tested)" },
+		{ "2500", "1000", "-5", "Upper-face aim, under (mm): '-5' is not a whole number from 300 to 550 (only 1000 with 300 and 1200 with 550 were tested)" },
+		{ "2500", "1000", "551", "Upper-face aim, under (mm): '551' is not a whole number from 300 to 550 (only 1000 with 300 and 1200 with 550 were tested)" },
+	};
+
+	for (Refused const &r : refused)
+	{
+		answers.climbIns = "1";
+		answers.getOuts = "1";
+		answers.highAlong = r.along;
+		answers.highUp = r.up;
+		answers.highUnder = r.under;
+		counts = host::AutoPlotVolumeCounts();
+		counts.highAlong = 7777;
+		why.clear();
+		Check(!host::AlienAutoWaypoint_PlotCounts(answers, &counts, &why) && why == r.words && counts.highAlong == 7777, std::string("out of range, refused by name with the reason, nothing "
+			"changed: ") + r.along + " / " + r.up + " / " + r.under + ": '" + why + "'");
+	}
+
+	answers.highAlong = " 4000 ";
+	answers.highUp = "1200";
+	answers.highUnder = "";
+	counts = host::AutoPlotVolumeCounts();
+	Check(host::AlienAutoWaypoint_PlotCounts(answers, &counts, &why) && counts.highAlong == 4000 && counts.highUp == 1200 && counts.highUnder == -1, "in range: read (4000, 1200); nothing "
+		"typed: the default (-1)");
 
 	printf("%d checks, %d failed\n", checks, checksFailed);
 	return checksFailed ? 1 : 0;

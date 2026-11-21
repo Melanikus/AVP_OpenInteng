@@ -45,6 +45,26 @@ int main()
 	Check(host::AutoPlot_TimeWords(3.44) == "; in 3.4 s", "3.44 s: a tenth (" + host::AutoPlot_TimeWords(3.44) + ")");
 	Check(host::AutoPlot_TimeWords(-1.0) == "; in 0.0 s", "a clock that went back: 0 (" + host::AutoPlot_TimeWords(-1.0) + ")");
 
+	// THE VALUES A RUN PLOTTED WITH (Tao 2, Bishop's order 11-21: "the values used go into the plot notes and the status line's end line, so a saved file says how it was
+	// plotted"): the numbers the planner used, each default filled in and each out-of-range number held to its range, and the Airduct tick
+	host::AutoPlotVolumeCounts asked;
+	std::string const v = host::AutoPlot_ValuesWords(asked);
+
+	Check(v == "; with climb-ins 1, get-outs 1, corridor aim along 2500 mm, upper-face aim up 1000 mm and under 300 mm, Airduct off", "nothing asked: the defaults (" + v + ")");
+	asked.climbIns = 2;
+	asked.getOuts = 0;
+	asked.airduct = true;
+	asked.highAlong = 4000;
+	asked.highUp = 1200;
+	asked.highUnder = 550;
+	Check(host::AutoPlot_ValuesWords(asked) == "; with climb-ins 2, get-outs 0, corridor aim along 4000 mm, upper-face aim up 1200 mm and under 550 mm, Airduct on", "the owner's numbers (" +
+		host::AutoPlot_ValuesWords(asked) + ")");
+	asked.climbIns = 99;
+	asked.highAlong = 600;
+	asked.highUnder = 9000;
+	Check(host::AutoPlot_ValuesWords(asked) == "; with climb-ins 8, get-outs 0, corridor aim along 2500 mm, upper-face aim up 1200 mm and under 550 mm, Airduct on", "out of range: "
+		"the numbers the planner used, held to the ranges (" + host::AutoPlot_ValuesWords(asked) + ")");
+
 	printf("%d checks, %d failed\n", checks, checksFailed);
 	return checksFailed == 0 ? 0 : 1;
 }

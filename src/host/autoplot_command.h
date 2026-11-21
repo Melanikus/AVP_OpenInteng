@@ -7,8 +7,10 @@
 // Written 2026-11-18 by Melanikus (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
+#include <string>
 #include <vector>
 
 #include "autoplot_volumes.h"
@@ -39,6 +41,11 @@ bool AutoPlotCommand_Busy();
 // asks it (the owner 11-21, a whole-level plot of about 112 s with nothing shown)
 bool AutoPlotCommand_BusyCursor();
 
+// THE CAN CRAWL OFFER's Apply Module Flag (can_crawl_offer.h; the owner 11-21): the Airduct flag on every module of the AI module that holds `module` (any module's object
+// index), by the plot's own way (Strategy mode's Add Flag > Airduct, as its Airduct box). flagged: the modules newly flagged; of: its modules; name: its head's name. False when
+// the level or its modules can't be read, or the flag could not be set
+bool AutoPlotCommand_AirductOn(int32_t module, size_t *flagged, size_t *of, std::string *name);
+
 // Auto-plot these modules' AI modules (any module's object index, each taken to the head of the AI module that holds it, once, in the order given), or EVERY AI module when the
 // list is empty: the same run and status line as Auto-plot selected / all (Vasquez's "Alien auto waypoint" menu, the owner 11-20: "a drop down with environment or modules and
 // accept a string of multiple modules"). What AutoPlotCommand gives back
@@ -49,3 +56,22 @@ bool AutoPlotCommand_Run(std::vector<int32_t> const &modules, host::AutoPlotVolu
 
 // The counts of the run going (or the last one): the defaults unless AutoPlotCommand_Run gave them
 host::AutoPlotVolumeCounts AutoPlotCommand_RunCounts();
+
+// THE PLOT'S PREVIEW (autoplot_preview.h; the owner 11-21): while a run goes, how many of its jobs are planned (the worker publishes each as its plan is done;
+// 0 when no run goes), and job k's (k below that) AI module head, game modules and plan list, which stay as they are until the run ends. False otherwise.
+size_t AutoPlotCommand_PreviewPlanned();
+bool AutoPlotCommand_PreviewJob(size_t k, int32_t *head, std::vector<int32_t> const **gameModules, std::vector<host::WaypointRec> const **list);
+// The preview's drawing time this frame (ms), added up for the whole plot's time line
+void AutoPlotCommand_PreviewDrew(double ms);
+
+// AN EDIT WAITS FOR THE PLOT (autoplot_waits.h): true, and the status line says the item waits, when a run is going and the bar item numbered action would
+// change the level or leave the Waypoint screen (an item no bar has waits too); false otherwise, and the item is done as always. editor_main's RunAction asks it first
+bool AutoPlotCommand_ItemWaits(int32_t action);
+
+// The same for what reaches the level without the bar (the Waypoint screen's keys, its clicks in the view): true, and the status line says that what waits, while
+// a run is going; false when none is. A click waits too: while the plot's inset is drawn, the frame's last view is the inset's, which a pick would read
+bool AutoPlotCommand_Waits(char const *what);
+
+// The editor is closing: a run's worker still searching is asked to stop and waited for, before the level and the game go (it stops between two AI modules,
+// so this can take as long as one module's search). Nothing happens when no worker runs
+void AutoPlotCommand_Stop();

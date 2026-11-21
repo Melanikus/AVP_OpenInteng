@@ -709,12 +709,19 @@ int main(int argc, char **argv)
 	std::vector<host::WaypointRec> &list4 = alien ? after.alien : after.ground;
 
 	Check((list4[(size_t)other].flags & host::kWaypointCanCrawl) != 0, "Add Can Crawl sets the flag in the level");
+	// THE CAN CRAWL OFFER (the owner 11-21): the bit is set as inteng sets it, and the editor is asked to offer the module's Airduct flag instead
+	Check(out.offerAirduct, "Add Can Crawl asks the editor to offer the Airduct flag (the bit does nothing in the game)");
 	out = mode.Command(0x17, context);
 	SetOfModule(level, master, &after);
 
 	std::vector<host::WaypointRec> &list5 = alien ? after.alien : after.ground;
 
 	Check((list5[(size_t)other].flags & host::kWaypointCanCrawl) == 0, "Remove Can Crawl clears it");
+	Check(!out.offerAirduct, "Remove Can Crawl offers nothing");
+	out = mode.Command(0x27, context);   // the W key: Can Crawl on
+	Check(out.offerAirduct, "W turning Can Crawl on offers the Airduct flag too");
+	out = mode.Command(0x27, context);   // and off
+	Check(!out.offerAirduct, "W turning it off offers nothing");
 
 	// Delete Waypoint: the created one is the base; pick it by Step until current == created, delete
 	for (size_t tries = 0; tries <= listSize + 2 && mode.CurrentWaypoint() != created; tries++)

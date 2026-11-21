@@ -3,8 +3,10 @@
 /Isrc/host
 tests/host_autoplot_volumes_test.cpp
 src/host/autoplot_volumes.cpp
+src/host/autoplot_stairs.cpp
 src/host/autoplot_rooms.cpp
 src/host/autoplot_lane.cpp
 src/host/autoplot_merge.cpp
 src/host/autoplot_plan.cpp
 src/host/autoplot_levels.cpp
+src/host/autoplot_closers.cpp

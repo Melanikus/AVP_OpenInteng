@@ -1,0 +1,62 @@
+# ACCEPTANCE, HIDDEN (pictures off; red first; Vasquez 2026-11-21, part B of the plot fix, Dietrich leading): THE PLOT'S PREVIEW. The owner, 11-21: "Can we draw the module
+# being linked at the bottom right/bottom 40% of the screen space with aspet ratio so people see the flashing modules being built :)", "Like we have with Waypoint".
+# While Alien auto waypoint plots, the view is drawn in an inset at its bottom right, 40% of its width and of its height (so its aspect is kept), showing the newest
+# module planned, drawn anew once a module; when the plot ends the inset is gone and the normal view is back.
+# Read from the state line's "plotpreview" field (plot_preview_state.h): "on left L top T width W height H head N job J redraws R ms M" while it shows, "off" before
+# any plot, "off job J redraws R ms M" after one.
+# The window: -r1024x768, a framed window whose client (the view) is 1024 x 768 (acceptance-start-size-r.txt). Its inset (autoplot_preview.h PlotPreview_Inset):
+# width 410 (409.6 rounded), height 307 (307.2 rounded), left 1024 - 410 = 614, top 768 - 307 = 461. acceptance-plot-preview-wide.txt does 16:9.
+# Three rooms of stock Genshd1 plotted through the owner's menu (Alien auto waypoint > Modules), as acceptance-autoplot-rooms / -progress-hidden: PROC11, MOD-03, MOD-11.
+# (Frost 11-21: MOD-03 and MOD-11, the two slowest rooms to plan of the whole level, 2.6 s and 1.2 s on the 7b2f9624 baseline, in place of med16 and med14: with those
+# the 3 rooms' whole plot took 5.0 s and ended during the mid-plot fly, so "the inset still on" after it raced the plot's end. Bigger rooms, not a looser check.)
+# Finished = while plotting, the inset's four numbers; after it, off with redraws 3 for 3 modules (one redraw a module) and the last job 2 (counted from 0).
+# RED on exe-cache/7b2f9624.exe (Dietrich's skeleton: no plotpreview field). NOT RUN YET (tests held 11-21 05:0x; handed to Frost with the branch).
+# THE MID-PLOT PICTURE: "picture 1" is taken while the inset shows (a hidden run's own picture: pictures off stops only the automatic ones); check it for private
+# text (paths, names) before it goes to the owner.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args -r1024x768 C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-screen Waypoint
+expect-field-has window 1024 768 window
+# before any plot: nothing shown
+expect-field plotpreview off
+
+wait 600
+camera-corner PROC11
+click-view 0.50 0.50
+wait 400
+expect-status PROC11
+
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+# MOD-03 and MOD-11 by their names in the dialog's list (PROC11 is picked already)
+type ,MOD-03,MOD-11
+click-button Ok
+# one of MOD-03 / MOD-11 has stock alien waypoints, so the editor asks to replace them, as the owner answers it (acceptance-autoplot-genshd1)
+expect-dialog-kind confirm
+expect-dialog replace
+click-button Yes
+
+# WHILE IT PLOTS: the inset at the view's bottom right, 40% of each side
+wait-field plotpreview redraws_ 1 120000
+expect-field-has plotpreview on left 614 top 461 width 410 height 307
+# THE NEW SHAPE (the owner 11-21: "Full map + inset on top"; Frost): the inset is drawn OVER the whole main view ("main 1"), and the main view stays usable while the plot
+# runs: a number-pad fly key held mid-plot moves the editor's camera (the state line's camera is the main view's: Dietrich's view gives it back every frame), the inset still on.
+# A named difference: while the inset shows, the main view draws no world lines (they are drawn only in the frame's last drawing, the inset's). RED on a6d98a0f: no "main" word.
+expect-number plotpreview main_ 1 1
+remember-field camera
+hold Numpad8 580
+expect-field-changed camera
+expect-field-has plotpreview on left
+picture 1
+
+# WHEN IT ENDS: the inset gone (off), one redraw for each of the 3 modules, the last job 2
+wait-status 300000 written
+expect-status Auto-plot: 3 AI modules written, 0 refused
+wait 600
+expect-field-has plotpreview off job
+expect-number plotpreview redraws_ 3 3
+expect-number plotpreview job_ 2 2

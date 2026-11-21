@@ -1,0 +1,36 @@
+# ACCEPTANCE, HIDDEN (pictures off; red first; Dietrich 2026-11-21): THE PLOT'S PREVIEW SHOWS THE LAST MODULE TOO. Frost's runs of the first -wide on every exe:
+# a one-room plot (PROC11 alone) never showed its module ("off" all through: no job, no redraw; "the whole plot took 4055 ms ..., 80 frames"). Its worker planned
+# it, and the next frame joined the worker, wrote the module in one 100 ms slice and went Idle, all before the preview's turn in the frame (plot_preview_view.h).
+# A bigger plot showed its last module only because its writing took more than one frame. Now the writing starts the frame after the join, so the last
+# module planned (here the only one) is drawn at least once (autoplot_command.cpp, THE LAST MODULE SHOWN).
+# Finished = after the plot the field keeps that one redraw: "off job 0 redraws 1" (the owner's "once a module", the last one included).
+# Not checked here: the inset WHILE it shows. One frame is shorter than the driver's 100 ms poll; acceptance-plot-preview and -wide check it on a longer plot.
+# RED on exe-cache/2319ab25.exe: plotpreview stays "off" (no job, no redraw).
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args -r1024x768 C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-screen Waypoint
+# before any plot: nothing shown
+expect-field plotpreview off
+
+wait 600
+camera-corner PROC11
+click-view 0.50 0.50
+wait 400
+expect-status PROC11
+
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+# PROC11 alone (picked already)
+click-button Ok
+
+# WHEN IT ENDS: the one module was drawn once (job 0, one redraw), and the inset is gone
+wait-status 300000 written
+expect-status Auto-plot: 1 AI modules written, 0 refused
+wait 600
+expect-field-has plotpreview off job
+expect-number plotpreview redraws_ 1 1
+expect-number plotpreview job_ 0 0

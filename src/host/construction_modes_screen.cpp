@@ -134,6 +134,7 @@
 #include "waypoint_view.h"
 #include "autoplot_command.h"
 #include "alien_auto_waypoint.h"   // the owner's "Alien auto waypoint" > Modules (Vasquez 11-20)
+#include "can_crawl_offer.h"       // the Can Crawl offer: the module's Airduct flag instead of the bit the game never reads (the owner 11-21)
 #include "track_pages.h"
 #include "editor_options.h"
 #include "shape_chooser.h"
@@ -2020,6 +2021,12 @@ void DoWaypointCommand(int32_t command, EditorHostState &host)
 		return;
 	}
 
+	// AN EDIT WAITS FOR THE PLOT (autoplot_waits.h): every other Waypoint command, by the bar or by its key, while a run is going (its Exit writes the waypoints)
+	if (AutoPlotCommand_Waits("That Waypoint command"))
+	{
+		return;
+	}
+
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	host::WaypointContext context;
 
@@ -2078,6 +2085,28 @@ void DoWaypointCommand(int32_t command, EditorHostState &host)
 	}
 
 	Answer(outcome.say);
+
+	// THE CAN CRAWL OFFER (the owner 11-21, can_crawl_offer.h): Can Crawl just turned on, the bit as inteng sets it, which the game never reads; the module's Airduct flag offered
+	// instead. Apply Module Flag: on every module of the AI module whose waypoints these are, the plot's own way; No: the module left as it is
+	if (outcome.offerAirduct)
+	{
+		int32_t const module = waypointMode.CurrentModule();
+
+		host::Dialogs_Form(host::CanCrawlOffer_Form(), [module](int32_t answer, std::vector<host::DialogWidget> const &)
+		{
+			if (answer != host::kDialogOk)
+			{
+				Answer("Can Crawl: the module left as it is (no Airduct)");
+				return;
+			}
+
+			size_t flagged = 0, of = 0;
+			std::string name;
+
+			Answer(AutoPlotCommand_AirductOn(module, &flagged, &of, &name) ? "Can Crawl: Airduct set on " + std::to_string((unsigned long long)flagged) + " of the " +
+				std::to_string((unsigned long long)of) + " modules of " + name + " (aliens, marines and predators crawl there)" : std::string("Can Crawl: the Airduct flag could not be set"));
+		});
+	}
 
 	if (outcome.askExtents)
 	{

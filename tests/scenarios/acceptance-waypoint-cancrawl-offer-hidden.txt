@@ -1,0 +1,52 @@
+# ACCEPTANCE, HIDDEN (pictures off; red first; Drake 2026-11-21, alpha.3, the owner through Bishop: "let's enable it, when you do it it pops up a message ..."): THE CAN CRAWL
+# OFFER. Waypoint mode's Add Can Crawl (0x16) and the W key set the waypoint's own bit as inteng does; the game reads that bit only inside an "#if 0" (bh_waypoint.cpp 870-883),
+# so the editor then offers the module's Airduct flag instead (can_crawl_offer.h): a window titled "Can Crawl", the owner's words, Apply Module Flag and No.
+# Here: PROC11 of stock Genshd1 (as acceptance-autoplot-rooms), Edit Module, a waypoint made, Add Can Crawl: the offer; No: the module left as it was (no Airduct, as the game
+# takes it); W off: no offer; W on: the offer again; Apply Module Flag: PROC11 Airduct (verify_objects modflags, read back by the game's loader).
+# RED on exe-cache/992d2b38.exe (bishop-int): Add Can Crawl opens no window.
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-screen Waypoint
+
+wait 600
+camera-corner PROC11
+click-view 0.50 0.50
+wait 400
+expect-status PROC11
+# Edit Module (0x19), then the module picked again (Edit Module lets the pick go: acceptance-waypoint), Show Ground Waypoints (4) and a waypoint made (5) as
+# acceptance-waypoint does, its extents finished (0x13)
+item 0x19
+click-view 0.50 0.50
+item 4
+item 5
+drag-face current top right 20 20
+drag-face current side right 20 20
+item 0x13
+expect-hierarchy-text Waypoint :
+
+# ---- Add Can Crawl: the bit set as inteng sets it, and the offer
+item 0x16
+expect-hierarchy-text Can Crawl
+expect-dialog Can Crawl
+expect-field-has dialogbuttons Apply_Module_Flag
+expect-field-has dialogbuttons No
+click-button No
+expect-no-dialog
+save-copy
+# (gameflags: the bits as the game's loader takes them; stock PROC11 has no MODFLAGS, the loader ORs one in only when it is there, projload.cpp 2232-2234)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/verify_objects.exe {copy} gameflags PROC11|80000000|0
+
+# ---- W turns it off (no offer), and on again (the offer): Apply Module Flag
+key W
+expect-hierarchy-count 0 Can Crawl
+expect-no-dialog
+key W
+expect-hierarchy-text Can Crawl
+expect-dialog Can Crawl
+click-button Apply_Module_Flag
+expect-no-dialog
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/bstrat2-runs/verifiers/verify_objects.exe {copy} modflags PROC11|80000000|80000000

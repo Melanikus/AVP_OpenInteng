@@ -1,0 +1,57 @@
+# ACCEPTANCE, HIDDEN (red first; Drake 2026-11-21, THE OWNER'S WORD through Bishop: "If we could make these boxes sizes as variables on the auto link page with defaults, that
+# would help me understand a lot"; alien_auto_waypoint.h, autoplot_volumes.h THE OWNER'S SIZES). The plot dialog's three sizes of the climb-side HIGH aim, after the counts
+# and the Airduct box: Corridor aim along (mm) 2500, Upper-face aim, up (mm) 1000 and under (mm) 300, each started with its default. A size out of its range is NAMED on
+# the status line with the reason, and NOTHING is plotted; the run says the values it plotted with at the end of its end line (Tao 2). HIS PATH: his Genshd1 copy as
+# acceptance-alien-auto-waypoint (genent01, AI module 232, has no alien waypoint, so no question is asked the first time).
+# RED on exe-cache/9f6e17ed.exe (bishop-int): its dialog has two fields, so form-field 3 finds none.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif
+pictures off
+state
+expect-screen Waypoint
+expect-field levelbytes 1781232
+# Environment: its fields climb-ins, get-outs, along, up, under (the 3rd to 5th the sizes); along 2499, under its least, is named with why, and nothing is plotted
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+expect-dialog-checks off
+form-field 3 2499
+click-button Ok
+expect-no-dialog
+expect-status Alien auto waypoint: nothing plotted: Corridor aim along (mm): '2499' is not a whole number from 2500 to 10000 (under 2500 every value tried broke the climb)
+wait 1000
+expect-status-not Auto-plot:
+# up 1300, past its most: named with why
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+form-field 4 1300
+click-button Ok
+expect-no-dialog
+expect-status Alien auto waypoint: nothing plotted: Upper-face aim, up (mm): '1300' is not a whole number from 1000 to 1200 (only 1000 with 300 and 1200 with 550 were tested)
+wait 1000
+expect-status-not Auto-plot:
+# genent01, picked in the AI modules; Modules (its fields: the names, climb-ins, get-outs, along, up, under) at the defaults: plotted, and the end line says with what
+click-view 0.5 0.95
+wait 400
+expect-status Picked: module
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-button Ok
+expect-no-dialog
+wait-status 180000 AI modules written
+expect-status Auto-plot: 1 AI modules written, 0 refused
+expect-status ; with climb-ins 1, get-outs 1, corridor aim along 2500 mm, upper-face aim up 1000 mm and under 300 mm, Airduct off
+# again with along 4000 and up 1200 / under 550 (candidate 4's pair): its network is now ours, so the replace question comes (Yes); the end line says the new values
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+form-field 4 4000
+form-field 5 1200
+form-field 6 550
+click-button Ok
+expect-dialog-kind confirm
+click-button Yes
+# (the first run's end line still stands until this one ends: wait for this run's own words)
+wait-status 180000 corridor aim along 4000 mm
+expect-status Auto-plot: 1 AI modules written, 0 refused
+expect-status ; with climb-ins 1, get-outs 1, corridor aim along 4000 mm, upper-face aim up 1200 mm and under 550 mm, Airduct off

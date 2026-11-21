@@ -70,6 +70,10 @@ namespace host
 	double const kAutoPlotVolumeNarrow = 2000.0;       // after the first floor, a floor strip narrower than this is a sliver (a slope's row, a doorway's sill, the 1.8 m
 	                                                   // squares along SHED10's diagonal funnel sides; a corner's arm or a T's funnel is 3.6 m or more)
 	int const kAutoPlotVolumeHoleCells = 3;            // a hole in a flat floor up to this many cells across (along x or z) is floor (under a pipe run, a support)
+	int const kAutoPlotVolumeFloorOnRows = 2;          // THE WALL FOOT (Bishop 11-21): floor past a side is "floor going on" only this many cell lines deep (600 mm at 300);
+	                                                   // a one-row strip under a wall is its foot, and the side is still a wall to climb (SHED04's north side)
+	int32_t const kAutoPlotVolumeWallPart = 2400;      // THE WALL PART (Bishop 11-21): a side that is wall for at least this (the climb-in's length) gets its climb on that
+	                                                   // part, when its floor has no whole side to climb (new02's north side: 3.3 m of wall, an arm of floor past the rest)
 
 	// THE OWNER'S COUNTS (11-20: "tunable, I want to be able to define how many entry points per module/modules"; his picks: climb-ins and get-outs, set in the plot dialog,
 	// for every AI module of that run; "we have too many climb points": hand6g's own count, one a module and two at a corner, is the most, and the default fewer). Per AI
@@ -81,12 +85,46 @@ namespace host
 		bool airduct = false;    // AIRDUCT (MODULEFLAG_AIRDUCT) on every module of each AI module the planner shapes: the owner's force-crawl (Bishop 11-20, Drake's read-back
 		                         // of 435ff6c7: hand6g, the gold standard, has it on all its shaped modules; "the flag worked and they are trying to climb"). OFF by default, set only
 		                         // when the dialog's box is ticked (the owner 11-20 19:06 through Bishop, after playing his gold path with it off ("It was perfect"): "Let's not auto set it anymore")
+		int32_t highAlong = -1;  // THE OWNER'S SIZES below: the climb-side HIGH aim this far along the corridor from the climb's middle; -1: kAutoPlotVolumeHighAlong
+		int32_t highUp = -1;     // that aim this far up the upper face from the crease; -1: kAutoPlotVolumeHighUp
+		int32_t highUnder = -1;  // and this far under the face; -1: kAutoPlotVolumeHighUnder
 	};
 
 	int32_t const kAutoPlotDefaultClimbIns = 1;   // one a module (a corner one, not hand6g's two: its second climb goes, its HIGH catchers stay)
 	int32_t const kAutoPlotDefaultGetOuts = 1;
 	int32_t const kAutoPlotLeastClimbIns = 0, kAutoPlotMostClimbIns = 8;   // 0: no climb of its own (climbed from its neighbours' lanes)
 	int32_t const kAutoPlotLeastGetOuts = 0, kAutoPlotMostGetOuts = 8;
+
+	// THE OWNER'S SIZES (11-21, through Bishop: "If we could make these boxes sizes as variables on the auto link page with defaults, that would help me understand a lot"; earlier
+	// "exposed in the autolink editor with their default values and explaining what increasing or decreasing means"): the climb-side HIGH aim's three numbers above (along, up,
+	// under), set in the plot dialog for every AI module of that run. The ranges are Vasquez's safe ranges (AvP-docs/tools/vasquez/gridgaps/out/dialog-knobs-2026-11-21.md,
+	// part A), from the scored runs:
+	// - along: under 2500 every value tried broke the climb (stuck at 400, wedged in the crease at 600 and 1500; whole batch 2, 29 AI modules: 600 gave 1,636 stalled frames,
+	//   2500 gave 26). Its most only keeps the number a sane size: past a piece's length the aim already stops kAutoPlotVolumeHighEndClear short of the piece's far end;
+	// - up and under: only the two pairs 1000 / 300 (every whole-level plot) and 1200 / 550 (candidate 4) were scored, better on stretch 1 and worse on stretch 2.
+	// The dialog refuses a number outside least..most, by name; the planner holds it to the range again (Tao 3: the dialog is not its only caller). -1 is the default
+	int32_t const kAutoPlotLeastHighAlong = 2500, kAutoPlotMostHighAlong = 10000;
+	int32_t const kAutoPlotLeastHighUp = 1000, kAutoPlotMostHighUp = 1200;
+	int32_t const kAutoPlotLeastHighUnder = 300, kAutoPlotMostHighUnder = 550;
+
+	// One of the owner's numbers as a run uses it: below 0 (-1, not asked) its default, else held to least..most
+	inline int32_t AutoPlot_Knob(int32_t asked, int32_t fallback, int32_t least, int32_t most)
+	{
+		return asked < 0 ? fallback : (asked < least ? least : (asked > most ? most : asked));
+	}
+
+	// The counts and sizes a run uses (each one through AutoPlot_Knob; Airduct as asked): what the planner plans with, and what the run's words say it plotted with
+	inline AutoPlotVolumeCounts AutoPlot_UsedCounts(AutoPlotVolumeCounts const &asked)
+	{
+		AutoPlotVolumeCounts used = asked;
+
+		used.climbIns = AutoPlot_Knob(asked.climbIns, kAutoPlotDefaultClimbIns, kAutoPlotLeastClimbIns, kAutoPlotMostClimbIns);
+		used.getOuts = AutoPlot_Knob(asked.getOuts, kAutoPlotDefaultGetOuts, kAutoPlotLeastGetOuts, kAutoPlotMostGetOuts);
+		used.highAlong = AutoPlot_Knob(asked.highAlong, kAutoPlotVolumeHighAlong, kAutoPlotLeastHighAlong, kAutoPlotMostHighAlong);
+		used.highUp = AutoPlot_Knob(asked.highUp, kAutoPlotVolumeHighUp, kAutoPlotLeastHighUp, kAutoPlotMostHighUp);
+		used.highUnder = AutoPlot_Knob(asked.highUnder, kAutoPlotVolumeHighUnder, kAutoPlotLeastHighUnder, kAutoPlotMostHighUnder);
+		return used;
+	}
 
 	// The volume plan for one AI module (the same inputs as AutoPlot_Plan). plan.volumes is true when the module was shaped; false, with plan.notes saying why, when it can't be
 	// (a kind it has no rule for yet): the caller then writes NO network for it, and names it. counts: the owner's (THE COUNTS above). Climb-ins: hand6g's candidates are one

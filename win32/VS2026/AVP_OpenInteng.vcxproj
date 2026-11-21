@@ -145,6 +145,11 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <!-- Auto-plot alien ways, THE GAP CLOSERS (autoplot_closers.h: the wall band between the floor box and the entries closed by the fewest, largest boxes; Vasquez 11-21) -->
+    <ClCompile Include="..\..\src\host\autoplot_closers.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <!-- Auto-plot alien ways, the command (autoplot_command.h: Waypoint mode 0's two items, the worker, the checker before the write) -->
     <ClCompile Include="..\..\src\host\autoplot_command.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -169,6 +174,11 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <!-- THE PLOT'S PREVIEW (autoplot_preview.h; the owner 11-21: the module being plotted, at the view's bottom right): its maths; its view and state line are plot_preview_view and plot_preview_state below -->
+    <ClCompile Include="..\..\src\host\autoplot_preview.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <!-- Auto-plot alien ways, the repair before the checker (autoplot_repair.h: the refused modules' problems fixed by rule; Bishop 11-20) -->
     <ClCompile Include="..\..\src\host\autoplot_repair.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -184,6 +194,11 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <!-- Auto-plot alien ways, THE STAIR BETWEEN TWO FLOORS (autoplot_stairs.h: the treads between two floors a box on the floor and one in the ceiling; Dietrich 11-21) -->
+    <ClCompile Include="..\..\src\host\autoplot_stairs.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <!-- Auto-plot alien ways, THE VOLUME REPAIR (autoplot_volume_repair.h: a scrap box out, a centre in another box moved flat; Drake 11-20) -->
     <ClCompile Include="..\..\src\host\autoplot_volume_repair.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -191,6 +206,20 @@
     </ClCompile>
     <!-- Auto-plot alien ways, THE VOLUME SHAPE (autoplot_volumes.h: the owner's few room-sized volumes a module; Dietrich 11-20) -->
     <ClCompile Include="..\..\src\host\autoplot_volumes.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- AN EDIT WAITS FOR THE PLOT (autoplot_waits.h: while Alien auto waypoint plots, what would change the level waits for its end; Dietrich 11-21) -->
+    <ClCompile Include="..\..\src\host\autoplot_waits.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- THE PLOT'S PREVIEW: its view (Drake) and its state line (Vasquez) -->
+    <ClCompile Include="..\..\src\host\plot_preview_state.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\plot_preview_view.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
