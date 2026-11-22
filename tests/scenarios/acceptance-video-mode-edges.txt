@@ -1,0 +1,135 @@
+# ACCEPTANCE (red first; Frost 2026-11-22, for Dietrich, alpha.5 ITEM 2, THE OWNER'S VIDEO MODE: its HOSTILE AND EDGE cases; acceptance-video-mode.txt is the
+# straight path). Each clip is made fresh by the run with Windows' own Media Foundation (verify_videomake make: the repository holds no video):
+#   a43.mp4    320 x 240, 4:3 like AvP's 128 x 96, 6 s, with sound: Fit fills the whole 128 x 96, no black bars
+#   tall.mp4   180 x 320, standing up, 6 s, with sound: Fit puts it in 54 x 96 (96 x 180 / 320), black bars at the sides
+#   quiet.mp4  320 x 180, 6 s, no sound track at all: its words say "no sound", and the film saved from it has no sound track
+#   long.mp4   182 s at 2 pictures a second, no sound: past the editor's 180 s, refused, nothing held
+#   slow.mp4   120 s at 30 a second, no sound: long enough to read that it can be stopped half way, and a drop made while it is read refused
+# (long.mp4 and slow.mp4 were made without sound when the verifier's maker could not end a clip with sound past 8 s; it can since Dietrich's fix, 11-22, and
+# they stay as they are, as measured.)
+# THE CASES (Dietrich's list): (1) a 4:3 clip fills, a tall one has bars at the sides; (2) no sound: said, and the film has no sound track; (3) past 180 s:
+# refused, videostate stays empty; (4) a drop while one is read: not taken; (5) Cancel while one is read: "Not loaded: stopped", back to empty, and videostate said
+# "loading N%" while it read; (6) no press without a video: with no video the screen offers NO control, and Cancel only while one is read or made (so the engine's
+# own "Drop a video first" and "Nothing is being read or made" guards can't be reached from the screen); (7) a number typed past the game's 1 to 450 (451, and 0):
+# refused in words, nothing written; (8) a second drop replaces the first: loadedclips 2, its fit, cut and volume start again.
+# HIS PATH: his own Genshd1 (as acceptance-video-mode), his FMVs and two hostile ones in the run's own {datadir}\FMVs (message-fmv\make-fmvs.cmd).
+# RED on the build before it (bishop-int cca02724): the Mode menu has no Video.
+make-level cmd /c {scenariodir}message-fmv\make-fmvs.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
+# no message417.smk before the run saves it: run-shards runs a red file again in the same copy of the data, where the first pass may have saved it already
+make-level node -e "require('fs').rmSync(process.argv[1], { force: true })" {datadir}/FMVs/message417.smk
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/a43.mp4 6 --again --size 320x240
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/tall.mp4 6 --again --size 180x320
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/quiet.mp4 6 --again --no-sound
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/long.mp4 182 --again --fps 2 --no-sound
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/slow.mp4 120 --again --no-sound
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+
+# ---- (6) Mode > Video with no video: the black screen and its words, and no control at all to press
+click-bar Mode > Video
+wait 400
+expect-screen Video
+expect-field-has videostate empty; loadedclips 0
+expect-field-has videowords Drag and drop a video (.mp4, .mkv, .mov, ...) or use Load -> Browse
+expect-field-empty videocontrols
+picture 1
+
+# ---- (3) past 180 s: refused in words, nothing held, still the black screen
+drop-file {datadir}/long.mp4
+wait-status 20000 Not loaded: Import video: it is 182 s long; at most 180 s is taken
+# the editor's words name no mp4-to-smk switch (it has none: Frost's find; mp4-to-smk adds its own)
+expect-status-not mp4-to-smk
+expect-field-has videostate empty; loadedclips 0
+expect-field-has videowords Drag and drop a video
+expect-field-empty videocontrols
+
+# ---- (5) and (4) a long read: "loading N%" while it reads, only Cancel offered, a second drop not taken, Cancel stops it and the screen is empty again
+drop-file {datadir}/slow.mp4
+wait-field videostate loading_ 1 20000
+expect-field-has videocontrols Cancel
+expect-field-not-has videocontrols Save
+drop-file {datadir}/a43.mp4
+wait 200
+expect-status Not taken: the video before it is still being read or made
+expect-field-has videostate loading
+picture 2
+click-video Cancel
+wait-status 20000 Not loaded: stopped
+expect-field-has videostate empty; loadedclips 0
+expect-number videostate loadingframes 1 100000
+expect-field-has videowords Drag and drop a video
+expect-field-empty videocontrols
+
+# ---- (1) a 4:3 clip: Fit fills the whole 128 x 96; with a video held, Cancel isn't offered (nothing is being read or made)
+drop-file {datadir}/a43.mp4
+wait-field videostate loadedclips 1 20000
+expect-field-has videostate a43.mp4: 320 x 240, 6 s, with sound
+expect-field-has videofit fit: all of 320 x 240 fills 128 x 96
+expect-field-has videocontrols Save
+expect-field-not-has videocontrols Cancel
+picture 3
+
+# ---- (8) its fit, cut and volume changed, then a second clip dropped: it replaces the first, and all three start again
+click-video Crop
+wait 300
+expect-field-has videofit crop: the middle 320 x 240 of 320 x 240 becomes 128 x 96
+click-video Start+
+click-video Volume+
+wait 300
+expect-field-has videostate from 0.5 s to 6 s
+expect-field-has videostate volume AvP's level +3 dB
+
+# ---- (1) and (8) a tall clip: Fit puts it in 54 x 96 with bars at the sides; loadedclips 2, the cut the whole clip, the volume AvP's level
+drop-file {datadir}/tall.mp4
+wait-field videostate loadedclips 2 20000
+expect-field-has videostate tall.mp4: 180 x 320, 6 s, with sound
+expect-field-not-has videostate a43.mp4
+expect-field-has videofit fit: all of 180 x 320 into 54 x 96, black bars at the sides
+expect-field-has videostate from 0 s to 6 s: 6 s, 90 frames
+expect-field-has videostate volume AvP's level
+expect-field-not-has videostate dB
+picture 4
+
+# ---- (2) a clip with no sound track: said so
+drop-file {datadir}/quiet.mp4
+wait-field videostate loadedclips 3 20000
+expect-field-has videostate quiet.mp4: 320 x 180, 6 s, no sound
+expect-status quiet.mp4: 320 x 180, 6 s, no sound
+
+# ---- (7) numbers the game doesn't play, typed in the Save box: 451, then 0; each refused in words, and no film written
+click-video Save
+wait 300
+expect-dialog-kind form
+form-field 1 451
+click-button Ok
+wait 300
+expect-no-dialog
+expect-status Not saved: 451: not a number the game plays (1 to 450)
+verify cmd /c if exist "{datadir}/FMVs/message451.smk" (exit 1) else (exit 0)
+click-video Save
+wait 300
+expect-dialog-kind form
+form-field 1 0
+click-button Ok
+wait 300
+expect-no-dialog
+expect-status Not saved: 0: not a number the game plays (1 to 450)
+verify cmd /c if exist "{datadir}/FMVs/message0.smk" (exit 1) else (exit 0)
+
+# ---- (2) saved from the list (417 is free): the film the game finds has no sound track
+click-video Save
+wait 300
+expect-dialog-kind form
+click-combo 1
+click-combo-row 417: free
+click-button Ok
+wait-status 60000 Saved FMVs\message417.smk
+expect-status SMK2 128 x 96, 90 frames at 15 fps (6 s), no sound
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers-videomake/verify_videomake.exe check {datadir}/FMVs/message417.smk 128 96 15 90 --no-sound
+
+click-bar Mode > Exit
+wait 400

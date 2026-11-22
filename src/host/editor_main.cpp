@@ -8,8 +8,10 @@
 //
 // SETTINGS: AVP_OpenInteng.ini, beside the program:
 //     [Editor]
-//     DataFolder=<the editor's own copy of the game's data: a folder that holds avp_rifs>
-//     Level=<a level's file name, without .rif: the level opened when none is given on the command line>
+//     DataFolder=<the editor's own copy of the game's data: a folder that holds avp_rifs. With no such line, the game's folder above the program's own, when the
+//                 editor sits in the game's Tools folder (game_folder.h): the release zip's file names none, so a first start works out of the box>
+//     Level=<a level's file name, without .rif: the level a hidden test run (-picture) opens when none is given on the command line. With someone at the
+//            screen it is never read: started with no file, the editor says so, as inteng does (NoFileScreen)>
 //     KeyLayout=<Classic or ModernWASD: the key layout; Classic inteng's when the line is missing or says anything else (key_layout.h)>
 //     StartWidth=, StartHeight=, Windowed=<the start size and a framed window (editor_options.h; the release zip's own file says 1280, 720, true)>
 // The game's files are opened from that folder, as the game opens them from its own. The only thing ever written there is a level
@@ -136,6 +138,10 @@
 #include "one_editor.h"
 #include "utilities.h"     // SaveFolder_UseThisFolder (SAVE-FOLDER-1)
 #include "save_folder.h"   // SaveFolder_WhyNotUsable, for DataFolder too
+#include "game_folder.h"   // GameFolder_AboveProgram: the data folder when the ini names none (a first start, out of the box)
+#include "video_drop.h"          // kVideoDropTag: the harness's drop-file
+#include "video_mode.h"          // VideoMode_Browse: the Video screen's Load > Browse...
+#include "video_mode_screen.h"   // the owner's Video mode, its screen: its panels, its picture, its presses, its drops
 #include "editor_actions.h"
 #include "hidden_objects.h"
 #include "poly_counts.h"
@@ -3602,6 +3608,14 @@ void ExitTheMode()
 		return;   // Texture Map's Merge asks its save question first (texture_submodes.cpp)
 	}
 
+	// THE VIDEO SCREEN'S EXIT (video_mode_screen.h): it touches no level, so nothing is saved and no camera slot is said: the hub, as Shape Morph's Exit (its leaving lets go of
+	// the video: OnScreenChanged)
+	if (host::VideoModeScreen_Is(barScreen))
+	{
+		LeaveTheMode("", false);
+		return;
+	}
+
 	// OP-6: Object Placement's Exit saves every object (its block's place): the places Gravity moved them go into the level first, then every placed shape is saved
 	PlacementGravityFlush();
 	SaveEveryPlacedShape();
@@ -4579,6 +4593,8 @@ void OnScreenChanged(size_t was, size_t now)
 	{
 	return;
 	}
+
+	host::VideoModeScreen_ScreenChanged(was, now);   // the Video screen entered (its preview's place) or left by any way (its video let go: video_mode_screen.h)
 
 	// Object Placement left (its Track Editing and Acoustic pages are its own): every flown object's glide is let go of, as inteng's are when the hub loads the level again (THE FLOWN OBJECT'S GLIDE),
 	// and Gravity's places are written and its blocks given back. The Shape Chooser is the mode's own too: inteng comes back from it through its entry with DAT_008f4f38 = 1, which keeps Gravity
@@ -6673,6 +6689,11 @@ void RunAction(int32_t id)
 		PlacedHierarchyCommand(host.placedHierarchyCommand);
 	}
 
+	if (host.videoBrowse)
+	{
+		host::VideoMode_Browse(editorWindow);   // the Video screen's Load > Browse...: Windows' own Open dialog, the file taken as a drop of one (video_mode.h)
+	}
+
 	if (host.fixTears != 0)
 	{
 		FixTearsStart(host.fixTears == 2);
@@ -8739,6 +8760,14 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				}
 			}
 
+			// THE VIDEO SCREEN (video_mode_screen.h): a press on one of its controls presses it; any other press outside the panels does nothing (the screen shows no level
+			// to pick from)
+			if (answer == ui::MenuAnswer::Nothing && host::VideoModeScreen_Is(barScreen) && !OnAPanel(at.x, at.y))
+			{
+				host::VideoModeScreen_Press(at.x, at.y);
+				return 0;
+			}
+
 			// A press the menu bar took nothing from goes to the panels first (L-1: they are over the level): on a row of the object list it
 			// selects that row's object, even when the row was chosen already, as the selection may be something else by now (Added
 			// 2026-11-14 by Melanikus (Dietrich), F3); on any other panel's gray it does nothing. Only a press outside every panel reaches the
@@ -9307,7 +9336,18 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				Answer(orbitWords);
 				return TRUE;
 			}
+
+			// the harness's drop-file (video_drop.h kVideoDropTag): its paths as a real drop hands them over, taken the same way (video_mode_screen.h), in a -picture run only
+			if (NobodyWatching() && lParam && ((COPYDATASTRUCT const *)lParam)->dwData == host::kVideoDropTag && ((COPYDATASTRUCT const *)lParam)->lpData)
+			{
+				host::VideoModeScreen_DropText((char const *)((COPYDATASTRUCT const *)lParam)->lpData, ((COPYDATASTRUCT const *)lParam)->cbData, host::VideoModeScreen_Is(barScreen));
+				return TRUE;
+			}
 			break;
+		case WM_DROPFILES:
+			// files dragged from Explorer and let go over the window: the Video screen's, refused in words on any other (video_mode_screen.h); the handle is released there
+			host::VideoModeScreen_DropHandle((void *)wParam, host::VideoModeScreen_Is(barScreen));
+			return 0;
 		case kHarnessCamera:
 			if (NobodyWatching() && theCamera && wParam <= 5)
 			{
@@ -9979,6 +10019,14 @@ static bool ReadSetting(const char *settingsFile, const char *name, char *buf, s
 {
 	DWORD const length = GetPrivateProfileStringA("Editor", name, "", buf, (DWORD)size, settingsFile);
 	return length > 0 && length < size - 1;
+}
+
+// The settings file has the line name= with something after the "=", however long: a written setting, which then wins over any default. Only its first letter
+// is read, into room for one letter and the 0 after it (a longer value is cut there, and the count is still above 0)
+static bool SettingWritten(const char *settingsFile, const char *name)
+{
+	char first[2];
+	return GetPrivateProfileStringA("Editor", name, "", first, (DWORD)sizeof(first), settingsFile) > 0;
 }
 
 // INTENG'S MENU FONT (view-state-table.md H-5b, H-5c, H-5e; Bishop's ruling 11-16: Rebellion's font is never carried in our source, it is read at run time from the user's own inteng
@@ -14076,6 +14124,11 @@ static void AddThePanels(void *context)
 
 	if (frame)
 	{
+		if (host::VideoModeScreen_Is(barScreen))
+		{
+			host::VideoModeScreen_DrawUnder();   // the Video screen: the view black, the source's picture and its rectangle, under the panels (video_mode_screen.h)
+		}
+
 		if (onTextureMap && textureWindowOn)
 		{
 			TextureWindowDraw(frame->width, frame->height);
@@ -14475,11 +14528,30 @@ int main(int, char **)
 	{
 		return Stop("the program's own folder has too long a name");
 	}
-	if (!ReadSetting(settingsFile, "DataFolder", dataFolder, sizeof(dataFolder)) ||
-		(levelFile.empty() && !noFile && !openAt.shot && !ReadSetting(settingsFile, "Level", levelName, sizeof(levelName))))
+	// THE DATA FOLDER (Drake 2026-11-22, alpha.5; Bishop 2's order "FIRST LAUNCH MUST WORK OUT OF THE BOX"): the ini's DataFolder= when it has that line with
+	// something after the "="; with none, the game's folder above the program's own, when the editor sits in the game's Tools folder (game_folder.h): the release
+	// zip's file names none. Either one is held to the same checks below. A written line always wins, even one too long to read: that stops the editor here, in
+	// words, and is never swapped for the game's folder.
+	bool const dataFolderWritten = SettingWritten(settingsFile, "DataFolder");
+	if (dataFolderWritten && !ReadSetting(settingsFile, "DataFolder", dataFolder, sizeof(dataFolder)))
 	{
-		return Stop("AVP_OpenInteng.ini beside the program needs [Editor] with DataFolder=, and Level= unless a level file is given (each "
-			"shorter than 259 letters)");
+		return Stop("DataFolder= in AVP_OpenInteng.ini beside the program is too long: it has to be shorter than 259 letters");
+	}
+	if (!dataFolderWritten)
+	{
+		std::string gameFolder;
+
+		if (!host::GameFolder_AboveProgram(folder, &gameFolder) || strcpy_s(dataFolder, sizeof(dataFolder), gameFolder.c_str()) != 0)
+		{
+			return Stop("the editor can't find the game's files. Put it in the game's own Tools folder (the game's folder, the one that holds avp_rifs, is then the "
+				"one above it), or name the game's folder in AVP_OpenInteng.ini beside the program, as DataFolder= under [Editor]");
+		}
+	}
+	char const *const dataFolderFrom = dataFolderWritten ? "DataFolder in AVP_OpenInteng.ini" : "The game's folder, the one above the editor's,";
+	// Level= is read only by a hidden test run (-picture) given no level file: with someone at the screen, no file is NoFileScreen's, as inteng's
+	if (levelFile.empty() && !noFile && !openAt.shot && !ReadSetting(settingsFile, "Level", levelName, sizeof(levelName)))
+	{
+		return Stop("AVP_OpenInteng.ini beside the program needs Level= under [Editor] for a test run given no level file (shorter than 259 letters)");
 	}
 
 	// The key layout (key_layout.h). Anyone can write the setting, so anything but its two words means Classic, and the log says why, in
@@ -14577,8 +14649,9 @@ int main(int, char **)
 	char checkedDataFolder[MAX_PATH];
 	if (char const *const notUsable = SaveFolder_WhyNotUsable(dataFolder, checkedDataFolder, sizeof(checkedDataFolder)))
 	{
-		return Stop((std::string("DataFolder in AVP_OpenInteng.ini can't be used: ") + notUsable +
-			". It has to be a plain folder on a drive, such as C:\\AVP_OpenInteng\\data").c_str());
+		return Stop((std::string(dataFolderFrom) + " can't be used: " + notUsable + (dataFolderWritten ? ". It has to be a plain folder on a drive, such as "
+			"C:\\AVP_OpenInteng\\data" : ". Name a plain folder on a drive that holds the game's files in AVP_OpenInteng.ini beside the program, as DataFolder= "
+			"under [Editor]")).c_str());
 	}
 
 	// The data folder has to be the game's: one that holds avp_rifs
@@ -14590,8 +14663,10 @@ int main(int, char **)
 	DWORD const rifsKind = GetFileAttributesA(rifs);
 	if (rifsKind == INVALID_FILE_ATTRIBUTES || !(rifsKind & FILE_ATTRIBUTE_DIRECTORY) || !SetCurrentDirectoryA(dataFolder))
 	{
-		return Stop("DataFolder isn't the game's folder: it has no avp_rifs folder in it");
+		return Stop(dataFolderWritten ? "DataFolder isn't the game's folder: it has no avp_rifs folder in it" : "the game's folder, the one above the editor's, can't be opened");
 	}
+	LogString(std::string("the data folder: ") + dataFolder + (dataFolderWritten ? " (DataFolder= in AVP_OpenInteng.ini)" :
+		" (the game's folder, the one above the editor's: AVP_OpenInteng.ini names no DataFolder)"));
 
 	// A run started on the Hierarchy screen is IN the mode as one that moved there is (its models listed from the data folder's avp_huds, the view ready): the hidden scenario runs start so
 	if (IsTheHierarchyScreen(startScreen))
@@ -14719,6 +14794,9 @@ int main(int, char **)
 	{
 		ShowWindow(editorWindow, SW_SHOWNORMAL);
 	}
+	// Files dropped on either window go to the Video screen (video_mode_screen.h), which takes them only while it is up and checks every path first (video_drop.h)
+	DragAcceptFiles(editorWindow, TRUE);
+	DragAcceptFiles(hWndMain, TRUE);
 	WindowMode = WindowModeSubWindow;
 
 	R_SetShaderTextSource(&host::ShaderText_Find);   // the renderer's shaders from the editor itself, never a shaders folder (shader_text.h): set before Direct3D starts
@@ -15936,6 +16014,8 @@ int main(int, char **)
 		FlyCamera const drawCamera = PlotPreviewView_Frame(camera, 0, 0, windowWidth, windowHeight);   // THE PLOT'S PREVIEW (plot_preview_view.h): its camera while the plot runs
 		PlotPreviewState_Line();
 		bool const drawn = LevelView_Draw(drawCamera, savedTo, AddThePanels, &framePanels);
+		StateLine_Add("plotmessage", AutoPlotCommand_MessageShown().empty() ? std::string("off") : AutoPlotCommand_MessageShown());   // the auto-plot's start message this frame drew
+		StateLine_Add("plotmessagebox", AutoPlotCommand_MessageBox().empty() ? std::string("off") : AutoPlotCommand_MessageBox());   // and its black box
 		PlotPreviewView_Drawn();   // IN STEP WITH THE PLOT (plot_preview_view.h): the copy this frame showed is drawn, the plot's worker may go on
 
 		if (shotTo)
@@ -16406,6 +16486,8 @@ int main(int, char **)
 
 			host::DialogsState const dialogNow = host::Dialogs_State();
 			StateLine_Add("dialogoverlist", dialogNow.overlist);   // the window's words painted over its open drop-down list (dialogs.cpp WordsOverTheOpenList)
+			StateLine_Add("dialogpast", dialogNow.past);           // a form's parts reaching past its window (dialogs.cpp PastTheWindow), "none" when all fit
+			StateLine_Add("dialogwindow", dialogNow.window);       // a form's own window box, "<x> <y> <width> <height>"
 
 			if (!dialogNow.kind.empty())
 			{
@@ -16695,6 +16777,7 @@ int main(int, char **)
 	}
 
 	AutoPlotCommand_Stop();   // a plot's worker still searching is stopped and waited for first, while the level and its grid are still there (autoplot_command.h)
+	host::VideoModeScreen_Close();   // the Video screen's worker (a video read or a film made) stopped and waited for (video_mode_screen.h)
 
 	// The editor's hold of the level goes before the game's level does, so no chunk of it is let go of after the game's own teardown
 	theCamera = nullptr;

@@ -1,0 +1,6 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DNDEBUG
+/Isrc/model /Isrc/common
+tests/model_message_numbers_test.cpp
+src/model/message_numbers.cpp
+src/model/message_numbers_table.cpp

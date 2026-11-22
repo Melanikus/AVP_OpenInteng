@@ -33,6 +33,8 @@ namespace host
 			{ "Waypoint", 0x1000b, 0xcd, IntengTag::None, IntengWork::ToScreen, 16, 0 },
 			{ "Path", 0x1000c, 0xce, IntengTag::None, IntengWork::ToScreen, 17, 0 },
 			{ "Hierarchy", 0x1000d, 0xcf, IntengTag::None, IntengWork::ToScreen, 18, 0 },
+			// OURS, NAMED (docs/inteng/menu-status.json, additions): THE OWNER'S ADDITION (Melanikus 2026-11-22, alpha.5 item 2, through Bishop 2: "let's add a new mode for video, it only has load and mode exit"; "Don't put it directly on strategy mode"): the Video screen (video_mode_screen.h), a mode of its own after Hierarchy. Its number is ours; it has no inteng command
+			{ "Video", 0x1ff06, 0x0, IntengTag::None, IntengWork::VideoModeEnter, -1, 0 },
 			{ "Strategy Data", 0x1000e, 0x38, IntengTag::None, IntengWork::None, -1, 0, 1 },
 			{ "Normal", 0x1000f, 0x39, IntengTag::None, IntengWork::ToScreen, 19, 0, 2 },
 			{ "No Textures", 0x10010, 0x3a, IntengTag::None, IntengWork::ToScreenNoTextures, 19, 3, 2 },
@@ -80,7 +82,7 @@ namespace host
 		IntengMenu const kMenus0[] =
 		{
 			{ "File", kItems0_0, 5, 0 },
-			{ "Mode", kItems0_1, 11, 0 },
+			{ "Mode", kItems0_1, 12, 0 },
 			{ "Object", kItems0_2, 10, 0 },
 			{ "Shape", kItems0_3, 3, 0 },
 			{ "Miscellaneous", kItems0_4, 4, 6 },
@@ -2067,6 +2069,21 @@ namespace host
 			{ 2, 3, kMenus22_2_3, 8 },
 		};
 
+		// 23: Video, a stand-in for a menu inteng builds in code
+		IntengItem const kItems23_0[] =
+		{
+			{ "Browse...", 0x180001, 0x0, IntengTag::None, IntengWork::VideoBrowse, -1, 0 },
+		};
+		IntengItem const kItems23_1[] =
+		{
+			{ "Exit", 0x180000, 0x0, IntengTag::None, IntengWork::ExitMode, -1, -1 },
+		};
+		IntengMenu const kMenus23[] =
+		{
+			{ "Load", kItems23_0, 1, 0 },
+			{ "Mode", kItems23_1, 1, -1 },
+		};
+
 	}
 
 	IntengScreen const kIntengScreens[] =
@@ -2094,6 +2111,7 @@ namespace host
 		{ "Acoustic", "", kMenus20, 3, nullptr, 0, nullptr, 0 },
 		{ "Flag View", "", kMenus21, 1, nullptr, 0, nullptr, 0 },
 		{ "Texture Map", "", kMenus22_1_0, 6, kMenus22_2_0, 11, kPages22, 7 },
+		{ "Video", "", kMenus23, 2, nullptr, 0, nullptr, 0 },
 	};
 
 	size_t const kIntengScreenCount = sizeof(kIntengScreens) / sizeof(kIntengScreens[0]);

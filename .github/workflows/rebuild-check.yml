@@ -149,10 +149,12 @@ jobs:
           $package = "$env:RUNNER_TEMP\package"
           New-Item -ItemType Directory -Force $package | Out-Null
           Copy-Item 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe' $package
-          # Each Smacker library linked into a program in this package, with the program that holds it: its licence and its source's line go with it (below)
-          $linked = [ordered]@{ 'libsmackerdec' = 'AVP_OpenInteng.exe' }
-          if ($env:LEAVE_OUT_ENCODER -ceq 'true') { 'The video encoder (mp4-to-smk.exe, and with it libsmackerenc''s licence and its source''s line) is left out of this package, as the run was asked (leave_out_encoder)' }
-          elseif ($env:LEAVE_OUT_ENCODER -ceq 'false') { Copy-Item 'win32\VS2026\Win32\Release\mp4-to-smk.exe' $package; $linked['libsmackerenc'] = 'mp4-to-smk.exe' }
+          # Each Smacker library linked into a program in this package, with the programs that hold it: its licence and its source's line go with it (below).
+          # The editor holds both since the owner's Video mode (11-22): the decoder for its FMV preview, the encoder for its films (videomake_static, the one
+          # library mp4-to-smk links too); mp4-to-smk.exe holds the encoder as well
+          $linked = [ordered]@{ 'libsmackerdec' = @('AVP_OpenInteng.exe'); 'libsmackerenc' = @('AVP_OpenInteng.exe') }
+          if ($env:LEAVE_OUT_ENCODER -ceq 'true') { 'The video converter mp4-to-smk.exe is left out of this package, as the run was asked (leave_out_encoder); the editor still holds the encoder, so its licence and its line stay' }
+          elseif ($env:LEAVE_OUT_ENCODER -ceq 'false') { Copy-Item 'win32\VS2026\Win32\Release\mp4-to-smk.exe' $package; $linked['libsmackerenc'] = @('AVP_OpenInteng.exe', 'mp4-to-smk.exe') }
           else { throw "leave_out_encoder is neither true nor false: $env:LEAVE_OUT_ENCODER" }
 
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -265,10 +267,10 @@ jobs:
           # commit), which project built it (win32/VS2026/<name>_static.vcxproj, in this release's own source), and how to use your own build of it.
           $whatLinked = @{
             'libsmackerdec' = "Barry Duncan's player for Smacker films, the editor's FMV preview"
-            'libsmackerenc' = "a Smacker film encoder made from Barry Duncan's libsmackerdec for Open Inteng, the level editor"
+            'libsmackerenc' = "a Smacker film encoder made from Barry Duncan's libsmackerdec for Open Inteng, the level editor's Video mode and mp4-to-smk"
           }
           foreach ($library in $linked.Keys) {
-            $program = $linked[$library]
+            $program = @($linked[$library]) -join ' and '
             Test-InAvpx "dependencies/$library/COPYING"
             $licence = @(Get-Content -LiteralPath "avpx\dependencies\$library\COPYING" -TotalCount 3 | ForEach-Object { $_.Trim() })
             if (-not ($licence -ccontains 'GNU LESSER GENERAL PUBLIC LICENSE') -or -not ($licence -ccontains 'Version 2.1, February 1999')) { throw "$library's COPYING is not the GNU LGPL 2.1 this package says it is" }
@@ -277,7 +279,7 @@ jobs:
             $lines += "$($library): $($whatLinked[$library]), linked into $program (licences/$library.txt, the GNU Lesser General Public License, version 2.1). " +
               "Its complete source, as AvPx pins it: https://github.com/Melanikus/AvP/tree/$avpxCommit/dependencies/$library. It is built by " +
               "win32/VS2026/$($library)_static.vcxproj in this release's own source (https://github.com/$env:GITHUB_REPOSITORY/tree/$env:GITHUB_SHA); " +
-              "to use your own build of it, build $program again from that source with yours in its place."
+              "to use your own build of it, build $(@($linked[$library]) -join ' or ') again from that source with yours in its place."
           }
 
           # The guard: every line under the GNU licences (it names GNU, LGPL or GPL) says where its source is, by a link; every link into AvPx's
@@ -318,7 +320,7 @@ jobs:
           # encoder is left out, and exactly the DLLs this step copied above, by name: the import walk's and D3DCompiler_43.dll), License.txt, BUILD.txt
           # and AVP_OpenInteng.ini; the one folder licences, holding only its .txt files, README.txt among them. Anything else stops the step, with its
           # name, a DLL nobody chose too. Then each file and its SHA-256 for the run's log (the zip carries no list of its own).
-          $want = @('AVP_OpenInteng.exe', 'AVP_OpenInteng.ini', 'BUILD.txt', 'License.txt', 'licences\README.txt') + @($linked.Values | Where-Object { $_ -cne 'AVP_OpenInteng.exe' }) + $chosen
+          $want = @('AVP_OpenInteng.exe', 'AVP_OpenInteng.ini', 'BUILD.txt', 'License.txt', 'licences\README.txt') + @($linked.Values | ForEach-Object { $_ } | Where-Object { $_ -cne 'AVP_OpenInteng.exe' } | Sort-Object -Unique) + $chosen
           $found = @(Get-ChildItem -LiteralPath $package -Recurse -File | ForEach-Object {
             if (-not $_.FullName.StartsWith("$package\", [System.StringComparison]::OrdinalIgnoreCase)) { throw "$($_.FullName) is not inside $package" }
             $_.FullName.Substring($package.Length + 1)

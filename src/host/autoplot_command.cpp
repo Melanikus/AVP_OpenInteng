@@ -244,6 +244,7 @@ namespace
 		Grid,        // the pathfinder's grid building (autoplot_grid.h, its own thread)
 		Searching,   // our worker searching and planning
 		Writing,     // the networks checked and written, a slice a frame (FinishOne), then FinishEnd
+		Starting,    // each AI module's job made, a slice a frame (BeginOne), then BeginEnd starts the grid (last here, so the stages before keep their numbers)
 	};
 
 	Stage stage = Stage::Idle;
@@ -254,6 +255,25 @@ namespace
 	std::thread worker;
 	std::atomic<bool> workerDone(false), stopAsked(false), preparing(false);   // preparing: the worker's first step (Prepare), for the status line
 	std::atomic<size_t> jobAt(0), wayAt(0), wayCount(0);
+	std::atomic<size_t> prepareAt(0), prepareOf(0);   // Prepare's steps done and to do (each job twice: its goals, then its lanes), for the start's message
+	// THE START, A SLICE A FRAME (Drake 11-22, alpha.5 item 1; the owner: "screen should disappear instantly and if we have some background running task while the
+	// little right bottom screen loads then we put a big message on the screen"): the click only sets the run up (Begin); each AI module's job, its exits read from
+	// the file, is made on the frames after it (BeginOne, kAutoPlotStartSliceMs a frame: about 19 ms a module, 5.3 s inside the click for Colony's 273 before), on
+	// this thread, since it reads the open level, then BeginEnd starts the grid. Measured 11-22 on Colony (measure-plotstart-environment): Yes answered 5312 ms late
+	struct StartingRun
+	{
+		OpenLevelFile *open = nullptr;                      // the level the run was asked on: a frame on another stops the start, named
+		std::vector<int32_t> heads;
+		std::map<int32_t, std::vector<int32_t> > groups;
+		std::map<int32_t, int32_t> gameNumbers;             // each module's game number (GameModuleNumbers), once for the run
+		std::map<int32_t, int32_t> headOf;                  // each module's AI module (its head), for the lanes' neighbours
+		size_t at = 0;                                      // the next head to make a job of
+	};
+	StartingRun starting;
+	double const kAutoPlotStartSliceMs = 30.0;   // a frame's job making at most (as the writing's slice), then the frame is drawn: the message and its %
+	bool previewSeen = false;                    // the preview has drawn this run's first frame (AutoPlotCommand_PreviewDrew): the start's message goes then
+	std::string messageShown;                    // the start's message as the last frame drew it (the state line's plotmessage)
+	std::string messageBox;                      // and its black box, as the panel pass said it (plotmessagebox)
 	// THE PLOT'S PREVIEW, IN STEP WITH THE PLOT (autoplot_handoff.h; the owner 11-21, "Show every module in order"): the worker hands each AI module over as a constant
 	// copy and waits until the window has drawn its last one. runPreview: the preview's switch as the run began (set on this thread before the worker starts, read by
 	// the worker only: no copies are made when it is off). Declared before workerEnd, so it is still there while workerEnd stops the worker at the program's end
@@ -264,13 +284,15 @@ namespace
 	size_t plotFrames = 0;
 	double previewDrawMs = 0.0;
 	// THE PLOT'S FRAMES (the owner 11-21, through Bishop: "it's slow and sluggish"): each plot frame's time, from its start to the next one's (the whole frame: the window
-	// drawn and the plot's share), counted to the stage it began in: the grid's, the search's, the writing's. Said on the frame after the end (so the end's own frame counts)
-	std::vector<double> stageFrames[3];
-	std::vector<double> stageOwn[3];   // the plot's OWN share of each of those frames: its time in AutoPlotCommand_Frame (the hidden runs pace their frames, so this shows what the plot adds)
+	// drawn and the plot's share), counted to the stage it began in: the grid's, the search's, the writing's, the start's (index (int)stage - 1). Said on the frame after the end
+	// (so the end's own frame counts)
+	size_t const kAutoPlotStages = 4;
+	std::vector<double> stageFrames[kAutoPlotStages];
+	std::vector<double> stageOwn[kAutoPlotStages];   // the plot's OWN share of each of those frames: its time in AutoPlotCommand_Frame (the hidden runs pace their frames, so this shows what the plot adds)
 	std::chrono::steady_clock::time_point lastFrameAt;
 	Stage lastFrameStage = Stage::Idle;
 	std::string commandWords;
-	std::chrono::steady_clock::time_point runStart;   // the run's start (the grid's), for the end line's time
+	std::chrono::steady_clock::time_point runStart;   // the run's start (the click's: Begin), for the end line's time
 	std::map<int32_t, size_t> runStock;               // each AI module's own alien waypoints as the run was asked (AiModules' count), for "kept Rebellion's"
 	size_t runLinkedKept = 0;                         // the run's AI modules kept because they were linked already (the Overwrite box off), for the end line
 
@@ -500,6 +522,9 @@ namespace
 		// the goals: each AI module's exits and a few places a marine stands in its modules (StandSpots: on the worker, before its search)
 		size_t total = 0;
 
+		prepareAt = 0;
+		prepareOf = 2 * jobs.size();   // (each job counted once in each of the two loops below, for the start's message)
+
 		for (Job &job : jobs)
 		{
 			job.goals = job.exitsWorld;
@@ -558,6 +583,8 @@ namespace
 				job.backs[e] = std::vector<int32_t>{ (int32_t)floor(job.exitsWorld[e][0] - d.through[0] * 2.0 * host::kAutoPlotExitPast + 0.5), job.exitsWorld[e][1],
 					(int32_t)floor(job.exitsWorld[e][2] - d.through[1] * 2.0 * host::kAutoPlotExitPast + 0.5) };
 			}
+
+			prepareAt++;
 		}
 
 		// ONE-WAY DOORWAYS (autoplot_arrival.h; Vasquez 11-20, Drake's whole-level gate: 31 lane ends "no exit back"): once every AI module's doorways are known (the loop above),
@@ -683,6 +710,7 @@ namespace
 			size_t const n = job.goals.size();
 
 			total += 2 * (std::min)(n * (n > 0 ? n - 1 : 0) / 2, host::kAutoPlotMostPairs);
+			prepareAt++;
 		}
 
 		return total;
@@ -998,28 +1026,61 @@ namespace
 		workerDone = true;
 	}
 
+	// THE START, ON THE CLICK (see StartingRun): the run's lists kept, the clocks started from here (so the whole plot's time counts the start), and nothing slow: the
+	// click's dialog is gone on the next frame, and the jobs are made on the frames after it (BeginOne), then the grid (BeginEnd)
 	void Begin(OpenLevelFile *open, std::vector<int32_t> const &heads, std::map<int32_t, std::vector<int32_t> > const &groups)
 	{
-		std::map<int32_t, int32_t> gameNumbers;
+		// A RUN GOING IS NEVER STARTED AGAIN (Bishop 2, 11-22, from Vasquez's review of item 1): everything below makes the run's state new, and the jobs it clears may
+		// be in the worker thread's hands. The Run checks the stage before it asks anything, but the replace question's Yes calls here later, so the guard is Begin's own,
+		// before anything is touched: refused, said, nothing changed (tests/host_autoplot_begin_guard_test.cpp)
+		if (stage != Stage::Idle)
+		{
+			Say("Auto-plot: a run is going already, so this one did not start (nothing changed)");
+			return;
+		}
 
-		host::GameModuleNumbers(open->Level(), &gameNumbers);
-		plotScale = local_scale > 0.0 ? local_scale : 1.0;
-		jobs.clear();
-
-		// each module's AI module (its head), for the lanes' neighbours
-		std::map<int32_t, int32_t> headOf;
+		starting = StartingRun();
+		starting.open = open;
+		starting.heads = heads;
+		starting.groups = groups;
+		host::GameModuleNumbers(open->Level(), &starting.gameNumbers);
 
 		for (auto const &group : groups)
 		{
 			for (int32_t const member : group.second)
 			{
-				headOf[member] = group.first;
+				starting.headOf[member] = group.first;
 			}
 		}
 
-		auto const headOfModule = [&headOf](int32_t module) { auto const found = headOf.find(module); return found != headOf.end() ? found->second : -1; };
+		plotScale = local_scale > 0.0 ? local_scale : 1.0;
+		jobs.clear();
+		previewSeen = false;
+		prepareAt = 0;
+		prepareOf = 0;
+		stage = Stage::Starting;
+		runStart = std::chrono::steady_clock::now();
+		plotFrames = 0;
+		previewDrawMs = 0.0;
 
-		for (int32_t const head : heads)
+		for (size_t s = 0; s < kAutoPlotStages; s++)
+		{
+			stageFrames[s].clear();
+			stageOwn[s].clear();
+		}
+
+		lastFrameStage = Stage::Idle;   // (the first plot frame starts the count)
+		Say("Auto-plot: preparing " + Number((long long)heads.size()) + " AI modules");
+	}
+
+	// ONE AI MODULE'S JOB (a frame's slice of them, from AutoPlotCommand_Frame): its exits read from the file (its head's entry points), its lanes' doorways
+	void BeginOne(int32_t head)
+	{
+		OpenLevelFile *const open = starting.open;
+		std::map<int32_t, int32_t> const &gameNumbers = starting.gameNumbers;
+		std::map<int32_t, std::vector<int32_t> > const &groups = starting.groups;
+		auto const headOfModule = [](int32_t module) { auto const found = starting.headOf.find(module); return found != starting.headOf.end() ? found->second : -1; };
+
 		{
 			Job job;
 			std::vector<host::EntryMarker> markers;
@@ -1103,27 +1164,21 @@ namespace
 
 			jobs.push_back(job);
 		}
+	}
 
+	// THE START'S END (the frame after the last job): the grid started on its own thread, the run on to Stage::Grid
+	void BeginEnd()
+	{
 		std::string why;
 
-		if (!host::AutoPlotGrid_Start(open, &why))
+		if (!host::AutoPlotGrid_Start(starting.open, &why))
 		{
+			stage = Stage::Idle;
 			Say("Auto-plot: the pathfinder would not start: " + why);
 			return;
 		}
 
 		stage = Stage::Grid;
-		runStart = std::chrono::steady_clock::now();
-		plotFrames = 0;
-		previewDrawMs = 0.0;
-
-		for (size_t s = 0; s < 3; s++)
-		{
-			stageFrames[s].clear();
-			stageOwn[s].clear();
-		}
-
-		lastFrameStage = Stage::Idle;   // (the first plot frame starts the count)
 		Say("Auto-plot: building the grid for " + Number((long long)jobs.size()) + " AI modules");
 	}
 
@@ -1860,16 +1915,46 @@ void AutoPlotCommand_Frame()
 
 			if (stage == Stage::Idle)
 			{
-				printf("AVP_OpenInteng: auto-plot: the plot's frames: %s; %s; %s\n", host::AutoPlot_FrameWords("grid", stageFrames[0]).c_str(),
-					host::AutoPlot_FrameWords("search", stageFrames[1]).c_str(), host::AutoPlot_FrameWords("writing", stageFrames[2]).c_str());
-				printf("AVP_OpenInteng: auto-plot: the plot's own share of them: %s; %s; %s\n", host::AutoPlot_FrameWords("grid", stageOwn[0]).c_str(),
-					host::AutoPlot_FrameWords("search", stageOwn[1]).c_str(), host::AutoPlot_FrameWords("writing", stageOwn[2]).c_str());
+				printf("AVP_OpenInteng: auto-plot: the plot's frames: %s; %s; %s; %s\n", host::AutoPlot_FrameWords("start", stageFrames[3]).c_str(),
+					host::AutoPlot_FrameWords("grid", stageFrames[0]).c_str(), host::AutoPlot_FrameWords("search", stageFrames[1]).c_str(),
+					host::AutoPlot_FrameWords("writing", stageFrames[2]).c_str());
+				printf("AVP_OpenInteng: auto-plot: the plot's own share of them: %s; %s; %s; %s\n", host::AutoPlot_FrameWords("start", stageOwn[3]).c_str(),
+					host::AutoPlot_FrameWords("grid", stageOwn[0]).c_str(), host::AutoPlot_FrameWords("search", stageOwn[1]).c_str(),
+					host::AutoPlot_FrameWords("writing", stageOwn[2]).c_str());
 				fflush(stdout);
 			}
 		}
 
 		lastFrameAt = now;
 		lastFrameStage = stage;
+	}
+
+	// THE START, A SLICE A FRAME (see StartingRun): the jobs made on the level the run was asked on, kAutoPlotStartSliceMs a frame, then the grid started
+	if (stage == Stage::Starting)
+	{
+		if (!starting.open || LevelObjects_OpenForEdit() != starting.open)
+		{
+			stage = Stage::Idle;
+			Say("Auto-plot: stopped: another level was opened while the AI modules were being prepared (" + Number((long long)starting.at) + " of " +
+				Number((long long)starting.heads.size()) + " done, nothing written)");
+			return;
+		}
+
+		auto const sliceFrom = std::chrono::steady_clock::now();
+
+		while (starting.at < starting.heads.size() && MsSince(sliceFrom) < kAutoPlotStartSliceMs)
+		{
+			BeginOne(starting.heads[starting.at++]);
+		}
+
+		if (starting.at < starting.heads.size())
+		{
+			Say("Auto-plot: preparing AI module " + Number((long long)starting.at + 1) + " of " + Number((long long)starting.heads.size()));
+			return;
+		}
+
+		BeginEnd();
+		return;
 	}
 
 	if (stage == Stage::Grid)
@@ -1894,6 +1979,7 @@ void AutoPlotCommand_Frame()
 		workerDone = false;
 		stopAsked = false;
 		runPreview = host::PlotPreview_On();   // (read here, before the worker starts: the worker reads only this copy of it)
+		preparing = true;   // (set before the worker starts as well as in Work, so no frame between sees the search begun before its preparation)
 		handOff.Start();
 		worker = std::thread(Work);
 		stage = Stage::Searching;
@@ -2073,6 +2159,65 @@ host::AutoPlotHandOff &AutoPlotCommand_HandOff()
 void AutoPlotCommand_PreviewDrew(double ms)
 {
 	previewDrawMs += ms > 0.0 ? ms : 0.0;
+
+	if (stage != Stage::Idle)
+	{
+		previewSeen = true;   // the preview has drawn a frame of this run: the start's message goes
+	}
+}
+
+// THE START'S MESSAGE (alpha.5 item 1, the owner 11-22: "if we have some background running task while the little right bottom screen loads then we put a big
+// message on the screen 'Loading X%' or 'Calculating some stuff' until the little screen shows"): the words of the stage the run is in, from the click until the
+// preview's first frame (or, with the preview off, until the search begins: the status line goes on from there), with a % where the stage has a count
+std::string AutoPlotCommand_Message()
+{
+	auto const percent = [](size_t at, size_t of) { return Number((long long)(of == 0 ? 0 : (at >= of ? 100 : at * 100 / of))) + "%"; };
+	std::string const words = "Calculating the alien waypoints: ";
+
+	switch (stage)
+	{
+	case Stage::Starting:
+		return words + "the AI modules " + percent(starting.at, starting.heads.size());   // each head's job made (BeginOne)
+	case Stage::Grid:
+		return words + "the grid";   // the pathfinder's own thread: no count of its own (autoplot_grid.h), so no %
+	case Stage::Searching:
+		if (workerDone)
+		{
+			return std::string();
+		}
+
+		if (preparing)
+		{
+			return words + "the doorways " + percent(prepareAt, prepareOf);   // Prepare's two loops, each job once in each
+		}
+
+		return runPreview && !previewSeen ? words + "the first AI module" : std::string();   // the search begun, the preview's first frame not drawn yet
+	default:
+		return std::string();
+	}
+}
+
+std::vector<std::string> AutoPlotCommand_MessageForms()
+{
+	std::string const words = "Calculating the alien waypoints: ";
+
+	return { words + "the AI modules 100%", words + "the grid", words + "the doorways 100%", words + "the first AI module" };
+}
+
+void AutoPlotCommand_MessageDrawn(std::string const &words, std::string const &box)
+{
+	messageShown = words;
+	messageBox = words.empty() ? std::string() : box;
+}
+
+std::string const &AutoPlotCommand_MessageShown()
+{
+	return messageShown;
+}
+
+std::string const &AutoPlotCommand_MessageBox()
+{
+	return messageBox;
 }
 
 bool AutoPlotCommand_ItemWaits(int32_t action)

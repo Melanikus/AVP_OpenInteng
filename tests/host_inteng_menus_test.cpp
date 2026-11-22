@@ -105,7 +105,19 @@ static void TestTheScreens()
 {
 	puts("Every screen:");
 
-	Check(kIntengScreenCount == 23, "inteng's 16 tables and 7 stand-ins are 23 screens");
+	Check(kIntengScreenCount == 24, "inteng's 16 tables and 8 stand-ins are 24 screens (the 8th, Video, is the owner's Video mode: alpha.5, video_mode_screen.h)");
+	{
+		// THE VIDEO SCREEN (the owner's, 11-22): the last, so screens 0 to 22 keep their numbers; its bar is only Load > Browse... and Mode > Exit, and the hub's Mode > Video
+		// (ours, after Hierarchy) goes to it
+		IntengScreen const &video = kIntengScreens[kIntengScreenCount - 1];
+		bool const bar = strcmp(video.name, "Video") == 0 && video.count == 2 && strcmp(video.menus[0].title, "Load") == 0 && video.menus[0].count == 1 &&
+			strcmp(video.menus[0].items[0].name, "Browse...") == 0 && video.menus[0].items[0].work == IntengWork::VideoBrowse && strcmp(video.menus[1].title, "Mode") == 0 &&
+			video.menus[1].count == 1 && strcmp(video.menus[1].items[0].name, "Exit") == 0 && video.menus[1].items[0].work == IntengWork::ExitMode;
+		IntengItem const *const entry = ItemNamed(0, "Video");
+
+		Check(bar, "the last screen is Video, its bar Load > Browse... and Mode > Exit, nothing else");
+		Check(entry != nullptr && entry->work == IntengWork::VideoModeEnter && entry->action == 0x1ff06, "and the hub has Mode > Video, ours (0x1ff06), which enters it");
+	}
 	Check(strcmp(kIntengScreens[kIntengHub].name, "Construction") == 0 && strcmp(kIntengScreens[kIntengHub].table, "0x5ced30") == 0,
 		"the hub is Construction, inteng's table at 0x5ced30");
 
@@ -134,21 +146,21 @@ static void TestTheTablesAreInteng()
 
 	const char *const hubTitles[] = { "File", "Mode", "Object", "Shape", "Miscellaneous", "Options" };
 	// File holds inteng's 4 and the owner's Save, second (Melanikus 2026-11-16, "Let's put a save on the hub": named, not inteng's); Options inteng's 3 and the owner's four text
-	// sizes after them (Melanikus 11-16 / Bishop 11-18: text_scale.h, named, not inteng's)
-	size_t const hubCounts[] = { 5, 11, 10, 3, 4, 7 };
+	// sizes after them (Melanikus 11-16 / Bishop 11-18: text_scale.h, named, not inteng's); Mode inteng's 11 and the owner's Video after Hierarchy (11-22, video_mode_screen.h)
+	size_t const hubCounts[] = { 5, 12, 10, 3, 4, 7 };
 
-	Check(MenusAre(0, hubTitles, hubCounts, 6), "construction's bar is inteng's with the owner's Save: File 5 (Quit, Save, Write C, Write Asc, Write Asc doors closed), Mode 11, Object 10, Shape 3, Miscellaneous 4, Options 7 (its 3, then Text size 1, 1.25, 1.5, 2) (a cascade's item and its rows each one)");
+	Check(MenusAre(0, hubTitles, hubCounts, 6), "construction's bar is inteng's with the owner's Save: File 5 (Quit, Save, Write C, Write Asc, Write Asc doors closed), Mode 12 (inteng's 11 and Video), Object 10, Shape 3, Miscellaneous 4, Options 7 (its 3, then Text size 1, 1.25, 1.5, 2) (a cascade's item and its rows each one)");
 
 	IntengMenu const *const file = &kIntengScreens[0].menus[0];
 
 	Check(file && file->count == 5 && strcmp(file->items[0].name, "Quit") == 0 && strcmp(file->items[1].name, "Save") == 0 && file->items[1].work == IntengWork::SaveCopy &&
 		file->items[1].command == 0 && strcmp(file->items[2].name, "Write C File") == 0, "the hub's Save is second, after Quit, does Object Placement's Save (SaveCopy), and has no inteng command");
-	Check(kIntengScreens[0].menus[1].count == 11 && strcmp(kIntengScreens[0].menus[1].items[8].name, "Strategy Data") == 0 && kIntengScreens[0].menus[1].items[8].level == 1 &&
-	      strcmp(kIntengScreens[0].menus[1].items[9].name, "Normal") == 0 && kIntengScreens[0].menus[1].items[9].level == 2 &&
-	      strcmp(kIntengScreens[0].menus[1].items[10].name, "No Textures") == 0 && kIntengScreens[0].menus[1].items[10].level == 2,
+	Check(kIntengScreens[0].menus[1].count == 12 && strcmp(kIntengScreens[0].menus[1].items[9].name, "Strategy Data") == 0 && kIntengScreens[0].menus[1].items[9].level == 1 &&
+	      strcmp(kIntengScreens[0].menus[1].items[10].name, "Normal") == 0 && kIntengScreens[0].menus[1].items[10].level == 2 &&
+	      strcmp(kIntengScreens[0].menus[1].items[11].name, "No Textures") == 0 && kIntengScreens[0].menus[1].items[11].level == 2,
 		"a CASCADE (BAR-10, inteng's kind 1 with kind-2 records): Mode's Strategy Data is level 1, its Normal and No Textures level 2 right after it, each with its own words");
-	Check(kIntengScreens[0].menus[1].items[9].work == IntengWork::ToScreen && kIntengScreens[0].menus[1].items[10].work == IntengWork::ToScreenNoTextures &&
-	      kIntengScreens[0].menus[1].items[8].work == IntengWork::None,
+	Check(kIntengScreens[0].menus[1].items[10].work == IntengWork::ToScreen && kIntengScreens[0].menus[1].items[11].work == IntengWork::ToScreenNoTextures &&
+	      kIntengScreens[0].menus[1].items[9].work == IntengWork::None,
 		"its rows do what they did (Strategy Data's screen, with and without textures); the cascade's own item does nothing (BAR-12)");
 
 	const char *const placementTitles[] = { "Mode", "Object", "Create", "Alt Locations", "Misc" };

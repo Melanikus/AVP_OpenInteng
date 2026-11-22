@@ -50,6 +50,111 @@ namespace host
 			return word + " " + std::to_string(r.x) + " " + std::to_string(r.y) + " " + std::to_string(r.width) + " " + std::to_string(r.height);
 		}
 
+		// THE PARTS THAT REACH PAST THE WINDOW (Drake 11-22; the owner, of the Save dialog: "Menus are drawing on top of each other"): each visible part of a form,
+		// measured on the rectangle it is drawn in, against the window's own box; a label's words as Dialogs_Draw draws them (from its box's x + 1 and y - 1, a line
+		// under a line, each as wide as the font in use draws its letters). An open combo's list is not a part: a drop-down list opens over the window and past
+		// it, as inteng's do (anything painted over its rows is overlist); but each row in view is one line, so its words must end inside the row ("row <n>: right
+		// <pixels>", n from 1 in the list). "none" when every part is inside
+		std::string PastTheWindow(DialogRect const &window, std::vector<DialogWidget> const &widgets)
+		{
+			bool const inteng = PanelPass_HasMenuFont();
+			int32_t const fontHeight = inteng ? PanelPass_MenuFontHeight() : kPanelPassLineHeight;
+			std::string past;
+			size_t labels = 0, combos = 0, fields = 0, checks = 0;
+
+			// one line of words, as wide as the font in use draws its letters
+			auto const wide = [inteng](std::string const &words)
+			{
+				int32_t width = 0;
+
+				for (char const letter : words)
+				{
+					width += inteng ? PanelPass_MenuWidth((unsigned char)letter) : PanelPass_SmallWidth((unsigned char)letter);
+				}
+
+				return width;
+			};
+
+			auto const measure = [&](std::string const &part, int32_t x, int32_t y, int32_t width, int32_t height)
+			{
+				int64_t const reach[4] = { (int64_t)window.x - x, (int64_t)window.y - y, ((int64_t)x + width) - ((int64_t)window.x + window.width),
+					((int64_t)y + height) - ((int64_t)window.y + window.height) };
+				char const *const sides[4] = { "left", "top", "right", "bottom" };
+				std::string words;
+
+				for (int k = 0; k < 4; k++)
+				{
+					if (reach[k] > 0)
+					{
+						words += " " + std::string(sides[k]) + " " + std::to_string((long long)reach[k]);
+					}
+				}
+
+				if (!words.empty())
+				{
+					past += (past.empty() ? "" : "|") + part + ":" + words;
+				}
+			};
+
+			for (DialogWidget const &w : widgets)
+			{
+				if (!w.visible)
+				{
+					continue;
+				}
+
+				if (w.type == DialogWidgetType::Label)
+				{
+					int32_t widest = 0, lines = 0, width = 0;
+
+					for (size_t at = 0; at <= w.text.size(); at++)
+					{
+						if (at == w.text.size() || w.text[at] == '\n')
+						{
+							widest = width > widest ? width : widest;
+							width = 0;
+							lines++;
+							continue;
+						}
+
+						width += inteng ? PanelPass_MenuWidth((unsigned char)w.text[at]) : PanelPass_SmallWidth((unsigned char)w.text[at]);
+					}
+
+					measure("label " + std::to_string((unsigned long long)++labels), w.box.x + 1, w.box.y - 1, widest, lines * fontHeight);
+				}
+				else if (w.type == DialogWidgetType::Combo)
+				{
+					measure("combo " + std::to_string((unsigned long long)++combos), w.box.x, w.box.y, w.box.width, w.box.height);
+
+					// its open list's rows in view: each row's words drawn from its x + 1, ending inside the row
+					for (size_t row = 0; w.listOpen && row < w.items.size(); row++)
+					{
+						DialogRect const r = InDialog::ComboRow(w, row);
+						int64_t const over = r.width > 0 ? (int64_t)1 + wide(w.items[row]) - r.width : 0;
+
+						if (over > 0)
+						{
+							past += (past.empty() ? "" : "|") + std::string("row ") + std::to_string((unsigned long long)row + 1) + ": right " + std::to_string((long long)over);
+						}
+					}
+				}
+				else if (w.type == DialogWidgetType::Button)
+				{
+					measure(Word("button " + w.text, w.box).substr(0, 7 + w.text.size()), w.box.x, w.box.y, w.box.width, w.box.height);
+				}
+				else if (w.type == DialogWidgetType::Edit)
+				{
+					measure("field " + std::to_string((unsigned long long)++fields), w.box.x, w.box.y, w.box.width, w.box.height);
+				}
+				else if (w.type == DialogWidgetType::Check)
+				{
+					measure("check " + std::to_string((unsigned long long)++checks), w.box.x, w.box.y, w.box.width, w.box.height);
+				}
+			}
+
+			return past.empty() ? std::string("none") : past;
+		}
+
 		void Answered(int32_t answer)
 		{
 			std::vector<std::string> texts;
@@ -677,6 +782,8 @@ namespace host
 				s.title = box.Title();
 				s.kind = "form";
 				s.overlist = WordsOverTheOpenList();
+				s.past = PastTheWindow(box.Window(), box.Widgets());
+				s.window = Word("w", box.Window()).substr(2);
 
 				size_t edits = 0;
 

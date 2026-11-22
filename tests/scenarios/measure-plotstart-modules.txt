@@ -1,0 +1,28 @@
+# MEASURE, not an acceptance (Drake 2026-11-22, alpha.5 item 1, DATA FIRST): as measure-plotstart-environment, but Waypoint > Alien auto waypoint >
+# Modules on three of Colony's AI modules (PROC11 picked, MOD-03 and MOD-11 typed, as acceptance-plot-preview does), the Overwrite box ticked, Ok,
+# the replace question, Yes.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-screen Waypoint
+wait 600
+camera-corner PROC11
+wait 400
+click-view 0.50 0.50
+wait 400
+wait-status 10000 PROC11
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+type ,MOD-03,MOD-11
+click-check 2
+click-button Ok
+expect-last-answer-within 60000
+expect-dialog-kind confirm
+expect-dialog replace
+click-button Yes
+expect-last-answer-within 60000
+expect-no-dialog
+wait-field plotpreview redraws_ 1 600000
+wait-status 600000 written

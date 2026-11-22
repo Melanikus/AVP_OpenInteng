@@ -41,6 +41,8 @@
 //   drag-win <x0> <y0> <x1> <y1>        press at the first place, move to the second in steps, let go
 //   type <text>                 the characters, one WM_CHAR each, to the editor's window (into an open prompt); key <Enter|Esc|Back|Tab|Left|Right|Up|Down|Space>
 //                               (F1 to F12 and PrintScreen too); key-up <k>: only the key's letting go, as Windows hands Print Screen to a window
+//   drop-file <path> [<path> ...]   the files dropped on the editor, as a drag and drop from Explorer hands them over (video_drop.h; WM_COPYDATA, as WM_DROPFILES's own list)
+//   click-video <name>          a click on one of Video mode's own on-screen controls, by its name (the state line's videocontrols)
 //   camera <x> <y> <z> <turn>   puts the camera there (millimetres; turn 0 looks along +z, 1024 along -x (measured 11-18 against the editor's matrix; it said +x)) (kHarnessCamera); the axes: src/host/level_view.h FlyCamera
 //   camera-orbit <object> [<around> <up> <distance>]   the camera ORBITING that object (or module), looking at its box's centre: 45 round, 45 up and 2.5 half diagonals off (1 to 4 metres)
 //                               by default (src/host/orbit_command.h, camera_orbit.h; the owner 11-18: test cameras at 45 degrees round the subject)
@@ -3049,6 +3051,124 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		std::string const why = said.empty() && AskState(s) ? Field(s->last, "status") : std::string();
 
 		Check(answer == TRUE && !said.empty(), label + " -> " + (!said.empty() ? From(said, "camera") : "no camera line: the editor says \"" + why + "\""));
+		return true;
+	}
+
+	// drop-file <path> [<path> ...] (Dietrich 2026-11-22, the video editor's drag and drop: the owner's "when in strategy mode, allow drag and drop"): the files, as Windows'
+	// WM_DROPFILES would hand them over, given to the editor through WM_COPYDATA (a dropped handle from another program can't be posted: it is only good in the program that
+	// made it), one path a line, UTF-8; the editor takes them by the same call its WM_DROPFILES does (video_drop.h), so what it does with them is what a drop does. A path
+	// with spaces goes in double quotes. Answered TRUE when the editor took the list; what it made of it is on the status line
+	if (verb == "drop-file" && w.size() >= 2)
+	{
+		Drain(s);
+
+		// the paths a letter at a time: a space ends one unless inside double quotes (no positions are summed)
+		std::string const rest = Rest(line, 1);
+		std::string text, path;
+		bool quoted = false, inPath = false;
+
+		auto const endPath = [&]()
+		{
+			if (inPath)
+			{
+				text += (text.empty() ? std::string() : std::string("\n")) + path;
+				path.clear();
+				inPath = false;
+			}
+		};
+
+		for (char const c : rest)
+		{
+			if (quoted)
+			{
+				quoted = c != '"';
+				path += quoted ? std::string(1, c) : std::string();
+			}
+			else if (c == '"')
+			{
+				quoted = true;
+				inPath = true;
+			}
+			else if (c == ' ' || c == '\t' || c == '\r')
+			{
+				endPath();
+			}
+			else
+			{
+				path.push_back(c);
+				inPath = true;
+			}
+		}
+
+		endPath();
+
+		COPYDATASTRUCT data = {};
+		DWORD_PTR answer = 0;
+
+		data.dwData = 0x44524f50ul;   // video_drop.h kVideoDropTag ('DROP')
+		data.cbData = (DWORD)text.size();
+		data.lpData = (PVOID)text.data();
+		SendMessageTimeoutW(s->editor.window, WM_COPYDATA, 0, (LPARAM)&data, SMTO_ABORTIFHUNG, 10000, &answer);
+		Check(answer == TRUE, label + (answer == TRUE ? std::string() : std::string(" -> the editor did not take the dropped files")));
+		return true;
+	}
+
+	// click-video <name> (Dietrich 2026-11-22, the owner's Video mode): a click on the middle of one of Video mode's own on-screen controls, by its name, from the state
+	// line's videocontrols "<name> <x> <y> <w> <h>|..." (video_mode_screen.h: Fit, Crop, Expand, Start-, Start+, End-, End+, Volume-, Volume+, Preview, Save)
+	if (verb == "click-video" && w.size() >= 2)
+	{
+		AskState(s);
+		std::string const controls = Field(s->last, "videocontrols");
+		bool clicked = false;
+
+		// a box's number read by hand: digits only, 0 to 16384 (a window's own pixels), anything else refused, so the middle below never overflows
+		auto const boxNumber = [](std::string const &word, int *out)
+		{
+			int value = 0;
+
+			if (word.empty() || word.size() > 5)
+			{
+				return false;
+			}
+
+			for (char const c : word)
+			{
+				if (c < '0' || c > '9')
+				{
+					return false;
+				}
+
+				value = value * 10 + (c - '0');
+			}
+
+			*out = value;
+			return value <= 16384;
+		};
+
+		// the controls a letter at a time, each "<name> <x> <y> <w> <h>" between the | (no positions are summed)
+		std::string one;
+
+		for (size_t i = 0; i <= controls.size() && !clicked; i++)
+		{
+			if (i < controls.size() && controls[i] != '|')
+			{
+				one.push_back(controls[i]);
+				continue;
+			}
+
+			std::vector<std::string> const parts = Words(one);
+			int x = 0, y = 0, width = 0, height = 0;
+
+			one.clear();
+
+			if (parts.size() >= 5 && parts[0] == w[1] && boxNumber(parts[1], &x) && boxNumber(parts[2], &y) && boxNumber(parts[3], &width) && boxNumber(parts[4], &height))
+			{
+				ClickWindow(s, x + width / 2, y + height / 2, false, false);
+				clicked = true;
+			}
+		}
+
+		Check(clicked, label + (clicked ? std::string() : " (no control \"" + w[1] + "\" in \"" + controls + "\")"));
 		return true;
 	}
 

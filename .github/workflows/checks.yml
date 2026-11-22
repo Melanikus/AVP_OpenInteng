@@ -12,6 +12,8 @@
 #   - The one compiler: every project imports AvPx's msvc-pin.props in its place, and every Windows job installs that MSVC before it builds
 #     (tools/check-msvc-pin.js, its refusals tested by tools/check-msvc-pin-test.js). alpha.3 shipped what a newer runner compiler made, never
 #     what had been scanned. (Added 2026-11-22 by Melanikus (Frost), Bishop's order.)
+#     The AvPx pin job also runs the test of the release's gate on the pin's library scan (tools/sca-gate-test.ps1). (Added 2026-11-22
+#     by Melanikus (Vasquez), Bishop 2's order.)
 # A check that can't run (GitHub's API down, say) fails, and nothing merges. TAKING-OVER.md says what to do if a tool is gone.
 # The build, tests, take-out rows, Snyk, same-flags and coding-standard gates come with the editor's first code (the phase 2 plan, F1-F2).
 # Written 2026-11-14 by Melanikus for AVP_OpenInteng.
@@ -131,6 +133,12 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: bash tools/check-pin.sh
+
+      # The release's gate on AvPx's library scan of this pin (tools/sca-gate.ps1, release.yml's jobs sca and publish): its own test, on every
+      # pull request, so a gate that went wrong is caught here and not on release day. It asks GitHub nothing and has no token in reach.
+      - name: The release's gate on the pin's library scan refuses every run that does not prove it
+        shell: pwsh
+        run: ./tools/sca-gate-test.ps1
 
   inteng-menus:
     name: inteng's menus are what their two files make

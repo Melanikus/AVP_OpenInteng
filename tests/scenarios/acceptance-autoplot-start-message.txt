@@ -1,0 +1,67 @@
+# ACCEPTANCE (red first; Drake 2026-11-22, alpha.5 item 1, the owner: "Alien Waypoint screen, buttons give no feedback they were clicked and screen stays there
+# frozen to wait the process, screen should disappear instantly and if we have some background running task while the little right bottom screen loads then we
+# put a big message on the screen 'Loading X%' or 'Calculating some stuff' until the little screen shows"). On Colony (Genshd1.RIF as Steam ships it), Waypoint >
+# Alien auto waypoint > Environment: first Cancel, which closes at once and starts nothing; then the Overwrite box ticked, Ok, the replace question, Yes.
+# The click is answered at once (the dialog gone on the next frame), the window answers within 300 ms all the way to the preview's first frame (the 273 AI
+# modules' jobs are made a slice a frame, autoplot_command.cpp StartingRun), and the message "Calculating the alien waypoints: ..." is on the screen from the
+# first frame on, its % moving, until the preview has drawn, then gone (the state line's plotmessage: the words the frame drew, or off).
+# MEASURED and RED on e6942a51 (measure-plotstart-environment): Yes answered 5312 ms late, the dialog on the screen all that time; no message (no plotmessage).
+#ini AutoPlot=1
+# inteng's own letters (Tools\font16.fnt, read at run time from the owner's inteng folder, as the menu-look acceptances read it): the message's 2x is of them
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args -r1024x768 C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Waypoint
+expect-field-has window 1024 768 window
+expect-field plotmessage off
+expect-field plotmessagebox off
+wait 600
+# ---- Cancel closes at once, and starts nothing
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+click-button Cancel
+expect-last-answer-within 300
+expect-no-dialog
+expect-field plotmessage off
+# ---- the run: Ok, the replace question at once, Yes answered at once, the dialog gone and the message there
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+click-check 2
+click-button Ok
+expect-last-answer-within 300
+expect-dialog-kind confirm
+expect-dialog replace
+click-button Yes
+expect-last-answer-within 300
+expect-no-dialog
+expect-field-has plotmessage Calculating the alien waypoints: the AI modules
+expect-field-has plotmessagebox scale 2
+# ---- BIG LETTERS ON A BLACK BOX (the owner's pick 11-22): inteng's letters at 2x on a black box centred on the 1024 x 768 view (147 x 2 + 730 = 1024,
+# 360 x 2 + 48 = 768), as wide as the longest form of the words so it stays still. In the picture: the box's top and bottom margins solid black (no line of
+# Colony's wireframe through it), white letters in the band between
+expect-field-has plotmessagebox left 147 top 360 width 730 height 48 scale 2 view 0 0 1024 768
+picture 1
+expect-colour picture 150 362 724 4 000000 0.99
+expect-colour picture 150 402 724 4 000000 0.99
+expect-colour picture 160 368 704 32 ffffff 0.05
+# ---- the window keeps answering, the message's words move on (its % or its stage)
+remember-field plotmessage
+wait 400
+state
+expect-last-answer-within 300
+expect-field-changed plotmessage
+expect-field-has plotmessage Calculating the alien waypoints:
+wait 2000
+state
+expect-last-answer-within 300
+expect-field-has plotmessage Calculating the alien waypoints:
+# ---- the preview's first frame: the message goes
+wait-field plotpreview redraws_ 1 120000
+wait 300
+state
+expect-field plotmessage off
+picture 2
+wait-status 1800000 written

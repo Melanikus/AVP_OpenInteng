@@ -1,0 +1,9 @@
+/std:c++17 /EHsc /MD /J /we4834 /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DNDEBUG /D_CRT_SECURE_NO_DEPRECATE /D_WIN32_WINNT=0x0602 /DUNICODE /D_UNICODE
+/Isrc/host
+tests/host_video_make_test.cpp
+src/host/video_make.cpp
+src/host/video_import.cpp
+src/host/media_parsers.cpp
+src/host/smk_encoder.cpp
+/link mfplat.lib mfreadwrite.lib mfuuid.lib ole32.lib wmcodecdspuuid.lib wintrust.lib crypt32.lib advapi32.lib

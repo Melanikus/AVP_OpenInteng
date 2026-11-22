@@ -59,6 +59,10 @@ namespace host
 		std::string comborows;  // the rows of the combo whose list is open: "<words>_<x> <y> <width> <height>" separated by | (the harness's click-combo-row presses one)
 		std::string cells;   // a list's rows on the PAGE SHOWN: "<row words>@x,y,width,height|..." (the harness's click-choice clicks one by its words)
 		std::string overlist;   // the window's words the panel pass paints OVER its open drop-down list, separated by | ("" none: the list covers them, as it must)
+		// a FORM's parts that reach past its window (Drake 11-22; the owner: "Menus are drawing on top of each other"): "<part>: right <pixels> ..." separated by |,
+		// each part measured on what is drawn (a label's words as wide as the font draws them), or "none" when every part is inside; "" for no form
+		std::string past;
+		std::string window;   // the open form's own window box, "<x> <y> <width> <height>" in the screen's pixels; "" for none
 	};
 
 	DialogsState Dialogs_State();
