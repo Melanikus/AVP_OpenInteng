@@ -92,7 +92,8 @@
            (libsmackerdec_static.lib, linked in by the project reference at the end of this file; the owner's order 11-21), and nothing else:
            none of the game's network libraries (ENet, mlkem, mldsa), its Bink decoder or its music libraries (the edge stands in for those).
            The map file lets tools\check-edge-link.js prove, from what the linker actually took, that no other library gave the program code. -->
-      <AdditionalDependencies>winmm.lib;shell32.lib;d3d9.lib;user32.lib;xinput.lib;d3dx9.lib;OpenAL32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <!-- the Video mode: Windows' own Media Foundation and its Audio Resampler (video_import), and its Open dialog (Load > Browse...) -->
+      <AdditionalDependencies>winmm.lib;shell32.lib;d3d9.lib;user32.lib;xinput.lib;d3dx9.lib;OpenAL32.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;ole32.lib;wmcodecdspuuid.lib;comdlg32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VcpkgInstalledDir)$(VcpkgTriplet)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
@@ -279,6 +280,10 @@
     <ClCompile Include="..\..\src\host\editor_prompts.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\game_folder.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\src\host\gizmo_screen.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -828,6 +833,26 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <!-- the owner's Video mode (11-22): the file handed in checked (video_drop), and the engine (video_mode), which calls the one library below; SMK_ENCODER_BUILT_IN
+         only for its declaration of the encoder linked in (smk_encoder.h) -->
+    <ClCompile Include="..\..\src\host\video_drop.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\video_mode.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>SMK_ENCODER_BUILT_IN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <!-- the Video mode's screen (Drake): its places (video_mode_layout, no drawing, tested alone) and its screen (video_mode_screen) -->
+    <ClCompile Include="..\..\src\host\video_mode_layout.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\video_mode_screen.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="..\..\src\host\waypoint_all.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -1210,6 +1235,14 @@
     <ClCompile Include="..\..\src\model\undo_ring.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\message_numbers.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\message_numbers_table.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;..\..\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\src\model\multinode.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -1669,6 +1702,18 @@
   <ItemGroup>
     <ProjectReference Include="libsmackerdec_static.vcxproj">
       <Project>{2A1A22CC-E905-4383-89A6-62D664208D3B}</Project>
+      <GlobalPropertiesToRemove>IntDir</GlobalPropertiesToRemove>
+    </ProjectReference>
+  </ItemGroup>
+  <!-- THE ONE LIBRARY the Video mode and mp4-to-smk both link (videomake_static.vcxproj says why), and the encoder it calls, libsmackerenc (GNU LGPL 2.1), a static
+       library of its own (libsmackerenc_static.vcxproj): the editor then holds the encoder as mp4-to-smk does. Not in the stock proof, which has no Video mode. -->
+  <ItemGroup Condition="'$(StockProof)' != 'true'">
+    <ProjectReference Include="videomake_static.vcxproj">
+      <Project>{2E2E00A0-1C79-46D1-96AC-2D2F8EFE2161}</Project>
+      <GlobalPropertiesToRemove>IntDir</GlobalPropertiesToRemove>
+    </ProjectReference>
+    <ProjectReference Include="libsmackerenc_static.vcxproj">
+      <Project>{A227768E-A114-47D7-828D-EF334A517681}</Project>
       <GlobalPropertiesToRemove>IntDir</GlobalPropertiesToRemove>
     </ProjectReference>
   </ItemGroup>

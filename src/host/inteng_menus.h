@@ -164,6 +164,8 @@ namespace host
 		AcousticCommand,  // Object Placement's Acoustic Mode (its menu page 7, FUN_004f57b0: Exit 0xa, Module 0xbb8..0xbbb, Default 0xbbc / 0xbbd): the item's command is handed to the editor (acoustic_mode.h)
 		TextScale,        // Construction's Options, Text size 1 / 1.25 / 1.5 / 2 (the owner's addition, text_scale.h): the step is the last byte of the addition's action number less one (0x1ff02 .. 0x1ff05)
 		PlacedHierarchy,  // the current placed hierarchy's pop-up (page 6 of FUN_004d68e0, commands 0x7d0-0x7db): the item's command is handed to the editor (reassess/object-placement.md PH-2..PH-13)
+		VideoModeEnter,   // Construction's Mode, Video (the owner's addition 11-22, alpha.5 item 2): the Video screen is shown (video_mode_screen.h)
+		VideoBrowse,      // the Video screen's Load, Browse...: Windows' own Open dialog for one video (video_mode.h VideoMode_Browse)
 	};
 
 	struct IntengItem

@@ -7,6 +7,7 @@
 
 #include "autoplot_switch.h"   // the owner's "hide auto pilot": the two Auto-plot items left out unless AutoPlot=1
 #include "menu_paint.h"
+#include "video_mode_screen.h"   // VideoModeScreen_Number: the Video screen Mode > Video shows
 
 using host::kIntengScreenCount;
 using host::kIntengScreens;
@@ -808,6 +809,17 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 			break;
 		case host::IntengWork::PlacedHierarchy:
 			host->placedHierarchyCommand = item->command;
+			break;
+		case host::IntengWork::VideoModeEnter:
+			// Construction's Mode, Video (the owner's addition 11-22): the Video screen, found by its name (video_mode_screen.h)
+			if (host::VideoModeScreen_Number() < kIntengScreenCount)
+			{
+				host->screen = host::VideoModeScreen_Number();
+				host->statusWords = kIntengScreens[host->screen].name;
+			}
+			break;
+		case host::IntengWork::VideoBrowse:
+			host->videoBrowse = true;
 			break;
 		case host::IntengWork::ViewLighting:
 			host->viewMode = 4;

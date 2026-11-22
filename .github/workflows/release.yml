@@ -24,8 +24,8 @@
 # refuses a package where one is there or a program names one. As the GNU LGPL 2.1 asks of a library linked in, each one's licence goes in
 # the zip with the program that holds it, and licences/README.txt says where its whole source (as avpx pins it) and the program's own source
 # are, to build it again with your own build of the library. The leave_out_encoder input (off unless the owner asks) makes the same package
-# without the video encoder, as alpha.2 shipped: no mp4-to-smk.exe, and so no libsmackerenc, its licence or its line. Only mp4-to-smk uses the
-# encoder (the editor has no video import); the FMV preview's decoder stays, in the editor.
+# without the video converter, as alpha.2 shipped: no mp4-to-smk.exe. The editor holds the encoder itself since its Video mode (the owner, 11-22),
+# so libsmackerenc's licence and its line stay either way, as the FMV preview's decoder's do.
 name: Release
 
 on:
@@ -36,7 +36,7 @@ on:
         required: true
         type: string
       leave_out_encoder:
-        description: "Leave the video encoder out of the zip: mp4-to-smk.exe, and with it libsmackerenc's licence and its source's line (the FMV preview's decoder stays, in the editor). Off unless the owner asks."
+        description: "Leave the video converter out of the zip: mp4-to-smk.exe (the editor holds the encoder itself since its Video mode, so libsmackerenc's licence and its line stay). Off unless the owner asks."
         required: false
         type: boolean
         default: false
@@ -99,9 +99,45 @@ jobs:
           [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "tag=$tag`nprerelease=$(if ($isPre) { 'true' } else { 'false' })`n", $noMark)
           "$tag may be released: every check passed on $env:GITHUB_SHA"
 
+  # AvPx'S LIBRARY SCAN OF THE PIN (Vasquez 2026-11-22, Bishop 2's order; Tao 1). The zip ships the libraries AvPx builds at the commit avpx/
+  # is pinned to, so nothing is built until AvPx's own Snyk workflow has scanned that very commit in full, passed, and started less than 24
+  # hours ago. tools/sca-gate.ps1 says what it proves, and docs/TAKING-OVER.md ("Before a release") how that run is started. The draft's job
+  # asks the same gate again, just before the draft is made.
+  sca:
+    name: Check AvPx's library scan of the pin
+    needs: check
+    runs-on: ubuntu-24.04   # pinned, so a runner-image migration never changes the gate
+    timeout-minutes: 10
+    permissions:
+      contents: read   # to read the gate, and which AvPx commit avpx/ is pinned to
+    steps:
+      - name: Check out the gate, its test and this file (nothing else of the repository)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            tools/sca-gate.ps1
+            tools/sca-gate-test.ps1
+            .github/workflows/release.yml
+          sparse-checkout-cone-mode: false
+
+      # Its own test first, with no token in reach: a gate that went wrong stops the run before anything is asked
+      - name: Check the gate
+        shell: pwsh
+        run: ./tools/sca-gate-test.ps1
+
+      # The token only reads: the gate asks GitHub three questions (the pin, the runs on it, the newest run's jobs) and changes nothing
+      - name: Refuse unless AvPx's libraries at the pin were scanned in full, passed, under 24 hours ago
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          . ./tools/sca-gate.ps1
+          $null = Assert-AvpxLibraryScan -Repository $env:GITHUB_REPOSITORY -Commit $env:GITHUB_SHA
+
   build:
     name: Build the package
-    needs: check
+    needs: [check, sca]
     runs-on: windows-2025-vs2026   # pinned: Windows Server 2025 with Visual Studio 2026, the compiler we build with
     timeout-minutes: 120           # the libraries are built from source, so this takes a while
     permissions:
@@ -173,10 +209,12 @@ jobs:
           $package = "$env:RUNNER_TEMP\package"
           New-Item -ItemType Directory -Force $package | Out-Null
           Copy-Item 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe' $package
-          # Each Smacker library linked into a program in this package, with the program that holds it: its licence and its source's line go with it (below)
-          $linked = [ordered]@{ 'libsmackerdec' = 'AVP_OpenInteng.exe' }
-          if ($env:LEAVE_OUT_ENCODER -ceq 'true') { 'The video encoder (mp4-to-smk.exe, and with it libsmackerenc''s licence and its source''s line) is left out of this package, as the run was asked (leave_out_encoder)' }
-          elseif ($env:LEAVE_OUT_ENCODER -ceq 'false') { Copy-Item 'win32\VS2026\Win32\Release\mp4-to-smk.exe' $package; $linked['libsmackerenc'] = 'mp4-to-smk.exe' }
+          # Each Smacker library linked into a program in this package, with the programs that hold it: its licence and its source's line go with it (below).
+          # The editor holds both since the owner's Video mode (11-22): the decoder for its FMV preview, the encoder for its films (videomake_static, the one
+          # library mp4-to-smk links too); mp4-to-smk.exe holds the encoder as well
+          $linked = [ordered]@{ 'libsmackerdec' = @('AVP_OpenInteng.exe'); 'libsmackerenc' = @('AVP_OpenInteng.exe') }
+          if ($env:LEAVE_OUT_ENCODER -ceq 'true') { 'The video converter mp4-to-smk.exe is left out of this package, as the run was asked (leave_out_encoder); the editor still holds the encoder, so its licence and its line stay' }
+          elseif ($env:LEAVE_OUT_ENCODER -ceq 'false') { Copy-Item 'win32\VS2026\Win32\Release\mp4-to-smk.exe' $package; $linked['libsmackerenc'] = @('AVP_OpenInteng.exe', 'mp4-to-smk.exe') }
           else { throw "leave_out_encoder is neither true nor false: $env:LEAVE_OUT_ENCODER" }
 
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -289,10 +327,10 @@ jobs:
           # commit), which project built it (win32/VS2026/<name>_static.vcxproj, in this release's own source), and how to use your own build of it.
           $whatLinked = @{
             'libsmackerdec' = "Barry Duncan's player for Smacker films, the editor's FMV preview"
-            'libsmackerenc' = "a Smacker film encoder made from Barry Duncan's libsmackerdec for Open Inteng, the level editor"
+            'libsmackerenc' = "a Smacker film encoder made from Barry Duncan's libsmackerdec for Open Inteng, the level editor's Video mode and mp4-to-smk"
           }
           foreach ($library in $linked.Keys) {
-            $program = $linked[$library]
+            $program = @($linked[$library]) -join ' and '
             Test-InAvpx "dependencies/$library/COPYING"
             $licence = @(Get-Content -LiteralPath "avpx\dependencies\$library\COPYING" -TotalCount 3 | ForEach-Object { $_.Trim() })
             if (-not ($licence -ccontains 'GNU LESSER GENERAL PUBLIC LICENSE') -or -not ($licence -ccontains 'Version 2.1, February 1999')) { throw "$library's COPYING is not the GNU LGPL 2.1 this package says it is" }
@@ -301,7 +339,7 @@ jobs:
             $lines += "$($library): $($whatLinked[$library]), linked into $program (licences/$library.txt, the GNU Lesser General Public License, version 2.1). " +
               "Its complete source, as AvPx pins it: https://github.com/Melanikus/AvP/tree/$avpxCommit/dependencies/$library. It is built by " +
               "win32/VS2026/$($library)_static.vcxproj in this release's own source (https://github.com/$env:GITHUB_REPOSITORY/tree/$env:GITHUB_SHA); " +
-              "to use your own build of it, build $program again from that source with yours in its place."
+              "to use your own build of it, build $(@($linked[$library]) -join ' or ') again from that source with yours in its place."
           }
 
           # The guard: every line under the GNU licences (it names GNU, LGPL or GPL) says where its source is, by a link; every link into AvPx's
@@ -342,7 +380,7 @@ jobs:
           # encoder is left out, and exactly the DLLs this step copied above, by name: the import walk's and D3DCompiler_43.dll), License.txt, BUILD.txt
           # and AVP_OpenInteng.ini; the one folder licences, holding only its .txt files, README.txt among them. Anything else stops the step, with its
           # name, a DLL nobody chose too. Then each file and its SHA-256 for the run's log (the zip carries no list of its own).
-          $want = @('AVP_OpenInteng.exe', 'AVP_OpenInteng.ini', 'BUILD.txt', 'License.txt', 'licences\README.txt') + @($linked.Values | Where-Object { $_ -cne 'AVP_OpenInteng.exe' }) + $chosen
+          $want = @('AVP_OpenInteng.exe', 'AVP_OpenInteng.ini', 'BUILD.txt', 'License.txt', 'licences\README.txt') + @($linked.Values | ForEach-Object { $_ } | Where-Object { $_ -cne 'AVP_OpenInteng.exe' } | Sort-Object -Unique) + $chosen
           $found = @(Get-ChildItem -LiteralPath $package -Recurse -File | ForEach-Object {
             if (-not $_.FullName.StartsWith("$package\", [System.StringComparison]::OrdinalIgnoreCase)) { throw "$($_.FullName) is not inside $package" }
             $_.FullName.Substring($package.Length + 1)
@@ -379,9 +417,11 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # VirusTotal runs about 70 virus scanners on a file. The zip, and every file inside it on its own (2026-11-21: a scanner flagged
-  # libsmackerenc.dll only when it was sent alone; and Dietrich's review: not only the programs), are each analysed in this run: sent if VirusTotal doesn't know the file, and analysed
-  # again if it does, so no verdict older than the run counts. What comes back is from outside our code, so AvPx's tools/check-virustotal.ps1 (at the pinned commit) reads every
+  # VirusTotal runs about 70 virus scanners on a file. The zip, and every PROGRAM inside it on its own (2026-11-21: a scanner flagged
+  # libsmackerenc.dll only when it was sent alone; the owner's ruling for alpha.5, 2026-11-22, "can we not scan the txts on virus total... just the
+  # binaries?", his written rule: zero findings on the zip and on every program inside it), are each analysed in this run: sent if VirusTotal doesn't
+  # know the file, and analysed again if it does, so no verdict older than the run counts. A program is told by its first bytes ("MZ"), never by its
+  # name (tools/vt-programs.ps1); every other file is covered by the zip's own scan. What comes back is from outside our code, so AvPx's tools/check-virustotal.ps1 (at the pinned commit) reads every
   # answer before anything here believes it (Tao 3). The owner's ruling, 2026-11-08: if any scanner flags it, the draft is still made, its
   # text starts by saying so, and the run ends red. The key is in the release environment, and only this job reads it; it can write nothing.
   scan:
@@ -411,6 +451,12 @@ jobs:
         with:
           name: release-package
           path: release
+
+      # Which files go to VirusTotal alone is decided by tools/vt-programs.ps1 (by their first bytes, never their names); its own test, on a
+      # package of its own, runs here first, with no key in reach, so a pick that went wrong stops the run before anything is sent
+      - name: Check the pick of the programs that are sent alone
+        shell: pwsh
+        run: ./tools/vt-programs-test.ps1
 
       # The key reaches only this step, and is taken out of its environment before anything starts. This step starts one program only,
       # the checker, and the key is only ever sent in the x-apikey header to www.virustotal.com. A redirect isn't followed.
@@ -546,25 +592,32 @@ jobs:
             return $done
           }
 
-          # The zip, then every file inside it, each on its own: a scanner can flag a file sent alone that it passed inside the zip, and a
-          # file that isn't a program (an archive, a source, a text) is sent too. -Force takes the files whose names start with a dot, which
-          # the Linux runner would leave out. A package with no program in it isn't the one the build makes. A name is printed only as
-          # letters, digits and . _ - /
+          # The zip, then every PROGRAM inside it, each on its own: a scanner can flag a program sent alone that it passed inside the zip. A
+          # program is a file whose first two bytes are "MZ", read from the file and never from its name, so one renamed readme.txt is still sent
+          # alone (Tao 3); every other file (the licences, the notes, the settings, the sums) is covered by the zip's own scan (the owner's ruling for
+          # alpha.5: zero findings on the zip and on every program inside it). Get-VtSendPlan (tools/vt-programs.ps1, its test in the step before
+          # this one) takes the files whose names start with a dot too, which the Linux runner would leave out, and names each only with letters,
+          # digits and . _ - /. A package with no program in it isn't the one the build makes. One line says which files went alone and which the
+          # zip covers, for the owner to see.
+          . ./tools/vt-programs.ps1
           $started = [ordered]@{}
           $started[$sha] = Send-One $zip $sha 'the zip'
           $inside = Join-Path $env:RUNNER_TEMP 'package-files'
           Expand-Archive -LiteralPath $zip -DestinationPath $inside
-          $files = @(Get-ChildItem -LiteralPath $inside -Recurse -File -Force | Sort-Object FullName)
-          if (@($files | Where-Object { $_.Extension -ieq '.exe' }).Count -eq 0) { throw 'The zip has no .exe in it, so it is not the package the build makes' }
+          $plan = Get-VtSendPlan $inside
+          if (@($plan | Where-Object { [System.IO.Path]::GetExtension($_.Path) -ieq '.exe' }).Count -eq 0) { throw 'The zip has no .exe in it, so it is not the package the build makes' }
+          $programs = @($plan | Where-Object { $_.Alone })
+          if ($programs.Count -eq 0) { throw 'No file in the zip starts as a program does, so it is not the package the build makes' }
+          $coveredByZip = @($plan | Where-Object { -not $_.Alone })
+          "Sent alone, as programs (their first bytes are MZ): $(@($programs | ForEach-Object { $_.Shown }) -join ', '). Covered by the zip's own scan only: $(if ($coveredByZip.Count) { @($coveredByZip | ForEach-Object { $_.Shown }) -join ', ' } else { 'none' })."
           $sent = @()
-          foreach ($file in $files)
+          foreach ($file in $programs)
           {
-            $shown = ($file.FullName.Substring($inside.Length + 1) -replace '\\', '/') -replace '[^A-Za-z0-9._/-]', '_'
-            $fileSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
-            $sent += ,@($shown, $fileSha)
-            if (-not $started.Contains($fileSha)) { $started[$fileSha] = Send-One $file.FullName $fileSha $shown }
+            $fileSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.Path).Hash.ToLowerInvariant()
+            $sent += ,@($file.Shown, $fileSha)
+            if (-not $started.Contains($fileSha)) { $started[$fileSha] = Send-One $file.Path $fileSha $file.Shown }
           }
-          "Analyses started: $($started.Count) (the zip, and $($started.Count - 1) different files of the $($files.Count) in it). Waiting for them all."
+          "Analyses started: $($started.Count) (the zip, and $($started.Count - 1) different programs of the $($plan.Count) files in it). Waiting for them all."
           $counted = Wait-All $started
 
           $noMark = New-Object System.Text.UTF8Encoding $false
@@ -578,16 +631,16 @@ jobs:
             "$($s[0]): $($c[0]) malicious, $($c[1]) suspicious, of $($c[2]) scanners (sha256 $($s[1]))"
             if ($c[0] + $c[1] -gt 0) { $flaggedFiles++ }
           }
-          [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "files=$($files.Count)`nfiles_flagged=$flaggedFiles`n", $noMark)
+          [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "files=$($plan.Count)`nfiles_flagged=$flaggedFiles`n", $noMark)
 
-          # The owner, 2026-11-21: a release ships only at zero findings, on the zip and on every file in it. One file flagged stops the run
-          # here, before anything is attested or drafted.
-          if ($flaggedFiles -gt 0) { throw "VirusTotal flagged $flaggedFiles of the $($files.Count) files in the package, so no draft is made: a release ships only at zero findings" }
-          "VirusTotal: none of the $($files.Count) files in the package was flagged"
+          # The owner, 2026-11-21: a release ships only at zero findings, on the zip and on every program in it. One program flagged stops the
+          # run here, before anything is attested or drafted (the zip's own count is checked again by the draft's job).
+          if ($flaggedFiles -gt 0) { throw "VirusTotal flagged $flaggedFiles of the $($programs.Count) programs in the package, so no draft is made: a release ships only at zero findings" }
+          "VirusTotal: none of the $($programs.Count) programs in the package was flagged (the zip covers its other $($coveredByZip.Count) files)"
 
   publish:
     name: Make the draft release
-    needs: [check, build, scan]
+    needs: [check, build, scan, sca]
     runs-on: ubuntu-24.04   # pinned, so a runner-image migration never changes the gate
     timeout-minutes: 15
     environment: release
@@ -595,7 +648,8 @@ jobs:
       contents: write       # to make the draft. The only job here that can write to the repository
       id-token: write       # to prove to the attestation service which workflow this is
       attestations: write   # to record how the package was built
-    # This job runs no code from the repository, and doesn't have a copy of it.
+    # This job has one file of the repository, tools/sca-gate.ps1 at this commit (the commit the checks proved is main's tip, so the same
+    # reviewed code as this file), and runs nothing else of it: the gate the job sca asked, asked again here (see its step).
     steps:
       - name: Get the package
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -646,6 +700,25 @@ jobs:
           if ([int]$env:SCAN_MALICIOUS + [int]$env:SCAN_SUSPICIOUS -gt 0) {
             throw "VirusTotal: $env:SCAN_MALICIOUS malicious and $env:SCAN_SUSPICIOUS suspicious of $env:SCAN_ANSWERED engines on this zip, so no draft is made: a release ships only at zero findings. https://www.virustotal.com/gui/file/$wanted"
           }
+
+      - name: Check out the gate only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tools/sca-gate.ps1
+          sparse-checkout-cone-mode: false
+          path: gate
+
+      # The job sca's gate, asked again here, after the owner's approvals, which can take hours (Bishop 2, 2026-11-22): the draft is made only
+      # while the full scan of the pin's libraries is under 24 hours old, as the step above re-checks main's tip. If it has aged, start AvPx's
+      # Snyk workflow on the pin again (docs/TAKING-OVER.md, Before a release) and run the release again. The token only reads here too.
+      - name: Refuse unless AvPx's libraries at the pin were scanned in full, passed, under 24 hours ago (asked again)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          . ./gate/tools/sca-gate.ps1
+          $null = Assert-AvpxLibraryScan -Repository $env:GITHUB_REPOSITORY -Commit $env:GITHUB_SHA
 
       - name: Record how the package was built
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2

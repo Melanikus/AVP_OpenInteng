@@ -89,7 +89,12 @@ namespace host
 		case VideoImportResult::Done: return "done";
 		case VideoImportResult::BadCall: return "bad call";
 		case VideoImportResult::NotAFile: return "not a plain file";
-		case VideoImportResult::NotAVideoName: return "not a video's name (.mp4, .m4v, .avi or .wmv)";
+		case VideoImportResult::NotAVideoName:
+		{
+			static std::string const words = std::string("not a video's name (") + VideoImport_EndingsWords() + ")";
+
+			return words.c_str();
+		}
 		case VideoImportResult::Empty: return "the file is empty";
 		case VideoImportResult::TooBig: return "the file is too big";
 		case VideoImportResult::CantRead: return "Windows couldn't read the file";
@@ -99,9 +104,102 @@ namespace host
 		case VideoImportResult::BadPicture: return "its picture can't be decoded";
 		case VideoImportResult::BadSound: return "its sound can't be decoded";
 		case VideoImportResult::NoMediaFoundation: return "Windows' Media Foundation isn't there";
+		case VideoImportResult::Stopped: return "the read was stopped";
 		}
 
 		return "unknown";
+	}
+
+	// THE ONE LIST (video_import.h). Each ending's content type is the one whose stream handler is the ending's own in Windows' table (HKLM\SOFTWARE\Microsoft\Windows Media
+	// Foundation\ByteStreamHandlers, read on the owner's PC 2026-11-22): .mp4 .m4v .mov .3gp the MPEG-4 source ({271C3902-...}), .mkv .webm the Matroska one ({1f9a2c18-...}),
+	// .avi and .wmv their own, .mpg .mpeg .vob .ts .m2ts the MPEG-2 one ({40871C59-...}). The read hands Media Foundation the type, never the file's name, so the type picks the handler
+	struct TakenEnding
+	{
+		wchar_t const *ending;
+		wchar_t const *type;
+	};
+
+	TakenEnding const kTakenEndings[] = { { L".mp4", L"video/mp4" }, { L".m4v", L"video/mp4" }, { L".mov", L"video/mp4" }, { L".mkv", L"video/x-matroska" },
+		{ L".webm", L"video/webm" }, { L".avi", L"video/avi" }, { L".wmv", L"video/x-ms-wmv" }, { L".mpg", L"video/mpeg" }, { L".mpeg", L"video/mpeg" },
+		{ L".vob", L"video/mpeg" }, { L".ts", L"video/mpeg" }, { L".m2ts", L"video/mpeg" }, { L".3gp", L"video/3gpp" } };
+
+	char const *VideoImport_EndingsWords()
+	{
+		static std::string const words = []()
+		{
+			std::string all;
+
+			for (TakenEnding const &taken : kTakenEndings)
+			{
+				all += all.empty() ? std::string() : std::string(", ");
+
+				for (wchar_t const *c = taken.ending; *c; c++)
+				{
+					all.push_back((char)*c);
+				}
+			}
+
+			return all;
+		}();
+
+		return words.c_str();
+	}
+
+	std::string VideoImport_CodecWords(GUID const &subtype, bool picture)
+	{
+		// The streams a Windows may lack a decoder for, and the Microsoft extension (from the Microsoft Store) that adds it
+		struct Known
+		{
+			GUID const *type;
+			char const *name;
+			char const *adds;
+		};
+
+		// Opus is WAVE_FORMAT_OPUS (0x704F) on the audio base; the SDK names it only for a Windows 10 target, and this builds for Windows 8 (_WIN32_WINNT 0x0602)
+		GUID opus = MFAudioFormat_Base;
+
+		opus.Data1 = 0x704F;
+
+		Known const known[] = {
+			{ &MFVideoFormat_HEVC, "HEVC", "Microsoft's HEVC Video Extension adds it" },
+			{ &MFVideoFormat_HEVC_ES, "HEVC", "Microsoft's HEVC Video Extension adds it" },
+			{ &MFVideoFormat_VP90, "VP9", "Microsoft's VP9 Video Extensions add it" },
+			{ &MFVideoFormat_VP80, "VP8", "Microsoft's VP9 Video Extensions add it" },
+			{ &MFVideoFormat_AV1, "AV1", "Microsoft's AV1 Video Extension adds it" },
+			{ &MFVideoFormat_MPEG2, "MPEG-2", "Microsoft's MPEG-2 Video Extension adds it" },
+			{ &MFAudioFormat_Vorbis, "Vorbis", "Microsoft's Web Media Extensions add it" },
+			{ &opus, "Opus", "Microsoft's Web Media Extensions add it" },
+		};
+		char const *const kind = picture ? "picture" : "sound";
+
+		for (Known const &k : known)
+		{
+			if (IsEqualGUID(subtype, *k.type))
+			{
+				return std::string(k.name) + " " + kind + ": " + k.adds;
+			}
+		}
+
+		// a FOURCC type (its last 12 bytes Media Foundation's base, MFVideoFormat_Base's): its four letters, when they are letters, digits or a space
+		GUID base = MFVideoFormat_Base;
+
+		base.Data1 = subtype.Data1;
+
+		if (!IsEqualGUID(subtype, GUID_NULL) && IsEqualGUID(subtype, base))
+		{
+			std::string letters;
+
+			for (int i = 0; i < 4; i++)
+			{
+				char const c = (char)((subtype.Data1 >> (8 * i)) & 0xff);
+
+				letters.push_back((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == ' ' ? c : '?');
+			}
+
+			return letters + " " + kind + " (Windows has no decoder for it)";
+		}
+
+		return std::string("this ") + kind + "'s kind (Windows has no decoder for it, and Media Foundation doesn't say which it is)";
 	}
 
 	wchar_t const *VideoImport_ContentType(std::wstring const &path)
@@ -121,19 +219,12 @@ namespace host
 			letter = (wchar_t)towlower(letter);
 		}
 
-		if (ending == L".mp4" || ending == L".m4v")
+		for (TakenEnding const &taken : kTakenEndings)
 		{
-			return L"video/mp4";
-		}
-
-		if (ending == L".avi")
-		{
-			return L"video/avi";
-		}
-
-		if (ending == L".wmv")
-		{
-			return L"video/x-ms-wmv";
+			if (ending == taken.ending)
+			{
+				return taken.type;
+			}
 		}
 
 		return nullptr;
@@ -153,7 +244,7 @@ namespace host
 
 		if (!VideoImport_ContentType(path))
 		{
-			return Refuse(VideoImportResult::NotAVideoName, "Import video: a video's name ends in .mp4, .m4v, .avi or .wmv", why);
+			return Refuse(VideoImportResult::NotAVideoName, std::string("Import video: a video's name ends in one of ") + VideoImport_EndingsWords(), why);
 		}
 
 		// a 0 inside the name would end it early and name another file
@@ -440,6 +531,92 @@ namespace host
 		return true;
 	}
 
+	bool VideoImport_SourceRect(uint32_t width, uint32_t height, uint32_t parWidth, uint32_t parHeight, VideoImportFit fit, double rect[4])
+	{
+		int32_t area[4];
+
+		if (!rect || !VideoImport_LetterboxArea(width, height, parWidth, parHeight, area))
+		{
+			return false;
+		}
+
+		if (fit == VideoImportFit::Crop)
+		{
+			return VideoImport_CropWindow(width, height, parWidth, parHeight, rect);
+		}
+
+		if (fit == VideoImportFit::Expand)
+		{
+			rect[0] = 0.0;
+			rect[1] = 0.0;
+			rect[2] = (double)width;
+			rect[3] = (double)height;
+			return true;
+		}
+
+		// Fit: the rectangle of 128 : 96's shape round the whole picture, from the exact shape as seen (not the rounded area: a 16:9 picture's rectangle is exactly 4:3)
+		if (parWidth == 0 || parHeight == 0)
+		{
+			parWidth = parHeight = 1;
+		}
+
+		double const seenWidth = (double)width * parWidth / parHeight;
+		double const target = (double)kVideoImportWidth / (double)kVideoImportHeight;
+
+		if (seenWidth >= (double)height * target)
+		{
+			double const tall = seenWidth / target;
+
+			rect[0] = 0.0;
+			rect[1] = ((double)height - tall) / 2.0;
+			rect[2] = (double)width;
+			rect[3] = tall;
+		}
+		else
+		{
+			double const wide = (double)height * target * parHeight / parWidth;
+
+			rect[0] = ((double)width - wide) / 2.0;
+			rect[1] = 0.0;
+			rect[2] = wide;
+			rect[3] = (double)height;
+		}
+
+		return true;
+	}
+
+	std::string VideoImport_FitWords(uint32_t width, uint32_t height, uint32_t parWidth, uint32_t parHeight, VideoImportFit fit)
+	{
+		int32_t area[4];
+		double rect[4];
+
+		if (!VideoImport_LetterboxArea(width, height, parWidth, parHeight, area) || !VideoImport_SourceRect(width, height, parWidth, parHeight, fit, rect))
+		{
+			return std::string();
+		}
+
+		std::string const size = std::to_string(width) + " x " + std::to_string(height);
+		std::string const avp = std::to_string(kVideoImportWidth) + " x " + std::to_string(kVideoImportHeight);
+
+		if (fit == VideoImportFit::Crop)
+		{
+			return "crop: the middle " + std::to_string((long long)floor(rect[2] + 0.5)) + " x " + std::to_string((long long)floor(rect[3] + 0.5)) + " of " + size + " becomes " + avp;
+		}
+
+		if (fit == VideoImportFit::Expand)
+		{
+			return "expand: all of " + size + " stretched to " + avp;
+		}
+
+		if (area[2] == kVideoImportWidth && area[3] == kVideoImportHeight)
+		{
+			return "fit: all of " + size + " fills " + avp;
+		}
+
+		return "fit: all of " + size + " into " + std::to_string(area[2]) + " x " + std::to_string(area[3]) + ", black bars " +
+			(area[3] < kVideoImportHeight ? "above and below" : "at the sides");
+	}
+
 	bool VideoImport_IsAvpShape(uint32_t width, uint32_t height, uint32_t parWidth, uint32_t parHeight)
 	{
 		int32_t area[4];
@@ -464,6 +641,15 @@ namespace host
 				return false;
 			}
 
+			area[0] = 0;
+			area[1] = 0;
+			area[2] = kVideoImportWidth;
+			area[3] = kVideoImportHeight;
+		}
+
+		// Expand: the whole picture (the window as it is) over all of 128 x 96
+		if (fit == VideoImportFit::Expand)
+		{
 			area[0] = 0;
 			area[1] = 0;
 			area[2] = kVideoImportWidth;
@@ -796,8 +982,9 @@ namespace host
 			return VideoImport_Letterbox(shown, shape.shownWidth, shape.shownHeight, pitch, shape.parWidth, shape.parHeight, fit, out);
 		}
 
-		// One decoded picture fitted into out; false for a buffer shorter than its picture
-		bool FitPicture(IMFSample *sample, PictureShape const &shape, VideoImportFit fit, uint8_t *out)
+		// One decoded picture's rows handed to `use` (its top row and the step to the next, bytes apart, negative for a picture kept bottom row first); false for a
+		// buffer shorter than its picture, or when `use` says false
+		bool WithPicture(IMFSample *sample, PictureShape const &shape, std::function<bool(uint8_t const *top, int64_t pitch)> const &use)
 		{
 			ComPtr<IMFMediaBuffer> first;
 			DWORD buffers = 0;
@@ -814,7 +1001,7 @@ namespace host
 
 					if (SUCCEEDED(rows->Lock2D(&top, &pitch)))
 					{
-						bool const fitted = (pitch >= 0 ? pitch : -(int64_t)pitch) >= (int64_t)shape.width * 4 && FitShown(top, pitch, shape, fit, out);
+						bool const fitted = (pitch >= 0 ? pitch : -(int64_t)pitch) >= (int64_t)shape.width * 4 && use(top, pitch);
 
 						rows->Unlock2D();
 						return fitted;
@@ -839,11 +1026,69 @@ namespace host
 			{
 				BYTE const *const top = shape.stride < 0 ? bytes + step * (shape.height - 1) : bytes;
 
-				fitted = FitShown(top, shape.stride, shape, fit, out);
+				fitted = use(top, shape.stride);
 			}
 
 			whole->Unlock();
 			return fitted;
+		}
+
+		// One decoded picture fitted into out; false for a buffer shorter than its picture
+		bool FitPicture(IMFSample *sample, PictureShape const &shape, VideoImportFit fit, uint8_t *out)
+		{
+			return WithPicture(sample, shape, [&](uint8_t const *top, int64_t pitch) { return FitShown(top, pitch, shape, fit, out); });
+		}
+
+		// The shown part of a picture as it is seen, at most mostSide a side (never larger), R G B a pixel, the top row first: each pixel the average of the part of the
+		// picture it covers (the letterbox's own sharing, Shares)
+		bool StillOf(uint8_t const *top, int64_t pitch, PictureShape const &shape, uint32_t mostSide, std::vector<uint8_t> *rgb, uint32_t *width, uint32_t *height)
+		{
+			double const seenWidth = (double)shape.shownWidth * shape.parWidth / shape.parHeight;
+			double const seenHeight = (double)shape.shownHeight;
+			double const larger = seenWidth > seenHeight ? seenWidth : seenHeight;
+			double const scale = larger > (double)mostSide ? (double)mostSide / larger : 1.0;
+			int32_t const across = (int32_t)floor(seenWidth * scale + 0.5) < 1 ? 1 : (int32_t)floor(seenWidth * scale + 0.5);
+			int32_t const down = (int32_t)floor(seenHeight * scale + 0.5) < 1 ? 1 : (int32_t)floor(seenHeight * scale + 0.5);
+			uint8_t const *const shown = top + (int64_t)shape.top * pitch + (int64_t)shape.left * 4;
+			std::vector<Share> const columns = Shares(0.0, (double)shape.shownWidth, shape.shownWidth, across);
+			std::vector<Share> const rows = Shares(0.0, (double)shape.shownHeight, shape.shownHeight, down);
+
+			rgb->assign((size_t)across * down * 3, 0);
+
+			for (int32_t y = 0; y < down; y++)
+			{
+				for (int32_t x = 0; x < across; x++)
+				{
+					double sums[3] = { 0.0, 0.0, 0.0 };
+					Share const &row = rows[(size_t)y];
+					Share const &column = columns[(size_t)x];
+
+					for (size_t j = 0; j < row.weights.size(); j++)
+					{
+						uint8_t const *const line = shown + (int64_t)(row.first + j) * pitch;
+
+						for (size_t i = 0; i < column.weights.size(); i++)
+						{
+							uint8_t const *const pixel = line + (size_t)(column.first + i) * 4;
+							double const weight = row.weights[j] * column.weights[i];
+
+							sums[0] += weight * pixel[0];
+							sums[1] += weight * pixel[1];
+							sums[2] += weight * pixel[2];
+						}
+					}
+
+					uint8_t *const out = &(*rgb)[((size_t)y * across + x) * 3];
+
+					out[0] = Byte(sums[2]);   // R
+					out[1] = Byte(sums[1]);   // G
+					out[2] = Byte(sums[0]);   // B
+				}
+			}
+
+			*width = (uint32_t)across;
+			*height = (uint32_t)down;
+			return true;
 		}
 
 		// Media Foundation's Audio Resampler (a DSP that is part of Windows): the sound as decoded in, 22050 Hz 16-bit mono out, then 8 bits
@@ -1003,6 +1248,20 @@ namespace host
 				return SUCCEEDED(transform->ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0)) && SUCCEEDED(transform->ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0)) && Pull();
 			}
 		};
+
+		// What a stream Windows couldn't decode is, in words (VideoImport_CodecWords), from its own type as the file gives it
+		std::string StreamWords(IMFSourceReader *reader, DWORD stream, bool picture)
+		{
+			ComPtr<IMFMediaType> native;
+			GUID subtype = GUID_NULL;
+
+			if (reader && SUCCEEDED(reader->GetNativeMediaType(stream, 0, &native)) && native)
+			{
+				native->GetGUID(MF_MT_SUBTYPE, &subtype);
+			}
+
+			return VideoImport_CodecWords(subtype, picture);
+		}
 
 		// The file's own numbers of its first picture stream and its first sound stream (-1 for none)
 		void FindStreams(IMFSourceReader *reader, DWORD *picture, DWORD *sound, bool *havePicture, bool *haveSound)
@@ -1164,7 +1423,8 @@ namespace host
 
 		if (FAILED(hr))
 		{
-			return Refuse(VideoImportResult::BadPicture, "Import video: Windows can't decode its picture (" + Code(hr) + ")", why);
+			return Refuse(VideoImportResult::BadPicture, "Import video: Windows can't decode this video's " + StreamWords(reader.Get(), opened->pictureStream, true) + " (" + Code(hr) + ")",
+				why);
 		}
 
 		VideoImportResult const shaped = ReadPictureShape(reader.Get(), opened->pictureStream, opened->length, mostSeconds, &opened->shape, why);
@@ -1203,7 +1463,8 @@ namespace host
 		return VideoImportResult::Done;
 	}
 
-	VideoImportResult VideoImport_ReadBytes(std::vector<uint8_t> const &bytes, wchar_t const *contentType, VideoImportFit fit, VideoImportClip *clip, std::string *why, int64_t mostSeconds)
+	VideoImportResult VideoImport_ReadBytes(std::vector<uint8_t> const &bytes, wchar_t const *contentType, VideoImportFit fit, VideoImportClip *clip, std::string *why, int64_t mostSeconds,
+		VideoImportProgress const &progress)
 	{
 		ComSession const com;
 		MediaFoundationSession const mediaFoundation;
@@ -1270,7 +1531,7 @@ namespace host
 			if (FAILED(hr) || FAILED(decoded->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &channels)) || FAILED(decoded->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &rate)) ||
 				FAILED(decoded->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &bits)) || channels < 1 || channels > 8 || rate < 1000 || rate > 384000 || bits != 16)
 			{
-				return Refuse(VideoImportResult::BadSound, "Import video: Windows can't decode its sound (" + Code(hr) + ")", why);
+				return Refuse(VideoImportResult::BadSound, "Import video: Windows can't decode this video's " + StreamWords(reader.Get(), soundStream, false) + " (" + Code(hr) + ")", why);
 			}
 
 			if (!resampler.Start(decoded.Get(), why))
@@ -1291,6 +1552,7 @@ namespace host
 		int64_t const mostTime = mostSeconds * kVideoImportTimeUnitsPerSecond;
 		size_t const mostSamples = MostSoundSamples(mostSeconds);
 
+		int32_t toldPercent = -1;
 		auto addFrames = [&read](std::vector<uint8_t> const &frame, int64_t count) {
 			for (int64_t i = 0; i < count; i++)
 			{
@@ -1337,6 +1599,22 @@ namespace host
 				if (!FitPicture(sample.Get(), shape, fit, fitted.data()))
 				{
 					return Refuse(VideoImportResult::BadPicture, "Import video: a decoded picture is shorter than its size says", why);
+				}
+
+				// how far: this picture's time over the file's length, told when it moves on (never going back); a "stop" ends the read here
+				if (progress)
+				{
+					int32_t const percent = read.length > 0 ? (int32_t)((start < 0 ? 0 : (start > read.length ? read.length : start)) * 100 / read.length) : 0;
+
+					if (percent > toldPercent || toldPercent < 0)
+					{
+						toldPercent = percent > toldPercent ? percent : toldPercent;
+
+						if (!progress(toldPercent))
+						{
+							return Refuse(VideoImportResult::Stopped, "Import video: the read was stopped", why);
+						}
+					}
 				}
 
 				// the ticks before this picture: the one before it fills them (the first picture fills those before itself)
@@ -1406,6 +1684,11 @@ namespace host
 			VideoImport_SoundTo8(read.sound16.data(), read.sound16.size(), &read.sound);
 		}
 
+		if (progress && toldPercent < 100 && !progress(100))
+		{
+			return Refuse(VideoImportResult::Stopped, "Import video: the read was stopped", why);
+		}
+
 		*clip = std::move(read);
 
 		if (why)
@@ -1414,6 +1697,95 @@ namespace host
 		}
 
 		return VideoImportResult::Done;
+	}
+
+	VideoImportResult VideoImport_Still(std::vector<uint8_t> const &bytes, wchar_t const *contentType, int64_t at, uint32_t mostSide, std::vector<uint8_t> *rgb, uint32_t *width,
+		uint32_t *height, std::string *why)
+	{
+		if (!rgb || !width || !height || mostSide == 0 || at < 0)
+		{
+			return Refuse(VideoImportResult::BadCall, "Import video: a still needs a place, a size and a time from the start", why);
+		}
+
+		ComSession const com;
+		MediaFoundationSession const mediaFoundation;
+		VideoImportResult result = CheckBytes(bytes, contentType, rgb, mediaFoundation, why);
+		Opened opened;
+
+		if (result == VideoImportResult::Done)
+		{
+			result = OpenForRead(bytes, contentType, kVideoImportLongestSeconds, &opened, why);
+		}
+
+		if (result != VideoImportResult::Done)
+		{
+			return result;
+		}
+
+		if (opened.length > 0 && at >= opened.length)
+		{
+			return Refuse(VideoImportResult::NotAVideo, "Import video: there is no picture that late in it", why);
+		}
+
+		PROPVARIANT position;
+
+		PropVariantInit(&position);
+		position.vt = VT_I8;
+		position.hVal.QuadPart = at;
+
+		HRESULT const moved = opened.reader->SetCurrentPosition(GUID_NULL, position);
+
+		PropVariantClear(&position);
+
+		if (FAILED(moved))
+		{
+			return Refuse(VideoImportResult::BadPicture, "Import video: Windows can't go to that time in it (" + Code(moved) + ")", why);
+		}
+
+		PictureShape shape = opened.shape;
+
+		// the first picture at or after the time (a seek lands on the key picture before it, so the ones before are passed over); at most a few seconds' worth
+		for (int tries = 0; tries < 2000; tries++)
+		{
+			DWORD streamIndex = 0, flags = 0;
+			LONGLONG start = 0;
+			ComPtr<IMFSample> sample;
+			HRESULT const hr = opened.reader->ReadSample(opened.pictureStream, 0, &streamIndex, &flags, &start, &sample);
+
+			if (FAILED(hr) || (flags & MF_SOURCE_READERF_ERROR))
+			{
+				return Refuse(VideoImportResult::BadPicture, "Import video: Windows stopped decoding its picture (" + Code(hr) + ")", why);
+			}
+
+			if (flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED)
+			{
+				result = ReadPictureShape(opened.reader.Get(), opened.pictureStream, opened.length, kVideoImportLongestSeconds, &shape, why);
+
+				if (result != VideoImportResult::Done)
+				{
+					return result;
+				}
+			}
+
+			if (sample && start + kVideoImportTimeUnitsPerSecond / (2 * kVideoImportFramesPerSecond) >= at)
+			{
+				bool const made = WithPicture(sample.Get(), shape, [&](uint8_t const *top, int64_t pitch) { return StillOf(top, pitch, shape, mostSide, rgb, width, height); });
+
+				if (made && why)
+				{
+					why->clear();
+				}
+
+				return made ? VideoImportResult::Done : Refuse(VideoImportResult::BadPicture, "Import video: a decoded picture is shorter than its size says", why);
+			}
+
+			if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
+			{
+				break;
+			}
+		}
+
+		return Refuse(VideoImportResult::NotAVideo, "Import video: there is no picture that late in it", why);
 	}
 
 	VideoImportResult VideoImport_Read(std::wstring const &path, VideoImportFit fit, VideoImportClip *clip, std::string *why, int64_t mostSeconds)

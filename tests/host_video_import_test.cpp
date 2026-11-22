@@ -21,6 +21,8 @@
 
 #include <windows.h>
 
+#include <mfapi.h>
+
 #include "video_import.h"
 
 static int checks = 0;
@@ -89,10 +91,72 @@ static void TestNames()
 	Check(host::VideoImport_ContentType(L"clip.m4v") != nullptr && wcscmp(host::VideoImport_ContentType(L"clip.m4v"), L"video/mp4") == 0, ".m4v is video/mp4");
 	Check(host::VideoImport_ContentType(L"clip.avi") != nullptr && wcscmp(host::VideoImport_ContentType(L"clip.avi"), L"video/avi") == 0, ".avi is video/avi");
 	Check(host::VideoImport_ContentType(L"clip.wmv") != nullptr && wcscmp(host::VideoImport_ContentType(L"clip.wmv"), L"video/x-ms-wmv") == 0, ".wmv is video/x-ms-wmv");
-	Check(host::VideoImport_ContentType(L"clip.mkv") == nullptr, ".mkv is refused (not one of the four)");
+	// THE OWNER'S RULING, 11-22 (through Bishop 2): Media Foundation's common containers, in ONE list (this one) for the drop, Browse..., mp4-to-smk and the read. Each one's
+	// content type is the one whose stream handler is the ending's own in Windows' table (HKLM\SOFTWARE\Microsoft\Windows Media Foundation\ByteStreamHandlers, read on
+	// the owner's PC 2026-11-22: .mov and .3gp have the MPEG-4 handler, .vob .ts .m2ts the MPEG-2 one, .webm the Matroska one)
+	struct Taken { wchar_t const *name; wchar_t const *type; };
+	Taken const taken[] = { { L"clip.mov", L"video/mp4" }, { L"clip.mkv", L"video/x-matroska" }, { L"clip.webm", L"video/webm" }, { L"clip.mpg", L"video/mpeg" },
+		{ L"clip.mpeg", L"video/mpeg" }, { L"clip.vob", L"video/mpeg" }, { L"clip.ts", L"video/mpeg" }, { L"clip.m2ts", L"video/mpeg" }, { L"clip.3gp", L"video/3gpp" },
+		{ L"C:\\a\\CLIP.MKV", L"video/x-matroska" } };
+
+	for (Taken const &t : taken)
+	{
+		wchar_t const *const type = host::VideoImport_ContentType(t.name);
+		std::string name;
+
+		for (wchar_t const *c = t.name; *c; c++)
+		{
+			name.push_back((char)*c);
+		}
+
+		Check(type != nullptr && wcscmp(type, t.type) == 0, name + " is taken, as its handler's type");
+	}
+
+	for (wchar_t const *refused : { L"clip.exe", L"clip.mkv.exe", L"clip.mp4.exe", L"clip.smk", L"clip.mp3", L"clip.flac", L"clip.m4a", L"clip.mkv ", L"clip.", L"clip.webm.lnk" })
+	{
+		std::string name;
+
+		for (wchar_t const *c = refused; *c; c++)
+		{
+			name.push_back((char)*c);
+		}
+
+		Check(host::VideoImport_ContentType(refused) == nullptr, name + " is refused (not a video container of the list)");
+	}
+
+	Check(std::string(host::VideoImport_EndingsWords()) == ".mp4, .m4v, .mov, .mkv, .webm, .avi, .wmv, .mpg, .mpeg, .vob, .ts, .m2ts, .3gp",
+		std::string("the list in words is the one list, in its order: ") + host::VideoImport_EndingsWords());
+	Check(std::string(host::VideoImport_Words(host::VideoImportResult::NotAVideoName)).find(host::VideoImport_EndingsWords()) != std::string::npos,
+		"the refusal's words name the same list");
 	Check(host::VideoImport_ContentType(L"clip.mp4.exe") == nullptr, "clip.mp4.exe is refused (only the last ending counts)");
 	Check(host::VideoImport_ContentType(L"mp4") == nullptr && host::VideoImport_ContentType(L"") == nullptr, "a name with no ending is refused");
 	Check(host::VideoImport_Words(host::VideoImportResult::TooBig) != nullptr && strlen(host::VideoImport_Words(host::VideoImportResult::TooBig)) > 0, "every answer has words (TooBig)");
+}
+
+// WHEN WINDOWS CAN'T DECODE A STREAM (the owner's ruling 11-22: "say so in words and name the codec and its Microsoft extension, never a bare error code")
+static void TestCodecWords()
+{
+	puts("The words for a stream Windows can't decode:");
+
+	auto const has = [](std::string const &words, char const *part) { return words.find(part) != std::string::npos; };
+	std::string const hevc = host::VideoImport_CodecWords(MFVideoFormat_HEVC, true);
+	std::string const vp9 = host::VideoImport_CodecWords(MFVideoFormat_VP90, true);
+	std::string const av1 = host::VideoImport_CodecWords(MFVideoFormat_AV1, true);
+	std::string const mpeg2 = host::VideoImport_CodecWords(MFVideoFormat_MPEG2, true);
+	std::string const vorbis = host::VideoImport_CodecWords(MFAudioFormat_Vorbis, false);
+	GUID odd = MFVideoFormat_H264;
+
+	odd.Data1 = 0x44434241;   // the FOURCC "ABCD", which no decoder has
+	std::string const unknown = host::VideoImport_CodecWords(odd, true);
+	std::string const none = host::VideoImport_CodecWords(GUID_NULL, false);
+
+	Check(has(hevc, "HEVC") && has(hevc, "Microsoft's HEVC Video Extension adds it"), "HEVC names its extension (" + hevc + ")");
+	Check(has(vp9, "VP9") && has(vp9, "Microsoft's VP9 Video Extensions add it"), "VP9 names its extension (" + vp9 + ")");
+	Check(has(av1, "AV1") && has(av1, "Microsoft's AV1 Video Extension adds it"), "AV1 names its extension (" + av1 + ")");
+	Check(has(mpeg2, "MPEG-2") && has(mpeg2, "Microsoft's MPEG-2 Video Extension adds it"), "MPEG-2 names its extension (" + mpeg2 + ")");
+	Check(has(vorbis, "Vorbis") && has(vorbis, "Microsoft's Web Media Extensions add it"), "Vorbis sound names its extension (" + vorbis + ")");
+	Check(has(unknown, "ABCD") && has(unknown, "picture") && !has(unknown, "0x"), "an unknown picture says its FOURCC in letters, not a code (" + unknown + ")");
+	Check(has(none, "sound") && !has(none, "0x") && !none.empty(), "and one with no type at all still says something in words (" + none + ")");
 }
 
 static void TestFiles()
@@ -442,6 +506,55 @@ static bool WindowIs(double const window[4], double left, double top, double wid
 	return fabs(window[0] - left) < 1e-9 && fabs(window[1] - top) < 1e-9 && fabs(window[2] - width) < 1e-9 && fabs(window[3] - height) < 1e-9;
 }
 
+// THE OWNER'S VIDEO MODE (11-22): "let them fit/crop/expand", and "drawn a rectangle over the video to show how it'll display down (the '128p' aspect ratio)"
+static void TestExpand()
+{
+	puts("Expand (stretched to fill), and the part of the picture each way takes:");
+
+	std::vector<uint8_t> picture = Solid(320, 180, 255, 0, 0);
+	std::vector<uint8_t> out((size_t)host::kVideoImportFrameBytes, 0x55);
+
+	for (uint32_t y = 0; y < 180; y++)
+	{
+		for (uint32_t x = 160; x < 320; x++)
+		{
+			SetPixel(picture, 320, x, y, 0, 0, 255);
+		}
+	}
+
+	Check(host::VideoImport_Letterbox(picture.data(), 320, 180, 320 * 4, 1, 1, host::VideoImportFit::Expand, out.data()) && OutIs(out.data(), 0, 0, 255, 0, 0) &&
+		OutIs(out.data(), 0, 95, 255, 0, 0) && OutIs(out.data(), 63, 48, 255, 0, 0) && OutIs(out.data(), 64, 48, 0, 0, 255) && OutIs(out.data(), 127, 0, 0, 0, 255) &&
+		OutIs(out.data(), 127, 95, 0, 0, 255), "Expand: a 16:9 picture over all of 128 x 96, no bar, its left half on the left and its right half on the right");
+
+	// the part of the source (in its own pixels: left, top, width, height) that becomes the 128 x 96 picture: the rectangle drawn over the video
+	double rect[4] = { 0.0, 0.0, 0.0, 0.0 };
+	auto const nearly = [](double a, double want) { return fabs(a - want) < 0.01; };
+
+	Check(host::VideoImport_SourceRect(320, 180, 1, 1, host::VideoImportFit::Fit, rect) && nearly(rect[0], 0.0) && nearly(rect[1], -30.0) && nearly(rect[2], 320.0) && nearly(rect[3], 240.0),
+		"Fit's rectangle is 4:3 round the whole picture: 320 x 240 from -30 (the bars above and below are outside the picture)");
+	Check(host::VideoImport_SourceRect(320, 180, 1, 1, host::VideoImportFit::Crop, rect) && nearly(rect[0], 40.0) && nearly(rect[1], 0.0) && nearly(rect[2], 240.0) && nearly(rect[3], 180.0),
+		"Crop's is the middle 240 x 180");
+	Check(host::VideoImport_SourceRect(320, 180, 1, 1, host::VideoImportFit::Expand, rect) && nearly(rect[0], 0.0) && nearly(rect[1], 0.0) && nearly(rect[2], 320.0) && nearly(rect[3], 180.0),
+		"Expand's is the whole picture");
+	Check(host::VideoImport_SourceRect(180, 320, 1, 1, host::VideoImportFit::Fit, rect) && nearly(rect[0], -(320.0 * 4.0 / 3.0 - 180.0) / 2.0) && nearly(rect[2], 320.0 * 4.0 / 3.0) &&
+		near(rect[3], 320.0), "a tall picture's Fit rectangle has its bars at the sides");
+	Check(!host::VideoImport_SourceRect(0, 180, 1, 1, host::VideoImportFit::Fit, rect) && !host::VideoImport_SourceRect(320, 180, 1, 1, host::VideoImportFit::Fit, nullptr),
+		"no picture, or nowhere to put the rectangle: refused");
+
+	// the same in words, for the state line and the screen
+	std::string const fit = host::VideoImport_FitWords(320, 180, 1, 1, host::VideoImportFit::Fit);
+	std::string const crop = host::VideoImport_FitWords(320, 180, 1, 1, host::VideoImportFit::Crop);
+	std::string const expand = host::VideoImport_FitWords(320, 180, 1, 1, host::VideoImportFit::Expand);
+	std::string const tall = host::VideoImport_FitWords(180, 320, 1, 1, host::VideoImportFit::Fit);
+	std::string const square = host::VideoImport_FitWords(320, 240, 1, 1, host::VideoImportFit::Fit);
+
+	Check(fit == "fit: all of 320 x 180 into 128 x 72, black bars above and below", "Fit's words (" + fit + ")");
+	Check(crop == "crop: the middle 240 x 180 of 320 x 180 becomes 128 x 96", "Crop's words (" + crop + ")");
+	Check(expand == "expand: all of 320 x 180 stretched to 128 x 96", "Expand's words (" + expand + ")");
+	Check(tall == "fit: all of 180 x 320 into 54 x 96, black bars at the sides", "a tall picture's Fit words (" + tall + ")");
+	Check(square == "fit: all of 320 x 240 fills 128 x 96", "a 4:3 picture fills it (" + square + ")");
+}
+
 static void TestCrop()
 {
 	puts("Crop to fill (the owner's other answer), and when to ask:");
@@ -626,11 +739,14 @@ int main()
 	}
 
 	TestNames();
+
+	TestCodecWords();
 	TestFiles();
 	TestStream();
 	TestLetterboxArea();
 	TestLetterboxPixels();
 	TestCrop();
+	TestExpand();
 	TestTicks();
 	TestSound();
 	TestLevel();

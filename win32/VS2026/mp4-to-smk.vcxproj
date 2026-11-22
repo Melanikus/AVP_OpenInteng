@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- mp4-to-smk's project: the command-line tool that makes a user's own video (.mp4 .m4v .avi .wmv) into an AvP message video (.smk, 128 x 96,
-     15 fps, 22050 Hz 8-bit mono). Written 2026-11-18 by Melanikus (Vasquez) for AVP_OpenInteng; its source is AVP_OpenInteng's own code (MIT,
-     License.txt). It reads the video through Windows' own Media Foundation (src\host\video_import) and encodes it with libsmackerenc (LGPL 2.1,
+<!-- mp4-to-smk's project: the command-line tool that makes a user's own video (Media Foundation's common containers: video_import.h's one list) into an AvP message
+     video (.smk, 128 x 96, 15 fps, 22050 Hz 8-bit mono). Written 2026-11-18 by Melanikus (Vasquez) for AVP_OpenInteng; its source is AVP_OpenInteng's own code (MIT,
+     License.txt). Its work is THE ONE LIBRARY the editor's Video mode links too (videomake_static.vcxproj, Dietrich 11-22: video_import, video_make, smk_encoder),
+     which this project links rather than compiling those sources itself, so the two never make a film differently.
+     It reads the video through Windows' own Media Foundation (src\host\video_import) and encodes it with libsmackerenc (LGPL 2.1,
      AvPx's dependencies\libsmackerenc), LINKED IN from a static library of its own (libsmackerenc_static.vcxproj, built from the library's own sources with
      its own settings; the owner's order 11-21 through Bishop, "STATIC LINK, SEPARATE BARRY'S LIBS"), so it loads no DLL, has no pin and needs no BCrypt.
      The settings follow the editor's (AVP_OpenInteng.vcxproj): Release|Win32, v145, /MD, /sdl, Control Flow Guard, /J and /we4834; it is a
@@ -103,8 +105,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\host\dll_load.cpp" Condition="'$(EncoderBuiltIn)' != 'true'" />
-    <ClCompile Include="..\..\src\host\smk_encoder.cpp" />
-    <ClCompile Include="..\..\src\host\video_import.cpp" />
     <ClCompile Include="..\..\tools\mp4-to-smk\mp4-to-smk.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -112,6 +112,14 @@
     <ClInclude Include="..\..\src\host\dll_pins.h" />
     <ClInclude Include="..\..\src\host\smk_encoder.h" />
     <ClInclude Include="..\..\src\host\video_import.h" />
+    <ClInclude Include="..\..\src\host\video_make.h" />
+  </ItemGroup>
+  <!-- THE ONE LIBRARY (videomake_static.vcxproj says why), built first and linked in; IntDir not handed down, as for the encoder's below -->
+  <ItemGroup>
+    <ProjectReference Include="videomake_static.vcxproj">
+      <Project>{2E2E00A0-1C79-46D1-96AC-2D2F8EFE2161}</Project>
+      <GlobalPropertiesToRemove>IntDir</GlobalPropertiesToRemove>
+    </ProjectReference>
   </ItemGroup>
   <!-- EncoderBuiltIn=true: the encoder, a static library of its own (libsmackerenc_static.vcxproj says why), built first and linked in. IntDir is not handed
        down (a build given its own /p:IntDir would otherwise put the library's objects in with the program's): the library keeps its objects in a folder of

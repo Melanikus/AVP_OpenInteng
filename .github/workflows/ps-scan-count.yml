@@ -1,0 +1,175 @@
+# ps-scan-count.yml: CHECK ONLY, NOT A GATE (Frost 2026-11-22, Bishop 2's order). Snyk Code reads no PowerShell (its coverage lists no .ps1),
+# and nothing else scans the editor's .ps1 or AvPx's, so they are a blind spot (Tao 1). Before any gate is wired, this COUNTS what Microsoft's
+# PSScriptAnalyzer and its InjectionHunter rules find in every tracked PowerShell file of the editor and of avpx/ at its pin, and in the PowerShell
+# written inside both repositories' workflows and composite actions (tools/ps-workflow-blocks.js; Bishop 2's ruling), on GitHub, never on
+# the owner's PC (RELTEST-1: no PowerShell test scripts run there). It fails only when the scan can't run (a download, a hash, a signature, an
+# import, or no files found); findings are printed and kept as an artifact, never failed on, until Bishop 2 has ruled on the rule set.
+# The tools, reviewed on 2026-11-22 (AvP-docs/review/ps-scanner-review.md):
+#   PSScriptAnalyzer 1.25.0 (PowerShell Gallery, 2026-03-20): SHA-256 14e634c8...5d60, the same file as GitHub's release asset; 27 programs and
+#     scripts, every one Authenticode-signed (Microsoft Corporation, the .NET Foundation for Newtonsoft.Json, Microsoft 3rd Party Application
+#     Component for Pluralize.NET).
+#   InjectionHunter 1.0.0 (PowerShell Gallery, 2017-09-02, Microsoft): SHA-256 feb24c5c...f650; its rules read the script's syntax tree only.
+name: PowerShell scan count (check only)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  count:
+    name: PowerShell scan count (check only)
+    runs-on: windows-2025-vs2026   # the editor's Windows runner (build.yml), which has both PowerShell 7 and Windows PowerShell 5.1
+    steps:
+      - name: Check out the repository, with avpx/ at its pin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+
+      # The PowerShell written inside the workflows (Bishop 2's ruling: close it, with no new tool): every run: of a step that runs in PowerShell
+      # (shell: pwsh or powershell, or no shell in a Windows job), from the repository's and avpx/'s workflows and composite actions, into
+      # .ps-scan-blocks/, each ${{ }} made a placeholder, map.json saying the workflow, job, step and line. Its reader is tested first.
+      - name: Test the reader of the workflows' PowerShell
+        run: node tools/ps-workflow-blocks-test.js
+
+      - name: Pull the PowerShell out of the workflows
+        run: node tools/ps-workflow-blocks.js
+
+      - name: Fetch PSScriptAnalyzer 1.25.0 and InjectionHunter 1.0.0, each refused unless its hash and every signature are the pinned ones
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tools = Join-Path $env:RUNNER_TEMP 'ps-scan'
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          $pins = @(
+              @{ Name = 'PSScriptAnalyzer'; Version = '1.25.0'; Sha256 = '14e634c828eb98efb9f40b2918ba90f139ed5eccdf663a2a747736d996995d60' },
+              @{ Name = 'InjectionHunter'; Version = '1.0.0'; Sha256 = 'feb24c5c3e98f4741f3967a558983e5e23303e6fd9ed4f34e4b96cbe72a8f650' }
+          )
+          foreach ($pin in $pins)
+          {
+              # a .nupkg is a zip; Expand-Archive takes only a .zip name
+              $package = Join-Path $tools "$($pin.Name).$($pin.Version).zip"
+              Invoke-WebRequest -UseBasicParsing -Uri "https://www.powershellgallery.com/api/v2/package/$($pin.Name)/$($pin.Version)" -OutFile $package
+              $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $package).Hash.ToLowerInvariant()
+              if ($hash -cne $pin.Sha256) { throw "$($pin.Name) $($pin.Version): its SHA-256 is $hash, the pin is $($pin.Sha256)" }
+              Expand-Archive -LiteralPath $package -DestinationPath (Join-Path $tools $pin.Name)
+              Write-Host "$($pin.Name) $($pin.Version): SHA-256 $hash, as pinned"
+          }
+
+          # Every program and script in them, signed by one of the signers read on 2026-11-22 (their certificates' thumbprints)
+          $signers = @{
+              '3F56A45111684D454E231CFDC4DA5C8D370F9816' = 'Microsoft Corporation'
+              'F5877012FBD62FABCBDC8D8CEE9C9585BA30DF79' = 'Microsoft Corporation'
+              '1A9FF7E5BDC4E3E5E2F14E4B2DA6029C5AE58DBF' = 'Json.NET (.NET Foundation)'
+              '587116075365AA15BCD8E4FA9CB31BE372B5DE51' = 'Microsoft 3rd Party Application Component'
+              '5EAD300DC7E4D637948ECB0ED829A072BD152E17' = 'Microsoft Corporation (InjectionHunter, 2017)'
+          }
+          $code = @(Get-ChildItem -LiteralPath (Join-Path $tools 'PSScriptAnalyzer'), (Join-Path $tools 'InjectionHunter') -Recurse -File |
+              Where-Object { $_.Extension -in '.dll', '.ps1', '.psm1', '.psd1', '.ps1xml', '.cat' })
+          if ($code.Count -ne 27) { throw "the two packages hold $($code.Count) programs and scripts, where the reviewed ones hold 27" }
+          foreach ($file in $code)
+          {
+              $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+              $thumbprint = if ($signature.SignerCertificate) { $signature.SignerCertificate.Thumbprint } else { '' }
+              if ($signature.Status -ne 'Valid' -or -not $signers.ContainsKey($thumbprint))
+              {
+                  throw "$($file.FullName): signature $($signature.Status), signer $thumbprint, which is not a pinned signer"
+              }
+          }
+          Write-Host "$($code.Count) programs and scripts, each with a valid signature from a pinned signer"
+
+      - name: Write the count script (on the runner only)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = @'
+          param([Parameter(Mandatory = $true)][string]$Tools, [Parameter(Mandatory = $true)][string]$Out)
+          $ErrorActionPreference = 'Stop'
+          Import-Module (Join-Path $Tools 'PSScriptAnalyzer\PSScriptAnalyzer.psd1') -Force
+          $hunter = Join-Path $Tools 'InjectionHunter\InjectionHunter.psd1'
+          $engine = "PowerShell $($PSVersionTable.PSVersion) ($($PSVersionTable.PSEdition))"
+          $editorFiles = @(git ls-files '*.ps1' '*.psm1' '*.psd1')
+          $avpxFiles = @(git -C avpx ls-files '*.ps1' '*.psm1' '*.psd1' | ForEach-Object { "avpx/$_" })
+          if ($editorFiles.Count -eq 0 -or $avpxFiles.Count -eq 0) { throw "found $($editorFiles.Count) editor and $($avpxFiles.Count) avpx PowerShell files: a scan of none is no scan" }
+          $rules = @(Get-ScriptAnalyzerRule) + @(Get-ScriptAnalyzerRule -CustomRulePath $hunter)
+          Write-Host "== $engine, PSScriptAnalyzer $((Get-Module PSScriptAnalyzer).Version), InjectionHunter 1.0.0: $($rules.Count) rules; $($editorFiles.Count) editor files, $($avpxFiles.Count) avpx files (avpx at $(git -C avpx rev-parse HEAD))"
+          foreach ($rule in ($rules | Sort-Object RuleName)) { Write-Host ("RULE {0} | {1} | {2}" -f $rule.RuleName, $rule.Severity, $rule.Description) }
+          $found = New-Object System.Collections.Generic.List[object]
+          foreach ($file in ($editorFiles + $avpxFiles))
+          {
+              $repo = if ($file.StartsWith('avpx/')) { 'avpx' } else { 'editor' }
+              try
+              {
+                  foreach ($record in @(Invoke-ScriptAnalyzer -Path $file -CustomRulePath $hunter -IncludeDefaultRules))
+                  {
+                      $found.Add([pscustomobject]@{ Repo = $repo; File = $file; Line = $record.Line; Rule = $record.RuleName; Severity = [string]$record.Severity; Message = ($record.Message -replace '\s+', ' ') })
+                  }
+              }
+              catch
+              {
+                  # a file the scanner can't read is a blind spot too: counted, never skipped
+                  $found.Add([pscustomobject]@{ Repo = $repo; File = $file; Line = 0; Rule = 'SCAN-ERROR'; Severity = 'Error'; Message = ($_.Exception.Message -replace '\s+', ' ') })
+              }
+          }
+          # the workflows' own PowerShell (tools/ps-workflow-blocks.js): a finding on a script's line is named by its workflow's line
+          $blocksFolder = '.ps-scan-blocks'
+          if (-not (Test-Path -LiteralPath (Join-Path $blocksFolder 'map.json'))) { throw 'the workflows'' PowerShell was not pulled out (tools/ps-workflow-blocks.js)' }
+          $blocks = Get-Content -Raw -LiteralPath (Join-Path $blocksFolder 'map.json') | ConvertFrom-Json
+          $unread = Get-Content -Raw -LiteralPath (Join-Path $blocksFolder 'errors.json') | ConvertFrom-Json
+          foreach ($miss in @($unread))
+          {
+              $repo = if ($miss.workflow.StartsWith('avpx/')) { 'avpx workflows' } else { 'editor workflows' }
+              $found.Add([pscustomobject]@{ Repo = $repo; File = $miss.workflow; Line = $miss.line; Rule = 'SCAN-ERROR'; Severity = 'Error'; Message = $miss.why })
+          }
+          foreach ($block in @($blocks))
+          {
+              $repo = if ($block.workflow.StartsWith('avpx/')) { 'avpx workflows' } else { 'editor workflows' }
+              try
+              {
+                  foreach ($record in @(Invoke-ScriptAnalyzer -Path (Join-Path $blocksFolder $block.file) -CustomRulePath $hunter -IncludeDefaultRules))
+                  {
+                      $line = if ($block.kind -eq 'line') { $block.firstLine } else { $block.firstLine + $record.Line - 1 }
+                      $found.Add([pscustomobject]@{ Repo = $repo; File = $block.workflow; Line = $line; Rule = $record.RuleName; Severity = [string]$record.Severity; Message = "($($block.job), $($block.step)) " + ($record.Message -replace '\s+', ' ') })
+                  }
+              }
+              catch
+              {
+                  $found.Add([pscustomobject]@{ Repo = $repo; File = $block.workflow; Line = $block.firstLine; Rule = 'SCAN-ERROR'; Severity = 'Error'; Message = ($_.Exception.Message -replace '\s+', ' ') })
+              }
+          }
+          Write-Host "== $(@($blocks).Count) PowerShell steps from the workflows ($(@($unread).Count) that couldn't be read)"
+          Write-Host "== by rule: findings, by where (editor, avpx, editor workflows, avpx workflows), in files, severity"
+          foreach ($group in ($found | Group-Object Rule | Sort-Object Count -Descending))
+          {
+              $where = ($group.Group | Group-Object Repo | Sort-Object Name | ForEach-Object { "$($_.Name) $($_.Count)" }) -join ', '
+              $files = @($group.Group | ForEach-Object { $_.File } | Select-Object -Unique).Count
+              Write-Host ("BYRULE {0} {1} ({2}) in {3} files, {4}" -f $group.Name, $group.Count, $where, $files, $group.Group[0].Severity)
+          }
+          Write-Host "== by file"
+          foreach ($group in ($found | Group-Object File | Sort-Object Count -Descending)) { Write-Host ("BYFILE {0} {1}" -f $group.Count, $group.Name) }
+          Write-Host "== every finding"
+          foreach ($one in $found) { $words = $one.Message; if ($words.Length -gt 220) { $words = $words.Substring(0, 220) }; Write-Host ("FINDING {0}:{1} {2} {3}: {4}" -f $one.File, $one.Line, $one.Rule, $one.Severity, $words) }
+          Write-Host "== total ($engine): $($found.Count) findings in $(@($found | ForEach-Object { $_.File } | Select-Object -Unique).Count) files, of $($editorFiles.Count + $avpxFiles.Count) PowerShell files and the workflows' $(@($blocks).Count) PowerShell steps"
+          $found | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $Out -Encoding utf8
+          '@
+          Set-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'ps-scan\count.ps1') -Value $script -Encoding utf8
+
+      - name: Count with PowerShell 7
+        shell: pwsh
+        run: pwsh -NoProfile -File (Join-Path $env:RUNNER_TEMP 'ps-scan\count.ps1') -Tools (Join-Path $env:RUNNER_TEMP 'ps-scan') -Out (Join-Path $env:RUNNER_TEMP 'ps-scan\findings-pwsh7.json')
+
+      - name: Count with Windows PowerShell 5.1
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:RUNNER_TEMP 'ps-scan\count.ps1') -Tools (Join-Path $env:RUNNER_TEMP 'ps-scan') -Out (Join-Path $env:RUNNER_TEMP 'ps-scan\findings-powershell51.json')
+
+      - name: Keep the findings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ps-scan-findings
+          path: ${{ runner.temp }}/ps-scan/findings-*.json
+          if-no-files-found: error

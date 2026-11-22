@@ -67,8 +67,19 @@ host::AutoPlotVolumeCounts AutoPlotCommand_RunCounts();
 // The worker hands each AI module over as a constant copy (its search's ways as they are found, then its volumes) and waits until the window has drawn its last
 // copy; the window (plot_preview_view.cpp) takes the newest and says when it drew it. The copies are the window's own once taken: nothing of the run's jobs is read.
 host::AutoPlotHandOff &AutoPlotCommand_HandOff();
-// The preview's drawing time this frame (ms), added up for the whole plot's time line
+// The preview's drawing time this frame (ms), added up for the whole plot's time line; during a run, it also marks the preview's first frame drawn
 void AutoPlotCommand_PreviewDrew(double ms);
+
+// THE START'S MESSAGE (Drake 11-22, alpha.5 item 1; the owner: "screen should disappear instantly ... a big message on the screen 'Loading X%' or 'Calculating
+// some stuff' until the little screen shows"): from the click until the preview's first frame, the words of the stage the run is in ("Calculating the alien
+// waypoints: the AI modules 37%", "... the grid", "... the doorways 54%", "... the first AI module"); empty otherwise. The panel pass draws them big on a black box
+// (editor_panels.cpp; the owner's pick 11-22) and says what it drew (MessageDrawn: "" for none; the box as "left L top T width W height H scale S view ..."), for the
+// state line's plotmessage and plotmessagebox. MessageForms: the longest form of each stage's words (100%), the box's width taken from the widest
+std::string AutoPlotCommand_Message();
+std::vector<std::string> AutoPlotCommand_MessageForms();
+void AutoPlotCommand_MessageDrawn(std::string const &words, std::string const &box);
+std::string const &AutoPlotCommand_MessageShown();
+std::string const &AutoPlotCommand_MessageBox();
 
 // AN EDIT WAITS FOR THE PLOT (autoplot_waits.h): true, and the status line says the item waits, when a run is going and the bar item numbered action would
 // change the level or leave the Waypoint screen (an item no bar has waits too); false otherwise, and the item is done as always. editor_main's RunAction asks it first

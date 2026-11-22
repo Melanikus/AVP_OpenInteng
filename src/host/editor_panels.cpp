@@ -19,6 +19,7 @@
 #include <wchar.h>
 #include <map>
 #include <array>
+#include <algorithm>   // std::max (the auto-plot's start message's widest form)
 #include <functional>
 #include <math.h>
 #include <string>
@@ -178,6 +179,7 @@
 #include "editor_shared.h"
 #include "state_line.h"
 #include "text_scale.h"   // the Options text sizes' ticks (the owner's addition)
+#include "video_mode_screen.h"   // the owner's Video mode, its screen's panels
 
 // A Strategy Edit view's box in the window (the owner's addition, 11-17): half the window each way, never under inteng's 640 x 480 page (the size every view was laid out for), never over the
 // window, centred in it
@@ -1654,6 +1656,66 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 		linkMessageShown = linkMessage;
 	}
 
+	// THE AUTO-PLOT'S START MESSAGE (Drake 11-22, alpha.5 item 1; autoplot_command.h AutoPlotCommand_Message): from the click until the plot preview's first frame.
+	// The owner's pick (11-22, through Bishop): BIG LETTERS ON A BLACK BOX, inteng's own letters at 2x, centred on the level's view on a black box as inteng's opaque bar
+	// and menus are, so no line of the wireframe runs through them. The box is as wide as the LONGEST form of the words (AutoPlotCommand_MessageForms), so it stays
+	// still while the % and the stage change; the words are centred in it. Drawn under the bar's menus (the screen's own layer). Said back for the state line: the
+	// words and the box (plotmessage, plotmessagebox)
+	{
+		std::string const plotMessage = AutoPlotCommand_Message();
+		int32_t const kMessageScale = 2;     // each font pixel a 2 x 2 block (PaintText::scale)
+		int32_t const kMessageMargin = 8;    // the black round the letters, in the editor's pixels
+		std::string boxWords;
+
+		if (!plotMessage.empty() && lineCount < kPanelPassMostExtras && boxCount < kPanelPassMostExtras)
+		{
+			auto const widthOf = [](std::string const &words)
+			{
+				int32_t width = 0;
+
+				for (char const letter : host::PanelPaint_SafeText(words))
+				{
+					width += PanelPass_MenuWidth((unsigned char)letter);
+				}
+
+				return width;
+			};
+
+			int32_t widest = widthOf(plotMessage);
+
+			for (std::string const &form : AutoPlotCommand_MessageForms())
+			{
+				widest = (std::max)(widest, widthOf(form));
+			}
+
+			int32_t const fontHeight = PanelPass_MenuFontHeight() > 0 ? PanelPass_MenuFontHeight() : kPanelPassLineHeight;
+			int32_t const boxWidth = widest * kMessageScale + 2 * kMessageMargin;
+			int32_t const boxHeight = fontHeight * kMessageScale + 2 * kMessageMargin;
+			int32_t const boxX = layout.view.x + (layout.view.width - boxWidth) / 2;
+			int32_t const boxY = layout.view.y + (layout.view.height - boxHeight) / 2;
+			host::PaintText message;
+
+			boxes[boxCount++] = host::PaintBox{ boxX, boxY, boxWidth, boxHeight, 0xFF000000u, false };
+			message.text = plotMessage;
+			message.scale = kMessageScale;
+			message.x = boxX + (boxWidth - widthOf(plotMessage) * kMessageScale) / 2;
+			message.y = boxY + kMessageMargin;
+			lines[lineCount++] = message;
+			boxWords = "left " + std::to_string(boxX) + " top " + std::to_string(boxY) + " width " + std::to_string(boxWidth) + " height " + std::to_string(boxHeight) +
+				" scale " + std::to_string(kMessageScale) + " view " + std::to_string(layout.view.x) + " " + std::to_string(layout.view.y) + " " +
+				std::to_string(layout.view.width) + " " + std::to_string(layout.view.height);
+			AutoPlotCommand_MessageDrawn(plotMessage, boxWords);
+		}
+		else
+		{
+			AutoPlotCommand_MessageDrawn(std::string(), std::string());
+		}
+	}
+
+	// THE VIDEO SCREEN (video_mode_screen.h, the owner's Video mode): its words, its Loading / Making message and its controls, in the view, every frame it is up (its
+	// picture is drawn under the panels: AddThePanels); off it, only its state line fields
+	host::VideoModeScreen_Panels(host::VideoModeScreen_Is(barScreen), layout.view, boxes, &boxCount, lines, &lineCount, kPanelPassMostExtras);
+
 	// "Camera position saved" (FUN_004704d0 -> FUN_0057bd40(200, 100): onto the screen at once, from the window's top, gone with the next frame): this frame only
 	if (cameraSavedDraw && lineCount < kPanelPassMostExtras)
 	{
@@ -1768,6 +1830,10 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	{
 		PlacementTextLines(&hierarchyTextNow);
 		textAfterTheCommand = true;   // FUN_004d9af0: its command step 0x4d9d1b, its text from 0x4dc73a
+	}
+	else if (host::VideoModeScreen_Is(barScreen))
+	{
+		// the Video screen shows no level, so no level's text: its own words are video_mode_screen.h's (below)
 	}
 	else
 	{
