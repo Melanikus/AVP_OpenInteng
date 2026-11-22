@@ -2,11 +2,14 @@
 # and ship must be only our source and Microsoft's compiler). Written 2026-11-22 by Melanikus (Dietrich) for AVP_OpenInteng, by Bishop's order after alpha.3: two of its
 # programs were flagged by one scanner each, and nothing could show that a second build makes the same bytes.
 #
-# WHAT IT DOES: builds the commit named in .github/rebuild-check.txt with release.yml's own build steps (copied below, unchanged), in the same folder
-# (D:\a\AVP_OpenInteng\AVP_OpenInteng), on the same runner image and with the same pinned actions; then keeps the shipped programs one day, with a list of their
-# SHA-256s and what built them. WHAT IT NEVER DOES: scan, draft, tag or release anything; it reads no secret, has no environment and can write nothing to the
-# repository (contents: read). The comparison is done afterwards by hand: node tools/check-binaries.js same (byte for byte, or --allow-clock for a program linked
-# without /Brepro, whose time stamp and .pdb GUID come from the clock).
+# WHAT IT DOES: builds the commit named in .github/rebuild-check.txt with release.yml's own build, package, zip and upload steps (copied below from release.yml at
+# that commit, word for word but for the two env lines release.yml takes from its run's inputs, marked "rebuild-check"; Drake 11-22, Bishop's order for alpha.4,
+# after the copy of alpha.3's steps went on building the DLL shape), in the same folder (D:\a\AVP_OpenInteng\AVP_OpenInteng), on the same runner image and with
+# the same pinned actions; then keeps the package one day as release.yml keeps it for its scan (the zip and its SHA256SUMS: every program and file the release
+# would ship), and a record of what built it with each program's SHA-256. WHAT IT NEVER DOES: scan, draft, tag or release anything; it reads no secret, has no
+# environment and can write nothing to the repository (contents: read). The scan and the comparison are done afterwards by hand, on the zip's files: the scan
+# with our own key, the comparison with node tools/check-binaries.js same (byte for byte, or --allow-clock for a program linked without /Brepro, whose time stamp
+# and .pdb GUID come from the clock). When release.yml's steps change, this copy must be made again from it (the copy can't follow it by itself yet).
 #
 # WHEN IT RUNS: only for a pull request that changes this file or .github/rebuild-check.txt (paths below), never for any other pull request.
 name: Rebuild check
@@ -73,7 +76,9 @@ jobs:
           persist-credentials: false
           submodules: true
 
-      # ---- From here to the next line of dashes: release.yml's own build steps, as the commit above has them (copied from 7408ef29, unchanged)
+      # ---- From here to the next line of dashes: release.yml's own build, package, zip and upload steps, copied from release.yml at the commit
+      # rebuild-check.txt names, word for word but for the two env lines marked rebuild-check (a pull request has no inputs). So this builds and packs
+      # exactly the release's programs and files, and keeps them as release.yml keeps them for its scan (the zip and its SHA256SUMS, one day).
       # What main's own CI (build.yml, on a push to main) kept of vcpkg's builds and downloads, only read here, never written. GitHub
       # gives a run on main only main's caches, never a pull request's. vcpkg takes a kept build only when its hash (port, version,
       # triplet, compiler, dependencies) is exactly what it would build, and checks each source archive's SHA-512 before using it;
@@ -100,70 +105,229 @@ jobs:
           New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\vcpkg-archives", $env:VCPKG_DOWNLOADS | Out-Null
           ./tools/build-and-package.ps1 -OutFolder "$env:RUNNER_TEMP\avpx-package"
 
-      # The Smacker encoder and decoder DLLs (LGPL, from AvPx's package) are loaded while the programs run, pinned to the very files this
-      # package ships (the owner's ruling, 11-18): their SHA-256 goes into both builds (SMACKER_ENCODER_SHA256 / SMACKER_DECODER_SHA256).
-      # A user's own build of either is let in by AVP_OpenInteng.ini (LGPL 2.1 section 6); README.md says how.
+      # Each project builds its Smacker library first, by its project reference (the decoder for the editor, the encoder for mp4-to-smk),
+      # and links it in: no DLL is pinned, shipped or loaded. EncoderBuiltIn=true is mp4-to-smk's default, written out here so a release
+      # can never be the retired DLL build.
       - name: Build the editor and mp4-to-smk
         shell: pwsh
         run: |
-          $pins = @{}
-          foreach ($dll in 'libsmackerenc.dll', 'libsmackerdec.dll') {
-            $file = Join-Path "$env:RUNNER_TEMP\avpx-package\bin" $dll
-            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "AvPx's package has no $dll" }
-            $pins[$dll] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
-            "$dll SHA-256 $($pins[$dll]), pinned into the builds"
-          }
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
           $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
           if (-not $msbuild) { throw 'MSBuild was not found' }
           & $msbuild win32\VS2026\AVP_OpenInteng.vcxproj /nologo /v:minimal /m /nodeReuse:false /p:Configuration=Release /p:Platform=Win32 `
             /p:ImportDirectoryBuildProps=false /p:ImportDirectoryBuildTargets=false /p:VcpkgManifestInstall=false /p:VcpkgApplocalDeps=false `
-            "/p:VcpkgInstalledDir=$env:GITHUB_WORKSPACE/avpx/vcpkg_installed/" /p:VcpkgTriplet=x86-windows `
-            "/p:SmackerEncoderSha256=$($pins['libsmackerenc.dll'])" "/p:SmackerDecoderSha256=$($pins['libsmackerdec.dll'])"
+            "/p:VcpkgInstalledDir=$env:GITHUB_WORKSPACE/avpx/vcpkg_installed/" /p:VcpkgTriplet=x86-windows
           if ($LASTEXITCODE -ne 0) { throw "The editor didn't build (MSBuild exit $LASTEXITCODE)" }
           if (-not (Test-Path -LiteralPath 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe')) { throw 'MSBuild gave back 0 but made no AVP_OpenInteng.exe' }
           & $msbuild win32\VS2026\mp4-to-smk.vcxproj /nologo /v:minimal /m /nodeReuse:false /p:Configuration=Release /p:Platform=Win32 `
-            /p:ImportDirectoryBuildProps=false /p:ImportDirectoryBuildTargets=false "/p:SmackerEncoderSha256=$($pins['libsmackerenc.dll'])"
+            /p:ImportDirectoryBuildProps=false /p:ImportDirectoryBuildTargets=false /p:EncoderBuiltIn=true
           if ($LASTEXITCODE -ne 0) { throw "mp4-to-smk didn't build (MSBuild exit $LASTEXITCODE)" }
           if (-not (Test-Path -LiteralPath 'win32\VS2026\Win32\Release\mp4-to-smk.exe')) { throw 'MSBuild gave back 0 but made no mp4-to-smk.exe' }
 
-      # ---- (end of release.yml's own build steps)
-
-      # The programs the release ships, gathered as release.yml's "Make the package" gathers them: the editor and mp4-to-smk, the two Smacker DLLs, every DLL of
-      # AvPx's package they ask for (read from their import lists by dumpbin), and D3DX's shader compiler. Then each one's SHA-256, and what built them.
-      - name: Gather the programs, their SHA-256s and what built them
+      # The package: the editor, and every file of AvPx's bin it asks for (and what those ask for in turn), read from the programs' own
+      # import lists by dumpbin. A file that isn't in AvPx's bin is Windows' own. Then the licences of exactly those files, with AvPx's
+      # words for each; the licence and whole source of each Smacker library linked into a program here; and the editor's own License.txt,
+      # notices and README.
+      - name: Make the package
         shell: pwsh
+        env:
+          VERSION: 'rebuild-check'   # rebuild-check: release.yml takes it from its run's input; here only words (BUILD.txt, the zip's name)
+          # The input comes in through a setting, never written into the script: GitHub gives a boolean input as the text true or false.
+          LEAVE_OUT_ENCODER: 'false'   # rebuild-check: release.yml takes it from its run's input; the encoder is in, as alpha.4 ships it
         run: |
           $from = "$env:RUNNER_TEMP\avpx-package"
-          $programs = "$env:RUNNER_TEMP\programs"
-          New-Item -ItemType Directory -Force $programs | Out-Null
-          Copy-Item 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe' $programs
-          Copy-Item 'win32\VS2026\Win32\Release\mp4-to-smk.exe' $programs
+          $package = "$env:RUNNER_TEMP\package"
+          New-Item -ItemType Directory -Force $package | Out-Null
+          Copy-Item 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe' $package
+          # Each Smacker library linked into a program in this package, with the program that holds it: its licence and source go with it (below)
+          $linked = [ordered]@{ 'libsmackerdec' = 'AVP_OpenInteng.exe' }
+          if ($env:LEAVE_OUT_ENCODER -ceq 'true') { 'The video encoder (mp4-to-smk.exe, and with it libsmackerenc''s licence and source) is left out of this package, as the run was asked (leave_out_encoder)' }
+          elseif ($env:LEAVE_OUT_ENCODER -ceq 'false') { Copy-Item 'win32\VS2026\Win32\Release\mp4-to-smk.exe' $package; $linked['libsmackerenc'] = 'mp4-to-smk.exe' }
+          else { throw "leave_out_encoder is neither true nor false: $env:LEAVE_OUT_ENCODER" }
+
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
           $visualStudio = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           $dumpbin = Get-ChildItem (Join-Path $visualStudio 'VC\Tools\MSVC\*\bin\Hostx64\x86\dumpbin.exe') | Select-Object -Last 1
           if (-not $dumpbin) { throw 'dumpbin was not found' }
           $avpxBin = @{}
           Get-ChildItem -LiteralPath "$from\bin" -File -Filter '*.dll' | ForEach-Object { $avpxBin[$_.Name.ToLowerInvariant()] = $_.FullName }
-          foreach ($dll in 'libsmackerenc.dll', 'libsmackerdec.dll') {
-            if (-not $avpxBin.ContainsKey($dll)) { throw "AvPx's package has no $dll" }
-            Copy-Item -LiteralPath $avpxBin[$dll] -Destination (Join-Path $programs $dll)
-          }
           do {
             $copied = 0
-            foreach ($binary in @(Get-ChildItem -LiteralPath $programs -File | Where-Object { $_.Extension -in '.exe', '.dll' })) {
+            foreach ($binary in @(Get-ChildItem -LiteralPath $package -File | Where-Object { $_.Extension -in '.exe', '.dll' })) {
               $output = & $dumpbin.FullName /nologo /dependents $binary.FullName
               if ($LASTEXITCODE -ne 0) { throw "dumpbin could not read $($binary.Name)" }
               foreach ($name in @($output | Where-Object { $_ -match '^\s+\S+\.dll\s*$' } | ForEach-Object { $_.Trim().ToLowerInvariant() })) {
-                if (-not $avpxBin.ContainsKey($name) -or (Test-Path -LiteralPath (Join-Path $programs $name))) { continue }
-                Copy-Item -LiteralPath $avpxBin[$name] -Destination (Join-Path $programs $name)
+                if (-not $avpxBin.ContainsKey($name) -or (Test-Path -LiteralPath (Join-Path $package $name))) { continue }
+                Copy-Item -LiteralPath $avpxBin[$name] -Destination (Join-Path $package $name)
+                "$name, because $($binary.Name) needs it"
                 $copied++
               }
             }
           } while ($copied -gt 0)
+          # D3DX loads its shader compiler by name while the editor runs, so no import list names it
+          if (-not (Test-Path -LiteralPath (Join-Path $package 'd3dx9_43.dll'))) { throw 'The editor no longer asks for d3dx9_43.dll: check the package by hand' }
           if (-not $avpxBin.ContainsKey('d3dcompiler_43.dll')) { throw "AvPx's package has no D3DCompiler_43.dll" }
-          Copy-Item -LiteralPath $avpxBin['d3dcompiler_43.dll'] -Destination (Join-Path $programs 'D3DCompiler_43.dll')
+          Copy-Item -LiteralPath $avpxBin['d3dcompiler_43.dll'] -Destination (Join-Path $package 'D3DCompiler_43.dll')
+          # Barry's Smacker libraries are linked into the programs (win32/VS2026/libsmacker*_static.vcxproj), so none of their DLLs may be here and no
+          # program may name one: an import would have brought the DLL in above, from AvPx's bin, and its name in a program's bytes is a DLL the program
+          # would load while it runs (the retired DLL way: dll_load's LoadLibraryExW took L"libsmackerdec.dll"). Either fails the package, with its reason.
+          $latin1 = [System.Text.Encoding]::GetEncoding(28591)
+          foreach ($dll in 'libsmackerdec.dll', 'libsmackerenc.dll') {
+            if (Test-Path -LiteralPath (Join-Path $package $dll)) { throw "$dll is in the package (a program imports it), but the programs link Barry's libraries in" }
+            $wide = -join @($dll.ToCharArray() | ForEach-Object { "$_" + [char]0 })
+            foreach ($program in @(Get-ChildItem -LiteralPath $package -File -Filter '*.exe')) {
+              $bytes = $latin1.GetString([System.IO.File]::ReadAllBytes($program.FullName))
+              if ($bytes.IndexOf($dll, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or $bytes.IndexOf($wide, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                throw "$($program.Name) names $dll, so it would load it while it runs, but the programs link Barry's libraries in"
+              }
+            }
+          }
+
+          # AvPx's words for each of those files, from its licences/README.txt ("bin/<name>: ..."), and every licence file those words name.
+          # Its links to source point at AvPx's repository, which holds that source.
+          $about = @(Get-Content -LiteralPath "$from\licences\README.txt")
+          $licenceFolder = Join-Path $package 'licences'
+          New-Item -ItemType Directory -Force $licenceFolder | Out-Null
+          $lines = @()
+          foreach ($binary in @(Get-ChildItem -LiteralPath $package -File -Filter '*.dll' | Sort-Object Name)) {
+            $line = @($about | Where-Object { $_.ToLowerInvariant().StartsWith("bin/$($binary.Name.ToLowerInvariant()):") })
+            if ($line.Count -ne 1) { throw "AvPx's licences/README.txt doesn't have one line for $($binary.Name)" }
+            $text = $line[0].Substring($line[0].IndexOf(':') + 1).Trim() -replace [regex]::Escape("github.com/$env:GITHUB_REPOSITORY/"), 'github.com/Melanikus/AvP/'
+            $lines += "$($binary.Name): $text"
+            foreach ($named in @([regex]::Matches($text, 'licences/([A-Za-z0-9._-]+\.txt)') | ForEach-Object { $_.Groups[1].Value })) {
+              if (-not (Test-Path -LiteralPath "$from\licences\$named")) { throw "AvPx's package has no licences/$named" }
+              Copy-Item -LiteralPath "$from\licences\$named" -Destination $licenceFolder -Force
+            }
+          }
+          # The sources AvPx's package holds go with their own library, and only with it: OpenAL Soft's with openal32.dll, its folder of
+          # licences/sources copied only when the library is in this package (11-19: a folder copied whenever OpenAL was there sent another
+          # library's source out without it). A library that is here and whose source is not is refused, with its own words.
+          $sourceOf = [ordered]@{ 'openal32.dll' = @('openal-soft', '*.tar.gz') }
+          foreach ($dll in $sourceOf.Keys) {
+            if (-not (Test-Path -LiteralPath (Join-Path $package $dll))) { continue }
+            $folder, $mark = $sourceOf[$dll]
+            if (Test-Path -LiteralPath "$from\licences\sources\$folder") {
+              New-Item -ItemType Directory -Force (Join-Path $licenceFolder 'sources') | Out-Null
+              Copy-Item -Recurse -LiteralPath "$from\licences\sources\$folder" -Destination (Join-Path $licenceFolder "sources\$folder")
+            }
+            if (-not (Get-ChildItem -LiteralPath (Join-Path $licenceFolder "sources\$folder") -Filter $mark -File -ErrorAction SilentlyContinue)) {
+              throw "$dll ships without its source (AvPx's licences/sources/$folder, its $mark)"
+            }
+          }
+          # Each Smacker library linked into a program here, as the GNU LGPL 2.1 asks of a library linked in: its licence (its own COPYING, which must
+          # say it is that licence, as licences/<name>.txt) and its whole source as avpx pins it, every file git has under avpx/dependencies/<name>,
+          # named one by one so nothing a build left beside them goes too, in licences/sources/<name>; with the editor's project that built it
+          # (win32/VS2026/<name>_static.vcxproj), and a line saying where the program's own source is, to build it again with your own build of it.
+          $avpxCommit = git -C avpx rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or "$avpxCommit" -cnotmatch '^[0-9a-f]{40}$') { throw 'avpx is not a checkout with a commit' }
+          $whatLinked = @{
+            'libsmackerdec' = "Barry Duncan's player for Smacker films, the editor's FMV preview"
+            'libsmackerenc' = "a Smacker film encoder made from Barry Duncan's libsmackerdec for Open Inteng, the level editor"
+          }
+          foreach ($library in $linked.Keys) {
+            $program = $linked[$library]
+            $files = @(git -C avpx ls-files "dependencies/$library")
+            if ($LASTEXITCODE -ne 0 -or -not ($files -ccontains "dependencies/$library/COPYING")) { throw "avpx has no source of $library with its COPYING (git ls-files dependencies/$library)" }
+            $licence = @(Get-Content -LiteralPath "avpx\dependencies\$library\COPYING" -TotalCount 3 | ForEach-Object { $_.Trim() })
+            if (-not ($licence -ccontains 'GNU LESSER GENERAL PUBLIC LICENSE') -or -not ($licence -ccontains 'Version 2.1, February 1999')) { throw "$library's COPYING is not the GNU LGPL 2.1 this package says it is" }
+            $to = Join-Path $licenceFolder "sources\$library"
+            foreach ($file in $files) {
+              $dest = Join-Path $to $file.Substring("dependencies/$library/".Length)
+              New-Item -ItemType Directory -Force (Split-Path -Parent $dest) | Out-Null
+              Copy-Item -LiteralPath (Join-Path 'avpx' $file) -Destination $dest
+            }
+            Copy-Item -LiteralPath "win32\VS2026\$($library)_static.vcxproj" -Destination $to
+            Copy-Item -LiteralPath "avpx\dependencies\$library\COPYING" -Destination (Join-Path $licenceFolder "$library.txt") -Force
+            $lines += "$($library): $($whatLinked[$library]), linked into $program (licences/$library.txt, the GNU Lesser General Public License, version 2.1). " +
+              "Its whole source is here with it, in licences/sources/$library, as AvPx pins it (https://github.com/Melanikus/AvP/tree/$avpxCommit/dependencies/$library), " +
+              "with $($library)_static.vcxproj, the project that built it. To use your own build of it, build $program again from this release's source " +
+              "(https://github.com/$env:GITHUB_REPOSITORY/tree/$env:GITHUB_SHA) with yours in its place."
+          }
+          # and no source of a library that isn't here: a Smacker library's goes only with the program it is linked into, any other only with its DLL
+          foreach ($folder in @(Get-ChildItem -LiteralPath (Join-Path $licenceFolder 'sources') -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })) {
+            if ($linked.Contains($folder)) { if (-not (Test-Path -LiteralPath (Join-Path $package $linked[$folder]))) { throw "licences/sources/$folder ships without $($linked[$folder])" }; continue }
+            $owner = @($sourceOf.Keys | Where-Object { $sourceOf[$_][0] -eq $folder })
+            if ($owner.Count -ne 1 -or -not (Test-Path -LiteralPath (Join-Path $package $owner[0]))) { throw "licences/sources/$folder ships without its library" }
+          }
+          $readme = @(
+            "The runtime files the editor needs beside it, and each one's licence, as AvPx's own package gives them, and the libraries linked into"
+            'the programs. Each line names a file or a library, says what it is and which licences go with it, and, for the ones under the GNU'
+            'licences, where their source is.'
+            ''
+          ) + $lines
+          [System.IO.File]::WriteAllLines((Join-Path $licenceFolder 'README.txt'), [string[]]$readme)
+
+          Copy-Item License.txt, README.md $package
+          # Without the encoder (leave_out_encoder), the README this package ships says so where it tells you about mp4-to-smk, so it never
+          # promises a program the zip hasn't got (Dietrich's review of #94). The heading must be there exactly once, or the step fails: a
+          # README changed without this would ship the old promise.
+          if ($env:LEAVE_OUT_ENCODER -ceq 'true')
+          {
+            $readmeFile = Join-Path $package 'README.md'
+            $lines = @(Get-Content -LiteralPath $readmeFile)
+            $at = @(for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -ceq '## Your own videos (mp4-to-smk)') { $i } })
+            if ($at.Count -ne 1) { throw "README.md has $($at.Count) headings '## Your own videos (mp4-to-smk)', and the note about the left-out encoder goes under one" }
+            $note = @('', '**Not in this package:** this release leaves the video encoder out, so the zip has no mp4-to-smk.exe (and so no libsmackerenc),',
+              'and what follows about it doesn''t apply to it. The editor still plays the videos a level has (its decoder, libsmackerdec, is linked into it).')
+            $lines = @($lines[0..$at[0]]) + $note + @($lines[($at[0] + 1)..($lines.Count - 1)])
+            [System.IO.File]::WriteAllLines($readmeFile, [string[]]$lines)
+            'README.md says the encoder is left out of this package.'
+          }
+          # The editor's own settings file, as the owner wants it shipped (11-18): its window starts framed, 1280 x 720 (StartWidth, StartHeight, Windowed: src/host/editor_options.h).
+          # It names no DataFolder: each mapper adds his own, and the editor says so at its start until he has. tests/host_editor_options_test reads it.
+          if (-not (Test-Path -LiteralPath 'dist\AVP_OpenInteng.ini')) { throw 'dist\AVP_OpenInteng.ini, the settings file the zip ships, is not there' }
+          Copy-Item -LiteralPath 'dist\AVP_OpenInteng.ini' -Destination $package
+          Copy-Item -Recurse notices (Join-Path $package 'notices')
+          "AVP_OpenInteng $env:VERSION, commit $env:GITHUB_SHA, AvPx $(git -C avpx rev-parse HEAD)" | Out-File -Encoding ascii (Join-Path $package 'BUILD.txt')
+
+          Push-Location $package
+          $hashes = Get-ChildItem -Recurse -File | Resolve-Path -Relative | ForEach-Object {
+            '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_).Hash.ToLower(), ($_ -replace '^\.\\', '' -replace '\\', '/')
+          }
+          Pop-Location
+          # LF line ends and no byte-order mark, so sha256sum -c reads it on Linux and WSL too (Out-File wrote CRLF: the CR stuck to every name)
+          $sumsFile = Join-Path $package 'SHA256SUMS.txt'
+          [System.IO.File]::WriteAllText($sumsFile, (($hashes -join "`n") + "`n"), [System.Text.UTF8Encoding]::new($false))
+          $bytes = [System.IO.File]::ReadAllBytes($sumsFile)
+          if ($bytes -contains 13 -or ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)) { throw 'SHA256SUMS.txt must be LF with no byte-order mark' }
+          Get-Content $sumsFile
+
+      - name: Zip the package, and work out its hash
+        shell: pwsh
+        env:
+          VERSION: 'rebuild-check'   # rebuild-check: release.yml takes it from its run's input; here only words (BUILD.txt, the zip's name)
+        run: |
+          $folder = "$env:RUNNER_TEMP\release"
+          New-Item -ItemType Directory -Force $folder | Out-Null
+          $name = "AVP_OpenInteng-$env:VERSION-windows-x86.zip"
+          Compress-Archive -Path "$env:RUNNER_TEMP\package\*" -DestinationPath (Join-Path $folder $name)
+          $hash = (Get-FileHash -Algorithm SHA256 (Join-Path $folder $name)).Hash.ToLower()
+          # LF and no byte-order mark (as SHA256SUMS.txt above): sha256sum -c on Linux and WSL reads it; the jobs below read it with Get-Content, which takes LF too
+          $sumsFile = Join-Path $folder 'SHA256SUMS'
+          [System.IO.File]::WriteAllText($sumsFile, "$hash  $name`n", [System.Text.UTF8Encoding]::new($false))
+          $bytes = [System.IO.File]::ReadAllBytes($sumsFile)
+          if ($bytes -contains 13 -or $bytes[0] -eq 0xEF) { throw 'SHA256SUMS must be LF with no byte-order mark' }
+          Get-Content $sumsFile
+
+      - name: Keep the package for the next jobs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-package
+          path: ${{ runner.temp }}/release
+          retention-days: 1
+          if-no-files-found: error
+      # ---- (end of release.yml's own steps)
+
+      # What built them: the commit, AvPx's, the runner image, Visual Studio and its default MSVC toolset, the folder, and each program's SHA-256 (the
+      # package's every .exe and .dll), kept beside the package as its own artifact
+      - name: Record what built the package
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $visualStudio = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           $default = (Get-Content -LiteralPath (Join-Path $visualStudio 'VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt') -Raw).Trim()
+          $folder = "$env:RUNNER_TEMP\record"
+          New-Item -ItemType Directory -Force $folder | Out-Null
           $record = @(
             "commit $(git rev-parse HEAD)"
             "avpx $(git -C avpx rev-parse HEAD)"
@@ -171,15 +335,14 @@ jobs:
             "Visual Studio $(& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationVersion), default MSVC toolset $default"
             "folder $env:GITHUB_WORKSPACE"
             ''
-          ) + @(Get-ChildItem -LiteralPath $programs -File | Sort-Object Name | ForEach-Object { '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLower(), $_.Name })
-          [System.IO.File]::WriteAllText((Join-Path $programs 'REBUILD.txt'), (($record -join "`n") + "`n"), [System.Text.UTF8Encoding]::new($false))
-          Get-Content (Join-Path $programs 'REBUILD.txt')
-          "$(@(Get-ChildItem -LiteralPath $programs -File | Where-Object { $_.Extension -in '.exe', '.dll' }).Count) programs gathered (alpha.3 shipped 11)"
+          ) + @(Get-ChildItem -LiteralPath "$env:RUNNER_TEMP\package" -File | Where-Object { $_.Extension -in '.exe', '.dll' } | Sort-Object Name | ForEach-Object { '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLower(), $_.Name })
+          [System.IO.File]::WriteAllText((Join-Path $folder 'REBUILD.txt'), (($record -join "`n") + "`n"), [System.Text.UTF8Encoding]::new($false))
+          Get-Content (Join-Path $folder 'REBUILD.txt')
 
-      - name: Keep the programs one day
+      - name: Keep the record one day
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: rebuilt-programs
-          path: ${{ runner.temp }}/programs
+          name: rebuild-record
+          path: ${{ runner.temp }}/record
           retention-days: 1
           if-no-files-found: error
