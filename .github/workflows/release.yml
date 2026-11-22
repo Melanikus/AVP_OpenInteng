@@ -15,8 +15,8 @@
 # (a source only with its own library). mp4-to-smk was left out of alpha.2 while an antivirus false positive was looked into; it is back
 # with a version resource and a manifest (0 of 71 on VirusTotal, exe and DLL, 11-19). The leave_out_encoder input (off unless the owner
 # asks) makes the same package without the video encoder, as alpha.2 shipped: no mp4-to-smk.exe, no libsmackerenc.dll and no source of
-# it. alpha.4 (2026-11-21) is alpha.3's code that way, after one antivirus engine flagged each of those two files in alpha.3. The editor's
-# Import video is off in such a package (its encoder isn't there); the FMV preview's decoder, libsmackerdec.dll, stays.
+# it. It was made on 2026-11-21, after one antivirus engine flagged each of those two files in alpha.3. Only mp4-to-smk uses the
+# encoder (the editor has no video import); the FMV preview's decoder, libsmackerdec.dll, stays.
 name: Release
 
 on:
@@ -27,7 +27,7 @@ on:
         required: true
         type: string
       leave_out_encoder:
-        description: "Leave the video encoder out of the zip: mp4-to-smk.exe, libsmackerenc.dll and its source (the editor's Import video is off then). Off unless the owner asks."
+        description: "Leave the video encoder out of the zip: mp4-to-smk.exe, libsmackerenc.dll and its source (the FMV preview's decoder stays). Off unless the owner asks."
         required: false
         type: boolean
         default: false
@@ -181,7 +181,7 @@ jobs:
           if (-not $dumpbin) { throw 'dumpbin was not found' }
           $avpxBin = @{}
           Get-ChildItem -LiteralPath "$from\bin" -File -Filter '*.dll' | ForEach-Object { $avpxBin[$_.Name.ToLowerInvariant()] = $_.FullName }
-          # The Smacker encoder (mp4-to-smk, Import video) and decoder (the FMV preview) are loaded by name while the programs run, so no import
+          # The Smacker encoder (mp4-to-smk) and decoder (the FMV preview) are loaded by name while the programs run, so no import
           # list names them; they go in first, so the loop below brings what they ask for too. They are the files the builds pinned (the step above).
           # Without the encoder (leave_out_encoder) only the decoder goes in, and libsmackerenc's source then stays out by the rule below.
           foreach ($dll in $smackerDlls) {
