@@ -2,6 +2,7 @@
 // Written 2026-11-22 by Melanikus (Dietrich) for AVP_OpenInteng (Bishop's order after alpha.3, whose mp4-to-smk.exe and libsmackerenc.dll were flagged by one scanner each and
 // could not be shown to be rebuildable: "the same commit built here and on CI gives byte-identical binaries, or the release refuses"; Tao 1, Tao 2 rebuildable).
 // AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code". It only reads the files: nothing is run, and every offset is checked first (Tao 3).
+// Every folder and file it is given must lie inside the folder it is run from (it refuses any other), and each <file> of "same" is a plain file name.
 //
 //   node tools/check-binaries.js same [--allow-clock] <folder A> <folder B> <file> [<file> ...]
 //     Each file must have the same SHA-256 in both folders: two builds of one commit, in two folders or on two machines. Where two differ, it says where.
@@ -23,9 +24,15 @@ const path = require('path');
 const crypto = require('crypto');
 
 // The parts of a PE file this needs. Every offset is checked against the file's size before it is used (the file is hostile input).
+// A file that can't be read gives { missing: true }; the bytes come with every other answer.
 function readPe(file) {
-	const b = fs.readFileSync(file);
-	const fail = why => ({ file, error: why });
+	let b;
+	try {
+		b = fs.readFileSync(insideHere(file));   // (checked again where it is read: inside the folder this is run from)
+	} catch (e) {
+		return { file, missing: true, error: `it can't be read (${e.code || e.message})` };
+	}
+	const fail = why => ({ file, bytes: b, error: why });
 	const u16 = o => (o >= 0 && o + 2 <= b.length ? b.readUInt16LE(o) : -1);
 	const u32 = o => (o >= 0 && o + 4 <= b.length ? b.readUInt32LE(o) : -1);
 
@@ -127,14 +134,15 @@ function compare(a, b, allowClock) {
 	return { same: other.length === 0 && (allowClock || allowed.length === 0), words };
 }
 
+// files: each { name, a, b }, the two paths already checked to be inside the folder this is run from (insideHere, below)
 function same(allowClock, folderA, folderB, files) {
 	let bad = 0;
-	for (const name of files) {
-		const fa = path.join(folderA, name), fb = path.join(folderB, name);
-		if (!fs.existsSync(fa) || !fs.existsSync(fb)) { console.log(`  FAILED  ${name}: not in both folders`); bad++; continue; }
-		const ha = sha256(fs.readFileSync(fa)), hb = sha256(fs.readFileSync(fb));
+	for (const { name, a: fa, b: fb } of files) {
+		const pa = readPe(fa), pb = readPe(fb);   // each file read once, its path checked where it is read
+		if (pa.missing || pb.missing) { console.log(`  FAILED  ${name}: not in both ${folderA} and ${folderB}`); bad++; continue; }
+		const ha = sha256(pa.bytes), hb = sha256(pb.bytes);
 		if (ha === hb) { console.log(`  ok  ${name}: byte for byte the same, SHA-256 ${ha}`); continue; }
-		const r = compare(readPe(fa), readPe(fb), allowClock);
+		const r = compare(pa, pb, allowClock);
 		console.log(`  ${r.same ? 'ok' : 'FAILED'}  ${name}: ${ha.slice(0, 16)} and ${hb.slice(0, 16)}: ${r.words.join('; ')}`);
 		bad += r.same ? 0 : 1;
 	}
@@ -172,12 +180,40 @@ function toolset(pinFile, files) {
 	return unreadable ? 2 : bad ? 1 : 0;
 }
 
+// EVERY PATH THIS READS COMES FROM ITS COMMAND LINE (Tao 3), so each one is taken only when it lies inside the folder the tool is run from: resolved there,
+// and refused when it climbs out of it ("..") or names another drive or an absolute place elsewhere. A <file> to compare is a plain file name, never a path.
+// Run it from a folder that holds what it compares (the repository's root, or one holding the two builds' folders).
+const here = path.resolve(process.cwd());
+const hereWithSep = here.endsWith(path.sep) ? here : here + path.sep;   // (a drive's root already ends in one)
+
+function insideHere(given) {
+	const full = path.resolve(here, String(given));
+	if (!full.startsWith(hereWithSep)) {
+		console.log(`check-binaries: "${given}" is not inside the folder this is run from (${here}): refused`);
+		process.exit(2);
+	}
+	return full;
+}
+
+function plainName(given) {
+	const name = path.basename(String(given));
+	if (name !== given || !/^[A-Za-z0-9._-]{1,120}$/.test(name) || name === '.' || name === '..') {
+		console.log(`check-binaries: "${given}" is not a plain file name (letters, digits, . _ -): refused`);
+		process.exit(2);
+	}
+	return name;
+}
+
 const args = process.argv.slice(2);
 if (args[0] === 'same') {
 	const allowClock = args[1] === '--allow-clock';
 	const rest = args.slice(allowClock ? 2 : 1);
-	if (rest.length >= 3) process.exit(same(allowClock, rest[0], rest[1], rest.slice(2)));
+	if (rest.length >= 3) {
+		const a = insideHere(rest[0]), b = insideHere(rest[1]);
+		process.exit(same(allowClock, a, b, rest.slice(2).map(plainName).map(n => ({ name: n, a: insideHere(path.join(a, n)), b: insideHere(path.join(b, n)) }))));
+	}
 }
-if (args[0] === 'toolset' && args.length >= 3) process.exit(toolset(args[1], args.slice(2)));
+if (args[0] === 'toolset' && args.length >= 3) process.exit(toolset(insideHere(args[1]), args.slice(2).map(insideHere)));
 console.log('usage: node tools/check-binaries.js same [--allow-clock] <folder A> <folder B> <file>...  |  node tools/check-binaries.js toolset <pin file> <file>...');
+console.log('       (every folder and file inside the folder it is run from; each <file> of "same" a plain file name)');
 process.exit(2);
