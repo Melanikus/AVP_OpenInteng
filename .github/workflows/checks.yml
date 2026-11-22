@@ -9,6 +9,9 @@
 #   - inteng's menus: src/host/inteng_menus.cpp is exactly what tools/make-inteng-menus.js makes of docs/inteng's two files (the menus
 #     file checked as hostile input first), and every refusal of the tool has its test (tools/make-inteng-menus-test.js). (Added
 #     2026-11-15, A6.)
+#   - The one compiler: every project imports AvPx's msvc-pin.props in its place, and every Windows job installs that MSVC before it builds
+#     (tools/check-msvc-pin.js, its refusals tested by tools/check-msvc-pin-test.js). alpha.3 shipped what a newer runner compiler made, never
+#     what had been scanned. (Added 2026-11-22 by Melanikus (Frost), Bishop's order.)
 # A check that can't run (GitHub's API down, say) fails, and nothing merges. TAKING-OVER.md says what to do if a tool is gone.
 # The build, tests, take-out rows, Snyk, same-flags and coding-standard gates come with the editor's first code (the phase 2 plan, F1-F2).
 # Written 2026-11-14 by Melanikus for AVP_OpenInteng.
@@ -143,3 +146,18 @@ jobs:
         run: |
           node tools/make-inteng-menus.js --check
           node tools/make-inteng-menus-test.js
+
+  msvc-pin:
+    name: Every program is built with the one compiler
+    runs-on: ubuntu-24.04   # pinned, as above
+    steps:
+      - name: Check out the repository (the submodule isn't needed: the check reads the projects and the workflows)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The runner's own Node.js: the check and its test use only its built-in fs, path, os and child_process, and install nothing
+      - name: Every project imports avpx/win32/msvc-pin.props in its place, every Windows job installs it before it builds, and every refusal is tested
+        run: |
+          node tools/check-msvc-pin.js
+          node tools/check-msvc-pin-test.js

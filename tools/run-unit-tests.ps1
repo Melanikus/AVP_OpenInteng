@@ -42,7 +42,17 @@ $visualStudio = & $vswhere -latest -products * -requires Microsoft.VisualStudio.
 if (-not $visualStudio) { throw 'Visual Studio with the C++ tools was not found' }
 $env:PATH = "$(Split-Path -Parent $vswhere);$env:PATH"
 Import-Module (Join-Path $visualStudio 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll')
-Enter-VsDevShell -VsInstallPath $visualStudio -SkipAutomaticLocation -DevCmdArguments '-arch=x86 -host_arch=amd64 -no_logo' | Out-Null
+# THE ONE COMPILER, AvPx's (avpx/win32/msvc-pin.props): the tests are built with the same exact MSVC as the editor (-vcvars_ver). On GitHub's runner
+# it is installed first, from Microsoft's own installer (avpx/tools/install-msvc-pin.ps1); anywhere else, the tests stop if it isn't there.
+. (Join-Path $repository 'avpx/tools/msvc-pin-version.ps1')
+$msvcPin = Get-MsvcPinVersion (Join-Path $repository 'avpx')
+if ($env:GITHUB_ACTIONS -eq 'true')
+{
+    & (Join-Path $repository 'avpx/tools/install-msvc-pin.ps1')
+    if ($LASTEXITCODE -ne 0) { throw "MSVC $msvcPin could not be installed (avpx/tools/install-msvc-pin.ps1 said why, above)" }
+}
+Get-MsvcPinFolder $visualStudio $msvcPin | Out-Null
+Enter-VsDevShell -VsInstallPath $visualStudio -SkipAutomaticLocation -DevCmdArguments "-arch=x86 -host_arch=amd64 -no_logo -vcvars_ver=$msvcPin" | Out-Null
 Set-Location -LiteralPath $repository
 
 New-Item -ItemType Directory -Force $OutFolder | Out-Null
