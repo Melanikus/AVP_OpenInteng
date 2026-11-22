@@ -1,4 +1,4 @@
-// The test for the editor's edge (R-INT-15): every Hudson hook asleep, Hudson's data, and the film and music stand-ins that answer
+// The test for the editor's edge (R-INT-15): every Hudson hook asleep, Hudson's data, and the Bink film and music stand-ins that answer
 // quietly. Written 2026-11-14 by Melanikus (Hicks) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's
 // own code".
 //
@@ -29,7 +29,6 @@
 #include "hudson_play_ribbon.h"
 #include "hudson_saymarks.h"
 #include "BinkDecoder.h"
-#include "SmackerDecoder.h"
 #include <vorbis/vorbisfile.h>
 #include "nobody_watching.h"
 #include "ConfigFile.h"
@@ -202,10 +201,7 @@ static void TestQuietMedia()
 	Bink_Close(bink);
 	Check(!bink.isValid && bink.instanceIndex == -1, "Bink_Close leaves a handle that never opened as it was (BinkDecoder.cpp:135-141)");
 
-	SmackerHandle smacker = Smacker_Open("any.smk");
-	Check(!smacker.isValid && smacker.instanceIndex == -1, "Smacker_Open gives a handle that never opened: not valid, place -1 (SmackerDecoder.cpp:91-93)");
-	Smacker_Close(smacker);
-	Check(!smacker.isValid && smacker.instanceIndex == -1, "Smacker_Close leaves a handle that never opened as it was (SmackerDecoder.cpp:138-144)");
+	// (No Smacker stand-ins since 2026-11-21: the editor links Barry's real decoder, libsmackerdec_static, so there is no quiet answer of ours to check.)
 
 	// A struct full of something other than 0, so the test sees it emptied
 	OggVorbis_File vorbis;

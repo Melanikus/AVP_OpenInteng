@@ -1,0 +1,4 @@
+# What .github/workflows/rebuild-check.yml builds (Bishop 2026-11-22, the alpha.3 proof): the commit, and the MSVC toolset the runner's default toolset must be.
+# alpha.3 = main 7408ef29, built by release.yml run 44967425685 on windows-2025-vs2026 20261116.315.1, whose default toolset was 14.52.37025.
+commit 7408ef297d418a4d91c276a5f264ad580ade13df
+toolset 14.52.37025

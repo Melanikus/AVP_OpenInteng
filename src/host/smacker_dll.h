@@ -1,10 +1,11 @@
-// smacker_dll.h: Barry's Smacker decoder (avpx/dependencies/libsmackerdec, LGPL 2.1) used by the editor through its own DLL, libsmackerdec.dll beside the editor, loaded only by
-// dll_load.h's pinned loader and called through GetProcAddress, as the game links it as a separate DLL (its source never enters the editor). For the FMV preview, and reusable by
-// Import video (Bishop 11-18). The editor's own build keeps its stand-ins for the game's players (edge_media.cpp): these pointers are a separate way in, used only here.
+// smacker_dll.h: Barry's Smacker decoder (avpx/dependencies/libsmackerdec, LGPL 2.1), as the FMV preview calls it: a table of the library's functions.
 // Written 2026-11-18 by Melanikus (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
-// WHICH FILE LOADS (Bishop's ruling 11-18): the hash the build pinned (dll_pins.h kDllPinSmackerDecoder), unless the user's AVP_OpenInteng.ini names his own build's
-// (SmackerDecoderSha256=, 64 hex digits, in [Editor]: LGPL 2.1 section 6), which then loads instead and the words say so. A build with no pin and no ini hash loads none.
+// LINKED IN (2026-11-21, the owner's order through Bishop: "GET MY DECODER OUT, WORKING", "STATIC LINK, SEPARATE BARRY'S LIBS"): the library is a static
+// library of its own, built from its own sources with its own settings (win32/VS2026/libsmackerdec_static.vcxproj), and the editor links it, so no
+// libsmackerdec.dll is shipped, pinned or loaded. The table holds the linked functions themselves. The game's own film player, which the editor compiles
+// (avpx/3dc/video/SmackerPlayback.cpp), calls the same library; none of its ways in (the intro, the menus, a level's film screens) is called by the editor.
+// The names keep "Dll" from the DLL this replaced (11-18 to 11-21): renaming them is left to the change that deletes the DLL path (smacker_dll.cpp says when).
 #pragma once
 
 #include <stdint.h>
@@ -31,10 +32,11 @@ namespace host
 		decltype(&::Smacker_GetFrame) GetFrame = nullptr;
 	};
 
-	// The hash to load with, and where it came from: the ini's (when it names 64 hex digits) or the build's pin. *fromIni tells which.
+#if defined(SMACKER_DECODER_FROM_DLL)
+	// The retired DLL path only (smacker_dll.cpp): the hash to load with, and where it came from: the ini's (when it names 64 hex digits) or the build's pin.
 	std::string SmackerDll_ExpectedHash(char const *settingsFile, bool *fromIni);
+#endif
 
-	// The decoder, loaded once (the first call loads it; later calls give the same, or the same refusal). Null with *why (words for the status line) when refused; *note says which
-	// file loaded ("libsmackerdec.dll, the build's own" or "..., the ini's SmackerDecoderSha256").
+	// The decoder's table, never null now it is linked in (settingsFile and *why are for the retired DLL path, which could refuse); *note says which decoder it is.
 	SmackerDllCalls const *SmackerDll_Get(char const *settingsFile, std::string *why, std::string *note);
 }

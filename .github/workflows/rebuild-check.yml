@@ -1,0 +1,185 @@
+# Rebuilds the programs a release ships from a commit, on a fresh GitHub runner, so they can be compared byte for byte with the release's own (Tao 1: the bytes we scan
+# and ship must be only our source and Microsoft's compiler). Written 2026-11-22 by Melanikus (Dietrich) for AVP_OpenInteng, by Bishop's order after alpha.3: two of its
+# programs were flagged by one scanner each, and nothing could show that a second build makes the same bytes.
+#
+# WHAT IT DOES: builds the commit named in .github/rebuild-check.txt with release.yml's own build steps (copied below, unchanged), in the same folder
+# (D:\a\AVP_OpenInteng\AVP_OpenInteng), on the same runner image and with the same pinned actions; then keeps the shipped programs one day, with a list of their
+# SHA-256s and what built them. WHAT IT NEVER DOES: scan, draft, tag or release anything; it reads no secret, has no environment and can write nothing to the
+# repository (contents: read). The comparison is done afterwards by hand: node tools/check-binaries.js same (byte for byte, or --allow-clock for a program linked
+# without /Brepro, whose time stamp and .pdb GUID come from the clock).
+#
+# WHEN IT RUNS: only for a pull request that changes this file or .github/rebuild-check.txt (paths below), never for any other pull request.
+name: Rebuild check
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/rebuild-check.yml'
+      - '.github/rebuild-check.txt'
+
+permissions:
+  contents: read
+
+# The same lines as build.yml and checks.yml (zizmor's concurrency-limits): a newer head of a pull request cancels the run it replaces. This workflow
+# runs only on pull requests, so only that half applies; a push would have a group of its own and never be queued or cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  rebuild:
+    name: Rebuild a commit's release programs
+    runs-on: windows-2025-vs2026   # release.yml's own runner
+    timeout-minutes: 120
+    steps:
+      # The request is read from the pull request's own file, and only taken when every word is what it must be (Tao 3: it decides what is checked out and built)
+      - name: Read which commit to build, and the toolset it must be built with
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: request
+          sparse-checkout: .github/rebuild-check.txt
+          sparse-checkout-cone-mode: false
+
+      - name: Take the request apart, refusing anything else
+        id: request
+        shell: pwsh
+        run: |
+          $lines = @(Get-Content -LiteralPath 'request\.github\rebuild-check.txt' | Where-Object { $_ -notmatch '^\s*(#|$)' })
+          $commit = @($lines | Where-Object { $_ -cmatch '^commit [0-9a-f]{40}$' })
+          $toolset = @($lines | Where-Object { $_ -cmatch '^toolset [0-9]{2}\.[0-9]{2}\.[0-9]{5}$' })
+          if ($lines.Count -ne 2 -or $commit.Count -ne 1 -or $toolset.Count -ne 1) { throw 'rebuild-check.txt must hold exactly "commit <40 hex>" and "toolset <14.nn.nnnnn>"' }
+          "commit=$($commit[0].Substring(7))" | Out-File -Append -Encoding ascii $env:GITHUB_OUTPUT
+          "toolset=$($toolset[0].Substring(8))" | Out-File -Append -Encoding ascii $env:GITHUB_OUTPUT
+          "To build: $($commit[0]), $($toolset[0])"
+
+      # The image's own default toolset is what release.yml builds with (it names none), so it must be the one asked for, or the bytes can't be compared
+      - name: Check the runner's default toolset is the one asked for
+        shell: pwsh
+        env:
+          TOOLSET: ${{ steps.request.outputs.toolset }}
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $visualStudio = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $vsVersion = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationVersion
+          $default = (Get-Content -LiteralPath (Join-Path $visualStudio 'VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt') -Raw).Trim()
+          "Runner image $env:ImageOS $env:ImageVersion; Visual Studio $vsVersion at $visualStudio; its default MSVC toolset $default"
+          if ($default -cne $env:TOOLSET) { throw "The image's default MSVC toolset is $default, not $env:TOOLSET: this run can't make the bytes asked for" }
+
+      - name: Check out the commit asked for, and AvPx at its pinned commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.request.outputs.commit }}
+          persist-credentials: false
+          submodules: true
+
+      # ---- From here to the next line of dashes: release.yml's own build steps, as the commit above has them (copied from 7408ef29, unchanged)
+      # What main's own CI (build.yml, on a push to main) kept of vcpkg's builds and downloads, only read here, never written. GitHub
+      # gives a run on main only main's caches, never a pull request's. vcpkg takes a kept build only when its hash (port, version,
+      # triplet, compiler, dependencies) is exactly what it would build, and checks each source archive's SHA-512 before using it;
+      # anything else it builds from source.
+      - name: Take main's kept vcpkg builds and downloads
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}\vcpkg-archives
+            ${{ runner.temp }}\vcpkg-downloads
+          key: vcpkg-x86-windows-vs2026-${{ hashFiles('avpx/vcpkg.json', 'avpx/vcpkg-configuration.json', 'avpx/vcpkg-overlay-ports/**', 'avpx/vcpkg-overlay-triplets/**') }}
+          restore-keys: vcpkg-x86-windows-vs2026-
+
+      # AvPx's own script, as AvPx's every pull request runs it: the libraries by vcpkg at its baseline, the game, and its package, with
+      # each library's licence and OpenAL Soft's source (from the downloads above, or downloaded again). The editor takes its runtime
+      # files and their licences from that package.
+      - name: Build AvPx's libraries and package with AvPx's own script
+        shell: pwsh
+        working-directory: avpx
+        env:
+          VCPKG_BINARY_SOURCES: clear;files,${{ runner.temp }}\vcpkg-archives,read
+          VCPKG_DOWNLOADS: ${{ runner.temp }}\vcpkg-downloads
+        run: |
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\vcpkg-archives", $env:VCPKG_DOWNLOADS | Out-Null
+          ./tools/build-and-package.ps1 -OutFolder "$env:RUNNER_TEMP\avpx-package"
+
+      # The Smacker encoder and decoder DLLs (LGPL, from AvPx's package) are loaded while the programs run, pinned to the very files this
+      # package ships (the owner's ruling, 11-18): their SHA-256 goes into both builds (SMACKER_ENCODER_SHA256 / SMACKER_DECODER_SHA256).
+      # A user's own build of either is let in by AVP_OpenInteng.ini (LGPL 2.1 section 6); README.md says how.
+      - name: Build the editor and mp4-to-smk
+        shell: pwsh
+        run: |
+          $pins = @{}
+          foreach ($dll in 'libsmackerenc.dll', 'libsmackerdec.dll') {
+            $file = Join-Path "$env:RUNNER_TEMP\avpx-package\bin" $dll
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "AvPx's package has no $dll" }
+            $pins[$dll] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$dll SHA-256 $($pins[$dll]), pinned into the builds"
+          }
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild was not found' }
+          & $msbuild win32\VS2026\AVP_OpenInteng.vcxproj /nologo /v:minimal /m /nodeReuse:false /p:Configuration=Release /p:Platform=Win32 `
+            /p:ImportDirectoryBuildProps=false /p:ImportDirectoryBuildTargets=false /p:VcpkgManifestInstall=false /p:VcpkgApplocalDeps=false `
+            "/p:VcpkgInstalledDir=$env:GITHUB_WORKSPACE/avpx/vcpkg_installed/" /p:VcpkgTriplet=x86-windows `
+            "/p:SmackerEncoderSha256=$($pins['libsmackerenc.dll'])" "/p:SmackerDecoderSha256=$($pins['libsmackerdec.dll'])"
+          if ($LASTEXITCODE -ne 0) { throw "The editor didn't build (MSBuild exit $LASTEXITCODE)" }
+          if (-not (Test-Path -LiteralPath 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe')) { throw 'MSBuild gave back 0 but made no AVP_OpenInteng.exe' }
+          & $msbuild win32\VS2026\mp4-to-smk.vcxproj /nologo /v:minimal /m /nodeReuse:false /p:Configuration=Release /p:Platform=Win32 `
+            /p:ImportDirectoryBuildProps=false /p:ImportDirectoryBuildTargets=false "/p:SmackerEncoderSha256=$($pins['libsmackerenc.dll'])"
+          if ($LASTEXITCODE -ne 0) { throw "mp4-to-smk didn't build (MSBuild exit $LASTEXITCODE)" }
+          if (-not (Test-Path -LiteralPath 'win32\VS2026\Win32\Release\mp4-to-smk.exe')) { throw 'MSBuild gave back 0 but made no mp4-to-smk.exe' }
+
+      # ---- (end of release.yml's own build steps)
+
+      # The programs the release ships, gathered as release.yml's "Make the package" gathers them: the editor and mp4-to-smk, the two Smacker DLLs, every DLL of
+      # AvPx's package they ask for (read from their import lists by dumpbin), and D3DX's shader compiler. Then each one's SHA-256, and what built them.
+      - name: Gather the programs, their SHA-256s and what built them
+        shell: pwsh
+        run: |
+          $from = "$env:RUNNER_TEMP\avpx-package"
+          $programs = "$env:RUNNER_TEMP\programs"
+          New-Item -ItemType Directory -Force $programs | Out-Null
+          Copy-Item 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe' $programs
+          Copy-Item 'win32\VS2026\Win32\Release\mp4-to-smk.exe' $programs
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $visualStudio = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $dumpbin = Get-ChildItem (Join-Path $visualStudio 'VC\Tools\MSVC\*\bin\Hostx64\x86\dumpbin.exe') | Select-Object -Last 1
+          if (-not $dumpbin) { throw 'dumpbin was not found' }
+          $avpxBin = @{}
+          Get-ChildItem -LiteralPath "$from\bin" -File -Filter '*.dll' | ForEach-Object { $avpxBin[$_.Name.ToLowerInvariant()] = $_.FullName }
+          foreach ($dll in 'libsmackerenc.dll', 'libsmackerdec.dll') {
+            if (-not $avpxBin.ContainsKey($dll)) { throw "AvPx's package has no $dll" }
+            Copy-Item -LiteralPath $avpxBin[$dll] -Destination (Join-Path $programs $dll)
+          }
+          do {
+            $copied = 0
+            foreach ($binary in @(Get-ChildItem -LiteralPath $programs -File | Where-Object { $_.Extension -in '.exe', '.dll' })) {
+              $output = & $dumpbin.FullName /nologo /dependents $binary.FullName
+              if ($LASTEXITCODE -ne 0) { throw "dumpbin could not read $($binary.Name)" }
+              foreach ($name in @($output | Where-Object { $_ -match '^\s+\S+\.dll\s*$' } | ForEach-Object { $_.Trim().ToLowerInvariant() })) {
+                if (-not $avpxBin.ContainsKey($name) -or (Test-Path -LiteralPath (Join-Path $programs $name))) { continue }
+                Copy-Item -LiteralPath $avpxBin[$name] -Destination (Join-Path $programs $name)
+                $copied++
+              }
+            }
+          } while ($copied -gt 0)
+          if (-not $avpxBin.ContainsKey('d3dcompiler_43.dll')) { throw "AvPx's package has no D3DCompiler_43.dll" }
+          Copy-Item -LiteralPath $avpxBin['d3dcompiler_43.dll'] -Destination (Join-Path $programs 'D3DCompiler_43.dll')
+          $default = (Get-Content -LiteralPath (Join-Path $visualStudio 'VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt') -Raw).Trim()
+          $record = @(
+            "commit $(git rev-parse HEAD)"
+            "avpx $(git -C avpx rev-parse HEAD)"
+            "runner image $env:ImageOS $env:ImageVersion"
+            "Visual Studio $(& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationVersion), default MSVC toolset $default"
+            "folder $env:GITHUB_WORKSPACE"
+            ''
+          ) + @(Get-ChildItem -LiteralPath $programs -File | Sort-Object Name | ForEach-Object { '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLower(), $_.Name })
+          [System.IO.File]::WriteAllText((Join-Path $programs 'REBUILD.txt'), (($record -join "`n") + "`n"), [System.Text.UTF8Encoding]::new($false))
+          Get-Content (Join-Path $programs 'REBUILD.txt')
+          "$(@(Get-ChildItem -LiteralPath $programs -File | Where-Object { $_.Extension -in '.exe', '.dll' }).Count) programs gathered (alpha.3 shipped 11)"
+
+      - name: Keep the programs one day
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rebuilt-programs
+          path: ${{ runner.temp }}/programs
+          retention-days: 1
+          if-no-files-found: error

@@ -47,6 +47,7 @@ const kAllowed = new Map([
 	['d3d9', 'Direct3D 9, the game\'s renderer'],
 	['d3dx9', 'Direct3D 9\'s helpers, the game\'s shaders and textures'],
 	['OpenAL32', 'sound effects (R-INT-10, R-INT-15): built from the pinned AvPx source and scanned there'],
+	['libsmackerdec_static', 'Barry\'s Smacker decoder, for the FMV preview (the owner\'s order 11-21): built from the pinned AvPx source by win32/VS2026/libsmackerdec_static.vcxproj'],
 ]);
 
 // The map and the program must come from the same link: a map left over from an older link would prove nothing about this program

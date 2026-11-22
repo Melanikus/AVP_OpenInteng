@@ -2072,7 +2072,7 @@ void UpdateModuleTints(bool onAdjacent)
 		std::map<int32_t, uint32_t> const &paint = waypointMode.ModulePaint(open);
 		std::vector<int32_t> games;
 		std::vector<uint32_t> colours;
-		size_t reds = 0, redsGiven = 0;
+		size_t reds = 0, redsGiven = 0, greensGiven = 0;
 
 		for (std::map<int32_t, uint32_t>::const_iterator it = paint.begin(); it != paint.end(); ++it)
 		{
@@ -2086,11 +2086,13 @@ void UpdateModuleTints(bool onAdjacent)
 				games.push_back(game);
 				colours.push_back(it->second);
 				redsGiven += red ? 1 : 0;
+				greensGiven += it->second == host::kWaypointModuleGreen ? 1 : 0;
 			}
 		}
 
+		// (and how many of those given are GREEN, a module whose AI module holds waypoints: Drake 11-21, so a scenario sees the paint follow a plot's writes)
 		waypointTintWords = std::to_string((unsigned long long)redsGiven) + " of " + std::to_string((unsigned long long)reds) + " red, " + std::to_string((unsigned long long)games.size()) + " of " +
-			std::to_string((unsigned long long)paint.size()) + " in all";
+			std::to_string((unsigned long long)paint.size()) + " in all, " + std::to_string((unsigned long long)greensGiven) + " green";
 		LevelView_SetObjectTints(nullptr, nullptr, 0);
 		LevelView_SetModuleTints(games.data(), colours.data(), games.size());
 		drawn = true;

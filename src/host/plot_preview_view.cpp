@@ -134,7 +134,9 @@ namespace
 		// a module's last copy with boxes in it: onto the main view, once
 		if (copy->finished && copy->number > landedUpTo && !copy->volumes.empty())
 		{
-			host::WaypointView_AllLines({ &copy->volumes }, local_scale > 0.0 ? local_scale : 1.0, &mapLines);
+			// (in Waypoint mode 0's colours, as its every-network view draws them after the plot: a one-way link's closed half in its link's own colour, never red, which is
+			// inteng's PICK there; the owner's picture of 11-21 showed the plot's links red during the plot and yellow after it)
+			host::WaypointView_AllLines({ &copy->volumes }, local_scale > 0.0 ? local_scale : 1.0, &mapLines, false);
 			landedUpTo = copy->number;
 			shown.landed++;
 			shown.mapLines = mapLines.size();

@@ -12,6 +12,11 @@
 // output that exists is refused unless --overwrite is given (then the new file is written beside it first and put in its place whole). --dump writes what would be encoded into a new
 // folder: frames.rgb (all frames, R G B, 128 x 96 each), sound.pcm (8-bit unsigned mono), sound.wav, and the first, middle and last frames as .bmp, to look at.
 // At the end it says what it did: the picture's size, the frames, the length, and the output's header line as AvP-docs/tools/po/smk-info.js prints it.
+//
+// THE BUILD WITH THE ENCODER COMPILED IN (mp4-to-smk.vcxproj's EncoderBuiltIn=true, SMK_ENCODER_BUILT_IN; Bishop's antivirus experiment 11-19, Drake): the encoder's own sources
+// (avpx dependencies/libsmackerenc at the pin, LGPL 2.1, with the same compiler settings as its DLL) are part of this program, so it loads no DLL of its own, has no pin to
+// check and takes no --encoder-sha256. THAT PROGRAM AS A WHOLE IS UNDER THE GNU LESSER GENERAL PUBLIC LICENSE 2.1 (it holds libsmackerenc); this file stays AVP_OpenInteng's
+// own code, MIT, and the editor is not changed by it.
 
 #include <stdint.h>
 #include <stdio.h>
@@ -24,8 +29,10 @@
 
 #include <windows.h>
 
+#if !defined(SMK_ENCODER_BUILT_IN)
 #include "dll_load.h"
 #include "dll_pins.h"
+#endif
 #include "smk_encoder.h"
 #include "video_import.h"
 
@@ -39,7 +46,9 @@ namespace
 	int const kExitDone = 0;
 	int const kExitRefused = 1;
 	int const kExitUsage = 2;
+#if !defined(SMK_ENCODER_BUILT_IN)
 	int const kExitNoEncoder = 3;
+#endif
 
 	std::string Utf8(std::wstring const &wide)
 	{
@@ -61,7 +70,11 @@ namespace
 
 	void Usage()
 	{
+#if defined(SMK_ENCODER_BUILT_IN)
+		puts("usage: mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source] [--max-input-mb N] [--max-seconds N] [--dump DIR]");
+#else
 		puts("usage: mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source] [--max-input-mb N] [--max-seconds N] [--dump DIR] [--encoder-sha256 HEX]");
+#endif
 		puts("  makes an AvP message video: 128 x 96, 15 fps, sound 22050 Hz 8-bit mono (.mp4 .m4v .avi .wmv in)");
 		puts("  --fit        a picture that isn't 4:3 is resized whole, with black bars (no question)");
 		puts("  --crop       a picture that isn't 4:3 is cropped to fill, its edges cut (no question)");
@@ -69,7 +82,9 @@ namespace
 		printf("  --max-seconds N  takes a video up to N seconds long (default %lld, at most %lld)\n", (long long)host::kVideoImportMostSeconds, (long long)host::kVideoImportLongestSeconds);
 		printf("  --max-input-mb N  takes a file up to N MB (default %llu, at most %llu)\n", (unsigned long long)(host::kVideoImportMostBytes >> 20), (unsigned long long)(host::kVideoImportLongestBytes >> 20));
 		puts("  --dump DIR   also writes what is encoded into the new folder DIR (frames.rgb, sound.pcm, sound.wav, three .bmp)");
+#if !defined(SMK_ENCODER_BUILT_IN)
 		puts("  --encoder-sha256 HEX  uses your own build of libsmackerenc.dll (beside this program), whose SHA-256 is HEX; otherwise only the one shipped with it loads");
+#endif
 		printf("  --level N    the sound's loudness, RMS in 8-bit steps (1 to 128; default %.1f, AvP's own message videos'); --level source keeps the source's\n", kStockLevel);
 	}
 
@@ -241,13 +256,15 @@ namespace
 
 static int Run(int argc, wchar_t **argv)
 {
-	// no DLL from the current folder or PATH: Windows' own, and the encoder by its full path beside this program
+	// no DLL from the current folder or PATH: Windows' own (Media Foundation's), and the encoder by its full path beside this program (the build with it compiled in loads none)
 	SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 	std::vector<std::wstring> named;
 	bool fitGiven = false, cropGiven = false, overwrite = false;
 	std::wstring dumpFolder;
+#if !defined(SMK_ENCODER_BUILT_IN)
 	std::string encoderSha256;   // the user's own encoder build's SHA-256 (64 hex digits), or "" for the one this build pins
+#endif
 	uint64_t mostBytes = host::kVideoImportMostBytes;      // the biggest file taken (--max-input-mb; a safety bound, raised only when asked)
 	int64_t mostSeconds = host::kVideoImportMostSeconds;   // the longest video taken (--max-seconds; a safety bound, raised only when asked)
 	double level = kStockLevel;
@@ -272,6 +289,7 @@ static int Run(int argc, wchar_t **argv)
 		{
 			dumpFolder = argv[++i];
 		}
+#if !defined(SMK_ENCODER_BUILT_IN)
 		else if (arg == L"--encoder-sha256" && i + 1 < argc)
 		{
 			std::wstring const value = argv[++i];
@@ -290,6 +308,7 @@ static int Run(int argc, wchar_t **argv)
 
 			encoderSha256 = hex;
 		}
+#endif
 		else if (arg == L"--max-input-mb" && i + 1 < argc)
 		{
 			wchar_t *end = nullptr;
@@ -462,6 +481,16 @@ static int Run(int argc, wchar_t **argv)
 		printf("mp4-to-smk: dumped into %s\n", Utf8(dumpFolder).c_str());
 	}
 
+	host::SmkEncoder calls;
+	std::vector<uint8_t> smk;
+
+#if defined(SMK_ENCODER_BUILT_IN)
+	// the encoder compiled into this program: nothing to load or check
+	if (!host::SmkEncoder_BuiltIn(&calls) || !host::SmkEncoder_Encode(calls, clip, &smk, &why))
+	{
+		return Refused(why);
+	}
+#else
 	// the encoder: from this program's own folder only, and only the very file this build ships (its SHA-256 pinned when it was built: dll_pins.h), unless --encoder-sha256 names
 	// the user's own build of it (the owner's ruling 11-18; the LGPL's section 6). dll_load.h holds the file from its hashing to its loading.
 	bool const ownBuild = !encoderSha256.empty();
@@ -485,13 +514,11 @@ static int Run(int argc, wchar_t **argv)
 		puts("mp4-to-smk: the encoder is your own build of libsmackerenc.dll (its SHA-256 as --encoder-sha256 gives it)");
 	}
 
-	host::SmkEncoder calls;
-	std::vector<uint8_t> smk;
-
 	if (!host::SmkEncoder_From(encoder, &calls, &why) || !host::SmkEncoder_Encode(calls, clip, &smk, &why))
 	{
 		return Refused(why);
 	}
+#endif
 
 	// an output that is there was refused at the start unless --overwrite; a new one is never written over another (made meanwhile)
 	if (!(overwrite ? host::Smk_Replace(fullOutput, smk, &why) : host::Smk_WriteNew(fullOutput, smk, &why)))

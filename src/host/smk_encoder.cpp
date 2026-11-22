@@ -7,6 +7,10 @@
 
 #include <windows.h>
 
+#if defined(SMK_ENCODER_BUILT_IN)
+#include "SmackerEncoder.h"   // the encoder compiled into this program: avpx dependencies/libsmackerenc/include (mp4-to-smk's EncoderBuiltIn build)
+#endif
+
 #if defined(_M_IX86)
 static_assert(sizeof(host::SmackerEncodeInput) == 36, "SmackerEncodeInput must match SmackerEncoder.h's layout (x86)");
 #endif
@@ -39,6 +43,45 @@ namespace host
 		}
 	}
 
+#if defined(SMK_ENCODER_BUILT_IN)
+	namespace
+	{
+		// The input handed on as the encoder's own type, field by field: the two types have one layout (the static_assert above) but are two types, so no cast
+		int __cdecl EncodeBuiltIn(SmackerEncodeInput const *in, uint8_t **smk, size_t *smkBytes)
+		{
+			if (!in)
+			{
+				return Smacker_Encode(nullptr, smk, smkBytes);
+			}
+
+			::SmackerEncodeInput own = {};
+
+			own.width = in->width;
+			own.height = in->height;
+			own.frameCount = in->frameCount;
+			own.fps = in->fps;
+			own.rgb = in->rgb;
+			own.rgbBytes = in->rgbBytes;
+			own.sampleRate = in->sampleRate;
+			own.pcm = in->pcm;
+			own.pcmBytes = in->pcmBytes;
+			return Smacker_Encode(&own, smk, smkBytes);
+		}
+	}
+
+	bool SmkEncoder_BuiltIn(SmkEncoder *encoder)
+	{
+		if (!encoder)
+		{
+			return false;
+		}
+
+		encoder->encode = EncodeBuiltIn;
+		encoder->freeEncoded = Smacker_FreeEncoded;
+		encoder->words = Smacker_EncodeWords;
+		return true;
+	}
+#else
 	bool SmkEncoder_From(void *module, SmkEncoder *encoder, std::string *why)
 	{
 		if (!module || !encoder)
@@ -63,6 +106,7 @@ namespace host
 		*encoder = found;
 		return true;
 	}
+#endif
 
 	bool SmkEncoder_Encode(SmkEncoder const &encoder, VideoImportClip const &clip, std::vector<uint8_t> *smk, std::string *why)
 	{

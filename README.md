@@ -93,9 +93,11 @@ the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` i
   `messageNNN.smk` changes that stock level too.
 - A monitor shows nothing when a video named after its own picture exists in `FMVs\`, and no video plays while a cheat is on.
 
-**The encoder** is `libsmackerenc.dll`, built from Barry Duncan's libsmackerdec (LGPL 2.1; its licence and source are in the zip's
-`licences` folder). The tool loads only the DLL shipped with it. To use your own build of it, as the LGPL allows, pass its SHA-256
-with `--encoder-sha256 <hex>`.
+**The encoder** is libsmackerenc, made from Barry Duncan's libsmackerdec (LGPL 2.1), and it is linked into `mp4-to-smk.exe`: there is
+no DLL beside it, and none is loaded. The editor's FMV preview has Barry's decoder, libsmackerdec (LGPL 2.1), linked into it the same
+way. Each library's licence and whole source are in the zip's `licences` folder (`licences/README.txt` says where). To use your own
+build of either, as the LGPL allows, build the program again from this project's source with yours in its place
+(`win32/VS2026/libsmackerenc_static.vcxproj` and `libsmackerdec_static.vcxproj` build them).
 
 ## Animated objects from Blender: the track import
 
@@ -119,11 +121,16 @@ An animation baked in Blender becomes a set of **track objects** that move toget
    model fits.
 3. **Make the parts.** `track-import parts <level.rif> <out.rif> <source> <scale> <name> [...]` makes each part a NEW placed object,
    around a copy of an existing object's shape, rescaled. The level's own objects stay as they were.
-4. **Import.** `track-import import <out.rif> <anim.json> <final.rif> [linear|smooth]` turns each part into a Track object
-   (strategy 72). Its track has one section for each pair of keys, loops, and plays from the level's start, so all parts keep in step.
+4. **Import.** `track-import import <out.rif> <anim.json> <final.rif> [linear|smooth] [--pool-free-mib <MB>]` turns each part into a
+   Track object (strategy 72). Its track has one section for each pair of keys, loops, and plays from the level's start, so all parts
+   keep in step.
    - `linear` (the default) turns each part about its root joint.
    - `smooth` lets the game smooth the motion through the keys. The game then ignores the part's offset, so each part turns about
      its own origin.
+   - `--pool-free-mib` is the level's free memory, as the editor's status line shows it when the level opens: on Rebellion's Colony,
+     **Level memory: 6 of 40 blocks taken, 34.63 MB free**, so `--pool-free-mib 34.63`. The tracks are fitted into it the way the
+     game packs them, and an import that wouldn't fit is refused, naming the first track that doesn't. Without it, the import keeps
+     to 4 MB.
 5. **Check.** `track-import check <final.rif> <anim.json>` plays every part together with the game's own track code, 100 loops at
    60 frames a second and again at an uneven frame rate. It reports:
    - the gap at each joint two parts share;
@@ -141,8 +148,8 @@ An animation baked in Blender becomes a set of **track objects** that move toget
 - Each part is a rigid object. There's no bending skin, so a model is as many objects as it has parts.
 - The shapes are copies of objects already in the level, rescaled. Blender's own models don't come in yet.
 - The parts loop from the level's start. Nothing starts or stops them yet, but a switch could, as with any track object.
-- A track holds at most 5,825 sections, and all the import's tracks stay under 4 MB of the level's memory. The tool refuses more,
-  because the game's loader would trust the count.
+- A track's sections are one piece of the level's memory, so a track fits in one of its 1 MB blocks, and all the import's tracks must
+  fit the level's free memory (`--pool-free-mib`, above). The tool refuses more, because the game's loader would trust the count.
 - `anim.json` is read as hostile input: its size, depth, strings and counts all have bounds, and every number is checked before use.
 
 ## Where to read next

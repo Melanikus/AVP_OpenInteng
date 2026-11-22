@@ -46,7 +46,7 @@ want="$dw\\AVP_OpenInteng\\edited\\Invasion-edited.rif"
 fail=0
 echo "$out" | grep -q "^  FAILED" && { echo "FAIL: the run had a failed step"; fail=1; }
 # the harness keeps each save under a stage name beside it (Invasion-edited-stage1.rif) and says that name; the copy itself is checked just below
-echo "$out" | grep -qF -- "save-copy -> $dw\\AVP_OpenInteng\\edited\\Invasion-edited" || { echo "FAIL: the copy was not saved in $dw\\AVP_OpenInteng\\edited"; fail=1; }
+echo "$out" | grep -qF -- "save-copy -> $dw\\AVP_OpenInteng\\edited\\Invasion-edited" || { printf 'FAIL: the copy was not saved in %s\n' "$dw\\AVP_OpenInteng\\edited"; fail=1; }
 [ -s "$docs/AVP_OpenInteng/edited/Invasion-edited.rif" ] || { echo "FAIL: no copy at $docs/AVP_OpenInteng/edited/Invasion-edited.rif"; fail=1; }
 made=$(find "$game" -newer "$marker" \( -iname '*.rif' -o -iname 'edited' \) 2>/dev/null)
 [ -z "$made" ] || { echo "FAIL: written inside the fake game folder: $made"; fail=1; }

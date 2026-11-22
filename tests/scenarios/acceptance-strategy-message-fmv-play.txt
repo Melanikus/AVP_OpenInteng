@@ -1,14 +1,13 @@
 # ACCEPTANCE (red first; Dietrich 2026-11-18, THE OWNER'S ADDITION, alpha.2's video picker): the Message window's PLAY shows the number's FMV in the window's text area, through Barry's
-# decoder in its own DLL (smacker_dll.h: libsmackerdec.dll beside the editor, loaded only by the pinned loader dll_load.h, Bishop's ruling 11-18). Picture only. The file's header passes our
+# decoder, linked into the editor (smacker_dll.h; from 11-18 to 11-21 it was a pinned DLL beside the editor). Picture only. The file's header passes our
 # own checks first (fmv_files.h), and the decoder must agree on its size and frames. The harness reads the state field fmvpreview ("<name> frame <k> of <n>", empty when none plays).
-# THE DLL: this run's editor folder gets the game's own build of it (AvP-play-alienways\bin, read only); a local build pins none, so the ini names its SHA-256 (SmackerDecoderSha256=, the
-# user's own-build way, LGPL 2.1 section 6): the words say the ini's build loaded. HIS PATH: his own Genshd1 (as acceptance-strategy-message-fmv: Message 47 on message13), three of his FMVs
+# The words say the linked decoder played it. HIS PATH: his own Genshd1 (as acceptance-strategy-message-fmv: Message 47 on message13), three of his FMVs
 # and two hostile files in the run's own {datadir}\FMVs (message-fmv\make-fmvs.cmd).
 # RED on the build before it (c25a3bad): the window has no Play.
-# (the ini line is written by make-level, not "#ini": run-shards takes a #ini key of letters only, and SmackerDecoderSha256 has digits; only this run's own ini is written)
-make-level cmd /c (echo.& echo SmackerDecoderSha256=53c033525df722d870c0d3b26a6d1a319fe6dbe8f97141580ccc29dcf4742021)>>"{exedir}AVP_OpenInteng.ini"
 make-level cmd /c {scenariodir}message-fmv\make-fmvs.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
-make-level cmd /c copy /y "C:\Users\Melanikus\source\AvP-builds-excluded\AvP-play-alienways\bin\libsmackerdec.dll" "{exedir}libsmackerdec.dll"
+# THE DECODER IS LINKED IN (libsmackerdec_static, the owner's order 11-21, Drake): no libsmackerdec.dll is copied in and no SmackerDecoderSha256 is written; one left in the
+# run folder is deleted first, so the film can play only through the decoder linked into the editor (RED on 57f73907, which loads the DLL: "No FMV preview").
+make-level cmd /c if exist "{exedir}libsmackerdec.dll" del /q "{exedir}libsmackerdec.dll"
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
@@ -39,7 +38,7 @@ wait 300
 expect-dialog-kind form
 expect-dialog-text 47
 expect-status Playing FMVs\message47.smk: SMK2 128 x 96
-expect-status the build AVP_OpenInteng.ini's SmackerDecoderSha256 names
+expect-status Barry's libsmackerdec, linked into the editor
 expect-field-has fmvpreview message47.smk frame
 # its sound too (11-18, after 3b): the whole first track in one OpenAL buffer of the game's own sound system, started with the picture; silent in a hidden run (its gain 0), still playing
 expect-status with its sound

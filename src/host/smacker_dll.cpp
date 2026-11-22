@@ -1,6 +1,52 @@
-// See smacker_dll.h. Written 2026-11-18 by Melanikus (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
+// See smacker_dll.h. Written 2026-11-18 by Melanikus (Dietrich) for AVP_OpenInteng; the decoder linked in 2026-11-21 by Melanikus (Drake). AVP_OpenInteng's own code: see
+// License.txt, "AVP_OpenInteng's own code".
 #include "smacker_dll.h"
 
+#if !defined(SMACKER_DECODER_FROM_DLL)
+
+namespace host
+{
+	namespace
+	{
+		// The decoder's own functions, linked into the editor (libsmackerdec_static.lib): the same table GetProcAddress used to fill from the DLL, so the
+		// FMV preview calls them exactly as before
+		SmackerDllCalls Linked()
+		{
+			SmackerDllCalls calls;
+
+			calls.Open = &::Smacker_Open;
+			calls.Close = &::Smacker_Close;
+			calls.GetNumAudioTracks = &::Smacker_GetNumAudioTracks;
+			calls.GetAudioTrackDetails = &::Smacker_GetAudioTrackDetails;
+			calls.GetAudioData = &::Smacker_GetAudioData;
+			calls.GetNumFrames = &::Smacker_GetNumFrames;
+			calls.GetFrameSize = &::Smacker_GetFrameSize;
+			calls.GetNextFrame = &::Smacker_GetNextFrame;
+			calls.GetFrameRate = &::Smacker_GetFrameRate;
+			calls.GetPalette = &::Smacker_GetPalette;
+			calls.GetFrame = &::Smacker_GetFrame;
+			return calls;
+		}
+	}
+
+	SmackerDllCalls const *SmackerDll_Get(char const *, std::string *, std::string *note)
+	{
+		static SmackerDllCalls const calls = Linked();
+
+		if (note)
+		{
+			*note = "Barry's libsmackerdec, linked into the editor";
+		}
+
+		return &calls;
+	}
+}
+
+#else
+
+// THE DLL PATH, RETIRED 2026-11-21 (the owner's order through Bishop: the decoder is linked in). No project defines SMACKER_DECODER_FROM_DLL, so none of this
+// is compiled; it is deleted, with dll_load and dll_pins, as a change of its own once the owner has ruled on the LGPL question (a user's own build in its
+// place). It is kept until then so that change can be read on its own.
 #include <windows.h>
 
 #include "dll_load.h"
@@ -108,3 +154,5 @@ namespace host
 		return &calls;
 	}
 }
+
+#endif

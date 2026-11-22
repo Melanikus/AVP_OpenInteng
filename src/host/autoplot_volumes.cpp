@@ -2392,7 +2392,7 @@ namespace host
 		// THE GAP CLOSERS (autoplot_closers.h; Vasquez 11-21, the owner: "Gaps first", "fitter boxes as large as possible within the space we have and 'tetris together'").
 		// With the switch on: along each upright wall side of a ceiled floor, the band from the floor box's top up to the entries over it, less whatever box or aim point
 		// already stands in it, is closed by the fewest, largest boxes that fit (kAutoPlotCloserLeast..kAutoPlotCloserMost along and in height, kAutoPlotCloserDepth out
-		// from the face), touching what is there. Each side the rule leaves is named in the notes, with why
+		// from the face), touching what is there; a doorway side less its doorways' spans (THE DOORWAY SIDES below). Each side the rule leaves is named in the notes, with why
 		if (AutoPlotClosers_On() && !slab)
 		{
 			size_t const before = vols.size();
@@ -2426,10 +2426,31 @@ namespace host
 							}
 						}
 
-						if (doorOn(i, a, s))
+						// THE DOORWAY SIDES (Drake 11-21, Vasquez's split, cause 3; Hudson's whole-2b run 035142: PROC11's alien a7 297 frames in NO box on its -z side's wall,
+						// 897 mm beside the exit box, Hunting toward proc12 with its velocity 0; that side is the shut lift door PROCm07 across its whole 15.6 m). A side with a
+						// doorway is closed as any wall side, less each doorway's own span along it: its exit box's (kAutoPlotVolumeSide each side of the doorway's middle) and
+						// doorClear more each side. Half a body and a millimetre: the game's body has its corners exactly 450 out and a box holds its own edges, so an alien centred
+						// anywhere in the doorway's box reaches at most 450 past it and is held by that box alone, as before there were closers: the doorway's own hand-over is
+						// left as it was (held by two, the game heads for its route's start box's centre first, bh_waypoint.cpp 161-189: a change there would need its own data);
+						// and the 451 left between them is under a body's 900 width, so an alien beside the doorway always has a corner in one box or the other. The doorways
+						// are doorOn's (above), its own test taken one doorway at a time
+						double const doorClear = 451.0;
+						std::vector<std::pair<double, double> > doorSpans;
+						std::string doorWords;
+
+						for (int const x : lanes)
 						{
-							left.push_back(sideName + ": a doorway on it (the doorway sides are the next rule)");
-							continue;
+							AutoPlotDoor const &d = doors[(size_t)x];
+							bool const along = d.middle[b] >= f.lo[b] - e && d.middle[b] <= f.hi[b] + e;
+							double const out = (d.middle[a] - edge) * s, outAcross = std::max(f.lo[b] - d.middle[b], d.middle[b] - f.hi[b]);
+
+							if ((along && fabs(d.middle[a] - edge) <= kAutoPlotVolumeSide + e) || (laneRect[(size_t)x] == (int)i && out > 0.0 && (along || out >= outAcross)))
+							{
+								double const from = d.middle[b] - kAutoPlotVolumeSide - doorClear, to = d.middle[b] + kAutoPlotVolumeSide + doorClear;
+
+								doorSpans.push_back(std::make_pair(from, to));
+								doorWords += (doorWords.empty() ? "" : ", ") + std::string("exit ") + std::to_string((long long)x) + " (" + mm(from) + ".." + mm(to) + " kept clear)";
+							}
 						}
 
 						if (seam > e / 2.0 || floorBeyond(i, a, s, sides[i].axis == a && sides[i].sign == s ? sides[i].rows : 1) > length / 4.0 || ceilingBeyond(i, a, s) > length / 4.0)
@@ -2513,6 +2534,18 @@ namespace host
 								{
 									blocked.push_back(std::make_pair(c[(size_t)b] - 1.0, c[(size_t)b] + 1.0));
 								}
+							}
+						}
+
+						// the doorways' spans (THE DOORWAY SIDES above), and every exit's point in the band: the game takes the LAST box holding a doorway's point as its target
+						// (SweepWaypoints), and the closers come after the exit boxes, so a closer holding one would take the doorway's target from its exit box
+						blocked.insert(blocked.end(), doorSpans.begin(), doorSpans.end());
+
+						for (std::vector<int32_t> const &p : exits)
+						{
+							if (p.size() == 3 && p[(size_t)a] >= lo[a] && p[(size_t)a] <= hi[a] && p[1] >= lo[1] && p[1] <= hi[1])
+							{
+								blocked.push_back(std::make_pair((double)p[(size_t)b] - 1.0, (double)p[(size_t)b] + 1.0));
 							}
 						}
 
@@ -2612,7 +2645,8 @@ namespace host
 
 						if (placed > 0)
 						{
-							made.push_back(sideName + ": " + std::to_string((long long)placed) + " closer(s), band " + mm(band) + " mm");
+							made.push_back(sideName + ": " + std::to_string((long long)placed) + " closer(s), band " + mm(band) + " mm" + (doorWords.empty() ? std::string() :
+								", round its doorway: " + doorWords));
 						}
 					}
 				}

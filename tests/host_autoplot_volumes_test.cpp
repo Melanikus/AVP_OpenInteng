@@ -1793,6 +1793,184 @@ int main()
 		Check(named, "the plan's notes name what was made and what was left");
 	}
 
+	// ---- THE DOORWAY SIDES' CLOSERS (Drake 11-21, on Vasquez's wall band; her split: cause 3). Hudson's whole-2b runs: 297 frames of PROC11's alien a7 (run 035142, f 1687
+	// on) stuck in NO box on the -z side's wall, 897 mm beside the exit box, Hunting toward proc12 with its velocity 0: that side is a doorway side (the shut lift door
+	// PROCm07 across its whole 15.6 m), and the wall band's rule left every doorway side open. A PROC11-LIKE ROOM at Genshd1's height (12.6 x 6.6 m, floor y 2000,
+	// ceiling -1900), its doorway A on the -z long side at x 6000 (PROC11's lift door), B and C on the +z side. The rule: a doorway side is closed as any wall side, less
+	// each doorway's own span along it (its exit box's, 600 each side of the doorway's middle) and 451 more each side (half a body and a millimetre: the body's corners are
+	// exactly 450 out and a box holds its own edges): so an alien centred anywhere in the doorway's box is held by that box alone, as before there were closers (the
+	// doorway's hand-over unchanged), and the 451 between them is under a body's 900, so the body beside the doorway is always in one box or the other
+	{
+		host::AutoPlotFloor floor;
+
+		Cells(&floor, 0, 12000, 0, 6000);
+
+		for (std::vector<int32_t> &c : floor.ceilings)
+		{
+			c[1] = -1900;
+		}
+
+		std::vector<std::vector<int32_t> > exits = { { 6000, 750, -400 }, { 3000, 750, 6400 }, { 9000, 750, 6400 } };
+		host::AutoPlotDoor dA = Door(6000, -300, 0.0, -1.0), dB = Door(3000, 6300, 0.0, 1.0), dC = Door(9000, 6300, 0.0, 1.0);
+
+		dA.soffit[1] = -1900;
+		dB.soffit[1] = -1900;
+		dC.soffit[1] = -1900;
+
+		std::vector<host::AutoPlotDoor> doors = { dA, dB, dC };
+
+		// the game's box round an alien at x, y, z: 450 each way across, from 900 above its position down to it; IN a box when any of its 8 corners is
+		auto const corners = [](int32_t x, int32_t y, int32_t z)
+		{
+			std::vector<std::vector<int32_t> > c;
+
+			for (int32_t const dx : { -450, 450 })
+			{
+				for (int32_t const dy : { -900, 0 })
+				{
+					for (int32_t const dz : { -450, 450 })
+					{
+						c.push_back(std::vector<int32_t>{ x + dx, y + dy, z + dz });
+					}
+				}
+			}
+
+			return c;
+		};
+		auto const heldBy = [&corners](host::AutoPlotPlan const &p, int32_t x, int32_t y, int32_t z, bool closersOnly)
+		{
+			std::string held;
+
+			for (size_t b = 0; b < p.list.size(); b++)
+			{
+				bool in = false;
+
+				for (std::vector<int32_t> const &c : corners(x, y, z))
+				{
+					int32_t const q[3] = { c[0], c[1], c[2] };
+
+					in = in || Holds(p.list[b], q);
+				}
+
+				if (in && (!closersOnly || (b < p.volumeRoles.size() && p.volumeRoles[b] == "closer")))
+				{
+					held += " " + std::to_string((long long)b) + (b < p.volumeRoles.size() ? " (" + p.volumeRoles[b] + ")" : std::string());
+				}
+			}
+
+			return held;
+		};
+
+		host::AutoPlotClosers_SetOn(true);
+
+		host::AutoPlotPlan const plan = host::AutoPlot_PlanVolumes({}, exits, floor, doors, 1.0);
+
+		host::AutoPlotClosers_SetOn(false);
+
+		host::AutoPlotPlan const without = host::AutoPlot_PlanVolumes({}, exits, floor, doors, 1.0);
+
+		// PROC11's alien: on the -z wall (its face at z -300), 450 off it, its body 897 beside the exit box (x 6600) along the wall, half way up the band
+		int32_t const alienX = 6600 + 897 + 450, alienY = 0, alienZ = -300 + 450;
+
+		Check(heldBy(without, alienX, alienY, alienZ, false).empty(), "THE DOORWAY SIDE, without closers: PROC11's alien 897 mm beside the exit box on the wall is in NO box (" +
+			heldBy(without, alienX, alienY, alienZ, false) + ")");
+		Check(!heldBy(plan, alienX, alienY, alienZ, true).empty(), "WITH CLOSERS the doorway side is closed: that alien is in a closer (" + heldBy(plan, alienX, alienY, alienZ, false) + ")");
+		Check(!heldBy(plan, 1500, alienY, alienZ, true).empty(), "and one on the doorway side's other part, toward the west end, is in a closer (" + heldBy(plan, 1500, alienY, alienZ, false) + ")");
+
+		// THE DOORWAY KEPT CLEAR: no closer on the -z wall reaching within 600 + 451 of the doorway's middle (a box holds min .. max - 1 in the file's numbers); an alien on
+		// the wall centred at either edge of the exit box is held by the exit box only
+		bool clear = true, pointsFree = true;
+		std::string where;
+
+		for (size_t b = 0; b < plan.list.size(); b++)
+		{
+			host::WaypointRec const &c = plan.list[b];
+
+			if (b >= plan.volumeRoles.size() || plan.volumeRoles[b] != "closer")
+			{
+				continue;
+			}
+
+			if (c.min[2] < 0 && c.min[0] < 6000 + 600 + 451 && c.max[0] - 1 > 6000 - 600 - 451)
+			{
+				clear = false;
+				where += " box " + std::to_string((long long)b) + " x " + std::to_string((long long)c.min[0]) + ".." + std::to_string((long long)c.max[0]);
+			}
+
+			for (std::vector<int32_t> const &x : exits)
+			{
+				int32_t const p[3] = { x[0], x[1], x[2] };
+
+				pointsFree = pointsFree && !Holds(c, p);
+			}
+		}
+
+		Check(clear, "no closer on the doorway's wall within 1,051 of its middle (its exit box's 600 and 451 clear)" + where);
+
+		for (int32_t const edgeX : { 6000 - 600, 6000 + 600 })
+		{
+			Check(heldBy(plan, edgeX, alienY, alienZ, true).empty() && !heldBy(plan, edgeX, alienY, alienZ, false).empty(), "an alien on that wall centred at the exit box's edge (x " +
+				std::to_string(edgeX) + "): held by the exit box alone, never a closer too (" + heldBy(plan, edgeX, alienY, alienZ, false) + ")");
+		}
+		Check(pointsFree, "no closer holds an exit's point (the box the game finds a doorway's point in stays the exit box)");
+
+		// NEVER WORSE, as the wall band's: the planner's own boxes as they were and first, no closer overlapping a box, every centre in its own box only, every box reaching
+		// every other
+		bool sameFirst = without.list.size() <= plan.list.size(), overlapsNone = true, centresOwn = true;
+
+		for (size_t b = 0; b < without.list.size() && b < plan.list.size(); b++)
+		{
+			for (int k = 0; k < 3; k++)
+			{
+				sameFirst = sameFirst && plan.list[b].min[k] == without.list[b].min[k] && plan.list[b].max[k] == without.list[b].max[k];
+			}
+		}
+
+		for (size_t b = 0; b < plan.list.size(); b++)
+		{
+			for (size_t o = 0; o < plan.list.size(); o++)
+			{
+				host::WaypointRec const &p = plan.list[b], &q = plan.list[o];
+				bool const closerPair = (b < plan.volumeRoles.size() && plan.volumeRoles[b] == "closer") || (o < plan.volumeRoles.size() && plan.volumeRoles[o] == "closer");
+
+				if (o != b)
+				{
+					bool const overlap = closerPair && p.min[0] < q.max[0] - 1 && q.min[0] < p.max[0] - 1 && p.min[1] < q.max[1] - 1 && q.min[1] < p.max[1] - 1 &&
+						p.min[2] < q.max[2] - 1 && q.min[2] < p.max[2] - 1;
+
+					where += overlap && b < o ? " " + std::to_string((long long)b) + " overlaps " + std::to_string((long long)o) : std::string();
+					where += Holds(q, p.centre) ? " " + std::to_string((long long)b) + "'s centre in " + std::to_string((long long)o) : std::string();
+					overlapsNone = overlapsNone && !overlap;
+					centresOwn = centresOwn && !Holds(q, p.centre);
+				}
+			}
+
+			centresOwn = centresOwn && Holds(plan.list[b], plan.list[b].centre);
+		}
+
+		std::string boxes;
+
+		for (size_t b = 0; b < plan.list.size(); b++)
+		{
+			boxes += "; " + std::to_string((long long)b) + " " + (b < plan.volumeRoles.size() ? plan.volumeRoles[b] : std::string("?")) + " " + Said(plan.list[b]);
+		}
+
+		Check(sameFirst, "the planner's own boxes stay as they were, first in the list");
+		Check(overlapsNone && centresOwn, "no closer overlaps a box; every centre in its own box only:" + where + boxes);
+		Check(AllReach(plan.list), "every box still reaches every other" + boxes);
+
+		bool named = false;
+		std::string note;
+
+		for (std::string const &n : plan.notes)
+		{
+			named = named || (n.find("closers:") != std::string::npos && n.find("round its doorway") != std::string::npos);
+			note = n.find("closers:") != std::string::npos ? n : note;
+		}
+
+		Check(named, "the notes say the doorway side was closed round its doorway (" + note + ")");
+	}
+
 	printf("%d checks, %d failed\n", checks, checksFailed);
 
 	if (checksFailed != 0)

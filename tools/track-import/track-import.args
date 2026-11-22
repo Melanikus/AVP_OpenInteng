@@ -3,6 +3,7 @@
 /Isrc/host /Isrc/ui /Isrc/io /Isrc/model /Iavpx/3dc /Iavpx/3dc/video /Iavpx/3dc/avp /Iavpx/3dc/avp/support /Iavpx/3dc/avp/win95 /Iavpx/3dc/avp/win95/frontend /Iavpx/3dc/avp/win95/gadgets /Iavpx/3dc/include /Iavpx/3dc/win95 /Iavpx/win32 /Iavpx/tests/audio_stream_test_stubs
 tools/track-import/track-import.cpp
 tools/track-import/game_track_check.cpp
+tools/track-import/track_pool_budget.cpp
 src/host/shape_edit.cpp
 src/host/autolink_scene.cpp
 src/host/autolink_pass.cpp

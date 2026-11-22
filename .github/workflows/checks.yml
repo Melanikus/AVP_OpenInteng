@@ -25,13 +25,21 @@ on:
 permissions:
   contents: read
 
+# One run at a time for each pull request: a newer head cancels the run it replaces. A push to main, or a run started by hand, has a group of its
+# own (its commit), so it is never queued behind another or cancelled: GitHub cancels a waiting run in a shared group even when
+# cancel-in-progress is false.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   no-precompiled:
     name: No precompiled code, no scanner told to look away
     runs-on: ubuntu-24.04   # pinned, so a runner-image migration never changes the gate
     steps:
+      # The same pin AvPx uses
       - name: Check out the repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, the same pin AvPx uses
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 

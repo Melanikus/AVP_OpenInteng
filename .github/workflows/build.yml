@@ -30,6 +30,13 @@ on:
 permissions:
   contents: read
 
+# One run at a time for each pull request: a newer head cancels the run it replaces. A push to main, or a run started by hand, has a group of its
+# own (its commit), so it is never queued behind another or cancelled: GitHub cancels a waiting run in a shared group even when
+# cancel-in-progress is false.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   SNYK_CLI_VERSION: v1.1308.3
   SNYK_CLI_SHA256: 5f323f45885341ea1473639859271925912ece82a2f77bc146bb4468f9838840
@@ -133,9 +140,12 @@ jobs:
           submodules: true
 
       # A quarter of the unit tests, all but those that need the libraries vcpkg builds, which the build job runs once it has them
+      # The part's number comes in as a value the script reads, never as text written into the script
       - name: Build and run this part's unit tests
         shell: pwsh
-        run: ./tools/run-unit-tests.ps1 -OutFolder "$env:RUNNER_TEMP\tests" -Libraries without -Part ${{ matrix.part }} -Parts 4
+        env:
+          PART: ${{ matrix.part }}
+        run: ./tools/run-unit-tests.ps1 -OutFolder "$env:RUNNER_TEMP\tests" -Libraries without -Part $env:PART -Parts 4
 
   snyk-code:
     name: Snyk Code (SAST)
