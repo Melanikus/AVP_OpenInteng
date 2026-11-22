@@ -6,7 +6,8 @@
 // THE FILE IS HOSTILE INPUT. Only a regular file is read: not a folder, a link (a symbolic link or a junction), a device (NUL, CON, COM1, \\.\...), nor a file's own stream (name:stream).
 // It is opened once without following a link, judged on that handle, and read into memory from it, so what was judged is what is read (Media Foundation never opens the path itself).
 // Refused, with the reason in words for the status line: a file over kVideoImportMostBytes or empty, a length over kVideoImportMostSeconds, a picture wider or taller than
-// kVideoImportMostSide, and a name whose ending is not one of .mp4 .m4v .avi .wmv.
+// kVideoImportMostSide, and a name whose ending is not one of the list (VideoImport_EndingsWords: the owner's ruling 11-22, Media Foundation's common containers, the ONE
+// list the drop, Load > Browse..., mp4-to-smk and this read all take).
 //
 // This header has the parts that need no Media Foundation, each tested on its own (tests/host_video_import_test.cpp): the file's check and read, the stream's bounds, the letterbox,
 // the 15-a-second ticks, and the sound's 8 bits.
@@ -15,8 +16,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <functional>
 #include <string>
 #include <vector>
+
+#include <guiddef.h>
 
 namespace host
 {
@@ -46,7 +50,7 @@ namespace host
 		Done,
 		BadCall,
 		NotAFile,      // missing, a folder, a link, a device, a file's own stream, or a name that isn't a plain path
-		NotAVideoName, // its name doesn't end in .mp4, .m4v, .avi or .wmv
+		NotAVideoName, // its name doesn't end in one of the list (VideoImport_EndingsWords)
 		Empty,
 		TooBig,        // over the read's most bytes (kVideoImportMostBytes unless given)
 		CantRead,      // Windows wouldn't open or read it
@@ -56,11 +60,21 @@ namespace host
 		BadPicture,    // its picture can't be decoded to RGB
 		BadSound,      // its sound can't be decoded or resampled
 		NoMediaFoundation,
+		Stopped,       // the read's progress said stop (the Video mode's Cancel, or its leaving)
 	};
 
 	char const *VideoImport_Words(VideoImportResult result);
 
-	// The name's container, as Media Foundation is told it (a MIME type), or null when the ending is none of .mp4 .m4v .avi .wmv (capitals or not)
+	// THE ONE LIST of the endings taken (the owner's ruling 11-22, through Bishop 2: "widen the accepted video types to Windows Media Foundation's common ones"), in words:
+	// ".mp4, .m4v, .mov, .mkv, .webm, .avi, .wmv, .mpg, .mpeg, .vob, .ts, .m2ts, .3gp". Which ones decode depends on the codecs each Windows has (VideoImport_CodecWords)
+	char const *VideoImport_EndingsWords();
+
+	// What a stream Windows can't decode is, in words for the status line, with the Microsoft extension that adds its decoder where there is one (the owner's ruling
+	// 11-22: never a bare error code): "HEVC picture: Microsoft's HEVC Video Extension adds it"; one not known: "ABCD picture (Windows has no decoder for it)".
+	// subtype: the stream's own MF_MT_SUBTYPE; picture: a picture stream (else a sound stream)
+	std::string VideoImport_CodecWords(GUID const &subtype, bool picture);
+
+	// The name's container, as Media Foundation is told it (a MIME type), or null when the ending is none of the list (capitals or not)
 	wchar_t const *VideoImport_ContentType(std::wstring const &path);
 
 	// THE FILE: judged and read, all of it, into *bytes (see the top). *why says what was refused and why (for the status line).
@@ -71,17 +85,19 @@ namespace host
 	// mostSeconds: 1 to kVideoImportLongestSeconds (BadCall otherwise)
 	VideoImportResult VideoImport_CheckStream(uint32_t width, uint32_t height, int64_t length, std::string *why, int64_t mostSeconds = kVideoImportMostSeconds);
 
-	// A picture whose shape isn't 128 : 96 is either fitted whole (black bars) or cropped to fill (its edges cut): the owner's question, "[R]esize to fit or [C]rop to fill"
+	// A picture whose shape isn't 128 : 96 is either fitted whole (black bars) or cropped to fill (its edges cut): the owner's question, "[R]esize to fit or [C]rop to fill";
+	// or, in his Video mode (11-22, "let them fit/crop/expand"), expanded: the whole picture stretched over all of 128 x 96, its shape not kept
 	enum class VideoImportFit
 	{
 		Fit,
 		Crop,
+		Expand,
 	};
 
 	// THE LETTERBOX: one picture of width x height pixels, 4 bytes each (B, G, R, unused: Media Foundation's RGB32), the top row at top and each next row pitch bytes on (negative for a
 	// picture kept bottom row first), its pixels parWidth : parHeight in shape (1 : 1 square; 0 in either taken as 1 : 1), made into kVideoImportFrameBytes bytes at out (R, G, B, the top row
 	// first). Fit: the whole picture into 128 x 96 with its shape kept, centred, the rest black. Crop: the middle of the picture of 128 : 96's shape (VideoImport_CropWindow) over all of
-	// 128 x 96. Each pixel the average of the part of the picture it covers. False, out untouched, for a side of 0 or over kVideoImportMostSide, a pitch shorter than a row, or a pixel
+	// 128 x 96. Expand: the whole picture over all of 128 x 96. Each pixel the average of the part of the picture it covers. False, out untouched, for a side of 0 or over kVideoImportMostSide, a pitch shorter than a row, or a pixel
 	// shape past 1 : 16 or 16 : 1.
 	bool VideoImport_Letterbox(uint8_t const *top, uint32_t width, uint32_t height, int64_t pitch, uint32_t parWidth, uint32_t parHeight, VideoImportFit fit, uint8_t *out);
 
@@ -90,6 +106,15 @@ namespace host
 
 	// Crop's part of the picture, in its own pixels (left, top, width, height; parts of a pixel at its edges): the largest middle part of 128 : 96's shape as seen. False as above.
 	bool VideoImport_CropWindow(uint32_t width, uint32_t height, uint32_t parWidth, uint32_t parHeight, double window[4]);
+
+	// THE RECTANGLE (the owner's Video mode, 11-22: "drawn a rectangle over the video to show how it'll display down"): the part of the picture, in its own pixels (left, top, width,
+	// height), that becomes the 128 x 96 picture. Fit: the rectangle of 128 : 96's shape round the whole picture (its bars lie outside the picture: a negative left or top);
+	// Crop: VideoImport_CropWindow's; Expand: the whole picture. False as VideoImport_Letterbox's, or for no rect
+	bool VideoImport_SourceRect(uint32_t width, uint32_t height, uint32_t parWidth, uint32_t parHeight, VideoImportFit fit, double rect[4]);
+
+	// The same in words: "fit: all of 320 x 180 into 128 x 72, black bars above and below" (or "at the sides"; a picture of 128 : 96's shape "fills 128 x 96"),
+	// "crop: the middle 240 x 180 of 320 x 180 becomes 128 x 96", "expand: all of 320 x 180 stretched to 128 x 96" (sizes in whole pixels, rounded); "" when refused
+	std::string VideoImport_FitWords(uint32_t width, uint32_t height, uint32_t parWidth, uint32_t parHeight, VideoImportFit fit);
 
 	// Whether the picture is 128 : 96's shape already (Fit fills all of it), so there is nothing to ask
 	bool VideoImport_IsAvpShape(uint32_t width, uint32_t height, uint32_t parWidth, uint32_t parHeight);
@@ -142,8 +167,19 @@ namespace host
 	// The file's bytes decoded: its first picture stream to RGB, fitted or cropped, at 15 a second (VideoImport_TicksBefore); its first sound stream to 16-bit PCM, then Media
 	// Foundation's own Audio Resampler to 22050 Hz mono, then 8 bits; the sound's own start kept (silence before a late one). contentType as VideoImport_ContentType gives it. *why says
 	// what was refused and why.
+	// HOW FAR A READ IS (the owner's Video mode, 11-22: "while video loads you'll put a loading message with %"): told 0 .. 100 as the pictures come, by their time over
+	// the file's length (0 throughout when the file gives no length), never going back; it gives back false to stop the read (VideoImportResult::Stopped, the clip
+	// untouched). Called on the reading thread
+	typedef std::function<bool(int32_t percent)> VideoImportProgress;
+
 	VideoImportResult VideoImport_ReadBytes(std::vector<uint8_t> const &bytes, wchar_t const *contentType, VideoImportFit fit, VideoImportClip *clip, std::string *why,
-		int64_t mostSeconds = kVideoImportMostSeconds);
+		int64_t mostSeconds = kVideoImportMostSeconds, VideoImportProgress const &progress = VideoImportProgress());
+
+	// THE STILL (the owner's Video mode: the picture the rectangle is drawn over): the picture shown at the time asked (at, 100 ns from the start: the first picture at or after it), as
+	// it is seen (its pixels' shape counted), at most mostSide pixels a side (never made larger), R G B a pixel, the top row first, into *rgb (*width x *height). Refused:
+	// a size of 0, a time before the start, no place, or no picture at or after the time (past the end)
+	VideoImportResult VideoImport_Still(std::vector<uint8_t> const &bytes, wchar_t const *contentType, int64_t at, uint32_t mostSide, std::vector<uint8_t> *rgb, uint32_t *width,
+		uint32_t *height, std::string *why);
 
 	// VideoImport_ReadFile, then VideoImport_ReadBytes
 	VideoImportResult VideoImport_Read(std::wstring const &path, VideoImportFit fit, VideoImportClip *clip, std::string *why, int64_t mostSeconds = kVideoImportMostSeconds);

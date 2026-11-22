@@ -30,6 +30,7 @@
 #include <wrl/client.h>
 
 #include "video_import.h"
+#include "video_test_clip.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -48,217 +49,6 @@ static void Check(bool good, std::string const &what)
 }
 
 static std::wstring folderOfTest;
-
-// paints frame `index` into `pixels` (B, G, R, unused; the top row first; width x height)
-typedef std::function<void(uint32_t index, uint8_t *pixels)> Painter;
-
-static void Fill(uint8_t *pixels, uint32_t width, uint32_t fromRow, uint32_t toRow, uint8_t r, uint8_t g, uint8_t b)
-{
-	for (uint32_t y = fromRow; y < toRow; y++)
-	{
-		for (uint32_t x = 0; x < width; x++)
-		{
-			uint8_t *const p = pixels + ((size_t)y * width + x) * 4;
-
-			p[0] = b;
-			p[1] = g;
-			p[2] = r;
-			p[3] = 0;
-		}
-	}
-}
-
-// A video made with Media Foundation's sink writer (the container from the name's ending); false with the step that failed in *why
-static bool MakeVideo(std::wstring const &path, GUID const &videoFormat, uint32_t width, uint32_t height, uint32_t fps, uint32_t frames, bool tone, Painter const &paint, std::string *why)
-{
-	ComPtr<IMFSinkWriter> writer;
-	ComPtr<IMFMediaType> out, in;
-	DWORD video = 0, sound = 0;
-	HRESULT hr = MFCreateSinkWriterFromURL(path.c_str(), nullptr, nullptr, &writer);
-
-	auto step = [&](char const *name) {
-		if (FAILED(hr) && why->empty())
-		{
-			char words[16];
-
-			snprintf(words, sizeof(words), "0x%08lx", (unsigned long)hr);
-			*why = std::string(name) + " " + words;
-		}
-
-		return SUCCEEDED(hr);
-	};
-
-	if (!step("MFCreateSinkWriterFromURL"))
-	{
-		return false;
-	}
-
-	hr = MFCreateMediaType(&out);
-
-	if (SUCCEEDED(hr))
-	{
-		out->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
-		out->SetGUID(MF_MT_SUBTYPE, videoFormat);
-		out->SetUINT32(MF_MT_AVG_BITRATE, 2000000);
-		out->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
-		MFSetAttributeSize(out.Get(), MF_MT_FRAME_SIZE, width, height);
-		MFSetAttributeRatio(out.Get(), MF_MT_FRAME_RATE, fps, 1);
-		MFSetAttributeRatio(out.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
-		hr = writer->AddStream(out.Get(), &video);
-	}
-
-	if (!step("the picture's AddStream"))
-	{
-		return false;
-	}
-
-	hr = MFCreateMediaType(&in);
-
-	if (SUCCEEDED(hr))
-	{
-		in->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
-		in->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32);
-		in->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
-		in->SetUINT32(MF_MT_DEFAULT_STRIDE, width * 4);   // the top row first
-		MFSetAttributeSize(in.Get(), MF_MT_FRAME_SIZE, width, height);
-		MFSetAttributeRatio(in.Get(), MF_MT_FRAME_RATE, fps, 1);
-		MFSetAttributeRatio(in.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
-		hr = writer->SetInputMediaType(video, in.Get(), nullptr);
-	}
-
-	if (!step("the picture's SetInputMediaType"))
-	{
-		return false;
-	}
-
-	if (tone)
-	{
-		ComPtr<IMFMediaType> aac, pcm;
-
-		hr = MFCreateMediaType(&aac);
-
-		if (SUCCEEDED(hr))
-		{
-			aac->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-			aac->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_AAC);
-			aac->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
-			aac->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100);
-			aac->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 2);
-			aac->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 16000);
-			hr = writer->AddStream(aac.Get(), &sound);
-		}
-
-		if (SUCCEEDED(hr))
-		{
-			hr = MFCreateMediaType(&pcm);
-		}
-
-		if (SUCCEEDED(hr))
-		{
-			pcm->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-			pcm->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
-			pcm->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
-			pcm->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100);
-			pcm->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 2);
-			pcm->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 4);
-			pcm->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 44100 * 4);
-			hr = writer->SetInputMediaType(sound, pcm.Get(), nullptr);
-		}
-
-		if (!step("the sound's stream"))
-		{
-			return false;
-		}
-	}
-
-	hr = writer->BeginWriting();
-
-	if (!step("BeginWriting"))
-	{
-		return false;
-	}
-
-	LONGLONG const frameTime = 10000000LL / fps;
-
-	for (uint32_t i = 0; i < frames && SUCCEEDED(hr); i++)
-	{
-		ComPtr<IMFMediaBuffer> buffer;
-		ComPtr<IMFSample> sample;
-		BYTE *pixels = nullptr;
-
-		hr = MFCreateMemoryBuffer(width * height * 4, &buffer);
-
-		if (SUCCEEDED(hr) && SUCCEEDED(hr = buffer->Lock(&pixels, nullptr, nullptr)))
-		{
-			paint(i, pixels);
-			buffer->Unlock();
-			buffer->SetCurrentLength(width * height * 4);
-			hr = MFCreateSample(&sample);
-		}
-
-		if (SUCCEEDED(hr))
-		{
-			sample->AddBuffer(buffer.Get());
-			sample->SetSampleTime((LONGLONG)i * frameTime);
-			sample->SetSampleDuration(frameTime);
-			hr = writer->WriteSample(video, sample.Get());
-		}
-	}
-
-	if (!step("a picture's WriteSample"))
-	{
-		return false;
-	}
-
-	if (tone)
-	{
-		uint32_t const total = (uint32_t)((uint64_t)frames * 44100 / fps);
-		double const pi = 3.14159265358979323846;
-
-		for (uint32_t at = 0; at < total && SUCCEEDED(hr); at += 4410)
-		{
-			uint32_t const count = total - at < 4410 ? total - at : 4410;
-			ComPtr<IMFMediaBuffer> buffer;
-			ComPtr<IMFSample> sample;
-			BYTE *bytes = nullptr;
-
-			hr = MFCreateMemoryBuffer(count * 4, &buffer);
-
-			if (SUCCEEDED(hr) && SUCCEEDED(hr = buffer->Lock(&bytes, nullptr, nullptr)))
-			{
-				int16_t *const samples = reinterpret_cast<int16_t *>(bytes);
-
-				for (uint32_t i = 0; i < count; i++)
-				{
-					int16_t const value = (int16_t)(12000.0 * sin(2.0 * pi * 440.0 * (double)(at + i) / 44100.0));
-
-					samples[i * 2] = value;
-					samples[i * 2 + 1] = value;
-				}
-
-				buffer->Unlock();
-				buffer->SetCurrentLength(count * 4);
-				hr = MFCreateSample(&sample);
-			}
-
-			if (SUCCEEDED(hr))
-			{
-				sample->AddBuffer(buffer.Get());
-				sample->SetSampleTime((LONGLONG)at * 10000000LL / 44100);
-				sample->SetSampleDuration((LONGLONG)count * 10000000LL / 44100);
-				hr = writer->WriteSample(sound, sample.Get());
-			}
-		}
-
-		if (!step("a sound's WriteSample"))
-		{
-			return false;
-		}
-	}
-
-	hr = writer->Finalize();
-	return step("Finalize");
-}
 
 static bool ReadAll(std::wstring const &path, std::vector<uint8_t> *bytes)
 {
@@ -367,6 +157,60 @@ static void TestMp4(std::wstring const &path)
 	}
 }
 
+// THE OWNER'S VIDEO MODE (11-22): "while video loads you'll put a loading message with %", and the rectangle "drawn over the video": the read's progress, a read
+// stopped part way, and the source's own picture at a time
+static void TestProgressAndStill(std::wstring const &mp4)
+{
+	puts("The read's progress, and the still under the rectangle:");
+
+	std::vector<uint8_t> bytes;
+	std::string why;
+
+	Check(host::VideoImport_ReadFile(mp4, &bytes, &why) == host::VideoImportResult::Done, "the MP4's bytes are read (" + why + ")");
+
+	std::vector<int32_t> said;
+	host::VideoImportClip clip;
+	host::VideoImportResult const read = host::VideoImport_ReadBytes(bytes, L"video/mp4", host::VideoImportFit::Fit, &clip, &why, host::kVideoImportMostSeconds,
+		[&said](int32_t percent) { said.push_back(percent); return true; });
+	bool rising = !said.empty();
+
+	for (size_t i = 1; i < said.size(); i++)
+	{
+		rising = rising && said[i] >= said[i - 1];
+	}
+
+	Check(read == host::VideoImportResult::Done && clip.frameCount == 30, "a read told its progress still reads all 30 frames (" + why + ")");
+	Check(said.size() >= 3 && rising && said.front() >= 0 && said.back() <= 100 && said.back() >= 90, "it is told how far it is, " + std::to_string(said.size()) +
+		" times, never going back, from " + (said.empty() ? std::string("-") : std::to_string(said.front())) + " to " + (said.empty() ? std::string("-") : std::to_string(said.back())) + "%");
+
+	host::VideoImportClip stopped;
+	host::VideoImportResult const stop = host::VideoImport_ReadBytes(bytes, L"video/mp4", host::VideoImportFit::Fit, &stopped, &why, host::kVideoImportMostSeconds,
+		[](int32_t) { return false; });
+
+	Check(stop == host::VideoImportResult::Stopped && stopped.frameCount == 0 && stopped.frames.empty(), "a read its progress stops ends as Stopped, its clip untouched (" + why + ")");
+
+	std::vector<uint8_t> still;
+	uint32_t width = 0, height = 0;
+	host::VideoImportResult const red = host::VideoImport_Still(bytes, L"video/mp4", host::kVideoImportTimeUnitsPerSecond / 2, 512, &still, &width, &height, &why);
+
+	Check(red == host::VideoImportResult::Done && width == 320 && height == 180 && still.size() == (size_t)320 * 180 * 3, "the still at 0.5 s is the picture at its own size, 320 x 180 (" + why + ")");
+	Check(still.size() >= 3 && Near(&still[((size_t)90 * 320 + 160) * 3], 255, 0, 0, 40), "and it is the red first second");
+
+	host::VideoImportResult const blue = host::VideoImport_Still(bytes, L"video/mp4", host::kVideoImportTimeUnitsPerSecond * 3 / 2, 512, &still, &width, &height, &why);
+
+	Check(blue == host::VideoImportResult::Done && still.size() == (size_t)320 * 180 * 3 && Near(&still[((size_t)30 * 320 + 160) * 3], 0, 0, 255, 40) &&
+		Near(&still[((size_t)150 * 320 + 160) * 3], 0, 255, 0, 40), "the still at 1.5 s is blue above green, the top row first (" + why + ")");
+
+	host::VideoImportResult const smaller = host::VideoImport_Still(bytes, L"video/mp4", 0, 160, &still, &width, &height, &why);
+
+	Check(smaller == host::VideoImportResult::Done && width == 160 && height == 90 && still.size() == (size_t)160 * 90 * 3, "a still asked at most 160 a side is 160 x 90, its shape kept");
+	Check(host::VideoImport_Still(bytes, L"video/mp4", 0, 0, &still, &width, &height, &why) != host::VideoImportResult::Done &&
+		host::VideoImport_Still(bytes, L"video/mp4", -1, 512, &still, &width, &height, &why) != host::VideoImportResult::Done &&
+		host::VideoImport_Still(bytes, L"video/mp4", 0, 512, nullptr, &width, &height, &why) != host::VideoImportResult::Done, "a size of 0, a time before the start or no place: refused");
+	Check(host::VideoImport_Still(bytes, L"video/mp4", host::kVideoImportTimeUnitsPerSecond * 60, 512, &still, &width, &height, &why) != host::VideoImportResult::Done,
+		"a time past the video's end has no picture: refused (" + why + ")");
+}
+
 static void TestWmv(std::wstring const &path)
 {
 	puts("A WMV the test made (WMV 9, 160 x 160, 25 a second, 1 s, green, no sound):");
@@ -464,38 +308,74 @@ int main()
 	std::wstring const longOne = folderOfTest + L"\\long.mp4";
 	std::string why;
 
-	bool const madeMp4 = on && MakeVideo(mp4, MFVideoFormat_H264, 320, 180, 30, 60, true, [](uint32_t i, uint8_t *pixels) {
+	bool const madeMp4 = on && TestClip_Make(mp4, MFVideoFormat_H264, 320, 180, 30, 60, true, [](uint32_t i, uint8_t *pixels) {
 		if (i < 30)
 		{
-			Fill(pixels, 320, 0, 180, 255, 0, 0);
+			TestClip_Fill(pixels, 320, 0, 180, 255, 0, 0);
 		}
 		else
 		{
-			Fill(pixels, 320, 0, 90, 0, 0, 255);
-			Fill(pixels, 320, 90, 180, 0, 255, 0);
+			TestClip_Fill(pixels, 320, 0, 90, 0, 0, 255);
+			TestClip_Fill(pixels, 320, 90, 180, 0, 255, 0);
 		}
 	}, &why);
 
 	Check(madeMp4, "the test's MP4 is made (" + why + ")");
 	why.clear();
 
-	bool const madeWmv = on && MakeVideo(wmv, MFVideoFormat_WMV3, 160, 160, 25, 25, false, [](uint32_t, uint8_t *pixels) { Fill(pixels, 160, 0, 160, 0, 255, 0); }, &why);
+	bool const madeWmv = on && TestClip_Make(wmv, MFVideoFormat_WMV3, 160, 160, 25, 25, false, [](uint32_t, uint8_t *pixels) { TestClip_Fill(pixels, 160, 0, 160, 0, 255, 0); }, &why);
 
 	Check(madeWmv, "the test's WMV is made (" + why + ")");
 	why.clear();
 
-	bool const madeLong = on && MakeVideo(longOne, MFVideoFormat_H264, 64, 64, 5, 910, false, [](uint32_t, uint8_t *pixels) { Fill(pixels, 64, 0, 64, 128, 128, 128); }, &why);
+	bool const madeLong = on && TestClip_Make(longOne, MFVideoFormat_H264, 64, 64, 5, 910, false, [](uint32_t, uint8_t *pixels) { TestClip_Fill(pixels, 64, 0, 64, 128, 128, 128); }, &why);
 
 	Check(madeLong, "the test's 182-second MP4 is made (" + why + ")");
+
+	// THE OTHER CONTAINERS OF THE ONE LIST (the owner's ruling 11-22): each one Media Foundation's sink writer can make on this Windows is made (H.264 with an AAC tone,
+	// 1 s, 160 x 120) and read back below through the read's own content type; one it can't make is said, not failed (which ones a sink writer has differs between
+	// Windows builds; Matroska, WebM, QuickTime and MPEG program streams it never makes, and their decode depends on each user's codecs)
+	struct Other { wchar_t const *ending; char const *name; };
+	Other const others[] = { { L".m4v", ".m4v" }, { L".3gp", ".3gp" }, { L".mov", ".mov" }, { L".avi", ".avi" }, { L".ts", ".ts" }, { L".m2ts", ".m2ts" } };
+	std::vector<std::wstring> madeOthers;
+	std::vector<std::string> madeNames;
+
+	for (Other const &other : others)
+	{
+		std::wstring const made = folderOfTest + L"\\made" + other.ending;
+		std::string notMade;
+
+		if (on && TestClip_Make(made, MFVideoFormat_H264, 160, 120, 15, 15, true, [](uint32_t, uint8_t *pixels) { TestClip_Fill(pixels, 160, 0, 120, 0, 0, 255); }, &notMade))
+		{
+			madeOthers.push_back(made);
+			madeNames.push_back(other.name);
+		}
+		else
+		{
+			printf("  note  Media Foundation's sink writer makes no %s here (%s)\n", other.name, notMade.c_str());
+			DeleteFileW(made.c_str());
+		}
+	}
 
 	if (on)
 	{
 		MFShutdown();
 	}
 
+	for (size_t i = 0; i < madeOthers.size(); i++)
+	{
+		host::VideoImportClip clip;
+		std::string readWhy;
+		host::VideoImportResult const read = host::VideoImport_Read(madeOthers[i], host::VideoImportFit::Fit, &clip, &readWhy);
+
+		Check(read == host::VideoImportResult::Done && clip.frameCount >= 14 && clip.frameCount <= 16 && clip.sourceWidth == 160 && clip.sourceHeight == 120 && !clip.sound.empty(),
+			"a " + madeNames[i] + " made here reads back, as its content type in the one list says: " + std::to_string((long long)clip.frameCount) + " frames of 160 x 120, with sound (" + readWhy + ")");
+	}
+
 	if (madeMp4)
 	{
 		TestMp4(mp4);
+		TestProgressAndStill(mp4);
 	}
 
 	if (madeWmv)

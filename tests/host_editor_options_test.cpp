@@ -116,7 +116,13 @@ static void TestTheStart()
 
 	char data[16];
 	GetPrivateProfileStringA("Editor", "DataFolder", "none", data, sizeof(data), full);
-	Check(strcmp(data, "none") == 0, "it names no data folder: that is each mapper's own (the editor says so at its start)");
+	Check(strcmp(data, "none") == 0, "it names no data folder: in the game's Tools folder the editor takes the game's folder above it (game_folder.h), and "
+		"anywhere else the mapper adds their own (the editor says so at its start)");
+
+	// No Level= either (Bishop 2, 11-22): it is read only by a hidden test run (-picture); someone at the screen opens a level by giving it to the editor
+	char level[16];
+	GetPrivateProfileStringA("Editor", "Level", "none", level, sizeof(level), full);
+	Check(strcmp(level, "none") == 0, "and no Level=: only a hidden test run reads it");
 
 	// THE AUTO-PLOT SHIPS ON (the owner 11-21, "Ship AutoPlot=1 in the ini"): Waypoint's Alien auto waypoint menu shows only with AutoPlot=1 under [Editor], read at the
 	// editor's start exactly so (editor_main.cpp: GetPrivateProfileIntA("Editor", "AutoPlot", 0, ...) == 1; autoplot_switch.h). The gap closers stay off, opt-in:

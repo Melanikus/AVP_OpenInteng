@@ -29,9 +29,14 @@ inteng's quoted words stay Rebellion's. See `License.txt`.
 
 ## Its settings (AVP_OpenInteng.ini)
 
-The zip has an `AVP_OpenInteng.ini` beside the editor. Before the first start, add two lines under its `[Editor]`: `DataFolder=` (your
-game's folder or a copy of it, the one that holds `avp_rifs`; a plain Steam install works as it is) and `Level=` (the level to open
-when none is given, without `.rif`).
+The zip has an `AVP_OpenInteng.ini` beside the editor. Put the editor in your game's own `Tools` folder (`<the game>\Tools`, as inteng
+was) and there is nothing to set: it reads the game's files from the folder above it, the one that holds `avp_rifs`. A plain Steam
+install works as it is.
+
+- `DataFolder=` under `[Editor]` names that folder yourself: your game's folder or a copy of it, the one that holds `avp_rifs`. Add it
+  when the editor is anywhere else. A `DataFolder=` line always wins: one that can't be used stops the editor, saying why.
+- `Level=` is read only by hidden test runs (`-picture`), as the level they open. With you at the screen it is never read: see
+  "Opening a level file" below.
 
 - `StartWidth=` and `StartHeight=` are the size the window starts at, inside its frame: 1280 x 720 in the zip. They're kept to at least
   640 x 480 and at most your monitor.
@@ -44,9 +49,9 @@ when none is given, without `.rif`).
 
 ## Opening a level file with the editor ("Open with")
 
-The editor opens a level named on its command line: `AVP_OpenInteng.exe <file.rif>`. With none, it opens the one named by `Level=`
-in `AVP_OpenInteng.ini`. To open `.rif` files from Windows' own menus, set it up once by hand. **The editor never writes to the
-registry**: Windows keeps the choice itself.
+The editor opens a level named on its command line: `AVP_OpenInteng.exe <file.rif>`. Started with none, it does what inteng does: it
+says "Please load a rif file by double clicking on it", and Ok ends it. To open `.rif` files from Windows' own menus, set it up once by
+hand. **The editor never writes to the registry**: Windows keeps the choice itself.
 
 1. Right-click a `.rif` file and choose **Open with**, then **Choose another app**.
 2. Choose **More apps**, then **Look for another app on this PC**, and pick `AVP_OpenInteng.exe`.
@@ -54,7 +59,7 @@ registry**: Windows keeps the choice itself.
 
 What happens to the file:
 
-- It's copied into the editor's own data folder (`DataFolder=` in `AVP_OpenInteng.ini`), into its `avp_rifs\OpenedByEditor`, under its
+- It's copied into the editor's data folder (the game's folder above `Tools`, or `DataFolder=`), into its `avp_rifs\OpenedByEditor`, under its
   own name, and opened from there. Only the editor puts files in that folder. The file you picked is only read.
 - Only a regular `.rif` file of at most 16 MB is taken: not a folder, a link or a device.
 - Its name, without `.rif`, has to be one a game file could have: plain letters and digits, and `_ - . + & @` and spaces. Otherwise
@@ -71,7 +76,9 @@ editor, turns your own video into one in AvP's own format:
 mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source] [--max-seconds N] [--max-input-mb N]
 ```
 
-- **In:** `.mp4`, `.m4v`, `.avi` or `.wmv`, read by Windows' own Media Foundation. By default at most 256 MB and 180 seconds, and 4096 pixels a side;
+- **In:** `.mp4`, `.m4v`, `.mov`, `.mkv`, `.webm`, `.avi`, `.wmv`, `.mpg`, `.mpeg`, `.vob`, `.ts`, `.m2ts` or `.3gp`, read by Windows' own Media Foundation. Whether a
+  video decodes depends on the codecs your Windows has: one it can't decode is named in words, with the Microsoft extension that adds it
+  (for example "HEVC picture: Microsoft's HEVC Video Extension adds it"). By default at most 256 MB and 180 seconds, and 4096 pixels a side;
   `--max-input-mb` (up to 2048) and `--max-seconds` (up to 600) take more. A video too big for the program's memory is refused in words.
 - **Out, always:** 128 x 96 at 15 frames a second, sound at 22,050 Hz, 8-bit, mono: the format of AvP's own message videos.
 - **A video that isn't 4:3:** it asks whether to resize it to fit (the whole picture, with black bars) or crop it to fill (the edges
@@ -95,8 +102,8 @@ the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` i
   numbers: 417 to 450 and the other numbers no stock level uses.
 - A monitor shows nothing when a video named after its own picture exists in `FMVs\`, and no video plays while a cheat is on.
 
-**The encoder** is libsmackerenc, made from Barry Duncan's libsmackerdec (LGPL 2.1), and it is linked into `mp4-to-smk.exe`: there is
-no DLL beside it, and none is loaded. The editor's FMV preview has Barry's decoder, libsmackerdec (LGPL 2.1), linked into it the same
+**The encoder** is libsmackerenc, made from Barry Duncan's libsmackerdec (LGPL 2.1), and it is linked into `mp4-to-smk.exe` and into the
+editor itself (its Video mode makes films with the same library): there is no DLL beside either, and none is loaded. The editor's FMV preview has Barry's decoder, libsmackerdec (LGPL 2.1), linked into it the same
 way. Each library's licence is in the zip's `licences` folder, and `licences/README.txt` links its whole source, at the very commit the
 release was built from (the sources are not in the zip, so each release scans fewer files on VirusTotal). To use your own
 build of either, as the LGPL allows, build the program again from this project's source with yours in its place

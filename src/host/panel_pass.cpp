@@ -33,9 +33,11 @@ namespace
 	texID_t menuFontLetters[host::kMenuFontLetters];
 
 	// A line in inteng's menu font: each letter 0 to 127 its texture, unfiltered, solid in the colour (TRANSLUCENCY_NORMAL with the texture's 0 / 255 alpha), the next letter its width on
-	void DrawMenuFontLine(const std::string &text, int32_t x, int32_t y, uint32_t colour)
+	// line. scale (PaintText::scale, 1 or 2): each font pixel a block of that size on top of the text scale (the auto-plot's start message's 2x, the owner's pick 11-22)
+	void DrawMenuFontLine(const std::string &text, int32_t x, int32_t y, uint32_t colour, int32_t scale = 1)
 	{
 		int64_t at = x;
+		int32_t const times = scale >= 1 && scale <= 4 ? scale : 1;
 
 		for (size_t i = 0; i < text.size() && i < host::kPaintMostLetters; i++)
 		{
@@ -49,14 +51,14 @@ namespace
 			// the letter's cell in the window's pixels (text_scale.h): inteng's own at 1.0; at another scale each of its pixels a block of that size, the cell's edges rounded so the
 			// letters meet as they did
 			int32_t cellX = 0, cellY = 0, cellWidth = 0, cellHeight = 0;
-			host::TextScale_BoxToWindow((int32_t)(at < 16384 ? at : 16384), y, menuFontCell, menuFontHeight, &cellX, &cellY, &cellWidth, &cellHeight);
+			host::TextScale_BoxToWindow((int32_t)(at < 16384 ? at : 16384), y, menuFontCell * times, menuFontHeight * times, &cellX, &cellY, &cellWidth, &cellHeight);
 
 			if (at >= 0 && at < 16384 && cellX < 16384)
 			{
 				DrawQuadSharp((uint32_t)cellX, (uint32_t)cellY, (uint32_t)cellWidth, (uint32_t)cellHeight, menuFontLetters[letter], colour, TRANSLUCENCY_NORMAL);
 			}
 
-			at += menuFontWidths[letter];
+			at += menuFontWidths[letter] * times;
 		}
 	}
 
@@ -124,7 +126,7 @@ namespace
 			// sub-menu's mark), any other line is made safe first
 			if (menuFontSet)
 			{
-				DrawMenuFontLine(line.menuFont ? line.text : host::PanelPaint_SafeText(line.text), line.x, line.y, line.colour);
+				DrawMenuFontLine(line.menuFont ? line.text : host::PanelPaint_SafeText(line.text), line.x, line.y, line.colour, line.scale);
 				continue;
 			}
 

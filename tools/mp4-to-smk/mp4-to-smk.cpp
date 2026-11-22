@@ -1,10 +1,13 @@
 // mp4-to-smk.cpp: the owner's proof of concept (11-18: "a command line tool, resizes to default AVP video and audio, ask if resize or crop to fit aspect ratio, keep it simple"):
-// a user's own MP4 / M4V / AVI / WMV made into an AvP message video (.smk): 128 x 96, 15 frames a second, sound at 22050 Hz 8-bit mono. Written 2026-11-18 by Melanikus (Vasquez)
+// a user's own video made into an AvP message video (.smk): 128 x 96, 15 frames a second, sound at 22050 Hz 8-bit mono. Its containers: video_import.h's ONE list
+// (the owner's ruling 11-22: Media Foundation's common ones, .mp4 .m4v .mov .mkv .webm .avi .wmv .mpg .mpeg .vob .ts .m2ts .3gp; which decode depends on each Windows'
+// codecs, and one it can't decode is named in words). Written 2026-11-18 by Melanikus (Vasquez)
 // for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 //   mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source] [--max-input-mb N] [--max-seconds N] [--dump <new folder>] [--encoder-sha256 HEX]
 //
-// The video is read by src/host/video_import (Windows' own Media Foundation; the file is hostile input, its checks are there). A picture that isn't 4:3 makes the tool ASK: "[R]esize to
+// The video is read by src/host/video_import (Windows' own Media Foundation; the file is hostile input, its checks are there), and its sound levelled by
+// src/host/video_make, the same library the editor's Video mode links (videomake_static.vcxproj), so the two never make a film differently. A picture that isn't 4:3 makes the tool ASK: "[R]esize to
 // fit (whole picture, black bars) or [C]rop to fill (edges cut)?"; --fit or --crop answers before it is asked. The sound is brought to AvP's own message videos' level (--level). The
 // frames and sound go to Frost's Smacker encoder, libsmackerenc.dll (LGPL, Barry Duncan's libsmackerdec turned round), which must be beside this program: it is loaded from this
 // program's own folder only, never from the current folder or PATH, and only the very file this build ships (its SHA-256 pinned at the build, dll_load.h / dll_pins.h), unless
@@ -35,13 +38,10 @@
 #endif
 #include "smk_encoder.h"
 #include "video_import.h"
+#include "video_make.h"
 
 namespace
 {
-
-	// The sound's loudness by default (the owner, 11-18: "the same level of the game's videos"): AvP's own message videos' median RMS, in 8-bit steps. Measured 11-18 by Dietrich over
-	// all 53 stock FMVs\message*.smk, decoded by Barry's libsmackerdec (AvP-docs\tools\dietrich\smk-levels): median 22.18 (-15.2 dBFS), lowest 16.47, highest 53.95; message101 21.97.
-	double const kStockLevel = 22.18;
 
 	int const kExitDone = 0;
 	int const kExitRefused = 1;
@@ -75,7 +75,7 @@ namespace
 #else
 		puts("usage: mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source] [--max-input-mb N] [--max-seconds N] [--dump DIR] [--encoder-sha256 HEX]");
 #endif
-		puts("  makes an AvP message video: 128 x 96, 15 fps, sound 22050 Hz 8-bit mono (.mp4 .m4v .avi .wmv in)");
+		printf("  makes an AvP message video: 128 x 96, 15 fps, sound 22050 Hz 8-bit mono (%s in)\n", host::VideoImport_EndingsWords());
 		puts("  --fit        a picture that isn't 4:3 is resized whole, with black bars (no question)");
 		puts("  --crop       a picture that isn't 4:3 is cropped to fill, its edges cut (no question)");
 		puts("  --overwrite  an output that exists is replaced");
@@ -85,7 +85,7 @@ namespace
 #if !defined(SMK_ENCODER_BUILT_IN)
 		puts("  --encoder-sha256 HEX  uses your own build of libsmackerenc.dll (beside this program), whose SHA-256 is HEX; otherwise only the one shipped with it loads");
 #endif
-		printf("  --level N    the sound's loudness, RMS in 8-bit steps (1 to 128; default %.1f, AvP's own message videos'); --level source keeps the source's\n", kStockLevel);
+		printf("  --level N    the sound's loudness, RMS in 8-bit steps (1 to 128; default %.1f, AvP's own message videos'); --level source keeps the source's\n", host::kVideoMakeStockLevel);
 	}
 
 	int Refused(std::string const &words)
@@ -267,7 +267,7 @@ static int Run(int argc, wchar_t **argv)
 #endif
 	uint64_t mostBytes = host::kVideoImportMostBytes;      // the biggest file taken (--max-input-mb; a safety bound, raised only when asked)
 	int64_t mostSeconds = host::kVideoImportMostSeconds;   // the longest video taken (--max-seconds; a safety bound, raised only when asked)
-	double level = kStockLevel;
+	double level = host::kVideoMakeStockLevel;
 
 	for (int i = 1; i < argc; i++)
 	{
@@ -446,23 +446,14 @@ static int Run(int argc, wchar_t **argv)
 	bytes.clear();
 	bytes.shrink_to_fit();
 
-	// the sound's level: brought to the target loudness, its loudest sample kept inside 8 bits (the 16-bit sound scaled, then its 8 bits)
+	// the sound's level: brought to the target loudness, its loudest sample kept inside 8 bits (the 16-bit sound scaled, then its 8 bits), or the source's own (level 0):
+	// video_make's, the editor's Video mode's own (with no volume asked here)
 	if (!clip.sound16.empty())
 	{
-		double const before = host::VideoImport_Loudness8(clip.sound);
+		std::string levelWords;
 
-		if (level > 0.0)
-		{
-			double const gain = host::VideoImport_LevelGain(clip.sound16.data(), clip.sound16.size(), level);
-
-			clip.sound.clear();
-			host::VideoImport_SoundTo8Gained(clip.sound16.data(), clip.sound16.size(), gain, &clip.sound);
-			printf("mp4-to-smk: sound level %.1f -> %.1f of 128 (RMS in 8-bit steps; target %.1f, gain x%.2f, held so nothing clips)\n", before, host::VideoImport_Loudness8(clip.sound), level, gain);
-		}
-		else
-		{
-			printf("mp4-to-smk: sound level %.1f of 128 (RMS in 8-bit steps), the source's own\n", before);
-		}
+		host::VideoMake_Level(&clip, level, 0.0, &levelWords);
+		printf("mp4-to-smk: %s\n", levelWords.c_str());
 	}
 
 	double const seconds = (double)clip.frameCount / host::kVideoImportFramesPerSecond;

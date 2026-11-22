@@ -12,6 +12,8 @@
 #   - The one compiler: every project imports AvPx's msvc-pin.props in its place, and every Windows job installs that MSVC before it builds
 #     (tools/check-msvc-pin.js, its refusals tested by tools/check-msvc-pin-test.js). alpha.3 shipped what a newer runner compiler made, never
 #     what had been scanned. (Added 2026-11-22 by Melanikus (Frost), Bishop's order.)
+#     The AvPx pin job also runs the test of the release's gate on the pin's library scan (tools/sca-gate-test.ps1). (Added 2026-11-22
+#     by Melanikus (Vasquez), Bishop 2's order.)
 # A check that can't run (GitHub's API down, say) fails, and nothing merges. TAKING-OVER.md says what to do if a tool is gone.
 # The build, tests, take-out rows, Snyk, same-flags and coding-standard gates come with the editor's first code (the phase 2 plan, F1-F2).
 # Written 2026-11-14 by Melanikus for AVP_OpenInteng.
@@ -62,9 +64,17 @@ jobs:
           # The same words AvPx's gate refuses (its snyk.yml), outside the workflows that name them.
           found=$(git grep -n -i -E 'deepcode ignore|snyk:ignore|lgtm\[|codeql\[|NOSONAR|nolint' -- . ':!.github' || true)
           files=$(git ls-files | grep -E '(^|/)\.(snyk|dcignore)$' || true)
-          if [ -n "$found$files" ]; then
+          # PSScriptAnalyzer's own ways to look away (Bishop 2's ruling, 2026-11-22, with the PowerShell scan): its SuppressMessage attribute,
+          # written with the attribute's whole name or its short one, a rule left out by name (the settings key Exclude[R]ules), and a
+          # PSScriptAnalyzerSettings.psd1, which PSScriptAnalyzer can pick up by itself from the folder it scans. Read in .github too, as
+          # workflows hold PowerShell of their own; the [M] and [R] keep these lines from naming themselves.
+          psfound=$(git grep -n -i -E 'Suppress[M]essage(Attribute)?[[:space:]]*\(|Exclude[R]ules?' -- . || true)
+          psfiles=$(git ls-files | grep -i -E '(^|/)PSScriptAnalyzerSettings\.psd1$' || true)
+          if [ -n "$found$files$psfound$psfiles" ]; then
             echo "$found"
             echo "$files"
+            echo "$psfound"
+            echo "$psfiles"
             echo "::error::Something in the repository suppresses a scanner"
             exit 1
           fi
@@ -131,6 +141,12 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: bash tools/check-pin.sh
+
+      # The release's gate on AvPx's library scan of this pin (tools/sca-gate.ps1, release.yml's jobs sca and publish): its own test, on every
+      # pull request, so a gate that went wrong is caught here and not on release day. It asks GitHub nothing and has no token in reach.
+      - name: The release's gate on the pin's library scan refuses every run that does not prove it
+        shell: pwsh
+        run: ./tools/sca-gate-test.ps1
 
   inteng-menus:
     name: inteng's menus are what their two files make

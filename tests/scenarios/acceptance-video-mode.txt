@@ -1,0 +1,147 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-22, alpha.5 ITEM 2, THE OWNER'S VIDEO MODE, his words: "let's add a new mode for video, it only has load and mode exit and
+# displays a black screen 'Drag and drop .mp4 or use Load -> Browse', while video loads you'll put a loading message with % let them fit/crop/expand, cut start and ending,
+# turn volume up and down, drawn a rectangle over the video to show how it'll display down (the '128p' aspect ratio)"; and "Don't put it directly on strategy mode").
+# Mode > Video opens a black screen with his words (the types widened by his ruling 11-22: Media Foundation's common ones). A video dropped anywhere on the window is read
+# with mp4-to-smk's own reader and limits, with a big "Loading N%"; on-screen controls fit, crop or expand it, cut its start and end, and turn its volume; a rectangle over
+# the source's picture shows the part that becomes the game's 128 x 96; Preview plays what the game would (the film made, then played by Barry's decoder); Save writes
+# FMVs\message<N>.smk for a number from the free list, with mp4-to-smk's own encoder (one library both link), and touches no level. Strategy's Message window, unchanged,
+# then lists and plays it.
+# HIS PATH: his own Genshd1 and Message 47 on message13 (as acceptance-strategy-message-fmv-play), his FMVs and two hostile ones in the run's own {datadir}\FMVs
+# (message-fmv\make-fmvs.cmd), and a 6 s test clip made fresh by the run with Windows' own Media Foundation (verify_videomake make: the repository holds no video): 320 x 180,
+# not 4:3, red then blue above green, with a 440 Hz tone. The dropped paths are hostile: a level file and two files at once are refused in words (the path rules' unit test,
+# host_video_drop_test, tries every other: other computers, devices, streams).
+# RED on the build before it (bishop-int cca02724): the Mode menu has no Video.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+make-level cmd /c {scenariodir}message-fmv\make-fmvs.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/clip.mp4 6 --again
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+
+# ---- Mode > Video: a black screen with his words; its menus are only Load and Mode
+click-bar Mode > Video
+wait 400
+expect-screen Video
+expect-field-has bar1 Load
+expect-field-has bar1 Mode
+expect-field-not-has bar1 File
+expect-field-has videostate empty
+expect-field-has videowords Drag and drop a video (.mp4, .mkv, .mov, ...) or use Load -> Browse
+picture 1
+expect-colour panels 300 300 40 40 000000 0.95 8
+
+# ---- hostile drops: a level file, and two files at once; nothing is taken
+drop-file {datadir}/avp_rifs/Genshd1.rif
+wait 300
+expect-status Not taken: Genshd1.rif is not a video the editor takes
+expect-field-has videostate empty
+drop-file {datadir}/clip.mp4 {datadir}/clip.mp4
+wait 300
+expect-status Not taken: one video at a time (2 files were dropped)
+expect-field-has videostate empty
+
+# ---- the clip, dropped: Loading N% is drawn while it is read, then the source's picture with the 128 x 96 rectangle over it
+drop-file {datadir}/clip.mp4
+wait-field videostate loadedclips 1 20000
+expect-number videostate loadingframes 1 100000
+expect-field-has videostate clip.mp4: 320 x 180, 6.0 s, with sound
+expect-status clip.mp4: 320 x 180, 6.0 s, with sound
+# not 4:3, so it opens on Fit: the whole picture into 128 x 72 of 128 x 96, black bars above and below
+expect-field-has videofit fit: all of 320 x 180 into 128 x 72, black bars above and below
+expect-field-has videocontrols Fit
+expect-field-has videocontrols Crop
+expect-field-has videocontrols Expand
+expect-field-has videocontrols Save
+picture 2
+
+# ---- Crop: the rectangle becomes the middle 240 x 180 of the picture; Expand: all of it, stretched
+click-video Crop
+wait 300
+expect-field-has videofit crop: the middle 240 x 180 of 320 x 180 becomes 128 x 96
+picture 3
+expect-pixels-changed-since 2 panels 100 100 600 300 0.002
+click-video Expand
+wait 300
+expect-field-has videofit expand: all of 320 x 180 stretched to 128 x 96
+click-video Crop
+wait 300
+expect-field-has videofit crop: the middle 240 x 180
+
+# ---- cut the start and the end: 1.0 s to 4.0 s, 3.0 s, 45 frames (steps of half a second)
+click-video Start+
+click-video Start+
+click-video End-
+click-video End-
+click-video End-
+click-video End-
+wait 300
+expect-field-has videostate from 1.0 s to 4.0 s: 3.0 s, 45 frames
+
+# ---- the volume: two steps up from AvP's level, then one down
+click-video Volume+
+click-video Volume+
+click-video Volume-
+wait 300
+expect-field-has videostate volume AvP's level +3 dB
+
+# ---- Preview: what the game would play (the film made in a scratch place, played by Barry's decoder)
+click-video Preview
+wait-status 60000 Previewing
+expect-field-has fmvpreview frame
+picture 4
+
+# ---- Save: the number from the free list (417 is free), FMVs\message417.smk, read back as the game finds it
+click-video Save
+wait 300
+expect-dialog-kind form
+click-combo 1
+click-combo-row 417: free
+click-button Ok
+wait-status 60000 Saved FMVs\message417.smk
+expect-status SMK2 128 x 96, 45 frames at 15 fps (3 s), 22050 Hz 8-bit mono
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verifiers-videomake/verify_videomake.exe check {datadir}/FMVs/message417.smk 128 96 15 45
+
+# ---- never over a film without a Yes: No keeps the one there
+click-video End+
+wait 300
+click-video Save
+wait 300
+click-combo 1
+click-combo-row 417: free
+click-button Ok
+wait 300
+expect-dialog-kind confirm
+expect-dialog FMVs\message417.smk is there already: replace it with this video?
+click-button No
+wait 300
+expect-status Not saved: FMVs\message417.smk kept as it was
+verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verifiers-videomake/verify_videomake.exe check {datadir}/FMVs/message417.smk 128 96 15 45
+
+# ---- Mode > Exit, and Strategy's Message window, as it was, lists and plays the saved film
+click-bar Mode > Exit
+wait 400
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is message13
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+click-box 300 40
+expect-dialog-kind form
+form-field 1 417
+click-button Play
+wait 600
+expect-field-has fmvpreview message417.smk frame
+picture 5
+click-button Cancel
+wait 300
+key Esc
+wait 400

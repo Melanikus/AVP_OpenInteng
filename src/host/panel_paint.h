@@ -51,6 +51,9 @@ namespace host
 		bool menuFont = false;           // a menu's line: its letters 0 to 127 as they are (glyph 1 a tick, 2 a sub-menu's mark); any other line is made safe first. Every line is drawn in inteng's font once it was read (panel_pass.h PanelPass_SetMenuFont; view-state-table.md H-1i), solid in the colour
 		bool overlay = false;            // drawn after every box and line of the screen itself (the bar, its drop-downs, the pop-up, a dialog: see PaintBox)
 		bool top = false;                // drawn after the overlay's words too: a dialog's open drop-down list (see PaintBox)
+		int32_t scale = 1;               // each of inteng's font pixels drawn as a block this many times its size, on top of the text scale: 1 for every line but the
+		                                 // auto-plot's start message (2: the owner's pick 11-22, "big letters on a black box"). The game's small font, used only when
+		                                 // inteng's isn't found, has one size and takes no scale
 	};
 
 	// A plain box of one colour on the panels, such as an open menu's background: its top left and size in the window's pixels, and its

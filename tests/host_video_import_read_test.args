@@ -2,5 +2,6 @@
 /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE /D_WIN32_WINNT=0x0602 /DUNICODE /D_UNICODE
 /Isrc/host
 tests/host_video_import_read_test.cpp
+tests/video_test_clip.cpp
 src/host/video_import.cpp
 /link mfplat.lib mfreadwrite.lib mfuuid.lib ole32.lib wmcodecdspuuid.lib
