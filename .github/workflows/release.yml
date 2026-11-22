@@ -379,9 +379,11 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # VirusTotal runs about 70 virus scanners on a file. The zip, and every file inside it on its own (2026-11-21: a scanner flagged
-  # libsmackerenc.dll only when it was sent alone; and Dietrich's review: not only the programs), are each analysed in this run: sent if VirusTotal doesn't know the file, and analysed
-  # again if it does, so no verdict older than the run counts. What comes back is from outside our code, so AvPx's tools/check-virustotal.ps1 (at the pinned commit) reads every
+  # VirusTotal runs about 70 virus scanners on a file. The zip, and every PROGRAM inside it on its own (2026-11-21: a scanner flagged
+  # libsmackerenc.dll only when it was sent alone; the owner's ruling for alpha.5, 2026-11-22, "can we not scan the txts on virus total... just the
+  # binaries?", his written rule: zero findings on the zip and on every program inside it), are each analysed in this run: sent if VirusTotal doesn't
+  # know the file, and analysed again if it does, so no verdict older than the run counts. A program is told by its first bytes ("MZ"), never by its
+  # name (tools/vt-programs.ps1); every other file is covered by the zip's own scan. What comes back is from outside our code, so AvPx's tools/check-virustotal.ps1 (at the pinned commit) reads every
   # answer before anything here believes it (Tao 3). The owner's ruling, 2026-11-08: if any scanner flags it, the draft is still made, its
   # text starts by saying so, and the run ends red. The key is in the release environment, and only this job reads it; it can write nothing.
   scan:
@@ -411,6 +413,12 @@ jobs:
         with:
           name: release-package
           path: release
+
+      # Which files go to VirusTotal alone is decided by tools/vt-programs.ps1 (by their first bytes, never their names); its own test, on a
+      # package of its own, runs here first, with no key in reach, so a pick that went wrong stops the run before anything is sent
+      - name: Check the pick of the programs that are sent alone
+        shell: pwsh
+        run: ./tools/vt-programs-test.ps1
 
       # The key reaches only this step, and is taken out of its environment before anything starts. This step starts one program only,
       # the checker, and the key is only ever sent in the x-apikey header to www.virustotal.com. A redirect isn't followed.
@@ -546,25 +554,32 @@ jobs:
             return $done
           }
 
-          # The zip, then every file inside it, each on its own: a scanner can flag a file sent alone that it passed inside the zip, and a
-          # file that isn't a program (an archive, a source, a text) is sent too. -Force takes the files whose names start with a dot, which
-          # the Linux runner would leave out. A package with no program in it isn't the one the build makes. A name is printed only as
-          # letters, digits and . _ - /
+          # The zip, then every PROGRAM inside it, each on its own: a scanner can flag a program sent alone that it passed inside the zip. A
+          # program is a file whose first two bytes are "MZ", read from the file and never from its name, so one renamed readme.txt is still sent
+          # alone (Tao 3); every other file (the licences, the notes, the settings, the sums) is covered by the zip's own scan (the owner's ruling for
+          # alpha.5: zero findings on the zip and on every program inside it). Get-VtSendPlan (tools/vt-programs.ps1, its test in the step before
+          # this one) takes the files whose names start with a dot too, which the Linux runner would leave out, and names each only with letters,
+          # digits and . _ - /. A package with no program in it isn't the one the build makes. One line says which files went alone and which the
+          # zip covers, for the owner to see.
+          . ./tools/vt-programs.ps1
           $started = [ordered]@{}
           $started[$sha] = Send-One $zip $sha 'the zip'
           $inside = Join-Path $env:RUNNER_TEMP 'package-files'
           Expand-Archive -LiteralPath $zip -DestinationPath $inside
-          $files = @(Get-ChildItem -LiteralPath $inside -Recurse -File -Force | Sort-Object FullName)
-          if (@($files | Where-Object { $_.Extension -ieq '.exe' }).Count -eq 0) { throw 'The zip has no .exe in it, so it is not the package the build makes' }
+          $plan = Get-VtSendPlan $inside
+          if (@($plan | Where-Object { [System.IO.Path]::GetExtension($_.Path) -ieq '.exe' }).Count -eq 0) { throw 'The zip has no .exe in it, so it is not the package the build makes' }
+          $programs = @($plan | Where-Object { $_.Alone })
+          if ($programs.Count -eq 0) { throw 'No file in the zip starts as a program does, so it is not the package the build makes' }
+          $coveredByZip = @($plan | Where-Object { -not $_.Alone })
+          "Sent alone, as programs (their first bytes are MZ): $(@($programs | ForEach-Object { $_.Shown }) -join ', '). Covered by the zip's own scan only: $(if ($coveredByZip.Count) { @($coveredByZip | ForEach-Object { $_.Shown }) -join ', ' } else { 'none' })."
           $sent = @()
-          foreach ($file in $files)
+          foreach ($file in $programs)
           {
-            $shown = ($file.FullName.Substring($inside.Length + 1) -replace '\\', '/') -replace '[^A-Za-z0-9._/-]', '_'
-            $fileSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
-            $sent += ,@($shown, $fileSha)
-            if (-not $started.Contains($fileSha)) { $started[$fileSha] = Send-One $file.FullName $fileSha $shown }
+            $fileSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.Path).Hash.ToLowerInvariant()
+            $sent += ,@($file.Shown, $fileSha)
+            if (-not $started.Contains($fileSha)) { $started[$fileSha] = Send-One $file.Path $fileSha $file.Shown }
           }
-          "Analyses started: $($started.Count) (the zip, and $($started.Count - 1) different files of the $($files.Count) in it). Waiting for them all."
+          "Analyses started: $($started.Count) (the zip, and $($started.Count - 1) different programs of the $($plan.Count) files in it). Waiting for them all."
           $counted = Wait-All $started
 
           $noMark = New-Object System.Text.UTF8Encoding $false
@@ -578,12 +593,12 @@ jobs:
             "$($s[0]): $($c[0]) malicious, $($c[1]) suspicious, of $($c[2]) scanners (sha256 $($s[1]))"
             if ($c[0] + $c[1] -gt 0) { $flaggedFiles++ }
           }
-          [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "files=$($files.Count)`nfiles_flagged=$flaggedFiles`n", $noMark)
+          [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "files=$($plan.Count)`nfiles_flagged=$flaggedFiles`n", $noMark)
 
-          # The owner, 2026-11-21: a release ships only at zero findings, on the zip and on every file in it. One file flagged stops the run
-          # here, before anything is attested or drafted.
-          if ($flaggedFiles -gt 0) { throw "VirusTotal flagged $flaggedFiles of the $($files.Count) files in the package, so no draft is made: a release ships only at zero findings" }
-          "VirusTotal: none of the $($files.Count) files in the package was flagged"
+          # The owner, 2026-11-21: a release ships only at zero findings, on the zip and on every program in it. One program flagged stops the
+          # run here, before anything is attested or drafted (the zip's own count is checked again by the draft's job).
+          if ($flaggedFiles -gt 0) { throw "VirusTotal flagged $flaggedFiles of the $($programs.Count) programs in the package, so no draft is made: a release ships only at zero findings" }
+          "VirusTotal: none of the $($programs.Count) programs in the package was flagged (the zip covers its other $($coveredByZip.Count) files)"
 
   publish:
     name: Make the draft release

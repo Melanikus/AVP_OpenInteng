@@ -82,7 +82,8 @@ mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--leve
 
 **Putting it in the game:**
 
-1. Convert it: `mp4-to-smk.exe myvideo.mp4 message900.smk` (the name is `message` and the Message strategy's number).
+1. Convert it: `mp4-to-smk.exe myvideo.mp4 message417.smk` (the name is `message` and the Message strategy's number, 1 to 450: the
+   editor refuses a higher one).
 2. Copy the `.smk` into the `FMVs` folder of your game's folder, beside AvP's own `message*.smk` files.
 3. In the level, the Message strategy with that number plays it when it fires. The editor's Message view lists the videos it finds.
 
@@ -90,7 +91,8 @@ mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--leve
 the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` in its name, and it shows those message videos.
 
 - For your own level, give its Message a number no stock level uses, and name your file after it. Replacing a stock
-  `messageNNN.smk` changes that stock level too.
+  `messageNNN.smk` changes that stock level too. The release notes (https://github.com/Melanikus/AVP_OpenInteng/releases) list the free
+  numbers: 417 to 450 and the other numbers no stock level uses.
 - A monitor shows nothing when a video named after its own picture exists in `FMVs\`, and no video plays while a cheat is on.
 
 **The encoder** is libsmackerenc, made from Barry Duncan's libsmackerdec (LGPL 2.1), and it is linked into `mp4-to-smk.exe`: there is
