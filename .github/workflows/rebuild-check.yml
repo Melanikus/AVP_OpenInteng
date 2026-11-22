@@ -20,6 +20,12 @@ on:
 permissions:
   contents: read
 
+# The same lines as build.yml and checks.yml (zizmor's concurrency-limits): a newer head of a pull request cancels the run it replaces. This workflow
+# runs only on pull requests, so only that half applies; a push would have a group of its own and never be queued or cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   rebuild:
     name: Rebuild a commit's release programs
