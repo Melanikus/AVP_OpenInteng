@@ -295,9 +295,9 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # VirusTotal runs about 70 virus scanners on a file. The zip is looked up there by its hash, sent if VirusTotal hasn't seen it, and the
-  # analysis waited for; and so is every program inside it, each .exe and .dll on its own (2026-11-21: a scanner flagged
-  # libsmackerenc.dll only when it was sent on its own, not inside the zip). What comes back is from outside our code, so AvPx's tools/check-virustotal.ps1 (at the pinned commit) reads every
+  # VirusTotal runs about 70 virus scanners on a file. The zip, and every program inside it on its own (2026-11-21: a scanner flagged
+  # libsmackerenc.dll only when it was sent alone), are each analysed in this run: sent if VirusTotal doesn't know the file, and analysed
+  # again if it does, so no verdict older than the run counts. What comes back is from outside our code, so AvPx's tools/check-virustotal.ps1 (at the pinned commit) reads every
   # answer before anything here believes it (Tao 3). The owner's ruling, 2026-11-08: if any scanner flags it, the draft is still made, its
   # text starts by saying so, and the run ends red. The key is in the release environment, and only this job reads it; it can write nothing.
   scan:
@@ -383,55 +383,77 @@ jobs:
             }
           }
 
-          # One file: looked up by its hash, sent if VirusTotal hasn't a finished analysis of it, and that analysis waited for. Every answer is
-          # saved under the file's own hash and read by the checker first. Gives back how many scanners called it malicious, how many
-          # suspicious, and how many answered.
-          function Scan-One([string]$path, [string]$fileSha, [string]$what)
+          # Every verdict that counts is from this run (Dietrich's review of #94, 2026-11-21). A file VirusTotal already knows is analysed
+          # again, with today's scanners (POST files/<sha>/analyse), and a file it doesn't know is sent. An old analysis is never counted: once
+          # builds repeat byte for byte, the same file comes back every release, and a clean verdict from long ago would pass for ever.
+          # Every file is sent first, then every analysis is waited for: they run at VirusTotal side by side, so the wait is for the slowest,
+          # not for each in turn. Each answer is saved under the file's own hash and read by the checker first, and the same bytes twice in
+          # the package are analysed once.
+          function Send-One([string]$path, [string]$fileSha, [string]$what)
           {
             if ((Ask-Checker $fileSha @('-Package', $path)) -cne 'ready') { throw "$what is not ready to send" }
+            # Only whether VirusTotal knows the file is taken from this answer, never what it said about it before
             $status = Ask-VirusTotal 'Get' "files/$fileSha" "$answers/$fileSha-lookup.json"
-            if ($status -eq 200) { $answer = Ask-Checker $fileSha @('-Answer', "$answers/$fileSha-lookup.json", '-Kind', 'lookup') }
-            elseif ($status -eq 404) { Write-Host "VirusTotal has never seen $what."; $answer = 'not-analysed' }
+            if ($status -eq 200) { $status = Ask-VirusTotal 'Post' "files/$fileSha/analyse" "$answers/$fileSha-sent.json"; $how = 'analysed again' }
+            elseif ($status -eq 404) { $status = Ask-VirusTotal 'Post' 'files' "$answers/$fileSha-sent.json" @{ file = Get-Item -LiteralPath $path }; $how = 'sent for the first time' }
             else { throw "VirusTotal answered the question about $what with HTTP $status" }
-
-            if ($answer -ceq 'not-analysed')
-            {
-              $status = Ask-VirusTotal 'Post' 'files' "$answers/$fileSha-upload.json" @{ file = Get-Item -LiteralPath $path }
-              if ($status -ne 200) { throw "VirusTotal answered the upload of $what with HTTP $status" }
-              $answer = Ask-Checker $fileSha @('-Answer', "$answers/$fileSha-upload.json", '-Kind', 'upload')
-              if ($answer -cnotmatch '^analysis [A-Za-z0-9+/=]{1,200}\z') { throw "The upload of $what gave no analysis" }
-              $id = $answer.Substring('analysis '.Length)
-              $answer = 'waiting'
-              while ($answer -ceq 'waiting')
-              {
-                Start-Sleep -Seconds 10
-                $status = Ask-VirusTotal 'Get' "analyses/$([uri]::EscapeDataString($id))" "$answers/$fileSha-analysis.json"
-                if ($status -ne 200) { throw "VirusTotal answered the question about the analysis of $what with HTTP $status" }
-                $answer = Ask-Checker $fileSha @('-Answer', "$answers/$fileSha-analysis.json", '-Kind', 'analysis', '-AnalysisId', $id)
-              }
-            }
-
-            if ($answer -cmatch '^counted (0|[1-9][0-9]{0,3}) (0|[1-9][0-9]{0,3}) ([1-9][0-9]{0,3})\z') { return @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3]) }
-            throw 'The VirusTotal checker gave no count'
+            if ($status -ne 200) { throw "VirusTotal answered the request to analyse $what with HTTP $status" }
+            $answer = Ask-Checker $fileSha @('-Answer', "$answers/$fileSha-sent.json", '-Kind', 'upload')
+            if ($answer -cnotmatch '^analysis [A-Za-z0-9+/=]{1,200}\z') { throw "VirusTotal started no analysis of $what" }
+            Write-Host "$($what): $how"
+            return $answer.Substring('analysis '.Length)
           }
 
-          $noMark = New-Object System.Text.UTF8Encoding $false
-          $counts = Scan-One $zip $sha 'the zip'
-          [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "sha256=$sha`nmalicious=$($counts[0])`nsuspicious=$($counts[1])`nanswered=$($counts[2])`n", $noMark)
+          # Waits for every analysis started, asking about each in turn, and gives back each file's counts by its hash: how many scanners
+          # called it malicious, how many suspicious, and how many answered
+          function Wait-All($started)
+          {
+            $done = @{}
+            while ($done.Count -lt $started.Count)
+            {
+              foreach ($fileSha in @($started.Keys))
+              {
+                if ($done.ContainsKey($fileSha)) { continue }
+                $id = $started[$fileSha]
+                $status = Ask-VirusTotal 'Get' "analyses/$([uri]::EscapeDataString($id))" "$answers/$fileSha-analysis.json"
+                if ($status -ne 200) { throw "VirusTotal answered the question about an analysis with HTTP $status" }
+                $answer = Ask-Checker $fileSha @('-Answer', "$answers/$fileSha-analysis.json", '-Kind', 'analysis', '-AnalysisId', $id)
+                if ($answer -ceq 'waiting') { continue }
+                if ($answer -cmatch '^counted (0|[1-9][0-9]{0,3}) (0|[1-9][0-9]{0,3}) ([1-9][0-9]{0,3})\z') { $done[$fileSha] = @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3]) }
+                else { throw 'The VirusTotal checker gave no count' }
+              }
+            }
+            return $done
+          }
 
-          # Every program inside the zip, each on its own: a scanner can flag a file sent alone that it passed inside the zip. A package
-          # with no program in it isn't the one the build makes. A name is printed only as letters, digits and . _ - /
+          # The zip, then every program inside it, each on its own: a scanner can flag a file sent alone that it passed inside the zip. A
+          # package with no program in it isn't the one the build makes. A name is printed only as letters, digits and . _ - /
+          $started = [ordered]@{}
+          $started[$sha] = Send-One $zip $sha 'the zip'
           $inside = Join-Path $env:RUNNER_TEMP 'package-files'
           Expand-Archive -LiteralPath $zip -DestinationPath $inside
           $programs = @(Get-ChildItem -LiteralPath $inside -Recurse -File | Where-Object { @('.exe', '.dll') -contains $_.Extension.ToLowerInvariant() } | Sort-Object FullName)
           if ($programs.Count -eq 0) { throw 'The zip has no .exe or .dll in it, so it is not the package the build makes' }
-          $flaggedPrograms = 0
+          $sent = @()
           foreach ($program in $programs)
           {
             $shown = ($program.FullName.Substring($inside.Length + 1) -replace '\\', '/') -replace '[^A-Za-z0-9._/-]', '_'
             $programSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $program.FullName).Hash.ToLowerInvariant()
-            $c = Scan-One $program.FullName $programSha $shown
-            "$($shown): $($c[0]) malicious, $($c[1]) suspicious, of $($c[2]) scanners (sha256 $programSha)"
+            $sent += ,@($shown, $programSha)
+            if (-not $started.Contains($programSha)) { $started[$programSha] = Send-One $program.FullName $programSha $shown }
+          }
+          "Analyses started: $($started.Count) (the zip and $($started.Count - 1) programs). Waiting for them all."
+          $counted = Wait-All $started
+
+          $noMark = New-Object System.Text.UTF8Encoding $false
+          $counts = $counted[$sha]
+          [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "sha256=$sha`nmalicious=$($counts[0])`nsuspicious=$($counts[1])`nanswered=$($counts[2])`n", $noMark)
+          "the zip: $($counts[0]) malicious, $($counts[1]) suspicious, of $($counts[2]) scanners (sha256 $sha)"
+          $flaggedPrograms = 0
+          foreach ($s in $sent)
+          {
+            $c = $counted[$s[1]]
+            "$($s[0]): $($c[0]) malicious, $($c[1]) suspicious, of $($c[2]) scanners (sha256 $($s[1]))"
             if ($c[0] + $c[1] -gt 0) { $flaggedPrograms++ }
           }
           [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "programs=$($programs.Count)`nprograms_flagged=$flaggedPrograms`n", $noMark)
