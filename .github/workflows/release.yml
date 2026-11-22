@@ -176,8 +176,11 @@ jobs:
 
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
           $visualStudio = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          $dumpbin = Get-ChildItem (Join-Path $visualStudio 'VC\Tools\MSVC\*\bin\Hostx64\x86\dumpbin.exe') | Select-Object -Last 1
-          if (-not $dumpbin) { throw 'dumpbin was not found' }
+          # THE ONE COMPILER's dumpbin (avpx/win32/msvc-pin.props), never the newest this machine has
+          . ./avpx/tools/msvc-pin-version.ps1
+          $msvcPin = Get-MsvcPinVersion (Join-Path $PWD 'avpx')
+          $dumpbin = Get-Item -LiteralPath (Join-Path (Get-MsvcPinFolder $visualStudio $msvcPin) 'bin\Hostx64\x86\dumpbin.exe') -ErrorAction SilentlyContinue
+          if (-not $dumpbin) { throw "dumpbin was not found in MSVC $msvcPin" }
           $avpxBin = @{}
           Get-ChildItem -LiteralPath "$from\bin" -File -Filter '*.dll' | ForEach-Object { $avpxBin[$_.Name.ToLowerInvariant()] = $_.FullName }
           do {

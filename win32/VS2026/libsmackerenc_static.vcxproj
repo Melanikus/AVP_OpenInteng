@@ -34,6 +34,9 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
+  <!-- THE ONE COMPILER, AvPx's (avpx\win32\msvc-pin.props says why): the same exact MSVC as the editor, the game and the libraries' DLLs, and the
+       build fails on any other. Before Microsoft.Cpp.props, which would otherwise take the newest installed MSVC. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\avpx\win32\msvc-pin.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <!-- Build output stays under win32\VS2026\Win32\, which .gitignore keeps out of the repository; the .lib beside the programs, its objects in a folder

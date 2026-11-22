@@ -53,6 +53,12 @@ jobs:
           persist-credentials: false
           submodules: true
 
+      # THE ONE COMPILER (avpx/win32/msvc-pin.props says why: alpha.3 shipped what a newer runner compiler made, never what had been scanned):
+      # the libraries (AvPx's vcpkg triplet), the editor and mp4-to-smk are all built with that exact MSVC, installed here from Microsoft's own installer
+      - name: Install the one compiler (MSVC, as avpx/win32/msvc-pin.props pins it)
+        shell: pwsh
+        run: ./avpx/tools/install-msvc-pin.ps1
+
       # The key is AvPx's library list and its own ports and triplets. When it changes, the newest older cache is still taken, and vcpkg
       # uses from it only what its hashes match.
       - name: Take vcpkg's kept builds and downloads

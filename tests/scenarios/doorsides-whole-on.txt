@@ -16,6 +16,9 @@ expect-screen Waypoint
 save-copy
 click-bar Alien auto waypoint > Environment
 expect-dialog Alien auto waypoint
+# (the Overwrite already linked modules box ticked, so its modules with alien waypoints are replaced after the question, as before the box: Vasquez 11-21;
+# as acceptance-autoplot-genshd1-hidden has it. Without it the plot kept the stock networks and the checker faulted them: the final sweep of f570e842, 11-22)
+click-check 2
 click-button Ok
 expect-dialog-kind confirm
 expect-dialog replace
@@ -28,5 +31,6 @@ save-copy
 # THE CHECKER'S EXCEPTIONS (Bishop 11-20; Frost's rule for "<master>:*"): the AI modules the auto-plot refused or did not shape keep STOCK'S own network, which the checker
 # faults (the stock survey: 309 of 332 fail it). Named here, stock-checked against the copy saved before the plot ({save1}): strwll01 (149, refused) and shft21 (305, not
 # shaped), each printed as an EXCEPTION; a name on a network the planner wrote fails, and so does a name no longer needed. (air06 364:3 and apcend 367:3 are fixed: out.)
-verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} all stock {save1} except 149:* 305:* network exits connected most links clean
+# (149:* out: strwll01 is written by the planner now, and an exception no longer needed fails, as in acceptance-autoplot-genshd1-hidden)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} all stock {save1} except 305:* network exits connected most links clean
 allow-fail verify_level_same cannot skip an ADDED chunk (modules that had no alien list get one); the save-to-save proof is the report's | verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {copy} --ignore WAYPOINT
