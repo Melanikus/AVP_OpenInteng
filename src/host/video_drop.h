@@ -9,6 +9,9 @@
 // computer), must not be a network share (a mapped drive is \Device\LanmanRedirector\..., \Device\Mup\... or \??\UNC\...), and the drive must be one of this
 // computer's own (GetDriveType: fixed, removable or CD; asked only once the table said it is no share). Then: exactly one file, whose ending is one of the ONE
 // list video_import.h keeps (VideoImport_EndingsWords: the owner's ruling 11-22, Media Foundation's common containers).
+// The letters can't show a FOLDER along the path that is itself a link to another computer (C:\Users\me\Videos\clips\a.mp4, where clips was made with mklink /D
+// \\server\share: Vasquez's review, the MUST). That is video_import.h's walk: before its one open, every folder from the drive's root down to the file's own is
+// read itself, each before anything goes through it, and a symbolic link or a link of any kind not known is refused (VideoImport_FoldersOnTheWayTaken).
 // What is left (a regular file, no link, no stream, its size and length) is video_import.h's own check, which reads it.
 #pragma once
 

@@ -61,7 +61,20 @@ const menus = tool.readMenus(goodBytes, tool.kMenusSha256);
 const built = tool.readBuilt(builtBytes, tool.kBuiltSha256);
 const screens = tool.build(menus, tool.readStatus(statusBytes, menus), built);
 
-check(menus.tables.length === 16 && screens.length === 23, 'its 16 tables make 16 screens, and the status file adds 7 stand-ins');
+check(menus.tables.length === 16 && screens.length === 24, 'its 16 tables make 16 screens, and the status file adds 8 stand-ins');
+
+// THE 8TH STAND-IN IS VIDEO, AND ONLY IT WAS ADDED (the owner's Video mode, alpha.5 item 2; video_mode_screen.h): last, so screens 0-22 keep their numbers; its bar
+// only Load > Browse... and the generator's Mode > Exit; and the hub's Mode gains ours, Video (0x1ff06), right after Hierarchy, which enters it
+const video = screens[23];
+const hubMode = screens[0].menus.find((m) => m.title === 'Mode');
+const hierarchyAt = hubMode ? hubMode.items.findIndex((i) => i.name === 'Hierarchy') : -1;
+
+check(video && video.name === 'Video' && video.table === '' && video.menus.length === 2 && video.menus[0].title === 'Load' && video.menus[0].items.length === 1 &&
+	video.menus[0].items[0].name === 'Browse...' && video.menus[0].items[0].work === 'videobrowse' && video.menus[1].title === 'Mode' && video.menus[1].items.length === 1 &&
+	video.menus[1].items[0].name === 'Exit' && video.menus[1].items[0].work === 'exitmode', 'the 8th stand-in, screen 23, is Video: Load > Browse... and Mode > Exit, nothing else');
+check(screens.slice(16, 23).map((s) => s.name).join('|') === 'Waypoint|Path|Hierarchy|Strategy Data|Acoustic|Flag View|Texture Map', 'the 7 stand-ins before it keep their places (16 to 22)');
+check(hubMode && hubMode.items.length === 12 && hierarchyAt >= 0 && hubMode.items[hierarchyAt + 1].name === 'Video' && hubMode.items[hierarchyAt + 1].action === 0x1ff06 &&
+	hubMode.items[hierarchyAt + 1].work === 'videomode', "the hub's Mode has inteng's 11 and ours, Video (0x1ff06), right after Hierarchy");
 check(sha(builtBytes) === tool.kBuiltSha256, 'docs/inteng/inteng-menus-built.json is the pinned file');
 
 const strategy = screens.find((s) => s.name === 'Strategy Data');

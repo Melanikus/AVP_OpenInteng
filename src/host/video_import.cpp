@@ -230,6 +230,92 @@ namespace host
 		return nullptr;
 	}
 
+	bool VideoImport_FolderTagTaken(unsigned long tag)
+	{
+		// the numbers are Windows' own (winnt.h), written here so an older SDK's missing names can't change what is taken
+		unsigned long const kMountPoint = 0xA0000003ul;   // IO_REPARSE_TAG_MOUNT_POINT: a junction or a mounted volume
+		unsigned long const kCloud = 0x9000001Aul;        // IO_REPARSE_TAG_CLOUD: OneDrive's placeholder...
+		unsigned long const kCloudKinds = 0x0000F000ul;   // ...and its CLOUD_1 to CLOUD_F, which differ only in these bits (IO_REPARSE_TAG_CLOUD_MASK)
+
+		return tag == kMountPoint || (tag & ~kCloudKinds) == kCloud;
+	}
+
+	bool VideoImport_FoldersOnTheWayTaken(std::wstring const &full, std::string *why)
+	{
+		auto const refuse = [why](std::string const &words)
+		{
+			if (why)
+			{
+				*why = words;
+			}
+
+			return false;
+		};
+
+		// a whole path on a drive only: "C:\\" and what follows (the drive itself is the drop's check, video_drop.h)
+		if (full.size() < 4 || full[1] != L':' || full[2] != L'\\' || full.size() > 32768)
+		{
+			return refuse("the folders on the way to " + Narrow(full) + " can't be read: it is not a whole path on a drive");
+		}
+
+		size_t const fileFolderEnd = full.find_last_of(L'\\');   // the file's own folder ends here
+
+		// each folder's whole path, from the first under the root (C:\a) down to the file's own (C:\a\b); an empty part (two slashes) adds no folder
+		for (size_t at = full.find(L'\\', 3); at != std::wstring::npos && at <= fileFolderEnd; at = full.find(L'\\', at + 1))
+		{
+			if (full[at - 1] == L'\\')
+			{
+				continue;
+			}
+
+			std::wstring const folder = full.substr(0, at);
+			DWORD const attributes = GetFileAttributesW(folder.c_str());
+
+			if (attributes == INVALID_FILE_ATTRIBUTES)
+			{
+				return refuse("there's no folder " + Narrow(folder));
+			}
+
+			if (!(attributes & FILE_ATTRIBUTE_DIRECTORY))
+			{
+				return refuse(Narrow(folder) + " is not a folder");
+			}
+
+			if (!(attributes & FILE_ATTRIBUTE_REPARSE_POINT))
+			{
+				continue;
+			}
+
+			// a link: its kind read on a handle to the link itself (FILE_FLAG_OPEN_REPARSE_POINT: never followed; FILE_FLAG_BACKUP_SEMANTICS: a folder can be opened)
+			HANDLE const link = CreateFileW(folder.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+				FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+			FILE_ATTRIBUTE_TAG_INFO tag = {};
+			bool const read = link != INVALID_HANDLE_VALUE && GetFileInformationByHandleEx(link, FileAttributeTagInfo, &tag, sizeof(tag));
+
+			if (link != INVALID_HANDLE_VALUE)
+			{
+				CloseHandle(link);
+			}
+
+			if (!read)
+			{
+				return refuse("Windows won't say what kind of link the folder " + Narrow(folder) + " is, so nothing is opened through it");
+			}
+
+			if (!VideoImport_FolderTagTaken(tag.ReparseTag))
+			{
+				char kind[16];
+
+				snprintf(kind, sizeof(kind), "0x%08lx", (unsigned long)tag.ReparseTag);
+
+				return refuse("the folder " + Narrow(folder) + " on the way is " + (tag.ReparseTag == 0xA000000Cul ? std::string("a symbolic link, which can name another computer") :
+					std::string("a link of a kind not taken (") + kind + ")") + ", so nothing is opened through it");
+			}
+		}
+
+		return true;
+	}
+
 	VideoImportResult VideoImport_ReadFile(std::wstring const &path, std::vector<uint8_t> *bytes, std::string *why, uint64_t mostBytes)
 	{
 		if (!bytes)
@@ -288,6 +374,14 @@ namespace host
 		if (IsDeviceName(leaf))
 		{
 			return Refuse(VideoImportResult::NotAFile, "Import video: " + Narrow(leaf) + " is a device's name in Windows, not a file's", why);
+		}
+
+		// THE FOLDERS ON THE WAY (see the header): each read itself, from the root down, before the open below goes through any of them
+		std::string folderWhy;
+
+		if (!VideoImport_FoldersOnTheWayTaken(full, &folderWhy))
+		{
+			return Refuse(VideoImportResult::NotAFile, "Import video: " + folderWhy, why);
 		}
 
 		// opened once, the link itself if it is one (never followed), shared for reading only; everything below is judged on this handle

@@ -591,7 +591,9 @@ void host::VideoMode_Browse(void *owner)
 	open.lpstrFile = picked;
 	open.nMaxFile = (DWORD)(sizeof(picked) / sizeof(picked[0]));
 	open.lpstrTitle = L"Load a video";
-	open.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_DONTADDTORECENT | OFN_NONETWORKBUTTON | OFN_HIDEREADONLY | OFN_EXPLORER;
+	// OFN_NODEREFERENCELINKS (Vasquez's review, the nit): a shortcut picked comes back as itself, never as its target, so the dialog never checks a target on another
+	// computer, and the drop's check below refuses the .lnk as no video
+	open.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_DONTADDTORECENT | OFN_NONETWORKBUTTON | OFN_HIDEREADONLY | OFN_EXPLORER | OFN_NODEREFERENCELINKS;
 
 	if (!GetOpenFileNameW(&open))
 	{

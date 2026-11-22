@@ -5,6 +5,11 @@
 //
 // THE FILE IS HOSTILE INPUT. Only a regular file is read: not a folder, a link (a symbolic link or a junction), a device (NUL, CON, COM1, \\.\...), nor a file's own stream (name:stream).
 // It is opened once without following a link, judged on that handle, and read into memory from it, so what was judged is what is read (Media Foundation never opens the path itself).
+// THE FOLDERS ON THE WAY TO IT (Vasquez's review, the MUST; Drake 11-22): that open does not follow the FILE if it is a link, but Windows still goes through a FOLDER on the way
+// that is one, and a folder made with mklink /D can name another computer (\\server\share): opening through it hands that computer the user's login hash. So before the
+// open, every folder from the drive's root down to the file's own is read ITSELF, in that order, each before anything goes through it (VideoImport_FoldersOnTheWayTaken). A
+// junction or a mounted volume (only ever local) and OneDrive's placeholders are taken; a symbolic link and any other kind of link are refused, and nothing is opened.
+// (A folder swapped between that walk and the open is not caught: making such a link needs Developer Mode or the symbolic-link privilege, so it would have to be planted.)
 // Refused, with the reason in words for the status line: a file over kVideoImportMostBytes or empty, a length over kVideoImportMostSeconds, a picture wider or taller than
 // kVideoImportMostSide, and a name whose ending is not one of the list (VideoImport_EndingsWords: the owner's ruling 11-22, Media Foundation's common containers, the ONE
 // list the drop, Load > Browse..., mp4-to-smk and this read all take).
@@ -76,6 +81,16 @@ namespace host
 
 	// The name's container, as Media Foundation is told it (a MIME type), or null when the ending is none of the list (capitals or not)
 	wchar_t const *VideoImport_ContentType(std::wstring const &path);
+
+	// A folder's link kind (its reparse tag, FILE_ATTRIBUTE_TAG_INFO::ReparseTag) that a video's path may go through: a junction or a mounted volume (IO_REPARSE_TAG_MOUNT_POINT, only
+	// ever local) and OneDrive's placeholders (IO_REPARSE_TAG_CLOUD and its CLOUD_1 to CLOUD_F, filled by its sync client, not by Windows opening a share). Every other kind is
+	// refused: a symbolic link (IO_REPARSE_TAG_SYMLINK, which can name another computer) above all, and any kind this list doesn't know
+	bool VideoImport_FolderTagTaken(unsigned long tag);
+
+	// Each folder of `full` (a whole path, as GetFullPathNameW gives it: "C:\a\b\name.mp4"), from the first one under the drive's root down to the file's own, read itself in that
+	// order (GetFileAttributesW reads the last part of what it is given without going through it, and everything before it was taken already); a folder that is a link has its
+	// kind read on a handle to the link itself. True when every folder is there, is a folder, and is no link of a refused kind; false, with the reason in *why
+	bool VideoImport_FoldersOnTheWayTaken(std::wstring const &full, std::string *why);
 
 	// THE FILE: judged and read, all of it, into *bytes (see the top). *why says what was refused and why (for the status line).
 	// mostBytes: 1 to kVideoImportLongestBytes (BadCall otherwise); a file the memory can't hold is refused (CantRead), never a crash
