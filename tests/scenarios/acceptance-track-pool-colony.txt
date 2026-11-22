@@ -1,0 +1,16 @@
+# ACCEPTANCE, HIDDEN (Frost 2026-11-21, Bishop's plan for the owner's track import, step 4: "track-import --pool-free-mib N replaces the fixed 4 MiB", red: 10 MiB on Colony).
+# The proof of an import is the game's own count of the level it wrote (tools/track-import/track_pool_budget.h): the editor opens it through the game's loader in the game's
+# order, and its state line's "levelmemory" says what the level took of its 40 blocks of 1 MiB (level_view.cpp, LevelView_MemoryWords).
+# The level: demo-track-pool/Genshd1.RIF (SHA256SUMS and REPORT.txt beside it): stock Colony (19f00eae) with 20 track objects of 3,000 sections each (10.3 MiB of tracks),
+# written by track-import import ... --pool-free-mib 34.63 (stock Colony's free memory: levelmemory "taken 6 of 40 left 0.63"), which said 19 of its 34 free blocks.
+# So the level must take more than stock's 6 blocks (the tracks are counted) and still all of it inside the 40: nothing given outside them, where Rebellion's own game would
+# write past its memory. The packing predicts about 25 (6, the first track in the 0.63 left, then 19 blocks); the number it gives is the margin's evidence, not a pass rule.
+# RED on exe-cache/956b2e91.exe (bishop-int before step 2: no "levelmemory" field).
+level C:/Users/Melanikus/source/AvP-builds-excluded/demo-track-pool/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/demo-track-pool/Genshd1.RIF
+pictures off
+state
+expect-field-has levelmemory taken
+expect-number levelmemory taken_ 7 40
+expect-field-has levelmemory of 40
+expect-field-has levelmemory outside 0.00

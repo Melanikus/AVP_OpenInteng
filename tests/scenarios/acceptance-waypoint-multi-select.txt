@@ -17,24 +17,42 @@ expect-screen Waypoint
 # ---- setup: an alien network on each of the three (the auto-plot of one AI module, the picked one's)
 pick-module 153
 wait 300
+# (a known status first, so the wait below can only be met by THIS plot's end line, which names no module since the live plot's one write: Delete Waypoints on
+# a module with no alien waypoint says so and changes nothing)
+click-win 500 300 right
+click-popup 4
+expect-status Delete Waypoints: the picked AI module has no alien waypoints
 click-bar Alien auto waypoint > Modules
 expect-dialog Alien auto waypoint
 click-button Ok
-wait-status 120000 Auto-plot: AI module 153:
+wait-status 120000 AI modules written
+expect-status Auto-plot: 1 AI modules written, 0 refused
 expect-status-not not written
 pick-module 158
 wait 300
+# (a known status first, so the wait below can only be met by THIS plot's end line, which names no module since the live plot's one write: Delete Waypoints on
+# a module with no alien waypoint says so and changes nothing)
+click-win 500 300 right
+click-popup 4
+expect-status Delete Waypoints: the picked AI module has no alien waypoints
 click-bar Alien auto waypoint > Modules
 expect-dialog Alien auto waypoint
 click-button Ok
-wait-status 120000 Auto-plot: AI module 158:
+wait-status 120000 AI modules written
+expect-status Auto-plot: 1 AI modules written, 0 refused
 expect-status-not not written
 pick-module 154
 wait 300
+# (a known status first, so the wait below can only be met by THIS plot's end line, which names no module since the live plot's one write: Delete Waypoints on
+# a module with no alien waypoint says so and changes nothing)
+click-win 500 300 right
+click-popup 4
+expect-status Delete Waypoints: the picked AI module has no alien waypoints
 click-bar Alien auto waypoint > Modules
 expect-dialog Alien auto waypoint
 click-button Ok
-wait-status 120000 Auto-plot: AI module 154:
+wait-status 120000 AI modules written
+expect-status Auto-plot: 1 AI modules written, 0 refused
 expect-status-not not written
 
 # ---- inteng's pick stays inteng's: a plain click picks opscen03, and there is no set

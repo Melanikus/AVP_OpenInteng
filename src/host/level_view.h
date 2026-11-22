@@ -301,6 +301,17 @@ int LevelView_PlacementLighting(bool on, bool objectsLit);
 // colours (the world's places: what a picture of the look can be aimed at). Empty when no level is open.
 std::string LevelView_PlacementLightingWords();
 
+// What the open level took of its 40 blocks of memory once it had opened (avpx mempool.h, LevelMemoryPool_Use; Frost 2026-11-21, the owner's track import), for the
+// state line: "taken N of 40 left X handed Y outside Z", in MB (left: in the block in use; outside: given outside the 40 blocks, what the 1999 game writes past them).
+// Empty when no level is open.
+std::string LevelView_MemoryWords();
+
+// The same for the user, on the status line when a level opens (Bishop 2026-11-21, the owner's rule of 11-18: tell him on the status line, never by changing the look): one
+// short line, "Level memory: N of 40 blocks taken, F MB free", F being the whole free blocks and what is left in the last (what track-import's --pool-free-mib takes), after
+// otherwise when the status line already says something, with "; " between. A level given memory outside the 40 blocks (past the 40th, or one request over a block) is
+// told so instead, as Rebellion's game would write past its memory there. Gives back otherwise when no level is open.
+const char *LevelView_SayMemory(const char *otherwise);
+
 // THE LIVE SCALE of Object Placement's '=' and '-' keys (OP-14; inteng's FUN_004e1340 scales the game's own shape of the block each frame the key is held): every point of the
 // shape the game has loaded for this object, its radius and its six extents are multiplied by factor, each cut toward zero as inteng's __ftol; the block takes its extents
 // from the shape again (as map.cpp makes a block). Nothing is changed when the shape is not in play, a number would leave the 32-bit range, or factor is not above 0 and at

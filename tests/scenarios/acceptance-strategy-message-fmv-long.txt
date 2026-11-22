@@ -6,9 +6,10 @@
 # make-fmv-his-film.cmd), Play. The editor answers the harness in its next frame, so a late answer is a frame that took that long (the harness's click waits 600 ms first, and a
 # frame is about 40 ms: 300 catches any wait over about 0.9 s). Pictures are taken only at the end: saving one is a frame's work of its own, and the timings come first.
 # RED on 956b2e91: the answer after Play comes seconds late (the whole sound read first).
-make-level cmd /c (echo.& echo SmackerDecoderSha256=53c033525df722d870c0d3b26a6d1a319fe6dbe8f97141580ccc29dcf4742021)>>"{exedir}AVP_OpenInteng.ini"
 make-level cmd /c {scenariodir}message-fmv\make-fmv-his-film.cmd {datadir} "C:\Program Files (x86)\Steam\steamapps\common\Aliens versus Predator Classic\FMVs"
-make-level cmd /c copy /y "C:\Users\Melanikus\source\AvP-builds-excluded\AvP-play-alienways\bin\libsmackerdec.dll" "{exedir}libsmackerdec.dll"
+# THE DECODER IS LINKED IN (libsmackerdec_static, the owner's order 11-21, Drake): no libsmackerdec.dll is copied in and no SmackerDecoderSha256 is written; one left in the
+# run folder is deleted first, so the film can play only through the decoder linked into the editor (RED on 57f73907, which loads the DLL: "No FMV preview").
+make-level cmd /c if exist "{exedir}libsmackerdec.dll" del /q "{exedir}libsmackerdec.dll"
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif

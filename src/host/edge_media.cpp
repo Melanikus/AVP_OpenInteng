@@ -1,9 +1,11 @@
-// edge_media.cpp: the editor's stand-ins for the film decoders (Bink, Smacker) and the music libraries (vorbisfile, pthreads).
-// Written 2026-11-14 by Melanikus (Hicks) for AVP_OpenInteng (R-INT-15).
+// edge_media.cpp: the editor's stand-ins for the Bink film decoder and the music libraries (vorbisfile, pthreads).
+// Written 2026-11-14 by Melanikus (Hicks) for AVP_OpenInteng (R-INT-15). The Smacker decoder's stand-ins went on 2026-11-21 (Drake): the editor links
+// Barry's real decoder now (win32/VS2026/libsmackerdec_static.vcxproj), for its FMV preview, so the game's Smacker player calls the real one.
 //
 // WHY: the editor compiles the game's own film and music players (avpx/3dc/video/BinkPlayback.cpp and SmackerPlayback.cpp,
 // avpx/3dc/VorbisPlayer.cpp, avpx/3dc/avp/win95/openal_stream.cpp), because the rest of the game calls into them. But the editor never
-// plays a film or a piece of music, so it doesn't link the libraries that decode them: none of their code ever runs on a file in the
+// plays a film or a piece of music through the game's players, so it doesn't link the libraries that decode them (but the Smacker
+// decoder, linked for the FMV preview, which never goes through the game's players): none of their code ever runs on a file in the
 // editor. These stand-ins take the libraries' place, and each one does one of two things:
 //   - QUIET: a call the game's players make on every file, even one that won't open, answers exactly what the real library answers for
 //     a file that won't open. The game's players already have a "can't open" path, for a missing file, and they take it. These are the
@@ -15,7 +17,6 @@
 // one missing here fails it, and so does one here that the game no longer calls.
 
 #include "BinkDecoder.h"
-#include "SmackerDecoder.h"
 #include <vorbis/vorbisfile.h>
 #include <pthread.h>
 #include <string.h>
@@ -85,70 +86,6 @@ void Bink_GotoFrame(BinkHandle &, uint32_t)
 	EdgeStop("Bink_GotoFrame");
 }
 
-// Smacker (avpx/dependencies/libsmackerdec)
-
-// QUIET. As Bink_Open: the real one's handle is { not valid, place -1 } when the file doesn't open (libsmackerdec/src/SmackerDecoder.cpp:
-// 91-93), and SmackerPlayback::Open stops at once on it (avpx/3dc/video/SmackerPlayback.cpp:96-101).
-SmackerHandle Smacker_Open(const char *)
-{
-	SmackerHandle handle;
-
-	handle.isValid = false;
-	handle.instanceIndex = -1;
-	return handle;
-}
-
-// QUIET. As Bink_Close: nothing at all for a handle that never opened (SmackerDecoder.cpp:138-144), called by SmackerPlayback's
-// destructor either way (SmackerPlayback.cpp:81).
-void Smacker_Close(SmackerHandle &)
-{
-}
-
-uint32_t Smacker_GetNumAudioTracks(SmackerHandle &)
-{
-	EdgeStop("Smacker_GetNumAudioTracks");
-}
-
-SmackerAudioInfo Smacker_GetAudioTrackDetails(SmackerHandle &, uint32_t)
-{
-	EdgeStop("Smacker_GetAudioTrackDetails");
-}
-
-uint32_t Smacker_GetAudioData(SmackerHandle &, uint32_t, int16_t *)
-{
-	EdgeStop("Smacker_GetAudioData");
-}
-
-uint32_t Smacker_GetNumFrames(SmackerHandle &)
-{
-	EdgeStop("Smacker_GetNumFrames");
-}
-
-void Smacker_GetFrameSize(SmackerHandle &, uint32_t &, uint32_t &)
-{
-	EdgeStop("Smacker_GetFrameSize");
-}
-
-uint32_t Smacker_GetNextFrame(SmackerHandle &)
-{
-	EdgeStop("Smacker_GetNextFrame");
-}
-
-float Smacker_GetFrameRate(SmackerHandle &)
-{
-	EdgeStop("Smacker_GetFrameRate");
-}
-
-void Smacker_GetPalette(SmackerHandle &, uint8_t *)
-{
-	EdgeStop("Smacker_GetPalette");
-}
-
-void Smacker_GetFrame(SmackerHandle &, uint8_t *)
-{
-	EdgeStop("Smacker_GetFrame");
-}
-
 // vorbisfile (libvorbis). These two keep the C names vorbisfile.h gives them, inside its own extern "C".
 
 // QUIET. When a file isn't Ogg Vorbis, the real one empties the whole OggVorbis_File (libvorbis's vorbisfile.c: _ov_open1 sets its
@@ -189,7 +126,8 @@ long ov_read(OggVorbis_File *, char *, int, int, int, int, int *)
 
 // pthreads (pthreads4w). The game's only thread user here is its streamed sound (avpx/3dc/avp/win95/openal_stream.cpp), and a stream is
 // only made after a film or a piece of music opened (BinkPlayback.cpp:103, SmackerPlayback.cpp:120, VorbisPlayer.cpp after :98), which
-// never happens here. So every one of them is LOUD. They keep pthread.h's own C names and its __cdecl.
+// never happens here: Bink and vorbisfile never open (above), and the game's Smacker player, though its decoder is real now, is never
+// started by the editor (none of its ways in, the intro, the menus or a level's film screens, is called; the FMV preview has its own). So every one of them is LOUD. They keep pthread.h's own C names and its __cdecl.
 
 int __cdecl pthread_create(pthread_t *, const pthread_attr_t *, void *(__cdecl *)(void *), void *)
 {

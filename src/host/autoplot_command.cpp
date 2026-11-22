@@ -1612,6 +1612,21 @@ namespace
 		if (written)
 		{
 			LoadTheObjectListAgain();
+
+			// THE MODULES' COLOURS AFTER A PLOT (the beta's last piece, from Dietrich's find 11-21): Waypoint mode 0 paints a module green when its AI module holds waypoints,
+			// white when not, and nothing painted them again after the plot's write, so the plotted modules stayed white until each was picked. The AI modules written are
+			// painted from the file now, by Dietrich's WaypointMode::PaintFromFile (the one his Delete Waypoints uses; the pick, the current module and the Ctrl set keep theirs)
+			std::vector<int32_t> paintAgain;
+
+			for (Job const &job : jobs)
+			{
+				if (job.written)
+				{
+					paintAgain.push_back(job.head);
+				}
+			}
+
+			waypointMode.PaintFromFile(finishing.open, paintAgain);
 		}
 
 		// the end line's last words: the run's time, then the counts and sizes it plotted with (Tao 2: the words, and the log, say how the networks were made; the owner's

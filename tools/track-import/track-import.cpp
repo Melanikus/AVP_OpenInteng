@@ -9,7 +9,8 @@
 //   track-import parts <level.rif> <out.rif> <source> <scale> <name> [<source> <scale> <name> ...]
 //       for each: a NEW placed object <name> around a COPY of <source>'s shape (PolyEdit_CopyShapeAsObject), sized by <scale> with Rescale (ShapeRescale_ByFactor, the
 //       editor's '='/'-' work): the level's own objects stay as they were. Says each new shape's box.
-//   track-import import <level.rif> <anim.json> <out.rif> [linear|smooth]
+//   track-import import <level.rif> <anim.json> <out.rif> [linear|smooth] [--pool-free-mib <the level's free MiB>]
+//       (--pool-free-mib: how much of the level's memory is free, from the editor's "levelmemory": see THE GAME'S LIMITS below; 4 free blocks without it)
 //       each part of the animation a TRACK OBJECT: its strategy Track (kind 72, AssignStrategy), its place and turn the first key's (TrackSetObjectPose), its OBJTRAK2 one section
 //       per pair of keys (TrackStore), looping, playing at the level's start, timer 0. LINEAR (the default): each section's pivot is the part's ROOT JOINT, its object offset the
 //       part's origin seen from that joint (track.cpp:352-376: the place is the pivot plus the offset turned by the section's turn). SMOOTH: the smoothing flag, the pivots the
@@ -26,7 +27,8 @@
 // level and its turn as the file holds one), "dense" (dense_fps x seconds of the same, the truth the check compares with) } ].
 //
 // THE GAME'S LIMITS (Bishop's reading): a track's sections are one PoolAllocateMem of 180 bytes each and a pool block is 1 MiB (mempool.cpp:20), so at most 5825 sections a track;
-// the level's pool is 40 blocks, so the import keeps all its tracks under 4 MiB. The loader trusts the file's count: these are enforced HERE.
+// the level's pool is 40 blocks, and the import's tracks must fit what the level leaves free, packed as the game packs them (track_pool_budget.h, Frost 2026-11-21, Bishop's
+// plan: "--pool-free-mib N replaces the fixed 4 MiB"). The loader trusts the file's count: these are enforced HERE.
 //
 // THE INPUT IS HOSTILE: the JSON reader has bounds on size, depth, strings and counts; every number is checked against its bound before it is used; the level is only ever changed
 // through the game's own loader.
@@ -54,6 +56,7 @@
 #include "shape_rescale_edit.h"
 #include "track_edit.h"
 #include "game_track_check.h"
+#include "track_pool_budget.h"
 
 HANDLE avp_CreateFile(const char *name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES security, DWORD creation, DWORD flags, HANDLE model)
 {
@@ -87,12 +90,12 @@ void Sound_ForgetAddressesInside(const void *, size_t)
 namespace
 {
 	size_t const kMostSectionsPerTrack = 5825;            // 1 MiB / 180 bytes (mempool.cpp MEMORY_BLOCK_SIZE, sizeof(TRACK_SECTION_DATA))
-	size_t const kMostImportedBytes = 4u * 1024u * 1024u;  // all the import's tracks, of the level's 40 MiB pool
-	size_t const kSectionBytes = 180;
+	size_t const kSectionBytes = 180;                     // all the import's tracks together: track_pool_budget.h, packed into the level's free memory
 	double const kMostPlace = 16777216.0;                 // 2^24, the game's place bound
 
-	// THE READER'S OWN BOUNDS (the tool is 32-bit: a value held costs about 64 bytes, and 20 million of them ran it out of memory with no word said). The largest import the game takes
-	// is 4 MiB of sections, about 23,300 keys of 8 values, and a check's dense poses a few times that: 4 million values (about 256 MB held) is well above any of it.
+	// THE READER'S OWN BOUNDS (the tool is 32-bit: a value held costs about 64 bytes, and 20 million of them ran it out of memory with no word said). A level's whole free memory
+	// (at most 40 MiB, track_pool_budget.h) is about 233,000 sections, so about 1.6 million values of keys, and as many again of dense poses at the same rate: 4 million values
+	// (about 256 MB held) takes that. Dense poses at a higher rate than the keys make a smaller import the most this reader takes, and it says so.
 	size_t const kMostValues = 4000000;
 	size_t const kMostTextBytes = 1024u * 1024u;          // every name together
 
@@ -834,16 +837,41 @@ namespace
 
 	int Import(int argc, char **argv)
 	{
-		bool const smooth = argc == 6 && strcmp(argv[5], "smooth") == 0;
+		// after the three files, in either order: linear or smooth (once), and --pool-free-mib <the level's free MiB> (once; track_pool_budget.h says where it comes from)
+		bool smooth = false, modeSaid = false, budgetSaid = false, good = argc >= 5;
+		TrackPoolBudget budget = TrackPoolBudget_Default();
+		std::string why;
 
-		if ((argc != 5 && argc != 6) || (argc == 6 && !smooth && strcmp(argv[5], "linear") != 0))
+		for (int a = 5; good && a < argc; a++)
 		{
-			printf("track-import: usage: track-import import <level.rif> <anim.json> <out.rif> [linear|smooth]\n");
+			if (strcmp(argv[a], "--pool-free-mib") == 0 && !budgetSaid && a + 1 < argc)
+			{
+				budgetSaid = true;
+
+				if (!TrackPoolBudget_FromWords(argv[++a], &budget, &why))
+				{
+					printf("track-import: FAILED: %s\n", why.c_str());
+					return 2;
+				}
+			}
+			else if ((strcmp(argv[a], "linear") == 0 || strcmp(argv[a], "smooth") == 0) && !modeSaid)
+			{
+				modeSaid = true;
+				smooth = strcmp(argv[a], "smooth") == 0;
+			}
+			else
+			{
+				good = false;
+			}
+		}
+
+		if (!good)
+		{
+			printf("track-import: usage: track-import import <level.rif> <anim.json> <out.rif> [linear|smooth] [--pool-free-mib <the level's free MiB>]\n");
 			return 2;
 		}
 
 		Anim anim;
-		std::string why;
 
 		if (!ReadAnim(argv[3], &anim, &why))
 		{
@@ -853,12 +881,25 @@ namespace
 
 		size_t const sections = anim.parts[0].keys.size() - 1;
 
-		if (sections > kMostSectionsPerTrack || sections * kSectionBytes * anim.parts.size() > kMostImportedBytes || sections < 1)
+		if (sections > kMostSectionsPerTrack || sections < 1)
 		{
-			printf("track-import: FAILED: %zu sections a track and %zu tracks: the game takes at most %zu sections a track (one 1 MiB pool block) and this import keeps all its tracks "
-				"under %zu bytes of the level's pool\n", sections, anim.parts.size(), kMostSectionsPerTrack, kMostImportedBytes);
+			printf("track-import: FAILED: %zu sections a track: the game takes 1 to %zu (one 1 MiB block of the level's memory, %zu bytes a section)\n", sections,
+				kMostSectionsPerTrack, kSectionBytes);
 			return 1;
 		}
+
+		// THE LEVEL'S MEMORY (track_pool_budget.h): every track's sections are one allocation, packed into the level's free blocks as the game packs them
+		size_t blocksUsed = 0;
+
+		if (!TrackPoolBudget_Fits(budget, sections * kSectionBytes, anim.parts.size(), &blocksUsed, &why))
+		{
+			printf("track-import: FAILED: %zu tracks of %zu sections: %s%s\n", anim.parts.size(), sections, why.c_str(), budgetSaid ? "" :
+				" (without --pool-free-mib the import keeps to 4 free blocks: give it the level's free memory, (40 - taken) + left from the editor's \"levelmemory\", less a margin)");
+			return 1;
+		}
+
+		printf("track-import: %zu tracks of %zu sections (%zu bytes each) fit %s: %zu of its %zu free blocks, packed as the game packs them\n", anim.parts.size(), sections,
+			sections * kSectionBytes, budgetSaid ? "the level's free memory as given" : "the default 4 free blocks", blocksUsed, budget.freeBlocks);
 
 		OpenLevelFile open;
 

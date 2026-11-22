@@ -40,6 +40,7 @@
 #include <vector>
 
 #include "level_view.h"
+#include "mempool.h"   // the level memory's use: what an opened level takes of its 40 blocks (LevelMemoryPool_Use; Frost 2026-11-21)
 
 // Declared in no header: the game declares them itself where it calls them, as here
 extern void ConstructOneOverSinTable(void);       // maths.cpp:69; io.cpp:55 declares it the same way
@@ -61,6 +62,10 @@ extern const char *FileNameExtension;              // system.cpp:436: ".rif"
 extern void SetBriefingTextToBlank(void);          // menus.cpp:7406; menus.cpp:140 declares it the same way
 
 static bool levelIsOpen = false;
+
+// What the level took of its 40 blocks of memory once it had opened (avpx mempool.h), for the state line's "levelmemory" and the track import's cap (Frost
+// 2026-11-21, the owner: "we had 40mb of space in the RIF (before hitting engine crash limit) to put in anim"). The game's own loader filled it, in the game's order.
+static LevelMemoryPoolUse memoryAtOpen = {};
 static bool doorsClosedInView = false;   // Doors > Close has exchanged the doors' shapes (LevelView_SetDoorsClosed)
 
 // why, written so it always ends, whatever its size
@@ -205,6 +210,10 @@ bool LevelView_Open(const char *levelName, FlyCamera *startHere, char *why, size
 	AssignAllSBNames();
 	StartGame();
 	StaticLevel_BuildThisLevel();
+
+	// what the level takes of its 40 blocks, as the game's loader left it, and the game's own log line for it (winmain.cpp says the same once a level has loaded)
+	LevelMemoryPool_Use(&memoryAtOpen);
+	LevelMemoryPool_Say();
 	ResetFrameCounter();
 	levelIsOpen = true;
 	doorsClosedInView = false;   // a level starts with its doors as the file holds them (open)
@@ -3217,4 +3226,51 @@ bool LevelView_FlyBoxGrow(const uint8_t *id, bool grow)
 	b->ObMaxZ += by;
 	b->ObMinZ -= by;
 	return true;
+}
+
+// The state line's "levelmemory" (level_view.h): what the open level took of its 40 blocks of memory once it had opened, in MB. Empty when no level is open.
+std::string LevelView_MemoryWords()
+{
+	if (!levelIsOpen)
+	{
+		return std::string();
+	}
+
+	char words[160];
+	double const mb = 1024.0 * 1024.0;
+
+	_snprintf(words, sizeof(words) - 1, "taken %d of %d left %.2f handed %.2f outside %.2f", memoryAtOpen.blocksTaken, memoryAtOpen.blocksMost, memoryAtOpen.leftInBlock / mb,
+		memoryAtOpen.bytesHandedOut / mb, memoryAtOpen.extraBytes / mb);
+	words[sizeof(words) - 1] = '\0';
+	return words;
+}
+
+// The status line's level memory at open (level_view.h): after what it already says, so a missing-pictures or video-screens line is never lost
+const char *LevelView_SayMemory(const char *otherwise)
+{
+	static std::string said;   // the status line points at it
+
+	if (!levelIsOpen)
+	{
+		return otherwise;
+	}
+
+	char words[200];
+	double const mb = 1024.0 * 1024.0;
+
+	// outside: past the 40th block, or one request larger than a block (mempool.cpp PoolAllocateMem); Rebellion's game writes past its memory in both
+	if (memoryAtOpen.extraBytes > 0)
+	{
+		_snprintf(words, sizeof(words) - 1, "Level memory: %d of %d blocks taken and %.2f MB more outside them, where Rebellion's game would write past its memory",
+			memoryAtOpen.blocksTaken, memoryAtOpen.blocksMost, memoryAtOpen.extraBytes / mb);
+	}
+	else
+	{
+		double const freeMb = (memoryAtOpen.blocksMost - memoryAtOpen.blocksTaken) + memoryAtOpen.leftInBlock / mb;
+		_snprintf(words, sizeof(words) - 1, "Level memory: %d of %d blocks taken, %.2f MB free", memoryAtOpen.blocksTaken, memoryAtOpen.blocksMost, freeMb);
+	}
+
+	words[sizeof(words) - 1] = '\0';
+	said = (otherwise && *otherwise) ? std::string(otherwise) + "; " + words : std::string(words);
+	return said.c_str();
 }

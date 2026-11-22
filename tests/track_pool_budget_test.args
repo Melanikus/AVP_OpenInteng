@@ -1,0 +1,5 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DNDEBUG
+/Itools/track-import
+tests/track_pool_budget_test.cpp
+tools/track-import/track_pool_budget.cpp

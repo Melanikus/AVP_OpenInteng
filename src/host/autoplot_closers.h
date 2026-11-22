@@ -8,8 +8,9 @@
 // away from the 2.4 m climb-in: the floor box stops 1.5 m over the floor and the entries 450 mm under the ceiling, and between them only the climb-in stands. Rebellion's
 // own boxes reach floor to ceiling (129 of Genshd1's 136 stock boxes are 2.5 m or taller), so its walls have no such band.
 //
-// WHAT (autoplot_volumes.cpp makes them, when the switch is on): along each upright wall side of a shaped floor (no doorway on it, no other floor along it, not a tube's
-// sloped side), over the band from the floor box's top up to the bottom of the entries over it, the fewest, largest boxes that fit between the boxes already there:
+// WHAT (autoplot_volumes.cpp makes them, when the switch is on): along each upright wall side of a shaped floor (no other floor along it, not a tube's sloped side; a side
+// with a doorway less each doorway's span, below), over the band from the floor box's top up to the bottom of the entries over it, the fewest, largest boxes that fit
+// between the boxes already there:
 //   - each at most kAutoPlotCloserMost and at least kAutoPlotCloserLeast along the wall, the free stretch split evenly (a 5.1 m stretch: 3 x 1.7 m);
 //   - the band whole as one row when it is at most kAutoPlotCloserMost tall (Genshd1's 3.9 m rooms: 1,945 mm, one row), else the fewest rows split evenly; a band under
 //     kAutoPlotCloserLeast is left (a body is taller than it, so it is always in the floor box or an entry);
@@ -18,6 +19,9 @@
 //   - touching every box round it, never overlapping one, holding no other box's aim point;
 //   - linked as the climb-in is (aliens only): the floor -> the closer (one way), the closer -> the entries over it (one way), closer <-> closer (both ways).
 // A stretch under kAutoPlotCloserLeast next to the climb-in is taken by the climb-in, stretched along the wall (its aim point stays); elsewhere it is left and named.
+// THE DOORWAY SIDES (Drake 11-21; PROC11's alien on its shut lift door's face, 897 mm beside the exit box, in no box): a doorway's span along its side is kept clear, its
+// exit box's (600 each side of the doorway's middle) and 451 more each side: an alien centred in the exit box is held by it alone (the body's corners are exactly 450 out),
+// and the 451 left is under a body's width, so a body beside the doorway is always in one box or the other. No closer holds an exit's point either.
 #pragma once
 
 #include <stdint.h>

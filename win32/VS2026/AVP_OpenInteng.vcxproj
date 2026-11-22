@@ -55,7 +55,7 @@
       <OmitFramePointers>true</OmitFramePointers>
       <WholeProgramOptimization>true</WholeProgramOptimization>
       <AdditionalIncludeDirectories>..\..\avpx\3dc;..\..\avpx\3dc\video;..\..\avpx\3dc\avp;..\..\avpx\3dc\avp\support;..\..\avpx\3dc\avp\win95;..\..\avpx\3dc\avp\win95\frontend;..\..\avpx\3dc\avp\win95\gadgets;..\..\avpx\3dc\include;..\..\avpx\3dc\win95;..\..\avpx\win32;..\..\avpx\dependencies\libbinkdec\include;..\..\avpx\dependencies\libsmackerdec\include;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\dxsdk-d3dx;$(VcpkgInstalledDir)$(VcpkgTriplet)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>USE_D3D9;_WINDOWS;USE_OPENAL;NDEBUG;_CRT_SECURE_NO_DEPRECATE;_WIN32_WINNT=0x0602;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;SMACKER_DECODER_SHA256=x$(SmackerDecoderSha256);SMACKER_ENCODER_SHA256=x$(SmackerEncoderSha256);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_D3D9;_WINDOWS;USE_OPENAL;NDEBUG;_CRT_SECURE_NO_DEPRECATE;_WIN32_WINNT=0x0602;_SECURE_SCL=0;_HAS_ITERATOR_DEBUGGING=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <ExceptionHandling>Sync</ExceptionHandling>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
@@ -66,7 +66,11 @@
       <FunctionLevelLinking>false</FunctionLevelLinking>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <FloatingPointModel>Fast</FloatingPointModel>
-      <AdditionalOptions> /J /we4834</AdditionalOptions>
+      <!-- THE SAME BYTES WHEREVER IT IS BUILT (Bishop 2026-11-22, for alpha.4; as mp4-to-smk.exe and libsmackerenc.dll already are): /Brepro writes no time or
+           random number into the objects; /pathmap (which needs /experimental:deterministic) names the tree's folder AVP_OpenInteng wherever it is checked out, so
+           a build here and CI's give the same exe, and a scan of one speaks for the other. Before it, the same commit built in two folders here differed in
+           535,441 bytes, from the headers on (tools/check-binaries.js same): the code's layout followed the folder's path. -->
+      <AdditionalOptions> /J /we4834 /Brepro /experimental:deterministic /pathmap:$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..'))\=\AVP_OpenInteng\</AdditionalOptions>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <ObjectFileName>$(IntDir)</ObjectFileName>
@@ -80,13 +84,17 @@
     <Link>
       <GenerateMapFile>true</GenerateMapFile>
       <MapFileName>$(OutDir)$(TargetName).map</MapFileName>
-      <!-- Microsoft's platform libraries, and OpenAL for sound effects (R-INT-10, R-INT-15), and nothing else: none of the game's
-           network libraries (ENet, mlkem, mldsa), film decoders or music libraries (the edge stands in for those). The map file lets
-           tools\check-edge-link.js prove, from what the linker actually took, that no other library gave the program code. -->
-      <AdditionalDependencies>winmm.lib;shell32.lib;d3d9.lib;user32.lib;xinput.lib;d3dx9.lib;OpenAL32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <!-- Microsoft's platform libraries, and OpenAL for sound effects (R-INT-10, R-INT-15), and Barry's Smacker decoder for the FMV preview
+           (libsmackerdec_static.lib, linked in by the project reference at the end of this file; the owner's order 11-21), and nothing else:
+           none of the game's network libraries (ENet, mlkem, mldsa), its Bink decoder or its music libraries (the edge stands in for those).
+           The map file lets tools\check-edge-link.js prove, from what the linker actually took, that no other library gave the program code. -->
+      <AdditionalDependencies>winmm.lib;shell32.lib;d3d9.lib;user32.lib;xinput.lib;d3dx9.lib;OpenAL32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VcpkgInstalledDir)$(VcpkgTriplet)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
+      <!-- /Brepro: the exe's time stamp and its .pdb's GUID come from its contents, not the clock; /PDBALTPATH has it record only the .pdb's name, not the folder
+           it was built in (which named the builder's own folder, C:\Users\<name>\... on a developer's machine), as mp4-to-smk's link -->
+      <AdditionalOptions>/PDBALTPATH:%_PDB% /Brepro %(AdditionalOptions)</AdditionalOptions>
       <!-- The editor is a Windows program, so "Open with" and a double-click open no console window; it still starts at main
            (mainCRTStartup). The F4 stock proof stays a console program: it's only ever run from a command line. -->
       <SubSystem Condition="'$(StockProof)' != 'true'">Windows</SubSystem>
@@ -588,11 +596,6 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <!-- the pinned DLL loader (dll_load.h; Bishop's ruling 11-18): the FMV preview's libsmackerdec.dll and Import video's libsmackerenc.dll -->
-    <ClCompile Include="..\..\src\host\dll_load.cpp" Condition="'$(StockProof)' != 'true'">
-      <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
     <ClCompile Include="..\..\src\model\sequence_names.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -634,7 +637,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <!-- the FMV preview and Barry's decoder through its pinned DLL (fmv_preview.h, smacker_dll.h) -->
+    <!-- the FMV preview and Barry's decoder, linked in (fmv_preview.h, smacker_dll.h, libsmackerdec_static.vcxproj) -->
     <ClCompile Include="..\..\src\host\fmv_preview.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -1654,6 +1657,16 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+  </ItemGroup>
+  <!-- Barry's Smacker decoder (GNU LGPL 2.1), a static library of its own built with its own settings (libsmackerdec_static.vcxproj says why), linked into
+       every build of the editor, the NoEdge and the stock proof builds too: the game's own film player, which the editor compiles, calls it, and so does the
+       FMV preview (smacker_dll.cpp). Building the editor builds it first. IntDir is not handed down (a build given its own /p:IntDir would otherwise put the
+       library's objects in with the editor's): the library keeps its objects in a folder of their own under the OutDir it is given. -->
+  <ItemGroup>
+    <ProjectReference Include="libsmackerdec_static.vcxproj">
+      <Project>{2A1A22CC-E905-4383-89A6-62D664208D3B}</Project>
+      <GlobalPropertiesToRemove>IntDir</GlobalPropertiesToRemove>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

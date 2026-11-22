@@ -93,9 +93,11 @@ the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` i
   `messageNNN.smk` changes that stock level too.
 - A monitor shows nothing when a video named after its own picture exists in `FMVs\`, and no video plays while a cheat is on.
 
-**The encoder** is `libsmackerenc.dll`, built from Barry Duncan's libsmackerdec (LGPL 2.1; its licence and source are in the zip's
-`licences` folder). The tool loads only the DLL shipped with it. To use your own build of it, as the LGPL allows, pass its SHA-256
-with `--encoder-sha256 <hex>`.
+**The encoder** is libsmackerenc, made from Barry Duncan's libsmackerdec (LGPL 2.1), and it is linked into `mp4-to-smk.exe`: there is
+no DLL beside it, and none is loaded. The editor's FMV preview has Barry's decoder, libsmackerdec (LGPL 2.1), linked into it the same
+way. Each library's licence and whole source are in the zip's `licences` folder (`licences/README.txt` says where). To use your own
+build of either, as the LGPL allows, build the program again from this project's source with yours in its place
+(`win32/VS2026/libsmackerenc_static.vcxproj` and `libsmackerdec_static.vcxproj` build them).
 
 ## Animated objects from Blender: the track import
 

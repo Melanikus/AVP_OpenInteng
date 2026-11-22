@@ -1,0 +1,19 @@
+# ACCEPTANCE, HIDDEN (red first; Frost 2026-11-21, Bishop's plan for the owner's track import, step 2): what an opened level takes of its memory. The owner:
+# "we calculated the limits based on AVP 1mb chunks and that we had 40mb of space in the RIF (before hitting engine crash limit) to put in anim".
+# The editor opens a level through the game's own loader (level_view.cpp: TryLoadRifFile, AssignAllSBNames, StartGame, StaticLevel_BuildThisLevel, the game's
+# winmain order), so the level memory it fills is the game's own: 40 blocks of 1 MB (avpx mempool.cpp, LevelMemoryPool_Use). The state line's "levelmemory" field
+# gives it, as it was once the level had opened: "taken N of 40 left X.XX handed Y.YY outside Z.ZZ" (MB), and the editor's log the game's own line.
+# Stock Colony (Genshd1): a level takes at least one block and, in a game Rebellion shipped, all of it inside the 40 blocks.
+# RED on exe-cache/956b2e91.exe (bishop-int, avpx 39253821: no LevelMemoryPool_Use, no field).
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-field-has levelmemory taken
+expect-number levelmemory taken_ 1 40
+expect-field-has levelmemory of 40
+expect-field-has levelmemory outside 0.00
+# AND THE USER IS TOLD (Bishop 21:3x, the owner's rule of 11-18: tell him on the status line, never by changing the look; no Statistics page exists in inteng): one short
+# line on the status line when the level opens, after whatever else it says there. Stock Colony takes 6 blocks with 0.63 MB left in the last (8edb5c95's GREEN run: "taken 6
+# of 40 left 0.63"), so 34 + 0.63 MB are free. RED on exe-cache/8edb5c95.exe (the field, no status words).
+expect-status Level memory: 6 of 40 blocks taken, 34.63 MB free

@@ -14793,6 +14793,7 @@ int main(int, char **)
 
 	statusWords = LevelView_SayMissingPictures(statusWords);   // MISSING PICTURES: the user is told how many (level_view.h)
 	statusWords = host::FmvScreens_SayAtOpen(theGameFolder, statusWords);   // VIDEO SCREENS that will stay still, and why (fmv_preview.h)
+	statusWords = LevelView_SayMemory(statusWords);   // LEVEL MEMORY: blocks taken and MB free, after whatever else is said (level_view.h)
 
 	// THE FIRST FRAME, as inteng's: the hub (FUN_00447550) ends with FUN_00470550(10), the camera from slot 10, which holds the origin (0, 0, 0) and the identity turn (DAT_00636f90 + 0x78,
 	// DAT_005d3b38 + 0x168: nothing but a camera file beside the level, <RIFFNAME>.cam, written by inteng's own Exit, fills them in, and the level's CAMORIGN adds its offset to every slot
@@ -16276,6 +16277,7 @@ int main(int, char **)
 			WaypointGizmo_StateLine();   // boxgizmo, boxgizmopoints, boxgizmolast, waypointbox
 			host::AutoPlotGrid_ProbeStateLine();   // autoplotgrid, autoplotways (only with AutoPlotProbe=1)
 			StateLine_Add("shaders", "built-in " + std::to_string(host::ShaderText_Served()) + " missing " + std::to_string(host::ShaderText_Missing()));   // shader_text.h: the renderer's asks, served from the editor's own set and not
+			StateLine_Add("levelmemory", LevelView_MemoryWords());   // level_view.h: what the open level took of its 40 blocks of memory (Frost 2026-11-21)
 			std::string const surfaceCopy = GizmoScreen_LiveCopyWords();
 			StateLine_Add("surfacelive", !(snapLive && snapForSurface) ? std::string() : (surfaceCopy.empty() ? std::string("on") : surfaceCopy));   // P3: while the object follows the surface (SurfaceLiveStart), its live copy: "x y z drawn 0|1" (as gizmolive)
 			StateLine_Add("surfacelast", surfaceLast);   // P3: what placement mode's last cast met (SurfaceLiveFrame)

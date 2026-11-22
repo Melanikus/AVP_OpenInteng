@@ -22,8 +22,10 @@ expect-status Picked: module
 click-bar Alien auto waypoint > Modules
 expect-dialog Alien auto waypoint
 click-button Ok
-wait-status 180000 Auto-plot: AI module 232:
-expect-status exits covered
+# (the end line since the live plot's one write, Drake's 901a1487: "Auto-plot: 1 AI modules written, 0 refused; <n> boxes; lanes ..."; the module's exits are checked on the
+# saved copy below, verify_waypoint_nets ... exits, where the old line's "exits covered" was)
+wait-status 180000 AI modules written
+expect-status Auto-plot: 1 AI modules written, 0 refused
 expect-status-not not written
 picture 1
 
