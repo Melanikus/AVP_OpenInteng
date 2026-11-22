@@ -9,17 +9,22 @@
 # these checks taken out. Started from main, this file comes from main, where changing it has to get past the same checks as anything else.
 #
 # The zip holds the editor, mp4-to-smk.exe (a user's own video made into an AvP message video), the runtime files they need beside them,
-# and their licences. Those runtime files (OpenAL Soft and fmt, Microsoft's D3DX and its shader compiler, Microsoft's C++ runtime) come
-# from AvPx's own package, built here by AvPx's own script at the commit avpx/ is pinned to, so each one comes with the licence text, and
-# OpenAL Soft with the source, that AvPx's package gives it (a source only with its own library).
+# their licences, BUILD.txt and the editor's settings file, and nothing else (the owner, 11-22: "just exes, dlls, licenses (build of course)";
+# no README.md, SHA256SUMS.txt or notices: the release page keeps the zip's own SHA256SUMS; the package step refuses any other file). Those runtime files (OpenAL Soft and fmt, Microsoft's D3DX and its shader compiler, Microsoft's C++ runtime) come
+# from AvPx's own package, built here by AvPx's own script at the commit avpx/ is pinned to, so each one comes with the licence text that
+# AvPx's package gives it. NO SOURCE FILE IS IN THE ZIP (the owner's order 11-22, for alpha.5: the scan sends every file of the zip to
+# VirusTotal, and the three GNU-licensed libraries' 39 source files cost 39 of the 400 analyses a month each release): licences/README.txt
+# says, for OpenAL Soft and the two Smacker libraries, where each one's complete source is, by links at the very commits the zip was built
+# from, and the package step refuses a line under the GNU licences with no such link, a link to a commit or path that isn't that one, and
+# anything under licences/sources.
 # Barry Duncan's two Smacker libraries are LINKED INTO the programs, not shipped beside them (the owner's order 11-21, "STATIC LINK,
 # SEPARATE BARRY'S LIBS", after alpha.3's VirusTotal finding): libsmackerdec into AVP_OpenInteng.exe (its FMV preview), libsmackerenc into
 # mp4-to-smk.exe. Each is a static library of its own, built from avpx's pinned source with its own settings (win32/VS2026/
 # libsmackerdec_static.vcxproj, libsmackerenc_static.vcxproj), so the zip has no libsmacker*.dll and no program loads one; the package step
-# refuses a package where one is there or a program names one. As the GNU LGPL 2.1 asks of a library linked in, each one's licence and its
-# whole source (as avpx pins it) go in the zip with the program that holds it, and licences/README.txt says where the program's own source
-# is, to build it again with your own build of the library. The leave_out_encoder input (off unless the owner asks) makes the same package
-# without the video encoder, as alpha.2 shipped: no mp4-to-smk.exe, and so no libsmackerenc and no source of it. Only mp4-to-smk uses the
+# refuses a package where one is there or a program names one. As the GNU LGPL 2.1 asks of a library linked in, each one's licence goes in
+# the zip with the program that holds it, and licences/README.txt says where its whole source (as avpx pins it) and the program's own source
+# are, to build it again with your own build of the library. The leave_out_encoder input (off unless the owner asks) makes the same package
+# without the video encoder, as alpha.2 shipped: no mp4-to-smk.exe, and so no libsmackerenc, its licence or its line. Only mp4-to-smk uses the
 # encoder (the editor has no video import); the FMV preview's decoder stays, in the editor.
 name: Release
 
@@ -31,7 +36,7 @@ on:
         required: true
         type: string
       leave_out_encoder:
-        description: "Leave the video encoder out of the zip: mp4-to-smk.exe, and with it libsmackerenc's licence and source (the FMV preview's decoder stays, in the editor). Off unless the owner asks."
+        description: "Leave the video encoder out of the zip: mp4-to-smk.exe, and with it libsmackerenc's licence and its source's line (the FMV preview's decoder stays, in the editor). Off unless the owner asks."
         required: false
         type: boolean
         default: false
@@ -155,8 +160,8 @@ jobs:
 
       # The package: the editor, and every file of AvPx's bin it asks for (and what those ask for in turn), read from the programs' own
       # import lists by dumpbin. A file that isn't in AvPx's bin is Windows' own. Then the licences of exactly those files, with AvPx's
-      # words for each; the licence and whole source of each Smacker library linked into a program here; and the editor's own License.txt,
-      # notices and README.
+      # words for each; the licence of each Smacker library linked into a program here; for each library under the GNU licences, where its
+      # complete source is (links: no source file is in the zip); the editor's own License.txt, its settings file and BUILD.txt; and nothing else.
       - name: Make the package
         shell: pwsh
         env:
@@ -168,9 +173,9 @@ jobs:
           $package = "$env:RUNNER_TEMP\package"
           New-Item -ItemType Directory -Force $package | Out-Null
           Copy-Item 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe' $package
-          # Each Smacker library linked into a program in this package, with the program that holds it: its licence and source go with it (below)
+          # Each Smacker library linked into a program in this package, with the program that holds it: its licence and its source's line go with it (below)
           $linked = [ordered]@{ 'libsmackerdec' = 'AVP_OpenInteng.exe' }
-          if ($env:LEAVE_OUT_ENCODER -ceq 'true') { 'The video encoder (mp4-to-smk.exe, and with it libsmackerenc''s licence and source) is left out of this package, as the run was asked (leave_out_encoder)' }
+          if ($env:LEAVE_OUT_ENCODER -ceq 'true') { 'The video encoder (mp4-to-smk.exe, and with it libsmackerenc''s licence and its source''s line) is left out of this package, as the run was asked (leave_out_encoder)' }
           elseif ($env:LEAVE_OUT_ENCODER -ceq 'false') { Copy-Item 'win32\VS2026\Win32\Release\mp4-to-smk.exe' $package; $linked['libsmackerenc'] = 'mp4-to-smk.exe' }
           else { throw "leave_out_encoder is neither true nor false: $env:LEAVE_OUT_ENCODER" }
 
@@ -183,6 +188,8 @@ jobs:
           if (-not $dumpbin) { throw "dumpbin was not found in MSVC $msvcPin" }
           $avpxBin = @{}
           Get-ChildItem -LiteralPath "$from\bin" -File -Filter '*.dll' | ForEach-Object { $avpxBin[$_.Name.ToLowerInvariant()] = $_.FullName }
+          # Every DLL this step copies, by the name it gives it: the guard below lets these into the zip and no other (Vasquez's review, 11-22)
+          $chosen = @()
           do {
             $copied = 0
             foreach ($binary in @(Get-ChildItem -LiteralPath $package -File | Where-Object { $_.Extension -in '.exe', '.dll' })) {
@@ -191,6 +198,7 @@ jobs:
               foreach ($name in @($output | Where-Object { $_ -match '^\s+\S+\.dll\s*$' } | ForEach-Object { $_.Trim().ToLowerInvariant() })) {
                 if (-not $avpxBin.ContainsKey($name) -or (Test-Path -LiteralPath (Join-Path $package $name))) { continue }
                 Copy-Item -LiteralPath $avpxBin[$name] -Destination (Join-Path $package $name)
+                $chosen += $name
                 "$name, because $($binary.Name) needs it"
                 $copied++
               }
@@ -200,6 +208,7 @@ jobs:
           if (-not (Test-Path -LiteralPath (Join-Path $package 'd3dx9_43.dll'))) { throw 'The editor no longer asks for d3dx9_43.dll: check the package by hand' }
           if (-not $avpxBin.ContainsKey('d3dcompiler_43.dll')) { throw "AvPx's package has no D3DCompiler_43.dll" }
           Copy-Item -LiteralPath $avpxBin['d3dcompiler_43.dll'] -Destination (Join-Path $package 'D3DCompiler_43.dll')
+          $chosen += 'D3DCompiler_43.dll'
           # Barry's Smacker libraries are linked into the programs (win32/VS2026/libsmacker*_static.vcxproj), so none of their DLLs may be here and no
           # program may name one: an import would have brought the DLL in above, from AvPx's bin, and its name in a program's bytes is a DLL the program
           # would load while it runs (the retired DLL way: dll_load's LoadLibraryExW took L"libsmackerdec.dll"). Either fails the package, with its reason.
@@ -231,101 +240,119 @@ jobs:
               Copy-Item -LiteralPath "$from\licences\$named" -Destination $licenceFolder -Force
             }
           }
-          # The sources AvPx's package holds go with their own library, and only with it: OpenAL Soft's with openal32.dll, its folder of
-          # licences/sources copied only when the library is in this package (11-19: a folder copied whenever OpenAL was there sent another
-          # library's source out without it). A library that is here and whose source is not is refused, with its own words.
-          $sourceOf = [ordered]@{ 'openal32.dll' = @('openal-soft', '*.tar.gz') }
-          foreach ($dll in $sourceOf.Keys) {
-            if (-not (Test-Path -LiteralPath (Join-Path $package $dll))) { continue }
-            $folder, $mark = $sourceOf[$dll]
-            if (Test-Path -LiteralPath "$from\licences\sources\$folder") {
-              New-Item -ItemType Directory -Force (Join-Path $licenceFolder 'sources') | Out-Null
-              Copy-Item -Recurse -LiteralPath "$from\licences\sources\$folder" -Destination (Join-Path $licenceFolder "sources\$folder")
-            }
-            if (-not (Get-ChildItem -LiteralPath (Join-Path $licenceFolder "sources\$folder") -Filter $mark -File -ErrorAction SilentlyContinue)) {
-              throw "$dll ships without its source (AvPx's licences/sources/$folder, its $mark)"
-            }
-          }
-          # Each Smacker library linked into a program here, as the GNU LGPL 2.1 asks of a library linked in: its licence (its own COPYING, which must
-          # say it is that licence, as licences/<name>.txt) and its whole source as avpx pins it, every file git has under avpx/dependencies/<name>,
-          # named one by one so nothing a build left beside them goes too, in licences/sources/<name>; with the editor's project that built it
-          # (win32/VS2026/<name>_static.vcxproj), and a line saying where the program's own source is, to build it again with your own build of it.
+          # NO SOURCE FILES IN THE ZIP (the owner's order 11-22, for alpha.5): the release's scan sends every file of the zip to VirusTotal, and
+          # the 39 source files of the three libraries under the GNU licences (libsmackerdec, libsmackerenc, OpenAL Soft) cost 39 of its analyses
+          # each release, of the 400 a month. So each one's line in licences/README.txt says where its complete source is instead, at the very
+          # commit this package was built from: avpx's, read from the checkout (git -C avpx rev-parse HEAD), never typed in. Each path a line
+          # names in AvPx's repository must be in that commit, or the step fails (Test-InAvpx).
           $avpxCommit = git -C avpx rev-parse HEAD
           if ($LASTEXITCODE -ne 0 -or "$avpxCommit" -cnotmatch '^[0-9a-f]{40}$') { throw 'avpx is not a checkout with a commit' }
+          # (git cat-file --batch-check answers "<name> missing" on its output for a path that isn't there, and writes nothing to stderr, so every
+          # PowerShell takes its answer the same way)
+          function Test-InAvpx([string] $path) {
+            $answer = "$($avpxCommit):$path" | git -C avpx cat-file --batch-check
+            if ($LASTEXITCODE -ne 0 -or "$answer" -cnotmatch '^[0-9a-f]{40} (blob|tree) [0-9]+$') { throw "AvPx $avpxCommit has no $path, which licences/README.txt names" }
+          }
+
+          # OpenAL Soft's line (Frost's words, 11-22): AvPx's words up to where they say its source is in AvPx's package (its own line stays right
+          # for AvPx, whose package keeps the source), then where it is: upstream's archive, the very file vcpkg downloads and checks (its size
+          # and SHA-256 worked out here from AvPx's own copy, whose SHA-512 must be the one avpx's port checks, and its version the port's), and
+          # this project's own changes to it and the settings it's built with: avpx's overlay port (its patches counted) and the triplet, which
+          # AvPx's package copies into the port's folder under another name (tools/build-and-package.ps1), so the port's link alone would miss it
+          $openal = @(for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i].StartsWith('openal32.dll: ')) { $i } })
+          if ($openal.Count -eq 1) {
+            $archive = @(Get-ChildItem -LiteralPath "$from\licences\sources\openal-soft" -Filter 'kcat-openal-soft-*.tar.gz' -File -ErrorAction SilentlyContinue)
+            if ($archive.Count -ne 1) { throw "AvPx's package has no one upstream archive of OpenAL Soft (licences/sources/openal-soft/kcat-openal-soft-*.tar.gz)" }
+            $version = $archive[0].Name.Substring('kcat-openal-soft-'.Length, $archive[0].Name.Length - 'kcat-openal-soft-'.Length - '.tar.gz'.Length)
+            $port = 'vcpkg-overlay-ports/openal-soft'
+            $triplet = 'vcpkg-overlay-triplets/x86-windows.cmake'
+            Test-InAvpx "$port/portfile.cmake"
+            Test-InAvpx $triplet
+            $portVersion = (Get-Content -LiteralPath "avpx\$port\vcpkg.json" -Raw | ConvertFrom-Json).version
+            if ("$portVersion" -cne $version) { throw "AvPx's archive is OpenAL Soft $version, but its port builds $portVersion" }
+            $sha512 = (Get-FileHash -Algorithm SHA512 -LiteralPath $archive[0].FullName).Hash.ToLowerInvariant()
+            if (-not (@(Get-Content -LiteralPath "avpx\$port\portfile.cmake" | ForEach-Object { $_.Trim() }) -ccontains "SHA512 $sha512")) { throw "AvPx's copy of the OpenAL Soft archive is not the one its port checks (SHA-512 $sha512)" }
+            $sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive[0].FullName).Hash.ToLowerInvariant()
+            $bytes = [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0:N0}', $archive[0].Length)
+            $patches = @(git -C avpx ls-tree --name-only "$($avpxCommit):$port" | Where-Object { $_ -like '*.patch' }).Count
+            $cut = $lines[$openal[0]].IndexOf(' Its source is here with it:')
+            if ($cut -lt 0) { throw "AvPx's line for openal32.dll no longer says where its source is in its package: read its words again before this one is changed" }
+            $lines[$openal[0]] = $lines[$openal[0]].Substring(0, $cut) + " Its source: upstream's archive, the very file vcpkg downloaded and checked, " +
+              "https://github.com/kcat/openal-soft/archive/$version.tar.gz ($bytes bytes, SHA-256 $sha256); and this project's own changes to it and the " +
+              "settings it's built with, https://github.com/Melanikus/AvP/tree/$avpxCommit/$port (its port and $patches patches) and " +
+              "https://github.com/Melanikus/AvP/blob/$avpxCommit/$triplet (the triplet). You may put your own build of OpenAL Soft in its place."
+          }
+          elseif ($openal.Count -gt 1) { throw 'licences/README.txt would have two lines for openal32.dll' }
+
+          # Each Smacker library linked into a program here, as the GNU LGPL 2.1 asks of a library linked in: its licence (its own COPYING, which must
+          # say it is that licence, as licences/<name>.txt), and a line saying where its complete source is (avpx/dependencies/<name> at that
+          # commit), which project built it (win32/VS2026/<name>_static.vcxproj, in this release's own source), and how to use your own build of it.
           $whatLinked = @{
             'libsmackerdec' = "Barry Duncan's player for Smacker films, the editor's FMV preview"
             'libsmackerenc' = "a Smacker film encoder made from Barry Duncan's libsmackerdec for Open Inteng, the level editor"
           }
           foreach ($library in $linked.Keys) {
             $program = $linked[$library]
-            $files = @(git -C avpx ls-files "dependencies/$library")
-            if ($LASTEXITCODE -ne 0 -or -not ($files -ccontains "dependencies/$library/COPYING")) { throw "avpx has no source of $library with its COPYING (git ls-files dependencies/$library)" }
+            Test-InAvpx "dependencies/$library/COPYING"
             $licence = @(Get-Content -LiteralPath "avpx\dependencies\$library\COPYING" -TotalCount 3 | ForEach-Object { $_.Trim() })
             if (-not ($licence -ccontains 'GNU LESSER GENERAL PUBLIC LICENSE') -or -not ($licence -ccontains 'Version 2.1, February 1999')) { throw "$library's COPYING is not the GNU LGPL 2.1 this package says it is" }
-            $to = Join-Path $licenceFolder "sources\$library"
-            foreach ($file in $files) {
-              $dest = Join-Path $to $file.Substring("dependencies/$library/".Length)
-              New-Item -ItemType Directory -Force (Split-Path -Parent $dest) | Out-Null
-              Copy-Item -LiteralPath (Join-Path 'avpx' $file) -Destination $dest
-            }
-            Copy-Item -LiteralPath "win32\VS2026\$($library)_static.vcxproj" -Destination $to
+            if (-not (Test-Path -LiteralPath "win32\VS2026\$($library)_static.vcxproj")) { throw "this commit has no win32/VS2026/$($library)_static.vcxproj, the project licences/README.txt says built $library" }
             Copy-Item -LiteralPath "avpx\dependencies\$library\COPYING" -Destination (Join-Path $licenceFolder "$library.txt") -Force
             $lines += "$($library): $($whatLinked[$library]), linked into $program (licences/$library.txt, the GNU Lesser General Public License, version 2.1). " +
-              "Its whole source is here with it, in licences/sources/$library, as AvPx pins it (https://github.com/Melanikus/AvP/tree/$avpxCommit/dependencies/$library), " +
-              "with $($library)_static.vcxproj, the project that built it. To use your own build of it, build $program again from this release's source " +
-              "(https://github.com/$env:GITHUB_REPOSITORY/tree/$env:GITHUB_SHA) with yours in its place."
+              "Its complete source, as AvPx pins it: https://github.com/Melanikus/AvP/tree/$avpxCommit/dependencies/$library. It is built by " +
+              "win32/VS2026/$($library)_static.vcxproj in this release's own source (https://github.com/$env:GITHUB_REPOSITORY/tree/$env:GITHUB_SHA); " +
+              "to use your own build of it, build $program again from that source with yours in its place."
           }
-          # and no source of a library that isn't here: a Smacker library's goes only with the program it is linked into, any other only with its DLL
-          foreach ($folder in @(Get-ChildItem -LiteralPath (Join-Path $licenceFolder 'sources') -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })) {
-            if ($linked.Contains($folder)) { if (-not (Test-Path -LiteralPath (Join-Path $package $linked[$folder]))) { throw "licences/sources/$folder ships without $($linked[$folder])" }; continue }
-            $owner = @($sourceOf.Keys | Where-Object { $sourceOf[$_][0] -eq $folder })
-            if ($owner.Count -ne 1 -or -not (Test-Path -LiteralPath (Join-Path $package $owner[0]))) { throw "licences/sources/$folder ships without its library" }
+
+          # The guard: every line under the GNU licences (it names GNU, LGPL or GPL) says where its source is, by a link; every link into AvPx's
+          # repository names this very avpx commit and a path that is in it; every link to the editor's own source names this release's own commit
+          # (Bishop 2, 11-22: the two kinds, as the team's own package check reads them); and no source file is in the zip
+          foreach ($line in $lines) {
+            $name = $line.Substring(0, $line.IndexOf(':'))
+            if ($line -cmatch 'GNU|LGPL|GPL' -and $line -cnotmatch 'Its (complete )?source[:,][^.]*https://') { throw "$name is under the GNU licences, and its line in licences/README.txt doesn't say where its source is" }
+            foreach ($link in @([regex]::Matches($line, 'https://github\.com/Melanikus/AvP/(?:tree|blob)/([0-9a-f]{40})/([A-Za-z0-9._/-]*[A-Za-z0-9_/-])'))) {
+              if ($link.Groups[1].Value -cne $avpxCommit) { throw "$name's line links AvPx at $($link.Groups[1].Value), not the commit this package was built from ($avpxCommit)" }
+              Test-InAvpx $link.Groups[2].Value.TrimEnd('/')
+            }
+            foreach ($link in @([regex]::Matches($line, "https://github\.com/$([regex]::Escape($env:GITHUB_REPOSITORY))/(?:tree|blob)/([0-9a-f]{40})"))) {
+              if ($link.Groups[1].Value -cne $env:GITHUB_SHA) { throw "$name's line links the editor's source at $($link.Groups[1].Value), not this release's own commit ($env:GITHUB_SHA)" }
+            }
           }
+          if (Test-Path -LiteralPath (Join-Path $licenceFolder 'sources')) { throw 'licences/sources is in the zip: the sources are linked from licences/README.txt, not shipped' }
           $readme = @(
             "The runtime files the editor needs beside it, and each one's licence, as AvPx's own package gives them, and the libraries linked into"
             'the programs. Each line names a file or a library, says what it is and which licences go with it, and, for the ones under the GNU'
-            'licences, where their source is.'
+            'licences, where their complete source is: a link, at the very commits this release was built from (the sources are not in the zip).'
             ''
           ) + $lines
           [System.IO.File]::WriteAllLines((Join-Path $licenceFolder 'README.txt'), [string[]]$readme)
 
-          Copy-Item License.txt, README.md $package
-          # Without the encoder (leave_out_encoder), the README this package ships says so where it tells you about mp4-to-smk, so it never
-          # promises a program the zip hasn't got (Dietrich's review of #94). The heading must be there exactly once, or the step fails: a
-          # README changed without this would ship the old promise.
-          if ($env:LEAVE_OUT_ENCODER -ceq 'true')
-          {
-            $readmeFile = Join-Path $package 'README.md'
-            $lines = @(Get-Content -LiteralPath $readmeFile)
-            $at = @(for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -ceq '## Your own videos (mp4-to-smk)') { $i } })
-            if ($at.Count -ne 1) { throw "README.md has $($at.Count) headings '## Your own videos (mp4-to-smk)', and the note about the left-out encoder goes under one" }
-            $note = @('', '**Not in this package:** this release leaves the video encoder out, so the zip has no mp4-to-smk.exe (and so no libsmackerenc),',
-              'and what follows about it doesn''t apply to it. The editor still plays the videos a level has (its decoder, libsmackerdec, is linked into it).')
-            $lines = @($lines[0..$at[0]]) + $note + @($lines[($at[0] + 1)..($lines.Count - 1)])
-            [System.IO.File]::WriteAllLines($readmeFile, [string[]]$lines)
-            'README.md says the encoder is left out of this package.'
-          }
+          # ONLY WHAT THE OWNER ASKED FOR (11-22: "just exes, dlls, licenses (build of course)", and the settings file): the programs, the licences,
+          # BUILD.txt and AVP_OpenInteng.ini. No README.md, no SHA256SUMS.txt (the release page keeps the zip's own SHA256SUMS, the Zip step's) and
+          # no notices folder.
+          Copy-Item -LiteralPath License.txt -Destination $package
           # The editor's own settings file, as the owner wants it shipped (11-18): its window starts framed, 1280 x 720 (StartWidth, StartHeight, Windowed: src/host/editor_options.h).
           # It names no DataFolder: each mapper adds his own, and the editor says so at its start until he has. tests/host_editor_options_test reads it.
+          # Without it AutoPlot is 0 and the Alien auto waypoint menu is hidden (the owner, 11-22).
           if (-not (Test-Path -LiteralPath 'dist\AVP_OpenInteng.ini')) { throw 'dist\AVP_OpenInteng.ini, the settings file the zip ships, is not there' }
           Copy-Item -LiteralPath 'dist\AVP_OpenInteng.ini' -Destination $package
-          Copy-Item -Recurse notices (Join-Path $package 'notices')
           "AVP_OpenInteng $env:VERSION, commit $env:GITHUB_SHA, AvPx $(git -C avpx rev-parse HEAD)" | Out-File -Encoding ascii (Join-Path $package 'BUILD.txt')
 
-          Push-Location $package
-          # Each file's name inside the package: its full path with the package's own folder cut off the front (a file that isn't inside it stops
-          # the step), and / between folders
-          $hashes = Get-ChildItem -Recurse -File | ForEach-Object {
+          # The guard: the package holds exactly those and nothing else. At the top: the programs (AVP_OpenInteng.exe, mp4-to-smk.exe unless the
+          # encoder is left out, and exactly the DLLs this step copied above, by name: the import walk's and D3DCompiler_43.dll), License.txt, BUILD.txt
+          # and AVP_OpenInteng.ini; the one folder licences, holding only its .txt files, README.txt among them. Anything else stops the step, with its
+          # name, a DLL nobody chose too. Then each file and its SHA-256 for the run's log (the zip carries no list of its own).
+          $want = @('AVP_OpenInteng.exe', 'AVP_OpenInteng.ini', 'BUILD.txt', 'License.txt', 'licences\README.txt') + @($linked.Values | Where-Object { $_ -cne 'AVP_OpenInteng.exe' }) + $chosen
+          $found = @(Get-ChildItem -LiteralPath $package -Recurse -File | ForEach-Object {
             if (-not $_.FullName.StartsWith("$package\", [System.StringComparison]::OrdinalIgnoreCase)) { throw "$($_.FullName) is not inside $package" }
-            '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLower(), ($_.FullName.Substring($package.Length + 1) -replace '\\', '/')
-          }
-          Pop-Location
-          # LF line ends and no byte-order mark, so sha256sum -c reads it on Linux and WSL too (Out-File wrote CRLF: the CR stuck to every name)
-          $sumsFile = Join-Path $package 'SHA256SUMS.txt'
-          [System.IO.File]::WriteAllText($sumsFile, (($hashes -join "`n") + "`n"), [System.Text.UTF8Encoding]::new($false))
-          $bytes = [System.IO.File]::ReadAllBytes($sumsFile)
-          if ($bytes -contains 13 -or ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)) { throw 'SHA256SUMS.txt must be LF with no byte-order mark' }
-          Get-Content $sumsFile
+            $_.FullName.Substring($package.Length + 1)
+          })
+          $odd = @($found | Where-Object { -not ($want -ccontains $_) -and $_ -cnotmatch '^licences\\[^\\]+\.txt$' })
+          if ($odd.Count) { throw "the package holds what the owner didn't ask for: $($odd -join ', ')" }
+          $missing = @($want | Where-Object { -not ($found -ccontains $_) })
+          if ($missing.Count) { throw "the package lacks $($missing -join ', ')" }
+          foreach ($file in @($found | Sort-Object)) { '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $package $file)).Hash.ToLower(), ($file -replace '\\', '/') }
+          "$($found.Count) files in the package"
 
       - name: Zip the package, and work out its hash
         shell: pwsh
@@ -337,7 +364,7 @@ jobs:
           $name = "AVP_OpenInteng-$env:VERSION-windows-x86.zip"
           Compress-Archive -Path "$env:RUNNER_TEMP\package\*" -DestinationPath (Join-Path $folder $name)
           $hash = (Get-FileHash -Algorithm SHA256 (Join-Path $folder $name)).Hash.ToLower()
-          # LF and no byte-order mark (as SHA256SUMS.txt above): sha256sum -c on Linux and WSL reads it; the jobs below read it with Get-Content, which takes LF too
+          # LF and no byte-order mark: sha256sum -c on Linux and WSL reads it; the jobs below read it with Get-Content, which takes LF too
           $sumsFile = Join-Path $folder 'SHA256SUMS'
           [System.IO.File]::WriteAllText($sumsFile, "$hash  $name`n", [System.Text.UTF8Encoding]::new($false))
           $bytes = [System.IO.File]::ReadAllBytes($sumsFile)
@@ -410,6 +437,9 @@ jobs:
           $answers = Join-Path $env:RUNNER_TEMP 'virustotal'
           New-Item -ItemType Directory -Force $answers | Out-Null
           $giveUp = (Get-Date).AddMinutes(170)
+          # Only an analysis this run started counts: the checker refuses one VirusTotal dates before this step began, less a minute for
+          # the runner's clock and VirusTotal's being apart (2026-11-22)
+          $notBefore = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - 60
 
           function Ask-Checker([string]$fileSha, [string[]]$arguments)
           {
@@ -440,45 +470,78 @@ jobs:
             }
           }
 
-          # Every verdict that counts is from this run (Dietrich's review of #94, 2026-11-21). A file VirusTotal already knows is analysed
-          # again, with today's scanners (POST files/<sha>/analyse), and a file it doesn't know is sent. An old analysis is never counted: once
-          # builds repeat byte for byte, the same file comes back every release, and a clean verdict from long ago would pass for ever.
+          # Every verdict that counts is from this run (Dietrich's review of #94, 2026-11-21). An old analysis is never counted: once builds
+          # repeat byte for byte, the same file comes back every release, and a clean verdict from long ago would pass for ever. So every file
+          # is uploaded (POST files), whether VirusTotal knows it or not, and the checker refuses an analysis dated before this step began.
+          # An upload starts a fresh analysis, with today's scanners, either way. Measured 2026-11-22: AVP_OpenInteng.exe, known to VirusTotal
+          # since 04:51, was uploaded at 10:45:44 and its analysis had finished by 10:48:56; in the alpha.4 scan, the zip's and fmt.dll's
+          # uploads had finished when first asked about. Asking VirusTotal to analyse a known file again (POST files/<sha>/analyse, what this
+          # did until then) was slow or never happened: of that scan's 8 such requests for programs, 1 had finished when asked, 5 were still
+          # queued 8 to 13 minutes after they were made, and 2 never ran (see Wait-All).
+          # An upload is one question to VirusTotal where those were two (is it known? then analyse it), and the -Package check below already
+          # keeps every file within the size one upload takes.
           # Every file is sent first, then every analysis is waited for: they run at VirusTotal side by side, so the wait is for the slowest,
           # not for each in turn. Each answer is saved under the file's own hash and read by the checker first, and the same bytes twice in
           # the package are analysed once.
+          # What is kept of each file sent, by its hash: where its bytes are, its name, its MD5 (the checker ties VirusTotal's second spelling
+          # of an analysis's number to the file with it), how many times it has been sent, and when it was last
+          $sending = @{}
           function Send-One([string]$path, [string]$fileSha, [string]$what)
           {
             if ((Ask-Checker $fileSha @('-Package', $path)) -cne 'ready') { throw "$what is not ready to send" }
-            # Only whether VirusTotal knows the file is taken from this answer, never what it said about it before
-            $status = Ask-VirusTotal 'Get' "files/$fileSha" "$answers/$fileSha-lookup.json"
-            if ($status -eq 200) { $status = Ask-VirusTotal 'Post' "files/$fileSha/analyse" "$answers/$fileSha-sent.json"; $how = 'analysed again' }
-            elseif ($status -eq 404) { $status = Ask-VirusTotal 'Post' 'files' "$answers/$fileSha-sent.json" @{ file = Get-Item -LiteralPath $path }; $how = 'sent for the first time' }
-            else { throw "VirusTotal answered the question about $what with HTTP $status" }
-            if ($status -ne 200) { throw "VirusTotal answered the request to analyse $what with HTTP $status" }
+            $status = Ask-VirusTotal 'Post' 'files' "$answers/$fileSha-sent.json" @{ file = Get-Item -LiteralPath $path }
+            if ($status -ne 200) { throw "VirusTotal answered the upload of $what with HTTP $status" }
+            $how = if ($sending.ContainsKey($fileSha)) { 'sent again' } else { 'sent' }
             $answer = Ask-Checker $fileSha @('-Answer', "$answers/$fileSha-sent.json", '-Kind', 'upload')
-            if ($answer -cnotmatch '^analysis [A-Za-z0-9+/=]{1,200}\z') { throw "VirusTotal started no analysis of $what" }
+            # An analysis's number in either of VirusTotal's spellings (the checker's): base64, or f-<a SHA-256>-<a time>
+            if ($answer -cnotmatch '^analysis ([A-Za-z0-9+/=]{1,200}|f-[0-9a-f]{64}-[0-9]{1,12})\z') { throw "VirusTotal started no analysis of $what" }
             Write-Host "$($what): $how"
+            if (-not $sending.ContainsKey($fileSha)) { $sending[$fileSha] = @{ Path = $path; What = $what; Md5 = (Get-FileHash -Algorithm MD5 -LiteralPath $path).Hash.ToLowerInvariant(); Sends = 0 } }
+            $sending[$fileSha].Sends = $sending[$fileSha].Sends + 1
+            $sending[$fileSha].SentAt = Get-Date
+            $sending[$fileSha].Missing = $false
             return $answer.Substring('analysis '.Length)
           }
 
           # Waits for every analysis started, asking about each in turn, and gives back each file's counts by its hash: how many scanners
-          # called it malicious, how many suspicious, and how many answered
+          # called it malicious, how many suspicious, and how many answered.
+          # VirusTotal can give a number for an analysis it then never runs (2026-11-22, the alpha.4 scan: two of the re-analyses asked
+          # for, AVP_OpenInteng.exe's and d3dx9_43.dll's; asked about, it answered 404 for as long as anyone asked, and its report on each
+          # file still showed the analysis before). So a 404 is taken as still waiting until 10 minutes after the file was sent, and that
+          # analysis isn't asked about again before then; after that the same bytes are uploaded again, and the analysis that starts is
+          # waited for instead. A file is sent 3 times at most; past that the scan stops, naming it. Whichever analysis is counted, it is one
+          # this run started: the checker refuses one dated before the step began.
           function Wait-All($started)
           {
             $done = @{}
             while ($done.Count -lt $started.Count)
             {
+              $asked = $false
               foreach ($fileSha in @($started.Keys))
               {
                 if ($done.ContainsKey($fileSha)) { continue }
                 $id = $started[$fileSha]
+                $file = $sending[$fileSha]
+                $minutes = ((Get-Date) - $file.SentAt).TotalMinutes
+                if ($file.Missing -and $minutes -lt 10) { continue }
+                $asked = $true
                 $status = Ask-VirusTotal 'Get' "analyses/$([uri]::EscapeDataString($id))" "$answers/$fileSha-analysis.json"
+                if ($status -eq 404)
+                {
+                  if ($minutes -lt 10) { $file.Missing = $true; continue }
+                  if ($file.Sends -ge 3) { throw "VirusTotal never ran an analysis of $($file.What): it was sent $($file.Sends) times, and 10 minutes after each, VirusTotal answered 404 about the analysis it had given a number for" }
+                  Write-Host "$($file.What): VirusTotal has no analysis $id 10 minutes after it was sent, so the same bytes are sent again"
+                  $started[$fileSha] = Send-One $file.Path $fileSha $file.What
+                  continue
+                }
                 if ($status -ne 200) { throw "VirusTotal answered the question about an analysis with HTTP $status" }
-                $answer = Ask-Checker $fileSha @('-Answer', "$answers/$fileSha-analysis.json", '-Kind', 'analysis', '-AnalysisId', $id)
+                $answer = Ask-Checker $fileSha @('-Answer', "$answers/$fileSha-analysis.json", '-Kind', 'analysis', '-AnalysisId', $id, '-Md5', $file.Md5, '-NotBefore', "$notBefore")
                 if ($answer -ceq 'waiting') { continue }
                 if ($answer -cmatch '^counted (0|[1-9][0-9]{0,3}) (0|[1-9][0-9]{0,3}) ([1-9][0-9]{0,3})\z') { $done[$fileSha] = @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3]) }
                 else { throw 'The VirusTotal checker gave no count' }
               }
+              # Every analysis left is one VirusTotal said it doesn't have, waiting out its 10 minutes: wait without asking
+              if (-not $asked) { Start-Sleep -Seconds 20 }
             }
             return $done
           }
