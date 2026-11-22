@@ -1,0 +1,73 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-21, the owner's report through Bishop: "her video is long so it got stuck for a few seconds, we need a loading video %"). His film is
+# 164.7 s (2,471 frames). Play read its WHOLE sound before anything played (fmv_preview.cpp MakeSound: every frame decoded into one OpenAL buffer), on the editor's own thread, so
+# the window stopped drawing for seconds. The fix streams the sound: a few frames at a time into OpenAL buffers queued one after another, so Play starts at once and the window
+# never waits; then no load is left for a % to show.
+# HIS PATH: his own Genshd1, Strategy Data, Find Object > message13, right-click > Edit Strategy, the Message line, the number list > 1 (his film, in the run's own {datadir}\FMVs,
+# make-fmv-his-film.cmd), Play. The editor answers the harness in its next frame, so a late answer is a frame that took that long (the harness's click waits 600 ms first, and a
+# frame is about 40 ms: 300 catches any wait over about 0.9 s). Pictures are taken only at the end: saving one is a frame's work of its own, and the timings come first.
+# RED on 956b2e91: the answer after Play comes seconds late (the whole sound read first).
+make-level cmd /c (echo.& echo SmackerDecoderSha256=53c033525df722d870c0d3b26a6d1a319fe6dbe8f97141580ccc29dcf4742021)>>"{exedir}AVP_OpenInteng.ini"
+make-level cmd /c {scenariodir}message-fmv\make-fmv-his-film.cmd {datadir} "C:\Program Files (x86)\Steam\steamapps\common\Aliens versus Predator Classic\FMVs"
+make-level cmd /c copy /y "C:\Users\Melanikus\source\AvP-builds-excluded\AvP-play-alienways\bin\libsmackerdec.dll" "{exedir}libsmackerdec.dll"
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+pictures off
+state
+expect-field levelbytes 1781232
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is message13
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 16@32:String :47
+click-box 300 40
+expect-dialog-kind form
+expect-field-has dialogbuttons Play
+
+# ---- his film from the number list (its only row: the run's FMVs hold his film alone)
+click-combo 1
+wait 600
+click-combo-row 1
+wait 300
+expect-field-has dialogcombos 1
+expect-last-answer-within 300
+
+# ---- Play: it starts at once, the window keeps drawing, the picture runs on, with its sound
+click-button Play
+expect-last-answer-within 300
+expect-status Playing FMVs\message1.smk: SMK2 128 x 96
+expect-status with its sound
+expect-field-has fmvpreview message1.smk frame
+expect-field-has fmvpreview of 2471
+expect-field-has fmvpreview sound playing
+remember-field fmvpreview
+wait 1500
+expect-field-changed fmvpreview
+expect-last-answer-within 300
+expect-field-has fmvpreview sound playing
+# the preview's own times since Play (fmv_preview.cpp): its start, step by step, and its longest editor frame since. THE FIRST PLAY OF A SESSION ALSO STARTS THE
+# EDITOR'S SOUND DEVICE (SoundSys_Start, its "device" share: 625 ms on this machine, 11-21), once, whatever the film: so here the film's own steps are checked, the
+# stream's open and its first second of sound
+expect-number fmvpreview open_ 0 250
+expect-number fmvpreview first-second_ 0 250
+expect-number fmvpreview longest_frame_ 0 250
+
+# ---- 20 seconds on, still drawing and the sound still fed (the stream refills as it plays)
+wait 20000
+expect-last-answer-within 300
+expect-field-has fmvpreview sound playing
+expect-number fmvpreview longest_frame_ 0 250
+
+# ---- Play again, the sound device already up: the whole start is the film's own, and it is quick
+click-button Play
+expect-last-answer-within 300
+expect-field-has fmvpreview message1.smk frame
+expect-number fmvpreview started_in_ 0 250
+picture 1

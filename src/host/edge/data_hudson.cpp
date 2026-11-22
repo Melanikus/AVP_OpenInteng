@@ -45,6 +45,8 @@
 #include "pfarlocs.h"
 #include "alien_ways.h"
 #include "floor_is_lava.h"
+#include "stock_flags.h"
+#include "debug_view.h"
 #include "hudson_vision.h"
 #include "hudson_video.h"
 #include "shoulder_lamp.h"
@@ -55,6 +57,7 @@
 #include "hudson.h"
 #include "load_shape.h"
 #include "hudson_plan.h"
+#include "hudson_lanes.h"
 #include "custom_maps.h"
 #include "hmodel.h"
 #include "weapon_hooks.h"
@@ -89,6 +92,9 @@
 
 // 3dc/avp/hudson.cpp
 bool HudsonBreaksPrisms = false;
+
+// 3dc/avp/hudson.cpp
+bool HudsonLanesAreOn = false;
 
 // 3dc/avp/hudson.cpp
 bool HudsonMarineHoldsFire = false;

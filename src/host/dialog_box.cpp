@@ -234,24 +234,262 @@ namespace host
 			{
 				focus = i;
 			}
+
+			// a combo's list never runs past the screen's foot, whatever its own rows (the list that scrolls, dialog_box.h)
+			if (widgets[i].type == DialogWidgetType::Combo && widgets[i].box.height > 0)
+			{
+				int32_t const below = screen.y + screen.height - (widgets[i].box.y + widgets[i].box.height);
+
+				widgets[i].listFit = below / widgets[i].box.height > 1 ? below / widgets[i].box.height : 1;
+			}
+		}
+	}
+
+	int32_t DialogBox_ComboListRows(int32_t resourceHeight)
+	{
+		// (see dialog_box.h: the resource's height in pixels, less the closed box's 21 and the list's frame, in whole rows of 13)
+		int32_t const rows = (resourceHeight * 13 / 8 - 21 - 2) / 13;
+
+		return rows < 1 ? 1 : rows;
+	}
+
+	size_t InDialog::ComboRowsShown(DialogWidget const &combo)
+	{
+		size_t shown = combo.items.size();
+
+		shown = combo.listRows > 0 && (size_t)combo.listRows < shown ? (size_t)combo.listRows : shown;
+		shown = combo.listFit > 0 && (size_t)combo.listFit < shown ? (size_t)combo.listFit : shown;
+		return shown;
+	}
+
+	bool InDialog::ComboScrolls(DialogWidget const &combo)
+	{
+		return ComboRowsShown(combo) < combo.items.size();
+	}
+
+	namespace
+	{
+		// The first row in view: what the list holds, kept so the rows in view are always whole (no blank rows under the last one)
+		size_t TopRow(DialogWidget const &combo)
+		{
+			size_t const shown = InDialog::ComboRowsShown(combo);
+			size_t const most = combo.items.size() - shown;
+
+			return combo.listTop < most ? combo.listTop : most;
+		}
+
+		// The list scrolled so a row is in view (it moves as little as it can, as Windows' list boxes do)
+		void Reveal(DialogWidget *combo, size_t row)
+		{
+			size_t const shown = InDialog::ComboRowsShown(*combo);
+			size_t top = TopRow(*combo);
+
+			if (shown == 0)
+			{
+				return;
+			}
+
+			top = row < top ? row : top;
+			top = row >= top + shown ? row - shown + 1 : top;
+			combo->listTop = top;
+		}
+
+		// The list scrolled by a number of rows (less than 0 toward its top), kept inside the list
+		void ScrollRows(DialogWidget *combo, int64_t rows)
+		{
+			int64_t const most = (int64_t)(combo->items.size() - InDialog::ComboRowsShown(*combo));
+			int64_t top = (int64_t)TopRow(*combo) + rows;
+
+			top = top < 0 ? 0 : top;
+			top = top > most ? most : top;
+			combo->listTop = (size_t)top;
 		}
 	}
 
 	DialogRect InDialog::ComboRow(DialogWidget const &combo, size_t row)
 	{
 		DialogRect r;
+		size_t const top = TopRow(combo);
+
+		if (row < top || row >= top + ComboRowsShown(combo))
+		{
+			return r;   // out of view: 0 wide, not drawn, not pressed
+		}
 
 		r.x = combo.box.x;
-		r.y = combo.box.y + combo.box.height * (int32_t)(row + 1);
-		r.width = combo.box.width;
+		r.y = combo.box.y + combo.box.height * (int32_t)(row - top + 1);
+		r.width = combo.box.width - (ComboScrolls(combo) ? kDialogScrollBarWidth : 0);
 		r.height = combo.box.height;
 		return r;
+	}
+
+	DialogScrollBar InDialog::ComboScrollBar(DialogWidget const &combo)
+	{
+		DialogScrollBar bar;
+
+		if (!ComboScrolls(combo))
+		{
+			return bar;
+		}
+
+		int32_t const rowHeight = combo.box.height;
+		int32_t const shown = (int32_t)ComboRowsShown(combo);
+		int64_t const all = (int64_t)combo.items.size();
+
+		// the column beside the rows in view, from the first row's top to the last one's foot; an arrow a row high at each end
+		bar.column = { combo.box.x + combo.box.width - kDialogScrollBarWidth, combo.box.y + rowHeight, kDialogScrollBarWidth, rowHeight * shown };
+		bar.up = { bar.column.x, bar.column.y, kDialogScrollBarWidth, rowHeight };
+		bar.down = { bar.column.x, bar.column.y + bar.column.height - rowHeight, kDialogScrollBarWidth, rowHeight };
+
+		// the thumb between them: as long as the share of the list in view (at least 8 pixels), as far down the track as the first row in view is down the list
+		int32_t const trackTop = bar.up.y + bar.up.height, track = bar.down.y - trackTop;
+
+		if (track >= 8)
+		{
+			int32_t length = (int32_t)((int64_t)track * shown / all);
+			int64_t const most = all - shown;
+
+			length = length < 8 ? 8 : length;
+			bar.thumb = { bar.column.x, trackTop + (int32_t)((int64_t)(track - length) * (int64_t)TopRow(combo) / (most > 0 ? most : 1)), kDialogScrollBarWidth, length };
+		}
+
+		return bar;
+	}
+
+	DialogWidget *InDialog::OpenList(size_t *index)
+	{
+		for (size_t i = 0; open && kind == DialogKind::Form && i < widgets.size(); i++)
+		{
+			if (widgets[i].type == DialogWidgetType::Combo && widgets[i].visible && widgets[i].listOpen)
+			{
+				*index = i;
+				return &widgets[i];
+			}
+		}
+
+		return nullptr;
+	}
+
+	bool InDialog::ListOpen() const
+	{
+		for (DialogWidget const &w : widgets)
+		{
+			if (open && kind == DialogKind::Form && w.type == DialogWidgetType::Combo && w.visible && w.listOpen)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	void InDialog::PickRow(size_t index, size_t row)
+	{
+		DialogWidget &combo = widgets[index];
+		bool const changed = combo.selected != (int32_t)row;
+
+		combo.listOpen = false;
+		combo.selected = (int32_t)row;
+		combo.text = combo.items[row];
+
+		if (changed && changeHook)
+		{
+			changeHook(widgets, index);
+			CutPathsShown(&widgets);   // the hook may have given parts new words
+		}
+	}
+
+	bool InDialog::Wheel(int32_t delta)
+	{
+		size_t index = 0;
+		DialogWidget *const combo = OpenList(&index);
+
+		if (!combo)
+		{
+			wheelLeft = 0;
+			return false;
+		}
+
+		// 3 rows a whole notch; a part of a notch is kept until the turn adds up to a row (more than 0 turns toward the top)
+		int64_t const turned = (int64_t)wheelLeft + delta;
+		int64_t const rows = turned * kDialogWheelRows / kDialogWheelNotch;
+
+		wheelLeft = (int32_t)(turned - rows * kDialogWheelNotch / kDialogWheelRows);
+		ScrollRows(combo, -rows);
+		return true;
+	}
+
+	bool InDialog::ListKey(DialogListKey key)
+	{
+		size_t index = 0;
+		DialogWidget *const combo = OpenList(&index);
+
+		if (!combo || combo->items.empty())
+		{
+			return combo != nullptr;
+		}
+
+		int64_t const last = (int64_t)combo->items.size() - 1;
+		int64_t const page = (int64_t)ComboRowsShown(*combo) > 1 ? (int64_t)ComboRowsShown(*combo) - 1 : 1;
+		int64_t lit = combo->listLit;
+
+		switch (key)
+		{
+			case DialogListKey::Up: lit = lit < 0 ? 0 : lit - 1; break;
+			case DialogListKey::Down: lit = lit + 1; break;
+			case DialogListKey::PageUp: lit = lit < 0 ? 0 : lit - page; break;
+			case DialogListKey::PageDown: lit = lit < 0 ? page : lit + page; break;
+			case DialogListKey::Home: lit = 0; break;
+			case DialogListKey::End: lit = last; break;
+		}
+
+		lit = lit < 0 ? 0 : (lit > last ? last : lit);
+		combo->listLit = (int32_t)lit;
+		Reveal(combo, (size_t)lit);
+		return true;
+	}
+
+	bool InDialog::ListReturn()
+	{
+		size_t index = 0;
+		DialogWidget *const combo = OpenList(&index);
+
+		if (!combo)
+		{
+			return false;
+		}
+
+		if (combo->listLit >= 0 && (size_t)combo->listLit < combo->items.size())
+		{
+			PickRow(index, (size_t)combo->listLit);
+		}
+		else
+		{
+			combo->listOpen = false;
+		}
+
+		return true;
+	}
+
+	bool InDialog::ListEscape()
+	{
+		size_t index = 0;
+		DialogWidget *const combo = OpenList(&index);
+
+		if (!combo)
+		{
+			return false;
+		}
+
+		combo->listOpen = false;
+		return true;
 	}
 
 	void InDialog::Close()
 	{
 		changeHook = nullptr;
 		checkHook = nullptr;
+		wheelLeft = 0;
 		open = false;
 		buttons.clear();
 		fields.clear();
@@ -275,7 +513,8 @@ namespace host
 			}
 		}
 
-		// an open list takes the press first: a row picks, and any other press closes it (a press on the combo's own box only closes it)
+		// an open list takes the press first: its scroll bar scrolls it and it stays open, a row in view picks, and any other press closes it (a press on the combo's own box only
+		// closes it)
 		for (size_t i = 0; i < widgets.size(); i++)
 		{
 			DialogWidget &combo = widgets[i];
@@ -285,23 +524,41 @@ namespace host
 				continue;
 			}
 
+			// THE SCROLL BAR (the list that scrolls, dialog_box.h): an arrow scrolls a row, the bar above or below the thumb a page (the rows in view), the thumb itself nothing (it
+			// isn't dragged); the list stays open
+			DialogScrollBar const bar = ComboScrollBar(combo);
+
+			if (bar.column.width > 0 && Holds(bar.column, x, y))
+			{
+				int64_t const page = (int64_t)ComboRowsShown(combo);
+
+				if (Holds(bar.up, x, y))
+				{
+					ScrollRows(&combo, -1);
+				}
+				else if (Holds(bar.down, x, y))
+				{
+					ScrollRows(&combo, 1);
+				}
+				else if (bar.thumb.height > 0 && y < bar.thumb.y)
+				{
+					ScrollRows(&combo, -page);
+				}
+				else if (bar.thumb.height > 0 && y >= bar.thumb.y + bar.thumb.height)
+				{
+					ScrollRows(&combo, page);
+				}
+
+				return false;
+			}
+
 			combo.listOpen = false;
 
 			for (size_t row = 0; row < combo.items.size(); row++)
 			{
 				if (Holds(ComboRow(combo, row), x, y))
 				{
-					bool const changed = combo.selected != (int32_t)row;
-
-					combo.selected = (int32_t)row;
-					combo.text = combo.items[row];
-
-					if (changed && changeHook)
-					{
-						changeHook(widgets, i);
-						CutPathsShown(&widgets);   // the hook may have given parts new words
-					}
-
+					PickRow(i, row);
 					return false;
 				}
 			}
@@ -330,7 +587,13 @@ namespace host
 					continue;
 				}
 
+				// it opens scrolled so the picked row is its top row, or as near as the list's end lets it (Windows' drop-down: the list's top index set to the picked row,
+				// LB_SETTOPINDEX in Wine's combo.c CBDropDown), the keys on that row
 				w.listOpen = !w.items.empty();
+				w.listLit = w.selected >= 0 && (size_t)w.selected < w.items.size() ? w.selected : -1;
+				w.listTop = w.listLit >= 0 ? (size_t)w.listLit : 0;
+				w.listTop = TopRow(w);
+				wheelLeft = 0;
 				continue;
 			}
 

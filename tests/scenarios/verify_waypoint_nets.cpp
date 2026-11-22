@@ -5,6 +5,7 @@
 // USAGE: verify_waypoint_nets <the saved copy> <master> [except <master>:<exit> ...] <check> [<check> ...]
 //   master: the AI module's master's object index (as Waypoint mode counts modules), or "all" for every AI module that has a network
 //   check: network     it has an alien network (one box at least)
+//          none        it has NO alien network (no box; with all: no AI module has one), as after Delete Waypoints (Dietrich 11-21, waypoint_delete.h)
 //          exits       every exit point lies in a box (EXIT OUTSIDE: none)
 //          connected   every box reaches every other (CANNOT REACH: none)
 //          most        99 boxes at most (TOO MANY: none)
@@ -231,6 +232,20 @@ int main(int argc, char **argv)
 
 	for (std::string const &check : checks)
 	{
+
+		if (check == "none")
+		{
+			size_t withBoxes = 0;
+
+			for (WaypointNetModule const *net : chosen)
+			{
+				withBoxes += net->boxes > 0 ? 1 : 0;
+			}
+
+			Check(withBoxes == 0, all ? "no AI module has an alien network (" + std::to_string(withBoxes) + " have one)" :
+				"AI module " + std::string(argv[2]) + " has no alien network" + (withBoxes ? " (it has " + std::to_string(chosen[0]->boxes) + " boxes)" : std::string()));
+			continue;
+		}
 
 		if (check == "network")
 		{

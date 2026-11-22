@@ -1,0 +1,69 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-21, the owner's report through Bishop: "We can't scroll down to see message 1001..."). His Message window's number list holds the
+# game's 53 numbers and one more of his own, last: 54 rows. Here the last is message450.smk, the highest number the game's loader lets through (AvPx strategy_chunk.cpp
+# MostLevelMessages; the editor never lists 1001: smk_header.h kMostMessageNumber, said to Bishop 11-21). The open list drew EVERY row under the box (dialogs.cpp), so its
+# foot ran off the window and the screen, and no person could reach the last rows. INTENG: the other lists of this kind are the DLL dialogs' Win32 drop-down lists, which show as many rows as
+# their resource's dropped height gives and then scroll, with a scroll bar, the mouse wheel and the keys. The Message number list is the owner's addition (inteng's box took a typed
+# number only), so it shows the rows of the DLL's own long list, Sound Edit's wav names (121 dialog units: 13 rows).
+# HIS PATH: as acceptance-strategy-message-fmv-play (his own Genshd1, Message 47 on message13), with his list in the run's own {datadir}\FMVs (make-fmvs-long.cmd: his 53 message
+# names and message450): open the list, scroll to 450 with the wheel, pick it, Play; then the keys: Home, End, Enter.
+# RED on 956b2e91: the list opens with all 54 rows from y 218, 450's at 284 1172 300 18 on the hidden run's 729-high window: past it, so click-combo-row refuses it, and Play plays 47.
+make-level cmd /c (echo.& echo SmackerDecoderSha256=53c033525df722d870c0d3b26a6d1a319fe6dbe8f97141580ccc29dcf4742021)>>"{exedir}AVP_OpenInteng.ini"
+make-level cmd /c {scenariodir}message-fmv\make-fmvs-long.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
+make-level cmd /c copy /y "C:\Users\Melanikus\source\AvP-builds-excluded\AvP-play-alienways\bin\libsmackerdec.dll" "{exedir}libsmackerdec.dll"
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is message13
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-field-has strategyview 16@32:String :47
+click-box 300 40
+expect-dialog-kind form
+expect-field-has dialogbuttons Play
+
+# ---- the list opens scrolled so the picked number shows: 47 (the 7th of 54) its top row, right under the box (the window 1008 by 729 of a hidden run: the closed box at 284,200,
+# 300 by 18). 13 rows show, each 284 wide: the scroll bar takes the right 16 pixels, as wide as the box's arrow. 450, the last, is out of view (its box 0 0 0 0)
+click-combo 1
+wait 600
+expect-field-has dialogcomborows |47 284 218 284 18|
+expect-field-has dialogcomborows |450 0 0 0 0
+picture 1
+
+# ---- the mouse wheel scrolls it, 3 rows a notch, and stops at the end: 450 the last row shown, the 13th, on the screen
+wheel down 14
+expect-field-has dialogcomborows |450 284 434 284 18
+picture 2
+
+# ---- a press on it picks it; Play plays HIS video
+click-combo-row 450
+wait 300
+expect-field-has dialogcombos 450 284 200
+click-button Play
+wait 300
+expect-field-has fmvpreview message450.smk frame
+picture 3
+
+# ---- the keys, with the list open again: Home shows the first row at the top, End brings the last into view, Enter picks the row the keys are on and closes the list only
+click-combo 1
+wait 600
+key Home
+expect-field-has dialogcomborows 25 284 218 284 18|
+key End
+expect-field-has dialogcomborows |450 284 434 284 18
+key Enter
+wait 300
+expect-dialog-kind form
+expect-field-empty dialogcomborows
+expect-field-has dialogcombos 450 284 200
+picture 4

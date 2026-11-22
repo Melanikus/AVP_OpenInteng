@@ -1,0 +1,46 @@
+# ACCEPTANCE, ON SCREEN (pictures on: lane G; Drake 2026-11-21, the live plot part 2): THE LOOK of the plot's preview, for the owner's eyes. The owner, 11-21: "I want to see
+# the modules updating on the map as they are build and the little image should show progress as volumes are being placed on it", and "Can you also give the render bottom
+# right pane the slightest border so we can see it's a 'pop up' people understand it'll dissappear?".
+# Three rooms of stock Genshd1 (PROC11, MOD-03, MOD-11), as acceptance-plot-preview, in a 1024 x 768 view, the main camera at PROC11's 45-degree corner (camera-corner).
+# Finished = the numbers say it and the pictures show it:
+#   picture 1, while it plots, once PROC11 is on the main view: the main view with PROC11's boxes and links on it (white boxes, the links in Waypoint mode's colours), and the
+#     inset at the bottom right (614 461 410 307) showing the module being planned, inside a white 1-pixel frame (inteng's dialog frame, DL-2);
+#   picture 2, after the plot: no inset and no frame, the main view with Waypoint mode 0's every network, read from the level the plot wrote.
+# What a picture can't prove (the frame's pixels, the lines' colours) is the owner's to judge: these pictures go to him. Check them for private text (paths, names) first.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args -r1024x768 C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-screen Waypoint
+expect-field-has window 1024 768 window
+expect-field plotpreview off
+
+wait 600
+camera-corner PROC11
+click-view 0.50 0.50
+wait 400
+expect-status PROC11
+
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+type ,MOD-03,MOD-11
+click-check 2
+click-button Ok
+expect-dialog-kind confirm
+expect-dialog replace
+click-button Yes
+
+# WHILE IT PLOTS: the first module on the main view, the inset still up
+wait-field plotpreview landed_ 1 120000
+expect-field-has plotpreview on left 614 top 461 width 410 height 307
+picture 1
+
+# WHEN IT ENDS: the inset and its frame gone, the three modules on the main view all along
+wait-status 300000 written
+expect-status Auto-plot: 3 AI modules written, 0 refused
+wait 600
+expect-field-has plotpreview off job
+expect-number plotpreview landed_ 3 3
+picture 2

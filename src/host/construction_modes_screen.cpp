@@ -134,6 +134,7 @@
 #include "waypoint_view.h"
 #include "autoplot_command.h"
 #include "alien_auto_waypoint.h"   // the owner's "Alien auto waypoint" > Modules (Vasquez 11-20)
+#include "waypoint_delete.h"       // the owner's Delete Waypoints / Delete All Waypoints (Dietrich 11-21)
 #include "can_crawl_offer.h"       // the Can Crawl offer: the module's Airduct flag instead of the bit the game never reads (the owner 11-21)
 #include "track_pages.h"
 #include "editor_options.h"
@@ -2011,6 +2012,12 @@ void DoWaypointCommand(int32_t command, EditorHostState &host)
 {
 	// Alien auto waypoint > Modules (ours, the owner's 11-20: alien_auto_waypoint.h); its Environment is the Auto-plot all command below
 	if (host::AlienAutoWaypointCommand(command, EntryMarkerModule()))
+	{
+		return;
+	}
+
+	// Delete Waypoints / Delete All Waypoints (ours, the owner's 11-21: waypoint_delete.h)
+	if (host::WaypointDeleteCommand(command, EntryMarkerModule()))
 	{
 		return;
 	}

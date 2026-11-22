@@ -496,6 +496,7 @@ struct Comparison
 	Level const &first;
 	Level const &second;
 	std::vector<std::string> const &ignored;
+	std::vector<std::string> const &dropped;
 	LevelSameReport &report;
 
 	void Difference(std::string const &line)
@@ -508,11 +509,11 @@ struct Comparison
 		}
 	}
 
-	bool Ignored(Node const &chunk) const
+	static bool Named(Node const &chunk, std::vector<std::string> const &names)
 	{
 		std::string const name(chunk.name, strnlen(chunk.name, 8));
 
-		for (std::string const &each : ignored)
+		for (std::string const &each : names)
 		{
 			if (each == name)
 			{
@@ -521,6 +522,31 @@ struct Comparison
 		}
 
 		return false;
+	}
+
+	bool Ignored(Node const &chunk) const
+	{
+		return Named(chunk, ignored);
+	}
+
+	// --drop: the chunks inside a holder without those of the names dropped (counted), in the file's order
+	std::vector<Node const *> Kept(Node const &holder)
+	{
+		std::vector<Node const *> kept;
+
+		for (Node const &chunk : holder.inside)
+		{
+			if (Named(chunk, dropped))
+			{
+				report.chunksDropped++;
+			}
+			else
+			{
+				kept.push_back(&chunk);
+			}
+		}
+
+		return kept;
 	}
 };
 
@@ -546,22 +572,23 @@ std::string ValueAt(char const *holds, size_t at, bool fourBytes)
 
 void CompareChunks(Comparison &c, Node const &a, Node const &b, std::string const &path);
 
-// The chunks inside two holders of the same place, side by side in the files' order. A chunk's path names it by its name, with #n (from 1)
-// when the holder has more than one of that name in the first file.
+// The chunks inside two holders of the same place, side by side in the files' order, those of a name dropped left out of both. A chunk's path
+// names it by its name, with #n (from 1) when the holder has more than one of that name in the first file.
 void CompareInside(Comparison &c, Node const &a, Node const &b, std::string const &path)
 {
 	std::map<std::string, size_t> ofName, seen;
+	std::vector<Node const *> const inA = c.Kept(a), inB = c.Kept(b);
 
-	for (Node const &chunk : a.inside)
+	for (Node const *chunk : inA)
 	{
-		ofName[std::string(chunk.name, 8)]++;
+		ofName[std::string(chunk->name, 8)]++;
 	}
 
-	size_t const both = a.inside.size() < b.inside.size() ? a.inside.size() : b.inside.size();
+	size_t const both = inA.size() < inB.size() ? inA.size() : inB.size();
 
 	for (size_t n = 0; n < both; n++)
 	{
-		Node const &one = a.inside[n], &other = b.inside[n];
+		Node const &one = *inA[n], &other = *inB[n];
 
 		if (memcmp(one.name, other.name, 8) != 0)
 		{
@@ -576,11 +603,11 @@ void CompareInside(Comparison &c, Node const &a, Node const &b, std::string cons
 		CompareChunks(c, one, other, path + "/" + NameText(one.name) + (ofName[key] > 1 ? "#" + Number(number) : std::string()));
 	}
 
-	if (a.inside.size() != b.inside.size())
+	if (inA.size() != inB.size())
 	{
-		bool const firstHasMore = a.inside.size() > b.inside.size();
-		Node const &extra = firstHasMore ? a.inside[both] : b.inside[both];
-		c.Difference(path + ": " + Number(a.inside.size()) + " chunks inside in the first, " + Number(b.inside.size()) + " in the second (the first more is " +
+		bool const firstHasMore = inA.size() > inB.size();
+		Node const &extra = firstHasMore ? *inA[both] : *inB[both];
+		c.Difference(path + ": " + Number(inA.size()) + " chunks inside in the first, " + Number(inB.size()) + " in the second (the first more is " +
 			NameText(extra.name) + ", in the " + (firstHasMore ? "first" : "second") + ")");
 	}
 }
@@ -657,7 +684,7 @@ void CompareChunks(Comparison &c, Node const &a, Node const &b, std::string cons
 
 } // namespace
 
-LevelSameReport CompareLevelFiles(char const *first, char const *second, std::vector<std::string> const &ignored)
+LevelSameReport CompareLevelFiles(char const *first, char const *second, std::vector<std::string> const &ignored, std::vector<std::string> const &dropped)
 {
 	LevelSameReport report;
 
@@ -673,7 +700,7 @@ LevelSameReport CompareLevelFiles(char const *first, char const *second, std::ve
 		}
 
 		report.chunks = a.chunks;
-		Comparison c{ a, b, ignored, report };
+		Comparison c{ a, b, ignored, dropped, report };
 		CompareInside(c, a.root, b.root, "REBINFF2");
 		report.answer = report.differences ? LevelSameAnswer::Different : LevelSameAnswer::Same;
 	}
@@ -694,7 +721,8 @@ int PrintLevelSameReport(LevelSameReport const &report)
 		return 2;
 	}
 
-	std::string const skipped = report.chunksSkipped ? ", " + Number(report.chunksSkipped) + " chunks skipped by --ignore" : std::string();
+	std::string const skipped = (report.chunksSkipped ? ", " + Number(report.chunksSkipped) + " chunks skipped by --ignore" : std::string()) +
+		(report.chunksDropped ? ", " + Number(report.chunksDropped) + " chunks dropped by --drop (both files)" : std::string());
 
 	if (report.answer == LevelSameAnswer::Same)
 	{

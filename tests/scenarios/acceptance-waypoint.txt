@@ -16,7 +16,8 @@ expect-hierarchy-text View Distance :
 expect-hierarchy-count 0 Picked
 # the right-click pop-up of mode 0 offers the second table of the page (FUN_00581650 set 2: Edit Module, Add Module, Remove Module); a click on an entry runs it
 click-win 500 300 right
-expect-popup-rows Edit Module|Add Module|Remove Module
+# (ours after inteng's three: Delete Waypoints and Delete All Waypoints, the owner 11-21, waypoint_delete.h)
+expect-popup-rows Edit Module|Add Module|Remove Module|Delete Waypoints|Delete All Waypoints
 key Esc
 # Help (0x15) shows the mode's help text screen (FUN_00584e70 through FUN_004724f0: "S Edit selected AI module ..."), not a status sentence; a key takes it away
 picture 910
@@ -71,7 +72,14 @@ item 0x13
 expect-hierarchy-text Waypoint :
 key W
 expect-hierarchy-text Can Crawl
+# turning Can Crawl ON opens the owner's Can Crawl offer (can_crawl_offer.h, 11-21: the module's Airduct flag in place of the bit the game never reads), a dialog
+# that takes every key; No leaves the module as it is, and the next W reaches the waypoint again (Vasquez 11-21: the second W had gone to the open offer)
+expect-dialog Can Crawl
+click-button No
+expect-no-dialog
+expect-status Can Crawl: the module left as it is
 key W
+expect-status Can Crawl off for waypoint
 expect-hierarchy-count 0 Can Crawl
 # no status line and no field panel of ours on this screen: the status band stays the same after a command
 item 5

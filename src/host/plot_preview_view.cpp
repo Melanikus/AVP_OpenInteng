@@ -22,6 +22,7 @@
 #include "camera_orbit.h"
 #include "track_view.h"
 #include "waypoint_view.h"
+#include "panel_pass.h"     // PanelPass_AddToFrame: the inset's frame over the level, under the bar and the dialogs
 #include "world_overlay.h"
 
 // Two of editor_main.cpp's own (editor_shared.h has them too, but it needs the ui folder on the include path, which this file's project entry does not give)
@@ -41,6 +42,11 @@ namespace
 	// copy set into the last frame's inset (0: none), said Drawn once that frame was drawn
 	std::shared_ptr<host::AutoPlotShown const> showing;
 	uint64_t setNumber = 0;
+	// THE MAIN VIEW'S LIVE MODULES (the owner 11-21: "I want to see the modules updating on the map as they are build"): each module's planned boxes and links, added
+	// to the main view's lines as its last copy comes (the plot's own copy: nothing is written into the level until the plot ends, as the worker still reads it); the
+	// number of the last copy added, so none is added twice
+	std::vector<host::TrackLine> mapLines;
+	uint64_t landedUpTo = 0;
 
 	// The box round all of these modules (the game's module numbers): the smallest box that holds each one's own box. False when none of them has a box
 	bool ModulesBox(std::vector<int32_t> const &modules, int32_t mins[3], int32_t maxs[3])
@@ -124,6 +130,15 @@ namespace
 		shown.job = copy->job;
 		shown.boxes = counts.boxes;
 		shown.links = counts.links;
+
+		// a module's last copy with boxes in it: onto the main view, once
+		if (copy->finished && copy->number > landedUpTo && !copy->volumes.empty())
+		{
+			host::WaypointView_AllLines({ &copy->volumes }, local_scale > 0.0 ? local_scale : 1.0, &mapLines);
+			landedUpTo = copy->number;
+			shown.landed++;
+			shown.mapLines = mapLines.size();
+		}
 	}
 
 	// The camera at the owner's corner of the shown box (45 degrees round, 45 up), far enough back that the whole box fits in the inset. False when the box gives
@@ -150,9 +165,9 @@ namespace
 		return true;
 	}
 
-	// Nothing shown any more: the hiding let go (only if it was set), the job forgotten. The counts stay for the state line until a new run starts.
-	// The world lines are left as they are: the screen's own owner sends its lines again on the next frame (Waypoint mode 0's every network, modes 1 to 3's
-	// network), and editor_main takes the Waypoint lines away when the screen is left
+	// Nothing shown any more: the hiding let go (only if it was set), the job forgotten, the inset's lines taken away. The counts stay for the state line until a
+	// new run starts. The main view's lines are left as they are: the screen's own owner sends its lines again on the next frame (Waypoint mode 0's every network,
+	// read from the level, which now holds the plot's networks; modes 1 to 3's network), and editor_main takes the Waypoint lines away when the screen is left
 	void LetGo()
 	{
 		if (framed)
@@ -162,8 +177,11 @@ namespace
 		}
 
 		AutoPlotCommand_HandOff().Watching(false);   // (nobody watches: a worker waiting on its copy goes on)
+		host::WorldOverlay_InsetLines(nullptr, 0);
 		showing.reset();
 		setNumber = 0;
+		mapLines.clear();
+		landedUpTo = 0;
 		host::PlotPreview_End(&state);
 		shown.on = false;
 		shown.inset = host::PlotPreviewRect();
@@ -248,9 +266,11 @@ FlyCamera PlotPreviewView_Frame(FlyCamera const &camera, int viewLeft, int viewT
 		return camera;
 	}
 
-	// the whole level from the editor's own camera, as always, and the module over it in the inset (the owner 11-21: "Full map + inset on top")
+	// the whole level from the editor's own camera, as always, with the plot's modules so far on it (the main view's lines: while the preview is up, Waypoint mode 0
+	// sends none of its own, editor_main), and the module being planned over it in the inset, with its own lines (the owner 11-21: "Full map + inset on top")
 	LevelView_Inset(true, corner, inset.x, inset.y, inset.w, inset.h);
-	host::WorldOverlay_Lines(lines.empty() ? nullptr : lines.data(), lines.size());
+	host::WorldOverlay_Lines(mapLines.empty() ? nullptr : mapLines.data(), mapLines.size());
+	host::WorldOverlay_InsetLines(lines.empty() ? nullptr : lines.data(), lines.size());
 
 	// WATCHING: the inset is drawn this frame with the copy shown (its words on the status line), said Drawn on the next frame
 	handOff.Watching(true);
@@ -280,4 +300,28 @@ void PlotPreviewView_Drawn()
 PlotPreviewShown PlotPreviewView_Shown()
 {
 	return shown;
+}
+
+void PlotPreviewView_DrawFrame(int windowWidth, int windowHeight)
+{
+	host::PlotPreviewRect const &r = shown.inset;
+
+	if (!shown.on || r.w <= 4 || r.h <= 4)
+	{
+		return;
+	}
+
+	// inteng's dialog frame (reassess/dialog-look-drake.md DL-2: a 1-pixel WHITE frame along the window's four edges, kDialogWhite), inside the inset's box; two
+	// pixels on a big window, so it still reads as a frame
+	uint32_t const kInsetFrameColour = 0xFFFFFFFFu;   // inteng's dialog frame white (dialogs.cpp's kDialogWhite)
+	int32_t const t = windowWidth > 1920 || windowHeight > 1200 ? 2 : 1;
+	host::PaintBox const edges[4] = {
+		{ r.x, r.y, r.w, t, kInsetFrameColour },                   // top
+		{ r.x, r.y + r.h - t, r.w, t, kInsetFrameColour },         // bottom
+		{ r.x, r.y + t, t, r.h - 2 * t, kInsetFrameColour },       // left
+		{ r.x + r.w - t, r.y + t, t, r.h - 2 * t, kInsetFrameColour },   // right
+	};
+	PanelExtras const extras = { edges, 4, nullptr, 0 };
+
+	PanelPass_AddToFrame(windowWidth, windowHeight, extras);
 }

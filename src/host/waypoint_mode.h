@@ -200,6 +200,18 @@ namespace host
 		void AutoPlotWriteMany(OpenLevelFile *open, std::vector<int32_t> const &masters, std::vector<std::vector<WaypointRec> const *> const &alienLists,
 			std::vector<bool> *written, std::vector<std::string> *words);
 
+		// THE COLOURS AFTER A WRITE (ours, 11-21; for Delete Waypoints and for the auto-plot, whose writes come from outside the mode's own clicks): each AI module of `masters`, every
+		// module of it, painted again by its own WAYPOINT as the level holds it now (green when its master's MODULEDT has one, else white), except the pick's AI module, the current one
+		// and the Ctrl set's: those keep their colour, and take it from the file when they are let go, as every pick does. Nothing before the entry's paint is made.
+		void PaintFromFile(OpenLevelFile *open, std::vector<int32_t> const &masters);
+
+		// DELETE WAYPOINTS (ours, the owner's 11-21: waypoint_delete.h): the ALIEN lists of the AI modules `masters` emptied in ONE write (SetModuleChildrenMany: one new image and one
+		// loader read, so a level of hundreds of networks is not read hundreds of times, and the loader takes all of it or none). Each one's ground list is kept; its WAYPOINT chunk is
+		// taken out when it has no ground list, as Rebellion's files hold none for a module with no network. The current AI module's lists are read again when it was one of them, and
+		// the written AI modules are painted again (PaintFromFile). *deleted: the alien waypoints taken out. Refused (a master not of the level or with no WAYPOINT, a chunk that can't
+		// be read, the loader): nothing changed, and the words say why.
+		WaypointOutcome DeleteAlienLists(OpenLevelFile *open, std::vector<int32_t> const &masters, size_t *deleted);
+
 		// THE WAYPOINT-BOX GIZMO (Frost 11-18, waypoint_box_gizmo.h; mode 1, the alien list; defined in waypoint_box_mode.cpp): MouseShowBox puts box's corners, aim point and flags (its
 		// links stay) on waypoint `index` in memory only, so the 3D view draws it as a drag goes (nothing is written; the drag's start is put back the same way). MouseSetBox puts them there
 		// and WRITES it at once, as MouseCreate (refused: the lists as they were, and the words say why); `what` is the edit's words ("the box moved 120 along x").

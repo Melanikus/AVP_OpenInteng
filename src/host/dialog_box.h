@@ -62,6 +62,10 @@ namespace host
 		std::vector<std::string> items; // a combo: the rows, in the order given (the DLL's combo boxes are not sorted)
 		int32_t selected = -1;          // a combo: the row picked (-1 none, the box then shows no words)
 		bool listOpen = false;          // a combo: its list is open under it
+		int32_t listRows = 0;           // a combo: the most rows its open list shows; a longer list scrolls (DialogBox_ComboListRows, from the dialog resource's height). 0: every row
+		int32_t listFit = 0;            // a combo: the rows that fit between its box's foot and the screen's foot, set as the form opens; its list never shows more (0: not limited)
+		size_t listTop = 0;             // a combo whose list scrolls: the first row in view
+		int32_t listLit = -1;           // a combo whose list is open: the row the keys are on, the one Return picks (the picked row as the list opens)
 		bool editable = false;          // a combo whose box takes letters (MFC's CBS_DROPDOWN, e.g. edobtype's Sound Edit wav name): a press on its arrow (the right 16 pixels) opens the
 		                                // list, a press elsewhere puts the letters there; typing makes no row picked (selected -1) (Vasquez 11-16)
 		bool visible = true;            // a part that is not visible is not drawn, not pressed and not given to the harness
@@ -81,6 +85,36 @@ namespace host
 		// Called after a check box was ticked or unticked, with the form's parts and the box's number: the parts may be changed in place (inteng's windows tick one box from another's, as the
 		// placed hierarchy's Edit sequence window FUN_004ec6e0 ticks Initial sequence when Playing at start is ticked). Added 2026-11-16 by Melanikus (Vasquez).
 		std::function<void(std::vector<DialogWidget> &, size_t)> onCheck;
+	};
+
+	// A COMBO'S OPEN LIST THAT SCROLLS (Vasquez 2026-11-21, the owner's "We can't scroll down to see message 1001..."). The DLL dialogs' combos are Windows' own drop-down lists. One
+	// shows as many whole rows as fit the height its dialog resource gives it (the box and the list under it together); a longer list scrolls, with a scroll bar on its right, the mouse
+	// wheel and the keys. The rows that fit, worked out as Windows does for an 8-point MS Sans Serif dialog: a row is the font's 13 pixels, the closed box 21 (13 x 13 / 8, as Wine's
+	// combo.c CBGetTextAreaHeight writes Windows' rule down), and the list has a pixel of frame above and below: (the height x 13 / 8 - 21 - 2) / 13 rows, at least 1.
+	// NAMED: worked out from Windows' rules, not measured on inteng's screen. Edit object properties' type list (74 dialog units) shows 7 rows, its other three lists (81) 8, and Sound
+	// Edit's wav names (121) 13. Our rows stay as tall as the box, as they were drawn before.
+	int32_t DialogBox_ComboListRows(int32_t resourceHeight);
+
+	int32_t const kDialogScrollBarWidth = 16;   // the list's scroll bar: as wide as the box's arrow (dialogs.cpp)
+	int32_t const kDialogWheelRows = 3;         // rows a notch of the mouse wheel scrolls (Windows' "lines to scroll", as it comes)
+	int32_t const kDialogWheelNotch = 120;      // a notch, as WM_MOUSEWHEEL counts it (WHEEL_DELTA)
+
+	// The keys an open list takes (the dialogs read them as Windows' virtual keys: dialogs.cpp)
+	enum class DialogListKey
+	{
+		Up,
+		Down,
+		PageUp,
+		PageDown,
+		Home,
+		End,
+	};
+
+	// A scrolling list's scroll bar, in the screen's pixels: its column, the arrows at its two ends, and the thumb between them (where the rows in view lie in the whole list).
+	// Every box is 0 wide when the list doesn't scroll.
+	struct DialogScrollBar
+	{
+		DialogRect column, up, down, thumb;
 	};
 
 	// What a way of leaving answers (inteng's numbers)
@@ -137,10 +171,30 @@ namespace host
 		void Backspace();
 		void NextField();
 
-		// The box of a combo's list row (screen pixels), for the painting and the harness
+		// A combo's open list (the list that scrolls, above). Each gives true when an open list took it:
+		// - Wheel: the mouse wheel (delta as WM_MOUSEWHEEL gives it: 120 a notch, more than 0 toward the list's top), 3 rows a notch; the list stays open and nothing is picked;
+		// - ListKey: Up and Down a row, Page Up and Page Down the rows in view less one, Home and End the first and the last row (as Windows' list boxes move; Wine's listbox.c
+		//   writes the same rules down), the list scrolled so that row is in view;
+		// - ListReturn: picks the row the keys are on, as a press on it does, and closes the list (the dialog stays open);
+		// - ListEscape: closes the list only, nothing picked.
+		bool ListOpen() const;
+		bool Wheel(int32_t delta);
+		bool ListKey(DialogListKey key);
+		bool ListReturn();
+		bool ListEscape();
+
+		// The box of a combo's list row (screen pixels), for the painting and the harness: 0 wide when the row is scrolled out of view (not drawn, not pressed). The rows end where the
+		// scroll bar begins.
 		static DialogRect ComboRow(DialogWidget const &combo, size_t row);
+		static size_t ComboRowsShown(DialogWidget const &combo);   // every row, or listRows when there are more, and never more than listFit (the screen's foot)
+		static bool ComboScrolls(DialogWidget const &combo);
+		static DialogScrollBar ComboScrollBar(DialogWidget const &combo);
 
 	private:
+		DialogWidget *OpenList(size_t *index);   // the form's combo whose list is open, or null
+		void PickRow(size_t index, size_t row);  // as a press on that row: picked, the words in the box, the change hook when it changed
+
+		int32_t wheelLeft = 0;   // the part of the wheel's turn that hasn't scrolled a row yet (a touchpad turns it a little at a time)
 		void Layout(DialogRect screen, int32_t width, int32_t height, std::function<int32_t(std::string const &)> const &textWidth);
 
 		bool open = false;

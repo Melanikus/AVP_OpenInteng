@@ -9124,6 +9124,13 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 
 			rightButtonDown = false;
 			return 0;
+		case WM_MOUSEWHEEL:
+			if (ADialogIsOpen() && host::Dialogs_Wheel((int32_t)GET_WHEEL_DELTA_WPARAM(wParam)))   // an open combo list scrolls (dialog_box.h); the editor had no use for the wheel before
+			{
+				return 0;
+			}
+
+			break;
 		case WM_MOUSEMOVE:
 			// Scroll Lock's pick waiting with the left or middle button still held: a press that hit nothing picks again where the pointer is now (FUN_004720c0 0x472166 jumps back with the button
 			// bits kept, and the pointer is read again each time round, so dragging onto an object picks it); nothing else follows the pointer meanwhile
@@ -14086,6 +14093,7 @@ static void AddThePanels(void *context)
 
 		// AutoLink's display, while a run is on: the owner's grid of pictures, then over it inteng's counter and words (AD-5 .. AD-7); the menu bar and the dialogs over all
 		AutoLinkShow_Draw(frame->width, frame->height);
+		PlotPreviewView_DrawFrame(frame->width, frame->height);   // THE PLOT'S PREVIEW's white frame round its inset, under the bar and the dialogs (plot_preview_view.h)
 		PanelPass_AddToFrame(frame->width, frame->height, frame->extras, host::FmvPreview_Draw);   // the FMV preview over the window that plays it, under its open list (panel_pass.h)
 		TextureColourDraw(frame->width, frame->height);   // Select Colour's grid, over the bars too (Shift+K, FUN_00560620)
 	}

@@ -5,7 +5,9 @@
 /Iavpx/dependencies/libsmackerdec/include /Ivcpkg_installed/x86-windows/include /Ivcpkg_installed/x86-windows/include/dxsdk-d3dx
 tests/edge_asleep_test.cpp
 src/host/edge/asleep_hudson.cpp
+src/host/edge/asleep_hudson_lanes.cpp
 src/host/edge/asleep_hudson_play.cpp
+src/host/edge/asleep_hudson_saymarks.cpp
 src/host/edge/data_hudson.cpp
 src/host/edge_media.cpp
 src/host/edge_own.cpp

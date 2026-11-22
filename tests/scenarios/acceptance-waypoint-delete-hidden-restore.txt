@@ -1,0 +1,25 @@
+# ACCEPTANCE, HIDDEN, PART 2 of 2: DELETE WAYPOINTS kept in the saved copy (Dietrich 2026-11-21, the owner's "save; reopen" through Bishop; waypoint_delete.h).
+# RUN RIGHT AFTER acceptance-waypoint-delete-hidden-save.txt (run-shards puts a -restore after its -save, in the same folder). That part deleted every alien network of his
+# Genshd1 and saved a copy beside the editor; here that copy is opened as by a double click, and Waypoint mode finds no alien waypoint in it.
+# The `level` line is the same as the save part's, so a runner that picks the editor's folder by the level runs both in the same folder. The file opened is the start-args copy.
+# RED on a1d66511 (bishop-int): the pop-up has no fifth entry.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args {exedir}AVP_OpenInteng/edited/Genshd1-edited.rif
+pictures off
+state
+expect-screen Waypoint
+wait 600
+click-win 500 300 right
+expect-popup-rows Edit Module|Add Module|Remove Module|Delete Waypoints|Delete All Waypoints
+click-popup 5
+expect-no-dialog
+expect-status Delete All Waypoints: no AI module has alien waypoints
+# and the AI module deleted first shows none, read from the file
+camera-corner strwll01
+click-view 0.50 0.50
+wait 400
+click-bar Mode > Show Alien Waypoints
+wait 400
+expect-field waypointnets strwll01 boxes 0 links 0

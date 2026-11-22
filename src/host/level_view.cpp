@@ -451,6 +451,15 @@ void LevelView_WorldLines(const host::TrackLine *lines, size_t count)
 	R_SetEditorWorldLines(used ? converted.data() : nullptr, (int)used);
 }
 
+void LevelView_InsetLines(const host::TrackLine *lines, size_t count)
+{
+	// the inset's own list (the renderer's slot 1), kept apart from the main view's (slot 0) so neither is sent again when the other changes
+	static std::vector<EditorWorldLine> converted;
+	size_t const used = LevelView_ConvertWorldLines(lines, count, kLevelViewWorldLinesMax, &converted);
+
+	R_SetEditorWorldLinesSlot(1, used ? converted.data() : nullptr, (int)used);
+}
+
 void LevelView_WorldTriangles(const LevelViewTriangle *triangles, size_t count)
 {
 	// the hook takes 65536 (avpx editor-world-triangles); the numbers are kept in one vector that grows as needed
@@ -2375,10 +2384,12 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 
 	AvpShowViews();
 
-	// THE PLOT'S PREVIEW's INSET (LevelView_Inset): the main view's lists drawn NOW, into its box or the whole window (as the split screen draws its views), and
-	// its eyes kept for after the frame. The depth is then cleared, all of it: outside the drawing of the lists the whole window is the viewport, and the
-	// main view is done with it. Then the inset's camera, its hidden set and its box: its lists and the world lines go in the frame's last drawing, over
-	// the main view (its backdrop fills only its own box: FillTheBackdrop, a later view of the frame)
+	// THE PLOT'S PREVIEW's INSET (LevelView_Inset), on the live plot's renderer calls (Frost's, renderer.h 2026-11-21): the main view's lists drawn NOW WITH ITS
+	// WORLD LINES (slot 0: the modules the plot has made so far, the owner's "modules updating on the map as they are build"), into its box or the whole window, and
+	// its eyes kept for after the frame. Then the inset's box alone is cleared, its colour black (the inside of inteng's dialog windows, DL-2) and its depth, so the
+	// main view keeps its own everywhere else; then the inset's camera, its hidden set and its box: its lists go in the frame's last drawing, with the INSET'S lines
+	// (slot 1: the module being planned), over the main view (its backdrop fills only its own box: FillTheBackdrop, a later view of the frame). No inset: the frame's
+	// last drawing draws slot 0, as before the live plot
 	bool const inset = insetOn && Global_VDB_Ptr;
 	VECTORCH mainWorld = {};
 	MATRIXCH mainMat = {}, mainHorizon = {};
@@ -2388,22 +2399,27 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 
 	if (inset)
 	{
-		R_EditorFlushWorld();
+		R_EditorFlushWorldWithLines(0);
 		mainWorld = Global_VDB_Ptr->VDB_World;
 		mainMat = Global_VDB_Ptr->VDB_Mat;
 		mainHorizon = Global_VDB_Ptr->VDB_HorizonMat;
 		mainEuler = Global_VDB_Ptr->VDB_MatrixEuler;
 		auto const insetFrom = std::chrono::steady_clock::now();
 
-		R_ClearZBuffer();
+		R_EditorClearBox(insetBox[0], insetBox[1], insetBox[2], insetBox[3], 0xFF000000u);
 		insetDrawing = true;
 		PutTheEyes(insetCamera);
 		PutTheHiddenBlocks(insetCamera);
 		R_SetEditorMainViewport(true, insetBox[0], insetBox[1], insetBox[2], insetBox[3]);
 		AvpShowViews();
+		R_SetEditorFinalLinesSlot(1);
 		insetDrawing = false;
 		insetDrawn = true;
 		insetMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - insetFrom).count();
+	}
+	else
+	{
+		R_SetEditorFinalLinesSlot(0);
 	}
 
 	// What the editor puts over the level, in the game's own frame, as the game puts its HUD: added to the screen list, which the game draws at

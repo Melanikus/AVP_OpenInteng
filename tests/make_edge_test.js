@@ -8,6 +8,11 @@
 // deletes: the network files the script expects (empty but for one network function, which every log must name), one Hudson file
 // with the hook under test, and a linker log that names both.
 //
+// The second off-flag (Frost 2026-11-21, for AvPx's SAY marks: "if ((!HudsonRunIsOn && !SayMarksAreOn) || ...)"): shape (a) also reads a
+// switch other than HudsonRunIsOn, but only one of Hudson's files starts false and nothing outside Hudson's files names. The cases below
+// show both halves: such a switch is read, and one that starts true, that another file names, or that is asked about any other way, is
+// refused.
+//
 // Run from the repository's root: node tests/make_edge_test.js. It answers 0 when every check passed.
 
 'use strict';
@@ -31,8 +36,9 @@ function check(good, what) {
 }
 
 // One made-up game with one Hudson hook, run through the script. Gives back its answer, what it said, and the files it wrote. given, when
-// there, is the script's three paths instead of the made-up game's own.
-function run(hookSource, hookSignature, hookDecorated, given) {
+// there, is the script's three paths instead of the made-up game's own. files, when there, are more files of the made-up game, each path
+// from its root (as "avpx/3dc/avp/console.cpp" or "host/ui.cpp") with its text.
+function run(hookSource, hookSignature, hookDecorated, given, files) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'make-edge-test-'));
 	try {
 		const avpx = path.join(root, 'avpx');
@@ -47,6 +53,10 @@ function run(hookSource, hookSignature, hookDecorated, given) {
 		fs.mkdirSync(path.join(host, 'edge'), { recursive: true });
 		fs.writeFileSync(path.join(host, 'edge_media.cpp'), '// nothing is left for this file in a made-up game\n');
 		fs.writeFileSync(path.join(host, 'edge_own.cpp'), '// nor for this one\n');
+		for (const [rel, text] of Object.entries(files || {})) {
+			fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+			fs.writeFileSync(path.join(root, rel), text);
+		}
 		const log = path.join(root, 'link.log');
 		fs.writeFileSync(log,
 			'a.obj : error LNK2019: unresolved external symbol "void __cdecl Net_Something(void)" (?Net_Something@@YAXXZ) referenced in function x\n' +
@@ -110,6 +120,74 @@ const cases = [
 for (const c of cases) {
 	const r = run(c.source, c.signature, c.decorated);
 	check(r.status === 1 && r.said.includes(c.name) && r.written.length === 0, 'refused, by its name, with nothing written: ' + c.what);
+}
+
+// THE SECOND OFF-FLAG. Read: a switch one of Hudson's files starts false and nothing outside them names, asked about as shape (a) asks,
+// alone or with HudsonRunIsOn, both false. Each "off" block here only returns, so the hook is written asleep doing nothing.
+const flagFalse = 'bool SayMarksAreOn = false;\n\n';
+const bothOff = flagFalse + 'void Hudson_BothOff(int *p)\n{\n\tif ((!HudsonRunIsOn && !SayMarksAreOn) || !p)\n\t{\n\t\treturn;\n\t}\n\t*p = 1;\n}';
+const bothOffHook = [bothOff, 'void __cdecl Hudson_BothOff(int *)', '?Hudson_BothOff@@YAXPAH@Z'];
+const read = [
+	{ what: 'an "if ((!HudsonRunIsOn && !SayMarksAreOn) || ...)" hook, both switches starting false', hook: bothOffHook, name: 'Hudson_BothOff' },
+	{
+		what: 'an "if (!SayMarksAreOn || HudsonRunIsOn)" hook, the second switch alone',
+		hook: [flagFalse + 'void Hudson_SecondOff()\n{\n\tif (!SayMarksAreOn || HudsonRunIsOn)\n\t{\n\t\treturn;\n\t}\n\tDoSomething();\n}',
+			'void __cdecl Hudson_SecondOff(void)', '?Hudson_SecondOff@@YAXXZ'], name: 'Hudson_SecondOff',
+	},
+];
+for (const c of read) {
+	const r = run(...c.hook);
+	const body = (new RegExp(c.name + '\\([^)]*\\)\\n\\{\\n([\\s\\S]*?)\\}').exec(r.asleep) || [])[1];
+	check(r.status === 0 && body === '\treturn;\n', 'written asleep, doing nothing but return: ' + c.what);
+}
+
+// Refused: the same hook when the second switch doesn't start false, when another file of the game or one of the editor's names it (so
+// something the editor compiles could set it), or when it's asked about in a way a false switch doesn't settle
+const flagRefused = [
+	{
+		what: 'the second switch starts true', name: 'Hudson_BothOff',
+		hook: [bothOff.replace('SayMarksAreOn = false', 'SayMarksAreOn = true'), bothOffHook[1], bothOffHook[2]],
+	},
+	{
+		what: 'the second switch is defined in no Hudson file', name: 'Hudson_BothOff',
+		hook: [bothOff.replace(flagFalse, ''), bothOffHook[1], bothOffHook[2]],
+	},
+	{
+		what: 'another game file sets the second switch', name: 'Hudson_BothOff', hook: bothOffHook,
+		files: { 'avpx/3dc/avp/console.cpp': 'void TurnTheMarksOn()\n{\n\tSayMarksAreOn = true;\n}\n' },
+		says: 'SayMarksAreOn is no off-flag: avpx/3dc/avp/console.cpp:3 names it',
+	},
+	{
+		what: 'a game header names the second switch', name: 'Hudson_BothOff', hook: bothOffHook,
+		files: { 'avpx/3dc/avp/console.h': 'extern bool SayMarksAreOn;\n' },
+		says: 'SayMarksAreOn is no off-flag: avpx/3dc/avp/console.h:1 names it',
+	},
+	{
+		what: 'a file of the editor\'s own names the second switch', name: 'Hudson_BothOff', hook: bothOffHook,
+		files: { 'host/ui.cpp': 'bool MarksShown()\n{\n\treturn SayMarksAreOn;\n}\n' },
+		says: 'SayMarksAreOn is no off-flag: host/ui.cpp:3 names it',
+	},
+	{
+		what: 'an "if ((!HudsonRunIsOn || !SayMarksAreOn) && ...)" hook, which the rest of the condition decides', name: 'Hudson_OrThenAnd',
+		hook: [flagFalse + 'void Hudson_OrThenAnd(int *p)\n{\n\tif ((!HudsonRunIsOn || !SayMarksAreOn) && p)\n\t{\n\t\treturn;\n\t}\n\t*p = 1;\n}',
+			'void __cdecl Hudson_OrThenAnd(int *)', '?Hudson_OrThenAnd@@YAXPAH@Z'],
+	},
+	{
+		what: 'an "if ((!HudsonRunIsOn && SayMarksAreOn) || ...)" hook, false with both switches off', name: 'Hudson_NoNot',
+		hook: [flagFalse + 'void Hudson_NoNot(int *p)\n{\n\tif ((!HudsonRunIsOn && SayMarksAreOn) || !p)\n\t{\n\t\treturn;\n\t}\n\t*p = 1;\n}',
+			'void __cdecl Hudson_NoNot(int *)', '?Hudson_NoNot@@YAXPAH@Z'],
+	},
+	{
+		what: 'an "if (!SayMarksAreOn && ...)" hook, which the rest of the condition decides', name: 'Hudson_AndAfter',
+		hook: [flagFalse + 'void Hudson_AndAfter(int *p)\n{\n\tif (!SayMarksAreOn && p)\n\t{\n\t\treturn;\n\t}\n\t*p = 1;\n}',
+			'void __cdecl Hudson_AndAfter(int *)', '?Hudson_AndAfter@@YAXPAH@Z'],
+	},
+];
+// A case with "says" must also give that reason: the file that names the switch, so it's refused for that and not for some other shape
+for (const c of flagRefused) {
+	const r = run(...c.hook, undefined, c.files);
+	check(r.status === 1 && r.said.includes(c.name) && r.written.length === 0 && (!c.says || r.said.includes(c.says)),
+		'refused, by its name, with nothing written: ' + c.what + (c.says ? ', saying "' + c.says + '"' : ''));
 }
 
 console.log(failed ? 'SOME CHECKS FAILED' : 'All checks passed');

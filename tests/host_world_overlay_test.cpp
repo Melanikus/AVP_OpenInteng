@@ -32,6 +32,16 @@ void LevelView_WorldLines(const host::TrackLine *lines, size_t count)
 	engine.assign(lines, lines ? lines + count : lines);
 }
 
+// the inset's own slot (the live plot): a second stand-in, so the test can tell the two lists apart
+static int insetSends = 0;
+static std::vector<host::TrackLine> insetEngine;
+
+void LevelView_InsetLines(const host::TrackLine *lines, size_t count)
+{
+	insetSends++;
+	insetEngine.assign(lines, lines ? lines + count : lines);
+}
+
 static host::TrackLine Line(int32_t tag, uint32_t colour)
 {
 	host::TrackLine line = { { tag, 0, 0 }, { tag, 1, 0 }, colour };
@@ -147,6 +157,29 @@ int main()
 	host::WorldOverlay_Extra(std::vector<host::TrackLine>());
 	host::WorldOverlay_Lines(nullptr, 0);
 	Check(engine.empty(), "everything gone: the engine is given nothing");
+
+	// THE INSET'S OWN LINES (the live plot, the owner 11-21: the main view shows the modules made so far, the inset the module being planned): a list of their own,
+	// never in the owners' list the main view draws, sent only when changed
+	std::vector<host::TrackLine> const module = { Line(400, 0xFFFFFFFFu), Line(401, 0xFF00FF00u) };
+	int const ownerSendsBefore = sends;
+
+	host::WorldOverlay_Lines(owner.data(), owner.size());
+	host::WorldOverlay_InsetLines(module.data(), module.size());
+	Check(insetSends == 1 && insetEngine.size() == 2 && insetEngine[0].from[0] == 400, "the inset's lines go to the inset's own slot");
+	Check(sends == ownerSendsBefore + 1 && engine.size() == 3 && engine[0].from[0] == 1, "the main view's list is the owner's alone: no inset line in it");
+	host::WorldOverlay_InsetLines(module.data(), module.size());
+	Check(insetSends == 1, "the same inset lines again (every frame): not sent again");
+	host::WorldOverlay_Lines(moved.data(), moved.size());
+	Check(insetSends == 1 && insetEngine.size() == 2, "an owner's change leaves the inset's lines as they are, not sent again");
+	std::vector<host::TrackLine> grown = module;
+	grown.push_back(Line(402, 0xFFFFFF00u));
+	host::WorldOverlay_InsetLines(grown.data(), grown.size());
+	Check(insetSends == 2 && insetEngine.size() == 3 && insetEngine[2].from[0] == 402, "a volume more: the inset's list sent again, whole");
+	host::WorldOverlay_InsetLines(nullptr, 0);
+	Check(insetSends == 3 && insetEngine.empty(), "the plot ended: the inset's lines taken away (null, 0)");
+	host::WorldOverlay_InsetLines(nullptr, 0);
+	Check(insetSends == 3, "nothing again after nothing: not sent again");
+	host::WorldOverlay_Lines(nullptr, 0);
 
 	// the dim colour: red, green and blue each to 35% (the engine draws these lines with no blending: the alpha is kept as it was)
 	Check(host::WorldOverlay_Dim(0xFFFFFFFFu) == 0xFF595959u, "inteng's white box: dim grey 0x595959");

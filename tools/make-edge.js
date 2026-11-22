@@ -292,7 +292,9 @@ function closingBrace(blanked, open) {
 //    REAL definition gives when HudsonRunIsOn is false, copied from that definition. Only four shapes are read. Anything else stops
 //    the generator by name, so a hook whose "off" answer isn't plain to see is never guessed:
 //      a. it starts (after any "static" lines) with  if (!HudsonRunIsOn || ...) { ... }  : the answer is what that block does. The
-//         block may only empty a list it was handed and then return a value with no call in it;
+//         block may only empty a list it was handed and then return a value with no call in it. In place of !HudsonRunIsOn it may ask
+//         about a second off-flag (OFF-FLAGS below), alone or with others:  if (!SayMarksAreOn || ...)  or
+//         if ((!HudsonRunIsOn && !SayMarksAreOn) || ...) : with every off-flag false, that first part is true, and so is the whole;
 //      b. its whole body is  return HudsonRunIsOn ? A : B;  or  return (HudsonRunIsOn && ...) ? A : B;  : the answer is "return B;";
 //      c. its whole body is  return HudsonRunIsOn && ...;  with no "||" and no "?", in a bool hook: the answer is "return false;";
 //      d. a void hook whose whole body (after any "static" lines) is  if (HudsonRunIsOn && ...) { ... }  with no "||" in that
@@ -303,6 +305,52 @@ function closingBrace(blanked, open) {
 //    every answer against the real function by hand, apart from this script.
 const hudsonFiles = fs.readdirSync(path.join(avpxDir, '3dc/avp')).filter(f => /^hudson.*\.cpp$/.test(f)).map(f => '3dc/avp/' + f);
 const hudsonSource = new Map(hudsonFiles.map(rel => [rel, fs.readFileSync(path.join(avpxDir, rel), 'latin1').split(/\r?\n/)]));
+
+// THE OFF-FLAGS (Frost 2026-11-21, for AvPx's SAY marks, whose watch-only hooks start "if ((!HudsonRunIsOn && !SayMarksAreOn) || ...)").
+// An off-flag is a switch that is false in the editor, always. HudsonRunIsOn is one: the editor's is the game's own first value, false
+// (step 6). A second switch is one only when nothing the editor compiles could ever see it, let alone set it:
+//   - one of Hudson's files defines it as  bool NAME = false;  alone on its line, at the start of the line;
+//   - and no other file names it at all: no file of the game's 3dc folder but Hudson's own (3dc/avp/hudson*.cpp and .h), and no file of
+//     the editor's own code (the folder above the edge's parent, src/, apart from the edge itself, which this script writes).
+// The editor compiles none of Hudson's files, so such a switch stays at its first value, false, and the editor never even holds it: a
+// hook's asleep answer is what the real hook does with it false. A "//" comment doesn't count as naming it. A "/* */" one does, which
+// only ever refuses more. SayMarksAreOn is one (hudson_saymarks.cpp, set only by HudsonSayMarks_ReadCommandLine in that same file).
+const offFlags = new Set(['HudsonRunIsOn']);
+const offFlagNamedElsewhere = new Map(); // a Hudson switch that starts false but that another file names: that file and line, for the refusal
+{
+	const startsFalse = new Set();
+	for (const lines of hudsonSource.values()) {
+		for (const line of lines) {
+			const m = codeOf(line, true).match(/^bool\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*false\s*;\s*$/);
+			if (m && !offFlags.has(m[1])) startsFalse.add(m[1]);
+		}
+	}
+	if (startsFalse.size) {
+		const isHudsons = full => /^3dc\/avp\/hudson[^/]*\.(cpp|h)$/.test(path.relative(avpxDir, full).split(path.sep).join('/'));
+		const sources = [];
+		const visit = (dir, leaveOut) => {
+			for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+				const full = path.join(dir, entry.name);
+				if (leaveOut.includes(path.resolve(full))) continue;
+				if (entry.isDirectory()) { if (!entry.name.startsWith('.')) visit(full, leaveOut); }
+				else if (/\.(c|cpp|h|hpp)$/i.test(entry.name) && !isHudsons(full)) sources.push(full);
+			}
+		};
+		// the game's 3dc folder, then the editor's code without the edge (and without avpx, so the game isn't read twice)
+		visit(path.join(avpxDir, '3dc'), []);
+		visit(path.resolve(outPath, '..', '..'), [path.resolve(avpxDir), path.resolve(outPath)]);
+		const named = new RegExp('\\b(' + [...startsFalse].join('|') + ')\\b', 'g');
+		for (const file of sources) {
+			const lines = fs.readFileSync(file, 'latin1').split(/\r?\n/);
+			lines.forEach((line, i) => {
+				for (const m of codeOf(line, true).matchAll(named)) {
+					if (!offFlagNamedElsewhere.has(m[1])) offFlagNamedElsewhere.set(m[1], path.relative(process.cwd(), file).split(path.sep).join('/') + ':' + (i + 1));
+				}
+			});
+		}
+		for (const name of startsFalse) if (!offFlagNamedElsewhere.has(name)) offFlags.add(name);
+	}
+}
 
 // The definition of name in one of Hudson's files: its first lines up to a line holding only "{", then its body. A first line that
 // turns out to end in ";" before any "{" is a declaration, and the search goes on past it.
@@ -367,11 +415,21 @@ function asleepAnswer(def) {
 		return { why: 'a return this script doesn\'t read' };
 	}
 
-	// a and d: an "if" first. Neither condition may hold a ",": "if (!HudsonRunIsOn || a, b)" asks only about b.
-	const ifOff = rest.match(/^if\s*\(\s*!\s*HudsonRunIsOn\s*(\|\|[^{}?,]*)?\)\s*\{/);
+	// a and d: an "if" first. Neither condition may hold a ",": "if (!HudsonRunIsOn || a, b)" asks only about b. In (a) the first part is
+	// "!F" or "(!F && !G ...)", each F an off-flag, so it's true with every off-flag false; nothing but "||" may follow it.
+	const flag = '(?:' + [...offFlags].join('|') + ')\\b';
+	const offFirst = '(?:!\\s*' + flag + '|\\(\\s*!\\s*' + flag + '(?:\\s*&&\\s*!\\s*' + flag + ')+\\s*\\))';
+	const ifOff = rest.match(new RegExp('^if\\s*\\(\\s*' + offFirst + '\\s*(\\|\\|[^{}?,]*)?\\)\\s*\\{'));
 	const ifOn = rest.match(/^if\s*\(\s*HudsonRunIsOn\s*&&([^{}?|,]*)\)\s*\{/);
 	const ifMatch = ifOff || ifOn;
-	if (!ifMatch) return { why: 'it doesn\'t start with HudsonRunIsOn' };
+	if (!ifMatch) {
+		// a Hudson switch in its first condition that starts false but isn't an off-flag, because another file names it, says where
+		const brace = rest.indexOf('{');
+		const condition = brace < 0 ? rest : rest.slice(0, brace);
+		const near = [...offFlagNamedElsewhere].filter(([name]) => new RegExp('\\b' + name + '\\b').test(condition));
+		return { why: 'it doesn\'t start with HudsonRunIsOn or another off-flag' +
+			near.map(([name, where]) => '; ' + name + ' is no off-flag: ' + where + ' names it').join('') };
+	}
 	const open = ifMatch[0].length - 1;
 	const close = closingBrace(rest, open);
 	if (close < 0) return { why: 'its first block never closes' };
@@ -420,8 +478,9 @@ for (const [rel, items] of asleepBySource) {
 	let out = '';
 	out += '// GENERATED by tools/make-edge.js: do not edit by hand. Regenerate and diff it at every pin move.\n//\n';
 	out += '// Hudson asleep: the hooks of the game\'s ' + rel + ' that the rest of the game calls, each answering exactly what its real\n';
-	out += '// definition answers when HudsonRunIsOn is false, as it always is in the editor (R-INT-15). Above each one is the real line its\n';
-	out += '// answer comes from. tests/edge_asleep_test.cpp checks every answer. The editor doesn\'t compile ' + rel + ' itself.\n\n';
+	out += '// definition answers when HudsonRunIsOn is false, as it always is in the editor (R-INT-15), and so is every other off-flag it asks\n';
+	out += '// about (tools/make-edge.js, step 7). Above each one is the real line its answer comes from. tests/edge_asleep_test.cpp checks every\n';
+	out += '// answer. The editor doesn\'t compile ' + rel + ' itself.\n\n';
 	out += ownIncludes(rel);
 	out += '\n';
 	for (const { def, answer } of items.sort((a, b) => a.name < b.name ? -1 : 1)) {

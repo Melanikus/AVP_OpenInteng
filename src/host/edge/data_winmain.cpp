@@ -9,6 +9,7 @@
 #include "build_identity.h"
 #include "mark_key.h"
 #include "hudson.h"
+#include "hudson_saymarks.h"
 #include "online_screens_page.h"
 #include "texture_relief.h"
 #include "view_settings.h"

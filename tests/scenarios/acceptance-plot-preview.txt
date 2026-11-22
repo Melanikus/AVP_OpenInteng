@@ -47,7 +47,8 @@ wait-field plotpreview redraws_ 1 120000
 expect-field-has plotpreview on left 614 top 461 width 410 height 307
 # THE NEW SHAPE (the owner 11-21: "Full map + inset on top"; Frost): the inset is drawn OVER the whole main view ("main 1"), and the main view stays usable while the plot
 # runs: a number-pad fly key held mid-plot moves the editor's camera (the state line's camera is the main view's: Dietrich's view gives it back every frame), the inset still on.
-# A named difference: while the inset shows, the main view draws no world lines (they are drawn only in the frame's last drawing, the inset's). RED on a6d98a0f: no "main" word.
+# (Since the live plot's part 2, Drake 11-21, the main view draws its world lines while the inset shows: the plot's modules so far, on Frost's renderer slots; the inset
+# has its own. The named difference that stood here is gone.) RED on a6d98a0f: no "main" word.
 expect-number plotpreview main_ 1 1
 remember-field camera
 hold Numpad8 580

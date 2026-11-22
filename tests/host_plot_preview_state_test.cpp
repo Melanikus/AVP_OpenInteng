@@ -133,6 +133,23 @@ int main()
 		Check(NumberAfter(words, "redraws ") == 3, "after a plot expect-number redraws_ reads 3");
 	}
 
+	// ---- THE MAIN VIEW'S LIVE MODULES (the owner 11-21: "the modules updating on the map as they are build"): once a module of the plot is on the main view, how many,
+	// and the main view's lines for them, after the drawing time; while it shows and after the plot. None yet: no such words (the words as before)
+	{
+		PlotPreviewShown s = Showing(614, 461, 410, 307, 235, 2, 3, 40.6);
+
+		s.landed = 3;
+		s.mapLines = 1200;
+
+		std::string const words = PlotPreviewState_Words(s);
+
+		Check(words == "on left 614 top 461 width 410 height 307 head 235 job 2 redraws 3 ms 41 landed 3 maplines 1200 main 0", "while it shows, the modules on the main view and "
+			"their lines (\"" + words + "\")");
+		Check(NumberAfter(words, "landed ") == 3 && NumberAfter(words, "maplines ") == 1200 && NumberAfter(words, "main ") == 0, "expect-number landed_, maplines_ and main_");
+		s.on = false;
+		Check(PlotPreviewState_Words(s) == "off job 2 redraws 3 ms 41 landed 3 maplines 1200", "after the plot, kept (\"" + PlotPreviewState_Words(s) + "\")");
+	}
+
 	// ---- A NEGATIVE TIME (never from the preview, but the words must not say it): 0
 	{
 		std::string const words = PlotPreviewState_Words(Showing(614, 461, 410, 307, 235, 0, 1, -5.0));
