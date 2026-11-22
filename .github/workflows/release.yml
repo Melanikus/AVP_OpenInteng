@@ -13,7 +13,9 @@
 # Smacker encoder and decoder, libsmackerenc and libsmackerdec) come from AvPx's own package, built here by AvPx's own script at the commit
 # avpx/ is pinned to, so each one comes with the licence text, and OpenAL Soft and libsmackerenc with the source, that AvPx's package gives it
 # (a source only with its own library). mp4-to-smk was left out of alpha.2 while an antivirus false positive was looked into; it is back
-# with a version resource and a manifest (0 of 71 on VirusTotal, exe and DLL, 11-19).
+# with a version resource and a manifest (0 of 71 on VirusTotal, exe and DLL, 11-19). The leave_out_mp4_to_smk input (off unless the
+# owner asks) makes the same package without mp4-to-smk.exe: alpha.4 (2026-11-21) is alpha.3's code that way, after one antivirus engine
+# of 62 flagged the alpha.3 zip for that file. The editor's own Import video still works then: libsmackerenc.dll stays in, pinned as before.
 name: Release
 
 on:
@@ -23,6 +25,11 @@ on:
         description: "The version: three numbers such as 1.0.0, or an alpha or beta of one such as 1.0.0-alpha.0, which makes a pre-release"
         required: true
         type: string
+      leave_out_mp4_to_smk:
+        description: "Leave mp4-to-smk.exe out of the zip (the rest is the same). Off unless the owner asks."
+        required: false
+        type: boolean
+        default: false
 
 # Nothing by default: each job says what it needs, and only the last one can write anything.
 permissions: {}
@@ -156,12 +163,16 @@ jobs:
         shell: pwsh
         env:
           VERSION: ${{ inputs.version }}
+          # The input comes in through a setting, never written into the script: GitHub gives a boolean input as the text true or false.
+          LEAVE_OUT_MP4_TO_SMK: ${{ inputs.leave_out_mp4_to_smk }}
         run: |
           $from = "$env:RUNNER_TEMP\avpx-package"
           $package = "$env:RUNNER_TEMP\package"
           New-Item -ItemType Directory -Force $package | Out-Null
           Copy-Item 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe' $package
-          Copy-Item 'win32\VS2026\Win32\Release\mp4-to-smk.exe' $package
+          if ($env:LEAVE_OUT_MP4_TO_SMK -ceq 'true') { 'mp4-to-smk.exe is left out of this package, as the run was asked (leave_out_mp4_to_smk)' }
+          elseif ($env:LEAVE_OUT_MP4_TO_SMK -ceq 'false') { Copy-Item 'win32\VS2026\Win32\Release\mp4-to-smk.exe' $package }
+          else { throw "leave_out_mp4_to_smk is neither true nor false: $env:LEAVE_OUT_MP4_TO_SMK" }
 
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
           $visualStudio = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
