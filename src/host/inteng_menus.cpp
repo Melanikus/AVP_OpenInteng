@@ -1146,11 +1146,21 @@ namespace host
 		{
 			{ "Remove Module", 0x114002, 0x1b, IntengTag::None, IntengWork::WaypointCommand, -1, -1 },
 		};
+		IntengItem const kItems16_2_0_3[] =
+		{
+			{ "Delete Waypoints", 0x1143ff, 0x7336, IntengTag::None, IntengWork::WaypointCommand, -1, -1 },
+		};
+		IntengItem const kItems16_2_0_4[] =
+		{
+			{ "Delete All Waypoints", 0x1143fe, 0x7337, IntengTag::None, IntengWork::WaypointCommand, -1, -1 },
+		};
 		IntengMenu const kMenus16_2_0[] =
 		{
 			{ "Edit Module", kItems16_2_0_0, 1, -1 },
 			{ "Add Module", kItems16_2_0_1, 1, -1 },
 			{ "Remove Module", kItems16_2_0_2, 1, -1 },
+			{ "Delete Waypoints", kItems16_2_0_3, 1, -1 },
+			{ "Delete All Waypoints", kItems16_2_0_4, 1, -1 },
 		};
 		IntengItem const kItems16_2_1_0[] =
 		{
@@ -1318,7 +1328,7 @@ namespace host
 			{ 1, 0, kMenus16_1_0, 4 },
 			{ 1, 1, kMenus16_1_1, 1 },
 			{ 1, 3, kMenus16_1_3, 1 },
-			{ 2, 0, kMenus16_2_0, 3 },
+			{ 2, 0, kMenus16_2_0, 5 },
 			{ 2, 1, kMenus16_2_1, 7 },
 			{ 2, 2, kMenus16_2_2, 3 },
 			{ 2, 3, kMenus16_2_3, 14 },
@@ -2077,7 +2087,7 @@ namespace host
 		{ "Point Editing", "0x5e7618", kMenus13, 2, nullptr, 0, nullptr, 0 },
 		{ "Shape Morph", "0x5e3cd0", kMenus14, 1, nullptr, 0, nullptr, 0 },
 		{ "Shape Chooser", "0x5e78c8", kMenus15, 2, nullptr, 0, nullptr, 0 },
-		{ "Waypoint", "", kMenus16_1_0, 4, kMenus16_2_0, 3, kPages16, 8 },
+		{ "Waypoint", "", kMenus16_1_0, 4, kMenus16_2_0, 5, kPages16, 8 },
 		{ "Path", "", kMenus17_1_0, 2, kMenus17_2_0, 6, kPages17, 2 },
 		{ "Hierarchy", "", kMenus18_1_0, 7, kMenus18_2_0, 7, kPages18, 2 },
 		{ "Strategy Data", "", kMenus19_1_0, 4, kMenus19_2_0, 8, kPages19, 6 },

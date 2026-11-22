@@ -236,7 +236,7 @@
     </ClCompile>
     <ClCompile Include="..\..\src\host\plot_preview_view.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <!-- Waypoint mode by mouse (waypoint_mouse.h, waypoint_pick.h; the owner's addition 11-18, P4) -->
     <ClCompile Include="..\..\src\host\waypoint_mouse.cpp" Condition="'$(StockProof)' != 'true'">
@@ -639,6 +639,11 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <!-- the preview's sound, streamed a chunk at a time (fmv_sound_stream.h; the owner's long film, 11-21) -->
+    <ClCompile Include="..\..\src\host\fmv_sound_stream.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="..\..\src\host\smacker_dll.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -827,6 +832,15 @@
     <ClCompile Include="..\..\src\host\waypoint_box_mode.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- Delete Waypoints / Delete All Waypoints on Waypoint mode's bar (waypoint_delete.h; the owner 11-21, Dietrich): the pure part, then the command -->
+    <ClCompile Include="..\..\src\host\waypoint_delete.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\waypoint_delete_editor.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\src\host\waypoint_mode.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>

@@ -14,7 +14,10 @@
 // each chunk is. The two files' chunks are then walked side by side, in the files' order: each chunk's name, its size, and every byte it
 // holds are compared, except the 4 bytes of the version counter in a chunk of the five kinds above, which are taken from where the
 // library's own reader and writer keep them (level_same.cpp says where, file and line). Nothing else is skipped unless the caller names a
-// chunk to skip (ignored: the chunk must still be there, at the same place in both, but its size and what it holds are not compared).
+// chunk to skip (ignored: the chunk must still be there, at the same place in both, but its size and what it holds are not compared), or
+// names a chunk to DROP (dropped: every chunk of that name is left out of both walks, so one file may hold it and the other not; the
+// chunks holding it are walked as before, their own sizes never compared. For Delete Waypoints, Dietrich 11-21: a module left with no
+// network loses its WAYPOINT chunk, so "only the waypoint chunks changed" is a compare with WAYPOINT dropped).
 //
 // WHAT TO COMPARE: two saves, one made before the action and one after it ({save1} {save2} in a scenario). Not the game's own file against a
 // save: the game's files hold stray bytes in the rounding after a name (the 1 to 3 bytes after its closing zero, up to the next 4), which
@@ -49,13 +52,16 @@ struct LevelSameReport
 	size_t chunks = 0;              // the chunks walked in the first file (the level's own heading, REBINFF2, not counted)
 	size_t versionsIgnored = 0;     // the version counters that differ between the two, which were left out of the comparison
 	size_t chunksSkipped = 0;       // the chunks of the names asked to be skipped, found at the same place in both
+	size_t chunksDropped = 0;       // the chunks of the names asked to be dropped, in the two files together
 	size_t differences = 0;         // every difference found (lines holds the first kLevelSameMostLines of them)
 	std::vector<std::string> lines; // each difference: the chunk's path, the offset in what it holds, and the two values; or why a file is refused
 };
 
 // Compares two level files as above. ignored: chunk names (1 to 8 letters) whose chunks are not compared, matched against a chunk's name up to
-// its first zero byte, as the library looks names up. The report says how it came out.
-LevelSameReport CompareLevelFiles(char const *first, char const *second, std::vector<std::string> const &ignored);
+// its first zero byte, as the library looks names up; dropped: chunk names, matched the same way, whose chunks are left out of both walks. The
+// report says how it came out.
+LevelSameReport CompareLevelFiles(char const *first, char const *second, std::vector<std::string> const &ignored,
+	std::vector<std::string> const &dropped = std::vector<std::string>());
 
 // The report as the verifier prints it: "SAME (n chunks, m version counters ignored)", or "DIFFERENT (...)" and a line for each difference
 // written out, or "REFUSED ..."; gives back the exit code: 0 same, 1 different, 2 refused.

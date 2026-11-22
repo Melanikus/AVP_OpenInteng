@@ -11,7 +11,9 @@
 // chunk is skipped by name; two objects' chunks swapped is DIFFERENT though every chunk's name and size are still there (c); a truncated
 // file (unpacked and packed), a chunk's size pointing past the end (at the top and inside a shape), a wrong heading and a level's size
 // field that isn't its size are refused, each for its reason (e); a chunk holding 16,385 chunks, and 16 holding 16,384 each, are refused
-// before the game's loader is given them, its time growing as the square of the chunks inside one chunk, and one holding 16,384 is read (f).
+// before the game's loader is given them, its time growing as the square of the chunks inside one chunk, and one holding 16,384 is read (f);
+// a chunk taken out from inside a holder is DIFFERENT, and SAME with its name dropped (both walks leave it out, the holder's size not
+// compared), while a dropped name hides nothing else (g: verify_level_same --drop, for Delete Waypoints, Dietrich 11-21).
 // Every list made with new[] starts filled with a number of its own (operator new[] below), so a number a save never set differs between the
 // two saves every time, and (a) can't pass by luck of what the memory held.
 
@@ -575,6 +577,25 @@ static void TestLevel(std::string const &stockPath, bool everything)
 		Check(f3.answer == LevelSameAnswer::Refused && Has(f3, "in all, before the game's loader"),
 			"(f) 16 chunks holding 16,384 each (more than 2^18 chunks in all) are refused before the game's loader is given them: " + Said(f3));
 		printf("  info  (f) took %lu ms\n", (unsigned long)(GetTickCount() - started));
+	}
+
+	// (g) --drop: a chunk in one file and not in the other, inside a holder (as Delete Waypoints takes a module's WAYPOINT out of its MODULEDT):
+	// a holder of two JUNKJUNK chunks against the same holder with one
+	{
+		std::string const twoPath = scratchFolder + "drop-holder-of-2.rif", onePath = scratchFolder + "drop-holder-of-1.rif";
+		Check(WriteWholeFile(twoPath, WithHoldersAtTheEnd(save1, 1, 2)) && WriteWholeFile(onePath, WithHoldersAtTheEnd(save1, 1, 1)),
+			"the copies with a holder of two chunks and of one are written");
+
+		LevelSameReport const g1 = Compare(twoPath, onePath);
+		Check(g1.answer == LevelSameAnswer::Different && Has(g1, "2 chunks inside in the first, 1 in the second"), "(g) a chunk taken out of a holder is DIFFERENT: " + Said(g1));
+
+		LevelSameReport const g2 = CompareLevelFiles(twoPath.c_str(), onePath.c_str(), std::vector<std::string>(), std::vector<std::string>{ "JUNKJUNK" });
+		Check(g2.answer == LevelSameAnswer::Same && g2.chunksDropped == 3, "(g) with JUNKJUNK dropped by name it is SAME, its 3 chunks (2 and 1) left out: " + Said(g2) + ", " +
+			std::to_string(g2.chunksDropped) + " dropped");
+
+		LevelSameReport const g3 = CompareLevelFiles(save1Path.c_str(), twoPath.c_str(), std::vector<std::string>(), std::vector<std::string>{ "JUNKJUNK" });
+		Check(g3.answer == LevelSameAnswer::Different && Has(g3, "the first more is SPECLOBJ"), "(g) a dropped name hides only its own chunks: the holder added is still DIFFERENT: " +
+			Said(g3));
 	}
 }
 

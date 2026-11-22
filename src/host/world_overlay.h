@@ -32,6 +32,10 @@ namespace host
 	// The extra lines (the gizmo's) for now; sent again only when they are not the ones sent last
 	void WorldOverlay_Extra(std::vector<TrackLine> const &lines);
 
+	// THE PLOT PREVIEW'S INSET'S OWN LINES (the live plot, the owner 11-21: the module being planned): drawn in the inset only (level_view.h LevelView_InsetLines, the
+	// renderer's second slot), never mixed with the owners' list, which the main view draws. Sent again only when they are not the ones sent last; count 0: none
+	void WorldOverlay_InsetLines(TrackLine const *lines, size_t count);
+
 	// EDIT ACROSS MODULES (Vasquez 2026-11-19; a named difference: inteng shows one AI module's network): the BACKGROUND lines, Waypoint modes 1 to 3's every OTHER network,
 	// dimmed. Kept apart from the owner's list, so the current network's edits do not remake or resend them for nothing, with the same change-number rule as
 	// WorldOverlay_Lines (0 = no number: compared byte for byte). The engine is given the gizmo's lines, then the background, then the owner's: it draws in that order with

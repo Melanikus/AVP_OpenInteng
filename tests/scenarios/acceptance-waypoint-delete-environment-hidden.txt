@@ -1,0 +1,49 @@
+# ACCEPTANCE, HIDDEN (Dietrich 2026-11-21, the owner's "Delete then re-plot gives the same file as a plain re-plot", at the Environment's scale; waypoint_delete.h). His Genshd1
+# as Steam ships it: Alien auto waypoint > Environment with Overwrite ticked (the plain re-plot: the stock networks replaced, after the question), saved; then Delete All
+# Waypoints, Yes, and Environment again as its dialog opens (nothing has alien waypoints now, so nothing to overwrite and no question), saved.
+# THE TWO COPIES COMPARED WHOLE: nothing but WAYPOINT chunks changed (verify_level_same --drop WAYPOINT: SAME). With the WAYPOINT chunks compared too, one difference is there
+# BY DESIGN and named here: an AI module the plot refuses keeps STOCK'S network in the plain re-plot (Rebellion's, as the Overwrite box's help says), while after a delete it
+# has none (the plot writes nothing there). That compare is the HAND's measurement (allow-fail), not a pass rule; every module the plot writes must be the same in both.
+# RED on a1d66511 (bishop-int): the pop-up has no Delete All Waypoints.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-screen Waypoint
+wait 600
+
+# ---- the plain re-plot: Environment, Overwrite ticked, the replace question answered Yes
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+click-check 2
+expect-dialog-checks off,on
+click-button Ok
+expect-dialog-kind confirm
+expect-dialog replace
+click-button Yes
+wait-status 1800000 AI modules written
+save-copy
+
+# ---- Delete All Waypoints, Yes: every alien network gone (the plot's and the stock ones it refused)
+click-win 500 300 right
+click-popup 5
+expect-dialog-kind confirm
+expect-dialog Delete All Waypoints: delete the
+click-button Yes
+expect-no-dialog
+expect-status not saved yet
+
+# ---- Environment again, its dialog as it opens: no question (no AI module has alien waypoints)
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+expect-dialog-checks off,off
+click-button Ok
+expect-no-dialog
+wait-status 1800000 AI modules written
+save-copy
+
+# ---- the two copies: only WAYPOINT chunks differ; then the WAYPOINT differences, measured
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save2} --drop WAYPOINT
+allow-fail the plain re-plot keeps stock's network where the plot refuses, a delete leaves none there: the HAND names the differences | verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save2}

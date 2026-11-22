@@ -1,0 +1,130 @@
+# ACCEPTANCE, HIDDEN, PART 1 of 2 (red first; Dietrich 2026-11-21, THE OWNER'S WORD through Bishop, the last patch of alpha.3: "be able to select and delete Waypoint mapping by
+# module, group of modules or envronment"; his choices "Waypoint mode's bar", "Remove all, confirm says so"; waypoint_delete.h). Mode 0's right-click pop-up, the row of Edit /
+# Add / Remove Module, has Delete Waypoints (the pick's AI module, or the Ctrl set) and Delete All Waypoints (every AI module). Each asks first, with the count, and says the
+# networks made by hand (most likely Rebellion's) go too; No changes nothing; Yes empties the alien lists in one write; nothing is saved until the file is.
+# HIS PATH: Genshd1 as Steam ships it (sha256 19f00eae: 9 AI modules with an alien network, 136 alien waypoints, none with a ground list: host_waypoint_delete_level_test's survey).
+# PROVED ON THE FILE: strwll01's plain re-plot and its delete + re-plot are the same file (verify_level_same, {save2} {save3}), and it has a network again; after Delete All the
+# copy is taken by the game's loader with no alien network left (verify_waypoint_nets ... none) and nothing but waypoint chunks changed against the copy saved first (verify_level_same --drop WAYPOINT, {save1} {save4}: the WAYPOINT chunks
+# taken out). PART 2 (acceptance-waypoint-delete-hidden-restore.txt, run right after it in the same folder) opens the copy saved last: no alien waypoint is left.
+# RED on a1d66511 (bishop-int): the pop-up has inteng's three entries only.
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+expect-screen Waypoint
+wait 600
+save-copy
+
+# ---- the pop-up: inteng's three entries, then ours
+click-win 500 300 right
+expect-popup-rows Edit Module|Add Module|Remove Module|Delete Waypoints|Delete All Waypoints
+key Esc
+
+# ---- strwll01 (AI module 149, 17 stock alien waypoints) plotted again as before, with Overwrite ticked (the replace question): the copy kept for the compare below
+camera-corner strwll01
+click-view 0.50 0.50
+wait 400
+expect-status Picked: module
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+click-check 2
+expect-dialog-checks off,on
+click-button Ok
+expect-dialog-kind confirm
+expect-dialog replace the 17 alien waypoints of 1 AI modules
+click-button Yes
+wait-status 180000 AI modules written
+expect-status Auto-plot: 1 AI modules written, 0 refused
+save-copy
+
+# ---- Delete Waypoints on the pick: the question with its count, then Yes; the end line says what went and that it is not saved yet
+click-win 500 300 right
+click-popup 4
+expect-dialog-kind confirm
+expect-dialog Delete Waypoints: delete the
+expect-dialog alien waypoints of AI module 149? This includes any made by hand (most likely Rebellion's).
+expect-dialog Nothing is lost until the file is saved.
+click-button Yes
+expect-no-dialog
+expect-status alien waypoints of 1 AI module; not saved yet (File > Save keeps it)
+# it shows none: Show Alien Waypoints opens it with no box
+click-bar Mode > Show Alien Waypoints
+wait 400
+expect-field waypointnets strwll01 boxes 0 links 0
+click-bar Mode > Exit
+wait 400
+
+# ---- plotted again from none (the dialog as it opens: no question, it has no alien waypoint now): the same file as the plain re-plot above
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+expect-dialog-checks off,off
+click-button Ok
+expect-no-dialog
+wait-status 180000 AI modules written
+expect-status Auto-plot: 1 AI modules written, 0 refused
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save2} {save3}
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 149 network
+
+# ---- a Ctrl group the owner plots on his path: gencor04 picked, gencor05 Ctrl-clicked (the clicks of acceptance-autoplot-owner-path-hidden), plotted in one go, then deleted
+# together. (Not MOD-01 / MOD-03, which have stock networks: the harness's middle pick finds nothing in them, from camera-corner's spots or from 0.8 m above their boxes'
+# centres, "Nothing there to pick", the 19:50 and 20:02 runs.)
+camera-corner gencor04
+click-view 0.50 0.50
+wait 400
+expect-status Picked: module
+camera-corner gencor05
+click-view 0.50 0.50 ctrl
+wait 400
+expect-field waypointselection gencor04|gencor05
+click-bar Alien auto waypoint > Modules
+expect-dialog Alien auto waypoint
+expect-dialog-checks off,off
+click-button Ok
+expect-no-dialog
+wait-status 300000 AI modules written
+expect-status Auto-plot: 2 AI modules written, 0 refused
+click-win 500 300 right
+click-popup 4
+expect-dialog-kind confirm
+expect-dialog Delete Waypoints: delete the
+expect-dialog alien waypoints of 2 AI modules? This includes any made by hand (most likely Rebellion's).
+click-button Yes
+expect-no-dialog
+expect-status alien waypoints of 2 AI modules; not saved yet
+# both show none: Show Alien Waypoints opens the pick's AI module and the set's other, neither with a box
+click-bar Mode > Show Alien Waypoints
+wait 400
+expect-field waypointnets gencor04 boxes 0 links 0|gencor05 boxes 0 links 0
+click-bar Mode > Exit
+wait 400
+
+# ---- Delete All Waypoints: the 9 AI modules left with a network (the 8 stock ones untouched and strwll01's new one); No first: nothing changes
+click-win 500 300 right
+click-popup 5
+expect-dialog-kind confirm
+expect-dialog Delete All Waypoints: delete the
+expect-dialog alien waypoints of 9 AI modules? This includes any made by hand (most likely Rebellion's).
+click-button No
+expect-no-dialog
+expect-status Delete All Waypoints: nothing changed
+click-win 500 300 right
+click-popup 5
+expect-dialog-kind confirm
+expect-dialog of 9 AI modules?
+click-button Yes
+expect-no-dialog
+expect-status alien waypoints of 9 AI modules; not saved yet
+# none left: asked again, it says so
+click-win 500 300 right
+click-popup 5
+expect-no-dialog
+expect-status Delete All Waypoints: no AI module has alien waypoints
+
+# ---- saved: the game's loader takes the copy, and against the copy saved first only WAYPOINT chunks changed (all 9 taken out)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} all none
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-proofs/verifiers/verify_waypoint_nets.exe {copy} 149 none
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save4} --drop WAYPOINT

@@ -79,6 +79,21 @@ namespace host
 		ownerGeneration = generation;
 	}
 
+	void WorldOverlay_InsetLines(TrackLine const *lines, size_t count)
+	{
+		// (the inset's own list, for its own slot: sent only when it changed, as the owners' are)
+		static std::vector<TrackLine> insetLines;
+		size_t const n = lines ? count : 0;
+
+		if (n == insetLines.size() && (n == 0 || memcmp(lines, insetLines.data(), n * sizeof(TrackLine)) == 0))
+		{
+			return;
+		}
+
+		insetLines.assign(n ? lines : nullptr, n ? lines + n : nullptr);
+		LevelView_InsetLines(insetLines.empty() ? nullptr : insetLines.data(), insetLines.size());
+	}
+
 	void WorldOverlay_Extra(std::vector<TrackLine> const &lines)
 	{
 		if (Same(lines, extraLines))

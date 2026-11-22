@@ -20,6 +20,7 @@
 
 #include "fmv_files.h"
 #include "fmv_preview.h"
+#include "fmv_sound_stream.h"
 #include "smacker_dll.h"
 #include "smk_header.h"
 #include "state_line.h"
@@ -34,45 +35,135 @@ namespace host
 	namespace
 	{
 		bool on = false;
-		ALuint soundSource = 0, soundBuffer = 0;   // the preview's sound: the whole first track in one buffer, started with the picture
-		uint64_t const kSoundMostBytes = 64ull * 1024 * 1024;
-		double const kSoundMostMs = 20.0 * 60.0 * 1000.0;
+
+		// THE PREVIEW'S SOUND, STREAMED (Vasquez 2026-11-21, the owner's "her video is long so it got stuck for a few seconds, we need a loading video %"; fmv_sound_stream.h): the
+		// first track read a chunk at a time and queued on one OpenAL source in a ring of kFmvSoundChunks buffers, each refilled once it has been played (FeedSound, every editor
+		// frame). Play starts at once whatever the film's length, so there is no load left to show a % for. Before, the whole track was read into one buffer first (2,471 frames
+		// decoded for his 164.7 s film, the editor stuck for seconds); the 20-minute and 64 MB limits that one buffer needed are gone with it.
+		FmvSoundStream soundStream;
+		ALuint soundSource = 0;
+		ALuint soundBuffers[kFmvSoundChunks] = {};
+		std::vector<ALuint> freeBuffers;   // the ring's buffers not on the source now
+		ALenum soundFormat = AL_FORMAT_MONO8;
+		std::vector<uint8_t> chunk;
+
+		// the preview's own frame times, for the harness (fmvpreview): how long Play's start took, and the longest gap between two of its editor frames since
+		ULONGLONG startedInMs = 0, longestFrameMs = 0, lastDrawnAt = 0;
+		std::string startedSteps;   // the start's steps, each in ms: "stop 0, header 0, decoder 15, picture 0, sound 16"
 
 		void StopSound()
 		{
 			if (soundSource)
 			{
 				alSourceStop(soundSource);
+				alSourcei(soundSource, AL_BUFFER, 0);   // a stopped source lets go of every buffer queued on it
 				alDeleteSources(1, &soundSource);
 				soundSource = 0;
 			}
 
-			if (soundBuffer)
+			if (soundBuffers[0])
 			{
-				alDeleteBuffers(1, &soundBuffer);
-				soundBuffer = 0;
+				alDeleteBuffers((ALsizei)kFmvSoundChunks, soundBuffers);
+
+				for (ALuint &b : soundBuffers)
+				{
+					b = 0;
+				}
+			}
+
+			freeBuffers.clear();
+			soundStream.Close();
+		}
+
+		// The next chunk onto the source in a free buffer of the ring; false when no buffer is free or the track is read to its end
+		bool QueueChunk()
+		{
+			if (freeBuffers.empty() || !soundStream.NextChunk(&chunk))
+			{
+				return false;
+			}
+
+			if (chunk.empty())
+			{
+				return true;   // frames with no sound in them: nothing to queue this time
+			}
+
+			ALuint const buffer = freeBuffers.back();
+
+			alGetError();
+			alBufferData(buffer, soundFormat, chunk.data(), (ALsizei)chunk.size(), (ALsizei)soundStream.Rate());
+			alSourceQueueBuffers(soundSource, 1, &buffer);
+
+			if (alGetError() != AL_NO_ERROR)
+			{
+				return false;
+			}
+
+			freeBuffers.pop_back();
+			return true;
+		}
+
+		// Every editor frame while it plays: the buffers played are taken back and refilled with the next chunks (a couple at most), and a source that ran dry while more was
+		// coming (the editor held up longer than the sound queued) plays on
+		void FeedSound()
+		{
+			if (!soundSource)
+			{
+				return;
+			}
+
+			ALint played = 0;
+
+			alGetSourcei(soundSource, AL_BUFFERS_PROCESSED, &played);
+
+			for (; played > 0; played--)
+			{
+				ALuint buffer = 0;
+
+				alSourceUnqueueBuffers(soundSource, 1, &buffer);
+				freeBuffers.push_back(buffer);
+			}
+
+			for (uint32_t refill = 0; refill < kFmvSoundMostRefillsAFrame && QueueChunk(); refill++)
+			{
+			}
+
+			ALint state = AL_STOPPED, queued = 0;
+
+			alGetSourcei(soundSource, AL_SOURCE_STATE, &state);
+			alGetSourcei(soundSource, AL_BUFFERS_QUEUED, &queued);
+
+			if (state != AL_PLAYING && queued > 0)
+			{
+				alSourcePlay(soundSource);
 			}
 		}
 
-		// The first track read whole through a handle of its own (the decoder gives each frame's sound as it decodes the frame), checked against the header, into one OpenAL buffer;
-		// the words for what plays: "with its sound", or why not
-		std::string MakeSound(SmackerDllCalls const *dll, std::string const &path, model::SmkHeader const &header)
-		{
-			model::SmkTrack const &track = header.tracks[0];
+		// The first track opened as a stream, the ring made and its first second queued (the picture and the sound start together after it); the words for what plays:
+		// "with its sound", or why not
+		std::string soundSteps;   // StartSound's own steps, each in ms (the start's "sound" share, split)
 
-			if (!track.present)
+		std::string StartSound(SmackerDllCalls const *dll, std::string const &path, model::SmkHeader const &header)
+		{
+			ULONGLONG mark = GetTickCount64();
+			auto const lap = [&mark](char const *step)
+			{
+				ULONGLONG const now = GetTickCount64();
+
+				soundSteps += std::string(soundSteps.empty() ? "" : " ") + step + " " + std::to_string((unsigned long long)(now - mark));
+				mark = now;
+			};
+
+			soundSteps.clear();
+			if (!header.tracks[0].present)
 			{
 				return "it has no sound";
-			}
-
-			if ((double)header.frames * header.msPerFrame > kSoundMostMs)
-			{
-				return "picture only: too long for the preview's sound";
 			}
 
 			if (!SoundSwitchedOn)
 			{
 				SoundSys_Start();
+				lap("device");
 			}
 
 			if (!SoundSwitchedOn)
@@ -80,61 +171,23 @@ namespace host
 				return "picture only: no sound device";
 			}
 
-			SmackerHandle handle = dll->Open(path.c_str());
+			std::string words;
 
-			if (!handle.isValid)
+			bool const streamOpened = soundStream.Open(dll, path, header, &words);
+
+			lap("open");
+
+			if (!streamOpened)
 			{
-				return "picture only: the decoder would not open its sound";
+				return words;
 			}
 
-			SmackerAudioInfo const info = dll->GetNumAudioTracks(handle) > 0 ? dll->GetAudioTrackDetails(handle, 0) : SmackerAudioInfo{ 0, 0, 0, 0 };
-			bool const agrees = info.sampleRate == track.rate && info.nChannels == (uint32_t)track.channels && info.bitsPerSample == (uint32_t)track.bits &&
-				(info.bitsPerSample == 8 || info.bitsPerSample == 16) && (info.nChannels == 1 || info.nChannels == 2) && info.sampleRate > 0 && info.idealBufferSize > 0 &&
-				info.idealBufferSize <= 16u * 1024 * 1024;
+			uint32_t const channels = soundStream.Channels(), bits = soundStream.Bits();
 
-			if (!agrees)
-			{
-				dll->Close(handle);
-				return "picture only: the decoder reads its sound differently from its header";
-			}
-
-			std::vector<uint8_t> frameSound((size_t)info.idealBufferSize, 0);
-			std::vector<uint8_t> all;
-			bool tooMuch = false;
-
-			for (uint32_t f = 0; f < header.frames && !tooMuch; f++)
-			{
-				dll->GetNextFrame(handle);
-
-				uint32_t got = dll->GetAudioData(handle, 0, (int16_t *)frameSound.data());
-
-				got = got > info.idealBufferSize ? info.idealBufferSize : got;
-				tooMuch = all.size() + got > kSoundMostBytes;
-
-				if (!tooMuch)
-				{
-					all.insert(all.end(), frameSound.begin(), frameSound.begin() + got);
-				}
-			}
-
-			dll->Close(handle);
-
-			size_t const frameBytes = (size_t)info.nChannels * (info.bitsPerSample / 8);
-
-			all.resize(all.size() - all.size() % frameBytes);
-
-			if (tooMuch || all.empty())
-			{
-				return tooMuch ? "picture only: its sound is too large for the preview" : "its sound is empty";
-			}
-
-			ALenum const format = info.nChannels == 1 ? (info.bitsPerSample == 8 ? AL_FORMAT_MONO8 : AL_FORMAT_MONO16) : (info.bitsPerSample == 8 ? AL_FORMAT_STEREO8 : AL_FORMAT_STEREO16);
-
+			soundFormat = channels == 1 ? (bits == 8 ? AL_FORMAT_MONO8 : AL_FORMAT_MONO16) : (bits == 8 ? AL_FORMAT_STEREO8 : AL_FORMAT_STEREO16);
 			alGetError();
-			alGenBuffers(1, &soundBuffer);
-			alBufferData(soundBuffer, format, all.data(), (ALsizei)all.size(), (ALsizei)info.sampleRate);
+			alGenBuffers((ALsizei)kFmvSoundChunks, soundBuffers);
 			alGenSources(1, &soundSource);
-			alSourcei(soundSource, AL_BUFFER, (ALint)soundBuffer);
 			alSourcei(soundSource, AL_SOURCE_RELATIVE, AL_TRUE);
 			alSource3f(soundSource, AL_POSITION, 0.0f, 0.0f, 0.0f);
 			alSourcef(soundSource, AL_GAIN, editorHiddenRun ? 0.0f : 1.0f);
@@ -145,7 +198,16 @@ namespace host
 				return "picture only: the sound device refused its sound";
 			}
 
-			return "with its sound";
+			lap("ring");
+			freeBuffers.assign(soundBuffers, soundBuffers + kFmvSoundChunks);
+
+			for (uint32_t first = 0; first < kFmvSoundStartChunks && QueueChunk(); first++)
+			{
+			}
+
+			lap("first-second");
+
+			return words;
 		}
 		SmackerDllCalls const *calls = nullptr;
 		SmackerHandle video = { false, -1 };
@@ -244,7 +306,19 @@ namespace host
 
 	bool FmvPreview_Start(std::string const &folder, std::string const &name, char const *settingsFile, FmvPreviewPlace const &where, std::string *words)
 	{
+		ULONGLONG const asked = GetTickCount64();   // how long the start takes, for the harness (fmvpreview "started in")
+		ULONGLONG mark = asked;
+		std::string steps;   // each step's share of it: where a slow start goes
+		auto const lap = [&mark, &steps](char const *step)
+		{
+			ULONGLONG const now = GetTickCount64();
+
+			steps += (steps.empty() ? "" : ", ") + std::string(step) + " " + std::to_string((unsigned long long)(now - mark));
+			mark = now;
+		};
+
 		FmvPreview_Stop();
+		lap("stop");
 
 		std::string const shown = "FMVs\\" + name;
 		model::SmkHeader header;
@@ -262,6 +336,8 @@ namespace host
 			return false;
 		}
 
+		lap("header");
+
 		if (header.width > (uint32_t)kFmvPreviewMostSide || header.height > (uint32_t)kFmvPreviewMostSide)
 		{
 			*words = "Not played: " + shown + " is " + std::to_string(header.width) + " x " + std::to_string(header.height) + ", larger than the preview shows";
@@ -270,6 +346,8 @@ namespace host
 
 		std::string note;
 		SmackerDllCalls const *const got = SmackerDll_Get(settingsFile, &why, &note);
+
+		lap("decoder");
 
 		if (!got)
 		{
@@ -285,6 +363,8 @@ namespace host
 		}
 
 		SmackerHandle opened = got->Open((root + "\\" + name).c_str());
+
+		lap("picture");
 
 		if (!opened.isValid)
 		{
@@ -306,7 +386,10 @@ namespace host
 			return false;
 		}
 
-		std::string const soundWords = MakeSound(got, root + "\\" + name, header);
+		std::string const soundWords = StartSound(got, root + "\\" + name, header);
+
+		lap("sound");
+		steps += " [" + soundSteps + "]";
 
 		calls = got;
 		video = opened;
@@ -320,6 +403,10 @@ namespace host
 		decoded = 0;
 		place = where;
 		startedAt = GetTickCount64();
+		startedInMs = startedAt - asked;
+		startedSteps = steps;
+		longestFrameMs = 0;
+		lastDrawnAt = startedAt;
 		on = true;
 
 		if (soundSource)
@@ -367,6 +454,15 @@ namespace host
 			return;
 		}
 
+		// the gap since its last editor frame (since the start, for the first): the longest one is said in fmvpreview
+		ULONGLONG const now = GetTickCount64();
+
+		longestFrameMs = now - lastDrawnAt > longestFrameMs ? now - lastDrawnAt : longestFrameMs;
+		lastDrawnAt = now;
+
+		// the sound: the buffers played refilled with the next chunks (fmv_sound_stream.h)
+		FeedSound();
+
 		// the frames due by now, a few at most this editor frame
 		uint32_t const due = FmvPreview_DueFrame((double)(GetTickCount64() - startedAt), msPerFrame, frames);
 
@@ -391,7 +487,8 @@ namespace host
 		}
 
 		StateLine_Add("fmvpreview", shownName + " frame " + std::to_string((unsigned long long)(decoded == 0 ? 0 : decoded - 1)) + " of " + std::to_string((unsigned long long)frames) +
-			(soundSource ? (sounding == AL_PLAYING ? " sound playing" : " sound ended") : " no sound"));
+			(soundSource ? (sounding == AL_PLAYING ? " sound playing" : " sound ended") : " no sound") + "; started in " + std::to_string((unsigned long long)startedInMs) + " ms (" + startedSteps + "); longest frame " +
+			std::to_string((unsigned long long)longestFrameMs) + " ms");
 
 		if (!pictureFilled)
 		{

@@ -465,13 +465,17 @@ void LevelView_HideByRule(const int32_t *moduleIndex, size_t count, bool everyOb
 void LevelView_HideForPreview(const int32_t *shownModules, size_t count);
 
 // THE PLOT'S PREVIEW's INSET (the owner 11-21, 05:4x: "Full map + inset on top"): a second view, drawn AFTER the main view and OVER it, in a box of the window
-// (pixels). The main view is drawn whole first, as on any frame; then the depth is cleared and this camera's view is drawn into the box, with the preview's own
-// hidden set (LevelView_HideForPreview counts for this view only) and the frame's world lines. A NAMED DIFFERENCE: the world lines are drawn in the frame's last
-// drawing only, so while an inset is drawn the main view has none. After the frame the eyes are the main camera's again, so what reads the last frame's eyes
-// (the fly keys' LevelView_CameraAxes, LevelView_EyePlace, picks) reads the main view. Set it each frame before LevelView_Draw: on, with the camera and the box;
-// off (false), none. A box under 16 x 12 is none. The game's renderer is not changed: these are the split screen's own steps (renderer.h R_EditorFlushWorld,
-// R_ClearZBuffer, R_SetEditorMainViewport).
+// (pixels). The main view is drawn whole first, as on any frame, WITH the frame's world lines (LevelView_WorldLines); then the inset's box alone is cleared
+// (black, and its depth) and this camera's view is drawn into it, with the preview's own hidden set (LevelView_HideForPreview counts for this view only) and the
+// inset's own lines (LevelView_InsetLines). After the frame the eyes are the main camera's again, so what reads the last frame's eyes (the fly keys'
+// LevelView_CameraAxes, LevelView_EyePlace, picks) reads the main view. Set it each frame before LevelView_Draw: on, with the camera and the box; off (false),
+// none. A box under 16 x 12 is none. Drawn with the live plot's renderer calls (renderer.h R_EditorFlushWorldWithLines, R_EditorClearBox,
+// R_SetEditorFinalLinesSlot, R_SetEditorMainViewport; Frost 11-21); the game's own drawing is unchanged by them.
 void LevelView_Inset(bool on, const FlyCamera &camera, int boxLeft, int boxTop, int boxWidth, int boxHeight);
+
+// THE INSET'S OWN LINES (the live plot: the module being planned), kept apart from the main view's (LevelView_WorldLines) and drawn only in the inset; count 0
+// takes them away. Up to kLevelViewWorldLinesMax
+void LevelView_InsetLines(const host::TrackLine *lines, size_t count);
 
 // whether the last frame drew an inset over its main view (LevelView_Inset): the preview's state line
 bool LevelView_InsetDrawn();

@@ -237,6 +237,7 @@ struct Scenario
 	HWND heldTarget = nullptr;
 	int heldX = 0, heldY = 0;
 	bool heldShift = false;
+	ULONGLONG lastAnswerMs = 0;       // how long the last state ask waited for its answer (AskState): a stuck editor answers late (expect-last-answer-within)
 };
 
 // The words of a field of the scenario line: <name> "<words>"
@@ -315,7 +316,10 @@ static bool AskState(Scenario *s, DWORD waitMs = 10000)
 	Drain(s);
 	PostMessageW(s->editor.window, WM_APP + 6, 0, 0);
 
+	ULONGLONG const asked = GetTickCount64();
 	std::string const line = WaitForLine(&s->editor, "AVP_OpenInteng: scenario: ", waitMs);
+
+	s->lastAnswerMs = GetTickCount64() - asked;   // the editor answers the ask in its next frame: a long wait here is a frame that took that long
 
 	if (line.empty())
 	{
@@ -2657,6 +2661,22 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		Check(true, label);
 		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
+		return true;
+	}
+
+	// expect-last-answer-within <ms>: the last state the step before asked for came within that many milliseconds of its ask (AskState times every ask; the editor answers in its next
+	// frame), so the editor's window kept drawing through that step. Vasquez 2026-11-21, the owner's "her video is long so it got stuck for a few seconds": a stuck editor answers late.
+	if (verb == "expect-last-answer-within" && w.size() >= 2)
+	{
+		long long const most = atoll(w[1].c_str());
+
+		if (most < 1 || most > 60000)
+		{
+			Check(false, label + " (1 to 60000 ms)");
+			return false;
+		}
+
+		Check(s->lastAnswerMs <= (ULONGLONG)most, label + " (the last answer came " + std::to_string((unsigned long long)s->lastAnswerMs) + " ms after its ask)");
 		return true;
 	}
 

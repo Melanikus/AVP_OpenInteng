@@ -413,8 +413,8 @@ static void TestTheBuiltScreens()
 	};
 
 	// pages live for game kind 0, the titles on the first bar and on the second (row 2, page 0); Waypoint's first bar is inteng's 3 and ONE of ours, "Alien auto waypoint" (the named
-	// addition, checked by name below)
-	const Want wants[] = { { "Strategy Data", 6, 4, 8 }, { "Path", 2, 2, 6 }, { "Waypoint", 8, 4, 3 }, { "Texture Map", 7, 6, 11 }, { "Hierarchy", 2, 7, 7 }, { "Track Editing", 13, 3, 0 } };
+	// addition, checked by name below), and its second bar (mode 0's right-click pop-up) inteng's 3 and TWO of ours, Delete Waypoints and Delete All Waypoints (by name below too)
+	const Want wants[] = { { "Strategy Data", 6, 4, 8 }, { "Path", 2, 2, 6 }, { "Waypoint", 8, 4, 5 }, { "Texture Map", 7, 6, 11 }, { "Hierarchy", 2, 7, 7 }, { "Track Editing", 13, 3, 0 } };
 	bool counts = true, numbers = true, inBar = true;
 
 	for (const Want &want : wants)
@@ -474,6 +474,28 @@ static void TestTheBuiltScreens()
 	}
 
 	Check(named, "Waypoint's first bar: inteng's Mode, Entry points and Help, then the named addition \"Alien auto waypoint\" (Environment 0x7335, Modules 0x7334, both working), and no Auto-plot title");
+
+	// THE NAMED ADDITIONS on Waypoint's second bar (the owner 11-21, through Bishop: "be able to select and delete Waypoint mapping by module, group of modules or envronment",
+	// "Waypoint mode's bar"; waypoint_delete.h, menu-status.json extras): inteng's own three first and unchanged (Edit Module 0x19, Add Module 0x1a, Remove Module 0x1b), then
+	// Delete Waypoints (0x7336) and Delete All Waypoints (0x7337), each a menu of one item that works (no tag, Waypoint mode's command)
+	struct Second
+	{
+		const char *name;
+		int32_t command;
+	};
+
+	const Second seconds[] = { { "Edit Module", 0x19 }, { "Add Module", 0x1a }, { "Remove Module", 0x1b }, { "Delete Waypoints", 0x7336 }, { "Delete All Waypoints", 0x7337 } };
+	bool second = waypoint && waypoint->secondRow && waypoint->secondRowCount == 5;
+
+	for (size_t m = 0; second && m < 5; m++)
+	{
+		const IntengMenu &menu = waypoint->secondRow[m];
+
+		second = strcmp(menu.title, seconds[m].name) == 0 && menu.count == 1 && strcmp(menu.items[0].name, seconds[m].name) == 0 && menu.items[0].command == seconds[m].command &&
+			menu.items[0].work == IntengWork::WaypointCommand && menu.items[0].tag == IntengTag::None;
+	}
+
+	Check(second, "Waypoint's second bar (mode 0's pop-up): inteng's Edit / Add / Remove Module, then the named additions Delete Waypoints (0x7336) and Delete All Waypoints (0x7337)");
 	Check(numbers, "no two items of a code-built screen have the same number, across all its pages");
 	Check(inBar, "every page of a code-built screen fits the menu bar's limits");
 

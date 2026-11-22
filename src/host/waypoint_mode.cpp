@@ -1065,6 +1065,131 @@ namespace host
 		}
 	}
 
+	void WaypointMode::PaintFromFile(OpenLevelFile *open, std::vector<int32_t> const &masters)
+	{
+		std::map<int32_t, ModuleSnapshot> modules;
+
+		// one read of the level for all of them (PaintAiModule reads it once per AI module)
+		if (!paintMade || masters.empty() || !Snapshots(open, &modules))
+		{
+			return;
+		}
+
+		int32_t const pickMaster = picked >= 0 && modules.count(picked) ? MasterOf(modules, picked) : -1;
+		std::set<int32_t> again;
+
+		for (int32_t const m : masters)
+		{
+			int32_t const master = MasterOf(modules, m);
+
+			// the pick's, the current one and the set's keep their colour: they take the file's when let go
+			if (modules.count(master) && master != pickMaster && master != current && std::find(selection.begin(), selection.end(), master) == selection.end())
+			{
+				again.insert(master);
+			}
+		}
+
+		for (std::map<int32_t, ModuleSnapshot>::const_iterator it = modules.begin(); it != modules.end(); ++it)
+		{
+			int32_t const master = MasterOf(modules, it->first);
+
+			if (again.count(master))
+			{
+				paint[it->first] = HoldsWaypoints(modules, master) ? kWaypointModuleGreen : kWaypointModuleWhite;
+			}
+		}
+	}
+
+	WaypointOutcome WaypointMode::DeleteAlienLists(OpenLevelFile *open, std::vector<int32_t> const &masters, size_t *deleted)
+	{
+		*deleted = 0;
+
+		std::map<int32_t, ModuleSnapshot> modules;
+
+		if (!open || !open->Level() || !Snapshots(open, &modules))
+		{
+			return Said("Delete Waypoints: the level's modules can't be read");
+		}
+
+		// each AI module's WAYPOINT read first: one that can't be, or isn't there, refuses the whole delete before anything is written
+		std::vector<ModuleChildEdit> edits;
+		size_t alienCount = 0;
+
+		for (int32_t const master : masters)
+		{
+			const std::map<int32_t, ModuleSnapshot>::const_iterator it = modules.find(master);   // (const first: Snyk reads it, checks.yml)
+			std::string const who = "AI module " + std::to_string((long long)master);
+
+			if (it == modules.end() || it->second.masterIndex >= 0)
+			{
+				return Said(("Delete Waypoints: " + who + " is not an AI module of the level").c_str());
+			}
+
+			if (std::count(masters.begin(), masters.end(), master) > 1)
+			{
+				return Said(("Delete Waypoints: " + who + " is named twice").c_str());   // SetModuleChildrenMany would skip the second and write the rest
+			}
+
+			WaypointSet one;
+			std::string why;
+
+			if (!it->second.hasWaypoint)
+			{
+				return Said(("Delete Waypoints: " + who + " has no waypoints").c_str());
+			}
+
+			if (!Waypoints_Parse(it->second.waypoint.data(), it->second.waypoint.size(), &one, &why))
+			{
+				return Said(("Delete Waypoints: " + who + "'s waypoints can't be read: " + why).c_str());
+			}
+
+			ModuleChildEdit edit;
+
+			edit.objectIndex = master;
+			memset(edit.name, 0, sizeof(edit.name));
+			memcpy(edit.name, "WAYPOINT", 8);
+			edit.remove = one.ground.empty();   // no network left: no chunk, as Rebellion's files hold none
+			alienCount += one.alien.size();
+			one.alien.clear();
+
+			if (!edit.remove)
+			{
+				edit.chunk = Waypoints_Serialize(one);   // the ground list kept, byte for byte
+			}
+
+			edits.push_back(edit);
+		}
+
+		std::vector<bool> wrote;
+		ObjectEditResult const result = SetModuleChildrenMany(open, edits, &wrote);
+
+		// SetModuleChildrenMany changes nothing unless the loader takes the whole image (and every master was checked above, so none is skipped)
+		if (result != ObjectEditResult::Done || wrote.size() != edits.size() || std::find(wrote.begin(), wrote.end(), false) != wrote.end())
+		{
+			return Said(("Delete Waypoints: not written: " + std::string(result != ObjectEditResult::Done ? ObjectEditWords(result) : "the level did not take every AI module")).c_str());
+		}
+
+		// the AI module the mode works on was one of them: its lists read again (the new ones), nothing current, as after an auto-plot write
+		if (current >= 0 && std::find(masters.begin(), masters.end(), current) != masters.end())
+		{
+			std::string again;
+
+			if (Load(open, current, &again))
+			{
+				linkFrom = linkTo = -1;
+			}
+		}
+
+		PaintFromFile(open, masters);
+		*deleted = alienCount;
+
+		WaypointOutcome out = Said(("Delete Waypoints: " + std::to_string((unsigned long long)alienCount) + " alien waypoints of " + std::to_string((unsigned long long)masters.size()) +
+			" AI modules taken out").c_str());
+
+		out.levelChanged = true;
+		return out;
+	}
+
 	bool WaypointMode::PickNear(int32_t const place[3], int axisMask)
 	{
 		std::vector<WaypointRec> const &list = List();

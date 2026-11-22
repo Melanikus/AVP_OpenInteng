@@ -22,7 +22,9 @@ std::string PlotPreviewState_Words(PlotPreviewShown const &shown)
 	// the job and the drawing time end both forms of the field ("none" while no job has been shown)
 	std::string const job = shown.job == (size_t)-1 ? std::string("none") : Number((long long)shown.job);
 	double const ms = shown.drawMs > 0.0 ? floor(shown.drawMs + 0.5) : 0.0;
-	std::string const counts = "job " + job + " redraws " + Number((long long)shown.redraws) + " ms " + Number((long long)ms);
+	// and, once a module of the plot is on the main view (the live plot, Drake 11-21), how many and their lines ("maplines": never read as "main")
+	std::string const counts = "job " + job + " redraws " + Number((long long)shown.redraws) + " ms " + Number((long long)ms) +
+		(shown.landed == 0 ? std::string() : " landed " + Number((long long)shown.landed) + " maplines " + Number((long long)shown.mapLines));
 
 	if (shown.on)
 	{
