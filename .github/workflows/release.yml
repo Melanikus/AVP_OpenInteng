@@ -310,8 +310,11 @@ jobs:
           "AVP_OpenInteng $env:VERSION, commit $env:GITHUB_SHA, AvPx $(git -C avpx rev-parse HEAD)" | Out-File -Encoding ascii (Join-Path $package 'BUILD.txt')
 
           Push-Location $package
-          $hashes = Get-ChildItem -Recurse -File | Resolve-Path -Relative | ForEach-Object {
-            '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_).Hash.ToLower(), ($_ -replace '^\.\\', '' -replace '\\', '/')
+          # Each file's name inside the package: its full path with the package's own folder cut off the front (a file that isn't inside it stops
+          # the step), and / between folders
+          $hashes = Get-ChildItem -Recurse -File | ForEach-Object {
+            if (-not $_.FullName.StartsWith("$package\", [System.StringComparison]::OrdinalIgnoreCase)) { throw "$($_.FullName) is not inside $package" }
+            '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLower(), ($_.FullName.Substring($package.Length + 1) -replace '\\', '/')
           }
           Pop-Location
           # LF line ends and no byte-order mark, so sha256sum -c reads it on Linux and WSL too (Out-File wrote CRLF: the CR stuck to every name)
