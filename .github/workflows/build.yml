@@ -216,26 +216,29 @@ jobs:
       #   bash: shellcheck, Ubuntu's own package, run by actionlint on each bash step and on its own on every .sh file
       - name: Install the pinned script and workflow scanners
         if: ${{ !cancelled() }}
+        # The job's read-only token: gh attestation verify asks GitHub for the tools' build records
         env:
-          GH_TOKEN: ${{ github.token }}   # read only: gh attestation verify asks GitHub for the tools' build records
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           t="$RUNNER_TEMP/scanners"; mkdir -p "$t"
 
-          # zizmor and actionlint: their release files, by hash, and the record that their own release workflow built them at that tag
+          # zizmor and actionlint: their release files, by hash, and the record that their own release workflow built them at that tag. The
+          # identity is the one in the record's certificate, the workflow that signed it: zizmor's release.yml calls release-binaries.yml,
+          # which builds and signs (its SLSA provenance, read 2026-11-21). Only build provenance is taken, not GitHub's own release record.
           curl -fsSL "https://github.com/zizmorcore/zizmor/releases/download/v$ZIZMOR_VERSION/zizmor-x86_64-unknown-linux-gnu.tar.gz" -o "$t/zizmor.tar.gz"
           echo "$ZIZMOR_SHA256  $t/zizmor.tar.gz" | sha256sum -c -
-          gh attestation verify "$t/zizmor.tar.gz" --repo zizmorcore/zizmor --deny-self-hosted-runners \
-            --cert-identity "https://github.com/zizmorcore/zizmor/.github/workflows/release.yml@refs/tags/v$ZIZMOR_VERSION"
+          gh attestation verify "$t/zizmor.tar.gz" --repo zizmorcore/zizmor --deny-self-hosted-runners --predicate-type https://slsa.dev/provenance/v1 \
+            --cert-identity "https://github.com/zizmorcore/zizmor/.github/workflows/release-binaries.yml@refs/tags/v$ZIZMOR_VERSION"
           mkdir -p "$t/zizmor" && tar -xzf "$t/zizmor.tar.gz" -C "$t/zizmor"
 
           curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v$ACTIONLINT_VERSION/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" -o "$t/actionlint.tar.gz"
           echo "$ACTIONLINT_SHA256  $t/actionlint.tar.gz" | sha256sum -c -
-          gh attestation verify "$t/actionlint.tar.gz" --repo rhysd/actionlint --deny-self-hosted-runners \
+          gh attestation verify "$t/actionlint.tar.gz" --repo rhysd/actionlint --deny-self-hosted-runners --predicate-type https://slsa.dev/provenance/v1 \
             --cert-identity "https://github.com/rhysd/actionlint/.github/workflows/release.yaml@refs/tags/v$ACTIONLINT_VERSION"
           mkdir -p "$t/actionlint" && tar -xzf "$t/actionlint.tar.gz" -C "$t/actionlint"
 
-          # shellcheck: Ubuntu's own package. apt checks the archive's signature as it fetches the list and the package, and the package's
+          # Ubuntu's own shellcheck package. apt checks the archive's signature as it fetches the list and the package, and the package's
           # hash is checked here. dpkg-deb -x only unpacks it: none of the package's own scripts run.
           sudo apt-get update -qq
           (cd "$t" && apt-get download "shellcheck=$SHELLCHECK_DEB_VERSION")
@@ -269,8 +272,9 @@ jobs:
           echo "No suppressions, and no scanner settings files."
 
       # zizmor reads every workflow and action git tracks, named one by one, so none is left out. --no-ignores: no comment or settings file
-      # can hide a finding. With the job's read-only token it also asks GitHub whether each pinned action is that action's own commit, and
-      # whether it has a known vulnerability. If GitHub can't be reached, zizmor stops with an error and this step fails.
+      # can hide a finding. --persona=auditor: every finding zizmor has, of every confidence, as the gate has no threshold. With the job's
+      # read-only token it also asks GitHub whether each pinned action is that action's own commit, and whether it has a known
+      # vulnerability. If GitHub can't be reached, zizmor stops with an error and this step fails.
       - name: Workflows (SAST) - zizmor
         if: ${{ !cancelled() }}
         env:
@@ -279,7 +283,7 @@ jobs:
           mapfile -t files < <(git ls-files -- '.github/workflows/*.yml' '.github/workflows/*.yaml' '.github/actions/**/action.yml' '.github/actions/**/action.yaml')
           echo "zizmor reads ${#files[@]} files"
           [ "${#files[@]}" -gt 0 ] || { echo "::error::No workflow to read"; exit 1; }
-          "$RUNNER_TEMP/scanners/zizmor/zizmor" --no-ignores --persona=regular --cache-dir "$RUNNER_TEMP/zizmor-cache" "${files[@]}"
+          "$RUNNER_TEMP/scanners/zizmor/zizmor" --no-ignores --persona=auditor --cache-dir "$RUNNER_TEMP/zizmor-cache" "${files[@]}"
 
       # actionlint reads every workflow, and hands each bash step to the pinned shellcheck by its path (never one found on the runner).
       - name: Workflows - actionlint, with shellcheck on each bash step
