@@ -1,5 +1,5 @@
 // video_test_clip.cpp: the test video maker (video_test_clip.h). Moved 2026-11-22 by Melanikus (Dietrich) from tests/host_video_import_read_test.cpp (Vasquez's, 11-18),
-// unchanged but for its names. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
+// unchanged but for its names, and (later that day, Frost's find) for writing the pictures and the sound in time order. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 #include "video_test_clip.h"
 
 #include <math.h>
@@ -136,82 +136,87 @@ bool TestClip_Make(std::wstring const &path, GUID const &videoFormat, uint32_t w
 		return false;
 	}
 
+	// THE PICTURES AND THE SOUND IN TIME ORDER: each turn writes whichever stream is behind, so neither is ever far ahead of the other. Media Foundation's writer
+	// stops and waits for a stream that falls far behind (Frost measured it 2026-11-22: with every picture written first, a clip with sound of 9 s or more never
+	// ended), as a real recorder never does
 	LONGLONG const frameTime = 10000000LL / fps;
+	uint32_t const soundTotal = tone ? (uint32_t)((uint64_t)frames * 44100 / fps) : 0;   // the sound's samples, 44100 a second
+	uint32_t const soundStep = 4410;                                                      // a tenth of a second of sound per write
+	double const pi = 3.14159265358979323846;
+	uint32_t picture = 0, soundAt = 0;
+	char const *writing = "a picture's WriteSample";
 
-	for (uint32_t i = 0; i < frames && SUCCEEDED(hr); i++)
+	while (SUCCEEDED(hr) && (picture < frames || soundAt < soundTotal))
 	{
+		LONGLONG const pictureTime = (LONGLONG)picture * frameTime;
+		LONGLONG const soundTime = (LONGLONG)soundAt * 10000000LL / 44100;
+		bool const soundNext = soundAt < soundTotal && (picture >= frames || soundTime < pictureTime);
 		ComPtr<IMFMediaBuffer> buffer;
 		ComPtr<IMFSample> sample;
-		BYTE *pixels = nullptr;
+		BYTE *bytes = nullptr;
 
-		hr = MFCreateMemoryBuffer(width * height * 4, &buffer);
-
-		if (SUCCEEDED(hr) && SUCCEEDED(hr = buffer->Lock(&pixels, nullptr, nullptr)))
+		if (!soundNext)
 		{
-			paint(i, pixels);
-			buffer->Unlock();
-			buffer->SetCurrentLength(width * height * 4);
-			hr = MFCreateSample(&sample);
-		}
-
-		if (SUCCEEDED(hr))
-		{
-			sample->AddBuffer(buffer.Get());
-			sample->SetSampleTime((LONGLONG)i * frameTime);
-			sample->SetSampleDuration(frameTime);
-			hr = writer->WriteSample(video, sample.Get());
-		}
-	}
-
-	if (!step("a picture's WriteSample"))
-	{
-		return false;
-	}
-
-	if (tone)
-	{
-		uint32_t const total = (uint32_t)((uint64_t)frames * 44100 / fps);
-		double const pi = 3.14159265358979323846;
-
-		for (uint32_t at = 0; at < total && SUCCEEDED(hr); at += 4410)
-		{
-			uint32_t const count = total - at < 4410 ? total - at : 4410;
-			ComPtr<IMFMediaBuffer> buffer;
-			ComPtr<IMFSample> sample;
-			BYTE *bytes = nullptr;
-
-			hr = MFCreateMemoryBuffer(count * 4, &buffer);
+			writing = "a picture's WriteSample";
+			hr = MFCreateMemoryBuffer(width * height * 4, &buffer);
 
 			if (SUCCEEDED(hr) && SUCCEEDED(hr = buffer->Lock(&bytes, nullptr, nullptr)))
 			{
-				int16_t *const samples = reinterpret_cast<int16_t *>(bytes);
-
-				for (uint32_t i = 0; i < count; i++)
-				{
-					int16_t const value = (int16_t)(12000.0 * sin(2.0 * pi * 440.0 * (double)(at + i) / 44100.0));
-
-					samples[i * 2] = value;
-					samples[i * 2 + 1] = value;
-				}
-
+				paint(picture, bytes);
 				buffer->Unlock();
-				buffer->SetCurrentLength(count * 4);
+				buffer->SetCurrentLength(width * height * 4);
 				hr = MFCreateSample(&sample);
 			}
 
 			if (SUCCEEDED(hr))
 			{
 				sample->AddBuffer(buffer.Get());
-				sample->SetSampleTime((LONGLONG)at * 10000000LL / 44100);
-				sample->SetSampleDuration((LONGLONG)count * 10000000LL / 44100);
-				hr = writer->WriteSample(sound, sample.Get());
+				sample->SetSampleTime(pictureTime);
+				sample->SetSampleDuration(frameTime);
+				hr = writer->WriteSample(video, sample.Get());
 			}
+
+			picture++;
+			continue;
 		}
 
-		if (!step("a sound's WriteSample"))
+		// a 440 Hz tone, the same in both ears, 16-bit
+		uint32_t const count = soundTotal - soundAt < soundStep ? soundTotal - soundAt : soundStep;
+
+		writing = "a sound's WriteSample";
+		hr = MFCreateMemoryBuffer(count * 4, &buffer);
+
+		if (SUCCEEDED(hr) && SUCCEEDED(hr = buffer->Lock(&bytes, nullptr, nullptr)))
 		{
-			return false;
+			int16_t *const samples = reinterpret_cast<int16_t *>(bytes);
+
+			for (uint32_t i = 0; i < count; i++)
+			{
+				int16_t const value = (int16_t)(12000.0 * sin(2.0 * pi * 440.0 * (double)(soundAt + i) / 44100.0));
+
+				samples[i * 2] = value;
+				samples[i * 2 + 1] = value;
+			}
+
+			buffer->Unlock();
+			buffer->SetCurrentLength(count * 4);
+			hr = MFCreateSample(&sample);
 		}
+
+		if (SUCCEEDED(hr))
+		{
+			sample->AddBuffer(buffer.Get());
+			sample->SetSampleTime(soundTime);
+			sample->SetSampleDuration((LONGLONG)count * 10000000LL / 44100);
+			hr = writer->WriteSample(sound, sample.Get());
+		}
+
+		soundAt += count;
+	}
+
+	if (!step(writing))
+	{
+		return false;
 	}
 
 	hr = writer->Finalize();

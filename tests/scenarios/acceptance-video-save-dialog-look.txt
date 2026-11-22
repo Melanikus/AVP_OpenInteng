@@ -1,0 +1,72 @@
+# ACCEPTANCE (red first; Drake 2026-11-22, Bishop 2's order; THE OWNER, of the Save video dialog in picture 6 of the notes' check: "Menus are drawing on top of each
+# other in picture-6"). Video mode's Save video dialog as he sees it: inteng's own letters (IntengTools: Tools\font16.fnt), the window 1024 x 768, Colony (Genshd1) open,
+# a 6 s test clip (made fresh by the run with Windows' own Media Foundation) loaded. Each thing he saw, checked in words:
+#   1. THE NUMBER BOX IS ONE ROW TALL, INSIDE THE DIALOG: the combo's box 18 pixels high (a combo's height is its row's: dialog_box.cpp), and no part of the dialog past
+#      its window (the state line's dialogpast: each part measured on what is drawn; dialogs.cpp PastTheWindow).
+#   2. OK AND CANCEL ARE NEVER COVERED: closed, open and after a pick, each button's middle is its own blue in the picture (the open list ends above them).
+#   3. THE OPEN LIST: one text line a row (18 high), inteng's drop-down look, and nothing of the window painted over it (dialogoverlist empty); it CLOSES CLEANLY on a
+#      pick: no rows left (dialogcomborows empty), the box says the pick, and every part is inside the window again.
+#   4. THE LABEL INSIDE THE DIALOG'S EDGE: its words, as wide as inteng's font draws them, end inside the window (dialogpast), and in the picture the strip just right of
+#      the window, on the label's row, is the clip behind it (its red), not white letters.
+# RED on dietrich-videowords 36b5730d + the measuring fields alone (the layout as it was): the label's words run past the window's right edge.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/clip.mp4 6 --again
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+start-args -r1024x768 C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+expect-field-has window 1024 768 window
+click-bar Mode > Video
+wait 400
+expect-screen Video
+drop-file {datadir}/clip.mp4
+wait-field videostate loadedclips 1 20000
+wait 300
+
+# ---- the Save video dialog, its list closed
+click-video Save
+wait 400
+expect-dialog-kind form
+expect-dialog Save video
+# 1 and 4: the number box one row tall; every part (the label's drawn words, the box, Ok, Cancel) inside the window
+expect-field-has dialogcombos 18
+expect-field dialogpast none
+expect-field dialogwindow 292 227 440 314
+picture 1
+# IN THE PICTURE, not from the editor's own numbers: just right of the window (its right edge at x 732), on the label's row, only the clip behind it, its red; no white
+# letters there (as 36b5730d's layout drew: the label ran to x 750)
+expect-colour panels 734 241 40 14 ff0000 0.98 40
+# 2: Ok and Cancel uncovered, the list closed: the middle of each, right of its word, its own blue
+expect-colour panels 580 513 28 10 0000ff 0.95 40
+expect-colour panels 690 513 18 10 0000ff 0.95 40
+
+# ---- 3: the open list: rows of one line, nothing of the window over them
+click-combo 1
+wait 400
+# rows of one line each: "2: free" then "3: free", each 18 high, one under the other; every row's words end inside its row; nothing of the window over the list
+expect-field-has dialogcomborows 2:_free
+expect-field-has dialogcomborows 18|3:_free
+expect-field dialogpast none
+expect-field-empty dialogoverlist
+picture 2
+# 2 AND 3: Ok and Cancel stay uncovered while the list is open (it ends above them, as in inteng's own Message form): its 12th and last row in view, 129: free,
+# ends at 479 + 18 = 497, above the buttons' top at 509 (a blue list row over a button would pass a colour check alone); and each button's middle still its own blue
+expect-field-has dialogcomborows 129:_free 304 479 314 18
+expect-field-has dialogbuttons Ok 532 509 80 18|Cancel 632 509 80 18
+expect-colour panels 580 513 28 10 0000ff 0.95 40
+expect-colour panels 690 513 18 10 0000ff 0.95 40
+
+# ---- 3: it closes cleanly on a pick, and 2: Ok and Cancel are there, uncovered
+click-combo-row 3: free
+wait 400
+expect-field-empty dialogcomborows
+expect-field-has dialogcombos 3:_free
+expect-field dialogpast none
+picture 3
+# the list gone, Ok and Cancel uncovered again
+expect-colour panels 580 513 28 10 0000ff 0.95 40
+expect-colour panels 690 513 18 10 0000ff 0.95 40
+click-button Cancel
+wait 300
+expect-no-dialog

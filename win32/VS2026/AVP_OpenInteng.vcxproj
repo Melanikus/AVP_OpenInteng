@@ -93,7 +93,7 @@
            none of the game's network libraries (ENet, mlkem, mldsa), its Bink decoder or its music libraries (the edge stands in for those).
            The map file lets tools\check-edge-link.js prove, from what the linker actually took, that no other library gave the program code. -->
       <!-- the Video mode: Windows' own Media Foundation and its Audio Resampler (video_import), and its Open dialog (Load > Browse...) -->
-      <AdditionalDependencies>winmm.lib;shell32.lib;d3d9.lib;user32.lib;xinput.lib;d3dx9.lib;OpenAL32.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;ole32.lib;wmcodecdspuuid.lib;comdlg32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>winmm.lib;shell32.lib;d3d9.lib;user32.lib;xinput.lib;d3dx9.lib;OpenAL32.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;ole32.lib;wmcodecdspuuid.lib;comdlg32.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VcpkgInstalledDir)$(VcpkgTriplet)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>

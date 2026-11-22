@@ -48,7 +48,7 @@ namespace host
 
 		// the video held (Loaded, Making)
 		std::string name;                     // "clip.mp4"
-		std::string sourceWords;              // "clip.mp4: 320 x 180, 6.0 s, with sound"
+		std::string sourceWords;              // "clip.mp4: 320 x 180, 6 s, with sound"
 		uint32_t sourceWidth = 0;             // its picture as the file has it
 		uint32_t sourceHeight = 0;
 
@@ -67,7 +67,7 @@ namespace host
 		// the cut and the volume
 		double fromSeconds = 0.0;
 		double toSeconds = 0.0;
-		std::string cutWords;                 // "from 1.0 s to 4.0 s: 3.0 s, 45 frames"
+		std::string cutWords;                 // "from 1 s to 4 s: 3 s, 45 frames"
 		double volumeDb = 0.0;
 		std::string volumeWords;              // "AvP's level +3 dB"
 

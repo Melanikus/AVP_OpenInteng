@@ -4,5 +4,6 @@
 tests/host_video_make_test.cpp
 src/host/video_make.cpp
 src/host/video_import.cpp
+src/host/media_parsers.cpp
 src/host/smk_encoder.cpp
-/link mfplat.lib mfreadwrite.lib mfuuid.lib ole32.lib wmcodecdspuuid.lib
+/link mfplat.lib mfreadwrite.lib mfuuid.lib ole32.lib wmcodecdspuuid.lib wintrust.lib crypt32.lib advapi32.lib

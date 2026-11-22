@@ -275,12 +275,14 @@ static void TestFiles()
 
 	Check(MakeLongFile(atPath, 4096) && host::VideoImport_ReadFile(atPath, &bytes, &why) == host::VideoImportResult::Done && bytes.size() == 4096, "a file of 4096 bytes of 0 is read (the bound is on size, not on content)");
 
-	// the bound given per read (mp4-to-smk --max-input-mb): a byte under the file refuses it, with words saying how to raise it; the file's own size takes it; 0 and past the most are bad calls
+	// the bound given per read (mp4-to-smk --max-input-mb): a byte under the file refuses it, the words saying the bound and naming no program's switch (the editor
+	// shows these words too, and has no --max-input-mb: Frost's acceptance, 11-22; mp4-to-smk adds its own); the file's own size takes it; 0 and past the most are bad calls
 	why.clear();
 
 	bool const underRefused = host::VideoImport_ReadFile(atPath, &bytes, &why, 4095) == host::VideoImportResult::TooBig;
 
-	Check(underRefused && why.find("--max-input-mb") != std::string::npos, "a bound of 4095 bytes refuses the 4096-byte file, the words saying how to raise it (" + why + ")");
+	Check(underRefused && why.find("MB is taken") != std::string::npos && why.find("--") == std::string::npos && why.find("mp4-to-smk") == std::string::npos,
+		"a bound of 4095 bytes refuses the 4096-byte file, the words saying the bound and naming no program's switch (" + why + ")");
 	Check(host::VideoImport_ReadFile(atPath, &bytes, &why, 4096) == host::VideoImportResult::Done && bytes.size() == 4096, "a bound of exactly 4096 bytes takes it");
 	Check(host::VideoImport_ReadFile(atPath, &bytes, &why, 0) == host::VideoImportResult::BadCall &&
 		host::VideoImport_ReadFile(atPath, &bytes, &why, host::kVideoImportLongestBytes + 1) == host::VideoImportResult::BadCall, "a bound of 0, or past the most (2048 MB): a bad call, never a bigger read");
@@ -310,8 +312,23 @@ static void TestStream()
 	Check(host::VideoImport_CheckStream(0, 100, second, &why) == host::VideoImportResult::TooLarge, "0 wide: refused");
 	Check(host::VideoImport_CheckStream(100, 100, host::kVideoImportMostSeconds * second + 1, &why) == host::VideoImportResult::TooLong && !why.empty(), "100 ns over the most seconds: refused, with words");
 	Check(host::VideoImport_CheckStream(100, 100, -1, &why) == host::VideoImportResult::Done, "a length the file doesn't give (-1): taken (the read holds the bound itself)");
-	Check(host::VideoImport_CheckStream(1294, 940, 2425000000ll, &why) == host::VideoImportResult::TooLong && why.find("--max-seconds") != std::string::npos,
-		"242.5 s (the owner's longer test) under the default 180: refused, the words saying how to raise it");
+	// (called first, then checked: in one call the words might be read before the refusal writes them, as C++ leaves the order of a call's arguments open)
+	bool const longRefused = host::VideoImport_CheckStream(1294, 940, 2425000000ll, &why) == host::VideoImportResult::TooLong;
+
+	Check(longRefused && why == "Import video: it is 242.5 s long; at most 180 s is taken",
+		"242.5 s (the owner's longer test) under the default 180: refused, the words saying the bound and naming no program's switch (" + why + ")");
+
+	// a moment past the bound reads past it, never as the bound itself (the length's tenths rounded up); a whole length has no decimal; the biggest length a file
+	// can claim is said, not overflowed
+	bool const justPast = host::VideoImport_CheckStream(100, 100, host::kVideoImportMostSeconds * second + 1, &why) == host::VideoImportResult::TooLong;
+	std::string const justPastWords = why;
+	bool const wholePast = host::VideoImport_CheckStream(100, 100, 182 * second, &why) == host::VideoImportResult::TooLong;
+	std::string const wholePastWords = why;
+	bool const biggest = host::VideoImport_CheckStream(100, 100, INT64_MAX, &why) == host::VideoImportResult::TooLong;
+
+	Check(justPast && justPastWords == "Import video: it is 180.1 s long; at most 180 s is taken", "180 s and 100 ns: \"180.1 s long\" (" + justPastWords + ")");
+	Check(wholePast && wholePastWords == "Import video: it is 182 s long; at most 180 s is taken", "182 s: \"182 s long\" (" + wholePastWords + ")");
+	Check(biggest && why == "Import video: it is 922337203685.5 s long; at most 180 s is taken", "the biggest length there is: said, not overflowed (" + why + ")");
 	Check(host::VideoImport_CheckStream(1294, 940, 2425000000ll, &why, 300) == host::VideoImportResult::Done, "the same with the most seconds raised to 300: taken");
 	Check(host::VideoImport_CheckStream(100, 100, host::kVideoImportLongestSeconds * second, &why, host::kVideoImportLongestSeconds) == host::VideoImportResult::Done &&
 		host::VideoImport_CheckStream(100, 100, host::kVideoImportLongestSeconds * second + 1, &why, host::kVideoImportLongestSeconds) == host::VideoImportResult::TooLong, "raised to the most (600 s): exactly 600 s taken, 100 ns more refused");

@@ -76,11 +76,13 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\host\media_parsers.cpp" />
     <ClCompile Include="..\..\src\host\smk_encoder.cpp" />
     <ClCompile Include="..\..\src\host\video_import.cpp" />
     <ClCompile Include="..\..\src\host\video_make.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src\host\media_parsers.h" />
     <ClInclude Include="..\..\src\host\smk_encoder.h" />
     <ClInclude Include="..\..\src\host\video_import.h" />
     <ClInclude Include="..\..\src\host\video_make.h" />

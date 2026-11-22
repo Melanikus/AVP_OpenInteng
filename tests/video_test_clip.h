@@ -1,6 +1,7 @@
 // video_test_clip.h: a TEST VIDEO made with Windows' own Media Foundation sink writer, for the tests that read a user's video (video_import's own test, and the
 // video editor's acceptance through tests/scenarios/verify_videomake.cpp). The repository holds no video (Bishop 11-18), so each test makes the one it reads, in its
-// own folder. Moved here 2026-11-22 by Melanikus (Dietrich) from tests/host_video_import_read_test.cpp (Vasquez's, 11-18), unchanged, so both use the one maker.
+// own folder. Moved here 2026-11-22 by Melanikus (Dietrich) from tests/host_video_import_read_test.cpp (Vasquez's, 11-18), so both use the one maker; it writes the
+// pictures and the sound in time order (11-22, Frost's find: written one stream after the other, a clip with sound of 9 s or more never ended).
 // AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 #pragma once
 

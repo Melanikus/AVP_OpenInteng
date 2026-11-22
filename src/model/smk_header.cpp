@@ -138,11 +138,16 @@ namespace model
 		return differs;
 	}
 
+	std::string SmkHeader_SecondsWords(double seconds)
+	{
+		return Number(seconds, 1) + " s";
+	}
+
 	std::string SmkHeader_Words(SmkHeader const &header)
 	{
 		double const seconds = (double)header.frames * header.msPerFrame / 1000.0;
 		std::string words = std::string(header.signature) + " " + std::to_string(header.width) + " x " + std::to_string(header.height) + ", " + std::to_string(header.frames) + " frames at " +
-			Number(SmkHeader_Fps(header), 2) + " fps (" + Number(seconds, 1) + " s), ";
+			Number(SmkHeader_Fps(header), 2) + " fps (" + SmkHeader_SecondsWords(seconds) + "), ";
 
 		return words + (header.tracks[0].present ? TrackWords(header.tracks[0]) : std::string("no sound"));
 	}

@@ -9,7 +9,7 @@
 //       is itself an MP4 (its first box "ftyp") is made again in its place, and any other file there is still refused.
 //       Other clips, for the edges (acceptance-video-mode-edges; Frost 2026-11-22, Dietrich's list): --size another picture (two even numbers, 16 to
 //       1920 each: a 4:3 320x240, a tall 180x320); --fps another rate (1 to 30), so a clip past the editor's 180 s stays small (182 s at 2 a second
-//       is 364 frames); --no-sound no sound track at all. The seconds are 1 to 600 (with sound 1 to 8: see Make), and at most 9000 frames in all.
+//       is 364 frames); --no-sound no sound track at all. The seconds are 1 to 600, and at most 9000 frames in all.
 //   verify_videomake.exe check <film.smk> <width> <height> <frames a second> <frames> [--no-sound]
 //       reads the made film back as the game would find it: its header, read as hostile input by the editor's own reader (model::SmkHeader_Read),
 //       must say SMK2, that size, that rate and that many frames, with sound track 0 at 22050 Hz 8-bit mono (AvP's message format); with
@@ -119,12 +119,12 @@ static int Make(wchar_t const *out, wchar_t const *secondsText, MakeOptions cons
 {
 	long seconds = 0;
 
-	// With sound, at most 8 s: tests/video_test_clip.cpp writes every picture first and the sound after, and Media Foundation's writer stops and waits
-	// for the sound to catch up once the pictures are far enough ahead, so it never ends (measured 2026-11-22 at 30 a second: 6, 7 and 8 s were made in
-	// a second; 9, 10, 20, 30, 45 and 60 s, and 182 s at 2 a second, each stayed a 79-byte file until stopped). A longer clip goes without sound.
-	if (!WholeNumber(secondsText, 1, 600, &seconds) || (uint64_t)seconds * options.fps > 9000 || (options.tone && seconds > 8))
+	// With sound or without, 1 to 600 s. (Until 2026-11-22 a clip with sound was at most 8 s: tests/video_test_clip.cpp wrote every picture first and the
+	// sound after, and Media Foundation's writer, waiting for the sound to catch up, never ended a clip of 9 s or more, as Frost measured: 9, 10, 20, 30,
+	// 45 and 60 s at 30 a second each stayed a 79-byte file until stopped. It now writes the two in time order.)
+	if (!WholeNumber(secondsText, 1, 600, &seconds) || (uint64_t)seconds * options.fps > 9000)
 	{
-		printf("verify_videomake: the seconds are a whole number from 1 to 600 (with sound, 1 to 8), at most 9000 frames in all\n");
+		printf("verify_videomake: the seconds are a whole number from 1 to 600, at most 9000 frames in all\n");
 		return 2;
 	}
 

@@ -69,8 +69,9 @@ What happens to the file:
 
 ## Your own videos (mp4-to-smk)
 
-AvP plays its in-game videos (the messages on a level's monitors) as Smacker `.smk` files. `mp4-to-smk.exe`, in the zip beside the
-editor, turns your own video into one in AvP's own format:
+AvP plays its in-game videos (the messages on a level's monitors) as Smacker `.smk` files. The editor makes them itself: Mode > Video.
+`mp4-to-smk.exe` is no longer in the zip. It can still be built from this project's source (`win32/VS2026/mp4-to-smk.vcxproj`), and
+turns your own video into one in AvP's own format:
 
 ```
 mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source] [--max-seconds N] [--max-input-mb N]
@@ -102,8 +103,8 @@ the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` i
   numbers: 417 to 450 and the other numbers no stock level uses.
 - A monitor shows nothing when a video named after its own picture exists in `FMVs\`, and no video plays while a cheat is on.
 
-**The encoder** is libsmackerenc, made from Barry Duncan's libsmackerdec (LGPL 2.1), and it is linked into `mp4-to-smk.exe` and into the
-editor itself (its Video mode makes films with the same library): there is no DLL beside either, and none is loaded. The editor's FMV preview has Barry's decoder, libsmackerdec (LGPL 2.1), linked into it the same
+**The encoder** is libsmackerenc, made from Barry Duncan's libsmackerdec (LGPL 2.1), and it is linked into the editor itself (its Video
+mode makes films with it), and into `mp4-to-smk.exe` when you build that: there is no DLL beside either, and none is loaded. The editor's FMV preview has Barry's decoder, libsmackerdec (LGPL 2.1), linked into it the same
 way. Each library's licence is in the zip's `licences` folder, and `licences/README.txt` links its whole source, at the very commit the
 release was built from (the sources are not in the zip, so each release scans fewer files on VirusTotal). To use your own
 build of either, as the LGPL allows, build the program again from this project's source with yours in its place

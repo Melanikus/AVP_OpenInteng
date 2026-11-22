@@ -60,6 +60,10 @@ int main()
 	Check(model::SmkHeader_DiffersFromAvp(header).empty(), "nothing differs from AvP's format (rate -6666 is 15.0015 fps)");
 	Check(model::SmkHeader_Words(header) == "SMK2 128 x 96, 228 frames at 15 fps (15.2 s), 22050 Hz 8-bit mono", "its words: " + model::SmkHeader_Words(header));
 
+	// a length's words, the one rule the Video mode says its lengths with too (Frost's acceptance 11-22: the mode said "6.0 s", the film "(6 s)")
+	Check(model::SmkHeader_SecondsWords(6.0) == "6 s" && model::SmkHeader_SecondsWords(3.5) == "3.5 s" && model::SmkHeader_SecondsWords(0.0) == "0 s" &&
+		model::SmkHeader_SecondsWords(180.04) == "180 s" && model::SmkHeader_SecondsWords(15.2) == "15.2 s", "a length's words: 6 s, 3.5 s, 0 s, 180 s (180.04), 15.2 s");
+
 	// HOSTILE: too short, not Smacker, impossible numbers; *out is left alone each time
 	model::SmkHeader untouched;
 

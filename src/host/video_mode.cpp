@@ -99,12 +99,10 @@ namespace
 		statusWords = sayWords.c_str();
 	}
 
+	// a length as the film's own words say one ("6 s", "3.5 s"), so the clip and the film made from it say it the same way
 	std::string Seconds(double seconds)
 	{
-		char text[32];
-
-		snprintf(text, sizeof(text), "%.1f s", seconds);
-		return text;
+		return model::SmkHeader_SecondsWords(seconds);
 	}
 
 	double LengthSeconds()
@@ -272,7 +270,7 @@ namespace
 		return text;
 	}
 
-	// The made film's own line ("SMK2 128 x 96, 45 frames at 15 fps (3.0 s), 22050 Hz 8-bit mono"), from its header
+	// The made film's own line ("SMK2 128 x 96, 45 frames at 15 fps (3 s), 22050 Hz 8-bit mono"), from its header
 	std::string FilmWords(std::vector<uint8_t> const &smk)
 	{
 		model::SmkHeader header;
@@ -306,8 +304,9 @@ namespace
 			view.name = host::VideoDrop_Words(slash == std::wstring::npos ? ended->path : ended->path.substr(slash + 1));
 			view.sourceWidth = heldInfo.width;
 			view.sourceHeight = heldInfo.height;
+			// (a sound there but not taken, media_parsers.h: the video comes in silent, and the status line says why)
 			view.sourceWords = view.name + ": " + std::to_string(heldInfo.width) + " x " + std::to_string(heldInfo.height) + ", " + Seconds(LengthSeconds()) + ", " +
-				(heldInfo.hasSound ? "with sound" : "no sound");
+				(heldInfo.hasSound ? "with sound" : heldInfo.soundLeftOut.empty() ? "no sound" : "silent: " + heldInfo.soundLeftOut);
 			view.still = std::move(ended->still);
 			view.stillWidth = ended->stillWidth;
 			view.stillHeight = ended->stillHeight;
@@ -428,14 +427,18 @@ namespace
 		std::vector<model::MessageNumberInfo> const free = model::MessageNumbers_FreeList();
 
 		spec.title = "Save video";
-		spec.width = 360;
-		spec.height = 150;
+		// AS WIDE AS ITS WORDS (the owner, 11-22: "Menus are drawing on top of each other"): in inteng's own letters the label is 405 pixels wide, so a window 360
+		// wide had it run 58 pixels past its right edge (the state line's dialogpast; acceptance-video-save-dialog-look). 440 holds it with room on both sides;
+		// the buttons keep their 20 pixels from the right edge. AND OK AND CANCEL ARE NEVER COVERED: as inteng's own Message form (strategy_screen.cpp: its buttons under
+		// the list's reach), they sit below where the open list ends (the box's foot at 54, then 12 rows of 18: 270), so the list opens over the window's empty part only
+		spec.width = 440;
+		spec.height = 314;
 		words.type = host::DialogWidgetType::Label;
 		words.text = "Message number (its film is FMVs\\message<number>.smk):";
-		words.box = { 12, 14, 330, 16 };
+		words.box = { 12, 14, 416, 16 };
 		box.type = host::DialogWidgetType::Combo;
 		box.editable = true;
-		box.box = { 12, 36, 330, 120 };
+		box.box = { 12, 36, 330, 18 };   // one row tall: a combo's height is its row's, and each row of its open list is as tall (dialog_box.cpp)
 		box.listRows = 12;
 
 		for (model::MessageNumberInfo const &one : free)
@@ -447,11 +450,11 @@ namespace
 		box.text = box.items.empty() ? std::string() : box.items[0];
 		ok.type = host::DialogWidgetType::Button;
 		ok.text = "Ok";
-		ok.box = { 160, 110, 80, 18 };
+		ok.box = { 240, 282, 80, 18 };
 		ok.answer = host::kDialogOk;
 		cancel = ok;
 		cancel.text = "Cancel";
-		cancel.box = { 260, 110, 80, 18 };
+		cancel.box = { 340, 282, 80, 18 };
 		cancel.answer = host::kDialogEscape;
 		spec.widgets = { words, box, ok, cancel };
 
@@ -483,9 +486,19 @@ namespace
 				int32_t const n = info.number;
 				bool const stock = info.kind == model::MessageNumberKind::StockFilm;
 
-				// one of Rebellion's own films no level uses (Vasquez's review, 11-22): both facts said before the Yes
-				std::string const question = stock ? "FMVs\\" + name + " is Rebellion's own film (no stock level plays it): replace it with this video? Steam's " +
-					"\"Verify integrity of game files\" will later put Rebellion's back over yours" : "FMVs\\" + name + " is there already: replace it with this video?";
+				// what the number is, said in the question itself before the Yes (Vasquez's review, 11-22): one of Rebellion's own films no level uses (both facts), a
+				// number a stock level plays (that level would play the new film: 103 is stock Derelict's briefing), or a film there and nothing more known
+				std::string question = "FMVs\\" + name + " is there already: replace it with this video?";
+
+				if (stock)
+				{
+					question = "FMVs\\" + name + " is Rebellion's own film (no stock level plays it): replace it with this video? Steam's \"Verify integrity of game files\" will " +
+						"later put Rebellion's back over yours";
+				}
+				else if (info.kind == model::MessageNumberKind::UsedByStock)
+				{
+					question = "FMVs\\" + name + " is there already, and a stock level plays it: replace it with this video? That level would then play yours";
+				}
 
 				host::Dialogs_Confirm(question, [n, name, stock](bool yes)
 				{
@@ -631,7 +644,7 @@ bool host::VideoMode_Press(char const *control)
 
 	if (heldClip.frameCount <= 0)
 	{
-		Say("Drop a video first (or Load > Browse...)");
+		Say("Drop a video first (or use Load -> Browse)");   // the empty screen's own words for the menu (kVideoModeEmptyWords, the owner's "Load -> Browse")
 		return false;
 	}
 

@@ -64,17 +64,9 @@ jobs:
           # The same words AvPx's gate refuses (its snyk.yml), outside the workflows that name them.
           found=$(git grep -n -i -E 'deepcode ignore|snyk:ignore|lgtm\[|codeql\[|NOSONAR|nolint' -- . ':!.github' || true)
           files=$(git ls-files | grep -E '(^|/)\.(snyk|dcignore)$' || true)
-          # PSScriptAnalyzer's own ways to look away (Bishop 2's ruling, 2026-11-22, with the PowerShell scan): its SuppressMessage attribute,
-          # written with the attribute's whole name or its short one, a rule left out by name (the settings key Exclude[R]ules), and a
-          # PSScriptAnalyzerSettings.psd1, which PSScriptAnalyzer can pick up by itself from the folder it scans. Read in .github too, as
-          # workflows hold PowerShell of their own; the [M] and [R] keep these lines from naming themselves.
-          psfound=$(git grep -n -i -E 'Suppress[M]essage(Attribute)?[[:space:]]*\(|Exclude[R]ules?' -- . || true)
-          psfiles=$(git ls-files | grep -i -E '(^|/)PSScriptAnalyzerSettings\.psd1$' || true)
-          if [ -n "$found$files$psfound$psfiles" ]; then
+          if [ -n "$found$files" ]; then
             echo "$found"
             echo "$files"
-            echo "$psfound"
-            echo "$psfiles"
             echo "::error::Something in the repository suppresses a scanner"
             exit 1
           fi

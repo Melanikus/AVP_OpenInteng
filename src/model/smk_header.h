@@ -61,6 +61,10 @@ namespace model
 	// One line about the video: "SMK2 128 x 96, 228 frames at 15 fps (15.2 s), 22050 Hz 8-bit mono" (no audio: "no sound")
 	std::string SmkHeader_Words(SmkHeader const &header);
 
+	// A length in seconds as SmkHeader_Words says it: one decimal at most, none on a whole number ("6 s", "3.5 s"). The Video mode says its lengths with it too,
+	// so a clip and the film made from it say a length the same way (Frost's acceptance, 2026-11-22: "6.0 s" there, "(6 s)" here)
+	std::string SmkHeader_SecondsWords(double seconds);
+
 	// The game's message FMV names (FmvCutscenes.cpp StartTriggerPlotFMV: "FMVs/message%d.smk"): true when `name` (a file name, no folder) is "message<n>.smk" in any capitals with
 	// <n> written as %d writes it (no sign, no leading 0 but for "0"), from 0 to 450 (the numbers the game's reader lets through, strategy_chunk.cpp CheckMessageNumber); *number is n.
 	int32_t const kMostMessageNumber = 450;

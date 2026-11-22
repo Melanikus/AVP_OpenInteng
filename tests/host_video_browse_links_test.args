@@ -4,4 +4,5 @@
 tests/host_video_browse_links_test.cpp
 src/host/video_drop.cpp
 src/host/video_import.cpp
-/link shell32.lib mfplat.lib mfreadwrite.lib mfuuid.lib ole32.lib wmcodecdspuuid.lib
+src/host/media_parsers.cpp
+/link shell32.lib mfplat.lib mfreadwrite.lib mfuuid.lib ole32.lib wmcodecdspuuid.lib wintrust.lib crypt32.lib advapi32.lib

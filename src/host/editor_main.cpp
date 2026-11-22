@@ -16486,6 +16486,8 @@ int main(int, char **)
 
 			host::DialogsState const dialogNow = host::Dialogs_State();
 			StateLine_Add("dialogoverlist", dialogNow.overlist);   // the window's words painted over its open drop-down list (dialogs.cpp WordsOverTheOpenList)
+			StateLine_Add("dialogpast", dialogNow.past);           // a form's parts reaching past its window (dialogs.cpp PastTheWindow), "none" when all fit
+			StateLine_Add("dialogwindow", dialogNow.window);       // a form's own window box, "<x> <y> <width> <height>"
 
 			if (!dialogNow.kind.empty())
 			{

@@ -94,6 +94,24 @@ namespace
 		return kExitRefused;
 	}
 
+	// A read's refusal in words, and, when it was this program's own bound that refused (a file too big, a video too long) and the bound can still be raised, the
+	// switch that raises it. The reader's words name no switch, as the editor says them too and has none (Frost's acceptance, 2026-11-22)
+	int ReadRefused(host::VideoImportResult result, std::string const &why, uint64_t mostBytes, int64_t mostSeconds)
+	{
+		std::string words = why.empty() ? host::VideoImport_Words(result) : why;
+
+		if (result == host::VideoImportResult::TooBig && mostBytes < host::kVideoImportLongestBytes)
+		{
+			words += " (--max-input-mb raises it, up to " + std::to_string((unsigned long long)(host::kVideoImportLongestBytes >> 20)) + ")";
+		}
+		else if (result == host::VideoImportResult::TooLong && mostSeconds < host::kVideoImportLongestSeconds)
+		{
+			words += " (--max-seconds raises it, up to " + std::to_string((long long)host::kVideoImportLongestSeconds) + ")";
+		}
+
+		return Refused(words);
+	}
+
 	std::wstring FullPath(std::wstring const &path)
 	{
 		DWORD const need = GetFullPathNameW(path.c_str(), 0, nullptr, nullptr);
@@ -392,7 +410,7 @@ static int Run(int argc, wchar_t **argv)
 
 	if (result != host::VideoImportResult::Done)
 	{
-		return Refused(why.empty() ? host::VideoImport_Words(result) : why);
+		return ReadRefused(result, why, mostBytes, mostSeconds);
 	}
 
 	wchar_t const *const contentType = host::VideoImport_ContentType(input);
@@ -402,7 +420,7 @@ static int Run(int argc, wchar_t **argv)
 
 	if (result != host::VideoImportResult::Done)
 	{
-		return Refused(why.empty() ? host::VideoImport_Words(result) : why);
+		return ReadRefused(result, why, mostBytes, mostSeconds);
 	}
 
 	printf("mp4-to-smk: %s: %u x %u", Utf8(input).c_str(), info.width, info.height);
@@ -417,7 +435,8 @@ static int Run(int argc, wchar_t **argv)
 		printf(", %.1f s", (double)info.length / (double)host::kVideoImportTimeUnitsPerSecond);
 	}
 
-	printf(", %s\n", info.hasSound ? "with sound" : "no sound");
+	// (a sound there but not taken, media_parsers.h: the film is made silent, and this says why)
+	printf(", %s\n", info.hasSound ? "with sound" : info.soundLeftOut.empty() ? "no sound" : ("silent: " + info.soundLeftOut).c_str());
 
 	host::VideoImportFit fit = host::VideoImportFit::Fit;
 	bool const avpShape = host::VideoImport_IsAvpShape(info.width, info.height, info.parWidth, info.parHeight);
@@ -440,7 +459,7 @@ static int Run(int argc, wchar_t **argv)
 
 	if (result != host::VideoImportResult::Done)
 	{
-		return Refused(why.empty() ? host::VideoImport_Words(result) : why);
+		return ReadRefused(result, why, mostBytes, mostSeconds);
 	}
 
 	bytes.clear();

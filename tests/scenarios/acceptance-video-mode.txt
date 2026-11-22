@@ -13,6 +13,8 @@
 # RED on the build before it (bishop-int cca02724): the Mode menu has no Video.
 #ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 make-level cmd /c {scenariodir}message-fmv\make-fmvs.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
+# no message417.smk before the run saves it (as acceptance-video-mode-edges): run-shards runs a red file again in the same copy of the data, where the first pass saved it
+make-level node -e "require('fs').rmSync(process.argv[1], { force: true })" {datadir}/FMVs/message417.smk
 make-level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/clip.mp4 6 --again
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
@@ -47,8 +49,8 @@ expect-field-has videostate empty
 drop-file {datadir}/clip.mp4
 wait-field videostate loadedclips 1 20000
 expect-number videostate loadingframes 1 100000
-expect-field-has videostate clip.mp4: 320 x 180, 6.0 s, with sound
-expect-status clip.mp4: 320 x 180, 6.0 s, with sound
+expect-field-has videostate clip.mp4: 320 x 180, 6 s, with sound
+expect-status clip.mp4: 320 x 180, 6 s, with sound
 # not 4:3, so it opens on Fit: the whole picture into 128 x 72 of 128 x 96, black bars above and below
 expect-field-has videofit fit: all of 320 x 180 into 128 x 72, black bars above and below
 expect-field-has videocontrols Fit
@@ -70,7 +72,7 @@ click-video Crop
 wait 300
 expect-field-has videofit crop: the middle 240 x 180
 
-# ---- cut the start and the end: 1.0 s to 4.0 s, 3.0 s, 45 frames (steps of half a second)
+# ---- cut the start and the end: 1 s to 4 s, 3 s, 45 frames (steps of half a second)
 click-video Start+
 click-video Start+
 click-video End-
@@ -78,7 +80,7 @@ click-video End-
 click-video End-
 click-video End-
 wait 300
-expect-field-has videostate from 1.0 s to 4.0 s: 3.0 s, 45 frames
+expect-field-has videostate from 1 s to 4 s: 3 s, 45 frames
 
 # ---- the volume: two steps up from AvP's level, then one down
 click-video Volume+
@@ -97,6 +99,9 @@ picture 4
 click-video Save
 wait 300
 expect-dialog-kind form
+# its number box one row tall (a combo's height is its row's: 120 drew it over the buttons; Dietrich's find)
+expect-field-has dialogcombos 330 18
+picture 6
 click-combo 1
 click-combo-row 417: free
 click-button Ok
@@ -119,6 +124,18 @@ click-button No
 wait 300
 expect-status Not saved: FMVs\message417.smk kept as it was
 verify C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verifiers-videomake/verify_videomake.exe check {datadir}/FMVs/message417.smk 128 96 15 45
+
+# ---- a number a stock level plays, its film there (his message47.smk): the question itself says a stock level plays it (Vasquez's review (b)); No keeps his film
+click-video Save
+wait 300
+form-field 1 47
+click-button Ok
+wait 300
+expect-dialog-kind confirm
+expect-dialog FMVs\message47.smk is there already, and a stock level plays it: replace it with this video? That level would then play yours
+click-button No
+wait 300
+expect-status Not saved: FMVs\message47.smk kept as it was
 
 # ---- Mode > Exit, and Strategy's Message window, as it was, lists and plays the saved film
 click-bar Mode > Exit

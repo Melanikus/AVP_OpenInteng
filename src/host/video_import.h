@@ -66,6 +66,7 @@ namespace host
 		BadSound,      // its sound can't be decoded or resampled
 		NoMediaFoundation,
 		Stopped,       // the read's progress said stop (the Video mode's Cancel, or its leaving)
+		NotWindowsCode, // its picture's format, or the code Windows would read it with (the container's reader, a decoder), isn't Windows' own or Microsoft's (media_parsers.h)
 	};
 
 	char const *VideoImport_Words(VideoImportResult result);
@@ -163,6 +164,7 @@ namespace host
 		uint32_t sourceWidth = 0;      // the picture as the file has it
 		uint32_t sourceHeight = 0;
 		int64_t length = -1;           // the length the file gives (100 ns), -1 when it gives none
+		std::string soundLeftOut;      // a sound in the file that isn't taken (media_parsers.h): why, in words; the clip is then silent. Empty otherwise
 	};
 
 	// What the file says of itself before anything is decoded (for the question)
@@ -174,6 +176,7 @@ namespace host
 		uint32_t parHeight = 1;
 		int64_t length = -1;       // 100 ns; -1 when it gives none
 		bool hasSound = false;
+		std::string soundLeftOut;  // a sound there that isn't taken: why, in words (hasSound is then false)
 	};
 
 	// The file's bytes (VideoImport_ReadFile's) opened by Media Foundation, its picture's size, pixel shape and length read, its bounds checked; nothing decoded

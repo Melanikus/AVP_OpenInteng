@@ -2,6 +2,10 @@
 
 #include "video_import.h"
 
+#include <memory>
+
+#include "media_parsers.h"   // whose code reads the video: the container's reader and each decoder chosen and checked before the first sample (Vasquez 11-22)
+
 #include <math.h>
 #include <new>
 #include <stdio.h>
@@ -105,6 +109,7 @@ namespace host
 		case VideoImportResult::BadSound: return "its sound can't be decoded";
 		case VideoImportResult::NoMediaFoundation: return "Windows' Media Foundation isn't there";
 		case VideoImportResult::Stopped: return "the read was stopped";
+		case VideoImportResult::NotWindowsCode: return "the code Windows would read it with isn't Windows' own or Microsoft's";
 		}
 
 		return "unknown";
@@ -436,8 +441,9 @@ namespace host
 
 		if ((uint64_t)size.QuadPart > mostBytes)
 		{
+			// (the words name no program's switch: the editor says them too; mp4-to-smk adds how to raise the bound: its ReadRefused)
 			return Refuse(VideoImportResult::TooBig, "Import video: " + Narrow(leaf) + " is " + std::to_string((unsigned long long)(size.QuadPart >> 20)) + " MB; at most " +
-				std::to_string((unsigned long long)(mostBytes >> 20)) + " MB is taken" + (mostBytes < kVideoImportLongestBytes ? " (mp4-to-smk: --max-input-mb raises it, up to " + std::to_string((unsigned long long)(kVideoImportLongestBytes >> 20)) + ")" : std::string()), why);
+				std::to_string((unsigned long long)(mostBytes >> 20)) + " MB is taken", why);
 		}
 
 		// read whole: no more than the size said (a file growing meanwhile is cut there), and all of it
@@ -491,8 +497,15 @@ namespace host
 
 		if (length > mostSeconds * kVideoImportTimeUnitsPerSecond)
 		{
-			return Refuse(VideoImportResult::TooLong, "Import video: it is " + std::to_string((long long)(length / kVideoImportTimeUnitsPerSecond)) + " s long; at most " +
-				std::to_string((long long)mostSeconds) + " s is taken" + (mostSeconds < kVideoImportLongestSeconds ? " (mp4-to-smk: --max-seconds raises it, up to " + std::to_string((long long)kVideoImportLongestSeconds) + ")" : std::string()), why);
+			// its length in tenths of a second, rounded UP, so a video a moment past the bound never reads as the bound itself ("180.1 s long; at most 180 s", not "180 s
+			// long; at most 180 s"); one decimal at most, none on a whole number, as every length the editor says (model::SmkHeader_SecondsWords). Here the length is
+			// past the bound, so above 0, and is never added to (a hostile file's length can be the biggest number there is)
+			int64_t const tenth = kVideoImportTimeUnitsPerSecond / 10;
+			int64_t const tenths = length / tenth + (length % tenth != 0 ? 1 : 0);
+			std::string const said = std::to_string((long long)(tenths / 10)) + (tenths % 10 != 0 ? "." + std::to_string((long long)(tenths % 10)) : std::string());
+
+			// (the words name no program's switch: the editor says them too; mp4-to-smk adds how to raise the bound: its ReadRefused)
+			return Refuse(VideoImportResult::TooLong, "Import video: it is " + said + " s long; at most " + std::to_string((long long)mostSeconds) + " s is taken", why);
 		}
 
 		return VideoImportResult::Done;
@@ -1396,6 +1409,11 @@ namespace host
 		// The file opened for reading: its reader, its length, its first picture stream set to RGB32 and that picture's shape checked, its first sound stream found (not yet chosen)
 		struct Opened
 		{
+			// THE DECODERS CHOSEN (media_parsers.h), registered for this process while the reader lives: declared before it, so they go after it does
+			std::unique_ptr<MediaParsersPreference> picturePreference;
+			std::unique_ptr<MediaParsersPreference> soundPreference;
+			std::vector<std::wstring> before;   // the modules loaded just before the reader was made: what its making and setup loaded is judged
+			std::string soundLeftOut;           // a sound there but not taken: why, in words (the video then comes in silent)
 			ComPtr<IMFSourceReader> reader;
 			int64_t length = -1;
 			DWORD pictureStream = 0;
@@ -1469,15 +1487,31 @@ namespace host
 			hr = MFCreateAttributes(&readerAttributes, 1);
 		}
 
+		// THE CONTAINER'S READER, chosen here and never by the source resolver (media_parsers.h; Vasquez's Video mode review (a), Bishop 2's rule 11-22): the
+		// registered handler for this kind of video whose module is Windows' own or Microsoft's, made and checked before a byte of the video is parsed
+		ComPtr<IMFMediaSource> source;
+		std::string notOurs;
+
 		if (SUCCEEDED(hr))
 		{
 			readerAttributes->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, TRUE);   // its own converter to RGB32
-			hr = MFCreateSourceReaderFromByteStream(byteStream.Get(), readerAttributes.Get(), &reader);
+			opened->before = MediaParsers_LoadedModules();
+			hr = MediaParsers_CreateSource(byteStream.Get(), contentType, &source, &notOurs);
+
+			if (hr == E_ACCESSDENIED)
+			{
+				return Refuse(VideoImportResult::NotWindowsCode, "Import video: not read: " + notOurs + ". The editor reads videos only through Windows' own code", why);
+			}
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			hr = MFCreateSourceReaderFromMediaSource(source.Get(), readerAttributes.Get(), &reader);
 		}
 
 		if (FAILED(hr))
 		{
-			return Refuse(VideoImportResult::NotAVideo, "Import video: Windows can't read it as a video (" + Code(hr) + ")", why);
+			return Refuse(VideoImportResult::NotAVideo, "Import video: Windows can't read it as a video (" + (notOurs.empty() ? Code(hr) : notOurs) + ")", why);
 		}
 
 		PROPVARIANT duration;
@@ -1500,6 +1534,63 @@ namespace host
 			return Refuse(VideoImportResult::NotAVideo, "Import video: there's no picture in it", why);
 		}
 
+		// THE FORMATS, from the source's own word, before any decoder exists (media_parsers.h, the list by measure): a picture in a format the editor doesn't take
+		// refuses the file; a sound that isn't taken is left out (the video comes in silent, and says why). Each decoder taken is the one the editor chose,
+		// registered for this process so the reader makes it first
+		ComPtr<IMFMediaType> pictureNative;
+		GUID pictureFormat = GUID_NULL;
+
+		if (FAILED(reader->GetNativeMediaType(opened->pictureStream, 0, &pictureNative)) || FAILED(pictureNative->GetGUID(MF_MT_SUBTYPE, &pictureFormat)))
+		{
+			return Refuse(VideoImportResult::NotAVideo, "Import video: its picture says no format", why);
+		}
+
+		if (!MediaParsers_FormatTaken(MFMediaType_Video, pictureFormat))
+		{
+			return Refuse(VideoImportResult::NotWindowsCode, "Import video: not read: its picture is " + MediaParsers_FormatWords(pictureFormat) +
+				", which no decoder of Windows' own reads on this PC (the editor takes H.264, HEVC, VP9, VP8, AV1, MPEG-1 and -2, MPEG-4 part 2, WMV, MJPEG, DV, or none)", why);
+		}
+
+		if (!MediaParsers_NeedsNoDecoder(pictureFormat))
+		{
+			opened->picturePreference.reset(new MediaParsersPreference());
+
+			if (!MediaParsers_PreferDecoder(pictureNative.Get(), opened->picturePreference.get(), &notOurs))
+			{
+				return Refuse(VideoImportResult::NotWindowsCode, "Import video: not read: its picture: " + notOurs, why);
+			}
+		}
+
+		if (opened->haveSound)
+		{
+			ComPtr<IMFMediaType> soundNative;
+			GUID soundFormat = GUID_NULL;
+			std::string soundWhy;
+			bool taken = SUCCEEDED(reader->GetNativeMediaType(opened->soundStream, 0, &soundNative)) && SUCCEEDED(soundNative->GetGUID(MF_MT_SUBTYPE, &soundFormat));
+
+			if (taken && !MediaParsers_FormatTaken(MFMediaType_Audio, soundFormat))
+			{
+				taken = false;
+				soundWhy = "it isn't a sound the editor takes" + std::string(MediaParsers_FormatWords(soundFormat) == "Vorbis" ?
+					" (Windows reads Vorbis only through Web Media Extensions, whose decoder is FFmpeg's code, not Microsoft's own)" : "");
+			}
+
+			if (taken && !MediaParsers_NeedsNoDecoder(soundFormat))   // (PCM needs none)
+			{
+				opened->soundPreference.reset(new MediaParsersPreference());
+				taken = MediaParsers_PreferDecoder(soundNative.Get(), opened->soundPreference.get(), &soundWhy);
+			}
+
+			if (!taken)
+			{
+				opened->haveSound = false;
+				opened->soundPreference.reset();
+				opened->soundLeftOut = "its sound (" + MediaParsers_FormatWords(soundFormat) + ") is left out: " + soundWhy +
+					". The sound the editor takes is AAC, MP3, MPEG audio, WMA, FLAC, ALAC, Opus, Dolby or PCM, each read by Windows' own code; convert the video to MP4 with "
+					"AAC sound to keep its sound";
+			}
+		}
+
 		reader->SetStreamSelection((DWORD)MF_SOURCE_READER_ALL_STREAMS, FALSE);
 		reader->SetStreamSelection(opened->pictureStream, TRUE);
 
@@ -1519,6 +1610,13 @@ namespace host
 		{
 			return Refuse(VideoImportResult::BadPicture, "Import video: Windows can't decode this video's " + StreamWords(reader.Get(), opened->pictureStream, true) + " (" + Code(hr) + ")",
 				why);
+		}
+
+		// WHOSE CODE THE READER USED (media_parsers.h, check (C)): its container's reader, the picture's decoder and converter, and every parser their setup loaded,
+		// before a single sample is read; anything not Windows' own or Microsoft's is refused, named
+		if (!MediaParsers_CheckReader(reader.Get(), { opened->pictureStream }, opened->before, &notOurs))
+		{
+			return Refuse(VideoImportResult::NotWindowsCode, "Import video: not read: " + notOurs + ". The editor reads videos only through Windows' own code", why);
 		}
 
 		VideoImportResult const shaped = ReadPictureShape(reader.Get(), opened->pictureStream, opened->length, mostSeconds, &opened->shape, why);
@@ -1554,6 +1652,7 @@ namespace host
 		info->parHeight = opened.shape.parHeight;
 		info->length = opened.length;
 		info->hasSound = opened.haveSound;
+		info->soundLeftOut = opened.soundLeftOut;
 		return VideoImportResult::Done;
 	}
 
@@ -1584,6 +1683,7 @@ namespace host
 		HRESULT hr = S_OK;
 
 		read.length = opened.length;
+		read.soundLeftOut = opened.soundLeftOut;
 		read.sourceWidth = shape.shownWidth;
 		read.sourceHeight = shape.shownHeight;
 
@@ -1631,6 +1731,16 @@ namespace host
 			if (!resampler.Start(decoded.Get(), why))
 			{
 				return VideoImportResult::BadSound;
+			}
+
+			// WHOSE CODE NOW (media_parsers.h, check (C)), the sound set up too, before the first sample: the reader's chain on both streams, what it loaded, and
+			// the editor's own resampler
+			std::string notOurs;
+
+			if (!MediaParsers_CheckReader(reader.Get(), { pictureStream, soundStream }, opened.before, &notOurs) ||
+				!MediaParsers_CheckObject(resampler.transform.Get(), "sound's resampler", &notOurs))
+			{
+				return Refuse(VideoImportResult::NotWindowsCode, "Import video: not read: " + notOurs + ". The editor reads videos only through Windows' own code", why);
 			}
 		}
 
