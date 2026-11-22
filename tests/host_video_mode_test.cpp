@@ -65,7 +65,7 @@ void host::Dialogs_Confirm(std::string const &text, std::function<void(bool)> co
 	questionsAsked++;
 }
 
-bool host::FmvPreview_Start(std::string const &, std::string const &, char const *, host::FmvPreviewPlace const &, std::string *words)
+bool host::FmvPreview_Start(std::string const &, std::string const &, char const *, host::FmvPreviewPlace const &, std::string *words, host::FmvPreviewLayer)
 {
 	if (words)
 	{
@@ -77,6 +77,16 @@ bool host::FmvPreview_Start(std::string const &, std::string const &, char const
 
 void host::FmvPreview_Stop()
 {
+}
+
+bool host::FmvPreview_On()
+{
+	return false;   // the test plays no film
+}
+
+bool host::FmvPreview_Ended()
+{
+	return false;
 }
 
 // THE ENCODER compiled into the editor (libsmackerenc, SMK_ENCODER_BUILT_IN), stood in: this test makes no film (every question is answered No), and counts the
@@ -279,6 +289,8 @@ int main()
 	Check(host::VideoMode_View().sourceWords == "clip.mp4: 320 x 180, 2 s, with sound", "its words: \"clip.mp4: 320 x 180, 2 s, with sound\" (" + host::VideoMode_View().sourceWords + ")");
 	CheckRefused("Cancel", "Nothing is being read or made", "Cancel with a video held and nothing read or made");
 	Check(!host::VideoMode_Press("Nope"), "a name that is no control: refused");
+	CheckRefused("Stop", "Nothing is being previewed", "Stop with no preview playing (Preview's button reads Stop only while one plays)");
+	Check(!host::VideoMode_Previewing(), "no preview plays: Preview's button reads Preview");
 
 	// ---- the Save's number window: its box one row tall
 	puts("The Save's window:");

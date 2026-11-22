@@ -214,14 +214,17 @@ void host::VideoModeScreen_Panels(bool on, ui::Box const &view, PaintBox *boxes,
 
 	viewBox = view;
 
-	// The controls this phase shows: none with no video; Cancel alone while a video is read or a film made (the others wait then); every other one with a video
+	// The controls this phase shows: none with no video; Cancel alone while a video is read or a film made (the others wait then); every other one with a video. While the
+	// preview plays, Preview's button reads Stop and stops it (the owner 11-22, "preview stop/start"); once stopped, or at the film's own end, it reads Preview again
+	bool const previewing = VideoMode_Previewing();
+
 	for (size_t c = 0; c < kVideoModeControlCount; c++)
 	{
 		bool const cancel = strcmp(kVideoModeControls[c], "Cancel") == 0;
 
 		if ((busy && cancel) || (now.phase == VideoModePhase::Loaded && !cancel))
 		{
-			shownControls.push_back(kVideoModeControls[c]);
+			shownControls.push_back(previewing && strcmp(kVideoModeControls[c], "Preview") == 0 ? "Stop" : kVideoModeControls[c]);
 		}
 	}
 
@@ -229,7 +232,7 @@ void host::VideoModeScreen_Panels(bool on, ui::Box const &view, PaintBox *boxes,
 
 	for (std::string const &name : shownControls)
 	{
-		widths.push_back(WidthOf(name));
+		widths.push_back(WidthOf(name == "Stop" ? std::string("Preview") : name));   // Stop as wide as Preview, so no button moves when it plays
 	}
 
 	// The video's words at the top: its name and size, the fit, the cut, the volume

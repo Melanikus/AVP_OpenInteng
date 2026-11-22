@@ -74,6 +74,7 @@ namespace
 	std::unique_ptr<Job> job;
 	std::thread worker;
 	host::FmvPreviewPlace previewPlace;
+	bool previewStarted = false;   // the preview that is on is this mode's own (started by Preview's end; FmvPreview_On says whether it still is)
 
 	// AT THE PROGRAM'S END a job still going is told to stop and waited for: a std::thread still running when it is destroyed ends the program (std::terminate).
 	// Declared after the worker and the job, so it goes first
@@ -369,8 +370,11 @@ namespace
 
 			WideCharToMultiByte(CP_ACP, 0, scratch.c_str(), -1, narrow, (int)sizeof(narrow), nullptr, nullptr);
 
-			bool const playing = previewPlace && host::FmvPreview_Start(std::string(narrow) + "\\", "preview.smk", layoutSettingsFile, previewPlace, &playWords);
+			// drawn ON THE SCREEN, under every panel, the bar and every dialog (the owner 11-22: Save pressed during a preview opened its form under the film)
+			bool const playing = previewPlace && host::FmvPreview_Start(std::string(narrow) + "\\", "preview.smk", layoutSettingsFile, previewPlace, &playWords,
+				host::FmvPreviewLayer::UnderThePanels);
 
+			previewStarted = playing;
 			Say(playing ? "Previewing what the game will play: " + FilmWords(ended->smk) : "Not previewed: " + playWords);
 			return;
 		}
@@ -648,6 +652,21 @@ bool host::VideoMode_Press(char const *control)
 		return false;
 	}
 
+	// STOP: the preview playing stopped at once (its button reads Stop while it plays: the owner 11-22, "preview stop/start"); the picture under it shows again
+	if (name == "Stop")
+	{
+		if (!VideoMode_Previewing())
+		{
+			Say("Nothing is being previewed");
+			return false;
+		}
+
+		FmvPreview_Stop();
+		previewStarted = false;
+		Say("Preview stopped");
+		return true;
+	}
+
 	double const step = kVideoModeCutStepSeconds;
 	double const tick = 1.0 / kVideoImportFramesPerSecond;
 	double const length = LengthSeconds();
@@ -725,6 +744,11 @@ bool host::VideoMode_Press(char const *control)
 	return true;
 }
 
+bool host::VideoMode_Previewing()
+{
+	return previewStarted && FmvPreview_On() && !FmvPreview_Ended();
+}
+
 void host::VideoMode_SetPreviewPlace(FmvPreviewPlace const &place)
 {
 	previewPlace = place;
@@ -740,6 +764,7 @@ void host::VideoMode_Leave()
 	}
 
 	FmvPreview_Stop();
+	previewStarted = false;   // (Vasquez's read, 11-22: so no preview of another screen's could ever read as this mode's)
 	heldBytes.reset();
 	heldType = nullptr;
 	heldInfo = VideoImportInfo();

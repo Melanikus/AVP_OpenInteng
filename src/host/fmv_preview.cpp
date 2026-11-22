@@ -211,6 +211,7 @@ namespace host
 		}
 		SmackerDllCalls const *calls = nullptr;
 		SmackerHandle video = { false, -1 };
+		FmvPreviewLayer layer = FmvPreviewLayer::OverItsWindow;   // where its picture goes in the frame (fmv_preview.h)
 		std::string shownName;
 		uint32_t width = 0, height = 0, frames = 0;
 		double msPerFrame = 100.0;
@@ -304,7 +305,8 @@ namespace host
 		return due >= (double)(frames - 1) ? frames - 1 : (uint32_t)due;
 	}
 
-	bool FmvPreview_Start(std::string const &folder, std::string const &name, char const *settingsFile, FmvPreviewPlace const &where, std::string *words)
+	bool FmvPreview_Start(std::string const &folder, std::string const &name, char const *settingsFile, FmvPreviewPlace const &where, std::string *words,
+		FmvPreviewLayer drawnOn)
 	{
 		ULONGLONG const asked = GetTickCount64();   // how long the start takes, for the harness (fmvpreview "started in")
 		ULONGLONG mark = asked;
@@ -402,6 +404,7 @@ namespace host
 		pixels.assign((size_t)w * h, 0);
 		decoded = 0;
 		place = where;
+		layer = drawnOn;
 		startedAt = GetTickCount64();
 		startedInMs = startedAt - asked;
 		startedSteps = steps;
@@ -437,6 +440,34 @@ namespace host
 		return on;
 	}
 
+	bool FmvPreview_Ended()
+	{
+		if (!on || decoded < frames || (double)(GetTickCount64() - startedAt) < (double)frames * msPerFrame)
+		{
+			return false;
+		}
+
+		ALint sounding = AL_STOPPED;
+
+		if (soundSource)
+		{
+			alGetSourcei(soundSource, AL_SOURCE_STATE, &sounding);
+		}
+
+		// every frame shown for its time, and the sound (if any) read to its end and played out: nothing more is coming
+		return !soundSource || (soundStream.Done() && sounding != AL_PLAYING);
+	}
+
+	static void DrawNow(int32_t viewWidth, int32_t viewHeight);   // below: one frame of the preview that is on
+
+	void FmvPreview_DrawUnderThePanels(int32_t viewWidth, int32_t viewHeight)
+	{
+		if (on && layer == FmvPreviewLayer::UnderThePanels)
+		{
+			DrawNow(viewWidth, viewHeight);
+		}
+	}
+
 	void FmvPreview_Draw(int32_t viewWidth, int32_t viewHeight)
 	{
 		if (!on)
@@ -445,6 +476,15 @@ namespace host
 			return;
 		}
 
+		if (layer == FmvPreviewLayer::OverItsWindow)
+		{
+			DrawNow(viewWidth, viewHeight);
+		}
+	}
+
+	// One frame of the preview that is on, on its own layer: its place asked, the due frames decoded, the picture drawn, and the fmvpreview field said
+	static void DrawNow(int32_t viewWidth, int32_t viewHeight)
+	{
 		int32_t x = 0, y = 0, w = 0, h = 0;
 
 		if (!place || !place(&x, &y, &w, &h) || w < 1 || h < 1 || viewWidth < 1 || viewHeight < 1)
