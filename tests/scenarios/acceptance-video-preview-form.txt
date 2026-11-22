@@ -1,0 +1,128 @@
+# ACCEPTANCE (red first; Drake 2026-11-22, Bishop 2's order after the owner's lock-up: "It's when I try to click save during preview, ui locks"; his scope: "Let's fix just the
+# overlay for now", "And preview stop/start"; "Get the team to help"). The second eye on Dietrich's acceptance-video-preview-over: what it does not read.
+#   1. THE FORM'S OWN PARTS, DRAWN OVER THE FILM: the window's white frame on its four edges, the label's row, the number box, the open list and Ok and Cancel, each read
+#      where the state line says it is, while the film plays behind them. (Over's box reads the form's black: a film with black in it would pass that alone.)
+#   2. OK AND CANCEL BY A CLICK, mid-film: Cancel closes the form ("Not saved") and the film plays on; Ok saves the clip (FMVs\message3.smk, in the run's OWN data
+#      folder: run-shards' copy, never his game's) and the film being made stops the preview. (Over closes the form with Esc only.)
+#   3. IT PLAYS: the frame shown moves on, at the start and after Preview pressed again; Stop mid-film stops it, and it stays stopped. (Over reads "a frame".)
+#   4. THE TOOLBAR WHILE IT PLAYS: the pointer to the top edge draws the bar over the screen, and it goes again; the controls' frame stays as it was. (Over's box
+#      0 0 300 32 is the video's words at the top: the bar is hidden there, so it never read the bar.) 4 is a guard, green on 951ef25f too: the film there sat in the
+#      rectangle, away from the bar and the controls.
+# The window as in acceptance-video-preview-over's runs (no -r): the Save form at 284 207 440 314 (checked first, so every box below reads what it says), the film's
+# picture at x 135..871, y 178..590, its first half (15 s) red (verify_videomake's clip). Ok 524 489 80 18, Cancel 624 489 80 18 (video_mode.cpp AskTheNumber's places).
+# RED on bishop-int 951ef25f (exe-cache/951ef25f.exe): inside the form the film's red (its edges, its label's row, its box, its list, its buttons), and no Stop.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+make-level cmd /c {scenariodir}message-fmv\make-fmvs.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/clip30.mp4 30 --again
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+pictures on
+click-bar Mode > Video
+wait 400
+drop-file {datadir}/clip30.mp4
+wait-field videostate loadedclips 1 60000
+expect-field-has videocontrols Preview 720 683 71 24
+picture 1
+
+# ---- 3: it plays, the frame shown moving on (15 a second: 1 s moves it 8 to 30 frames on a busy machine)
+click-video Preview
+wait-status 120000 Previewing
+wait 500
+expect-field-has fmvpreview frame
+remember-number fmvpreview frame_
+wait 1000
+expect-number-moved fmvpreview frame_ 8 30
+
+# ---- 4: the toolbar while it plays: the pointer to the top edge, the bar drawn over the top; away again, it goes; the controls' frame left of Preview/Stop as before
+move-win 400 1
+wait 400
+expect-bar-shown
+picture 2
+expect-pixels-changed-since 1 panels 0 0 450 34 0.05
+move-win 500 400
+wait 400
+expect-bar-hidden
+picture 3
+expect-pixels-same-since 1 panels 153 678 562 30
+expect-field-has fmvpreview frame
+
+# ---- 1: Save while it plays: the form's own parts over the film
+click-video Save
+wait 500
+expect-dialog-kind form
+expect-dialog Save video
+expect-field dialogwindow 284 207 440 314
+expect-field-has fmvpreview frame
+picture 4
+# the window's white frame, on its four edges, where the film is behind it (y 230..499 and x 300..699 are inside the film's red)
+expect-colour panels 284 230 1 270 ffffff 0.95 40
+expect-colour panels 723 230 1 270 ffffff 0.95 40
+expect-colour panels 300 207 400 1 ffffff 0.95 40
+expect-colour panels 300 520 400 1 ffffff 0.95 40
+# the label's row (its words from x 297, y 220) and the number box (296 243 330 18): none of the film's red in them. The label's box starts at y 222, under the title
+# band: that band is the form's own red (dialogs.cpp, the window's title: white framed, filled red), rows 207 to 221 (Frost's round on 5e707b51 read its 2 rows)
+expect-colour-at-most panels 297 222 400 12 ff0000 0.02 60
+expect-colour-at-most panels 296 243 330 18 ff0000 0.02 60
+# Ok and Cancel: the middle of each, right of its word, its own blue
+expect-colour panels 572 493 28 10 0000ff 0.95 40
+expect-colour panels 682 493 18 10 0000ff 0.95 40
+
+# the open list over the film, and a click on its row taken. The box starts at y 280, under the first row: the row lit ("2: free", 261..278) is the list's own red
+# (dialogs.cpp: the lit row filled red, the others blue), not the film's
+click-combo 1
+wait 400
+expect-field-has dialogcomborows 3:_free
+picture 5
+expect-colour-at-most panels 300 280 300 190 ff0000 0.02 60
+click-combo-row 3: free
+wait 400
+expect-field-empty dialogcomborows
+expect-field-has dialogcombos 3:_free
+
+# ---- 2: Cancel by a click: the form gone, not saved, the film playing on
+click-button Cancel
+wait 400
+expect-no-dialog
+expect-status Not saved
+remember-number fmvpreview frame_
+wait 1000
+expect-number-moved fmvpreview frame_ 8 30
+
+# ---- 2: Ok by a click: the clip saved as message3 (in the run's own data folder), the preview stopped for the film being made
+click-video Save
+wait 500
+expect-dialog-kind form
+click-combo 1
+wait 400
+click-combo-row 3: free
+wait 400
+expect-field-has dialogcombos 3:_free
+click-button Ok
+wait-status 120000 Saved
+expect-status Saved FMVs\message3.smk
+expect-no-dialog
+expect-field-empty fmvpreview
+expect-field-has videocontrols Preview 720 683 71 24
+expect-field-not-has videocontrols Stop
+picture 6
+
+# ---- 3: Preview again: it plays from its start, moving on; Stop mid-film: it stops, the button reads Preview, and it stays stopped
+click-video Preview
+wait-status 120000 Previewing
+wait 500
+expect-number fmvpreview frame_ 0 40
+remember-number fmvpreview frame_
+wait 1000
+expect-number-moved fmvpreview frame_ 8 30
+expect-field-has videocontrols Stop 720 683 71 24
+click-video Stop
+wait 400
+expect-status Preview stopped
+expect-field-empty fmvpreview
+expect-field-has videocontrols Preview 720 683 71 24
+wait 1500
+expect-field-empty fmvpreview
+picture 7
+click-bar Mode > Exit
+wait 400

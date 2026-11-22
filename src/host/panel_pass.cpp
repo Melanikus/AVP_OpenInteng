@@ -176,10 +176,16 @@ namespace
 	}
 }
 
-void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extras, void (*underTop)(int32_t width, int32_t height))
+void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extras, void (*underTop)(int32_t width, int32_t height),
+	void (*underPanels)(int32_t width, int32_t height))
 {
 	if (width < 1 || height < 1)
 	{
+		if (underPanels)
+		{
+			underPanels(width, height);   // nothing of the panels to draw; what plays under them is still called (panel_pass.h)
+		}
+
 		if (underTop)
 		{
 			underTop(width, height);   // nothing of the panels to draw; what plays under the top is still called (panel_pass.h)
@@ -191,6 +197,12 @@ void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extr
 	// The level may have been drawn as lines (the View menu's Wireframe): the panels never are, as in PanelPass_Draw below. The boxes are
 	// added before the lines, so a line is over every box; the overlay (the bar, its drop-downs, the pop-up, a dialog) after both, so nothing of the screen is over it.
 	CheckWireFrameMode(0);
+
+	if (underPanels)
+	{
+		underPanels(width, height);   // what plays on the screen itself (the Video mode's preview): under every panel, the bar and every dialog
+	}
+
 	AddBoxes(extras, width, height, 0);
 	AddLines(extras, width, height, 0);
 	AddBoxes(extras, width, height, 1);

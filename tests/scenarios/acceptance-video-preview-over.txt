@@ -1,0 +1,81 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-22, the owner's lock-up after alpha.5's final round: "It's when I try to click save during preview, ui locks"; his scope: "Let's
+# fix just the overlay for now", "And preview stop/start").
+# THE CAUSE (measured on bishop-int 951ef25f): the Video mode's preview drew its film OVER every panel and dialog (the FMV preview's place in the frame was made for
+# Strategy's Message window, whose film is part of that dialog). So Save pressed while it played opened its form UNDER the film: open, taking every click, and invisible
+# (inside the form's box the editor's own picture read 1.0000 the film's red, 0.0000 the form's black), and it stayed hidden after the film, whose last frame stays on.
+# NOW: the Video mode's preview is drawn on the screen, under every panel, the status line, the bar and every dialog (fmv_preview.h FmvPreviewLayer::UnderThePanels);
+# Strategy's Message window keeps its own way. And Preview's button reads Stop while the film plays: pressed, it stops at once and reads Preview; pressed again, it plays;
+# at the film's own end it reads Preview again (the last frame stays on, as before).
+# WHY THE ROUND MISSED IT: acceptance-video-mode pressed Save right after Preview, but the harness reads a form from the state line and clicks it by its coordinates;
+# nothing read what was drawn inside the form while a film played. Here the colours inside the form are read.
+# HIS PATH: his own Genshd1, his FMVs (message-fmv\make-fmvs.cmd), two clips made fresh by the run (verify_videomake: the repository holds no video): 30 s and 3 s,
+# 320 x 180, red then blue above green, with a 440 Hz tone.
+# RED on bishop-int 951ef25f (exe-cache/951ef25f.exe): the button never reads Stop, and inside the Save form is the film's red.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+make-level cmd /c {scenariodir}message-fmv\make-fmvs.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/clip30.mp4 30 --again
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/clip3.mp4 3 --again
+screen Construction
+level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif
+pictures on
+click-bar Mode > Video
+wait 400
+drop-file {datadir}/clip30.mp4
+wait-field videostate loadedclips 1 60000
+expect-field-has videocontrols Preview
+picture 1
+
+# ---- Preview plays: its button reads Stop, and the video's own words at the top are drawn as they were (the Video screen's bar is hidden until the pointer is at
+# the top edge, as inteng's: Drake's acceptance-video-preview-form reads the bar itself, and the form's own parts)
+click-video Preview
+wait-status 120000 Previewing
+wait 1500
+expect-field-has fmvpreview frame
+expect-field-has videocontrols Stop
+expect-field-not-has videocontrols Preview
+picture 2
+expect-pixels-same-since 1 panels 0 0 300 32
+
+# ---- Save while it plays: the form is drawn OVER the film (inside it, the form's own black, not the film's red), and the window answers
+click-video Save
+wait 500
+expect-dialog-kind form
+picture 3
+expect-colour panels 300 330 380 150 000000 0.80 24
+expect-colour-at-most panels 300 330 380 150 ff0000 0.05 60
+expect-field-has fmvpreview frame
+key Esc
+wait 400
+expect-no-dialog
+
+# ---- Stop while it plays: it stops at once (no film), and the button reads Preview again
+click-video Stop
+wait 400
+expect-status Preview stopped
+expect-field-empty fmvpreview
+expect-field-has videocontrols Preview
+expect-field-not-has videocontrols Stop
+
+# ---- Preview again: it plays, and reads Stop
+click-video Preview
+wait-status 120000 Previewing
+wait 800
+expect-field-has fmvpreview frame
+expect-field-has videocontrols Stop
+picture 4
+
+# ---- a film that ends by itself: the button reads Preview again; its last frame stays on, as before
+drop-file {datadir}/clip3.mp4
+wait-field videostate loadedclips 2 60000
+click-video Preview
+wait-status 120000 Previewing
+expect-field-has videocontrols Stop
+wait-field fmvpreview frame 44 15000
+wait 1500
+expect-field-has videocontrols Preview
+expect-field-not-has videocontrols Stop
+expect-field-has fmvpreview frame 44 of 45
+picture 5
+click-bar Mode > Exit
+wait 400

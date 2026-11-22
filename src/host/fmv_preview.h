@@ -23,15 +23,31 @@ namespace host
 	// The place to play in, asked each frame in the editor's own pixels (left, top, width, height); false when it is gone (the window closed), which stops the preview
 	typedef std::function<bool(int32_t *x, int32_t *y, int32_t *width, int32_t *height)> FmvPreviewPlace;
 
-	// Starts folder\name (stopping one that played), its picture fitted into the place with its shape kept. False with *words (for the status line) when it can't; true with
-	// *words saying what plays ("Playing FMVs\message47.smk: SMK2 128 x 96, ... (libsmackerdec.dll, the one this editor was built with)").
-	bool FmvPreview_Start(std::string const &folder, std::string const &name, char const *settingsFile, FmvPreviewPlace const &place, std::string *words);
+	// Where in the frame the picture is drawn. OverItsWindow: over the window that plays it, under that window's open list (Strategy's Message window, an inteng dialog: the
+	// film is part of the dialog). UnderThePanels: on the screen itself, under every panel, the status line, the bar and its drop-downs, the pop-up and every dialog (the Video
+	// mode's preview; the owner 11-22: Save pressed during a preview opened its form under the film, which hid it and took every click)
+	enum class FmvPreviewLayer
+	{
+		OverItsWindow,
+		UnderThePanels,
+	};
+
+	// Starts folder\name (stopping one that played), its picture fitted into the place with its shape kept, drawn on `layer`. False with *words (for the status line) when it
+	// can't; true with *words saying what plays ("Playing FMVs\message47.smk: SMK2 128 x 96, ... (libsmackerdec.dll, the one this editor was built with)").
+	bool FmvPreview_Start(std::string const &folder, std::string const &name, char const *settingsFile, FmvPreviewPlace const &place, std::string *words,
+		FmvPreviewLayer layer = FmvPreviewLayer::OverItsWindow);
 
 	void FmvPreview_Stop();
 	bool FmvPreview_On();
 
-	// The editor's frame, after its panels: the due frames decoded, the picture drawn over everything; and the harness's state field fmvpreview ("<name> frame <k> of <n>", "" when off)
+	// True once a preview that is on has played all of its frames for their time and its sound has ended (or it has none). Its last frame stays on until it is stopped
+	bool FmvPreview_Ended();
+
+	// The editor's frame: the due frames decoded, the picture drawn; and the harness's state field fmvpreview ("<name> frame <k> of <n>", "" when off). FmvPreview_Draw is called
+	// between the overlay and the top (PanelPass_AddToFrame's underTop) and draws an OverItsWindow preview; FmvPreview_DrawUnderThePanels is called before every panel
+	// (underPanels) and draws an UnderThePanels one. Each frame exactly one of them does the work and says the field
 	void FmvPreview_Draw(int32_t viewWidth, int32_t viewHeight);
+	void FmvPreview_DrawUnderThePanels(int32_t viewWidth, int32_t viewHeight);
 
 	// THE VIDEO SCREENS AT LEVEL OPEN (3b, the owner's addition): the level just loaded, judged as the game's ScanImagesForFMVs will (fmv_files.h FmvFiles_JudgeScreens, over the game's
 	// own picture names and sizes, the .smk looked for in the game folder): each picture meant as a screen and its verdict in the log; when one stays still, the words for the status line

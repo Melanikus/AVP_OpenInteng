@@ -97,8 +97,13 @@ namespace host
 
 	// One of kVideoModeControls pressed (by its name): Fit / Crop / Expand the picture, the cut a step, the volume a step, Preview (the film made in a scratch place,
 	// then played by Barry's decoder where VideoMode_SetPreviewPlace says), Save (the number asked from the free list, then FMVs\message<n>.smk written, a film there
-	// replaced only after a Yes and kept in FMVs\backup\ first). False for a name it doesn't know or a press it can't take now (no video, busy), with words
+	// replaced only after a Yes and kept in FMVs\backup\ first). False for a name it doesn't know or a press it can't take now (no video, busy), with words.
+	// Stop: the preview playing stopped at once (the screen shows Stop in Preview's place while one plays: the owner 11-22, "preview stop/start")
 	bool VideoMode_Press(char const *control);
+
+	// True while the Video mode's preview plays: started, not stopped, and not yet at its end (FmvPreview_Ended). Its button then reads Stop; once the film ends by
+	// itself it reads Preview again (its last frame stays on, as before)
+	bool VideoMode_Previewing();
 
 	// Where Preview plays (the screen's place for it, in the editor's own pixels), asked each frame while it plays
 	void VideoMode_SetPreviewPlace(FmvPreviewPlace const &place);
