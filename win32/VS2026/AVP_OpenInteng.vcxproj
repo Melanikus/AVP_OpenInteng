@@ -35,6 +35,10 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <PlatformToolset>v145</PlatformToolset>
   </PropertyGroup>
+  <!-- THE ONE COMPILER, AvPx's (avpx\win32\msvc-pin.props says why: alpha.3 shipped what a newer runner compiler made, never what had been
+       scanned): the editor is built with the same exact MSVC as the game and its DLLs, and the build fails on any other. Before Microsoft.Cpp.props,
+       which would otherwise take the newest installed MSVC. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\avpx\win32\msvc-pin.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />

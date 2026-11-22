@@ -1,4 +1,5 @@
-# What .github/workflows/rebuild-check.yml builds (Bishop 2026-11-22, the alpha.3 proof): the commit, and the MSVC toolset the runner's default toolset must be.
-# alpha.3 = main 7408ef29, built by release.yml run 44967425685 on windows-2025-vs2026 20261116.315.1, whose default toolset was 14.52.37025.
-commit 7408ef297d418a4d91c276a5f264ad580ade13df
-toolset 14.52.37025
+# What .github/workflows/rebuild-check.yml builds: the commit, and the MSVC toolset it must be built with (a commit whose AvPx pins one, in
+# avpx/win32/msvc-pin.props, is held to its pin; an older one, to the runner's default). Plan B's proof (Bishop 2 and Frost, 2026-11-22):
+# P = the snapshot of 12be3054, whose AvPx pins MSVC 14.51.36231; the package it builds is scanned file by file on VirusTotal by hand.
+commit 14a3787e87cd8097427a9442063e85d03889f351
+toolset 14.51.36231
