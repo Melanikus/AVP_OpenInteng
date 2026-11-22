@@ -95,7 +95,8 @@ the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` i
 
 **The encoder** is libsmackerenc, made from Barry Duncan's libsmackerdec (LGPL 2.1), and it is linked into `mp4-to-smk.exe`: there is
 no DLL beside it, and none is loaded. The editor's FMV preview has Barry's decoder, libsmackerdec (LGPL 2.1), linked into it the same
-way. Each library's licence and whole source are in the zip's `licences` folder (`licences/README.txt` says where). To use your own
+way. Each library's licence is in the zip's `licences` folder, and `licences/README.txt` links its whole source, at the very commit the
+release was built from (the sources are not in the zip, so each release scans fewer files on VirusTotal). To use your own
 build of either, as the LGPL allows, build the program again from this project's source with yours in its place
 (`win32/VS2026/libsmackerenc_static.vcxproj` and `libsmackerdec_static.vcxproj` build them).
 
@@ -109,8 +110,8 @@ An animation baked in Blender becomes a set of **track objects** that move toget
 
 - `track-import.exe`, a command-line tool built from this repository's `tools/track-import` with its `.args`, as the verifiers are.
   It isn't in the release zip yet.
-- Blender, to bake the animation and write it as `anim.json` (below). `AvP-docs\tools\frost\mech\mech_arm.py` is the script the proof
-  used. It builds the arm and its IK in Blender, then bakes it.
+- Blender, to bake the animation and write it as `anim.json` (below). The proof used a small Blender script that builds the arm and
+  its IK, then bakes it.
 
 **Steps:**
 
