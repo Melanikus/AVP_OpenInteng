@@ -295,8 +295,8 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # VirusTotal runs about 70 virus scanners on a file. The zip, and every program inside it on its own (2026-11-21: a scanner flagged
-  # libsmackerenc.dll only when it was sent alone), are each analysed in this run: sent if VirusTotal doesn't know the file, and analysed
+  # VirusTotal runs about 70 virus scanners on a file. The zip, and every file inside it on its own (2026-11-21: a scanner flagged
+  # libsmackerenc.dll only when it was sent alone; and Dietrich's review: not only the programs), are each analysed in this run: sent if VirusTotal doesn't know the file, and analysed
   # again if it does, so no verdict older than the run counts. What comes back is from outside our code, so AvPx's tools/check-virustotal.ps1 (at the pinned commit) reads every
   # answer before anything here believes it (Tao 3). The owner's ruling, 2026-11-08: if any scanner flags it, the draft is still made, its
   # text starts by saying so, and the run ends red. The key is in the release environment, and only this job reads it; it can write nothing.
@@ -304,7 +304,7 @@ jobs:
     name: Scan the package on VirusTotal
     needs: build
     runs-on: ubuntu-24.04   # pinned, so a runner-image migration never changes the gate
-    timeout-minutes: 90     # the free key takes 4 questions a minute, and each file sent waits a few minutes for its analysis
+    timeout-minutes: 180    # about 50 files, at most 3 questions a minute: about 35 minutes to send them all, then the wait for their analyses
     environment: release    # where the VirusTotal key is kept
     permissions:
       contents: read
@@ -313,8 +313,8 @@ jobs:
       malicious: ${{ steps.ask.outputs.malicious }}
       suspicious: ${{ steps.ask.outputs.suspicious }}
       answered: ${{ steps.ask.outputs.answered }}
-      programs: ${{ steps.ask.outputs.programs }}
-      programs_flagged: ${{ steps.ask.outputs.programs_flagged }}
+      files: ${{ steps.ask.outputs.files }}
+      files_flagged: ${{ steps.ask.outputs.files_flagged }}
     steps:
       - name: Check out the repository and AvPx at its pinned commit (for its VirusTotal checker)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -330,7 +330,7 @@ jobs:
 
       # The key reaches only this step, and is taken out of its environment before anything starts. This step starts one program only,
       # the checker, and the key is only ever sent in the x-apikey header to www.virustotal.com. A redirect isn't followed.
-      - name: Ask VirusTotal about the package, and every program in it
+      - name: Ask VirusTotal about the package, and every file in it
         id: ask
         shell: pwsh
         env:
@@ -352,7 +352,7 @@ jobs:
           $zip = "release/$name"
           $answers = Join-Path $env:RUNNER_TEMP 'virustotal'
           New-Item -ItemType Directory -Force $answers | Out-Null
-          $giveUp = (Get-Date).AddMinutes(85)
+          $giveUp = (Get-Date).AddMinutes(170)
 
           function Ask-Checker([string]$fileSha, [string[]]$arguments)
           {
@@ -426,42 +426,44 @@ jobs:
             return $done
           }
 
-          # The zip, then every program inside it, each on its own: a scanner can flag a file sent alone that it passed inside the zip. A
-          # package with no program in it isn't the one the build makes. A name is printed only as letters, digits and . _ - /
+          # The zip, then every file inside it, each on its own: a scanner can flag a file sent alone that it passed inside the zip, and a
+          # file that isn't a program (an archive, a source, a text) is sent too. -Force takes the files whose names start with a dot, which
+          # the Linux runner would leave out. A package with no program in it isn't the one the build makes. A name is printed only as
+          # letters, digits and . _ - /
           $started = [ordered]@{}
           $started[$sha] = Send-One $zip $sha 'the zip'
           $inside = Join-Path $env:RUNNER_TEMP 'package-files'
           Expand-Archive -LiteralPath $zip -DestinationPath $inside
-          $programs = @(Get-ChildItem -LiteralPath $inside -Recurse -File | Where-Object { @('.exe', '.dll') -contains $_.Extension.ToLowerInvariant() } | Sort-Object FullName)
-          if ($programs.Count -eq 0) { throw 'The zip has no .exe or .dll in it, so it is not the package the build makes' }
+          $files = @(Get-ChildItem -LiteralPath $inside -Recurse -File -Force | Sort-Object FullName)
+          if (@($files | Where-Object { $_.Extension -ieq '.exe' }).Count -eq 0) { throw 'The zip has no .exe in it, so it is not the package the build makes' }
           $sent = @()
-          foreach ($program in $programs)
+          foreach ($file in $files)
           {
-            $shown = ($program.FullName.Substring($inside.Length + 1) -replace '\\', '/') -replace '[^A-Za-z0-9._/-]', '_'
-            $programSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $program.FullName).Hash.ToLowerInvariant()
-            $sent += ,@($shown, $programSha)
-            if (-not $started.Contains($programSha)) { $started[$programSha] = Send-One $program.FullName $programSha $shown }
+            $shown = ($file.FullName.Substring($inside.Length + 1) -replace '\\', '/') -replace '[^A-Za-z0-9._/-]', '_'
+            $fileSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
+            $sent += ,@($shown, $fileSha)
+            if (-not $started.Contains($fileSha)) { $started[$fileSha] = Send-One $file.FullName $fileSha $shown }
           }
-          "Analyses started: $($started.Count) (the zip and $($started.Count - 1) programs). Waiting for them all."
+          "Analyses started: $($started.Count) (the zip, and $($started.Count - 1) different files of the $($files.Count) in it). Waiting for them all."
           $counted = Wait-All $started
 
           $noMark = New-Object System.Text.UTF8Encoding $false
           $counts = $counted[$sha]
           [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "sha256=$sha`nmalicious=$($counts[0])`nsuspicious=$($counts[1])`nanswered=$($counts[2])`n", $noMark)
           "the zip: $($counts[0]) malicious, $($counts[1]) suspicious, of $($counts[2]) scanners (sha256 $sha)"
-          $flaggedPrograms = 0
+          $flaggedFiles = 0
           foreach ($s in $sent)
           {
             $c = $counted[$s[1]]
             "$($s[0]): $($c[0]) malicious, $($c[1]) suspicious, of $($c[2]) scanners (sha256 $($s[1]))"
-            if ($c[0] + $c[1] -gt 0) { $flaggedPrograms++ }
+            if ($c[0] + $c[1] -gt 0) { $flaggedFiles++ }
           }
-          [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "programs=$($programs.Count)`nprograms_flagged=$flaggedPrograms`n", $noMark)
+          [System.IO.File]::AppendAllText($env:GITHUB_OUTPUT, "files=$($files.Count)`nfiles_flagged=$flaggedFiles`n", $noMark)
 
-          # The owner, 2026-11-21: a release ships only at zero findings, on the zip and on every program in it. One program flagged stops
-          # the run here, before anything is attested or drafted.
-          if ($flaggedPrograms -gt 0) { throw "VirusTotal flagged $flaggedPrograms of the $($programs.Count) programs in the package, so no draft is made: a release ships only at zero findings" }
-          "VirusTotal: none of the $($programs.Count) programs in the package was flagged"
+          # The owner, 2026-11-21: a release ships only at zero findings, on the zip and on every file in it. One file flagged stops the run
+          # here, before anything is attested or drafted.
+          if ($flaggedFiles -gt 0) { throw "VirusTotal flagged $flaggedFiles of the $($files.Count) files in the package, so no draft is made: a release ships only at zero findings" }
+          "VirusTotal: none of the $($files.Count) files in the package was flagged"
 
   publish:
     name: Make the draft release
@@ -491,8 +493,8 @@ jobs:
           SCAN_MALICIOUS: ${{ needs.scan.outputs.malicious }}
           SCAN_SUSPICIOUS: ${{ needs.scan.outputs.suspicious }}
           SCAN_ANSWERED: ${{ needs.scan.outputs.answered }}
-          SCAN_PROGRAMS: ${{ needs.scan.outputs.programs }}
-          SCAN_PROGRAMS_FLAGGED: ${{ needs.scan.outputs.programs_flagged }}
+          SCAN_FILES: ${{ needs.scan.outputs.files }}
+          SCAN_FILES_FLAGGED: ${{ needs.scan.outputs.files_flagged }}
           GH_TOKEN: ${{ github.token }}
         run: |
           $tip = gh api "repos/$env:GITHUB_REPOSITORY/commits/main" --jq .sha
@@ -514,8 +516,8 @@ jobs:
           if ($env:SCAN_SHA256 -cne $wanted) { throw 'The scan on VirusTotal was of a different zip' }
           if ($env:SCAN_MALICIOUS -cnotmatch '^(0|[1-9][0-9]{0,3})\z' -or $env:SCAN_SUSPICIOUS -cnotmatch '^(0|[1-9][0-9]{0,3})\z') { throw 'A count from the scan is not a whole number' }
           if ($env:SCAN_ANSWERED -cnotmatch '^[1-9][0-9]{0,3}\z' -or [int]$env:SCAN_ANSWERED -lt 20) { throw 'The scan did not count enough scanners' }
-          if ($env:SCAN_PROGRAMS -cnotmatch '^[1-9][0-9]{0,3}\z' -or $env:SCAN_PROGRAMS_FLAGGED -cnotmatch '^(0|[1-9][0-9]{0,3})\z') { throw 'The scan did not count the programs in the package' }
-          if ([int]$env:SCAN_PROGRAMS_FLAGGED -gt 0) { throw "VirusTotal flagged $env:SCAN_PROGRAMS_FLAGGED of the package's programs: no draft is made" }
+          if ($env:SCAN_FILES -cnotmatch '^[1-9][0-9]{0,3}\z' -or $env:SCAN_FILES_FLAGGED -cnotmatch '^(0|[1-9][0-9]{0,3})\z') { throw 'The scan did not count the files in the package' }
+          if ([int]$env:SCAN_FILES_FLAGGED -gt 0) { throw "VirusTotal flagged $env:SCAN_FILES_FLAGGED of the package's files: no draft is made" }
           # The owner, 2026-11-21: "We block on ANYTHING", "Doesn't matter if it's some shitty provider with 1990s heuristics". A release
           # is made only at ZERO findings: one engine, of any size or age, that calls the zip malicious or suspicious stops the run here,
           # before the build is attested and before any draft exists, so a flagged zip is never one click from public. (alpha.3 was
