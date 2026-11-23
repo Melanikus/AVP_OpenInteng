@@ -147,4 +147,10 @@ namespace host
 	// A tile's words (a shape that can't be drawn says why in its tile) in lines of at most perLine letters, broken at spaces, a word longer than a line cut
 	// to it; at most mostLines lines (the rest left out). The picker's first acceptance run showed "can't be dra" / "wn" when they were cut every perLine letters.
 	std::vector<std::string> ShapePicker_TileLines(std::string const &words, size_t perLine, size_t mostLines);
+
+	// The state line's picker field while it is open: "open cols <a> rows <b> count <n> drawn <d> failed <f> first <i> selected <name>" ("selected none" with no
+	// tile). The name made safe by ShapePicker_SafeName as pickerboxes' and pickertiles' are (Drake's nit on df479439): a shape folder takes files from anywhere,
+	// and a file's name may hold '~', ';' or a byte past 0x7E.
+	std::string ShapePicker_OpenWords(ShapePickerLayout const &layout, ShapePickerView const &view, std::vector<ShapePickerTile> const &tiles, size_t drawn,
+		size_t failed);
 }

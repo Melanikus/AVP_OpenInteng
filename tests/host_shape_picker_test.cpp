@@ -10,6 +10,7 @@
 //   (5) HOSTILE WORDS MADE SAFE (Frost's review of 4f0db774, SHOULD 1): a byte outside the space to the tilde, and the state line's '|' and '~', each a '?';
 //       at most 255 letters; in the tile's words, its name and every why from a file
 //   (6) A TILE'S WORDS IN LINES: broken at spaces, a longer word cut, at most the lines asked for
+//   (7) THE STATE LINE'S PICKER FIELD: the selected name made safe; "selected none" with no tile (red by mutation, the raw name: 1 of 2 fails)
 // RED FIRST: on a stand-in that lists nothing and lays out nothing, (1) to (4) fail; (5) on 4f0db774 (the words as they came); (6) by mutation, the lines
 // cut every perLine letters as the paint did before: 3 of its 4 fail.
 #include <stdio.h>
@@ -267,6 +268,26 @@ int main()
 		std::vector<std::string> const none = ShapePicker_TileLines("", 4, 5);
 		std::vector<std::string> const zero = ShapePicker_TileLines("ab cd", 0, 5);
 		Check(spaces.empty() && none.empty() && joined(zero) == "a/b/c/d", "(6) only spaces or nothing: no line; a line of 0 letters taken as 1: " + joined(zero));
+	}
+
+	// ---- (7) THE STATE LINE'S PICKER FIELD: the selected tile's name made safe, as pickerboxes' and pickertiles' are (Drake's nit on df479439). A shape folder
+	// takes files from anywhere, and a Windows file name may hold '~' (pickerboxes' own mark), ';' and bytes past 0x7E.
+	{
+		ShapePickerLayout const g = ShapePicker_Layout(1024, 768);
+		ShapePickerView v;
+		std::vector<ShapePickerTile> tiles(2);
+
+		tiles[0].name = "plain";
+		tiles[1].name = "a~b;c\xe9";
+		v.selected = 1;
+
+		std::string const words = ShapePicker_OpenWords(g, v, tiles, 1, 0);
+		std::string const none = ShapePicker_OpenWords(g, ShapePickerView(), std::vector<ShapePickerTile>(), 0, 0);
+
+		Check(words == "open cols " + std::to_string(g.columns) + " rows " + std::to_string(g.rows) + " count 2 drawn 1 failed 0 first 0 selected a?b?c?",
+			"(7) the selected name made safe: " + words);
+		Check(none.find(" count 0 ") != std::string::npos && none.size() > 14 && none.compare(none.size() - 14, 14, " selected none") == 0,
+			"(7) no tile: selected none: " + none);
 	}
 
 	printf(checksFailed ? "host_shape_picker_test: %d FAILED\n" : "host_shape_picker_test: all passed\n", checksFailed);

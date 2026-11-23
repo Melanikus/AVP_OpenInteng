@@ -7,7 +7,9 @@
 //   (3) ON THE CARD: nothing drawn is the background only; a shaded square in front of the camera covers the middle, grey, its corners left as the background;
 //       a textured one shows its picture's left texel on the left and its right one on the right; a see-through texel (alpha 0) leaves the background; a
 //       picture of no size, or past the most, draws its polygons shaded; the picture is 96 x 96, 4 bytes a pixel
-// RED FIRST: on a stand-in renderer that draws nothing (and matrices of zeros), (1), (2) and (3) fail.
+//   (4) "TRY LATER" IN THE RESULT (Drake's SHOULD 1 on df479439): not said for a drawn picture or a refused lens (a lost device, the one case that says it, can't
+//       be made here)
+// RED FIRST: on a stand-in renderer that draws nothing (and matrices of zeros), (1), (2) and (3) fail; (4) by mutation (Draw saying "try later" always): both fail.
 #include <math.h>
 #include <stdio.h>
 
@@ -188,9 +190,16 @@ int main()
 	Pixel(picture, 24, 48, &r, &g, &b);
 	Check(r == g && g == b, "shaded too");
 
-	// a lens wider than the renderer frames is refused, not drawn wrong (Drake's SHOULD 2 on 66a5284e: its near plane holds only so wide)
-	Check(!renderer.Draw({ Square(-1) }, {}, eye, at, kShapeThumbMostFieldOfView + 0.5f, background, &picture, &why) && why.find("wider") != std::string::npos,
-		"a lens wider than the most is refused (" + why + ")");
+	// a lens wider than the renderer frames is refused, not drawn wrong (Drake's SHOULD 2 on 66a5284e: its near plane holds only so wide); and it is the
+	// picture's fault, not the card's, so the result doesn't say "try later" (Drake's SHOULD 1 on df479439: the caller reads that, not the words). (The call
+	// is made before its Check: MSVC builds a check's words first.)
+	bool tryLater = true;
+	bool const wide = renderer.Draw({ Square(-1) }, {}, eye, at, kShapeThumbMostFieldOfView + 0.5f, background, &picture, &why, &tryLater);
+	Check(!wide && why.find("wider") != std::string::npos && !tryLater, "(4) a lens wider than the most is refused, and not as \"try later\" (" + why + ")");
+
+	tryLater = true;
+	bool const drew = renderer.Draw({ Square(-1) }, {}, eye, at, 0.7f, background, &picture, &why, &tryLater);
+	Check(drew && !tryLater, "(4) a picture drawn: \"try later\" not said (only a lost device says it, which a test here can't make)");
 
 	renderer.Close();
 	printf(checksFailed ? "host_shape_thumb_render_test: %d FAILED\n" : "host_shape_thumb_render_test: all passed\n", checksFailed);

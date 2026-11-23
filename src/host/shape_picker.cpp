@@ -287,6 +287,16 @@ namespace host
 		return lines;
 	}
 
+	std::string ShapePicker_OpenWords(ShapePickerLayout const &layout, ShapePickerView const &view, std::vector<ShapePickerTile> const &tiles, size_t drawn,
+		size_t failed)
+	{
+		std::string const selected = view.selected < tiles.size() ? ShapePicker_SafeName(tiles[view.selected].name) : std::string("none");
+
+		return "open cols " + std::to_string(layout.columns) + " rows " + std::to_string(layout.rows) + " count " + std::to_string((unsigned long long)tiles.size()) +
+			" drawn " + std::to_string((unsigned long long)drawn) + " failed " + std::to_string((unsigned long long)failed) + " first " +
+			std::to_string((unsigned long long)view.first) + " selected " + selected;
+	}
+
 	std::string ShapePicker_TileWords(ShapePickerTile const &tile, ShapePickerState const &state)
 	{
 		std::string words = ShapePicker_SafeName(tile.name) + ": " + ShapePicker_SafeWords(tile.where);

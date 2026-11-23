@@ -140,6 +140,7 @@
 #include "track_pages.h"
 #include "editor_options.h"
 #include "shape_chooser.h"
+#include "shape_picker.h"          // ShapePicker_SafeName: the picker's shape name in the words
 #include "shape_picker_screen.h"   // Create > With shape > Choose: the placement picker
 #include "shape_rescale_edit.h"
 #include "shape_search.h"          // the picker's file brought in: the lookup order, judged again as Quick-create judges it
@@ -475,7 +476,7 @@ void ShapeChooserCreateFromPicker(std::string const &name, int32_t number)
 {
 	createShapeName = name;
 	createShapeNumber = number;
-	chooserWords = "Create: type a name for the new '" + name + "'";
+	chooserWords = "Create: type a name for the new '" + host::ShapePicker_SafeName(name) + "'";   // shown and on the state line: made safe (Drake's nit on df479439)
 	statusWords = chooserWords.c_str();
 	OpenAPrompt(kPromptCreateName);
 }

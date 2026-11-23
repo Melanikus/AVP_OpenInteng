@@ -48,9 +48,11 @@ namespace host
 		// across, each batch with textures[its picture] (one that is empty, or past kShapeThumbMostTextureSide, draws its batch shaded), on the background
 		// colour (0xRRGGBB), into *bgra: kShapeThumbSide x kShapeThumbSide pixels, 4 bytes each, blue green red alpha 255, the top row first. False with
 		// *why when the device is lost and can't be had back yet (try again later), a lens wider than kShapeThumbMostFieldOfView, or a step of the drawing fails.
-		// Every allocation is made before the scene begins, so nothing inside it can throw (Drake's SHOULD 1).
+		// *tryLater (when given) is true only for the first: the card is busy, so the caller tries again in a later frame instead of failing the picture (Drake's
+		// SHOULD 1 on df479439: the caller read it from the words before). Every allocation is made before the scene begins, so nothing inside it can throw
+		// (Drake's SHOULD 1 on 66a5284e).
 		bool Draw(std::vector<ShapeThumbBatch> const &batches, std::vector<ShapeThumbTexture> const &textures, float const eye[3], float const at[3], float fieldOfView,
-			uint32_t background, std::vector<uint8_t> *bgra, std::string *why);
+			uint32_t background, std::vector<uint8_t> *bgra, std::string *why, bool *tryLater = nullptr);
 
 	private:
 		struct Parts;

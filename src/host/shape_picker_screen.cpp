@@ -311,15 +311,16 @@ namespace
 			host::ShapeThumb_Camera(model, kFieldOfView, eye, at);
 
 			std::string drawWhy = rendererWhy;
+			bool tryLater = false;
 
-			if (!renderer.IsOpen() || !renderer.Draw(host::ShapeThumb_Triangles(model, sizes), textures, eye, at, kFieldOfView, kGround, &made.bgra, &drawWhy))
+			if (!renderer.IsOpen() || !renderer.Draw(host::ShapeThumb_Triangles(model, sizes), textures, eye, at, kFieldOfView, kGround, &made.bgra, &drawWhy, &tryLater))
 			{
 				made.bgra.clear();
 				made.noPicture = drawWhy;
 
-				if (renderer.IsOpen() && drawWhy.find("lost") != std::string::npos)
+				if (tryLater)
 				{
-					return;   // the card is busy: this tile stays waiting, and is tried again in a later frame
+					return;   // the card is busy (Draw says so in its result): this tile stays waiting, and is tried again in a later frame
 				}
 			}
 		}
@@ -723,9 +724,7 @@ void ShapePickerScreen_StateFields()
 		notes += (notes.empty() ? "" : "|") + note;
 	}
 
-	StateLine_Add("picker", "open cols " + std::to_string(layout.columns) + " rows " + std::to_string(layout.rows) + " count " + std::to_string((unsigned long long)list.tiles.size()) +
-		" drawn " + std::to_string((unsigned long long)drawnCount) + " failed " + std::to_string((unsigned long long)failedCount) + " first " +
-		std::to_string((unsigned long long)view.first) + " selected " + (list.tiles.empty() ? std::string("none") : list.tiles[view.selected].name));
+	StateLine_Add("picker", host::ShapePicker_OpenWords(layout, view, list.tiles, drawnCount, failedCount));   // the selected name made safe (shape_picker.h)
 	StateLine_Add("pickerboxes", boxes);
 	StateLine_Add("pickertiles", words);
 	StateLine_Add("pickernotes", notes);

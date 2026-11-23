@@ -64,14 +64,15 @@ namespace host
 			return true;
 		}
 
-		// The device ready to draw: lost and not yet back, false; lost and back, reset first (as AutoLink's Ready)
-		bool Ready(std::string *why)
+		// The device ready to draw: lost and not yet back, false with *lost; lost and back, reset first (as AutoLink's Ready)
+		bool Ready(std::string *why, bool *lost)
 		{
 			HRESULT const state = device->TestCooperativeLevel();
 
 			if (state == D3DERR_DEVICELOST)
 			{
 				*why = "the picker's pictures: the card is busy (the device is lost); they are drawn when it is back";
+				*lost = true;
 				return false;
 			}
 
@@ -289,11 +290,17 @@ namespace host
 	}
 
 	bool ShapeThumbRenderer::Draw(std::vector<ShapeThumbBatch> const &batches, std::vector<ShapeThumbTexture> const &textures, float const eye[3], float const at[3],
-		float fieldOfView, uint32_t background, std::vector<uint8_t> *bgra, std::string *why)
+		float fieldOfView, uint32_t background, std::vector<uint8_t> *bgra, std::string *why, bool *tryLater)
 	{
 		std::string ignored;
+		bool lost = false;
 
 		why = why ? why : &ignored;
+
+		if (tryLater)
+		{
+			*tryLater = false;
+		}
 
 		if (!bgra || !parts->device)
 		{
@@ -301,8 +308,13 @@ namespace host
 			return false;
 		}
 
-		if (!parts->Ready(why))
+		if (!parts->Ready(why, &lost))
 		{
+			if (tryLater)
+			{
+				*tryLater = lost;   // the card is busy, not the picture at fault: said in the result, not only in the words (Drake's SHOULD 1 on df479439)
+			}
+
 			return false;
 		}
 
