@@ -878,6 +878,30 @@ namespace host
 		return count;
 	}
 
+	VideoImportResult VideoImport_PlacePicture(int64_t *next, int64_t time, int64_t mostSeconds, int64_t *count)
+	{
+		if (!next || !count)
+		{
+			return VideoImportResult::BadCall;
+		}
+
+		*count = 0;
+
+		if (mostSeconds < 1 || mostSeconds > kVideoImportLongestSeconds)
+		{
+			return VideoImportResult::BadCall;
+		}
+
+		// past the read's own bound: refused before a tick is filled (mostSeconds is at most kVideoImportLongestSeconds, so the product fits)
+		if (time > mostSeconds * kVideoImportTimeUnitsPerSecond)
+		{
+			return VideoImportResult::TooLong;
+		}
+
+		*count = VideoImport_TicksBefore(next, time);
+		return VideoImportResult::Done;
+	}
+
 	void VideoImport_SoundTo8(int16_t const *samples, size_t count, std::vector<uint8_t> *out)
 	{
 		if (!samples || !out)
@@ -1078,19 +1102,25 @@ namespace host
 			ComPtr<IMFMediaBuffer> first;
 			DWORD buffers = 0;
 
-			// a 2D buffer knows its own rows (the first row and the step to the next): used when the picture is in one
+			// a 2D buffer knows its own rows (the first row and the step to the next): used when the picture is in one, and only when ALL its rows lie inside the
+			// buffer's own bytes (IMF2DBuffer2::Lock2DSize gives where they start and how many: Vasquez's review of 18a55a36, nit 1; the pitch alone covered one row,
+			// not the height). A buffer that can't say so goes the contiguous way below, whose length is checked
 			if (SUCCEEDED(sample->GetBufferCount(&buffers)) && buffers == 1 && SUCCEEDED(sample->GetBufferByIndex(0, &first)))
 			{
-				ComPtr<IMF2DBuffer> rows;
+				ComPtr<IMF2DBuffer2> rows;
 
 				if (SUCCEEDED(first.As(&rows)))
 				{
-					BYTE *top = nullptr;
+					BYTE *top = nullptr, *start = nullptr;
 					LONG pitch = 0;
+					DWORD length = 0;
 
-					if (SUCCEEDED(rows->Lock2D(&top, &pitch)))
+					if (SUCCEEDED(rows->Lock2DSize(MF2DBuffer_LockFlags_Read, &top, &pitch, &start, &length)))
 					{
-						bool const fitted = (pitch >= 0 ? pitch : -(int64_t)pitch) >= (int64_t)shape.width * 4 && use(top, pitch);
+						int64_t const step = pitch >= 0 ? pitch : -(int64_t)pitch, row = (int64_t)shape.width * 4, last = (int64_t)pitch * ((int64_t)shape.height - 1);
+						int64_t const firstAt = top - start, lowest = firstAt + (last < 0 ? last : 0), highest = firstAt + (last > 0 ? last : 0) + row;
+						bool const inside = shape.height > 0 && step >= row && lowest >= 0 && highest <= (int64_t)length;
+						bool const fitted = inside && use(top, pitch);
 
 						rows->Unlock2D();
 						return fitted;
@@ -2218,8 +2248,15 @@ namespace host
 				}
 			}
 
-			// the ticks before this picture: the one before it fills them (the first picture fills those before itself)
-			int64_t const count = VideoImport_TicksBefore(&nextTick, start);
+			// the ticks before this picture: the one before it fills them (the first picture fills those before itself). Its time is the decoder's own, so it is held
+			// to the read's bound here, as each compressed sample's is at the loop's top (Vasquez's review of 18a55a36, SHOULD 1)
+			int64_t count = 0;
+
+			if (VideoImport_PlacePicture(&nextTick, start, mostSeconds, &count) != VideoImportResult::Done)
+			{
+				failure = Refuse(VideoImportResult::TooLong, "Import video: a picture in it is timed past " + std::to_string((long long)mostSeconds) + " s; at most that is taken", why);
+				return false;
+			}
 
 			addFrames(havePending ? pending : fitted, count);
 			pending.swap(fitted);

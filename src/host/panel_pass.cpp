@@ -177,7 +177,7 @@ namespace
 }
 
 void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extras, void (*underTop)(int32_t width, int32_t height),
-	void (*underPanels)(int32_t width, int32_t height))
+	void (*underPanels)(int32_t width, int32_t height), void (*overPanels)(int32_t width, int32_t height))
 {
 	if (width < 1 || height < 1)
 	{
@@ -205,6 +205,12 @@ void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extr
 
 	AddBoxes(extras, width, height, 0);
 	AddLines(extras, width, height, 0);
+
+	if (overPanels)
+	{
+		overPanels(width, height);   // what is drawn over the view's panels and under the bar and every dialog: the placement picker (panel_pass.h)
+	}
+
 	AddBoxes(extras, width, height, 1);
 	AddLines(extras, width, height, 1);
 

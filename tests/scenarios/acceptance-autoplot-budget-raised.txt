@@ -1,0 +1,12 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, Bishop 2's order after alpha.6, the owner: "Don't decrease map precision because it would take longer tho"): THE PLOT'S
+# BUDGET CAN BE RAISED. AutoPlotMostModuleLooks= in the user's own AVP_OpenInteng.ini (a map can't set it) takes any number from 1 to 16000000 (the caps' own most:
+# kAutoPlotMostPairs x 2 searches x kAutoPlotMostLooks, past which the budget can't bind), so a mapper whose own big map needs more than the 4000000 for one AI module
+# can plot it in full; 0 or none keeps 4000000. The budget a run will use is the harness's state field plotbudget.
+# RED on exe-cache/4eca7ea8.exe (the budget, only ever lowered): plotbudget is 4000000.
+#ini AutoPlot=1
+#ini AutoPlotMostModuleLooks=8000000
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+pictures off
+state
+expect-field plotbudget 8000000

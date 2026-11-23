@@ -19,6 +19,8 @@
 //                     junction          <game>\shape_rifs made a junction (mklink /J, no privilege needed) to <game>\elsewhere, which holds <shape>.rif
 //                     cut               <game>\shape_rifs\<shape>_cut.rif: a HOSTILE file, the first half of the shape's file only, so its chunks run
 //                                       past its end (added 2026-11-23 by Vasquez: the placement picker must show such a file by its name, with why)
+//                     copies<N>         <game>\shape_rifs\<shape>_copy001.rif .. _copy<N>.rif, N (1 to 200) whole copies (added 2026-11-23 by Vasquez: a picker
+//                                       grid with more than a page, for its scroll bar)
 // FRESH EVERY RUN, NOTHING DELETED: each file is made when it is missing, kept when it is there with the same bytes, and the run is refused (exit 1) when
 // it is there with other bytes; so the same scenario run twice in one shard (a re-run) finds its folder as it left it. It prints what it made.
 
@@ -383,9 +385,38 @@ int main(int argc, char **argv)
 
 			continue;
 		}
+		else if (place.compare(0, 6, "copies") == 0)
+		{
+			// many files: N whole copies of the shape's file under plain names of their own, so a grid holds more than a page
+			int const count = atoi(place.c_str() + 6);
+
+			if (count < 1 || count > 200)
+			{
+				return Refuse("\"" + place + "\": copies takes 1 to 200 (copies80)");
+			}
+
+			if (!PutFolder(game / "shape_rifs", &why))
+			{
+				return Refuse(why);
+			}
+
+			for (int k = 1; k <= count; k++)
+			{
+				char number[8] = {};
+
+				sprintf_s(number, sizeof(number), "%03d", k);
+
+				if (!PutFile(game / "shape_rifs" / (shape + "_copy" + number + ".rif"), file, &why))
+				{
+					return Refuse(why);
+				}
+			}
+
+			continue;
+		}
 		else
 		{
-			return Refuse("\"" + place + "\" isn't a place (shape_rifs, tools, own, junction or cut)");
+			return Refuse("\"" + place + "\" isn't a place (shape_rifs, tools, own, junction, cut or copies<N>)");
 		}
 
 		if (!PutFolder(folder, &why) || !PutFile(folder / (shape + ".rif"), file, &why))

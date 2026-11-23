@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "dialog_box.h"
 #include "first_launch_ui.h"
 
 using namespace host;
@@ -235,9 +236,112 @@ static void TheIniLine()
 		"a folder named with %s and %n: written as the letters they are");
 }
 
+// The words a dialog shows, with each line break that comes right after a backslash taken out again: a path broken only after its backslashes reads whole here
+static std::string JoinedAfterBackslashes(std::string const &text)
+{
+	std::string out;
+
+	for (size_t i = 0; i < text.size(); i++)
+	{
+		if (text[i] == '\n' && i > 0 && text[i - 1] == '\\')
+		{
+			continue;
+		}
+
+		out += text[i];
+	}
+
+	return out;
+}
+
+// THE PATHS ARE SHOWN WHOLE (Bishop 2's TOP PRIORITY for alpha.6, 2026-11-23; the owner's answer 1 for this screen, plan-first-launch-shapes.md: "Full paths here",
+// whole paths on this screen only). Vasquez's picture on the cut 8275930d showed "Open Inteng is in: run" and a folder broken as "sh" / "ape_rifs": the words were
+// wrapped first, and the dialog then cut every full path on each line to its last part. Here the form is opened the way the editor opens it (InDialog::OpenForm, which
+// makes what the dialog shows), with folders long enough to wrap and a space inside a folder's name ("John Smith"). Every path must be on the screen whole, any line
+// break inside it coming right after a backslash, never inside a name; every line still inside the box.
+static void WholePaths()
+{
+	FirstLaunchFacts facts;
+
+	facts.programFolder = "C:\\Users\\John Smith\\Games\\Aliens versus Predator Classic\\Tools\\AVP_OpenInteng-1.0.0-alpha.6";
+	facts.found = true;
+	facts.fromIni = true;
+	facts.gameFolder = "C:\\Users\\John Smith\\Games\\Aliens versus Predator Classic Gold\\a folder with a long name of its own";
+	facts.levels = 63;
+	facts.huds = 23;
+	facts.shapesToWrite = 240;
+
+	std::string const words = FirstLaunch_Words(facts);
+
+	Check(words.find('\x01') == std::string::npos && words.find('\x02') == std::string::npos, "whole paths: the words themselves hold no marks, only letters");
+
+	for (int32_t const screenWidth : { 640, 800, 1280 })
+	{
+		std::string const what = "whole paths, a " + std::to_string(screenWidth) + "-pixel screen";
+		DialogFormSpec const spec = FirstLaunch_Form(facts, Eight, 16, screenWidth);
+		InDialog dialog;
+
+		dialog.OpenForm(spec, { 0, 0, screenWidth, 768 }, [](std::string const &text) { return (int32_t)text.size() * 8; });
+
+		std::vector<DialogWidget> const &shown = dialog.Widgets();
+
+		if (shown.empty())
+		{
+			Check(false, what + ": the form has its words");
+			continue;
+		}
+
+		std::string const text = shown[0].text;
+		std::string const joined = JoinedAfterBackslashes(text);
+		bool fits = true;
+
+		for (std::string const &line : Lines(text))
+		{
+			fits = fits && 1 + (int32_t)line.size() * 8 <= spec.widgets[0].box.width;
+		}
+
+		Check(Has(joined, ("Open Inteng is in: " + facts.programFolder + "\n").c_str()), what + ": where Open Inteng is, whole (shown: \"" + text + "\")");
+		Check(Has(joined, ("names, " + facts.gameFolder + ",").c_str()) || Has(joined, ("names,\n" + facts.gameFolder + ",").c_str()), what +
+			": the game's folder, whole (the words after it may go on the next line, at a space)");
+		Check(Has(joined, (facts.gameFolder + "\\shape_rifs, and from").c_str()), what + ": where the shapes go, whole, shape_rifs in one piece");
+		Check(fits, what + ": every line inside the words' box");
+	}
+
+	// A folder's name wider than a whole line can't be kept on one: only then is a name broken inside, and every line still fits
+	FirstLaunchFacts wide = facts;
+
+	wide.programFolder = "C:\\" + std::string(120, 'x') + "\\Tools";
+
+	DialogFormSpec const wideSpec = FirstLaunch_Form(wide, Eight, 16, 400);
+	bool wideFits = !wideSpec.widgets.empty();
+
+	for (std::string const &line : Lines(wideSpec.widgets.empty() ? std::string() : wideSpec.widgets[0].text))
+	{
+		wideFits = wideFits && 1 + (int32_t)line.size() * 8 <= wideSpec.widgets[0].box.width;
+	}
+
+	Check(wideFits, "a folder's name wider than a whole line: broken inside, as only it must be, every line inside the box");
+
+	// ONLY THIS SCREEN: any other dialog's words still show a full path as its last part (screen_names.h, the privacy rule since alpha.1)
+	DialogFormSpec other;
+	DialogWidget saved;
+	InDialog otherDialog;
+
+	saved.type = DialogWidgetType::Label;
+	saved.text = "Saved a copy: C:\\Users\\John Smith\\Documents\\derelict.RIF";
+	saved.box = { 12, 0x12, 400, 16 };
+	other.title = "Other";
+	other.width = 440;
+	other.height = 80;
+	other.widgets.push_back(saved);
+	otherDialog.OpenForm(other, { 0, 0, 1024, 768 }, [](std::string const &text) { return (int32_t)text.size() * 8; });
+	Check(!otherDialog.Widgets().empty() && otherDialog.Widgets()[0].text == "Saved a copy: derelict.RIF", "any other dialog: a full path still shown as its last part");
+}
+
 int main()
 {
 	TheWords();
+	WholePaths();
 	TheForm(Found(), 1280, { "Yes", "Not now" }, { kFirstLaunchYes, kFirstLaunchNotNow }, "found, shapes to make");
 	TheForm(NotFound(), 1024, { "Browse...", "Not now" }, { kFirstLaunchBrowse, kFirstLaunchNotNow }, "not found");
 

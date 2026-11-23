@@ -70,6 +70,8 @@ namespace host
 		                                // list, a press elsewhere puts the letters there; typing makes no row picked (selected -1) (Vasquez 11-16)
 		bool visible = true;            // a part that is not visible is not drawn, not pressed and not given to the harness
 		bool enabled = true;            // a part that is off (a greyed MFC control, EnableWindow FALSE) is drawn darker and a press on it does nothing
+		bool wholePaths = false;        // a label whose full paths are shown WHOLE, not cut to their last part as every other dialog's words are: only the
+		                                // first-start form's words set it (the owner, 2026-11-23: "Full paths here", whole paths on that screen only)
 	};
 
 	struct DialogFormSpec

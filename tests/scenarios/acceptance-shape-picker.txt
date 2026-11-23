@@ -28,8 +28,11 @@ wait 400
 # ---- THE PICKER, in place of inteng's chooser: three tiles, each drawn, the hostile one named with why
 item 0x32
 expect-field-has picker open
-wait-field picker drawn 2 20000
-expect-field-has picker count 3
+# every tile tried before what they say is read: 22 drawn and the hostile one failed (23). "drawn 2" was right when it listed three; with Invasion's own 20 shapes
+# the hostile tile is tried late, and on a busy machine the checks below read before it (Dietrich's run on 92175055, 2026-11-23: "drawn 14 failed 0")
+wait-field picker drawn 22 20000
+# (3 files of the shape folders, and Invasion's own 20 shapes as tiles of their own since the level-shapes piece)
+expect-field-has picker count 23
 expect-field-has picker failed 1
 expect-field-has pickertiles pulam: the game's Tools\shape_rifs; textures
 expect-field-has pickertiles timdesk: the game's shape_rifs; in this level; textures

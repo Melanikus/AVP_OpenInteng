@@ -11,6 +11,10 @@
 //       at most 255 letters; in the tile's words, its name and every why from a file
 //   (6) A TILE'S WORDS IN LINES: broken at spaces, a longer word cut, at most the lines asked for
 //   (7) THE STATE LINE'S PICKER FIELD: the selected name made safe; "selected none" with no tile (red by mutation, the raw name: 1 of 2 fails)
+//   (8) THE SCROLL BAR (the owner 11-23): down the right side from the grid's top, an arrow at each end, the thumb the share in view; an arrow a row, the track a page,
+//       the thumb dragged (to the foot the last page, to the top the first row); the selection as it was; its words. Red: no bar before it (the cut 8275930d)
+//   (9) THE LEVEL'S OWN SHAPES: every shape of the level a tile (a fragment file's parts by their own names), none twice, placeable by number, a part's object
+//       named from its object name. Red: no such tiles before it (b4521891)
 // RED FIRST: on a stand-in that lists nothing and lays out nothing, (1) to (4) fail; (5) on 4f0db774 (the words as they came); (6) by mutation, the lines
 // cut every perLine letters as the paint did before: 3 of its 4 fail.
 #include <stdio.h>
@@ -105,10 +109,11 @@ int main()
 	{
 		ShapePickerLayout const g = ShapePicker_Layout(1024, 768);
 
-		// width 1024 - 16 = 1008 over 104 a tile: 9; height 768 - 66 - 84 = 618 over 122: 5
+		// width 1024 - 16 - 24 (the scroll bar's room) = 984 over 104 a tile: 9; height 768 - 66 - 84 = 618 over 122: 5
 		Check(g.columns == 9 && g.rows == 5 && g.stepX == 104 && g.stepY == 122, "a 1024 x 768 window: 9 columns by 5 rows (" + std::to_string(g.columns) + " by " +
 			std::to_string(g.rows) + ")");
-		Check(g.left == 48 && g.top == 70, "centred across: the first tile at " + std::to_string(g.left) + "," + std::to_string(g.top));
+		Check(g.left == 36 && g.top == 70, "centred across the room left of the scroll bar ((1024 - 24 - 936 + 8) / 2): the first tile at " + std::to_string(g.left) + "," +
+			std::to_string(g.top));
 
 		ShapePickerLayout const tiny = ShapePicker_Layout(40, 40);
 
@@ -116,14 +121,16 @@ int main()
 
 		int32_t box[4] = {};
 
-		Check(ShapePicker_TileBox(g, 0, 10, box) && box[0] == 48 + 104 && box[1] == 70 + 122 && box[2] == 96 && box[3] == 96,
+		bool const tenBoxed = ShapePicker_TileBox(g, 0, 10, box);   // (called before its Check: MSVC builds the check's words first)
+
+		Check(tenBoxed && box[0] == g.left + 104 && box[1] == 70 + 122 && box[2] == 96 && box[3] == 96,
 			"tile 10 from the first: row 2, column 2, its 96-pixel picture (" + std::to_string(box[0]) + "," + std::to_string(box[1]) + ")");
 		Check(!ShapePicker_TileBox(g, 9, 5, box) && !ShapePicker_TileBox(g, 0, 45, box) && ShapePicker_TileBox(g, 9, 53, box),
 			"a tile before the first shown, or past the last row on the screen, has no box");
 
-		Check(ShapePicker_TileAt(g, 0, 20, 48 + 104 + 5, 70 + 122 + 5) == 10, "a pixel in tile 10's picture is tile 10");
-		Check(ShapePicker_TileAt(g, 0, 20, 48 + 104 + 5, 70 + 122 + 96 + 10) == 10, "a pixel in its name is tile 10 too");
-		Check(ShapePicker_TileAt(g, 0, 20, 48 + 100, 75) == -1 && ShapePicker_TileAt(g, 0, 20, 48 + 5, 70 + 96 + 18 + 3) == -1, "a pixel between tiles is none");
+		Check(ShapePicker_TileAt(g, 0, 20, g.left + 104 + 5, 70 + 122 + 5) == 10, "a pixel in tile 10's picture is tile 10");
+		Check(ShapePicker_TileAt(g, 0, 20, g.left + 104 + 5, 70 + 122 + 96 + 10) == 10, "a pixel in its name is tile 10 too");
+		Check(ShapePicker_TileAt(g, 0, 20, g.left + 100, 75) == -1 && ShapePicker_TileAt(g, 0, 20, g.left + 5, 70 + 96 + 18 + 3) == -1, "a pixel between tiles is none");
 		Check(ShapePicker_TileAt(g, 0, 8, 48 + 104 * 8 + 5, 75) == -1 && ShapePicker_TileAt(g, 9, 20, 48 + 5, 75) == 9, "past the last tile is none; the first row from 9 on is tile 9");
 	}
 
@@ -288,6 +295,114 @@ int main()
 			"(7) the selected name made safe: " + words);
 		Check(none.find(" count 0 ") != std::string::npos && none.size() > 14 && none.compare(none.size() - 14, 14, " selected none") == 0,
 			"(7) no tile: selected none: " + none);
+	}
+
+	// ---- (8) THE SCROLL BAR (the owner 11-23: "a dragable scroll box on the top right"): its place, its thumb, a press on each part, the thumb dragged, its words.
+	// A 1024 x 768 window: 9 x 5, 45 a page; 100 tiles take 12 rows, so the first row in view goes from 0 to 7
+	{
+		ShapePickerLayout const g = ShapePicker_Layout(1024, 768);
+		ShapePickerView v;
+		size_t const count = 100;
+		ShapePickerBar const bar = ShapePicker_Bar(g, v, count, 1024);
+		int32_t const height = 5 * 122 - 8, track = height - 32;
+
+		// down the right side, from the grid's top to its last row's foot; an arrow a square at each end; the thumb 5 / 12 of the track, at its top
+		Check(bar.column[0] == 1024 - 8 - 16 && bar.column[1] == g.top && bar.column[2] == 16 && bar.column[3] == height,
+			"(8) the bar down the right side from the grid's top: " + ShapePicker_BarWords(bar));
+		Check(bar.up[1] == g.top && bar.up[3] == 16 && bar.down[1] == g.top + height - 16 && bar.down[3] == 16, "(8) an arrow at each end");
+		Check(bar.thumb[1] == g.top + 16 && bar.thumb[3] == track * 5 / 12 && bar.above[3] == 0 && bar.below[3] == track - track * 5 / 12,
+			"(8) the thumb the share in view (" + std::to_string(bar.thumb[3]) + " of " + std::to_string(track) + "), at the top, all the track below it");
+		Check(g.left + 9 * 104 - 8 <= bar.column[0] - 8, "(8) no tile under the bar: the grid ends a gap before it");
+
+		// a press on each part (the selection stays as it is)
+		v.selected = 3;
+		ShapePickerView const down = ShapePicker_BarPress(v, g, count, ShapePicker_BarPartAt(bar, bar.down[0] + 8, bar.down[1] + 8));
+		ShapePickerView const below = ShapePicker_BarPress(down, g, count, ShapePickerBarPart::Below);
+		ShapePickerView const past = ShapePicker_BarPress(below, g, count, ShapePickerBarPart::Below);
+		ShapePickerView const up = ShapePicker_BarPress(past, g, count, ShapePicker_BarPartAt(bar, bar.up[0] + 8, bar.up[1] + 8));
+		ShapePickerView const above = ShapePicker_BarPress(up, g, count, ShapePickerBarPart::Above);
+
+		Check(down.first == 9 && below.first == 54 && past.first == 63 && up.first == 54 && above.first == 9 && above.selected == 3,
+			"(8) the bottom arrow a row (" + std::to_string(down.first) + "), the track a page (" + std::to_string(below.first) + "), and no further than the last page (" +
+			std::to_string(past.first) + "); the top arrow a row back (" + std::to_string(up.first) + "), the track above a page back (" + std::to_string(above.first) +
+			"); the selection as it was");
+
+		ShapePickerBarPart const onThumb = ShapePicker_BarPartAt(bar, bar.thumb[0] + 8, bar.thumb[1] + 2);
+		ShapePickerBarPart const offBar = ShapePicker_BarPartAt(bar, bar.column[0] - 1, bar.thumb[1] + 2);
+
+		Check(onThumb == ShapePickerBarPart::Thumb && offBar == ShapePickerBarPart::None, "(8) the thumb found under the pointer; beside the bar, no part");
+
+		// the thumb dragged: its top to the track's foot is the last page, past it too; to the top, the first row; half way, the middle row
+		int32_t const room = track - bar.thumb[3];
+		ShapePickerView const bottom = ShapePicker_ThumbTo(v, g, count, bar, bar.up[1] + 16 + room);
+		ShapePickerView const farPast = ShapePicker_ThumbTo(v, g, count, bar, 10000);
+		ShapePickerView const top = ShapePicker_ThumbTo(bottom, g, count, bar, -10000);
+		ShapePickerView const middle = ShapePicker_ThumbTo(v, g, count, bar, bar.up[1] + 16 + room / 2);
+
+		Check(bottom.first == 63 && farPast.first == 63 && top.first == 0 && (middle.first == 27 || middle.first == 36) && middle.selected == 3,
+			"(8) the thumb dragged: to the foot the last page (" + std::to_string(bottom.first) + ", past it " + std::to_string(farPast.first) + "), to the top the first row (" +
+			std::to_string(top.first) + "), half way the middle (" + std::to_string(middle.first) + ")");
+
+		// at the last page the thumb is at the track's foot, all of it above
+		ShapePickerBar const atEnd = ShapePicker_Bar(g, bottom, count, 1024);
+
+		Check(atEnd.thumb[1] + atEnd.thumb[3] == atEnd.down[1] && atEnd.below[3] == 0 && atEnd.above[3] == room, "(8) at the last page: the thumb at the track's foot");
+
+		// every tile in view: the thumb all of the track, nothing to drag to
+		ShapePickerBar const few = ShapePicker_Bar(g, ShapePickerView(), 10, 1024);
+		ShapePickerView const still = ShapePicker_ThumbTo(ShapePickerView(), g, 10, few, few.thumb[1] + 50);
+
+		Check(few.thumb[3] == track && few.above[3] == 0 && few.below[3] == 0 && still.first == 0, "(8) every tile in view: the thumb the whole track, a drag moves nothing");
+
+		// the words: the parts there are, by name; a window too narrow for a bar (20 pixels: the bar and its gap take 24) has none
+		std::string const words = ShapePicker_BarWords(bar);
+		ShapePickerBar const none = ShapePicker_Bar(ShapePicker_Layout(20, 768), ShapePickerView(), 100, 20);
+
+		Check(words.find("up~") == 0 && words.find("|down~") != std::string::npos && words.find("|thumb~") != std::string::npos && words.find("|below~") != std::string::npos &&
+			words.find("above~") == std::string::npos && none.column[2] == 0 && ShapePicker_BarWords(none).empty(), "(8) the words: " + words);
+	}
+
+	// ---- (9) THE LEVEL'S OWN SHAPES (Bishop 2's decision on the owner's "items from shape_rifs + level"): a folder holds pulam and offbits; the level holds pulam
+	// once, Smrtam01 and Medbox01 (no folder has them), and offbits' parts Aerosol and Game (a fragment file: the level holds it twice)
+	{
+		std::vector<ShapePickerFolder> folders = { Folder("C:\\game\\shape_rifs", "the game's shape_rifs", { "pulam.rif", "offbits.rif" }) };
+		ShapePickerList list = ShapePicker_List(folders, { "pulam", "offbits" });
+
+		ShapePicker_AddLevelShapes(&list, { { "pulam", "pulam", 5 }, { "Smrtam01", "", 7 }, { "offbits", "Aerosol@offbits", 150 }, { "offbits", "Game@offbits", 152 },
+			{ "Medbox01", "Medbox01", 9 }, { "broken", "", -1 } });
+
+		std::string order;
+
+		for (ShapePickerTile const &t : list.tiles)
+		{
+			order += (order.empty() ? "" : " ") + t.name + (t.levelOnly ? "#" + std::to_string(t.levelNumber) : std::string());
+		}
+
+		Check(order == "Aerosol@offbits#150 Game@offbits#152 Medbox01#9 offbits pulam Smrtam01#7",
+			"(9) every shape of the level a tile, a fragment file's parts by their own names, none twice, a shape with no number left out, in name order: " + order);
+
+		bool marked = true;
+
+		for (ShapePickerTile const &t : list.tiles)
+		{
+			marked = marked && (!t.levelOnly || (t.inLevel && t.plain && t.where == "the level's own shape" && ShapePicker_WhyNotPlaced(t, ShapePickerState()).empty()));
+		}
+
+		Check(marked, "(9) each level tile 'in this level', placeable (by its number)");
+
+		ShapePickerTile part, single;
+
+		part.name = "Game@offbits";
+		part.levelOnly = true;
+		single.name = "Smrtam01";
+		single.levelOnly = true;
+		Check(ShapePicker_NameBase(part) == "Game" && ShapePicker_NameBase(single) == "Smrtam01", "(9) a part's object is named from its own name (Game), never with an '@'");
+
+		// a fragment file the level gives no names for: told apart by number
+		ShapePickerList plain = ShapePicker_List({}, {});
+
+		ShapePicker_AddLevelShapes(&plain, { { "bits", "", 3 }, { "bits", "", 4 } });
+		Check(plain.tiles.size() == 2 && plain.tiles[0].name == "bits#3" && plain.tiles[1].name == "bits#4", "(9) unnamed parts told apart by their numbers");
 	}
 
 	printf(checksFailed ? "host_shape_picker_test: %d FAILED\n" : "host_shape_picker_test: all passed\n", checksFailed);

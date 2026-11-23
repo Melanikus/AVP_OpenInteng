@@ -1,0 +1,51 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, the owner: "Gray thingie over my scroll bar!", then "It should be drawing using inteng look and overlayed by our shapes"):
+# THE PLACEMENT PICKER IS DRAWN OVER THE OBJECT'S CARD, AND THE CARD IS IN INTENG'S LOOK (his choice (a), through Bishop 2: white letters straight on the view, no box,
+# as inteng's own info lines in Object Placement). With a current object in Object Placement, its field panel (the card at the top right of the view) was drawn
+# over the picker: the frame drew the picker first, then the panels (the list, the card, the status line), then the bar and dialogs. Now the picker is drawn between the
+# panels and the bar (panel_pass.h overPanels): over the card, under the bar and every dialog. The card stays while the picker is open (the state line's fieldpanel).
+# HOW: Invasion with the picker's shape game (as acceptance-shape-picker), the picker opened with no current object (picture 1), then with one (row 5, smrtam010: its
+# card spans x 856-1008, y 32-290 at 1008 x 729); the picker's scroll bar (x 984, y 70-550) and its top right tile (Glass01, x 860, y 70) must be drawn exactly as
+# without the card. Then the picker closed: the card as before.
+# RED on exe-cache/7e19f292.exe (the owner's build, 576b43c8): the card over the scroll bar and Glass01 (dietrich-proofs/pickercard-probe-7e19f292, panels-3.png).
+#ini DataFolder={datadir}-picker-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
+level {datadir}-picker-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- the picker with no current object: every tile drawn (23, one that can't be), no card
+item 0x32
+expect-field-has picker open
+wait-field picker drawn 22 20000
+expect-field-has fieldpanel none
+picture 1
+key Esc
+wait 400
+
+# ---- a current object: its card at the top right of the view
+select-row 5
+wait 400
+expect-field-not-has fieldpanel none
+picture 2
+# its look: white letters straight on the view, no box (the owner's choice (a), as inteng's own info lines): none of the panels' grey 202428 behind them
+expect-colour-at-most panels 860 40 140 240 202428 0.05 4
+
+# ---- the picker over the card: the card still there, and the scroll bar and the top right tile drawn exactly as without it
+item 0x32
+expect-field-has picker open
+wait-field picker drawn 22 20000
+expect-field-not-has fieldpanel none
+picture 3
+expect-pixels-same-since 1 panels 984 70 16 480 0.01
+expect-pixels-same-since 1 panels 860 70 96 96 0.01
+
+# ---- the picker closed: the card as before it opened
+key Esc
+wait 400
+expect-field-not-has fieldpanel none
+picture 4
+expect-pixels-same-since 2 panels 856 32 152 258 0.02

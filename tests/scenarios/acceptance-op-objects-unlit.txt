@@ -1,0 +1,48 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, the owner's ruling through Bishop 2: "Yes, unlit like the level"): IN OBJECT PLACEMENT THE PLACED OBJECTS ARE DRAWN
+# UNLIT, LIKE THE LEVEL. His report (on the cut 8275930d): "In object placement mode all placed objects are taking lights in account (dark, have textures, all works,
+# but dark/lit by real game lights) while environment is not". The look (OP-3, level_view.cpp LevelView_PlacementLighting, from inteng's FUN_004d67f0) drew the
+# modules plain and switched only the objects WITH BAKED COLOURS (ShapeFlag_PreLit: the game's loader sets it for an object with a SHPVTINT chunk); every other
+# object was lit by the level's lights. Stock Genshd1 has 174 placed objects and NONE has baked colours (its 293 baked shapes are all modules), so none was plain.
+# NOW (a named difference from inteng, by his ruling): Lighting off, the mode's start, every placed object is plain too; Lighting on, they are drawn as inteng
+# draws them (baked colours, else the level's lights). The state line's placementlight says it: "unbaked <items>", the items of the objects without baked colours
+# held plain (0 while Lighting is on).
+# HOW: stock Genshd1 (a double click), Object Placement, the camera on a placed chair (chair01, a plain object), Lighting off, on, off: the counts each time, and
+# the chair's pixels at the view's middle change with Lighting and come back.
+# RED on exe-cache/8275930d.exe (the alpha.6 cut): no "unbaked" in placementlight, and Lighting changes nothing on the chair.
+#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 600
+camera-corner chair01
+wait 600
+
+# ---- Lighting off (the mode's start): the modules plain as before, and every placed object plain too
+expect-field-has placementlight look 1 lit 0
+expect-number placementlight modules 1000 10000000
+expect-number placementlight unbaked 100 10000000
+picture 1
+# the chair seen plain: its seat (x 450-570, y 330-410 at this size) is not black (lit by the level's lights it was all black: the owner's report)
+expect-colour-at-most panels 450 330 120 80 000000 0.30 16
+
+# ---- Lighting on: the objects as inteng draws them (none of Genshd1's has baked colours: all lit by the level's lights), the chair's pixels change
+click-bar Misc > Lighting
+expect-status Lighting: on
+wait 600
+expect-field-has placementlight look 1 lit 1
+expect-number placementlight unbaked 0 0
+picture 2
+# (against picture 1, Lighting off: the picture taken right after the click already shows it on)
+expect-pixels-changed-since 1 panels 404 264 200 200 0.02
+
+# ---- Lighting off again: plain again, the chair as in the first picture
+click-bar Misc > Lighting
+expect-status Lighting: off
+wait 600
+expect-field-has placementlight look 1 lit 0
+expect-number placementlight unbaked 100 10000000
+picture 3
+expect-pixels-changed-since 2 panels 404 264 200 200 0.02
+expect-colour-at-most panels 450 330 120 80 000000 0.30 16

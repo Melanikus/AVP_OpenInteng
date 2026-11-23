@@ -106,6 +106,7 @@
 #include "autoplot_closers.h"   // the auto-plot's gap closers: their switch (AutoPlotClosers=1)
 #include "autoplot_grid.h"   // the alien auto-plot's pathfinder service (the harness's probe)
 #include "autoplot_switch.h"   // the owner's "hide auto pilot": AutoPlot= read at start-up
+#include "autoplot_budget.h"   // the plot budget's setting, read as text (AutoPlotMostModuleLooks=)
 #include "autoplot_command.h"  // a running auto-plot's busy cursor (the window's WM_SETCURSOR)
 #include "autoplot_preview.h"  // THE PLOT'S PREVIEW: its switch (PlotPreview= read at start-up)
 #include "plot_preview_state.h"
@@ -8987,6 +8988,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			// P3: the centre ball let go: the next frame casts at this pointer and keeps (SnapLiveFrame)
 			if (snapLive && snapForSurface && window == hWndMain) { snapPointerX = host::TextScale_ToOwn(GET_X_LPARAM(lParam)); snapPointerY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam)); surfaceReleaseWaiting = true; return 0; }
 
+			if (ShapePickerScreen_Release()) { return 0; }   // the placement picker's scroll thumb let go (shape_picker_screen.h)
 			if (WaypointGizmo_Release()) { return 0; }   // a waypoint-box drag let go: written (waypoint_gizmo.h)
 			if (GizmoScreen_Release()) { return 0; }   // a gizmo drag let go: written (gizmo_screen.h)
 			if (OnWaypointScreen() && WaypointMouse_Release(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)))) { return 0; }   // a waypoint box dragged onto another: linked (waypoint_mouse.h)
@@ -9283,6 +9285,9 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 
 				return 0;
 			}
+
+			if ((wParam & MK_LBUTTON) && ShapePickerScreen_IsOpen() && ShapePickerScreen_Drag(InThePanels(window, lParam).y)) { return 0; }   // the placement picker's scroll thumb held: the rows follow it
+			if (!(wParam & MK_LBUTTON)) { ShapePickerScreen_Release(); }   // the left button is up: a thumb still held (let go outside the window) is let go (Frost's SHOULD 1)
 
 			if (window == hWndMain && WaypointGizmo_Pointer(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)), (wParam & MK_SHIFT) != 0 || ShiftDown())) { return 0; }   // a waypoint-box drag has the pointer
 			if (window == hWndMain && GizmoScreen_Pointer(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)), (wParam & MK_SHIFT) != 0 || ShiftDown())) { return 0; }   // a gizmo drag has the pointer
@@ -14258,7 +14263,7 @@ static void AddThePanels(void *context)
 			TextureChooserDraw(frame->width, frame->height);
 		}
 
-		ShapePickerScreen_Frame(frame->width, frame->height);   // the placement picker's grid, while it is open (shape_picker_screen.h)
+		ShapePickerScreen_Frame(frame->width, frame->height);   // the placement picker's grid, while it is open (shape_picker_screen.h): its paint is in the panels' pass below
 
 		if (onTextureMap && textureFlagList && !textureFlagLines.empty())
 		{
@@ -14269,8 +14274,9 @@ static void AddThePanels(void *context)
 		AutoLinkShow_Draw(frame->width, frame->height);
 		PlotPreviewView_DrawFrame(frame->width, frame->height);   // THE PLOT'S PREVIEW's white frame round its inset, under the bar and the dialogs (plot_preview_view.h)
 		// the FMV preview: over the window that plays it, under its open list (Strategy's Message window); or, the Video mode's, on the screen under every panel, the bar
-		// and every dialog (fmv_preview.h FmvPreviewLayer)
-		PanelPass_AddToFrame(frame->width, frame->height, frame->extras, host::FmvPreview_Draw, host::FmvPreview_DrawUnderThePanels);
+		// and every dialog (fmv_preview.h FmvPreviewLayer). THE PLACEMENT PICKER is painted between the view's panels and the overlay (panel_pass.h overPanels): over the
+		// object's card and the list, under the bar and every dialog (the owner 11-23: "It should be drawing using inteng look and overlayed by our shapes")
+		PanelPass_AddToFrame(frame->width, frame->height, frame->extras, host::FmvPreview_Draw, host::FmvPreview_DrawUnderThePanels, ShapePickerScreen_Paint);
 		TextureColourDraw(frame->width, frame->height);   // Select Colour's grid, over the bars too (Shift+K, FUN_00560620)
 	}
 }
@@ -15118,7 +15124,21 @@ int main(int, char **)
 	host::AutoPlotClosers_Load(layoutSettingsFile);   // the gap closers' switch (autoplot_closers.h): AutoPlotClosers=1, a scored candidate, off unless asked
 	host::AutoPlot_SetShown(GetPrivateProfileIntA("Editor", "AutoPlot", 0, layoutSettingsFile) == 1);   // the owner's "hide auto pilot" (11-19): Waypoint's Auto-plot items only with AutoPlot=1 (autoplot_switch.h)
 	host::PlotPreview_SetOn(GetPrivateProfileIntA("Editor", "PlotPreview", 1, layoutSettingsFile) != 0);   // THE PLOT'S PREVIEW: on unless the ini says 0 (Frost's timing)
-	AutoPlotCommand_SetModuleBudget((size_t)GetPrivateProfileIntA("Editor", "AutoPlotMostModuleLooks", 0, layoutSettingsFile));   // THE PLOT'S BUDGET: only ever lowered (autoplot_command.h)
+	// THE PLOT'S BUDGET (autoplot_command.h): AutoPlotMostModuleLooks= lowers or raises it, 1 to 16000000. Read as TEXT and judged whole (autoplot_budget.h): the
+	// number read straight from the ini kept a number's leading digits and wrapped past 32 bits, so 8,000,000 gave a budget of 8 (Drake's review of 6774ce25, MUST 1).
+	// One that is refused or held is said in the log now, and on the status line once the first level is open (its own words are made then, and would replace them)
+	std::string budgetWords;
+	{
+		char budgetText[64] = "";
+
+		GetPrivateProfileStringA("Editor", "AutoPlotMostModuleLooks", "", budgetText, sizeof(budgetText), layoutSettingsFile);
+		AutoPlotCommand_SetModuleBudget(host::AutoPlotBudget_FromText(budgetText, &budgetWords));
+
+		if (!budgetWords.empty())
+		{
+			LogString("settings: " + budgetWords);
+		}
+	}
 
 	// THE TEXT SCALE (the owner's addition, text_scale.h): FontScale= in the same file, a plain number from 1 to 3 (1, inteng's own size, when it isn't there); anything else is refused
 	// and said, and the text stays inteng's size
@@ -15398,6 +15418,15 @@ int main(int, char **)
 	{
 		ReleaseDirect3D();
 		return Stop(why);
+	}
+
+	// the plot budget's setting, refused or held (read above): first on the status line, before the level's own words (the run's first look at the line, Dietrich 11-23:
+	// set before the level opened, the level's missing-pictures words replaced it)
+	if (!budgetWords.empty())
+	{
+		std::string const both = budgetWords + (statusWords && *statusWords ? std::string("; ") + (char const *)statusWords : std::string());
+
+		statusWords = both.c_str();   // a copy (status_words.h)
 	}
 
 	// SHAPES PART 3 (shapes_start_screen.h; the owner's Option C rule, Drake's spec): the FOUND form, or the search of the maps not yet searched, from the
@@ -16366,6 +16395,7 @@ int main(int, char **)
 		StateLine_Add("plotmessage", AutoPlotCommand_MessageShown().empty() ? std::string("off") : AutoPlotCommand_MessageShown());   // the auto-plot's start message this frame drew
 		StateLine_Add("plotmessagebox", AutoPlotCommand_MessageBox().empty() ? std::string("off") : AutoPlotCommand_MessageBox());   // and its black box
 		StateLine_Add("allstockmaps", host::AllStockMaps_StateWords());   // All stock maps: busy or idle, level N of M, file, stage, the last verdict, the worst frame while plotting (all_stock_maps.h)
+		StateLine_Add("plotbudget", std::to_string((unsigned long long)AutoPlotCommand_ModuleBudget()));   // THE PLOT'S BUDGET a run uses: the cells an AI module's searches may look at (autoplot_command.h)
 		StateLine_Add("shapes", host::ShapesStartScreen_StateWords());   // shapes part 3: off, asking, not now, searching N of M, done and its words (shapes_start_screen.h)
 		ShapePickerScreen_StateFields();   // the placement picker: picker, pickerboxes, pickertiles, pickernotes (shape_picker_screen.h)
 		PlotPreviewView_Drawn();   // IN STEP WITH THE PLOT (plot_preview_view.h): the copy this frame showed is drawn, the plot's worker may go on

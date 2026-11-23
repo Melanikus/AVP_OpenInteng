@@ -476,6 +476,10 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 		fieldsBox.height = wanted > 0 && wanted < layout.list.height ? wanted : (wanted > 0 ? layout.list.height : 0);
 	}
 
+	// the harness's: the field panel's box this frame, "<x> <y> <w> <h>" in the editor's own pixels, or "none" when it isn't drawn
+	StateLine_Add("fieldpanel", fieldsShown && fieldsBox.width > 0 && fieldsBox.height > 0 ? std::to_string(fieldsBox.x) + " " + std::to_string(fieldsBox.y) + " " +
+		std::to_string(fieldsBox.width) + " " + std::to_string(fieldsBox.height) : std::string("none"));
+
 	if (listBox.height > kListMostRows * rowHeight)
 	{
 		listBox.height = kListMostRows * rowHeight;
@@ -578,10 +582,12 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 			boxes[boxCount++] = GrayBehind(hitList.x, hitList.y, hitList.width, hitList.height);
 		}
 
+		// The field panel (the object's card) in INTENG'S LOOK: white letters straight on the view, no box behind them, as inteng's own info lines in Object Placement
+		// (FUN_004d9af0 0x4dc74e: View Distance, Num Objects, the object's name ...). The owner's choice, 2026-11-23 (through Bishop 2, option (a)), after the card's grey box
+		// (kPanelPassBackground) was seen over the placement picker. Its place still takes clicks
 		if (fieldsShown && fieldsBox.height > 0 && fieldsBox.width > 0)
 		{
 			hitFields = fieldsBox;
-			boxes[boxCount++] = GrayBehind(fieldsBox.x, fieldsBox.y, fieldsBox.width, fieldsBox.height);
 		}
 
 		if (listShown)

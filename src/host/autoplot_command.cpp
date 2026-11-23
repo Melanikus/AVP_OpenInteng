@@ -283,7 +283,7 @@ namespace
 	// the worker only: no copies are made when it is off). Declared before workerEnd, so it is still there while workerEnd stops the worker at the program's end
 	host::AutoPlotHandOff handOff;
 	bool runPreview = false;
-	// THE BUDGET (autoplot_command.h kAutoPlotMostModuleLooks): the setting (only ever lowered), and the run's copy of it, taken as runPreview is (set on this
+	// THE BUDGET (autoplot_command.h kAutoPlotMostModuleLooks): the setting (lowered or raised, 1 to kAutoPlotMostModuleLooksSet), and the run's copy of it, taken as runPreview is (set on this
 	// thread before the worker starts, read by the worker only)
 	size_t moduleBudget = host::kAutoPlotMostModuleLooks;
 	size_t runBudget = host::kAutoPlotMostModuleLooks;
@@ -847,7 +847,15 @@ namespace
 					job.why = "stopped by the plot's budget: its way searches looked at " + std::to_string((unsigned long long)job.looks) + " cells in " +
 						std::to_string((unsigned long long)job.searches) + " searches, more than the " + std::to_string((unsigned long long)runBudget) +
 						" an AI module may" + (runBudget < host::kAutoPlotMostModuleLooks ? std::string(" (lowered by [Editor] AutoPlotMostModuleLooks)") :
-						std::string(" (the most of the 10,770 stock AI modules is 2,212,533)"));
+						runBudget > host::kAutoPlotMostModuleLooks ? std::string(" (raised by [Editor] AutoPlotMostModuleLooks)") :
+						std::string(" (the most of the 10,770 stock AI modules is 2,212,533)")) +
+						// HOW TO PLOT IT IN FULL (the owner, 11-23: "Don't decrease map precision because it would take longer"): the user's own setting raises it
+						// (the second words are a GUARD no run reaches: at the most, 16000000, a module's 40 pairs x 2 searches of at most 200000 cells each can't
+						// pass it, the static_assert below at AutoPlotCommand_SetModuleBudget keeping the three equal; Drake's nit on 6774ce25. Kept so a change of one of
+						// them still reads right)
+						(runBudget < host::kAutoPlotMostModuleLooksSet ? "; raise AutoPlotMostModuleLooks= under [Editor] in AVP_OpenInteng.ini (up to " +
+							std::to_string((unsigned long long)host::kAutoPlotMostModuleLooksSet) + ") to plot it in full" :
+							"; that is already the most AutoPlotMostModuleLooks= takes");
 					job.searchMs = MsSince(searchFrom);
 
 					if (runPreview)
@@ -2123,10 +2131,13 @@ bool AutoPlotCommand_Busy()
 	return stage != Stage::Idle;
 }
 
+// (the most a setting takes is the caps' own most: kept equal to them here, so a change of either cap changes it too or doesn't build)
+static_assert(host::kAutoPlotMostModuleLooksSet == host::kAutoPlotMostPairs * 2 * host::kAutoPlotMostLooks, "kAutoPlotMostModuleLooksSet is the caps' own most");
+
 void AutoPlotCommand_SetModuleBudget(size_t looks)
 {
-	// only ever lowered: 0, or more than the budget, keeps the budget (a settings file can make the plot stop sooner, never run longer)
-	moduleBudget = looks > 0 && looks < host::kAutoPlotMostModuleLooks ? looks : host::kAutoPlotMostModuleLooks;
+	// lowered or raised by the user's own settings file (a map can't set it); 0 keeps the budget; past the caps' own most, held there
+	moduleBudget = looks == 0 ? host::kAutoPlotMostModuleLooks : (looks > host::kAutoPlotMostModuleLooksSet ? host::kAutoPlotMostModuleLooksSet : looks);
 }
 
 size_t AutoPlotCommand_ModuleBudget()

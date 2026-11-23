@@ -60,6 +60,12 @@ namespace
 	std::vector<size_t> levelPartsOf;             // and how many of the level's shapes are of that file
 	host::ShapePickerView view;
 	host::ShapePickerLayout layout;
+	int32_t ownWide = 0;                          // the editor's own width at the last frame: where the scroll bar stands
+	int32_t ownHigh = 0;                          // and its own height (the paint lays out as the frame did)
+	int32_t shownColumns = -1, shownRows = -1;    // the grid's shape and the list's length when the selection was last brought into view
+	size_t shownCount = (size_t)-1;
+	bool dragging = false;                        // the scroll bar's thumb is held (pressed on it, not yet let go)
+	int32_t grabbedAt = 0;                        // where on the thumb it was taken, from its top
 	bool selectedClicked = false;                 // the selected tile was clicked (so a second click on it places it)
 	std::map<std::string, Kept> kept;
 	uint64_t frameNumber = 0;
@@ -417,7 +423,8 @@ namespace
 		int32_t const number = tile.inLevel ? levelNumberOf[view.selected] : -1;
 
 		ShapePickerScreen_Close(false);
-		ShapeChooserCreateFromPicker(tile.name, number);   // the name is asked, then the object made (construction_modes_screen.cpp)
+		ShapeChooserCreateFromPicker(host::ShapePicker_NameBase(tile), number);   // the name is asked, then the object made (construction_modes_screen.cpp); a part's base is its object
+		                                                                            // name ("Game" of "Game@offbits"), so no '@' goes into an object's name
 	}
 }
 
@@ -467,6 +474,22 @@ bool ShapePickerScreen_Open()
 	}
 
 	list = host::ShapePicker_List(folders, levelFiles);
+
+	// THE LEVEL'S OWN SHAPES as tiles too (shape_picker.h ShapePicker_AddLevelShapes; Bishop 2's decision on the owner's "items from shape_rifs + level"): a
+	// shape the level alone holds, and each part of a fragment file, drawn and placed by number
+	std::vector<host::ShapePickerLevelShape> levelShapes;
+
+	for (host::ShapeChoice const &one : shapes)
+	{
+		host::ShapePickerLevelShape s;
+
+		s.file = one.name;
+		s.gameName = one.gameName;
+		s.number = one.number;
+		levelShapes.push_back(s);
+	}
+
+	host::ShapePicker_AddLevelShapes(&list, levelShapes);
 	states.assign(list.tiles.size(), host::ShapePickerState());
 	shaOf.assign(list.tiles.size(), std::string());
 	noPictureOf.assign(list.tiles.size(), std::string());
@@ -477,6 +500,13 @@ bool ShapePickerScreen_Open()
 	// of the level's shapes are of it (a fragment file's parts: "N parts: the level's first is placed")
 	for (size_t i = 0; i < list.tiles.size(); i++)
 	{
+		if (list.tiles[i].levelOnly)
+		{
+			levelNumberOf[i] = list.tiles[i].levelNumber;   // the level's own shape: that one, by its number (one part of a fragment file is one shape)
+			levelPartsOf[i] = 1;
+			continue;
+		}
+
 		for (host::ShapeChoice const &one : shapes)
 		{
 			if (list.tiles[i].inLevel && _stricmp(one.name.c_str(), list.tiles[i].name.c_str()) == 0)
@@ -488,6 +518,8 @@ bool ShapePickerScreen_Open()
 	}
 	view = host::ShapePickerView();
 	selectedClicked = false;
+	dragging = false;
+	shownColumns = shownRows = -1;   // (the first frame brings the selection into view)
 	open = true;
 	ShapePickerPictures_Begin();   // the visit's one allowance for its pictures (shape_picker_pictures.cpp)
 
@@ -525,6 +557,7 @@ void ShapePickerScreen_Close(bool sayNothingChosen)
 	}
 
 	open = false;
+	dragging = false;
 	list = host::ShapePickerList();
 	states.clear();
 	shaOf.clear();
@@ -541,8 +574,18 @@ void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
 	}
 
 	frameNumber++;
+	ownWide = ownWidth;
 	layout = host::ShapePicker_Layout(ownWidth, ownHeight);
-	view = host::ShapePicker_Show(view, layout, list.tiles.size());
+
+	// the selection brought into view ONLY when the grid's shape or the list changed (ShapePicker_Show's own rule): done every frame, it undid the wheel's and the
+	// scroll bar's moves, which leave the selection where it is (found 2026-11-23 building the bar: the rows went straight back to the selection)
+	if (layout.columns != shownColumns || layout.rows != shownRows || list.tiles.size() != shownCount)
+	{
+		view = host::ShapePicker_Show(view, layout, list.tiles.size());
+		shownColumns = layout.columns;
+		shownRows = layout.rows;
+		shownCount = list.tiles.size();
+	}
 
 	// a few of the tiles on the screen drawn, the selected first, within the frame's budget
 	size_t const shown = (size_t)layout.columns * (size_t)layout.rows;
@@ -575,6 +618,19 @@ void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
 		}
 	}
 
+	ownHigh = ownHeight;   // (painted by ShapePickerScreen_Paint, in the panels' pass)
+}
+
+void ShapePickerScreen_Paint(int32_t, int32_t)
+{
+	if (!open)
+	{
+		return;
+	}
+
+	// the frame's own size as ShapePickerScreen_Frame laid the grid out this frame (so the paint and the layout always agree)
+	int32_t const ownWidth = ownWide, ownHeight = ownHigh;
+	size_t const shown = (size_t)layout.columns * (size_t)layout.rows;
 	std::vector<ShapePickerPaintTile> tiles;
 
 	for (size_t i = view.first; i < list.tiles.size() && i < view.first + shown; i++)
@@ -622,7 +678,7 @@ void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
 		lines.push_back(note);
 	}
 
-	ShapePickerPaint_Draw(ownWidth, ownHeight, host::kShapePickerTop - 4, ownHeight - host::kShapePickerTop + 4 - 36, tiles, lines, 16, ownHeight - host::kShapePickerBottomRoom + 4);
+	ShapePickerPaint_Draw(ownWidth, ownHeight, tiles, host::ShapePicker_Bar(layout, view, list.tiles.size(), ownWidth), lines, 16, ownHeight - host::kShapePickerBottomRoom + 4);
 }
 
 bool ShapePickerScreen_Key(WPARAM key)
@@ -660,6 +716,27 @@ void ShapePickerScreen_Click(int32_t x, int32_t y)
 		return;
 	}
 
+	// a thumb still held is let go by any press (Frost's review of b4521891, SHOULD 1: let go outside the window, no WM_LBUTTONUP reached us, and the next press's
+	// moves scrolled the rows)
+	dragging = false;
+
+	// THE SCROLL BAR first (the owner: "a dragable scroll box on the top right"): an arrow a row, the track a page, the thumb taken to be dragged
+	host::ShapePickerBar const bar = host::ShapePicker_Bar(layout, view, list.tiles.size(), ownWide);
+	host::ShapePickerBarPart const part = host::ShapePicker_BarPartAt(bar, x, y);
+
+	if (part == host::ShapePickerBarPart::Thumb)
+	{
+		dragging = true;
+		grabbedAt = y - bar.thumb[1];
+		return;
+	}
+
+	if (part != host::ShapePickerBarPart::None)
+	{
+		view = host::ShapePicker_BarPress(view, layout, list.tiles.size(), part);
+		return;
+	}
+
 	int const tile = host::ShapePicker_TileAt(layout, view.first, list.tiles.size(), x, y);
 
 	if (tile < 0)
@@ -675,6 +752,27 @@ void ShapePickerScreen_Click(int32_t x, int32_t y)
 
 	view.selected = (size_t)tile;
 	selectedClicked = true;
+}
+
+bool ShapePickerScreen_Drag(int32_t y)
+{
+	if (!open || !dragging)
+	{
+		return false;
+	}
+
+	host::ShapePickerBar const bar = host::ShapePicker_Bar(layout, view, list.tiles.size(), ownWide);
+
+	view = host::ShapePicker_ThumbTo(view, layout, list.tiles.size(), bar, y - grabbedAt);
+	return true;
+}
+
+bool ShapePickerScreen_Release()
+{
+	bool const was = open && dragging;
+
+	dragging = false;
+	return was;
 }
 
 void ShapePickerScreen_Wheel(int delta)
@@ -728,4 +826,21 @@ void ShapePickerScreen_StateFields()
 	StateLine_Add("pickerboxes", boxes);
 	StateLine_Add("pickertiles", words);
 	StateLine_Add("pickernotes", notes);
+
+	// the scroll bar's parts, in the window's pixels as pickerboxes are (the harness presses and drags there)
+	host::ShapePickerBar bar = host::ShapePicker_Bar(layout, view, list.tiles.size(), ownWide);
+
+	for (int32_t *box : { bar.column, bar.up, bar.down, bar.thumb, bar.above, bar.below })
+	{
+		int32_t wx = 0, wy = 0, ww = 0, wh = 0;
+
+		host::TextScale_BoxToWindow(box[0], box[1], box[2], box[3], &wx, &wy, &ww, &wh);
+		box[0] = wx;
+		box[1] = wy;
+		box[2] = box[2] > 0 ? ww : 0;
+		box[3] = box[3] > 0 ? wh : 0;
+	}
+
+	StateLine_Add("pickerscroll", host::ShapePicker_BarWords(bar));
+	StateLine_Add("pickerdrag", dragging ? "held" : "free");
 }

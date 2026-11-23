@@ -658,6 +658,24 @@ static void TestTicks()
 
 	next = 0;
 	Check(host::VideoImport_TicksBefore(&next, -5 * second) == 0 && next == 0, "a time before 0: no ticks");
+
+	// A DECODED PICTURE PLACED (card 2c, Vasquez's review of 18a55a36, SHOULD 1): the decoder gives each picture its own time, and one past the read's bound is
+	// refused as too long, never filled up to the hard ceiling (601 s of frames, about 332 MB, in the 32-bit editor)
+	int64_t count = -1;
+
+	next = 0;
+	Check(host::VideoImport_PlacePicture(&next, 2 * second, 180, &count) == host::VideoImportResult::Done && count == 30 && next == 30,
+		"a decoded picture at 2 s, the read's bound 180 s: its 30 ticks (" + std::to_string(count) + ")");
+	next = 0;
+	count = -1;
+	Check(host::VideoImport_PlacePicture(&next, 180 * second, 180, &count) == host::VideoImportResult::Done && count == 2700, "one at exactly 180 s: taken, 2700 ticks");
+	next = 0;
+	count = -1;
+	host::VideoImportResult const past = host::VideoImport_PlacePicture(&next, 300 * second, 180, &count);
+	Check(past == host::VideoImportResult::TooLong && count == 0 && next == 0, "one at 300 s past a 180 s bound: refused as too long, no tick filled, next unmoved (it would "
+		"have filled 4500; gave " + std::to_string(count) + ")");
+	next = 0;
+	Check(host::VideoImport_PlacePicture(&next, 2 * second, 0, &count) == host::VideoImportResult::BadCall && next == 0, "a bound of 0 s: refused as a bad call");
 }
 
 static void TestSound()

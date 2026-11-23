@@ -145,6 +145,23 @@ namespace host
 		}
 	}
 
+	std::string AllStockMaps_Unmarked(std::string const &words)
+	{
+		std::string out;
+
+		out.reserve(words.size());
+
+		for (char const letter : words)
+		{
+			if (letter != kWrapPathStart && letter != kWrapPathEnd)
+			{
+				out += letter;
+			}
+		}
+
+		return out;
+	}
+
 	std::string AllStockMaps_Wrapped(std::string const &words, std::function<int32_t(unsigned char)> const &widthOf, int32_t width)
 	{
 		std::string out;
@@ -153,38 +170,71 @@ namespace host
 		while (at <= words.size())
 		{
 			size_t const end = words.find('\n', at);
-			std::string rest = words.substr(at, end == std::string::npos ? std::string::npos : end - at);
+			std::string const marked = words.substr(at, end == std::string::npos ? std::string::npos : end - at);
+
+			// the line's letters with the marks taken out, and for each letter whether it is inside a marked path (all_stock_maps_ui.h kWrapPathStart)
+			std::string rest;
+			std::vector<bool> inPath;
+			bool path = false;
+
+			for (char const letter : marked)
+			{
+				if (letter == kWrapPathStart || letter == kWrapPathEnd)
+				{
+					path = letter == kWrapPathStart;
+					continue;
+				}
+
+				rest += letter;
+				inPath.push_back(path);
+			}
 
 			if (rest.empty())
 			{
 				out += "\n";   // an empty line: a paragraph's break kept
 			}
 
-			while (!rest.empty())
+			size_t from = 0;   // the first letter not yet on a line
+
+			while (from < rest.size())
 			{
-				// the longest piece that fits, ended at a space when there is one; at least one letter, so a narrow window never loops
+				// the longest piece that fits; at least one letter, so a narrow window never loops
+				size_t const left = rest.size() - from;
 				size_t fit = 0;
 
-				while (fit < rest.size() && WidthOf(rest.substr(0, fit + 1), widthOf) <= width)
+				while (fit < left && WidthOf(rest.substr(from, fit + 1), widthOf) <= width)
 				{
 					fit++;
 				}
 
 				size_t cut = fit == 0 ? 1 : fit;
 
-				if (cut < rest.size())
+				// Where the line may end, the latest such place that fits: before a space outside a path (the space is dropped), or right after a path's \ or /
+				// (the next line goes on with the path's next part). A space inside a path, and the middle of a name, never: without such a place, the
+				// line ends where the letters ran out, so only a word, or a path's part, wider than the whole line is cut inside. With no marks this is
+				// the last space at or before the cut, but not the line's first letter, as it always was.
+				if (cut < left)
 				{
-					size_t const space = rest.rfind(' ', cut);
+					for (size_t b = cut; b > 0; b--)
+					{
+						size_t const next = from + b;   // the letter the next line would start with
+						bool const atSpace = rest[next] == ' ' && !inPath[next];
+						bool const afterSeparator = inPath[next - 1] && (rest[next - 1] == '\\' || rest[next - 1] == '/');
 
-					cut = space != std::string::npos && space > 0 ? space : cut;
+						if (atSpace || afterSeparator)
+						{
+							cut = b;
+							break;
+						}
+					}
 				}
 
-				out += rest.substr(0, cut) + "\n";
-				rest = rest.substr(cut);
+				out += rest.substr(from, cut) + "\n";
+				from += cut;
 
-				while (!rest.empty() && rest[0] == ' ')
+				while (from < rest.size() && rest[from] == ' ' && !inPath[from])
 				{
-					rest.erase(0, 1);
+					from++;
 				}
 			}
 

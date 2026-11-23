@@ -23,15 +23,22 @@ namespace host
 			return PanelPaint_SafeText(text);
 		}
 
-		// "derelict.RIF, genshd1.RIF and 3 more": at most kFirstLaunchMostNames names, each made safe
-		std::string Names(std::vector<std::string> const &names, char const *between)
+		// A PATH IN THE WORDS, kept whole on the screen (the owner, 2026-11-23: "Full paths here"): marked for the wrap, which then breaks it only right after
+		// a backslash (all_stock_maps_ui.h kWrapPathStart). Given text already made safe, or the form's own words
+		std::string Marked(std::string const &path)
+		{
+			return std::string(1, kWrapPathStart) + path + kWrapPathEnd;
+		}
+
+		// "derelict.RIF, genshd1.RIF and 3 more": at most kFirstLaunchMostNames names, each made safe, each marked as a path when they are folders
+		std::string Names(std::vector<std::string> const &names, char const *between, bool paths = false)
 		{
 			size_t const shown = names.size() < kFirstLaunchMostNames ? names.size() : kFirstLaunchMostNames;
 			std::string out;
 
 			for (size_t k = 0; k < shown; k++)
 			{
-				out += (k ? between : "") + Safe(names[k]);
+				out += (k ? between : "") + (paths ? Marked(Safe(names[k])) : Safe(names[k]));
 			}
 
 			if (names.size() > shown)
@@ -130,13 +137,14 @@ namespace host
 		}
 	}
 
-	std::string FirstLaunch_Words(FirstLaunchFacts const &facts)
+	// The words with every path marked to be kept whole (Marked above); FirstLaunch_Words gives them without the marks, the form wraps them with them
+	static std::string FirstLaunch_MarkedWords(FirstLaunchFacts const &facts)
 	{
 		// 1 and 2: where it is, where it belongs (the owner: "Open inteng is in <...> expected to reside in ..steamapps or ...\Aliens Versus Predator\Tools or
 		// Program files..\Fox\AVP..")
-		std::string words = "Open Inteng is in: " + Safe(facts.programFolder) + "\n\n"
-			"It belongs in your game's Tools folder: Steam's ...\\steamapps\\common\\Aliens versus Predator Classic\\Tools, or the original install's "
-			"C:\\Program Files (x86)\\Fox\\Aliens versus Predator\\Tools (C:\\Program Files\\... on 32-bit Windows).\n\n";
+		std::string words = "Open Inteng is in: " + Marked(Safe(facts.programFolder)) + "\n\n"
+			"It belongs in your game's Tools folder: Steam's " + Marked("...\\steamapps\\common\\Aliens versus Predator Classic\\Tools") + ", or the original "
+			"install's " + Marked("C:\\Program Files (x86)\\Fox\\Aliens versus Predator\\Tools") + " (" + Marked("C:\\Program Files\\...") + " on 32-bit Windows).\n\n";
 
 		// 3: what it found around it, then the question
 		if (!facts.found)
@@ -145,14 +153,14 @@ namespace host
 
 			if (!facts.looked.empty())
 			{
-				words += " It looked in: " + Names(facts.looked, "; ") + ".";
+				words += " It looked in: " + Names(facts.looked, "; ", true) + ".";
 			}
 
 			return words + "\n\nMove the Open Inteng folder into your game's Tools folder, or tell it where your game is (the folder that holds avp_rifs). Set "
 				"the game's folder now?";
 		}
 
-		words += (facts.fromIni ? "In the game's folder that DataFolder= names, " : "Around it, in ") + Safe(facts.gameFolder) + ", it found " +
+		words += (facts.fromIni ? "In the game's folder that DataFolder= names, " : "Around it, in ") + Marked(Safe(facts.gameFolder)) + ", it found " +
 			Counted(facts.levels, "level", "levels") + " and " + Counted(facts.huds, "HUD file", "HUD files") + ".";
 
 		if (!facts.notOwn.empty())
@@ -170,10 +178,16 @@ namespace host
 		{
 			// (what Yes does, whole: the owner's rule, 11-23, is that from then on a new map found is searched without asking: Drake's review, SHOULD 1)
 			words += "\n\nOpen Inteng can make the object shapes from your game's " + Counted(facts.levels, "level", "levels") + ", into " +
-				Safe(facts.gameFolder) + "\\shape_rifs, and from any new map it finds later, without asking again. Nothing there is replaced. Make them now?";
+				Marked(Safe(facts.gameFolder) + "\\shape_rifs") + ", and from any new map it finds later, without asking again. Nothing there is replaced. Make "
+				"them now?";
 		}
 
 		return words;
+	}
+
+	std::string FirstLaunch_Words(FirstLaunchFacts const &facts)
+	{
+		return AllStockMaps_Unmarked(FirstLaunch_MarkedWords(facts));
 	}
 
 	DialogFormSpec FirstLaunch_Form(FirstLaunchFacts const &facts, std::function<int32_t(unsigned char)> const &widthOf, int32_t fontHeight, int32_t screenWidth)
@@ -185,13 +199,15 @@ namespace host
 		spec.title = kFirstLaunchTitle;
 		spec.width = room > 760 ? 760 : (room < 400 ? 400 : room);
 
-		// the words, wrapped to the window (drawn from the box's x + 1, as dialogs.cpp draws a label)
-		std::string const wrapped = AllStockMaps_Wrapped(FirstLaunch_Words(facts), widthOf, spec.width - 2 * kMargin - 1);
+		// the words, wrapped to the window (drawn from the box's x + 1, as dialogs.cpp draws a label), each path broken only after a backslash and shown
+		// WHOLE: the dialog leaves this label's paths as they are (wholePaths; the owner, 2026-11-23: "Full paths here", this screen only)
+		std::string const wrapped = AllStockMaps_Wrapped(FirstLaunch_MarkedWords(facts), widthOf, spec.width - 2 * kMargin - 1);
 		int32_t const wordsHeight = (int32_t)LinesIn(wrapped) * lineHeight;
 		DialogWidget words;
 
 		words.type = DialogWidgetType::Label;
 		words.text = wrapped;
+		words.wholePaths = true;
 		words.box = { kMargin, 0x12, spec.width - 2 * kMargin, wordsHeight };
 		spec.widgets.push_back(words);
 

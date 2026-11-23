@@ -360,15 +360,17 @@ namespace
 				return;
 			}
 
-			std::string playWords;
-			char narrow[MAX_PATH * 2] = {};
-			char name[MAX_PATH] = {};
+			std::string playWords, folderForPlayer, nameForPlayer, pathWhy;
 
-			WideCharToMultiByte(CP_ACP, 0, host::VideoMode_PreviewFolder().c_str(), -1, narrow, (int)sizeof(narrow), nullptr, nullptr);
-			WideCharToMultiByte(CP_ACP, 0, host::VideoMode_PreviewName().c_str(), -1, name, (int)sizeof(name), nullptr, nullptr);
+			// the place as Barry's decoder opens it, in the system's own letters, whole (VideoMode_PreviewPlayerPath), or no preview, in words
+			if (!host::VideoMode_PreviewPlayerPath(&folderForPlayer, &nameForPlayer, &pathWhy))
+			{
+				Say("Not previewed: " + pathWhy);
+				return;
+			}
 
 			// drawn ON THE SCREEN, under every panel, the bar and every dialog (the owner 11-22: Save pressed during a preview opened its form under the film)
-			bool const playing = previewPlace && host::FmvPreview_Start(std::string(narrow) + "\\", name, layoutSettingsFile, previewPlace, &playWords,
+			bool const playing = previewPlace && host::FmvPreview_Start(folderForPlayer, nameForPlayer, layoutSettingsFile, previewPlace, &playWords,
 				host::FmvPreviewLayer::UnderThePanels);
 
 			previewStarted = playing;
@@ -804,6 +806,55 @@ bool host::VideoMode_PutPreview(std::vector<uint8_t> const &smk, std::string *wh
 
 	CreateDirectoryW(scratch.c_str(), nullptr);
 	return Smk_Replace(scratch + L"\\" + VideoMode_PreviewName(), smk, why);
+}
+
+// A name in the system's own letters (CP_ACP), whole: its size asked first, then made, then checked that no letter was put in as a stand-in ('?'); false otherwise
+static bool InSystemLetters(std::wstring const &wide, std::string *narrow)
+{
+	BOOL stoodIn = FALSE;
+	int const bytes = WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, wide.c_str(), -1, nullptr, 0, nullptr, &stoodIn);
+
+	if (bytes <= 1 || stoodIn)
+	{
+		return false;
+	}
+
+	std::string made((size_t)bytes, '\0');
+
+	if (WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, wide.c_str(), -1, &made[0], bytes, nullptr, &stoodIn) != bytes || stoodIn)
+	{
+		return false;
+	}
+
+	made.resize((size_t)bytes - 1);   // (the end's 0 off)
+	*narrow = made;
+	return true;
+}
+
+bool host::VideoMode_PreviewPlayerPath(std::string *folder, std::string *name, std::string *why)
+{
+	std::string notSaid;
+
+	why = why ? why : &notSaid;
+
+	if (!folder || !name)
+	{
+		*why = "no place for the film's path";
+		return false;
+	}
+
+	std::wstring const scratch = VideoMode_PreviewFolder();
+
+	if (scratch.empty() || !InSystemLetters(scratch, folder) || !InSystemLetters(VideoMode_PreviewName(), name))
+	{
+		folder->clear();
+		name->clear();
+		*why = "the temp folder's name can't be said whole in this PC's own letters, which the film player opens it by";
+		return false;
+	}
+
+	*folder += "\\";
+	return true;
 }
 
 void host::VideoMode_Leave()

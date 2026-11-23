@@ -36,23 +36,37 @@ bool ShapePickerScreen_Open();
 // Closes it, the drawings kept for the next time (Escape: the words say no shape was chosen)
 void ShapePickerScreen_Close(bool sayNothingChosen);
 
-// Each frame while it is open (inside the game's frame, as TextureChooserDraw): a few tiles drawn, then the grid painted. ownWidth, ownHeight: the frame in the
+// Each frame while it is open (inside the game's frame, as TextureChooserDraw): the grid laid out and a few tiles drawn. ownWidth, ownHeight: the frame in the
 // editor's own pixels (text_scale.h)
 void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight);
+
+// THE PAINT, apart from the work (Vasquez 2026-11-23, for Dietrich's overPanels hook: the owner's "Gray thingie over my scroll bar!", the object card kept in
+// inteng's look UNDER the picker): the tiles, their names, the selection's yellow frame, the scroll bar and the picker's words added to the frame's panels, as
+// ShapePickerScreen_Frame laid them out this frame (its own size, whatever the caller gives: kept so a hook's signature fits). Call it after the frame's work, at
+// the place in the panels' pass where the picker must stand: over the card and the object list, under the bar, its drop-downs and the dialogs.
+void ShapePickerScreen_Paint(int32_t width, int32_t height);
 
 // A key while it is open: the arrows, Page Up / Page Down, Home / End move the selection; Return places the selected tile; Escape closes it. True: the key is the
 // picker's (every key is while it is open)
 bool ShapePickerScreen_Key(WPARAM key);
 
-// A left press at (x, y), the editor's own pixels: on a tile not selected, it is selected; on the selected one, it is placed (as Return)
+// A left press at (x, y), the editor's own pixels: on the scroll bar, an arrow moves a row, the track above or below the thumb a page, and the thumb is taken
+// to be dragged (shape_picker.h ShapePicker_Bar); on a tile not selected, it is selected; on the selected one, it is placed (as Return)
 void ShapePickerScreen_Click(int32_t x, int32_t y);
+
+// The mouse moved to y (the editor's own pixels) while the left button is down: when the thumb is held, the rows follow it. True when it is held
+bool ShapePickerScreen_Drag(int32_t y);
+
+// The left button let go: the thumb, if held, is let go. True when it was held
+bool ShapePickerScreen_Release();
 
 // The mouse wheel: notches as Windows gives them (WHEEL_DELTA each; up is positive): a row a notch, up is back
 void ShapePickerScreen_Wheel(int delta);
 
 // The picker's fields on the state line (StateLine_Add), every frame: picker "open cols A rows B count N drawn D failed F first X selected <name>" (or
 // "closed"), pickerboxes "<name>~<x> <y> <w> <h>|..." (the tiles on the screen, their pictures, in the WINDOW's pixels), pickertiles (those tiles' words,
-// shape_picker.h ShapePicker_TileWords, '|' between), pickernotes (the folders' words)
+// shape_picker.h ShapePicker_TileWords, '|' between), pickernotes (the folders' words), pickerscroll (the scroll bar's parts, "up~...|down~...|above~...|
+// below~...|thumb~...", in the window's pixels) and pickerdrag ("held" while the thumb is held, else "free")
 void ShapePickerScreen_StateFields();
 
 // A picture of a tile's shape (shape_thumb.h's path under the game's graphics folder) read and decoded as the level's own pictures are (shape_picker_pictures.cpp).

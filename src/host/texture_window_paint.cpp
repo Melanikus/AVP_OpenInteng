@@ -304,15 +304,14 @@ void TextureChooserPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t
 	TextureWindowPaint_Lines(windowWidth, windowHeight, lines, lineX, lineY);
 }
 
-void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t areaTop, int32_t areaHeight, const std::vector<ShapePickerPaintTile> &tiles, const std::vector<std::string> &lines, int32_t lineX, int32_t lineY)
+void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, const std::vector<ShapePickerPaintTile> &tiles, const host::ShapePickerBar &bar, const std::vector<std::string> &lines, int32_t lineX, int32_t lineY)
 {
 	if (windowWidth < 1 || windowHeight < 1)
 	{
 		return;
 	}
 
-	CheckWireFrameMode(0);
-	Box(0, areaTop, windowWidth, areaHeight, 0xFF14181Cu, windowWidth, windowHeight);   // the texture chooser's ground
+	CheckWireFrameMode(0);   // (no ground: the level stays in sight round the tiles, as round inteng's texture windows)
 
 	for (ShapePickerPaintTile const &tile : tiles)
 	{
@@ -350,6 +349,41 @@ void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t ar
 			Segment(x1, y0, x1, y1, 0xFFFFFF00u, windowWidth, windowHeight);
 			Segment(x1, y1, x0, y1, 0xFFFFFF00u, windowWidth, windowHeight);
 			Segment(x0, y1, x0, y0, 0xFFFFFF00u, windowWidth, windowHeight);
+		}
+	}
+
+	// THE SCROLL BAR, in the dialog lists' own look (dialogs.cpp: a box framed white, the column black, the thumb and the arrow buttons blue, each arrow a small white
+	// triangle 7, 5, 3 and 1 pixels wide, as Windows draws a scroll bar's)
+	if (bar.column[2] > 0)
+	{
+		auto framed = [&](int32_t const box[4], uint32_t inside) {
+			if (box[2] > 0 && box[3] > 0)
+			{
+				Box(box[0], box[1], box[2], box[3], 0xFFFFFFFFu, windowWidth, windowHeight);
+
+				if (box[2] > 2 && box[3] > 2)
+				{
+					Box(box[0] + 1, box[1] + 1, box[2] - 2, box[3] - 2, inside, windowWidth, windowHeight);
+				}
+			}
+		};
+
+		framed(bar.column, 0xFF000000u);
+		framed(bar.thumb, 0xFF0000FFu);
+
+		for (int32_t end = 0; end < 2; end++)
+		{
+			int32_t const *const arrow = end == 0 ? bar.up : bar.down;
+
+			framed(arrow, 0xFF0000FFu);
+
+			for (int32_t step = 0; step < 4; step++)   // its point up for the top arrow, down for the bottom one
+			{
+				int32_t const across = 7 - 2 * step;
+				int32_t const y = arrow[1] + arrow[3] / 2 + (end == 0 ? 1 - step : step - 2);
+
+				Box(arrow[0] + (arrow[2] - across) / 2, y, across, 1, 0xFFFFFFFFu, windowWidth, windowHeight);
+			}
 		}
 	}
 

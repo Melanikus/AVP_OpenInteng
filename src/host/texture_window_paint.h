@@ -52,9 +52,17 @@ struct TextureChooserCell
 
 void TextureChooserPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t areaTop, int32_t areaHeight, const std::vector<TextureChooserCell> &cells, int32_t hovered, const std::vector<std::string> &lines, int32_t lineX, int32_t lineY);
 
-// THE PLACEMENT PICKER'S GRID (shape_picker.h, shape_picker_screen.cpp; Vasquez 2026-11-23): drawn as the texture chooser's is, on its dark ground over the view; each tile its
-// picture (the game's texture of its drawing, or its words while it has none: "drawing...", "can't be drawn"), its name under it in inteng's font, the selected one framed in
-// the chooser's yellow; then lines of words at the bottom. Places in the editor's own pixels (as the texture chooser's), drawn in the window's.
+// THE PLACEMENT PICKER'S GRID (shape_picker.h, shape_picker_screen.cpp; Vasquez 2026-11-23): each tile its picture (the game's texture of its drawing, or its words while it
+// has none: "drawing...", "can't be drawn"), its name under it in inteng's font, the selected one framed in the chooser's yellow; its SCROLL BAR down the right side in the
+// dialog lists' look (the column black framed white, the thumb blue framed white, two arrow buttons; the owner 11-23: "a dragable scroll box on the top right"); then lines
+// of words at the bottom. NO GROUND behind the tiles (the owner 11-23, "The selection box for the items is grey": the dark box was the texture chooser's, never checked
+// against inteng; inteng's texture windows draw none, TM-B, and the Shape Chooser it stands in for shows the level), so the level stays in sight round them. Places in
+// the editor's own pixels (as the texture chooser's), drawn in the window's.
+namespace host
+{
+	struct ShapePickerBar;
+}
+
 struct ShapePickerPaintTile
 {
 	int32_t texture;           // the game's texture number of its drawing; -1 while it has none
@@ -65,7 +73,7 @@ struct ShapePickerPaintTile
 	std::string words;         // in the square while it has no picture
 };
 
-void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t areaTop, int32_t areaHeight, const std::vector<ShapePickerPaintTile> &tiles, const std::vector<std::string> &lines, int32_t lineX, int32_t lineY);
+void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, const std::vector<ShapePickerPaintTile> &tiles, const host::ShapePickerBar &bar, const std::vector<std::string> &lines, int32_t lineX, int32_t lineY);
 
 void TextureWindowPaint_Draw(int32_t windowWidth, int32_t windowHeight, const TextureWindowPicture &picture, const std::vector<TextureWindowWords> &words);
 

@@ -3,7 +3,7 @@
 # stopped there, refused and NAMED with its numbers, and nothing of it is written. Before it the caps alone let one module look at 16,000,000 cells, and a
 # hostile map's plot ended only after a very long time.
 # THE SYNTHETIC MODULE: no stock module comes near the budget (that is how it was set), so the settings file lowers it to 1 cell ([Editor]
-# AutoPlotMostModuleLooks=1: it can only ever lower it), and every AI module of stock Statue that searches at all goes past it at its first search.
+# AutoPlotMostModuleLooks=1; it lowers or raises it, 1 to 16000000), and every AI module of stock Statue that searches at all goes past it at its first search.
 # RED on exe-cache/5a5982e4.exe (the counting, no budget): Statue plots as always, "Auto-plot: 137 AI modules written, 5 refused".
 #ini AutoPlot=1
 #ini AutoPlotMostModuleLooks=1
@@ -22,3 +22,7 @@ wait-moving 300000 status AI modules written
 expect-status Auto-plot: 0 AI modules written,
 expect-status not written: stopped by the plot's budget: its way searches looked at
 expect-status more than the 1 an AI module may (lowered by [Editor] AutoPlotMostModuleLooks)
+# ---- and how to plot it in full (the owner, 11-23: "Don't decrease map precision because it would take longer"): the words say the setting that raises it
+# (its section named too, as the lowered and raised words do: Drake's SHOULD 2 on 6774ce25)
+expect-status raise AutoPlotMostModuleLooks= under [Editor] in AVP_OpenInteng.ini (up to 16000000) to plot it in full
+expect-field plotbudget 1
