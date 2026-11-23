@@ -50,7 +50,18 @@ namespace host
 	// when the first part isn't the disclaimer's (then nothing is read, and nothing runs)
 	std::vector<DialogWidget> AllStockMaps_OptionsOf(std::vector<DialogWidget> const &widgets);
 
-	// The words wrapped to `width` pixels: lines separated by "\n", a paragraph's break kept as an empty line; a word wider than the line cut
+	// A PATH KEPT WHOLE BY THE WRAP (Drake 2026-11-23, the owner's "Full paths here" for the first-start form): words may mark a path by putting
+	// kWrapPathStart before it and kWrapPathEnd after it. The wrap then breaks that path only right after one of its \ or /, never at a space inside it
+	// ("John Smith") and never inside a name, and takes the marks out. Neither can come from a name: the safe text rule (PanelPaint_SafeText) makes
+	// every byte outside the space to the tilde a '?'. Words with no marks wrap exactly as they did before.
+	char const kWrapPathStart = '\x01';
+	char const kWrapPathEnd = '\x02';
+
+	// The words with the marks above taken out (what the log and the tests read)
+	std::string AllStockMaps_Unmarked(std::string const &words);
+
+	// The words wrapped to `width` pixels: lines separated by "\n", a paragraph's break kept as an empty line; a line ends at a space, or inside a marked
+	// path right after a \ or /; only a word, or a path's part, wider than the whole line is cut inside
 	std::string AllStockMaps_Wrapped(std::string const &words, std::function<int32_t(unsigned char)> const &widthOf, int32_t width);
 
 	// The progress line while it runs: "All stock maps: level 7 of 22, genshd1.RIF: <stage>", and "; stopping after this level (Esc)" once Esc was pressed

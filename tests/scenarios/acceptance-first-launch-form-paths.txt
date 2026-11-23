@@ -1,0 +1,16 @@
+# ACCEPTANCE (red first; Drake 2026-11-23, Bishop 2's top priority for alpha.6; the owner's answer 1 for this screen, plan-first-launch-shapes.md: "Full paths
+# here", whole paths on this screen only): THE FIRST-START FORM SHOWS ITS PATHS WHOLE. The form opens at the first frame it can (ShapesInTests=1, as Vasquez's
+# acceptance-shape-picker-form), on a game folder whose path is long enough to wrap, and its picture is looked at: every path whole, any line break inside a path
+# right after a backslash, never inside a name. RED on exe-cache/fc60f335.exe (bishop-int before the fix): "Open Inteng is in: run", the game's folder as its last
+# part only, and "sh" / "ape_rifs" (Vasquez's picture on the cut 8275930d). The words themselves are checked in tests/host_first_launch_ui_test.cpp (WholePaths).
+# changes-data
+#ini DataFolder={datadir}-first-start-form-with-a-long-folder-name
+#ini ShapesInTests=1
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-first-start-form-with-a-long-folder-name {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut
+screen Object Placement
+level {datadir}-first-start-form-with-a-long-folder-name/avp_rifs/Invasion.RIF
+pictures on
+state
+wait-moving 20000 shapes (the form is open)
+expect-dialog Open Inteng
+picture 1

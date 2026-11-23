@@ -4,6 +4,7 @@
 tests/host_first_launch_ui_test.cpp
 src/host/first_launch_ui.cpp
 src/host/all_stock_maps_ui.cpp
+src/host/dialog_box.cpp
 src/host/panel_paint.cpp
 src/ui/panel_layout.cpp
 avpx/3dc/avp/win95/frontend/online_screens.cpp

@@ -12,11 +12,17 @@ namespace host
 
 		// NO FULL PATH ON THE SCREEN (Drake 2026-11-18, Bishop's privacy item for alpha.1: Sound Edit's title showed "C:\Users\<name>\..."): the words a dialog SHOWS, its title, its
 		// text, its labels, buttons, check boxes and group boxes, have every full path cut to its file's or folder's name (screen_names.h). An edit's contents and a combo's rows are
-		// left as they are: they are what the user types or picks, and what the dialog gives back.
+		// left as they are: they are what the user types or picks, and what the dialog gives back. A label that asks for its paths whole (wholePaths: only the
+		// first-start form's words, the owner's "Full paths here", 2026-11-23) is left as it is too.
 		void CutPathsShown(std::vector<DialogWidget> *widgets)
 		{
 			for (DialogWidget &w : *widgets)
 			{
+				if (w.type == DialogWidgetType::Label && w.wholePaths)
+				{
+					continue;
+				}
+
 				if (w.type == DialogWidgetType::Label || w.type == DialogWidgetType::Button || w.type == DialogWidgetType::Check || w.type == DialogWidgetType::Group)
 				{
 					w.text = ScreenNames_Cut(w.text);
