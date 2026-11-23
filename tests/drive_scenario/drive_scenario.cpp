@@ -36,6 +36,8 @@
 //   select-row <n> [add]        selects the n-th row of the object list (as a click on it does); with add it joins the selection
 //   select-rows <n> <n> ...     the first row is selected, the others join (several objects selected, as Shift+clicks do)
 //   click-win <x> <y> [right] [shift]   a click at a place in the editor window's client pixels
+//   click-tile <name> [twice]   a click in the middle of the placement picker's tile of that shape (the state line's pickerboxes); twice: again after 400 ms (select, then place)
+//   expect-tile-drawn <name> [share]   the newest picture-<n>.png has at least that share (0.10) of that tile's picture part away from the tile's background
 //   drag-win <x0> <y0> <x1> <y1> [right] [ctrl]   a drag, with the right button and / or Control held
 //   drag-texwin <x0> <y0> <x1> <y1> [right] [ctrl] / click-texwin <x> <y> [shift]   the same at places from the Texture Map window's top left (the state line's texwin)
 //   allow-fail <reason> | <check line>   the check as usual, but a failure is "ALLOWED" (with the reason) and not counted; a pass gets a NOTE to take the prefix away
@@ -504,6 +506,53 @@ static double ShareNotBackground(Picture const &p)
 	}
 
 	return (double)away / ((double)p.width * p.height);
+}
+
+// THE PLACEMENT PICKER'S TILES (added 2026-11-23 by Vasquez): the box of the tile named `name` in the state line's pickerboxes ("<name>~<x> <y> <w> <h>|...",
+// the tiles on screen now, client pixels: the picture part of each tile, without the name under it). False when no tile of that name is on screen.
+static bool TileBox(std::string const &boxes, std::string const &name, int box[4])
+{
+	size_t from = 0;
+
+	while (from <= boxes.size())
+	{
+		size_t const to = boxes.find('|', from);
+		std::string const entry = boxes.substr(from, to == std::string::npos ? std::string::npos : to - from);
+		size_t const tilde = entry.rfind('~');
+
+		if (tilde != std::string::npos && entry.substr(0, tilde) == name && sscanf_s(entry.c_str() + tilde + 1, "%d %d %d %d", &box[0], &box[1], &box[2], &box[3]) == 4 &&
+			box[2] > 0 && box[3] > 0)
+		{
+			return true;
+		}
+
+		from = to == std::string::npos ? boxes.size() + 1 : to + 1;
+	}
+
+	return false;
+}
+
+// The share of a box of a picture whose brightness is more than 24 away from the box's own top-left pixel (a tile's background): about 0 for a tile with
+// nothing drawn in it, more for a shape drawn there. -1 when the picture can't be read or the box is outside it.
+static double ShareDrawnInBox(Picture const &p, int const box[4])
+{
+	if (!p.Read() || box[0] < 0 || box[1] < 0 || box[2] <= 0 || box[3] <= 0 || (UINT)(box[0] + box[2]) > p.width || (UINT)(box[1] + box[3]) > p.height)
+	{
+		return -1.0;
+	}
+
+	int const background = p.Brightness((UINT)box[0], (UINT)box[1]);
+	size_t away = 0;
+
+	for (int row = box[1]; row < box[1] + box[3]; row++)
+	{
+		for (int column = box[0]; column < box[0] + box[2]; column++)
+		{
+			away += abs(p.Brightness((UINT)column, (UINT)row) - background) > 24 ? 1 : 0;
+		}
+	}
+
+	return (double)away / ((double)box[2] * box[3]);
 }
 
 // The record folder's <kind>-<n>.png (kind: screen, panels or picture)
@@ -1763,6 +1812,70 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		Check(true, label + " at " + std::to_string(box[0] + atoi(w[1].c_str())) + "," + std::to_string(box[1] + atoi(w[2].c_str())));
 		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
+		return true;
+	}
+
+	// CLICK-TILE (added 2026-11-23 by Vasquez, the placement picker): click-tile <name> [twice]   a click in the middle of the picker's tile of that shape, where the
+	// state line's pickerboxes says it is ("<name>~<x> <y> <w> <h>|...": the tiles on screen now); "twice" clicks it again after 400 ms (a click selects, a second places)
+	if (verb == "click-tile" && w.size() >= 2)
+	{
+		AskState(s);
+
+		std::string const boxes = Field(s->last, "pickerboxes");
+		int box[4] = {};
+
+		if (!TileBox(boxes, w[1], box))
+		{
+			Check(false, label + " (no tile \"" + w[1] + "\" on screen: pickerboxes \"" + boxes + "\")");
+			return false;
+		}
+
+		int const x = box[0] + box[2] / 2, y = box[1] + box[3] / 2;
+		bool const twice = std::find(w.begin(), w.end(), "twice") != w.end();
+
+		ClickWindow(s, x, y, false, false);
+
+		if (twice)
+		{
+			Sleep(400);
+			ClickWindow(s, x, y, false, false);
+		}
+
+		AskState(s);
+		Check(true, label + " at " + std::to_string(x) + "," + std::to_string(y));
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
+		PictureAfter(s, line);
+		return true;
+	}
+
+	// expect-tile-drawn <name> [share]: in the newest picture, at least that share (0.10 if not given) of the picker tile's picture part (pickerboxes, as
+	// the state line said when the picture was taken) is away from the tile's background: the shape is drawn there, not an empty tile (Vasquez 2026-11-23).
+	// THE EDITOR'S OWN FRAME (picture-<n>.png), in the window's client pixels as pickerboxes are: a hidden run takes no screen-<n>.png, so reading that one
+	// gave -1 on the acceptance's first run (11-23 16:01)
+	if (verb == "expect-tile-drawn" && w.size() >= 2)
+	{
+		double const limit = w.size() >= 3 ? atof(w[2].c_str()) : 0.10;
+		int box[4] = {};
+
+		if (s->lastPicture == 0)
+		{
+			Check(false, label + " (no picture taken yet)");
+			return true;
+		}
+
+		AskState(s);
+
+		if (!TileBox(Field(s->last, "pickerboxes"), w[1], box))
+		{
+			Check(false, label + " (no tile \"" + w[1] + "\" on screen: pickerboxes \"" + Field(s->last, "pickerboxes") + "\")");
+			return true;
+		}
+
+		double const share = ShareDrawnInBox(PictureOf(s, "picture", s->lastPicture), box);
+		char words[160];
+
+		sprintf_s(words, " (picture-%d: %.3f of the tile at %d,%d %dx%d is drawn)", s->lastPicture, share, box[0], box[1], box[2], box[3]);
+		Check(share >= limit, label + words);
 		return true;
 	}
 

@@ -9,7 +9,9 @@
 //   (4) THE WORDS: drawing, drawn with textures, a texture that wasn't read, can't be drawn, a fragment file (placed only from the level), in this level
 //   (5) HOSTILE WORDS MADE SAFE (Frost's review of 4f0db774, SHOULD 1): a byte outside the space to the tilde, and the state line's '|' and '~', each a '?';
 //       at most 255 letters; in the tile's words, its name and every why from a file
-// RED FIRST: on a stand-in that lists nothing and lays out nothing, (1) to (4) fail; (5) on 4f0db774 (the words as they came).
+//   (6) A TILE'S WORDS IN LINES: broken at spaces, a longer word cut, at most the lines asked for
+// RED FIRST: on a stand-in that lists nothing and lays out nothing, (1) to (4) fail; (5) on 4f0db774 (the words as they came); (6) by mutation, the lines
+// cut every perLine letters as the paint did before: 3 of its 4 fail.
 #include <stdio.h>
 
 #include <string>
@@ -201,8 +203,9 @@ int main()
 			ShapePicker_WhyNotPlaced(t, parts).find("once the '@' import is in") != std::string::npos, "a fragment file the level doesn't hold: " + ShapePicker_TileWords(t, parts));
 
 		t.inLevel = true;
-		Check(ShapePicker_TileWords(t, parts) == "pulam: the game's Tools\\shape_rifs; in this level; 7 parts" && ShapePicker_WhyNotPlaced(t, failed).empty(),
-			"in this level: placed by its number, even a fragment file's or one that can't be drawn: " + ShapePicker_TileWords(t, parts));
+		Check(ShapePicker_TileWords(t, parts) == "pulam: the game's Tools\\shape_rifs; in this level; 7 parts: the level's first is placed" &&
+			ShapePicker_WhyNotPlaced(t, failed).empty(), "in this level: placed by its number, even a fragment file's (the level's first part, said) or one that can't be drawn: " +
+			ShapePicker_TileWords(t, parts));
 
 		t.inLevel = false;
 		t.plain = false;
@@ -229,6 +232,41 @@ int main()
 		std::string const words = ShapePicker_TileWords(t, s);
 		Check(words == "pul?am: the game's shape_rifs; textures 0 of 1; texture Bad?name.rim?: refused" && words.find('|') == std::string::npos,
 			"a tile's words carry no '|', '~' or line end from its file's name or a texture's: " + words);
+
+		// a NAME's ';' is a '?' too (Frost's nit on ec8a4d0e: the tile's words are parted by "; "), a why's isn't (ours hold "; ")
+		Check(ShapePicker_SafeName("x; in this level") == "x? in this level" && ShapePicker_SafeWords("a; b") == "a; b", "a name's ';' is a '?', a why's stays");
+
+		t.name = "x; in this level";
+		Check(ShapePicker_TileWords(t, s).find("x? in this level: the game's shape_rifs") == 0, "so a file named so can't read like the flag: " + ShapePicker_TileWords(t, s));
+	}
+
+	// ---- (6) A TILE'S WORDS IN LINES, broken at spaces (the first acceptance run, 11-23: "can't be dra" / "wn" in pulam_cut's tile)
+	{
+		auto joined = [](std::vector<std::string> const &lines)
+		{
+			std::string all;
+
+			for (std::string const &line : lines)
+			{
+				all += (all.empty() ? "" : "/") + line;
+			}
+
+			return all;
+		};
+
+		std::vector<std::string> const cut = ShapePicker_TileLines("can't be drawn: not a rif file", 12, 5);
+		Check(joined(cut) == "can't be/drawn: not a/rif file", "(6) broken at spaces, never inside a word: " + joined(cut));
+
+		std::vector<std::string> const longWord = ShapePicker_TileLines("abcdefghijklmnopqrstuvwxyz is long", 12, 5);
+		Check(joined(longWord) == "abcdefghijkl/mnopqrstuvwx/yz is long", "(6) a word longer than a line is cut to it: " + joined(longWord));
+
+		std::vector<std::string> const most = ShapePicker_TileLines("one two three four five six seven", 5, 3);
+		Check(joined(most) == "one/two/three", "(6) at most the lines asked for, the rest left out: " + joined(most));
+
+		std::vector<std::string> const spaces = ShapePicker_TileLines("   ", 4, 5);
+		std::vector<std::string> const none = ShapePicker_TileLines("", 4, 5);
+		std::vector<std::string> const zero = ShapePicker_TileLines("ab cd", 0, 5);
+		Check(spaces.empty() && none.empty() && joined(zero) == "a/b/c/d", "(6) only spaces or nothing: no line; a line of 0 letters taken as 1: " + joined(zero));
 	}
 
 	printf(checksFailed ? "host_shape_picker_test: %d FAILED\n" : "host_shape_picker_test: all passed\n", checksFailed);

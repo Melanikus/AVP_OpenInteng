@@ -188,6 +188,10 @@ int main()
 	Pixel(picture, 24, 48, &r, &g, &b);
 	Check(r == g && g == b, "shaded too");
 
+	// a lens wider than the renderer frames is refused, not drawn wrong (Drake's SHOULD 2 on 66a5284e: its near plane holds only so wide)
+	Check(!renderer.Draw({ Square(-1) }, {}, eye, at, kShapeThumbMostFieldOfView + 0.5f, background, &picture, &why) && why.find("wider") != std::string::npos,
+		"a lens wider than the most is refused (" + why + ")");
+
 	renderer.Close();
 	printf(checksFailed ? "host_shape_thumb_render_test: %d FAILED\n" : "host_shape_thumb_render_test: all passed\n", checksFailed);
 	return checksFailed ? 1 : 0;

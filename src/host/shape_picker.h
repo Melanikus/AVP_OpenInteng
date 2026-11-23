@@ -129,8 +129,9 @@ namespace host
 	// that can't be drawn (it can't be read as a shape, so the import couldn't either)
 	std::string ShapePicker_WhyNotPlaced(ShapePickerTile const &tile, ShapePickerState const &state);
 
-	// A tile's words for the state line's pickertiles: "<name>: <where>[; in this level][; <n> parts][; textures <k> of <n>][; texture <name>: <why>]
-	// [; can't be drawn: <why>][; can't be placed: <why>]" (Waiting: "; drawing"). Every part made safe by ShapePicker_SafeWords.
+	// A tile's words for the state line's pickertiles: "<name>: <where>[; in this level][; <n> parts[: the level's first is placed]][; textures <k> of <n>]
+	// [; texture <name>: <why>][; can't be drawn: <why>][; can't be placed: <why>]" (Waiting: "; drawing"). The name made safe by ShapePicker_SafeName, every
+	// other part by ShapePicker_SafeWords. An "in this level" tile's parts are the level's shapes of that file: the level's first is the one drawn and placed.
 	std::string ShapePicker_TileWords(ShapePickerTile const &tile, ShapePickerState const &state);
 
 	// HOSTILE WORDS MADE SAFE TO SHOW (Frost's review of 4f0db774, SHOULD 1): a file's name, a texture's name and a why come from a folder or a file anyone made.
@@ -138,4 +139,12 @@ namespace host
 	// '?' as well: they part the state line's tiles and boxes (pickertiles, pickerboxes)
 	size_t const kShapePickerMostWordLetters = 255;
 	std::string ShapePicker_SafeWords(std::string const &text);
+
+	// A NAME made safe (a file's, a texture's): as ShapePicker_SafeWords, and ';' a '?' too, since a tile's own words are parted by "; " (Frost's nit on ec8a4d0e:
+	// a file named "x; in this level.rif" would read like the flag)
+	std::string ShapePicker_SafeName(std::string const &name);
+
+	// A tile's words (a shape that can't be drawn says why in its tile) in lines of at most perLine letters, broken at spaces, a word longer than a line cut
+	// to it; at most mostLines lines (the rest left out). The picker's first acceptance run showed "can't be dra" / "wn" when they were cut every perLine letters.
+	std::vector<std::string> ShapePicker_TileLines(std::string const &words, size_t perLine, size_t mostLines);
 }

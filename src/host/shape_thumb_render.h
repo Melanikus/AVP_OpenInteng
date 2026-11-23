@@ -23,6 +23,8 @@ namespace host
 	int32_t const kShapeThumbSide = 96;              // the picture's side, in pixels (shape_picker.h kShapePickerPicture)
 	int32_t const kShapeThumbDrawSide = 192;         // drawn at twice that, then made smooth
 	uint32_t const kShapeThumbMostTextureSide = 4096;   // a picture larger than this either way is drawn without it (RimLoader's own most is 2048 x 2048 pixels)
+	float const kShapeThumbMostFieldOfView = 1.0f;      // the widest lens Draw takes, in radians (about 57 degrees): its near plane, 0.3 of the distance, holds a framed
+	                                                    // shape up to about 89 degrees (Drake's SHOULD 2 on 66a5284e); the picker's own is 0.7
 
 	// A picture's pixels as the host read it: 4 bytes a pixel, blue green red alpha, the top row first, rows packed (width x 4 bytes)
 	struct ShapeThumbTexture
@@ -45,7 +47,8 @@ namespace host
 		// One picture: the batches (shape_thumb.h ShapeThumb_Triangles) drawn from eye toward at (the world's mm, y down) in a view fieldOfView radians
 		// across, each batch with textures[its picture] (one that is empty, or past kShapeThumbMostTextureSide, draws its batch shaded), on the background
 		// colour (0xRRGGBB), into *bgra: kShapeThumbSide x kShapeThumbSide pixels, 4 bytes each, blue green red alpha 255, the top row first. False with
-		// *why when the device is lost and can't be had back yet (try again later), or a step of the drawing fails.
+		// *why when the device is lost and can't be had back yet (try again later), a lens wider than kShapeThumbMostFieldOfView, or a step of the drawing fails.
+		// Every allocation is made before the scene begins, so nothing inside it can throw (Drake's SHOULD 1).
 		bool Draw(std::vector<ShapeThumbBatch> const &batches, std::vector<ShapeThumbTexture> const &textures, float const eye[3], float const at[3], float fieldOfView,
 			uint32_t background, std::vector<uint8_t> *bgra, std::string *why);
 

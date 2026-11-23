@@ -18,6 +18,7 @@
 
 #include "texture_window_paint.h"
 #include "panel_pass.h"        // PanelPass_DrawText: the words in inteng's font
+#include "shape_picker.h"      // ShapePicker_TileLines: a tile's words broken at spaces
 #include "text_scale.h"        // the editor's own pixels to the window's (the owner's text scale; nothing changes at 1.0)
 #include "texture_window.h"    // model::WindowDots: inteng's dotted line
 
@@ -297,6 +298,58 @@ void TextureChooserPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t
 			Segment(cell.x + cell.width, cell.y, cell.x + cell.width, cell.y + cell.height, 0xFFFFFF00u, windowWidth, windowHeight);
 			Segment(cell.x + cell.width, cell.y + cell.height, cell.x, cell.y + cell.height, 0xFFFFFF00u, windowWidth, windowHeight);
 			Segment(cell.x, cell.y + cell.height, cell.x, cell.y, 0xFFFFFF00u, windowWidth, windowHeight);
+		}
+	}
+
+	TextureWindowPaint_Lines(windowWidth, windowHeight, lines, lineX, lineY);
+}
+
+void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t areaTop, int32_t areaHeight, const std::vector<ShapePickerPaintTile> &tiles, const std::vector<std::string> &lines, int32_t lineX, int32_t lineY)
+{
+	if (windowWidth < 1 || windowHeight < 1)
+	{
+		return;
+	}
+
+	CheckWireFrameMode(0);
+	Box(0, areaTop, windowWidth, areaHeight, 0xFF14181Cu, windowWidth, windowHeight);   // the texture chooser's ground
+
+	for (ShapePickerPaintTile const &tile : tiles)
+	{
+		if (tile.x < 0 || tile.y < 0 || tile.side <= 0 || tile.x + tile.side > windowWidth || tile.y + tile.side + tile.nameHeight > windowHeight)
+		{
+			continue;
+		}
+
+		if (tile.texture >= 0)
+		{
+			int32_t x = 0, y = 0, w = 0, h = 0;
+			host::TextScale_BoxToWindow(tile.x, tile.y, tile.side, tile.side, &x, &y, &w, &h);   // in the window's pixels (text_scale.h)
+			DrawQuad((uint32_t)x, (uint32_t)y, (uint32_t)w, (uint32_t)h, (texID_t)tile.texture, 0xFFFFFFFFu, TRANSLUCENCY_OFF);
+		}
+		else
+		{
+			// its words on the chooser's ground (no colour of our own: the owner's rule, the editor looks like inteng)
+			size_t const most = (size_t)(tile.side / 8 > 1 ? tile.side / 8 : 1);   // inteng's font: 8 pixels a letter at most
+			std::vector<std::string> const words = host::ShapePicker_TileLines(tile.words, most, 5);   // broken at spaces (shape_picker.h)
+
+			TextureWindowPaint_Lines(windowWidth, windowHeight, words, tile.x + 2, tile.y + 4);
+		}
+
+		// its name under it, cut to the tile's width
+		size_t const fits = (size_t)(tile.side / 8 > 1 ? tile.side / 8 : 1);
+		std::vector<std::string> const name = { tile.name.size() > fits ? tile.name.substr(0, fits) : tile.name };
+
+		TextureWindowPaint_Lines(windowWidth, windowHeight, name, tile.x, tile.y + tile.side + 1);
+
+		if (tile.selected)
+		{
+			int32_t const x0 = tile.x - 2, y0 = tile.y - 2, x1 = tile.x + tile.side + 1, y1 = tile.y + tile.side + tile.nameHeight;
+
+			Segment(x0, y0, x1, y0, 0xFFFFFF00u, windowWidth, windowHeight);   // the chooser's yellow frame
+			Segment(x1, y0, x1, y1, 0xFFFFFF00u, windowWidth, windowHeight);
+			Segment(x1, y1, x0, y1, 0xFFFFFF00u, windowWidth, windowHeight);
+			Segment(x0, y1, x0, y0, 0xFFFFFF00u, windowWidth, windowHeight);
 		}
 	}
 

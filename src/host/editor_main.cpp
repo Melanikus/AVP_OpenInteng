@@ -216,6 +216,7 @@
 #include "track_pages.h"
 #include "editor_options.h"
 #include "shape_chooser.h"
+#include "shape_picker_screen.h"   // the placement picker: Create > With shape > Choose (Vasquez 2026-11-23)
 #include "shape_rescale_edit.h"
 #include "shape_import.h"
 #include "shape_search.h"     // Quick-create's lookup order: ShapeFolder=, the game's Tools\shape_rifs, the game's shape_rifs
@@ -5283,6 +5284,13 @@ void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 {
 	out->clear();
 
+	// THE PLACEMENT PICKER UP: none of Object Placement's lines (View Distance, Num Objects, Visible polygons ...), which drew over its first row. inteng's
+	// chooser, which the picker stands in for, was a pop-up: while one is up inteng's frame waits at the mode's command step, before this text (editor_panels.cpp)
+	if (ShapePickerScreen_IsOpen())
+	{
+		return;
+	}
+
 	// the live Snap To Vertex's words (0x5e8364, three lines) at x 20, y = the window's height - 60 (0x4dc6f9-0x4dc73f), a new line the letters' height (16) down
 	if (snapLive && !snapForSurface && snapViewHeight > 60)   // (placement mode, ours, says its words on the status line)
 	{
@@ -8215,6 +8223,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				return 0;
 			}
 
+			// and the placement picker takes every key while it is open, a dialog or the name's prompt aside (shape_picker_screen.h)
+			if (ShapePickerScreen_IsOpen() && message == WM_KEYDOWN && !host::Dialogs_IsOpen() && promptFor == kPromptNone && ShapePickerScreen_Key(wParam))
+			{
+				return 0;
+			}
+
 			// M-3 (bar_letter.h; reassess/bible-check.md): while the bar waits (Control held, or the pointer on it; not over a Strategy Edit view, nor Texture Map's own bars, FUN_0057b6f0) and
 			// nothing else has the keyboard, a letter that is a first-row title's underlined one opens that title as a press on it would (inteng's FUN_004b7740, 0x4b7fb0), and is taken
 			if (message == WM_KEYDOWN && !(lParam & (1 << 30)) && !AMenuIsOpen() && !(fieldsHaveKeys && fieldHost.Showing()) && promptFor == kPromptNone && !host::Dialogs_IsOpen() &&
@@ -8703,6 +8717,15 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				POINT const chosen = InThePanels(window, lParam);
 
 				TextureChooserClick(chosen.x, chosen.y);
+				return 0;
+			}
+
+			// the placement picker takes a press: the tile under it is selected, or placed when it was (shape_picker_screen.h)
+			if (ShapePickerScreen_IsOpen() && !host::Dialogs_IsOpen() && promptFor == kPromptNone)
+			{
+				POINT const pressed = InThePanels(window, lParam);
+
+				ShapePickerScreen_Click(pressed.x, pressed.y);
 				return 0;
 			}
 
@@ -9232,6 +9255,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		case WM_MOUSEWHEEL:
 			if (ADialogIsOpen() && host::Dialogs_Wheel((int32_t)GET_WHEEL_DELTA_WPARAM(wParam)))   // an open combo list scrolls (dialog_box.h); the editor had no use for the wheel before
 			{
+				return 0;
+			}
+
+			if (ShapePickerScreen_IsOpen() && !ADialogIsOpen())
+			{
+				ShapePickerScreen_Wheel((int)GET_WHEEL_DELTA_WPARAM(wParam));   // the placement picker's rows (shape_picker_screen.h)
 				return 0;
 			}
 
@@ -14084,6 +14113,11 @@ void AddSpecialMarkers(const ui::PanelLayout &layout, host::PaintText *lines, si
 		return;
 	}
 
+	if (ShapePickerScreen_IsOpen())
+	{
+		return;   // the placement picker covers the view: no level marker or label through its grid (its first acceptance run showed "sound sound11" there)
+	}
+
 	if (placementSplit)
 	{
 		return;
@@ -14217,6 +14251,8 @@ static void AddThePanels(void *context)
 		{
 			TextureChooserDraw(frame->width, frame->height);
 		}
+
+		ShapePickerScreen_Frame(frame->width, frame->height);   // the placement picker's grid, while it is open (shape_picker_screen.h)
 
 		if (onTextureMap && textureFlagList && !textureFlagLines.empty())
 		{
@@ -16324,6 +16360,7 @@ int main(int, char **)
 		StateLine_Add("plotmessagebox", AutoPlotCommand_MessageBox().empty() ? std::string("off") : AutoPlotCommand_MessageBox());   // and its black box
 		StateLine_Add("allstockmaps", host::AllStockMaps_StateWords());   // All stock maps: busy or idle, level N of M, file, stage, the last verdict, the worst frame while plotting (all_stock_maps.h)
 		StateLine_Add("shapes", host::ShapesStartScreen_StateWords());   // shapes part 3: off, asking, not now, searching N of M, done and its words (shapes_start_screen.h)
+		ShapePickerScreen_StateFields();   // the placement picker: picker, pickerboxes, pickertiles, pickernotes (shape_picker_screen.h)
 		PlotPreviewView_Drawn();   // IN STEP WITH THE PLOT (plot_preview_view.h): the copy this frame showed is drawn, the plot's worker may go on
 
 		if (shotTo)

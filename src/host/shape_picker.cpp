@@ -239,12 +239,60 @@ namespace host
 		return safe;
 	}
 
+	std::string ShapePicker_SafeName(std::string const &name)
+	{
+		std::string safe = ShapePicker_SafeWords(name);
+
+		for (char &c : safe)
+		{
+			c = c == ';' ? '?' : c;
+		}
+
+		return safe;
+	}
+
+	std::vector<std::string> ShapePicker_TileLines(std::string const &words, size_t perLine, size_t mostLines)
+	{
+		std::vector<std::string> lines;
+		size_t at = 0;
+
+		perLine = perLine > 0 ? perLine : 1;
+
+		while (lines.size() < mostLines)
+		{
+			while (at < words.size() && words[at] == ' ')   // a line never starts with a space
+			{
+				at++;
+			}
+
+			if (at >= words.size())
+			{
+				break;
+			}
+
+			size_t take = words.size() - at <= perLine ? words.size() - at : perLine;   // all that is left, or a line's worth
+
+			if (at + take < words.size() && words[at + take] != ' ')
+			{
+				// the line would end inside a word: end it at the last space in it instead, unless the word is longer than a whole line (then it is cut)
+				size_t const space = words.rfind(' ', at + take - 1);
+
+				take = space != std::string::npos && space > at ? space - at : take;
+			}
+
+			lines.push_back(words.substr(at, take));
+			at += take;
+		}
+
+		return lines;
+	}
+
 	std::string ShapePicker_TileWords(ShapePickerTile const &tile, ShapePickerState const &state)
 	{
-		std::string words = ShapePicker_SafeWords(tile.name) + ": " + ShapePicker_SafeWords(tile.where);
+		std::string words = ShapePicker_SafeName(tile.name) + ": " + ShapePicker_SafeWords(tile.where);
 
 		words += tile.inLevel ? "; in this level" : "";
-		words += state.parts > 1 ? "; " + std::to_string((unsigned long long)state.parts) + " parts" : "";
+		words += state.parts > 1 ? "; " + std::to_string((unsigned long long)state.parts) + " parts" + (tile.inLevel ? ": the level's first is placed" : "") : "";
 
 		if (state.drawing == ShapePickerDrawing::Waiting)
 		{

@@ -617,6 +617,8 @@ extern std::string chooserText;
 
 // made in construction_modes_screen.cpp
 void ShapeChooserCommand(int32_t what, size_t *screen);
+// the placement picker's chosen shape (shape_picker_screen.cpp): the name is asked, then the object made; number -1: the file is brought in (Vasquez 2026-11-23)
+void ShapeChooserCreateFromPicker(std::string const &name, int32_t number);
 
 // made in editor_main.cpp
 void CameraPositionSaved(int slot);

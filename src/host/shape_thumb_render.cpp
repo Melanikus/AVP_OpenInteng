@@ -123,7 +123,14 @@ namespace host
 		// never in front: WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP without WS_VISIBLE, and nothing here calls ShowWindow (as AutoLink's window)
 		parts->window = CreateWindowExW(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, kind.lpszClassName, L"", WS_POPUP, 0, 0, kShapeThumbDrawSide, kShapeThumbDrawSide, NULL, NULL,
 			instance, NULL);
-		parts->d3d = parts->window ? Direct3DCreate9(D3D_SDK_VERSION) : NULL;
+		if (!parts->window)
+		{
+			*why = "the picker's pictures: their hidden window could not be made";   // (Drake's nit on 66a5284e: not "Direct3D is not there")
+			Close();
+			return false;
+		}
+
+		parts->d3d = Direct3DCreate9(D3D_SDK_VERSION);
 
 		if (!parts->d3d)
 		{
@@ -148,16 +155,31 @@ namespace host
 
 		DWORD const flags = D3DCREATE_FPU_PRESERVE;   // the game's code needs its floating point as it was
 
-		if (FAILED(parts->d3d->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, parts->window, flags | D3DCREATE_HARDWARE_VERTEXPROCESSING, &p, &parts->device)))
+		// one change a try (Drake's nit on 66a5284e): the depth buffer's form first, then the vertex processing
+		struct Try
 		{
-			p.AutoDepthStencilFormat = D3DFMT_D16;
+			D3DFORMAT depth;
+			DWORD processing;
+		};
 
-			if (FAILED(parts->d3d->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, parts->window, flags | D3DCREATE_SOFTWARE_VERTEXPROCESSING, &p, &parts->device)))
+		Try const tries[] = { { D3DFMT_D24X8, D3DCREATE_HARDWARE_VERTEXPROCESSING }, { D3DFMT_D16, D3DCREATE_HARDWARE_VERTEXPROCESSING },
+			{ D3DFMT_D16, D3DCREATE_SOFTWARE_VERTEXPROCESSING } };
+
+		for (Try const &t : tries)
+		{
+			p.AutoDepthStencilFormat = t.depth;
+
+			if (!parts->device && FAILED(parts->d3d->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, parts->window, flags | t.processing, &p, &parts->device)))
 			{
-				*why = "the picker's pictures: the card gave no Direct3D 9 device";
-				Close();
-				return false;
+				parts->device = NULL;
 			}
+		}
+
+		if (!parts->device)
+		{
+			*why = "the picker's pictures: the card gave no Direct3D 9 device";
+			Close();
+			return false;
 		}
 
 		return parts->MakeVolatile(why);
@@ -284,6 +306,13 @@ namespace host
 			return false;
 		}
 
+		// the near plane below holds a framed sphere only for a lens up to about 89 degrees across: a wider one is refused (Drake's SHOULD 2 on 66a5284e)
+		if (!(fieldOfView > 0.01f && fieldOfView <= kShapeThumbMostFieldOfView))
+		{
+			*why = "the picker's pictures: a lens wider than the renderer frames";
+			return false;
+		}
+
 		IDirect3DDevice9 *const device = parts->device;
 		float view[4][4], lens[4][4];
 		float const distance = sqrtf((at[0] - eye[0]) * (at[0] - eye[0]) + (at[1] - eye[1]) * (at[1] - eye[1]) + (at[2] - eye[2]) * (at[2] - eye[2]));
@@ -303,6 +332,12 @@ namespace host
 		world.m[0][0] = world.m[1][1] = world.m[2][2] = world.m[3][3] = 1.0f;
 		memcpy(camera.m, view, sizeof(camera.m));
 		memcpy(glass.m, lens, sizeof(glass.m));
+
+		// EVERY ALLOCATION BEFORE THE SCENE (Drake's SHOULD 1 on 66a5284e): the corners' room for the largest draw is taken first, so nothing in the scene can
+		// throw: a throw there would leak the textures made below and leave the device inside BeginScene for every later picture
+		std::vector<Vertex> corners;
+
+		corners.reserve(kTrianglesPerDraw * 3);
 
 		std::vector<IDirect3DTexture9 *> made(textures.size(), NULL);
 
@@ -343,6 +378,7 @@ namespace host
 		device->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, (D3DCOLOR)(0xFF000000u | (background & 0x00FFFFFFu)), 1.0f, 0);
 
 		bool drawn = SUCCEEDED(device->BeginScene());
+		bool drewAll = true;   // every draw call answered that it drew
 
 		if (drawn)
 		{
@@ -366,8 +402,6 @@ namespace host
 			device->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
 			device->SetFVF(kFvf);
 
-			std::vector<Vertex> corners;
-
 			for (ShapeThumbBatch const &batch : batches)
 			{
 				IDirect3DTexture9 *const texture = batch.picture >= 0 && (size_t)batch.picture < made.size() ? made[(size_t)batch.picture] : NULL;
@@ -388,7 +422,7 @@ namespace host
 				{
 					size_t const count = triangles - first < kTrianglesPerDraw ? triangles - first : kTrianglesPerDraw;
 
-					corners.resize(count * 3);
+					corners.resize(count * 3);   // (inside the room reserved before the scene: never an allocation here)
 
 					for (size_t k = 0; k < count * 3; k++)
 					{
@@ -397,7 +431,7 @@ namespace host
 						corners[k] = { c.x, c.y, c.z, Shaded(grey, c.shade), texture ? c.u : 0.0f, texture ? c.v : 0.0f };
 					}
 
-					device->DrawPrimitiveUP(D3DPT_TRIANGLELIST, (UINT)count, corners.data(), sizeof(Vertex));
+					drewAll = SUCCEEDED(device->DrawPrimitiveUP(D3DPT_TRIANGLELIST, (UINT)count, corners.data(), sizeof(Vertex))) && drewAll;   // (Drake's nit: said)
 				}
 			}
 
@@ -413,9 +447,9 @@ namespace host
 			}
 		}
 
-		if (!drawn)
+		if (!drawn || !drewAll)
 		{
-			*why = "the picker's pictures: the device would not begin a picture";
+			*why = !drawn ? "the picker's pictures: the device would not begin a picture" : "the picker's pictures: the card refused a part of the drawing";
 			return false;
 		}
 

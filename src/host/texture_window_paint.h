@@ -52,6 +52,21 @@ struct TextureChooserCell
 
 void TextureChooserPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t areaTop, int32_t areaHeight, const std::vector<TextureChooserCell> &cells, int32_t hovered, const std::vector<std::string> &lines, int32_t lineX, int32_t lineY);
 
+// THE PLACEMENT PICKER'S GRID (shape_picker.h, shape_picker_screen.cpp; Vasquez 2026-11-23): drawn as the texture chooser's is, on its dark ground over the view; each tile its
+// picture (the game's texture of its drawing, or its words while it has none: "drawing...", "can't be drawn"), its name under it in inteng's font, the selected one framed in
+// the chooser's yellow; then lines of words at the bottom. Places in the editor's own pixels (as the texture chooser's), drawn in the window's.
+struct ShapePickerPaintTile
+{
+	int32_t texture;           // the game's texture number of its drawing; -1 while it has none
+	int32_t x, y, side;        // its picture's square
+	int32_t nameHeight;        // the line under it
+	bool selected;
+	std::string name;          // under it, cut to fit
+	std::string words;         // in the square while it has no picture
+};
+
+void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t areaTop, int32_t areaHeight, const std::vector<ShapePickerPaintTile> &tiles, const std::vector<std::string> &lines, int32_t lineX, int32_t lineY);
+
 void TextureWindowPaint_Draw(int32_t windowWidth, int32_t windowHeight, const TextureWindowPicture &picture, const std::vector<TextureWindowWords> &words);
 
 // SELECT COLOUR (Shift+K, FUN_00560620): 256 cells of gridWidth / 16 x gridHeight / 16 from the top left, cell i at column i % 16, row i / 16, each filled with colours[i] (0xAARRGGBB)
