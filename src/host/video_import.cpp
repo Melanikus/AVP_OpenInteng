@@ -338,10 +338,28 @@ namespace host
 			return Refuse(VideoImportResult::NotAVideoName, std::string("Import video: a video's name ends in one of ") + VideoImport_EndingsWords(), why);
 		}
 
+		return VideoImport_ReadPlainFile(path, bytes, why, mostBytes, "Import video", "the video");
+	}
+
+	// The file read by the same rules as a video, for any caller (the RIM import's picture: Vasquez 2026-11-23): see video_import.h
+	VideoImportResult VideoImport_ReadPlainFile(std::wstring const &path, std::vector<uint8_t> *bytes, std::string *why, uint64_t mostBytes, char const *what, char const *noun)
+	{
+		if (!bytes || !what || !noun)
+		{
+			return Refuse(VideoImportResult::BadCall, "no place for the file's bytes", why);
+		}
+
+		if (mostBytes < 1 || mostBytes > kVideoImportLongestBytes)
+		{
+			return Refuse(VideoImportResult::BadCall, std::string(what) + ": the most bytes asked is not 1 to " + std::to_string((unsigned long long)(kVideoImportLongestBytes >> 20)) + " MB", why);
+		}
+
+		std::string const say = std::string(what) + ": ";
+
 		// a 0 inside the name would end it early and name another file
 		if (path.find(L'\0') != std::wstring::npos)
 		{
-			return Refuse(VideoImportResult::NotAFile, "Import video: the name has a 0 in it", why);
+			return Refuse(VideoImportResult::NotAFile, say + "the name has a 0 in it", why);
 		}
 
 		// the whole path, as Windows reads it; never a device path (\\.\) or a path that skips Windows' own reading of it (\\?\)
@@ -349,7 +367,7 @@ namespace host
 
 		if (need == 0 || need > 32768)
 		{
-			return Refuse(VideoImportResult::NotAFile, "Import video: Windows can't make a whole path of that name", why);
+			return Refuse(VideoImportResult::NotAFile, say + "Windows can't make a whole path of that name", why);
 		}
 
 		std::wstring full(need, L'\0');
@@ -357,20 +375,20 @@ namespace host
 
 		if (got == 0 || got >= need)
 		{
-			return Refuse(VideoImportResult::NotAFile, "Import video: Windows can't make a whole path of that name", why);
+			return Refuse(VideoImportResult::NotAFile, say + "Windows can't make a whole path of that name", why);
 		}
 
 		full.resize(got);
 
 		if (full.compare(0, 4, L"\\\\.\\") == 0 || full.compare(0, 4, L"\\\\?\\") == 0 || full.compare(0, 4, L"\\??\\") == 0)
 		{
-			return Refuse(VideoImportResult::NotAFile, "Import video: " + Narrow(full) + " is a device's or a raw path, not a plain file's", why);
+			return Refuse(VideoImportResult::NotAFile, say + "" + Narrow(full) + " is a device's or a raw path, not a plain file's", why);
 		}
 
 		// a file's own stream (name:stream): the only colon in a plain path is the drive's
 		if (full.find(L':', 2) != std::wstring::npos)
 		{
-			return Refuse(VideoImportResult::NotAFile, "Import video: " + Narrow(full) + " names a file's own stream, not a plain file", why);
+			return Refuse(VideoImportResult::NotAFile, say + "" + Narrow(full) + " names a file's own stream, not a plain file", why);
 		}
 
 		size_t const slash = full.find_last_of(L'\\');
@@ -378,7 +396,7 @@ namespace host
 
 		if (IsDeviceName(leaf))
 		{
-			return Refuse(VideoImportResult::NotAFile, "Import video: " + Narrow(leaf) + " is a device's name in Windows, not a file's", why);
+			return Refuse(VideoImportResult::NotAFile, say + "" + Narrow(leaf) + " is a device's name in Windows, not a file's", why);
 		}
 
 		// THE FOLDERS ON THE WAY (see the header): each read itself, from the root down, before the open below goes through any of them
@@ -386,7 +404,7 @@ namespace host
 
 		if (!VideoImport_FoldersOnTheWayTaken(full, &folderWhy))
 		{
-			return Refuse(VideoImportResult::NotAFile, "Import video: " + folderWhy, why);
+			return Refuse(VideoImportResult::NotAFile, say + "" + folderWhy, why);
 		}
 
 		// opened once, the link itself if it is one (never followed), shared for reading only; everything below is judged on this handle
@@ -398,10 +416,10 @@ namespace host
 
 			if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND)
 			{
-				return Refuse(VideoImportResult::NotAFile, "Import video: there's no file " + Narrow(full), why);
+				return Refuse(VideoImportResult::NotAFile, say + "there's no file " + Narrow(full), why);
 			}
 
-			return Refuse(error == ERROR_ACCESS_DENIED ? VideoImportResult::NotAFile : VideoImportResult::CantRead, "Import video: Windows won't open " + Narrow(full) + " (error " + std::to_string((unsigned long)error) + ")", why);
+			return Refuse(error == ERROR_ACCESS_DENIED ? VideoImportResult::NotAFile : VideoImportResult::CantRead, say + "Windows won't open " + Narrow(full) + " (error " + std::to_string((unsigned long)error) + ")", why);
 		}
 
 		struct Closer
@@ -414,35 +432,35 @@ namespace host
 
 		if (GetFileType(file) != FILE_TYPE_DISK || !GetFileInformationByHandleEx(file, FileAttributeTagInfo, &tag, sizeof(tag)))
 		{
-			return Refuse(VideoImportResult::NotAFile, "Import video: " + Narrow(full) + " is not a file on a disk", why);
+			return Refuse(VideoImportResult::NotAFile, say + "" + Narrow(full) + " is not a file on a disk", why);
 		}
 
 		if (tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
 		{
-			return Refuse(VideoImportResult::NotAFile, "Import video: " + Narrow(full) + " is a link (a shortcut Windows follows), not the video itself", why);
+			return Refuse(VideoImportResult::NotAFile, say + "" + Narrow(full) + " is a link (a shortcut Windows follows), not " + std::string(noun) + " itself", why);
 		}
 
 		if (tag.FileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_DEVICE))
 		{
-			return Refuse(VideoImportResult::NotAFile, "Import video: " + Narrow(full) + " is a folder, not a file", why);
+			return Refuse(VideoImportResult::NotAFile, say + "" + Narrow(full) + " is a folder, not a file", why);
 		}
 
 		LARGE_INTEGER size = {};
 
 		if (!GetFileSizeEx(file, &size) || size.QuadPart < 0)
 		{
-			return Refuse(VideoImportResult::CantRead, "Import video: Windows won't tell the size of " + Narrow(full), why);
+			return Refuse(VideoImportResult::CantRead, say + "Windows won't tell the size of " + Narrow(full), why);
 		}
 
 		if (size.QuadPart == 0)
 		{
-			return Refuse(VideoImportResult::Empty, "Import video: " + Narrow(full) + " is empty", why);
+			return Refuse(VideoImportResult::Empty, say + "" + Narrow(full) + " is empty", why);
 		}
 
 		if ((uint64_t)size.QuadPart > mostBytes)
 		{
 			// (the words name no program's switch: the editor says them too; mp4-to-smk adds how to raise the bound: its ReadRefused)
-			return Refuse(VideoImportResult::TooBig, "Import video: " + Narrow(leaf) + " is " + std::to_string((unsigned long long)(size.QuadPart >> 20)) + " MB; at most " +
+			return Refuse(VideoImportResult::TooBig, say + "" + Narrow(leaf) + " is " + std::to_string((unsigned long long)(size.QuadPart >> 20)) + " MB; at most " +
 				std::to_string((unsigned long long)(mostBytes >> 20)) + " MB is taken", why);
 		}
 
@@ -455,7 +473,7 @@ namespace host
 		}
 		catch (std::bad_alloc const &)
 		{
-			return Refuse(VideoImportResult::CantRead, "Import video: there is not the memory to hold " + Narrow(leaf) + " (" + std::to_string((unsigned long long)(size.QuadPart >> 20)) + " MB)", why);
+			return Refuse(VideoImportResult::CantRead, say + "there is not the memory to hold " + Narrow(leaf) + " (" + std::to_string((unsigned long long)(size.QuadPart >> 20)) + " MB)", why);
 		}
 		size_t done = 0;
 
@@ -466,7 +484,7 @@ namespace host
 
 			if (!ReadFile(file, read.data() + done, ask, &part, nullptr) || part == 0)
 			{
-				return Refuse(VideoImportResult::CantRead, "Import video: Windows stopped reading " + Narrow(leaf) + " after " + std::to_string((unsigned long long)done) + " bytes", why);
+				return Refuse(VideoImportResult::CantRead, say + "Windows stopped reading " + Narrow(leaf) + " after " + std::to_string((unsigned long long)done) + " bytes", why);
 			}
 
 			done += part;

@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include "given_paths.h"     // the scratch folder from the command line, made whole and checked
 #include "make_junction.h"   // a junction made without a shell
 #include "shape_import.h"
 
@@ -55,14 +56,17 @@ static ShapeImportResult Read(std::string const &folder, std::string const &name
 
 int main(int argc, char **argv)
 {
-	if (argc < 2)
+	std::string scratch;
+
+	// the scratch folder made whole and checked before any path is made from it (given_paths.h: the Snyk gate on 41e310df, cpp/PT on paths from argv)
+	if (argc < 2 || !GivenScratchFolder(argv[1], &scratch))
 	{
-		printf("  FAILED  give a scratch folder: nothing was tested\n");
+		printf("  FAILED  give a scratch folder (a plain folder, made when missing): nothing was tested\n");
 		return 1;
 	}
 
-	std::string const folder = std::string(argv[1]) + "\\shape-read";
-	bool const made = (CreateDirectoryA(argv[1], nullptr) || GetLastError() == ERROR_ALREADY_EXISTS) && (CreateDirectoryA(folder.c_str(), nullptr) || GetLastError() == ERROR_ALREADY_EXISTS);
+	std::string const folder = scratch + "\\shape-read";
+	bool const made = CreateDirectoryA(folder.c_str(), nullptr) || GetLastError() == ERROR_ALREADY_EXISTS;
 
 	Check(made, "the scratch folder is made: " + folder);
 
