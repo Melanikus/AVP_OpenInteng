@@ -110,7 +110,15 @@ foreach ($test in $tests) {
     $arguments = @()
     if ($outs -gt 0) {
         $scratch = Join-Path $folder 'scratch'
-        if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force }
+        # Emptied by .NET's own delete, never Remove-Item: under Windows PowerShell 5.1, Remove-Item -Recurse can follow a junction inside the
+        # folder and empty what it points at, and a test killed part way can leave one there (Dietrich's review, 11-23). Directory.Delete takes a
+        # junction away without going through it. A folder that can't be emptied fails this test, in words, and the run goes on.
+        try {
+            if (Test-Path -LiteralPath $scratch) { [System.IO.Directory]::Delete($scratch, $true) }
+        } catch {
+            $failed.Add("$name (its scratch folder from an earlier run couldn't be emptied: $($_.Exception.Message))")
+            continue
+        }
         New-Item -ItemType Directory -Force $scratch | Out-Null
         for ($k = 0; $k -lt $outs; $k++) { $arguments += '"' + $scratch.TrimEnd('\') + '"' }
     }
