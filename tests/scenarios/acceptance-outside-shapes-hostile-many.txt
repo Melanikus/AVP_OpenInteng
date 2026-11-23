@@ -2,7 +2,8 @@
 # shape was kept until the level was put together, so the 32-bit editor ran out of memory while the level opened (an uncaught std::bad_alloc). The level as it would be is now measured
 # as each shape is made and the lot refused once it passes what the game's loader takes (32 MB): the open goes on, with the level's own shapes and no words for them. verify_outside_shape
 # (many) makes the files; the saved copy's shape is the stock one. Red before the fix (the editor dies opening it); green with it.
-make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe make C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {exedir}Hangar-many.made.rif {exedir}shape_rifs many
+#ini ShapeFolder={datadir}-outside-hostile-many-shapes
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe make C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {exedir}Hangar-many.made.rif {datadir}-outside-hostile-many-shapes many
 start-args {exedir}Hangar-many.made.rif
 pictures on
 state

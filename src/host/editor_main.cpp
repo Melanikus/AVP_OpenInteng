@@ -217,6 +217,7 @@
 #include "shape_chooser.h"
 #include "shape_rescale_edit.h"
 #include "shape_import.h"
+#include "shape_search.h"     // Quick-create's lookup order: ShapeFolder=, the game's Tools\shape_rifs, the game's shape_rifs
 #include "shape_update.h"
 #include "module_site.h"
 #include "shape_soften_edit.h"
@@ -2093,9 +2094,10 @@ static void DeleteTheSelectedObject()
 // the view's place with the view's turn, selected, as object_make.h says (what is copied, and what is a named gap: a shape the level doesn't hold is
 // "shape not in this level"). (Added 2026-11-15 by Melanikus (Frost).)
 std::string quickCreateWords;
-// Where a shape the level doesn't hold is looked for ([Editor] ShapeFolder= in AVP_OpenInteng.ini; empty: nowhere): shape_import.h. Held to the data
-// folder's rules (SaveFolder_WhyNotUsable) when the program starts; an unusable one is left empty and the log says why.
-std::string shapeFolder;
+// [Editor] ShapeFolder= as AVP_OpenInteng.ini writes it, unjudged: both lookup orders start with it (shape_search.h: Quick-create's, and the outside shapes'
+// refresh's) and judge it each time they look, as they judge the game's own shape folders (Vasquez 2026-11-23, Frost's piece of Option C). Before, one
+// shape folder was settled at the start: ShapeFolder=, else shape_rifs beside the program (which, from <game>\Tools, is the game's Tools\shape_rifs).
+std::string shapeFolderSetting;
 
 // The view's place in the FILE's units (inteng: the view block's place / DAT_00607bd8, which is 100 x the level's scale, by ftol: the game's millimetres divided by the scale, cut toward 0). The object makers
 // (object_make.h, object_edit.h) write the place they are given into the object's header as it is.
@@ -2120,9 +2122,10 @@ void MakePlacedObjectCurrent(uint8_t const *id)
 }
 
 // OP-50 (FUN_004de260): a Quick-create item's shape, looked up in the level first. NOT IN IT: inteng's confirm "%s is not in this file.\nWould you like to have it imported?" (0x5e89a8,
-// FUN_00474a40 Yes / No); No: nothing; Yes: the shape's file is looked for and imported (ours: the [Editor] ShapeFolder; inteng: the ini's RifSearchPath), and a failure is inteng's message box:
-// "Failed to find the file containing that shape" (0x5e8960) when there is no file, "Failed to load file" (0x5e894c) when the file can't be used. Found (or imported): the object is made at the
-// view with the first free "<shape><n>" name (FUN_004d5620), no dialog, current.
+// FUN_00474a40 Yes / No); No: nothing; Yes: the shape's file is looked for and imported (ours: THE LOOKUP ORDER, shape_search.h: ShapeFolder=, the game's Tools\shape_rifs, the game's
+// shape_rifs; inteng: the ini's RifSearchPath), and a failure is inteng's message box: "Failed to find the file containing that shape" (0x5e8960) when no folder holds it, "Failed to load file"
+// (0x5e894c) when a folder or the file can't be used. Found (or imported): the object is made at the view with the first free "<shape><n>" name (FUN_004d5620), no dialog, current, and the
+// status line names the folder its shape came from by its label (the log by its whole path).
 static void QuickCreateAtTheView(int32_t command, bool importAsked = false);
 
 static void QuickCreateAtTheView(int32_t command, bool importAsked)
@@ -2150,7 +2153,36 @@ static void QuickCreateAtTheView(int32_t command, bool importAsked)
 	std::string importWhy;
 
 	ViewFilePlace(place);
-	host::ObjectMakeResult const result = host::CreateObjectFromShape(open, shape, place, matrix, newId, &name, importAsked ? shapeFolder.c_str() : nullptr, &importWhy);
+
+	// THE LOOKUP ORDER, on Yes (shape_search.h): each folder judged as it is looked in, a refused folder or file stopping it there; the folder that holds
+	// <shape>.rif is the one the maker then reads it from, on its own one handle (shape_import.h)
+	host::ShapeSearchFolder found;
+
+	if (importAsked)
+	{
+		std::string searchWhy;
+		host::ShapeSearchResult const searched = host::ShapeSearch_Find(host::ShapeSearch_Order(shapeFolderSetting, theGameFolder), shape, &found, &searchWhy);
+
+		if (searched != host::ShapeSearchResult::Found)
+		{
+			bool const refused = searched == host::ShapeSearchResult::FolderRefused || searched == host::ShapeSearchResult::FileRefused;
+			static std::set<std::string> refusalsLogged;   // each refused folder in the log once a run, by its whole path (the status line names it by its label)
+
+			if (refused && refusalsLogged.insert(found.path).second)
+			{
+				LogString("Shapes: " + found.label + " (" + found.path + "): " + searchWhy);
+			}
+
+			host::Dialogs_Message(refused ? "Failed to load file" : "Failed to find the file containing that shape");
+			quickCreateWords = std::string(shape) + ": " + searchWhy;
+			statusWords = quickCreateWords.c_str();
+			return;
+		}
+
+		LogString("Quick-create: " + std::string(shape) + ".rif from " + found.path);
+	}
+
+	host::ObjectMakeResult const result = host::CreateObjectFromShape(open, shape, place, matrix, newId, &name, importAsked ? found.path.c_str() : nullptr, &importWhy);
 
 	if (!importAsked && result == host::ObjectMakeResult::NoSuchShape)
 	{
@@ -2178,10 +2210,9 @@ static void QuickCreateAtTheView(int32_t command, bool importAsked)
 			quickCreateWords += " (" + importWhy + ")";
 		}
 
-		if (result == host::ObjectMakeResult::NoSuchShape)
+		if (importAsked)
 		{
-			quickCreateWords += shapeFolder.empty() ? " (the shape folder in AVP_OpenInteng.ini, [Editor] ShapeFolder=, can't be used)"
-			                                         : " (put the shape .rif files in " + shapeFolder + ")";
+			quickCreateWords += " (its file was in " + found.label + ")";
 		}
 
 		statusWords = quickCreateWords.c_str();
@@ -2191,7 +2222,7 @@ static void QuickCreateAtTheView(int32_t command, bool importAsked)
 	LoadTheObjectListAgain();
 	PutTheNewObjectInPlay();   // OP-26c: in the game's view at once
 	MakePlacedObjectCurrent(newId);
-	quickCreateWords = "Object " + name + " made at the view";
+	quickCreateWords = "Object " + name + " made at the view" + (importAsked ? "; its shape " + std::string(shape) + ".rif came from " + found.label : std::string());
 	statusWords = quickCreateWords.c_str();
 }
 
@@ -2259,7 +2290,9 @@ static void PlacementDuplicateNamed(std::string const &typed)
 	{
 		uint8_t newId[host::kSelectionIdBytes] = {};
 		std::string autoName;
-		host::ObjectMakeResult const made = host::CreateObjectFromShape(open, shapeName.c_str(), place, matrix, newId, &autoName, shapeFolder.c_str());
+		// the current object's OWN shape, by its NUMBER, as inteng's FUN_004e0ed0 is given it (Vasquez 2026-11-23): by its file's name, every part of one fragment file
+		// is one name, and the file's first part was made (office's gamebox, offbits' "Game", came out "Aerosol"). The name is only the new object's name base
+		host::ObjectMakeResult const made = host::CreateObjectFromShapeNumber(open, shapeNumber, shapeName.c_str(), place, matrix, newId, &autoName);
 
 		if (made != host::ObjectMakeResult::Done)
 		{
@@ -14991,8 +15024,9 @@ int main(int, char **)
 	}
 
 
-	// The shape folder (shape_import.h): where Quick-create looks for a shape the level doesn't hold. Anyone can write it, so it passes the data
-	// folder's check; one that doesn't is left empty and the log says why. (Added 2026-11-15 by Melanikus (Frost).)
+	// ShapeFolder= (shape_search.h): the first folder both lookup orders look in. Anyone can write it, so the orders judge it each time they look (the data folder's
+	// check, a local drive); one that fails it now is said in the log at the start too, so it is found early. (Added 2026-11-15 by Melanikus (Frost); the orders
+	// 2026-11-23 by Melanikus (Vasquez).)
 	{
 		char shapeSetting[MAX_PATH] = "";
 
@@ -15000,20 +15034,12 @@ int main(int, char **)
 		{
 			char checkedShapeFolder[MAX_PATH];
 
+			shapeFolderSetting = shapeSetting;
+
 			if (char const *const notUsable = SaveFolder_WhyNotUsable(shapeSetting, checkedShapeFolder, sizeof(checkedShapeFolder)))
 			{
-				LogString(std::string("ShapeFolder in AVP_OpenInteng.ini can't be used: ") + notUsable + ", so shapes are not loaded from a folder");
+				LogString(std::string("ShapeFolder in AVP_OpenInteng.ini can't be used now: ") + notUsable + "; a shape isn't looked for past it while it can't");
 			}
-			else
-			{
-				shapeFolder = shapeSetting;
-			}
-		}
-		else
-		{
-			// No setting: the folder "shape_rifs" beside the program (Bishop's ruling 15 Nov). It need not be there: a missing or empty one is
-			// said in the status line when a shape is asked for, with its name. Never a folder outside the program's own.
-			shapeFolder = std::string(folder) + "shape_rifs";
 		}
 	}
 

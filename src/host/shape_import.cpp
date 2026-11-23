@@ -5,8 +5,11 @@
 
 #include "level_file_name.h"   // LevelFileName_PartIsDevice: CON, PRN, AUX, NUL, COM1-9, LPT1-9
 
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+
+#include <windows.h>           // ShapeImport_Read's one handle
 
 #include <string>
 #include <vector>
@@ -76,9 +79,15 @@ namespace host
 		case ShapeImportResult::TooBig: return "the shape file is empty or too big";
 		case ShapeImportResult::BadFile: return "the shape file isn't one this can copy";
 		case ShapeImportResult::NumberTaken: return "no shape number is left in the level";
+		case ShapeImportResult::NotPlain: return "the shape file is a link, a second name of another file, a folder, or not a plain file that can be read";
 		}
 
 		return "unknown answer";
+	}
+
+	bool ShapeImport_NameIsPlain(std::string const &name)
+	{
+		return NameIsPlain(name);
 	}
 
 	ShapeImportResult ShapeImport_Read(char const *folder, std::string const &name, std::vector<char> *bytes, std::string *fileName)
@@ -104,44 +113,63 @@ namespace host
 
 		path += name + ".rif";
 
-		FILE *file = nullptr;
+		// ONE HANDLE (shape_import.h): opened without following a link, so a link or a junction of that name is opened as itself and refused below
+		HANDLE const file = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_SEQUENTIAL_SCAN,
+			nullptr);
 
-		if (fopen_s(&file, path.c_str(), "rb") != 0 || !file)
+		if (file == INVALID_HANDLE_VALUE)
 		{
-			return ShapeImportResult::NotFound;
+			DWORD const error = GetLastError();
+
+			// nothing of that name: the folder doesn't hold it. Anything else (a folder of that name, a file another program holds): something is there
+			return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND ? ShapeImportResult::NotFound : ShapeImportResult::NotPlain;
 		}
 
+		// judged on the handle: a file on a disk (not a device or a pipe), not a reparse point or a folder, and one name only
 		ShapeImportResult result = ShapeImportResult::Done;
+		BY_HANDLE_FILE_INFORMATION info = {};
 
-		if (fseek(file, 0, SEEK_END) != 0)
+		if (GetFileType(file) != FILE_TYPE_DISK || !GetFileInformationByHandle(file, &info) ||
+			(info.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DEVICE)) != 0 || info.nNumberOfLinks != 1)
 		{
-			result = ShapeImportResult::NotFound;
+			result = ShapeImportResult::NotPlain;
 		}
 		else
 		{
-			long const length = ftell(file);
+			uint64_t const length = ((uint64_t)info.nFileSizeHigh << 32) | info.nFileSizeLow;
 
-			if (length <= 0 || (size_t)length > kShapeImportMostBytes)
+			if (length == 0 || length > kShapeImportMostBytes)
 			{
 				result = ShapeImportResult::TooBig;
 			}
-			else if (fseek(file, 0, SEEK_SET) != 0)
-			{
-				result = ShapeImportResult::NotFound;
-			}
 			else
 			{
+				// read whole from the same handle
 				bytes->assign((size_t)length, 0);
 
-				if (fread(bytes->data(), 1, (size_t)length, file) != (size_t)length)
+				size_t done = 0;
+
+				while (done < (size_t)length)
+				{
+					DWORD got = 0;
+
+					if (!ReadFile(file, bytes->data() + done, (DWORD)((size_t)length - done), &got, nullptr) || got == 0)
+					{
+						break;
+					}
+
+					done += got;
+				}
+
+				if (done != (size_t)length)
 				{
 					bytes->clear();
-					result = ShapeImportResult::NotFound;
+					result = ShapeImportResult::NotPlain;
 				}
 			}
 		}
 
-		fclose(file);
+		CloseHandle(file);
 
 		if (result == ShapeImportResult::Done && fileName)
 		{

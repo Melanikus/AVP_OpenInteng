@@ -17,10 +17,17 @@
 // WHAT IS NOT COPIED, each a NAMED GAP (the bytes stay as the stock levels' have them, or are left plain):
 //  - The shape found only in the "RifSearchPath" (step 1): copied as shape_import.h says, from the editor's one shape folder, NOT the search path's list
 //    (a name with a path, or a file past the cap, is refused). inteng's question "import it?" is not asked: a shape in the folder is taken (F-IMPORT-ASK).
-//  - A name with an `@` (the second compare, FUN_005909e0 on the sub-name): refused, SubNameNotCopied.
-//  - How a shape's name is compared (FUN_0053ea00 is the name, FUN_005909e0 the compare: unread): the name is the shape's outside file name without its
-//    extension (SHPEXTFN: "Flam01.rif" is flam01), compared without regard to capitals. STOCK EVIDENCE: the 22 names inteng's cases pass (smrtam01, smart,
-//    armour01...) match the stock files' names (Smrtam01.RIF, Smart.RIF, Armour01.RIF) only so.
+//  - A name with an `@`: refused, SubNameNotCopied, a named gap with NO CALLER (no screen of ours makes such a name: Quick-create's 22 have none, and the
+//    chooser and Create Duplicate make by the shape's number, below). Inteng's handling is READ (Vasquez 2026-11-23, AvP-docs engine/inteng
+//    create-object-from-shape.md, "THE '@' NAME"): the part BEFORE the '@' is the object, the part after it the file. The level's own shape matches when its
+//    SHPEXTFN's base is the file AND its EXTOBJNM is the object. Failing that, inteng loads <file>.rif, the WHOLE fragment file, from the RifSearchPath and
+//    takes its object of that name. That is the spec for whoever gives it a caller (an Option C shape browser, say): there, Option C's own part file
+//    "<object>_<file>.rif" first (Frost's choice), the new shape holding SHPEXTFN <file>.rif, EXTOBJNM <object> and RIFFNAME as a stock part does.
+//  - How a shape's name is compared (FUN_0053ea00 is the name, FUN_005909e0 the compare): the name is the shape's outside file name without its extension
+//    (SHPEXTFN: "Flam01.rif" is flam01), compared without regard to capitals, and the FIRST outside shape whose file has that name is taken, a fragment
+//    file's part or not: INTENG'S OWN LOOKUP, kept exactly (FUN_004de260 0x4de315-0x4de3de walks the shapes in order). So a plain name can match a part of a
+//    fragment file, the file's first; a caller that knows WHICH shape it means makes it by number (CreateObjectFromShapeNumber). STOCK EVIDENCE: the 22
+//    names inteng's cases pass (smrtam01, smart, armour01...) match the stock files' names (Smrtam01.RIF, Smart.RIF, Armour01.RIF) only so.
 //  - The object's lock user and number (index_num) are inteng's save's (V-27, object_number.h): "Player" and the lowest number no object has, as object_edit.h's copy gives.
 //  - FUN_004d21b0's header bit 0x100 for a shape with an outside file: stock objects of such shapes (174 of them in Invasion) do not have it, so it is not set.
 //  - The order of an object's chunks: the library's creation order (header, interface data, project data); stock has the reverse. The game reads both.
@@ -73,6 +80,14 @@ namespace host
 	// shapeFolder (null or empty: none): where a shape the level doesn't hold is looked for, as <name>.rif (shape_import.h). Then a shape that is found
 	// and taken is put in the level with the new object, in the same one change (the loader reads the whole result before anything is swapped in).
 	// importWhy, when not null, says what was wrong with the shape's file (or that it isn't in the folder), when the answer is ShapeFileRefused or NoSuchShape.
+
+	// Makes the object of the level's shape with that NUMBER (its SHPHEAD1's own), as inteng's Create Duplicate (FUN_004e0ed0 is given the shape's number) and its
+	// Shape Chooser (it answers with the chosen shape's number) make it; never found by its file's name, which every part of one fragment file shares (office's
+	// offbits parts Aerosol, CDBox, Game ... are all "offbits": made by the name, a copy of Game came out Aerosol, OUR bug, 2026-11-23). nameBase: what the new
+	// object's first free "<base><n>" name is made of (the caller may rename it). Otherwise as CreateObjectFromShape: NoSuchShape when the level holds no shape
+	// of that number (nothing is imported).
+	ObjectMakeResult CreateObjectFromShapeNumber(OpenLevelFile *file, int32_t shapeNumber, char const *nameBase, int32_t const *place, int32_t const *matrix, uint8_t *newId,
+	                                             std::string *newName);
 
 	// Makes a placed object around a shape the CALLER made (Split Object: poly_edit.h): shapeChunk is a whole REBSHAPE chunk with its own number (a number no shape of the level has) and a SHPHEAD1 that lists no
 	// users yet. It goes in after the level's last object and the object is made as above, named <objectBase><n> (the first no object has), at place (millimetres) and turned as turn (four floats, an object

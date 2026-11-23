@@ -1,0 +1,30 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-23, Frost's piece of Option C: THE LOOKUP ORDER, src/host/shape_search.h): Quick-create finds a shape's file in the
+# game's shape_rifs, where Option C writes it. The scenario's own game folder ({datadir}-shapefind-game, made by tests/scenarios/make_shape_game.cpp from the
+# shard's own stock copy, never a shared folder): Invasion, and pulam.rif made from Statue by the editor's own extractor, ONLY in <game>\shape_rifs. Invasion
+# doesn't hold pulam, so Create Ammo's 1st item asks to import it; Yes finds it there, places it, and the status names where it came from, by its label.
+# RED on f469df90 (the shape folder was ShapeFolder=, else shape_rifs beside the program): "Failed to find the file containing that shape".
+#ini DataFolder={datadir}-shapefind-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-shapefind-game {datadir} Invasion.RIF Statue.RIF pulam shape_rifs
+level {datadir}-shapefind-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-win 500 300 right
+wait 200
+click-popup 2
+wait 200
+click-popup 1
+wait 400
+expect-dialog pulam is not in this file.
+expect-dialog-kind confirm
+click-button Yes
+wait 400
+expect-no-dialog
+expect-status Object pulam
+expect-status made at the view
+expect-status its shape pulam.rif came from the game's shape_rifs
+picture 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} kept pulam0

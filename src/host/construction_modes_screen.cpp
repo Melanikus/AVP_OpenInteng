@@ -355,7 +355,8 @@ static uint8_t chooserObject[host::kSelectionIdBytes];
 static std::string chooserWords;   // the status line's words (statusWords points at it)
 static size_t chooserBack = 0;   // the screen it was opened from: it goes back there (inteng: FUN_004d68e0, the placement screen)
 static bool chooserForCreate = false;   // opened by Create > With shape > Choose (a new object) and not by Replace shape (the selected object)
-static std::string createShapeName;     // the shape Create > Choose took, while the name is being asked
+static std::string createShapeName;     // the shape Create > Choose took, while the name is being asked (its row's name: the new object's name base)
+static int32_t createShapeNumber = -1;  // and that shape's NUMBER, which the object is made of (inteng's chooser answers with the number; Vasquez 2026-11-23)
 
 static size_t ScreenOfTable(const char *table, size_t otherwise)
 {
@@ -411,6 +412,7 @@ static void ShapeChooserLeave(bool withShape, size_t *screen)
 	{
 		// Create > With shape > Choose (FUN_004d9af0 0x4d9450-0x4d97be): the shape is chosen, then the NAME is asked
 		createShapeName = chooserList[chooserAt].name;
+		createShapeNumber = chooserList[chooserAt].number;
 		askName = true;
 		words = "Create: type a name for the new '" + createShapeName + "'";
 	}
@@ -635,7 +637,9 @@ void CreateNamedAtTheView(std::string const &typed)
 
 	ViewFilePlace(place);
 
-	host::ObjectMakeResult const result = host::CreateObjectFromShape(open, createShapeName.c_str(), place, matrix, newId, &autoName);
+	// the chosen row's own shape, by its NUMBER (inteng's chooser answers with DAT_00634004[number]): by its file's name, every part of one fragment file is one row
+	// name, and the file's first part was made (Vasquez 2026-11-23: office's "Game" row made "Aerosol")
+	host::ObjectMakeResult const result = host::CreateObjectFromShapeNumber(open, createShapeNumber, createShapeName.c_str(), place, matrix, newId, &autoName);
 
 	if (result != host::ObjectMakeResult::Done)
 	{

@@ -1,14 +1,15 @@
 # ACCEPTANCE (OP-137a + OP-140, reassess/object-placement.md section 7; Bishop's rulings 11-17): opening a level brings its OUTSIDE shapes up to date from their own files, as inteng does at
-# every load (the SHPEXTFL's FUN_005149e0 -> FUN_00512fc0(0)), from the shape folder (ours: [Editor] ShapeFolder=, else shape_rifs beside the program, ruling OP-137), and the status line
+# every load (the SHPEXTFL's FUN_005149e0 -> FUN_00512fc0(0)), from the shape folder (ours: the refresh's order, shape_search.h: ShapeFolder=, then the game's Tools\shape_rifs; this file names its own ShapeFolder=), and the status line
 # names the files it brought shapes up to date from (OP-140, a named difference: inteng's refresh says nothing).
 # verify_outside_shape make copies Hangar with its outside shape "flame" (shape 106) naming the file OpenOutsideTest.rif (no stock level names it, so the file can't change a later scenario's
-# level), and writes {exedir}shape_rifs\OpenOutsideTest.rif with that shape twice as big. The level is opened as a double click opens it: the editor's OWN copy (avp_rifs\OpenedByEditor\) is
+# level), and writes {datadir}-outside-open-shapes\OpenOutsideTest.rif with that shape twice as big. The level is opened as a double click opens it: the editor's OWN copy (avp_rifs\OpenedByEditor\) is
 # the one brought up to date, never the file opened. A saved copy must hold the shape twice as big (verify_outside_shape check, against the stock Hangar).
 # The start's own words (no inteng.exe here, by the #ini line, so the start always says something: its warning, or how many pictures are missing, LevelView_SayMissingPictures)
 # stay on the line after them, after " - ". Red without the open's refresh (vop-1: the refresh had no caller, so no words and the
 # stock shape); green with it.
+#ini ShapeFolder={datadir}-outside-open-shapes
 #ini IntengTools=C:\Nowhere-AVP_OpenInteng-test
-make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe make C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {exedir}Hangar-outside.made.rif {exedir}shape_rifs
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe make C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {exedir}Hangar-outside.made.rif {datadir}-outside-open-shapes
 start-args {exedir}Hangar-outside.made.rif
 pictures on
 state

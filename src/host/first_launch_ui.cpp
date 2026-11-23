@@ -316,4 +316,87 @@ namespace host
 		*out = ini + (endsLine ? std::string() : newLine) + "[" + section + "]" + newLine + line + newLine;
 		return true;
 	}
+
+	bool FirstLaunch_IniWithSection(std::string const &ini, std::string const &section, std::vector<std::string> const &lines, std::string *out)
+	{
+		std::string const sectionName = Trimmed(section);
+
+		if (!out || sectionName.empty() || Unwritable(section, "[]"))
+		{
+			return false;
+		}
+
+		for (std::string const &line : lines)
+		{
+			if (Unwritable(line, ""))
+			{
+				return false;
+			}
+		}
+
+		std::string const newLine = ini.find("\r\n") != std::string::npos ? "\r\n" : (ini.find('\n') != std::string::npos ? "\n" : "\r\n");
+		std::string body;
+
+		for (std::string const &line : lines)
+		{
+			body += line + newLine;
+		}
+
+		bool found = false;
+		bool inSection = false;
+		size_t bodyFrom = 0;       // just after the section's header line
+		size_t bodyTo = 0;         // just after its last line that isn't empty (bodyFrom when it has none)
+		bool headerNeedsNewLine = false;
+
+		for (size_t start = 0; start < ini.size();)
+		{
+			size_t const lineFeed = ini.find('\n', start);
+			size_t const next = lineFeed == std::string::npos ? ini.size() : lineFeed + 1;
+			size_t end = lineFeed == std::string::npos ? ini.size() : lineFeed;
+
+			if (end > start && ini[end - 1] == '\r')
+			{
+				end--;
+			}
+
+			size_t const wordsFrom = start == 0 && ini.compare(0, 3, "\xEF\xBB\xBF") == 0 ? 3 : start;
+			std::string const words = Trimmed(ini.substr(wordsFrom, end > wordsFrom ? end - wordsFrom : 0));
+
+			if (!words.empty() && words[0] == '[')
+			{
+				if (inSection)
+				{
+					break;   // the next section: the body ended before it
+				}
+
+				size_t const close = words.find(']');
+
+				if (!found && close != std::string::npos && SameName(Trimmed(words.substr(1, close - 1)), sectionName))
+				{
+					found = true;
+					inSection = true;
+					bodyFrom = next;
+					bodyTo = next;
+					headerNeedsNewLine = lineFeed == std::string::npos;
+				}
+			}
+			else if (inSection && !words.empty())
+			{
+				bodyTo = next;
+			}
+
+			start = next;
+		}
+
+		if (found)
+		{
+			*out = ini.substr(0, bodyFrom) + (headerNeedsNewLine ? newLine : std::string()) + body + ini.substr(bodyTo);
+			return true;
+		}
+
+		bool const endsLine = ini.empty() || ini.back() == '\n';
+
+		*out = ini + (endsLine ? std::string() : newLine) + "[" + section + "]" + newLine + body;
+		return true;
+	}
 }

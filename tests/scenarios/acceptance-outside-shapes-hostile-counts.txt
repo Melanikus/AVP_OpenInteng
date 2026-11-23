@@ -2,7 +2,8 @@
 # a 32-bit size_t onto the SHPRAWVT's own size, which got it past the old check) and 12345 polygons. The header the level gets holds the counts of the chunks the new shape holds, as the
 # game's loader takes them (chunk_shape.cpp: SHPRAWVT / 12, SHPPOLYS / 36) and inteng's save writes them back: the file's numbers never go into the level. verify_outside_shape (counts) makes
 # the files; the saved copy's shape is twice as big with its own counts. Red before the fix (the hostile counts in the copy); green with it.
-make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe make C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {exedir}Hangar-counts.made.rif {exedir}shape_rifs counts
+#ini ShapeFolder={datadir}-outside-hostile-counts-shapes
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe make C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {exedir}Hangar-counts.made.rif {datadir}-outside-hostile-counts-shapes counts
 start-args {exedir}Hangar-counts.made.rif
 pictures on
 state

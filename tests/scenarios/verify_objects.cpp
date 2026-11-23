@@ -21,6 +21,9 @@
 // Drake, OP-29).
 // For "modflags <name>|<mask>|<word>" (two hex numbers, 1 to 8 digits) the module of that exact name has a MODFLAGS (in its MODULEDT) whose flag word, ANDed with the mask, is the word: what Strategy
 // Data's flag page sets (Airduct 80000000, Stair 40000000, Sky Visible 20000000, Fogged 10000000) reached the save (added 2026-11-18 by Bishop, strategy-data.md S-28 / S-29 / S-30).
+// For "sameshape <a>|<b>" both objects are in the copy and the game's loader gives them the SAME shape (Object_Chunk::get_assoc_shape: one shape chunk, its SHPHEAD1 number said in the
+// words): a copy made of an object's own shape is that shape, not another part of its file (added 2026-11-23 by Vasquez: Create Duplicate made office's gamebox, the offbits part "Game",
+// into a copy of "Aerosol", the file's first part, by the file's name; inteng makes it by the shape's number).
 // Gives back 0 only if every check passed.
 
 #include <limits.h>
@@ -662,7 +665,7 @@ int main(int argc, char **argv)
 {
 	if (argc < 4 || (argc - 2) % 2 != 0)
 	{
-		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [trackendmoved <name>|<section>|<x>|<y>|<z>] [alt <name>=<count>,<group>] [virtualgone|virtualkept <name>] [nostrategy <name>] [modflags <name>|<mask hex>|<word hex>] [gameflags <name>|<mask hex>|<word hex>]\n");
+		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [trackendmoved <name>|<section>|<x>|<y>|<z>] [alt <name>=<count>,<group>] [virtualgone|virtualkept <name>] [nostrategy <name>] [modflags <name>|<mask hex>|<word hex>] [gameflags <name>|<mask hex>|<word hex>] [sameshape <a>|<b>]\n");
 		return 2;
 	}
 
@@ -688,6 +691,34 @@ int main(int argc, char **argv)
 		else if (what == "kept")
 		{
 			Check(there, std::string("the copy has an object named \"") + argv[a + 1] + "\"");
+		}
+		else if (what == "sameshape")
+		{
+			// both objects, and the one shape the game's loader gave both (the association it made from each OBJHEAD1's shape number)
+			std::vector<std::string> const names = BarFields(argv[a + 1], 2);
+			Object_Chunk *const first = names.size() == 2 ? ObjectNamed(copy, names[0].c_str()) : nullptr;
+			Object_Chunk *const second = names.size() == 2 ? ObjectNamed(copy, names[1].c_str()) : nullptr;
+			Shape_Chunk *const firstShape = first ? first->get_assoc_shape() : nullptr;
+			Shape_Chunk *const secondShape = second ? second->get_assoc_shape() : nullptr;
+			// each shape's number, for the words: its SHPHEAD1's own bytes, the int at +20 (as shape_chooser.cpp reads it; the library keeps the number private)
+			auto const numberOf = [&copy](Shape_Chunk *shape)
+			{
+				Chunk *const header = shape ? shape->lookup_single_child("SHPHEAD1") : nullptr;
+				std::vector<unsigned char> bytes;
+				int32_t number = 0;
+
+				if (!header || !copy.PayloadOf(header, &bytes) || bytes.size() < 24)
+				{
+					return std::string("none");
+				}
+
+				memcpy(&number, bytes.data() + 20, sizeof(number));
+				return std::to_string(number);
+			};
+			std::string const shapes = " (shape " + numberOf(firstShape) + " and shape " + numberOf(secondShape) + ")";
+
+			Check(names.size() == 2 && first && second && firstShape && firstShape == secondShape, std::string("the copy's objects \"") + (names.empty() ? "" : names[0]) +
+				"\" and \"" + (names.size() < 2 ? "" : names[1]) + "\" have the same shape" + shapes);
 		}
 		else if (what == "track" || what == "notrack")
 		{

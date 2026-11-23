@@ -1,0 +1,30 @@
+# ACCEPTANCE (Vasquez 2026-11-23, THE LOOKUP ORDER, src/host/shape_search.h): the FIRST folder holding the file wins. ShapeFolder= (AVP_OpenInteng.ini) and
+# the game's shape_rifs both hold pulam.rif (the same bytes, made by make_shape_game from Statue): Quick-create's import takes it from ShapeFolder=, and the
+# status says so by its label (never the folder's path: the owner records his screen).
+# RED on f469df90: the object is made, but the status doesn't say where its shape came from.
+#ini DataFolder={datadir}-shapefind-first
+#ini ShapeFolder={datadir}-shapefind-first/own-shapes
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-shapefind-first {datadir} Invasion.RIF Statue.RIF pulam own shape_rifs
+level {datadir}-shapefind-first/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-win 500 300 right
+wait 200
+click-popup 2
+wait 200
+click-popup 1
+wait 400
+expect-dialog pulam is not in this file.
+expect-dialog-kind confirm
+click-button Yes
+wait 400
+expect-no-dialog
+expect-status Object pulam
+expect-status its shape pulam.rif came from ShapeFolder=
+expect-status-not the game's shape_rifs
+picture 1
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} kept pulam0
