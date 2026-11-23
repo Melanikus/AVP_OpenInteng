@@ -4047,6 +4047,22 @@ int main(int argc, char **argv)
 		}
 	}
 
+	// A DEAD editor isn't asked to close (Dietrich's review of 0c57dcbe, nit 1): it can't answer (Windows' crash report may still hold it), so the ask would
+	// only wait its 30 s and add a second FAILED to the one that said CRASHED. It is ended at once, by its own handle, and the close below has nothing to do.
+	if (!s.gone.empty() && !s.goneOnPurpose && s.editor.process.hProcess)
+	{
+		if (WaitForSingleObject(s.editor.process.hProcess, 0) != WAIT_OBJECT_0)
+		{
+			TerminateProcess(s.editor.process.hProcess, 99);
+			WaitForSingleObject(s.editor.process.hProcess, 10000);
+		}
+
+		CloseHandle(s.editor.process.hProcess);
+		CloseHandle(s.editor.process.hThread);
+		s.editor.process = PROCESS_INFORMATION();
+		printf("  (the dead editor was ended at once, not asked to close)\n");
+	}
+
 	CloseTheEditor(&s.editor);
 
 	POINT cursorAfter = {};
