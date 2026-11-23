@@ -1603,10 +1603,20 @@ namespace host
 			bool const funnel = R >= 0 && R == funnelRect && rects[(size_t)R].ceiled;   // a T's funnel: its own rectangle only (Drake's hand6e ENTRY S)
 			auto const at = mine.find(l);
 
-			if (!corridor && !corner && !funnel && (at == mine.end() || at->second.empty()))
+			// (at is mine.end() for a doorway no ceiling place is nearest: never read through then, below)
+			bool const placesNearest = at != mine.end() && !at->second.empty();
+
+			if (!corridor && !corner && !funnel && !placesNearest)
 			{
 				plan.doorWords[(size_t)l] = "no lane: no ceiling nearest this doorway";
 				continue;
+			}
+
+			// A T'S FUNNEL WITH NO CEILING PLACE NEAREST ITS DOORWAY (stock Caverns, the alpha.6 final round: every place over the funnel lower than the flat top by more
+			// than kAutoPlotVolumeFlat): its entry is still the funnel's own rectangle, its aim set below from the bar's entry, and the plot's report says so
+			if (funnel && !placesNearest)
+			{
+				plan.doorWords[(size_t)l] = "lane (a T's funnel: no ceiling place nearest this doorway, so its entry is the funnel's own rectangle, aimed across from the bar's entry)";
 			}
 
 			Vol v;
@@ -1732,8 +1742,10 @@ namespace host
 			v.lo[1] = top - kAutoPlotInto;
 			v.hi[1] = low + kAutoPlotClimbReach;
 
-			// the fallback's centres: inside the ceiling over its places nearest the doorway (the shaped ones are set below, once every entry is made)
-			if (!corridor && !corner)
+			// the fallback's centres: inside the ceiling over its places nearest the doorway (the shaped ones are set below, once every entry is made). Only with places:
+			// a T's funnel passes the guard above without any (THE CRASH ON STOCK CAVERNS, the alpha.6 final round: "crash: code C0000005" here, this loop walking the
+			// END iterator's vector, memory that is no vector; Dietrich 2026-11-23, Tao 1)
+			if (!corridor && !corner && placesNearest)
 			{
 				std::vector<std::pair<double, std::vector<double> > > byDoor;
 

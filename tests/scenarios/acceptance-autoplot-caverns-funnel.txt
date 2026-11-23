@@ -1,0 +1,23 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, Bishop 2's first priority): Alien auto waypoint > Environment on STOCK Caverns plots the whole level, and the editor lives.
+# THE CRASH (the alpha.6 final round on b0e2f932, twice, and the 120b270f round twice): All stock maps' level 16, caverns.RIF, ended in "crash: code C0000005 at
+# AVP_OpenInteng.exe+1C29F0" (avp_log.txt), at "Auto-plot: module 69 of 120 (CAVERNH-02), way 860 of 1418" (module 70, TUNNELH-02, way 866 the other time). Mapped with
+# the exe's own map and dumpbin: AutoPlot_PlanVolumes, autoplot_volumes.cpp's "fallback's centres" loop over mine.find(l)->second. A T's FUNNEL entry whose doorway
+# has no ceiling places nearest it passes the guard that skips such a doorway (it skips only a doorway that is no corridor, corner or funnel), and the fallback block
+# (taken by every entry that is no corridor or corner) walks the END iterator's vector: memory that isn't one, read as if it were (Tao 1: a crash is a security bug).
+# The same code is in alpha.5 (951ef25f: autoplot_volumes.cpp identical).
+# This runs the plot the owner can run by hand: the level as Steam ships it, every option at its default, to its end line.
+# RED on the alpha.5 exe (442dac1d, a private copy) and on b0e2f932's: the editor dies part way (the plot never says "AI modules written").
+#ini AutoPlot=1
+# timeout 2400
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Caverns.RIF
+pictures off
+state
+expect-screen Waypoint
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+click-button Ok
+wait 1000
+# the whole level, to its end line (Caverns is 120 AI modules; about 10 minutes in the alpha.6 round's runs, up to the crash at about two thirds)
+wait-status 2100000 AI modules written
+expect-status-not crash
