@@ -276,6 +276,11 @@ int main()
 
 		Check(!host::AutoPlotGrid_Ready(&why) && why == "no grid: not started", "not started: not ready (" + why + ")");
 		Check(!host::AutoPlotGrid_Way(a, b, true, &way, &why) && way.empty(), "no way without a grid (" + why + ")");
+
+		size_t noGridLooks = 99;
+
+		host::AutoPlotGrid_Way(a, b, true, &way, &why, &noGridLooks);
+		Check(noGridLooks == 0, "THE PLOT'S WORK (11-23): a search with no grid looked at no cell (" + std::to_string((unsigned long long)noGridLooks) + ")");
 		Check(host::AutoPlotGrid_StandSpots(0, 4).empty(), "no stand spots without a grid");
 
 		std::vector<AlienWaysPolygon> polygons;
@@ -306,6 +311,16 @@ int main()
 
 		Check(alienFound && alien.size() >= 2, "an alien's way from the left room to the right (" + std::to_string(alien.size()) +
 			" points" + (why.empty() ? "" : ", " + why) + ")");
+
+		{
+			std::vector<AutoPlotPoint> again;
+			std::string againWhy;
+			size_t looks = 0;
+			bool const againFound = host::AutoPlotGrid_Way(left, right, true, &again, &againWhy, &looks);
+
+			Check(againFound && again.size() == alien.size() && looks > 0 && looks <= host::kAutoPlotMostLooks, "THE PLOT'S WORK: the same search gives the same way, and "
+				"says how many cells it looked at, 1 to kAutoPlotMostLooks (" + std::to_string((unsigned long long)looks) + ")");
+		}
 
 		if (alien.size() >= 2)
 		{

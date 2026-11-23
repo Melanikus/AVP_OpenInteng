@@ -15118,6 +15118,7 @@ int main(int, char **)
 	host::AutoPlotClosers_Load(layoutSettingsFile);   // the gap closers' switch (autoplot_closers.h): AutoPlotClosers=1, a scored candidate, off unless asked
 	host::AutoPlot_SetShown(GetPrivateProfileIntA("Editor", "AutoPlot", 0, layoutSettingsFile) == 1);   // the owner's "hide auto pilot" (11-19): Waypoint's Auto-plot items only with AutoPlot=1 (autoplot_switch.h)
 	host::PlotPreview_SetOn(GetPrivateProfileIntA("Editor", "PlotPreview", 1, layoutSettingsFile) != 0);   // THE PLOT'S PREVIEW: on unless the ini says 0 (Frost's timing)
+	AutoPlotCommand_SetModuleBudget((size_t)GetPrivateProfileIntA("Editor", "AutoPlotMostModuleLooks", 0, layoutSettingsFile));   // THE PLOT'S BUDGET: only ever lowered (autoplot_command.h)
 
 	// THE TEXT SCALE (the owner's addition, text_scale.h): FontScale= in the same file, a plain number from 1 to 3 (1, inteng's own size, when it isn't there); anything else is refused
 	// and said, and the text stays inteng's size
