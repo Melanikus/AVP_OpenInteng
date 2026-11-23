@@ -93,10 +93,19 @@ namespace host
 
 		// 2. THE PICTURE (its own words start with "Import texture: "), decoded to at most twice the texture's side squared (Dietrich's review of e20ccef6, MUST 1,
 		// Bishop 2's ruling: the work bounded from the picture's own size before a pixel is decoded): a larger one is scaled down by WIC's own scaler first, so the
-		// fit's planes are at most (2 x 512)^2 pixels, 4 MB of BGRA and 32 MB of doubles, whatever the picture's size
+		// fit's planes are at most (2 x 512)^2 pixels, 4 MB of BGRA and 32 MB of doubles, whatever the picture's size.
+		// THE SIDE FIRST, before it is multiplied (Dietrich's review of 246a4502, SHOULD 1): only 128, 256 or 512 is taken, so the bound below is at most
+		// 4 x 512 x 512 = 1,048,576 pixels. Unchecked, a side of 2^31 would make 4 x side x side wrap to 0 in 64 bits, and 0 tells the reader "no bound"; a side of 0
+		// was refused with no words. (The words are ImageFit_Square's own for a side it won't take.)
+		if (!model::ImageFit_SideTaken(choice.side))
+		{
+			return Refuse(TextureImportResult::BadPicture, "Import texture: a texture is 128, 256 or 512 on a side, not " + std::to_string(choice.side), why);
+		}
+
+		uint64_t const mostPixels = 4ull * choice.side * choice.side;   // (2 x side)^2, in 64 bits: at most 1,048,576 with the side checked
 		ImagePixels pixels;
 
-		if (choice.side == 0 || ImageImport_Read(choice.picture, &pixels, why, 4ull * choice.side * choice.side) != ImageImportResult::Done)
+		if (ImageImport_Read(choice.picture, &pixels, why, mostPixels) != ImageImportResult::Done)
 		{
 			return TextureImportResult::BadPicture;
 		}

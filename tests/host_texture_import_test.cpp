@@ -8,9 +8,11 @@
 //   (3) the game's own RimLoader reads the file: 128 x 128, the picture in rows 32 to 95 (red on the left, blue on the right), the bars black
 //   (4) the same name again: the list names it already, so nothing is saved, the level and the file as they were
 //   (5) a name whose file is there already: refused, the level as it was, that file's bytes unchanged
-//   (6) refused before anything is made: a text file named .png, a device's name, no level open
+//   (6) refused before anything is made: a text file named .png, a device's name, a side not 128, 256 or 512 (0, 100, 2^31 and 2^32 - 1: before the picture is
+//       read, since 4 x side x side is its bound and 2^31 wraps that to 0, "no bound"), no level open
 //   (7) the words for the status line name the texture and its index
-// RED FIRST: on a stand-in that refuses every import (as no level open), 12 of the 16 checks fail: all but the setup's and "no level open".
+// RED FIRST: on a stand-in that refuses every import (as no level open), 12 of the 16 checks fail: all but the setup's and "no level open". The four sides: red
+// on 246a4502, where the side was checked only after the picture was read (all four show the picture's words, or none).
 
 #include <windows.h>
 
@@ -286,29 +288,32 @@ int main(int argc, char **argv)
 		"(2) flags 0x0100010C, priority 6, version " + std::to_string(after.last.version_num) + " (the old version << 8), size word 128 x 128, the list's version " +
 		std::to_string(after.version));
 
-	// ---- (3) the game's RimLoader reads the file
-	RimLoader_NewLevel();
-	RimLoader loader;
-	uint32_t width = 0, height = 0;
-	std::vector<uint8_t> pixels(128 * 128 * 4, 0xcd);
-	bool const opened = loader.Open(file);
-
-	if (opened)
+	// ---- (3) the game's RimLoader reads the file. In its own block: the loader holds the file open until it is gone (RimLoader has no Close), and while it is
+	// open the clean-up at the end can't delete the file, so Wall01.RIM was left behind and the next run in the same folder failed from its first check
 	{
-		loader.GetDimensions(width, height);
+		RimLoader_NewLevel();
+		RimLoader loader;
+		uint32_t width = 0, height = 0;
+		std::vector<uint8_t> pixels(128 * 128 * 4, 0xcd);
+		bool const opened = loader.Open(file);
+
+		if (opened)
+		{
+			loader.GetDimensions(width, height);
+		}
+
+		bool const decoded = opened && width == 128 && height == 128 && loader.Decode(pixels.data(), 128 * 4);
+		auto pixel = [&](uint32_t x, uint32_t y, uint8_t b, uint8_t g, uint8_t r)
+		{
+			size_t const at = ((size_t)y * 128 + x) * 4;
+
+			return pixels[at] == b && pixels[at + 1] == g && pixels[at + 2] == r && pixels[at + 3] == 255;
+		};
+
+		Check(decoded, "(3) RimLoader opens and decodes it, 128 x 128 (" + std::to_string(width) + " x " + std::to_string(height) + ")");
+		Check(decoded && pixel(10, 40, 0, 0, 255) && pixel(10, 90, 0, 0, 255) && pixel(117, 40, 255, 0, 0) && pixel(117, 90, 255, 0, 0) && pixel(64, 5, 0, 0, 0) &&
+			pixel(64, 122, 0, 0, 0), "(3) the picture in rows 32 to 95, red on the left and blue on the right; the bars black");
 	}
-
-	bool const decoded = opened && width == 128 && height == 128 && loader.Decode(pixels.data(), 128 * 4);
-	auto pixel = [&](uint32_t x, uint32_t y, uint8_t b, uint8_t g, uint8_t r)
-	{
-		size_t const at = ((size_t)y * 128 + x) * 4;
-
-		return pixels[at] == b && pixels[at + 1] == g && pixels[at + 2] == r && pixels[at + 3] == 255;
-	};
-
-	Check(decoded, "(3) RimLoader opens and decodes it, 128 x 128 (" + std::to_string(width) + " x " + std::to_string(height) + ")");
-	Check(decoded && pixel(10, 40, 0, 0, 255) && pixel(10, 90, 0, 0, 255) && pixel(117, 40, 255, 0, 0) && pixel(117, 90, 255, 0, 0) && pixel(64, 5, 0, 0, 0) &&
-		pixel(64, 122, 0, 0, 0), "(3) the picture in rows 32 to 95, red on the left and blue on the right; the bars black");
 
 	// ---- (4) the same name again
 	puts("Refused:");
@@ -349,6 +354,26 @@ int main(int argc, char **argv)
 
 	Check(device == TextureImportResult::BadName, std::string("(6) a device's name: refused (") + TextureImportResultWords(device) + ": " + why + ")");
 
+	// (6) a side that isn't 128, 256 or 512: refused BEFORE the picture is read (Dietrich's review of 246a4502, SHOULD 1). The picture's bound is 4 x side x side,
+	// and a side of 2^31 would wrap it to 0, which the reader takes as "no bound"; side 0 was refused with no words. The picture given is the text file, so a
+	// side checked only after the picture is read would show the picture's words here, not the side's.
+	choice.picture = std::wstring(notPicture.begin(), notPicture.end());
+	choice.name = "Wall04";
+
+	for (uint32_t const side : { 0u, 100u, 0x80000000u, 0xFFFFFFFFu })
+	{
+		choice.side = side;
+
+		TextureImportResult const badSide = TextureImport_Make(&open, levelPath, data, choice, &done, &why);
+		bool const noFile = GetFileAttributesA((data + "\\graphics\\Custom\\" + levelName + "\\Wall04.RIM").c_str()) == INVALID_FILE_ATTRIBUTES;
+
+		Check(badSide == TextureImportResult::BadPicture && why == "Import texture: a texture is 128, 256 or 512 on a side, not " + std::to_string(side) && noFile &&
+			open.Generation() == generation + 1, "(6) side " + std::to_string(side) + ": refused for its side before the picture is read, no file made (" +
+			TextureImportResultWords(badSide) + ": " + why + ")");
+	}
+
+	choice.side = 128;
+
 	OpenLevelFile none;
 	TextureImportResult const noLevel = TextureImport_Make(&none, levelPath, data, choice, &done, &why);
 
@@ -378,6 +403,9 @@ int main(int argc, char **argv)
 	RemoveDirectoryA(data.c_str());
 	DeleteFileA(picture.c_str());
 	DeleteFileA(notPicture.c_str());
+
+	// and nothing of ours is left: a test that leaves a file behind fails the next run in the same folder
+	Check(GetFileAttributesA(data.c_str()) == INVALID_FILE_ATTRIBUTES, "our files are all taken away again: " + data + " is gone");
 
 	printf("%d checks failed\n", checksFailed);
 	return checksFailed ? 1 : 0;
