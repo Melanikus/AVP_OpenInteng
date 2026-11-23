@@ -1,0 +1,59 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-23, THE OWNER testing the alpha.6 cut: "there is no scroll to see all items from shape_rifs + level", "Ok I want a dragable
+# scroll box on the top right, inteng folk do not mouse scroll"; Bishop 2's spec): THE PLACEMENT PICKER'S SCROLL BAR, down the right side of the grid from its top, in
+# the dialog lists' look, its thumb DRAGGED. The game folder holds 83 shapes (pulam in Tools\shape_rifs, 80 copies of it, pulam_cut and timdesk in shape_rifs), so the
+# grid (9 x 4 in the hidden run's window, 36 a page) has 10 rows and its last page starts at row 6 (tile 54). The bar's parts are on the state line (pickerscroll,
+# window pixels), and the picker's "first" says which tile the grid shows from:
+#   a press on the bottom arrow: one row on (first 9); on the track below the thumb: one page on (first 45); on the top arrow: a row back (first 36);
+#   the thumb dragged onto the bottom arrow: the last page (first 54), the last tile (timdesk) in view, the thumb let go; dragged onto the top arrow: the first row;
+#   the selection (pulam) stays as it is throughout, as the wheel leaves it.
+# Also the frame no longer takes the rows back to the selection every frame (it undid the wheel's moves: found building this).
+# RED on exe-cache/8275930d.exe (the alpha.6 cut): no scroll bar, no pickerscroll field, so the first press finds no box.
+#ini DataFolder={datadir}-picker-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut copies80
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
+level {datadir}-picker-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+item 0x32
+expect-field-has picker open cols 9 rows 4 count 83
+expect-field-has picker first 0 selected pulam
+expect-field-has pickerscroll up~
+expect-field-has pickerscroll down~
+expect-field-has pickerscroll thumb~
+expect-field-has pickerscroll below~
+expect-field-not-has pickerscroll above~
+picture 1
+
+# ---- an arrow a row, the track a page
+click-in pickerscroll down
+wait 300
+expect-field-has picker first 9 selected pulam
+click-in pickerscroll below
+wait 300
+expect-field-has picker first 45 selected pulam
+expect-field-has pickerscroll above~
+click-in pickerscroll up
+wait 300
+expect-field-has picker first 36 selected pulam
+
+# ---- the thumb dragged to the bottom: the last page, the last tile in view, the thumb let go
+drag-in pickerscroll thumb down
+wait 300
+expect-field-has picker first 54 selected pulam
+expect-field-has pickerboxes timdesk~
+expect-field-not-has pickerscroll below~
+expect-field pickerdrag free
+picture 2
+
+# ---- and to the top: the first row again
+drag-in pickerscroll thumb up
+wait 300
+expect-field-has picker first 0 selected pulam
+expect-field-has pickerboxes pulam~
+
+key Esc
+wait 300
+expect-field picker closed

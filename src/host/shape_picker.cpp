@@ -32,6 +32,28 @@ namespace host
 			size_t const c = columns > 0 ? (size_t)columns : 1;
 			return count == 0 ? 1 : (count + c - 1) / c;
 		}
+
+		// a box set (x, y, w, h), never less than 0 high
+		void Set(int32_t box[4], int32_t x, int32_t y, int32_t w, int32_t h)
+		{
+			box[0] = x;
+			box[1] = y;
+			box[2] = w;
+			box[3] = h > 0 ? h : 0;
+		}
+
+		bool Inside(int32_t const box[4], int32_t x, int32_t y)
+		{
+			return box[2] > 0 && box[3] > 0 && x >= box[0] && x < box[0] + box[2] && y >= box[1] && y < box[1] + box[3];
+		}
+
+		// the rows past one page: how far down the first row in view can go
+		size_t MostFirstRow(ShapePickerLayout const &layout, size_t count)
+		{
+			size_t const shownRows = (size_t)(std::max)(1, layout.rows), allRows = RowsOf(count, layout.columns);
+
+			return allRows > shownRows ? allRows - shownRows : 0;
+		}
 	}
 
 	ShapePickerList ShapePicker_List(std::vector<ShapePickerFolder> const &folders, std::vector<std::string> const &levelFiles)
@@ -92,13 +114,14 @@ namespace host
 	ShapePickerLayout ShapePicker_Layout(int32_t windowWidth, int32_t windowHeight)
 	{
 		ShapePickerLayout layout;
-		int32_t const width = windowWidth - 2 * kShapePickerGap, height = windowHeight - kShapePickerTop - kShapePickerBottomRoom;
+		int32_t const barRoom = kShapePickerBarWidth + kShapePickerGap;   // the scroll bar at the right, and a gap before it
+		int32_t const width = windowWidth - 2 * kShapePickerGap - barRoom, height = windowHeight - kShapePickerTop - kShapePickerBottomRoom;
 
 		layout.stepX = kShapePickerPicture + kShapePickerGap;
 		layout.stepY = kShapePickerPicture + kShapePickerNameHeight + kShapePickerGap;
 		layout.columns = width >= layout.stepX ? width / layout.stepX : 1;
 		layout.rows = height >= layout.stepY ? height / layout.stepY : 1;
-		layout.left = (std::max)((int32_t)kShapePickerGap, (windowWidth - layout.columns * layout.stepX + kShapePickerGap) / 2);
+		layout.left = (std::max)((int32_t)kShapePickerGap, (windowWidth - barRoom - layout.columns * layout.stepX + kShapePickerGap) / 2);
 		layout.top = kShapePickerTop + kShapePickerGap / 2;
 		return layout;
 	}
@@ -199,6 +222,103 @@ namespace host
 
 		view.first = firstRow * columns;
 		return view;
+	}
+
+	ShapePickerBar ShapePicker_Bar(ShapePickerLayout const &layout, ShapePickerView const &view, size_t count, int32_t windowWidth)
+	{
+		ShapePickerBar bar;
+		int32_t const arrow = kShapePickerBarWidth;   // each arrow a square, as a dialog list's
+		int32_t const height = (std::max)(1, layout.rows) * layout.stepY - kShapePickerGap;   // from the grid's top to its last row's foot, the names included
+		int32_t const x = windowWidth - kShapePickerGap - kShapePickerBarWidth;
+
+		if (layout.stepY <= 0 || x < 0 || height < 2 * arrow + kShapePickerLeastThumb)
+		{
+			return bar;   // no room for one: none (every box 0 wide)
+		}
+
+		Set(bar.column, x, layout.top, kShapePickerBarWidth, height);
+		Set(bar.up, x, layout.top, kShapePickerBarWidth, arrow);
+		Set(bar.down, x, layout.top + height - arrow, kShapePickerBarWidth, arrow);
+
+		// the thumb: as long as the share of the rows in view, as far down the track as the first row is down the rows past one page
+		size_t const columns = (size_t)(std::max)(1, layout.columns), shownRows = (size_t)(std::max)(1, layout.rows), allRows = RowsOf(count, layout.columns);
+		size_t const most = MostFirstRow(layout, count), firstRow = (std::min)(view.first / columns, most);
+		int32_t const trackTop = layout.top + arrow, track = height - 2 * arrow;
+		int32_t length = most == 0 ? track : (int32_t)((int64_t)track * (int64_t)shownRows / (int64_t)allRows);
+
+		length = (std::max)(kShapePickerLeastThumb, (std::min)(length, track));
+
+		int32_t const thumbTop = trackTop + (most == 0 ? 0 : (int32_t)((int64_t)(track - length) * (int64_t)firstRow / (int64_t)most));
+
+		Set(bar.thumb, x, thumbTop, kShapePickerBarWidth, length);
+		Set(bar.above, x, trackTop, kShapePickerBarWidth, thumbTop - trackTop);
+		Set(bar.below, x, thumbTop + length, kShapePickerBarWidth, trackTop + track - (thumbTop + length));
+		return bar;
+	}
+
+	ShapePickerBarPart ShapePicker_BarPartAt(ShapePickerBar const &bar, int32_t x, int32_t y)
+	{
+		return Inside(bar.up, x, y) ? ShapePickerBarPart::Up : Inside(bar.down, x, y) ? ShapePickerBarPart::Down : Inside(bar.thumb, x, y) ? ShapePickerBarPart::Thumb :
+			Inside(bar.above, x, y) ? ShapePickerBarPart::Above : Inside(bar.below, x, y) ? ShapePickerBarPart::Below : ShapePickerBarPart::None;
+	}
+
+	ShapePickerView ShapePicker_BarPress(ShapePickerView view, ShapePickerLayout const &layout, size_t count, ShapePickerBarPart part)
+	{
+		int const page = (std::max)(1, layout.rows);
+
+		switch (part)
+		{
+		case ShapePickerBarPart::Up: return ShapePicker_Scroll(view, layout, count, -1);
+		case ShapePickerBarPart::Down: return ShapePicker_Scroll(view, layout, count, 1);
+		case ShapePickerBarPart::Above: return ShapePicker_Scroll(view, layout, count, -page);
+		case ShapePickerBarPart::Below: return ShapePicker_Scroll(view, layout, count, page);
+		default: return view;
+		}
+	}
+
+	ShapePickerView ShapePicker_ThumbTo(ShapePickerView view, ShapePickerLayout const &layout, size_t count, ShapePickerBar const &bar, int32_t thumbTop)
+	{
+		size_t const columns = (size_t)(std::max)(1, layout.columns), most = MostFirstRow(layout, count);
+		int32_t const trackTop = bar.up[1] + bar.up[3], room = bar.down[1] - trackTop - bar.thumb[3];   // how far the thumb's top can go down the track
+
+		if (bar.column[2] <= 0)
+		{
+			return view;
+		}
+
+		if (most == 0 || room <= 0)
+		{
+			view.first = 0;   // every row in view (or no track to move along): the first row
+			return view;
+		}
+
+		int64_t const offset = (std::max)((int64_t)0, (std::min)((int64_t)thumbTop - trackTop, (int64_t)room));
+
+		view.first = (size_t)((offset * (int64_t)most + room / 2) / room) * columns;   // the nearest row to that share of the track
+		return view;
+	}
+
+	std::string ShapePicker_BarWords(ShapePickerBar const &bar)
+	{
+		struct Part
+		{
+			char const *name;
+			int32_t const *box;
+		};
+
+		Part const parts[5] = { { "up", bar.up }, { "down", bar.down }, { "above", bar.above }, { "below", bar.below }, { "thumb", bar.thumb } };
+		std::string words;
+
+		for (Part const &p : parts)
+		{
+			if (p.box[2] > 0 && p.box[3] > 0)
+			{
+				words += (words.empty() ? "" : "|") + std::string(p.name) + "~" + std::to_string(p.box[0]) + " " + std::to_string(p.box[1]) + " " + std::to_string(p.box[2]) +
+					" " + std::to_string(p.box[3]);
+			}
+		}
+
+		return words;
 	}
 
 	std::string ShapePicker_WhyNotPlaced(ShapePickerTile const &tile, ShapePickerState const &state)

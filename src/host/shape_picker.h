@@ -107,6 +107,46 @@ namespace host
 	// The view with the selection on screen (after the list or the window changed): first moved the least that shows it, and kept a multiple of the columns
 	ShapePickerView ShapePicker_Show(ShapePickerView view, ShapePickerLayout const &layout, size_t count);
 
+	// ----- THE SCROLL BAR (the owner, 2026-11-23: "Ok I want a dragable scroll box on the top right, inteng folk do not mouse scroll") -----
+	// Down the right side of the grid from its top, in the look of the dialog lists' bar (dialog_box.cpp ComboScrollBar, dialogs.cpp: the column black framed
+	// white, the thumb blue framed white, an arrow button at each end), always there. Its thumb is as long as the share of the rows in view (at least 8 pixels,
+	// all of the track when every tile is in view) and as far down the track as the first row in view is down the rows past one page. A press on an arrow moves
+	// a row; on the column above or below the thumb, a page; the thumb is DRAGGED (new: the dialog lists' thumb isn't). The selection stays as it is, as the
+	// wheel leaves it. The grid leaves the bar's room on the right (ShapePicker_Layout), so no tile is ever under it.
+	int32_t const kShapePickerBarWidth = 16;     // as wide as a dialog list's bar (dialog_box.h kDialogScrollBarWidth)
+	int32_t const kShapePickerLeastThumb = 8;    // the shortest thumb, as a dialog list's
+
+	struct ShapePickerBar
+	{
+		int32_t column[4] = {};   // x, y, w, h of the whole bar, its arrows included
+		int32_t up[4] = {};       // the top arrow
+		int32_t down[4] = {};     // the bottom arrow
+		int32_t thumb[4] = {};    // the box dragged
+		int32_t above[4] = {};    // the track above the thumb (a page back), 0 high when the thumb is at the top
+		int32_t below[4] = {};    // the track below it (a page on), 0 high when it is at the foot
+	};
+
+	ShapePickerBar ShapePicker_Bar(ShapePickerLayout const &layout, ShapePickerView const &view, size_t count, int32_t windowWidth);
+
+	enum class ShapePickerBarPart
+	{
+		None, Up, Down, Above, Below, Thumb
+	};
+
+	// The bar's part under a pixel (None: not on the bar)
+	ShapePickerBarPart ShapePicker_BarPartAt(ShapePickerBar const &bar, int32_t x, int32_t y);
+
+	// The view after a press on a part: Up / Down a row, Above / Below a page (the rows in view), Thumb and None nothing (a drag starts on the thumb)
+	ShapePickerView ShapePicker_BarPress(ShapePickerView view, ShapePickerLayout const &layout, size_t count, ShapePickerBarPart part);
+
+	// The view with the thumb dragged so its top is at thumbTop (the pointer's y, less where on the thumb it was taken): the first row in view is the nearest
+	// to that share of the track, from the first row to the last page's; past either end it stops there
+	ShapePickerView ShapePicker_ThumbTo(ShapePickerView view, ShapePickerLayout const &layout, size_t count, ShapePickerBar const &bar, int32_t thumbTop);
+
+	// The bar's boxes for the state line, as pickerboxes are: "up~x y w h|down~...|above~...|below~...|thumb~...", a part 0 high left out (own pixels; the
+	// screen gives them in the window's)
+	std::string ShapePicker_BarWords(ShapePickerBar const &bar);
+
 	// ----- a tile's drawing, as the host's thumbnail work reports it, and its words -----
 	enum class ShapePickerDrawing
 	{

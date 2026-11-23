@@ -37,6 +37,8 @@
 //   select-rows <n> <n> ...     the first row is selected, the others join (several objects selected, as Shift+clicks do)
 //   click-win <x> <y> [right] [shift]   a click at a place in the editor window's client pixels
 //   click-tile <name> [twice]   a click in the middle of the placement picker's tile of that shape (the state line's pickerboxes); twice: again after 400 ms (select, then place)
+//   click-in <field> <name>   a click in the middle of the box <name> in a state field of "<name>~<x> <y> <w> <h>|..." (pickerboxes, pickerscroll)
+//   drag-in <field> <name> <to name>   a drag from the middle of <name> to the middle of <to name> in that field (the picker's scroll thumb)
 //   expect-tile-drawn <name> [share]   the newest picture-<n>.png has at least that share (0.10) of that tile's picture part away from the tile's background
 //   drag-win <x0> <y0> <x1> <y1> [right] [ctrl]   a drag, with the right button and / or Control held
 //   drag-texwin <x0> <y0> <x1> <y1> [right] [ctrl] / click-texwin <x> <y> [shift]   the same at places from the Texture Map window's top left (the state line's texwin)
@@ -1810,6 +1812,43 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		AskState(s);
 		Check(true, label + " at " + std::to_string(box[0] + atoi(w[1].c_str())) + "," + std::to_string(box[1] + atoi(w[2].c_str())));
+		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
+		PictureAfter(s, line);
+		return true;
+	}
+
+	// click-in <field> <name>: a press at the middle of the box <name> in a state field of "<name>~<x> <y> <w> <h>|..." (window pixels: pickerboxes, pickerscroll);
+	// drag-in <field> <name> <to name>: a drag from the middle of <name> to the middle of <to name> in that same field (Vasquez 2026-11-23: the placement picker's
+	// scroll bar, its arrows, its track and its dragged thumb, wherever the editor says they are)
+	if ((verb == "click-in" && w.size() >= 3) || (verb == "drag-in" && w.size() >= 4))
+	{
+		AskState(s);
+
+		std::string const boxes = Field(s->last, w[1]);
+		int from[4] = {}, to[4] = {};
+		bool const drag = verb == "drag-in";
+		bool const haveFrom = TileBox(boxes, w[2], from);
+		bool const haveTo = !drag || TileBox(boxes, w[3], to);
+
+		if (!haveFrom || !haveTo)
+		{
+			Check(false, label + " (no box \"" + (haveFrom ? w[3] : w[2]) + "\" in " + w[1] + ": \"" + boxes + "\")");
+			return false;
+		}
+
+		int const x = from[0] + from[2] / 2, y = from[1] + from[3] / 2;
+
+		if (drag)
+		{
+			DragWindow(s, x, y, to[0] + to[2] / 2, to[1] + to[3] / 2, false, false, false);
+		}
+		else
+		{
+			ClickWindow(s, x, y, false, false);
+		}
+
+		AskState(s);
+		Check(true, label + " from " + std::to_string(x) + "," + std::to_string(y));
 		printf("  (%s)\n", s->last.empty() ? "no state line" : From(s->last, "scenario: ").c_str());
 		PictureAfter(s, line);
 		return true;

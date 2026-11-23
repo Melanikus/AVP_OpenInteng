@@ -8987,6 +8987,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			// P3: the centre ball let go: the next frame casts at this pointer and keeps (SnapLiveFrame)
 			if (snapLive && snapForSurface && window == hWndMain) { snapPointerX = host::TextScale_ToOwn(GET_X_LPARAM(lParam)); snapPointerY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam)); surfaceReleaseWaiting = true; return 0; }
 
+			if (ShapePickerScreen_Release()) { return 0; }   // the placement picker's scroll thumb let go (shape_picker_screen.h)
 			if (WaypointGizmo_Release()) { return 0; }   // a waypoint-box drag let go: written (waypoint_gizmo.h)
 			if (GizmoScreen_Release()) { return 0; }   // a gizmo drag let go: written (gizmo_screen.h)
 			if (OnWaypointScreen() && WaypointMouse_Release(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)))) { return 0; }   // a waypoint box dragged onto another: linked (waypoint_mouse.h)
@@ -9283,6 +9284,8 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 
 				return 0;
 			}
+
+			if ((wParam & MK_LBUTTON) && ShapePickerScreen_IsOpen() && ShapePickerScreen_Drag(InThePanels(window, lParam).y)) { return 0; }   // the placement picker's scroll thumb held: the rows follow it
 
 			if (window == hWndMain && WaypointGizmo_Pointer(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)), (wParam & MK_SHIFT) != 0 || ShiftDown())) { return 0; }   // a waypoint-box drag has the pointer
 			if (window == hWndMain && GizmoScreen_Pointer(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)), (wParam & MK_SHIFT) != 0 || ShiftDown())) { return 0; }   // a gizmo drag has the pointer
