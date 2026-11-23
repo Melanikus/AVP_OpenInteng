@@ -14264,6 +14264,7 @@ static void AddThePanels(void *context)
 		}
 
 		ShapePickerScreen_Frame(frame->width, frame->height);   // the placement picker's grid, while it is open (shape_picker_screen.h)
+		ShapePickerScreen_Paint(frame->width, frame->height);   // and its paint, here as before the split (Dietrich's overPanels hook moves it over the card)
 
 		if (onTextureMap && textureFlagList && !textureFlagLines.empty())
 		{

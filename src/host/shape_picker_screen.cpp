@@ -61,6 +61,7 @@ namespace
 	host::ShapePickerView view;
 	host::ShapePickerLayout layout;
 	int32_t ownWide = 0;                          // the editor's own width at the last frame: where the scroll bar stands
+	int32_t ownHigh = 0;                          // and its own height (the paint lays out as the frame did)
 	int32_t shownColumns = -1, shownRows = -1;    // the grid's shape and the list's length when the selection was last brought into view
 	size_t shownCount = (size_t)-1;
 	bool dragging = false;                        // the scroll bar's thumb is held (pressed on it, not yet let go)
@@ -617,6 +618,19 @@ void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
 		}
 	}
 
+	ownHigh = ownHeight;   // (painted by ShapePickerScreen_Paint, in the panels' pass)
+}
+
+void ShapePickerScreen_Paint(int32_t, int32_t)
+{
+	if (!open)
+	{
+		return;
+	}
+
+	// the frame's own size as ShapePickerScreen_Frame laid the grid out this frame (so the paint and the layout always agree)
+	int32_t const ownWidth = ownWide, ownHeight = ownHigh;
+	size_t const shown = (size_t)layout.columns * (size_t)layout.rows;
 	std::vector<ShapePickerPaintTile> tiles;
 
 	for (size_t i = view.first; i < list.tiles.size() && i < view.first + shown; i++)

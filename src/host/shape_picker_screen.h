@@ -36,9 +36,15 @@ bool ShapePickerScreen_Open();
 // Closes it, the drawings kept for the next time (Escape: the words say no shape was chosen)
 void ShapePickerScreen_Close(bool sayNothingChosen);
 
-// Each frame while it is open (inside the game's frame, as TextureChooserDraw): a few tiles drawn, then the grid painted. ownWidth, ownHeight: the frame in the
+// Each frame while it is open (inside the game's frame, as TextureChooserDraw): the grid laid out and a few tiles drawn. ownWidth, ownHeight: the frame in the
 // editor's own pixels (text_scale.h)
 void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight);
+
+// THE PAINT, apart from the work (Vasquez 2026-11-23, for Dietrich's overPanels hook: the owner's "Gray thingie over my scroll bar!", the object card kept in
+// inteng's look UNDER the picker): the tiles, their names, the selection's yellow frame, the scroll bar and the picker's words added to the frame's panels, as
+// ShapePickerScreen_Frame laid them out this frame (its own size, whatever the caller gives: kept so a hook's signature fits). Call it after the frame's work, at
+// the place in the panels' pass where the picker must stand: over the card and the object list, under the bar, its drop-downs and the dialogs.
+void ShapePickerScreen_Paint(int32_t width, int32_t height);
 
 // A key while it is open: the arrows, Page Up / Page Down, Home / End move the selection; Return places the selected tile; Escape closes it. True: the key is the
 // picker's (every key is while it is open)
