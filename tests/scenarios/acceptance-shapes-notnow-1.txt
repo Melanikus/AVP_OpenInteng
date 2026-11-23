@@ -1,0 +1,15 @@
+# ACCEPTANCE (red first; Frost 2026-11-23): SHAPES PART 3, the FOUND form's Not now (Drake's spec; the owner, 11-23: "Ask again next start"). As in
+# acceptance-shapes-found-1, the form opens over the level; Not now searches nothing, writes nothing into the ini, and says so. Part 2 (#ini-keep) is the next start,
+# where the form asks again.
+# RED on exe-cache/68b2b059.exe (Option C up to frost-shapes' HAND f84ecb5d, without part 3): no form, and no "shapes" field.
+# changes-data
+#ini ShapesInTests=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+wait-moving 20000 shapes (the form is open)
+expect-dialog Open Inteng
+click-button Not_now
+expect-no-dialog
+expect-field shapes not now
+expect-field-has status nothing was searched, and Open Inteng asks again at its next start

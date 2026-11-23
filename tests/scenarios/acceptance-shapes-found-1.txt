@@ -1,0 +1,28 @@
+# ACCEPTANCE (red first; Frost 2026-11-23): SHAPES PART 3, the FOUND form and the first search (Bishop 2's order for alpha.6; Drake's spec, AvP-docs/director/
+# plan-first-launch-shapes.md and his answers of 11-23). The shard's data copy (hicks-try-run\data, as run-shards mirrors it) holds the game's levels, its
+# OpenedByEditor copies and its HUD files, and NO shape_rifs; the run's ini holds no [ShapesScanned] list. So at the start the FOUND form opens over the level
+# (Open Inteng: where it is, where it belongs, what it found, "Make them now?", Yes / Not now). Yes searches every map found, one a frame: the shapes go into
+# the copy's shape_rifs, never over a file, and each map's SHA-256 into the ini's [ShapesScanned] list. Part 2 (#ini-keep) is the next start, with that list.
+# A hidden run asks only with ShapesInTests=1 under [Editor] (read only in a hidden run), so no other scenario sees the form.
+# RED on exe-cache/68b2b059.exe (Option C up to frost-shapes' HAND f84ecb5d, without part 3): no form, and no "shapes" field on the state line.
+# changes-data
+#ini ShapesInTests=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+# the form, at the first frame it can open in
+wait-moving 20000 shapes (the form is open)
+expect-dialog Open Inteng
+expect-field-has dialogbuttons Yes
+expect-field-has dialogbuttons Not_now
+picture 1
+click-button Yes
+expect-no-dialog
+# the search, one map a frame, until every map found has been taken (it says so on the status line and in the "shapes" field)
+wait-moving 120000 shapes done;
+expect-field-has shapes new shapes in shape_rifs
+expect-number shapes done;_ 50 233
+expect-number shapes scanned,_ 300 5000
+expect-field-has status new shapes in shape_rifs
+expect-no-dialog
+picture 2

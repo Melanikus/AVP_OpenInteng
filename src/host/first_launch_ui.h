@@ -46,7 +46,9 @@ namespace host
 		size_t huds = 0;                      // the game's own HUD files found (avp_huds)
 		std::vector<std::string> notOwn;      // stock files there that aren't Steam's own bytes
 		std::vector<std::string> missing;     // stock files that aren't there
-		size_t shapesToWrite = 0;             // the object shapes Yes would make (none there is ever replaced)
+		size_t shapesToWrite = 0;             // WHAT THERE IS TO SEARCH (shapes_start.h ShapesStart_Facts): the stock shapes missing from shape_rifs, plus one for
+		                                      // each map found that isn't Steam's own (its shapes known only once searched). Nonzero: the question is asked
+		                                      // (Drake's review, SHOULD 2: it isn't the count of shapes Yes would write)
 	};
 
 	extern char const kFirstLaunchTitle[];    // "Open Inteng"

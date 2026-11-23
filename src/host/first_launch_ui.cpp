@@ -168,8 +168,9 @@ namespace host
 
 		if (facts.shapesToWrite)
 		{
+			// (what Yes does, whole: the owner's rule, 11-23, is that from then on a new map found is searched without asking: Drake's review, SHOULD 1)
 			words += "\n\nOpen Inteng can make the object shapes from your game's " + Counted(facts.levels, "level", "levels") + ", into " +
-				Safe(facts.gameFolder) + "\\shape_rifs, once. Nothing there is replaced. Make them now?";
+				Safe(facts.gameFolder) + "\\shape_rifs, and from any new map it finds later, without asking again. Nothing there is replaced. Make them now?";
 		}
 
 		return words;
