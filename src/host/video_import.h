@@ -144,6 +144,11 @@ namespace host
 	// before time (100 ns): those the picture shown until then fills. *next moves past them. Time is held to 0 .. (kVideoImportLongestSeconds + 1) s, so no sum overflows.
 	int64_t VideoImport_TicksBefore(int64_t *next, int64_t time);
 
+	// A DECODED PICTURE PLACED (card 2c, Vasquez's review of 18a55a36, SHOULD 1): its ticks (VideoImport_TicksBefore) in *count, or TooLong when its own time is past
+	// the read's bound (mostSeconds; *count 0, *next unmoved). The decoder gives each picture its time, and a time past the bound would otherwise fill frames up to
+	// TicksBefore's hard ceiling (kVideoImportLongestSeconds + 1 s) instead of the read's own (180 s by default). BadCall for a bound not 1 to kVideoImportLongestSeconds
+	VideoImportResult VideoImport_PlacePicture(int64_t *next, int64_t time, int64_t mostSeconds, int64_t *count);
+
 	// THE SOUND: signed 16-bit samples to unsigned 8-bit ones (128 silence), each the nearest, appended to *out
 	void VideoImport_SoundTo8(int16_t const *samples, size_t count, std::vector<uint8_t> *out);
 
