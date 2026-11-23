@@ -63,6 +63,14 @@ const screens = tool.build(menus, tool.readStatus(statusBytes, menus), built);
 
 check(menus.tables.length === 16 && screens.length === 24, 'its 16 tables make 16 screens, and the status file adds 8 stand-ins');
 
+// WAYPOINT MODE'S "ALIEN AUTO WAYPOINT" (ours, alien_auto_waypoint.h) ENDS WITH "ALL STOCK MAPS" (the owner's wishlist item 5, 2026-11-22; Drake): after
+// Environment and Modules, its command 0x7338 (all_stock_maps_ui.h), handed to the Waypoint screen's commands as the other two are
+const waypointScreen = screens.find((s) => s.name === 'Waypoint');
+const autoMenu = waypointScreen ? waypointScreen.menus.find((m) => m.title === 'Alien auto waypoint') : null;
+
+check(autoMenu && autoMenu.items.map((i) => i.name + ' ' + i.command.toString(16)).join('|') === 'Environment 7335|Modules 7334|All stock maps 7338' &&
+	autoMenu.items.every((i) => i.work === 'waypoint'), "Waypoint's Alien auto waypoint menu is Environment, Modules, then All stock maps (0x7338), each a Waypoint command");
+
 // THE 8TH STAND-IN IS VIDEO, AND ONLY IT WAS ADDED (the owner's Video mode, alpha.5 item 2; video_mode_screen.h): last, so screens 0-22 keep their numbers; its bar
 // only Load > Browse... and the generator's Mode > Exit; and the hub's Mode gains ours, Video (0x1ff06), right after Hierarchy, which enters it
 const video = screens[23];

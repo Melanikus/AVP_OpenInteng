@@ -1753,3 +1753,84 @@ LevelSaveResult OpenLevelFile::SaveAsUnguarded(const char * path)
 
 	return LevelSaveResult::Saved;
 }
+
+// The checks SaveAsUnguarded makes of the file it replaces (F7 N7, then F7 N3), asked of path itself: level_file.h says why. (Added 2026-11-22 by Melanikus (Vasquez), F-a.)
+LevelSaveResult OpenLevelFile::MayWriteOver(const char * path, bool againstOpened, std::vector<char> * asItIs) const
+{
+	std::vector<char> notWanted;
+
+	asItIs = asItIs ? asItIs : &notWanted;
+	asItIs->clear();
+
+	std::wstring whole;
+
+	if (!path || !path[0] || !WholePath(path, whole) || !IsPlainPath(whole))
+	{
+		return LevelSaveResult::NoPath;
+	}
+
+	bool cantTell = false;
+	DWORD attributes = 0;
+
+	if (!IsThere(path, &attributes, &cantTell))
+	{
+		return cantTell ? LevelSaveResult::CantReplace : LevelSaveResult::Saved;
+	}
+
+	// Read as a plain file (ReadWhole's plainOnly): a link of that name isn't followed, and a file that isn't a plain one on a disk with one name only isn't read at all
+	std::vector<char> now;
+
+	if ((attributes & FILE_ATTRIBUTE_DIRECTORY) || !ReadWhole(path, now, true))
+	{
+		return LevelSaveResult::CantReplace;
+	}
+
+	// The file the level stands for (the same whole path, compared as the file system compares names, or the very same file on its disk) has to be as it was
+	if (againstOpened)
+	{
+		unsigned char identity[sizeof(FILE_ID_INFO)];
+		bool const samePath = !standsForPath.empty() &&
+			CompareStringOrdinal(whole.c_str(), (int)whole.size(), standsForPath.c_str(), (int)standsForPath.size(), TRUE) == CSTR_EQUAL;
+		bool const sameFile = standsForKnown && IdentityOf(path, identity) && memcmp(identity, standsForIdentity, sizeof(identity)) == 0;
+
+		if ((samePath || sameFile) && now != fileBytes)
+		{
+			return LevelSaveResult::ChangedOnDisk;
+		}
+	}
+
+	asItIs->swap(now);
+	return LevelSaveResult::Saved;
+}
+
+void OpenLevelFile::NowStandsFor(const char * path)
+{
+	std::wstring whole;
+
+	standsForPath.clear();
+	standsForKnown = false;
+
+	if (!path || !path[0] || !WholePath(path, whole))
+	{
+		return;
+	}
+
+	unsigned char identity[sizeof(FILE_ID_INFO)];
+
+	standsForKnown = IdentityOf(path, identity);
+
+	if (standsForKnown)
+	{
+		memcpy(standsForIdentity, identity, sizeof(identity));
+	}
+
+	standsForPath.swap(whole);
+}
+
+// The save's last look at the file it replaces, right before the replace (level_save.cpp): level_file.h. (Added 2026-11-22 by Melanikus (Vasquez), F-a.)
+bool LevelFile_StillThese(const char * path, std::vector<char> const & bytes)
+{
+	std::vector<char> now;
+
+	return path && path[0] && ReadWhole(path, now, true) && now == bytes;
+}

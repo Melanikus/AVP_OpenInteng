@@ -327,11 +327,35 @@ int main()
 	puts("A film there already:");
 	Check(WriteAll(filmsFolder + "message47.smk", "the owner's own film 47") && WriteAll(filmsFolder + "message417.smk", "a film of 417") &&
 		WriteAll(filmsFolder + "message144.smk", "Rebellion's film 144"), "three films put in its FMVs: 47 (a stock level plays 47), 417 (free) and 144 (a stock film no level plays)");
-	SaveAnsweredNo("47", filmsFolder + "message47.smk", "FMVs\\message47.smk is there already, and a stock level plays it: replace it with this video? That level would then play yours",
+	SaveAnsweredNo("47", filmsFolder + "message47.smk", "FMVs\\message47.smk is there already, and a stock level plays it (Genshd1.RIF): replace it with this video? That level would then play yours",
 		"47, a number a stock level plays");
 	SaveAnsweredNo("417", filmsFolder + "message417.smk", "FMVs\\message417.smk is there already: replace it with this video?", "417, a free number");
 	SaveAnsweredNo("144", filmsFolder + "message144.smk", "FMVs\\message144.smk is Rebellion's own film (no stock level plays it): replace it with this video? Steam's \"Verify "
 		"integrity of game files\" will later put Rebellion's back over yours", "144, a stock film no level plays");
+
+	// ---- a number a stock level plays, with NO film there yet (alpha.5's known issue, "a typed stock number with no film saves silently": it was
+	// said, then saved): asked first, naming the level that plays it, and a No makes nothing (Dietrich, 2026-11-23, for alpha.6)
+	puts("A stock-played number with no film there:");
+	{
+		int const questionsBefore = questionsAsked;
+
+		askedQuestion.clear();
+		Check(host::VideoMode_Press("Save") && AnswerNumber("103"), "103: Save opens the number window, and 103 is typed");
+
+		bool const asked = questionsAsked == questionsBefore + 1;
+
+		Check(asked && askedQuestion.find("a stock level plays number 103") != std::string::npos && askedQuestion.find("Derelict") != std::string::npos,
+			"103 (stock Derelict's briefing), no film there: asked first, naming the level (asked: \"" + askedQuestion + "\")");
+
+		if (asked && questionAnswer)
+		{
+			questionAnswer(false);
+		}
+
+		std::string const said = Said();
+
+		Check(asked && said == "Not saved: FMVs\\message103.smk not made" && ReadAll(filmsFolder + "message103.smk").empty(), "No makes nothing (said: \"" + said + "\")");
+	}
 
 	Check(encodes == 0, "no film was made: every No made nothing");
 

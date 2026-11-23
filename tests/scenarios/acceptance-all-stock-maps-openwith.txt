@@ -1,0 +1,58 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, Bishop 2's two orders after the owner's first real test of All stock maps, build f7108dd7 from his Tools):
+# (1) "All stock maps: not started: the open level was opened with Open with: open it by its name, or close it, before the run". He had opened his level the
+#     normal way, a double-click on a .rif, so the refusal blocked the most common way in. Now the run goes ahead whichever way the level was opened, and at
+#     the end the report says plainly that a level opened with Open with was not opened again (by its name it would be another file: all_stock_maps.h).
+# (2) The owner, who records the run: "It will preserve my camera angle and position from origin across level loads?". Now the camera as the run starts (its
+#     place from the world's origin, its turn, its look) is put back on every level as it opens, before its plot draws, and once more at the end.
+# HOW: the level is opened as a double-click opens it (start-args: the editor works on its copy in avp_rifs\OpenedByEditor). The file is a copy of stock
+# Statue (not one of the 22) made fresh in the run's own data copy, so nothing of the owner's is used, and it must come out byte for byte as it went in. The
+# run's data copy keeps only the first two of the 22 levels, Derelict and Genshd1 (both changed by the plot in Frost's runs), so the other 20 are missing,
+# skipped and named, and the run takes minutes, not 45.
+# RED on exe-cache/ddbb41ef.exe (bishop-int's head, 2026-11-23 01:26): Ok says "not started: the open level was opened with Open with ...", and no level opens.
+# "# changes-data" makes run-shards mirror the shard's data copy afresh after the run (it deletes 20 levels and writes two .rif.bak files there).
+# changes-data
+#ini AutoPlot=1
+make-level node -e "const fs=require('fs'),p=require('path');const d=process.argv[1],keep=process.argv[2].split(','),from=process.argv[3],name=process.argv[4];const run=['derelict','genshd1','invasion','odobenus','sulaco','hangar','temple_m','vaults_m','nost03_m','stat101_m','fall_m','fall','area52','vaults','furyall','caverns','battle','invasion_p','escape_p','temple_p','breakout_p','sulaco_p'];for(const f of fs.readdirSync(p.join(d,'avp_rifs'))){const n=f.toLowerCase();if(n.endsWith('.rif')&&run.includes(n.slice(0,-4))&&!keep.includes(n.slice(0,-4)))fs.rmSync(p.join(d,'avp_rifs',f))}fs.mkdirSync(p.join(d,'openwith'),{recursive:true});fs.copyFileSync(from,p.join(d,'openwith',name))" {datadir} derelict,genshd1 C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF Statue.rif
+screen Waypoint
+level {datadir}/openwith/Statue.rif
+start-args {datadir}/openwith/Statue.rif
+pictures on
+state
+expect-screen Waypoint
+
+# ---- the owner's camera: a place, a turn and a look none of the levels opens with (each open puts the camera at the origin, looking along z)
+camera 1500 -2500 4000 700
+camera-look 200 0
+wait 300
+expect-field camera 1500 -2500 4000 700 200
+
+# ---- Ok: the run starts, though the level was opened with Open with
+click-bar Alien auto waypoint > All stock maps
+wait 400
+expect-dialog All stock maps
+picture 1
+click-button Ok
+wait 300
+expect-no-dialog
+expect-status-not not started
+
+# ---- each level opens with the owner's camera, before its plot draws
+wait-status 60000 All stock maps: level 1 of 22,
+wait 1500
+expect-field level derelict
+expect-field camera 1500 -2500 4000 700 200
+picture 2
+wait-status 300000 All stock maps: level 2 of 22,
+wait 1500
+expect-field level genshd1
+expect-field camera 1500 -2500 4000 700 200
+picture 3
+
+# ---- the end: the report, saying the owner's level was not opened again and how to open it; the camera as it was; his file untouched
+wait-status 300000 (the report is open)
+expect-status All stock maps: 2 of 22 levels changed, 20 skipped
+expect-status your level Statue.rif was opened with Open with, so it was not opened again: double-click it to open it again
+expect-no-dialog
+expect-field camera 1500 -2500 4000 700 200
+picture 4
+verify node -e "const fs=require('fs');const a=process.argv[1];process.exit(Buffer.compare(fs.readFileSync(a),fs.readFileSync(process.argv[2]))===0&&!fs.existsSync(a+'.bak')?0:1)" {datadir}/openwith/Statue.rif C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF

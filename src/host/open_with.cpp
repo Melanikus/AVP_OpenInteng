@@ -11,11 +11,16 @@
 #include <vector>
 
 #include "level_file_name.h"
+#include "save_folder.h"   // SaveFolder_WhyNotUsable: the editor's own OpenedByEditor folder is held to the data folder's rule
 
 namespace
 {
 
 const char *const kOpenedFolder = "OpenedByEditor";   // inside the data folder's avp_rifs: only the editor puts files there
+
+// The last file taken (its whole wide path) and the bytes copied from it then, for OpenWith_StillAsTaken (open_with.h)
+std::wstring takenFrom;
+std::vector<char> takenBytes;
 
 void Say(char *why, size_t whySize, const char *text)
 {
@@ -52,6 +57,10 @@ bool ReadWhole(const wchar_t *path, size_t most, std::vector<char> &bytes)
 
 bool OpenWith_TakeLevel(const wchar_t *path, const char *dataFolder, char *levelName, size_t levelNameSize, char *why, size_t whySize)
 {
+	// nothing taken until this take succeeds (OpenWith_StillAsTaken never compares with an earlier take's bytes)
+	takenFrom.clear();
+	takenBytes.clear();
+
 	if (!path || !path[0] || !dataFolder || !dataFolder[0] || !levelName || levelNameSize == 0)
 	{
 		Say(why, whySize, "no level file was named");
@@ -148,6 +157,15 @@ bool OpenWith_TakeLevel(const wchar_t *path, const char *dataFolder, char *level
 	// The editor's own folder for opened files is made when it isn't there; the copy replaces the editor's own earlier one (a file given from inside that folder is its own copy: nothing to do)
 	CreateDirectoryA(folder.c_str(), NULL);
 
+	// THE EDITOR'S OWN FOLDER IS A PLAIN ONE (Vasquez's find F-d, Frost's review SHOULD 2, 2026-11-22; Tao 1): never a link or any other reparse point,
+	// as the data folder and its avp_rifs are (editor_main.cpp). The copy is written into it, and a junction there would send it somewhere else.
+	char checkedFolder[MAX_PATH];
+	if (char const *const notUsable = SaveFolder_WhyNotUsable(folder.c_str(), checkedFolder, sizeof(checkedFolder)))
+	{
+		Say(why, whySize, (std::string("the editor's own OpenedByEditor folder can't be used (") + notUsable + ")").c_str());
+		return false;
+	}
+
 	wchar_t fullGiven[MAX_PATH * 2];
 	wchar_t fullPlace[MAX_PATH * 2];
 	DWORD const givenLength = GetFullPathNameW(path, MAX_PATH * 2, fullGiven, NULL);
@@ -156,6 +174,36 @@ bool OpenWith_TakeLevel(const wchar_t *path, const char *dataFolder, char *level
 
 	// A READ-ONLY FILE OPENS (TB-C10, OUR BUG, FIXED: inteng opens it and says "This file is read only" at the hub's start): Windows' copy keeps the read-only mark, so the editor's own
 	// copy would be read-only and the next copy over it refused. The copy is the editor's own file: an earlier one loses the mark before the copy, the new one after it.
+	// WHAT IS THERE UNDER THAT NAME is the editor's own earlier copy only when it is a plain file on a disk with one name (F-d): CopyFile writes into the
+	// file there, so a link would send the copy somewhere else and a hard link's name would change another file too. Asked of the name itself, its link
+	// not followed. Anything else is left as it is, and the level isn't opened.
+	if (!itself)
+	{
+		HANDLE const there = CreateFileW(placeWide.data(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING,
+			FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, NULL);
+
+		if (there != INVALID_HANDLE_VALUE)
+		{
+			BY_HANDLE_FILE_INFORMATION facts;
+			bool const plain = GetFileType(there) == FILE_TYPE_DISK && GetFileInformationByHandle(there, &facts) && facts.nNumberOfLinks == 1 &&
+				!(facts.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT));
+
+			CloseHandle(there);
+
+			if (!plain)
+			{
+				Say(why, whySize, "what is in the editor's own OpenedByEditor folder under that name isn't a plain file with one name (a link, a folder, or a hard "
+					"link's name), so it isn't the editor's own copy: it is left as it is");
+				return false;
+			}
+		}
+		else if (GetLastError() != ERROR_FILE_NOT_FOUND && GetLastError() != ERROR_PATH_NOT_FOUND)
+		{
+			Say(why, whySize, "what is in the editor's own OpenedByEditor folder under that name can't be looked at, so it isn't written over");
+			return false;
+		}
+	}
+
 	if (!itself)
 	{
 		DWORD const before = GetFileAttributesW(placeWide.data());
@@ -182,6 +230,36 @@ bool OpenWith_TakeLevel(const wchar_t *path, const char *dataFolder, char *level
 		}
 	}
 
+	// the bytes just copied, read from the copy before anything else touches it (the open refreshes the copy's outside shapes next), and the file they
+	// came from, for the first save over it (OpenWith_StillAsTaken). A file opened from inside OpenedByEditor is its own copy: the level stands for it
+	if (!itself && givenLength > 0 && givenLength < MAX_PATH * 2 && !ReadWhole(placeWide.data(), kOpenWithMostBytes, takenBytes))
+	{
+		Say(why, whySize, "the editor's own copy in OpenedByEditor can't be read back");
+		takenBytes.clear();
+		return false;
+	}
+
+	if (!itself && givenLength > 0 && givenLength < MAX_PATH * 2)
+	{
+		takenFrom = fullGiven;
+	}
+
 	strcpy_s(levelName, levelNameSize, gameName.c_str());
 	return true;
+}
+
+bool OpenWith_StillAsTaken(const wchar_t *path)
+{
+	wchar_t full[MAX_PATH * 2];
+	DWORD const length = path && path[0] ? GetFullPathNameW(path, MAX_PATH * 2, full, NULL) : 0;
+
+	// not the file the last open took (or nothing was taken): not this rule's to judge
+	if (takenFrom.empty() || length == 0 || length >= MAX_PATH * 2 || _wcsicmp(full, takenFrom.c_str()) != 0)
+	{
+		return true;
+	}
+
+	std::vector<char> now;
+
+	return ReadWhole(full, kOpenWithMostBytes, now) && now == takenBytes;
 }

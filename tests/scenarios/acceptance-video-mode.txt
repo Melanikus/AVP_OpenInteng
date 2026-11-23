@@ -132,7 +132,7 @@ form-field 1 47
 click-button Ok
 wait 300
 expect-dialog-kind confirm
-expect-dialog FMVs\message47.smk is there already, and a stock level plays it: replace it with this video? That level would then play yours
+expect-dialog FMVs\message47.smk is there already, and a stock level plays it (Genshd1.RIF): replace it with this video? That level would then play yours
 click-button No
 wait 300
 expect-status Not saved: FMVs\message47.smk kept as it was

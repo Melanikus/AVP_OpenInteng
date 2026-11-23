@@ -572,6 +572,7 @@
 	"extras": [
 		{ "table": "built:Waypoint", "row": 1, "page": 0, "menu": "Alien auto waypoint", "title": "Environment", "command": "0x7335", "does": "waypoint" },
 		{ "table": "built:Waypoint", "row": 1, "page": 0, "menu": "Alien auto waypoint", "title": "Modules", "command": "0x7334", "does": "waypoint" },
+		{ "table": "built:Waypoint", "row": 1, "page": 0, "menu": "Alien auto waypoint", "title": "All stock maps", "command": "0x7338", "does": "waypoint" },
 		{ "table": "built:Waypoint", "row": 2, "page": 0, "menu": "Delete Waypoints", "title": "Delete Waypoints", "command": "0x7336", "does": "waypoint" },
 		{ "table": "built:Waypoint", "row": 2, "page": 0, "menu": "Delete All Waypoints", "title": "Delete All Waypoints", "command": "0x7337", "does": "waypoint" }
 	],

@@ -1,0 +1,4 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h
+/DNDEBUG
+/Itests
+tests/harness_moving_wait_test.cpp

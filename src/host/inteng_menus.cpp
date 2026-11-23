@@ -1112,13 +1112,14 @@ namespace host
 		{
 			{ "Environment", 0x1103ff, 0x7335, IntengTag::None, IntengWork::WaypointCommand, -1, -1 },
 			{ "Modules", 0x1103fe, 0x7334, IntengTag::None, IntengWork::WaypointCommand, -1, -1 },
+			{ "All stock maps", 0x1103fd, 0x7338, IntengTag::None, IntengWork::WaypointCommand, -1, -1 },
 		};
 		IntengMenu const kMenus16_1_0[] =
 		{
 			{ "Mode", kItems16_1_0_0, 3, 0 },
 			{ "Entry points", kItems16_1_0_1, 3, 0 },
 			{ "Help", kItems16_1_0_2, 1, 0 },
-			{ "Alien auto waypoint", kItems16_1_0_3, 2, -1 },
+			{ "Alien auto waypoint", kItems16_1_0_3, 3, -1 },
 		};
 		IntengItem const kItems16_1_1_0[] =
 		{

@@ -9,6 +9,9 @@
 // USAGE: drive_scenario.exe <the editor's .exe> <a folder for the pictures and the record> <a scenario file>
 //    or: drive_scenario.exe --shot-to-scenario <a shot .png, or a pattern with *>: prints the from-shot line and the -at line it stands for (from_shot.h); starts nothing
 // It prints "ok" or "FAILED" lines, writes the pictures (picture-<n>.png, panels-<n>.png) into the record folder, and gives back 0 only if every check passed.
+// IDLE_SECONDS=<n> in the environment (idle_gate.h, Frost 2026-11-22): the editor starts only when nobody has touched the machine for n seconds, else nothing
+// is written and it gives back 24 (run-shards tries again later); a touch during the run is a FAILED check.
+//    or: drive_scenario.exe --idle-ms: prints "idle <ms>", how long ago the machine was last touched (run-shards asks it during a run); starts nothing
 //
 // THE SCENARIO FILE: one step a line; a line starting with # and an empty line do nothing.
 //   screen <Name>               first: the editor starts on that screen's bar (-screen), as the Screens menu names it ("Waypoint", "Module Linking", "Path")
@@ -60,6 +63,9 @@
 //                               that share (default 0.01) changed (nothing happened there)
 //   expect-number <field> <label> <least> <most>   the number right after <label> (_ a space) in that state-line field is in the range
 //   wait-field <field> <label> <n> [<most ms>]   asks again every 100 ms until the number right after <label> (_ a space) in that field is n or more; FAILED at the limit (20000 ms)
+//   wait-moving <stall ms> <field> <words>   asks again every half second until that field holds the words, for as long as the field keeps CHANGING; FAILED only
+//                               when it stays the same for <stall ms> (1 to 600000), or after an hour in all, and then the scenario stops, as after a failed
+//                               wait-status (moving_wait.h: a wait that follows the run)
 //   app-active <0|1>            the editor's window is told the program lost (0) or got (1) the focus, as Windows tells it on an Alt+Tab (WM_ACTIVATEAPP: Link with AVP reads it)
 //   kill-editor                 the editor is ended at once, as a crash or Task Manager ends it (TerminateProcess): nothing it does when it closes happens; only verify steps make sense after it
 //   expect-pixels-changed-since <n> <kind> <x> <y> <w> <h> [share]   the same, the newest picture against picture n (one taken with picture <n>),
@@ -85,6 +91,8 @@
 #include <sstream>
 
 #include "from_shot.h"   // from-shot <png>, and --shot-to-scenario (Drake 11-18)
+#include "idle_gate.h"   // IDLE_SECONDS: no run while someone is at the machine (Frost 11-22)
+#include "moving_wait.h" // wait-moving: a wait that follows the run, failing only when it stalls (Frost 11-23)
 
 static std::string Narrow(std::wstring const &text)
 {
@@ -1106,6 +1114,46 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		PostMessageW(s->editor.window, WM_ACTIVATEAPP, active ? TRUE : FALSE, 0);
 		return true;
+	}
+
+	if (verb == "wait-moving" && w.size() >= 4)
+	{
+		// wait-moving <stall ms> <field> <words to the line's end>: the WAIT THAT FOLLOWS THE RUN (moving_wait.h): until the field holds the words, for as long
+		// as the field keeps changing; FAILED only when it stays word for word the same for <stall ms>, or after an hour in all (Frost 11-23, for a level whose
+		// plot is slower than any fixed limit: Caverns, 9 minutes and moving, RED at a 300 s wait)
+		long long const stall = atoll(w[1].c_str());
+		std::string const words = Rest(line, 3);
+
+		if (stall < 1 || (unsigned long long)stall > moving_wait::kMostStallMs || words.empty())
+		{
+			Check(false, label + " (the stall time is 1 to " + std::to_string(moving_wait::kMostStallMs) + " ms, and words must follow the field)");
+			return true;
+		}
+
+		moving_wait::Wait wait = moving_wait::Begin((uint64_t)stall, GetTickCount64());
+
+		for (;;)
+		{
+			bool const answered = AskState(s);
+			std::string const now = answered ? Field(s->last, w[2]) : std::string();
+			moving_wait::Step const step = moving_wait::Look(&wait, answered, now, words, GetTickCount64());
+			uint64_t const waited = GetTickCount64() - wait.start;
+
+			if (step == moving_wait::Step::Reached)
+			{
+				Check(true, label + " (after " + std::to_string(waited) + " ms: " + w[2] + " is \"" + now.substr(0, 200) + "\")");
+				return true;
+			}
+
+			if (step != moving_wait::Step::Keep)
+			{
+				Check(false, label + (step == moving_wait::Step::Stalled ? " (STALLED: " + w[2] + " didn't change for " + std::to_string(stall) + " ms" : std::string(" (an hour in all")) +
+					", after " + std::to_string(waited) + " ms; it is \"" + wait.lastText.substr(0, 200) + "\")");
+				return false;   // the scenario stops here, as a failed wait-status stops it: the steps after a stuck run would only wait out their own limits
+			}
+
+			Sleep(500);
+		}
 	}
 
 	if (verb == "wait-field" && w.size() >= 4)
@@ -3523,6 +3571,23 @@ int main(int argc, char **argv)
 {
 	setvbuf(stdout, NULL, _IONBF, 0);
 
+	// --idle-ms: how long ago the machine was last touched, in milliseconds ("idle <ms>"), and nothing else (idle_gate.h): run-shards.sh asks it once a minute WHILE a
+	// file that waited for nobody at the machine runs, and stops that run when someone comes back (Vasquez's review, 2026-11-22). No editor, no file, no window.
+	if (argc == 2 && strcmp(argv[1], "--idle-ms") == 0)
+	{
+		LASTINPUTINFO info = {};
+		info.cbSize = sizeof(info);
+
+		if (!GetLastInputInfo(&info))
+		{
+			printf("idle unknown\n");
+			return 2;
+		}
+
+		printf("idle %u\n", idle_gate::IdleMs(GetTickCount(), info.dwTime));
+		return 0;
+	}
+
 	// --shot-to-scenario <png, or a pattern with *: the newest that matches>: the from-shot line a screenshot gives and what it stands for (from_shot.h), printed; no editor is started
 	if (argc >= 2 && strcmp(argv[1], "--shot-to-scenario") == 0)
 	{
@@ -3720,6 +3785,43 @@ int main(int argc, char **argv)
 		steps.push_back(line);
 	}
 
+	// THE IDLE GATE (idle_gate.h; Bishop 2, 2026-11-22: no run that opens the editor while the owner is at his PC): with IDLE_SECONDS in the environment
+	// (run-shards.sh sets it), nothing is written and the editor isn't started unless nobody has touched the machine for that long. Without it, as before.
+	int idleSeconds = 0;
+	LASTINPUTINFO idleAtStart = {};
+	idleAtStart.cbSize = sizeof(idleAtStart);
+	{
+		char given[16] = "";
+		DWORD const length = GetEnvironmentVariableA("IDLE_SECONDS", given, (DWORD)sizeof(given));
+		idleSeconds = length >= sizeof(given) ? -1 : idle_gate::ParseSeconds(given);
+	}
+
+	if (idleSeconds < 0)
+	{
+		printf("  FAILED  IDLE_SECONDS is not a whole number of seconds from 1 to %d, so the run can't tell whether the machine is left alone: not started\n", idle_gate::kMostSeconds);
+		return 2;
+	}
+
+	if (idleSeconds > 0)
+	{
+		if (!GetLastInputInfo(&idleAtStart))
+		{
+			printf("  FAILED  Windows wouldn't say when the machine was last touched (GetLastInputInfo), so the run can't tell whether it is left alone: not started\n");
+			return 2;
+		}
+
+		uint32_t const idleMs = idle_gate::IdleMs(GetTickCount(), idleAtStart.dwTime);
+
+		if (!idle_gate::MayStart(idleMs, idleSeconds))
+		{
+			printf("  NOT STARTED  the machine was touched %u s ago, under the %d s it must be left alone (IDLE_SECONDS): the editor was not started, and nothing written "
+				"(run-shards tries again later)\n", idleMs / 1000, idleSeconds);
+			return idle_gate::kIdleNotStarted;
+		}
+
+		printf("  ok  nobody has touched the machine for %u s, at least the %d s IDLE_SECONDS asks: the editor may start\n", idleMs / 1000, idleSeconds);
+	}
+
 	if (FAILED(CoInitializeEx(NULL, COINIT_MULTITHREADED)))
 	{
 		fprintf(stderr, "drive_scenario: COM wouldn't start, so no picture could be read\n");
@@ -3827,6 +3929,21 @@ int main(int argc, char **argv)
 	{
 		printf("  NOTE  the real cursor %s and the foreground window was \"%s\" and is \"%s\": somebody used the computer during the run (the steps only post messages, they cannot do that)\n",
 			cursorStill ? "did not move" : "moved", Narrow(beforeTitle).c_str(), Narrow(afterTitle).c_str());
+	}
+
+	// THE IDLE GATE, at the end: with IDLE_SECONDS, a run someone touched (any input Windows counts, the harness's own posted messages not among them) is
+	// not a result: a FAILED check, so never green (run-shards flags it "touched")
+	if (idleSeconds > 0)
+	{
+		LASTINPUTINFO idleAtEnd = {};
+		idleAtEnd.cbSize = sizeof(idleAtEnd);
+		bool const read = GetLastInputInfo(&idleAtEnd) != 0;
+		bool const touched = !read || idle_gate::Touched(idleAtStart.dwTime, idleAtEnd.dwTime);
+		std::string const words = !read ? "Windows wouldn't say when the machine was last touched, so the run can't be taken as untouched" :
+			touched ? "the machine was TOUCHED during the run, " + std::to_string(idle_gate::IdleMs(GetTickCount(), idleAtEnd.dwTime) / 1000) + " s before its end: a run someone touched "
+			"is not a result" : "nobody touched the machine during the run";
+
+		Check(!touched, words + " (IDLE_SECONDS)");
 	}
 
 	CoUninitialize();

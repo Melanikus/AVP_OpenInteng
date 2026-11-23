@@ -119,6 +119,35 @@ int main()
 	Check(!StatusWords_ShownWhereIntengHidesIt(StatusSayer::WaypointPlot, false, true) && !StatusWords_ShownWhereIntengHidesIt(StatusSayer::WaypointPlot, false, false),
 		"and only there");
 
+	// A LEAD FOR ONE SAYER (Dietrich 2026-11-23, the alpha.6 cut: All stock maps' level in front of the plot's own progress, which it says later in the frame)
+	{
+		StatusWords led;
+		char const *const plot = "Auto-plot: module 69 of 120 (CAVERNH-02), way 860 of 1418: searching";
+
+		led.SetLead(StatusSayer::WaypointPlot, "All stock maps: level 17 of 22, battle.RIF: ");
+		led.Say(plot, StatusSayer::WaypointPlot);
+		Check(std::string(led) == std::string("All stock maps: level 17 of 22, battle.RIF: ") + plot && led.Sayer() == StatusSayer::WaypointPlot,
+			"with a lead, the lead sayer's words are held with the lead in front: " + std::string(led));
+		Check(led.LedWords() == plot, "and its own words, without the lead, are kept for the run's line: " + led.LedWords());
+		Check(led.From(plot), "and From() still answers for the caller's own words");
+
+		led.Say("All stock maps: level 17 of 22, battle.RIF: plotting", StatusSayer::WaypointPlot);
+		Check(std::string(led) == "All stock maps: level 17 of 22, battle.RIF: plotting" && led.LedWords() == plot,
+			"words that start with the lead already (the run's own line) are held as they are, and leave the led words alone: " + std::string(led));
+
+		led.Say("Waypoint 3 made on the floor", StatusSayer::WaypointMouse);
+		Check(std::string(led) == "Waypoint 3 made on the floor", "another sayer's words get no lead: " + std::string(led));
+		led = "Saved a copy";
+		Check(std::string(led) == "Saved a copy" && led.Sayer() == StatusSayer::Other, "nor a plain setting's");
+
+		led.SetLead(StatusSayer::WaypointPlot, "All stock maps: level 18 of 22, invasion_p.RIF: ");
+		Check(led.LedWords().empty(), "a new lead forgets the led words of the one before (the next level's line never shows the last level's plot)");
+
+		led.ClearLead();
+		led.Say(plot, StatusSayer::WaypointPlot);
+		Check(std::string(led) == plot && led.LedWords().empty(), "with the lead cleared, the plot's words are its own again: " + std::string(led));
+	}
+
 	printf("%d checks, %d failed\n", checks, checksFailed);
 	return checksFailed == 0 ? 0 : 1;
 }

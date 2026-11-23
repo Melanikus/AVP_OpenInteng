@@ -184,9 +184,11 @@
 #include "placement_hierarchy_fly.h"   // F on a placed hierarchy (V-6)
 
 OpenLevelFile *placementRowsOpen = nullptr;
+unsigned placementRowsGeneration = 0;   // and which open of it (Generation(): a level opened in the same sitting may get the same address and Changes() count)
 unsigned placementRowsFor = 0;
 OpenLevelFile *placedSoundsOpen = nullptr;   // the level and generation the playing sounds (placed_sounds_game.h) were made from; none while the screen is not shown
 unsigned placedSoundsFor = 0;
+unsigned placedSoundsGeneration = 0;
 
 // The level's placed sounds, in their order among the sounds, as the game's sound code takes them: the place and the ranges in the game's units (the file's x the level's scale, as the
 // game's loader makes a track's sound, object_setup.cpp:178-183), the volume and the pitch as the file holds them (the game's own units)

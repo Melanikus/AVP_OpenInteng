@@ -182,6 +182,7 @@
 #include "mishchnk.hpp"
 #include "waypoint_all.h"   // THE WAYPOINT DISPLAY: every AI module's alien list (WaypointAllClick)
 #include "autoplot_command.h"   // AN EDIT WAITS FOR THE PLOT: a click in the view while a run is going (AutoPlotCommand_Waits)
+#include "all_stock_maps_screen.h"   // ... and while All stock maps runs (AllStockMapsScreen_Waits)
 
 namespace
 {
@@ -208,7 +209,7 @@ bool WaypointMouse_Release(int32_t x, int32_t y)
 
 	pressBox = -1;
 
-	if (from >= 0 && AutoPlotCommand_Waits("A box dragged in the view"))
+	if (from >= 0 && (AutoPlotCommand_Waits("A box dragged in the view") || host::AllStockMapsScreen_Waits("A box dragged in the view")))
 	{
 		return true;   // (the drag let go of, nothing moved)
 	}
@@ -230,7 +231,7 @@ bool WaypointMouse_Release(int32_t x, int32_t y)
 
 void WaypointMouseClick(host::PickReport const &picked, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight, bool shift, bool ctrl)
 {
-	if (AutoPlotCommand_Waits("A click in the view"))
+	if (AutoPlotCommand_Waits("A click in the view") || host::AllStockMapsScreen_Waits("A click in the view"))
 	{
 		return;
 	}
@@ -417,7 +418,7 @@ void WaypointMouseClick(host::PickReport const &picked, int32_t x, int32_t y, in
 
 bool WaypointAllClick(host::PickReport const &picked, int32_t x, int32_t y, int32_t viewWidth, int32_t viewHeight)
 {
-	if (AutoPlotCommand_Waits("A click in the view"))
+	if (AutoPlotCommand_Waits("A click in the view") || host::AllStockMapsScreen_Waits("A click in the view"))
 	{
 		return true;   // (taken: nothing picked)
 	}

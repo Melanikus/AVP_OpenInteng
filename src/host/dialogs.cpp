@@ -276,6 +276,11 @@ namespace host
 		screen.height = height > 0 ? height : 480;
 	}
 
+	int32_t Dialogs_ScreenWidth()
+	{
+		return screen.width;
+	}
+
 	bool Dialogs_Press(int32_t x, int32_t y)
 	{
 		int32_t answer = 0;

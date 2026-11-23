@@ -10,6 +10,7 @@
 
 #include "autoplot_command.h"
 #include "alien_auto_waypoint.h"   // kWaypointAlienAutoModules
+#include "all_stock_maps_ui.h"     // kWaypointAlienAutoAllStockMaps
 
 namespace host
 {
@@ -32,9 +33,10 @@ namespace host
 
 	// The rule, a plain sum: an item of inteng's tables (its command number, IntengItem::command) is left out while the switch is off when it is one of the three (the third,
 	// Auto-plot selected AI modules, added 2026-11-19 by Melanikus (Dietrich)), or the owner's "Alien auto waypoint" > Modules and > Environment (added 2026-11-20 by Melanikus
-	// (Vasquez))
+	// (Vasquez)), and > All stock maps (added 2026-11-22 by Melanikus (Drake), after Frost's acceptance-all-stock-maps-autoplot-off found the menu kept on the bar by it alone)
 	inline bool AutoPlot_CommandHidden(int32_t command, bool shown)
 	{
-		return !shown && (command == kWaypointAutoPlotModule || command == kWaypointAutoPlotAll || command == kWaypointAutoPlotSelected || command == kWaypointAlienAutoModules || command == kWaypointAlienAutoEnvironment);
+		return !shown && (command == kWaypointAutoPlotModule || command == kWaypointAutoPlotAll || command == kWaypointAutoPlotSelected || command == kWaypointAlienAutoModules ||
+			command == kWaypointAlienAutoEnvironment || command == kWaypointAlienAutoAllStockMaps);
 	}
 }

@@ -87,6 +87,8 @@
 
 #include "inteng_menus.h"
 #include "level_file.h"
+#include "all_stock_maps.h"
+#include "level_reopen.h"
 #include "field_descriptor_from_model.h"
 #include "light_edit.h"
 #include "light_paste.h"
@@ -139,8 +141,10 @@
 #include "utilities.h"     // SaveFolder_UseThisFolder (SAVE-FOLDER-1)
 #include "save_folder.h"   // SaveFolder_WhyNotUsable, for DataFolder too
 #include "game_folder.h"   // GameFolder_AboveProgram: the data folder when the ini names none (a first start, out of the box)
+#include "first_launch_screen.h"   // the first-launch setup: no game found, so the user is asked where it is
 #include "video_drop.h"          // kVideoDropTag: the harness's drop-file
 #include "video_mode.h"          // VideoMode_Browse: the Video screen's Load > Browse...
+#include "all_stock_maps_screen.h"   // Waypoint > Alien auto waypoint > All stock maps: its menu waits, its Esc
 #include "video_mode_screen.h"   // the owner's Video mode, its screen: its panels, its picture, its presses, its drops
 #include "editor_actions.h"
 #include "hidden_objects.h"
@@ -1681,7 +1685,11 @@ static void SplitCentreOnCurrent()
 
 	if (LinkedObjectWorld(world))
 	{
-		memcpy(splitCentre, world, sizeof(splitCentre));
+		// three numbers, copied one by one (a memcpy of them read to Snyk Code as an input buffer reaching the state line's printf: 2026-11-22,
+		// cpp/ImproperNullTermination, after the level open moved out of main)
+		splitCentre[0] = world[0];
+		splitCentre[1] = world[1];
+		splitCentre[2] = world[2];
 	}
 	else if (theCamera)
 	{
@@ -2696,6 +2704,12 @@ uint32_t strategyViewBit = 0;   // Strategy mode's View Flag (FUN_0052f680 sets 
 static unsigned copySavedChanges = ~0u;   // defined with the mode's Exit below: the level's Changes() at the opening, then at each Save a copy (its Generation() until 2026-11-17: a same-size edit, SetPayload, moves only Changes(), so the Exit did not save it; the view gap, Dietrich)
 static host::LevelSaveSitting levelSaveSitting;   // this run's saves: the first save of the level keeps it as .bak, later ones leave that .bak alone (level_save.h, Bishop's ruling B)
 
+// The sitting's saves, for All stock maps (all_stock_maps_host.cpp): it marks each level it saved with its own .bak (LevelSaveSitting::MarkSaved)
+host::LevelSaveSitting &EditorSaveSitting()
+{
+	return levelSaveSitting;
+}
+
 // STRATEGY DATA'S "CHANGED" (strategy-data.md S-10, S-5; reassess/strategy-data-verify-frost.md W-3): inteng's mark DAT_00914950 is cleared on EVERY entry of the mode (FUN_00522ab0 0x522ae2,
 // Object Placement's Tab included) and by its Save (FUN_005282d0 0x52831b), and set only by the mode's own edits (its 30 writers, all in 0x5286b0-0x53b7a9). So a change made before the mode
 // was entered (Object Placement's, carried in by Tab) does not make Exit ask. Ours: the level's generation at the entry or the last Save, and strategyMarkedChanged for the marks that change no bytes.
@@ -2984,6 +2998,25 @@ void SaveTheCopy()
 		}
 
 		target = openedFile;
+
+		// an "Open with" level's FIRST save over the user's own file: that file must still be the bytes taken from it at the open (open_with.h
+		// OpenWith_StillAsTaken; Frost's review of F-a, SHOULD 1). Later saves compare it with what they wrote (level_save.h)
+		if (!levelSaveSitting.SavedBefore(target.c_str()) && !levelSourcePath.empty() && !OpenWith_StillAsTaken(levelSourcePath.c_str()))
+		{
+			savedWords = std::string("Not saved (the file is as it was): the level file was changed on disk by another program since it was opened, so it is not "
+				"written over: ") + target;
+			statusWords = savedWords.c_str();
+			return;
+		}
+
+		// a level opened by its name is saved through the data folder's own folders: each a plain one, never a link (game_folder.h, F-d)
+		std::string notPlainAt;
+		if (char const *const notPlain = host::GameFolder_WhyNotPlainBelow(theGameFolder, target, &notPlainAt))
+		{
+			savedWords = std::string("Not saved (the file is as it was): ") + notPlain + ": " + notPlainAt;
+			statusWords = savedWords.c_str();
+			return;
+		}
 	}
 
 	std::string backup, overWhy;
@@ -4901,7 +4934,7 @@ static void PlacementFrame()
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
 	// read again on every change of the level (Changes(): Generation() misses a same-size edit, as a moved special object or placed hierarchy is)
-	if (open && (placementRowsOpen != open || placementRowsFor != open->Changes()))
+	if (open && (placementRowsOpen != open || placementRowsFor != open->Changes() || placementRowsGeneration != open->Generation()))
 	{
 		placementRows.clear();
 		placementSpecials.clear();
@@ -4915,16 +4948,18 @@ static void PlacementFrame()
 		host::PlacedHierarchies_Read(open, &placementHierarchies);
 		placementRowsOpen = open;
 		placementRowsFor = open->Changes();
+		placementRowsGeneration = open->Generation();
 	}
 
 	// THE PLACED SOUNDS (placed_sounds_game.h): made when the screen shows them (FUN_004d68e0 -> FUN_004ecd40) and when the level's objects changed, then FUN_004ed7e0 for each, every frame
-	if (open && placementRowsOpen == open && (placedSoundsOpen != open || placedSoundsFor != placementRowsFor))
+	if (open && placementRowsOpen == open && (placedSoundsOpen != open || placedSoundsFor != placementRowsFor || placedSoundsGeneration != placementRowsGeneration))
 	{
 		host::SoundGame_UseSilence(editorHiddenRun);
 		host::SoundGame_UseSoundDirectory(host::TrackLevelSoundDirectory(open));
 		host::PlacedSounds_Sync(PlacedSoundsOfLevel(placementSpecials));
 		placedSoundsOpen = open;
 		placedSoundsFor = placementRowsFor;
+		placedSoundsGeneration = placementRowsGeneration;
 	}
 
 	int32_t eye[3];
@@ -6418,6 +6453,7 @@ static bool HierarchyKey(WPARAM key)
 void RunAction(int32_t id)
 {
 	if (AutoPlotCommand_ItemWaits(id)) return;   // AN EDIT WAITS FOR THE PLOT (autoplot_waits.h): while Alien auto waypoint plots, what would change the level waits, and the status line says so
+	if (host::AllStockMapsScreen_ItemWaits(id)) return;   // ... and for All stock maps' whole run (all_stock_maps_screen.h), its levels' opening and saving included
 
 	EditorHostState host = {};
 
@@ -7860,6 +7896,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		case WM_CHAR:
 		{
 			if (message == WM_KEYDOWN && wParam == VK_PAUSE) { TakeAScreenshot(); return 0; }   // Pause: a screenshot in every mode (FUN_0058c010 case 0x13 sets DAT_0091c010, the frame loop 0x58cfae calls FUN_00472930; bible-check.md M-1)
+
+			// ALL STOCK MAPS running (all_stock_maps_screen.h): Esc stops it after the level it is on, and does nothing else
+			if (message == WM_KEYDOWN && wParam == VK_ESCAPE && host::AllStockMapsScreen_Esc())
+			{
+				return 0;
+			}
 
 			if (textureColourPicking) { return 0; }   // Select Colour's grid: FUN_00560620's loop reads no key, only a mouse press (0x56086a)
 
@@ -13106,6 +13148,7 @@ static void PromptKey(UINT message, WPARAM key)
 // holds 64 boxes and lines in all, the nearest ones in front of the camera first). (Added 2026-11-15 by Melanikus (Vasquez); the comment corrected 2026-11-16: the 2D boxes are long gone.)
 static std::vector<host::SpecialObject> specialMarkers;
 static unsigned specialMarkersFor = ~0u;
+static unsigned specialMarkersGeneration = 0;   // and which open of it (Generation(): a level opened in the same sitting may get the same address and Changes() count)
 static OpenLevelFile *specialMarkersOpen = nullptr;
 
 // An enemy's or a generator's ID by its name (the game's own, AVP_Generator_Chunk::CalculateID: the first of a name, as the game's lookups take the first), read again when the level changes
@@ -13724,12 +13767,13 @@ void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 	}
 
 	// read again on every change of the level (Changes(): Generation() misses a same-size edit, and a moved place is one: the icon stayed where it was until a save)
-	if (specialMarkersOpen != open || specialMarkersFor != open->Changes())
+	if (specialMarkersOpen != open || specialMarkersFor != open->Changes() || specialMarkersGeneration != open->Generation())
 	{
 		specialMarkers.clear();
 		host::SpecialObjects_Read(open, &specialMarkers);
 		specialMarkersOpen = open;
 		specialMarkersFor = open->Changes();
+		specialMarkersGeneration = open->Generation();
 	}
 
 	double const scale = local_scale > 0.0 ? local_scale : 1.0;
@@ -14020,12 +14064,13 @@ void AddSpecialMarkers(const ui::PanelLayout &layout, host::PaintText *lines, si
 	}
 
 	// read again on every change of the level (Changes(): Generation() misses a same-size edit, and a moved place is one: the icon stayed where it was until a save)
-	if (specialMarkersOpen != open || specialMarkersFor != open->Changes())
+	if (specialMarkersOpen != open || specialMarkersFor != open->Changes() || specialMarkersGeneration != open->Generation())
 	{
 		specialMarkers.clear();
 		host::SpecialObjects_Read(open, &specialMarkers);
 		specialMarkersOpen = open;
 		specialMarkersFor = open->Changes();
+		specialMarkersGeneration = open->Generation();
 	}
 
 	struct Seen
@@ -14154,6 +14199,335 @@ static void AddThePanels(void *context)
 	}
 }
 // (THE PROOF RUNS: in editor_proofs.cpp)
+
+// THE LEVEL THE EDITOR HOLDS, AND ITS OPEN AND CLOSE (moved out of main() unchanged in order, 2026-11-22 by Melanikus (Dietrich), for All stock maps:
+// Vasquez's plan, AvP-docs director/plan-all-stock-maps.md). main() opens the first level and closes the last through them, so a level can be
+// closed and the next opened in the same sitting. heldLevel was main()'s own openLevel.
+static std::unique_ptr<OpenLevelFile> heldLevel;
+
+// main()'s open, as it was: the game's level for the view (LevelView_Open), the editor's hold of the same file, the camera and its file, the
+// first frame's toggles, and the object list. False, with why, when the game's level can't be opened (main() then stops). ownFolder: the
+// editor's own folder (the camera files are kept under it). openedByName: no
+// file on the command line (the outside shapes are refreshed in memory); gouraudAsInteng: no -viewmode asked for another start
+static bool OpenTheLevel(char const *levelName, FlyCamera *camera, char const *ownFolder, bool openedByName, long pictureAfter, bool gouraudAsInteng,
+	std::string *outsideShapesWords, char *why, size_t whySize)
+{
+	openLevelName = levelName;
+
+	if (!LevelView_Open(levelName, camera, why, whySize))
+	{
+		return false;
+	}
+
+	statusWords = LevelView_SayMissingPictures(statusWords);   // MISSING PICTURES: the user is told how many (level_view.h)
+	statusWords = host::FmvScreens_SayAtOpen(theGameFolder, statusWords);   // VIDEO SCREENS that will stay still, and why (fmv_preview.h)
+	statusWords = LevelView_SayMemory(statusWords);   // LEVEL MEMORY: blocks taken and MB free, after whatever else is said (level_view.h)
+
+	// THE FIRST FRAME, as inteng's: the hub (FUN_00447550) ends with FUN_00470550(10), the camera from slot 10, which holds the origin (0, 0, 0) and the identity turn (DAT_00636f90 + 0x78,
+	// DAT_005d3b38 + 0x168: nothing but a camera file beside the level, <RIFFNAME>.cam, written by inteng's own Exit, fills them in, and the level's CAMORIGN adds its offset to every slot
+	// at FUN_00470950: both still to be read, the camera file by this editor never being written), and the Gouraud switch is OFF (lighting starts off: FUN_004d67f0's DAT_008f4f0c = 0). Every
+	// other slot starts the same. (Joined 2026-11-16 by Melanikus (Dietrich), startup-trace.md section 6.)
+	{
+		FlyCamera const atTheOrigin = { 0, 0, 0, 0, 0, 0 };
+
+		*camera = atTheOrigin;
+
+		for (int slot = 0; slot <= 10; slot++)
+		{
+			cameraSlots[slot] = atTheOrigin;
+			cameraSlotSet[slot] = true;
+		}
+
+		if (ViewToggles_Now().gouraud == host::Gouraud::On)
+		{
+			ViewToggles_UseNow(host::ViewToggle::GouraudSwitch);
+		}
+	}
+
+
+	// A -picture run says at once where the level put things and where the camera starts (level_view.h), so a run cut short has it too.
+	// (Added 2026-11-14 by Melanikus (Dietrich), F3.)
+	if (pictureAfter)
+	{
+		printf("AVP_OpenInteng: start: %s\n", LevelView_StartWords());
+		fflush(stdout);
+	}
+
+	// The level as the editor holds it (NotHeldWords says what a failure means): its file's bytes, and the chunks the game's own loader
+	// made from exactly those bytes (level_file.h). LevelObjects_Hold opens it from the path the game loaded the level from, so the
+	// picture and the objects are of one file, and hands it to the lookups (level_objects.h); the stock proof opens its levels through
+	// the same call. It's let go of at the end, before the game's level is closed. (Added 2026-11-15 by Melanikus (Dietrich), after
+	// checkpoint 1's hidden run found the object list empty: the game's own copy of the level's file is gone once the level is loaded.)
+	heldLevel.reset(new OpenLevelFile);
+	OpenLevelFile *const openLevel = heldLevel.get();
+	const char *const notHeldWords = NotHeldWords(LevelObjects_Hold(openLevel));
+	editedLevel = openLevel;
+
+	// OP-137 / OP-137a (inteng FUN_005149e0 -> FUN_00512fc0(0) while the rif is read): the open path refreshes the editor's own copy of the file with OutsideShapes_RefreshFile BEFORE the
+	// game loads it for the view, so the view and this held level are both read from the refreshed bytes (the call is just after OpenWith_TakeLevel; the refresh itself is not done here).
+	copySavedChanges = openLevel->Changes();   // Move relative and Name object change its bytes (M-1)
+	viewChanges = openLevel->Changes();               // the game's view is of these bytes (ShowTheWorkingBytes)
+
+	// OP-137b (Bishop's ruling Q2, 11-17: EVERY open path, as inteng refreshes at every load, FUN_005149e0): a level opened by its NAME from the data folder (Level=, no file on the command
+	// line) is never written, so its outside shapes are brought up to date on the HELD level, in memory (ReplaceLevel). Its Changes() then differs from the view's, so the view loads those
+	// working bytes on the next frame (ShowTheWorkingBytes); a save writes them, to the copy the user picks. The double-click path did it on the editor's own copy, above.
+	if (openedByName && !notHeldWords)
+	{
+		std::vector<std::string> refreshed;
+
+		if (OutsideShapesUpdate(openLevel, false, std::string(), nullptr, nullptr, &refreshed) > 0)
+		{
+			*outsideShapesWords = OutsideShapesWordsOf(refreshed);
+		}
+	}
+
+	// THE CAMERA FILE (inteng, FUN_00470950): the eleven saved camera places of this level, from <RIFFNAME>.cam, read after the first frame's camera is set (so they are used from the next F key or mode start). Ours is read from and
+	// written to the editor's own folder (camera_file.h says what is named); written at every slot save and when the program ends (WriteTheCameraFile, FUN_00470610).
+	cameraFileName.clear();
+	cameraFolder = std::string(ownFolder) + "camera\\";
+	cameraFileOffset[0] = cameraFileOffset[1] = cameraFileOffset[2] = 0;
+
+	if (host::CameraFile_Name(LevelObjects_Level(), &cameraFileName))
+	{
+		host::CameraFileSlot loaded[host::kCameraFileSlots];
+
+		host::CameraFile_Offset(LevelObjects_Level(), cameraFileOffset);
+
+		if (host::CameraFile_Read(cameraFolder + cameraFileName, cameraFileOffset, loaded))
+		{
+			for (size_t s = 0; s < host::kCameraFileSlots; s++)
+			{
+				cameraSlots[s] = CameraOfFileSlot(loaded[s]);
+				cameraSlotSet[s] = true;
+			}
+
+			if (pictureAfter)
+			{
+				printf("AVP_OpenInteng: camera file: read %s\n", cameraFileName.c_str());
+				fflush(stdout);
+			}
+		}
+	}
+
+	// A file of objects with no modules (the HUD weapons, the character models) draws nothing through the game's modules: every object of it is made a display block of the game's own, where the file puts it
+	// (hierarchy_view.h, ModelObjects_Build), and the camera starts in front of them all. (Added 2026-11-15 by Melanikus (Frost), the marwep fix.)
+	if (pictureAfter)
+	{
+		printf("AVP_OpenInteng: model objects: the game has %d modules (ModuleArraySize)\n", (int)LevelView_ModuleCount());
+		fflush(stdout);
+	}
+
+	// inteng starts with LIGHTING OFF in every file (Misc > Lighting, item 0x54, FUN_004d67f0 (0x4d67f0): its flag DAT_008f4f0c is 0 in .bss at the start and FUN_004d68e0 ticks the item from it at 0x4d8409; with the flag 0 the
+	// function keeps the textured polygons plain, item types 6 -> 5 and 0x18 -> 7): textures at their full colours, unshaded. The editor's Gouraud switch is that item; a -viewmode on the command line is what a person asked for and is kept.
+	// (Bishop 11-16 00:05, Melanikus's rule 10a: no substitutes. Added 2026-11-15 by Melanikus (Frost).)
+	if (gouraudAsInteng && ViewToggles_Now().gouraud == host::Gouraud::On)
+	{
+		statusWords = ViewToggles_UseNow(host::ViewToggle::GouraudSwitch);
+	}
+
+	bool anyModule = false;
+
+	for (int32_t m = 0; m < LevelView_ModuleCount() && !anyModule; m++)
+	{
+		std::string moduleName;
+
+		anyModule = LevelView_ModuleName(m, &moduleName);   // a module the game has in play (the game's own array always holds its terminator)
+	}
+
+	if (!anyModule && LevelObjects_Level())
+	{
+		std::string said;
+		size_t const made = ModelObjects_Build(LevelObjects_Level(), &said);
+
+		LevelView_DrawObjectsOutsideModules(made > 0);
+		int32_t mins[3], maxs[3];
+
+		if (pictureAfter)
+		{
+			printf("AVP_OpenInteng: model objects: %s\n", said.c_str());
+			fflush(stdout);
+		}
+
+		if (made > 0)
+		{
+			ModelObjects_Bounds(mins, maxs);
+
+			// WHERE inteng puts the camera when a file opens (traced from inteng.exe): FUN_00447d50 (the file open) loads the file (FUN_0042b8c0), then FUN_00447550 (the hub's set-up) restores the camera from SLOT 10 (FUN_00470550(10): the
+			// position at DAT_00636f90 + 10 x 12 and the 3 x 3 matrix at DAT_005d3b38 + 10 x 36 into the camera object, DAT_00962304's +0x68), and only then FUN_00470950 reads the file's saved camera slots (a file named after the RIF, never
+			// applied until an F key). The slots start as zero places and identity matrices (inteng.exe's .bss and .data), so a file opened first, with no camera file, shows from 0 0 0, looking along +z, level. The objects of a
+			// file are drawn where the file puts them.
+			camera->x = 0;
+			camera->y = 0;
+			camera->z = 0;
+			camera->turn = 0;
+			camera->look = 0;
+			FlyCamera_Hold(camera);
+
+			if (pictureAfter)
+			{
+				printf("AVP_OpenInteng: model objects: bounds %d %d %d to %d %d %d; the camera at %d %d %d (inteng's slot 10: the origin, level); Gouraud switched off as inteng's Lighting starts\n", (int)mins[0], (int)mins[1], (int)mins[2], (int)maxs[0], (int)maxs[1], (int)maxs[2], camera->x, camera->y, camera->z);
+				fflush(stdout);
+			}
+		}
+	}
+
+	// OP-140 (Bishop's ruling 11-17, a named difference): which outside shapes the open brought up to date; after the start's Gouraud words, and a level not held says so over it
+	if (!outsideShapesWords->empty())
+	{
+		// whatever the start put on the line stays after them: the inteng.exe warning (IntengExeStart), a -viewmode's words (open-path-6), how many pictures are missing
+		// (LevelView_SayMissingPictures, which hands back words of its own, so the warning can't be told by its pointer: 11-18, after bishop-int's ad73774b)
+		if (statusWords && statusWords[0])
+		{
+			*outsideShapesWords += std::string(" - ") + (char const *)statusWords;
+		}
+
+		statusWords = outsideShapesWords->c_str();
+	}
+
+	if (notHeldWords)
+	{
+		statusWords = notHeldWords;
+	}
+
+	// The object list, from the level just opened (level_objects.h). The list copies what it shows at once, as the level's own bytes are
+	// only good while it stays open. (Added 2026-11-14 by Melanikus (Dietrich), F3.)
+	{
+		std::vector<host::LevelObject> found;
+
+		bool const listRead = LevelObjects_Read(&found);
+		objectList.Load(found.data(), found.size());
+		RotationCentreDefault();   // the file open's hub set-up (FUN_00447d50 -> FUN_00447550 0x447652, CAM-7)
+		fieldHost.Clear();
+		shownRecord = host::FieldRecord();
+		fieldsSawChanges = host::Selection_Changes();
+		listSawChanges = host::Selection_Changes();
+
+		// A -picture run says how many rows the list got, its first row's ID and name, and whether the level's tree was read at all, so a
+		// list that came up empty (no tree, no objects in it, or every ID 0) is seen at once. (Added 2026-11-14 by Melanikus (Dietrich),
+		// after checkpoint 1's hidden run found the list empty.)
+		if (pictureAfter)
+		{
+			char firstId[2 * host::kObjectIdBytes + 1] = "none";
+			const uint8_t *const id = objectList.Id(0);
+
+			for (size_t i = 0; id && i < host::kObjectIdBytes; i++)
+			{
+				_snprintf_s(firstId + i * 2, 3, _TRUNCATE, "%02X", (unsigned)id[i]);
+			}
+
+			printf("AVP_OpenInteng: object list: %u rows, first id %s, first name \"%s\", LevelObjects_Read returned %s, the level's file held by the "
+				"editor: %s\n", (unsigned)objectList.Count(), firstId, objectList.Count() ? objectList.Name(0).c_str() : "",
+				listRead ? "true" : "false", notHeldWords ? notHeldWords : "yes");
+			fflush(stdout);
+		}
+
+		if (objectList.Cut())
+		{
+			statusWords = kListCutWords;
+		}
+	}
+
+	return true;
+}
+
+// main()'s leaving, as it was, the order kept: the camera file written, the editor's hold of the level let go before the game's level, the sounds
+// before the game's teardown. programEnd: also the plot's and the Video screen's workers stopped and waited for, and the camera let go
+static void CloseTheLevel(bool programEnd, long pictureAfter)
+{
+	// Leaving: the camera file is written (FUN_00470610), into the editor's own folder
+	if (!cameraFileName.empty())
+	{
+		bool const written = WriteTheCameraFile();
+
+		if (pictureAfter)
+		{
+			printf("AVP_OpenInteng: camera file: %s %s\n", written ? "written" : "NOT written", cameraFileName.c_str());
+			fflush(stdout);
+		}
+	}
+
+	// AT THE PROGRAM'S END ONLY: a plot's worker still searching is stopped and waited for first, while the level and its grid are still there
+	// (autoplot_command.h; never between two levels: All stock maps closes a level only when no plot runs, and AutoPlotCommand_Stop is no cancel,
+	// Vasquez 11-22), and the Video screen's worker (a video read or a film made) stopped and waited for (video_mode_screen.h)
+	if (programEnd)
+	{
+		AutoPlotCommand_Stop();
+		host::VideoModeScreen_Close();
+	}
+
+	// The editor's hold of the level goes before the game's level does, so no chunk of it is let go of after the game's own teardown
+	if (programEnd)
+	{
+		theCamera = nullptr;   // between levels the camera stays: it is main()'s own, and the next level's open sets it
+	}
+
+	editedLevel = nullptr;
+	LevelObjects_Use(nullptr);
+	heldLevel.reset();
+
+	// the sounds Object Placement holds go before the game's level does (its teardown lets go of every loaded sound)
+	host::SoundGame_PreviewStop();
+	host::PlacedSounds_LetGo();
+	host::HierarchySounds_LetGo();
+	host::TrackPlay_EndSounds();
+	LevelView_Close();
+}
+
+void AutoLink_ForgetLevel();     // construction_modes_screen.cpp
+void DeleteLinks_ForgetLevel();  // editor_screen_keys.cpp
+
+// The words the open puts on the status line point into this, so it lives as long as the program, as main()'s own does
+static std::string reopenOutsideShapesWords;
+
+// level_reopen.h. The close and the open are main()'s own; between them, what nothing else lets go of from one level to the next
+bool LevelReopen_Open(char const *levelName, std::string *why)
+{
+	char ownFolder[MAX_PATH];
+
+	if (!theCamera || !levelName || !levelName[0] || !ProgramFolder(ownFolder, sizeof(ownFolder)))
+	{
+		if (why)
+		{
+			*why = "the editor holds no camera, the level has no name, or its own folder can't be found";
+		}
+
+		return false;
+	}
+
+	CloseTheLevel(false, 0);
+
+	// WAYPOINT MODE as it is when its screen is entered (Vasquez's review, MUST 1: a use-after-free): its lastOpen points at the level just let go,
+	// and a Shift-drag reads it (SnapTo); its current module, group, picks and waypoint list are the level before's. A screen change does this
+	// (OnScreenChanged); a reopen stays on the screen, so it does it here
+	waypointMode.Enter();
+
+	// Module Linking's tree and picks: left over, every save's WriteTheLinks would write them into the next level (R1)
+	linkTree.reset();
+	linkPicks.clear();
+	AutoLink_ForgetLevel();
+	DeleteLinks_ForgetLevel();
+	host::Selection_Clear();
+	levelSourcePath.clear();
+	host::Dialogs_DismissList();
+
+	// opened by its name from the data folder, as main() opens one named with Level=: the outside shapes refreshed in memory, lighting off as
+	// inteng starts every file
+	char said[300] = "";
+
+	reopenOutsideShapesWords.clear();
+
+	if (!OpenTheLevel(levelName, theCamera, ownFolder, true, 0, true, &reopenOutsideShapesWords, said, sizeof(said)))
+	{
+		if (why)
+		{
+			*why = said[0] ? said : "the game could not open the level";
+		}
+
+		return false;
+	}
+
+	return true;
+}
 
 int main(int, char **)
 {
@@ -14534,7 +14908,7 @@ int main(int, char **)
 	// something after the "="; with none, the game's folder above the program's own, when the editor sits in the game's Tools folder (game_folder.h): the release
 	// zip's file names none. Either one is held to the same checks below. A written line always wins, even one too long to read: that stops the editor here, in
 	// words, and is never swapped for the game's folder.
-	bool const dataFolderWritten = SettingWritten(settingsFile, "DataFolder");
+	bool dataFolderWritten = SettingWritten(settingsFile, "DataFolder");   // (made true below when the first-launch setup writes the line)
 	if (dataFolderWritten && !ReadSetting(settingsFile, "DataFolder", dataFolder, sizeof(dataFolder)))
 	{
 		return Stop("DataFolder= in AVP_OpenInteng.ini beside the program is too long: it has to be shorter than 259 letters");
@@ -14545,8 +14919,19 @@ int main(int, char **)
 
 		if (!host::GameFolder_AboveProgram(folder, &gameFolder) || strcpy_s(dataFolder, sizeof(dataFolder), gameFolder.c_str()) != 0)
 		{
-			return Stop("the editor can't find the game's files. Put it in the game's own Tools folder (the game's folder, the one that holds avp_rifs, is then the "
-				"one above it), or name the game's folder in AVP_OpenInteng.ini beside the program, as DataFolder= under [Editor]");
+			// THE FIRST-LAUNCH SETUP (first_launch_screen.h; the owner, 11-23): where Open Inteng is, where it belongs, that no levels were found and where it looked,
+			// and "Set the game's folder now?": a folder picked and checked is written as DataFolder= and the start goes on with it, held to every check below as any
+			// written line is. Not now closes the editor, as before; the box has said how to fix it, so no second box: the reason only on the error output
+			std::string picked;
+
+			if (!host::FirstLaunch_NotFound(folder, settingsFile, &picked) || strcpy_s(dataFolder, sizeof(dataFolder), picked.c_str()) != 0)
+			{
+				fprintf(stderr, "AVP_OpenInteng: %s\n", "the editor can't find the game's files. Put it in the game's own Tools folder (the game's folder, the one "
+					"that holds avp_rifs, is then the one above it), or name the game's folder in AVP_OpenInteng.ini beside the program, as DataFolder= under [Editor]");
+				return 1;
+			}
+
+			dataFolderWritten = true;
 		}
 	}
 	char const *const dataFolderFrom = dataFolderWritten ? "DataFolder in AVP_OpenInteng.ini" : "The game's folder, the one above the editor's,";
@@ -14663,6 +15048,13 @@ int main(int, char **)
 		return Stop("DataFolder's name is too long");
 	}
 	DWORD const rifsKind = GetFileAttributesA(rifs);
+	// ... and its avp_rifs is held to the data folder's own rule: a plain folder, never a link or any other reparse point (a junction is a folder too, so the folder check below let one
+	// through), as every level the editor reads, saves and copies goes through it (Vasquez's find F-b, 2026-11-22; Bishop 2's order, Tao 1). GetFileAttributesA asks of the name itself.
+	if (rifsKind != INVALID_FILE_ATTRIBUTES && (rifsKind & FILE_ATTRIBUTE_REPARSE_POINT))
+	{
+		return Stop((std::string(dataFolderFrom) + " can't be used: its avp_rifs folder is a link, or another reparse point, not a plain folder, and every level is read and saved "
+			"through it. Name the game's own folder, whose avp_rifs is a plain folder").c_str());
+	}
 	if (rifsKind == INVALID_FILE_ATTRIBUTES || !(rifsKind & FILE_ATTRIBUTE_DIRECTORY) || !SetCurrentDirectoryA(dataFolder))
 	{
 		return Stop(dataFolderWritten ? "DataFolder isn't the game's folder: it has no avp_rifs folder in it" : "the game's folder, the one above the editor's, can't be opened");
@@ -14863,219 +15255,10 @@ int main(int, char **)
 
 	FlyCamera camera;
 	theCamera = &camera;   // Find moves it (M-1)
-	openLevelName = levelName;
-
-	if (!LevelView_Open(levelName, &camera, why, sizeof(why)))
+	if (!OpenTheLevel(levelName, &camera, ownFolder, levelFile.empty(), pictureAfter, startToggleCount == 0, &outsideShapesWords, why, sizeof(why)))
 	{
 		ReleaseDirect3D();
 		return Stop(why);
-	}
-
-	statusWords = LevelView_SayMissingPictures(statusWords);   // MISSING PICTURES: the user is told how many (level_view.h)
-	statusWords = host::FmvScreens_SayAtOpen(theGameFolder, statusWords);   // VIDEO SCREENS that will stay still, and why (fmv_preview.h)
-	statusWords = LevelView_SayMemory(statusWords);   // LEVEL MEMORY: blocks taken and MB free, after whatever else is said (level_view.h)
-
-	// THE FIRST FRAME, as inteng's: the hub (FUN_00447550) ends with FUN_00470550(10), the camera from slot 10, which holds the origin (0, 0, 0) and the identity turn (DAT_00636f90 + 0x78,
-	// DAT_005d3b38 + 0x168: nothing but a camera file beside the level, <RIFFNAME>.cam, written by inteng's own Exit, fills them in, and the level's CAMORIGN adds its offset to every slot
-	// at FUN_00470950: both still to be read, the camera file by this editor never being written), and the Gouraud switch is OFF (lighting starts off: FUN_004d67f0's DAT_008f4f0c = 0). Every
-	// other slot starts the same. (Joined 2026-11-16 by Melanikus (Dietrich), startup-trace.md section 6.)
-	{
-		FlyCamera const atTheOrigin = { 0, 0, 0, 0, 0, 0 };
-
-		camera = atTheOrigin;
-
-		for (int slot = 0; slot <= 10; slot++)
-		{
-			cameraSlots[slot] = atTheOrigin;
-			cameraSlotSet[slot] = true;
-		}
-
-		if (ViewToggles_Now().gouraud == host::Gouraud::On)
-		{
-			ViewToggles_UseNow(host::ViewToggle::GouraudSwitch);
-		}
-	}
-
-
-	// A -picture run says at once where the level put things and where the camera starts (level_view.h), so a run cut short has it too.
-	// (Added 2026-11-14 by Melanikus (Dietrich), F3.)
-	if (pictureAfter)
-	{
-		printf("AVP_OpenInteng: start: %s\n", LevelView_StartWords());
-		fflush(stdout);
-	}
-
-	// The level as the editor holds it (NotHeldWords says what a failure means): its file's bytes, and the chunks the game's own loader
-	// made from exactly those bytes (level_file.h). LevelObjects_Hold opens it from the path the game loaded the level from, so the
-	// picture and the objects are of one file, and hands it to the lookups (level_objects.h); the stock proof opens its levels through
-	// the same call. It's let go of at the end, before the game's level is closed. (Added 2026-11-15 by Melanikus (Dietrich), after
-	// checkpoint 1's hidden run found the object list empty: the game's own copy of the level's file is gone once the level is loaded.)
-	std::unique_ptr<OpenLevelFile> openLevel(new OpenLevelFile);
-	const char *const notHeldWords = NotHeldWords(LevelObjects_Hold(openLevel.get()));
-	editedLevel = openLevel.get();
-
-	// OP-137 / OP-137a (inteng FUN_005149e0 -> FUN_00512fc0(0) while the rif is read): the open path refreshes the editor's own copy of the file with OutsideShapes_RefreshFile BEFORE the
-	// game loads it for the view, so the view and this held level are both read from the refreshed bytes (the call is just after OpenWith_TakeLevel; the refresh itself is not done here).
-	copySavedChanges = openLevel->Changes();   // Move relative and Name object change its bytes (M-1)
-	viewChanges = openLevel->Changes();               // the game's view is of these bytes (ShowTheWorkingBytes)
-
-	// OP-137b (Bishop's ruling Q2, 11-17: EVERY open path, as inteng refreshes at every load, FUN_005149e0): a level opened by its NAME from the data folder (Level=, no file on the command
-	// line) is never written, so its outside shapes are brought up to date on the HELD level, in memory (ReplaceLevel). Its Changes() then differs from the view's, so the view loads those
-	// working bytes on the next frame (ShowTheWorkingBytes); a save writes them, to the copy the user picks. The double-click path did it on the editor's own copy, above.
-	if (levelFile.empty() && !notHeldWords)
-	{
-		std::vector<std::string> refreshed;
-
-		if (OutsideShapesUpdate(openLevel.get(), false, std::string(), nullptr, nullptr, &refreshed) > 0)
-		{
-			outsideShapesWords = OutsideShapesWordsOf(refreshed);
-		}
-	}
-
-	// THE CAMERA FILE (inteng, FUN_00470950): the eleven saved camera places of this level, from <RIFFNAME>.cam, read after the first frame's camera is set (so they are used from the next F key or mode start). Ours is read from and
-	// written to the editor's own folder (camera_file.h says what is named); written at every slot save and when the program ends (WriteTheCameraFile, FUN_00470610).
-	cameraFileName.clear();
-	cameraFolder = std::string(ownFolder) + "camera\\";
-	cameraFileOffset[0] = cameraFileOffset[1] = cameraFileOffset[2] = 0;
-
-	if (host::CameraFile_Name(LevelObjects_Level(), &cameraFileName))
-	{
-		host::CameraFileSlot loaded[host::kCameraFileSlots];
-
-		host::CameraFile_Offset(LevelObjects_Level(), cameraFileOffset);
-
-		if (host::CameraFile_Read(cameraFolder + cameraFileName, cameraFileOffset, loaded))
-		{
-			for (size_t s = 0; s < host::kCameraFileSlots; s++)
-			{
-				cameraSlots[s] = CameraOfFileSlot(loaded[s]);
-				cameraSlotSet[s] = true;
-			}
-
-			if (pictureAfter)
-			{
-				printf("AVP_OpenInteng: camera file: read %s\n", cameraFileName.c_str());
-				fflush(stdout);
-			}
-		}
-	}
-
-	// A file of objects with no modules (the HUD weapons, the character models) draws nothing through the game's modules: every object of it is made a display block of the game's own, where the file puts it
-	// (hierarchy_view.h, ModelObjects_Build), and the camera starts in front of them all. (Added 2026-11-15 by Melanikus (Frost), the marwep fix.)
-	if (pictureAfter)
-	{
-		printf("AVP_OpenInteng: model objects: the game has %d modules (ModuleArraySize)\n", (int)LevelView_ModuleCount());
-		fflush(stdout);
-	}
-
-	// inteng starts with LIGHTING OFF in every file (Misc > Lighting, item 0x54, FUN_004d67f0 (0x4d67f0): its flag DAT_008f4f0c is 0 in .bss at the start and FUN_004d68e0 ticks the item from it at 0x4d8409; with the flag 0 the
-	// function keeps the textured polygons plain, item types 6 -> 5 and 0x18 -> 7): textures at their full colours, unshaded. The editor's Gouraud switch is that item; a -viewmode on the command line is what a person asked for and is kept.
-	// (Bishop 11-16 00:05, Melanikus's rule 10a: no substitutes. Added 2026-11-15 by Melanikus (Frost).)
-	if (startToggleCount == 0 && ViewToggles_Now().gouraud == host::Gouraud::On)
-	{
-		statusWords = ViewToggles_UseNow(host::ViewToggle::GouraudSwitch);
-	}
-
-	bool anyModule = false;
-
-	for (int32_t m = 0; m < LevelView_ModuleCount() && !anyModule; m++)
-	{
-		std::string moduleName;
-
-		anyModule = LevelView_ModuleName(m, &moduleName);   // a module the game has in play (the game's own array always holds its terminator)
-	}
-
-	if (!anyModule && LevelObjects_Level())
-	{
-		std::string said;
-		size_t const made = ModelObjects_Build(LevelObjects_Level(), &said);
-
-		LevelView_DrawObjectsOutsideModules(made > 0);
-		int32_t mins[3], maxs[3];
-
-		if (pictureAfter)
-		{
-			printf("AVP_OpenInteng: model objects: %s\n", said.c_str());
-			fflush(stdout);
-		}
-
-		if (made > 0)
-		{
-			ModelObjects_Bounds(mins, maxs);
-
-			// WHERE inteng puts the camera when a file opens (traced from inteng.exe): FUN_00447d50 (the file open) loads the file (FUN_0042b8c0), then FUN_00447550 (the hub's set-up) restores the camera from SLOT 10 (FUN_00470550(10): the
-			// position at DAT_00636f90 + 10 x 12 and the 3 x 3 matrix at DAT_005d3b38 + 10 x 36 into the camera object, DAT_00962304's +0x68), and only then FUN_00470950 reads the file's saved camera slots (a file named after the RIF, never
-			// applied until an F key). The slots start as zero places and identity matrices (inteng.exe's .bss and .data), so a file opened first, with no camera file, shows from 0 0 0, looking along +z, level. The objects of a
-			// file are drawn where the file puts them.
-			camera.x = 0;
-			camera.y = 0;
-			camera.z = 0;
-			camera.turn = 0;
-			camera.look = 0;
-			FlyCamera_Hold(&camera);
-
-			if (pictureAfter)
-			{
-				printf("AVP_OpenInteng: model objects: bounds %d %d %d to %d %d %d; the camera at %d %d %d (inteng's slot 10: the origin, level); Gouraud switched off as inteng's Lighting starts\n", (int)mins[0], (int)mins[1], (int)mins[2], (int)maxs[0], (int)maxs[1], (int)maxs[2], camera.x, camera.y, camera.z);
-				fflush(stdout);
-			}
-		}
-	}
-
-	// OP-140 (Bishop's ruling 11-17, a named difference): which outside shapes the open brought up to date; after the start's Gouraud words, and a level not held says so over it
-	if (!outsideShapesWords.empty())
-	{
-		// whatever the start put on the line stays after them: the inteng.exe warning (IntengExeStart), a -viewmode's words (open-path-6), how many pictures are missing
-		// (LevelView_SayMissingPictures, which hands back words of its own, so the warning can't be told by its pointer: 11-18, after bishop-int's ad73774b)
-		if (statusWords && statusWords[0])
-		{
-			outsideShapesWords += std::string(" - ") + (char const *)statusWords;
-		}
-
-		statusWords = outsideShapesWords.c_str();
-	}
-
-	if (notHeldWords)
-	{
-		statusWords = notHeldWords;
-	}
-
-	// The object list, from the level just opened (level_objects.h). The list copies what it shows at once, as the level's own bytes are
-	// only good while it stays open. (Added 2026-11-14 by Melanikus (Dietrich), F3.)
-	{
-		std::vector<host::LevelObject> found;
-
-		bool const listRead = LevelObjects_Read(&found);
-		objectList.Load(found.data(), found.size());
-		RotationCentreDefault();   // the file open's hub set-up (FUN_00447d50 -> FUN_00447550 0x447652, CAM-7)
-		fieldHost.Clear();
-		shownRecord = host::FieldRecord();
-		fieldsSawChanges = host::Selection_Changes();
-		listSawChanges = host::Selection_Changes();
-
-		// A -picture run says how many rows the list got, its first row's ID and name, and whether the level's tree was read at all, so a
-		// list that came up empty (no tree, no objects in it, or every ID 0) is seen at once. (Added 2026-11-14 by Melanikus (Dietrich),
-		// after checkpoint 1's hidden run found the list empty.)
-		if (pictureAfter)
-		{
-			char firstId[2 * host::kObjectIdBytes + 1] = "none";
-			const uint8_t *const id = objectList.Id(0);
-
-			for (size_t i = 0; id && i < host::kObjectIdBytes; i++)
-			{
-				_snprintf_s(firstId + i * 2, 3, _TRUNCATE, "%02X", (unsigned)id[i]);
-			}
-
-			printf("AVP_OpenInteng: object list: %u rows, first id %s, first name \"%s\", LevelObjects_Read returned %s, the level's file held by the "
-				"editor: %s\n", (unsigned)objectList.Count(), firstId, objectList.Count() ? objectList.Name(0).c_str() : "",
-				listRead ? "true" : "false", notHeldWords ? notHeldWords : "yes");
-			fflush(stdout);
-		}
-
-		if (objectList.Cut())
-		{
-			statusWords = kListCutWords;
-		}
 	}
 
 	long frames = 0;
@@ -16018,6 +16201,7 @@ int main(int, char **)
 		bool const drawn = LevelView_Draw(drawCamera, savedTo, AddThePanels, &framePanels);
 		StateLine_Add("plotmessage", AutoPlotCommand_MessageShown().empty() ? std::string("off") : AutoPlotCommand_MessageShown());   // the auto-plot's start message this frame drew
 		StateLine_Add("plotmessagebox", AutoPlotCommand_MessageBox().empty() ? std::string("off") : AutoPlotCommand_MessageBox());   // and its black box
+		StateLine_Add("allstockmaps", host::AllStockMaps_StateWords());   // All stock maps: busy or idle, level N of M, file, stage, the last verdict, the worst frame while plotting (all_stock_maps.h)
 		PlotPreviewView_Drawn();   // IN STEP WITH THE PLOT (plot_preview_view.h): the copy this frame showed is drawn, the plot's worker may go on
 
 		if (shotTo)
@@ -16766,33 +16950,7 @@ int main(int, char **)
 		}
 	}
 
-	// Leaving: the camera file is written (FUN_00470610), into the editor's own folder
-	if (!cameraFileName.empty())
-	{
-		bool const written = WriteTheCameraFile();
-
-		if (pictureAfter)
-		{
-			printf("AVP_OpenInteng: camera file: %s %s\n", written ? "written" : "NOT written", cameraFileName.c_str());
-			fflush(stdout);
-		}
-	}
-
-	AutoPlotCommand_Stop();   // a plot's worker still searching is stopped and waited for first, while the level and its grid are still there (autoplot_command.h)
-	host::VideoModeScreen_Close();   // the Video screen's worker (a video read or a film made) stopped and waited for (video_mode_screen.h)
-
-	// The editor's hold of the level goes before the game's level does, so no chunk of it is let go of after the game's own teardown
-	theCamera = nullptr;
-	editedLevel = nullptr;
-	LevelObjects_Use(nullptr);
-	openLevel.reset();
-
-	// the sounds Object Placement holds go before the game's level does (its teardown lets go of every loaded sound)
-	host::SoundGame_PreviewStop();
-	host::PlacedSounds_LetGo();
-	host::HierarchySounds_LetGo();
-	host::TrackPlay_EndSounds();
-	LevelView_Close();
+	CloseTheLevel(true, pictureAfter);
 	ReleaseDirect3D();
 	DestroyWindow(editorWindow);   // and the view's child window with it
 

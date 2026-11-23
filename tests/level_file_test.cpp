@@ -328,9 +328,22 @@ static Bytes Unpacked(Bytes const & file)
 
 	if (unpacked)
 	{
-		int size;
-		memcpy(&size, file.data() + offsetof(HuffmanPackage, UncompressedDataSize), sizeof(size));
-		level.assign(unpacked, unpacked + size);
+		// the unpacked size the package's heading gives (its 4 bytes at UncompressedDataSize, lowest first, as x86 keeps an int), read a byte at a time,
+		// never past the file's own bytes; a negative one gives nothing (Snyk Code note, 2026-11-22: BufferOverflow, the file's bytes into memcpy here; found
+		// on vasquez-savetarget 8291ca93, whose new test's file reader its flow starts from)
+		size_t const at = offsetof(HuffmanPackage, UncompressedDataSize);
+		unsigned long size = 0;
+
+		for (size_t k = 0; k < sizeof(int) && at + k < file.size(); k++)
+		{
+			size |= (unsigned long)(unsigned char)file[at + k] << (8 * k);
+		}
+
+		if (size <= 0x7fffffffu)
+		{
+			level.assign(unpacked, unpacked + size);
+		}
+
 		free(unpacked);
 	}
 
@@ -856,10 +869,16 @@ static void TestPackedLevel()
 	std::string const changedPath = room + "\\changed.rif";
 	Bytes const level = BaseLevel().Make();
 
-	// The game's packer, given the same level, gives the same package, so the file has 4 more bytes after its package, which the
-	// game's unpacker never reads. Only the file's own bytes have them: a package made again can't, so these tell the two apart.
+	// The game's packer, given the same level, gives the same package, so this file's package is changed where the game's unpacker
+	// never looks: the first of its 256 byte assignments. The unpacker reads those from the last one down, one for each code, and this
+	// level has fewer than 256 different bytes, so the first is never read. A package made again can't have the change, so it tells
+	// the two apart. (The file used to have 4 bytes after its package instead, but the unpacker refuses those now: a package is
+	// exactly its header plus CompressedDataSize bytes, avpx 4471217e.)
 	Bytes packed = Packed(level);
-	packed.insert(packed.end(), { 'T', 'A', 'I', 'L' });
+	HuffmanPackage * const header = (HuffmanPackage *)packed.data();
+	header->ByteAssignment[0] = (unsigned char)(header->ByteAssignment[0] ^ 0xff);
+	bool const stillTheLevel = Unpacked(packed) == level;
+	Check(stillTheLevel && packed != Packed(level), "the changed package still unpacks to the level, and a package made again isn't it");
 	Make(path, packed);
 
 	OpenLevelFile opened;

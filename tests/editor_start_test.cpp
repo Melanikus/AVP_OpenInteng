@@ -266,8 +266,9 @@ static void TestOwnSaveFolder()
 	std::string const start = FileText("src/host/editor_main.cpp");
 	size_t const mainAt = start.find("int main(");
 	std::string const body = mainAt == std::string::npos ? std::string() : start.substr(mainAt);
+	// (the level's open, LevelView_Open, is in OpenTheLevel since 2c6d3a1b, All stock maps' reopen: main's own call to it is what comes after the setter)
 	const char *const after[] = { "ReadSetting(settingsFile, \"DataFolder\"", "OpenWith_TakeLevel(", "InitialiseDirect3D()",
-		"LevelView_Start(", "LevelView_Open(" };
+		"LevelView_Start(", "OpenTheLevel(levelName, &camera" };
 	bool allAfter = !body.empty();
 	for (const char *call : after)
 	{
@@ -276,6 +277,19 @@ static void TestOwnSaveFolder()
 	Check(allAfter && ComesBefore(body, "OneEditorAnswer const token = OneEditor_Claim();", "if (!SaveFolder_UseThisFolder(settingsFolder))"),
 		"the editor gives the game its own settings folder after taking its token and before its settings, a level, Direct3D or the "
 		"game's start (editor_main.cpp)");
+	// and the level is opened nowhere else before it: LevelView_Open is called once, inside OpenTheLevel, and OpenTheLevel only by main (after the
+	// setter) and by LevelReopen_Open (All stock maps' reopen of a level, which runs only once the editor is started: level_reopen.h)
+	size_t const openAt = start.find("LevelView_Open("), openerAt = start.find("static bool OpenTheLevel("), reopenAt = start.find("bool LevelReopen_Open(");
+	size_t openerCalls = 0;
+
+	for (size_t at = start.find("OpenTheLevel("); at != std::string::npos; at = start.find("OpenTheLevel(", at + 1))
+	{
+		openerCalls += at == openerAt + strlen("static bool ") ? 0 : 1;
+	}
+
+	Check(openAt != std::string::npos && start.find("LevelView_Open(", openAt + 1) == std::string::npos && openerAt < openAt && openAt < reopenAt &&
+		reopenAt < mainAt && openerCalls == 2, "and the level is opened only through OpenTheLevel: LevelView_Open once, inside it, and OpenTheLevel called twice, by main "
+		"and by All stock maps' reopen (" + std::to_string((unsigned long long)openerCalls) + " calls)");
 	Check(body.find("LogString") == std::string::npos || ComesBefore(body, "if (!SaveFolder_UseThisFolder(settingsFolder))", "LogString"),
 		"and no line of the game's log is written before it");
 	Check(body.find("if (!SaveFolder_UseThisFolder(settingsFolder))\n\t{\n\t\treturn Stop(") != std::string::npos,

@@ -83,9 +83,34 @@ namespace host
 			return good;
 		}
 
-		// Steps 2 and 3 of a write over the target (level_save.h): the temporary file read back through the game's own loader, then put in place. On a failure the temporary file is removed
-		// and the target is as it was.
-		LevelSaveOver PutInPlace(std::string const &target, std::string const &temporary, bool exists, bool keepTheOneBefore, std::string *backupPath, std::string *why)
+		// The file to save over, checked as SaveAs checks the file it replaces (level_save.h, F-a): Saved, with *asItIs its bytes (none when nothing is there), or the refusal and why.
+		// againstOpened: when it is the file the level stands for, it must be as it was then (a save's; the view copy's file is the editor's own, written over at every screen change).
+		LevelSaveOver MayWriteOver(OpenLevelFile *open, std::string const &target, bool againstOpened, std::vector<char> *asItIs, std::string *why)
+		{
+			switch (open->MayWriteOver(target.c_str(), againstOpened, asItIs))
+			{
+			case LevelSaveResult::Saved:
+				return LevelSaveOver::Saved;
+
+			case LevelSaveResult::ChangedOnDisk:
+				*why = "the level file was changed on disk by another program since it was opened or last saved, so it is not written over (it is as that program left it): " + target;
+				return LevelSaveOver::ChangedOnDisk;
+
+			case LevelSaveResult::NoPath:
+				*why = "the file to save over can't be made a whole path, or names a device or a file's stream: " + target;
+				return LevelSaveOver::BadTarget;
+
+			default:
+				*why = "the file to save over is not a plain file on a disk with one name only (a link, another reparse point, a device, or one of a hard link's names), so it is never "
+				       "written over: " + target;
+				return LevelSaveOver::NotAPlainFile;
+			}
+		}
+
+		// Steps 2 and 3 of a write over the target (level_save.h): the temporary file read back through the game's own loader, a last look at the target (still exactly asItWas, the
+		// bytes MayWriteOver read), then the temporary file put in place. On a failure the temporary file is removed and the target is as it was.
+		LevelSaveOver PutInPlace(std::string const &target, std::string const &temporary, bool exists, bool keepTheOneBefore, std::vector<char> const &asItWas, std::string *backupPath,
+		                         std::string *why)
 		{
 			std::string const backup = target + ".bak";
 
@@ -99,6 +124,16 @@ namespace host
 					DeleteFileA(temporary.c_str());
 					return LevelSaveOver::ReadBackFailed;
 				}
+			}
+
+			// the last look: the file that was there is still exactly the one checked before the level was written, a plain file with one name (F-a). What can still happen after this
+			// is another program swapping the file in the instant before the replace below; ReplaceFileA works by name, so that instant can't be closed here, and a program that can
+			// write in the level's folder could change the level itself anyway
+			if (exists && !LevelFile_StillThese(target.c_str(), asItWas))
+			{
+				*why = "the level file changed on disk, or stopped being a plain file with one name, while the save was being made, so it is not written over (it is as it is now): " + target;
+				DeleteFileA(temporary.c_str());
+				return LevelSaveOver::ChangedOnDisk;
 			}
 
 			// 3. into place: the file that was there becomes the .bak in the same step (the sitting's first save), or is replaced with any .bak left alone (a later one)
@@ -153,6 +188,8 @@ namespace host
 		case LevelSaveOver::WriteFailed: return "the level could not be written";
 		case LevelSaveOver::ReadBackFailed: return "the level written did not load back";
 		case LevelSaveOver::ReplaceFailed: return "the level file could not be replaced";
+		case LevelSaveOver::NotAPlainFile: return "the level file is not a plain file with one name (a link, or a hard link's name)";
+		case LevelSaveOver::ChangedOnDisk: return "the level file was changed on disk by another program";
 		}
 
 		return "not saved";
@@ -178,6 +215,15 @@ namespace host
 			return usable;
 		}
 
+		// 0. the file to save over itself, as SaveAs would check the file it replaces (level_save.h, F-a)
+		std::vector<char> asItWas;
+		LevelSaveOver const mayWrite = MayWriteOver(open, target, true, &asItWas, why);
+
+		if (mayWrite != LevelSaveOver::Saved)
+		{
+			return mayWrite;
+		}
+
 		// 1. the temporary file, in the target's own folder (so the last step is a rename on one disk)
 		std::string const temporary = target + ".saving";
 
@@ -198,7 +244,15 @@ namespace host
 			return LevelSaveOver::WriteFailed;
 		}
 
-		return PutInPlace(target, temporary, exists, keepTheOneBefore, backupPath, why);
+		LevelSaveOver const placed = PutInPlace(target, temporary, exists, keepTheOneBefore, asItWas, backupPath, why);
+
+		// from now on the level stands for the file saved over, not for the temporary name SaveAs was given (level_file.h, NowStandsFor)
+		if (placed == LevelSaveOver::Saved)
+		{
+			open->NowStandsFor(target.c_str());
+		}
+
+		return placed;
 	}
 
 	LevelSaveOver LevelSave_ViewCopy(OpenLevelFile *open, char const *targetPath, std::string *why)
@@ -214,6 +268,15 @@ namespace host
 		if (usable != LevelSaveOver::Saved)
 		{
 			return usable;
+		}
+
+		// 0. the copy's file is a plain file with one name, or nothing yet (F-a; not compared with the level as opened: a level opened with "Open with" stands for this very file)
+		std::vector<char> asItWas;
+		LevelSaveOver const mayWrite = MayWriteOver(open, target, false, &asItWas, why);
+
+		if (mayWrite != LevelSaveOver::Saved)
+		{
+			return mayWrite;
 		}
 
 		// 1. the working bytes, built without changing the open level, in a temporary file in the target's own folder
@@ -238,7 +301,7 @@ namespace host
 			return LevelSaveOver::WriteFailed;
 		}
 
-		return PutInPlace(target, temporary, exists, false, nullptr, why);
+		return PutInPlace(target, temporary, exists, false, asItWas, nullptr, why);
 	}
 
 	namespace
@@ -262,6 +325,14 @@ namespace host
 	bool LevelSaveSitting::SavedBefore(char const *targetPath) const
 	{
 		return saved.count(SittingKey(targetPath)) > 0;
+	}
+
+	void LevelSaveSitting::MarkSaved(char const *targetPath)
+	{
+		std::string const key = SittingKey(targetPath);
+
+		saved.insert(key);
+		kept.insert(key);
 	}
 
 	LevelSaveOver LevelSaveSitting::Save(OpenLevelFile *open, char const *targetPath, std::string *backupPath, std::string *why)

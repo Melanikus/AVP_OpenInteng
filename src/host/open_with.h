@@ -29,4 +29,12 @@ enum { kOpenWithMostBytes = 16 * 1024 * 1024 };
 // in "why". dataFolder is the editor's own data folder, from its settings.
 bool OpenWith_TakeLevel(const wchar_t *path, const char *dataFolder, char *levelName, size_t levelNameSize, char *why, size_t whySize);
 
+// THE USER'S FILE AS IT WAS TAKEN (Frost's review of F-a, SHOULD 1, 2026-11-22). A level opened with "Open with" is worked on as its copy, and the level the
+// editor holds stands for that copy, so the first save over the user's own file had nothing to compare it with: a change another program made to it in the
+// meantime was written over without a word. OpenWith_TakeLevel keeps the bytes it copied, read back from the copy at once (the open then refreshes the
+// copy's outside shapes, so the copy itself can't stand for them). True when path isn't the file the last OpenWith_TakeLevel took (not this rule's to
+// judge), or when that file holds exactly those bytes now; false when it can't be read whole, or has changed (then it isn't written over). After the first
+// save the level stands for the user's own file itself (level_save.h), so later saves are compared there.
+bool OpenWith_StillAsTaken(const wchar_t *path);
+
 #endif

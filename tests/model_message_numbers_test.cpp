@@ -121,6 +121,36 @@ int main()
 	Check(!free.empty() && free.front().words == std::to_string(free.front().number) + ": free" && free.front().kind == MessageNumberKind::Clean, "the first one offered is a clean number: " + (free.empty() ? std::string("(none)") : free.front().words));
 	Check(MessageNumbers_Info(417).words == "417: free", "417, the README's example, is free: " + MessageNumbers_Info(417).words);
 
+	// THE STOCK LEVELS THAT PLAY EACH S NUMBER (alpha.6, for Save's question): one entry per S number and no other, ascending, each naming a level file
+	puts("The stock levels that play each S number:");
+	bool onePerS = kMessageNumberLevelCount == static_cast<size_t>(CountOf('S'));
+	bool ascending = true;
+	bool onlyS = true;
+	bool named = true;
+
+	for (size_t i = 0; i < kMessageNumberLevelCount; i++)
+	{
+		MessageNumberLevels const &one = kMessageNumberLevels[i];
+
+		ascending = ascending && (i == 0 || kMessageNumberLevels[i - 1].number < one.number);
+		onlyS = onlyS && one.number >= 1 && one.number <= kMostMessageNumber && kMessageNumberKinds[one.number - 1] == 'S';
+		// the files as Steam ships them, some ".rif" and some ".RIF" (odobenus.rif, Nost03_M.rif): looked for case-blind
+		std::string lower = one.levels ? one.levels : "";
+
+		for (char &c : lower)
+		{
+			c = (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
+		}
+
+		named = named && lower.size() > 4 && lower.find(".rif") != std::string::npos;
+	}
+
+	Check(onePerS, "as many entries as S numbers (" + std::to_string(kMessageNumberLevelCount) + " of " + std::to_string(CountOf('S')) + ")");
+	Check(ascending && onlyS, "ascending, and each an S number");
+	Check(named, "each names at least one level file");
+	Check(MessageNumbers_StockLevels(103) == "Derelict.RIF", "103 is stock Derelict's briefing: " + MessageNumbers_StockLevels(103));
+	Check(MessageNumbers_StockLevels(417).empty() && MessageNumbers_StockLevels(144).empty(), "a free number and a stock film no level plays name no level");
+
 	printf(checksFailed ? "SOME CHECKS FAILED\n" : "All checks passed\n");
 	return checksFailed ? 1 : 0;
 }
