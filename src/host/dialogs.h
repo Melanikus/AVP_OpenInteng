@@ -39,6 +39,9 @@ namespace host
 	// The box the dialogs are centred in (the view), each frame
 	void Dialogs_SetScreen(int32_t x, int32_t y, int32_t width, int32_t height);
 
+	// That box's width, for a form sized to the screen before it opens (all_stock_maps_ui.h's disclaimer)
+	int32_t Dialogs_ScreenWidth();
+
 	// A left press at (x, y) of the screen's pixels, and a key: isChar for WM_CHAR (key is the letter), else a virtual key. Both return true when a dialog took it.
 	bool Dialogs_Press(int32_t x, int32_t y);
 	bool Dialogs_RightPress(int32_t x, int32_t y);   // a RIGHT press: a list's onRight on the row under it; true when a dialog is open (it takes the press)

@@ -803,6 +803,52 @@ int main()
 		Check(SameList(pair, planWith(-1, 5000, 9000)), "up 5000, under 9000 (past the most): held to 1200 and 550");
 	}
 
+	// ---- A T WHOSE FUNNEL'S DOORWAY HAS NO CEILING PLACE NEAREST IT (Dietrich 2026-11-23, the crash on stock Caverns in the alpha.6 final round: AutoPlot_PlanVolumes read
+	// mine.find(S)->second of the END iterator, "crash: code C0000005"). The T below, but the bar's ceiling 1.5 m higher than the funnel's (-2500 against -1000), so every
+	// ceiling place over the funnel is "a slope's low edge" (more than kAutoPlotVolumeFlat under the flat top), and the funnel 9.6 m long, so every place over the bar
+	// is nearer W or E than S (the bar's middle: 6.5 m from W, 9.9 m from S): none is S's. The funnel is still ceiled, so its
+	// entry is shaped (a T's funnel) and passed the guard that skips a doorway with no places. Planned whole: no read past the map, the funnel's entry made, its
+	// aim straight across from the bar's entry as a T's always is, and every box's aim inside its own box
+	{
+		host::AutoPlotFloor floor;
+
+		floor.cellEdge = 600;
+
+		for (int32_t x = 0; x <= 12000; x += 600)
+		{
+			for (int32_t z = 0; z <= 3000; z += 600)
+			{
+				floor.cells.push_back(std::vector<int32_t>{ x, 2000, z });
+				floor.ceilings.push_back(std::vector<int32_t>{ x, -2500, z });   // the bar's ceiling, 4.5 m up
+			}
+		}
+
+		Cells(&floor, 4800, 7200, -9600, -600);   // the funnel, 9.6 m long, its ceiling 3 m up
+
+		std::vector<std::vector<int32_t> > exits = { { -400, 750, 1500 }, { 12400, 750, 1500 }, { 6000, 750, -10000 } };
+		std::vector<host::AutoPlotDoor> doors = { Door(-300, 1500, -1.0, 0.0), Door(12300, 1500, 1.0, 0.0), Door(6000, -9900, 0.0, -1.0) };
+		host::AutoPlotPlan const plan = host::AutoPlot_PlanVolumes({}, exits, floor, doors, 1.0);
+
+		Check(plan.volumes && plan.volumeKind == "junction (T)", "A T WITH NO CEILING PLACE NEAREST ITS FUNNEL'S DOORWAY is planned, a junction (T) (" + plan.volumeKind +
+			(plan.notes.empty() ? std::string() : ": " + plan.notes[0]) + ")");
+
+		bool inside = !plan.list.empty();
+
+		for (host::WaypointRec const &b : plan.list)
+		{
+			inside = inside && Holds(b, b.centre);
+		}
+
+		Check(inside, "and every box's aim is inside its own box (" + std::to_string((long long)plan.list.size()) + " boxes)");
+
+		int const eW = plan.doorBox.size() == 3 ? plan.doorBox[0] : -1, eS = plan.doorBox.size() == 3 ? plan.doorBox[2] : -1;
+
+		Check(plan.doorWords.size() == 3 && plan.doorWords[2].find("a T's funnel: no ceiling place nearest this doorway") != std::string::npos,
+			"the plot's report says so for doorway S, never silent: \"" + (plan.doorWords.size() == 3 ? plan.doorWords[2] : std::string()) + "\"");
+		Check(eS >= 0 && eW >= 0 && plan.list[(size_t)eS].centre[0] == plan.list[(size_t)eW].centre[0], "the funnel's entry is made, its aim straight across from W's (" +
+			(eS >= 0 ? std::to_string((long long)plan.list[(size_t)eS].centre[0]) + ", " + std::to_string((long long)plan.list[(size_t)eS].centre[2]) : std::string("no entry")) + ")");
+	}
+
 	// ---- A T (Drake's hand6e SHED10): a bar along x (x 0..12000, z 0..3000), doorways W (x -300) and E (x 12300); a funnel off its south side (x 4800..7200, z -3600..-600)
 	// to a doorway S (z -3900). 10 volumes: 2 floors, 1 climb-in (the bar's north side; the funnel none), the get-out over the junction, 3 entries, 3 exits; the funnel's
 	// entry linked to ONE bar entry (W's, the lower along the bar), not to E's (the tie at the climb's top)

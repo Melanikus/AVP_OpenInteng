@@ -13,6 +13,13 @@
 // the next menu item, key or screen's words hide the line again, as inteng's.
 //   statusWords.Say(text, s)   as statusWords = text, said by s
 //   statusWords.Sayer()        who set the words last (Other when nothing is said)
+// A LEAD FOR ONE SAYER (2026-11-23, Dietrich, Bishop 2's order for the alpha.6 cut; the owner records All stock maps' run): while a run of many levels plots each
+// one, the plot says its own progress every frame of its search, AFTER the run's line was drawn, so the held words were the plot's alone (no level) and the
+// screen said "plotting" (all_stock_maps_ui.h). With a lead set for a sayer, every Say by it that doesn't start with the lead is held as lead + its words, and
+// those words, without the lead, are kept for the run to show in its own line:
+//   statusWords.SetLead(s, lead)   from now on s's words are led by lead (a new lead forgets the led words of the one before)
+//   statusWords.ClearLead()        no lead, and no led words
+//   statusWords.LedWords()         the last words s said under the lead, without it ("" none since the lead was set)
 
 #pragma once
 
@@ -45,8 +52,42 @@ public:
 
 	void Say(char const *text, StatusSayer who)
 	{
-		Set(text);
+		if (text && !leadWords.empty() && who == leadSayer && std::string(text).compare(0, leadWords.size(), leadWords) != 0)
+		{
+			led = text;
+			std::string const both = leadWords + text;
+
+			Set(both.c_str());
+			source = text;   // From() answers for the caller's own words, as without a lead
+		}
+		else
+		{
+			Set(text);
+		}
+
 		sayer = text ? who : StatusSayer::Other;
+	}
+
+	void SetLead(StatusSayer who, std::string const &lead)
+	{
+		if (who != leadSayer || lead != leadWords)
+		{
+			led.clear();
+		}
+
+		leadSayer = who;
+		leadWords = lead;
+	}
+
+	void ClearLead()
+	{
+		leadWords.clear();
+		led.clear();
+	}
+
+	std::string const &LedWords() const
+	{
+		return led;
 	}
 
 	operator char const *() const
@@ -86,6 +127,9 @@ private:
 	char const *source = nullptr;
 	bool held = false;
 	StatusSayer sayer = StatusSayer::Other;
+	StatusSayer leadSayer = StatusSayer::Other;
+	std::string leadWords;   // "": no lead
+	std::string led;         // the lead sayer's last words under the lead, without it
 };
 
 // The status line on a screen where inteng draws none: drawn there only while its words are that screen's own tools' (the Waypoint screen: Waypoint by mouse, and its auto-plot's

@@ -1,0 +1,15 @@
+# ACCEPTANCE (Frost 2026-11-22): R12 of AvP-docs director/plan-all-stock-maps.md, ALL STOCK MAPS WITH AUTOPLOT OFF (the shipped ini has no AutoPlot=1). The alien auto waypoint
+# tools are only offered with AutoPlot=1 (autoplot_switch.h; acceptance-autoplot-hidden), so with it off Waypoint mode's bar has no Alien auto waypoint menu, so no All stock maps
+# to start, and the shard's data copy is untouched: every file under avp_rifs as it was (verify_all_stock_maps untouched). A GUARD, not a red: it is green on d2d2d909's build
+# too (the menu isn't there either), and must stay green once All stock maps is in. (The engine's own refusal without AutoPlot, AllStockMaps_Start, is its unit test's.)
+# changes-data
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+expect-screen Waypoint
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-allmaps-verifier/verify_all_stock_maps.exe prepare {datadir} C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs
+expect-field-not-has bar1 Alien auto waypoint
+expect-field-not-has dropboxes All stock maps
+wait 2000
+expect-no-dialog
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-allmaps-verifier/verify_all_stock_maps.exe untouched {datadir} C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs

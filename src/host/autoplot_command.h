@@ -60,6 +60,25 @@ bool AutoPlotCommand_Run(std::vector<int32_t> const &modules);
 // after the replace question
 bool AutoPlotCommand_Run(std::vector<int32_t> const &modules, host::AutoPlotVolumeCounts const &counts, bool overwriteLinked = true);
 
+// THE LAST RUN'S END (All stock maps, all_stock_maps.h; Vasquez's plan: a structured result, never its words parsed). AutoPlotCommand_Run sets it
+// to "not ended"; each way the run then ends fills it: plotted (the networks checked and the passed ones written, or every AI module kept as
+// already linked), with its counts; or not plotted, with why (the pathfinder would not start or failed, another level was opened, nothing changed)
+struct AutoPlotResult
+{
+	bool ended = false;
+	bool plotted = false;
+	size_t written = 0;
+	size_t refused = 0;
+	size_t kept = 0;
+	std::string why;
+};
+
+AutoPlotResult AutoPlotCommand_LastResult();
+
+// All stock maps with its form's Overwrite tick on: AutoPlotCommand_Run(modules, counts, true) with the replace question already answered Yes by
+// that form, so no question opens (its callback acts on whatever level is open when Yes is clicked: Vasquez's find, the question's own lambda)
+bool AutoPlotCommand_RunAnswered(std::vector<int32_t> const &modules, host::AutoPlotVolumeCounts const &counts);
+
 // The counts of the run going (or the last one): the defaults unless AutoPlotCommand_Run gave them
 host::AutoPlotVolumeCounts AutoPlotCommand_RunCounts();
 

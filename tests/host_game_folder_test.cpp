@@ -3,8 +3,12 @@
 // folder above being a whole drive, and the paths that are not a plain one on a drive (a share, Windows' device forms, a relative path), which are refused before
 // anything is read. Folders are made in the temp folder and taken away again. Written 2026-11-22 by Melanikus (Drake) for AVP_OpenInteng. AVP_OpenInteng's own code:
 // see License.txt, "AVP_OpenInteng's own code".
+// THE FOLDERS BELOW THE DATA FOLDER (GameFolder_WhyNotPlainBelow; Vasquez's find F-d, Frost's review SHOULD 2, 2026-11-22): a path through plain folders gives
+// nothing to say; a junction on the way (made with mklink /J, which needs no privilege), a folder that isn't there, and a "..", an empty part or one ending in a
+// dot or a space are each named; a path that isn't below the data folder is not its business. Added 2026-11-22 by Melanikus (Vasquez).
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <string>
 
@@ -90,6 +94,37 @@ int main()
 	Check(!Ask("\\the game\\Tools\\", &found) && found.empty(), "a path from the top of the current drive, \\the game\\Tools\\: nothing");
 	Check(!Ask("C:the game\\Tools\\", &found) && found.empty(), "a drive's own current folder, C:the game\\Tools\\: nothing");
 	Check(!GameFolder_AboveProgram(game + "\\Tools\\", nullptr), "no room for the answer: false");
+
+	// THE FOLDERS BELOW THE DATA FOLDER: avp_rifs\Custom a plain folder, avp_rifs\Joined a junction to the "no rifs" folder, as a mapper makes one
+	std::string const custom = game + "\\avp_rifs\\Custom", joined = game + "\\avp_rifs\\Joined";
+	bool const customMade = CreateDirectoryA(custom.c_str(), NULL) != 0;
+	std::wstring const command = L"mklink /J \"" + std::wstring(joined.begin(), joined.end()) + L"\" \"" + std::wstring(noRifs.begin(), noRifs.end()) + L"\" >nul";
+	bool const joinedMade = _wsystem(command.c_str()) == 0 && (GetFileAttributesA(joined.c_str()) & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+	std::string which;
+
+	Check(customMade && joinedMade, "avp_rifs\\Custom is made, and avp_rifs\\Joined is a junction (mklink /J)");
+	Check(GameFolder_WhyNotPlainBelow(game, custom + "\\x.rif", &which) == nullptr, "a level in avp_rifs\\Custom, plain folders all the way: nothing to say");
+	Check(GameFolder_WhyNotPlainBelow(game + "\\", game + "\\avp_rifs\\x.rif", &which) == nullptr, "the data folder written with its last \\, a level in avp_rifs: nothing");
+
+	char const *const throughJoin = GameFolder_WhyNotPlainBelow(game, joined + "\\x.rif", &which);
+
+	Check(throughJoin && std::string(throughJoin).find("link") != std::string::npos && which == "avp_rifs\\Joined",
+		"a level through the junction avp_rifs\\Joined: named, a link (" + std::string(throughJoin ? throughJoin : "nothing") + "; " + which + ")");
+
+	char const *const missing = GameFolder_WhyNotPlainBelow(game, game + "\\avp_rifs\\Nope\\x.rif", &which);
+
+	Check(missing && which == "avp_rifs\\Nope", "a folder that isn't there: named (" + which + ")");
+	Check(GameFolder_WhyNotPlainBelow(game, game + "\\avp_rifs\\..\\x.rif", &which) != nullptr, "a \"..\" part: refused");
+	Check(GameFolder_WhyNotPlainBelow(game, game + "\\avp_rifs\\Custom. \\x.rif", &which) != nullptr, "a part ending in a dot or a space (Windows drops them): refused");
+	Check(GameFolder_WhyNotPlainBelow(game, game + "\\avp_rifs\\\\x.rif", &which) != nullptr, "an empty part: refused");
+	Check(GameFolder_WhyNotPlainBelow(game, "C:\\somewhere else\\x.rif", &which) == nullptr && which.empty(), "a path not below the data folder: not its business");
+	Check(GameFolder_WhyNotPlainBelow(game, game + "x\\y.rif", &which) == nullptr, "a folder whose name only starts like the data folder's: not below it");
+	Check(GameFolder_WhyNotPlainBelow("", game + "\\avp_rifs\\x.rif", &which) == nullptr, "no data folder: nothing to judge");
+
+	// (RemoveDirectory on a junction takes the junction away, never what it points at)
+	RemoveDirectoryA(joined.c_str());
+	RemoveDirectoryA(custom.c_str());
+	Check(GetFileAttributesA(noRifs.c_str()) != INVALID_FILE_ATTRIBUTES, "the folder the junction pointed at is still there");
 
 	// Taken away again
 	DeleteFileA((rifsFile + "\\avp_rifs").c_str());

@@ -1,0 +1,70 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, Bishop 2's order after the owner's first real test of All stock maps: "Unsaved changes: ask once, plain words
+# ("Save your level first?" Yes / No / Cancel), never a dead end"). A level with changes not saved gets the question after Ok, instead of "not started":
+# Cancel runs nothing; Yes saves it (the editor's own Save), then runs. (No, "run without saving it", is the form's third answer: host_all_stock_maps_ui_test
+# checks each button's answer.)
+# HOW: the owner's Genshd1 of acceptance-waypoint-mouse, opened as a double-click opens it, from a copy made fresh in the run's own data copy; a waypoint is
+# made on the floor (that scenario's own steps), so the level has a change not saved, and Waypoint mode goes back to its first mode, where the run starts.
+# A hidden run's Save writes its stand-in copy, never the opened file, so the file must come out byte for byte as it went in. The data copy keeps only the
+# first of the 22 levels, Derelict, so the run takes a minute or two.
+# RED on exe-cache/ddbb41ef.exe (bishop-int's head, 2026-11-23 01:26): Ok says "not started: the open level has changes not saved", and no question opens.
+# changes-data
+#ini AutoPlot=1
+make-level node -e "const fs=require('fs'),p=require('path');const d=process.argv[1],keep=process.argv[2].split(','),from=process.argv[3],name=process.argv[4];const run=['derelict','genshd1','invasion','odobenus','sulaco','hangar','temple_m','vaults_m','nost03_m','stat101_m','fall_m','fall','area52','vaults','furyall','caverns','battle','invasion_p','escape_p','temple_p','breakout_p','sulaco_p'];for(const f of fs.readdirSync(p.join(d,'avp_rifs'))){const n=f.toLowerCase();if(n.endsWith('.rif')&&run.includes(n.slice(0,-4))&&!keep.includes(n.slice(0,-4)))fs.rmSync(p.join(d,'avp_rifs',f))}fs.mkdirSync(p.join(d,'openwith'),{recursive:true});fs.copyFileSync(from,p.join(d,'openwith',name))" {datadir} derelict C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif Genshd1.rif
+screen Waypoint
+level {datadir}/openwith/Genshd1.rif
+start-args {datadir}/openwith/Genshd1.rif
+pictures on
+state
+expect-field levelbytes 1781232
+
+# ---- a change not saved: a waypoint on the floor (acceptance-waypoint-mouse-delete's steps), then back to the AI modules (command 2: mode 0)
+wait 600
+click-view 0.5 0.95
+wait 400
+item 3
+wait 600
+click-view 0.5 0.95
+wait 400
+expect-status Waypoint 0 made on the floor
+item 2
+wait 600
+
+# ---- Ok: the question, inteng's box with three buttons, nothing past its edges
+click-bar Alien auto waypoint > All stock maps
+wait 400
+expect-dialog All stock maps
+click-button Ok
+wait 300
+expect-dialog-kind form
+expect-dialog All stock maps
+expect-field-has dialogbuttons Yes
+expect-field-has dialogbuttons No
+expect-field-has dialogbuttons Cancel
+expect-field dialogpast none
+expect-status-not not started
+picture 1
+
+# ---- Cancel: nothing runs
+click-button Cancel
+wait 300
+expect-no-dialog
+expect-status All stock maps: nothing changed; every level is as it was
+expect-status-not All stock maps: level
+
+# ---- Yes: saved, then the run starts
+click-bar Alien auto waypoint > All stock maps
+wait 400
+click-button Ok
+wait 300
+expect-dialog-kind form
+click-button Yes
+wait 300
+expect-no-dialog
+expect-status-not not started
+wait-status 60000 All stock maps: level 1 of 22,
+expect-field level derelict
+picture 2
+wait-status 300000 (the report is open)
+expect-status All stock maps: 1 of 22 levels changed, 21 skipped
+expect-status your level Genshd1.rif was opened with Open with, so it was not opened again
+verify node -e "const fs=require('fs');process.exit(Buffer.compare(fs.readFileSync(process.argv[1]),fs.readFileSync(process.argv[2]))===0?0:1)" {datadir}/openwith/Genshd1.rif C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-waypoint-mouse/Genshd1.rif

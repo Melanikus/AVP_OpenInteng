@@ -179,6 +179,9 @@
 #include <thread>
 
 #include "autoplot_command.h"
+
+// the last run's end, for AutoPlotCommand_LastResult (autoplot_command.h)
+static AutoPlotResult gLast;
 #include "autoplot_preview.h"
 #include "autoplot_waits.h"   // AN EDIT WAITS FOR THE PLOT: which bar items wait while a run goes
 #include "autoplot_switch.h"   // the owner's "hide auto pilot" (11-19): nothing done unless AutoPlot=1
@@ -1175,6 +1178,7 @@ namespace
 		{
 			stage = Stage::Idle;
 			Say("Auto-plot: the pathfinder would not start: " + why);
+			gLast = AutoPlotResult{ true, false, 0, 0, 0, "the pathfinder would not start: " + why };
 			return;
 		}
 
@@ -1706,6 +1710,7 @@ namespace
 			std::string()) + "; " + Number((long long)boxes) + " boxes; lanes (the editor's rough count; the measure is the lane gate) " +
 			Number((long long)continuous) + " of " + Number((long long)lanes) + " continuous, ends under a ceiling " + Number((long long)endsUnderCeiling) + ", at open sky " +
 			Number((long long)endsAtOpenSky) + (refused ? " (the last refused: " + lastRefused + ")" : std::string()) + tail : last + tail);
+		gLast = AutoPlotResult{ true, true, written, refused, kept + runLinkedKept, std::string() };
 	}
 }
 
@@ -1717,6 +1722,7 @@ static host::AutoPlotVolumeCounts gNextCounts, gRunCounts;
 
 // the dialog's Overwrite box for the next run (AutoPlotCommand_Run's); any other start overwrites, as before
 static bool gNextOverwrite = true;
+static bool gNextAnswered = false;   // AutoPlotCommand_RunAnswered: the replace question answered Yes by the caller's own form
 
 bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 {
@@ -1733,6 +1739,10 @@ bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 	bool const overwriteLinked = gNextOverwrite;
 
 	gNextOverwrite = true;
+
+	bool const answered = gNextAnswered;
+
+	gNextAnswered = false;
 
 	if (stage == Stage::Idle)
 	{
@@ -1839,6 +1849,7 @@ bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 	{
 		Say("Auto-plot: 0 AI modules written, 0 refused" + host::AlienAutoWaypoint_LinkedKeptWords(keptLinked.size()) +
 			" (tick Overwrite already linked modules to plot them)");
+		gLast = AutoPlotResult{ true, true, 0, 0, keptLinked.size(), std::string() };
 		return true;
 	}
 
@@ -1864,6 +1875,13 @@ bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 		return true;
 	}
 
+	// the caller's own form asked already (AutoPlotCommand_RunAnswered: All stock maps' Overwrite tick): no question, as on a Yes
+	if (answered)
+	{
+		Begin(open, heads, groups);
+		return true;
+	}
+
 	std::string const question = everyOne ? std::string(selected ? "Auto-plot selected AI modules" : "Auto-plot all AI modules") + ": replace the " + Number((long long)replaced) +
 		" alien waypoints of " + Number((long long)modulesWithSome) +
 		" AI modules with the auto-plot's?" : "Auto-plot AI module " + Number(heads[0]) + ": replace its " + Number((long long)replaced) + " alien waypoints with the auto-plot's?";
@@ -1875,6 +1893,7 @@ bool AutoPlotCommand(int32_t command, int32_t pickedModule)
 		if (!yes || !again || !again->Level())
 		{
 			Say("Auto-plot: nothing changed");
+			gLast = AutoPlotResult{ true, false, 0, 0, 0, "nothing changed" };
 			return;
 		}
 
@@ -1937,6 +1956,7 @@ void AutoPlotCommand_Frame()
 			stage = Stage::Idle;
 			Say("Auto-plot: stopped: another level was opened while the AI modules were being prepared (" + Number((long long)starting.at) + " of " +
 				Number((long long)starting.heads.size()) + " done, nothing written)");
+			gLast = AutoPlotResult{ true, false, 0, 0, 0, "another level was opened while the AI modules were being prepared" };
 			return;
 		}
 
@@ -1967,6 +1987,7 @@ void AutoPlotCommand_Frame()
 			{
 				stage = Stage::Idle;
 				Say("Auto-plot: the pathfinder failed: " + why);
+				gLast = AutoPlotResult{ true, false, 0, 0, 0, "the pathfinder failed: " + why };
 			}
 
 			return;
@@ -2028,6 +2049,7 @@ void AutoPlotCommand_Frame()
 		stage = Stage::Idle;
 		Say("Auto-plot: stopped: another level was opened while the networks were being saved (" + Number((long long)finishing.written) + " of " +
 			Number((long long)jobs.size()) + " AI modules done)");
+		gLast = AutoPlotResult{ true, false, 0, 0, 0, "another level was opened while the networks were being saved" };
 		return;
 	}
 
@@ -2129,6 +2151,7 @@ bool AutoPlotCommand_Run(std::vector<int32_t> const &modules)
 
 bool AutoPlotCommand_Run(std::vector<int32_t> const &modules, host::AutoPlotVolumeCounts const &counts, bool overwriteLinked)
 {
+	gLast = AutoPlotResult();
 	gNextCounts = counts;
 	gNextOverwrite = overwriteLinked;
 
@@ -2260,4 +2283,19 @@ void AutoPlotCommand_Stop()
 	{
 		worker.join();
 	}
+}
+
+AutoPlotResult AutoPlotCommand_LastResult()
+{
+	return gLast;
+}
+
+bool AutoPlotCommand_RunAnswered(std::vector<int32_t> const &modules, host::AutoPlotVolumeCounts const &counts)
+{
+	gNextAnswered = true;
+
+	bool const done = AutoPlotCommand_Run(modules, counts, true);
+
+	gNextAnswered = false;   // a call that started nothing leaves no answer behind for the next
+	return done;
 }

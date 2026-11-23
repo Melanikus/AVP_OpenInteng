@@ -8,6 +8,7 @@
 // Rebellion text is in our source), never typed in.
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <string>
@@ -34,6 +35,20 @@ namespace model
 	// The kind of every number 1 to kMostMessageNumber, in order, one letter each (S used by a stock level, F a stock film no level uses,
 	// C clean, O old line), written by tools/make-message-numbers.js (message_numbers_table.cpp)
 	extern char const kMessageNumberKinds[];
+
+	// THE STOCK LEVELS THAT PLAY EACH S NUMBER (alpha.6: Video mode's Save asks, naming the level), written by the same tool: the level files as the
+	// game names them, ';' between, ascending by number
+	struct MessageNumberLevels
+	{
+		int32_t number;
+		char const *levels;
+	};
+
+	extern MessageNumberLevels const kMessageNumberLevels[];
+	extern size_t const kMessageNumberLevelCount;
+
+	// The stock level files that play a number, ', ' between, for the Save question ("Derelict.RIF"); "" for a number no stock level plays
+	std::string MessageNumbers_StockLevels(int32_t number);
 
 	MessageNumberInfo MessageNumbers_Info(int32_t number);
 

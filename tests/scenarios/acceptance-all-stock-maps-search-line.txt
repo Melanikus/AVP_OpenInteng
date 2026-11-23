@@ -1,0 +1,37 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, Bishop 2's order for the alpha.6 cut: "the status line fix ... exactly what the owner's recording will show"). All stock maps'
+# line while a level's plot SEARCHES (most of each level's time; Battle alone is over 5 minutes). Measured on 120b270f's round ('all', 2026-11-23 03:2x): the screen
+# drew "All stock maps: level 1 of 22, derelict.RIF: plotting" (statusdrawn), and the held words were the plot's own, "Auto-plot: preparing AI module 4 of 162", with no
+# level (status): the plot says its progress later in the frame than the run's line is drawn (editor_panels.cpp:503 the run's, :631 the drawn line, :1832 the plot's).
+# So the recording showed "plotting" and never the plot's progress, and every wait on the held words missed the level. Now both say it whole:
+#   "All stock maps: level 1 of 22, derelict.RIF: Auto-plot: module <n> of <m> (<name>), way <a> of <b>: searching"
+# the drawn line (the run's, its stage the plot's last words) and the held one (the plot's, the run's words in front of it: status_words.h's lead).
+# The run's data copy keeps only Derelict, the first of the 22, so the run takes a minute or two.
+# RED on exe-cache/120b270f.exe (bishop-int 120b270f, the alpha.6 round's head): the held words never hold the level and the plot's words together, and the drawn line says
+# "plotting".
+# changes-data
+#ini AutoPlot=1
+make-level node -e "const fs=require('fs'),p=require('path');const d=process.argv[1],keep=process.argv[2].split(',');const run=['derelict','genshd1','invasion','odobenus','sulaco','hangar','temple_m','vaults_m','nost03_m','stat101_m','fall_m','fall','area52','vaults','furyall','caverns','battle','invasion_p','escape_p','temple_p','breakout_p','sulaco_p'];for(const f of fs.readdirSync(p.join(d,'avp_rifs'))){const n=f.toLowerCase();if(n.endsWith('.rif')&&run.includes(n.slice(0,-4))&&!keep.includes(n.slice(0,-4)))fs.rmSync(p.join(d,'avp_rifs',f))}" {datadir} derelict
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+pictures on
+state
+expect-screen Waypoint
+
+click-bar Alien auto waypoint > All stock maps
+wait 400
+expect-dialog All stock maps
+click-button Ok
+wait 300
+expect-no-dialog
+
+# ---- during Derelict's search: the held words, the run's level and the plot's progress together ...
+wait-status 120000 All stock maps: level 1 of 22, derelict.RIF: Auto-plot: module
+# ... and the line the screen draws, the same
+expect-field-has statusdrawn All stock maps: level 1 of 22, derelict.RIF: Auto-plot: module
+expect-field-has statusdrawn : searching
+picture 1
+
+# ---- the end, as before
+wait-status 300000 (the report is open)
+expect-status All stock maps: 1 of 22 levels changed, 21 skipped
+expect-status-not Auto-plot: module

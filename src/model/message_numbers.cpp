@@ -55,6 +55,26 @@ namespace model
 		return info;
 	}
 
+	std::string MessageNumbers_StockLevels(int32_t number)
+	{
+		for (size_t i = 0; i < kMessageNumberLevelCount; i++)
+		{
+			if (kMessageNumberLevels[i].number == number)
+			{
+				std::string words = kMessageNumberLevels[i].levels;
+
+				for (size_t at = words.find(';'); at != std::string::npos; at = words.find(';', at + 2))
+				{
+					words.replace(at, 1, ", ");
+				}
+
+				return words;
+			}
+		}
+
+		return std::string();
+	}
+
 	std::vector<MessageNumberInfo> MessageNumbers_FreeList()
 	{
 		std::vector<MessageNumberInfo> list;

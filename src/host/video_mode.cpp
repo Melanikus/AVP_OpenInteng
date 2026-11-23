@@ -501,7 +501,9 @@ namespace
 				}
 				else if (info.kind == model::MessageNumberKind::UsedByStock)
 				{
-					question = "FMVs\\" + name + " is there already, and a stock level plays it: replace it with this video? That level would then play yours";
+					// naming the level (alpha.6): which stock level files play it, from message_numbers_table.cpp
+					question = "FMVs\\" + name + " is there already, and a stock level plays it (" + model::MessageNumbers_StockLevels(n) +
+						"): replace it with this video? That level would then play yours";
 				}
 
 				host::Dialogs_Confirm(question, [n, name, stock](bool yes)
@@ -517,9 +519,25 @@ namespace
 				return;
 			}
 
+			// A NUMBER A STOCK LEVEL PLAYS, WITH NO FILM THERE YET: asked once first, naming the level (alpha.5's known issue, "a typed stock number with no
+			// film saves silently", fixed for alpha.6: it was said, then saved). A mapper may mean it, the owner's ruling: replacing stock is modding;
+			// so Yes saves, as before
 			if (info.kind == model::MessageNumberKind::UsedByStock)
 			{
-				Say(info.words);   // said, then saved: a mapper may mean it (the warning is in words, as Bishop's brief asks)
+				int32_t const n = info.number;
+
+				host::Dialogs_Confirm("FMVs\\" + name + ": a stock level plays number " + std::to_string(n) + " (" + model::MessageNumbers_StockLevels(n) +
+					"), so it would play this video: save it as " + name + "?", [n, name](bool yes)
+				{
+					if (!yes)
+					{
+						Say("Not saved: FMVs\\" + name + " not made");
+						return;
+					}
+
+					MakeFilm(n, false);
+				});
+				return;
 			}
 
 			MakeFilm(info.number, info.kind == model::MessageNumberKind::StockFilm);

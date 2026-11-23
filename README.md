@@ -17,6 +17,36 @@ inteng's quoted words stay Rebellion's. See `License.txt`.
 **Pre-release.** Its home is https://github.com/Melanikus/AVP_OpenInteng, a public repository. The first release is `v1.0.0-alpha.0`
 (2026-11-18).
 
+## Setting up
+
+**Open Inteng is one folder. It needs no installer, no registry keys, and no avptools**: only its folder, inside your game's folder,
+named `Tools`. (Old guides for Rebellion's tools set registry keys by hand. None of that is needed here.)
+
+1. **Find your game's folder**, the one that holds `avp_rifs`:
+   - Steam: `C:\Program Files (x86)\Steam\steamapps\common\Aliens versus Predator Classic`. In Steam: right-click the game, then
+     **Manage** > **Browse local files**.
+   - The original Fox install: `C:\Program Files (x86)\Fox\Aliens versus Predator` (`C:\Program Files\Fox\...` on 32-bit Windows).
+2. **Make a folder named `Tools` there**, if there isn't one.
+3. **Unzip Open Inteng into that `Tools` folder**, so the editor is at `<your game's folder>\Tools\AVP_OpenInteng.exe`.
+4. **Open a level** with it: see "Opening a level file with the editor" below.
+
+The folders, when it's set up:
+
+```
+Aliens versus Predator Classic\      your game's folder: the one DataFolder= names, if you ever set it
+    avp_rifs\                        the game's levels (.rif): the editor opens and saves these
+        OpenedByEditor\              levels opened with "Open with" are copied here first (the editor's own)
+    avp_huds\                        the game's HUD files and models
+    FMVs\                            the game's message videos: Video mode saves yours here
+    Tools\                           Open Inteng's folder
+        AVP_OpenInteng.exe
+        AVP_OpenInteng.ini
+        shape_rifs\                  object shapes for Quick-create (avptools' own folder works here), if you have them
+```
+
+**Somewhere else?** If the editor isn't in the game's `Tools` folder, tell it where the game is: open `AVP_OpenInteng.ini` and put
+`DataFolder=<your game's folder>` under `[Editor]` (see "Its settings" below). Without that, it stops and says so.
+
 ## How it's built
 
 - **The game's own code, never a copy.** The editor compiles AvPx's own level loader, chunk library and renderer, from the `avpx/`

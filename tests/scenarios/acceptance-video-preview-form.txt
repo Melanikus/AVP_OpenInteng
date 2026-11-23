@@ -10,7 +10,9 @@
 #      rectangle, away from the bar and the controls.
 # The window as in acceptance-video-preview-over's runs (no -r): the Save form at 284 207 440 314 (checked first, so every box below reads what it says), the film's
 # picture at x 135..871, y 178..590, its first half (15 s) red (verify_videomake's clip). Ok 524 489 80 18, Cancel 624 489 80 18 (video_mode.cpp AskTheNumber's places).
-# RED on bishop-int 951ef25f (exe-cache/951ef25f.exe): inside the form the film's red (its edges, its label's row, its box, its list, its buttons), and no Stop.
+# RED on bishop-int 951ef25f (exe-cache/951ef25f.exe), 71 ok / 13 FAILED: inside the form the film's red (its four edges, its label's row, its box, Ok and Cancel), and
+# no Stop. GREEN there too, as guards: the frames moving, the bar, the controls' frame, Cancel and Ok by a click, Preview again, and the open list (951ef25f already
+# drew an open list over the film: 0.0000 red in its box).
 #ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 make-level cmd /c {scenariodir}message-fmv\make-fmvs.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
 make-level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/clip30.mp4 30 --again
@@ -69,7 +71,7 @@ expect-colour panels 572 493 28 10 0000ff 0.95 40
 expect-colour panels 682 493 18 10 0000ff 0.95 40
 
 # the open list over the film, and a click on its row taken. The box starts at y 280, under the first row: the row lit ("2: free", 261..278) is the list's own red
-# (dialogs.cpp: the lit row filled red, the others blue), not the film's
+# (dialogs.cpp: the lit row filled red, the others blue), not the film's. A guard: green on 951ef25f too, whose open list was already drawn over the film
 click-combo 1
 wait 400
 expect-field-has dialogcomborows 3:_free

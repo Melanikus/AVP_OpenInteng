@@ -133,6 +133,7 @@
 #include "waypoint_mode.h"
 #include "waypoint_view.h"
 #include "autoplot_command.h"
+#include "all_stock_maps_screen.h"   // a Waypoint command waits while All stock maps runs
 #include "alien_auto_waypoint.h"   // the owner's "Alien auto waypoint" > Modules (Vasquez 11-20)
 #include "waypoint_delete.h"       // the owner's Delete Waypoints / Delete All Waypoints (Dietrich 11-21)
 #include "can_crawl_offer.h"       // the Can Crawl offer: the module's Airduct flag instead of the bit the game never reads (the owner 11-21)
@@ -1202,6 +1203,12 @@ void ModuleLinkingCleanTheLinks()
 
 host::AutoLinkRunner autoLinkRun;
 int32_t autoLinkKept = -1;   // the module current when the run began (FUN_004c8930's local: made current again at the end)
+
+// A new level opened in the same sitting (level_reopen.h): the module kept is the level before's, so it is forgotten. Called only when no run is going.
+void AutoLink_ForgetLevel()
+{
+	autoLinkKept = -1;
+}
 bool autoLinkFromFile = false;   // the run is Load from file's (FUN_004c8be0): the last module done stays current
 static bool autoLinkDeleteOld = false;  // the run began with the modules' links thrown away (Module / Environment (delete old)), for the end's words
 std::string autoLinkFileWords;   // what Load from file's start found in the module file (records that name no module, or one that moved), for the end's words
@@ -2029,7 +2036,7 @@ void DoWaypointCommand(int32_t command, EditorHostState &host)
 	}
 
 	// AN EDIT WAITS FOR THE PLOT (autoplot_waits.h): every other Waypoint command, by the bar or by its key, while a run is going (its Exit writes the waypoints)
-	if (AutoPlotCommand_Waits("That Waypoint command"))
+	if (AutoPlotCommand_Waits("That Waypoint command") || host::AllStockMapsScreen_Waits("That Waypoint command"))
 	{
 		return;
 	}

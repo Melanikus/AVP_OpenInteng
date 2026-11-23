@@ -16,6 +16,15 @@
 # Microsoft's D3DX9 and C++ runtime are Windows' own (SysWOW64), and the OpenAL32.dll the zip puts beside the editor is found on the program's PATH, in $DLLS_FROM
 # (default AvP-builds-excluded\libs-31c9b73c\bin: our own vcpkg build of it, the one the editor is built against; Bishop 2 checked its Rich header against the
 # CI-built one alpha.4 shipped, 11-22). Written 2026-11-22 by Melanikus (Drake).
+#  6. and 7. AN avp_rifs THAT IS A JUNCTION (Vasquez's find F-b, 2026-11-22; Bishop 2's order, Tao 1): a folder "junction game" whose avp_rifs is a junction to the fake game's
+#     own, named by a written DataFolder= (6), and the editor in "junction game\Tools" with the zip's ini (7, the game's folder found above the editor's). Each stops, saying its
+#     avp_rifs is a link, opens nothing, and writes nothing through the junction (the fake game's avp_rifs\OpenedByEditor, the editor's copy folder, is taken away first and
+#     must not come back). RED on d2d2d909 (exe-cache/d2d2d909.exe), 4 FAILED: both took the junction as the game's avp_rifs, said nothing of it, and copied the level into
+#     OpenedByEditor THROUGH it; they stopped only later, for the junction game's missing language.txt. The junction is made and taken away by PowerShell's own commands
+#     (New-Item -ItemType Junction, and Directory.Delete, which takes the junction itself and never what it points at); nothing is rm -rf'd through it.
+#  8. and 9. THE EDITOR'S OWN OpenedByEditor FOLDER (Vasquez's find F-d, Frost's review SHOULD 2, 2026-11-22): a double-click copies the level into the fake
+#     game's avp_rifs\OpenedByEditor. 8: that folder a junction to another folder; 9: its Genshd1.rif a hard link's second name to another file. Each must
+#     stop, saying so, and write nothing through the link.
 set -u
 exe="${1:?editor exe}"
 X=/c/Users/Melanikus/source/AvP-builds-excluded
@@ -128,6 +137,91 @@ echo "$out" | tail -2 | sed 's/^/    /'
 [ "$code" != 0 ] && ok "it stopped (exit $code)" || bad "it ended with 0 with no data folder"
 echo "$out" | grep -q "the editor can't find the game's files. Put it in the game's own Tools folder" && echo "$out" | grep -q "as DataFolder= under \[Editor\]" \
 	&& ok "saying: put it in the game's Tools folder, or name the game's folder as DataFolder=" || bad "not saying how to fix it"
+# THE FIRST-LAUNCH SETUP (Drake 2026-11-23; the owner via Bishop 2: "say 'Open inteng is in <...> expected to reside in ..steamapps or ...\Tools or Program
+# files..\Fox\AVP..' and note if it has or has not found maps around it", "ask the user if he wants to set DataFolder="; first_launch_screen.h). Its words go to
+# the error output too ("first launch: ..."); with nobody at the screen its answer is Not now, and the editor closes as before.
+# RED on exe-cache/59d8e78c.exe (the start as it was): the five checks of the setup's words FAILED, only the stop's words were there; "nothing written" holds
+# there too. (Cases 6 to 9 are red on that exe as well: it predates Vasquez's F-b and F-d.) GREEN on the setup's first build: every check of 1 to 9.
+wl=$(cygpath -w "$elsewhere"); wp=$(cygpath -w "$work")
+echo "$out" | grep -qF "first launch: Open Inteng is in: $wl " && ok "the setup says where Open Inteng is, its whole path" || bad "no setup saying where Open Inteng is"
+echo "$out" | grep -qF "It belongs in your game's Tools folder: Steam's ...\\steamapps\\common\\Aliens versus Predator Classic\\Tools, or the original install's C:\\Program Files (x86)\\Fox\\Aliens versus Predator\\Tools" \
+	&& ok "it says where it belongs: Steam's Tools, or the Fox install's" || bad "it doesn't say where it belongs"
+echo "$out" | grep -qF "It found no levels around it. It looked in: $wp." && ok "it says it found no levels, and where it looked" || bad "it doesn't say it found no levels, or where it looked"
+echo "$out" | grep -qF "Set the game's folder now?" && ok "it offers to set the game's folder" || bad "it doesn't offer to set the game's folder"
+echo "$out" | grep -qF "first launch: Not now (nobody at the screen)" && ok "with nobody at the screen the answer is Not now" || bad "no Not now with nobody at the screen"
+[ ! -e "$elsewhere/AVP_OpenInteng.ini.writing" ] && ! grep -q '^DataFolder=' "$elsewhere/AVP_OpenInteng.ini" && ok "and nothing was written to its ini" \
+	|| bad "something was written to its ini"
+
+# "junction game": a folder whose avp_rifs is a junction to the fake game's own (cases 6 and 7). A junction from an earlier run is taken away first, by itself
+jgame="$work/junction game"
+real_inside "$jgame"
+mkdir -p "$jgame"
+unjoin() { [ -e "$jgame/avp_rifs" ] || [ -L "$jgame/avp_rifs" ] || return 0; J=$(cygpath -w "$jgame/avp_rifs") powershell -NoProfile -Command '[IO.Directory]::Delete($env:J, $false)' < /dev/null; }
+unjoin
+J=$(cygpath -w "$jgame/avp_rifs") T=$(cygpath -w "$game/avp_rifs") powershell -NoProfile -Command 'New-Item -ItemType Junction -Path $env:J -Target $env:T | Out-Null' < /dev/null
+[ -L "$jgame/avp_rifs" ] && [ -f "$jgame/avp_rifs/Genshd1.RIF" ] || { echo "FAIL: the junction $jgame/avp_rifs to the fake game's avp_rifs could not be made"; unjoin; exit 1; }
+copies="$game/avp_rifs/OpenedByEditor"
+real_inside "$copies"
+# went_through <case>: the editor's copy folder came back in the fake game's avp_rifs, so the run wrote through the junction
+went_through() { [ -e "$copies" ] && bad "$1: it wrote through the junction (the fake game's avp_rifs\\OpenedByEditor is back)" || ok "$1: and wrote nothing through it"; }
+
+echo "== 6. a written DataFolder= naming a folder whose avp_rifs is a junction: it stops, saying so"
+rm -rf "$copies"
+put "$tools" "DataFolder=$(cygpath -w "$jgame")"
+run "$tools" -picture 20 "$(cygpath -w "$jgame")\\avp_rifs\\Genshd1.RIF"
+echo "$out" | tail -2 | sed 's/^/    /'
+[ "$code" != 0 ] && ok "it stopped (exit $code)" || bad "it ended with 0: the junction was taken as the game's avp_rifs"
+echo "$out" | grep -q "DataFolder in AVP_OpenInteng.ini can't be used: its avp_rifs folder is a link, or another reparse point, not a plain folder" \
+	&& ok "saying its avp_rifs is a link" || bad "not saying its avp_rifs is a link"
+echo "$out" | grep -q "model objects: the game has" && bad "a level was opened all the same" || ok "and nothing was opened"
+went_through "6"
+
+echo "== 7. the editor in <junction game>\\Tools with the zip's ini (the game's folder above it): it stops, saying so"
+rm -rf "$copies"
+put "$jgame/Tools"
+run "$jgame/Tools" -picture 20 "$(cygpath -w "$jgame")\\avp_rifs\\Genshd1.RIF"
+echo "$out" | tail -2 | sed 's/^/    /'
+[ "$code" != 0 ] && ok "it stopped (exit $code)" || bad "it ended with 0: the junction was taken as the game's avp_rifs"
+echo "$out" | grep -q "The game's folder, the one above the editor's, can't be used: its avp_rifs folder is a link, or another reparse point, not a plain folder" \
+	&& ok "saying its avp_rifs is a link" || bad "not saying its avp_rifs is a link"
+echo "$out" | grep -q "model objects: the game has" && bad "a level was opened all the same" || ok "and nothing was opened"
+went_through "7"
+unjoin
+[ -e "$jgame/avp_rifs" ] && bad "the junction could not be taken away: $jgame/avp_rifs" || ok "the junction is taken away, and the fake game's levels are still there: $(ls "$game/avp_rifs" | wc -l) entries"
+
+# 8. and 9. THE EDITOR'S OWN OpenedByEditor FOLDER (Vasquez's find F-d, Frost's review SHOULD 2): "Open with" copies the level into it, so it must be a plain
+# folder, and what is there under the level's name a plain file with one name. Both made in the fake game, and put back as they were after
+elsewhere_copies="$work/elsewhere-copies"
+real_inside "$elsewhere_copies"
+victim="$work/victim.rif"
+real_inside "$victim"
+unjoin_copies() { [ -e "$copies" ] || [ -L "$copies" ] || return 0; [ -L "$copies" ] || return 0; J=$(cygpath -w "$copies") powershell -NoProfile -Command '[IO.Directory]::Delete($env:J, $false)' < /dev/null; }
+
+echo "== 8. the fake game's avp_rifs\\OpenedByEditor is a junction to another folder: a double-click stops, saying so, and copies nothing through it"
+unjoin_copies; rm -rf "$copies" "$elsewhere_copies"; mkdir -p "$elsewhere_copies"
+J=$(cygpath -w "$copies") T=$(cygpath -w "$elsewhere_copies") powershell -NoProfile -Command 'New-Item -ItemType Junction -Path $env:J -Target $env:T | Out-Null' < /dev/null
+[ -L "$copies" ] || { echo "FAIL: the junction $copies could not be made"; exit 1; }
+put "$tools"
+run "$tools" -picture 20 "$gw\\avp_rifs\\Genshd1.RIF"
+echo "$out" | tail -2 | sed 's/^/    /'
+[ "$code" != 0 ] && ok "it stopped (exit $code)" || bad "it ended with 0: the level was copied into a junction"
+echo "$out" | grep -q "can't open that file: the editor's own OpenedByEditor folder can't be used (that's a link, or another reparse point, not a plain folder)" \
+	&& ok "saying the OpenedByEditor folder is a link" || bad "not saying the OpenedByEditor folder is a link"
+[ -z "$(ls -A "$elsewhere_copies" 2>/dev/null)" ] && ok "and nothing was copied through the junction" || bad "the level was copied THROUGH the junction into $elsewhere_copies"
+unjoin_copies; rm -rf "$elsewhere_copies"
+
+echo "== 9. under Genshd1.rif in OpenedByEditor, a second name of another file (a hard link): a double-click stops, and that file is left as it was"
+rm -rf "$copies"; mkdir -p "$copies"
+printf 'somebody else'"'"'s file' > "$victim"
+MSYS_NO_PATHCONV=1 powershell -NoProfile -Command "New-Item -ItemType HardLink -Path '$(cygpath -w "$copies/Genshd1.rif")' -Target '$(cygpath -w "$victim")' | Out-Null" < /dev/null
+[ -f "$copies/Genshd1.rif" ] || { echo "FAIL: the hard link $copies/Genshd1.rif could not be made"; exit 1; }
+put "$tools"
+run "$tools" -picture 20 "$gw\\avp_rifs\\Genshd1.RIF"
+echo "$out" | tail -2 | sed 's/^/    /'
+[ "$code" != 0 ] && ok "it stopped (exit $code)" || bad "it ended with 0: the level was copied over a hard link's name"
+echo "$out" | grep -q "isn't a plain file with one name" && ok "saying what is there isn't a plain file with one name" || bad "not saying what is there isn't a plain file"
+[ "$(cat "$victim")" = "somebody else's file" ] && ok "and the other file is byte for byte as it was" || bad "the other file was WRITTEN THROUGH the hard link"
+rm -rf "$copies" "$victim"
 
 [ "$fail" = 0 ] || { echo "FAIL: the first start does not work out of the box"; exit 1; }
-echo "PASS: the editor in <the game>\\Tools with the zip's own ini starts and opens a level, and a written DataFolder= still wins and stops in words"
+echo "PASS: the editor in <the game>\\Tools with the zip's own ini starts and opens a level, a written DataFolder= still wins and stops in words, and an avp_rifs that is a junction is refused"

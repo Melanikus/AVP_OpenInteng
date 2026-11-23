@@ -1,0 +1,150 @@
+# ACCEPTANCE (red first; Frost 2026-11-22): the owner's All stock maps on ALL 22 Marine and Predator levels, the run he will use and record ("Priority is my waypoint all maps, I
+# want to see it working and I want to use it and I want to finish a few maps to look for bugs"; AvP-docs director/plan-all-stock-maps.md). The shard's private data copy holds
+# every stock level as Steam ships it (run-shards' copy of hicks-try-run\data, equal to Steam's depot manifest, checked 2026-11-22). Each of the 22 in env_info.cpp's order: open
+# and drawn before its plot (a picture each), the progress line "level N of 22", no form or pop-up. At the end: "22 of 22 levels changed", the report on inteng's text screen
+# and in the editor's log (each CHANGED), the level open before opened again; on disk, each of the 22 changed (the game's loader takes it, Rebellion's own alien networks kept,
+# at least one AI module with new ones) behind a .rif.bak of its stock bytes, and the 10 Alien campaign levels and every other file untouched (verify_all_stock_maps after).
+# A level whose AI modules all have alien waypoints already would come out with 0 written (Dietrich, 11-22): that shows here as a FAILED level, to be read against the report.
+# TIME: about 30-45 minutes (a large level's plot is 80-112 s, Caverns about 9 minutes), so this file's own limit is the most run-shards allows, 3600 s. EACH LEVEL'S WAIT
+# FOLLOWS THE RUN (wait-moving, Bishop 2 for the alpha.6 cut, 11-23): it waits for the run's own state field, allstockmaps "busy; level N of 22; ...", for as long as
+# that field keeps changing (the plot's module and way counts move it), and fails only when it stays the same for 5 minutes. The fixed 300 s per level went RED
+# twice while Caverns was still plotting, module 69 of 120 (Dietrich's round on 120b270f). The status line is not waited on: the plot says its own words there.
+# RED on exe-cache/d2d2d909's build: no All stock maps in the menu (it stops at its first wait, 60 s). Its words are Drake's (drake-allmaps 6b2d0e13). The open level is read
+# from the state's level field, in small letters as env_info names it (Dietrich 11-22, and the first real run: "derelict", "genshd1", "hangar").
+# THE OWNER AWAY (Bishop 2, 11-22: the long run waits until he is): "# idle 120" makes run-shards start it only after 2 minutes with nobody at the
+# machine (the harness's idle gate, tests/drive_scenario/idle_gate.h); a touch during the run makes it RED, "touched".
+# timeout 3600
+# idle 120
+# changes-data
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+expect-screen Waypoint
+click-bar Alien auto waypoint
+expect-field-has dropboxes |All stock maps~
+key Esc
+wait 600
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-allmaps-verifier/verify_all_stock_maps.exe prepare {datadir} C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs
+click-bar Alien auto waypoint > All stock maps
+expect-dialog All stock maps
+expect-dialog-checks off,off
+picture 1
+click-button Ok
+expect-no-dialog
+wait-moving 60000 allstockmaps ; level 1 of 22;
+expect-no-dialog
+wait 1500
+expect-field level derelict
+picture 2
+wait-moving 300000 allstockmaps ; level 2 of 22;
+expect-no-dialog
+wait 1500
+expect-field level genshd1
+picture 3
+wait-moving 300000 allstockmaps ; level 3 of 22;
+expect-no-dialog
+wait 1500
+expect-field level invasion
+picture 4
+wait-moving 300000 allstockmaps ; level 4 of 22;
+expect-no-dialog
+wait 1500
+expect-field level odobenus
+picture 5
+wait-moving 300000 allstockmaps ; level 5 of 22;
+expect-no-dialog
+wait 1500
+expect-field level sulaco
+picture 6
+wait-moving 300000 allstockmaps ; level 6 of 22;
+expect-no-dialog
+wait 1500
+expect-field level hangar
+picture 7
+wait-moving 300000 allstockmaps ; level 7 of 22;
+expect-no-dialog
+wait 1500
+expect-field level temple_m
+picture 8
+wait-moving 300000 allstockmaps ; level 8 of 22;
+expect-no-dialog
+wait 1500
+expect-field level vaults_m
+picture 9
+wait-moving 300000 allstockmaps ; level 9 of 22;
+expect-no-dialog
+wait 1500
+expect-field level nost03_m
+picture 10
+wait-moving 300000 allstockmaps ; level 10 of 22;
+expect-no-dialog
+wait 1500
+expect-field level stat101_m
+picture 11
+wait-moving 300000 allstockmaps ; level 11 of 22;
+expect-no-dialog
+wait 1500
+expect-field level fall_m
+picture 12
+wait-moving 300000 allstockmaps ; level 12 of 22;
+expect-no-dialog
+wait 1500
+expect-field level fall
+picture 13
+wait-moving 300000 allstockmaps ; level 13 of 22;
+expect-no-dialog
+wait 1500
+expect-field level area52
+picture 14
+wait-moving 300000 allstockmaps ; level 14 of 22;
+expect-no-dialog
+wait 1500
+expect-field level vaults
+picture 15
+wait-moving 300000 allstockmaps ; level 15 of 22;
+expect-no-dialog
+wait 1500
+expect-field level furyall
+picture 16
+wait-moving 300000 allstockmaps ; level 16 of 22;
+expect-no-dialog
+wait 1500
+expect-field level caverns
+picture 17
+wait-moving 300000 allstockmaps ; level 17 of 22;
+expect-no-dialog
+wait 1500
+expect-field level battle
+picture 18
+wait-moving 300000 allstockmaps ; level 18 of 22;
+expect-no-dialog
+wait 1500
+expect-field level invasion_p
+picture 19
+wait-moving 300000 allstockmaps ; level 19 of 22;
+expect-no-dialog
+wait 1500
+expect-field level escape_p
+picture 20
+wait-moving 300000 allstockmaps ; level 20 of 22;
+expect-no-dialog
+wait 1500
+expect-field level temple_p
+picture 21
+wait-moving 300000 allstockmaps ; level 21 of 22;
+expect-no-dialog
+wait 1500
+expect-field level breakout_p
+picture 22
+wait-moving 300000 allstockmaps ; level 22 of 22;
+expect-no-dialog
+wait 1500
+expect-field level sulaco_p
+picture 23
+wait-moving 300000 status (the report is open)
+expect-status All stock maps: 22 of 22 levels changed (the report is open)
+expect-no-dialog
+expect-field level Statue
+picture 24
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-allmaps-verifier/verify_all_stock_maps.exe after {datadir} C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs log {exedir}settings\avp_log.txt

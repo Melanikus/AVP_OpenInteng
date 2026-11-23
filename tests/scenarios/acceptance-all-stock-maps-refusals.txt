@@ -1,0 +1,38 @@
+# ACCEPTANCE (red first; Frost 2026-11-22): All stock maps REFUSES or FAILS a level it can't do safely, leaves it untouched, and goes on (Vasquez's review of the engine, as
+# Dietrich listed it: "a folder named <level>.RIF.bak, and a hard-linked .bak ... should say REFUSED, untouched"; "a truncated .RIF mid-run: FAILED, the next level CHANGED, and the
+# level before opened again"). The shard's private data copy holds four of the 22 Marine and Predator levels, each set up by verify_all_stock_maps prepare:
+#   derelict (level 1): a FOLDER named derelict.RIF.bak where its backup would go: REFUSED (a backup is written only as a new plain file), untouched, the folder still a folder;
+#   genshd1 (level 2): its .rif.bak is one of a HARD LINK's two names (the other outside the data folder): REFUSED, untouched, that name unchanged;
+#   sulaco (level 5): its .RIF cut to half its bytes: FAILED (the game's loader refuses it), not saved;
+#   hangar (level 6): stock: CHANGED, with a new .rif.bak of its stock bytes, so the run goes on past the refusals and the failure.
+# The other 18 are missing (Skipped). At the end: "1 of 22 levels changed, 18 skipped, 2 refused, 1 failed (the report is open)" (Drake's end line), the report in the log
+# under each heading, the Alien campaign and every other file untouched.
+# RED on exe-cache/76f29d1f.exe (Drake's build before Dietrich's fixes, 990f3bfd): the folder and the hard link said CHANGED + backupKept (Dietrich's words). GREEN wanted on
+# exe-cache/39afb952.exe and later.
+# changes-data
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+expect-screen Waypoint
+click-bar Alien auto waypoint
+expect-field-has dropboxes |All stock maps~
+key Esc
+wait 600
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-allmaps-verifier/verify_all_stock_maps.exe prepare {datadir} C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs keep=derelict,genshd1,sulaco,hangar bakdir=derelict baklink=genshd1 truncate=sulaco
+click-bar Alien auto waypoint > All stock maps
+expect-dialog All stock maps
+expect-dialog-checks off,off
+# (NO PICTURE AND NO SINGLE LOOK until the run's end: with the first three refused or failed at once, the editor is opening and plotting Hangar in one long
+# frame right after the click, and a picture asked for then waits at most 20 s, a single look 10 s. On a machine running 3 shards, the picture after the
+# click ran out in 2 of 3 runs on 2026-11-23 (AvP-builds-excluded/frost-allstock-2a5c4c87 and -04b02c34, "picture 104 after: click-button Ok"; green
+# alone). wait-status asks every half second for as long as it is given, so it reads the end on a busy machine too. Pictures come back for the end.)
+pictures off
+click-button Ok
+# (no wait on "level N": with three of the four refused or failed at once, the whole run is over in seconds, before a half-second look sees level 1)
+wait-status 300000 (the report is open)
+pictures on
+expect-status All stock maps: 1 of 22 levels changed, 18 skipped, 2 refused, 1 failed (the report is open)
+expect-no-dialog
+picture 1
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-allmaps-verifier/verify_all_stock_maps.exe after {datadir} C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs log {exedir}settings\avp_log.txt

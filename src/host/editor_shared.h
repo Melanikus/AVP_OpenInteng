@@ -1107,9 +1107,11 @@ void HierarchyOpenOnSelectedObject();
 
 // made in placed_hierarchy_screen.cpp
 extern OpenLevelFile *placementRowsOpen;
+extern unsigned placementRowsGeneration;
 extern unsigned placementRowsFor;
 extern OpenLevelFile *placedSoundsOpen;
 extern unsigned placedSoundsFor;
+extern unsigned placedSoundsGeneration;
 std::vector<host::PlacedSoundIn> PlacedSoundsOfLevel(std::vector<host::SpecialObject> const &specials);
 int32_t PlacementHideDistance();
 extern bool placementHideOn;

@@ -1,0 +1,22 @@
+# ACCEPTANCE (red first; Frost 2026-11-22), part 2 of acceptance-all-stock-maps-three-1 (#ini-keep: it runs right after it, in the same shard, on the same data copy): R7 of
+# AvP-docs director/plan-all-stock-maps.md, A SECOND RUN IN ANOTHER SITTING (a new editor). With overwrite off, every AI module the first run gave alien waypoints keeps
+# them, so there is nothing new to write: each level is SKIPPED, "0 AI modules written, N refused, M kept: nothing written, so the file is left as it was" (the engine's
+# words, measured on exe-cache/39afb952.exe 2026-11-22; the plan's "changed again" was written before), and stays as the first run left it. Every .rif.bak is byte for byte
+# the one from before the first run: Hangar's its stock bytes, Derelict's stock Derelict_A's bytes, Genshd1's the one that was there already (a .bak that's there is never
+# replaced, so the oldest copy is always kept). The Alien campaign and everything else: untouched. Then run-shards mirrors the shard's copies afresh (part 1's "# changes-data").
+# RED on exe-cache/d2d2d909's build: no All stock maps in the menu (part 1 never ran); it stops at its first wait (60 s).
+#ini-keep
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+expect-screen Waypoint
+click-bar Alien auto waypoint > All stock maps
+expect-dialog All stock maps
+expect-dialog-checks off,off
+click-button Ok
+expect-no-dialog
+wait-moving 60000 allstockmaps ; level 1 of 22;
+wait-status 900000 (the report is open)
+expect-status All stock maps: 0 of 22 levels changed, 22 skipped (the report is open)
+expect-no-dialog
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-allmaps-verifier/verify_all_stock_maps.exe again {datadir} C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs log {exedir}settings\avp_log.txt

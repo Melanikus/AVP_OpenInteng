@@ -466,7 +466,8 @@ static void TestTheBuiltScreens()
 
 	// THE NAMED ADDITION on Waypoint's first bar (the owner 11-20, through Bishop: "I want the auto waypoint to say "Alien auto waypoint" and be a drop down with environment or modules";
 	// alien_auto_waypoint.h, menu-status.json extras): inteng's own three titles first and unchanged (Mode, Entry points, Help), then ONE menu of ours, "Alien auto waypoint", with
-	// Environment (0x7335) and Modules (0x7334), in place of the three Auto-plot items there were; no other title of ours, and no Auto-plot title left
+	// Environment (0x7335) and Modules (0x7334), in place of the three Auto-plot items there were, and last All stock maps (0x7338; the owner's wishlist item 5, 11-22:
+	// "on alien waypoint mode autolink we'll have a last option "All stock maps""); no other title of ours, and no Auto-plot title left
 	const IntengScreen *const waypoint = Built("Waypoint");
 	bool named = waypoint && waypoint->count == 4 && strcmp(waypoint->menus[0].title, "Mode") == 0 && strcmp(waypoint->menus[1].title, "Entry points") == 0 &&
 		strcmp(waypoint->menus[2].title, "Help") == 0;
@@ -475,9 +476,14 @@ static void TestTheBuiltScreens()
 	{
 		const IntengMenu &ours = waypoint->menus[3];
 
-		named = strcmp(ours.title, "Alien auto waypoint") == 0 && ours.count == 2 && strcmp(ours.items[0].name, "Environment") == 0 && ours.items[0].command == 0x7335 &&
-			strcmp(ours.items[1].name, "Modules") == 0 && ours.items[1].command == 0x7334 && ours.items[0].work == IntengWork::WaypointCommand &&
-			ours.items[1].work == IntengWork::WaypointCommand && ours.items[0].tag == IntengTag::None && ours.items[1].tag == IntengTag::None;
+		named = strcmp(ours.title, "Alien auto waypoint") == 0 && ours.count == 3 && strcmp(ours.items[0].name, "Environment") == 0 && ours.items[0].command == 0x7335 &&
+			strcmp(ours.items[1].name, "Modules") == 0 && ours.items[1].command == 0x7334 && strcmp(ours.items[2].name, "All stock maps") == 0 &&
+			ours.items[2].command == 0x7338;
+
+		for (size_t i = 0; named && i < ours.count; i++)
+		{
+			named = ours.items[i].work == IntengWork::WaypointCommand && ours.items[i].tag == IntengTag::None;
+		}
 	}
 
 	for (size_t m = 0; waypoint && m < waypoint->count; m++)
@@ -485,7 +491,8 @@ static void TestTheBuiltScreens()
 		named = named && strncmp(waypoint->menus[m].title, "Auto-plot", 9) != 0;
 	}
 
-	Check(named, "Waypoint's first bar: inteng's Mode, Entry points and Help, then the named addition \"Alien auto waypoint\" (Environment 0x7335, Modules 0x7334, both working), and no Auto-plot title");
+	Check(named, "Waypoint's first bar: inteng's Mode, Entry points and Help, then the named addition \"Alien auto waypoint\" (Environment 0x7335, Modules 0x7334, All stock maps 0x7338, "
+		"each working), and no Auto-plot title");
 
 	// THE NAMED ADDITIONS on Waypoint's second bar (the owner 11-21, through Bishop: "be able to select and delete Waypoint mapping by module, group of modules or envronment",
 	// "Waypoint mode's bar"; waypoint_delete.h, menu-status.json extras): inteng's own three first and unchanged (Edit Module 0x19, Add Module 0x1a, Remove Module 0x1b), then

@@ -138,6 +138,21 @@ public:
 	// Saves the level to the file the user picked: the one it was opened from, or another. The steps are at the top of this file.
 	LevelSaveResult SaveAs(const char * path);
 
+	// SaveAs's own checks of the file it replaces, asked of path itself (Vasquez's find F-a, 2026-11-22). The save over the opened file (src/host/level_save.h) has SaveAs
+	// write the level to "<path>.saving", then puts that file in place of path, so SaveAs's checks only ever looked at the temporary name and never at the file replaced.
+	// Gives back Saved when nothing is there yet, or when path is a plain file on a disk with one name only (not a link or any other reparse point, a folder, a device,
+	// or one of a hard link's names: F7 N7), read whole without following a link of that name, and, with againstOpened, when it is the file the level stands for (it was
+	// opened from it, or last saved to it) it is as it was then, byte for byte (F7 N3). Then *asItIs holds its bytes (none when nothing is there), for the save's last
+	// look before the replace (LevelFile_StillThese). Otherwise NoPath (it can't be made a whole path, or names a device or a stream), CantReplace (not a plain file
+	// with one name, or it can't be read as one) or ChangedOnDisk, with *asItIs empty. The view gap's copy asks without againstOpened: a level opened with "Open with"
+	// stands for its copy in avp_rifs\OpenedByEditor, which is the very file the view copy writes over at every screen change.
+	LevelSaveResult MayWriteOver(const char * path, bool againstOpened, std::vector<char> * asItIs) const;
+
+	// From now on the level stands for path: the save over the opened file put what SaveAs wrote in place of path itself, not of the temporary name SaveAs was given, so
+	// the next save's MayWriteOver compares path with the bytes saved. Its numbers on the disk are read again from path, without following a link of that name.
+	// (Vasquez's F-a, 2026-11-22.)
+	void NowStandsFor(const char * path);
+
 	// The level as the next save would write it, unpacked (a REBINFF2 block). For the save itself, and for tests.
 	bool BuildLevel(std::vector<char> & out);
 
@@ -200,5 +215,9 @@ private:
 	unsigned changes;                                      // Changes(): NoteChange's count and ReplaceLevel's
 	LevelOpenResult ReplaceLevelUnguarded(std::vector<char> const & image);
 };
+
+// The save's last look at the file it is about to replace, right before the replace (src/host/level_save.cpp): true only when path is there, a plain file on a disk with
+// one name only, read without following a link of that name, holding exactly these bytes (the ones MayWriteOver gave). (Added 2026-11-22 by Melanikus (Vasquez), F-a.)
+bool LevelFile_StillThese(const char * path, std::vector<char> const & bytes);
 
 #endif

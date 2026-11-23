@@ -526,6 +526,12 @@ struct DeleteLinksRun
 
 static DeleteLinksRun deleteLinksRun;
 
+// A new level opened in the same sitting (level_reopen.h): a Delete Links run's modules and records are the level before's. Called only when no run is going.
+void DeleteLinks_ForgetLevel()
+{
+	deleteLinksRun = DeleteLinksRun();
+}
+
 bool DeleteLinksRunning()
 {
 	return deleteLinksRun.on;

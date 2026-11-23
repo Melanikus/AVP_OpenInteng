@@ -1,0 +1,65 @@
+# ACCEPTANCE (red first; Frost 2026-11-22) for the owner's "Priority is my waypoint all maps, I want to see it working and I want to use it and I want to finish a few maps to look
+# for bugs" (Bishop 2's relay): Waypoint mode > Alien auto waypoint > All stock maps (AvP-docs director/plan-all-stock-maps.md, Vasquez's revision of 22:20; its red-first host case,
+# R6 and R8; Bishop 2's screen checks for the owner's recording). Run on THREE of the 22 Marine and Predator levels: the shard's private data copy holds only those three, so the
+# run finds the other 19 missing (Skipped, named):
+#   Hangar, stock: CHANGED (alien waypoints in AI modules that had none, Rebellion's own networks kept), with a new .rif.bak of its stock bytes;
+#   Derelict, holding stock Derelict_A's bytes (not Steam's own Derelict, as the owner's edited one or a stranger's is: R6, R8): CHANGED, behind a .rif.bak of THOSE bytes;
+#   Genshd1, with a .rif.bak already there (stock Sulaco_a's bytes): CHANGED, and that .rif.bak kept byte for byte (CREATE_NEW: never replaced).
+# The 10 Alien campaign levels and every other file under avp_rifs: untouched. The editor's log names the three in its All stock maps lines. On screen (lane G: the owner records
+# the run for instructions): each level open and drawn before its plot (a picture each), the progress line "level N of 22" on every level, and no form or pop-up during the run.
+# RED on exe-cache/d2d2d909's build (bishop-int's head, 2026-11-22): the Alien auto waypoint menu has Environment and Modules, and no All stock maps.
+# THE WORDS are Drake's, as built (drake-allmaps 6b2d0e13, src/host/all_stock_maps_ui.cpp): the progress line "All stock maps: level <N> of <M>, <file>: <stage>" (the file
+# as Dietrich's engine builds it, so this file waits on the number and reads the open level from the state), and the end line "All stock maps: <n> of <m> levels changed, <k>
+# skipped (the report is open)".
+# THE DATA COPY: run-shards.sh's private copy of hicks-try-run\data, mirrored afresh at every run (its 63 stock levels equal AvP-play-release's, which equal Steam's depot
+# manifest, checked 2026-11-22). verify_all_stock_maps prepare first puts the 32 campaign levels back to stock and deletes their .rif.bak files, then sets the fixture; it writes
+# only into a shard's private copy (...\s<k>\lv\<folder>). Part 2 runs next in the same shard (#ini-keep). "# changes-data" makes run-shards mirror the shard's copies afresh
+# from the originals right after the group, whatever its files did (a red here stops at its first wait, 60 s, with the fixture still in the copy).
+# changes-data
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+expect-screen Waypoint
+# the menu: All stock maps is its third item, after Environment and Modules (the red on today's build)
+click-bar Alien auto waypoint
+expect-field-has dropboxes Environment~
+expect-field-has dropboxes |Modules~
+expect-field-has dropboxes |All stock maps~
+key Esc
+wait 600
+# the fixture, in the shard's private data copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-allmaps-verifier/verify_all_stock_maps.exe prepare {datadir} C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs keep=hangar,derelict,genshd1 replace=derelict:derelict_a bak=genshd1:sulaco_a
+# the disclaimer: ONE form, his short disclaimer and Environment's options (Drake's UI; its words, Cancel and a refused option are his acceptance-all-stock-maps-disclaimer's
+# and his unit test's: a form's dialogtext holds only its edit boxes, never its labels)
+click-bar Alien auto waypoint > All stock maps
+expect-dialog All stock maps
+expect-dialog-checks off,off
+picture 1
+click-button Ok
+expect-no-dialog
+# each level in the list's order (derelict is level 1, genshd1 level 2, hangar level 6): open and drawn before its plot, the progress line, and no form or pop-up.
+# (Each wait follows the run's own state field, allstockmaps "busy; level N of 22; ...", as long as it keeps changing: wait-moving, 11-23; the status line
+# carries the plot's own words while it plots.)
+wait-moving 60000 allstockmaps ; level 1 of 22;
+expect-no-dialog
+wait 1500
+expect-field level derelict
+picture 2
+wait-moving 300000 allstockmaps ; level 2 of 22;
+expect-no-dialog
+wait 1500
+expect-field level genshd1
+picture 3
+wait-moving 300000 allstockmaps ; level 6 of 22;
+expect-no-dialog
+wait 1500
+expect-field level hangar
+picture 4
+# the end (Drake's words): the report on inteng's text screen (not a dialog) and in the editor's log, the level open before opened again, nothing asked
+wait-status 300000 (the report is open)
+expect-status All stock maps: 3 of 22 levels changed, 19 skipped (the report is open)
+expect-no-dialog
+expect-field level Statue
+picture 5
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-allmaps-verifier/verify_all_stock_maps.exe after {datadir} C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs log {exedir}settings\avp_log.txt

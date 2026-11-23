@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+#include "all_stock_maps_screen.h"   // All stock maps' disclaimer (Drake)
+#include "all_stock_maps_ui.h"       // kWaypointAlienAutoAllStockMaps
 #include "chunk.hpp"
 #include "chunk_object.hpp"
 #include "dialogs.h"
@@ -121,7 +123,7 @@ namespace
 
 bool host::AlienAutoWaypointCommand(int32_t command, int32_t pickedModule)
 {
-	if (command != kWaypointAlienAutoModules && command != kWaypointAlienAutoEnvironment)
+	if (command != kWaypointAlienAutoModules && command != kWaypointAlienAutoEnvironment && command != kWaypointAlienAutoAllStockMaps)
 	{
 		return false;
 	}
@@ -134,6 +136,13 @@ bool host::AlienAutoWaypointCommand(int32_t command, int32_t pickedModule)
 	if (AutoPlotCommand_Busy())
 	{
 		Say("Alien auto waypoint: a run is going: wait for its end");
+		return true;
+	}
+
+	// ALL STOCK MAPS (the owner's wishlist item 5, Drake's all_stock_maps_screen.h): the disclaimer first; it needs no level of its own open
+	if (command == kWaypointAlienAutoAllStockMaps)
+	{
+		AllStockMaps_Open();
 		return true;
 	}
 

@@ -7,6 +7,11 @@
 // the copy: the copy loads with 6, its .bak is the stock file byte for byte, no temporary file is left; (2) cut to 5 and saved again in the same sitting: the copy has 5 and the .bak is
 // STILL the stock file byte for byte (the level as it was opened); (2b) a NEW sitting's first save of that file: its .bak is the file as that sitting found it (the 5), an older .bak replaced;
 // (3) a READ-ONLY file is refused and left as it was; (4) a file that is not there yet is made, with no .bak, and saved again in the sitting still with none; (5) not a .rif: refused.
+// THE FILE SAVED OVER IS ITSELF CHECKED (Vasquez's find F-a, 2026-11-22; Bishop 2's order, Tao 1), each one REFUSED with the file byte for byte as it was: (6) a file another program
+// changed while the level was open; (7) one changed after the level was saved to it; (8) a file with a second name (a hard link), and the view gap's copy with one; (9) a file made a
+// link (a reparse point); (10) a symbolic link to another file, where this computer can make one; (11) the save's last look before the replace (LevelFile_StillThese). RED on d2d2d909 (the
+// base, with only this test changed): (6), (7), (8) and (8)'s view copy were written over, 8 checks failed; (9) was refused there only because ReplaceFileA failed on the made-up link
+// kind (Windows error 1920), with no check of its own; (10) is not tried on a computer that can't make a symbolic link.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +21,7 @@
 #include <vector>
 
 #include <windows.h>
+#include <winioctl.h>
 
 #include "chunk.hpp"
 #include "chunk_object.hpp"
@@ -87,6 +93,51 @@ static std::vector<uint8_t> Bytes(std::string const &path)
 	}
 
 	return out;
+}
+
+// Bytes written over a file, as another program would write it
+static bool WriteBytes(std::string const &path, std::vector<uint8_t> const &bytes)
+{
+	FILE *out = fopen(path.c_str(), "wb");
+
+	if (!out)
+	{
+		return false;
+	}
+
+	bool const wrote = fwrite(bytes.data(), 1, bytes.size(), out) == bytes.size();
+
+	return fclose(out) == 0 && wrote;
+}
+
+// A file made a link of a made-up kind (tag 0x00001234), or made a plain file again. Any user may set such a reparse point: only a symbolic link needs the privilege
+// (host_video_folder_links_test does the same to a folder)
+static bool TagAsLink(std::string const &path, bool on)
+{
+	HANDLE const file = CreateFileA(path.c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+
+	if (file == INVALID_HANDLE_VALUE)
+	{
+		return false;
+	}
+
+	REPARSE_GUID_DATA_BUFFER point = {};
+	DWORD returned = 0;
+
+	point.ReparseTag = 0x00001234ul;
+	point.ReparseDataLength = 0;
+	point.ReparseGuid = { 0x6d0c1b5e, 0x2f4a, 0x4c7e, { 0x9a, 0x51, 0x3b, 0x8e, 0x22, 0x10, 0x7f, 0x44 } };
+
+	BOOL const done = DeviceIoControl(file, on ? FSCTL_SET_REPARSE_POINT : FSCTL_DELETE_REPARSE_POINT, &point, REPARSE_GUID_DATA_BUFFER_HEADER_SIZE, nullptr, 0, &returned, nullptr);
+
+	CloseHandle(file);
+	return done != 0;
+}
+
+// The .bak and the temporary file of a save over path are not there
+static bool NoBackupNorTemporary(std::string const &path)
+{
+	return GetFileAttributesA((path + ".bak").c_str()) == INVALID_FILE_ATTRIBUTES && GetFileAttributesA((path + ".saving").c_str()) == INVALID_FILE_ATTRIBUTES;
 }
 
 // gARAGDOR's link count in a level file, -1 when it does not load
@@ -291,4 +342,153 @@ static void RunTheCases(std::string const &stock, std::string const &folder)
 
 	// ---- (5) not a .rif
 	Check(nextSitting.Save(&open, (folder + "\\level.txt").c_str(), &backupPath, &why) == host::LevelSaveOver::BadTarget, "a path that is not a .rif is refused");
+
+	// ---- (6) to (10): THE FILE SAVED OVER IS ITSELF CHECKED, not only its temporary file (header). Each case is a level of its own, opened from a copy of the stock level (asOpened is
+	// the stock level's bytes), changed, then saved, and each must be REFUSED with the file byte for byte as it was.
+
+	// ---- (6) the file was changed on disk by another program while the level was open
+	{
+		std::string const changed = folder + "\\Changed.rif";
+		OpenLevelFile level;
+
+		Check(CopyFileA(stock.c_str(), changed.c_str(), FALSE) != 0 && level.Open(changed.c_str()) == LevelOpenResult::Opened && level.Level(), "(6) a copy of the stock level opens");
+
+		std::vector<uint8_t> outside = asOpened;
+
+		if (!outside.empty())
+		{
+			outside.back() ^= 1;
+		}
+
+		Check(WriteBytes(changed, outside), "(6) another program writes the file while it is open (its last byte changed)");
+
+		host::LevelSaveSitting own;
+		bool const cut = CutLinks(&level, garage, 6);
+		host::LevelSaveOver const result = own.Save(&level, changed.c_str(), &backupPath, &why);
+
+		Check(cut && result != host::LevelSaveOver::Saved && why.find("changed on disk") != std::string::npos, "(6) it is NOT saved over, and the words say why: " + why);
+		Check(Bytes(changed) == outside && NoBackupNorTemporary(changed), "(6) the file still holds the other program's bytes, with no .bak and no temporary file");
+	}
+
+	// ---- (7) changed on disk after the level was saved to it: from that save on, the level stands for the file it was saved to (the real one, not its temporary file)
+	{
+		std::string const savedTo = folder + "\\Saved-then-changed.rif";
+		OpenLevelFile level;
+		host::LevelSaveSitting own;
+
+		Check(CopyFileA(stock.c_str(), savedTo.c_str(), FALSE) != 0 && level.Open(savedTo.c_str()) == LevelOpenResult::Opened && level.Level(), "(7) a copy of the stock level opens");
+
+		bool const cut6 = CutLinks(&level, garage, 6);
+		host::LevelSaveOver const first7 = own.Save(&level, savedTo.c_str(), &backupPath, &why);
+
+		Check(cut6 && first7 == host::LevelSaveOver::Saved && LinksIn(savedTo, garage) == 6, "(7) a change is saved over it: " + why);
+
+		std::vector<uint8_t> outside = Bytes(savedTo);
+
+		if (!outside.empty())
+		{
+			outside.back() ^= 1;
+		}
+
+		Check(WriteBytes(savedTo, outside), "(7) then another program writes the file (its last byte changed)");
+
+		bool const cut5 = CutLinks(&level, garage, 5);
+		host::LevelSaveOver const second7 = own.Save(&level, savedTo.c_str(), &backupPath, &why);
+
+		Check(cut5 && second7 != host::LevelSaveOver::Saved && why.find("changed on disk") != std::string::npos, "(7) the next save is NOT made, and the words say why: " + why);
+		Check(Bytes(savedTo) == outside && GetFileAttributesA((savedTo + ".saving").c_str()) == INVALID_FILE_ATTRIBUTES, "(7) the file still holds the other program's bytes");
+	}
+
+	// ---- (8) the file has a second name (a hard link): writing over one name leaves the other as it was, two files where the mapper sees one
+	{
+		std::string const linked = folder + "\\Linked.rif", other = folder + "\\Linked-other-name.rif";
+		OpenLevelFile level;
+
+		Check(CopyFileA(stock.c_str(), linked.c_str(), FALSE) != 0 && level.Open(linked.c_str()) == LevelOpenResult::Opened && level.Level(), "(8) a copy of the stock level opens");
+		Check(CreateHardLinkA(other.c_str(), linked.c_str(), nullptr) != 0, "(8) the file is given a second name (CreateHardLinkA, which any user may do)");
+
+		host::LevelSaveSitting own;
+		bool const cut = CutLinks(&level, garage, 6);
+		host::LevelSaveOver const result = own.Save(&level, linked.c_str(), &backupPath, &why);
+
+		Check(cut && result != host::LevelSaveOver::Saved && why.find("plain file") != std::string::npos, "(8) it is NOT saved over, and the words say why: " + why);
+		Check(Bytes(linked) == asOpened && Bytes(other) == asOpened && NoBackupNorTemporary(linked), "(8) both names still hold the stock bytes, with no .bak and no temporary file");
+
+		// the view gap's copy is held to the same rule: given a second name, it is not written over either
+		std::string const view = folder + "\\Viewed-linked.rif", viewOther = folder + "\\Viewed-other-name.rif";
+		host::LevelSaveOver const made = host::LevelSave_ViewCopy(&level, view.c_str(), &why);
+		std::vector<uint8_t> const viewBytes = Bytes(view);
+
+		Check(made == host::LevelSaveOver::Saved && CreateHardLinkA(viewOther.c_str(), view.c_str(), nullptr) != 0, "(8) a view copy is written, then given a second name: " + why);
+
+		bool const cutView = CutLinks(&level, garage, 5);   // (so a copy written over it would differ from the one there)
+		host::LevelSaveOver const again = host::LevelSave_ViewCopy(&level, view.c_str(), &why);
+
+		Check(cutView && again != host::LevelSaveOver::Saved && why.find("plain file") != std::string::npos, "(8) the view copy is NOT written over it, and the words say why: " + why);
+		Check(Bytes(view) == viewBytes && Bytes(viewOther) == viewBytes, "(8) both of its names hold the copy as it was");
+	}
+
+	// ---- (9) the file is made a link (a reparse point) after the level was opened from it
+	{
+		std::string const tagged = folder + "\\Tagged.rif";
+		OpenLevelFile level;
+
+		Check(CopyFileA(stock.c_str(), tagged.c_str(), FALSE) != 0 && level.Open(tagged.c_str()) == LevelOpenResult::Opened && level.Level(), "(9) a copy of the stock level opens");
+
+		bool const linkMade = TagAsLink(tagged, true);
+
+		Check(linkMade && (GetFileAttributesA(tagged.c_str()) & FILE_ATTRIBUTE_REPARSE_POINT) != 0, "(9) the file is made a link of a made-up kind (0x00001234)");
+
+		host::LevelSaveSitting own;
+		bool const cut = CutLinks(&level, garage, 6);
+		host::LevelSaveOver const result = own.Save(&level, tagged.c_str(), &backupPath, &why);
+
+		Check(cut && result != host::LevelSaveOver::Saved && why.find("plain file") != std::string::npos, "(9) it is NOT saved over, and the words say why: " + why);
+		Check(TagAsLink(tagged, false) && Bytes(tagged) == asOpened && NoBackupNorTemporary(tagged), "(9) made plain again, it still holds the stock bytes, with no .bak and no temporary file");
+	}
+
+	// ---- (10) the file to save over is a symbolic link to another file. Windows makes one only with the privilege (an administrator, or Developer Mode): where it can't be made, the
+	// case says so and isn't counted (GitHub's runner makes it)
+	{
+		std::string const real = folder + "\\Pointed-at.rif", pointer = folder + "\\Pointer.rif";
+		OpenLevelFile level;
+
+		Check(CopyFileA(stock.c_str(), real.c_str(), FALSE) != 0 && level.Open(real.c_str()) == LevelOpenResult::Opened && level.Level(), "(10) a copy of the stock level opens");
+
+		if (!CreateSymbolicLinkA(pointer.c_str(), real.c_str(), SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE))
+		{
+			printf("  --  (10) not tried here: this computer makes no symbolic link without the privilege (Windows error %lu)\n", (unsigned long)GetLastError());
+		}
+		else
+		{
+			host::LevelSaveSitting own;
+			bool const cut = CutLinks(&level, garage, 6);
+			host::LevelSaveOver const result = own.Save(&level, pointer.c_str(), &backupPath, &why);
+
+			Check(cut && result != host::LevelSaveOver::Saved && why.find("plain file") != std::string::npos, "(10) it is NOT saved over, and the words say why: " + why);
+			Check(Bytes(real) == asOpened && (GetFileAttributesA(pointer.c_str()) & FILE_ATTRIBUTE_REPARSE_POINT) != 0 && NoBackupNorTemporary(pointer),
+				"(10) the file it points at still holds the stock bytes, the link is still a link, with no .bak and no temporary file");
+			DeleteFileA(pointer.c_str());
+		}
+	}
+
+	// ---- (11) the last look before the replace (LevelFile_StillThese): only the very bytes, in a plain file with one name, pass
+	{
+		std::string const looked = folder + "\\Looked-at.rif", lookedOther = folder + "\\Looked-at-other-name.rif";
+		std::vector<char> const asChars(asOpened.begin(), asOpened.end());
+		std::vector<char> changedChars = asChars;
+
+		if (!changedChars.empty())
+		{
+			changedChars.back() ^= 1;
+		}
+
+		bool const copied = CopyFileA(stock.c_str(), looked.c_str(), FALSE) != 0;
+
+		Check(copied && LevelFile_StillThese(looked.c_str(), asChars), "(11) a plain file holding the bytes looked for passes");
+		Check(!LevelFile_StillThese(looked.c_str(), changedChars), "(11) other bytes do not");
+		Check(!LevelFile_StillThese((folder + "\\Not-there.rif").c_str(), std::vector<char>()), "(11) nothing there does not");
+		Check(CreateHardLinkA(lookedOther.c_str(), looked.c_str(), nullptr) != 0 && !LevelFile_StillThese(looked.c_str(), asChars),
+			"(11) the same bytes under a second name do not");
+	}
 }

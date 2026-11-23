@@ -179,6 +179,7 @@
 #include "editor_shared.h"
 #include "state_line.h"
 #include "text_scale.h"   // the Options text sizes' ticks (the owner's addition)
+#include "all_stock_maps_screen.h"   // All stock maps: the run's step, its progress line, its report pages
 #include "video_mode_screen.h"   // the owner's Video mode, its screen's panels
 
 // A Strategy Edit view's box in the window (the owner's addition, 11-17): half the window each way, never under inteng's 640 x 480 page (the size every view was laid out for), never over the
@@ -496,6 +497,11 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 
 	hitList = ui::Box{ 0, 0, 0, 0 };
 	hitFields = ui::Box{ 0, 0, 0, 0 };
+
+	// ALL STOCK MAPS (all_stock_maps_screen.h): the run's step, its progress line, and after its last level the report pages, laid out in the screen the
+	// text block below lays its pages out in; before that block, so a page shows the frame it is put up
+	host::AllStockMapsScreen_Frame(layout.toolbar.width > 0 ? layout.toolbar.width : 1008,
+		layout.status.y + layout.status.height > 0 ? layout.status.y + layout.status.height : 729);
 
 	// The buttons (A8): the tool row at the top of the view, the action buttons above the status line. Not while a menu or a prompt has the panels
 	toolPlaced = 0;
