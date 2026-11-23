@@ -58,10 +58,16 @@ namespace host
 	// Browse... / Not now when not); the window as wide as screenWidth allows, between 400 and 760 pixels
 	DialogFormSpec FirstLaunch_Form(FirstLaunchFacts const &facts, std::function<int32_t(unsigned char)> const &widthOf, int32_t fontHeight, int32_t screenWidth);
 
-	// THE INI LINE (DataFolder=<folder>, or the "Not now" answer): ini's text with key=value under [section], every other byte kept: the first key= line of that
+	// THE INI LINE (DataFolder=<folder>): ini's text with key=value under [section], every other byte kept: the first key= line of that
 	// section replaced (its own line ending kept), or the line added at the end of the section's own lines, or the section added at the end of the file when it
 	// isn't there. Sections and keys are matched as Windows matches them (any case, spaces around them dropped; ';' starts a comment line). New lines end as the
 	// file's do (CRLF when it has any, else LF; CRLF for an empty file). False, with *out untouched, when value or key holds a new line, a 0 or a '=' in key, or
 	// section holds a ']'
 	bool FirstLaunch_IniWithLine(std::string const &ini, std::string const &section, std::string const &key, std::string const &value, std::string *out);
+
+	// THE INI SECTION (a list the editor keeps, shapes_scanned.h): ini's text with the FIRST [section] holding exactly `lines`, every other byte kept: the lines
+	// from its header down to its last line that isn't empty are replaced (the empty lines after it, and the next section, stay as they were), or the section
+	// is added at the end of the file when it isn't there. The section is matched as Windows matches it (any case, spaces dropped). New lines end as the file's
+	// do. False, with *out untouched, when a line holds a new line or a 0 or starts (after spaces) with a '[', or section holds a ']' or a new line
+	bool FirstLaunch_IniWithSection(std::string const &ini, std::string const &section, std::vector<std::string> const &lines, std::string *out);
 }

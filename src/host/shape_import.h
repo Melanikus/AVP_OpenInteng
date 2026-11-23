@@ -161,10 +161,13 @@ namespace host
 		Done,
 		BadName,        // not plain letters, digits, '_' or '-', empty, or longer than 63 letters
 		NoFolder,       // the folder is not set
-		NotFound,       // no <name>.rif in the folder (or it can't be opened)
+		NotFound,       // nothing of the name <name>.rif is in the folder (no file, no folder, no link: the folder doesn't hold it)
 		TooBig,         // the file is bigger than kShapeImportMostBytes, or empty
 		BadFile,        // the file isn't a shape file this can copy (the words say what: see ShapeImportWords)
 		NumberTaken,    // no shape number is left (more than 65,535)
+		NotPlain,       // something named <name>.rif is there, but isn't a plain file this reads: a link or a junction, a second name of another file (a
+		                // hard link), a folder, not a file on a disk, or one that can't be opened or read whole (Vasquez 2026-11-23: never NotFound, so a
+		                // lookup over several folders stops at it: shape_search.h)
 	};
 
 	// The most bytes of a shape file that are read (the stock shape files are under 40,000)
@@ -173,7 +176,13 @@ namespace host
 	// In plain words for the editor's status line: static text, never null
 	char const *ShapeImportWords(ShapeImportResult result);
 
+	// The name rule ShapeImport_Read holds a shape's name to (BadName when it fails), for a caller that checks a name before any folder is looked in
+	bool ShapeImport_NameIsPlain(std::string const &name);
+
 	// Reads <folder>\<name>.rif into *bytes. *fileName is the name as it will be kept in the level (name + ".rif").
+	// ON ONE HANDLE (Tao 3; Vasquez 2026-11-23, for the lookup order): opened without following a link (FILE_FLAG_OPEN_REPARSE_POINT), judged on that handle (a
+	// file on a disk, not a reparse point, not a folder, ONE name: a hard link would let a file elsewhere be read under a shape's name), and read whole from it,
+	// so what was judged is what is read.
 	ShapeImportResult ShapeImport_Read(char const *folder, std::string const &name, std::vector<char> *bytes, std::string *fileName);
 
 	// Makes the level's shape chunk (a whole REBSHAPE, with its heading) from the bytes of a shape file, for the shape number newNumber. Its header lists

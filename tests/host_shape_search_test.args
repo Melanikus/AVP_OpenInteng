@@ -1,0 +1,6 @@
+/std:c++17 /EHsc /MD /J /we4834 /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE
+/Isrc/host /Itests /Iavpx/3dc
+tests/host_shape_search_test.cpp
+src/host/shape_search.cpp
+src/host/shape_import.cpp
+src/host/game_folder.cpp

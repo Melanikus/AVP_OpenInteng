@@ -1039,7 +1039,7 @@ extern int32_t tearTolerance;
 extern bool tearAll;
 extern bool splitCentreOn;
 extern bool placementGravity;
-extern std::string shapeFolder;
+extern std::string shapeFolderSetting;   // [Editor] ShapeFolder= as the ini writes it: the lookup orders (shape_search.h) judge it each time they look
 extern unsigned strategyCleanGeneration;
 void StrategyCleanNow();
 bool StrategyChanged();

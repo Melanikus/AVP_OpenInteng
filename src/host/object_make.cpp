@@ -359,9 +359,11 @@ namespace host
 		}
 
 		// parts (CreateObjectFromParts): shapeName is then the object's exact name, the shape is the one of parts->shapeNumber, and the header's flags, the strategy and the chunk after are the parts'
+		// byNumber (CreateObjectFromShapeNumber), when not -1: the shape is the level's one with that SHPHEAD1 number, never looked up by shapeName (which is
+		// then only the base of the new object's name)
 		ObjectMakeResult MakeIn(OpenLevelFile *file, char const *shapeName, int32_t const *place, int32_t const *matrix, uint8_t *newId, std::string *newName,
 		                        char const *shapeFolder, std::string *importWhy, Bytes const *givenShape = nullptr, float const *givenTurn = nullptr, bool exactName = false,
-		                        ObjectParts const *parts = nullptr)
+		                        ObjectParts const *parts = nullptr, int32_t byNumber = -1)
 		{
 			if (importWhy)
 			{
@@ -380,6 +382,7 @@ namespace host
 				return ObjectMakeResult::BadShapeName;
 			}
 
+			// a name with an '@': a NAMED GAP with no caller; inteng's handling is read, and object_make.h says it (the spec for whoever gives it one)
 			if (base.find('@') != std::string::npos)
 			{
 				return ObjectMakeResult::SubNameNotCopied;
@@ -486,7 +489,26 @@ namespace host
 				}
 			}
 
-			for (size_t i = 0; !givenShape && !parts && i < info.shapes.size() && found == info.shapes.size(); i++)
+			// BY NUMBER (CreateObjectFromShapeNumber): the shape the caller chose, as inteng's Create Duplicate and Shape Chooser take it; nothing is imported
+			if (byNumber >= 0)
+			{
+				for (size_t i = 0; i < info.shapes.size() && found == info.shapes.size(); i++)
+				{
+					if (info.shapes[i].fileId == byNumber)
+					{
+						found = i;
+					}
+				}
+
+				if (found == info.shapes.size())
+				{
+					return ObjectMakeResult::NoSuchShape;
+				}
+			}
+
+			// BY NAME, inteng's own lookup kept exactly (FUN_004de260): the FIRST outside shape whose file has that name, a fragment file's part or not
+			// (object_make.h says so: a plain name can match a part, the file's first)
+			for (size_t i = 0; !givenShape && !parts && byNumber < 0 && i < info.shapes.size() && found == info.shapes.size(); i++)
 			{
 				if (!info.shapes[i].outsideName.empty() && SameName(info.shapes[i].outsideName.c_str(), info.shapes[i].outsideName.size(), base))
 				{
@@ -868,6 +890,24 @@ namespace host
 		try
 		{
 			return MakeIn(file, shapeName, place, matrix, newId, newName, shapeFolder, importWhy);
+		}
+		catch (std::exception const &)
+		{
+			return ObjectMakeResult::CantBuild;
+		}
+	}
+
+	ObjectMakeResult CreateObjectFromShapeNumber(OpenLevelFile *file, int32_t shapeNumber, char const *nameBase, int32_t const *place, int32_t const *matrix, uint8_t *newId,
+	                                             std::string *newName)
+	{
+		if (shapeNumber < 0)
+		{
+			return ObjectMakeResult::NoSuchShape;
+		}
+
+		try
+		{
+			return MakeIn(file, nameBase, place, matrix, newId, newName, nullptr, nullptr, nullptr, nullptr, false, nullptr, shapeNumber);
 		}
 		catch (std::exception const &)
 		{

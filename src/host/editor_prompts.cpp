@@ -137,6 +137,7 @@
 #include "shape_chooser.h"
 #include "shape_rescale_edit.h"
 #include "shape_import.h"
+#include "shape_search.h"     // the refresh's order: ShapeFolder= and the game's Tools\shape_rifs, never the game's shape_rifs
 #include "shape_update.h"
 #include "module_site.h"
 #include "shape_soften_edit.h"
@@ -1418,9 +1419,11 @@ static std::string rescaleWords;
 
 // THE OUTSIDE SHAPES' UPDATE (inteng FUN_00512fc0; reassess/object-placement.md section 7, OP-137..OP-141; shape_update.h). Added 2026-11-16 by Melanikus (Vasquez).
 // Every outside shape of the held level (forced false: inteng does it at every load, silently), or the one the named object uses (forced true: Take scale), is brought up to date from its own
-// file in the shape folder (shapeFolder, F-IMPORT-FOLDER: [Editor] ShapeFolder= or shape_rifs beside the program; agreed with Frost). A file not there changes nothing, as in inteng. Each
-// refusal goes to the log with the file's name and why, and keeps the level's own copy (OP-141 (g)). All the changes go to the game's own loader at once (OpenLevelFile::ReplaceLevel), which
-// refuses the lot or takes it. The file must be a plain file, not a folder, a link or a device (OP-141 (b)); ShapeImport_Read (Frost's) holds the name to plain letters and the size to 4 MB.
+// file, found in THE REFRESH'S ORDER (shape_search.h ShapeSearch_RefreshOrder, Frost's ruling 2026-11-23: ShapeFolder=, then the game's Tools\shape_rifs; NEVER the game's shape_rifs, where
+// Option C's files would swap a level's own copy for another level's variant; before: ShapeFolder= or shape_rifs beside the program). A file in no folder changes nothing, as in inteng. A
+// folder of the order that is refused, or a file there that is refused, keeps the level's own copy: it is never taken from a folder past it (fail closed). Each refusal goes to the log with
+// the file's name and why (OP-141 (g)). All the changes go to the game's own loader at once (OpenLevelFile::ReplaceLevel), which refuses the lot or takes it. The file is read on one handle,
+// a plain file with one name, not a folder, a link or a device (ShapeImport_Read; OP-141 (b)); the name is held to plain letters and the size to 4 MB.
 // Gives how many shapes changed; *before / *after get the last changed shape's rescale.
 static size_t const kOutsideMostLevelBytes = 32u << 20;   // what the game's loader takes, unpacked (OpenLevelFile's MostUnpackedBytes, level_file.cpp)
 
@@ -1431,12 +1434,15 @@ static int OutsideShapesUpdateUnguarded(OpenLevelFile *open, bool forced, std::s
 	std::vector<char> image;
 	std::vector<Span> top;
 	size_t total = 0;
+	std::vector<host::ShapeSearchFolder> const order = host::ShapeSearch_RefreshOrder(shapeFolderSetting, theGameFolder);
 
-	if (!open || shapeFolder.empty() || !open->BuildLevel(image) || image.size() < kHeadingBytes || !NameIs(image, 0, "REBINFF2") || !ChunkSizeAt(image, 0, image.size(), &total) ||
+	if (!open || order.empty() || !open->BuildLevel(image) || image.size() < kHeadingBytes || !NameIs(image, 0, "REBINFF2") || !ChunkSizeAt(image, 0, image.size(), &total) ||
 		!Children(image, kHeadingBytes, total, &top))
 	{
 		return 0;
 	}
+
+	std::set<std::string> usedFolders;   // the labels of the folders the changed shapes came from, for the log's last line
 
 	std::vector<std::vector<char>> made(top.size());
 	int changed = 0;
@@ -1460,30 +1466,24 @@ static int OutsideShapesUpdateUnguarded(OpenLevelFile *open, bool forced, std::s
 			continue;
 		}
 
-		std::string path = shapeFolder;
+		// the first folder of the refresh's order that holds <name>.rif, each folder judged as it is looked in (shape_search.h)
+		host::ShapeSearchFolder found;
+		std::string searchWhy;
+		host::ShapeSearchResult const searched = host::ShapeSearch_Find(order, name, &found, &searchWhy);
 
-		if (path.back() != '\\' && path.back() != '/')
+		if (searched == host::ShapeSearchResult::NotFound || searched == host::ShapeSearchResult::NothingToLook)
 		{
-			path += '\\';
+			continue;   // in no folder: nothing, as inteng (0x5130ad)
 		}
 
-		path += name + ".rif";
-
-		DWORD const what = GetFileAttributesA(path.c_str());
-
-		if (what == INVALID_FILE_ATTRIBUTES)
+		if (searched != host::ShapeSearchResult::Found)
 		{
-			continue;   // not in the folder: nothing, as inteng (0x5130ad)
-		}
-
-		if (what & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DEVICE))
-		{
-			LogString("outside shape " + name + ": refused, the file there is a folder, a link or a device; the level's own copy is kept");
+			LogString("outside shape " + name + ": refused, " + searchWhy + "; the level's own copy is kept");
 			continue;
 		}
 
 		std::vector<char> bytes;
-		host::ShapeImportResult const read = host::ShapeImport_Read(shapeFolder.c_str(), name, &bytes, nullptr);
+		host::ShapeImportResult const read = host::ShapeImport_Read(found.path.c_str(), name, &bytes, nullptr);
 
 		if (read == host::ShapeImportResult::NotFound)
 		{
@@ -1519,6 +1519,7 @@ static int OutsideShapesUpdateUnguarded(OpenLevelFile *open, bool forced, std::s
 			}
 
 			changed++;
+			usedFolders.insert(found.label);
 
 			if (names)
 			{
@@ -1565,7 +1566,14 @@ static int OutsideShapesUpdateUnguarded(OpenLevelFile *open, bool forced, std::s
 		return 0;
 	}
 
-	LogString("outside shapes: " + std::to_string(changed) + " brought up to date from " + shapeFolder);
+	std::string from;
+
+	for (std::string const &label : usedFolders)
+	{
+		from += (from.empty() ? "" : " and ") + label;
+	}
+
+	LogString("outside shapes: " + std::to_string(changed) + " brought up to date from " + from);
 	return changed;
 }
 

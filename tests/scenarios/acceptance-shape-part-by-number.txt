@@ -1,0 +1,49 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-23, Frost's piece "the '@' gap", the real bug it found): a new object made of a fragment file's PART is made of THAT part.
+# Office's offbits.rif gives 7 shapes (the parts Aerosol 150, CDBox 151, Game 152, LooRoll 153, Mousemat 154, Mug 155, Speaker 156; each a shape whose SHPEXTFN is offbits.rif,
+# told apart only by its EXTOBJNM). The placed object gamebox (the object list's row 175) is shape 152, Game. Inteng makes a copy of the object's OWN shape by its NUMBER: Create
+# Duplicate's FUN_004e0ed0 is given the shape's number, and the Shape Chooser answers with the chosen shape's number (DAT_008f4f34 = DAT_00634004[number]; AvP-docs engine/inteng
+# create-object-from-shape.md and apone-reads-3.md). Ours made both by the file's NAME, "offbits", which every part shares, so the first part of the file was taken: Aerosol.
+#   D: gamebox current, key P (Create Duplicate), the name dupGame: dupGame has gamebox's shape
+#   C: Create > With shape > Choose (0x32), the chooser's row 8 (the list's first is row 0; "." moves one on; its text is inteng's own, "Shape 'offbits'" for every part), Return, the
+#      name chosenGame: chosenGame has gamebox's shape
+# RED on 61163d4f's exe: dupGame and chosenGame are shape 150 (Aerosol). GREEN: both 152. The level is opened by name from the stock copy; only the saved copy is checked.
+level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/office.rif
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- D: Create Duplicate of gamebox
+select-row 175
+expect-selected 1
+key P
+expect-dialog Name Object
+form-field 1 dupGame
+click-button OK
+expect-no-dialog
+expect-status Object dupGame made at the view
+picture 1
+
+# ---- C: Create > With shape > Choose, the chooser's row 8 (the Game part)
+item 0x32
+expect-screen Shape Chooser
+key Period
+key Period
+key Period
+key Period
+key Period
+key Period
+key Period
+key Period
+picture 2
+key Enter
+expect-screen Object Placement
+expect-dialog-kind form
+expect-dialog Name Object
+type chosenGame
+key Enter
+expect-no-dialog
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept dupGame kept chosenGame sameshape gamebox|dupGame sameshape gamebox|chosenGame

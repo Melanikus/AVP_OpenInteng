@@ -1,0 +1,28 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-23, THE LOOKUP ORDER, src/host/shape_search.h; Tao 3): the game's shape_rifs is a JUNCTION (mklink /J, made by
+# make_shape_game) to a folder holding pulam.rif. A folder of the order that is a link or a junction is refused, and the lookup FAILS CLOSED there: inteng's
+# "Failed to load file", the status naming the folder by its label, and nothing made.
+# RED on f469df90 (it never looked there): "Failed to find the file containing that shape".
+#ini DataFolder={datadir}-shapefind-junction
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-shapefind-junction {datadir} Invasion.RIF Statue.RIF pulam junction
+level {datadir}-shapefind-junction/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-win 500 300 right
+wait 200
+click-popup 2
+wait 200
+click-popup 1
+wait 400
+expect-dialog pulam is not in this file.
+expect-dialog-kind confirm
+click-button Yes
+wait 400
+expect-dialog Failed to load file
+picture 1
+key Enter
+expect-no-dialog
+expect-status the game's shape_rifs can't be used
+expect-status-not made at the view
