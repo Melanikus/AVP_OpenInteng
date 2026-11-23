@@ -14263,8 +14263,7 @@ static void AddThePanels(void *context)
 			TextureChooserDraw(frame->width, frame->height);
 		}
 
-		ShapePickerScreen_Frame(frame->width, frame->height);   // the placement picker's grid, while it is open (shape_picker_screen.h)
-		ShapePickerScreen_Paint(frame->width, frame->height);   // and its paint, here as before the split (Dietrich's overPanels hook moves it over the card)
+		ShapePickerScreen_Frame(frame->width, frame->height);   // the placement picker's grid, while it is open (shape_picker_screen.h): its paint is in the panels' pass below
 
 		if (onTextureMap && textureFlagList && !textureFlagLines.empty())
 		{
@@ -14275,8 +14274,9 @@ static void AddThePanels(void *context)
 		AutoLinkShow_Draw(frame->width, frame->height);
 		PlotPreviewView_DrawFrame(frame->width, frame->height);   // THE PLOT'S PREVIEW's white frame round its inset, under the bar and the dialogs (plot_preview_view.h)
 		// the FMV preview: over the window that plays it, under its open list (Strategy's Message window); or, the Video mode's, on the screen under every panel, the bar
-		// and every dialog (fmv_preview.h FmvPreviewLayer)
-		PanelPass_AddToFrame(frame->width, frame->height, frame->extras, host::FmvPreview_Draw, host::FmvPreview_DrawUnderThePanels);
+		// and every dialog (fmv_preview.h FmvPreviewLayer). THE PLACEMENT PICKER is painted between the view's panels and the overlay (panel_pass.h overPanels): over the
+		// object's card and the list, under the bar and every dialog (the owner 11-23: "It should be drawing using inteng look and overlayed by our shapes")
+		PanelPass_AddToFrame(frame->width, frame->height, frame->extras, host::FmvPreview_Draw, host::FmvPreview_DrawUnderThePanels, ShapePickerScreen_Paint);
 		TextureColourDraw(frame->width, frame->height);   // Select Colour's grid, over the bars too (Shift+K, FUN_00560620)
 	}
 }

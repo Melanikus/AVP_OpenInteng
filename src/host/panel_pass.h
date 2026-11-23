@@ -57,8 +57,12 @@ bool PanelPass_Draw(IDirect3DSwapChain9 *chain, int32_t width, int32_t height, c
 // underPanels, when given, is called first, before every panel: for what plays ON THE SCREEN ITSELF and must stay under all of the panels, the status line, the bar and
 // its drop-downs, the pop-up and every dialog: the Video mode's preview (fmv_preview.h FmvPreviewLayer::UnderThePanels; the owner 11-22: Save pressed during a preview
 // opened its form UNDER the film, which hid it). Also called for a window of no size.
+// overPanels, when given, is called after the panels (the object list, the field panel, the status line: layer 0) and before the overlay (the bar, its drop-downs, the
+// pop-up, a dialog): for what is drawn OVER the view's panels and must stay under the bar and every dialog: the placement picker (shape_picker_screen.h; the owner 11-23,
+// "Gray thingie over my scroll bar!" and "It should be drawing using inteng look and overlayed by our shapes": the object's field panel was drawn over the picker's scroll
+// bar). Not called for a window of no size (nothing of the panels is drawn then).
 void PanelPass_AddToFrame(int32_t width, int32_t height, const PanelExtras &extras, void (*underTop)(int32_t width, int32_t height) = nullptr,
-	void (*underPanels)(int32_t width, int32_t height) = nullptr);
+	void (*underPanels)(int32_t width, int32_t height) = nullptr, void (*overPanels)(int32_t width, int32_t height) = nullptr);
 
 // How wide the small menu font draws a letter: the same rule as the game's own OnlinePage_SmallWidth (online_screens_page.cpp:176), which the
 // editor doesn't compile. The letter's width from the font's table, looked up as 0 to 255, never below 0 and never above 17, its widest.
