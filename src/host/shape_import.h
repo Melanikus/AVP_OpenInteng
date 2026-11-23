@@ -155,6 +155,72 @@ namespace host
 
 			return inside.size();
 		}
+
+		// A texture name of a BMPNAMES / BMPLSTST list (avpx bitmap_names.cpp Chunk_With_BMPs: flags, index, version and id, priority, transparency, then the name
+		// ended by a 0 and padded to 4). Moved here from shape_update.cpp by Melanikus (Vasquez), 2026-11-23, so the placement picker reads a shape file's
+		// texture list with the SAME hardened code as the outside-shape update (one parser, not two: Frost's rule of 2026-11-16, above). The same checks; the two
+		// helpers it called there (TextIn, Payload) are written in place, and the list is also held inside the bytes.
+		struct BitmapEntry
+		{
+			int32_t flags = 0, index = 0, version = 0, priority = 0, transparency = 0;
+			std::string name;
+		};
+
+		// The list's head word (the count, and a version number above it) and its names, each measured against the chunk; the index held to 0..32767 as the game's
+		// reader does. False, with *out partly filled, for a list that doesn't fit its chunk.
+		inline bool ReadBitmaps(Bytes const &b, Span const &list, int32_t *head, std::vector<BitmapEntry> *out)
+		{
+			out->clear();
+
+			if (list.size < kHeadingBytes + 4 || list.at + list.size > b.size())
+			{
+				return false;
+			}
+
+			size_t at = list.at + kHeadingBytes;
+			size_t const end = list.at + list.size;
+
+			*head = IntAt(b, at);
+			at += 4;
+
+			int32_t const count = *head & 0xffff;
+
+			for (int32_t i = 0; i < count; i++)
+			{
+				if (end - at < 24)
+				{
+					return false;
+				}
+
+				BitmapEntry e;
+
+				e.flags = IntAt(b, at);
+				e.index = IntAt(b, at + 4);
+				e.version = IntAt(b, at + 8);
+				e.priority = IntAt(b, at + 12);
+				e.transparency = IntAt(b, at + 16);
+
+				// the name: a 0 before the list's end, or the list is refused
+				void const *const zero = memchr(b.data() + at + 20, 0, end - (at + 20));
+
+				if (e.index < 0 || e.index > 32767 || !zero)
+				{
+					return false;
+				}
+
+				e.name.assign(b.data() + at + 20, (char const *)zero);
+				at += 20 + e.name.size() + (4 - e.name.size() % 4);
+
+				if (at > end)
+				{
+					return false;
+				}
+
+				out->push_back(e);
+			}
+
+			return true;
+		}
 	}
 	enum class ShapeImportResult
 	{

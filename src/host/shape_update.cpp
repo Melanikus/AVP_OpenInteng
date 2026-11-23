@@ -294,63 +294,7 @@ namespace host
 			return true;
 		}
 
-		// A texture name of a BMPNAMES / BMPLSTST list (avpx bitmap_names.cpp Chunk_With_BMPs: flags, index, version and id, priority, transparency, then the name ended by a 0 and padded)
-		struct BitmapEntry
-		{
-			int32_t flags = 0, index = 0, version = 0, priority = 0, transparency = 0;
-			std::string name;
-		};
-
-		// The list's head word (the count, and a version number above it) and its names, each measured against the chunk; the index held to 0..32767 as the game's reader does
-		bool ReadBitmaps(Bytes const &b, Span const &list, int32_t *head, std::vector<BitmapEntry> *out)
-		{
-			out->clear();
-
-			if (!Payload(list, 4))
-			{
-				return false;
-			}
-
-			size_t at = list.at + kHeadingBytes;
-			size_t const end = list.at + list.size;
-
-			*head = IntAt(b, at);
-			at += 4;
-
-			int32_t const count = *head & 0xffff;
-
-			for (int32_t i = 0; i < count; i++)
-			{
-				if (end - at < 24)
-				{
-					return false;
-				}
-
-				BitmapEntry e;
-
-				e.flags = IntAt(b, at);
-				e.index = IntAt(b, at + 4);
-				e.version = IntAt(b, at + 8);
-				e.priority = IntAt(b, at + 12);
-				e.transparency = IntAt(b, at + 16);
-
-				if (e.index < 0 || e.index > 32767 || !TextIn(b, at + 20, end, &e.name))
-				{
-					return false;
-				}
-
-				at += 20 + e.name.size() + (4 - e.name.size() % 4);
-
-				if (at > end)
-				{
-					return false;
-				}
-
-				out->push_back(e);
-			}
-
-			return true;
-		}
+		// (A texture list's names, BitmapEntry and ReadBitmaps: shape_import.h's shape_chunks, where they moved 2026-11-23 for the placement picker's use too.)
 
 		bool IsOneOf(Bytes const &b, size_t at, char const *const *names, size_t count)
 		{
