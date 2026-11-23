@@ -76,34 +76,10 @@ namespace host
 	// in that order; one whose registered module isn't Microsoft's is passed over unmade; one made is kept only if its code and everything its making and its
 	// SetInputType(native) loaded are Microsoft's, and is otherwise shut down. The first kept is in *decoder, its input type set. False, with the reason in
 	// *why, when none is. *said (when given) gets a line for each decoder looked at; *chosen (when given) names the chosen one
+	// THE DECODER IS DRIVEN BY THE EDITOR ITSELF (card 2c, Dietrich 2026-11-23, Bishop 2's order for alpha.6: "the one window left" closed): the one chosen here is
+	// fed the stream's compressed samples by video_import.cpp (ProcessInput / ProcessOutput, then Windows' own Video Processor MFT or Audio Resampler), and the
+	// source reader reads each stream at its own native type, so it makes no decoder at all and Media Foundation never picks one. (Before, the chosen decoder was
+	// registered for this process for the reader to make, and had the reader's SetInputType on it ever failed, Media Foundation would have gone on to the next
+	// decoder on the PC, whose SetInputType would have read the codec's headers before the check refused it.)
 	bool MediaParsers_ChooseDecoder(IMFMediaType *native, IMFTransform **decoder, std::string *why, std::string *said = nullptr, MediaParsersDecoderName *chosen = nullptr);
-
-	// Whether a decoder Media Foundation offers is the one MediaParsers_ChooseDecoder chose, asked of each one BEFORE it is made (the factory the reader makes
-	// its decoder with makes no other): the same class; or, for a Store package's decoder (no class), no class and the same friendly name. One made is still
-	// checked to be the chosen module's code. (Dietrich, 11-22: by the module alone, another decoder of that module, one that refuses the stream, would be made
-	// in its place, and Media Foundation would then go on to its next decoder, a codec pack's maybe)
-	bool MediaParsers_OfferIsChosen(MediaParsersDecoderName const &offered, MediaParsersDecoderName const &chosen);
-
-	// THE DECODER THE READER MAKES. The source reader can't be handed a decoder (IMFSourceReaderEx::AddTransformForStream refuses one: MF_E_INVALIDREQUEST,
-	// measured 11-22), but it makes a decoder registered in this process before any other (measured 11-22: a test's own decoder, registered so, was the one it
-	// made). So the decoder MediaParsers_ChooseDecoder proved on the stream's own native type is registered for this process while the reader lives: each one the
-	// reader makes is that very decoder (MediaParsers_OfferIsChosen), its code in that same Microsoft module, and the check (MediaParsers_CheckReader) then
-	// confirms it is the one used.
-	// THE ONE WINDOW LEFT (Bishop 2, 11-22): if the reader's own SetInputType on our decoder ever failed, Media Foundation would go on to the next decoder on the PC,
-	// and that one's SetInputType would read the codec's headers before the check refuses it (it does refuse it, by name). It is rare: the reader's decoder is the very one
-	// ChooseDecoder proved, on the very native type the reader gives it. Closing it for good means driving the decoder ourselves on compressed samples
-	class MediaParsersPreference
-	{
-	public:
-		MediaParsersPreference() = default;
-		~MediaParsersPreference();
-		MediaParsersPreference(MediaParsersPreference const &) = delete;
-		MediaParsersPreference &operator=(MediaParsersPreference const &) = delete;
-
-		struct Factory;
-		Factory *factory = nullptr;   // the registered factory (media_parsers.cpp); taken away again when this goes
-	};
-
-	// The stream's decoder chosen (MediaParsers_ChooseDecoder) and registered for this process until *kept goes. False with *why when no decoder is taken
-	bool MediaParsers_PreferDecoder(IMFMediaType *native, MediaParsersPreference *kept, std::string *why, std::string *said = nullptr);
 }

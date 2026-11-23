@@ -1063,42 +1063,6 @@ namespace host
 			}
 		}
 
-		VideoImportResult ReadPictureShape(IMFSourceReader *reader, DWORD stream, int64_t length, int64_t mostSeconds, PictureShape *shape, std::string *why)
-		{
-			ComPtr<IMFMediaType> type;
-			UINT32 width = 0, height = 0;
-
-			if (FAILED(reader->GetCurrentMediaType(stream, &type)) || FAILED(MFGetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, &width, &height)))
-			{
-				return Refuse(VideoImportResult::BadPicture, "Import video: Media Foundation gives no picture size", why);
-			}
-
-			VideoImportResult const bounds = VideoImport_CheckStream(width, height, length, why, mostSeconds);
-
-			if (bounds != VideoImportResult::Done)
-			{
-				return bounds;
-			}
-
-			UINT32 parWidth = 1, parHeight = 1;
-
-			if (FAILED(MFGetAttributeRatio(type.Get(), MF_MT_PIXEL_ASPECT_RATIO, &parWidth, &parHeight)) || parWidth == 0 || parHeight == 0 || parWidth > 16 * (uint64_t)parHeight ||
-				parHeight > 16 * (uint64_t)parWidth)
-			{
-				parWidth = parHeight = 1;   // none, or past 1 : 16: taken as square (the picture is still shown, maybe the wrong shape)
-			}
-
-			UINT32 stride = 0;
-
-			shape->width = width;
-			shape->height = height;
-			shape->parWidth = parWidth;
-			shape->parHeight = parHeight;
-			shape->stride = SUCCEEDED(type->GetUINT32(MF_MT_DEFAULT_STRIDE, &stride)) ? (int64_t)(INT32)stride : (int64_t)width * 4;
-			ReadShownPart(type.Get(), shape);
-			return VideoImportResult::Done;
-		}
-
 		// The shown part of a frame whose top row is at `top`, rows `pitch` bytes apart, fitted into out
 		bool FitShown(uint8_t const *top, int64_t pitch, PictureShape const &shape, VideoImportFit fit, uint8_t *out)
 		{
@@ -1424,12 +1388,460 @@ namespace host
 
 	namespace
 	{
-		// The file opened for reading: its reader, its length, its first picture stream set to RGB32 and that picture's shape checked, its first sound stream found (not yet chosen)
+		// THE DECODERS ARE DRIVEN BY THE EDITOR ITSELF (card 2c, cards-after-alpha5.md; Bishop 2's order for alpha.6, the owner 11-22: "Ship with the card"). The source
+		// reader is never asked to decode: each stream it reads is set to its own native type, so it hands out the compressed samples as the file holds them and makes
+		// no decoder and no converter. The editor feeds them to the decoder MediaParsers_ChooseDecoder made and proved Microsoft's (its input type set there), then to
+		// Windows' own Video Processor MFT (the picture, to RGB32) or Audio Resampler (the sound). Media Foundation never picks a decoder, so a decoder that isn't Microsoft's (a
+		// codec pack's, or one registered for this process) is never made and never reads the codec's headers. (Before this, the reader made its decoder itself, from
+		// one registered for this process: had the reader's SetInputType on it ever failed, Media Foundation would have gone on to the next decoder on the PC, and that
+		// one's SetInputType would have read the headers before the check refused it: "the one window left", now closed.)
+		size_t const kMostOutputBytes = (size_t)kVideoImportMostSide * kVideoImportMostSide * 4 + (1u << 20);   // a sample the editor gives a transform: an RGB32 frame at the most side, and room
+
+		// Windows' own Video Processor MFT (msvproc.dll), by its class as the Windows SDK's mfidl.h gives it (CLSID_VideoProcessorMFT): the SDK declares it only for
+		// Windows 8.1 and on, and the editor is built for Windows 8 (_WIN32_WINNT 0x0602), so it is named here; its module is still checked to be Microsoft's
+		GUID const kVideoProcessorMft = { 0x88753b26, 0x5b24, 0x49bd, { 0xb2, 0xe7, 0x0c, 0x44, 0x5c, 0x78, 0xc9, 0x82 } };
+
+		// ONE TRANSFORM THE EDITOR DRIVES: samples in (ProcessInput), every sample it has ready out (ProcessOutput, into a sample of the editor's own when the transform
+		// makes none, no larger than kMostOutputBytes). A decoder that says its output changed (MF_E_TRANSFORM_STREAM_CHANGE: an H.264 decoder does so at its first
+		// picture) is given its next output type by `retype`, the chain's own choice, and the pull goes on
+		struct Driven
+		{
+			ComPtr<IMFTransform> transform;
+			std::function<bool()> retype;
+
+			bool Start()
+			{
+				return SUCCEEDED(transform->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0)) && SUCCEEDED(transform->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0));
+			}
+
+			// every sample it has ready handed to `use`, in order; false on an error, or when `use` says false
+			bool Pull(std::function<bool(IMFSample *)> const &use)
+			{
+				int changes = 0;
+
+				for (;;)
+				{
+					MFT_OUTPUT_STREAM_INFO info = {};
+
+					if (FAILED(transform->GetOutputStreamInfo(0, &info)))
+					{
+						return false;
+					}
+
+					bool const itsOwn = (info.dwFlags & (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES | MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES)) != 0;
+					ComPtr<IMFSample> ours;
+					ComPtr<IMFMediaBuffer> room;
+					size_t const size = info.cbSize > 0 ? (size_t)info.cbSize : 65536;
+
+					if (!itsOwn && (size > kMostOutputBytes || FAILED(MFCreateSample(&ours)) || FAILED(MFCreateMemoryBuffer((DWORD)size, &room)) || FAILED(ours->AddBuffer(room.Get()))))
+					{
+						return false;
+					}
+
+					MFT_OUTPUT_DATA_BUFFER data = {};
+					DWORD status = 0;
+
+					data.dwStreamID = 0;
+					data.pSample = ours.Get();
+
+					HRESULT const hr = transform->ProcessOutput(0, 1, &data, &status);
+
+					if (data.pEvents)
+					{
+						data.pEvents->Release();
+					}
+
+					ComPtr<IMFSample> given;
+
+					if (itsOwn && data.pSample)
+					{
+						given.Attach(data.pSample);
+					}
+
+					if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT)
+					{
+						return true;
+					}
+
+					// its output changed: its next output type chosen, then on (a few times at most: a decoder that changes without end is refused)
+					if (hr == MF_E_TRANSFORM_STREAM_CHANGE)
+					{
+						if (++changes > 8 || !retype || !retype())
+						{
+							return false;
+						}
+
+						continue;
+					}
+
+					IMFSample *const out = itsOwn ? given.Get() : ours.Get();
+
+					if (FAILED(hr) || !out || !use(out))
+					{
+						return false;
+					}
+				}
+			}
+
+			bool Push(IMFSample *in, std::function<bool(IMFSample *)> const &use)
+			{
+				HRESULT hr = transform->ProcessInput(0, in, 0);
+
+				if (hr == MF_E_NOTACCEPTING)
+				{
+					if (!Pull(use))
+					{
+						return false;
+					}
+
+					hr = transform->ProcessInput(0, in, 0);
+				}
+
+				return SUCCEEDED(hr) && Pull(use);
+			}
+
+			// the end of its stream: everything it still holds handed out
+			bool Drain(std::function<bool(IMFSample *)> const &use)
+			{
+				return SUCCEEDED(transform->ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0)) && SUCCEEDED(transform->ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0)) && Pull(use);
+			}
+
+			// after a seek: everything it holds let go
+			void Flush()
+			{
+				transform->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
+			}
+		};
+
+		// The picture's shape from the types the chain uses: the frame from the converter's RGB32 (`rgb`: only the picture's own part, so all of it is shown), its pixel
+		// shape from what the decoder gives (`decoded`) or the stream's own (`native`)
+		VideoImportResult ShapeOfTypes(IMFMediaType *decoded, IMFMediaType *native, IMFMediaType *rgb, int64_t length, int64_t mostSeconds, PictureShape *shape, std::string *why)
+		{
+			UINT32 width = 0, height = 0;
+
+			if (FAILED(MFGetAttributeSize(rgb, MF_MT_FRAME_SIZE, &width, &height)))
+			{
+				return Refuse(VideoImportResult::BadPicture, "Import video: Windows' converter gives no picture size", why);
+			}
+
+			VideoImportResult const bounds = VideoImport_CheckStream(width, height, length, why, mostSeconds);
+
+			if (bounds != VideoImportResult::Done)
+			{
+				return bounds;
+			}
+
+			UINT32 parWidth = 1, parHeight = 1;
+
+			if ((FAILED(MFGetAttributeRatio(decoded, MF_MT_PIXEL_ASPECT_RATIO, &parWidth, &parHeight)) && FAILED(MFGetAttributeRatio(native, MF_MT_PIXEL_ASPECT_RATIO, &parWidth, &parHeight))) ||
+				parWidth == 0 || parHeight == 0 || parWidth > 16 * (uint64_t)parHeight || parHeight > 16 * (uint64_t)parWidth)
+			{
+				parWidth = parHeight = 1;   // none, or past 1 : 16: taken as square (the picture is still shown, maybe the wrong shape)
+			}
+
+			UINT32 stride = 0;
+
+			shape->width = width;
+			shape->height = height;
+			shape->parWidth = parWidth;
+			shape->parHeight = parHeight;
+			shape->stride = SUCCEEDED(rgb->GetUINT32(MF_MT_DEFAULT_STRIDE, &stride)) ? (int64_t)(INT32)stride : (int64_t)width * 4;
+			ReadShownPart(rgb, shape);
+			return VideoImportResult::Done;
+		}
+
+		// THE PICTURE'S CHAIN: the decoder the editor chose (none for a picture that needs none), then Windows' own Video Processor MFT to RGB32, and the shape they give.
+		// The processor makes ONLY the picture's own part RGB32 (its source rectangle the decoder's display aperture): a decoder's frame is made up to whole blocks (a
+		// 320 x 180 H.264 picture comes as 320 x 192), and a converter of the whole frame bleeds the made-up rows' colour into the picture's last rows (measured
+		// 11-23 with the Color Converter DSP: the bottom row of a red picture came out (162, 56, 0))
+		struct PictureChain
+		{
+			Driven decoder;               // its transform empty when the picture needs no decoder (uncompressed)
+			Driven converter;
+			ComPtr<IMFMediaType> native;  // the stream's own type
+			PictureShape shape;
+			int64_t length = -1;
+			int64_t mostSeconds = kVideoImportMostSeconds;
+			std::string why;              // why a retype failed, for the read's words
+			VideoImportResult failure = VideoImportResult::Done;   // and what that is when it was the picture's bounds (TooLarge, TooLong: VideoImport_CheckStream's own)
+
+			// the decoder's output (the first it offers that the converter takes) and the converter's RGB32, set again (first, and after each stream change), and the
+			// shape read from them
+			bool Retype()
+			{
+				ComPtr<IMFMediaType> decoded;
+
+				failure = VideoImportResult::Done;
+				converter.transform->SetOutputType(0, nullptr, 0);
+				converter.transform->SetInputType(0, nullptr, 0);
+
+				if (decoder.transform)
+				{
+					for (DWORD i = 0; i < 64 && !decoded; i++)
+					{
+						ComPtr<IMFMediaType> offered;
+
+						if (FAILED(decoder.transform->GetOutputAvailableType(0, i, &offered)))
+						{
+							break;
+						}
+
+						if (SUCCEEDED(decoder.transform->SetOutputType(0, offered.Get(), 0)) && SUCCEEDED(converter.transform->SetInputType(0, offered.Get(), 0)))
+						{
+							decoded = offered;
+						}
+					}
+				}
+				else if (SUCCEEDED(converter.transform->SetInputType(0, native.Get(), 0)))
+				{
+					decoded = native;
+				}
+
+				if (!decoded)
+				{
+					why = "Windows' decoder gives no picture Windows' converter takes";
+					return false;
+				}
+
+				// the picture's own part of the decoded frame (its display aperture, else all of it), and the RGB32 made of exactly that, the same size
+				PictureShape area;
+				UINT32 frameWidth = 0, frameHeight = 0;
+
+				if (FAILED(MFGetAttributeSize(decoded.Get(), MF_MT_FRAME_SIZE, &frameWidth, &frameHeight)) || frameWidth == 0 || frameHeight == 0 || frameWidth > kVideoImportMostSide ||
+					frameHeight > kVideoImportMostSide)
+				{
+					why = "Windows' decoder gives no picture size it takes";
+					failure = frameWidth > kVideoImportMostSide || frameHeight > kVideoImportMostSide ? VideoImportResult::TooLarge : VideoImportResult::BadPicture;
+					return false;
+				}
+
+				area.width = frameWidth;
+				area.height = frameHeight;
+				ReadShownPart(decoded.Get(), &area);
+
+				ComPtr<IMFMediaType> rgb;
+				UINT32 parWidth = 1, parHeight = 1, rateUp = 0, rateDown = 0;
+				HRESULT hr = MFCreateMediaType(&rgb);
+
+				if (SUCCEEDED(hr))
+				{
+					rgb->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+					rgb->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32);
+					MFSetAttributeSize(rgb.Get(), MF_MT_FRAME_SIZE, area.shownWidth, area.shownHeight);
+					rgb->SetUINT32(MF_MT_DEFAULT_STRIDE, area.shownWidth * 4);
+					rgb->SetUINT32(MF_MT_SAMPLE_SIZE, area.shownWidth * area.shownHeight * 4);
+					rgb->SetUINT32(MF_MT_FIXED_SIZE_SAMPLES, TRUE);
+					rgb->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE);
+					rgb->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
+
+					if (SUCCEEDED(MFGetAttributeRatio(decoded.Get(), MF_MT_PIXEL_ASPECT_RATIO, &parWidth, &parHeight)))
+					{
+						MFSetAttributeRatio(rgb.Get(), MF_MT_PIXEL_ASPECT_RATIO, parWidth, parHeight);
+					}
+
+					if (SUCCEEDED(MFGetAttributeRatio(decoded.Get(), MF_MT_FRAME_RATE, &rateUp, &rateDown)))
+					{
+						MFSetAttributeRatio(rgb.Get(), MF_MT_FRAME_RATE, rateUp, rateDown);
+					}
+
+					hr = converter.transform->SetOutputType(0, rgb.Get(), 0);
+				}
+
+				// its source rectangle the picture's part, its destination all of the RGB32 frame (the processor's own control; it is in Windows since 8)
+				ComPtr<IMFVideoProcessorControl> control;
+
+				if (SUCCEEDED(hr) && SUCCEEDED(converter.transform.As(&control)))
+				{
+					RECT const from = { (LONG)area.left, (LONG)area.top, (LONG)(area.left + area.shownWidth), (LONG)(area.top + area.shownHeight) };
+					RECT const to = { 0, 0, (LONG)area.shownWidth, (LONG)area.shownHeight };
+
+					hr = control->SetSourceRectangle(const_cast<RECT *>(&from));
+					hr = SUCCEEDED(hr) ? control->SetDestinationRectangle(const_cast<RECT *>(&to)) : hr;
+				}
+
+				if (FAILED(hr))
+				{
+					why = "Windows' video processor won't make it RGB32 (" + Code(hr) + ")";
+					return false;
+				}
+
+				VideoImportResult const shaped = ShapeOfTypes(decoded.Get(), native.Get(), rgb.Get(), length, mostSeconds, &shape, &why);
+
+				failure = shaped == VideoImportResult::Done ? failure : shaped;
+				return shaped == VideoImportResult::Done;
+			}
+
+			// one compressed sample (or, with no decoder, one uncompressed) through the chain: each RGB32 picture out handed to `use`
+			bool Push(IMFSample *sample, std::function<bool(IMFSample *)> const &use)
+			{
+				if (!decoder.transform)
+				{
+					return converter.Push(sample, use);
+				}
+
+				return decoder.Push(sample, [&](IMFSample *decoded) { return converter.Push(decoded, use); });
+			}
+
+			bool Drain(std::function<bool(IMFSample *)> const &use)
+			{
+				return (!decoder.transform || decoder.Drain([&](IMFSample *decoded) { return converter.Push(decoded, use); })) && converter.Drain(use);
+			}
+
+			void Flush()
+			{
+				if (decoder.transform)
+				{
+					decoder.Flush();
+				}
+
+				converter.Flush();
+			}
+		};
+
+		// The picture's chain made: its decoder chosen (MediaParsers_ChooseDecoder: Microsoft's, its input type the stream's own) unless it needs none, Windows' own
+		// converter made and checked to be Microsoft's, their types set and both started
+		VideoImportResult SetUpPicture(IMFMediaType *native, bool needsDecoder, int64_t length, int64_t mostSeconds, PictureChain *chain, std::string *why)
+		{
+			std::string notOurs;
+
+			chain->native = native;
+			chain->length = length;
+			chain->mostSeconds = mostSeconds;
+
+			if (needsDecoder && !MediaParsers_ChooseDecoder(native, &chain->decoder.transform, &notOurs))
+			{
+				return Refuse(VideoImportResult::NotWindowsCode, "Import video: not read: its picture: " + notOurs, why);
+			}
+
+			if (FAILED(CoCreateInstance(kVideoProcessorMft, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&chain->converter.transform))) || !chain->converter.transform)
+			{
+				return Refuse(VideoImportResult::BadPicture, "Import video: Windows' Video Processor isn't there", why);
+			}
+
+			if (!MediaParsers_CheckObject(chain->converter.transform.Get(), "picture's video processor", &notOurs))
+			{
+				return Refuse(VideoImportResult::NotWindowsCode, "Import video: not read: " + notOurs + ". The editor reads videos only through Windows' own code", why);
+			}
+
+			if (!chain->Retype())
+			{
+				// the picture's bounds say their own words (VideoImport_CheckStream: "Import video: ..."); anything else is the decoder's or the processor's
+				if (chain->failure == VideoImportResult::TooLong || (chain->failure == VideoImportResult::TooLarge && chain->why.compare(0, 13, "Import video:") == 0))
+				{
+					return Refuse(chain->failure, chain->why, why);
+				}
+
+				return Refuse(chain->failure != VideoImportResult::Done ? chain->failure : VideoImportResult::BadPicture, "Import video: Windows can't decode this video's picture: " + chain->why,
+					why);
+			}
+
+			chain->decoder.retype = [chain]() { return chain->Retype(); };
+
+			if ((chain->decoder.transform && !chain->decoder.Start()) || !chain->converter.Start())
+			{
+				return Refuse(VideoImportResult::BadPicture, "Import video: Windows' decoder or converter won't start on its picture", why);
+			}
+
+			return VideoImportResult::Done;
+		}
+
+		// THE SOUND'S CHAIN: the decoder the editor chose (none for PCM), its output 16-bit PCM when it offers it, else 32-bit float (the resampler takes either)
+		struct SoundChain
+		{
+			Driven decoder;                // its transform empty when the sound needs no decoder
+			ComPtr<IMFMediaType> decoded;  // what the resampler is given
+
+			// the decoder's output chosen: 16-bit PCM first, then 32-bit float; after a stream change only the same again is taken (the resampler is set for it)
+			bool ChooseOutput()
+			{
+				for (int pass = 0; pass < 2; pass++)
+				{
+					for (DWORD i = 0; i < 64; i++)
+					{
+						ComPtr<IMFMediaType> offered;
+						GUID subtype = GUID_NULL;
+						UINT32 bits = 0;
+
+						if (FAILED(decoder.transform->GetOutputAvailableType(0, i, &offered)))
+						{
+							break;
+						}
+
+						bool const wanted = SUCCEEDED(offered->GetGUID(MF_MT_SUBTYPE, &subtype)) && SUCCEEDED(offered->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &bits)) &&
+							(pass == 0 ? subtype == MFAudioFormat_PCM && bits == 16 : subtype == MFAudioFormat_Float && bits == 32);
+						BOOL same = TRUE;
+
+						if (wanted && decoded && (FAILED(decoded->Compare(offered.Get(), MF_ATTRIBUTES_MATCH_INTERSECTION, &same)) || !same))
+						{
+							continue;
+						}
+
+						if (wanted && SUCCEEDED(decoder.transform->SetOutputType(0, offered.Get(), 0)))
+						{
+							decoded = offered;
+							return true;
+						}
+					}
+				}
+
+				return false;
+			}
+
+			bool Push(IMFSample *sample, std::function<bool(IMFSample *)> const &use)
+			{
+				return decoder.transform ? decoder.Push(sample, use) : use(sample);
+			}
+
+			bool Drain(std::function<bool(IMFSample *)> const &use)
+			{
+				return !decoder.transform || decoder.Drain(use);
+			}
+		};
+
+		// The sound's chain made: its decoder chosen unless it needs none, its output chosen, the decoder started. False with why in words (the video then comes in silent)
+		bool SetUpSound(IMFMediaType *native, bool needsDecoder, SoundChain *chain, std::string *why)
+		{
+			if (!needsDecoder)
+			{
+				chain->decoded = native;
+				return true;
+			}
+
+			if (!MediaParsers_ChooseDecoder(native, &chain->decoder.transform, why))
+			{
+				return false;
+			}
+
+			if (!chain->ChooseOutput())
+			{
+				*why = "Windows' decoder gives no 16-bit or float sound";
+				return false;
+			}
+
+			chain->decoder.retype = [chain]() { return chain->ChooseOutput(); };
+
+			if (!chain->decoder.Start())
+			{
+				*why = "Windows' decoder won't start on it";
+				return false;
+			}
+
+			return true;
+		}
+
+		// Whether the reader put a transform of its own on a stream (a decoder or a converter): it must put none, as each stream is read at its own type
+		bool ReaderAddedNone(IMFSourceReader *reader, DWORD stream)
+		{
+			ComPtr<IMFSourceReaderEx> ex;
+			GUID category = GUID_NULL;
+			ComPtr<IMFTransform> transform;
+
+			return SUCCEEDED(reader->QueryInterface(IID_PPV_ARGS(&ex))) && FAILED(ex->GetTransformForStream(stream, 0, &category, &transform));
+		}
+
+		// The file opened for reading: its reader (each stream at its own type), its length, its picture's chain and shape, its first sound stream and that sound's chain
 		struct Opened
 		{
-			// THE DECODERS CHOSEN (media_parsers.h), registered for this process while the reader lives: declared before it, so they go after it does
-			std::unique_ptr<MediaParsersPreference> picturePreference;
-			std::unique_ptr<MediaParsersPreference> soundPreference;
 			std::vector<std::wstring> before;   // the modules loaded just before the reader was made: what its making and setup loaded is judged
 			std::string soundLeftOut;           // a sound there but not taken: why, in words (the video then comes in silent)
 			ComPtr<IMFSourceReader> reader;
@@ -1437,7 +1849,9 @@ namespace host
 			DWORD pictureStream = 0;
 			DWORD soundStream = 0;
 			bool haveSound = false;
-			PictureShape shape;
+			ComPtr<IMFMediaType> soundNative;
+			std::unique_ptr<PictureChain> picture;   // (on the heap: its decoder's retype keeps a pointer to it)
+			std::unique_ptr<SoundChain> sound;
 		};
 
 		// The call's checks and the sessions both reads need (COM and Media Foundation stay on while the caller holds them)
@@ -1512,7 +1926,7 @@ namespace host
 
 		if (SUCCEEDED(hr))
 		{
-			readerAttributes->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, TRUE);   // its own converter to RGB32
+			// (no MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING: the reader converts nothing, as it decodes nothing; card 2c)
 			opened->before = MediaParsers_LoadedModules();
 			hr = MediaParsers_CreateSource(byteStream.Get(), contentType, &source, &notOurs);
 
@@ -1553,8 +1967,8 @@ namespace host
 		}
 
 		// THE FORMATS, from the source's own word, before any decoder exists (media_parsers.h, the list by measure): a picture in a format the editor doesn't take
-		// refuses the file; a sound that isn't taken is left out (the video comes in silent, and says why). Each decoder taken is the one the editor chose,
-		// registered for this process so the reader makes it first
+		// refuses the file; a sound that isn't taken is left out (the video comes in silent, and says why). Each decoder taken is the one the editor chose, and
+		// the editor drives it itself (card 2c): the reader is given no decoder to make
 		ComPtr<IMFMediaType> pictureNative;
 		GUID pictureFormat = GUID_NULL;
 
@@ -1569,14 +1983,13 @@ namespace host
 				", which no decoder of Windows' own reads on this PC (the editor takes H.264, HEVC, VP9, VP8, AV1, MPEG-1 and -2, MPEG-4 part 2, WMV, MJPEG, DV, or none)", why);
 		}
 
-		if (!MediaParsers_NeedsNoDecoder(pictureFormat))
-		{
-			opened->picturePreference.reset(new MediaParsersPreference());
+		opened->picture.reset(new PictureChain());
 
-			if (!MediaParsers_PreferDecoder(pictureNative.Get(), opened->picturePreference.get(), &notOurs))
-			{
-				return Refuse(VideoImportResult::NotWindowsCode, "Import video: not read: its picture: " + notOurs, why);
-			}
+		VideoImportResult const pictureSet = SetUpPicture(pictureNative.Get(), !MediaParsers_NeedsNoDecoder(pictureFormat), opened->length, mostSeconds, opened->picture.get(), why);
+
+		if (pictureSet != VideoImportResult::Done)
+		{
+			return pictureSet;
 		}
 
 		if (opened->haveSound)
@@ -1593,16 +2006,18 @@ namespace host
 					" (Windows reads Vorbis only through Web Media Extensions, whose decoder is FFmpeg's code, not Microsoft's own)" : "");
 			}
 
-			if (taken && !MediaParsers_NeedsNoDecoder(soundFormat))   // (PCM needs none)
+			if (taken)
 			{
-				opened->soundPreference.reset(new MediaParsersPreference());
-				taken = MediaParsers_PreferDecoder(soundNative.Get(), opened->soundPreference.get(), &soundWhy);
+				opened->sound.reset(new SoundChain());
+				taken = SetUpSound(soundNative.Get(), !MediaParsers_NeedsNoDecoder(soundFormat), opened->sound.get(), &soundWhy);   // (PCM needs none)
+				opened->soundNative = soundNative;
 			}
 
 			if (!taken)
 			{
 				opened->haveSound = false;
-				opened->soundPreference.reset();
+				opened->sound.reset();
+				opened->soundNative.Reset();
 				opened->soundLeftOut = "its sound (" + MediaParsers_FormatWords(soundFormat) + ") is left out: " + soundWhy +
 					". The sound the editor takes is AAC, MP3, MPEG audio, WMA, FLAC, ALAC, Opus, Dolby or PCM, each read by Windows' own code; convert the video to MP4 with "
 					"AAC sound to keep its sound";
@@ -1612,39 +2027,30 @@ namespace host
 		reader->SetStreamSelection((DWORD)MF_SOURCE_READER_ALL_STREAMS, FALSE);
 		reader->SetStreamSelection(opened->pictureStream, TRUE);
 
-		// the picture as RGB32 (Media Foundation's own converter)
-		ComPtr<IMFMediaType> rgb;
-
-		hr = MFCreateMediaType(&rgb);
-
-		if (SUCCEEDED(hr))
-		{
-			rgb->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
-			rgb->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32);
-			hr = reader->SetCurrentMediaType(opened->pictureStream, nullptr, rgb.Get());
-		}
+		// the picture read AT ITS OWN TYPE (card 2c): the reader hands out its compressed samples and makes no decoder; the editor's chain decodes them
+		hr = reader->SetCurrentMediaType(opened->pictureStream, nullptr, pictureNative.Get());
 
 		if (FAILED(hr))
 		{
-			return Refuse(VideoImportResult::BadPicture, "Import video: Windows can't decode this video's " + StreamWords(reader.Get(), opened->pictureStream, true) + " (" + Code(hr) + ")",
+			return Refuse(VideoImportResult::BadPicture, "Import video: Windows can't read this video's " + StreamWords(reader.Get(), opened->pictureStream, true) + " (" + Code(hr) + ")",
 				why);
 		}
 
-		// WHOSE CODE THE READER USED (media_parsers.h, check (C)): its container's reader, the picture's decoder and converter, and every parser their setup loaded,
-		// before a single sample is read; anything not Windows' own or Microsoft's is refused, named
+		// WHOSE CODE THE READER USED (media_parsers.h, check (C)): its container's reader and every parser its setup loaded, before a single sample is read; anything
+		// not Windows' own or Microsoft's is refused, named. And no transform of the reader's own on the picture: it decodes nothing
 		if (!MediaParsers_CheckReader(reader.Get(), { opened->pictureStream }, opened->before, &notOurs))
 		{
 			return Refuse(VideoImportResult::NotWindowsCode, "Import video: not read: " + notOurs + ". The editor reads videos only through Windows' own code", why);
 		}
 
-		VideoImportResult const shaped = ReadPictureShape(reader.Get(), opened->pictureStream, opened->length, mostSeconds, &opened->shape, why);
-
-		if (shaped == VideoImportResult::Done)
+		if (!ReaderAddedNone(reader.Get(), opened->pictureStream))
 		{
-			opened->reader = reader;
+			return Refuse(VideoImportResult::NotWindowsCode, "Import video: not read: Windows' reader put a decoder of its own choosing on the picture. The editor decodes it only with the "
+				"decoder it chose", why);
 		}
 
-		return shaped;
+		opened->reader = reader;
+		return VideoImportResult::Done;
 	}
 
 	VideoImportResult VideoImport_Probe(std::vector<uint8_t> const &bytes, wchar_t const *contentType, VideoImportInfo *info, std::string *why, int64_t mostSeconds)
@@ -1664,10 +2070,10 @@ namespace host
 			return result;
 		}
 
-		info->width = opened.shape.shownWidth;
-		info->height = opened.shape.shownHeight;
-		info->parWidth = opened.shape.parWidth;
-		info->parHeight = opened.shape.parHeight;
+		info->width = opened.picture->shape.shownWidth;
+		info->height = opened.picture->shape.shownHeight;
+		info->parWidth = opened.picture->shape.parWidth;
+		info->parHeight = opened.picture->shape.parHeight;
 		info->length = opened.length;
 		info->hasSound = opened.haveSound;
 		info->soundLeftOut = opened.soundLeftOut;
@@ -1696,16 +2102,16 @@ namespace host
 		DWORD const pictureStream = opened.pictureStream;
 		DWORD const soundStream = opened.soundStream;
 		bool const haveSound = opened.haveSound;
-		PictureShape shape = opened.shape;
+		PictureChain &picture = *opened.picture;   // its shape follows the decoder's stream changes (PictureChain::Retype)
 		VideoImportClip read;
 		HRESULT hr = S_OK;
 
 		read.length = opened.length;
 		read.soundLeftOut = opened.soundLeftOut;
-		read.sourceWidth = shape.shownWidth;
-		read.sourceHeight = shape.shownHeight;
+		read.sourceWidth = picture.shape.shownWidth;
+		read.sourceHeight = picture.shape.shownHeight;
 
-		// the sound as 16-bit PCM, then the resampler
+		// the sound as its decoder gives it (16-bit PCM or float: the editor's own SoundChain), then the resampler
 		Resampler resampler;
 
 		resampler.sound = &read.sound16;
@@ -1719,29 +2125,16 @@ namespace host
 
 		if (haveSound)
 		{
-			ComPtr<IMFMediaType> pcm;
-			ComPtr<IMFMediaType> decoded;
+			ComPtr<IMFMediaType> const decoded = opened.sound->decoded;
 
+			// the sound read AT ITS OWN TYPE too (card 2c): its compressed samples go to the editor's own chain
 			reader->SetStreamSelection(soundStream, TRUE);
-			hr = MFCreateMediaType(&pcm);
+			hr = reader->SetCurrentMediaType(soundStream, nullptr, opened.soundNative.Get());
 
-			if (SUCCEEDED(hr))
-			{
-				pcm->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-				pcm->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
-				pcm->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
-				hr = reader->SetCurrentMediaType(soundStream, nullptr, pcm.Get());
-			}
+			UINT32 channels = 0, rate = 0;
 
-			if (SUCCEEDED(hr))
-			{
-				hr = reader->GetCurrentMediaType(soundStream, &decoded);
-			}
-
-			UINT32 channels = 0, rate = 0, bits = 0;
-
-			if (FAILED(hr) || FAILED(decoded->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &channels)) || FAILED(decoded->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &rate)) ||
-				FAILED(decoded->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &bits)) || channels < 1 || channels > 8 || rate < 1000 || rate > 384000 || bits != 16)
+			if (FAILED(hr) || !decoded || FAILED(decoded->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &channels)) || FAILED(decoded->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &rate)) ||
+				channels < 1 || channels > 8 || rate < 1000 || rate > 384000)
 			{
 				return Refuse(VideoImportResult::BadSound, "Import video: Windows can't decode this video's " + StreamWords(reader.Get(), soundStream, false) + " (" + Code(hr) + ")", why);
 			}
@@ -1751,14 +2144,20 @@ namespace host
 				return VideoImportResult::BadSound;
 			}
 
-			// WHOSE CODE NOW (media_parsers.h, check (C)), the sound set up too, before the first sample: the reader's chain on both streams, what it loaded, and
-			// the editor's own resampler
+			// WHOSE CODE NOW (media_parsers.h, check (C)), the sound set up too, before the first sample: the reader on both streams, what it loaded, no transform of
+			// the reader's own on either, and the editor's own resampler
 			std::string notOurs;
 
 			if (!MediaParsers_CheckReader(reader.Get(), { pictureStream, soundStream }, opened.before, &notOurs) ||
 				!MediaParsers_CheckObject(resampler.transform.Get(), "sound's resampler", &notOurs))
 			{
 				return Refuse(VideoImportResult::NotWindowsCode, "Import video: not read: " + notOurs + ". The editor reads videos only through Windows' own code", why);
+			}
+
+			if (!ReaderAddedNone(reader.Get(), pictureStream) || !ReaderAddedNone(reader.Get(), soundStream))
+			{
+				return Refuse(VideoImportResult::NotWindowsCode, "Import video: not read: Windows' reader put a decoder of its own choosing on the video. The editor decodes it only with the "
+					"decoders it chose", why);
 			}
 		}
 
@@ -1783,6 +2182,78 @@ namespace host
 			}
 		};
 
+		// ONE DECODED PICTURE (RGB32, from the chain), placed by its own time: fitted, told, and its ticks filled. A refusal inside says its words through `failure`
+		VideoImportResult failure = VideoImportResult::Done;
+		auto const takePicture = [&](IMFSample *rgb) {
+			LONGLONG start = 0;
+
+			if (FAILED(rgb->GetSampleTime(&start)))
+			{
+				start = lastStart;   // (a picture with no time of its own follows the last)
+			}
+
+			read.sourceWidth = picture.shape.shownWidth;
+			read.sourceHeight = picture.shape.shownHeight;
+
+			if (!FitPicture(rgb, picture.shape, fit, fitted.data()))
+			{
+				failure = Refuse(VideoImportResult::BadPicture, "Import video: a decoded picture is shorter than its size says", why);
+				return false;
+			}
+
+			// how far: this picture's time over the file's length, told when it moves on (never going back); a "stop" ends the read here
+			if (progress)
+			{
+				int32_t const percent = read.length > 0 ? (int32_t)((start < 0 ? 0 : (start > read.length ? read.length : start)) * 100 / read.length) : 0;
+
+				if (percent > toldPercent || toldPercent < 0)
+				{
+					toldPercent = percent > toldPercent ? percent : toldPercent;
+
+					if (!progress(toldPercent))
+					{
+						failure = Refuse(VideoImportResult::Stopped, "Import video: the read was stopped", why);
+						return false;
+					}
+				}
+			}
+
+			// the ticks before this picture: the one before it fills them (the first picture fills those before itself)
+			int64_t const count = VideoImport_TicksBefore(&nextTick, start);
+
+			addFrames(havePending ? pending : fitted, count);
+			pending.swap(fitted);
+			havePending = true;
+
+			LONGLONG length = 0;
+
+			lastStart = start;
+			lastLength = SUCCEEDED(rgb->GetSampleDuration(&length)) && length > 0 ? length : 0;
+			return true;
+		};
+
+		auto const takeSound = [&](IMFSample *pcm) {
+			if (!resampler.Push(pcm))
+			{
+				failure = Refuse(read.sound16.size() > mostSamples ? VideoImportResult::TooLong : VideoImportResult::BadSound, "Import video: its sound couldn't be resampled, or runs too long",
+					why);
+				return false;
+			}
+
+			return true;
+		};
+
+		// a chain that stopped: its own words when it gave some, else the decoder's
+		auto const stopped = [&](bool isPicture) {
+			if (failure != VideoImportResult::Done)
+			{
+				return failure;
+			}
+
+			return Refuse(isPicture ? VideoImportResult::BadPicture : VideoImportResult::BadSound, std::string("Import video: Windows' decoder stopped on its ") + (isPicture ? "picture" : "sound") +
+				(isPicture && !picture.why.empty() ? " (" + picture.why + ")" : std::string()), why);
+		};
+
 		while (!pictureDone || !soundDone)
 		{
 			DWORD streamIndex = 0, flags = 0;
@@ -1795,20 +2266,14 @@ namespace host
 
 			if (FAILED(hr) || (flags & MF_SOURCE_READERF_ERROR))
 			{
-				return Refuse(isPicture ? VideoImportResult::BadPicture : VideoImportResult::BadSound, std::string("Import video: Windows stopped decoding its ") + (isPicture ? "picture" : "sound") + " (" + Code(hr) + ")", why);
+				return Refuse(isPicture ? VideoImportResult::BadPicture : VideoImportResult::BadSound, std::string("Import video: Windows stopped reading its ") + (isPicture ? "picture" : "sound") + " (" + Code(hr) + ")", why);
 			}
 
-			if ((flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED) && isPicture)
+			// the stream's own type changed part way (another codec or its settings, mid-file): the chain was made for the first, so it is refused
+			if (flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED)
 			{
-				result = ReadPictureShape(reader.Get(), pictureStream, read.length, mostSeconds, &shape, why);
-
-				if (result != VideoImportResult::Done)
-				{
-					return result;
-				}
-
-				read.sourceWidth = shape.shownWidth;
-				read.sourceHeight = shape.shownHeight;
+				return Refuse(isPicture ? VideoImportResult::BadPicture : VideoImportResult::BadSound, std::string("Import video: its ") + (isPicture ? "picture" : "sound") +
+					"'s format changes part way through; it isn't read", why);
 			}
 
 			if (sample && start > mostTime)
@@ -1816,40 +2281,9 @@ namespace host
 				return Refuse(VideoImportResult::TooLong, "Import video: it runs past " + std::to_string((long long)mostSeconds) + " s; at most that is taken", why);
 			}
 
-			if (sample && isPicture)
+			if (sample && isPicture && !picture.Push(sample.Get(), takePicture))
 			{
-				if (!FitPicture(sample.Get(), shape, fit, fitted.data()))
-				{
-					return Refuse(VideoImportResult::BadPicture, "Import video: a decoded picture is shorter than its size says", why);
-				}
-
-				// how far: this picture's time over the file's length, told when it moves on (never going back); a "stop" ends the read here
-				if (progress)
-				{
-					int32_t const percent = read.length > 0 ? (int32_t)((start < 0 ? 0 : (start > read.length ? read.length : start)) * 100 / read.length) : 0;
-
-					if (percent > toldPercent || toldPercent < 0)
-					{
-						toldPercent = percent > toldPercent ? percent : toldPercent;
-
-						if (!progress(toldPercent))
-						{
-							return Refuse(VideoImportResult::Stopped, "Import video: the read was stopped", why);
-						}
-					}
-				}
-
-				// the ticks before this picture: the one before it fills them (the first picture fills those before itself)
-				int64_t const count = VideoImport_TicksBefore(&nextTick, start);
-
-				addFrames(havePending ? pending : fitted, count);
-				pending.swap(fitted);
-				havePending = true;
-
-				LONGLONG length = 0;
-
-				lastStart = start;
-				lastLength = SUCCEEDED(sample->GetSampleDuration(&length)) && length > 0 ? length : 0;
+				return stopped(true);
 			}
 			else if (sample && streamIndex == soundStream && haveSound)
 			{
@@ -1863,21 +2297,32 @@ namespace host
 
 				soundStarted = true;
 
-				if (!resampler.Push(sample.Get()))
+				if (!opened.sound->Push(sample.Get(), takeSound))
 				{
-					return Refuse(read.sound16.size() > mostSamples ? VideoImportResult::TooLong : VideoImportResult::BadSound, "Import video: its sound couldn't be resampled, or runs too long", why);
+					return stopped(false);
 				}
 			}
 
+			// a stream's end: what its chain still holds comes out
 			if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
 			{
-				if (isPicture)
+				if (isPicture && !pictureDone)
 				{
 					pictureDone = true;
+
+					if (!picture.Drain(takePicture))
+					{
+						return stopped(true);
+					}
 				}
-				else
+				else if (!isPicture && !soundDone)
 				{
 					soundDone = true;
+
+					if (haveSound && !opened.sound->Drain(takeSound))
+					{
+						return stopped(false);
+					}
 				}
 			}
 		}
@@ -1964,10 +2409,26 @@ namespace host
 			return Refuse(VideoImportResult::BadPicture, "Import video: Windows can't go to that time in it (" + Code(moved) + ")", why);
 		}
 
-		PictureShape shape = opened.shape;
+		// the seek let the chain's held pictures go: the decoder starts again at the key picture the reader lands on (card 2c: the editor drives it)
+		PictureChain &picture = *opened.picture;
+
+		picture.Flush();
 
 		// the first picture at or after the time (a seek lands on the key picture before it, so the ones before are passed over); at most a few seconds' worth
-		for (int tries = 0; tries < 2000; tries++)
+		bool found = false, made = false;
+		auto const take = [&](IMFSample *decoded) {
+			LONGLONG start = 0;
+
+			if (!found && SUCCEEDED(decoded->GetSampleTime(&start)) && start + kVideoImportTimeUnitsPerSecond / (2 * kVideoImportFramesPerSecond) >= at)
+			{
+				found = true;
+				made = WithPicture(decoded, picture.shape, [&](uint8_t const *top, int64_t pitch) { return StillOf(top, pitch, picture.shape, mostSide, rgb, width, height); });
+			}
+
+			return true;
+		};
+
+		for (int tries = 0; tries < 2000 && !found; tries++)
 		{
 			DWORD streamIndex = 0, flags = 0;
 			LONGLONG start = 0;
@@ -1976,35 +2437,38 @@ namespace host
 
 			if (FAILED(hr) || (flags & MF_SOURCE_READERF_ERROR))
 			{
-				return Refuse(VideoImportResult::BadPicture, "Import video: Windows stopped decoding its picture (" + Code(hr) + ")", why);
+				return Refuse(VideoImportResult::BadPicture, "Import video: Windows stopped reading its picture (" + Code(hr) + ")", why);
 			}
 
 			if (flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED)
 			{
-				result = ReadPictureShape(opened.reader.Get(), opened.pictureStream, opened.length, kVideoImportLongestSeconds, &shape, why);
-
-				if (result != VideoImportResult::Done)
-				{
-					return result;
-				}
+				return Refuse(VideoImportResult::BadPicture, "Import video: its picture's format changes part way through; it isn't read", why);
 			}
 
-			if (sample && start + kVideoImportTimeUnitsPerSecond / (2 * kVideoImportFramesPerSecond) >= at)
+			if (sample && !picture.Push(sample.Get(), take))
 			{
-				bool const made = WithPicture(sample.Get(), shape, [&](uint8_t const *top, int64_t pitch) { return StillOf(top, pitch, shape, mostSide, rgb, width, height); });
-
-				if (made && why)
-				{
-					why->clear();
-				}
-
-				return made ? VideoImportResult::Done : Refuse(VideoImportResult::BadPicture, "Import video: a decoded picture is shorter than its size says", why);
+				return Refuse(VideoImportResult::BadPicture, "Import video: Windows' decoder stopped on its picture" + (picture.why.empty() ? std::string() : " (" + picture.why + ")"), why);
 			}
 
-			if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
+			if (!found && (flags & MF_SOURCE_READERF_ENDOFSTREAM))
 			{
+				if (!picture.Drain(take))
+				{
+					return Refuse(VideoImportResult::BadPicture, "Import video: Windows' decoder stopped on its picture" + (picture.why.empty() ? std::string() : " (" + picture.why + ")"), why);
+				}
+
 				break;
 			}
+		}
+
+		if (found)
+		{
+			if (made && why)
+			{
+				why->clear();
+			}
+
+			return made ? VideoImportResult::Done : Refuse(VideoImportResult::BadPicture, "Import video: a decoded picture is shorter than its size says", why);
 		}
 
 		return Refuse(VideoImportResult::NotAVideo, "Import video: there is no picture that late in it", why);
