@@ -108,6 +108,15 @@ namespace host
 	// Where Preview plays (the screen's place for it, in the editor's own pixels), asked each frame while it plays
 	void VideoMode_SetPreviewPlace(FmvPreviewPlace const &place);
 
+	// THE PREVIEW'S FILM, where Preview puts it for Barry's decoder: the folder (%TEMP%\AVP_OpenInteng-video-preview, without a last '\'; empty when Windows
+	// gives no temp folder) and the film's name in it, one per editor: preview-<this editor's process id>.smk (card 2d: two editors previewing at once never
+	// share one), taken away by VideoMode_Leave
+	std::wstring VideoMode_PreviewFolder();
+	std::wstring VideoMode_PreviewName();
+
+	// The film made by Preview put in that place (Smk_Replace: written whole beside it, then moved over the one there). False with *why
+	bool VideoMode_PutPreview(std::vector<uint8_t> const &smk, std::string *why);
+
 	// Mode > Exit, or the editor closing: the worker stopped and waited for, the preview stopped, the video let go (the next entry starts Empty)
 	void VideoMode_Leave();
 
