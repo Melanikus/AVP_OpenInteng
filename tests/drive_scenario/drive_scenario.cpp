@@ -66,6 +66,9 @@
 //   wait-moving <stall ms> <field> <words>   asks again every half second until that field holds the words, for as long as the field keeps CHANGING; FAILED only
 //                               when it stays the same for <stall ms> (1 to 600000), or after an hour in all, and then the scenario stops, as after a failed
 //                               wait-status (moving_wait.h: a wait that follows the run)
+//   A DEAD EDITOR (editor_ended.h): when the editor's process has ended, or its log (<its folder>settings\avp_log.txt) has a crash line written since
+//                               the harness started it, every wait fails AT ONCE, as CRASHED or ENDED, quoting the log's crash lines and the exit code; and
+//                               whatever the step, the scenario stops after it, saying so (kill-editor's end is on purpose: verify steps still run after it)
 //   app-active <0|1>            the editor's window is told the program lost (0) or got (1) the focus, as Windows tells it on an Alt+Tab (WM_ACTIVATEAPP: Link with AVP reads it)
 //   kill-editor                 the editor is ended at once, as a crash or Task Manager ends it (TerminateProcess): nothing it does when it closes happens; only verify steps make sense after it
 //   expect-pixels-changed-since <n> <kind> <x> <y> <w> <h> [share]   the same, the newest picture against picture n (one taken with picture <n>),
@@ -93,6 +96,7 @@
 #include "from_shot.h"   // from-shot <png>, and --shot-to-scenario (Drake 11-18)
 #include "idle_gate.h"   // IDLE_SECONDS: no run while someone is at the machine (Frost 11-22)
 #include "moving_wait.h" // wait-moving: a wait that follows the run, failing only when it stalls (Frost 11-23)
+#include "editor_ended.h" // a dead editor fails every wait at once, as CRASHED or ENDED, in its log's own words (Frost 11-23)
 
 static std::string Narrow(std::wstring const &text)
 {
@@ -248,6 +252,12 @@ struct Scenario
 	int heldX = 0, heldY = 0;
 	bool heldShift = false;
 	ULONGLONG lastAnswerMs = 0;       // how long the last state ask waited for its answer (AskState): a stuck editor answers late (expect-last-answer-within)
+	std::wstring logPath;             // the editor's log: <its folder>settings\avp_log.txt (editor_main.cpp: its save folder is its own folder's settings\)
+	uint64_t logRead = 0;             // how much of that log was there before this editor started, then how much the harness has read
+	editor_ended::Reader logReader;   // the crash lines in what was read
+	std::string gone;                 // the editor is DEAD: the words that say so (editor_ended::Words, or kill-editor's); "" while it lives
+	bool goneOnPurpose = false;       // kill-editor ended it: the steps after it (verify) go on
+	bool goneSaid = false;            // a failed check has said the words already
 };
 
 // The words of a field of the scenario line: <name> "<words>"
@@ -321,8 +331,81 @@ static void TakeGeometry(Scenario *s)
 // waitMs: how long the editor has to answer. 10 seconds after a step; the first ask, just after the editor starts, gets longer (see where
 // it's called): the editor answers only once its level is loaded, and with several editors starting at once (run-shards.sh) a big level
 // took longer than 10 seconds, so the run failed at its first check although every step after it passed (Bishop, 2026-11-17).
+// The editor's log, read on from where the harness got to: only its crash lines are kept (editor_ended.h). A log shorter than what was read has been
+// emptied since, so all of it is newer: it is read again from its start. Shared for writing and deleting, as the running editor still writes it.
+static void ReadLogOn(Scenario *s)
+{
+	if (s->logPath.empty())
+	{
+		return;
+	}
+
+	HANDLE const file = CreateFileW(s->logPath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL, NULL);
+
+	if (file == INVALID_HANDLE_VALUE)
+	{
+		return;
+	}
+
+	LARGE_INTEGER size = {};
+
+	if (GetFileSizeEx(file, &size) && size.QuadPart >= 0)
+	{
+		if ((uint64_t)size.QuadPart < s->logRead)
+		{
+			s->logRead = 0;
+		}
+
+		LARGE_INTEGER at = {};
+		at.QuadPart = (LONGLONG)s->logRead;
+		std::vector<char> piece((size_t)1 << 16);
+		DWORD got = 0;
+
+		if (SetFilePointerEx(file, at, NULL, FILE_BEGIN))
+		{
+			while (s->logRead < (uint64_t)size.QuadPart && ReadFile(file, piece.data(), (DWORD)piece.size(), &got, NULL) && got > 0)
+			{
+				editor_ended::Take(&s->logReader, piece.data(), got);
+				s->logRead += got;
+			}
+		}
+	}
+
+	CloseHandle(file);
+}
+
+// IS THE EDITOR DEAD (editor_ended.h)? Its process has ended, or its log has a crash line written since the harness started it. The process is
+// looked at first and the log read after, so the lines of an editor that wrote them as it ended are all read. Once dead, the words stay in s->gone.
+static bool EditorGone(Scenario *s)
+{
+	if (!s->gone.empty())
+	{
+		return true;
+	}
+
+	bool ended = false;
+	DWORD code = 0;
+
+	if (s->editor.process.hProcess && WaitForSingleObject(s->editor.process.hProcess, 0) == WAIT_OBJECT_0)
+	{
+		ended = true;
+		GetExitCodeProcess(s->editor.process.hProcess, &code);
+	}
+
+	ReadLogOn(s);
+	s->gone = editor_ended::Words(ended, (uint32_t)code, s->logReader);
+	return !s->gone.empty();
+}
+
 static bool AskState(Scenario *s, DWORD waitMs = 10000)
 {
+	// a dead editor answers nothing: asked again, each ask would only wait out its time (an editor held by Windows' crash report, 10 s an ask)
+	if (!s->gone.empty())
+	{
+		return false;
+	}
+
 	Drain(s);
 	PostMessageW(s->editor.window, WM_APP + 6, 0, 0);
 
@@ -333,6 +416,7 @@ static bool AskState(Scenario *s, DWORD waitMs = 10000)
 
 	if (line.empty())
 	{
+		EditorGone(s);   // if it didn't answer because it is dead, the words are kept in s->gone for the step to say
 		return false;
 	}
 
@@ -1096,6 +1180,9 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 			s->editor.view = NULL;
 		}
 
+		// its end is the step's own: a wait after it fails at once in these words, and the verify steps after it go on (editor_ended.h)
+		s->gone = "ENDED: kill-editor ended the editor (exit code 98), as the scenario asks";
+		s->goneOnPurpose = true;
 		Check(killed, label + " (the editor ended at once, nothing of its closing run)");
 		return killed;
 	}
@@ -1135,6 +1222,15 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		for (;;)
 		{
 			bool const answered = AskState(s);
+
+			// a DEAD editor fails the wait at once (editor_ended.h): no answer from it is not "no change", and its stall would only be sat out
+			if (!answered && EditorGone(s))
+			{
+				Check(false, label + " (" + s->gone + ", after " + std::to_string(GetTickCount64() - wait.start) + " ms)");
+				s->goneSaid = true;
+				return false;
+			}
+
 			std::string const now = answered ? Field(s->last, w[2]) : std::string();
 			moving_wait::Step const step = moving_wait::Look(&wait, answered, now, words, GetTickCount64());
 			uint64_t const waited = GetTickCount64() - wait.start;
@@ -1182,7 +1278,8 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		{
 			if (!AskState(s))
 			{
-				Check(false, label + " (the editor gave no state line)");
+				Check(false, label + (EditorGone(s) ? " (" + s->gone + ")" : std::string(" (the editor gave no state line)")));
+				s->goneSaid = s->goneSaid || !s->gone.empty();
 				return false;
 			}
 
@@ -3273,7 +3370,15 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 	if (verb == "wait" && w.size() >= 2)
 	{
-		Sleep((DWORD)atoi(w[1].c_str()));
+		// slept half a second at a time, so an editor that dies meanwhile stops the wait at once (editor_ended.h); the step loop says why
+		DWORD const most = (DWORD)atoi(w[1].c_str()), start = GetTickCount();
+
+		while (GetTickCount() - start < most && !EditorGone(s))
+		{
+			DWORD const left = most - (GetTickCount() - start);
+			Sleep(left < 500 ? left : 500);
+		}
+
 		return true;
 	}
 
@@ -3286,7 +3391,13 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		for (;;)
 		{
-			AskState(s);
+			// a DEAD editor fails the wait at once (editor_ended.h), never read from its last answer
+			if (!AskState(s) && EditorGone(s))
+			{
+				Check(false, label + " (" + s->gone + ", after " + std::to_string(GetTickCount() - start) + " ms)");
+				s->goneSaid = true;
+				return false;
+			}
 
 			if (Field(s->last, "status").find(wanted) != std::string::npos)
 			{
@@ -3886,6 +3997,19 @@ int main(int argc, char **argv)
 		made = same;
 	}
 
+	// the editor's log, and how much of it is there before it starts: only what this editor writes after is read for its crash lines (editor_ended.h).
+	// (run-shards empties it before each file; a run outside it may find an older run's lines there, which are left alone.)
+	{
+		size_t const slash = exe.find_last_of(L"\\/");
+		s.logPath = slash == std::wstring::npos ? std::wstring() : exe.substr(0, slash + 1) + L"settings\\avp_log.txt";
+		WIN32_FILE_ATTRIBUTE_DATA there = {};
+
+		if (!s.logPath.empty() && GetFileAttributesExW(s.logPath.c_str(), GetFileExInfoStandard, &there))
+		{
+			s.logRead = ((uint64_t)there.nFileSizeHigh << 32) | there.nFileSizeLow;
+		}
+	}
+
 	bool const started = made && StartTheEditor(exe, s.recordFolder, &s.editor, startArguments);
 
 	Check(started, "the editor starts, with -picture" + Narrow(startArguments) + ", and its window and view are found" +
@@ -3899,7 +4023,23 @@ int main(int argc, char **argv)
 
 		for (size_t i = 0; i < steps.size(); i++)
 		{
-			if (!DoStep(&s, steps[i], (int)i + 1))
+			bool const goOn = DoStep(&s, steps[i], (int)i + 1);
+
+			// A DEAD EDITOR stops the scenario after any step, saying so once (editor_ended.h): a step that doesn't wait would only post to a window
+			// that is gone. kill-editor's end is on purpose: the verify steps after it go on.
+			if (!s.goneOnPurpose && EditorGone(&s))
+			{
+				if (!s.goneSaid)
+				{
+					Check(false, "after step " + std::to_string(i + 1) + ": " + s.gone);
+					s.goneSaid = true;
+				}
+
+				printf("  the scenario stops here\n");
+				break;
+			}
+
+			if (!goOn)
 			{
 				printf("  the scenario stops here\n");
 				break;
