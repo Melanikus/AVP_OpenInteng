@@ -1009,8 +1009,13 @@ namespace host
 		}
 
 		std::vector<int> part(plan.list.size(), -1);
+		// A LINK OUTSIDE THE LIST (Bishop 2's order, 11-23, with the plot's budget): the flood marks part[] by each link's own number. Every link here is made
+		// by LinkBoth from two places checked to be in the list (the lv.links loop above), and the list only grows before the links are made, so none is
+		// outside it today: DEFENSIVE. A later change that broke that refuses the module, named with the numbers, instead of writing past part[]'s end
+		int32_t outsideLink = -1;
+		size_t outsideFrom = 0;
 
-		for (size_t s = 0; s < plan.list.size(); s++)
+		for (size_t s = 0; s < plan.list.size() && outsideLink < 0; s++)
 		{
 			if (part[s] >= 0)
 			{
@@ -1021,7 +1026,7 @@ namespace host
 
 			part[s] = (int)plan.parts;
 
-			while (!todo.empty())
+			while (!todo.empty() && outsideLink < 0)
 			{
 				size_t const n = todo.back();
 
@@ -1029,6 +1034,13 @@ namespace host
 
 				for (WaypointLinkRec const &l : plan.list[n].links)
 				{
+					if (l.index < 0 || (size_t)l.index >= part.size())
+					{
+						outsideLink = l.index < 0 ? INT32_MAX : l.index;
+						outsideFrom = n;
+						break;
+					}
+
 					if (part[(size_t)l.index] < 0)
 					{
 						part[(size_t)l.index] = (int)plan.parts;
@@ -1038,6 +1050,16 @@ namespace host
 			}
 
 			plan.parts++;
+		}
+
+		if (outsideLink >= 0)
+		{
+			plan.notes.insert(plan.notes.begin(), "NOT SHAPED: a " + kind + " whose box " + std::to_string((unsigned long long)outsideFrom) + " links to " +
+				(outsideLink == INT32_MAX ? std::string("a box below 0") : "box " + std::to_string((long long)outsideLink)) + ", outside its " +
+				std::to_string((unsigned long long)plan.list.size()) + " boxes (the planner's own fault; no network written)");
+			plan.list.clear();
+			plan.climbing.clear();
+			return plan;
 		}
 
 		for (std::vector<int32_t> const &c : floorIn.cells)

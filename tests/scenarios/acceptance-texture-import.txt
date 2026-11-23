@@ -1,0 +1,54 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, the RIM IMPORT PAGE in alpha.6, the owner: "like it can hold drag and drop and create safe .smk videos we want it to
+# drag and drop and create .rims"; AvP-docs director/plan-rim-import.md, its acceptance). A picture dropped on the editor's window off the Video screen opens ONE
+# FORM (texture_import_screen.h); Ok makes it a texture of the open level with Vasquez's engine (texture_import.h): a RIM of the stock levels' own form saved as
+# graphics\Custom\Statue\wall01.RIM in the run's own data copy, and named in the level's picture list. It is offered in Texture Map AT ONCE (plan step 8), before
+# any save: Prev Texture from no current picture lands on the highest numbered, the one just loaded, and puts it on the selected polygon. The level saved (a copy,
+# as a hidden run saves) names it in its list, and OPENED AGAIN (the plan's last step) by the game's own chunk library (verify_texmap texture ... one): it opens,
+# the one polygon changed holds the picture index whose BMPNAMES entry is wall01.RIM, and no shape's points or other chunks changed (against a baseline of two
+# saves with no edit between them).
+# THE PICTURE: a 64 x 64 PNG made fresh by the run (Node's own zlib; the repository holds no picture), a blue-green ramp.
+# RED on exe-cache/f881cc47.exe (the alpha.6 cut: no page; Vasquez's engine has none either): the drop off the Video screen says "Drop a video in Video mode",
+# and no form opens.
+# changes-data
+make-level node -e "const z=require('zlib'),fs=require('fs'),p=require('path');const f=process.argv[1];fs.mkdirSync(p.dirname(f),{recursive:true});const w=64,h=64,raw=Buffer.alloc((w*3+1)*h);for(let y=0;y<h;y++)for(let x=0;x<w;x++){const o=y*(w*3+1)+1+x*3;raw[o]=0;raw[o+1]=x*4;raw[o+2]=y*4;}const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;t[n]=c>>>0;}const crc=(b)=>{let c=0xffffffff;for(const x of b)c=t[(c^x)&255]^(c>>>8);return(c^0xffffffff)>>>0;};const ch=(ty,d)=>{const l=Buffer.alloc(4);l.writeUInt32BE(d.length);const td=Buffer.concat([Buffer.from(ty),d]);const c=Buffer.alloc(4);c.writeUInt32BE(crc(td));return Buffer.concat([l,td,c]);};const ih=Buffer.alloc(13);ih.writeUInt32BE(w,0);ih.writeUInt32BE(h,4);ih[8]=8;ih[9]=2;fs.writeFileSync(f,Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),ch('IHDR',ih),ch('IDAT',z.deflateSync(raw)),ch('IEND',Buffer.alloc(0))]));" {datadir}/import/wall.png
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+# two saves with no edit between them: the baseline of what a save alone changes (verify_texmap's --baseline)
+save-copy
+save-copy
+
+# ---- the drop: ONE FORM, inteng's look, its name the picture's, 128 and Fit ticked, nothing past its edges
+drop-file {datadir}/import/wall.png
+wait 400
+expect-dialog-kind form
+expect-dialog Import texture
+expect-field dialogpast none
+expect-field-has dialogbuttons Ok
+expect-field-has dialogbuttons Cancel
+picture 1
+form-field 1 wall01
+click-button Ok
+wait 1500
+
+# ---- made: the list's new entry, the file under graphics\Custom, offered in Texture Map now
+expect-status Custom\Statue\wall01.RIM
+expect-status in Texture Map now
+verify node -e "const fs=require('fs');const b=fs.readFileSync(process.argv[1]);process.exit(b.length>800&&b.toString('latin1',0,4)==='LIST'&&b.toString('latin1').includes('BODY')?0:1)" {datadir}/graphics/Custom/Statue/wall01.RIM
+
+# ---- picked in Texture Map on a polygon, before any save: Prev Texture lands on the newest picture
+click-view 0.50 0.60
+expect-status 1 selected
+key PageUp
+wait 400
+expect-status wall01.RIM put on 1 polygon
+picture 2
+
+# ---- saved (a hidden run's copy), then OPENED AGAIN by the game's own chunk library: its list names Custom\Statue\wall01.RIM, the one polygon changed holds
+# that entry's index, nothing else of the shapes changed. (The saved file is packed as the stock levels are, so its bytes don't show the name: a byte search for
+# it, this file's first form, found nothing though the list holds it, 2026-11-23 on 74dab373, d672ac79 and 28d80dd1.)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_texmap/verify_texmap.exe {prev} {copy} texture wall01 one --baseline {save1} {save2}

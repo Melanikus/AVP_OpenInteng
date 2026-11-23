@@ -17,6 +17,8 @@
 //                     tools             <game>\Tools\shape_rifs\<shape>.rif   (the old tools' package)
 //                     own               <game>\own-shapes\<shape>.rif   (a folder for ShapeFolder=)
 //                     junction          <game>\shape_rifs made a junction (mklink /J, no privilege needed) to <game>\elsewhere, which holds <shape>.rif
+//                     cut               <game>\shape_rifs\<shape>_cut.rif: a HOSTILE file, the first half of the shape's file only, so its chunks run
+//                                       past its end (added 2026-11-23 by Vasquez: the placement picker must show such a file by its name, with why)
 // FRESH EVERY RUN, NOTHING DELETED: each file is made when it is missing, kept when it is there with the same bytes, and the run is refused (exit 1) when
 // it is there with other bytes; so the same scenario run twice in one shard (a re-run) finds its folder as it left it. It prints what it made.
 
@@ -369,9 +371,21 @@ int main(int argc, char **argv)
 
 			continue;
 		}
+		else if (place == "cut")
+		{
+			// a hostile file: the shape's file cut to its first half, so the sizes its chunks say run past its end
+			Bytes const half(file.begin(), file.begin() + (std::ptrdiff_t)(file.size() / 2));
+
+			if (!PutFolder(game / "shape_rifs", &why) || !PutFile(game / "shape_rifs" / (shape + "_cut.rif"), half, &why))
+			{
+				return Refuse(why);
+			}
+
+			continue;
+		}
 		else
 		{
-			return Refuse("\"" + place + "\" isn't a place (shape_rifs, tools, own or junction)");
+			return Refuse("\"" + place + "\" isn't a place (shape_rifs, tools, own, junction or cut)");
 		}
 
 		if (!PutFolder(folder, &why) || !PutFile(folder / (shape + ".rif"), file, &why))

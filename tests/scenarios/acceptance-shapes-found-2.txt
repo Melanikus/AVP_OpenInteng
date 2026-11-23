@@ -1,0 +1,11 @@
+# ACCEPTANCE (red first; Frost 2026-11-23), part 2 of acceptance-shapes-found-1 (#ini-keep: it runs right after it, in the same shard, on the same data copy and
+# the ini part 1 wrote): THE NEXT START, WITH THE LIST. Part 1's Yes wrote [ShapesScanned] into the ini, so this start asks nothing (no form): every map found is
+# on the list already, so nothing is searched again and nothing new is said (the owner: a map is searched once; a changed one has another SHA-256).
+# RED on exe-cache/68b2b059.exe (Option C up to frost-shapes' HAND f84ecb5d, without part 3): no "shapes" field.
+#ini-keep
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+wait-moving 60000 shapes done;
+expect-field shapes done; 0 new maps scanned, 0 new shapes in shape_rifs
+expect-no-dialog

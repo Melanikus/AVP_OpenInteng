@@ -1,7 +1,8 @@
 // verify_texmap.cpp: the Texture Map scenario's check of one step, written 2026-11-15 by Melanikus (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // Usage: verify_texmap.exe <the level before the step> <the level after it (a saved copy)> <step> [numbers]
-//   texture <picture file name>     Set Texture: the polygons whose picture changed (the selection) all hold ONE picture index, and that index is the BMPNAMES entry of the named file
+//   texture <picture file name> [one]   Set Texture: the polygons whose picture changed (the selection) all hold ONE picture index, and that index is the BMPNAMES entry of the named
+//                                   file; two polygons or more changed, or with "one" exactly one (the RIM import page's acceptance puts its new texture on one polygon)
 //   flipx <W> <H> | flipy <W> <H>   X-Flip / Y-Flip: every polygon whose coordinates changed holds exactly FlipU / FlipV (uv_model.h) of what it held before, over the window 0,0,W,H (the lowest picture's size)
 //   uv <u1> <v1> <u2> <v2> <u3> <v3> [<u4> <v4>]   the one changed polygon's corners are exactly these
 //   order                           the texture window's O: the one changed polygon's corner k holds what corner k - 1 held, corner 1 the last one's
@@ -488,8 +489,10 @@ int main(int argc, char **argv)
 	if (step == "texture" && argc >= 5)
 	{
 		std::string const wanted = argv[4];
+		bool const one = argc >= 6 && strcmp(argv[5], "one") == 0;
 
-		Check(pictureChanged.size() >= 2, "the picture of the selection changed (" + std::to_string(pictureChanged.size()) + " polygons)");
+		Check(one ? pictureChanged.size() == 1 : pictureChanged.size() >= 2, "the picture of the selection changed (" + std::to_string(pictureChanged.size()) + " polygons, " +
+			(one ? "exactly 1 asked" : "2 or more asked") + ")");
 		Check(uvChanged.empty(), "no polygon's coordinates changed");
 
 		int32_t const index = pictureChanged.empty() ? -1 : (now[pictureChanged[0]].uv.colour & 0xfff);

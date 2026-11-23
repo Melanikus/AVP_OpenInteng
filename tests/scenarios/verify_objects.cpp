@@ -24,6 +24,9 @@
 // For "sameshape <a>|<b>" both objects are in the copy and the game's loader gives them the SAME shape (Object_Chunk::get_assoc_shape: one shape chunk, its SHPHEAD1 number said in the
 // words): a copy made of an object's own shape is that shape, not another part of its file (added 2026-11-23 by Vasquez: Create Duplicate made office's gamebox, the offbits part "Game",
 // into a copy of "Aerosol", the file's first part, by the file's name; inteng makes it by the shape's number).
+// For "shapefile <object>|<file>" the object's shape is an outside shape of that file (the Shape Chooser's name for it: the SHPEXTFN's stem, any capitals); for
+// "shapefiles <file>|<count>" the copy holds exactly that many outside shapes of that file (added 2026-11-23 by Vasquez, the placement picker: a file it brings in
+// is the one placed, and a shape the level held is placed by its number, with no second copy).
 // Gives back 0 only if every check passed.
 
 #include <limits.h>
@@ -43,6 +46,7 @@
 #include "mishchnk.hpp"
 #include "level_file.h"
 #include "alt_locations_edit.h"
+#include "shape_chooser.h"
 #include "special_alt_edit.h"
 #include "strategy_lookup.h"
 
@@ -665,7 +669,7 @@ int main(int argc, char **argv)
 {
 	if (argc < 4 || (argc - 2) % 2 != 0)
 	{
-		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [trackendmoved <name>|<section>|<x>|<y>|<z>] [alt <name>=<count>,<group>] [virtualgone|virtualkept <name>] [nostrategy <name>] [modflags <name>|<mask hex>|<word hex>] [gameflags <name>|<mask hex>|<word hex>] [sameshape <a>|<b>]\n");
+		printf("verify_objects: <copy> gone|kept|track|notrack <name> [gone|kept|track|notrack <name>] ... [tracksound <name>|<index>|<wav>|<inner>|<outer>|<volume>|<pitch>|<flags>] [notracksound <name>|<index>] [trackpivot <name>|<section>|<sx>|<sy>|<sz>|<ex>|<ey>|<ez>] [at <name>|<x>|<y>|<z>] [trackendmoved <name>|<section>|<x>|<y>|<z>] [alt <name>=<count>,<group>] [virtualgone|virtualkept <name>] [nostrategy <name>] [modflags <name>|<mask hex>|<word hex>] [gameflags <name>|<mask hex>|<word hex>] [sameshape <a>|<b>] [shapefile <name>|<file>] [shapefiles <file>|<count>]\n");
 		return 2;
 	}
 
@@ -719,6 +723,60 @@ int main(int argc, char **argv)
 
 			Check(names.size() == 2 && first && second && firstShape && firstShape == secondShape, std::string("the copy's objects \"") + (names.empty() ? "" : names[0]) +
 				"\" and \"" + (names.size() < 2 ? "" : names[1]) + "\" have the same shape" + shapes);
+		}
+		else if (what == "shapefile" || what == "shapefiles")
+		{
+			// shapefile <object>|<file>: the object's shape is an outside shape OF THAT FILE; shapefiles <file>|<count>: the copy holds exactly that many outside
+			// shapes of that file, so a shape placed by its number (the level held it) made no second copy (added 2026-11-23 by Vasquez, the placement picker).
+			// The file as the Shape Chooser names it (shape_chooser.h: the SHPEXTFN cut to its stem, without folder or ending), any capitals.
+			std::vector<std::string> const words = BarFields(argv[a + 1], 2);
+			std::vector<host::ShapeChoice> outside;
+			auto const lower = [](std::string text)
+			{
+				for (char &c : text)
+				{
+					c = (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c;
+				}
+
+				return text;
+			};
+
+			host::ShapeChooser_List(copy.Level(), &copy, &outside);
+
+			if (what == "shapefile")
+			{
+				Object_Chunk *const object = words.size() == 2 ? ObjectNamed(copy, words[0].c_str()) : nullptr;
+				Shape_Chunk *const shape = object ? object->get_assoc_shape() : nullptr;
+				Chunk *const header = shape ? shape->lookup_single_child("SHPHEAD1") : nullptr;
+				std::vector<unsigned char> bytes;
+				int32_t number = -1;
+				std::string file = "no outside file";
+
+				if (header && copy.PayloadOf(header, &bytes) && bytes.size() >= 24)
+				{
+					memcpy(&number, bytes.data() + 20, sizeof(number));
+				}
+
+				for (host::ShapeChoice const &one : outside)
+				{
+					file = one.number == number ? one.name : file;
+				}
+
+				Check(words.size() == 2 && object && lower(file) == lower(words[1]), std::string("the copy's object \"") + (words.empty() ? "" : words[0]) + "\" is of a shape from " +
+					(words.size() < 2 ? "" : words[1]) + " (" + (object ? "its shape " + std::to_string(number) + " is from " + file : std::string("no object of that name")) + ")");
+			}
+			else
+			{
+				size_t found = 0;
+
+				for (host::ShapeChoice const &one : outside)
+				{
+					found += words.size() == 2 && lower(one.name) == lower(words[0]) ? 1 : 0;
+				}
+
+				Check(words.size() == 2 && found == (size_t)atoi(words[1].c_str()), std::string("the copy holds ") + (words.size() < 2 ? "?" : words[1]) + " outside shape(s) of " +
+					(words.empty() ? "" : words[0]) + " (it holds " + std::to_string(found) + ")");
+			}
 		}
 		else if (what == "track" || what == "notrack")
 		{

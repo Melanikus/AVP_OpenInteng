@@ -1,0 +1,4 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE
+/Isrc/model
+tests/model_image_fit_test.cpp
+src/model/image_fit.cpp

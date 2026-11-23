@@ -13,6 +13,7 @@
 #include <windows.h>
 
 #include "shape_extract_files.h"
+#include "shapes_start.h"   // ShapesStart_MapsFound: a .rif that is a symbolic link is never a map (Frost 11-23)
 
 #ifndef SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
 #define SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE 0x2
@@ -98,6 +99,21 @@ int main()
 		std::string const realWhy = ShapeExtract_ReadMapFile(real, &bytes, &sha256);
 
 		Check(realWhy.empty() && bytes.size() == 5, "and the file it points at, by its own name, is read (it says \"" + realWhy + "\")");
+
+		// THE MAPS FOUND at the editor's start (shapes_start.h, shapes part 3; Drake's review, SHOULD 3, Frost 11-23): a .rif in avp_rifs that is itself a
+		// symbolic link is never a map; a plain one beside it is
+		std::string const game = root + "\\game", rifs = game + "\\avp_rifs";
+		bool const folders = CreateDirectoryA(game.c_str(), nullptr) && CreateDirectoryA(rifs.c_str(), nullptr) &&
+			CopyFileA(real.c_str(), (rifs + "\\Plain.rif").c_str(), TRUE) &&
+			CreateSymbolicLinkA((rifs + "\\Link.rif").c_str(), real.c_str(), SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE);
+		std::vector<std::string> refused;
+		std::vector<std::string> const maps = ShapesStart_MapsFound(game, &refused);
+		Check(folders && maps.size() == 1 && maps[0] == rifs + "\\Plain.rif" && refused.empty(), "the editor's start: avp_rifs\\Link.rif, a symbolic link, is not a map; "
+			"avp_rifs\\Plain.rif beside it is (" + std::to_string(maps.size()) + " found)");
+		DeleteFileA((rifs + "\\Link.rif").c_str());
+		DeleteFileA((rifs + "\\Plain.rif").c_str());
+		RemoveDirectoryA(rifs.c_str());
+		RemoveDirectoryA(game.c_str());
 	}
 
 	DeleteFileA(link.c_str());

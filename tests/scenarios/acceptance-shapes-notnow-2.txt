@@ -1,0 +1,11 @@
+# ACCEPTANCE (red first; Frost 2026-11-23), part 2 of acceptance-shapes-notnow-1 (#ini-keep: the same shard, data copy and ini): THE NEXT START AFTER NOT NOW.
+# Not now wrote no list, so the form asks again (the owner: "Ask again next start"); Not now again, and nothing is searched.
+# RED on exe-cache/68b2b059.exe (Option C up to frost-shapes' HAND f84ecb5d, without part 3): no form.
+#ini-keep
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+wait-moving 20000 shapes (the form is open)
+expect-dialog Open Inteng
+click-button Not_now
+expect-field shapes not now

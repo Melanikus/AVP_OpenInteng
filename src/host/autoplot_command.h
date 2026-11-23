@@ -26,6 +26,12 @@ namespace host
 	                                                  // modules and apply to them"), planned as one set so their lanes join across the doorways between them
 	size_t const kAutoPlotMostSpotsPerAiModule = 6;   // marine stand spots added to the exits as goals
 	size_t const kAutoPlotMostPairs = 40;             // goal pairs searched per AI module (each twice: alien and floor)
+	// THE PLOT'S BUDGET (Bishop 2's order, 11-23: the caps multiply, so a hostile map's plot ended only after a very long time): the cells one AI module's way
+	// searches may look at IN ALL. A module past it stops searching there and is refused, named with its numbers, and nothing of it is written. Set from the
+	// data: the hidden run over the 63 stock levels (5a5982e4, dietrich-proofs/plotwork-5a5982e4) counted 10,770 AI modules, the most 2,212,533 cells
+	// (nostromo footy37), the 99th percentile 761,381, the median 17,893; so 4,000,000 is 1.8 times stock's most. Before it, the caps alone let a module
+	// look at kAutoPlotMostPairs x 2 x kAutoPlotMostLooks = 16,000,000 cells.
+	size_t const kAutoPlotMostModuleLooks = 4000000;
 	int32_t const kAutoPlotStationReach = 6000;       // a climb station's wall at most this far from where the alien lands (Drake: chain A's side walls 3.5-3.9 m off the lane)
 	uint32_t const kAutoPlotAirduct = 0x80000000u;    // MODULEFLAG_AIRDUCT, the bit Strategy mode's Add Flag > Airduct (0xe) sets (strategy_mode.h)
 }
@@ -36,6 +42,11 @@ bool AutoPlotCommand(int32_t command, int32_t pickedModule);
 
 // Each frame on the Waypoint screen: the grid's and the worker's progress said, a finished run's networks checked and written
 void AutoPlotCommand_Frame();
+
+// THE BUDGET's setting, [Editor] AutoPlotMostModuleLooks= read at start-up (editor_main.cpp): it can only LOWER kAutoPlotMostModuleLooks (a test's way to
+// make a module hit it on a stock level); 0, or more than kAutoPlotMostModuleLooks, keeps kAutoPlotMostModuleLooks. A run takes it as it starts
+void AutoPlotCommand_SetModuleBudget(size_t looks);
+size_t AutoPlotCommand_ModuleBudget();
 
 // A run is going (the grid building or the worker searching)
 bool AutoPlotCommand_Busy();

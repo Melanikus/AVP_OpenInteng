@@ -1,0 +1,6 @@
+/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE
+/Isrc/model /Iavpx/3dc /Iavpx/3dc/avp/win95/frontend
+tests/model_rim_write_test.cpp
+src/model/rim_write.cpp
+avpx/3dc/RimLoader.cpp
+avpx/3dc/FileStream.cpp

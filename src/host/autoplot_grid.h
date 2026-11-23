@@ -63,7 +63,9 @@ namespace host
 
 	// One way from `from` to `to` (the world's millimetres): alien, the alien search (floor is lava); else the marine's ground route. Once the grid is ready.
 	// The points in order, start to goal, each with its surface and module. False (with why) when there is no way, it looked too far, or the grid isn't ready.
-	bool AutoPlotGrid_Way(int32_t const from[3], int32_t const to[3], bool alien, std::vector<AutoPlotPoint> *way, std::string *why);
+	// looks, if given, is set to the cells this search looked at (the grid's own count, LastSearchLooks; 0 for one refused before it began): THE PLOT'S WORK, counted
+	// per AI module for the report and its budget (Dietrich 2026-11-23, Bishop 2's order: the caps multiply, so the work is measured, then bounded)
+	bool AutoPlotGrid_Way(int32_t const from[3], int32_t const to[3], bool alien, std::vector<AutoPlotPoint> *way, std::string *why, size_t *looks = nullptr);
 
 	// Places in a game module where a marine can stand (cells of the grid a marine stands on), spread out, at most `most`: the interior goals
 	std::vector<AutoPlotPoint> AutoPlotGrid_StandSpots(int32_t module, size_t most);

@@ -2,10 +2,10 @@
 // AVP_OpenInteng, on Bishop 2's order (Vasquez's Video mode review (a)). AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // Part 1 asks media_parsers itself: the signer names, files (Windows' own, another publisher's, a changed copy, this test), the module an object's code is in,
-// the list of formats, which offered decoder the reader's factory makes, and the check refusing a decoder of this test's own that the reader made. Part 2 reads
-// videos through video_import, as Video mode and mp4-to-smk do, with three things planted for THIS PROCESS ONLY (nothing is written to the registry): a decoder
-// of the test's own for H.264, a byte-stream handler of the test's own for video/mp4, and AVI files whose picture or sound is in a format no decoder of Windows'
-// own reads.
+// the list of formats, and the check refusing a decoder of this test's own that a reader asked to decode made. Part 2 reads videos through video_import, as
+// Video mode and mp4-to-smk do, with things planted for THIS PROCESS ONLY (nothing is written to the registry): decoders of the test's own (one for H.264; and,
+// card 2c, one refusing every type, the next for H.264 and one for AAC, of which a read must make NONE: the editor drives the decoders it chose itself), a
+// byte-stream handler of the test's own for video/mp4, and AVI files whose picture or sound is in a format no decoder of Windows' own reads.
 // Built with RED_FIRST_OLD_IMPORT against the video_import.cpp before media_parsers (5a1f8da8), part 2 alone is built, and each of its cases fails there.
 #include <stdio.h>
 #include <string.h>
@@ -162,6 +162,32 @@ public:
 	}
 };
 
+// CARD 2c's planted SOUND decoder: the test's own, for AAC, that takes any AAC type it is given (so a reader that made it would use it); counted as every FakeDecoder
+class SoundTakingDecoder : public FakeDecoder
+{
+public:
+	STDMETHODIMP SetInputType(DWORD, IMFMediaType *type, DWORD) override
+	{
+		InterlockedIncrement(&FakeDecoder_Counts().typed);
+		GUID subtype = GUID_NULL;
+		if (!type) return S_OK;
+		return SUCCEEDED(type->GetGUID(MF_MT_SUBTYPE, &subtype)) && subtype == MFAudioFormat_AAC ? S_OK : MF_E_INVALIDMEDIATYPE;
+	}
+};
+
+class SoundTakingFactory : public FakeDecoderFactory
+{
+public:
+	STDMETHODIMP CreateInstance(IUnknown *outer, REFIID id, void **out) override
+	{
+		if (outer) return CLASS_E_NOAGGREGATION;
+		std::unique_ptr<SoundTakingDecoder> made = std::make_unique<SoundTakingDecoder>();   // (owned, then handed to its COM count)
+		HRESULT const hr = made->QueryInterface(id, out);
+		made.release()->Release();
+		return hr;
+	}
+};
+
 static std::vector<uint8_t> ReadAll(std::wstring const &path)
 {
 	std::vector<uint8_t> bytes;
@@ -254,30 +280,12 @@ int main()
 			host::MediaParsers_FormatWords(xxxx) == "\"XXXX\"" && !host::MediaParsers_FormatTaken(MFMediaType_Audio, MFVideoFormat_H264),
 			"Vorbis, a FOURCC no decoder knows, and a picture's format given as a sound are not, each named");
 
-		// DIETRICH'S M1 (11-22): the factory the reader makes its decoder with makes the very decoder ChooseDecoder proved, not the first of its module. Say one
-		// Microsoft module holds A then B for the format, A refuses this stream and B is chosen: A is never made in B's place, nor a codec pack's X listed
-		// between them. A Store package's decoder has no class: it is known by its friendly name (its module only once made, and checked then). Names only:
-		// nothing is opened or made here
-		{
-			GUID const a = { 0x11111111, 0x1111, 0x1111, { 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11 } };
-			GUID const b = { 0x22222222, 0x2222, 0x2222, { 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22 } };
-			GUID const x = { 0x33333333, 0x3333, 0x3333, { 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, 0x33 } };
-			std::wstring const windows = std::wstring(system) + L"\\decoders.dll";
-			host::MediaParsersDecoderName const offeredA = { a, L"Decoder A", windows }, offeredB = { b, L"Decoder B", windows };
-			host::MediaParsersDecoderName const offeredX = { x, L"A codec pack's decoder", L"C:\\Program Files\\Pack\\x.dll" }, chosenB = { b, L"Decoder B", windows };
-			bool const aMade = host::MediaParsers_OfferIsChosen(offeredA, chosenB);
-			Check(!aMade, "A, of the chosen B's own module, which refused this stream: never made in B's place");
-			bool const xMade = host::MediaParsers_OfferIsChosen(offeredX, chosenB), bMade = host::MediaParsers_OfferIsChosen(offeredB, chosenB);
-			Check(!xMade && bMade, "a codec pack's X listed between them: never made; B, the chosen one: made");
-			host::MediaParsersDecoderName const storeA = { GUID_NULL, L"Store decoder A", L"" }, storeB = { GUID_NULL, L"Store decoder B", L"" };
-			host::MediaParsersDecoderName const chosenStoreB = { GUID_NULL, L"Store decoder B", L"C:\\Program Files\\WindowsApps\\Pack_1.0.0.0_x64__0000000000000\\b.dll" };
-			bool const storeAMade = host::MediaParsers_OfferIsChosen(storeA, chosenStoreB), storeBMade = host::MediaParsers_OfferIsChosen(storeB, chosenStoreB);
-			bool const registeredMade = host::MediaParsers_OfferIsChosen(offeredB, chosenStoreB);
-			Check(!storeAMade && storeBMade && !registeredMade, "a Store package's decoder (no class) chosen: only it, by its name; another Store one and a registered one never");
-		}
+		// (Dietrich's M1 of 11-22, MediaParsers_OfferIsChosen, is gone with the reader's decoder factory it held: card 2c, the editor drives the decoder itself,
+		// so no decoder is registered for the reader to make.)
 
-		// BISHOP 2'S ONE WINDOW LEFT: "our" decoder refuses its type, the reader goes on to the next (a foreign one of this test's own), and the check refuses
-		// that one by name before a sample (the reader made here the editor's way, the source from Windows' own handler)
+		// THE CHECK STILL REFUSES A DECODER OF THE READER'S CHOOSING, by name, before a sample: a reader made here the OLD way, asked to decode (RGB32), with
+		// "our" decoder refusing its type, goes on to the next (a foreign one of this test's own), and MediaParsers_CheckReader names it. (video_import no longer
+		// asks the reader to decode at all, card 2c: part 2 shows a read making none of the planted decoders; the check stays as a second wall)
 		static RefusingFactory refusing;
 		static FakeDecoderFactory foreign;
 		FakeDecoder_Counts() = FakeDecoderCounts();
@@ -330,6 +338,33 @@ int main()
 			"a decoder of the test's own, registered first: never fed a sample (" + std::to_string(FakeDecoder_Counts().fed) + "), and " +
 			(throughOurs ? "the picture read through the editor's own choice" : "the read refused by name: " + why));
 		FakeDecoder_Unregister(&own);
+
+		// CARD 2c (Dietrich 2026-11-23, Bishop 2: alpha.6's first security job; cards-after-alpha5.md 2c, "the one window left" closed): THE DECODERS ARE
+		// DRIVEN BY THE EDITOR ITSELF. The reader hands out the streams' compressed samples, and the editor feeds them to the decoders MediaParsers_ChooseDecoder
+		// made and typed, so the reader makes NO decoder at all and none of Media Foundation's choosing is ever made. Planted for this process: a decoder that
+		// refuses every type (as our decoder refusing the reader's type would: Media Foundation then goes on to the next), the next one, which would take the
+		// H.264 picture, and one that would take the AAC sound. A read makes none of the three, and reads the clip, picture and sound
+		{
+			static RefusingFactory refusingPicture;
+			static FakeDecoderFactory nextPicture;
+			static SoundTakingFactory nextSound;
+			MFT_REGISTER_TYPE_INFO const h264[2] = { { MFMediaType_Video, MFVideoFormat_H264 }, { MFMediaType_Video, MFVideoFormat_H264_ES } };
+			MFT_REGISTER_TYPE_INFO const aac = { MFMediaType_Audio, MFAudioFormat_AAC };
+			FakeDecoder_Counts() = FakeDecoderCounts();
+			bool const planted = SUCCEEDED(MFTRegisterLocal(&refusingPicture, MFT_CATEGORY_VIDEO_DECODER, L"refuses the reader's type", MFT_ENUM_FLAG_SYNCMFT, 2, h264, 0, nullptr)) &&
+				SUCCEEDED(FakeDecoder_Register(&nextPicture)) &&
+				SUCCEEDED(MFTRegisterLocal(&nextSound, MFT_CATEGORY_AUDIO_DECODER, L"a sound decoder that isn't Microsoft's (the test's own)", MFT_ENUM_FLAG_SYNCMFT, 1, &aac, 0, nullptr));
+			clip = host::VideoImportClip();
+			result = host::VideoImport_ReadBytes(mp4Bytes, L"video/mp4", host::VideoImportFit::Fit, &clip, &why, 60);
+			FakeDecoderCounts const counts = FakeDecoder_Counts();
+			Check(planted && counts.made == 0 && counts.typed == 0 && counts.fed == 0, "three decoders planted for this process (one refusing every type, the next for H.264, one for AAC): "
+				"the read makes NONE of them (made " + std::to_string(counts.made) + ", typed " + std::to_string(counts.typed) + ", fed " + std::to_string(counts.fed) + ")");
+			Check(result == host::VideoImportResult::Done && clip.frameCount > 0 && !clip.sound.empty(), "and the clip is read, picture and sound, through the decoders the editor "
+				"chose and drives itself (" + why + ")");
+			MFTUnregisterLocal(&refusingPicture);
+			FakeDecoder_Unregister(&nextPicture);
+			MFTUnregisterLocal(&nextSound);
+		}
 
 		// A BYTE-STREAM HANDLER OF THE TEST'S OWN for video/mp4: the editor never asks it (it makes the source from Windows' own handler, never the resolver's choice)
 		static PlantedActivate planted;

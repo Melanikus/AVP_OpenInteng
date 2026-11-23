@@ -144,7 +144,9 @@
 #include "first_launch_screen.h"   // the first-launch setup: no game found, so the user is asked where it is
 #include "video_drop.h"          // kVideoDropTag: the harness's drop-file
 #include "video_mode.h"          // VideoMode_Browse: the Video screen's Load > Browse...
+#include "texture_import_screen.h"   // TextureImportScreen_Browse: Texture Map's Import > Import texture...
 #include "all_stock_maps_screen.h"   // Waypoint > Alien auto waypoint > All stock maps: its menu waits, its Esc
+#include "shapes_start_screen.h"     // shapes part 3: the FOUND form at the start, the player's maps searched for object shapes, one a frame
 #include "video_mode_screen.h"   // the owner's Video mode, its screen: its panels, its picture, its presses, its drops
 #include "editor_actions.h"
 #include "hidden_objects.h"
@@ -215,6 +217,7 @@
 #include "track_pages.h"
 #include "editor_options.h"
 #include "shape_chooser.h"
+#include "shape_picker_screen.h"   // the placement picker: Create > With shape > Choose (Vasquez 2026-11-23)
 #include "shape_rescale_edit.h"
 #include "shape_import.h"
 #include "shape_search.h"     // Quick-create's lookup order: ShapeFolder=, the game's Tools\shape_rifs, the game's shape_rifs
@@ -5282,6 +5285,13 @@ void PlacementTextLines(std::vector<HierarchyTextLine> *out)
 {
 	out->clear();
 
+	// THE PLACEMENT PICKER UP: none of Object Placement's lines (View Distance, Num Objects, Visible polygons ...), which drew over its first row. inteng's
+	// chooser, which the picker stands in for, was a pop-up: while one is up inteng's frame waits at the mode's command step, before this text (editor_panels.cpp)
+	if (ShapePickerScreen_IsOpen())
+	{
+		return;
+	}
+
 	// the live Snap To Vertex's words (0x5e8364, three lines) at x 20, y = the window's height - 60 (0x4dc6f9-0x4dc73f), a new line the letters' height (16) down
 	if (snapLive && !snapForSurface && snapViewHeight > 60)   // (placement mode, ours, says its words on the status line)
 	{
@@ -6763,6 +6773,11 @@ void RunAction(int32_t id)
 		host::VideoMode_Browse(editorWindow);   // the Video screen's Load > Browse...: Windows' own Open dialog, the file taken as a drop of one (video_mode.h)
 	}
 
+	if (host.textureImport)
+	{
+		host::TextureImportScreen_Browse();   // Texture Map's Import > Import texture...: Windows' own Open dialog, the picture taken as a drop of one (texture_import_screen.h)
+	}
+
 	if (host.fixTears != 0)
 	{
 		FixTearsStart(host.fixTears == 2);
@@ -8214,6 +8229,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				return 0;
 			}
 
+			// and the placement picker takes every key while it is open, a dialog or the name's prompt aside (shape_picker_screen.h)
+			if (ShapePickerScreen_IsOpen() && message == WM_KEYDOWN && !host::Dialogs_IsOpen() && promptFor == kPromptNone && ShapePickerScreen_Key(wParam))
+			{
+				return 0;
+			}
+
 			// M-3 (bar_letter.h; reassess/bible-check.md): while the bar waits (Control held, or the pointer on it; not over a Strategy Edit view, nor Texture Map's own bars, FUN_0057b6f0) and
 			// nothing else has the keyboard, a letter that is a first-row title's underlined one opens that title as a press on it would (inteng's FUN_004b7740, 0x4b7fb0), and is taken
 			if (message == WM_KEYDOWN && !(lParam & (1 << 30)) && !AMenuIsOpen() && !(fieldsHaveKeys && fieldHost.Showing()) && promptFor == kPromptNone && !host::Dialogs_IsOpen() &&
@@ -8702,6 +8723,15 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				POINT const chosen = InThePanels(window, lParam);
 
 				TextureChooserClick(chosen.x, chosen.y);
+				return 0;
+			}
+
+			// the placement picker takes a press: the tile under it is selected, or placed when it was (shape_picker_screen.h)
+			if (ShapePickerScreen_IsOpen() && !host::Dialogs_IsOpen() && promptFor == kPromptNone)
+			{
+				POINT const pressed = InThePanels(window, lParam);
+
+				ShapePickerScreen_Click(pressed.x, pressed.y);
 				return 0;
 			}
 
@@ -9231,6 +9261,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 		case WM_MOUSEWHEEL:
 			if (ADialogIsOpen() && host::Dialogs_Wheel((int32_t)GET_WHEEL_DELTA_WPARAM(wParam)))   // an open combo list scrolls (dialog_box.h); the editor had no use for the wheel before
 			{
+				return 0;
+			}
+
+			if (ShapePickerScreen_IsOpen() && !ADialogIsOpen())
+			{
+				ShapePickerScreen_Wheel((int)GET_WHEEL_DELTA_WPARAM(wParam));   // the placement picker's rows (shape_picker_screen.h)
 				return 0;
 			}
 
@@ -14083,6 +14119,11 @@ void AddSpecialMarkers(const ui::PanelLayout &layout, host::PaintText *lines, si
 		return;
 	}
 
+	if (ShapePickerScreen_IsOpen())
+	{
+		return;   // the placement picker covers the view: no level marker or label through its grid (its first acceptance run showed "sound sound11" there)
+	}
+
 	if (placementSplit)
 	{
 		return;
@@ -14216,6 +14257,8 @@ static void AddThePanels(void *context)
 		{
 			TextureChooserDraw(frame->width, frame->height);
 		}
+
+		ShapePickerScreen_Frame(frame->width, frame->height);   // the placement picker's grid, while it is open (shape_picker_screen.h)
 
 		if (onTextureMap && textureFlagList && !textureFlagLines.empty())
 		{
@@ -14513,6 +14556,17 @@ void DeleteLinks_ForgetLevel();  // editor_screen_keys.cpp
 static std::string reopenOutsideShapesWords;
 
 // level_reopen.h. The close and the open are main()'s own; between them, what nothing else lets go of from one level to the next
+// SHAPES PART 3 (shapes_start_screen.h): the level just opened, by the file the game read it from, joins the search for object shapes
+static void ShapesSearchTheOpenedLevel()
+{
+	char opened[MAX_PATH] = "";
+
+	if (LevelView_FilePath(opened, sizeof(opened)))
+	{
+		host::ShapesStartScreen_LevelOpened(opened);
+	}
+}
+
 bool LevelReopen_Open(char const *levelName, std::string *why)
 {
 	char ownFolder[MAX_PATH];
@@ -14559,7 +14613,65 @@ bool LevelReopen_Open(char const *levelName, std::string *why)
 		return false;
 	}
 
+	ShapesSearchTheOpenedLevel();   // a level opened again joins the search for object shapes (shapes_start_screen.h)
 	return true;
+}
+
+// SHAPES PART 3 (shapes_start_screen.h, Drake's condition): after the first search wrote shapes, the open level is opened again so they are drawn, as All
+// stock maps opens a level (level_reopen.h): only when nothing runs on it and it has no changes not saved; else the status line says how to see them
+static void ShapesReopenTheLevel()
+{
+	if (host::AllStockMaps_Busy() || host::AllStockMaps_ChangesNotSaved() || AutoPlotCommand_Busy() || AutoLinkRunning() || DeleteLinksRunning())
+	{
+		statusWords.Say("Shapes: new object shapes written; open the level again to see them (it has changes not saved, or something runs on it)", StatusSayer::Other);
+		return;
+	}
+
+	// THE PLAYER'S VIEW KEPT (Drake's review of 6fda3ba5, SHOULD 1): the open sets the camera, its slots and the Gouraud switch as inteng's first frame has
+	// them (OpenTheLevel: all at the origin, Gouraud off). This reopen is the editor's own, not the player's, so the view they had is put back after it, as
+	// All stock maps puts its camera back (all_stock_maps_host.cpp PutTheCameraBack); the slots and the switch too, which a Yes must never wipe.
+	// (the slots' count is the arrays' own, so a change to it can't miss one: Drake's nit)
+	size_t const slotCount = sizeof(cameraSlots) / sizeof(cameraSlots[0]);
+	static_assert(sizeof(cameraSlots) / sizeof(cameraSlots[0]) == sizeof(cameraSlotSet) / sizeof(cameraSlotSet[0]), "a camera slot and its set flag, one each");
+	FlyCamera const camera = theCamera ? *theCamera : FlyCamera();
+	FlyCamera slots[sizeof(cameraSlots) / sizeof(cameraSlots[0])];
+	bool slotsSet[sizeof(cameraSlotSet) / sizeof(cameraSlotSet[0])];
+	bool const gouraudOn = ViewToggles_Now().gouraud == host::Gouraud::On;
+
+	for (size_t s = 0; s < slotCount; s++)
+	{
+		slots[s] = cameraSlots[s];
+		slotsSet[s] = cameraSlotSet[s];
+	}
+
+	std::string const name = openLevelName;   // (a copy: the open writes openLevelName)
+	std::string why;
+
+	// A failed open leaves the editor holding NO level, and its caller opens the level before again (level_reopen.h): here that is this same level, so the
+	// second call IS that open again (Drake's SHOULD 2). Both failing: the status line says so.
+	bool const opened = LevelReopen_Open(name.c_str(), &why) || LevelReopen_Open(name.c_str(), &why);
+
+	if (!opened)
+	{
+		statusWords.Say(("Shapes: the level couldn't be opened again to show its new shapes: " + why).c_str(), StatusSayer::Other);
+		return;
+	}
+
+	if (theCamera)
+	{
+		*theCamera = camera;
+	}
+
+	for (size_t s = 0; s < slotCount; s++)
+	{
+		cameraSlots[s] = slots[s];
+		cameraSlotSet[s] = slotsSet[s];
+	}
+
+	if (gouraudOn && ViewToggles_Now().gouraud != host::Gouraud::On)
+	{
+		ViewToggles_UseNow(host::ViewToggle::GouraudSwitch);
+	}
 }
 
 int main(int, char **)
@@ -15006,6 +15118,7 @@ int main(int, char **)
 	host::AutoPlotClosers_Load(layoutSettingsFile);   // the gap closers' switch (autoplot_closers.h): AutoPlotClosers=1, a scored candidate, off unless asked
 	host::AutoPlot_SetShown(GetPrivateProfileIntA("Editor", "AutoPlot", 0, layoutSettingsFile) == 1);   // the owner's "hide auto pilot" (11-19): Waypoint's Auto-plot items only with AutoPlot=1 (autoplot_switch.h)
 	host::PlotPreview_SetOn(GetPrivateProfileIntA("Editor", "PlotPreview", 1, layoutSettingsFile) != 0);   // THE PLOT'S PREVIEW: on unless the ini says 0 (Frost's timing)
+	AutoPlotCommand_SetModuleBudget((size_t)GetPrivateProfileIntA("Editor", "AutoPlotMostModuleLooks", 0, layoutSettingsFile));   // THE PLOT'S BUDGET: only ever lowered (autoplot_command.h)
 
 	// THE TEXT SCALE (the owner's addition, text_scale.h): FontScale= in the same file, a plain number from 1 to 3 (1, inteng's own size, when it isn't there); anything else is refused
 	// and said, and the text stays inteng's size
@@ -15285,6 +15398,31 @@ int main(int, char **)
 	{
 		ReleaseDirect3D();
 		return Stop(why);
+	}
+
+	// SHAPES PART 3 (shapes_start_screen.h; the owner's Option C rule, Drake's spec): the FOUND form, or the search of the maps not yet searched, from the
+	// first frame. A hidden test run does none of it unless its ini says ShapesInTests=1 under [Editor], and that line is read ONLY in a hidden run, so a
+	// player's ini can't switch anything with it (Drake, 11-23)
+	{
+		char inTests[8] = "";
+		bool const testsAsk = pictureAfter && ReadSetting(settingsFile, "ShapesInTests", inTests, sizeof(inTests)) && strcmp(inTests, "1") == 0;
+		host::ShapesStartSetting shapes;
+		std::string own = folder;
+
+		while (own.size() > 3 && own.back() == '\\')
+		{
+			own.pop_back();
+		}
+
+		shapes.programFolder = own;
+		shapes.dataFolder = theGameFolder;
+		shapes.settingsFile = settingsFile;
+		shapes.fromIni = dataFolderWritten;
+		shapes.on = theGameFolder[0] && (!pictureAfter || testsAsk);
+		shapes.say = [](std::string const &words) { statusWords.Say(words.c_str(), StatusSayer::Other); };
+		shapes.reopen = ShapesReopenTheLevel;
+		host::ShapesStartScreen_Begin(shapes);
+		ShapesSearchTheOpenedLevel();
 	}
 
 	long frames = 0;
@@ -16228,6 +16366,8 @@ int main(int, char **)
 		StateLine_Add("plotmessage", AutoPlotCommand_MessageShown().empty() ? std::string("off") : AutoPlotCommand_MessageShown());   // the auto-plot's start message this frame drew
 		StateLine_Add("plotmessagebox", AutoPlotCommand_MessageBox().empty() ? std::string("off") : AutoPlotCommand_MessageBox());   // and its black box
 		StateLine_Add("allstockmaps", host::AllStockMaps_StateWords());   // All stock maps: busy or idle, level N of M, file, stage, the last verdict, the worst frame while plotting (all_stock_maps.h)
+		StateLine_Add("shapes", host::ShapesStartScreen_StateWords());   // shapes part 3: off, asking, not now, searching N of M, done and its words (shapes_start_screen.h)
+		ShapePickerScreen_StateFields();   // the placement picker: picker, pickerboxes, pickertiles, pickernotes (shape_picker_screen.h)
 		PlotPreviewView_Drawn();   // IN STEP WITH THE PLOT (plot_preview_view.h): the copy this frame showed is drawn, the plot's worker may go on
 
 		if (shotTo)
@@ -16976,6 +17116,7 @@ int main(int, char **)
 		}
 	}
 
+	host::ShapesStartScreen_AtClose();   // the list of maps searched, written if it changed since (an editor closed mid-search keeps what it searched)
 	CloseTheLevel(true, pictureAfter);
 	ReleaseDirect3D();
 	DestroyWindow(editorWindow);   // and the view's child window with it

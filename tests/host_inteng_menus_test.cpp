@@ -425,8 +425,9 @@ static void TestTheBuiltScreens()
 	};
 
 	// pages live for game kind 0, the titles on the first bar and on the second (row 2, page 0); Waypoint's first bar is inteng's 3 and ONE of ours, "Alien auto waypoint" (the named
-	// addition, checked by name below), and its second bar (mode 0's right-click pop-up) inteng's 3 and TWO of ours, Delete Waypoints and Delete All Waypoints (by name below too)
-	const Want wants[] = { { "Strategy Data", 6, 4, 8 }, { "Path", 2, 2, 6 }, { "Waypoint", 8, 4, 5 }, { "Texture Map", 7, 6, 11 }, { "Hierarchy", 2, 7, 7 }, { "Track Editing", 13, 3, 0 } };
+	// addition, checked by name below), and its second bar (mode 0's right-click pop-up) inteng's 3 and TWO of ours, Delete Waypoints and Delete All Waypoints (by name below too);
+	// Texture Map's first bar is inteng's 6 and ONE of ours, "Import" (the RIM import page's piece 2, 2026-11-23; by name below)
+	const Want wants[] = { { "Strategy Data", 6, 4, 8 }, { "Path", 2, 2, 6 }, { "Waypoint", 8, 4, 5 }, { "Texture Map", 7, 7, 11 }, { "Hierarchy", 2, 7, 7 }, { "Track Editing", 13, 3, 0 } };
 	bool counts = true, numbers = true, inBar = true;
 
 	for (const Want &want : wants)
@@ -493,6 +494,23 @@ static void TestTheBuiltScreens()
 
 	Check(named, "Waypoint's first bar: inteng's Mode, Entry points and Help, then the named addition \"Alien auto waypoint\" (Environment 0x7335, Modules 0x7334, All stock maps 0x7338, "
 		"each working), and no Auto-plot title");
+
+	// THE NAMED ADDITION on Texture Map's first bar (the RIM import page's piece 2, Dietrich 2026-11-23; plan-rim-import.md: "A Texture Map entry, Import texture..., for the
+	// same form"; menu-status.json extras): inteng's own six titles first and unchanged, then ONE menu of ours, "Import", whose one item "Import texture..." works (no tag,
+	// TextureImport: the Open dialog, then the form)
+	const IntengScreen *const textureMap = Built("Texture Map");
+	char const *const inteng[6] = { "Mode", "Options", "Misc", "Anim", "Copy Texturing", "Selection" };
+	bool imported = textureMap && textureMap->count == 7;
+
+	for (size_t m = 0; imported && m < 6; m++)
+	{
+		imported = strcmp(textureMap->menus[m].title, inteng[m]) == 0;
+	}
+
+	imported = imported && strcmp(textureMap->menus[6].title, "Import") == 0 && textureMap->menus[6].count == 1 &&
+		strcmp(textureMap->menus[6].items[0].name, "Import texture...") == 0 && textureMap->menus[6].items[0].work == IntengWork::TextureImport &&
+		textureMap->menus[6].items[0].tag == IntengTag::None;
+	Check(imported, "Texture Map's first bar: inteng's Mode, Options, Misc, Anim, Copy Texturing and Selection, then the named addition \"Import\" (Import texture..., working)");
 
 	// THE NAMED ADDITIONS on Waypoint's second bar (the owner 11-21, through Bishop: "be able to select and delete Waypoint mapping by module, group of modules or envronment",
 	// "Waypoint mode's bar"; waypoint_delete.h, menu-status.json extras): inteng's own three first and unchanged (Edit Module 0x19, Add Module 0x1a, Remove Module 0x1b), then

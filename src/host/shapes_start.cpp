@@ -198,13 +198,14 @@ namespace host
 
 			if (more)
 			{
-				refused->push_back(std::string(below) + ": " + std::to_string((unsigned long long)more) + " more .rif files not taken (at most " +
-					std::to_string((unsigned long long)kShapesStartMostAFolder) + " a folder)");
+				refused->push_back(std::string(below) + ": " + std::to_string((unsigned long long)more) + (more == 1 ? " more .rif file" : " more .rif files") +
+					" not taken (at most " + std::to_string((unsigned long long)kShapesStartMostAFolder) + " a folder)");
 			}
 
 			if (unsaid)
 			{
-				refused->push_back(std::string(below) + ": " + std::to_string((unsigned long long)unsaid) + " file names Windows' code page can't say, not taken");
+				refused->push_back(std::string(below) + ": " + std::to_string((unsigned long long)unsaid) + (unsaid == 1 ? " file name" : " file names") +
+					" Windows' code page can't say, not taken");
 			}
 		}
 

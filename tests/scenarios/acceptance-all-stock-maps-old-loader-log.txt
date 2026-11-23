@@ -1,0 +1,40 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, from the alpha.6 final round on f881cc47: acceptance-all-stock-maps-all ran its 22 levels to the end and FAILED only at
+# step 129, "nothing else under avp_rifs changed (1: breakout_p_errorlog.txt (changed))"; Bishop 2: the fix is in alpha.6). A LEVEL'S OLD ERRORLOG KEEPS ITS BYTES. The
+# game's loader writes <level>_errorlog.txt beside a level that loads with something refused (stock Breakout_P: its spaceship.RIM is in no fast file), over whatever
+# log of that name was there. The batch used to leave a log that was there before "alone", but by then the loader had written over it: on the owner's PC an old log
+# (the game's, or an earlier editor's) came out holding the batch's log. Now the batch keeps the old log's bytes before the open and puts them back after it, and
+# the loader's new log goes to the editor's logs\all-stock-maps\, as a log the open made does.
+# THE OLD LOG IS ONE THE GAME WROTE: its lines end in CRLF, so it starts with the game's own first line (avpx 3dc/level_log.h kLevelLogFirstLine); a log
+# that doesn't is "a file with that name the game didn't write", left alone by the game itself (the run of 15:48 on f881cc47, with \n line ends: no red).
+# THE REFUSAL, made every time: a second make-level takes breakout's line out of the data copy's fastfile\ffinfo.txt, so its pictures are in no fast
+# file and the loader refuses them and writes its log on each open (alone, breakout_p loaded with nothing refused and no log was written: the run of 15:2x on
+# f881cc47, which so showed no red; the 22-level run's refusal depends on what the levels before it left in the fast-file lookup).
+# HOW: its Breakout_P_errorlog.txt is replaced by a known old log (make-level), with a copy kept outside avp_rifs to compare, and the verifier's prepare keep=breakout_p
+# leaves breakout_p alone of the 22 (prepare restores the 32 campaign levels first, then takes the other 21 out, so the run says them SKIPPED; the first try, with the
+# 21 taken out by make-level before prepare, plotted them all). verify_all_stock_maps (Frost's) then checks everything under avp_rifs as the 22-level
+# run does: breakout_p changed behind its .rif.bak, nothing else changed, came or went.
+# RED on exe-cache/f881cc47.exe (the alpha.6 cut): the old log holds the loader's new log, and the verifier says breakout_p_errorlog.txt (changed).
+# timeout 1200
+# changes-data
+#ini AutoPlot=1
+make-level node -e "const fs=require('fs'),p=require('path');const d=process.argv[1],r=p.join(d,'avp_rifs');for(const f of fs.readdirSync(r)){if(f.toLowerCase()==='breakout_p_errorlog.txt')fs.rmSync(p.join(r,f))}const old='Aliens versus Predator: what the game said while loading a level\r\nLevel: Breakout_P\r\nAN OLD LOG, there before the run (acceptance-all-stock-maps-old-loader-log): the run must leave these bytes as they are\r\n';fs.writeFileSync(p.join(r,'Breakout_P_errorlog.txt'),old);fs.writeFileSync(p.join(d,'old-loader-log.txt'),old)" {datadir}
+make-level node -e "const fs=require('fs'),p=require('path');const f=p.join(process.argv[1],'fastfile','ffinfo.txt');const t=fs.readFileSync(f,'latin1');const keep=t.split(/\r?\n/).filter((l)=>!/^graphics\\envrnmts\\breakout;/i.test(l));if(keep.length!==t.split(/\r?\n/).length-1){process.exit(1)}fs.writeFileSync(f,keep.join('\r\n'),'latin1')" {datadir}
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+expect-screen Waypoint
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-allmaps-verifier/verify_all_stock_maps.exe prepare {datadir} C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs keep=breakout_p
+click-bar Alien auto waypoint > All stock maps
+expect-dialog All stock maps
+expect-dialog-checks off,off
+click-button Ok
+expect-no-dialog
+
+# ---- the one level kept, breakout_p, plotted and saved; the other 21 skipped
+wait-moving 600000 status (the report is open)
+expect-status All stock maps: 1 of 22 levels changed, 21 skipped
+
+# ---- the old log as it was, byte for byte; the loader's new log in the editor's own logs\all-stock-maps\ (made in the last 20 minutes, the level's, not the old one)
+verify node -e "const fs=require('fs');process.exit(Buffer.compare(fs.readFileSync(process.argv[1]),fs.readFileSync(process.argv[2]))===0?0:1)" {datadir}/avp_rifs/Breakout_P_errorlog.txt {datadir}/old-loader-log.txt
+verify node -e "const fs=require('fs'),p=require('path');const d=process.argv[1];const now=Date.now();const got=fs.existsSync(d)&&fs.readdirSync(d).some((f)=>{const s=fs.statSync(p.join(d,f));const t=fs.readFileSync(p.join(d,f),'latin1');return /^breakout_p_errorlog-\d{8}-\d{6}\.txt$/i.test(f)&&now-s.mtimeMs<1200000&&/Level: breakout_p/i.test(t)&&!t.includes('AN OLD LOG')});process.exit(got?0:1)" {exedir}logs/all-stock-maps
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-allmaps-verifier/verify_all_stock_maps.exe after {datadir} C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs log {exedir}settings\avp_log.txt

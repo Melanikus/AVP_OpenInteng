@@ -393,13 +393,18 @@ namespace host
 		return false;
 	}
 
-	bool AutoPlotGrid_Way(int32_t const from[3], int32_t const to[3], bool alien, std::vector<AutoPlotPoint> *way, std::string *why)
+	bool AutoPlotGrid_Way(int32_t const from[3], int32_t const to[3], bool alien, std::vector<AutoPlotPoint> *way, std::string *why, size_t *looks)
 	{
 		std::lock_guard<std::mutex> hold(gridLock);
 		std::string reason;
 		NpcGrid *const grid = ReadyGrid(&reason);
 
 		way->clear();
+
+		if (looks)
+		{
+			*looks = 0;
+		}
 
 		if (!grid)
 		{
@@ -428,6 +433,11 @@ namespace host
 		for (size_t round = 0; round < kAutoPlotMostLooks / 20000 + 4 && answer == kNpcGridSearching; round++)
 		{
 			answer = grid->Work(20000);
+		}
+
+		if (looks)
+		{
+			*looks = grid->LastSearchLooks();
 		}
 
 		if (answer != kNpcGridFound)

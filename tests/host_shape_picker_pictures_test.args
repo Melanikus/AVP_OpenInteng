@@ -1,0 +1,8 @@
+/std:c++17 /EHsc /MD /J /we4834 /W3 /sdl /FC /O2 /fp:fast /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE
+/Isrc/host /Isrc/model /Iavpx/3dc
+tests/host_shape_picker_pictures_test.cpp
+src/host/shape_picker_pictures.cpp
+avpx/3dc/RimLoader.cpp
+avpx/3dc/FileStream.cpp
+avpx/3dc/FastFile.cpp
+avpx/3dc/MurmurHash3.cpp

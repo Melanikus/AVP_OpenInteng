@@ -140,7 +140,8 @@ static void TheWords()
 	Check(Has(found, "Around it, in C:\\Program Files (x86)\\Steam\\steamapps\\common\\Aliens versus Predator Classic, it found 63 levels and 23 HUD files."),
 		"3. what it found around it: \"found 63 levels and 23 HUD files\"");
 	Check(Has(found, "Open Inteng can make the object shapes from your game's 63 levels, into C:\\Program Files (x86)\\Steam\\steamapps\\common\\Aliens versus "
-		"Predator Classic\\shape_rifs, once. Nothing there is replaced. Make them now?"), "the shapes question, with the folder they go into");
+		"Predator Classic\\shape_rifs, and from any new map it finds later, without asking again. Nothing there is replaced. Make them now?"),
+		"the shapes question, with the folder they go into and what Yes means from then on (Drake's SHOULD 1)");
 
 	FirstLaunchFacts ini = Found();
 	ini.fromIni = true;

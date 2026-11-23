@@ -1,0 +1,16 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, the RIM import page's piece 2, plan-rim-import.md: "A Texture Map entry, Import texture..., for the same form"): Texture
+# Map's first bar has a menu of ours, Import, and its one item is "Import texture...". The item opens Windows' own Open dialog for one picture, and the picture
+# picked goes through the drop's own checks to the form (texture_import_screen.cpp TextureImportScreen_Browse): that path is acceptance-texture-import's. The dialog
+# itself isn't driven: no scenario drives Windows' Open dialog, and a hidden run must never show one on the owner's screen.
+# RED on exe-cache/74dab373.exe (the page's piece 1: no Import menu on Texture Map's bar).
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+item 0x46
+expect-screen Texture Map
+expect-field-has bar1 |Import
+click-bar Import
+expect-field-has dropboxes Import texture...~
+key Esc
+wait 300
+expect-screen Texture Map

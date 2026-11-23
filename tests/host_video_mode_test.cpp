@@ -182,6 +182,15 @@ static bool AnswerNumber(std::string const &typed)
 	return true;
 }
 
+// a wide name in the system's letters, for the checks' words and for ReadAll
+static std::string Narrow(std::wstring const &wide)
+{
+	char narrow[MAX_PATH * 2] = {};
+
+	WideCharToMultiByte(CP_ACP, 0, wide.c_str(), -1, narrow, (int)sizeof(narrow), nullptr, nullptr);
+	return narrow;
+}
+
 static std::string ReadAll(std::string const &path)
 {
 	std::string bytes;
@@ -359,8 +368,80 @@ int main()
 
 	Check(encodes == 0, "no film was made: every No made nothing");
 
+	// ---- ONE PREVIEW FILM PER EDITOR (card 2d, cards-after-alpha5.md; Dietrich 2026-11-23, Bishop 2: in alpha.6). Two editors previewing at once (run-shards'
+	// shards, or the owner's two windows) shared one %TEMP%\AVP_OpenInteng-video-preview\preview.smk: the one playing it held it open, so the other's preview was
+	// refused, "Windows won't put the new file in place of preview.smk (error 5)" (the alpha.6 final rounds on b0e2f932 and f881cc47: acceptance-video-mode and
+	// -video-preview-over). Here two other editors' films are held open as a playing editor holds its own: the shared name of the editors before this fix, and
+	// another editor's own name (process id + 1: Windows' ids are multiples of 4, so no real process has it). A held file the test didn't make is never deleted.
+	puts("One preview film per editor:");
+	std::wstring const previews = host::VideoMode_PreviewFolder();
+	std::wstring const own = L"preview-" + std::to_wstring((unsigned long)GetCurrentProcessId()) + L".smk";
+	std::wstring const others[2] = { previews + L"\\preview.smk", previews + L"\\preview-" + std::to_wstring((unsigned long)GetCurrentProcessId() + 1) + L".smk" };
+	HANDLE holds[2] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE };
+	bool ours[2] = { false, false };
+
+	CreateDirectoryW(previews.c_str(), nullptr);
+
+	for (int i = 0; i < 2; i++)
+	{
+		holds[i] = CreateFileW(others[i].c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+		ours[i] = holds[i] != INVALID_HANDLE_VALUE;
+		holds[i] = ours[i] ? holds[i] : CreateFileW(others[i].c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+	}
+
+	Check(!previews.empty() && holds[0] != INVALID_HANDLE_VALUE && holds[1] != INVALID_HANDLE_VALUE, "two other editors' films held open, as a playing editor holds its own");
+
+	std::string const named = Narrow(host::VideoMode_PreviewName());
+
+	Check(named == Narrow(own), "this editor's film is named for it: " + Narrow(own) + " (it is \"" + named + "\")");
+
+	std::vector<uint8_t> const film(4096, 0x5a);
+	std::string putWhy;
+	bool const put = host::VideoMode_PutPreview(film, &putWhy);
+
+	Check(put, "with them held, this editor's preview is put in place (" + putWhy + ")");
+	Check(put && ReadAll(Narrow(previews + L"\\" + own)) == std::string(4096, (char)0x5a), "and its film is the one made, byte for byte");
+
 	host::VideoMode_Leave();
 	Check(host::VideoMode_View().phase == host::VideoModePhase::Empty, "Mode > Exit: the video let go");
+	Check(GetFileAttributesW((previews + L"\\" + own).c_str()) == INVALID_FILE_ATTRIBUTES, "and Mode > Exit (also the editor's end) takes this editor's film away");
+	Check(GetFileAttributesW(others[0].c_str()) != INVALID_FILE_ATTRIBUTES && GetFileAttributesW(others[1].c_str()) != INVALID_FILE_ATTRIBUTES,
+		"the other editors' films are left where they are");
+
+	for (int i = 0; i < 2; i++)
+	{
+		if (holds[i] != INVALID_HANDLE_VALUE)
+		{
+			CloseHandle(holds[i]);
+		}
+
+		if (ours[i])
+		{
+			DeleteFileW(others[i].c_str());
+		}
+	}
+
+	DeleteFileW((previews + L"\\" + own).c_str());
+
+	// ---- A TEMP FOLDER LONGER THAN A PATH (found 2026-11-23 while moving the code above into VideoMode_PreviewFolder): by its contract GetTempPathW gives back
+	// the size it NEEDS when the folder doesn't fit its buffer, and the code took that size as the folder's length, which would read past the buffer's end.
+	// MEASURED here (Windows 11, 2026-11-23): a TMP of 304 letters is passed over and TEMP's folder given (66 letters with the preview's own), so that size
+	// doesn't come back on this Windows and the read can't be made to happen: the guard is defensive. This holds what is promised either way: the folder given
+	// is at most a path's length plus the preview folder's own name.
+	puts("A temp folder longer than a path:");
+	{
+		static wchar_t keptTmp[32768] = {};
+		DWORD const hadTmp = GetEnvironmentVariableW(L"TMP", keptTmp, 32768);
+		std::wstring const longTmp = L"C:\\" + std::wstring(300, L'x') + L"\\";
+
+		SetEnvironmentVariableW(L"TMP", longTmp.c_str());
+
+		std::wstring const longFolder = host::VideoMode_PreviewFolder();
+
+		SetEnvironmentVariableW(L"TMP", hadTmp > 0 && hadTmp < 32768 ? keptTmp : nullptr);
+		Check(longFolder.size() <= MAX_PATH + wcslen(L"AVP_OpenInteng-video-preview"), "with a TMP of 304 letters the folder given is at most a path's length "
+			"plus the preview folder's name (" + std::to_string(longFolder.size()) + " letters: \"" + Narrow(longFolder) + "\")");
+	}
 
 	if (on)
 	{

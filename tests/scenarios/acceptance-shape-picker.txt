@@ -1,0 +1,82 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-23, THE PLACEMENT PICKER: the owner's wishlist item 8, "placeables ... will show in a AxB column little 3d thumbnails to pick
+# and place"; "The little 3d view picker shows that OR the shape_rifs, it's meant to be used when we're placing objects"; his answers 11-23: "Grid replaces it", "With
+# textures now"; Bishop 2's spec v1 with Vasquez's changes a-h, AvP-docs director/alpha6-wishlist.md item 8).
+# Object Placement > Create > With shape > Choose (0x32) opens the picker in place of inteng's one-at-a-time Shape Chooser (Replace shape keeps that one): a grid of
+# every shape file the editor's lookup order finds (ShapeFolder=, <game>\Tools\shape_rifs, <game>\shape_rifs: src/host/shape_search.h), only the first folder's file
+# of a name, each drawn small and textured from the 45-degree corner with its name under it. A file that can't be drawn shows its name and why, never skipped. A click
+# selects, a second places the way Quick-create does: the level's own shape by its NUMBER when the level holds that file's shape, else the file brought in.
+# THE SCENARIO'S OWN GAME FOLDER ({datadir}-picker-game, made by tests/scenarios/make_shape_game.cpp from the shard's stock copy, with its fastfile archives, where every
+# stock texture is): Invasion; pulam.rif (made from Statue by the editor's own extractor) in <game>\Tools\shape_rifs AND in <game>\shape_rifs (one name twice: only the
+# Tools one is shown, it comes first); pulam_cut.rif in <game>\shape_rifs, the first half of pulam.rif only (HOSTILE: its chunks run past its end); timdesk.rif (made
+# from Invasion itself, which holds that shape) in <game>\shape_rifs. Both textures are archive members: pulam's Common\Pikup.rim (Tex1.FFL), timdesk's
+# Envrnmts\Invasion\4 Metal Textures.RIM (Tex18.FFL), measured 11-23 with AvP-docs tools/vasquez/ffl-names.js.
+# THE TILES' WORDS (the state line's pickertiles, "<name>: <where>[; ...]|..."): where it came from (shape_search's label), "in this level", "N parts", "textures <k> of
+# <n>", "can't be drawn: <why>". picker: "cols <a> rows <b> count <n> drawn <d> failed <f>"; pickerboxes: each tile on screen, "<name>~<x> <y> <w> <h>".
+# THE PICKER IS OVER THE VIEW on Object Placement's screen (as the texture chooser is on Texture Map's), not a screen of its own: the state line's picker field says it is
+# open ("open cols ...") or "closed".
+# RED on 68b2b059's exe: Choose opens inteng's Shape Chooser (screen Shape Chooser, no picker field: expect-field-has picker open fails).
+#ini DataFolder={datadir}-picker-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
+level {datadir}-picker-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- THE PICKER, in place of inteng's chooser: three tiles, each drawn, the hostile one named with why
+item 0x32
+expect-field-has picker open
+wait-field picker drawn 2 20000
+expect-field-has picker count 3
+expect-field-has picker failed 1
+expect-field-has pickertiles pulam: the game's Tools\shape_rifs; textures
+expect-field-has pickertiles timdesk: the game's shape_rifs; in this level; textures
+# the pictures themselves: each tile's one texture read from the game's archives (Tex1.FFL and Invasion's own), on the picker's allowance (Melanikus/AvP #293)
+expect-field-has pickertiles pulam: the game's Tools\shape_rifs; textures 1 of 1
+expect-field-has pickertiles timdesk: the game's shape_rifs; in this level; textures 1 of 1
+expect-field-has pickertiles pulam_cut: the game's shape_rifs; can't be drawn:
+expect-field-not-has pickertiles |pulam: the game's shape_rifs
+picture 1
+expect-tile-drawn pulam
+expect-tile-drawn timdesk
+
+# ---- a shape the level holds: placed by its NUMBER (no second copy of timdesk's shape)
+click-tile timdesk twice
+expect-dialog Name Object
+type pickedDesk
+key Enter
+expect-no-dialog
+expect-screen Object Placement
+expect-status Object pickedDesk made at the view
+picture 2
+
+# ---- a file the level doesn't hold: brought in from the folder it was shown from
+item 0x32
+expect-field-has picker open
+wait-field picker drawn 2 20000
+click-tile pulam twice
+expect-dialog Name Object
+type pickedAmmo
+key Enter
+expect-no-dialog
+expect-status Object pickedAmmo made at the view
+expect-status its shape pulam.rif came from the game's Tools\shape_rifs
+picture 3
+
+# ---- the hostile file: a click says why, nothing is made, the picker stays; Escape leaves it
+item 0x32
+expect-field-has picker open
+wait-field picker drawn 2 20000
+click-tile pulam_cut twice
+expect-field-has picker open
+expect-status pulam_cut can't be placed
+expect-no-dialog
+key Esc
+expect-screen Object Placement
+expect-field-has picker closed
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {orig} shapefiles timdesk|1 shapefiles pulam|0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept pickedDesk kept pickedAmmo gone pulam_cut shapefile pickedDesk|timdesk shapefile pickedAmmo|pulam shapefiles timdesk|1 shapefiles pulam|1

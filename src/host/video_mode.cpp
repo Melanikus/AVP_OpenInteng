@@ -351,15 +351,10 @@ namespace
 
 		if (ended->saveNumber < 0)
 		{
-			// PREVIEW: the film in a scratch place of the editor's own, played by Barry's decoder where the screen says
-			wchar_t temp[MAX_PATH + 1] = {};
-			DWORD const length = GetTempPathW(MAX_PATH, temp);
-			std::wstring const scratch = std::wstring(temp, length) + L"AVP_OpenInteng-video-preview";
+			// PREVIEW: the film in a scratch place of the editor's own (VideoMode_PutPreview), played by Barry's decoder where the screen says
 			std::string why;
 
-			CreateDirectoryW(scratch.c_str(), nullptr);
-
-			if (length == 0 || !host::Smk_Replace(scratch + L"\\preview.smk", ended->smk, &why))
+			if (!host::VideoMode_PutPreview(ended->smk, &why))
 			{
 				Say("Not previewed: the film couldn't be put in its scratch place" + (why.empty() ? std::string() : ": " + why));
 				return;
@@ -367,11 +362,13 @@ namespace
 
 			std::string playWords;
 			char narrow[MAX_PATH * 2] = {};
+			char name[MAX_PATH] = {};
 
-			WideCharToMultiByte(CP_ACP, 0, scratch.c_str(), -1, narrow, (int)sizeof(narrow), nullptr, nullptr);
+			WideCharToMultiByte(CP_ACP, 0, host::VideoMode_PreviewFolder().c_str(), -1, narrow, (int)sizeof(narrow), nullptr, nullptr);
+			WideCharToMultiByte(CP_ACP, 0, host::VideoMode_PreviewName().c_str(), -1, name, (int)sizeof(name), nullptr, nullptr);
 
 			// drawn ON THE SCREEN, under every panel, the bar and every dialog (the owner 11-22: Save pressed during a preview opened its form under the film)
-			bool const playing = previewPlace && host::FmvPreview_Start(std::string(narrow) + "\\", "preview.smk", layoutSettingsFile, previewPlace, &playWords,
+			bool const playing = previewPlace && host::FmvPreview_Start(std::string(narrow) + "\\", name, layoutSettingsFile, previewPlace, &playWords,
 				host::FmvPreviewLayer::UnderThePanels);
 
 			previewStarted = playing;
@@ -772,6 +769,43 @@ void host::VideoMode_SetPreviewPlace(FmvPreviewPlace const &place)
 	previewPlace = place;
 }
 
+std::wstring host::VideoMode_PreviewFolder()
+{
+	wchar_t temp[MAX_PATH + 1] = {};
+	DWORD const length = GetTempPathW(MAX_PATH, temp);
+
+	// GetTempPathW gives back 0 when it fails, and THE SIZE IT NEEDS, more than MAX_PATH, when the folder doesn't fit the buffer (then nothing is written in it):
+	// either way there is no folder, and the size is never used as the folder's length (it would read past temp's end). Found 2026-11-23; on Windows 11 a
+	// TMP of 304 letters is passed over for TEMP's folder (measured), so this guards what the function's contract allows, not a size seen here.
+	return length == 0 || length > MAX_PATH ? std::wstring() : std::wstring(temp, length) + L"AVP_OpenInteng-video-preview";
+}
+
+// ONE FILM PER EDITOR (card 2d, cards-after-alpha5.md; the alpha.6 final rounds on b0e2f932 and f881cc47): named for this editor's process, so two editors
+// previewing at once (run-shards' shards, the owner's two windows) never write over the film the other is playing; the one playing holds its own open, and
+// Windows refused the other's with error 5 when they shared preview.smk. Taken away again by VideoMode_Leave (Mode > Exit, and the editor's end).
+std::wstring host::VideoMode_PreviewName()
+{
+	return L"preview-" + std::to_wstring((unsigned long)GetCurrentProcessId()) + L".smk";
+}
+
+bool host::VideoMode_PutPreview(std::vector<uint8_t> const &smk, std::string *why)
+{
+	std::string notSaid;
+
+	why = why ? why : &notSaid;
+
+	std::wstring const scratch = VideoMode_PreviewFolder();
+
+	if (scratch.empty())
+	{
+		*why = "Windows gives no temp folder that fits a path";
+		return false;
+	}
+
+	CreateDirectoryW(scratch.c_str(), nullptr);
+	return Smk_Replace(scratch + L"\\" + VideoMode_PreviewName(), smk, why);
+}
+
 void host::VideoMode_Leave()
 {
 	if (job)
@@ -783,6 +817,15 @@ void host::VideoMode_Leave()
 
 	FmvPreview_Stop();
 	previewStarted = false;   // (Vasquez's read, 11-22: so no preview of another screen's could ever read as this mode's)
+
+	// this editor's preview film taken away, now the player has let it go (card 2d); another editor's is never touched
+	std::wstring const previews = VideoMode_PreviewFolder();
+
+	if (!previews.empty())
+	{
+		DeleteFileW((previews + L"\\" + VideoMode_PreviewName()).c_str());
+	}
+
 	heldBytes.reset();
 	heldType = nullptr;
 	heldInfo = VideoImportInfo();

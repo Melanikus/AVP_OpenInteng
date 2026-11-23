@@ -1893,6 +1893,26 @@ namespace host
 			funnelEntry = entryOf[(size_t)l];
 		}
 
+		// A GUARD, NOT A TESTED PATH (Dietrich 2026-11-23, Vasquez's review of 30697887, Bishop 2's call): a T's funnel entry still with no aim point here would have had
+		// its aim come out at (0, 0, 0), outside its own box, below. It takes its own box's middle, 100 under its ceiling face, and its doorway says so. NO KNOWN INPUT
+		// REACHES THIS: it needs no ceiling place nearest the funnel's doorway AND no bar entry to aim across from, and the second needs the bar with no climb side,
+		// which no T keeps (tried 11-23: a ceiling over nothing past the bar counts only in a room; a floor starting at the bar's line made the level "corridor, floor
+		// only"; a door on that side counts only as a lane, and a fourth lane is no T). So it can't be red first; it is here so that a level we haven't met can't put
+		// an aim outside its box
+		for (int const l : lanes)
+		{
+			if (entryOf[(size_t)l] < 0 || entryShape[(size_t)l] != 3 || !vols[(size_t)entryOf[(size_t)l]].centres.empty())
+			{
+				continue;
+			}
+
+			Vol &v = vols[(size_t)entryOf[(size_t)l]];
+
+			v.centres.push_back(std::vector<double>{ (v.lo[0] + v.hi[0]) / 2.0, v.lo[1] + kAutoPlotInto + kAutoPlotVolumeAimUnder, (v.lo[2] + v.hi[2]) / 2.0 });
+			plan.doorWords[(size_t)l] = "lane (a T's funnel: no ceiling place nearest this doorway and no bar entry to aim across from, so its aim is its own box's middle "
+				"under the ceiling)";
+		}
+
 		// HIGH: every SLOPED side of a doorway's floor (its climb side, and any other side with no doorway on it) over its upper face, its whole length, one piece for each
 		// entry over it (a corridor's halves: split at its middle), so an alien that climbs or jumps onto an upper face is always in a box (Frost's probe on hand5b: gencor03
 		// f=118 landed on the +z chamfer 2.1 m from the climb, in no box, and fell). Each piece up into ITS entry only: at the climb's top an alien is held by a piece and
@@ -2706,6 +2726,18 @@ namespace host
 		{
 			bool chosen = false;
 			int32_t first[3] = { 0, 0, 0 };
+
+			// A GUARD, NOT A TESTED PATH (as the T's funnel guard above): a box with no aim point made for it would keep first at (0, 0, 0), outside it. Its aim is its own
+			// box's middle instead, and the plan's notes say so. No known input reaches this either: every kind of box gets one aim point at least where it is made
+			if (vols[i].centres.empty())
+			{
+				for (int a = 0; a < 3; a++)
+				{
+					first[a] = plan.list[i].min[a] + (plan.list[i].max[a] - plan.list[i].min[a]) / 2;
+				}
+
+				plan.notes.push_back("box " + std::to_string((long long)i) + ": no aim point was made for it, so its aim is its own box's middle");
+			}
 
 			for (size_t k = 0; k < vols[i].centres.size() && !chosen; k++)
 			{

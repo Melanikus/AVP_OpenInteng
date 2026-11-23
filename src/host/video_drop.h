@@ -44,6 +44,10 @@ namespace host
 	// were handed over in all (the list may hold fewer: VideoDrop_FromHdrop's most)
 	bool VideoDrop_Check(std::vector<std::wstring> const &paths, size_t listed, std::wstring *path, std::string *why);
 
+	// THE SAME PATH RULES WITHOUT THE ENDING (Dietrich 2026-11-23, the RIM import page: a picture dropped on the window is checked as a film is, then by its own
+	// endings, texture_import_screen.h): everything VideoDrop_Check does but its list of video endings; what names the kind in its words ("one picture at a time")
+	bool VideoDrop_CheckPath(std::vector<std::wstring> const &paths, size_t listed, char const *what, std::wstring *path, std::string *why);
+
 	// The UTF-8 of a path, as the status line writes it (a character that can't be written comes out as '?')
 	std::string VideoDrop_Words(std::wstring const &path);
 }

@@ -23,6 +23,7 @@
 #include "panel_pass.h"     // PanelPass_MenuWidth, PanelPass_MenuFontHeight, kPanelPassLineHeight
 #include "state_line.h"
 #include "text_scale.h"     // the editor's own pixels to the window's
+#include "texture_import_screen.h"   // a picture dropped off the Video screen: the RIM import page
 #include "video_drop.h"
 #include "video_mode.h"
 #include "video_mode_layout.h"
@@ -408,13 +409,15 @@ void host::VideoModeScreen_DropHandle(void *drop, bool onTheScreen)
 	}
 
 	size_t more = 0;
-	std::vector<std::wstring> const paths = onTheScreen ? VideoDrop_FromHdrop((HDROP)drop, kMostDropped, &more) : std::vector<std::wstring>();
+	std::vector<std::wstring> const paths = VideoDrop_FromHdrop((HDROP)drop, kMostDropped, &more);
 
 	DragFinish((HDROP)drop);
 
+	// OFF THE VIDEO SCREEN, A PICTURE IS A TEXTURE (the RIM import page, texture_import_screen.h; the owner 11-23): its own checks, then its form; anything else is
+	// said where it goes (a film: Video mode)
 	if (!onTheScreen)
 	{
-		statusWords = "Drop a video in Video mode (Mode > Video)";
+		TextureImportScreen_Dropped(paths, paths.size() + more);
 		return;
 	}
 
@@ -423,13 +426,13 @@ void host::VideoModeScreen_DropHandle(void *drop, bool onTheScreen)
 
 void host::VideoModeScreen_DropText(char const *text, size_t bytes, bool onTheScreen)
 {
+	std::vector<std::wstring> const paths = text && bytes <= kMostDropText ? VideoDrop_FromHarness(text, bytes) : std::vector<std::wstring>();
+
 	if (!onTheScreen)
 	{
-		statusWords = "Drop a video in Video mode (Mode > Video)";
+		TextureImportScreen_Dropped(paths, paths.size());   // (as a real drop: a picture is a texture off the Video screen)
 		return;
 	}
-
-	std::vector<std::wstring> const paths = text && bytes <= kMostDropText ? VideoDrop_FromHarness(text, bytes) : std::vector<std::wstring>();
 
 	VideoMode_Dropped(paths, paths.size());
 }

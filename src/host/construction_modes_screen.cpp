@@ -140,7 +140,10 @@
 #include "track_pages.h"
 #include "editor_options.h"
 #include "shape_chooser.h"
+#include "shape_picker.h"          // ShapePicker_SafeName: the picker's shape name in the words
+#include "shape_picker_screen.h"   // Create > With shape > Choose: the placement picker
 #include "shape_rescale_edit.h"
+#include "shape_search.h"          // the picker's file brought in: the lookup order, judged again as Quick-create judges it
 #include "module_site.h"
 #include "shape_soften_edit.h"
 #include "module_data_edit.h"
@@ -354,9 +357,8 @@ size_t chooserAt = 0;
 static uint8_t chooserObject[host::kSelectionIdBytes];
 static std::string chooserWords;   // the status line's words (statusWords points at it)
 static size_t chooserBack = 0;   // the screen it was opened from: it goes back there (inteng: FUN_004d68e0, the placement screen)
-static bool chooserForCreate = false;   // opened by Create > With shape > Choose (a new object) and not by Replace shape (the selected object)
-static std::string createShapeName;     // the shape Create > Choose took, while the name is being asked (its row's name: the new object's name base)
-static int32_t createShapeNumber = -1;  // and that shape's NUMBER, which the object is made of (inteng's chooser answers with the number; Vasquez 2026-11-23)
+static std::string createShapeName;     // the shape Create > Choose took (the placement picker's tile), while the name is being asked: the new object's name base
+static int32_t createShapeNumber = -1;  // the level's shape of that NUMBER, which the object is made of (Vasquez 2026-11-23); -1: the file is brought in (the picker)
 
 static size_t ScreenOfTable(const char *table, size_t otherwise)
 {
@@ -406,17 +408,10 @@ static void ShapeChooserShow()
 static void ShapeChooserLeave(bool withShape, size_t *screen)
 {
 	std::string words = "Shape Chooser: left without a shape";
-	bool askName = false;
 
-	if (withShape && chooserActive && !chooserList.empty() && chooserForCreate)
-	{
-		// Create > With shape > Choose (FUN_004d9af0 0x4d9450-0x4d97be): the shape is chosen, then the NAME is asked
-		createShapeName = chooserList[chooserAt].name;
-		createShapeNumber = chooserList[chooserAt].number;
-		askName = true;
-		words = "Create: type a name for the new '" + createShapeName + "'";
-	}
-	else if (withShape && chooserActive && !chooserList.empty())
+	// (Create > With shape > Choose no longer opens this chooser: the placement picker does, shape_picker_screen.h; its shape is handed over by
+	// ShapeChooserCreateFromPicker, below)
+	if (withShape && chooserActive && !chooserList.empty())
 	{
 		OpenLevelFile *const open = LevelObjects_OpenForEdit();
 		host::ShapeChoice const chosen = chooserList[chooserAt];
@@ -472,42 +467,55 @@ static void ShapeChooserLeave(bool withShape, size_t *screen)
 
 	chooserWords = words;
 	statusWords = chooserWords.c_str();
-	chooserForCreate = false;
+}
 
-	if (askName)
-	{
-		OpenAPrompt(kPromptCreateName);
-	}
+// THE PLACEMENT PICKER'S SHAPE (shape_picker_screen.cpp), as inteng's chooser's Create once handed its shape over: then the NAME is asked ("Name Object", FUN_004d9af0
+// 0x4d9450-0x4d97be) and CreateNamedAtTheView makes the object. number: the level's own shape of that file, by its number; -1: the level holds none, so the file
+// is brought in from the folder the lookup order finds it in, judged again then, as Quick-create's Yes does
+void ShapeChooserCreateFromPicker(std::string const &name, int32_t number)
+{
+	createShapeName = name;
+	createShapeNumber = number;
+	chooserWords = "Create: type a name for the new '" + host::ShapePicker_SafeName(name) + "'";   // shown and on the state line: made safe (Drake's nit on df479439)
+	statusWords = chooserWords.c_str();
+	OpenAPrompt(kPromptCreateName);
 }
 
 // what: kChooserStart, kChooserStartCreate, kChooserWith or kChooserWithout. screen: the frame's screen number, changed here when the screen changes.
 void ShapeChooserCommand(int32_t what, size_t *screen)
 {
-	if (what == kChooserStart || what == kChooserStartCreate)
+	// CREATE > WITH SHAPE > CHOOSE opens THE PLACEMENT PICKER in place of inteng's one-at-a-time chooser (the owner, 2026-11-23: "Grid replaces it"; shape_picker.h):
+	// a grid of every shape file the lookup order finds, over the view on this screen. Replace shape (kChooserStart) keeps inteng's chooser, below.
+	if (what == kChooserStartCreate)
+	{
+		if (ShapePickerScreen_Open())
+		{
+			memset(keyDown, 0, sizeof(keyDown));   // a key held as it opened moves nothing (the picker takes every key while it is open)
+		}
+
+		return;
+	}
+
+	if (what == kChooserStart)
 	{
 		OpenLevelFile *const open = LevelObjects_OpenForEdit();
 		uint8_t id[host::kSelectionIdBytes] = {};
-		bool const forCreate = what == kChooserStartCreate;
-		char const *const who = forCreate ? "Create" : "Replace shape";
 
-		if (!open || !LevelObjects_Level() || (!forCreate && !SelectedObjectId(id)))
+		if (!open || !LevelObjects_Level() || !SelectedObjectId(id))
 		{
-			Answer(forCreate ? "Create: no level is held to work on" : "Replace shape: select a placed object first");
+			Answer("Replace shape: select a placed object first");
 			return;
 		}
 
-		if (!forCreate && !host::ShapeChooser_ObjectIsPlaced(LevelObjects_Level(), open, id))
+		if (!host::ShapeChooser_ObjectIsPlaced(LevelObjects_Level(), open, id))
 		{
 			Answer("Replace shape: only a placed object can be given another shape");
 			return;
 		}
 
-		chooserForCreate = forCreate;
-
 		if (host::ShapeChooser_List(LevelObjects_Level(), open, &chooserList) == 0)
 		{
-			chooserForCreate = false;
-			Answer(std::string(who) + ": the level holds no outside shapes to choose from");
+			Answer("Replace shape: the level holds no outside shapes to choose from");
 			return;
 		}
 
@@ -637,13 +645,36 @@ void CreateNamedAtTheView(std::string const &typed)
 
 	ViewFilePlace(place);
 
-	// the chosen row's own shape, by its NUMBER (inteng's chooser answers with DAT_00634004[number]): by its file's name, every part of one fragment file is one row
-	// name, and the file's first part was made (Vasquez 2026-11-23: office's "Game" row made "Aerosol")
-	host::ObjectMakeResult const result = host::CreateObjectFromShapeNumber(open, createShapeNumber, createShapeName.c_str(), place, matrix, newId, &autoName);
+	// the chosen shape: the level's own, by its NUMBER (inteng's chooser answers with DAT_00634004[number]: by its file's name, every part of one fragment file is one
+	// name, and the file's first part was made; Vasquez 2026-11-23, office's "Game" made "Aerosol"); or, for a placement picker's file the level doesn't hold
+	// (number -1), that file brought in from the folder the lookup order finds it in, judged again now, as Quick-create's Yes does (shape_search.h)
+	host::ShapeSearchFolder found;
+	bool const bringIn = createShapeNumber < 0;
+
+	if (bringIn)
+	{
+		std::string searchWhy;
+		host::ShapeSearchResult const searched = host::ShapeSearch_Find(host::ShapeSearch_Order(shapeFolderSetting, theGameFolder), createShapeName, &found, &searchWhy);
+
+		if (searched != host::ShapeSearchResult::Found)
+		{
+			quickCreateWords = createShapeName + ": " + searchWhy;
+			statusWords = quickCreateWords.c_str();
+			return;
+		}
+
+		LogString("Create: " + createShapeName + ".rif from " + found.path);
+	}
+
+	std::string importWhy;
+	host::ObjectMakeResult const result = bringIn ?
+		host::CreateObjectFromShape(open, createShapeName.c_str(), place, matrix, newId, &autoName, found.path.c_str(), &importWhy) :
+		host::CreateObjectFromShapeNumber(open, createShapeNumber, createShapeName.c_str(), place, matrix, newId, &autoName);
 
 	if (result != host::ObjectMakeResult::Done)
 	{
-		quickCreateWords = createShapeName + ": " + host::ObjectMakeWords(result);
+		quickCreateWords = createShapeName + ": " + host::ObjectMakeWords(result) + (importWhy.empty() ? "" : " (" + importWhy + ")") +
+			(bringIn ? " (its file was in " + found.label + ")" : "");
 		statusWords = quickCreateWords.c_str();
 		return;
 	}
@@ -667,6 +698,7 @@ void CreateNamedAtTheView(std::string const &typed)
 		quickCreateWords = "Object " + autoName + " made at the view; the name \"" + typed + "\" was refused: " + why;
 	}
 
+	quickCreateWords += bringIn ? "; its shape " + createShapeName + ".rif came from " + found.label : "";   // as Quick-create says it
 	statusWords = quickCreateWords.c_str();
 }
 

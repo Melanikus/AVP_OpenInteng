@@ -93,7 +93,7 @@
            none of the game's network libraries (ENet, mlkem, mldsa), its Bink decoder or its music libraries (the edge stands in for those).
            The map file lets tools\check-edge-link.js prove, from what the linker actually took, that no other library gave the program code. -->
       <!-- the Video mode: Windows' own Media Foundation and its Audio Resampler (video_import), and its Open dialog (Load > Browse...) -->
-      <AdditionalDependencies>winmm.lib;shell32.lib;d3d9.lib;user32.lib;xinput.lib;d3dx9.lib;OpenAL32.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;ole32.lib;wmcodecdspuuid.lib;comdlg32.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>winmm.lib;shell32.lib;d3d9.lib;user32.lib;xinput.lib;d3dx9.lib;OpenAL32.lib;mfplat.lib;mfreadwrite.lib;mfuuid.lib;ole32.lib;wmcodecdspuuid.lib;comdlg32.lib;wintrust.lib;crypt32.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VcpkgInstalledDir)$(VcpkgTriplet)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
@@ -120,6 +120,26 @@
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <!-- Parts of the editor moved whole out of editor_main.cpp so each file stays within what Snyk Code reads (editor_shared.h): built as it is -->
+    <ClCompile Include="..\..\src\host\image_import.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\rim_save.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\texture_import.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\texture_import_form.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\texture_import_screen.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="..\..\src\host\texture_map_screen.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -373,6 +393,22 @@
     <ClCompile Include="..\..\src\host\hierarchy_player.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\bitmap_add.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\image_fit.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\palette_quantize.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\model\rim_write.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\src\model\uv_project.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -828,13 +864,50 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_picker.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_picker_pictures.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_picker_screen.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="..\..\src\host\shape_search.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_thumb.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_thumb_render.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\src\host\shape_update.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- shapes part 3: the list of maps searched (Drake), the search one map a frame (Drake), the maps found and the read that is searched, the FOUND form and the editor's part (Frost) -->
+    <ClCompile Include="..\..\src\host\shapes_scanned.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shapes_start.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shapes_start_screen.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shapes_trigger.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\src\host\object_type_edit.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>

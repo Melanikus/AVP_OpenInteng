@@ -222,6 +222,7 @@ namespace
 		std::string name;                           // its head's name, for the progress words (taken as the run begins, so the frame never looks it up)
 		size_t stockAliens = 0;                     // Rebellion's own alien waypoints it held as the run began (not written: it keeps them; the end line's "kept Rebellion's")
 		double searchMs = 0.0, planMs = 0.0, writeMs = 0.0;   // THE RUN'S TIME (Bishop 11-21): the worker's searches, its plan and repair, the check and write
+		size_t searches = 0, looks = 0, mostLooks = 0;        // THE RUN'S WORK (11-23): its way searches, the cells they looked at, the most in one (AutoPlotGrid_Way)
 		double checkMs = 0.0, levelWriteMs = 0.0;             // the check and write's two parts: the checker (Waypoints_Check), its share of the level's one write
 		// THE ONE WRITE (Drake 11-21): the checker's findings, made before the write (ToWrite), and what the one write of every passed network did for this one
 		std::vector<host::WaypointProblem> problems, excepted;
@@ -282,6 +283,10 @@ namespace
 	// the worker only: no copies are made when it is off). Declared before workerEnd, so it is still there while workerEnd stops the worker at the program's end
 	host::AutoPlotHandOff handOff;
 	bool runPreview = false;
+	// THE BUDGET (autoplot_command.h kAutoPlotMostModuleLooks): the setting (only ever lowered), and the run's copy of it, taken as runPreview is (set on this
+	// thread before the worker starts, read by the worker only)
+	size_t moduleBudget = host::kAutoPlotMostModuleLooks;
+	size_t runBudget = host::kAutoPlotMostModuleLooks;
 	double const kAutoPlotShownEveryMs = 50.0;   // the search's ways handed over at most this often (the owner's choice (a): "drawn as they're found")
 	// the run's frames and the preview's drawing, for the whole plot's time line
 	size_t plotFrames = 0;
@@ -771,17 +776,31 @@ namespace
 					}
 				};
 
-				for (size_t a = 0; a < job.goals.size() && pairs < host::kAutoPlotMostPairs && !stopAsked; a++)
+				// THE BUDGET (kAutoPlotMostModuleLooks): once this module's searches have looked at more cells than the run's budget, it searches no more
+				bool overBudget = false;
+
+				for (size_t a = 0; a < job.goals.size() && pairs < host::kAutoPlotMostPairs && !stopAsked && !overBudget; a++)
 				{
-					for (size_t b = a + 1; b < job.goals.size() && pairs < host::kAutoPlotMostPairs && !stopAsked; b++, pairs++)
+					for (size_t b = a + 1; b < job.goals.size() && pairs < host::kAutoPlotMostPairs && !stopAsked && !overBudget; b++, pairs++)
 					{
 						for (bool const alien : { true, false })
 						{
+							if (overBudget)
+							{
+								break;
+							}
+
 							std::vector<host::AutoPlotPoint> points;
 							std::string why;
 
 							std::vector<std::vector<int32_t> > const &goals = alien && job.alienGoals.size() == job.goals.size() ? job.alienGoals : job.goals;
-							bool const found = host::AutoPlotGrid_Way(goals[a].data(), goals[b].data(), alien, &points, &why);
+							size_t looked = 0;
+							bool const found = host::AutoPlotGrid_Way(goals[a].data(), goals[b].data(), alien, &points, &why, &looked);
+
+							job.searches++;
+							job.looks += looked;
+							job.mostLooks = looked > job.mostLooks ? looked : job.mostLooks;
+							overBudget = job.looks > runBudget;
 
 							if (a < job.exitsWorld.size() && b < job.exitsWorld.size())
 							{
@@ -819,6 +838,24 @@ namespace
 							wayAt++;
 						}
 					}
+				}
+
+				// PAST THE BUDGET: the module is refused here, named with its numbers (the report's "<name> not written: stopped by the plot's budget: ..."), and
+				// nothing of it is planned or written; the next module is planned as usual
+				if (overBudget)
+				{
+					job.why = "stopped by the plot's budget: its way searches looked at " + std::to_string((unsigned long long)job.looks) + " cells in " +
+						std::to_string((unsigned long long)job.searches) + " searches, more than the " + std::to_string((unsigned long long)runBudget) +
+						" an AI module may" + (runBudget < host::kAutoPlotMostModuleLooks ? std::string(" (lowered by [Editor] AutoPlotMostModuleLooks)") :
+						std::string(" (the most of the 10,770 stock AI modules is 2,212,533)"));
+					job.searchMs = MsSince(searchFrom);
+
+					if (runPreview)
+					{
+						handOff.Finished(ShownCopy(job, j, ways, true, job.why), stopAsked);
+					}
+
+					continue;
 				}
 
 				// THE CLIMB STATIONS (Drake's AutoPlotGrid_ClimbStation): at each exit with a doorway's ceiling, where an alien coming from that neighbour lands (its exit point
@@ -1661,8 +1698,10 @@ namespace
 		for (Job const &job : jobs)
 		{
 			// ("check and write N ms" first, as Frost's timing-report.cjs reads it; then its two parts: the checker's, and the level's own write)
-			printf("AVP_OpenInteng: auto-plot: AI module %d (%s) took: search %.0f ms, plan %.0f ms, check and write %.0f ms (the check %.0f ms, the level's write %.0f ms)\n",
-				(int)job.head, job.name.c_str(), job.searchMs, job.planMs, job.writeMs, job.checkMs, job.levelWriteMs);
+			// (and its WORK after: its way searches, the cells they looked at, the most one looked at: the numbers its budget is set from)
+			printf("AVP_OpenInteng: auto-plot: AI module %d (%s) took: search %.0f ms, plan %.0f ms, check and write %.0f ms (the check %.0f ms, the level's write %.0f ms); "
+				"work: %zu searches, %zu cells looked at, the most in one %zu\n",
+				(int)job.head, job.name.c_str(), job.searchMs, job.planMs, job.writeMs, job.checkMs, job.levelWriteMs, job.searches, job.looks, job.mostLooks);
 			kept += !job.written && job.stockAliens > 0 ? 1 : 0;
 		}
 
@@ -2000,6 +2039,7 @@ void AutoPlotCommand_Frame()
 		workerDone = false;
 		stopAsked = false;
 		runPreview = host::PlotPreview_On();   // (read here, before the worker starts: the worker reads only this copy of it)
+		runBudget = moduleBudget;              // (the same)
 		preparing = true;   // (set before the worker starts as well as in Work, so no frame between sees the search begun before its preparation)
 		handOff.Start();
 		worker = std::thread(Work);
@@ -2081,6 +2121,17 @@ void AutoPlotCommand_Frame()
 bool AutoPlotCommand_Busy()
 {
 	return stage != Stage::Idle;
+}
+
+void AutoPlotCommand_SetModuleBudget(size_t looks)
+{
+	// only ever lowered: 0, or more than the budget, keeps the budget (a settings file can make the plot stop sooner, never run longer)
+	moduleBudget = looks > 0 && looks < host::kAutoPlotMostModuleLooks ? looks : host::kAutoPlotMostModuleLooks;
+}
+
+size_t AutoPlotCommand_ModuleBudget()
+{
+	return moduleBudget;
 }
 
 bool AutoPlotCommand_BusyCursor()

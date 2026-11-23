@@ -1,0 +1,24 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, Bishop 2's order for alpha.6, its (c)): THE PLOT'S BUDGET. An AI module whose way searches look at more cells than
+# the budget (autoplot_command.h kAutoPlotMostModuleLooks, 4,000,000: 1.8 times the most of the 10,770 stock AI modules, measured on the 63 stock levels) is
+# stopped there, refused and NAMED with its numbers, and nothing of it is written. Before it the caps alone let one module look at 16,000,000 cells, and a
+# hostile map's plot ended only after a very long time.
+# THE SYNTHETIC MODULE: no stock module comes near the budget (that is how it was set), so the settings file lowers it to 1 cell ([Editor]
+# AutoPlotMostModuleLooks=1: it can only ever lower it), and every AI module of stock Statue that searches at all goes past it at its first search.
+# RED on exe-cache/5a5982e4.exe (the counting, no budget): Statue plots as always, "Auto-plot: 137 AI modules written, 5 refused".
+#ini AutoPlot=1
+#ini AutoPlotMostModuleLooks=1
+# timeout 900
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+pictures off
+state
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+click-button Ok
+wait 1000
+wait-moving 300000 status AI modules written
+
+# ---- none written; the last refused named, with its numbers and the setting that lowered the budget
+expect-status Auto-plot: 0 AI modules written,
+expect-status not written: stopped by the plot's budget: its way searches looked at
+expect-status more than the 1 an AI module may (lowered by [Editor] AutoPlotMostModuleLooks)

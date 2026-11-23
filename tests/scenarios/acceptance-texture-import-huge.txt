@@ -1,0 +1,28 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, REVIEWED e20ccef6 MUST 1, handovers.txt): THE LARGEST PICTURE THE IMPORT TAKES NEVER ENDS THE EDITOR. A 4096 x 4096
+# picture is inside the import's own bounds (image_import.h kImageImportMostSide 4096, kImageImportMostPixels 16777216), and costs nothing to make: this one is
+# black, a PNG of about 50 KB. The editor is a 32-bit program without the large-address flag (2 GB of addresses), and the fit made the whole picture a plane of
+# doubles first (512 MB in one block) with nothing catching a refused allocation. Ok on the form must end in words on the status line, "Imported ..." or
+# "Not imported: ...", with the editor still answering, on Colony (Genshd1), a big stock level, as the owner would have it open.
+# THE PICTURE: made fresh by the run (Node's own zlib; the repository holds no picture).
+# RED, expected on exe-cache/74dab373.exe (the page with Vasquez's engine e20ccef6): the editor ends after Ok (to be measured; the result goes in
+# handovers.txt under the review).
+# changes-data
+make-level node -e "const z=require('zlib'),fs=require('fs'),p=require('path');const f=process.argv[1];fs.mkdirSync(p.dirname(f),{recursive:true});const w=4096,h=4096,raw=Buffer.alloc((w*3+1)*h);const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;t[n]=c>>>0;}const crc=(b)=>{let c=0xffffffff;for(const x of b)c=t[(c^x)&255]^(c>>>8);return(c^0xffffffff)>>>0;};const ch=(ty,d)=>{const l=Buffer.alloc(4);l.writeUInt32BE(d.length);const td=Buffer.concat([Buffer.from(ty),d]);const c=Buffer.alloc(4);c.writeUInt32BE(crc(td));return Buffer.concat([l,td,c]);};const ih=Buffer.alloc(13);ih.writeUInt32BE(w,0);ih.writeUInt32BE(h,4);ih[8]=8;ih[9]=2;fs.writeFileSync(f,Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),ch('IHDR',ih),ch('IDAT',z.deflateSync(raw)),ch('IEND',Buffer.alloc(0))]));" {datadir}/import/huge.png
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+state
+item 0x46
+expect-screen Texture Map
+
+# ---- the drop: the form, then Ok as it opens (128: the whole-picture plane is the same size whatever the side)
+drop-file {datadir}/import/huge.png
+wait 400
+expect-dialog-kind form
+expect-dialog Import texture
+form-field 1 huge01
+click-button Ok
+
+# ---- words on the status line, and the editor still answering
+wait-status 180000 mported
+state
+expect-screen Texture Map

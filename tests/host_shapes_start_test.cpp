@@ -217,6 +217,62 @@ int main()
 		Write(data + "\\avp_rifs\\Custom\\Mine.rif", withMedbox);
 	}
 
+	// THE BOUNDS (Drake's review, SHOULD 3; Tao 3): a folder holding more than kShapesStartMostAFolder .rif files gives that many and says the rest in one
+	// line; a name Windows' code page can't say is counted and never taken (a letter it lacks is never "best fitted" onto another). (A .rif that is itself
+	// a symbolic link: host_shape_extract_files_symlink_test, as making one needs the symbolic-link privilege.)
+	{
+		std::string const many = root + "\\many";
+		CreateDirectoryA(many.c_str(), nullptr);
+		CreateDirectoryA((many + "\\avp_rifs").c_str(), nullptr);
+		bool allMade = true;
+
+		for (size_t k = 0; k <= kShapesStartMostAFolder; k++)
+		{
+			char name[32];
+			sprintf_s(name, "\\avp_rifs\\m%05u.rif", (unsigned)k);
+			HANDLE const made = CreateFileA((many + name).c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+			allMade = allMade && made != INVALID_HANDLE_VALUE;
+
+			if (made != INVALID_HANDLE_VALUE)
+			{
+				CloseHandle(made);
+			}
+		}
+
+		std::wstring const unsayable = Wide(many) + L"\\avp_rifs\\\x4E2D.rif";   // a CJK letter: no single-byte code page has it
+		HANDLE const odd = CreateFileW(unsayable.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+		allMade = allMade && odd != INVALID_HANDLE_VALUE;
+
+		if (odd != INVALID_HANDLE_VALUE)
+		{
+			CloseHandle(odd);
+		}
+
+		// (on a double-byte code page, 932, 936, 949 or 950, the letter CAN be said: then it is a .rif like the others, so two are past the most and none
+		// is refused for its name: Drake's nit. Asked of Windows itself, so the check runs on every machine and never skips)
+		char said1[8] = "";
+		BOOL unsaid1 = FALSE;
+		bool const sayable = WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, L"\x4E2D", 1, said1, (int)sizeof(said1), nullptr, &unsaid1) > 0 && !unsaid1;
+		std::vector<std::string> refused;
+		std::vector<std::string> const maps = ShapesStart_MapsFound(many, &refused);
+		std::string said;
+
+		for (std::string const &r : refused)
+		{
+			said += (said.empty() ? "" : " | ") + r;
+		}
+
+		Check(allMade && maps.size() == kShapesStartMostAFolder && maps.back() == many + "\\avp_rifs\\m04095.rif", "4,097 .rif files in one folder: the first 4,096 "
+			"taken, in order (" + std::to_string(maps.size()) + ")");
+		Check(sayable ? refused.size() == 1 && refused[0] == "avp_rifs: 2 more .rif files not taken (at most 4096 a folder)" :
+			refused.size() == 2 && refused[0] == "avp_rifs: 1 more .rif file not taken (at most 4096 a folder)" &&
+			refused[1] == "avp_rifs: 1 file name Windows' code page can't say, not taken", std::string("the one past the most said in one line, and ") +
+			(sayable ? "this code page says the CJK letter, so it is a .rif past the most too" : "the name the code page can't say counted, never taken") +
+			" (\"" + said + "\")");
+		DeleteFileW(unsayable.c_str());   // by its wide name: the code page's (TakeAway's) can't name it
+		TakeAway(many);
+	}
+
 	// THE STOCK SHAPES MISSING, by the table's names, in any capitals
 	{
 		Check(ShapesStart_StockShapesMissing(data) == kShapeIdentityRowCount, "no shape_rifs: every one of the table's " + std::to_string(kShapeIdentityRowCount) +

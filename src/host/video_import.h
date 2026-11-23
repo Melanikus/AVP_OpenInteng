@@ -97,6 +97,11 @@ namespace host
 	// mostBytes: 1 to kVideoImportLongestBytes (BadCall otherwise); a file the memory can't hold is refused (CantRead), never a crash
 	VideoImportResult VideoImport_ReadFile(std::wstring const &path, std::vector<uint8_t> *bytes, std::string *why, uint64_t mostBytes = kVideoImportMostBytes);
 
+	// THE SAME READ for a file that isn't a video (the RIM import's picture, Vasquez 2026-11-23: one set of rules for every file a user hands the editor): every
+	// check of VideoImport_ReadFile but the name's ending, which the caller makes itself first. what: the words' start ("Import texture"); noun: what the file is
+	// in them ("the picture", as in "is a link ..., not the picture itself"). VideoImport_ReadFile is this with its ending check, "Import video" and "the video"
+	VideoImportResult VideoImport_ReadPlainFile(std::wstring const &path, std::vector<uint8_t> *bytes, std::string *why, uint64_t mostBytes, char const *what, char const *noun);
+
 	// THE STREAM'S BOUNDS: its picture's sides (as the file has them) and its length (100 ns; negative when the file doesn't say, which passes: the read stops at the bound itself)
 	// mostSeconds: 1 to kVideoImportLongestSeconds (BadCall otherwise)
 	VideoImportResult VideoImport_CheckStream(uint32_t width, uint32_t height, int64_t length, std::string *why, int64_t mostSeconds = kVideoImportMostSeconds);
