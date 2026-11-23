@@ -14588,12 +14588,15 @@ static void ShapesReopenTheLevel()
 	// THE PLAYER'S VIEW KEPT (Drake's review of 6fda3ba5, SHOULD 1): the open sets the camera, its slots and the Gouraud switch as inteng's first frame has
 	// them (OpenTheLevel: all at the origin, Gouraud off). This reopen is the editor's own, not the player's, so the view they had is put back after it, as
 	// All stock maps puts its camera back (all_stock_maps_host.cpp PutTheCameraBack); the slots and the switch too, which a Yes must never wipe.
+	// (the slots' count is the arrays' own, so a change to it can't miss one: Drake's nit)
+	size_t const slotCount = sizeof(cameraSlots) / sizeof(cameraSlots[0]);
+	static_assert(sizeof(cameraSlots) / sizeof(cameraSlots[0]) == sizeof(cameraSlotSet) / sizeof(cameraSlotSet[0]), "a camera slot and its set flag, one each");
 	FlyCamera const camera = theCamera ? *theCamera : FlyCamera();
-	FlyCamera slots[12];
-	bool slotsSet[12];
+	FlyCamera slots[sizeof(cameraSlots) / sizeof(cameraSlots[0])];
+	bool slotsSet[sizeof(cameraSlotSet) / sizeof(cameraSlotSet[0])];
 	bool const gouraudOn = ViewToggles_Now().gouraud == host::Gouraud::On;
 
-	for (int s = 0; s < 12; s++)
+	for (size_t s = 0; s < slotCount; s++)
 	{
 		slots[s] = cameraSlots[s];
 		slotsSet[s] = cameraSlotSet[s];
@@ -14617,7 +14620,7 @@ static void ShapesReopenTheLevel()
 		*theCamera = camera;
 	}
 
-	for (int s = 0; s < 12; s++)
+	for (size_t s = 0; s < slotCount; s++)
 	{
 		cameraSlots[s] = slots[s];
 		cameraSlotSet[s] = slotsSet[s];

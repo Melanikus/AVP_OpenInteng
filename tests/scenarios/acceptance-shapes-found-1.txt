@@ -25,6 +25,9 @@ hold Up 800
 wait 300
 expect-field-changed camera
 remember-field camera
+# ... and the search still going when the camera was remembered (Drake's review of 33fd339d: on a machine that searches every map before this, the reopen
+# would come first and the check after it would pass whatever the reopen did: so such a run FAILS here instead)
+expect-field-has shapes searching
 # the search, one map a frame, until every map found has been taken (it says so on the status line and in the "shapes" field)
 wait-moving 120000 shapes done;
 expect-field-same camera
