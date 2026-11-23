@@ -117,6 +117,11 @@ namespace host
 	// The film made by Preview put in that place (Smk_Replace: written whole beside it, then moved over the one there). False with *why
 	bool VideoMode_PutPreview(std::vector<uint8_t> const &smk, std::string *why);
 
+	// That place as Barry's decoder opens it (FmvPreview_Start takes the system's own letters, CP_ACP): *folder with its last '\', *name the film's. False with
+	// *why when either can't be said in those letters whole (Vasquez's review of 605357a1, SHOULD 1: the folder can be 288 wide letters, up to 577 bytes in a
+	// double-byte code page, and the conversion's result was never looked at)
+	bool VideoMode_PreviewPlayerPath(std::string *folder, std::string *name, std::string *why);
+
 	// Mode > Exit, or the editor closing: the worker stopped and waited for, the preview stopped, the video let go (the next entry starts Empty)
 	void VideoMode_Leave();
 

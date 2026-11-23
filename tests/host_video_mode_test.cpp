@@ -443,6 +443,30 @@ int main()
 			"plus the preview folder's name (" + std::to_string(longFolder.size()) + " letters: \"" + Narrow(longFolder) + "\")");
 	}
 
+	// ---- THE PLAYER'S PATH IN THE SYSTEM'S OWN LETTERS (Vasquez's review of 605357a1, SHOULD 1): Barry's decoder opens the preview by a name in the system's code
+	// page, and the conversion's result was never looked at: a folder that doesn't fit, or letters the code page can't say, gave the player a cut name or one of '?'s.
+	// Georgian letters are in no Windows code page, so the second case is the same on every PC
+	puts("The player's path in the system's own letters:");
+	{
+		static wchar_t keptTmp[32768] = {};
+		DWORD const hadTmp = GetEnvironmentVariableW(L"TMP", keptTmp, 32768);
+		std::string folderForPlayer, nameForPlayer, pathWhy;
+		bool const usual = host::VideoMode_PreviewPlayerPath(&folderForPlayer, &nameForPlayer, &pathWhy);
+
+		Check(usual && folderForPlayer.size() > 1 && folderForPlayer.back() == '\\' && nameForPlayer == Narrow(host::VideoMode_PreviewName()),
+			"the usual temp folder: said whole, with its last '\\', and the film's name (" + folderForPlayer + nameForPlayer + ")");
+
+		SetEnvironmentVariableW(L"TMP", L"C:\\Temp\\\u10d0\u10d1\\");   // two Georgian letters: no code page says them
+		folderForPlayer.clear();
+		pathWhy.clear();
+
+		bool const said = host::VideoMode_PreviewPlayerPath(&folderForPlayer, &nameForPlayer, &pathWhy);
+
+		SetEnvironmentVariableW(L"TMP", hadTmp > 0 && hadTmp < 32768 ? keptTmp : nullptr);
+		Check(!said && !pathWhy.empty(), "a temp folder with letters the code page can't say: refused in words, never a name of '?'s for the player (gave \"" + folderForPlayer +
+			"\": \"" + pathWhy + "\")");
+	}
+
 	if (on)
 	{
 		MFShutdown();

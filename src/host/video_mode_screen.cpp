@@ -17,7 +17,8 @@
 #include <string>
 #include <vector>
 
-#include "editor_shared.h"  // statusWords
+#include "dialogs.h"        // Dialogs_IsOpen: a drop never replaces an open window
+#include "editor_shared.h"  // statusWords, promptFor
 #include "panel_layout.h"   // ui::Box
 #include "panel_paint.h"    // PaintBox, PaintText, PanelPaint_SafeText
 #include "panel_pass.h"     // PanelPass_MenuWidth, PanelPass_MenuFontHeight, kPanelPassLineHeight
@@ -401,6 +402,20 @@ void host::VideoModeScreen_ScreenChanged(size_t was, size_t now)
 	}
 }
 
+// A DROP NEVER REPLACES AN OPEN WINDOW (Vasquez's review of 5d337654, SHOULD 1, 2026-11-23): while a dialog or a prompt is up, a drop would open the RIM import
+// page's form (or Video mode's) in its place (Dialogs_Form reopens the one box, and the open one's answer is let go), throwing away what was being typed without a
+// word. So it is refused, in words, and the window stays as it was. True when the drop may be taken
+static bool DropTakenNow()
+{
+	if (host::Dialogs_IsOpen() || promptFor != kPromptNone)
+	{
+		statusWords = "Not taken: a window is open (finish or close it first: a drop never replaces it)";
+		return false;
+	}
+
+	return true;
+}
+
 void host::VideoModeScreen_DropHandle(void *drop, bool onTheScreen)
 {
 	if (!drop)
@@ -412,6 +427,11 @@ void host::VideoModeScreen_DropHandle(void *drop, bool onTheScreen)
 	std::vector<std::wstring> const paths = VideoDrop_FromHdrop((HDROP)drop, kMostDropped, &more);
 
 	DragFinish((HDROP)drop);
+
+	if (!DropTakenNow())
+	{
+		return;
+	}
 
 	// OFF THE VIDEO SCREEN, A PICTURE IS A TEXTURE (the RIM import page, texture_import_screen.h; the owner 11-23): its own checks, then its form; anything else is
 	// said where it goes (a film: Video mode)
@@ -427,6 +447,11 @@ void host::VideoModeScreen_DropHandle(void *drop, bool onTheScreen)
 void host::VideoModeScreen_DropText(char const *text, size_t bytes, bool onTheScreen)
 {
 	std::vector<std::wstring> const paths = text && bytes <= kMostDropText ? VideoDrop_FromHarness(text, bytes) : std::vector<std::wstring>();
+
+	if (!DropTakenNow())
+	{
+		return;
+	}
 
 	if (!onTheScreen)
 	{
