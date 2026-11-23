@@ -3403,6 +3403,18 @@ static void BuildThePictureIndex(OpenLevelFile *open)
 		memcpy(shape.objectId, id.data(), 8);
 		scan(shape, id.data());
 	}
+
+	// THE PICTURES IMPORTED SINCE THE LEVEL OPENED (the RIM import page, texture_import_screen.h; Dietrich 2026-11-23, plan step 8): no polygon may use one yet, so the
+	// scan above can't find its index; the page gave it (level_view.h LevelView_ImportedPictures). A number or an index the polygons already map another way is left
+	// to the polygons (the file is the truth)
+	for (std::pair<int32_t, int32_t> const &picture : LevelView_ImportedPictures())
+	{
+		if (pictureIndexOf.find(picture.first) == pictureIndexOf.end() && pictureTextureOf.find(picture.second) == pictureTextureOf.end())
+		{
+			pictureIndexOf[picture.first] = picture.second;
+			pictureTextureOf[picture.second] = picture.first;
+		}
+	}
 }
 
 // The number the shape of object `id` gives the game's texture `texture` in the list it is numbered by (its own list when it has one, else the level's); -1 when that list is not known to hold it

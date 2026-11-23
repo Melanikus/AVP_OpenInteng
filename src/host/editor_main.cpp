@@ -144,6 +144,7 @@
 #include "first_launch_screen.h"   // the first-launch setup: no game found, so the user is asked where it is
 #include "video_drop.h"          // kVideoDropTag: the harness's drop-file
 #include "video_mode.h"          // VideoMode_Browse: the Video screen's Load > Browse...
+#include "texture_import_screen.h"   // TextureImportScreen_Browse: Texture Map's Import > Import texture...
 #include "all_stock_maps_screen.h"   // Waypoint > Alien auto waypoint > All stock maps: its menu waits, its Esc
 #include "shapes_start_screen.h"     // shapes part 3: the FOUND form at the start, the player's maps searched for object shapes, one a frame
 #include "video_mode_screen.h"   // the owner's Video mode, its screen: its panels, its picture, its presses, its drops
@@ -6770,6 +6771,11 @@ void RunAction(int32_t id)
 	if (host.videoBrowse)
 	{
 		host::VideoMode_Browse(editorWindow);   // the Video screen's Load > Browse...: Windows' own Open dialog, the file taken as a drop of one (video_mode.h)
+	}
+
+	if (host.textureImport)
+	{
+		host::TextureImportScreen_Browse();   // Texture Map's Import > Import texture...: Windows' own Open dialog, the picture taken as a drop of one (texture_import_screen.h)
 	}
 
 	if (host.fixTears != 0)

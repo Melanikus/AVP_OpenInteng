@@ -574,7 +574,8 @@
 		{ "table": "built:Waypoint", "row": 1, "page": 0, "menu": "Alien auto waypoint", "title": "Modules", "command": "0x7334", "does": "waypoint" },
 		{ "table": "built:Waypoint", "row": 1, "page": 0, "menu": "Alien auto waypoint", "title": "All stock maps", "command": "0x7338", "does": "waypoint" },
 		{ "table": "built:Waypoint", "row": 2, "page": 0, "menu": "Delete Waypoints", "title": "Delete Waypoints", "command": "0x7336", "does": "waypoint" },
-		{ "table": "built:Waypoint", "row": 2, "page": 0, "menu": "Delete All Waypoints", "title": "Delete All Waypoints", "command": "0x7337", "does": "waypoint" }
+		{ "table": "built:Waypoint", "row": 2, "page": 0, "menu": "Delete All Waypoints", "title": "Delete All Waypoints", "command": "0x7337", "does": "waypoint" },
+		{ "table": "built:Texture Map", "row": 1, "page": 0, "menu": "Import", "title": "Import texture...", "command": "0x0", "does": "textureimport" }
 	],
 	"additions": [
 		{ "table": "0x5ced30", "title": "File", "after": "Quit", "words": "&Save", "action": "0x1ff01", "does": "savecopy", "note": "THE OWNER'S ADDITION (Melanikus 2026-11-16, through Bishop: \"Let's put a save on the hub\"): inteng's hub File has no Save. It sits second, after Quit, where every other screen keeps its Save, and does what Object Placement's Save does (SaveCopy). Its number is ours; it has no inteng command" },

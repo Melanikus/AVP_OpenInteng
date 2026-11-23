@@ -151,8 +151,13 @@ bool LevelView_FilePath(char *path, size_t size)
 	return true;
 }
 
+// the pictures the RIM import page gave the open level (LevelView_AddImportedPicture), forgotten when a level opens
+static std::vector<std::pair<int32_t, int32_t> > importedPictures;
+
 bool LevelView_Open(const char *levelName, FlyCamera *startHere, char *why, size_t whySize)
 {
+	importedPictures.clear();   // another level: the RIM import page's pictures were the last one's
+
 	if (!levelName || !startHere)
 	{
 		Say(why, whySize, "no level was named");
@@ -717,6 +722,30 @@ bool LevelView_LowestPictureSize(int32_t *width, int32_t *height)
 	return lowest >= 0;
 }
 
+bool LevelView_AddImportedPicture(int32_t texture, int32_t listIndex)
+{
+	if (texture < 0 || listIndex < 0 || importedPictures.size() >= kLevelViewMostImported)
+	{
+		return false;
+	}
+
+	for (std::pair<int32_t, int32_t> const &p : importedPictures)
+	{
+		if (p.first == texture)
+		{
+			return false;
+		}
+	}
+
+	importedPictures.push_back(std::make_pair(texture, listIndex));
+	return true;
+}
+
+std::vector<std::pair<int32_t, int32_t> > const &LevelView_ImportedPictures()
+{
+	return importedPictures;
+}
+
 bool LevelView_Pictures(std::vector<LevelViewPicture> *pictures, size_t most)
 {
 	if (!pictures)
@@ -760,6 +789,12 @@ bool LevelView_Pictures(std::vector<LevelViewPicture> *pictures, size_t most)
 	for (int i = 0; i < NumActiveBlocks; i++)
 	{
 		look(ActiveBlockList[i]);
+	}
+
+	// and the pictures imported into the level since it opened, which no polygon may use yet
+	for (std::pair<int32_t, int32_t> const &p : importedPictures)
+	{
+		used.push_back(p.first);
 	}
 
 	std::sort(used.begin(), used.end());

@@ -166,6 +166,7 @@ namespace host
 		PlacedHierarchy,  // the current placed hierarchy's pop-up (page 6 of FUN_004d68e0, commands 0x7d0-0x7db): the item's command is handed to the editor (reassess/object-placement.md PH-2..PH-13)
 		VideoModeEnter,   // Construction's Mode, Video (the owner's addition 11-22, alpha.5 item 2): the Video screen is shown (video_mode_screen.h)
 		VideoBrowse,      // the Video screen's Load, Browse...: Windows' own Open dialog for one video (video_mode.h VideoMode_Browse)
+		TextureImport,    // Texture Map's Import, Import texture... (the RIM import page, alpha.6): Windows' own Open dialog for one picture, then the form (texture_import_screen.h)
 	};
 
 	struct IntengItem

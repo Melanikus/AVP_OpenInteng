@@ -171,7 +171,7 @@ std::string host::VideoDrop_Words(std::wstring const &path)
 	return words;
 }
 
-bool host::VideoDrop_Check(std::vector<std::wstring> const &paths, size_t listed, std::wstring *path, std::string *why)
+bool host::VideoDrop_CheckPath(std::vector<std::wstring> const &paths, size_t listed, char const *what, std::wstring *path, std::string *why)
 {
 	path->clear();
 
@@ -183,7 +183,7 @@ bool host::VideoDrop_Check(std::vector<std::wstring> const &paths, size_t listed
 
 	if (listed > 1)
 	{
-		*why = "Not taken: one video at a time (" + std::to_string((unsigned long long)listed) + " files were dropped)";
+		*why = std::string("Not taken: one ") + (what ? what : "file") + " at a time (" + std::to_string((unsigned long long)listed) + " files were dropped)";
 		return false;
 	}
 
@@ -243,6 +243,20 @@ bool host::VideoDrop_Check(std::vector<std::wstring> const &paths, size_t listed
 	if (!DriveIsLocal(full[0], &drive))
 	{
 		*why = "Not taken: " + shown + ": " + drive;
+		return false;
+	}
+
+	*path = full;
+	return true;
+}
+
+bool host::VideoDrop_Check(std::vector<std::wstring> const &paths, size_t listed, std::wstring *path, std::string *why)
+{
+	std::wstring full;
+
+	if (!VideoDrop_CheckPath(paths, listed, "video", &full, why))
+	{
+		path->clear();
 		return false;
 	}
 

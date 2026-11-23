@@ -1804,6 +1804,10 @@ namespace host
 			{ "Angle", 0x170059, 0xff, IntengTag::None, IntengWork::TextureMapCommand, -1, -1 },
 			{ "Set 'Arrow' Repeat Count", 0x17005a, 0x100, IntengTag::None, IntengWork::TextureMapCommand, -1, 5 },
 		};
+		IntengItem const kItems22_1_0_6[] =
+		{
+			{ "Import texture...", 0x1703ff, 0x0, IntengTag::None, IntengWork::TextureImport, -1, -1 },
+		};
 		IntengMenu const kMenus22_1_0[] =
 		{
 			{ "Mode", kItems22_1_0_0, 5, 0 },
@@ -1812,6 +1816,7 @@ namespace host
 			{ "Anim", kItems22_1_0_3, 19, 0 },
 			{ "Copy Texturing", kItems22_1_0_4, 4, 0 },
 			{ "Selection", kItems22_1_0_5, 9, 0 },
+			{ "Import", kItems22_1_0_6, 1, -1 },
 		};
 		IntengItem const kItems22_1_1_0[] =
 		{
@@ -2061,7 +2066,7 @@ namespace host
 		};
 		IntengPage const kPages22[] =
 		{
-			{ 1, 0, kMenus22_1_0, 6 },
+			{ 1, 0, kMenus22_1_0, 7 },
 			{ 1, 1, kMenus22_1_1, 3 },
 			{ 1, 2, kMenus22_1_2, 2 },
 			{ 1, 3, kMenus22_1_3, 3 },
@@ -2111,7 +2116,7 @@ namespace host
 		{ "Strategy Data", "", kMenus19_1_0, 4, kMenus19_2_0, 8, kPages19, 6 },
 		{ "Acoustic", "", kMenus20, 3, nullptr, 0, nullptr, 0 },
 		{ "Flag View", "", kMenus21, 1, nullptr, 0, nullptr, 0 },
-		{ "Texture Map", "", kMenus22_1_0, 6, kMenus22_2_0, 11, kPages22, 7 },
+		{ "Texture Map", "", kMenus22_1_0, 7, kMenus22_2_0, 11, kPages22, 7 },
 		{ "Video", "", kMenus23, 2, nullptr, 0, nullptr, 0 },
 	};
 

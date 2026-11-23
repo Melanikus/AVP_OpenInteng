@@ -90,6 +90,7 @@ struct EditorHostState
 	int32_t hierarchyCommand;  // a Hierarchy mode item's command number (hierarchy_mode.h), or 0
 	int32_t placedHierarchyCommand;   // the current placed hierarchy's pop-up item (0x7d0 Play, 0x7d1 Stop, ...: reassess/object-placement.md PH-2..PH-13), or 0
 	bool videoBrowse;          // true: the Video screen's Load, Browse... (video_mode.h VideoMode_Browse: Windows' own Open dialog for one video)
+	bool textureImport;        // true: Texture Map's Import, Import texture... (texture_import_screen.h TextureImportScreen_Browse: the Open dialog, then the form)
 	int32_t fixTears;          // Construction, Miscellaneous, Fix tears: 1 = the two selected objects (0x5a), 2 = all (0x5b)
 	bool recentrePolygon;      // Texture Map, Recentre Shape (0xd6): wait for the click on a polygon
 	bool splitScreen;          // Object Placement, Misc, Toggle Split Screen (0x52)

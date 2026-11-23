@@ -277,6 +277,14 @@ struct LevelViewPicture
 
 bool LevelView_Pictures(std::vector<LevelViewPicture> *pictures, size_t most);
 
+// PICTURES IMPORTED INTO THE OPEN LEVEL (the RIM import page, texture_import_screen.h; Dietrich 2026-11-23): a picture no polygon uses yet is in no shape's items,
+// so LevelView_Pictures, which reads them, wouldn't offer it. Each one the page imports is given here, the game's texture number (Tex_CreateFromRIM's) with its
+// index in the level's list, and LevelView_Pictures offers it too. Forgotten when a level is opened (LevelView_Open); kept across an edit that rebuilds the
+// level's bytes (the view's textures are the same). False for a number given already, or past kLevelViewMostImported
+size_t const kLevelViewMostImported = 256;
+bool LevelView_AddImportedPicture(int32_t texture, int32_t listIndex);
+std::vector<std::pair<int32_t, int32_t> > const &LevelView_ImportedPictures();   // (texture, list index), in the order imported
+
 // The game's texture number of the picture polygon item `item` of the shape is textured with; false for a shape not in play or an item that is not textured
 bool LevelView_ItemTexture(const LevelViewShapeOf &shape, int32_t item, int32_t *texture);
 
