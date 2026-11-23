@@ -881,6 +881,7 @@ static bool placementLightOn = false;           // the mode's look is on the ope
 static bool placementLightObjectsLit = false;   // and the objects' part of it: lit or not
 static std::unordered_map<int *, bool> placementLightKept;   // every item flags word the look changed, and whether it held iflag_nolight before the look
 static int placementLightModuleItems = 0, placementLightObjectItems = 0;   // how many items the look made unlit (the modules') and set by Lighting (the objects'), at its last change
+static int placementLightUnbakedItems = 0;   // and how many items of the objects WITHOUT baked colours it holds plain (Lighting off; 0 while it is on): the owner's ruling, below
 
 // One item's iflag_nolight (2) set (drawn unlit) or clear; its own bit kept the first time the look touches it (a later emplace keeps the first)
 static void PlacementLightItem(int *flags, bool unlit)
@@ -932,7 +933,7 @@ int LevelView_PlacementLighting(bool on, bool objectsLit)
 	else
 	{
 		std::vector<bool> const isModule = ShapesOfModules();
-		int moduleItems = 0, objectItems = 0;
+		int moduleItems = 0, objectItems = 0, unbakedItems = 0;
 
 		// the level's shapes (the game's precompiled ones, before start_of_loaded_shapes, are none of the level's)
 		for (int s = start_of_loaded_shapes > 0 ? start_of_loaded_shapes : 0; s < maxshapes; s++)
@@ -945,21 +946,60 @@ int LevelView_PlacementLighting(bool on, bool objectsLit)
 			}
 
 			bool const module = isModule[(size_t)s];
+			// baked colours: the game's loader sets ShapeFlag_PreLit (0x1000) when the object has a SHPVTINT chunk for the level's light set (projload.cpp
+			// set_up_baked_colours); inteng's FUN_004d67f0 tests the same bit (0x4d681b / 0x4d687e)
+			bool const baked = (shape->shapeflags & ShapeFlag_PreLit) != 0;
 
-			// a module: every item unlit, on the look's start only (0x4d84e6-0x4d8526); an object: only a shape with baked colours (shape flag 0x1000, FUN_004d67f0 0x4d681b / 0x4d687e)
-			if (module ? !modulesToo : !(shape->shapeflags & ShapeFlag_PreLit))
+			// a module: every item unlit, on the look's start only (0x4d84e6-0x4d8526)
+			if (module && !modulesToo)
 			{
 				continue;
 			}
 
 			for (int i = 0; i < shape->numitems; i++)
 			{
-				if (shape->items[i])
+				if (!shape->items[i])
 				{
-					PlacementLightItem(&shape->items[i][2], module || !objectsLit);
-					changed++;
-					(module ? moduleItems : objectItems)++;
+					continue;
 				}
+
+				int *const flags = &shape->items[i][2];
+
+				if (module)
+				{
+					PlacementLightItem(flags, true);
+					moduleItems++;
+				}
+				else if (baked)
+				{
+					// an object with baked colours: plain, or lit by its colours, as Lighting says (FUN_004d67f0)
+					PlacementLightItem(flags, !objectsLit);
+					objectItems++;
+				}
+				else if (!objectsLit)
+				{
+					// AN OBJECT WITHOUT BAKED COLOURS, Lighting off: PLAIN, like the level. A NAMED DIFFERENCE from inteng, by the owner's ruling (2026-11-23, through
+					// Bishop 2: "Yes, unlit like the level"): FUN_004d67f0 leaves these alone, so inteng draws them lit by the level's lights, dark beside the plain
+					// modules ("all placed objects are taking lights in account ... env is lit and assets are dark"; stock Genshd1: none of its 174 placed objects has
+					// baked colours, so Lighting changed none of them)
+					PlacementLightItem(flags, true);
+					unbakedItems++;
+				}
+				else
+				{
+					// the same, Lighting on: its own bit back, so it is drawn as inteng draws it, lit by the level's lights (an item the look never touched stays)
+					auto const kept = placementLightKept.find(flags);
+
+					if (kept == placementLightKept.end())
+					{
+						continue;
+					}
+
+					*flags = kept->second ? (*flags | iflag_nolight) : (*flags & ~iflag_nolight);
+					placementLightKept.erase(kept);
+				}
+
+				changed++;
 			}
 		}
 
@@ -969,11 +1009,12 @@ int LevelView_PlacementLighting(bool on, bool objectsLit)
 		}
 
 		placementLightObjectItems = objectItems;
+		placementLightUnbakedItems = unbakedItems;
 	}
 
 	if (!on)
 	{
-		placementLightModuleItems = placementLightObjectItems = 0;
+		placementLightModuleItems = placementLightObjectItems = placementLightUnbakedItems = 0;
 	}
 
 	placementLightOn = on;
@@ -996,7 +1037,7 @@ std::string LevelView_PlacementLightingWords()
 	}
 
 	std::string words = std::string("look ") + (placementLightOn ? "1" : "0") + " lit " + (placementLightObjectsLit ? "1" : "0") + " modules " + std::to_string(placementLightModuleItems) +
-		" objects " + std::to_string(placementLightObjectItems);
+		" objects " + std::to_string(placementLightObjectItems) + " unbaked " + std::to_string(placementLightUnbakedItems);
 
 	// the objects' baked colours, their average per channel over every point (0..255): lit by them, an object differs from its plain (full) look only where they are under 255
 	{

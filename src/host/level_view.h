@@ -298,14 +298,17 @@ bool LevelView_SetItemUv(const LevelViewShapeOf &shape, int32_t item, const int3
 bool LevelView_SetItemFlagBits(const LevelViewShapeOf &shape, int32_t item, int32_t mask, bool on);
 
 // OBJECT PLACEMENT'S LIGHTING (OP-3, OP-44; added 2026-11-17 by Drake). on: the mode's look. Every item of every shape a module draws gets iflag_nolight, so the modules are drawn unlit (inteng's
-// entry FUN_004d68e0 0x4d84e6-0x4d8526), and the level's other shapes that hold baked colours (ShapeFlag_PreLit; FUN_004d67f0) are lit (objectsLit: the bit cleared) or unlit (set). Not on: every
+// entry FUN_004d68e0 0x4d84e6-0x4d8526), and the level's other shapes that hold baked colours (ShapeFlag_PreLit; FUN_004d67f0) are lit (objectsLit: the bit cleared) or unlit (set). The
+// other shapes WITHOUT baked colours are unlit too while objectsLit is false, and have their own bit back (lit by the level's lights, as inteng draws them) while it is true: a NAMED
+// DIFFERENCE from inteng, which leaves them alone, by the owner's ruling of 2026-11-23 ("unlit like the level"; Dietrich). Not on: every
 // item the look changed has its own bit back (inteng loads the level again when the mode ends). Each call does only what changed since the last, so it can be called every frame; a level opened in
 // between comes in with its own bits and is taken as new. inteng also swaps those items' types (5 <-> 6, 7 <-> 0x18); the game's loader has made every textured item of ours
 // I_ZB_Gouraud3dTexturedPolygon (post_process_shape, projload.cpp:3027-3080), so none holds those types and the bit is the whole of it for our renderer. NAMED: inteng's objects are its shapes from
 // DAT_008f588c on; ours are the level's shapes no module draws. Gives back how many items' bits it set or put back.
 int LevelView_PlacementLighting(bool on, bool objectsLit);
 
-// The look for a scenario's state line: "look <0|1> lit <0|1> modules <items> objects <items>", then " at x y z|..." for up to four blocks in play whose shape is an object's with baked
+// The look for a scenario's state line: "look <0|1> lit <0|1> modules <items> objects <items> unbaked <items>" (objects: the baked-colour objects' items Lighting sets;
+// unbaked: the other objects' items held plain, 0 while Lighting is on), then " at x y z|..." for up to four blocks in play whose shape is an object's with baked
 // colours (the world's places: what a picture of the look can be aimed at). Empty when no level is open.
 std::string LevelView_PlacementLightingWords();
 

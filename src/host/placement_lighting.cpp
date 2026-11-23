@@ -36,7 +36,9 @@ bool PlacementLighting_Flip(char const **words)
 	// inteng says nothing; the words are ours
 	if (words)
 	{
-		*words = placementLighting ? "Lighting: on (the placed objects with baked colours are lit)" : "Lighting: off (the placed objects are drawn unlit)";
+		// (off: every placed object plain, like the level, by the owner's ruling of 2026-11-23; on: as inteng draws them, level_view.h LevelView_PlacementLighting)
+		*words = placementLighting ? "Lighting: on (the placed objects are lit: by their baked colours, else by the level's lights)" :
+			"Lighting: off (the placed objects are drawn unlit, like the level)";
 	}
 
 	return true;
