@@ -51,6 +51,8 @@ namespace host
 		std::string path;       // the whole path: the folder, '\', fileName
 		bool plain = false;     // a name Quick-create can take; one that isn't can't be placed
 		bool inLevel = false;   // the level holds an outside shape of this file: placed by its number
+		bool levelOnly = false; // a tile of the LEVEL's own shape, not of a folder's file (ShapePicker_AddLevelShapes): drawn and placed by levelNumber
+		int32_t levelNumber = -1;   // that shape's number (SHPHEAD1's, the Shape Chooser's)
 	};
 
 	struct ShapePickerList
@@ -61,6 +63,27 @@ namespace host
 
 	// The tiles, by the rules above. levelFiles: the names of the files the level's outside shapes came from (the Shape Chooser's, without ".rif"), any capitals.
 	ShapePickerList ShapePicker_List(std::vector<ShapePickerFolder> const &folders, std::vector<std::string> const &levelFiles);
+
+	// THE LEVEL'S OWN SHAPES (Bishop 2's decision, 2026-11-23, on the owner's "items from shape_rifs + level" and his first words for the picker, "shows that OR the
+	// shape_rifs"): inteng's Choose listed every outside shape of the level, and the grid did not, so a shape the level alone holds (no folder has its file) could no
+	// longer be made by Choose, nor one PART of a fragment file. Every shape of the level is added as a tile "in this level", drawn and placed BY ITS NUMBER (the
+	// Quick-create way): a file the level holds once, by the file's name, unless a folder's tile already has that name (that tile is the same shape, and is placed
+	// by number already); each part of a fragment file (a file the level holds more than once), by its own name, gameName ("Game@offbits"; inteng's list says
+	// "Shape 'offbits'" for every part), beside the file's own "N parts" tile when a folder holds it. At most kShapePickerMostLevelShapes (the rest in one note).
+	// Then every tile is in the order of its name in small letters again.
+	struct ShapePickerLevelShape
+	{
+		std::string file;       // the outside file's name, without ".rif" (shape_chooser.h ShapeChoice::name)
+		std::string gameName;   // "object@file" (ShapeChoice::gameName), empty when the level gives none
+		int32_t number = -1;    // the shape's own number
+	};
+
+	size_t const kShapePickerMostLevelShapes = 4096;
+
+	void ShapePicker_AddLevelShapes(ShapePickerList *list, std::vector<ShapePickerLevelShape> const &shapes);
+
+	// The base of the name of an object made from a tile (object_make.h nameBase: "<base><n>"): a part's object name ("Game" of "Game@offbits"), else the tile's name
+	std::string ShapePicker_NameBase(ShapePickerTile const &tile);
 
 	// ----- the grid -----
 	int32_t const kShapePickerPicture = 96;      // a tile's picture, square, in pixels (the thumbnail is drawn at this size)

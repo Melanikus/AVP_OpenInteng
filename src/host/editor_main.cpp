@@ -9287,6 +9287,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			}
 
 			if ((wParam & MK_LBUTTON) && ShapePickerScreen_IsOpen() && ShapePickerScreen_Drag(InThePanels(window, lParam).y)) { return 0; }   // the placement picker's scroll thumb held: the rows follow it
+			if (!(wParam & MK_LBUTTON)) { ShapePickerScreen_Release(); }   // the left button is up: a thumb still held (let go outside the window) is let go (Frost's SHOULD 1)
 
 			if (window == hWndMain && WaypointGizmo_Pointer(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)), (wParam & MK_SHIFT) != 0 || ShiftDown())) { return 0; }   // a waypoint-box drag has the pointer
 			if (window == hWndMain && GizmoScreen_Pointer(host::TextScale_ToOwn(GET_X_LPARAM(lParam)), host::TextScale_ToOwn(GET_Y_LPARAM(lParam)), (wParam & MK_SHIFT) != 0 || ShiftDown())) { return 0; }   // a gizmo drag has the pointer

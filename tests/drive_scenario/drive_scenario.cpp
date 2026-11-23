@@ -36,9 +36,11 @@
 //   select-row <n> [add]        selects the n-th row of the object list (as a click on it does); with add it joins the selection
 //   select-rows <n> <n> ...     the first row is selected, the others join (several objects selected, as Shift+clicks do)
 //   click-win <x> <y> [right] [shift]   a click at a place in the editor window's client pixels
-//   click-tile <name> [twice]   a click in the middle of the placement picker's tile of that shape (the state line's pickerboxes); twice: again after 400 ms (select, then place)
+//   click-tile <name> [twice]   a click in the middle of the placement picker's tile of that shape (the state line's pickerboxes); twice: again after 400 ms (select, then place);
+//                               a tile not on the screen is paged to first by the picker's scroll bar (pickerscroll's "below")
 //   click-in <field> <name>   a click in the middle of the box <name> in a state field of "<name>~<x> <y> <w> <h>|..." (pickerboxes, pickerscroll)
 //   drag-in <field> <name> <to name>   a drag from the middle of <name> to the middle of <to name> in that field (the picker's scroll thumb)
+//   press-in <field> <name>   the left button pressed at the middle of that box and held (not let go)
 //   expect-tile-drawn <name> [share]   the newest picture-<n>.png has at least that share (0.10) of that tile's picture part away from the tile's background
 //   drag-win <x0> <y0> <x1> <y1> [right] [ctrl]   a drag, with the right button and / or Control held
 //   drag-texwin <x0> <y0> <x1> <y1> [right] [ctrl] / click-texwin <x> <y> [shift]   the same at places from the Texture Map window's top left (the state line's texwin)
@@ -1820,7 +1822,8 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	// click-in <field> <name>: a press at the middle of the box <name> in a state field of "<name>~<x> <y> <w> <h>|..." (window pixels: pickerboxes, pickerscroll);
 	// drag-in <field> <name> <to name>: a drag from the middle of <name> to the middle of <to name> in that same field (Vasquez 2026-11-23: the placement picker's
 	// scroll bar, its arrows, its track and its dragged thumb, wherever the editor says they are)
-	if ((verb == "click-in" && w.size() >= 3) || (verb == "drag-in" && w.size() >= 4))
+	// press-in <field> <name>: the left button pressed at the middle of that box and HELD (not let go: the next steps see it held; a later click lets it go)
+	if ((verb == "click-in" && w.size() >= 3) || (verb == "drag-in" && w.size() >= 4) || (verb == "press-in" && w.size() >= 3))
 	{
 		AskState(s);
 
@@ -1842,6 +1845,10 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		{
 			DragWindow(s, x, y, to[0] + to[2] / 2, to[1] + to[3] / 2, false, false, false);
 		}
+		else if (verb == "press-in")
+		{
+			DragWindow(s, x, y, x, y, false, false, false, false, true);   // pressed where it is, and held
+		}
 		else
 		{
 			ClickWindow(s, x, y, false, false);
@@ -1860,12 +1867,28 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	{
 		AskState(s);
 
-		std::string const boxes = Field(s->last, "pickerboxes");
+		std::string boxes = Field(s->last, "pickerboxes");
 		int box[4] = {};
+
+		// a tile not on the screen now: the grid paged on by its scroll bar (pickerscroll's "below", as a mapper would) until it is, or the last page is reached
+		// (Vasquez 2026-11-23: a level's own shapes fill more than a page)
+		for (int pages = 0; pages < 200 && !TileBox(boxes, w[1], box); pages++)
+		{
+			int below[4] = {};
+
+			if (!TileBox(Field(s->last, "pickerscroll"), "below", below))
+			{
+				break;   // the last page: it isn't in the grid
+			}
+
+			ClickWindow(s, below[0] + below[2] / 2, below[1] + below[3] / 2, false, false, 300);
+			AskState(s);
+			boxes = Field(s->last, "pickerboxes");
+		}
 
 		if (!TileBox(boxes, w[1], box))
 		{
-			Check(false, label + " (no tile \"" + w[1] + "\" on screen: pickerboxes \"" + boxes + "\")");
+			Check(false, label + " (no tile \"" + w[1] + "\" in the grid, paged to its end: pickerboxes \"" + boxes + "\")");
 			return false;
 		}
 

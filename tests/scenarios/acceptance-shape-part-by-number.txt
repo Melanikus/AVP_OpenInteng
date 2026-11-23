@@ -4,8 +4,9 @@
 # Duplicate's FUN_004e0ed0 is given the shape's number, and the Shape Chooser answers with the chosen shape's number (DAT_008f4f34 = DAT_00634004[number]; AvP-docs engine/inteng
 # create-object-from-shape.md and apone-reads-3.md). Ours made both by the file's NAME, "offbits", which every part shares, so the first part of the file was taken: Aerosol.
 #   D: gamebox current, key P (Create Duplicate), the name dupGame: dupGame has gamebox's shape
-#   C: Create > With shape > Choose (0x32), the chooser's row 8 (the list's first is row 0; "." moves one on; its text is inteng's own, "Shape 'offbits'" for every part), Return, the
-#      name chosenGame: chosenGame has gamebox's shape
+#   C: Create > With shape > Choose (0x32), since alpha.6 the placement picker's grid (the owner's "Grid replaces it"), whose tiles hold the level's own shapes,
+#      each part of a fragment file its own tile by its own name (Bishop 2's decision 11-23): the tile Game@Offbits, twice, the name chosenGame: chosenGame has
+#      gamebox's shape (inteng's own list said "Shape 'offbits'" for every part, told apart only by its row)
 # RED on 61163d4f's exe: dupGame and chosenGame are shape 150 (Aerosol). GREEN: both 152. The level is opened by name from the stock copy; only the saved copy is checked.
 level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/office.rif
 pictures on
@@ -25,19 +26,11 @@ expect-no-dialog
 expect-status Object dupGame made at the view
 picture 1
 
-# ---- C: Create > With shape > Choose, the chooser's row 8 (the Game part)
+# ---- C: Create > With shape > Choose, the picker's tile of the Game part
 item 0x32
-expect-screen Shape Chooser
-key Period
-key Period
-key Period
-key Period
-key Period
-key Period
-key Period
-key Period
+expect-field-has picker open
+click-tile Game@Offbits twice
 picture 2
-key Enter
 expect-screen Object Placement
 expect-dialog-kind form
 expect-dialog Name Object

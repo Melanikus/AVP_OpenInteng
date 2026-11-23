@@ -2,6 +2,7 @@
 #include "shape_picker.h"
 
 #include <algorithm>
+#include <map>
 #include <set>
 
 #include "shape_import.h"   // ShapeImport_NameIsPlain: the names Quick-create takes
@@ -109,6 +110,75 @@ namespace host
 
 		std::stable_sort(list.tiles.begin(), list.tiles.end(), [](ShapePickerTile const &a, ShapePickerTile const &b) { return Lower(a.name) < Lower(b.name); });
 		return list;
+	}
+
+	void ShapePicker_AddLevelShapes(ShapePickerList *list, std::vector<ShapePickerLevelShape> const &shapes)
+	{
+		if (!list)
+		{
+			return;
+		}
+
+		// how many of the level's shapes each file gives: more than one is a fragment file, whose parts get a tile each
+		std::map<std::string, size_t> parts;
+
+		for (ShapePickerLevelShape const &s : shapes)
+		{
+			parts[Lower(s.file)]++;
+		}
+
+		std::set<std::string> named;
+
+		for (ShapePickerTile const &t : list->tiles)
+		{
+			named.insert(Lower(t.name));
+		}
+
+		size_t added = 0, past = 0;
+
+		for (ShapePickerLevelShape const &s : shapes)
+		{
+			bool const fragment = parts[Lower(s.file)] > 1;
+			std::string const name = !fragment ? s.file : (!s.gameName.empty() ? s.gameName : s.file + "#" + std::to_string((long long)s.number));
+
+			if (name.empty() || s.number < 0 || named.count(Lower(name)) != 0)
+			{
+				continue;   // a folder's tile of that name (the same shape, placed by number already), or one added already
+			}
+
+			if (added >= kShapePickerMostLevelShapes)
+			{
+				past++;
+				continue;
+			}
+
+			ShapePickerTile t;
+
+			t.name = name;
+			t.where = "the level's own shape";
+			t.plain = true;          // (placed by number: the file's name isn't looked up)
+			t.inLevel = true;
+			t.levelOnly = true;
+			t.levelNumber = s.number;
+			list->tiles.push_back(t);
+			named.insert(Lower(name));
+			added++;
+		}
+
+		if (past > 0)
+		{
+			list->notes.push_back("the level holds " + std::to_string((unsigned long long)past) + " more shapes than the " + std::to_string((unsigned long long)kShapePickerMostLevelShapes) +
+				" the grid shows: they aren't shown");
+		}
+
+		std::stable_sort(list->tiles.begin(), list->tiles.end(), [](ShapePickerTile const &a, ShapePickerTile const &b) { return Lower(a.name) < Lower(b.name); });
+	}
+
+	std::string ShapePicker_NameBase(ShapePickerTile const &tile)
+	{
+		size_t const at = tile.levelOnly ? tile.name.find('@') : std::string::npos;
+
+		return at != std::string::npos && at > 0 ? tile.name.substr(0, at) : tile.name;
 	}
 
 	ShapePickerLayout ShapePicker_Layout(int32_t windowWidth, int32_t windowHeight)

@@ -13,6 +13,8 @@
 //   (7) THE STATE LINE'S PICKER FIELD: the selected name made safe; "selected none" with no tile (red by mutation, the raw name: 1 of 2 fails)
 //   (8) THE SCROLL BAR (the owner 11-23): down the right side from the grid's top, an arrow at each end, the thumb the share in view; an arrow a row, the track a page,
 //       the thumb dragged (to the foot the last page, to the top the first row); the selection as it was; its words. Red: no bar before it (the cut 8275930d)
+//   (9) THE LEVEL'S OWN SHAPES: every shape of the level a tile (a fragment file's parts by their own names), none twice, placeable by number, a part's object
+//       named from its object name. Red: no such tiles before it (b4521891)
 // RED FIRST: on a stand-in that lists nothing and lays out nothing, (1) to (4) fail; (5) on 4f0db774 (the words as they came); (6) by mutation, the lines
 // cut every perLine letters as the paint did before: 3 of its 4 fail.
 #include <stdio.h>
@@ -358,6 +360,49 @@ int main()
 
 		Check(words.find("up~") == 0 && words.find("|down~") != std::string::npos && words.find("|thumb~") != std::string::npos && words.find("|below~") != std::string::npos &&
 			words.find("above~") == std::string::npos && none.column[2] == 0 && ShapePicker_BarWords(none).empty(), "(8) the words: " + words);
+	}
+
+	// ---- (9) THE LEVEL'S OWN SHAPES (Bishop 2's decision on the owner's "items from shape_rifs + level"): a folder holds pulam and offbits; the level holds pulam
+	// once, Smrtam01 and Medbox01 (no folder has them), and offbits' parts Aerosol and Game (a fragment file: the level holds it twice)
+	{
+		std::vector<ShapePickerFolder> folders = { Folder("C:\\game\\shape_rifs", "the game's shape_rifs", { "pulam.rif", "offbits.rif" }) };
+		ShapePickerList list = ShapePicker_List(folders, { "pulam", "offbits" });
+
+		ShapePicker_AddLevelShapes(&list, { { "pulam", "pulam", 5 }, { "Smrtam01", "", 7 }, { "offbits", "Aerosol@offbits", 150 }, { "offbits", "Game@offbits", 152 },
+			{ "Medbox01", "Medbox01", 9 }, { "broken", "", -1 } });
+
+		std::string order;
+
+		for (ShapePickerTile const &t : list.tiles)
+		{
+			order += (order.empty() ? "" : " ") + t.name + (t.levelOnly ? "#" + std::to_string(t.levelNumber) : std::string());
+		}
+
+		Check(order == "Aerosol@offbits#150 Game@offbits#152 Medbox01#9 offbits pulam Smrtam01#7",
+			"(9) every shape of the level a tile, a fragment file's parts by their own names, none twice, a shape with no number left out, in name order: " + order);
+
+		bool marked = true;
+
+		for (ShapePickerTile const &t : list.tiles)
+		{
+			marked = marked && (!t.levelOnly || (t.inLevel && t.plain && t.where == "the level's own shape" && ShapePicker_WhyNotPlaced(t, ShapePickerState()).empty()));
+		}
+
+		Check(marked, "(9) each level tile 'in this level', placeable (by its number)");
+
+		ShapePickerTile part, single;
+
+		part.name = "Game@offbits";
+		part.levelOnly = true;
+		single.name = "Smrtam01";
+		single.levelOnly = true;
+		Check(ShapePicker_NameBase(part) == "Game" && ShapePicker_NameBase(single) == "Smrtam01", "(9) a part's object is named from its own name (Game), never with an '@'");
+
+		// a fragment file the level gives no names for: told apart by number
+		ShapePickerList plain = ShapePicker_List({}, {});
+
+		ShapePicker_AddLevelShapes(&plain, { { "bits", "", 3 }, { "bits", "", 4 } });
+		Check(plain.tiles.size() == 2 && plain.tiles[0].name == "bits#3" && plain.tiles[1].name == "bits#4", "(9) unnamed parts told apart by their numbers");
 	}
 
 	printf(checksFailed ? "host_shape_picker_test: %d FAILED\n" : "host_shape_picker_test: all passed\n", checksFailed);

@@ -422,7 +422,8 @@ namespace
 		int32_t const number = tile.inLevel ? levelNumberOf[view.selected] : -1;
 
 		ShapePickerScreen_Close(false);
-		ShapeChooserCreateFromPicker(tile.name, number);   // the name is asked, then the object made (construction_modes_screen.cpp)
+		ShapeChooserCreateFromPicker(host::ShapePicker_NameBase(tile), number);   // the name is asked, then the object made (construction_modes_screen.cpp); a part's base is its object
+		                                                                            // name ("Game" of "Game@offbits"), so no '@' goes into an object's name
 	}
 }
 
@@ -472,6 +473,22 @@ bool ShapePickerScreen_Open()
 	}
 
 	list = host::ShapePicker_List(folders, levelFiles);
+
+	// THE LEVEL'S OWN SHAPES as tiles too (shape_picker.h ShapePicker_AddLevelShapes; Bishop 2's decision on the owner's "items from shape_rifs + level"): a
+	// shape the level alone holds, and each part of a fragment file, drawn and placed by number
+	std::vector<host::ShapePickerLevelShape> levelShapes;
+
+	for (host::ShapeChoice const &one : shapes)
+	{
+		host::ShapePickerLevelShape s;
+
+		s.file = one.name;
+		s.gameName = one.gameName;
+		s.number = one.number;
+		levelShapes.push_back(s);
+	}
+
+	host::ShapePicker_AddLevelShapes(&list, levelShapes);
 	states.assign(list.tiles.size(), host::ShapePickerState());
 	shaOf.assign(list.tiles.size(), std::string());
 	noPictureOf.assign(list.tiles.size(), std::string());
@@ -482,6 +499,13 @@ bool ShapePickerScreen_Open()
 	// of the level's shapes are of it (a fragment file's parts: "N parts: the level's first is placed")
 	for (size_t i = 0; i < list.tiles.size(); i++)
 	{
+		if (list.tiles[i].levelOnly)
+		{
+			levelNumberOf[i] = list.tiles[i].levelNumber;   // the level's own shape: that one, by its number (one part of a fragment file is one shape)
+			levelPartsOf[i] = 1;
+			continue;
+		}
+
 		for (host::ShapeChoice const &one : shapes)
 		{
 			if (list.tiles[i].inLevel && _stricmp(one.name.c_str(), list.tiles[i].name.c_str()) == 0)
@@ -677,6 +701,10 @@ void ShapePickerScreen_Click(int32_t x, int32_t y)
 	{
 		return;
 	}
+
+	// a thumb still held is let go by any press (Frost's review of b4521891, SHOULD 1: let go outside the window, no WM_LBUTTONUP reached us, and the next press's
+	// moves scrolled the rows)
+	dragging = false;
 
 	// THE SCROLL BAR first (the owner: "a dragable scroll box on the top right"): an arrow a row, the track a page, the thumb taken to be dragged
 	host::ShapePickerBar const bar = host::ShapePicker_Bar(layout, view, list.tiles.size(), ownWide);

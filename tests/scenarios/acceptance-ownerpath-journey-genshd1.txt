@@ -42,16 +42,13 @@ expect-field-has hierarchylines Player Start 1
 key Back
 wait 300
 
-# ---- 3. an object: a shape from his level's list in the chooser, named
+# ---- 3. an object: a shape of his level picked in the placement picker's grid (Choose opens it since alpha.6, the owner's "Grid replaces it"; the level's
+# own shapes are its tiles too, Bishop 2's decision 11-23), named
 camera -120361 17351 8888 0 0
 wait 400
 click-bar Create > With shape: Choose
-expect-screen Shape Chooser
-key S
-expect-dialog Select shape
-click-choice Medbox01
-expect-no-dialog
-key Enter
+expect-field-has picker open
+click-tile Medbox01 twice
 expect-screen Object Placement
 expect-dialog Name Object
 type journeyThing

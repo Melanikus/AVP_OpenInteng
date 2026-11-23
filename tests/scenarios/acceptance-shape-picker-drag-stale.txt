@@ -1,0 +1,43 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-23, FROST'S REVIEW of b4521891, SHOULD 1): THE SCROLL THUMB IS NEVER LEFT HELD. The thumb was held by a flag only: let go
+# OUTSIDE the window, no WM_LBUTTONUP reaches the editor and the flag stayed up, so the next press on a tile, the pointer moving with the button down, scrolled the rows.
+# Now every press lets a held thumb go first, and a move with the left button up lets it go too.
+#   A: the thumb pressed and held (press-in), then the pointer moved with no button: the thumb is let go (pickerdrag free)
+#   B: the thumb pressed and held again (as if let go outside the window), then a drag across the tiles, from the first tile's middle (76,118) to the middle of
+#      row 3's fourth (388,484: the hidden run's grid, its left 28, top 70, a tile every 104 x 122): the rows don't move (first 0); before, the stale thumb followed
+#      the pointer down the track. (By places, not names: the tiles' names differ with and without the level's own shapes.)
+# A game folder of this scenario's own (a shared one kept another scenario's 80 copies: make_shape_game deletes nothing), as acceptance-shape-picker-scroll's:
+# more than a page, 9 x 4 a page in the hidden run's window.
+# RED on vasquez-picker-scroll b4521891's build: A stays held; B scrolls the rows.
+#ini DataFolder={datadir}-picker-drag-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-drag-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut copies80
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-drag-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
+level {datadir}-picker-drag-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+item 0x32
+expect-field-has picker open cols 9 rows 4 count
+expect-field-has picker first 0
+
+# ---- A: held, then a move with no button
+press-in pickerscroll thumb
+wait 300
+expect-field pickerdrag held
+move-win 500 400
+wait 300
+expect-field pickerdrag free
+
+# ---- B: held again (as if let go outside), then a drag across the tiles
+press-in pickerscroll thumb
+wait 300
+expect-field pickerdrag held
+drag-win 76 118 388 484
+wait 300
+expect-field-has picker first 0
+expect-field pickerdrag free
+
+key Esc
+wait 300
+expect-field picker closed
