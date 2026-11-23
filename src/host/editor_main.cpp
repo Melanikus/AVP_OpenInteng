@@ -14585,12 +14585,47 @@ static void ShapesReopenTheLevel()
 		return;
 	}
 
+	// THE PLAYER'S VIEW KEPT (Drake's review of 6fda3ba5, SHOULD 1): the open sets the camera, its slots and the Gouraud switch as inteng's first frame has
+	// them (OpenTheLevel: all at the origin, Gouraud off). This reopen is the editor's own, not the player's, so the view they had is put back after it, as
+	// All stock maps puts its camera back (all_stock_maps_host.cpp PutTheCameraBack); the slots and the switch too, which a Yes must never wipe.
+	FlyCamera const camera = theCamera ? *theCamera : FlyCamera();
+	FlyCamera slots[12];
+	bool slotsSet[12];
+	bool const gouraudOn = ViewToggles_Now().gouraud == host::Gouraud::On;
+
+	for (int s = 0; s < 12; s++)
+	{
+		slots[s] = cameraSlots[s];
+		slotsSet[s] = cameraSlotSet[s];
+	}
+
 	std::string const name = openLevelName;   // (a copy: the open writes openLevelName)
 	std::string why;
 
-	if (!LevelReopen_Open(name.c_str(), &why) && !LevelReopen_Open(name.c_str(), &why))
+	// A failed open leaves the editor holding NO level, and its caller opens the level before again (level_reopen.h): here that is this same level, so the
+	// second call IS that open again (Drake's SHOULD 2). Both failing: the status line says so.
+	bool const opened = LevelReopen_Open(name.c_str(), &why) || LevelReopen_Open(name.c_str(), &why);
+
+	if (!opened)
 	{
 		statusWords.Say(("Shapes: the level couldn't be opened again to show its new shapes: " + why).c_str(), StatusSayer::Other);
+		return;
+	}
+
+	if (theCamera)
+	{
+		*theCamera = camera;
+	}
+
+	for (int s = 0; s < 12; s++)
+	{
+		cameraSlots[s] = slots[s];
+		cameraSlotSet[s] = slotsSet[s];
+	}
+
+	if (gouraudOn && ViewToggles_Now().gouraud != host::Gouraud::On)
+	{
+		ViewToggles_UseNow(host::ViewToggle::GouraudSwitch);
 	}
 }
 

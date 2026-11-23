@@ -248,14 +248,27 @@ int main()
 			CloseHandle(odd);
 		}
 
+		// (on a double-byte code page, 932, 936, 949 or 950, the letter CAN be said: then it is a .rif like the others, so two are past the most and none
+		// is refused for its name: Drake's nit. Asked of Windows itself, so the check runs on every machine and never skips)
+		char said1[8] = "";
+		BOOL unsaid1 = FALSE;
+		bool const sayable = WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, L"\x4E2D", 1, said1, (int)sizeof(said1), nullptr, &unsaid1) > 0 && !unsaid1;
 		std::vector<std::string> refused;
 		std::vector<std::string> const maps = ShapesStart_MapsFound(many, &refused);
-		std::string const said = refused.size() == 2 ? refused[0] + " | " + refused[1] : std::string("(" + std::to_string(refused.size()) + " refusals)");
+		std::string said;
+
+		for (std::string const &r : refused)
+		{
+			said += (said.empty() ? "" : " | ") + r;
+		}
+
 		Check(allMade && maps.size() == kShapesStartMostAFolder && maps.back() == many + "\\avp_rifs\\m04095.rif", "4,097 .rif files in one folder: the first 4,096 "
 			"taken, in order (" + std::to_string(maps.size()) + ")");
-		Check(refused.size() == 2 && refused[0] == "avp_rifs: 1 more .rif files not taken (at most 4096 a folder)" &&
-			refused[1] == "avp_rifs: 1 file names Windows' code page can't say, not taken", "the one past the most said in one line, and the name the code page can't "
-			"say counted, never taken (\"" + said + "\")");
+		Check(sayable ? refused.size() == 1 && refused[0] == "avp_rifs: 2 more .rif files not taken (at most 4096 a folder)" :
+			refused.size() == 2 && refused[0] == "avp_rifs: 1 more .rif file not taken (at most 4096 a folder)" &&
+			refused[1] == "avp_rifs: 1 file name Windows' code page can't say, not taken", std::string("the one past the most said in one line, and ") +
+			(sayable ? "this code page says the CJK letter, so it is a .rif past the most too" : "the name the code page can't say counted, never taken") +
+			" (\"" + said + "\")");
 		DeleteFileW(unsayable.c_str());   // by its wide name: the code page's (TakeAway's) can't name it
 		TakeAway(many);
 	}

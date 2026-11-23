@@ -18,8 +18,16 @@ expect-field-has dialogbuttons Not_now
 picture 1
 click-button Yes
 expect-no-dialog
+# THE PLAYER'S VIEW KEPT (Drake's review of 6fda3ba5, SHOULD 1): the player moves while the maps are searched; the level opened again at the end keeps the
+# camera where they put it (the open alone puts it at the origin, OpenTheLevel)
+remember-field camera
+hold Up 800
+wait 300
+expect-field-changed camera
+remember-field camera
 # the search, one map a frame, until every map found has been taken (it says so on the status line and in the "shapes" field)
 wait-moving 120000 shapes done;
+expect-field-same camera
 expect-field-has shapes new shapes in shape_rifs
 expect-number shapes done;_ 50 233
 expect-number shapes scanned,_ 300 5000
