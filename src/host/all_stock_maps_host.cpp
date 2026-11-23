@@ -255,7 +255,8 @@ namespace
 
 	// THE GAME LOADER'S OWN LOG (avpx/3dc/level_log.h): a level that doesn't load, or loads with something refused, leaves <name>_errorlog.txt beside
 	// it. The batch's open made it, so the batch tidies it (Bishop 2, 2026-11-22: never left in avp_rifs): a log that wasn't there before the open is
-	// moved into the editor's own folder, logs\all-stock-maps\, under a name of its own, never over a file there. One there before is left alone.
+	// moved into the editor's own folder, logs\all-stock-maps\, under a name of its own, never over a file there. One there before keeps its bytes
+	// (PutBackOldLoaderLog: the loader writes over it).
 	std::string LoaderLogPath(std::string const &name)
 	{
 		std::string folder = theGameFolder;
@@ -319,6 +320,51 @@ namespace
 		}
 
 		return narrow;
+	}
+
+	// AN OLD LOG, THERE BEFORE THE OPEN (2026-11-23, the alpha.6 final round: stock Breakout_P's old log in avp_rifs came out holding the batch's log). The
+	// loader writes its log over any file of that name, so leaving an old one "alone" wasn't enough. Its bytes are kept before the open (read as a level is
+	// read, ReadLevel: a plain file of one name, not a link, 1 byte to 16 MB). Here, after the open, when they changed: the loader's new log is moved out
+	// as a new one is (TidyLoaderLog), and the old bytes are put back under its name (CREATE_NEW: the name is free once the new log is moved; a half-written
+	// copy is deleted). "" when the open left it as it was; else the words for the level's report (where the new log went, and anything that failed).
+	std::string PutBackOldLoaderLog(std::string const &log, std::string const &name, std::vector<char> const &before, std::string const &beforeSha)
+	{
+		std::vector<char> after;
+		std::string afterSha;
+		std::string const read = ReadLevel(log, &after, &afterSha);
+
+		if (read.empty() && afterSha == beforeSha)
+		{
+			return std::string();
+		}
+
+		std::string const moved = read == "missing" ? std::string() : TidyLoaderLog(log, name);
+		std::wstring const path = Wide(log);
+
+		if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
+		{
+			return moved + "; the log that was there before couldn't be put back: the loader's new one is still in its place";
+		}
+
+		HANDLE const file = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+		if (file == INVALID_HANDLE_VALUE)
+		{
+			return moved + "; the log that was there before couldn't be put back (Windows error " + std::to_string((unsigned long)GetLastError()) + ")";
+		}
+
+		DWORD put = 0;
+		bool const ok = WriteFile(file, before.data(), (DWORD)before.size(), &put, nullptr) && put == before.size() && FlushFileBuffers(file);
+
+		CloseHandle(file);
+
+		if (!ok)
+		{
+			DeleteFileW(path.c_str());   // the half-written copy is this run's own, just made by CREATE_NEW
+			return moved + "; the log that was there before couldn't be written back whole";
+		}
+
+		return moved;
 	}
 
 	host::AllStockMapsLevel &Here()
@@ -531,8 +577,14 @@ void host::AllStockMaps_Frame()
 			std::string said;
 			std::string const log = LoaderLogPath(name);
 			bool const logThere = GetFileAttributesW(Wide(log).c_str()) != INVALID_FILE_ATTRIBUTES;
+			// a log there before: its bytes kept, to be put back if the open writes over them (PutBackOldLoaderLog); one that can't be read as a plain file
+			// isn't kept, and the report says so
+			std::vector<char> oldLog;
+			std::string oldLogSha;
+			std::string const notKept = logThere ? ReadLevel(log, &oldLog, &oldLogSha) : std::string();
 			bool const opened = LevelReopen_Open(name.c_str(), &said);
-			std::string const moved = logThere ? std::string() : TidyLoaderLog(log, name);
+			std::string const moved = !logThere ? TidyLoaderLog(log, name) : notKept.empty() ? PutBackOldLoaderLog(log, name, oldLog, oldLogSha) :
+				log + " (there before the run and not kept: " + notKept + "; the loader may have written over it)";
 
 			run.closedBefore = true;   // the open closed the level before, whether this one opened or not
 			PutTheCameraBack();
