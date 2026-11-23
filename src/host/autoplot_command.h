@@ -32,6 +32,10 @@ namespace host
 	// (nostromo footy37), the 99th percentile 761,381, the median 17,893; so 4,000,000 is 1.8 times stock's most. Before it, the caps alone let a module
 	// look at kAutoPlotMostPairs x 2 x kAutoPlotMostLooks = 16,000,000 cells.
 	size_t const kAutoPlotMostModuleLooks = 4000000;
+	// The most AutoPlotMostModuleLooks= can raise it to (the owner, 11-23: "Don't decrease map precision because it would take longer"): the caps' own most,
+	// kAutoPlotMostPairs x 2 searches x kAutoPlotMostLooks (autoplot_grid.h; held equal there by a static_assert in autoplot_command.cpp): past it no module's
+	// searches can reach the budget, so a bigger number means the same
+	size_t const kAutoPlotMostModuleLooksSet = 16000000;
 	int32_t const kAutoPlotStationReach = 6000;       // a climb station's wall at most this far from where the alien lands (Drake: chain A's side walls 3.5-3.9 m off the lane)
 	uint32_t const kAutoPlotAirduct = 0x80000000u;    // MODULEFLAG_AIRDUCT, the bit Strategy mode's Add Flag > Airduct (0xe) sets (strategy_mode.h)
 }
@@ -43,8 +47,10 @@ bool AutoPlotCommand(int32_t command, int32_t pickedModule);
 // Each frame on the Waypoint screen: the grid's and the worker's progress said, a finished run's networks checked and written
 void AutoPlotCommand_Frame();
 
-// THE BUDGET's setting, [Editor] AutoPlotMostModuleLooks= read at start-up (editor_main.cpp): it can only LOWER kAutoPlotMostModuleLooks (a test's way to
-// make a module hit it on a stock level); 0, or more than kAutoPlotMostModuleLooks, keeps kAutoPlotMostModuleLooks. A run takes it as it starts
+// THE BUDGET's setting, [Editor] AutoPlotMostModuleLooks= in the user's own AVP_OpenInteng.ini (a map can't set it), read at start-up (editor_main.cpp): any number
+// from 1 to kAutoPlotMostModuleLooksSet is the budget, LOWER (a test's way to make a module hit it on a stock level) or HIGHER (a mapper whose own big map needs it:
+// the owner, 11-23, "Don't decrease map precision because it would take longer"; Bishop 2: the refusal says how); a bigger one is held to
+// kAutoPlotMostModuleLooksSet; 0 or none keeps kAutoPlotMostModuleLooks. A run takes it as it starts; the harness's state field plotbudget says it
 void AutoPlotCommand_SetModuleBudget(size_t looks);
 size_t AutoPlotCommand_ModuleBudget();
 

@@ -1,0 +1,15 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, Drake's review of 6774ce25, MUST 1, measured): THE PLOT BUDGET'S SETTING IS READ WHOLE. AutoPlotMostModuleLooks= is read
+# as text (autoplot_budget.h): plain digits from 1 to 16000000 are the budget, more is held at 16000000, and anything else is refused and keeps 4000000; a
+# refused or held setting is said on the status line and in the log, naming the setting and how it is written. Before, the number was read straight from the
+# ini, which keeps a number's leading digits and wraps past 32 bits: 4294967297 wrapped to 1, which refuses nearly every module.
+# Here: AutoPlotMostModuleLooks=4294967297 gives a budget of 16000000, said.
+# RED on exe-cache/6774ce25.exe (the budget raisable, the old read): plotbudget is 1.
+#ini AutoPlot=1
+#ini AutoPlotMostModuleLooks=4294967297
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+pictures off
+state
+expect-field plotbudget 16000000
+expect-status is more than 16000000, the most it takes
+verify node -e "const t=require('fs').readFileSync(process.argv[1],'latin1');process.exit(t.includes(process.argv[2])&&t.includes('AutoPlotMostModuleLooks= under [Editor] in AVP_OpenInteng.ini')?0:1)" {exedir}settings\avp_log.txt "is more than 16000000, the most it takes"

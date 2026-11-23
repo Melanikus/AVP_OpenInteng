@@ -1,0 +1,10 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, with acceptance-autoplot-budget-raised): a setting past the most a budget can bind, 99999999, is held to 16000000
+# (kAutoPlotMostPairs x 2 searches x kAutoPlotMostLooks: beyond it no module's searches could ever reach the budget).
+# RED on exe-cache/4eca7ea8.exe: plotbudget is 4000000.
+#ini AutoPlot=1
+#ini AutoPlotMostModuleLooks=99999999
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+pictures off
+state
+expect-field plotbudget 16000000

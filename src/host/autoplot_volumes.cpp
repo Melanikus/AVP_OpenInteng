@@ -2733,7 +2733,9 @@ namespace host
 			{
 				for (int a = 0; a < 3; a++)
 				{
-					first[a] = plan.list[i].min[a] + (plan.list[i].max[a] - plan.list[i].min[a]) / 2;
+					// min + (max - min) / 2 as before, so it still rounds toward min (Drake's nit on 6774ce25), but max - min in 64 bits: in 32 it overflows for a
+					// hostile level's extreme box (Vasquez's nit on ad0ee552). The middle lies between the two, so it fits back in 32
+					first[a] = (int32_t)(plan.list[i].min[a] + ((int64_t)plan.list[i].max[a] - plan.list[i].min[a]) / 2);
 				}
 
 				plan.notes.push_back("box " + std::to_string((long long)i) + ": no aim point was made for it, so its aim is its own box's middle");

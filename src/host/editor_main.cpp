@@ -106,6 +106,7 @@
 #include "autoplot_closers.h"   // the auto-plot's gap closers: their switch (AutoPlotClosers=1)
 #include "autoplot_grid.h"   // the alien auto-plot's pathfinder service (the harness's probe)
 #include "autoplot_switch.h"   // the owner's "hide auto pilot": AutoPlot= read at start-up
+#include "autoplot_budget.h"   // the plot budget's setting, read as text (AutoPlotMostModuleLooks=)
 #include "autoplot_command.h"  // a running auto-plot's busy cursor (the window's WM_SETCURSOR)
 #include "autoplot_preview.h"  // THE PLOT'S PREVIEW: its switch (PlotPreview= read at start-up)
 #include "plot_preview_state.h"
@@ -15121,7 +15122,21 @@ int main(int, char **)
 	host::AutoPlotClosers_Load(layoutSettingsFile);   // the gap closers' switch (autoplot_closers.h): AutoPlotClosers=1, a scored candidate, off unless asked
 	host::AutoPlot_SetShown(GetPrivateProfileIntA("Editor", "AutoPlot", 0, layoutSettingsFile) == 1);   // the owner's "hide auto pilot" (11-19): Waypoint's Auto-plot items only with AutoPlot=1 (autoplot_switch.h)
 	host::PlotPreview_SetOn(GetPrivateProfileIntA("Editor", "PlotPreview", 1, layoutSettingsFile) != 0);   // THE PLOT'S PREVIEW: on unless the ini says 0 (Frost's timing)
-	AutoPlotCommand_SetModuleBudget((size_t)GetPrivateProfileIntA("Editor", "AutoPlotMostModuleLooks", 0, layoutSettingsFile));   // THE PLOT'S BUDGET: only ever lowered (autoplot_command.h)
+	// THE PLOT'S BUDGET (autoplot_command.h): AutoPlotMostModuleLooks= lowers or raises it, 1 to 16000000. Read as TEXT and judged whole (autoplot_budget.h): the
+	// number read straight from the ini kept a number's leading digits and wrapped past 32 bits, so 8,000,000 gave a budget of 8 (Drake's review of 6774ce25, MUST 1).
+	// One that is refused or held is said in the log now, and on the status line once the first level is open (its own words are made then, and would replace them)
+	std::string budgetWords;
+	{
+		char budgetText[64] = "";
+
+		GetPrivateProfileStringA("Editor", "AutoPlotMostModuleLooks", "", budgetText, sizeof(budgetText), layoutSettingsFile);
+		AutoPlotCommand_SetModuleBudget(host::AutoPlotBudget_FromText(budgetText, &budgetWords));
+
+		if (!budgetWords.empty())
+		{
+			LogString("settings: " + budgetWords);
+		}
+	}
 
 	// THE TEXT SCALE (the owner's addition, text_scale.h): FontScale= in the same file, a plain number from 1 to 3 (1, inteng's own size, when it isn't there); anything else is refused
 	// and said, and the text stays inteng's size
@@ -15401,6 +15416,15 @@ int main(int, char **)
 	{
 		ReleaseDirect3D();
 		return Stop(why);
+	}
+
+	// the plot budget's setting, refused or held (read above): first on the status line, before the level's own words (the run's first look at the line, Dietrich 11-23:
+	// set before the level opened, the level's missing-pictures words replaced it)
+	if (!budgetWords.empty())
+	{
+		std::string const both = budgetWords + (statusWords && *statusWords ? std::string("; ") + (char const *)statusWords : std::string());
+
+		statusWords = both.c_str();   // a copy (status_words.h)
 	}
 
 	// SHAPES PART 3 (shapes_start_screen.h; the owner's Option C rule, Drake's spec): the FOUND form, or the search of the maps not yet searched, from the
@@ -16369,6 +16393,7 @@ int main(int, char **)
 		StateLine_Add("plotmessage", AutoPlotCommand_MessageShown().empty() ? std::string("off") : AutoPlotCommand_MessageShown());   // the auto-plot's start message this frame drew
 		StateLine_Add("plotmessagebox", AutoPlotCommand_MessageBox().empty() ? std::string("off") : AutoPlotCommand_MessageBox());   // and its black box
 		StateLine_Add("allstockmaps", host::AllStockMaps_StateWords());   // All stock maps: busy or idle, level N of M, file, stage, the last verdict, the worst frame while plotting (all_stock_maps.h)
+		StateLine_Add("plotbudget", std::to_string((unsigned long long)AutoPlotCommand_ModuleBudget()));   // THE PLOT'S BUDGET a run uses: the cells an AI module's searches may look at (autoplot_command.h)
 		StateLine_Add("shapes", host::ShapesStartScreen_StateWords());   // shapes part 3: off, asking, not now, searching N of M, done and its words (shapes_start_screen.h)
 		ShapePickerScreen_StateFields();   // the placement picker: picker, pickerboxes, pickertiles, pickernotes (shape_picker_screen.h)
 		PlotPreviewView_Drawn();   // IN STEP WITH THE PLOT (plot_preview_view.h): the copy this frame showed is drawn, the plot's worker may go on

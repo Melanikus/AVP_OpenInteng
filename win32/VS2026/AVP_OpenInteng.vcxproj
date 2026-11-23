@@ -192,6 +192,11 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <!-- Auto-plot, THE BUDGET'S SETTING read as text (autoplot_budget.h: AutoPlotMostModuleLooks= judged whole; Drake's review of 6774ce25) -->
+    <ClCompile Include="..\..\src\host\autoplot_budget.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <!-- Auto-plot alien ways, THE GAP CLOSERS (autoplot_closers.h: the wall band between the floor box and the entries closed by the fewest, largest boxes; Vasquez 11-21) -->
     <ClCompile Include="..\..\src\host\autoplot_closers.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
