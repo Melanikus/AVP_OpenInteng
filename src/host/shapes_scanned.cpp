@@ -63,6 +63,13 @@ namespace host
 		}
 	}
 
+	std::string ShapesScanned_Name(std::string const &name)
+	{
+		std::string const safe = PanelPaint_SafeText(name);
+
+		return safe.size() > kShapesScannedMostName ? safe.substr(0, kShapesScannedMostName) : safe;
+	}
+
 	ShapesScannedList ShapesScanned_Read(std::string const &ini)
 	{
 		ShapesScannedList list;
@@ -104,12 +111,20 @@ namespace host
 
 			if (!IsSha256(key) || seen.count(key) || list.entries.size() >= kShapesScannedMost)
 			{
-				list.refused.push_back(PanelPaint_SafeText(words.substr(0, 120)));
+				if (list.refused.size() < kShapesScannedMostRefused)
+				{
+					list.refused.push_back(PanelPaint_SafeText(words.substr(0, 120)));
+				}
+				else
+				{
+					list.refusedMore++;
+				}
+
 				continue;
 			}
 
 			seen.insert(key);
-			list.entries.push_back({ key, PanelPaint_SafeText(name) });
+			list.entries.push_back({ key, ShapesScanned_Name(name) });
 		}
 
 		return list;
@@ -148,7 +163,7 @@ namespace host
 				return false;
 			}
 
-			lines.push_back(Lower(entry.sha256) + "=" + PanelPaint_SafeText(entry.name));
+			lines.push_back(Lower(entry.sha256) + "=" + ShapesScanned_Name(entry.name));
 		}
 
 		return FirstLaunch_IniWithSection(ini, kShapesScannedSection, lines, out);

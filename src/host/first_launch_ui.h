@@ -68,6 +68,6 @@ namespace host
 	// THE INI SECTION (a list the editor keeps, shapes_scanned.h): ini's text with the FIRST [section] holding exactly `lines`, every other byte kept: the lines
 	// from its header down to its last line that isn't empty are replaced (the empty lines after it, and the next section, stay as they were), or the section
 	// is added at the end of the file when it isn't there. The section is matched as Windows matches it (any case, spaces dropped). New lines end as the file's
-	// do. False, with *out untouched, when a line holds a new line or a 0, or section holds a ']' or a new line
+	// do. False, with *out untouched, when a line holds a new line or a 0 or starts (after spaces) with a '[', or section holds a ']' or a new line
 	bool FirstLaunch_IniWithSection(std::string const &ini, std::string const &section, std::vector<std::string> const &lines, std::string *out);
 }

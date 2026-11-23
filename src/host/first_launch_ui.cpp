@@ -328,7 +328,8 @@ namespace host
 
 		for (std::string const &line : lines)
 		{
-			if (Unwritable(line, ""))
+			// (a line whose first letter, after spaces, is '[' would be read as another section's header: refused, Vasquez's review)
+			if (Unwritable(line, "") || Trimmed(line).compare(0, 1, "[") == 0)
 			{
 				return false;
 			}

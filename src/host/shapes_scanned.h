@@ -19,6 +19,8 @@
 namespace host
 {
 	size_t const kShapesScannedMost = 4096;
+	size_t const kShapesScannedMostName = 64;      // a name kept on the list: at most 64 bytes, after the safe text rule (Vasquez's review)
+	size_t const kShapesScannedMostRefused = 16;   // the section's lines not taken that are named; any more are only counted (refusedMore)
 	extern char const kShapesScannedSection[];   // "ShapesScanned"
 
 	struct ShapesScannedEntry
@@ -31,11 +33,16 @@ namespace host
 	{
 		bool present = false;                       // the section is in the ini: the player said Yes once, so new maps are searched without asking
 		std::vector<ShapesScannedEntry> entries;    // in the file's order, no SHA-256 twice
-		std::vector<std::string> refused;           // the section's lines not taken (not a 64-hex key, a repeat, past the most), as the safe text rule shows them
+		std::vector<std::string> refused;           // the section's lines not taken (not a 64-hex key, a repeat, past the most), as the safe text rule shows them,
+		                                            // at most kShapesScannedMostRefused of them
+		size_t refusedMore = 0;                     // lines not taken past those
 	};
 
 	// The list, read from the ini's text (its first [ShapesScanned] section, any case; ';' lines are comments)
 	ShapesScannedList ShapesScanned_Read(std::string const &ini);
+
+	// A file's name as the list keeps it: the safe text rule, then at most kShapesScannedMostName bytes (the trigger and the reader both keep names by it)
+	std::string ShapesScanned_Name(std::string const &name);
 
 	// Whether a map's SHA-256 (any case) is on the list
 	bool ShapesScanned_Has(ShapesScannedList const &list, std::string const &sha256);

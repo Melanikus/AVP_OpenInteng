@@ -134,10 +134,40 @@ static void TheWriting()
 		"a name with a new line in it can't make a line of its own: written as '?'");
 }
 
+// THE BOUNDS (Vasquez's review of Drake's list, taken by Frost in shapes part 3, 11-23): a name kept to 64 bytes, read or written; the lines not taken named
+// to a most and the rest counted; a line that would start a section refused by the section writer
+static void TheBounds()
+{
+	std::string const longName(200, 'n');
+	ShapesScannedList const read = ShapesScanned_Read("[ShapesScanned]\r\n" + Sha(1) + "=" + longName + ".rif\r\n");
+	Check(read.entries.size() == 1 && read.entries[0].name == std::string(kShapesScannedMostName, 'n'), "a name of 204 letters in the ini: kept as its first 64 (" +
+		std::to_string(read.entries.empty() ? 0 : read.entries[0].name.size()) + ")");
+	Check(ShapesScanned_Name(longName).size() == kShapesScannedMostName && ShapesScanned_Name("Genshd1.RIF") == "Genshd1.RIF" &&
+		ShapesScanned_Name("a\tb") == "a?b", "ShapesScanned_Name: the safe text rule, then 64 bytes at most");
+
+	std::string out;
+	Check(ShapesScanned_Write("", { { Sha(2), longName } }, &out) && out.find(std::string(kShapesScannedMostName, 'n') + "\r\n") != std::string::npos &&
+		out.find(std::string(kShapesScannedMostName + 1, 'n')) == std::string::npos, "a name of 200 letters written: 64 of them");
+
+	std::string many = "[ShapesScanned]\r\n";
+	for (int k = 0; k < 40; k++)
+	{
+		many += "not a key " + std::to_string(k) + "\r\n";
+	}
+	ShapesScannedList const refused = ShapesScanned_Read(many);
+	Check(refused.refused.size() == kShapesScannedMostRefused && refused.refusedMore == 40 - kShapesScannedMostRefused && refused.entries.empty(),
+		"40 lines not taken: 16 named, 24 counted (" + std::to_string(refused.refused.size()) + ", " + std::to_string(refused.refusedMore) + ")");
+
+	Check(!FirstLaunch_IniWithSection("", "ShapesScanned", { "[Editor]" }, &out) && !FirstLaunch_IniWithSection("", "ShapesScanned", { "  [x" }, &out) &&
+		FirstLaunch_IniWithSection("", "ShapesScanned", { "a=[b]" }, &out), "the section writer refuses a line that starts (after spaces) with '[': it would be another "
+		"section's header; a '[' later in a line is fine");
+}
+
 int main()
 {
 	TheReading();
 	TheWriting();
+	TheBounds();
 
 	printf("checks %d; failed %d\n", checksRun, checksFailed);
 	return checksFailed ? 1 : 0;

@@ -43,7 +43,7 @@ namespace host
 		{
 			size_t const cut = path.find_last_of("\\/");
 
-			return PanelPaint_SafeText(cut == std::string::npos ? path : path.substr(cut + 1));
+			return ShapesScanned_Name(cut == std::string::npos ? path : path.substr(cut + 1));
 		}
 	}
 
@@ -57,6 +57,19 @@ namespace host
 		{
 			known.insert(Lower(entry.sha256));
 		}
+	}
+
+	void ShapesTrigger::Add(std::string const &path)
+	{
+		for (size_t k = next; k < paths.size(); k++)
+		{
+			if (paths[k] == path)
+			{
+				return;   // still waiting to be taken
+			}
+		}
+
+		paths.push_back(path);
 	}
 
 	bool ShapesTrigger::Step(ShapesTriggerHooks const &hooks)

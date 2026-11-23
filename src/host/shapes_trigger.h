@@ -49,6 +49,11 @@ namespace host
 		// One map; false when every map has been taken (then nothing happens)
 		bool Step(ShapesTriggerHooks const &hooks);
 
+		// A MAP FOUND LATER (a level the editor opens after the start: Open, Open with, a reopen; Frost 11-23, the spec's 2): taken after the maps still to be
+		// taken, by the same rules (read as hostile input, its SHA-256 judged). A path still waiting is not added twice; one already taken is added again, since
+		// a level saved since has another SHA-256 (the owner: a changed map is searched again). Done() is false again until it is taken.
+		void Add(std::string const &path);
+
 		bool Done() const;
 		bool Changed() const;                                // a map was added: the ini's list is to be written
 		std::vector<ShapesScannedEntry> const &List() const;   // the list, the maps added after the old ones

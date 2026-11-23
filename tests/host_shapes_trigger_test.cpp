@@ -196,12 +196,56 @@ static void TheWordsAndNames()
 	Check(fakes.searched.size() == 2, "a reader giving a SHA-256 that isn't 64 hex letters: not searched, not listed");
 }
 
+// A LEVEL OPENED LATER (Add, Frost 11-23): the start's maps taken, then a level the editor opens joins them, by the same rules
+static void TheLevelsOpenedLater()
+{
+	Fakes fakes;
+	std::string const rifs = "C:\\Games\\AvP\\avp_rifs\\";
+
+	fakes.maps[rifs + "Genshd1.RIF"] = { Sha(1), "", { 0, false, "" } };
+	fakes.maps["D:\\Maps\\Mine.rif"] = { Sha(7), "", { 2, false, "" } };
+
+	ShapesTrigger trigger;
+	trigger.Begin(ListOf({}), { rifs + "Genshd1.RIF" });
+	ShapesTriggerHooks const hooks = fakes.Hooks();
+
+	while (trigger.Step(hooks)) {}
+
+	Check(trigger.Done() && fakes.searched.size() == 1, "the start's one map taken and searched");
+
+	trigger.Add("D:\\Maps\\Mine.rif");
+	trigger.Add("D:\\Maps\\Mine.rif");
+	Check(!trigger.Done(), "a level opened later: not done until it is taken");
+
+	size_t steps = 0;
+	while (trigger.Step(hooks))
+	{
+		steps++;
+	}
+
+	Check(steps == 1 && fakes.read.size() == 2 && fakes.searched.size() == 2 && fakes.searched[1] == "D:\\Maps\\Mine.rif",
+		"added twice while it waited: taken ONCE, read and searched (" + std::to_string(steps) + " steps)");
+	Check(trigger.List().size() == 2 && trigger.List()[1].sha256 == Sha(7) && trigger.List()[1].name == "Mine.rif" && trigger.Written() == 2,
+		"and on the list after the start's map, its 2 shapes counted");
+
+	trigger.Add(rifs + "Genshd1.RIF");
+	while (trigger.Step(hooks)) {}
+	Check(fakes.read.size() == 3 && fakes.searched.size() == 2, "a level opened again, its bytes the same: read, never searched again");
+
+	fakes.maps["D:\\Maps\\Mine.rif"].sha256 = Sha(8);   // saved since: other bytes
+	trigger.Add("D:\\Maps\\Mine.rif");
+	while (trigger.Step(hooks)) {}
+	Check(fakes.searched.size() == 3 && trigger.List().size() == 3 && trigger.List()[2].sha256 == Sha(8), "the same level saved since (another SHA-256): searched again, "
+		"and listed");
+}
+
 int main()
 {
 	TheNewMaps();
 	NothingNew();
 	TheListsMost();
 	TheWordsAndNames();
+	TheLevelsOpenedLater();
 
 	printf("checks %d; failed %d\n", checksRun, checksFailed);
 	return checksFailed ? 1 : 0;

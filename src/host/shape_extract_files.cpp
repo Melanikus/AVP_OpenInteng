@@ -654,31 +654,51 @@ namespace host
 	namespace
 	{
 		bool LevelToFolderUnguarded(std::string const &levelPath, std::string const &shapeFolder, ShapeLevelReport *report);
-	}
 
-	// OUT OF MEMORY anywhere in the one call per map (Vasquez's MUST, 11-23: a 32-bit editor, and a map at the limits holds about 250-300 MB of large blocks
-	// at its peak) fails the MAP, in words, never the editor, as the level open does (level_file.cpp OpenLevelFile::Open). report->read stays as it was.
-	bool ShapeExtract_LevelToFolder(std::string const &levelPath, std::string const &shapeFolder, ShapeLevelReport *report)
-	{
-		try
+		// OUT OF MEMORY anywhere in a one call per map (Vasquez's MUST, 11-23: a 32-bit editor, and a map at the limits holds about 250-300 MB of large
+		// blocks at its peak) fails the MAP, in words, never the editor, as the level open does (level_file.cpp OpenLevelFile::Open). report->read stays
+		// as it was. Both one calls (from a path, from bytes read already) are guarded by it.
+		template <typename Work>
+		bool Guarded(std::string const &mapWords, ShapeLevelReport *report, Work const &work)
 		{
-			return LevelToFolderUnguarded(levelPath, shapeFolder, report);
-		}
-		catch (std::bad_alloc const &)
-		{
-			report->failed = true;
-
 			try
 			{
-				report->why = "the map " + levelPath + " can't be scanned: not enough memory";
+				return work();
 			}
 			catch (std::bad_alloc const &)
 			{
-				report->why.clear();   // (no memory even for the words: failed says it)
-			}
+				report->failed = true;
 
-			return false;
+				try
+				{
+					report->why = "the map " + mapWords + " can't be scanned: not enough memory";
+				}
+				catch (std::bad_alloc const &)
+				{
+					report->why.clear();   // (no memory even for the words: failed says it)
+				}
+
+				return false;
+			}
 		}
+
+		// a scanned map's bytes, read already, into the folder: the part both one calls share
+		bool BytesToFolderUnguarded(std::string const &mapName, std::vector<char> const &bytes, std::string const &shapeFolder, ShapeLevelReport *report)
+		{
+			report->read = true;
+			return ShapeExtract_WriteMapShapes(ShapeExtract_ScanMap(mapName, bytes), mapName, shapeFolder, report);
+		}
+	}
+
+	bool ShapeExtract_LevelToFolder(std::string const &levelPath, std::string const &shapeFolder, ShapeLevelReport *report)
+	{
+		return Guarded(levelPath, report, [&]() { return LevelToFolderUnguarded(levelPath, shapeFolder, report); });
+	}
+
+	bool ShapeExtract_BytesToFolder(std::string const &mapName, std::vector<char> const &bytes, std::string const &shapeFolder, ShapeLevelReport *report)
+	{
+		*report = ShapeLevelReport();
+		return Guarded(mapName, report, [&]() { return BytesToFolderUnguarded(mapName, bytes, shapeFolder, report); });
 	}
 
 	namespace
@@ -697,10 +717,9 @@ namespace host
 			return false;
 		}
 
-		report->read = true;
 		size_t const slash = levelPath.find_last_of("\\/");
 		std::string const mapName = slash == std::string::npos ? levelPath : levelPath.substr(slash + 1);
-		return ShapeExtract_WriteMapShapes(ShapeExtract_ScanMap(mapName, bytes), mapName, shapeFolder, report);
+		return BytesToFolderUnguarded(mapName, bytes, shapeFolder, report);
 	}
 	}
 

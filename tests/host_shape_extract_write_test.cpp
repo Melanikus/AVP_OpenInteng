@@ -426,6 +426,27 @@ int main()
 			escaped = false;
 		}
 
+		// the same from bytes read already (ShapeExtract_BytesToFolder, shapes part 3): out of memory in its scan fails the map in words too
+		{
+			ShapeLevelReport r;
+			bool ok = true;
+
+			try
+			{
+				failBigAllocationIn = 1;   // the map's copy for the scan: the first big block it asks for
+				ok = ShapeExtract_BytesToFolder("BigMap.rif", bigMap, memoryFolder, &r);
+			}
+			catch (std::bad_alloc const &)
+			{
+				escaped = true;
+			}
+
+			failBigAllocationIn = 0;
+			Check(!escaped && !ok && r.failed && r.why.find("not enough memory") != std::string::npos && r.read, std::string("ShapeExtract_BytesToFolder out of ") +
+				"memory in the scan: the map fails in words (\"" + r.why + "\")" + (escaped ? "; THE EXCEPTION ESCAPED (it would end the editor)" : ""));
+			escaped = false;
+		}
+
 		std::string const data = root + "\\memorydata";
 		CreateDirectoryA(data.c_str(), nullptr);
 		CreateDirectoryA((data + "\\avp_rifs").c_str(), nullptr);
@@ -510,6 +531,18 @@ int main()
 		"ShapeExtract_LevelToFolder: the map's file read, its SHA-256 the file's, medbox01.rif written (" + Joined(r10.written) + ") " + r10.why);
 	bool const ok11 = ShapeExtract_LevelToFolder(root + "\\Missing.rif", fourth, &r11);
 	Check(!ok11 && !r11.read && r11.failed && r11.why.find("missing") != std::string::npos, "a map that isn't there: not read, failed, \"" + r11.why + "\"");
+
+	// THE SAME FROM BYTES READ ALREADY (ShapeExtract_BytesToFolder, shapes part 3): the bytes the caller hashed are the ones searched; no file is read
+	{
+		std::string const fifth = root + "\\fifth";
+		ShapeLevelReport r18;
+		bool const ok18 = ShapeExtract_BytesToFolder("Derelict.RIF", derelict, fifth, &r18);
+		std::vector<std::string> const lines18 = LinesOf(fifth + "\\shapes.txt");
+		Check(ok18 && r18.read && r18.sha256 == ShapeExtract_Sha256(derelict) && Joined(r18.written) == "medbox01.rif" &&
+			ReadAll(fifth + "\\medbox01.rif") == a.shapes[0].file && lines18.size() == 5 && lines18[4].find(ShapeExtract_Sha256(derelict)) != std::string::npos &&
+			lines18[4].find("Derelict.RIF") != std::string::npos, "ShapeExtract_BytesToFolder: medbox01.rif written from the bytes given, its shapes.txt line naming "
+			"Derelict.RIF and those bytes' SHA-256 (" + Joined(r18.written) + ") " + r18.why);
+	}
 
 	TakeAway(root);
 	Check(!Exists(root), "and the test's folder is taken away");

@@ -16,7 +16,7 @@
 
 namespace
 {
-	size_t const kSettingsMostBytes = 64 * 1024;   // AVP_OpenInteng.ini is read whole before its one line is written: the zip's own is under 2 KB
+	size_t const kSettingsMostBytes = 1024 * 1024;   // AVP_OpenInteng.ini is read whole before a line or a section of it is written: the zip's own is under 2 KB, and the list of maps searched (shapes_scanned.h) at its most about 540 KB
 
 	// The words to the error output too, a line each, so a hidden run's harness and a console read them ("first launch: ...")
 	void Say(std::string const &words)
@@ -147,61 +147,17 @@ namespace
 		return nullptr;
 	}
 
-	// DataFolder=<folder> into AVP_OpenInteng.ini, every other byte kept: read whole (at most kSettingsMostBytes, a plain file, never a link), the line put in
-	// (first_launch_ui.h), written to "<ini>.writing" made new (never through a file or link already there), then put in the ini's place by Windows in one step
+	// DataFolder=<folder> into AVP_OpenInteng.ini, every other byte kept (first_launch_ui.h), read and written as FirstLaunch_ReadIni and FirstLaunch_WriteIni do
 	bool WriteDataFolder(char const *settingsFile, std::string const &folder, std::string *why)
 	{
 		std::string text;
-		DWORD const kind = GetFileAttributesA(settingsFile);
-		bool const there = kind != INVALID_FILE_ATTRIBUTES;
+		std::string written;
+		bool there = false;
 
-		if (there && (kind & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)))
+		if (!host::FirstLaunch_ReadIni(settingsFile, &text, &there, why))
 		{
-			*why = "it isn't a plain file (a folder, a link or another reparse point)";
 			return false;
 		}
-
-		if (there)
-		{
-			// judged on its handle, its link never followed (as Save judges the level it writes over, F-a): a plain file with one name only
-			HANDLE const file = CreateFileA(settingsFile, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT,
-				nullptr);
-			BY_HANDLE_FILE_INFORMATION about = {};
-			LARGE_INTEGER size = {};
-
-			if (file != INVALID_HANDLE_VALUE && (!GetFileInformationByHandle(file, &about) || (about.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY |
-				FILE_ATTRIBUTE_REPARSE_POINT)) || about.nNumberOfLinks != 1))
-			{
-				CloseHandle(file);
-				*why = "it isn't a plain file with one name (a link, a folder, or one name of a file with several)";
-				return false;
-			}
-
-			if (file == INVALID_HANDLE_VALUE || !GetFileSizeEx(file, &size) || size.QuadPart < 0 || (unsigned long long)size.QuadPart > kSettingsMostBytes)
-			{
-				if (file != INVALID_HANDLE_VALUE)
-				{
-					CloseHandle(file);
-				}
-
-				*why = "it can't be read, or it is larger than 64 KB";
-				return false;
-			}
-
-			text.resize((size_t)size.QuadPart);
-			DWORD read = 0;
-			bool const whole = text.empty() || (ReadFile(file, &text[0], (DWORD)text.size(), &read, nullptr) && read == text.size());
-
-			CloseHandle(file);
-
-			if (!whole)
-			{
-				*why = "it couldn't be read whole";
-				return false;
-			}
-		}
-
-		std::string written;
 
 		if (!host::FirstLaunch_IniWithLine(text, "Editor", "DataFolder", folder, &written))
 		{
@@ -209,37 +165,99 @@ namespace
 			return false;
 		}
 
-		std::string const temporary = std::string(settingsFile) + ".writing";
-		HANDLE out = CreateFileA(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
-
-		if (out == INVALID_HANDLE_VALUE && GetLastError() == ERROR_FILE_EXISTS && DeleteFileA(temporary.c_str()))   // a leftover of ours (a link itself is deleted, never its target)
-		{
-			out = CreateFileA(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
-		}
-
-		if (out == INVALID_HANDLE_VALUE)
-		{
-			*why = "its new copy couldn't be made beside it";
-			return false;
-		}
-
-		DWORD wrote = 0;
-		bool const all = WriteFile(out, written.data(), (DWORD)written.size(), &wrote, nullptr) && wrote == written.size() && FlushFileBuffers(out);
-
-		CloseHandle(out);
-
-		bool const placed = all && (there ? ReplaceFileA(settingsFile, temporary.c_str(), nullptr, REPLACEFILE_IGNORE_MERGE_ERRORS, nullptr, nullptr) != FALSE :
-			MoveFileExA(temporary.c_str(), settingsFile, MOVEFILE_WRITE_THROUGH) != FALSE);
-
-		if (!placed)
-		{
-			DeleteFileA(temporary.c_str());
-			*why = all ? "Windows wouldn't put the new copy in its place" : "its new copy couldn't be written";
-			return false;
-		}
-
-		return true;
+		return host::FirstLaunch_WriteIni(settingsFile, written, there, why);
 	}
+}
+
+bool host::FirstLaunch_ReadIni(char const *settingsFile, std::string *text, bool *there, std::string *why)
+{
+	text->clear();
+
+	DWORD const kind = GetFileAttributesA(settingsFile);
+
+	*there = kind != INVALID_FILE_ATTRIBUTES;
+
+	if (*there && (kind & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)))
+	{
+		*why = "it isn't a plain file (a folder, a link or another reparse point)";
+		return false;
+	}
+
+	if (*there)
+	{
+		// judged on its handle, its link never followed (as Save judges the level it writes over, F-a): a plain file with one name only
+		HANDLE const file = CreateFileA(settingsFile, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT,
+			nullptr);
+		BY_HANDLE_FILE_INFORMATION about = {};
+		LARGE_INTEGER size = {};
+
+		if (file != INVALID_HANDLE_VALUE && (!GetFileInformationByHandle(file, &about) || (about.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY |
+			FILE_ATTRIBUTE_REPARSE_POINT)) || about.nNumberOfLinks != 1))
+		{
+			CloseHandle(file);
+			*why = "it isn't a plain file with one name (a link, a folder, or one name of a file with several)";
+			return false;
+		}
+
+		if (file == INVALID_HANDLE_VALUE || !GetFileSizeEx(file, &size) || size.QuadPart < 0 || (unsigned long long)size.QuadPart > kSettingsMostBytes)
+		{
+			if (file != INVALID_HANDLE_VALUE)
+			{
+				CloseHandle(file);
+			}
+
+			*why = "it can't be read, or it is larger than 1 MB";
+			return false;
+		}
+
+		text->resize((size_t)size.QuadPart);
+		DWORD read = 0;
+		bool const whole = text->empty() || (ReadFile(file, &(*text)[0], (DWORD)text->size(), &read, nullptr) && read == text->size());
+
+		CloseHandle(file);
+
+		if (!whole)
+		{
+			*why = "it couldn't be read whole";
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool host::FirstLaunch_WriteIni(char const *settingsFile, std::string const &written, bool there, std::string *why)
+{
+	std::string const temporary = std::string(settingsFile) + ".writing";
+	HANDLE out = CreateFileA(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+	if (out == INVALID_HANDLE_VALUE && GetLastError() == ERROR_FILE_EXISTS && DeleteFileA(temporary.c_str()))   // a leftover of ours (a link itself is deleted, never its target)
+	{
+		out = CreateFileA(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+	}
+
+	if (out == INVALID_HANDLE_VALUE)
+	{
+		*why = "its new copy couldn't be made beside it";
+		return false;
+	}
+
+	DWORD wrote = 0;
+	bool const all = WriteFile(out, written.data(), (DWORD)written.size(), &wrote, nullptr) && wrote == written.size() && FlushFileBuffers(out);
+
+	CloseHandle(out);
+
+	bool const placed = all && (there ? ReplaceFileA(settingsFile, temporary.c_str(), nullptr, REPLACEFILE_IGNORE_MERGE_ERRORS, nullptr, nullptr) != FALSE :
+		MoveFileExA(temporary.c_str(), settingsFile, MOVEFILE_WRITE_THROUGH) != FALSE);
+
+	if (!placed)
+	{
+		DeleteFileA(temporary.c_str());
+		*why = all ? "Windows wouldn't put the new copy in its place" : "its new copy couldn't be written";
+		return false;
+	}
+
+	return true;
 }
 
 bool host::FirstLaunch_NotFound(char const *programFolder, char const *settingsFile, std::string *dataFolder)

@@ -43,6 +43,11 @@ namespace host
 	// editor, a map at the limits: Vasquez's review, 11-23) fails the map in words, never the editor; report->read stays as it was (the bytes read or not).
 	bool ShapeExtract_LevelToFolder(std::string const &levelPath, std::string const &shapeFolder, ShapeLevelReport *report);
 
+	// THE SAME, FOR A MAP READ ALREADY (shapes part 3, Frost 11-23: the start's search, shapes_start.h): bytes the caller read with ShapeExtract_ReadMapFile
+	// and hashed on that same handle, so the map searched is the very one whose SHA-256 goes on the list, with no second read in between. mapName: the
+	// map file's own name ("Genshd1.RIF"). Scanned and written as ShapeExtract_LevelToFolder says; out of memory fails the map in words, as there.
+	bool ShapeExtract_BytesToFolder(std::string const &mapName, std::vector<char> const &bytes, std::string const &shapeFolder, ShapeLevelReport *report);
+
 	// THE STOCK CHECK (Drake's FOUND form: "63 levels and 23 HUD files; 2 aren't Steam's own: derelict.RIF, genshd1.RIF. Missing: hangar.RIF"): what a
 	// data folder's avp_rifs and avp_huds hold, against the stock files of the identity table (shape_identity.h ShapeIdentity_StockFile)
 	struct ShapeStockCheck

@@ -20,4 +20,13 @@ namespace host
 	// programFolder: the editor's own folder (ending in its last "\" or not); settingsFile: AVP_OpenInteng.ini's path beside it. True, with *dataFolder the folder
 	// picked, checked and now written as DataFolder=; false for Not now (the editor then closes)
 	bool FirstLaunch_NotFound(char const *programFolder, char const *settingsFile, std::string *dataFolder);
+
+	// AVP_OpenInteng.ini READ WHOLE before a line or a section of it is written (the DataFolder= line; the list of maps searched, shapes_scanned.h): judged on
+	// its own handle, its link never followed (a plain file with one name), at most 1 MB. True with *text (empty, *there false, when there's no file yet);
+	// false with *why
+	bool FirstLaunch_ReadIni(char const *settingsFile, std::string *text, bool *there, std::string *why);
+
+	// ... and WRITTEN back in one step: to "<ini>.writing" made new (never through a file or link already there), flushed, then put in the ini's place by
+	// Windows (ReplaceFileA when it was there, else a move that never replaces). False with *why, and the ini as it was
+	bool FirstLaunch_WriteIni(char const *settingsFile, std::string const &text, bool there, std::string *why);
 }
