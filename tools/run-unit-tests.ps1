@@ -8,7 +8,8 @@ nothing to test fails.
 
 A test whose tests/<name>.runargs asks for the game's own levels or models ({LEVELS}, {MODELS}, {LEVEL:Name}) needs Rebellion's files,
 which a public machine must never hold. It is not run here and never counted as passed: it is listed by name, as one that runs on a
-machine where the game is installed (the team runs every one of them there before each hand-over).
+machine where the game is installed (the team runs every one of them there before each hand-over). Without those, its runargs may ask
+only for {OUT}: a scratch folder of the test's own, made afresh; any other word fails the test, as one this runner can't give.
 
 A test whose tests/<name>.args includes the libraries vcpkg builds (vcpkg_installed/) needs them built first. -Libraries says which
 tests run: all (the default), without (only those that don't need them; the others are listed by name, for a run that has them) or
@@ -77,15 +78,24 @@ foreach ($test in $tests) {
     if ($Libraries -ceq 'without' -and $needsLibraries) { $elsewhere.Add($name); continue }
     if ($Libraries -ceq 'with' -and -not $needsLibraries) { continue }
 
-    # The time a test gets, and whether it needs the game's own files: its tests/<name>.runargs says
+    # The time a test gets, whether it needs the game's own files, and its arguments: its tests/<name>.runargs says
     $seconds = 120
+    $outs = 0
     $runargs = Join-Path $repository "tests\$name.runargs"
     if (Test-Path -LiteralPath $runargs) {
         $lines = @(Get-Content -LiteralPath $runargs)
         $words = @($lines | Where-Object { $_ -notmatch '^#' } | Select-Object -First 1)
         if ($words.Count -gt 0 -and "$($words[0])" -match '\{LEVELS\}|\{MODELS\}|\{LEVEL:') { $needsGame.Add($name); continue }
-        # Any other argument isn't known here, and a test run without what it asks for would test nothing, so it fails
-        if ($words.Count -gt 0 -and "$($words[0])".Trim()) { $failed.Add("$name (its tests/$name.runargs asks for arguments this runner doesn't know)"); continue }
+        # {OUT} is a scratch folder of the test's own, made afresh for each run (as the team's tools/hicks/run-editor-tests.sh gives it: Frost,
+        # 2026-11-23, Bishop 2's card, CI run 45216374248 failed host_shape_import_read_test and host_shape_search_test, whose runargs is "{OUT}"
+        # alone). Any other argument isn't known here, and a test run without what it asks for would test nothing, so it fails.
+        $unknown = @()
+        if ($words.Count -gt 0) {
+            foreach ($word in @("$($words[0])".Trim() -split '\s+' | Where-Object { $_ })) {
+                if ($word -ceq '{OUT}') { $outs++ } else { $unknown += $word }
+            }
+        }
+        if ($unknown.Count -gt 0) { $failed.Add("$name (its tests/$name.runargs asks for arguments this runner doesn't know: $($unknown -join ' '))"); continue }
         $timeout = @($lines | Where-Object { $_ -match '^# timeout ([0-9]+)\s*$' } | Select-Object -First 1)
         if ($timeout.Count -gt 0) { $seconds = [int]($timeout[0] -replace '^# timeout ([0-9]+)\s*$', '$1') }
     }
@@ -94,6 +104,16 @@ foreach ($test in $tests) {
     New-Item -ItemType Directory -Force $folder | Out-Null
     $program = Join-Path $folder "$name.exe"
     if (Test-Path -LiteralPath $program) { Remove-Item -LiteralPath $program -Force }
+
+    # Its arguments: each {OUT} is the test's scratch folder, emptied first, so nothing an earlier run left there is read as this run's. Quoted,
+    # with no backslash at its end (a backslash before the closing quote would be read as a quote).
+    $arguments = @()
+    if ($outs -gt 0) {
+        $scratch = Join-Path $folder 'scratch'
+        if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force }
+        New-Item -ItemType Directory -Force $scratch | Out-Null
+        for ($k = 0; $k -lt $outs; $k++) { $arguments += '"' + $scratch.TrimEnd('\') + '"' }
+    }
 
     # The objects go to the test's own folder. A forward slash ends the folder's name, so no backslash sits before a closing quote
     # (which Windows would read as a quote).
@@ -108,8 +128,13 @@ foreach ($test in $tests) {
 
     $says = Join-Path $folder 'run.txt'
     $saysAsError = Join-Path $folder 'run-errors.txt'
-    $process = Start-Process -FilePath $program -WorkingDirectory $repository -NoNewWindow -PassThru `
-        -RedirectStandardInput $noInput -RedirectStandardOutput $says -RedirectStandardError $saysAsError
+    if ($arguments.Count -gt 0) {
+        $process = Start-Process -FilePath $program -ArgumentList $arguments -WorkingDirectory $repository -NoNewWindow -PassThru `
+            -RedirectStandardInput $noInput -RedirectStandardOutput $says -RedirectStandardError $saysAsError
+    } else {
+        $process = Start-Process -FilePath $program -WorkingDirectory $repository -NoNewWindow -PassThru `
+            -RedirectStandardInput $noInput -RedirectStandardOutput $says -RedirectStandardError $saysAsError
+    }
     $null = $process.Handle    # without asking for this, Windows PowerShell can't read the exit code afterwards
     if (-not $process.WaitForExit($seconds * 1000)) {
         & taskkill /T /F /PID $process.Id | Out-Null
