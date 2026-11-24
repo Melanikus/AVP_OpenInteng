@@ -361,6 +361,7 @@ static size_t chooserBack = 0;   // the screen it was opened from: it goes back 
 static std::string createShapeName;     // the shape Create > Choose took (the placement picker's tile), while the name is being asked: the new object's name base
 static int32_t createShapeNumber = -1;  // the level's shape of that NUMBER, which the object is made of (Vasquez 2026-11-23); -1: the file is brought in (the picker)
 static host::ShapeIdentityRow const *createShapeKnown = nullptr;   // that shape's row in the identity table (a row of the built-in table, never freed), or null: unknown
+static std::string createShapeResized;  // when that row was found by the shape's SIZE, not its SHA-256 (shape_resized.h): the picker's words for it, else ""
 
 static size_t ScreenOfTable(const char *table, size_t otherwise)
 {
@@ -474,12 +475,13 @@ static void ShapeChooserLeave(bool withShape, size_t *screen)
 // THE PLACEMENT PICKER'S SHAPE (shape_picker_screen.cpp), as inteng's chooser's Create once handed its shape over: then the NAME is asked ("Name Object", FUN_004d9af0
 // 0x4d9450-0x4d97be) and CreateNamedAtTheView makes the object. number: the level's own shape of that file, by its number; -1: the level holds none, so the file
 // is brought in from the folder the lookup order finds it in, judged again then, as Quick-create's Yes does. known: the identity table's row of that very shape (null:
-// unknown), so the object is made as the game object its kind says (typed placement, editor_shared.h)
-void ShapeChooserCreateFromPicker(std::string const &name, int32_t number, host::ShapeIdentityRow const *known)
+// unknown), so the object is made as the game object its kind says (typed placement, editor_shared.h). resizedWords: how it was known, when by its size
+void ShapeChooserCreateFromPicker(std::string const &name, int32_t number, host::ShapeIdentityRow const *known, std::string const &resizedWords)
 {
 	createShapeName = name;
 	createShapeNumber = number;
 	createShapeKnown = known;
+	createShapeResized = known ? resizedWords : std::string();
 	chooserWords = "Create: type a name for the new '" + host::ShapePicker_SafeName(name) + "'";   // shown and on the state line: made safe (Drake's nit on df479439)
 	statusWords = chooserWords.c_str();
 	OpenAPrompt(kPromptCreateName);
@@ -716,6 +718,7 @@ void CreateNamedAtTheView(std::string const &typed)
 	}
 
 	quickCreateWords += bringIn ? "; its shape " + createShapeName + ".rif came from " + found.label : "";   // as Quick-create says it
+	quickCreateWords += createShapeResized.empty() ? "" : "; " + createShapeResized;   // a resized copy: "a resized copy of medbox01.rif (scale 0.800, ...)"
 	quickCreateWords += "; " + host::ShapeIdentity_PlacedAsWords(createShapeKnown);   // which game object it was made as, and why ("placed as health (the game's Type 4 ...")
 	statusWords = quickCreateWords.c_str();
 }

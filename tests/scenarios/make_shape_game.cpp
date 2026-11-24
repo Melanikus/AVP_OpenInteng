@@ -511,9 +511,39 @@ int main(int argc, char **argv)
 
 			continue;
 		}
+		else if (place.compare(0, 5, "pack:") == 0)
+		{
+			// pack:<file> (added 2026-11-24 by Vasquez, for acceptance-picker-resized's pack check): a file of the OLD TOOLS' PACKAGE, copied whole and unchanged
+			// into <game>\Tools\shape_rifs under its own name (where an inteng veteran's pack lies). Read only, and only from inside AvP-builds-excluded (a read
+			// copy of the owner's, never his own folder); never over a file (PutFile: CREATE_NEW)
+			fs::path const from = fs::path(place.substr(5));
+			std::error_code e;
+			fs::path const real = fs::weakly_canonical(from, e);
+			std::wstring const inside = L"c:\\users\\melanikus\\source\\avp-builds-excluded\\";
+			std::wstring lower = real.wstring();
+
+			for (wchar_t &c : lower)
+			{
+				c = (c >= L'A' && c <= L'Z') ? (wchar_t)(c - L'A' + L'a') : (c == L'/' ? L'\\' : c);
+			}
+
+			Bytes packed;
+
+			if (e || lower.compare(0, inside.size(), inside) != 0 || !fs::is_regular_file(fs::symlink_status(real, e)))
+			{
+				return Refuse("pack: " + from.string() + " is not a plain file inside AvP-builds-excluded");
+			}
+
+			if (!ReadAll(real, &packed) || !PutFolder(game / "Tools" / "shape_rifs", &why) || !PutFile(game / "Tools" / "shape_rifs" / real.filename(), packed, &why))
+			{
+				return Refuse(why.empty() ? "pack: " + from.string() + " can't be read" : why);
+			}
+
+			continue;
+		}
 		else
 		{
-			return Refuse("\"" + place + "\" isn't a place (shape_rifs, tools, own, junction, cut, empty, lookalike, copies<N> or variants<N>)");
+			return Refuse("\"" + place + "\" isn't a place (shape_rifs, tools, own, junction, cut, empty, lookalike, copies<N>, variants<N> or pack:<file>)");
 		}
 
 		if (!PutFolder(folder, &why) || !PutFile(folder / (shape + ".rif"), file, &why))

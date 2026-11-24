@@ -1,0 +1,117 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-24, Bishop's card for beta.0; the owner: "Yes, same pickup"): A RESIZED COPY OF A STOCK PICKUP IS THAT PICKUP. A level can
+# hold a stock pickup at another size (its SHPEXTFN's rescale isn't 1): its bytes, so its SHA-256, aren't the stock file's, and typed placement (shape_identity.h,
+# exact SHA-256 only) left it unknown, so static. Now a tile with no row by its SHA-256 whose shape is a stock pickup's at ONE uniform scale (shape_resized.h:
+# the same points times one scale greater than 0, within the files' rounding; the same polygons in the same order, the same texture names and places) takes that
+# pickup's row: typed, its green border, and the words say "a resized copy of <stock file> (scale ...)".
+# WHAT IT IS COMPARED WITH: only Steam's own pickup files on the machine, read from the lookup order's folders as the picker opens, each kept only when its bytes'
+# SHA-256 is the row's (shape_picker_screen.cpp ReadStockPickups). The table holds no shapes, so before the first start's search makes them, nothing is typed by size.
+# THE SCENARIO'S OWN GAME ({datadir}-resized-game, tests/scenarios/make_shape_game.cpp, each file by the editor's own extractor, so each is the file the first
+# start's search writes): Invasion, and in <game>\shape_rifs Steam's own pickups at their own size: medbox01 from Derelict, armour01, pulse and smart from colony_c,
+# flam01 from Jockey; and medbox01_var001 (medbox01 with its first point moved 1 mm: an EDITED shape at the stock size, a near miss that must stay unknown).
+# Invasion's own medbox01, Armour01, pulse, Smart and Flam01 are rescaled copies (their tiles named as the folder's files: armour01, smart, flam01) (Dietrich, measured on 51dcdd42: 12 of its 21 shapes make no file). The folder's
+# file of each name is "in this level", so the tile is drawn and placed from INVASION'S copy: that copy is what is compared and placed.
+# THE STATE LINE: pickerresized "<tile>~<stock file>~<scale>~<worst mm>|..." (the tiles on the screen typed by their size); pickerstockpickups "<k> of <n> read in
+# <ms> ms"; pickertyped and pickerhover as acceptance-picker-typed. The saved copy is read back by the game's own loader (verify_strategy): Type 4 (health).
+# RED on exe-cache/6fd8d676.exe (Dietrich's typed placement HAND 1, the card's base): no pickerresized field, and Invasion's own five are not typed.
+#ini DataFolder={datadir}-resized-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-resized-game {datadir} Invasion.RIF Derelict.RIF medbox01 shape_rifs variants1
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-resized-game {datadir} Invasion.RIF colony_c.rif armour01 shape_rifs
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-resized-game {datadir} Invasion.RIF colony_c.rif pulse shape_rifs
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-resized-game {datadir} Invasion.RIF colony_c.rif smart shape_rifs
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-resized-game {datadir} Invasion.RIF Jockey.RIF flam01 shape_rifs
+# THE OLD TOOLS' PACKAGE (Bishop's (a), the owner's dupes, 2026-11-24): an inteng veteran's <game>\Tools\shape_rifs, first in the lookup order, holds Rebellion's own
+# Pboost.RIF and SADAR.rif (read copies of the owner's, AvP-builds-excluded/owner-pack-copy, SHA-256 61e6ee8e and 882ceac1: no row, other bytes), and the
+# game's shape_rifs Steam's pboost.rif (Area52) and sadar.rif (Lockdown4), each a row. Invasion holds neither name, so the pack's file is the tile and is placed.
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-resized-game {datadir} Invasion.RIF Area52.RIF pboost shape_rifs pack:C:/Users/Melanikus/source/AvP-builds-excluded/owner-pack-copy/Pboost.RIF
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-resized-game {datadir} Invasion.RIF Lockdown4.rif sadar shape_rifs pack:C:/Users/Melanikus/source/AvP-builds-excluded/owner-pack-copy/SADAR.rif
+level {datadir}-resized-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- THE PICKER: Invasion's own medbox01, pulse and flam01, rescaled, typed by their size; its armour01 and smart (other shapes) and the edited medbox01 not
+item 0x32
+expect-field-has picker open
+wait-field picker failed 0 20000
+wait-field pickershown waiting 0 20000
+expect-field-has pickerstockpickups 7 of
+expect-field-has pickertyped medbox01~health
+expect-field-has pickertyped pulse~weapon: pulse rifle
+expect-field-has pickertyped flam01~ammo: flamethrower
+expect-field-has pickerresized medbox01~medbox01.rif~
+expect-field-has pickerresized pulse~pulse.rif~
+expect-field-has pickerresized flam01~flam01.rif~
+expect-field-not-has pickertyped medbox01_var001
+expect-field-not-has pickerresized medbox01_var001
+# NOT RESIZED COPIES, MEASURED: Invasion's own armour01 and smart are other shapes than Steam's armour01.rif and smart.rif (another number of polygons), so they
+# stay static, saying why (on a player's machine armour01 is the variant armour01_fall_m resized: acceptance-picker-resized-search)
+expect-field-not-has pickertyped armour01~
+expect-field-not-has pickertyped smart~
+expect-field-has pickerresizednot armour01~not a resized copy of armour01.rif: another number of polygons: 186 and 150
+expect-field-has pickerresizednot smart~not a resized copy of smart.rif: another number of polygons: 83 and 82
+picture 1
+
+# ---- THE POINTER OVER THEM, no click: the line under the grid says how each is known
+move-in pickerboxes medbox01
+expect-field-has pickerhover medbox01~medbox01: green border: a resized copy of medbox01.rif (scale
+expect-field-has pickerhover placed as health (the game's Type 4, ExtraData 0)
+picture 2
+move-in pickerboxes medbox01_var001
+expect-field-has pickerhover medbox01_var001~medbox01_var001: placed as static (Type 0): its shape is not one the editor knows
+
+# ---- INVASION'S OWN MEDPACK PLACED (by its number): made as health, the status line saying it is a resized copy
+click-tile medbox01 twice
+expect-dialog Name Object
+type resizedMed
+key Enter
+expect-no-dialog
+expect-status Object resizedMed made at the view
+expect-status a resized copy of medbox01.rif (scale
+expect-status placed as health (the game's Type 4, ExtraData 0)
+picture 3
+
+# ---- THE EDITED ONE PLACED: static
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile medbox01_var001 twice
+expect-dialog Name Object
+type editedMed
+key Enter
+expect-no-dialog
+expect-status Object editedMed made at the view
+expect-status placed as static (Type 0): its shape is not one the editor knows
+
+# ---- THE PACK'S FILES (Bishop's (a)): Rebellion's own Pboost.RIF and SADAR.rif are Steam's pboost.rif and sadar.rif point for point (measured: 0.000 mm at
+# scale exactly 1), so typed: "the same shape as <file> (another file of it)". Each brought into view by its click (the grid pages to it), then Pboost placed
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+expect-field-has pickerstockpickups 7 of
+click-tile SADAR
+wait-field pickershown waiting 0 20000
+expect-field-has pickertyped SADAR~weapon: SADAR
+expect-field-has pickerresized SADAR~sadar.rif~1.000~0.00
+click-tile Pboost
+wait-field pickershown waiting 0 20000
+expect-field-has pickertyped Pboost~field charge
+expect-field-has pickerresized Pboost~pboost.rif~1.000~0.00
+move-in pickerboxes Pboost
+expect-field-has pickerhover Pboost~Pboost: green border: the same shape as pboost.rif (another file of it), placed as field charge
+picture 4
+click-tile Pboost twice
+expect-dialog Name Object
+type packBoost
+key Enter
+expect-no-dialog
+expect-status Object packBoost made at the view
+expect-status the same shape as pboost.rif (another file of it)
+expect-status placed as field charge (the game's Type 15, ExtraData 0)
+
+# ---- THE SAVE holds them so (the game's own loader reads the copy)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-resized-game/avp_rifs/Invasion.RIF {copy} resizedMed size 52 Type 4 ExtraData 0 mass 50 also editedMed also packBoost
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-resized-game/avp_rifs/Invasion.RIF {copy} editedMed size 52 Type 0 ExtraData 0 also resizedMed also packBoost
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-resized-game/avp_rifs/Invasion.RIF {copy} packBoost size 52 Type 15 ExtraData 0 mass 50 also resizedMed also editedMed

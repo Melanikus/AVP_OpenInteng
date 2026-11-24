@@ -1,0 +1,56 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-24, Bishop's card for beta.0, the owner: "Yes, same pickup"): A RESIZED COPY ON A PLAYER'S MACHINE, AFTER THE FIRST START'S
+# SEARCH. acceptance-picker-resized puts Steam's pickups into shape_rifs by hand; this one lets the editor's own first-start search make them, as on a player's
+# machine (the FOUND form's Yes: every map of the data copy searched, each shape written under the name the table knows it by), then opens Invasion's picker.
+# The stock pickups read as the picker opens are the files the search made (pickerstockpickups), and Invasion's own rescaled pickups are typed by their size.
+# MEASURED on this card's build (vasquez-resized-search2): all 28 stock pickups read; Invasion's armour01 (the variant armour01_fall_m at 1.426), flam01 (2.039),
+# medbox01 and pulse (1.427) typed, each point within 0.70-0.85 mm; its smart not (83 polygons and 82: another shape).
+# # changes-data: the search writes into the shard's data copy (shape_rifs, the ini's list), so the copies are made afresh after it (run-shards).
+# RED on exe-cache/6fd8d676.exe (the card's base): no pickerresized field, and Invasion's own pickups are not typed.
+# changes-data
+#ini ShapesInTests=1
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+wait-moving 20000 shapes (the form is open)
+expect-dialog Open Inteng
+click-button Yes
+expect-no-dialog
+wait-moving 120000 shapes done;
+expect-field-has shapes new shapes in shape_rifs
+
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+item 0x32
+expect-field-has picker open
+wait-field picker failed 0 20000
+wait-field pickershown waiting 0 20000
+expect-field-has pickerstockpickups 28 of 28 read in
+# MEASURED 2026-11-24 (vasquez-resized-search1): Invasion's own armour01 is the variant armour01_fall_m.rif at 1.426, not armour01.rif (186 polygons and 150).
+# Brought into view first, as the others below: since Frost's sort by kind (ddc58a1e) the known pickups come first, and a resized copy, known only once drawn,
+# sorts with the unknown at the open (his follow-up compares at the open)
+click-tile armour01
+wait-field pickershown waiting 0 20000
+expect-field-has pickertyped armour01~armour
+expect-field-has pickerresized armour01~armour01_fall_m.rif~
+picture 1
+
+# ---- each of the others brought into view (a tile is compared as it is drawn): one click selects it, paging the grid to it
+click-tile flam01
+wait-field pickershown waiting 0 20000
+expect-field-has pickertyped flam01~ammo: flamethrower
+expect-field-has pickerresized flam01~flam01.rif~
+click-tile medbox01
+wait-field pickershown waiting 0 20000
+expect-field-has pickertyped medbox01~health
+expect-field-has pickerresized medbox01~medbox01.rif~
+click-tile pulse
+wait-field pickershown waiting 0 20000
+expect-field-has pickertyped pulse~weapon: pulse rifle
+expect-field-has pickerresized pulse~pulse.rif~
+# ---- Invasion's own smart is NOT a resized copy (MEASURED: 83 polygons, Steam's smart.rif 82, and no variant fits): another shape, so it stays static, saying why
+click-tile smart
+wait-field pickershown waiting 0 20000
+expect-field-not-has pickertyped smart~weapon
+expect-field-has pickerresizednot smart~not a resized copy of smart.rif: another number of polygons: 83 and 82
+picture 2
