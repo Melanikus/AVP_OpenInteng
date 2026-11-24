@@ -1,0 +1,67 @@
+# ACCEPTANCE (red first; Drake 2026-11-24, Frost's SHOULD 1 on 4bd46a3c): WHILE THE PICKER'S OBJECT FOLLOWS THE MOUSE, NOTHING ELSE RUNS. The owner: "it gets
+# "attached" to my mouse ... until I either click it (place it somewhere) or right click it (cancel)". Frost found the menu half-working while it followed: a press on
+# the bar opened a menu whose release was swallowed, and a menu item could still be run. A command run then (Exit, Save) would have seen the level with the new
+# object in it, where it was made, before the give-up put the level back. So while it follows: a press on the menu bar opens nothing and says how to finish; a
+# command (a menu item or a key's) runs nothing and says the same; the object still follows; and Esc then gives it up with the level as it was (not changed).
+# RED on exe-cache/f0e34329.exe (drake-attach 4bd46a3c's code): the bar's press opens the Mode menu, and the item runs (the picker opens again).
+#ini DataFolder={datadir}-attach-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-attach-game {datadir} Invasion.RIF Statue.RIF pulam shape_rifs
+level {datadir}-attach-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+expect-field levelchanged 0
+expect-field pickerattach off
+
+# ---- the object follows the mouse
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile pulam twice
+expect-no-dialog
+expect-field pickerattach pulam0 following
+move-win 470 600
+wait 300
+expect-field-has surfacelive drawn 1
+
+# ---- OBJECT PLACEMENT'S OWN KEYS (Frost's MUST 1 on 3270e559: PlacementKey is reached without RunAction): J, the fly (Frost's 9ea189a6), would fly the very object the
+# slide moves; ',' steps the current object's alternate locations, an edit of the level, after which a give-up could put nothing back. While it follows, each is refused
+# with the words, nothing flies, and it still follows. (RED on exe-cache/9ea189a6.exe: bishop-int, the attach without this fix.)
+key J
+wait 300
+expect-hierarchy-count 0 Flying object
+expect-status Placing pulam0: put it down first (a left click in the view) or give it up (right click or Esc)
+expect-field pickerattach pulam0 following
+key Comma
+wait 300
+expect-status Placing pulam0: put it down first (a left click in the view) or give it up (right click or Esc)
+expect-field pickerattach pulam0 following
+
+# ---- a press on the menu bar's Mode: no menu opens, the words say how to finish, it still follows. The bar shows only while the pointer is at the window's top
+# (as click-bar does it: the pointer to 400 1, 600 ms); a press there with the bar hidden is a press in the view, which puts the object down, as it should.
+move-win 400 1
+wait 600
+expect-field-has barboxes Mode~
+click-in barboxes Mode
+wait 300
+expect-field-empty dropboxes
+expect-status Placing pulam0: put it down first (a left click in the view) or give it up (right click or Esc)
+expect-field pickerattach pulam0 following
+picture 1
+
+# ---- a command (Create > With shape > Choose, as the menu or a key would run it): nothing runs, the same words, it still follows
+item 0x32
+wait 300
+expect-field picker closed
+expect-status Placing pulam0: put it down first (a left click in the view) or give it up (right click or Esc)
+expect-field pickerattach pulam0 following
+
+# ---- Esc gives it up: the level as it was, still not changed
+key Esc
+expect-field pickerattach off
+expect-status Placement: given up, nothing placed (the level as it was)
+expect-field levelchanged 0
+expect-screen Object Placement
+picture 2

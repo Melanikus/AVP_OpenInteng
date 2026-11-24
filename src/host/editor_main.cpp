@@ -4587,6 +4587,21 @@ static std::string attachedName;              // the new object's name (its auto
 static std::string attachedPlacedAs;          // which game object it was made as (shape_identity.h ShapeIdentity_PlacedAsWords), and where its shape came from when brought in
 static std::string attachedWords;             // the status line's words while it follows, and after
 
+// WHILE IT FOLLOWS, NOTHING ELSE RUNS (Frost's SHOULD 1 on 4bd46a3c; the owner: "until I either click it ... or right click it"): a press on a panel (the menu bars, the
+// object's card) and every command, a menu's or a key's (RunAction), are refused with these words, so no menu half-opens and no command (Exit, Save) ever sees the level
+// with the new object where it was made. The camera still moves (its keys are not commands), and F, G and Esc are the slide's own. True when it refused.
+static bool PlacementAttachRefuses()
+{
+	if (!(attachedNew && snapLive))
+	{
+		return false;
+	}
+
+	attachedWords = "Placing " + attachedName + ": put it down first (a left click in the view) or give it up (right click or Esc)";
+	statusWords = attachedWords.c_str();
+	return true;
+}
+
 bool PlacementFlyHoldsTheCopy()
 {
 	return (flyOn && flyReal) || snapLive;   // (the live snap shows the object as the same live copy)
@@ -6284,6 +6299,12 @@ static bool PlacementKey(WPARAM key, bool shift)
 
 	bool const sounds = strcmp(screen, "Object Placement") != 0;
 
+	// the picker's object following the mouse: none of the screen's own keys runs (the key chain refuses them first; this is for any other way here), the camera's go on
+	if (!IsAMoveKey(key) && key != VK_INSERT && key != VK_HOME && PlacementAttachRefuses())
+	{
+		return true;
+	}
+
 	// OP-91: ',' and '.' (slots 0xd87afc / 0xd87afe) step the current object's alternate locations: Prev and Next (FUN_004df990 / FUN_004df8c0, OP-37), from the object's +0x34 (FUN_004e01e0),
 	// which runs each frame in mode 0 with Gravity off (0x4dc144). Ours: for a placed object (our Alt Locations' own reach); no current object: nothing, the key goes on
 	if ((key == VK_OEM_COMMA || key == VK_OEM_PERIOD) && !sounds && trackEd.state == host::TrackState::Off && !PlacementGravityOn())
@@ -6733,6 +6754,7 @@ static bool HierarchyKey(WPARAM key)
 
 void RunAction(int32_t id)
 {
+	if (PlacementAttachRefuses()) return;   // the picker's object follows the mouse: no command runs until it is put down or given up (PlacementAttachRefuses)
 	if (AutoPlotCommand_ItemWaits(id)) return;   // AN EDIT WAITS FOR THE PLOT (autoplot_waits.h): while Alien auto waypoint plots, what would change the level waits, and the status line says so
 	if (host::AllStockMapsScreen_ItemWaits(id)) return;   // ... and for All stock maps' whole run (all_stock_maps_screen.h), its levels' opening and saving included
 
@@ -8505,6 +8527,11 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			// the mouse gizmo's keys first (gizmo_screen.h): G, Esc while a drag is held, Ctrl+Z (none of them a key of inteng's Object Placement)
 			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && wParam == 'G' && !ctrlHeld && SurfaceAlignKey()) { return 0; }   // G while the centre ball is held: the align (the owner, 11-19)
 			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && wParam == 'F' && !ctrlHeld && !shiftHeld && SurfaceFlipKey()) { return 0; }   // F while the object slides: the flip (the owner, 11-24); else Fly selected object
+			// the picker's object following the mouse: no other key runs anything (PlacementAttachRefuses) but the slide's own (G and F above, Esc before) and the camera's, whose held
+			// state is read each frame (the move keys, Insert's zoom, Home, and Shift, Ctrl and Alt on their own). Frost's MUST 1 on 3270e559: J would fly the very object the slide
+			// moves, ',' and '.' edit its alternate locations, the gizmo's Ctrl+Z undoes a move, and none of them goes through RunAction
+			if (message == WM_KEYDOWN && attachedNew && snapLive && !IsAMoveKey(wParam) && wParam != VK_INSERT && wParam != VK_HOME && wParam != VK_SHIFT && wParam != VK_CONTROL &&
+				wParam != VK_MENU && PlacementAttachRefuses()) { return 0; }
 			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && WaypointGizmo_Key((unsigned)wParam, shiftHeld, ctrlHeld)) { return 0; }   // the waypoint-box gizmo's Esc / Ctrl+Z first (waypoint_gizmo.h)
 			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && GizmoScreen_Key((unsigned)wParam, shiftHeld, ctrlHeld)) { return 0; }
 
@@ -8949,18 +8976,22 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			}
 
 			// the picker's object following the mouse: a press in the view puts it down where the pointer is (the next frame casts there and keeps it, as the centre ball's
-			// release does), before the gizmo or a pick could take the press. A press on a panel is the panel's: a screen change then gives the object up.
-			if (attachedNew && snapLive && window == hWndMain)
+			// release does), before the gizmo or a pick could take the press. A press on a panel (a menu bar, the card) opens nothing: the words say how to finish
+			// (PlacementAttachRefuses). Its release is swallowed with every other while it follows (WM_LBUTTONUP).
+			if (attachedNew && snapLive)
 			{
 				POINT const pressedAt = InThePanels(window, lParam);
 
-				if (!OnAPanel(pressedAt.x, pressedAt.y))
+				if (window == hWndMain && !OnAPanel(pressedAt.x, pressedAt.y))
 				{
 					snapPointerX = host::TextScale_ToOwn(GET_X_LPARAM(lParam));
 					snapPointerY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 					surfaceReleaseWaiting = true;
 					return 0;
 				}
+
+				PlacementAttachRefuses();
+				return 0;
 			}
 
 			if (textureColourPicking) { POINT const at = InThePanels(window, lParam); TextureColourPickPress(at.x, at.y, true); return 0; }   // Select Colour's grid (Shift+K, FUN_00560620)
