@@ -140,6 +140,13 @@ release was built from (the sources are not in the zip, so each release scans fe
 build of either, as the LGPL allows, build the program again from this project's source with yours in its place
 (`win32/VS2026/libsmackerenc_static.vcxproj` and `libsmackerdec_static.vcxproj` build them).
 
+## Your own textures (Import texture)
+
+Drag a `.png`, `.bmp`, `.jpg` or `.jpeg` picture onto the editor's window (or, in Texture Map, **Import** > **Import texture...**): it becomes a
+texture of the open level, saved as `graphics\Custom\<level>\<name>.RIM` in your game's folder. The picture is read by Windows' own PNG, BMP or
+JPEG decoder, each made by name, never a decoder another program installed, up to 16 MB and 4096 pixels a side. A picture cut short, or whose
+bytes aren't what its name says, is refused, saying why.
+
 ## Animated objects from Blender: the track import
 
 An animation baked in Blender becomes a set of **track objects** that move together in a level, one for each rigid part of the model

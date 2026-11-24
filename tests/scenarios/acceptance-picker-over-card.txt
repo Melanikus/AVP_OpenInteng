@@ -4,7 +4,7 @@
 # over the picker: the frame drew the picker first, then the panels (the list, the card, the status line), then the bar and dialogs. Now the picker is drawn between the
 # panels and the bar (panel_pass.h overPanels): over the card, under the bar and every dialog. The card stays while the picker is open (the state line's fieldpanel).
 # HOW: Invasion with the picker's shape game (as acceptance-shape-picker), the picker opened with no current object (picture 1), then with one (row 5, smrtam010: its
-# card spans x 856-1008, y 32-290 at 1008 x 729); the picker's scroll bar (x 984, y 70-550) and its top right tile (Glass01, x 860, y 70) must be drawn exactly as
+# card spans x 856-1008, y 32-290 at 1008 x 729); the picker's scroll bar (x 884, y 76-556 in the owner's 10% padding since 2026-11-24; x 984 before) and its top right tile must be drawn exactly as
 # without the card. Then the picker closed: the card as before.
 # RED on exe-cache/7e19f292.exe (the owner's build, 576b43c8): the card over the scroll bar and Glass01 (dietrich-proofs/pickercard-probe-7e19f292, panels-3.png).
 #ini DataFolder={datadir}-picker-game
@@ -40,11 +40,11 @@ expect-field-has picker open
 wait-field picker drawn 22 20000
 expect-field-not-has fieldpanel none
 picture 3
-# the SCROLL BAR (opaque, x 984, y 70-550, inside the card's place) drawn exactly as without the card: the picker is over the card. The top right TILE is no
+# the SCROLL BAR (opaque, x 884, y 76-556, inside the card's place) drawn exactly as without the card: the picker is over the card. The top right TILE is no
 # longer compared (Vasquez, 2026-11-23, carried from my review of 92175055, measured): the card lies UNDER the picker by design and shows wherever the picker
 # draws nothing of its own: between the letters of a tile's name (0.413 of Glass01's name line changed, on still pictures) and, with the live panes, round
 # each turning shape (Frost's draw path: 0.398 of the tile changed). Only the bar covers its whole box, so only the bar proves the order
-expect-pixels-same-since 1 panels 984 70 16 480 0.01
+expect-pixels-same-since 1 panels 884 76 16 480 0.01
 
 # ---- the picker closed: the card as before it opened
 key Esc

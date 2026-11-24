@@ -1,0 +1,30 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-24, Bishop's card; the owner: "make the object picker take 80% of width and height with 10% padding on
+# top/left/right/bottom"). The placement picker's grid, its scroll bar and its lines of words sit inside the box from 10% to 90% of the editor's width and of
+# its height (shape_picker.h ShapePickerLayout's box; the level shows round it), never above the bars nor into the status line.
+# THE STATE LINE: pickerbox "<x> <y> <w> <h> of <frame w> <frame h>" (the window's pixels, as pickerboxes); pickerboxes and pickerscroll as before.
+# The hidden run's frame is 1008 x 729: its box is 100..908 across (1008 / 10 = 100, rounded down) and 72..657 down, 808 x 585; in it 7 columns by 4 rows
+# (808 - 16 - 24 = 768 over 104 a tile; 585 - 4 - 48 for the words = 533 over 122). The first tile at (100 + 908 - 24 - 728 + 8) / 2 = 132 across, 76 down.
+# THE GAME FOLDER: acceptance-shape-picker-scroll's (more than a page of tiles: Invasion's own 20, pulam in both folders, its cut copy, 80 variants, timdesk).
+# RED on exe-cache/6fd8d676.exe (bishop-int): no pickerbox field, and the grid fills the frame: cols 9 rows 4, its first tile at 28 across.
+#ini DataFolder={datadir}-picker-padding-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-padding-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut variants80
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-padding-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
+level {datadir}-picker-padding-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+item 0x32
+expect-field-has picker open cols 7 rows 4 count
+expect-field-has pickerbox 100 72 808 585 of 1008 729
+expect-field-has pickerboxes Armour01~132 76 96 96
+expect-field-has pickerscroll up~884 76 16 16
+wait-field pickershown waiting 0 20000
+picture 1
+# the scroll bar still moves the rows a row and a page at a time, inside the box
+click-in pickerscroll down
+expect-field-has picker first 7
+click-in pickerscroll below
+expect-field-has picker first 35
+picture 2

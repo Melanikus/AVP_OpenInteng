@@ -2,9 +2,11 @@
 // create .rims"). Written 2026-11-23 by Melanikus (Vasquez) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // THE FILE IS HOSTILE INPUT, read by exactly Video mode's rules (video_import.h VideoImport_ReadPlainFile): a plain path, every folder on the way checked, one
-// handle opened without following a link, judged and read whole on it, at most kImageImportMostBytes. Its name must end in .png or .bmp (Stage 1), and its first
-// bytes must say the same (a PNG's eight, a BMP's "BM"): a name and its bytes that disagree are refused.
-// DECODED BY WINDOWS' OWN WIC, FROM MEMORY, never by its path: the decoder is made by its own class (Microsoft's PNG or BMP decoder, never one WIC would pick from
+// handle opened without following a link, judged and read whole on it, at most kImageImportMostBytes. Its name must end in .png or .bmp (Stage 1), or .jpg or .jpeg
+// (Drake 2026-11-24, the owner's "Add JPEG in beta.0"), and its first bytes must say the same (a PNG's eight, a BMP's "BM", a JPEG's start marker FF D8 FF): a name
+// and its bytes that disagree are refused. A PNG must end with its IEND part and a JPEG with its end marker (FF D9): WIC decodes either one cut short without a
+// word, filling in what is missing.
+// DECODED BY WINDOWS' OWN WIC, FROM MEMORY, never by its path: the decoder is made by its own class (Microsoft's PNG, BMP or JPEG decoder, never one WIC would pick from
 // whatever codecs a PC has), and the factory, the decoder and the converter are each traced to the module their code lives in, which must be Microsoft's own
 // (media_parsers.h MediaParsers_CheckObject: a class registered for one user can name any DLL). One frame; each side at most kImageImportMostSide and at most
 // kImageImportMostPixels in all, read from the file's header before any pixel is decoded; then the whole picture as 32-bit BGRA by WIC's own converter (a BMP's
@@ -26,7 +28,7 @@ namespace host
 	{
 		Done,
 		BadCall,
-		NotAPictureName,    // the name doesn't end in .png or .bmp
+		NotAPictureName,    // the name doesn't end in .png, .bmp, .jpg or .jpeg
 		NotAFile,           // missing, a folder, a link, a device, a stream, a folder on the way refused (video_import.h's rules)
 		Empty,
 		TooBig,             // over kImageImportMostBytes
@@ -56,6 +58,6 @@ namespace host
 	// use needs (the texture import: twice the texture's side, squared).
 	ImageImportResult ImageImport_Read(std::wstring const &path, ImagePixels *out, std::string *why, uint64_t mostPixels = 0);
 
-	// The name's kind by its ending (capitals or not): 1 a PNG, 2 a BMP, 0 neither
+	// The name's kind by its ending (capitals or not): 1 a PNG, 2 a BMP, 3 a JPEG (.jpg or .jpeg), 0 none of them
 	int ImageImport_KindOfName(std::wstring const &path);
 }

@@ -245,15 +245,26 @@ namespace host
 	ShapePickerLayout ShapePicker_Layout(int32_t windowWidth, int32_t windowHeight)
 	{
 		ShapePickerLayout layout;
-		int32_t const barRoom = kShapePickerBarWidth + kShapePickerGap;   // the scroll bar at the right, and a gap before it
-		int32_t const width = windowWidth - 2 * kShapePickerGap - barRoom, height = windowHeight - kShapePickerTop - kShapePickerBottomRoom;
 
+		// THE BOX: a tenth of the window in from each side (whole pixels, rounded down), never above the bars nor into the status line
+		int32_t const boxLeft = windowWidth / 10, boxRight = windowWidth - windowWidth / 10;
+		int32_t const boxTop = (std::max)(windowHeight / 10, kShapePickerTop);
+		int32_t const boxBottom = (std::max)(boxTop, (std::min)(windowHeight - windowHeight / 10, windowHeight - kShapePickerStatusRoom));
+		int32_t const barRoom = kShapePickerBarWidth + kShapePickerGap;   // the scroll bar at the box's right, and a gap before it
+		int32_t const width = boxRight - boxLeft - 2 * kShapePickerGap - barRoom, height = boxBottom - boxTop - kShapePickerGap / 2 - kShapePickerWordsRoom;
+
+		layout.box[0] = boxLeft;
+		layout.box[1] = boxTop;
+		layout.box[2] = boxRight - boxLeft;
+		layout.box[3] = boxBottom - boxTop;
 		layout.stepX = kShapePickerPicture + kShapePickerGap;
 		layout.stepY = kShapePickerPicture + kShapePickerNameHeight + kShapePickerGap;
 		layout.columns = width >= layout.stepX ? width / layout.stepX : 1;
 		layout.rows = height >= layout.stepY ? height / layout.stepY : 1;
-		layout.left = (std::max)((int32_t)kShapePickerGap, (windowWidth - barRoom - layout.columns * layout.stepX + kShapePickerGap) / 2);
-		layout.top = kShapePickerTop + kShapePickerGap / 2;
+		layout.left = (std::max)(boxLeft + kShapePickerGap, (boxLeft + boxRight - barRoom - layout.columns * layout.stepX + kShapePickerGap) / 2);
+		layout.top = boxTop + kShapePickerGap / 2;
+		layout.wordsX = boxLeft + kShapePickerGap;
+		layout.wordsY = boxBottom - kShapePickerWordsRoom + 2;   // three lines of 15 end a pixel inside the box
 		return layout;
 	}
 
@@ -360,7 +371,8 @@ namespace host
 		ShapePickerBar bar;
 		int32_t const arrow = kShapePickerBarWidth;   // each arrow a square, as a dialog list's
 		int32_t const height = (std::max)(1, layout.rows) * layout.stepY - kShapePickerGap;   // from the grid's top to its last row's foot, the names included
-		int32_t const x = windowWidth - kShapePickerGap - kShapePickerBarWidth;
+		int32_t const right = layout.box[2] > 0 ? layout.box[0] + layout.box[2] : windowWidth;   // the box's right edge (the owner's 10% padding), or the window's
+		int32_t const x = right - kShapePickerGap - kShapePickerBarWidth;
 
 		if (layout.stepY <= 0 || x < 0 || height < 2 * arrow + kShapePickerLeastThumb)
 		{

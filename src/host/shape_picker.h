@@ -116,17 +116,24 @@ namespace host
 	int32_t const kShapePickerPicture = 96;      // a tile's picture, square, in pixels (the thumbnail is drawn at this size)
 	int32_t const kShapePickerNameHeight = 18;   // the line under it with the name (inteng's 16-pixel font)
 	int32_t const kShapePickerGap = 8;           // between tiles
-	int32_t const kShapePickerTop = 66;          // under the two bars (as the texture chooser's)
-	int32_t const kShapePickerBottomRoom = 84;   // over the status line and its words (the texture chooser's 36 + 48)
+	int32_t const kShapePickerTop = 66;          // under the two bars (as the texture chooser's): the box never starts above it
+	int32_t const kShapePickerStatusRoom = 36;   // the status line at the window's foot: the box never reaches into it
+	int32_t const kShapePickerWordsRoom = 48;    // the lines of words inside the box's foot: three of 15 pixels, and a little room
 
+	// THE PICKER'S BOX (Dietrich 2026-11-24; the owner: "make the object picker take 80% of width and height with 10% padding on top/left/right/bottom"): the
+	// grid, its scroll bar and its lines of words all inside the box from 10% to 90% of the window's width and of its height (the level shows round it).
+	// Never above the bars (kShapePickerTop) nor into the status line (kShapePickerStatusRoom), on a window small enough for 10% to reach them.
 	struct ShapePickerLayout
 	{
 		int32_t left = 0, top = 0;           // the first tile's top-left
 		int32_t columns = 1, rows = 1;       // A by B
 		int32_t stepX = 0, stepY = 0;        // from one tile to the next
+		int32_t box[4] = {};                 // the picker's box: x, y, width, height (empty: the whole window, as a layout made by hand in a test)
+		int32_t wordsX = 0, wordsY = 0;      // where its lines of words start, inside the box's foot
 	};
 
-	// The grid for a window of that size (client pixels): as many columns and rows as fit, at least 1 by 1, centred across
+	// The grid for a window of that size (client pixels): the box above, and in it as many columns and rows as fit over the room for the words, at least 1 by 1,
+	// centred across the box left of its scroll bar
 	ShapePickerLayout ShapePicker_Layout(int32_t windowWidth, int32_t windowHeight);
 
 	// A tile's PICTURE box on the screen (x, y, w, h; the name goes under it), for tile number `tile` when the grid shows from tile `first` on (a multiple of
@@ -158,7 +165,8 @@ namespace host
 	ShapePickerView ShapePicker_Show(ShapePickerView view, ShapePickerLayout const &layout, size_t count);
 
 	// ----- THE SCROLL BAR (the owner, 2026-11-23: "Ok I want a dragable scroll box on the top right, inteng folk do not mouse scroll") -----
-	// Down the right side of the grid from its top, in the look of the dialog lists' bar (dialog_box.cpp ComboScrollBar, dialogs.cpp: the column black framed
+	// Down the right side of the picker's box (ShapePickerLayout's box, inside its right edge; the window's for a layout made by hand), from the grid's top, in
+	// the look of the dialog lists' bar (dialog_box.cpp ComboScrollBar, dialogs.cpp: the column black framed
 	// white, the thumb blue framed white, an arrow button at each end), always there. Its thumb is as long as the share of the rows in view (at least 8 pixels,
 	// all of the track when every tile is in view) and as far down the track as the first row in view is down the rows past one page. A press on an arrow moves
 	// a row; on the column above or below the thumb, a page; the thumb is DRAGGED (new: the dialog lists' thumb isn't). The selection stays as it is, as the

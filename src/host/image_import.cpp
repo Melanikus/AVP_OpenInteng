@@ -81,7 +81,7 @@ namespace host
 		{
 		case ImageImportResult::Done: return "read";
 		case ImageImportResult::BadCall: return "nothing to read it into";
-		case ImageImportResult::NotAPictureName: return "a picture's name ends in .png or .bmp";
+		case ImageImportResult::NotAPictureName: return "a picture's name ends in .png, .bmp, .jpg or .jpeg";
 		case ImageImportResult::NotAFile: return "not a plain file";
 		case ImageImportResult::Empty: return "the file is empty";
 		case ImageImportResult::TooBig: return "the file is too big";
@@ -98,14 +98,27 @@ namespace host
 
 	int ImageImport_KindOfName(std::wstring const &path)
 	{
-		if (path.size() < 5)
+		// the ending after the name's last dot, with a name before it (".png" alone is no name) and no folder after it ("C:\my.png\wall" is no picture)
+		size_t const dot = path.find_last_of(L'.');
+
+		if (dot == std::wstring::npos || dot == 0 || path.find_first_of(L"\\/", dot) != std::wstring::npos || path[dot - 1] == L'\\' || path[dot - 1] == L'/')
 		{
 			return 0;
 		}
 
-		std::wstring const ending = path.substr(path.size() - 4);
+		wchar_t const *const ending = path.c_str() + dot;
 
-		return _wcsicmp(ending.c_str(), L".png") == 0 ? 1 : (_wcsicmp(ending.c_str(), L".bmp") == 0 ? 2 : 0);
+		if (_wcsicmp(ending, L".png") == 0)
+		{
+			return 1;
+		}
+
+		if (_wcsicmp(ending, L".bmp") == 0)
+		{
+			return 2;
+		}
+
+		return _wcsicmp(ending, L".jpg") == 0 || _wcsicmp(ending, L".jpeg") == 0 ? 3 : 0;   // (Drake 2026-11-24: JPEG, the owner's "Add JPEG in beta.0")
 	}
 
 	ImageImportResult ImageImport_Read(std::wstring const &path, ImagePixels *out, std::string *why, uint64_t mostPixels)
@@ -121,7 +134,7 @@ namespace host
 
 		if (kind == 0)
 		{
-			return Refuse(ImageImportResult::NotAPictureName, "a picture's name ends in .png or .bmp", why);
+			return Refuse(ImageImportResult::NotAPictureName, "a picture's name ends in .png, .bmp, .jpg or .jpeg", why);
 		}
 
 		// ---- 1. THE FILE, by Video mode's rules (video_import.h), all of it into memory
@@ -144,11 +157,19 @@ namespace host
 		static uint8_t const kPng[8] = { 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a };
 		bool const isPng = bytes.size() >= 8 && memcmp(bytes.data(), kPng, 8) == 0;
 		bool const isBmp = bytes.size() >= 2 && bytes[0] == 'B' && bytes[1] == 'M';
+		bool const isJpeg = bytes.size() >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF;   // its start marker, then the next marker's first byte
 
-		if ((kind == 1 && !isPng) || (kind == 2 && !isBmp))
+		if ((kind == 1 && !isPng) || (kind == 2 && !isBmp) || (kind == 3 && !isJpeg))
 		{
-			return Refuse(ImageImportResult::NotThatPicture, kind == 1 ? "its name ends in .png, but its bytes aren't a PNG's" : "its name ends in .bmp, but its bytes "
-				"aren't a BMP's", why);
+			return Refuse(ImageImportResult::NotThatPicture, kind == 1 ? "its name ends in .png, but its bytes aren't a PNG's" : kind == 2 ? "its name ends in .bmp, but its "
+				"bytes aren't a BMP's" : "its name ends in .jpg or .jpeg, but its bytes aren't a JPEG's", why);
+		}
+
+		// A JPEG ends with its end marker (FF D9). WIC's JPEG decoder, as its PNG one, decodes a JPEG cut short without a word, its missing blocks filled in, so a
+		// JPEG that doesn't end so is refused as a PNG that doesn't end with its IEND is (below). (Drake 2026-11-24)
+		if (kind == 3 && (bytes.size() < 4 || bytes[bytes.size() - 2] != 0xFF || bytes[bytes.size() - 1] != 0xD9))
+		{
+			return Refuse(ImageImportResult::BadPicture, "it doesn't end as a JPEG ends (its end marker): cut short, or something added after it", why);
 		}
 
 		// A PNG ends with its IEND chunk (no data, and its CRC: twelve fixed bytes). WIC decodes a PNG cut short without a word, its missing rows filled in (measured
@@ -188,16 +209,20 @@ namespace host
 			return Refuse(ImageImportResult::NotWindowsCode, codeWhy, why);
 		}
 
+		// each kind's decoder made by its own class, Windows' own: PNG, BMP, JPEG (Drake 2026-11-24). NEVER WIC's any-decoder path (CreateDecoderFromStream and the
+		// like pick from every codec the PC has registered, a stranger's among them)
 		Held<IWICBitmapDecoder> decoder;
+		CLSID const &decoderClass = kind == 1 ? CLSID_WICPngDecoder2 : kind == 2 ? CLSID_WICBmpDecoder : CLSID_WICJpegDecoder;
+		char const *const kindName = kind == 1 ? "PNG" : kind == 2 ? "BMP" : "JPEG";
 
-		result = CoCreateInstance(kind == 1 ? CLSID_WICPngDecoder2 : CLSID_WICBmpDecoder, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&decoder.p));
+		result = CoCreateInstance(decoderClass, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&decoder.p));
 
 		if (FAILED(result) || !decoder.p)
 		{
-			return Refuse(ImageImportResult::NoWic, std::string("Windows' ") + (kind == 1 ? "PNG" : "BMP") + " decoder couldn't be made (" + Hex(result) + ")", why);
+			return Refuse(ImageImportResult::NoWic, std::string("Windows' ") + kindName + " decoder couldn't be made (" + Hex(result) + ")", why);
 		}
 
-		if (!MediaParsers_CheckObject(decoder.p, kind == 1 ? "the PNG decoder" : "the BMP decoder", &codeWhy))
+		if (!MediaParsers_CheckObject(decoder.p, kind == 1 ? "the PNG decoder" : kind == 2 ? "the BMP decoder" : "the JPEG decoder", &codeWhy))
 		{
 			return Refuse(ImageImportResult::NotWindowsCode, codeWhy, why);
 		}
