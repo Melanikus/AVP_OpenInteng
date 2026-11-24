@@ -133,6 +133,13 @@ namespace host
 		std::string fileName;   // the shape's file name as its SHPEXTFN gives it, in small letters ("medbox01.rif"; not yet made plain)
 		size_t shapeAt = 0;     // where that shape's REBSHAPE starts in the level (ShapeExtractPlaced::at): a level can hold two shapes of one name
 		std::string kind;       // "health", "weapon: pulse rifle", "ammo: smartgun", "placed light", "prop (no strategy)", "door", ...
+		// ITS OWN FIELDS (Dietrich 2026-11-24, typed placement's furniture: each shape's own stock placement), for a kind 62 object with no light whose strategy is
+		// whole (52 bytes): simple, and its strategy's Type (+20), ExtraData (+24), mass (+28), integrity word (+32, its top bit and all) and flags word (+36: the
+		// flags in bits 0x3, the explosion in 0x30), and whether it names a target (target_request or targetID not 0). Any other object: simple false, the rest 0.
+		bool simple = false;
+		int32_t type = 0, extra = 0, mass = 0;
+		uint32_t integrity = 0, flags = 0;
+		bool targeted = false;
 	};
 
 	// Every object of a level that places an outside shape, with its kind, in the level's order. False when the level's chunks can't be walked.

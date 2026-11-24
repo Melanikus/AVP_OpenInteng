@@ -73,14 +73,17 @@ namespace host
 	// FUN_004de070: the nine 16.16 whole numbers of a matrix (row by row: m[0..2] the first row) as the four floats of a turn (x, y, z, w)
 	void ObjectMake_TurnFromMatrix(int32_t const *matrix, float *turn);
 
-	// THE GAME OBJECT A NEW OBJECT IS MADE AS (typed placement, Dietrich 2026-11-23): its strategy's Type and ExtraData (the AVPSTRAT's +20 and +24). The
-	// caller takes them from shape_identity.h's closed list (ShapeIdentity_PlacedAs) only. Every other field is the maker's own, as below: mass 50, integrity 2,
-	// flags 1, no target. Every stock placement of each kind on that list carries exactly those fields. No type given: Type 0 and ExtraData 0, a static object,
-	// as inteng's own Quick-create makes every object.
+	// THE GAME OBJECT A NEW OBJECT IS MADE AS (typed placement, Dietrich 2026-11-23 and -24): its strategy's Type and ExtraData (the AVPSTRAT's +20 and +24), mass
+	// (+28), integrity word (+32) and flags word (+36). The caller takes them from shape_identity.h ShapeIdentity_PlacedWith only: a pickup of its closed list
+	// with the maker's own fields below, or furniture with its own stock placement's. No target, ever. No type given: Type 0 and ExtraData 0 with the maker's own
+	// fields, a static object, as inteng's own Quick-create makes every object.
 	struct ObjectStrategyType
 	{
 		int32_t type = 0;
 		int32_t extra = 0;
+		int32_t mass = 50;                  // the maker's own (0x20032 & 0xffff: FUN_0052b120's)
+		uint32_t integrity = 0x80000002u;   // integrity 2, its top bit set
+		uint32_t flags = 1;
 	};
 
 	// Makes the object. place: three whole numbers in millimetres (the view's place). matrix: nine whole numbers (the view's turn). newId (8 bytes) and

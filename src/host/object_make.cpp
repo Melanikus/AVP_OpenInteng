@@ -687,9 +687,9 @@ namespace host
 			AddInt(strategy, 0);
 			AddInt(strategy, as ? as->type : 0);                    // Type: Static, or the game object it is made as (typed placement)
 			AddInt(strategy, as ? as->extra : 0);                   // ExtraData
-			AddInt(strategy, (int32_t)(0x20032 & 0xffff));          // mass 50 (obj[0x14] & 0xffff)
-			AddInt(strategy, (int32_t)((0x20032 >> 16) | 0x80000000u));   // integrity 2 | 0x80000000
-			AddInt(strategy, 1);                                    // flags
+			AddInt(strategy, as ? as->mass : (int32_t)(0x20032 & 0xffff));   // mass 50 (obj[0x14] & 0xffff), or furniture's own stock mass
+			AddInt(strategy, (int32_t)(as ? as->integrity : ((0x20032 >> 16) | 0x80000000u)));   // integrity 2 | 0x80000000, or furniture's own
+			AddInt(strategy, (int32_t)(as ? as->flags : 1u));        // flags, or furniture's own
 			AddInt(strategy, 0);                                    // target_request
 			AddInt(strategy, 0);                                    // targetID, two numbers
 			AddInt(strategy, 0);

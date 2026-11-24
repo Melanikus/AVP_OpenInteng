@@ -671,13 +671,17 @@ void CreateNamedAtTheView(std::string const &typed)
 	}
 
 	// TYPED PLACEMENT (Dietrich 2026-11-23; the owner: "Yes, set the known type"): a shape the identity table knows, by the SHA-256 of its file, is made as the game
-	// object its kind says, only ever one of the closed list's (shape_identity.h ShapeIdentity_PlacedAs); any other shape is made static, as before
-	host::ShapePlacedAs placedAs;
-	bool const typedOne = createShapeKnown && host::ShapeIdentity_PlacedAs(createShapeKnown->kind, &placedAs);
+	// object its kind says, only ever one of the closed list's, or furniture with its own stock placement (shape_identity.h ShapeIdentity_PlacedWith); any other
+	// shape is made static, as before
+	host::ShapePlacedWith placedWith;
+	bool const typedOne = host::ShapeIdentity_PlacedWith(createShapeKnown, &placedWith);
 	host::ObjectStrategyType makeAs;
 
-	makeAs.type = placedAs.type;
-	makeAs.extra = placedAs.extra;
+	makeAs.type = placedWith.type;
+	makeAs.extra = placedWith.extra;
+	makeAs.mass = placedWith.mass;
+	makeAs.integrity = placedWith.integrity;
+	makeAs.flags = placedWith.flags;
 
 	std::string importWhy;
 	host::ObjectMakeResult const result = bringIn ?

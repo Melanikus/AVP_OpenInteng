@@ -1,0 +1,41 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, Bishop's order: the proofs of Frost's live panes, SAFETY-CASE-live-panes.md section 8, Drake's hole 1; with
+# Vasquez's fix, her choice (a)): A LEVEL CHANGE WITH THE PICKER OPEN. The panes' picture (the atlas) is made and let go only by the pane module, its kept id set
+# to no-texture the moment it is let go, and checked against the slot's own use and name before every draw: a texture slot freed and taken by the next texture
+# made must never be drawn through an old number (the class of projload.cpp:2955's CloudyImageNumber). And the picker CLOSES on a level change (Vasquez: its
+# "in this level" tiles held the OLD level's shape numbers, so after a reopen a tile could draw, or place, another shape; Frost found it).
+# HERE: the picker open with live panes, the level opened again (the harness's reopen-level, the editor's own LevelReopen_Open): the picker closed, no pane
+# drawn; then the picker opened again: the panes drawn, the atlas valid.
+# RED on bishop-int 0abb8dc2: no pickerpanedraw field, and the picker stays open across the reopen.
+#ini DataFolder={datadir}-picker-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
+level {datadir}-picker-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+item 0x32
+expect-field-has picker open
+wait-field picker drawn 22 20000
+wait 500
+expect-field-has pickerpanedraw live 1
+expect-field-has pickerpanedraw valid 1
+picture 1
+
+# ---- the level opened again with the picker open: it closes (Vasquez), and no pane is drawn
+reopen-level
+wait 1000
+expect-field-has picker closed
+expect-field-has pickerpanedraw drawn 0
+picture 2
+
+# ---- the picker opened again: a fresh list from the new level, the panes drawn, the atlas valid (never a stale number)
+item 0x32
+expect-field-has picker open
+wait-field picker drawn 22 20000
+wait 500
+expect-field-has pickerpanedraw live 1
+expect-number pickerpanedraw drawn 1 100000
+expect-field-has pickerpanedraw valid 1
+picture 3

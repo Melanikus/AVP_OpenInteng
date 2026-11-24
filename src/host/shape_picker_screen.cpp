@@ -497,12 +497,13 @@ namespace
 		return k->texture;
 	}
 
-	// TYPED PLACEMENT: tile i's shape is known and its kind is one of the closed list, so its object is made as that game object (its green border)
+	// TYPED PLACEMENT: tile i's shape is known and its object is made as a game object (a pickup of the closed list, or furniture with its own stock placement:
+	// shape_identity.h ShapeIdentity_PlacedWith), so it has a green border
 	bool TypedTile(size_t i)
 	{
-		host::ShapePlacedAs as;
+		host::ShapePlacedWith with;
 
-		return i < knownOf.size() && knownOf[i] && host::ShapeIdentity_PlacedAs(knownOf[i]->kind, &as);
+		return i < knownOf.size() && host::ShapeIdentity_PlacedWith(knownOf[i], &with);
 	}
 
 	// The tile under the pointer now (ShapePickerScreen_Hover), or -1: the pointer hasn't moved over the window, or isn't over a tile's picture or name

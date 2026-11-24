@@ -8,6 +8,8 @@
 //   (2) HOSTILE WORDS: anything else, near misses and very long words too, gives false and Type 0, ExtraData 0
 //   (3) THE LEVEL'S OWN SHAPES: Invasion as the next save would write it (BuildLevel), each outside shape's file worked out: smrtam01 and pistol known by it
 //   (4) THE MAKER: an object of smrtam01's shape made as its kind says holds Type 3, ExtraData 2 and the maker's other fields; made with no type, Type 0
+//   (5) FURNITURE (HAND 2, 2026-11-24): timdesk takes its own commonest stock placement (Type 1, mass 1000, integrity 8, flags 1); every furniture row has one
+//       the editor takes; a placement past what the game and the old editor allow is never taken; the desk made with it holds those fields
 // RED FIRST: the acceptance acceptance-picker-typed (the editor before this card made every object Type 0, and had no green border); these checks are the new
 // calls' own.
 
@@ -235,9 +237,10 @@ int main(int argc, char **argv)
 	std::vector<char> image;
 	std::map<int32_t, std::string> sums;
 	bool const walked = open.BuildLevel(image) && host::ShapeExtract_FileSums(image, &sums);
-	int32_t ammoNumber = -1;
+	int32_t ammoNumber = -1, deskNumber = -1;
 	size_t known = 0;
 	bool pistol = false, desk = false;
+	host::ShapeIdentityRow const *deskRow = nullptr;
 
 	for (auto const &[number, sum] : sums)
 	{
@@ -247,13 +250,15 @@ int main(int argc, char **argv)
 		ammoNumber = row && strcmp(row->fileName, "smrtam01.rif") == 0 && strcmp(row->kind, "ammo: smartgun") == 0 ? number : ammoNumber;
 		pistol = pistol || (row && strcmp(row->fileName, "pistol.rif") == 0 && strcmp(row->kind, "weapon: marine pistol") == 0);
 		desk = desk || (row && strcmp(row->fileName, "timdesk.rif") == 0);
+		deskNumber = row && strcmp(row->fileName, "timdesk.rif") == 0 ? number : deskNumber;
+		deskRow = row && strcmp(row->fileName, "timdesk.rif") == 0 ? row : deskRow;
 	}
 
 	Check(walked && !sums.empty(), "(3) the level as the next save writes it: " + std::to_string((unsigned long long)sums.size()) + " outside shapes made into their files, " +
 		std::to_string((unsigned long long)known) + " of them rows of the table");
 	Check(ammoNumber >= 0, "(3) the level's own smrtam01 is known by its file: ammo: smartgun (shape " + std::to_string(ammoNumber) + ")");
 	Check(pistol, "(3) the level's own pistol is known by its file: weapon: marine pistol");
-	Check(desk, "(3) the level's own timdesk is known by its file (furniture: made static in this card)");
+	Check(desk, "(3) the level's own timdesk is known by its file (furniture)");
 
 	{
 		std::vector<char> cut(image.begin(), image.begin() + (std::ptrdiff_t)(image.size() / 2));
@@ -293,6 +298,91 @@ int main(int argc, char **argv)
 
 	Check(madePlain == host::ObjectMakeResult::Done && plainStrategy.size() == 52 && IntIn(plainStrategy, 20) == 0 && IntIn(plainStrategy, 24) == 0,
 		"(4) made with no type: static, Type " + std::to_string(IntIn(plainStrategy, 20)) + " ExtraData " + std::to_string(IntIn(plainStrategy, 24)) + " (" + plainName + ")");
+
+	// ---- (5) FURNITURE (HAND 2, Dietrich 2026-11-24): its own commonest stock placement, from the table, each field checked first
+	host::ShapePlacedWith deskWith;
+	bool const deskTyped = host::ShapeIdentity_PlacedWith(deskRow, &deskWith);
+
+	Check(deskTyped && deskWith.type == 1 && deskWith.extra == 0 && deskWith.mass == 1000 && deskWith.integrity == 0x80000008u && deskWith.flags == 1,
+		"(5) timdesk is placed as furniture with its own stock placement: Type " + std::to_string(deskWith.type) + ", mass " + std::to_string(deskWith.mass) +
+		", integrity word " + std::to_string(deskWith.integrity) + ", flags " + std::to_string(deskWith.flags) + (deskRow ? std::string(" (") + host::ShapeIdentity_PlacedAsWords(deskRow) + ")" : ""));
+
+	size_t furnitureRows = 0, furnitureTyped = 0;
+
+	for (size_t i = 0; i < host::kShapeIdentityRowCount; i++)
+	{
+		host::ShapePlacedWith with;
+
+		if (strcmp(host::kShapeIdentityRows[i].kind, "furniture") == 0)
+		{
+			furnitureRows++;
+			furnitureTyped += host::ShapeIdentity_PlacedWith(&host::kShapeIdentityRows[i], &with) && with.type == 1 ? 1 : 0;
+		}
+	}
+
+	Check(furnitureRows > 0 && furnitureTyped == furnitureRows, "(5) every furniture row of the table has a stock placement the editor takes: " +
+		std::to_string((unsigned long long)furnitureTyped) + " of " + std::to_string((unsigned long long)furnitureRows));
+
+	// fields outside what the game and the old editor allow are never taken: each one wrong on its own, on a copy of the desk's row
+	if (deskRow)
+	{
+		struct Wrong
+		{
+			char const *what;
+			int32_t mass;
+			uint32_t integrity, flags;
+			int32_t type;
+		};
+
+		Wrong const wrong[] = {
+			{ "mass 65536", 65536, 0x80000008u, 1, 1 }, { "mass -1", -1, 0x80000008u, 1, 1 }, { "integrity without its top bit", 1000, 0x00000008u, 1, 1 },
+			{ "integrity with bits past its low 8", 1000, 0x80000108u, 1, 1 }, { "flags past 0x33", 1000, 0x80000008u, 0x41, 1 }, { "Type 2 under furniture", 1000, 0x80000008u, 1, 2 },
+		};
+
+		for (Wrong const &w : wrong)
+		{
+			host::ShapeIdentityRow row = *deskRow;
+			host::ShapePlacedWith with;
+
+			row.placement.mass = w.mass;
+			row.placement.integrity = w.integrity;
+			row.placement.flags = w.flags;
+			row.placement.type = w.type;
+
+			bool const typed = host::ShapeIdentity_PlacedWith(&row, &with);
+
+			Check(!typed && with.type == 0 && with.mass == 50, std::string("(5) HOSTILE: a furniture row's ") + w.what + " is not taken: static");
+		}
+
+		host::ShapeIdentityRow unplaced = *deskRow;
+		host::ShapePlacedWith unplacedWith;
+
+		unplaced.placement.known = false;
+		Check(!host::ShapeIdentity_PlacedWith(&unplaced, &unplacedWith) && unplacedWith.type == 0, "(5) a furniture row with no stock placement known: static");
+	}
+
+	host::ShapePlacedWith noRow;
+
+	Check(!host::ShapeIdentity_PlacedWith(nullptr, &noRow) && noRow.type == 0, "(5) an unknown shape (no row): static");
+
+	// the maker with the desk's own fields
+	host::ObjectStrategyType deskAs;
+
+	deskAs.type = deskWith.type;
+	deskAs.extra = deskWith.extra;
+	deskAs.mass = deskWith.mass;
+	deskAs.integrity = deskWith.integrity;
+	deskAs.flags = deskWith.flags;
+
+	std::string deskName;
+	host::ObjectMakeResult const madeDesk = deskNumber >= 0 && deskTyped ? host::CreateObjectFromShapeNumber(&open, deskNumber, "timdesk", place, matrix, id, &deskName, &deskAs) :
+		host::ObjectMakeResult::NoSuchShape;
+	std::vector<unsigned char> const deskStrategy = StrategyOf(open, deskName);
+
+	Check(madeDesk == host::ObjectMakeResult::Done && deskStrategy.size() == 52 && IntIn(deskStrategy, 20) == 1 && IntIn(deskStrategy, 24) == 0 && IntIn(deskStrategy, 28) == 1000 &&
+		(uint32_t)IntIn(deskStrategy, 32) == 0x80000008u && IntIn(deskStrategy, 36) == 1 && IntIn(deskStrategy, 40) == 0 && IntIn(deskStrategy, 44) == 0,
+		"(5) the desk made with them: Type " + std::to_string(IntIn(deskStrategy, 20)) + ", mass " + std::to_string(IntIn(deskStrategy, 28)) + ", integrity word " +
+		std::to_string((uint32_t)IntIn(deskStrategy, 32)) + ", flags " + std::to_string(IntIn(deskStrategy, 36)) + ", no target (" + deskName + ")");
 
 	printf("%d checks, %d failed\n", checks, checksFailed);
 	return checksFailed ? 1 : 0;
