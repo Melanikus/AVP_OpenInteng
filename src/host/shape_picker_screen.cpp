@@ -1034,7 +1034,7 @@ void ShapePickerScreen_Paint(int32_t, int32_t)
 		lines.push_back(note);
 	}
 
-	ShapePickerPaint_Draw(ownWidth, ownHeight, tiles, host::ShapePicker_Bar(layout, view, list.tiles.size(), ownWidth), lines, 16, ownHeight - host::kShapePickerBottomRoom + 4);
+	ShapePickerPaint_Draw(ownWidth, ownHeight, tiles, host::ShapePicker_Bar(layout, view, list.tiles.size(), ownWidth), lines, layout.wordsX, layout.wordsY);   // (the words inside the box's foot)
 }
 
 bool ShapePickerScreen_Key(WPARAM key)
@@ -1231,6 +1231,17 @@ void ShapePickerScreen_StateFields()
 
 	StateLine_Add("pickerscroll", host::ShapePicker_BarWords(bar));
 	StateLine_Add("pickerdrag", dragging ? "held" : "free");
+
+	// THE PICKER'S BOX (the owner's 10% padding, shape_picker.h ShapePickerLayout): "<x> <y> <w> <h>" in the window's pixels as pickerboxes are, and the
+	// editor's own frame "of <w> <h>", so a check can see it is 10% in from each side
+	{
+		int32_t wx = 0, wy = 0, ww = 0, wh = 0, fw = 0, fh = 0, fx = 0, fy = 0;
+
+		host::TextScale_BoxToWindow(layout.box[0], layout.box[1], layout.box[2], layout.box[3], &wx, &wy, &ww, &wh);
+		host::TextScale_BoxToWindow(0, 0, ownWide, ownHigh, &fx, &fy, &fw, &fh);
+		StateLine_Add("pickerbox", std::to_string(wx) + " " + std::to_string(wy) + " " + std::to_string(ww) + " " + std::to_string(wh) + " of " + std::to_string(fw) + " " +
+			std::to_string(fh));
+	}
 
 	// THE LIVE PANES (shape_pane_gpu.h): those drawn the last frame and their turn, "<name>~<degrees>|..."; the draw path's own fields (pickerpanetime,
 	// pickerpanedraw: ShapePaneGpu_StateFields); and how many drawings the card holds or refused, with the first refusal's words

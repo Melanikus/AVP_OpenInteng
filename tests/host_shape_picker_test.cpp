@@ -111,36 +111,50 @@ int main()
 
 	// ---- (2) THE GRID
 	{
+		// THE BOX (Dietrich 2026-11-24; the owner: "make the object picker take 80% of width and height with 10% padding on top/left/right/bottom"): a 1024 x 768
+		// window's box is 102..922 across (1024 / 10 = 102, rounded down) and 76..692 down; in it, width 820 - 16 - 24 (the scroll bar's room) = 780 over 104 a
+		// tile: 7; height 616 - 4 - 48 (the words' room) = 564 over 122: 4
 		ShapePickerLayout const g = ShapePicker_Layout(1024, 768);
 
-		// width 1024 - 16 - 24 (the scroll bar's room) = 984 over 104 a tile: 9; height 768 - 66 - 84 = 618 over 122: 5
-		Check(g.columns == 9 && g.rows == 5 && g.stepX == 104 && g.stepY == 122, "a 1024 x 768 window: 9 columns by 5 rows (" + std::to_string(g.columns) + " by " +
+		Check(g.box[0] == 102 && g.box[1] == 76 && g.box[2] == 820 && g.box[3] == 616, "(2) a 1024 x 768 window's box: 10% in from each side (" + std::to_string(g.box[0]) +
+			"," + std::to_string(g.box[1]) + " " + std::to_string(g.box[2]) + " x " + std::to_string(g.box[3]) + ")");
+		Check(g.columns == 7 && g.rows == 4 && g.stepX == 104 && g.stepY == 122, "(2) in it 7 columns by 4 rows (" + std::to_string(g.columns) + " by " +
 			std::to_string(g.rows) + ")");
-		Check(g.left == 36 && g.top == 70, "centred across the room left of the scroll bar ((1024 - 24 - 936 + 8) / 2): the first tile at " + std::to_string(g.left) + "," +
-			std::to_string(g.top));
+		Check(g.left == 140 && g.top == 80, "(2) centred across the box left of its scroll bar ((102 + 922 - 24 - 728 + 8) / 2): the first tile at " + std::to_string(g.left) +
+			"," + std::to_string(g.top));
+		Check(g.wordsX == 110 && g.wordsY == 646 && g.top + g.rows * g.stepY - 8 <= g.wordsY && g.wordsY + 3 * 15 <= g.box[1] + g.box[3],
+			"(2) the lines of words inside the box's foot, under the grid: from " + std::to_string(g.wordsX) + "," + std::to_string(g.wordsY));
+
+		ShapePickerLayout const big = ShapePicker_Layout(1280, 960);
+		ShapePickerLayout const small = ShapePicker_Layout(640, 480);
+
+		Check(big.columns == 9 && big.rows == 5 && big.box[0] == 128 && big.box[2] == 1024, "(2) a 1280 x 960 window: its box 1024 wide from 128, 9 by 5");
+		Check(small.box[1] == 66 && small.box[1] + small.box[3] == 432, "(2) a 640 x 480 window: the box never starts above the bars (66, not 48), and ends at 90% (432)");
 
 		ShapePickerLayout const tiny = ShapePicker_Layout(40, 40);
 
-		Check(tiny.columns == 1 && tiny.rows == 1, "a window too small for one tile still shows 1 by 1");
+		Check(tiny.columns == 1 && tiny.rows == 1, "(2) a window too small for one tile still shows 1 by 1");
 
 		int32_t box[4] = {};
 
 		bool const tenBoxed = ShapePicker_TileBox(g, 0, 10, box);   // (called before its Check: MSVC builds the check's words first)
 
-		Check(tenBoxed && box[0] == g.left + 104 && box[1] == 70 + 122 && box[2] == 96 && box[3] == 96,
-			"tile 10 from the first: row 2, column 2, its 96-pixel picture (" + std::to_string(box[0]) + "," + std::to_string(box[1]) + ")");
-		Check(!ShapePicker_TileBox(g, 9, 5, box) && !ShapePicker_TileBox(g, 0, 45, box) && ShapePicker_TileBox(g, 9, 53, box),
-			"a tile before the first shown, or past the last row on the screen, has no box");
+		Check(tenBoxed && box[0] == g.left + 3 * 104 && box[1] == 80 + 122 && box[2] == 96 && box[3] == 96,
+			"(2) tile 10 from the first: row 2, column 4, its 96-pixel picture (" + std::to_string(box[0]) + "," + std::to_string(box[1]) + ")");
+		Check(!ShapePicker_TileBox(g, 9, 5, box) && !ShapePicker_TileBox(g, 0, 28, box) && ShapePicker_TileBox(g, 7, 34, box),
+			"(2) a tile before the first shown, or past the last row on the screen, has no box");
 
-		Check(ShapePicker_TileAt(g, 0, 20, g.left + 104 + 5, 70 + 122 + 5) == 10, "a pixel in tile 10's picture is tile 10");
-		Check(ShapePicker_TileAt(g, 0, 20, g.left + 104 + 5, 70 + 122 + 96 + 10) == 10, "a pixel in its name is tile 10 too");
-		Check(ShapePicker_TileAt(g, 0, 20, g.left + 100, 75) == -1 && ShapePicker_TileAt(g, 0, 20, g.left + 5, 70 + 96 + 18 + 3) == -1, "a pixel between tiles is none");
-		Check(ShapePicker_TileAt(g, 0, 8, 48 + 104 * 8 + 5, 75) == -1 && ShapePicker_TileAt(g, 9, 20, 48 + 5, 75) == 9, "past the last tile is none; the first row from 9 on is tile 9");
+		Check(ShapePicker_TileAt(g, 0, 20, g.left + 3 * 104 + 5, 80 + 122 + 5) == 10, "(2) a pixel in tile 10's picture is tile 10");
+		Check(ShapePicker_TileAt(g, 0, 20, g.left + 3 * 104 + 5, 80 + 122 + 96 + 10) == 10, "(2) a pixel in its name is tile 10 too");
+		Check(ShapePicker_TileAt(g, 0, 20, g.left + 100, 85) == -1 && ShapePicker_TileAt(g, 0, 20, g.left + 5, 80 + 96 + 18 + 3) == -1, "(2) a pixel between tiles is none");
+		Check(ShapePicker_TileAt(g, 0, 8, g.left + 104 + 5, 80 + 122 + 5) == -1 && ShapePicker_TileAt(g, 7, 20, g.left + 5, 85) == 7,
+			"(2) past the last tile is none; the first row from 7 on is tile 7");
+		Check(ShapePicker_TileAt(g, 0, 40, g.box[0] - 20, 85) == -1, "(2) the padding left of the box is no tile");
 	}
 
 	// ---- (3) THE KEYS AND THE WHEEL
 	{
-		ShapePickerLayout const g = ShapePicker_Layout(1024, 768);   // 9 by 5, 45 a page
+		ShapePickerLayout const g = ShapePicker_Layout(1280, 960);   // 9 by 5, 45 a page (its box 1024 x 768: the owner's 10% padding)
 		ShapePickerView v;
 
 		v = ShapePicker_Key(v, g, 100, ShapePickerKey::Left);
@@ -302,17 +316,18 @@ int main()
 	}
 
 	// ---- (8) THE SCROLL BAR (the owner 11-23: "a dragable scroll box on the top right"): its place, its thumb, a press on each part, the thumb dragged, its words.
-	// A 1024 x 768 window: 9 x 5, 45 a page; 100 tiles take 12 rows, so the first row in view goes from 0 to 7
+	// A 1280 x 960 window (its box 1024 x 768, the owner's 10% padding): 9 x 5, 45 a page; 100 tiles take 12 rows, so the first row in view goes from 0 to 7
 	{
-		ShapePickerLayout const g = ShapePicker_Layout(1024, 768);
+		ShapePickerLayout const g = ShapePicker_Layout(1280, 960);
 		ShapePickerView v;
 		size_t const count = 100;
-		ShapePickerBar const bar = ShapePicker_Bar(g, v, count, 1024);
+		ShapePickerBar const bar = ShapePicker_Bar(g, v, count, 1280);
 		int32_t const height = 5 * 122 - 8, track = height - 32;
 
-		// down the right side, from the grid's top to its last row's foot; an arrow a square at each end; the thumb 5 / 12 of the track, at its top
-		Check(bar.column[0] == 1024 - 8 - 16 && bar.column[1] == g.top && bar.column[2] == 16 && bar.column[3] == height,
-			"(8) the bar down the right side from the grid's top: " + ShapePicker_BarWords(bar));
+		// down the BOX's right side (1280 - 128 = 1152: its right edge), from the grid's top to its last row's foot; an arrow a square at each end; the thumb
+		// 5 / 12 of the track, at its top
+		Check(bar.column[0] == 1152 - 8 - 16 && bar.column[1] == g.top && bar.column[2] == 16 && bar.column[3] == height,
+			"(8) the bar down the box's right side from the grid's top: " + ShapePicker_BarWords(bar));
 		Check(bar.up[1] == g.top && bar.up[3] == 16 && bar.down[1] == g.top + height - 16 && bar.down[3] == 16, "(8) an arrow at each end");
 		Check(bar.thumb[1] == g.top + 16 && bar.thumb[3] == track * 5 / 12 && bar.above[3] == 0 && bar.below[3] == track - track * 5 / 12,
 			"(8) the thumb the share in view (" + std::to_string(bar.thumb[3]) + " of " + std::to_string(track) + "), at the top, all the track below it");
@@ -348,12 +363,12 @@ int main()
 			std::to_string(top.first) + "), half way the middle (" + std::to_string(middle.first) + ")");
 
 		// at the last page the thumb is at the track's foot, all of it above
-		ShapePickerBar const atEnd = ShapePicker_Bar(g, bottom, count, 1024);
+		ShapePickerBar const atEnd = ShapePicker_Bar(g, bottom, count, 1280);
 
 		Check(atEnd.thumb[1] + atEnd.thumb[3] == atEnd.down[1] && atEnd.below[3] == 0 && atEnd.above[3] == room, "(8) at the last page: the thumb at the track's foot");
 
 		// every tile in view: the thumb all of the track, nothing to drag to
-		ShapePickerBar const few = ShapePicker_Bar(g, ShapePickerView(), 10, 1024);
+		ShapePickerBar const few = ShapePicker_Bar(g, ShapePickerView(), 10, 1280);
 		ShapePickerView const still = ShapePicker_ThumbTo(ShapePickerView(), g, 10, few, few.thumb[1] + 50);
 
 		Check(few.thumb[3] == track && few.above[3] == 0 && few.below[3] == 0 && still.first == 0, "(8) every tile in view: the thumb the whole track, a drag moves nothing");

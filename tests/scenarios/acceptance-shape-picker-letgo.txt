@@ -6,7 +6,9 @@
 # (acceptance-shapes-found-1 proves the extraction itself); Colony (Genshd1), the window made his size, Object Placement, Choose: 352 tiles, about 198 a screen.
 # 340 since the fold (Vasquez, 2026-11-23: copies that look the same fold into one tile, ShapePicker_Thin): on this path 12 of the 352 are copies
 # (cratesa_fgcrates, cluster_marine, flare_marine, missile_marine, ...: the state line's pickerfolded), none without geometry.
-# The grid is drawn to its end (the first screen, then the rest), then taken back to its first screen.
+# The grid is drawn to its end (the first screen, then the rest), then taken back to its first screen. SINCE THE OWNER'S 10% PADDING (Dietrich, 2026-11-24)
+# the grid takes 80% of the window: 17 x 7 at his size, 119 a screen (measured on 0699b1c1), so two Page Downs and End walk it whole (one left 85 tiles
+# never shown: Page Down brings the selection into view at the foot, 17 more tiles, not a screen).
 # The state line's pickershown (shape_picker_screen.h): the tiles on the screen as the paint shows them, "shown S pictured P waiting W words X" (with their
 # drawing, still drawing, or words only).
 # RED on the alpha.6 cut b740a152, with this commit's field: back on the first screen, its let-go tiles show words, for good, as in his picture.
@@ -28,9 +30,12 @@ expect-screen Object Placement
 wait 400
 item 0x32
 expect-field-has picker open
-expect-number picker cols_ 18 26
-expect-number picker rows_ 7 11
+expect-number picker cols_ 14 21
+expect-number picker rows_ 5 9
 expect-field-has picker count 340
+wait 400
+wait-moving 30000 pickershown waiting 0
+key PageDown
 wait 400
 wait-moving 30000 pickershown waiting 0
 key PageDown

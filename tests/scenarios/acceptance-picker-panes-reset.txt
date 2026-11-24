@@ -34,4 +34,5 @@ expect-number pickerpanetime cpu 1 100000000
 picture 2
 wait 500
 picture 3
-expect-pixels-changed panels 28 70 96 96 0.02
+# the first tile turning: its box at 132,76 inside the owner's 10% padding (28,70 before it, Dietrich 2026-11-24)
+expect-pixels-changed panels 132 76 96 96 0.02
