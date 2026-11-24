@@ -616,4 +616,59 @@ namespace host
 		words += notPlaced.empty() ? "" : "; can't be placed: " + ShapePicker_SafeWords(notPlaced);
 		return words;
 	}
+
+	int ShapePicker_KindGroup(bool known, std::string const &kind, std::string const &levels)
+	{
+		if (!known)
+		{
+			return kShapePickerKindGroups;   // unknown, last
+		}
+
+		// the kinds' words exactly as the table holds them (shape_extract.cpp's ObjectKindWords made them); "rfind(x, 0) == 0": the words start with x
+		if (kind.rfind("weapon: ", 0) == 0 || kind.rfind("ammo: ", 0) == 0 || kind == "health" || kind == "armour" || kind == "field charge" || kind == "special pickup")
+		{
+			return 1;
+		}
+
+		static struct { char const *kind; int group; } const named[] = {
+			{ "placed light", 2 }, { "video screen", 3 }, { "furniture", 4 }, { "static", 5 }, { "multi switch", 6 }, { "track", 7 }, { "track destruct", 7 },
+		};
+
+		for (auto const &one : named)
+		{
+			if (kind == one.kind)
+			{
+				return one.group;
+			}
+		}
+
+		if (!kind.empty())
+		{
+			return 8;   // "fan", and any other kind: the rest
+		}
+
+		// no object places it: a shape of Steam's avp_huds (projectiles, HUD pieces) is "the rest" too; one the stock levels alone hold is a fragment or debris
+		return Lower(levels).find("avp_huds/") != std::string::npos ? 8 : 9;
+	}
+
+	std::vector<size_t> ShapePicker_KindOrder(std::vector<std::pair<int, std::string>> const &tiles)
+	{
+		std::vector<size_t> order(tiles.size());
+		std::vector<std::string> lower(tiles.size());
+
+		for (size_t i = 0; i < tiles.size(); i++)
+		{
+			order[i] = i;
+			lower[i] = Lower(tiles[i].second);
+		}
+
+		auto const groupOf = [&tiles](size_t i) { int const g = tiles[i].first; return g >= 1 && g <= kShapePickerKindGroups ? g : kShapePickerKindGroups; };
+
+		std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+			int const ga = groupOf(a), gb = groupOf(b);
+			return ga != gb ? ga < gb : lower[a] < lower[b];
+		});
+
+		return order;
+	}
 }

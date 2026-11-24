@@ -1,0 +1,69 @@
+# THE PLACEMENT PICKER'S TILES IN ORDER OF KIND (Frost 2026-11-24; the owner, via Bishop: "1 weapons & pickups, lights, screens, furniture, props, switches,
+# tracks, fans and rest, fragment, debirs and unkonw last"; the groups, the data and Bishop's ruling: AvP-docs tools/frost/picker-sort/PLAN.md). As the picker
+# opens, each tile is known by the very shape it places (a folder's file by its bytes' SHA-256, an "in this level" tile by the file the level's own shape makes)
+# and put in its group: 1 pickups, 2 lights, 3 screens, 4 furniture, 5 props, 6 switches, 7 tracks, 8 the rest, 9 fragments & debris, 10 unknown; by name in
+# small letters inside a group. The state line's pickerorder: the tiles on the screen in the order shown, "<group>:<name>|...".
+# The files (as acceptance-picker-typed's): Invasion; in <game>\shape_rifs medbox01.rif from Derelict (health, but Invasion holds its own RESCALED medbox01, so
+# the tile is drawn and placed from that copy: unknown), pulam.rif from Statue (ammo: pulse rifle) and pulam_var001.rif (pulam with a point moved: unknown).
+# Invasion's own shapes are tiles too: Smrtam01 and pistol (pickups), timdesk (furniture), its rescaled copies (unknown).
+# AFTER THE NEW ORDER EACH TILE STILL PLACES ITS OWN SHAPE (every list kept per tile moved with it): three tiles placed, and the saved copy's objects read back by
+# the game's own loader, each made of its tile's file (verify_objects shapefile).
+# RED on exe-cache/c2f3bc10.exe (bishop-int, the card's base): no pickerorder field; the tiles in order of name alone.
+#ini DataFolder={datadir}-kinds-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-kinds-game {datadir} Invasion.RIF Derelict.RIF medbox01 shape_rifs
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-kinds-game {datadir} Invasion.RIF Statue.RIF pulam shape_rifs variants1
+level {datadir}-kinds-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- the order: the pickups first by name in small letters, the furniture after, the unknown last
+item 0x32
+expect-field-has picker open
+wait-field picker failed 0 20000
+wait-field pickershown waiting 0 20000
+expect-field-has pickerorder 1:pistol|1:pulam|1:Smrtam01|
+expect-field-has pickerorder |4:timdesk|
+expect-field-has pickerorder |10:medbox01|
+expect-field-has pickerorder |10:pulam_var001
+# the whole order, measured on f4cfcc27 and checked against the table: Invasion makes 9 of its 21 own shapes into files the table knows (pistol, Smrtam01,
+# Mine a light, timdesk, Shell held by avp_huds, EdEggfrg1-3 and Glass01 no object places); its 12 rescaled copies, the rescaled medbox01 and pulam_var001
+# are unknown; by name in small letters inside each group
+expect-field-has pickerorder 1:pistol|1:pulam|1:Smrtam01|2:Mine|4:timdesk|8:Shell|9:EdEggfrg1|9:EdEggfrg2|9:EdEggfrg3|9:Glass01|10:Armour01|10:Egg_Open|10:Flam01|10:Flame|10:Fmvscreen|10:helm|10:medbox01|10:predinvchair|10:pulam_var001|10:pulse|10:Simple|10:skeeter|10:Smart
+picture 1
+
+# ---- each tile still places its own shape: the first pickup (the level's own, by its number), the folder's pickup (its file brought in), the furniture
+click-tile Smrtam01 twice
+expect-dialog Name Object
+type sortSmart
+key Enter
+expect-no-dialog
+expect-status Object sortSmart made at the view
+expect-status placed as ammo: smartgun (the game's Type 3, ExtraData 2)
+
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile pulam twice
+expect-dialog Name Object
+type sortAmmo
+key Enter
+expect-no-dialog
+expect-status Object sortAmmo made at the view
+expect-status placed as ammo: pulse rifle (the game's Type 3, ExtraData 0)
+
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile timdesk twice
+expect-dialog Name Object
+type sortDesk
+key Enter
+expect-no-dialog
+expect-status Object sortDesk made at the view
+expect-status placed as furniture (the game's Type 1, ExtraData 0; stock mass 1000, integrity 8, 2 of 2 placements)
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept sortSmart kept sortAmmo kept sortDesk shapefile sortSmart|Smrtam01 shapefile sortAmmo|pulam shapefile sortDesk|timdesk

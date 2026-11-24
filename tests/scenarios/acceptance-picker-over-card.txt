@@ -70,7 +70,9 @@ expect-field-has picker open
 wait-field picker drawn 22 20000
 wait-field pickerpanedraw live 1 20000
 wait 1000
-expect-field-has pickerboxes Fmvscreen~854 84 96 96
+# (the top right tile is EdEggfrg2 since the tiles are in order of kind, 2026-11-24; Fmvscreen, measured there in name order, is Invasion's rescaled copy, unknown,
+# later; with EdEggfrg2 there the strip measured the same: 0.2038 white with the card alone, 0.0000 with the picker open, frost-pickertouch-dbb45392-one)
+expect-field-has pickerboxes EdEggfrg2~854 84 96 96
 expect-number pickerpanedraw drawn 1 100000
 picture 6
 expect-colour-at-most panels 936 86 12 92 FFFFFF 0.001 40

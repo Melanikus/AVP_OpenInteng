@@ -18,7 +18,8 @@ wait 400
 item 0x32
 expect-field-has picker open cols 7 rows 4 count
 expect-field-has pickerbox 100 72 808 585 of 1008 729
-expect-field-has pickerboxes Armour01~132 76 96 96
+# (the first tile: pistol since the order by kind, 2026-11-24, a pickup first; Armour01, Invasion's rescaled copy, is unknown, later)
+expect-field-has pickerboxes pistol~132 76 96 96
 expect-field-has pickerscroll up~884 76 16 16
 wait-field pickershown waiting 0 20000
 picture 1

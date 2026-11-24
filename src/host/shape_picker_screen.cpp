@@ -70,6 +70,7 @@ namespace
 	// row in the identity table, null while unknown. Known by the SHA-256 of the very shape the tile places. A folder's file: its own bytes, read as it is
 	// drawn. An "in this level" tile: the file the level's own shape of that number makes (shape_extract.h ShapeExtract_FileSums), worked out as the picker opens.
 	std::vector<host::ShapeIdentityRow const *> knownOf;
+	std::vector<int> kindGroupOf;                 // each tile's group in the order by kind (shape_picker.h ShapePicker_KindGroup), as the picker opened
 	std::string levelSumsWords;                   // how the level's own shapes were looked up as the picker opened ("<n> of <m> known in <ms> ms", or why not)
 	bool pointerSeen = false;                     // the pointer has moved over the window since the picker opened (no button needed) ...
 	int32_t pointerX = 0, pointerY = 0;           // ... and where it was last, in the editor's own pixels: the tile under it is found again each frame, as the rows scroll
@@ -138,6 +139,9 @@ namespace
 				{
 					continue;   // (said when it is drawn, by the same read)
 				}
+
+				// what the identity table knows it by: these very bytes' SHA-256 (the order by kind, ShapePickerScreen_Open; Frost 2026-11-24)
+				looks[i].fileSha = host::ShapeExtract_Sha256(bytes);
 
 				if (!host::ShapeThumb_Read(bytes, &model, &why, &noGeometry))
 				{
@@ -581,6 +585,74 @@ namespace
 		host::ShapePaneGpu_FrameEnd();
 	}
 
+	// THE ORDER BY KIND (Frost 2026-11-24; the owner, via Bishop: "1 weapons & pickups, lights, screens, furniture, props, switches, tracks, fans and rest,
+	// fragment, debirs and unkonw last"; AvP-docs tools/frost/picker-sort/PLAN.md). As the picker opens, before anything is drawn: a folder's tile is known by
+	// its file's bytes as the opening's look read them (tile.fileSha), an "in this level" tile by the file the level's own shape makes (knownOf, worked out just
+	// before); then each tile gets its group (shape_picker.h ShapePicker_KindGroup) and every list kept per tile is put in the same new order
+	// (ShapePicker_KindOrder), so a tile's number, parts, row and state stay its own. A file not read in the look's time is unknown here (last), even if its
+	// drawing later knows it. Lists of another length than the tiles (never, as Open makes them) leave the order as it was.
+	template <typename T> void Reorder(std::vector<T> *items, std::vector<size_t> const &order)
+	{
+		std::vector<T> moved;
+
+		moved.reserve(order.size());
+
+		for (size_t k : order)
+		{
+			moved.push_back((*items)[k]);
+		}
+
+		items->swap(moved);
+	}
+
+	void SortByKind()
+	{
+		size_t const count = list.tiles.size();
+
+		kindGroupOf.assign(count, host::kShapePickerKindGroups);
+
+		if (states.size() != count || shaOf.size() != count || noPictureOf.size() != count || levelNumberOf.size() != count || levelPartsOf.size() != count ||
+			knownOf.size() != count)
+		{
+			return;
+		}
+
+		std::vector<std::pair<int, std::string>> keys;
+
+		keys.reserve(count);
+
+		for (size_t i = 0; i < count; i++)
+		{
+			host::ShapePickerTile const &tile = list.tiles[i];
+
+			if (!(tile.inLevel && levelNumberOf[i] >= 0) && !tile.fileSha.empty())
+			{
+				knownOf[i] = host::ShapeIdentity_Find(tile.fileSha);   // a folder's file: by its own bytes, the ones placed
+			}
+
+			host::ShapeIdentityRow const *const row = knownOf[i];
+
+			kindGroupOf[i] = host::ShapePicker_KindGroup(row != nullptr, row ? row->kind : "", row ? row->levels : "");
+			keys.push_back(std::make_pair(kindGroupOf[i], tile.name));
+		}
+
+		std::vector<size_t> const order = host::ShapePicker_KindOrder(keys);
+
+		if (order.size() != count)
+		{
+			return;
+		}
+
+		Reorder(&list.tiles, order);
+		Reorder(&states, order);
+		Reorder(&shaOf, order);
+		Reorder(&noPictureOf, order);
+		Reorder(&levelNumberOf, order);
+		Reorder(&levelPartsOf, order);
+		Reorder(&knownOf, order);
+		Reorder(&kindGroupOf, order);
+	}
+
 	// The selected tile placed the way Quick-create places a shape: the level's own shape of that file by its NUMBER, else the file brought in; one that can't be,
 	// said in words and the picker kept open
 	void PlaceSelected()
@@ -684,6 +756,11 @@ bool ShapePickerScreen_Open()
 	size_t pastTime = 0;
 	DWORD lookMs = 0;
 	std::vector<host::ShapePickerLook> const looks = LookAtTheFiles(&pastTime, &lookMs);
+
+	for (size_t i = 0; i < list.tiles.size() && i < looks.size(); i++)
+	{
+		list.tiles[i].fileSha = looks[i].fileSha;   // each tile keeps what its file is known by, through the folding and the level's tiles (the order by kind)
+	}
 
 	host::ShapePicker_Thin(&list, looks, pastTime, &thinned);
 
@@ -792,6 +869,8 @@ bool ShapePickerScreen_Open()
 		}
 	}
 
+	SortByKind();
+
 	view = host::ShapePickerView();
 	selectedClicked = false;
 	dragging = false;
@@ -857,6 +936,7 @@ void ShapePickerScreen_Close(bool sayNothingChosen)
 	levelNumberOf.clear();
 	levelPartsOf.clear();
 	knownOf.clear();
+	kindGroupOf.clear();
 	pointerSeen = false;
 }
 
@@ -1177,6 +1257,22 @@ void ShapePickerScreen_StateFields()
 		StateLine_Add("pickertyped", typedTiles);
 		StateLine_Add("pickerhover", under >= 0 ? host::ShapePicker_SafeName(list.tiles[(size_t)under].name) + "~" + HoverWords((size_t)under) : std::string("none"));
 		StateLine_Add("pickerlevelkinds", levelSumsWords.empty() ? std::string("none from the level") : levelSumsWords);
+	}
+
+	// THE ORDER BY KIND: the tiles on the screen in the order shown, each "<group>:<name>" ('|' between), its group as shape_picker.h ShapePicker_KindGroup
+	// numbers them (1 pickups ... 9 fragments & debris, 10 unknown)
+	{
+		std::string order;
+		size_t const onScreen = (size_t)layout.columns * (size_t)layout.rows;
+
+		for (size_t i = view.first; i < list.tiles.size() && i < view.first + onScreen; i++)
+		{
+			int const group = i < kindGroupOf.size() ? kindGroupOf[i] : host::kShapePickerKindGroups;
+
+			order += (order.empty() ? "" : "|") + std::to_string(group) + ":" + host::ShapePicker_SafeName(list.tiles[i].name);
+		}
+
+		StateLine_Add("pickerorder", order);
 	}
 
 	size_t drawnCount = 0, failedCount = 0;
