@@ -1699,6 +1699,7 @@
     <ClCompile Include="..\..\avpx\3dc\console.cpp" />
     <ClCompile Include="..\..\avpx\3dc\d3d_render.cpp" />
     <ClCompile Include="..\..\avpx\3dc\debug_view.cpp" />
+    <ClCompile Include="..\..\avpx\3dc\device_reset_hooks.cpp" />
     <ClCompile Include="..\..\avpx\3dc\FastFile.cpp" />
     <ClCompile Include="..\..\avpx\3dc\FileStream.cpp" />
     <ClCompile Include="..\..\avpx\3dc\FmvCutscenes.cpp" />

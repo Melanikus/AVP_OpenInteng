@@ -1,0 +1,59 @@
+# ACCEPTANCE (red first; Drake 2026-11-23): THE OWNER'S GREY SQUARE IN THE PLOT'S PREVIEW, NAMED: genshd1's water pool. The game draws the water of
+# genshd1's module "05" (D3D_DrawWaterTest, kzsort.cpp) for every module in its sorted list, right after the module's own shape, and only for a level the game
+# names "genshd1" exactly (All stock maps opens it so; LevelView_Open takes the name as given, so this file is opened in lower case). The editor hides a module
+# at its shape (AddShape asks EditorBlockIsHidden), but the water was drawn anyway: the preview's inset, which hides every module but the one being planned,
+# showed the water as a flat grey speckled patch (colonywater.RIM, 1024 corners, see-through), over whatever module was planned (measured on branch
+# drake-insetmeasure: one main-list item more in the inset than the same camera on "Genshd1", every time; the wire switch 3, so not the sky).
+# RED on exe-cache/b740a152.exe: the grey (c0c0c0 +-30: the patch is 176-208; the wire lines are 240 and up, yellow, green) in the inset in 6 of the 10
+# pictures, 0.0013 to 0.0028 of the box (AvP-builds-excluded/drake-previewfix-proofs/water-red-214146).
+# GREEN: a module the editor hides has none of its water drawn either.
+#ini AutoPlot=1
+# timeout 1500
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/genshd1.RIF
+pictures on
+expect-field level genshd1
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+click-button Ok
+wait-moving 300000 plotpreview on left 605 top 437 width 403 height 292
+wait 1200
+state
+picture 1
+expect-colour-at-most picture 605 437 403 292 c0c0c0 0.0005 30
+wait 1200
+state
+picture 2
+expect-colour-at-most picture 605 437 403 292 c0c0c0 0.0005 30
+wait 1200
+state
+picture 3
+expect-colour-at-most picture 605 437 403 292 c0c0c0 0.0005 30
+wait 1200
+state
+picture 4
+expect-colour-at-most picture 605 437 403 292 c0c0c0 0.0005 30
+wait 1200
+state
+picture 5
+expect-colour-at-most picture 605 437 403 292 c0c0c0 0.0005 30
+wait 1200
+state
+picture 6
+expect-colour-at-most picture 605 437 403 292 c0c0c0 0.0005 30
+wait 1200
+state
+picture 7
+expect-colour-at-most picture 605 437 403 292 c0c0c0 0.0005 30
+wait 1200
+state
+picture 8
+expect-colour-at-most picture 605 437 403 292 c0c0c0 0.0005 30
+wait 1200
+state
+picture 9
+expect-colour-at-most picture 605 437 403 292 c0c0c0 0.0005 30
+wait 1200
+state
+picture 10
+expect-colour-at-most picture 605 437 403 292 c0c0c0 0.0005 30
