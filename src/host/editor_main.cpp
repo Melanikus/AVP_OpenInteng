@@ -611,6 +611,11 @@ static UINT const kHarnessPickModule = WM_APP + 11;
 // - kHarnessPickMarker, wParam an entry point marker's number from 0 (Waypoint, AI modules): that marker is picked, as a click on its cube would (the click's own rule is light_pick.h's, tested there). A line
 //   "AVP_OpenInteng: pick-marker: ..." says what was done. Only in a -picture run.
 static UINT const kHarnessPickMarker = WM_APP + 12;
+// - kHarnessReopen (WM_APP + 14; 13 is the pick-polygon): the open level opened again from its file, as the shapes search's reopen and All stock maps open it
+// (LevelReopen_Open; a failed open is tried once more, as the shapes' reopen does), in a -picture run only: the harness's reopen-level, for the proofs of what a
+// level change does to what is open (the placement picker closes on it: Vasquez; the live panes' picture must never outlive its texture: Frost's safety case,
+// hole 1). Its answer is one line, "reopen: ...". Added 2026-11-23 by Melanikus (Dietrich)
+static UINT const kHarnessReopen = WM_APP + 14;
 void HarnessPickModule(int32_t index);
 void LinkClick(host::PickReport const &used, bool shift, bool held);
 static bool harnessScenarioAsked = false;
@@ -9437,6 +9442,29 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				// said at once (the next frame's own status words may replace them), and the save's OWN words: this line is the harness's, never on the screen, so it keeps the
 				// copy's full path ({copy}, {save1}, ...); the status line's copy of them has its path cut to the name (screen_names.h)
 				printf("AVP_OpenInteng: copy: %s\n", savedWords.c_str());
+				fflush(stdout);
+				harnessScenarioAsked = true;
+			}
+			return 0;
+		case kHarnessReopen:
+			if (NobodyWatching())
+			{
+				std::string const name = openLevelName;   // (a copy: the open writes openLevelName)
+				std::string why;
+				// REFUSED WHILE SOMETHING RUNS ON THE LEVEL, as the editor's own reopen is (ShapesReopenTheLevel): a plot's worker, AutoLink, a links delete or All
+				// stock maps reads the level, and a plot's worker is only stopped at the program's end (CloseTheLevel), so the level is never freed under one
+				// (Vasquez's MUST 1 on 5422d4f3). Changes not saved don't refuse it: a test may throw its changes away
+				char const *const running = host::AllStockMaps_Busy() ? "All stock maps runs on the level" : AutoPlotCommand_Busy() ? "a plot runs on the level" :
+					AutoLinkRunning() ? "AutoLink runs on the level" : DeleteLinksRunning() ? "a links delete runs on the level" : nullptr;
+
+				if (running)
+				{
+					why = running;
+				}
+
+				bool const reopened = !running && !name.empty() && (LevelReopen_Open(name.c_str(), &why) || LevelReopen_Open(name.c_str(), &why));
+
+				printf("AVP_OpenInteng: reopen: %s\n", reopened ? ("the level " + name + " opened again").c_str() : ("not opened again: " + (name.empty() ? std::string("no level is open") : why)).c_str());
 				fflush(stdout);
 				harnessScenarioAsked = true;
 			}

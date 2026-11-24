@@ -141,6 +141,8 @@ namespace host
 			return false;
 		}
 
+		model->shapeFlags = shape.flags;   // (what the game draws the shape by: part of the look, ShapeThumb_LookBytes)
+
 		// the texture coordinates and the texture list: a fault in either draws polygons shaded, it never refuses the file
 		std::vector<model::UvList> lists;
 
@@ -225,6 +227,8 @@ namespace host
 			ShapeThumbPolygon out;
 
 			out.cornerCount = p.cornerCount;
+			out.engineType = p.engineType;   // (what the game draws it by: part of the look, ShapeThumb_LookBytes)
+			out.flags = p.flags;
 
 			for (int c = 0; c < p.cornerCount && c < 5; c++)
 			{
@@ -296,6 +300,8 @@ namespace host
 		auto add = [&out](void const *what, size_t bytes) { out.append((char const *)what, bytes); };
 		uint32_t const pointValues = (uint32_t)model.points.size();
 
+		out += "shape";
+		add(&model.shapeFlags, sizeof(model.shapeFlags));   // what the game draws the shape by (Dietrich's SHOULD 1 on 7ad5b295)
 		out += "points";
 		add(&pointValues, sizeof(pointValues));
 		add(model.points.data(), model.points.size() * sizeof(float));
@@ -309,6 +315,8 @@ namespace host
 		{
 			int32_t const count = p.cornerCount;
 
+			add(&p.engineType, sizeof(p.engineType));   // and each polygon by its item type and flags: see-through, translucent, not culled ...
+			add(&p.flags, sizeof(p.flags));
 			add(&count, sizeof(count));
 
 			for (int c = 0; c < p.cornerCount && c < 5; c++)

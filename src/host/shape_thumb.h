@@ -51,11 +51,14 @@ namespace host
 		int cornerCount = 0;                            // 3 to 5
 		int picture = -1;                               // in ShapeThumbModel::pictures, -1 when drawn shaded (not textured, or its picture or list isn't there)
 		float texels[5][2] = {};                        // each corner's place in its picture, in the picture's own texels
+		int32_t engineType = 0;                         // the polygon's item type and its flags, as the file holds them: the thumbnail draws by neither, but the
+		int32_t flags = 0;                              // game does (see-through, translucent, not culled ...), so they are part of the look (ShapeThumb_LookBytes)
 	};
 
 	struct ShapeThumbModel
 	{
 		size_t parts = 0;                               // the shapes the file holds (more than one: a fragment file, its first drawn)
+		int32_t shapeFlags = 0;                         // the shape's own flags (SHPHEAD1's first word): part of the look too
 		std::vector<float> points;                      // x, y, z of each point (the world's mm, y down)
 		std::vector<ShapeThumbPolygon> polygons;
 		std::vector<ShapeThumbPicture> pictures;        // each picture the polygons use, once, in the order first used
@@ -71,8 +74,9 @@ namespace host
 	// 2026-11-23: "No picture means no geometry? if yes don't show!"), while a broken or too big one keeps its tile and says why.
 	bool ShapeThumb_Read(std::vector<char> const &file, ShapeThumbModel *model, std::string *why, bool *noGeometry = nullptr);
 
-	// WHAT IS DRAWN, as bytes (the placement picker folds files that look the same into one tile: the owner, 2026-11-23, through Bishop 2): the points' exact
-	// values, then each polygon's corners, its texture places and its picture's path in small letters ("" when shaded): never the file's other bytes (its own
+	// WHAT IS DRAWN, as bytes (the placement picker folds files that look the same into one tile: the owner, 2026-11-23, through Bishop 2): the shape's flags and
+	// the points' exact values, then each polygon's item type, flags, corners, its texture places and its picture's path in small letters ("" when shaded): what
+	// the GAME draws by, not only the thumbnail (Dietrich's SHOULD 1 on 7ad5b295: a see-through copy must keep its own tile); never the file's other bytes (its own
 	// number, its list's numbering, its other chunks), so two copies extracted from two levels with the same look give the same bytes, and a moved point or
 	// another picture gives others. Empty for a fragment file (more than one part: only its first is drawn, so it never folds)
 	std::string ShapeThumb_LookBytes(ShapeThumbModel const &model);

@@ -85,12 +85,13 @@ namespace
 	// don't show!", and copies that look the same folded into one tile): read with the drawing's own read (ShapeImport_Read: one handle, a plain file, at most
 	// kShapeImportMostBytes; then ShapeThumb_Read, every count checked), at most kShapePickerMostLookMs in all. A tile "in this level" is drawn from the level's
 	// own shape, not its file, so it isn't looked at; a file that can't be read, or no room to read it, keeps its tile and says why when it is drawn.
-	std::vector<host::ShapePickerLook> LookAtTheFiles(size_t *pastTime)
+	std::vector<host::ShapePickerLook> LookAtTheFiles(size_t *pastTime, DWORD *tookMs)
 	{
 		std::vector<host::ShapePickerLook> looks(list.tiles.size());
 		DWORD const start = GetTickCount();
 
 		*pastTime = 0;
+		*tookMs = 0;
 
 		for (size_t i = 0; i < list.tiles.size(); i++)
 		{
@@ -135,6 +136,7 @@ namespace
 			}
 		}
 
+		*tookMs = GetTickCount() - start;
 		return looks;
 	}
 
@@ -537,9 +539,20 @@ bool ShapePickerScreen_Open()
 	// NO GEOMETRY, NO TILE; COPIES FOLDED (the owner 11-23, through Bishop 2): each folder tile's file looked at, then the empty ones left out and the lookalikes
 	// folded, before the level's own shapes are added (those are drawn from the level, by number)
 	size_t pastTime = 0;
-	std::vector<host::ShapePickerLook> const looks = LookAtTheFiles(&pastTime);
+	DWORD lookMs = 0;
+	std::vector<host::ShapePickerLook> const looks = LookAtTheFiles(&pastTime, &lookMs);
 
 	host::ShapePicker_Thin(&list, looks, pastTime, &thinned);
+
+	// A SLOW LOOK SAID (Dietrich's NIT on 7ad5b295): the look runs before the window can draw again, so a word during it would never be seen; when it took a
+	// second or more (a stranger's large folder; the owner's 352 files take about 70 ms), the status line says afterwards why the window waited
+	std::string const slowWords = lookMs >= 1000 ? " (looking at the files took " + std::to_string((unsigned long)(lookMs / 1000)) + "." +
+		std::to_string((unsigned long)((lookMs % 1000) / 100)) + " s: each one is read once, to leave out the empty ones and fold the copies)" : std::string();
+
+	if (!slowWords.empty())
+	{
+		list.notes.push_back("looking at the files took " + std::to_string((unsigned long)lookMs) + " ms as the picker opened");
+	}
 
 	// THE LEVEL'S OWN SHAPES as tiles too (shape_picker.h ShapePicker_AddLevelShapes; Bishop 2's decision on the owner's "items from shape_rifs + level"): a
 	// shape the level alone holds, and each part of a fragment file, drawn and placed by number
@@ -596,7 +609,7 @@ bool ShapePickerScreen_Open()
 
 	Answer(list.tiles.empty() ? "Create: no shape file in " + host::ShapeSearch_Labels(host::ShapeSearch_Order(shapeFolderSetting, theGameFolder)) + " (Escape leaves)" :
 		"Create: " + std::to_string((unsigned long long)list.tiles.size()) + " shapes from " + host::ShapeSearch_Labels(host::ShapeSearch_Order(shapeFolderSetting, theGameFolder)) +
-		": a click selects one, a second click (or Return) places it, Escape leaves");
+		": a click selects one, a second click (or Return) places it, Escape leaves" + slowWords);
 	return true;
 }
 
@@ -931,6 +944,13 @@ void ShapePickerScreen_StateFields()
 
 	StateLine_Add("pickerscroll", host::ShapePicker_BarWords(bar));
 	StateLine_Add("pickerdrag", dragging ? "held" : "free");
+
+	// the sitting's kept pictures: how many were decoded whole, how many given from the kept ones, what is kept against its most, and how many were let go
+	ShapePickerPictureCounts const pictures = ShapePickerPictures_Counts();
+	auto const count = [](uint64_t n) { return std::to_string((unsigned long long)n); };
+
+	StateLine_Add("pickerpictures", "decoded " + count(pictures.decoded) + " fromkept " + count(pictures.fromKept) + " kept " + count(pictures.kept) + " bytes " +
+		count(pictures.keptBytes) + " most " + count(kShapePickerMostKeptPictureBytes) + " letgo " + count(pictures.letGo));
 
 	// what the opening left out (no geometry) and folded (each copy under the tile it looks the same as, "<tile>~<copy>"), '|' between, every name made safe
 	std::string leftOut, folded;

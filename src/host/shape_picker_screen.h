@@ -66,10 +66,10 @@ void ShapePickerScreen_Wheel(int delta);
 // The picker's fields on the state line (StateLine_Add), every frame: picker "open cols A rows B count N drawn D failed F first X selected <name>" (or
 // "closed"), pickerboxes "<name>~<x> <y> <w> <h>|..." (the tiles on the screen, their pictures, in the WINDOW's pixels), pickertiles (those tiles' words,
 // shape_picker.h ShapePicker_TileWords, '|' between), pickernotes (the folders' words), pickerscroll (the scroll bar's parts, "up~...|down~...|above~...|
-// below~...|thumb~...", in the window's pixels), pickerdrag ("held" while the thumb is held, else "free"), pickershown (the tiles on the screen as the
-// paint shows them, "shown S pictured P waiting W words X": with their drawing, still drawing, or words only), pickerleftout (the files left out as the
-// picker opened, no geometry in them: "<name>|...") and pickerfolded (each copy folded into the tile it looks the same as: "<tile>~<copy>|...";
-// shape_picker.h ShapePicker_Thin)
+// below~...|thumb~...", in the window's pixels), pickerdrag ("held" while the thumb is held, else "free"), pickerpictures (the sitting's kept pictures,
+// ShapePickerPictures_Counts below: "decoded D fromkept K kept N bytes B most M letgo L"), pickershown (the tiles on the screen as the paint shows them,
+// "shown S pictured P waiting W words X": with their drawing, still drawing, or words only), pickerleftout (the files left out as the picker opened, no
+// geometry in them: "<name>|...") and pickerfolded (each copy folded into the tile it looks the same as: "<tile>~<copy>|..."; shape_picker.h ShapePicker_Thin)
 void ShapePickerScreen_StateFields();
 
 // A picture of a tile's shape (shape_thumb.h's path under the game's graphics folder) read and decoded as the level's own pictures are (shape_picker_pictures.cpp).
@@ -82,3 +82,25 @@ bool ShapePickerScreen_ReadPicture(host::ShapeThumbPicture const &picture, host:
 // a picture): begun as the picker opens, ended as it closes, the open level's own count put back then. While none is held, no picture is read.
 void ShapePickerPictures_Begin();
 void ShapePickerPictures_End();
+
+// THE SITTING'S KEPT PICTURES (the owner, 2026-11-23: "cache every texture once", "list map and all shape textures and cache it"; Bishop 2's rule: "the judged
+// file itself, its path as judged plus its identity, never by the name alone"). A picture is decoded once and kept for the editor's sitting, by its path as
+// judged plus the identity of the file that path led to (avpx FileStream.h FileStreamIdentity: the disk, the file's number, a fastfile member's place and size,
+// the time it was last written). Before a kept picture is given again, its path is opened again (nothing read, nothing counted) and the file it leads to now is
+// compared: another file, or the same one saved again since, is decoded again. One whose identity Windows won't give is never kept. At most
+// kShapePickerMostKeptPictureBytes in all (4 bytes a pixel); past it, the least recently given are let go first, and decoded again when next shown.
+uint64_t const kShapePickerMostKeptPictureBytes = 64ull * 1024 * 1024;   // (Genshd1's 350 stock tiles: 419 picture reads of 26.2 MB, repeats and all)
+
+struct ShapePickerPictureCounts   // since the sitting began (or the tests' last ShapePickerPictures_Forget)
+{
+	uint64_t decoded = 0;      // pictures read and decoded whole through RimLoader (each counted on the visit's allowance)
+	uint64_t fromKept = 0;     // pictures given from the kept ones (their file only opened, to see which it is)
+	uint64_t kept = 0;         // pictures kept now
+	uint64_t keptBytes = 0;    // and their bytes
+	uint64_t letGo = 0;        // kept pictures let go to stay under the most
+};
+ShapePickerPictureCounts ShapePickerPictures_Counts();
+
+// THE TESTS' OWN (the editor never calls it: its most is always kShapePickerMostKeptPictureBytes): every kept picture let go, the counts made 0, and from then on
+// at most mostBytes kept, so a test can reach the most with two pictures
+void ShapePickerPictures_Forget(uint64_t mostBytes = kShapePickerMostKeptPictureBytes);

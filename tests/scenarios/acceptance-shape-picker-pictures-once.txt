@@ -1,0 +1,65 @@
+# ACCEPTANCE (red first; Frost 2026-11-23, THE OWNER asking why the picker draws slowly, then: "cache every texture once", "list map and all shape textures and
+# cache it"; Bishop 2's rule: each picture kept by "its path as judged plus its identity, never by the name alone", at most 64 MB): THE PICKER DECODES EACH PICTURE
+# ONCE A SITTING, on his path. As his first start did, the FOUND form's Yes extracts every stock shape into the shard's data copy's shape_rifs (ShapesInTests=1,
+# read only in a hidden run; acceptance-shapes-found-1 proves the extraction itself); then Colony (Genshd1, his level), Object Placement, Choose: the grid of
+# every shape file found and the level's own, 340 tiles (copies folded into the tile they look the same as, files with no geometry left out: Vasquez's
+# thinning). It is drawn page by page to its end.
+# The state line's pickerpictures (shape_picker_screen.h ShapePickerPictures_Counts): "decoded D fromkept K kept N bytes B most M letgo L": pictures decoded
+# whole through RimLoader, pictures given from the kept ones, pictures kept and their bytes against the most, and kept ones let go to stay under it.
+# Measured: before the cache (8275930d with timers, AvP-docs tools/frost/pickertime/REPORT-20261123.md) this path made 419 whole picture reads; with it
+# (frost-picker-cache, 2026-11-23 20:1x, 352 tiles before the thinning) 421 asks: 110 decoded, one per distinct picture, every one kept (7,208,960 bytes of
+# the 64 MB), 311 given from the kept ones; with the thinning (22:3x, b00913de), 340 tiles: 409 asks, the same 110 decoded and kept, 299 given from the kept ones.
+# RED on exe-cache/222a7ade.exe (the cache without its field): no pickerpictures field.
+# changes-data
+# timeout 1500
+#ini ShapesInTests=1
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+state
+wait-moving 20000 shapes (the form is open)
+expect-dialog Open Inteng
+click-button Yes
+expect-no-dialog
+wait-moving 300000 shapes done;
+expect-field-has shapes new shapes in shape_rifs
+pictures on
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+item 0x32
+expect-field-has picker open cols 9 rows 4 count 340
+wait 3000
+key PageDown
+wait 3000
+key PageDown
+wait 3000
+key PageDown
+wait 3000
+key PageDown
+wait 3000
+key PageDown
+wait 3000
+key PageDown
+wait 3000
+key PageDown
+wait 3000
+key PageDown
+wait 3000
+key PageDown
+wait 3000
+key PageDown
+wait 3000
+key End
+wait 3000
+# every tile drawn, none failed; every distinct picture decoded once and kept, every other ask given from the kept ones, none let go
+expect-field-has picker count 340 drawn 340 failed 0
+expect-field-has pickerpictures decoded 110 fromkept 299 kept 110 bytes 7208960 most 67108864 letgo 0
+expect-field-has pickershown shown 34 pictured 34 waiting 0 words 0
+# BACK TO THE FIRST PAGE (Frost, 2026-11-23, found writing this): 340 tiles are more than the picker keeps drawings of (kShapePickerMostKept, 256), so the
+# first pages' drawings were let go on the way to the end. Each such tile is drawn again (its file read again, its pictures given from the kept ones: none
+# decoded again), never left showing words in place of its picture.
+key Home
+wait 3000
+expect-field-has picker count 340 drawn 340 failed 0 first 0
+expect-field-has pickershown shown 36 pictured 36 waiting 0 words 0
+expect-field-has pickerpictures decoded 110 fromkept
+expect-number pickerpictures fromkept_ 300 5000

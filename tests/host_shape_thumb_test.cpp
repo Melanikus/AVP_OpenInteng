@@ -72,13 +72,15 @@ struct Made
 	bool polygons = true;          // false: no polygon in SHPPOLYS, and the header says 0 ((7) with points 0: a shape of nothing)
 	int32_t number = 7;            // the header's own number (another level's copy has another: (8), not part of the look)
 	int32_t apexY = -1000;         // point 4's y ((8): moved, the look is another)
+	int32_t quadFlags = 0;         // the quad's own flags word ((8): the game draws by them, see-through, translucent ...: the look is another)
+	int32_t headerFlags = 0;       // the shape's flags, SHPHEAD1's first word ((8): the look is another)
 };
 
 static Bytes Shape(Made const &m)
 {
 	Bytes head, points, polygons, uv;
 
-	AddInt(&head, 0);
+	AddInt(&head, m.headerFlags);
 	head.insert(head.end(), 16, 0);
 	AddInt(&head, m.number);                       // its number
 	AddInt(&head, (int32_t)m.points);
@@ -103,8 +105,8 @@ static Bytes Shape(Made const &m)
 		AddInt(&points, p[2]);
 	}
 
-	// the quad: engine type 5 (textured), normal 0, flags 0, colour = picture | list 0 << 16, corners 0 1 2 3
-	for (int32_t v : { 5, 0, 0, m.quadIndex, 0, 1, 2, 3, -1 })
+	// the quad: engine type 5 (textured), normal 0, its flags, colour = picture | list 0 << 16, corners 0 1 2 3
+	for (int32_t v : { 5, 0, m.quadFlags, m.quadIndex, 0, 1, 2, 3, -1 })
 	{
 		AddInt(&polygons, v);
 	}
@@ -444,6 +446,18 @@ int main()
 		fragment.shapes = 2;
 		std::string const fragmentLook = look(fragment);
 		Check(fragmentLook.empty(), "(8) a fragment file: no look (only its first part is drawn, so it never folds)");
+
+		// (8) WHAT THE GAME DRAWS BY, beyond the picture (Dietrich's SHOULD 1 on 7ad5b295): the same points and pictures, but a polygon's flags (see-through,
+		// translucent, not culled ...) or the shape's own flags another, and the game draws it otherwise: another look, so it keeps its own tile
+		Made seeThrough;
+		seeThrough.quadFlags = 0x10;
+		std::string const flagLook = look(seeThrough);
+		Check(!flagLook.empty() && flagLook != original, "(8) the quad's flags another (the same points and picture): another look");
+
+		Made shapeFlagged;
+		shapeFlagged.headerFlags = 0x4;
+		std::string const shapeFlagLook = look(shapeFlagged);
+		Check(!shapeFlagLook.empty() && shapeFlagLook != original, "(8) the shape's own flags another: another look");
 	}
 
 	printf(checksFailed ? "host_shape_thumb_test: %d FAILED\n" : "host_shape_thumb_test: all passed\n", checksFailed);
