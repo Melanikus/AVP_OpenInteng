@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <string>
+
 namespace host
 {
 	// The six local directions, as numbered here: 0 +x, 1 -x, 2 +y, 3 -y (up: y is down), 4 +z, 5 -z
@@ -37,4 +39,25 @@ namespace host
 
 	// The direction R0 turns a local axis (0 to 5) to, in the world (unit length); false for an axis out of range or a turn of no length
 	bool SurfaceAxis_World(float const turn[4], int axis, double out[3]);
+
+	// ----- THE FLIP (Frost 2026-11-24; the owner: "I want "F" for "Flip" each press rotates 90% around an axis, after 4 presses goes to next axis ... So people can just tap F
+	// real fast to rotate (first in up axis) then left/right/front/back and down", "So 6x "faces" of a cube times 4x angles"; Bishop's order) -----
+	// The 24 ways a box can stand, in the owner's order. Flip k (0 to 23) puts FACE k / 4 down, then makes k % 4 quarter turns about up:
+	//   face 0 UPRIGHT (its own down, +y, down: as it stands; y is down), 1 on its LEFT side (-x down), 2 on its RIGHT side (+x down), 3 on its FRONT (+z down), 4 on its BACK (-z
+	//   down), 5 UPSIDE DOWN (-y down).
+	// A flip is a turn in the object's OWN frame, done first: the slide starts each frame from R0 F (SurfaceTurn_Then(R0, F)), so the axes it snaps and the box it pushes out of the
+	// surface by stay the shape's own (surface_place.h). Each quarter turn is about up, the same way round every time (+x towards +z).
+	int const kSurfaceFlipCount = 24;
+
+	// Flip k as a turn (x y z w, 1 long). Any whole number: taken round the 24 (24 is 0 again, -1 is 23).
+	void SurfaceFlip_Turn(int k, float out[4]);
+
+	// The local axis (0 to 5, as above) flip k puts DOWN: +y, -x, +x, +z, -z or -y for faces 0 to 5. Any whole number, as SurfaceFlip_Turn.
+	int SurfaceFlip_DownAxis(int k);
+
+	// Flip k in words for the status and state lines: "<face>, <degrees>": "upright, 0", "on its left side, 270", "upside down, 90". Any whole number, as SurfaceFlip_Turn.
+	std::string SurfaceFlip_Words(int k);
+
+	// a THEN b: the turn R(a) R(b) (b done first, then a), 1 long. False for a turn of no length or not real numbers, out untouched.
+	bool SurfaceTurn_Then(float const a[4], float const b[4], float out[4]);
 }

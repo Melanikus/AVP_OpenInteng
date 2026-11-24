@@ -5846,6 +5846,12 @@ static void TrackMarkerSnapPut(int32_t const place[3], float const turn[4], bool
 	statusWords = kept ? "Snap To Vertex: the end marker is on the vertex (Finish End Pos Edit takes it)" : "Snap To Vertex: cancelled, the end marker is where it was";
 }
 
+// THE FLIP while sliding (Frost 2026-11-24; the owner: "I want "F" for "Flip" each press rotates 90% around an axis, after 4 presses goes to next axis", "So 6x "faces" of a
+// cube times 4x angles"): which of the 24 ways a box can stand (surface_turn.h SurfaceFlip_*) the slide starts each frame from, on top of the pose the drag started from; 0 at
+// every slide's start. surfaceFlipWords holds the status line's words while they are shown.
+static int surfaceFlip = 0;
+static std::string surfaceFlipWords;
+
 // P3 PLACEMENT MODE (the owner's addition 11-18, Hicks's plan section 5; inteng had none): the selected placed object slides over walls and floors under the pointer, its base on
 // the surface, on Snap To Vertex's live loop: its live copy shows the pose, Esc puts the saved pose back, the left press keeps what is shown (step 3: the gizmo's centre ball starts it and
 // its release keeps it). The pointer is in the editor's own pixels. False when no placed object is selected (SnapLiveStart's own refusal).
@@ -5880,6 +5886,7 @@ static bool SurfaceLiveStart(int pointerX, int pointerY)
 	snapPointerY = pointerY;
 	surfaceAlignUp = false;   // every drag starts CLOSEST (the owner, 11-19)
 	surfaceAxis = -1;
+	surfaceFlip = 0;   // and as it stands (the flip: F)
 	statusWords = "Placement: the object follows the wall or floor under the pointer (Esc puts it back); Align: closest axis (G: up to surface)";
 	return true;
 }
@@ -5898,6 +5905,28 @@ static bool SurfaceAlignKey()
 	// shown before (the owner, 11-19: "what if I press G again?")
 	surfaceAlignUp = !surfaceAlignUp;
 	statusWords = surfaceAlignUp ? "Align: up to surface (G: closest axis)" : "Align: closest axis (G: up to surface)";
+	return true;
+}
+
+// THE OWNER'S F while the object slides (2026-11-24, Bishop's order: "F when in slide mode right"): the next of the 24 ways it can stand, in his order (upright, on its left
+// side, right, front, back, upside down; four quarter turns about up each; then back to upright); the next frame makes the pose again from the drag's start, flipped. The
+// owner: "Flip needs to auto switch to "snap to closest angle" G mode right, or they'll conflict": UP would put the object's own up back onto the surface and undo the flip,
+// so the first F in UP switches the slide to CLOSEST, and says so. False when no slide is held: F is then "Fly selected object", as before.
+static bool SurfaceFlipKey()
+{
+	if (!(snapLive && snapForSurface))
+	{
+		return false;
+	}
+
+	bool const switched = surfaceAlignUp;
+
+	surfaceAlignUp = false;
+	surfaceFlip = (surfaceFlip + 1) % host::kSurfaceFlipCount;
+	surfaceAxis = -1;   // the closest axis looked for again: the flip turned which side is nearest the surface
+	surfaceFlipWords = "Flip " + std::to_string(surfaceFlip + 1) + " of " + std::to_string(host::kSurfaceFlipCount) + ": " + host::SurfaceFlip_Words(surfaceFlip) +
+		(switched ? "; Align: closest axis, so the flip holds (G: up to surface)" : "") + " (F: the next)";
+	statusWords = surfaceFlipWords.c_str();
 	return true;
 }
 
@@ -5938,6 +5967,19 @@ static void SurfaceLiveFrame(int32_t viewX, int32_t viewY, int32_t viewWidth, in
 	memcpy(in.boxMinWorld, surfaceBoxMinWorld, sizeof(in.boxMinWorld));
 	memcpy(in.boxMaxWorld, surfaceBoxMaxWorld, sizeof(in.boxMaxWorld));
 	memcpy(in.turn, snapSavedTurn, sizeof(in.turn));
+
+	if (surfaceFlip != 0)   // THE FLIP (F): the drag's start pose with the flip done first, in the object's own frame, so the axes snapped and the box pushed out stay its own
+	{
+		float flip[4], flipped[4];
+
+		host::SurfaceFlip_Turn(surfaceFlip, flip);
+
+		if (host::SurfaceTurn_Then(snapSavedTurn, flip, flipped))
+		{
+			memcpy(in.turn, flipped, sizeof(in.turn));
+		}
+	}
+
 	in.canTurn = true;   // a placed object holds a turn (movable.h's table)
 	in.align = surfaceAlignUp ? host::SurfaceAlign::Up : host::SurfaceAlign::Closest;   // the owner's rule, 11-19 (G toggles it)
 	in.previousAxis = surfaceAxis;
@@ -8277,6 +8319,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			// Esc, with no menu open (an open menu took it: menuWasOpen), closes the panel opened last (L-1)
 			// the mouse gizmo's keys first (gizmo_screen.h): G, Esc while a drag is held, Ctrl+Z (none of them a key of inteng's Object Placement)
 			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && wParam == 'G' && !ctrlHeld && SurfaceAlignKey()) { return 0; }   // G while the centre ball is held: the align (the owner, 11-19)
+			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && wParam == 'F' && !ctrlHeld && !shiftHeld && SurfaceFlipKey()) { return 0; }   // F while the object slides: the flip (the owner, 11-24); else Fly selected object
 			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && WaypointGizmo_Key((unsigned)wParam, shiftHeld, ctrlHeld)) { return 0; }   // the waypoint-box gizmo's Esc / Ctrl+Z first (waypoint_gizmo.h)
 			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && GizmoScreen_Key((unsigned)wParam, shiftHeld, ctrlHeld)) { return 0; }
 
@@ -16807,6 +16850,7 @@ int main(int, char **)
 			StateLine_Add("shaders", "built-in " + std::to_string(host::ShaderText_Served()) + " missing " + std::to_string(host::ShaderText_Missing()));   // shader_text.h: the renderer's asks, served from the editor's own set and not
 			StateLine_Add("levelmemory", LevelView_MemoryWords());   // level_view.h: what the open level took of its 40 blocks of memory (Frost 2026-11-21)
 			std::string const surfaceCopy = GizmoScreen_LiveCopyWords();
+			StateLine_Add("surfaceflip", !(snapLive && snapForSurface) ? std::string() : std::to_string(surfaceFlip) + " " + host::SurfaceFlip_Words(surfaceFlip) + (surfaceAlignUp ? " up" : " closest"));   // F: the flip's index, its words and the align (CLOSEST once F is pressed)
 			StateLine_Add("surfacelive", !(snapLive && snapForSurface) ? std::string() : (surfaceCopy.empty() ? std::string("on") : surfaceCopy));   // P3: while the object follows the surface (SurfaceLiveStart), its live copy: "x y z drawn 0|1" (as gizmolive)
 			StateLine_Add("surfacelast", surfaceLast);   // P3: what placement mode's last cast met (SurfaceLiveFrame)
 			StateLine_Add("fontpx", std::to_string((long long)host::TextScale_ToWindow(PanelPass_HasMenuFont() ? PanelPass_MenuFontHeight() : kPanelPassLineHeight)));   // the text's height in the window's pixels (text_scale.h)

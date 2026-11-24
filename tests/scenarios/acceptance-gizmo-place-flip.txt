@@ -1,0 +1,102 @@
+# PLACEMENT'S F FLIP WHILE THE OBJECT SLIDES (Frost 2026-11-24; the owner: "on the placement mode, we have the G for the slide mode, I want "F" for "Flip" each press rotates 90% around
+# an axis, after 4 presses goes to next axis ... So people can just tap F real fast to rotate (first in up axis) then left/right/front/back and down", "So 6x "faces" of a cube times
+# 4x angles", "F when in slide mode right", and "Flip needs to auto switch to "snap to closest angle" G mode right, or they'll conflict"). While the gizmo's centre ball slides the
+# object (acceptance-gizmo-place-live's object and floor), each F is the next of the 24 ways a box can stand (surface_turn.h SurfaceFlip_*): upright x 4 quarter turns about up, then
+# on its left side, right, front, back, upside down, x 4 each, then upright again. The first F in UP ("up to surface", G) switches the slide to CLOSEST, so the flip holds, and the
+# status line says so. The state line's surfaceflip: "<index> <words> <closest|up>"; surfacelast: what the slide met and the pose, its turn among it.
+# Released, the flipped pose is the one kept (Drake's contract: the slide's shown pose). Outside a slide F stays Fly selected object (not changed here).
+# RED on exe-cache/6e8f9150.exe (bishop-int, the card's base): no surfaceflip field, and F isn't the slide's.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera-corner asasas
+wait 400
+click-view 0.50 0.50
+expect-selected 1
+expect-hierarchy-text asasas
+wait 300
+state
+expect-field-empty surfaceflip
+picture 1
+
+# ---- the slide starts as it stands, CLOSEST (every drag does); G puts it in UP
+drag-gizmo centre ball 0 120 hold
+expect-field-has surfacelive drawn 1
+expect-field-has surfaceflip 0 upright, 0 closest
+key G
+wait 300
+expect-status Align: up to surface
+expect-field-has surfaceflip 0 upright, 0 up
+expect-field-has surfacelast (up to surface)
+
+# ---- the first F: the next flip, and the slide switched to CLOSEST so it holds (the owner's rule), said on the status line
+key F
+wait 300
+expect-status Flip 2 of 24: upright, 90; Align: closest axis, so the flip holds (G: up to surface) (F: the next)
+expect-field-has surfaceflip 1 upright, 90 closest
+expect-field-has surfacelast (closest)
+picture 2
+
+# ---- tapped on: each F the next, in the owner's order (four about up, then each face down in turn), the slide CLOSEST throughout
+key F
+key F
+key F
+wait 300
+expect-field-has surfaceflip 4 on its left side, 0 closest
+expect-status Flip 5 of 24: on its left side, 0 (F: the next)
+picture 3
+key F
+key F
+key F
+key F
+wait 300
+expect-field-has surfaceflip 8 on its right side, 0 closest
+picture 4
+key F
+key F
+key F
+key F
+wait 300
+expect-field-has surfaceflip 12 on its front, 0 closest
+picture 5
+key F
+key F
+key F
+key F
+wait 300
+expect-field-has surfaceflip 16 on its back, 0 closest
+picture 6
+key F
+key F
+key F
+key F
+wait 300
+expect-field-has surfaceflip 20 upside down, 0 closest
+picture 7
+key F
+key F
+key F
+wait 300
+expect-field-has surfaceflip 23 upside down, 270 closest
+
+# ---- round the 24: the next is upright again
+key F
+wait 300
+expect-field-has surfaceflip 0 upright, 0 closest
+expect-status Flip 1 of 24: upright, 0 (F: the next)
+
+# ---- a flip kept: F to the left side, released: the pose shown is the one kept
+key F
+key F
+key F
+key F
+wait 300
+expect-field-has surfaceflip 4 on its left side, 0 closest
+picture 8
+release-gizmo
+expect-status Placement: the object stands on the surface
+expect-field-empty surfaceflip
+picture 9
