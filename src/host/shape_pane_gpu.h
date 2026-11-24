@@ -54,6 +54,14 @@ namespace host
 	// Every drawing let go (the picker's close)
 	void ShapePaneGpu_ForgetAll();
 
-	// The panes' drawing time, microseconds: the last frame's and the most of any frame this sitting (for the state line's pickerpanetime)
-	void ShapePaneGpu_FrameTime(uint32_t *lastUs, uint32_t *mostUs);
+	// THE DRAW PATH'S FIELDS on the state line (StateLine_Add; Frost, Vasquez and Dietrich, 2026-11-23), called from the picker's own StateFields:
+	// pickerpanetime "cpu <us> gpu <us|unknown> most <us>": the last frame's panes on the processor and on the card (unknown when the card's clock can't be
+	// asked, or changed speed), and the most on the processor this sitting; pickerpanedraw "live <0|1> drawn <n> frame <k> atlas <id> valid <0|1>[ why <words>]":
+	// drawn live or not, the panes drawn last frame, a count of the frames they were drawn in, the atlas's number (-1 when none) and whether that number still
+	// means the atlas (its slot's own name and usage)
+	void ShapePaneGpu_StateFields();
+
+	// THE TESTS' OWN (the editor calls it only in a hidden test run whose ini says PickerPaneQueriesRefused=1 under [Editor]): the card's clock taken as refused,
+	// so a test can see the panes still drawn with "gpu unknown"
+	void ShapePaneGpu_RefuseQueries();
 }

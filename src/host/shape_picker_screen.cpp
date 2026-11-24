@@ -1025,6 +1025,7 @@ void ShapePickerScreen_StateFields()
 	if (!open)
 	{
 		StateLine_Add("picker", "closed");
+		host::ShapePaneGpu_StateFields();   // the draw path's fields closed too: no pane drawn (Dietrich's reopen proof reads "drawn 0")
 		return;
 	}
 
@@ -1081,13 +1082,12 @@ void ShapePickerScreen_StateFields()
 	StateLine_Add("pickerscroll", host::ShapePicker_BarWords(bar));
 	StateLine_Add("pickerdrag", dragging ? "held" : "free");
 
-	// THE LIVE PANES (shape_pane_gpu.h): those drawn the last frame and their turn, "<name>~<degrees>|..."; the GPU side's drawing time, microseconds, the last
-	// frame's and the most of any; and how many drawings the card holds or refused, with the first refusal's words
-	uint32_t lastUs = 0, mostUs = 0;
+	// THE LIVE PANES (shape_pane_gpu.h): those drawn the last frame and their turn, "<name>~<degrees>|..."; the draw path's own fields (pickerpanetime,
+	// pickerpanedraw: ShapePaneGpu_StateFields); and how many drawings the card holds or refused, with the first refusal's words
 	size_t onCard = 0, refused = 0;
 	std::string firstWhy;
 
-	host::ShapePaneGpu_FrameTime(&lastUs, &mostUs);
+	host::ShapePaneGpu_StateFields();
 
 	for (auto const &k : kept)
 	{
@@ -1097,7 +1097,6 @@ void ShapePickerScreen_StateFields()
 	}
 
 	StateLine_Add("pickerturns", paneTurns);
-	StateLine_Add("pickerpanetime", std::to_string((unsigned long)lastUs) + " " + std::to_string((unsigned long)mostUs));
 	StateLine_Add("pickerpanes", "on card " + std::to_string((unsigned long long)onCard) + " refused " + std::to_string((unsigned long long)refused) +
 		(firstWhy.empty() ? std::string() : ": " + host::ShapePicker_SafeWords(firstWhy)));
 

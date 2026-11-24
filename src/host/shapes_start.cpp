@@ -239,6 +239,28 @@ namespace host
 		return missing;
 	}
 
+	bool ShapesStart_ShapeFilesThere(std::string const &dataFolderAsGiven, std::string *whyNotListed)
+	{
+		std::string const dataFolder = WithoutLastSlash(dataFolderAsGiven);
+		std::vector<std::string> names;
+		size_t more = 0, unsaid = 0;
+		std::string why;
+
+		// one shape file is enough to know (names keeps at most 1; the rest are only counted). A folder that isn't there lists as empty. A file whose name
+		// the code page can't say isn't counted (it may not be a shape at all): with nothing else there the maps are searched again, which writes nothing over
+		if (!PlainFiles(dataFolder + "\\shape_rifs", EndsWithRif, 1, &names, &more, &unsaid, &why))
+		{
+			if (whyNotListed)
+			{
+				*whyNotListed = dataFolder + "\\shape_rifs " + why;
+			}
+
+			return true;
+		}
+
+		return !names.empty() || more > 0;
+	}
+
 	FirstLaunchFacts ShapesStart_Facts(std::string const &programFolder, std::string const &dataFolderAsGiven, bool fromIni, std::vector<std::string> const &maps)
 	{
 		std::string const dataFolder = WithoutLastSlash(dataFolderAsGiven);

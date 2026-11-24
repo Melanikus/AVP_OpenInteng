@@ -286,6 +286,22 @@ int main()
 		DeleteFileA((data + "\\shape_rifs\\not-a-stock-name.rif").c_str());
 	}
 
+	// THE SHAPES THE LIST STANDS FOR (Drake 2026-11-23, Bishop's card for beta.0): a kept list counts only while shape_rifs holds a shape file
+	{
+		RemoveDirectoryA((data + "\\shape_rifs").c_str());
+		Check(!Exists(data + "\\shape_rifs") && !ShapesStart_ShapeFilesThere(data), "no shape_rifs at all: no shape file there (the list stands for nothing)");
+		CreateDirectoryA((data + "\\shape_rifs").c_str(), nullptr);
+		Check(!ShapesStart_ShapeFilesThere(data), "shape_rifs empty: no shape file there");
+		Write(data + "\\shape_rifs\\notes.txt", { 'x' });
+		CreateDirectoryA((data + "\\shape_rifs\\folder.rif").c_str(), nullptr);   // a FOLDER named like a shape
+		Check(!ShapesStart_ShapeFilesThere(data), "shape_rifs holding a notes.txt and a folder named folder.rif: still no shape file");
+		Write(data + "\\shape_rifs\\Medbox01.RIF", { 'x' });
+		Check(ShapesStart_ShapeFilesThere(data) && ShapesStart_ShapeFilesThere(data + "\\"), "one shape file there (any capitals; the data folder written with a last \"\\\" too)");
+		DeleteFileA((data + "\\shape_rifs\\Medbox01.RIF").c_str());
+		DeleteFileA((data + "\\shape_rifs\\notes.txt").c_str());
+		RemoveDirectoryA((data + "\\shape_rifs\\folder.rif").c_str());
+	}
+
 	// THE FACTS and WHETHER TO ASK: none of these maps is Steam's own, so each is something to search
 	{
 		std::vector<std::string> refused;
