@@ -1,0 +1,43 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-23, the owner's "No picture means no geometry? if yes don't show!" and Bishop 2's order for alpha.6): THE PICKER LEAVES
+# OUT A FILE WITH NO GEOMETRY, AND FOLDS A COPY THAT LOOKS THE SAME INTO ITS TILE. As the picker opens it reads each tile drawn from its own file with the read
+# the drawing uses (ShapeImport_Read, ShapeThumb_Read): a file that holds no shape has no tile (one note line says how many, the names on the state line); a
+# copy with the same points and textures is folded under the first by name, whose words name it; a broken file keeps its tile and says why.
+# HOW: Invasion with the picker's shape game in a folder of its own: pulam in Tools\shape_rifs; in shape_rifs pulam_cut (broken: the first half),
+# pulam_empty (a rif holding no shape), pulam_lookalike (pulam's own file with one more chunk nothing reads: other bytes, the same look) and timdesk (in the
+# level, drawn from the level's own shape). 25 files and shapes before; 23 tiles after.
+# RED on the cut b740a152's exe: 25 tiles, pulam_empty shown with "the file holds no shape", pulam_lookalike shown as a tile of its own.
+#ini DataFolder={datadir}-picker-thin-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-thin-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut empty lookalike
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-thin-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
+level {datadir}-picker-thin-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+item 0x32
+expect-field-has picker open
+wait-field picker drawn 22 20000
+picture 1
+
+# the empty file has no tile, and is named on the state line; the note says how many
+expect-field-has picker count 23
+expect-field-not-has pickertiles pulam_empty
+expect-field pickerleftout pulam_empty
+expect-field-has pickernotes 1 file left out
+
+# the lookalike is folded into pulam's tile, whose words name it; the note says how many
+expect-field-not-has pickertiles pulam_lookalike:
+expect-field-has pickertiles pulam: the game's Tools\shape_rifs; looks the same as pulam_lookalike
+expect-field pickerfolded pulam~pulam_lookalike
+expect-field-has pickernotes 1 copy folded
+
+# the broken file keeps its tile, with why; the level's own timdesk keeps its tile
+expect-field-has pickertiles pulam_cut: the game's shape_rifs; can't be drawn:
+expect-field-has pickertiles timdesk: the game's shape_rifs; in this level
+expect-tile-drawn pulam
+expect-tile-drawn timdesk
+
+key Esc
+expect-field picker closed

@@ -15,6 +15,8 @@
 //       the thumb dragged (to the foot the last page, to the top the first row); the selection as it was; its words. Red: no bar before it (the cut 8275930d)
 //   (9) THE LEVEL'S OWN SHAPES: every shape of the level a tile (a fragment file's parts by their own names), none twice, placeable by number, a part's object
 //       named from its object name. Red: no such tiles before it (b4521891)
+//   (10) NO GEOMETRY, NO TILE; COPIES FOLDED (the owner 11-23): the empty file left out, copies that look the same folded under the first by name, a copy that
+//       truly looks different kept; one note line each; a tile's words name its copies, made safe. Red: on a stand-in that leaves nothing out and folds nothing
 // RED FIRST: on a stand-in that lists nothing and lays out nothing, (1) to (4) fail; (5) on 4f0db774 (the words as they came); (6) by mutation, the lines
 // cut every perLine letters as the paint did before: 3 of its 4 fail.
 #include <stdio.h>
@@ -403,6 +405,65 @@ int main()
 
 		ShapePicker_AddLevelShapes(&plain, { { "bits", "", 3 }, { "bits", "", 4 } });
 		Check(plain.tiles.size() == 2 && plain.tiles[0].name == "bits#3" && plain.tiles[1].name == "bits#4", "(9) unnamed parts told apart by their numbers");
+	}
+
+	// ---- (10) NO GEOMETRY, NO TILE; COPIES FOLDED (the owner 11-23, through Bishop 2: "No picture means no geometry? if yes don't show!", and copies with the
+	// same points and textures folded into one tile under the plain name). Looks given as the screen would have learned them at the opening
+	{
+		ShapePickerList list = ShapePicker_List({ Folder("C:\\Game\\shape_rifs", "the game's shape_rifs", { "broken.rif", "cratese.rif", "cratese_fcra.rif",
+			"cratese_fgcr.rif", "empty.rif", "notlooked.rif", "zz|same.rif" }) }, {});
+		std::vector<ShapePickerLook> looks(7);
+		size_t const notesBefore = list.notes.size();
+		ShapePickerThinned thinned;
+
+		// broken: no look (it keeps its tile, with why when drawn); cratese and cratese_fcra one look; cratese_fgcr truly another, and "zz|same" looks as it does;
+		// empty holds no geometry; notlooked wasn't looked at (past the time)
+		looks[1].fingerprint = looks[2].fingerprint = "A";
+		looks[3].fingerprint = looks[6].fingerprint = "B";
+		looks[4].noGeometry = true;
+
+		ShapePicker_Thin(&list, looks, 2, &thinned);
+
+		std::string kept;
+
+		for (ShapePickerTile const &t : list.tiles)
+		{
+			kept += (kept.empty() ? "" : " ") + t.name;
+		}
+
+		Check(kept == "broken cratese cratese_fgcr notlooked", "(10) left out the empty one, the copies folded, the rest kept in order (" + kept + ")");
+		Check(thinned.leftOut == std::vector<std::string>{ "empty" }, "(10) the left-out names: empty");
+		Check(thinned.folded == std::vector<std::string>{ "cratese~cratese_fcra", "cratese_fgcr~zz|same" }, "(10) the folded: each copy under the first by name, the "
+			"plain one when the group holds it (cratese before cratese_fcra); a copy that truly looks different (cratese_fgcr) keeps its own tile");
+		Check(list.tiles.size() == 4 && list.tiles[1].copies == std::vector<std::string>{ "cratese_fcra" } && list.tiles[2].copies == std::vector<std::string>{ "zz|same" } &&
+			list.tiles[0].copies.empty(), "(10) each kept tile holds its copies' names");
+
+		std::string notes;
+
+		for (size_t i = notesBefore; i < list.notes.size(); i++)
+		{
+			notes += list.notes[i] + " / ";
+		}
+
+		Check(list.notes.size() == notesBefore + 3 && notes.find("1 file left out") != std::string::npos && notes.find("2 copies folded") != std::string::npos &&
+			notes.find("2 files weren't looked at") != std::string::npos, "(10) one note line each: left out, folded, not looked at in time (" + notes + ")");
+
+		ShapePickerTile const fgcr = list.tiles.size() > 2 ? list.tiles[2] : ShapePickerTile();
+		std::string const words = ShapePicker_TileWords(fgcr, ShapePickerState());
+		Check(words.find("looks the same as zz?same") != std::string::npos && words.find('|') == std::string::npos, "(10) a tile's words name its copies, made safe (" +
+			words + ")");
+
+		// a look list shorter than the tiles: the rest as they are; and nothing to do: no note, nothing out
+		ShapePickerList shorter = ShapePicker_List({ Folder("C:\\G", "here", { "a.rif", "b.rif", "c.rif" }) }, {});
+		ShapePickerLook none;
+		none.noGeometry = true;
+		ShapePicker_Thin(&shorter, { none }, 0, &thinned);
+		Check(shorter.tiles.size() == 2 && shorter.tiles[0].name == "b" && thinned.leftOut == std::vector<std::string>{ "a" }, "(10) a shorter look list: only its tiles");
+
+		size_t const quietBefore = shorter.notes.size();
+		ShapePicker_Thin(&shorter, std::vector<ShapePickerLook>(2), 0, &thinned);
+		Check(shorter.tiles.size() == 2 && shorter.notes.size() == quietBefore && thinned.leftOut.empty() && thinned.folded.empty(), "(10) nothing to do: no change, "
+			"no note");
 	}
 
 	printf(checksFailed ? "host_shape_picker_test: %d FAILED\n" : "host_shape_picker_test: all passed\n", checksFailed);

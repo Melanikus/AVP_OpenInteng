@@ -53,6 +53,7 @@ namespace host
 		bool inLevel = false;   // the level holds an outside shape of this file: placed by its number
 		bool levelOnly = false; // a tile of the LEVEL's own shape, not of a folder's file (ShapePicker_AddLevelShapes): drawn and placed by levelNumber
 		int32_t levelNumber = -1;   // that shape's number (SHPHEAD1's, the Shape Chooser's)
+		std::vector<std::string> copies;   // the files folded into this tile: they look the same (ShapePicker_Thin), in the order of their names
 	};
 
 	struct ShapePickerList
@@ -63,6 +64,32 @@ namespace host
 
 	// The tiles, by the rules above. levelFiles: the names of the files the level's outside shapes came from (the Shape Chooser's, without ".rif"), any capitals.
 	ShapePickerList ShapePicker_List(std::vector<ShapePickerFolder> const &folders, std::vector<std::string> const &levelFiles);
+
+	// THE OPENING'S LOOK AT EACH FOLDER TILE'S FILE (the owner, 2026-11-23, through Bishop 2: "No picture means no geometry? if yes don't show!", and copies that
+	// look the same folded into one tile). The screen reads each tile drawn from its own file as the picker opens, with the read the drawing uses (shape_import.h
+	// ShapeImport_Read, then shape_thumb.h ShapeThumb_Read), at most kShapePickerMostLookMs in all: what it learned of tile i is looks[i].
+	struct ShapePickerLook
+	{
+		bool noGeometry = false;    // the file holds no geometry to draw (ShapeThumb_Read's noGeometry): left out of the grid
+		std::string fingerprint;    // what is drawn, as a SHA-256 of the drawing's model (its points, polygons, texture places and pictures' paths); empty when
+		                            // it doesn't fold: not read (in this level, or past the time), broken, too big, or a fragment file (only its first part drawn)
+	};
+
+	unsigned const kShapePickerMostLookMs = 3000;   // the opening's look at every file, at most (the owner's 352 files take about 70 ms; a stranger's folder of
+	                                                // 4096 files of 4 MB would take minutes: past this, the rest keep their tiles and say why when drawn)
+
+	struct ShapePickerThinned
+	{
+		std::vector<std::string> leftOut;   // the names left out (no geometry), in order
+		std::vector<std::string> folded;    // "<kept>~<copy>" for each copy folded into a tile, in order
+	};
+
+	// NO GEOMETRY, NO TILE; COPIES FOLDED: each tile whose look says no geometry left out of the grid (a broken or too big file keeps its tile, with why); of the
+	// tiles whose fingerprints are the same, the first by name kept (the plain one, when the group holds it: "cratese" sorts before "cratese_fcra") with the
+	// others' names in its copies, and the others taken out. A copy that truly looks different has another fingerprint and keeps its own tile. looks shorter
+	// than the tiles leaves the rest as they are. Notes, one line each when any: how many were left out, how many copies were folded, and how many files
+	// weren't looked at in time (pastTime)
+	void ShapePicker_Thin(ShapePickerList *list, std::vector<ShapePickerLook> const &looks, size_t pastTime, ShapePickerThinned *out);
 
 	// THE LEVEL'S OWN SHAPES (Bishop 2's decision, 2026-11-23, on the owner's "items from shape_rifs + level" and his first words for the picker, "shows that OR the
 	// shape_rifs"): inteng's Choose listed every outside shape of the level, and the grid did not, so a shape the level alone holds (no folder has its file) could no

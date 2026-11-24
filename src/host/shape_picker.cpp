@@ -181,6 +181,65 @@ namespace host
 		return at != std::string::npos && at > 0 ? tile.name.substr(0, at) : tile.name;
 	}
 
+	void ShapePicker_Thin(ShapePickerList *list, std::vector<ShapePickerLook> const &looks, size_t pastTime, ShapePickerThinned *out)
+	{
+		*out = ShapePickerThinned();
+
+		std::vector<ShapePickerTile> kept;
+		std::map<std::string, size_t> byLook;   // a fingerprint: the kept tile (in `kept`) it belongs to, the first by name (the tiles are in name order)
+
+		kept.reserve(list->tiles.size());
+
+		for (size_t i = 0; i < list->tiles.size(); i++)
+		{
+			ShapePickerLook const look = i < looks.size() ? looks[i] : ShapePickerLook();
+
+			if (look.noGeometry)
+			{
+				out->leftOut.push_back(list->tiles[i].name);
+				continue;
+			}
+
+			if (!look.fingerprint.empty())
+			{
+				auto const same = byLook.find(look.fingerprint);
+
+				if (same != byLook.end())
+				{
+					ShapePickerTile &into = kept[same->second];
+
+					into.copies.push_back(list->tiles[i].name);
+					out->folded.push_back(into.name + "~" + list->tiles[i].name);
+					continue;
+				}
+
+				byLook[look.fingerprint] = kept.size();
+			}
+
+			kept.push_back(list->tiles[i]);
+		}
+
+		list->tiles.swap(kept);
+
+		auto count = [](size_t n, char const *one, char const *many) { return std::to_string((unsigned long long)n) + " " + (n == 1 ? one : many); };
+
+		if (!out->leftOut.empty())
+		{
+			list->notes.push_back(count(out->leftOut.size(), "file", "files") + " left out: no shape in them to draw (the names on the state line, pickerleftout)");
+		}
+
+		if (!out->folded.empty())
+		{
+			list->notes.push_back(count(out->folded.size(), "copy", "copies") + " folded into the tile they look the same as (the same points and textures)");
+		}
+
+		if (pastTime > 0)
+		{
+			list->notes.push_back(count(pastTime, "file", "files") + (pastTime == 1 ? " wasn't" : " weren't") + " looked at as the picker opened (it took longer than " +
+				std::to_string((unsigned long long)kShapePickerMostLookMs) + " ms): one with no shape says so when drawn");
+		}
+	}
+
 	ShapePickerLayout ShapePicker_Layout(int32_t windowWidth, int32_t windowHeight)
 	{
 		ShapePickerLayout layout;
@@ -493,6 +552,21 @@ namespace host
 
 		words += tile.inLevel ? "; in this level" : "";
 		words += state.parts > 1 ? "; " + std::to_string((unsigned long long)state.parts) + " parts" + (tile.inLevel ? ": the level's first is placed" : "") : "";
+
+		// the copies folded into it (ShapePicker_Thin): their names, made safe, at most four and then how many more
+		if (!tile.copies.empty())
+		{
+			size_t const most = 4;
+
+			words += "; looks the same as ";
+
+			for (size_t c = 0; c < tile.copies.size() && c < most; c++)
+			{
+				words += (c ? ", " : "") + ShapePicker_SafeName(tile.copies[c]);
+			}
+
+			words += tile.copies.size() > most ? " and " + std::to_string((unsigned long long)(tile.copies.size() - most)) + " more" : "";
+		}
 
 		if (state.drawing == ShapePickerDrawing::Waiting)
 		{

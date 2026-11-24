@@ -66,7 +66,16 @@ namespace host
 	// The model of a shape file's bytes. False, with *why in plain words, when the file can't be drawn: not a rif, no shape, chunks that run past their parents,
 	// a shape model::ReadShapeModel refuses, past the limits, no point at all. A polygon whose texture list or picture entry is missing or wrong is drawn shaded
 	// (its picture -1), never a reason to refuse the file.
-	bool ShapeThumb_Read(std::vector<char> const &file, ShapeThumbModel *model, std::string *why);
+	// *noGeometry (when given): true when the file was refused because it holds NO GEOMETRY to draw: no shape in it, a shape with no header, points or polygons,
+	// or a shape with no point; false otherwise (drawn, or refused as broken or too big). The placement picker leaves such a file out of its grid (the owner,
+	// 2026-11-23: "No picture means no geometry? if yes don't show!"), while a broken or too big one keeps its tile and says why.
+	bool ShapeThumb_Read(std::vector<char> const &file, ShapeThumbModel *model, std::string *why, bool *noGeometry = nullptr);
+
+	// WHAT IS DRAWN, as bytes (the placement picker folds files that look the same into one tile: the owner, 2026-11-23, through Bishop 2): the points' exact
+	// values, then each polygon's corners, its texture places and its picture's path in small letters ("" when shaded): never the file's other bytes (its own
+	// number, its list's numbering, its other chunks), so two copies extracted from two levels with the same look give the same bytes, and a moved point or
+	// another picture gives others. Empty for a fragment file (more than one part: only its first is drawn, so it never folds)
+	std::string ShapeThumb_LookBytes(ShapeThumbModel const &model);
 
 	// One corner of a triangle to draw: its place, its shade (0 to 1, from the light), its place in its picture (0 to 1 across it; 0 when shaded)
 	struct ShapeThumbCorner
