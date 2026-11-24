@@ -319,6 +319,13 @@ static void PlacedHierarchyUnselect()
 	EditorBar_SetPopupPage(0);
 }
 
+// THE LEVEL GOES (CloseTheLevel, before the game's close; Bishop's LEAD A, 2026-11-24). The placed hierarchy's model is the game's level's memory, so it goes first,
+// as an unselect lets it go. If its object is still the current one, the next frame shows it again (PlacedHierarchyFrame).
+void PlacedHierarchy_LevelGoes()
+{
+	PlacedHierarchyUnselect();
+}
+
 static void PlacedHierarchySelect(int which)
 {
 	PlacedHierarchyUnselect();

@@ -72,6 +72,8 @@ namespace host
 
 	int PlacedSounds_Held();       // sounds in the list
 	int PlacedSounds_Loaded();     // whose wav the game loaded
+	// every sound the game plays now, for the state line's gamesounds: "<n> <slot> <wav>[ loop][ 3d][ ref][ paused]|..." (the wav made safe)
+	std::string PlacedSounds_GameSoundsWords();
 	int PlacedSounds_Sounding();   // playing now
 
 	// PH-2 / PH-3 / PH-14: the current PLACED HIERARCHY's sounds as its sound timings play them (reassess/ph8-13-map-vasquez.json; object-placement.md PH-2, PH-3, PH-14). FUN_004ebfe0

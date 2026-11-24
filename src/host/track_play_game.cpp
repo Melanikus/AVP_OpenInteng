@@ -9,6 +9,7 @@
 #include "track.h"
 #include "jsndsup.h"
 #include "psnd.h"
+#include "list_tem.hpp"   // the game's List, for its list of loaded sounds below
 
 #include <math.h>
 #include <stdlib.h>
@@ -27,6 +28,7 @@ extern void SoundSys_Management(void);        // avp/psnd.cpp: the frame's work 
 extern int EffectsSoundVolume;                // avp/psnd.cpp:35: the volume SoundSys_Management puts back on EVERY call (MUL_FIXED(EffectsSoundVolume, the fade), psnd.cpp:133-139)
 extern double local_scale;
 extern char *Rif_Sound_Directory;             // avp/win95/projload.cpp: set while the game loads a rif, so a track's sounds are found under it
+extern List<LOADED_SOUND *> loaded_sounds;   // avp/win95/jsndsup.cpp: every sound the game holds loaded; a level's end empties it (LoseAllNonCommonSounds)
 LOADED_SOUND const *GetSoundForMainRif(const char *wavName);   // avp/win95/object_setup.cpp: the game's way to find a track's sound
 extern void MatToQuat(MATRIXCH *m, QUAT *quat);   // avp/hmodel.cpp:2872
 
@@ -35,6 +37,18 @@ namespace host
 	namespace
 	{
 		TRACK_CONTROLLER *controller = nullptr;
+
+		// HELD SOUNDS ACROSS A LEVEL'S END (Frost 2026-11-24, the reload audit, Tao 1): a sound this file keeps is the game's, in its list of loaded sounds. When the
+		// level the view shows goes (a placement shows the edited level again, a screen change, a close), the game frees every sound in that list. A sound kept past
+		// that is gone memory. InTheGamesList asks the list whether it still holds that very sound: the pointers are only compared, never read through.
+		int staleLetGos = 0;   // how many times a kept sound was let go AFTER the game had freed it (the tracksounds field says it)
+
+		bool InTheGamesList(LOADED_SOUND const *sound)
+		{
+			LOADED_SOUND *const asListed = const_cast<LOADED_SOUND *>(sound);
+
+			return sound != nullptr && loaded_sounds.contains(asListed);
+		}
 		STRATEGYBLOCK block;
 		DYNAMICSBLOCK dynamics;
 		double scale = 1.0;
@@ -67,7 +81,12 @@ namespace host
 
 			Stop_Track_Sound(ts);
 
-			if (ts->sound_loaded)
+			// the game is handed back only a sound it still holds: one its level freed is counted, never let go again (the reload audit, Tao 1)
+			if (ts->sound_loaded && !InTheGamesList(ts->sound_loaded))
+			{
+				staleLetGos++;
+			}
+			else if (ts->sound_loaded)
 			{
 				LoseSound(ts->sound_loaded);
 			}
@@ -673,6 +692,7 @@ namespace host
 
 	void TrackPlay_EndSounds()
 	{
+		TrackPlay_ListenStop();   // the listen's sound first: it plays on the sound system that ends below
 		LetGo();
 
 		if (SoundSwitchedOn)
@@ -692,20 +712,31 @@ namespace host
 		int listenedActive = SOUND_NOACTIVEINDEX;
 	}
 
-	bool TrackPlay_Listen(std::string const &wav, int32_t inner, int32_t outer, int32_t volume, int32_t pitch, int32_t const place[3])
+	void TrackPlay_ListenStop()
 	{
-		// FUN_00501080 first stops what plays: here the sound the last listen started
 		if (listenedActive != SOUND_NOACTIVEINDEX)
 		{
 			Sound_Stop(listenedActive);
 			listenedActive = SOUND_NOACTIVEINDEX;
 		}
 
-		if (listened)
+		// the game is handed back only a sound it still holds: one its level freed is counted, never let go again
+		if (listened && !InTheGamesList(listened))
+		{
+			staleLetGos++;
+		}
+		else if (listened)
 		{
 			LoseSound(listened);
-			listened = nullptr;
 		}
+
+		listened = nullptr;
+	}
+
+	bool TrackPlay_Listen(std::string const &wav, int32_t inner, int32_t outer, int32_t volume, int32_t pitch, int32_t const place[3])
+	{
+		// FUN_00501080 first stops what plays: here the sound the last listen started
+		TrackPlay_ListenStop();
 
 		if (!place || wav.empty() || wav == "Not Set" || wav.size() > 255 || inner < 0 || outer < 0)
 		{
@@ -748,5 +779,26 @@ namespace host
 		s3d.outer_range = outer;
 		Sound_Play((SOUNDINDEX)listened->sound_num, (char *)"nvpe", &s3d, (int)(volume < 0 ? 0 : (volume > 127 ? 127 : volume)), (int)pitch, &listenedActive);
 		return listenedActive != SOUND_NOACTIVEINDEX;
+	}
+
+	std::string TrackPlay_HeldSoundsWords()
+	{
+		std::string words = !listened ? "listen none" : (InTheGamesList(listened) ? "listen held" : "listen held, freed by the level");
+		int held = 0, freed = 0;
+
+		if (controller)
+		{
+			for (TRACK_SOUND const *const ts : { controller->sound, controller->start_sound, controller->end_sound })
+			{
+				if (ts && ts->sound_loaded)
+				{
+					held++;
+					freed += InTheGamesList(ts->sound_loaded) ? 0 : 1;
+				}
+			}
+		}
+
+		words += controller ? "; track " + std::to_string(held) + " held, " + std::to_string(freed) + " freed by the level" : std::string("; track none");
+		return words + "; stale let-gos " + std::to_string(staleLetGos);
 	}
 }

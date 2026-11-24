@@ -13,12 +13,12 @@ click-choice-is smart1
 expect-no-dialog
 wait 400
 state
-key F
+key J
 key L
 hold Subtract 800
 wait 200
 state
-key F
+key J
 wait 300
 state
 picture 1
@@ -44,7 +44,7 @@ camera -27851 -14055 85500 0 0
 wait 400
 click-win 504 364
 expect-hierarchy-text switch3
-key F
+key J
 key X
 state
 hold A 1500
@@ -62,4 +62,4 @@ hold A 1500
 wait 200
 state
 picture 4
-key F
+key J

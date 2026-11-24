@@ -582,6 +582,16 @@ void ShowTheWorkingBytes()
 
 	CreateDirectoryA(folder.c_str(), NULL);
 
+	// GRAVITY lives through the reload (Bishop's LEAD B, 2026-11-24; acceptance-op-gravity-reload). The reload's close switches the game's Gravity off, and the view is
+	// made again from the level as edited, so the places the engine moved the objects to go into the level first, as Toggle Gravity off writes them. After it, the
+	// new view's objects are given to Gravity again. Before: the objects jumped back to their places and stopped, while the toggle still read on.
+	bool const gravityOn = PlacementGravityOn();
+
+	if (gravityOn)
+	{
+		PlacementGravityFlush();
+	}
+
 	char const *const notUsable = SaveFolder_WhyNotUsable(folder.c_str(), checked, sizeof(checked));
 
 	if (notUsable)
@@ -596,6 +606,9 @@ void ShowTheWorkingBytes()
 	{
 		bool const doorsClosed = LevelView_DoorsAreClosed();
 		char said[400] = "";
+
+		LetGoOfTheLevelsSounds();   // the game's teardown frees every loaded sound: ours go first (editor_main.cpp; the owner's looping "gun reload")
+
 		bool const shown = LevelView_ShowFile(("OpenedByEditor/" + stem).c_str(), said, sizeof(said));
 
 		if (doorsClosed)
@@ -604,6 +617,12 @@ void ShowTheWorkingBytes()
 		}
 
 		ViewToggles_LevelOpenedAgain();
+
+		if (gravityOn && shown)
+		{
+			LevelView_SetGravity(true);
+		}
+
 		viewChanges = shown ? open->Changes() : viewChanges;
 		words = shown ? "view: the level as edited is shown (" + path + ")" : "view: the level as edited is NOT shown, the opened file is: " + std::string(said);
 	}

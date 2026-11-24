@@ -81,7 +81,8 @@ namespace host
 	// The world directions of an object's three local axes (x, y, z: rows of the game's matrix, as PositionPlayersWeapon uses its row 3 for the way it points), unit lengths, from a file turn (x y z w): the end marker's arrows
 	bool TrackPlay_QuatAxes(float const quat[4], double axes[9]);
 
-	// The sound system ends with the editor (only if a track started it)
+	// Every sound the track player keeps is let go (the listen's, then the track's), then the sound system ends (only if a track started it): at the editor's end, and before
+	// any level the view shows goes (LetGoOfTheLevelsSounds, editor_main.cpp)
 	void TrackPlay_EndSounds();
 
 	void TrackPlay_Stop();
@@ -91,4 +92,14 @@ namespace host
 	// then the wav (found as the game finds a track's, under the sound folder TrackPlay_UseSoundDirectory gave) plays once at the place, with its ranges, volume (0 to 127) and pitch
 	// (FUN_004ec0a0: Sound_Play(index, "nvp", position and ranges, volume, pitch)). The ranges and the place in the game's unit. False when nothing plays (no sound device, no such wav).
 	bool TrackPlay_Listen(std::string const &wav, int32_t inner, int32_t outer, int32_t volume, int32_t pitch, int32_t const place[3]);
+
+	// What the last listen started is stopped, and its sound let go (Frost 2026-11-24, the reload audit's HELD 1, Tao 1): the next listen does it first, and so do leaving the
+	// Hierarchy screen and TrackPlay_EndSounds, which runs before any level the view shows goes (LetGoOfTheLevelsSounds): the game frees every loaded sound with its level, so
+	// a sound kept past that would be gone memory. Nothing kept: nothing done.
+	void TrackPlay_ListenStop();
+
+	// The sounds this file keeps, for the state line's tracksounds field (Frost 2026-11-24, the reload audit): the listen's ("listen none", "listen held", or "listen held,
+	// freed by the level": the game freed it with the level and this file still keeps it), the playing track's ("track none", or how many it holds and how many of those
+	// the level freed), and how many kept sounds were let go after the game had freed them ("stale let-gos")
+	std::string TrackPlay_HeldSoundsWords();
 }

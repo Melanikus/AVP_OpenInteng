@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "hierarchy_player.h"
+#include "hierarchy_view.h"   // HierarchyView_KeepCopiedRif: the copied model given back at the level's close
 
 // avpx hmodel.cpp: the section placing (not declared in hmodel.h), and the library avpx projload.cpp keeps (not declared in projload.hpp)
 extern void Process_Section(HMODELCONTROLLER *controller, SECTION_DATA *this_section_data, VECTORCH *parent_position, MATRIXCH *parent_orientation, int frame_timer, int sequence_type, int subsequence, int render);
@@ -64,7 +65,7 @@ namespace host
 		state->root = nullptr;
 		state->sections.clear();
 		memset(&state->controller, 0, sizeof(state->controller));
-		// the game's own store (Global_Hierarchy_Library) keeps the shapes it copied: the game itself does not unload them before its level ends
+		// the game's own store (Global_Hierarchy_Library) keeps the shapes it copied until the level's close gives them back (HierarchyView_GiveBackCopiedRifs)
 		state->handle = INVALID_RIFFHANDLE;
 	}
 
@@ -108,11 +109,13 @@ namespace host
 		if (!copy_rif_data(handle, CCF_IMAGEGROUPSET + CCF_LOAD_AS_HIERARCHY_IF_EXISTS + CCF_DONT_INITIALISE_TEXTURES, 0, 0))
 		{
 			unload_rif(handle);
+			HierarchyView_KeepCopiedRif(handle);   // whatever it copied before it refused goes back with the level (hierarchy_view.h)
 			*why = "the game's loader does not take the hierarchies of " + path;
 			return false;
 		}
 
 		unload_rif(handle);
+		HierarchyView_KeepCopiedRif(handle);   // its shapes are the level's memory: the level's close gives them back (hierarchy_view.h)
 
 		// the store this file made is the one holding handle
 		Global_Hierarchy_Store *store = nullptr;

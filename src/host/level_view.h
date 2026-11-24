@@ -395,6 +395,8 @@ void LevelView_GravityStep();
 // The chosen objects that the engine has moved since Gravity went on: each one's 8-byte ID, its place now in the game's units and its matrix (16.16, by rows), for the save that writes them
 struct LevelViewMovedObject { uint8_t id[8]; int32_t world[3]; int32_t matrix[9]; };
 void LevelView_GravityMoved(std::vector<LevelViewMovedObject> *moved);
+// The state line's gravity words: "game <1|0> objects <n>": whether the game's engine runs Gravity now, and how many objects it was given
+std::string LevelView_GravityWords();
 // A FLIGHT'S COLLISIONS (L, OP-118): the object whose 8-byte ID this is moved by the engine from `from` to `to` (the game's units) through its own strategy block's dynamics, gravity off,
 // colliding with the level as the game's objects do; *reached is where it got to. False (reached = to) when the object has no dynamics block or the engine can't run.
 bool LevelView_FlyCollideMove(const uint8_t *id, const int32_t from[3], const int32_t to[3], int32_t reached[3]);

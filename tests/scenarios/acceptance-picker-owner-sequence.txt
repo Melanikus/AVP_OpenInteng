@@ -1,0 +1,74 @@
+# ACCEPTANCE (red first; Drake 2026-11-24): THE OWNER'S OWN SEQUENCE on the cut 699528d0, from his log (Tools\settings\avp_log.txt 159290-159910: "Create:"
+# crate01_tembarrl.rif, crates_fcrates.rif, the level back to 2906764 bytes with a new MD5 (a give-up), edlock_edlock.rif, bcrates_fbcrates.rif), his words:
+# "When I select a shape, place then select another, the shape that spawns is the first one". His own four shape files (copied read-only from his
+# <game>\shape_rifs into AvP-builds-excluded\drake-pickfix-owner-files: crate01_tembarrl 966624ee, crates_fcrates a3598899, edlock_edlock 1811a8f9,
+# bcrates_fbcrates 2368db8a, the SHA-256's first 8) on Derelict, his level. Each placed object is made with ITS OWN shape (verify_objects shapefile), and the
+# given-up one is gone. RED on exe-cache/699528d0.exe: edlock_edlock0's shape is crate01_tembarrl's (object_make.cpp MakeIn's import took the file's last shape).
+#ini DataFolder={datadir}-owner-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-owner-game {datadir} Derelict.RIF Statue.RIF pulam shape_rifs pack:C:/Users/Melanikus/source/AvP-builds-excluded/drake-pickfix-owner-files/crate01_tembarrl.rif
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-owner-game {datadir} Derelict.RIF Area52.RIF pboost shape_rifs pack:C:/Users/Melanikus/source/AvP-builds-excluded/drake-pickfix-owner-files/crates_fcrates.rif
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-owner-game {datadir} Derelict.RIF Lockdown4.rif sadar shape_rifs pack:C:/Users/Melanikus/source/AvP-builds-excluded/drake-pickfix-owner-files/edlock_edlock.rif
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-owner-game {datadir} Derelict.RIF jockeycoop.RIF pboost named:pboost_jockeycoop pack:C:/Users/Melanikus/source/AvP-builds-excluded/drake-pickfix-owner-files/bcrates_fbcrates.rif
+level {datadir}-owner-game/avp_rifs/Derelict.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- crate01_tembarrl, placed
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile crate01_tembarrl twice
+expect-field-has pickerattach crate01_tembarrl0 following
+move-win 440 600
+wait 300
+picture 1
+click-win 440 600
+expect-field pickerattach off
+expect-status Object crate01_tembarrl0 placed
+
+# ---- crates_fcrates, given up
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile crates_fcrates twice
+expect-field-has pickerattach crates_fcrates0 following
+move-win 480 600
+wait 300
+picture 2
+key Esc
+expect-field pickerattach off
+expect-status Placement: given up, nothing placed (the level as it was)
+
+# ---- edlock_edlock, placed
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile edlock_edlock twice
+expect-field-has pickerattach edlock_edlock0 following
+move-win 520 600
+wait 300
+picture 3
+click-win 520 600
+expect-field pickerattach off
+expect-status Object edlock_edlock0 placed
+
+# ---- bcrates_fbcrates, placed
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile bcrates_fbcrates twice
+expect-field-has pickerattach bcrates_fbcrates0 following
+move-win 560 600
+wait 300
+picture 4
+click-win 560 600
+expect-field pickerattach off
+expect-status Object bcrates_fbcrates0 placed
+picture 5
+
+# ---- THE SAVE: each object of its own shape, the given-up one gone
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} kept crate01_tembarrl0 kept edlock_edlock0 kept bcrates_fbcrates0 gone crates_fcrates0 shapefile crate01_tembarrl0|crate01_tembarrl shapefile edlock_edlock0|edlock_edlock shapefile bcrates_fbcrates0|bcrates_fbcrates

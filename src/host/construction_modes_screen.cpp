@@ -472,6 +472,17 @@ static void ShapeChooserLeave(bool withShape, size_t *screen)
 	statusWords = chooserWords.c_str();
 }
 
+// THE LEVEL GOES while the chooser is up (CloseTheLevel, before the game's close; Bishop's order 2026-11-24, the chooser preview of Frost's reload audit;
+// acceptance-shape-chooser-reopen). Its preview is a block of the game's list, which the close resets, and its list holds the level's shape numbers. So the
+// chooser is left first, as its Esc leaves it: no shape given, the camera put back, and back on the screen it came from.
+void ShapeChooser_LevelGoes()
+{
+	if (chooserActive)
+	{
+		ShapeChooserLeave(false, nullptr);
+	}
+}
+
 static void CreateThePickersObject();
 
 // THE PLACEMENT PICKER'S SHAPE (shape_picker_screen.cpp): the object is made at once, with the editor's automatic name, and follows the mouse until a left click puts it

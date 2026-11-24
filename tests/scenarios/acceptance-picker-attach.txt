@@ -12,6 +12,7 @@
 # RED on exe-cache/6e8f9150.exe (bishop-int): the second click opens the Name Object box, and no pickerattach field.
 #ini DataFolder={datadir}-attach-game
 make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-attach-game {datadir} Invasion.RIF Statue.RIF pulam shape_rifs
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-attach-game {datadir} Invasion.RIF Area52.RIF pboost shape_rifs
 level {datadir}-attach-game/avp_rifs/Invasion.RIF
 pictures on
 state
@@ -132,3 +133,20 @@ expect-no-dialog
 expect-field pickerattach off
 expect-status Object pulam1 placed
 expect-numbers-near gizmopose - surfacelast turn 4 1
+
+# ---- G: A SECOND FOLDER FILE BROUGHT IN (the owner's bug on the cut 699528d0, his words: "When I select a shape, place then select another, the shape that
+# spawns is the first one"): pboost.rif is brought in after pulam.rif was (A), and its object is made with ITS OWN shape. RED on exe-cache/699528d0.exe: pboost0's
+# shape is pulam's (object_make.cpp MakeIn: the import looked for the shape it had just brought in with the OLD count of the level's shapes, so its loop never ran
+# and the object took the file's last shape, which is the first import's, as each import goes in before the earlier one)
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile pboost twice
+expect-field-has pickerattach pboost0 following
+move-win 520 620
+wait 300
+click-win 520 620
+expect-field pickerattach off
+expect-status Object pboost0 placed
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} kept pulam0 kept pulam1 kept pboost0 shapefile pulam0|pulam shapefile pulam1|pulam shapefile pboost0|pboost

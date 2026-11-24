@@ -1,0 +1,83 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-24; the owner, on beta.0's second cut: "Every object I place starts a loop of some sound, looks like gun reload", "Happns to
+# normal objects and pick up ones"; it held the release): THE LEVEL'S OWN SOUNDS STAY THEIR OWN WHEN AN OBJECT IS PLACED. Each new object reloads the game's view
+# of the level (ShowTheWorkingBytes, OP-26c), whose teardown frees every loaded sound and whose load fills the game's sound table again. Object Placement's
+# placed sounds were kept across it with their old sample numbers, so their loops played whatever sample took those numbers. MEASURED on Derelict (a probe
+# build of 78211c17): its SIREN.WAV x 2 and BrokenLight02.wav became wil_pulse_rifle_ready.wav x 2 and Ed_Sadar_reload.wav, looping, from the first placement
+# on, whatever was placed. Now every sound the editor holds is let go BEFORE the reload (editor_main.cpp LetGoOfTheLevelsSounds, the one list CloseTheLevel
+# does), and the placed sounds are made again on the new table the next frame.
+# THE STATE LINE: gamesounds "<n> <slot> <wav>[ loop][ 3d][ ref]|..." (placed_sounds_game.h: every sound the game plays, by its sample).
+# HERE: Derelict (its sirens and broken light), the picker's files sadar (a weapon, Lockdown4) and pulam_var001 (a plain static, Statue's pulam edited); each
+# placed in turn, then Derelict's own medbox01 by number, then a placement given up (Esc: the attach puts the level back, and the view reloads the same way).
+# After each, the game plays Derelict's own samples, and no weapon sample.
+# RED on the probe build (78211c17 with this field, without the fix): from the first placement on, wil_pulse_rifle_ready.wav and Ed_Sadar_reload.wav.
+#ini DataFolder={datadir}-reloadsounds-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-reloadsounds-game {datadir} Derelict.RIF Statue.RIF pulam variants1
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-reloadsounds-game {datadir} Derelict.RIF Lockdown4.rif sadar shape_rifs
+level {datadir}-reloadsounds-game/avp_rifs/Derelict.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 1500
+# ---- the level's own sounds, before anything is placed
+expect-field-has gamesounds SIREN.WAV loop 3d ref
+expect-field-has gamesounds BrokenLight02.wav loop 3d ref
+
+# ---- sadar placed
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile sadar twice
+expect-field-has pickerattach following
+click-win 504 420
+expect-field pickerattach off
+expect-status placed
+wait 1000
+expect-field-has gamesounds SIREN.WAV loop 3d ref
+expect-field-has gamesounds BrokenLight02.wav loop 3d ref
+expect-field-not-has gamesounds wil_
+expect-field-not-has gamesounds Ed_
+
+# ---- pulam_var001 placed
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile pulam_var001 twice
+expect-field-has pickerattach following
+click-win 504 420
+expect-field pickerattach off
+expect-status placed
+wait 1000
+expect-field-has gamesounds SIREN.WAV loop 3d ref
+expect-field-has gamesounds BrokenLight02.wav loop 3d ref
+expect-field-not-has gamesounds wil_
+expect-field-not-has gamesounds Ed_
+
+# ---- medbox01 placed
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile medbox01 twice
+expect-field-has pickerattach following
+click-win 504 420
+expect-field pickerattach off
+expect-status placed
+wait 1000
+expect-field-has gamesounds SIREN.WAV loop 3d ref
+expect-field-has gamesounds BrokenLight02.wav loop 3d ref
+expect-field-not-has gamesounds wil_
+expect-field-not-has gamesounds Ed_
+
+# ---- a placement given up (Esc): the attach puts the level back, and the view reloads
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile sadar twice
+expect-field-has pickerattach following
+key Esc
+expect-field pickerattach off
+wait 1000
+expect-field-has gamesounds SIREN.WAV loop 3d ref
+expect-field-has gamesounds BrokenLight02.wav loop 3d ref
+expect-field-not-has gamesounds wil_
+expect-field-not-has gamesounds Ed_

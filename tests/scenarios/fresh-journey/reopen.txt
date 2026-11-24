@@ -1,10 +1,10 @@
 # THE SECOND START of acceptance-fresh-journey.sh (Vasquez, 2026-11-24): not a scenario of its own (in its own folder, never run by run-shards). The player starts the editor
 # again on the level steps.txt saved (in a hidden run its stand-in, {docs}/AVP_OpenInteng/edited/Genshd1-edited.rif): both objects placed in
-# the first start are there, each with its shape (verify_objects on a copy saved now). {game} and {docs} are filled in by the script.
+# the first start are there by their automatic names (medbox018, staffpickup0: no name box since 2d160043), each with its shape (verify_objects on a copy saved now). {game} and {docs} are filled in by the script.
 start-args "{docs}/AVP_OpenInteng/edited/Genshd1-edited.rif" -documents "{docs}"
 pictures on
 state
 expect-screen Construction
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept freshMed kept freshStatic shapefile freshMed|medbox01
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept medbox018 kept staffpickup0 shapefile medbox018|medbox01 shapefile staffpickup0|staffpickup
 picture 1
