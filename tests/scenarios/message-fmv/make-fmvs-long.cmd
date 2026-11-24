@@ -1,6 +1,6 @@
 @echo off
 rem make-fmvs-long.cmd <data folder> <his FMVs folder>: for acceptance-strategy-message-fmv-scroll (Vasquez 2026-11-21, the owner's "We can't scroll down to see message 1001...").
-rem Fills the run's own data folder's FMVs\ (run-shards' {datadir}: only that copy is written; the next run's mirror takes it away) with HIS LIST: one file for every message
+rem Fills the run's own data folder's FMVs\ (run-shards' {datadir}: only that copy is written; its scenario says changes-data, so run-shards makes the shard's data afresh right after it, before a later scenario of the shard could list these files) with HIS LIST: one file for every message
 rem FMV his game folder holds (53, read, never written), so the Message window's number list holds his numbers, plus message450.smk at its end (54 rows; 450 is the highest
 rem number the game lets through, and the editor never lists his 1001). The editor lists a number by its file's NAME (fmv_files.cpp FmvFiles_MessageNumbers), so every file but two is a 50-byte stand-in made by fmv-hostile.js
 rem beside this file (the repository holds no video; a run's folder stays small): message47.smk and message450.smk are copies of his message47.smk, a real AvP message

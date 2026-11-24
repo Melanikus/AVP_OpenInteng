@@ -14,6 +14,10 @@
 # refused in words, nothing written; (8) a second drop replaces the first: loadedclips 2, its fit, cut and volume start again.
 # HIS PATH: his own Genshd1 (as acceptance-video-mode), his FMVs and two hostile ones in the run's own {datadir}\FMVs (message-fmv\make-fmvs.cmd).
 # RED on the build before it (bishop-int cca02724): the Mode menu has no Video.
+# THE SHARD MADE AFRESH AFTER IT (Dietrich 2026-11-24, Bishop's card from the beta.0 dress rehearsal): its message-fmv maker writes FMV files into the
+# shard's data copy ({datadir}/FMVs), and a later scenario of the same shard lists them (fmv-long's message1.smk gave fmv-scroll a 55th number). So
+# run-shards mirrors the data afresh after it.
+# changes-data
 make-level cmd /c {scenariodir}message-fmv\make-fmvs.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
 # no message417.smk before the run saves it: run-shards runs a red file again in the same copy of the data, where the first pass may have saved it already
 make-level node -e "require('fs').rmSync(process.argv[1], { force: true })" {datadir}/FMVs/message417.smk

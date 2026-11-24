@@ -2,6 +2,9 @@
 # NAME from the data folder (Level=, as the editor's settings open it, no file on the command line). The data-folder original is never written: the update is made on the HELD level in
 # memory, the view loads those working bytes, and a saved copy holds them. verify_outside_shape make writes the level into {datadir} (run-shards: this run's private data folder, the ini's
 # DataFolder=) and {datadir}-outside-byname-shapes\OpenOutsideTest.rif with the shape twice as big. Red without the hook (vop-9: only the double-click open refreshed); green with it.
+# THE SHARD MADE AFRESH AFTER IT (Dietrich 2026-11-24, Bishop's card): its made Hangar level stays in the data copy's avp_rifs or avp_rifs/OpenedByEditor,
+# and a later scenario of the same shard that searches the maps (ShapesInTests=1) would make its shapes into shape_rifs. So run-shards mirrors the data afresh after it.
+# changes-data
 #ini ShapeFolder={datadir}-outside-byname-shapes
 make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe make C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {datadir}/avp_rifs/Hangar-byname.made.rif {datadir}-outside-byname-shapes
 screen Construction

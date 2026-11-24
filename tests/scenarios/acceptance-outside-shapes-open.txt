@@ -7,6 +7,9 @@
 # The start's own words (no inteng.exe here, by the #ini line, so the start always says something: its warning, or how many pictures are missing, LevelView_SayMissingPictures)
 # stay on the line after them, after " - ". Red without the open's refresh (vop-1: the refresh had no caller, so no words and the
 # stock shape); green with it.
+# THE SHARD MADE AFRESH AFTER IT (Dietrich 2026-11-24, Bishop's card): its made Hangar level stays in the data copy's avp_rifs or avp_rifs/OpenedByEditor,
+# and a later scenario of the same shard that searches the maps (ShapesInTests=1) would make its shapes into shape_rifs. So run-shards mirrors the data afresh after it.
+# changes-data
 #ini ShapeFolder={datadir}-outside-open-shapes
 #ini IntengTools=C:\Nowhere-AVP_OpenInteng-test
 make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe make C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {exedir}Hangar-outside.made.rif {datadir}-outside-open-shapes

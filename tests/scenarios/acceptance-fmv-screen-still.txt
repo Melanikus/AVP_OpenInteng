@@ -4,6 +4,10 @@
 # unit-tested in host_fmv_files_test). Every such picture's verdict goes in the log. HIS PATH: his own Genshd1, whose video screen is FMVs\triggered_plot.RIM; this run's own data folder
 # gets a file FMVs\triggered_plot.smk (message-fmv\make-screen-smk.cmd), so the game would leave the screen still. (Without it, acceptance-strategy-message-fmv's open says nothing.)
 # RED on the build before it (c0d0ef81): nothing is said.
+# THE SHARD MADE AFRESH AFTER IT (Dietrich 2026-11-24, Bishop's card from the beta.0 dress rehearsal): its message-fmv maker writes FMV files into the
+# shard's data copy ({datadir}/FMVs), and a later scenario of the same shard lists them (fmv-long's message1.smk gave fmv-scroll a 55th number). So
+# run-shards mirrors the data afresh after it.
+# changes-data
 make-level cmd /c {scenariodir}message-fmv\make-screen-smk.cmd {datadir}
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif

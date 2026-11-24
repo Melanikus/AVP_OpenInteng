@@ -2,6 +2,9 @@
 # REBENVDT > BMPNAMES of the same 65535 (the most a list's head word counts). The two lists were compared each against each (4.3 billion name compares) while the level opened; they are
 # now compared sorted, with the same answer. verify_outside_shape (bitmaps) makes the files; the open is not held up and the saved copy's shape is twice as big. Red before the fix (the
 # open stalls past the harness's wait); green with it.
+# THE SHARD MADE AFRESH AFTER IT (Dietrich 2026-11-24, Bishop's card): its made Hangar level stays in the data copy's avp_rifs or avp_rifs/OpenedByEditor,
+# and a later scenario of the same shard that searches the maps (ShapesInTests=1) would make its shapes into shape_rifs. So run-shards mirrors the data afresh after it.
+# changes-data
 #ini ShapeFolder={datadir}-outside-hostile-bitmaps-shapes
 make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_outside_shape.exe make C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Hangar.RIF {exedir}Hangar-bitmaps.made.rif {datadir}-outside-hostile-bitmaps-shapes bitmaps
 start-args {exedir}Hangar-bitmaps.made.rif
