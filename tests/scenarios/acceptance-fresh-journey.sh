@@ -92,7 +92,12 @@ drive() {
 	out=$(cd "$tools" && PATH="$dlls:$PATH" timeout 1200 "$harness" "$(cygpath -w "$tools/AVP_OpenInteng.exe")" "$(cygpath -w "$rec")" "$(cygpath -w "$1")" 2>&1); code=$?
 	printf '%s\n' "$out" > "$work/$2.log"
 	echo "$out" | grep -E '^  (ok|FAILED|NOTE|ALLOWED)  ' | cut -c1-220 | sed 's/^/  /'
-	echo "$out" | grep -q "^All checks passed" && [ "$code" = 0 ] && ok "$3: every step passed" || bad "$3 failed (the harness ended with $code; its log: $work/$2.log)"
+	if echo "$out" | grep -q "^All checks passed" && [ "$code" = 0 ]; then ok "$3: every step passed"; return; fi
+	bad "$3 failed (the harness ended with $code)"
+	# the work folder is the shard's, and run-shards deletes the shard at the end: so a red run's WHOLE harness output (the editor's state at each
+	# step, its log lines) goes into this script's own output, which run-shards keeps as <out>/acceptance-fresh-journey.log
+	echo "  ---- the harness's whole output ($2):"
+	printf '%s\n' "$out" | sed 's/^/  | /'
 }
 
 drive "$work/steps.txt" journey "the first start: the form, the search, the picker, two objects placed, saved"
