@@ -32,7 +32,8 @@ namespace host
 		BadCall,      // no bytes, too many, an entry RimSave_EntryName wouldn't give, or no data folder
 		BadName,      // the whole path is longer than Windows opens
 		NotPlain,     // a folder on the way is a link, a file, or can't be made
-		NameTaken,    // a file of that name is there already: never written over
+		AlreadyThere, // a file of that name is there already holding these very bytes (read back as a plain file): taken as it is, nothing written
+		NameTaken,    // a file of that name is there already, OTHER bytes (or not readable as a plain file): never written over
 		CantWrite,    // the disk refused the bytes (the half-written file is deleted)
 		NotReadBack,  // the disk doesn't hold exactly what was written
 	};
@@ -52,7 +53,10 @@ namespace host
 
 	// bytes (a RIM: rim_write.h's) saved as dataFolder\graphics\<entry>, entry as RimSave_EntryName gives it (held to the same shape again here; the ending's
 	// capitals aside). Saved, with the whole path in *savedPath; else why not in *why (for the status line) and *savedPath empty, nothing written over, and no
-	// half-written file left behind (NotReadBack's file names itself in *why: see READ BACK)
+	// half-written file left behind (NotReadBack's file names itself in *why: see READ BACK). A file already there that holds exactly these bytes is AlreadyThere,
+	// with its path in *savedPath (the owner's bug on alpha.6, 2026-11-23: an import made, the mode left unsaved, the same picture dropped again: the level's
+	// list had lost the entry, but the file was still there and every new import of it was refused); one with other bytes is still NameTaken. The caller may
+	// delete only a file that is Saved, never one AlreadyThere (it isn't this call's)
 	RimSaveResult RimSave_New(std::string const &dataFolder, std::string const &entry, std::vector<uint8_t> const &bytes, std::string *savedPath, std::string *why);
 
 	char const *RimSaveResultWords(RimSaveResult result);

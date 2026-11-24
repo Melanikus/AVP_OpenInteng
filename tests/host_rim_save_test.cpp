@@ -176,8 +176,21 @@ int main()
 	std::vector<uint8_t> other(rim.rbegin(), rim.rend());
 	RimSaveResult const again = RimSave_New(data, "Custom\\Genshd1\\Wall01.RIM", other, &saved, &why);
 
-	Check(again == RimSaveResult::NameTaken && ReadAll(file) == rim && why.find("Wall01.RIM") != std::string::npos,
-		std::string("the same name again: taken, naming it, the first file as it was (") + RimSaveResultWords(again) + ": " + why + ")");
+	Check(again == RimSaveResult::NameTaken && ReadAll(file) == rim && why.find("Wall01.RIM") != std::string::npos && why.find("another name") != std::string::npos,
+		std::string("the same name again, OTHER bytes: taken, naming it and saying to use another name, the first file as it was (") + RimSaveResultWords(again) + ": " +
+		why + ")");
+
+	// THE VERY SAME BYTES AGAIN (the owner's bug on alpha.6, 2026-11-23: an import made, the level left unsaved, the same picture imported again): AlreadyThere,
+	// its path given, nothing written (the file's time last written is the same)
+	WIN32_FILE_ATTRIBUTE_DATA before = {}, after = {};
+	bool const timeBefore = GetFileAttributesExA(file.c_str(), GetFileExInfoStandard, &before) != 0;
+	saved.clear();
+	RimSaveResult const same = RimSave_New(data, "Custom\\Genshd1\\Wall01.RIM", rim, &saved, &why);
+	bool const timeAfter = GetFileAttributesExA(file.c_str(), GetFileExInfoStandard, &after) != 0;
+
+	Check(same == RimSaveResult::AlreadyThere && saved == file && ReadAll(file) == rim && timeBefore && timeAfter &&
+		CompareFileTime(&before.ftLastWriteTime, &after.ftLastWriteTime) == 0,
+		std::string("the same name again, the VERY SAME bytes: taken as it is, its path given, nothing written (") + RimSaveResultWords(same) + ")");
 
 	std::string const stockLike = data + "\\graphics\\Custom\\Genshd1\\Stock.RIM";
 	std::vector<uint8_t> const stockBytes = { 'F', 'O', 'R', 'M', 1, 2, 3 };

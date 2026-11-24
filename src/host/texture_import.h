@@ -10,7 +10,8 @@
 //   5. written as a RIM of the stock levels' own form                                          rim_write.h      RimWrite_Stock
 //   6. the level's bytes made with the new list entry, BEFORE anything is saved, so a level   bitmap_add.h     BitmapAdd_ToImage
 //      whose list can't take it leaves no file behind
-//   7. the RIM saved as a new file of the mapper's own, never over another                     rim_save.h       RimSave_New
+//   7. the RIM saved as a new file of the mapper's own, never over another (one there already
+//      with these very bytes is taken as it is: rim_save.h AlreadyThere)                      rim_save.h       RimSave_New
 //   8. the level swapped for the new bytes, read first by the game's own loader                level_file.h     OpenLevelFile::ReplaceLevel
 // A step that refuses stops it there, with that step's words. When the game's loader refuses the new level (8), the level is as it was and the file made in 7
 // is deleted again (it is this import's own, made a moment before), so nothing is left half done.
@@ -52,6 +53,7 @@ namespace host
 	{
 		std::string entry;           // the name the list holds now: Custom\<level>\<texture>.RIM
 		std::string savedPath;       // the file's whole path
+		bool alreadyThere = false;   // the file was there already with these very bytes (rim_save.h AlreadyThere), so nothing was written: the list names it again
 		int32_t index = -1;          // the list's new index, the one a polygon picks it by
 		uint32_t pictureWidth = 0;   // the picture as it came
 		uint32_t pictureHeight = 0;
