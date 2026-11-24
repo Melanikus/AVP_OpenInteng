@@ -869,6 +869,14 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_pane_gpu.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\shape_pane_pack.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="..\..\src\host\shape_picker.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>

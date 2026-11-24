@@ -320,7 +320,11 @@ void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, const std:
 			continue;
 		}
 
-		if (tile.texture >= 0)
+		if (tile.live)
+		{
+			// (its shape is drawn turning in the level's frame, under these panels: its name, the frame and the bar only)
+		}
+		else if (tile.texture >= 0)
 		{
 			int32_t x = 0, y = 0, w = 0, h = 0;
 			host::TextScale_BoxToWindow(tile.x, tile.y, tile.side, tile.side, &x, &y, &w, &h);   // in the window's pixels (text_scale.h)

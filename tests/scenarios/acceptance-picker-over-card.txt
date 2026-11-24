@@ -40,8 +40,11 @@ expect-field-has picker open
 wait-field picker drawn 22 20000
 expect-field-not-has fieldpanel none
 picture 3
+# the SCROLL BAR (opaque, x 984, y 70-550, inside the card's place) drawn exactly as without the card: the picker is over the card. The top right TILE is no
+# longer compared (Vasquez, 2026-11-23, carried from my review of 92175055, measured): the card lies UNDER the picker by design and shows wherever the picker
+# draws nothing of its own: between the letters of a tile's name (0.413 of Glass01's name line changed, on still pictures) and, with the live panes, round
+# each turning shape (Frost's draw path: 0.398 of the tile changed). Only the bar covers its whole box, so only the bar proves the order
 expect-pixels-same-since 1 panels 984 70 16 480 0.01
-expect-pixels-same-since 1 panels 860 70 96 96 0.01
 
 # ---- the picker closed: the card as before it opened
 key Esc

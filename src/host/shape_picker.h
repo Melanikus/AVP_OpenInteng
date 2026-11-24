@@ -197,6 +197,14 @@ namespace host
 	// screen gives them in the window's)
 	std::string ShapePicker_BarWords(ShapePickerBar const &bar);
 
+	// ----- THE TURNING (the owner, 2026-11-23: "I want them real-time renderered rotating in 3d") -----
+	// A tile's shape turns round its up axis, once round every kShapePickerTurnMs, from where it was when it began turning (the selected tile first, Bishop 2's
+	// order). ShapePicker_TurnAt: the turn in radians, 0 to just under 2 pi, `ms` after it began; ShapePicker_TurnDegrees: the same in whole degrees, 0 to 359
+	// (the state line's words)
+	uint32_t const kShapePickerTurnMs = 8000;
+	float ShapePicker_TurnAt(uint64_t ms);
+	int32_t ShapePicker_TurnDegrees(float turn);
+
 	// ----- a tile's drawing, as the host's thumbnail work reports it, and its words -----
 	enum class ShapePickerDrawing
 	{

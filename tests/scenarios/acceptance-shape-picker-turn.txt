@@ -1,0 +1,29 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-23, THE OWNER: "The shapes don't change either (maps or shapes) they should live in the GPU: Goal, I want sub
+# milisecond draw on each of the panes and I want them real-time renderered rotating in 3d"; Bishop 2's split: Frost the GPU side, Vasquez the screen side,
+# shape_pane_gpu.h the interface they agreed): THE PLACEMENT PICKER'S PANES TURN. The picker open on Invasion (its own 20 shapes and two folder shapes as tiles);
+# the selected tile (the first, Armour01) is drawn live in the level's frame, turning once round every 8 s: the state line says which panes were drawn live and
+# at what turn (pickerturns "<name>~<degrees>"), and three pictures 500 ms apart differ in its box (it moves). pickerpanes says how many drawings the card holds.
+# THE TWO TURNING CHECKS WAIT FOR THE GPU SIDE (Frost's, behind shape_pane_gpu.h): with its stand-in every upload is refused ("not in yet"), the tiles stay still
+# pictures and both fail, allowed and named here; when his lands, the allow-fail goes and they must pass.
+# RED on vasquez-picker-levelshapes 263d8ad4's build: no pickerturns, no pickerpanes, the tile still.
+#ini DataFolder={datadir}-picker-turn-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-turn-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-turn-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
+level {datadir}-picker-turn-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+item 0x32
+expect-field-has picker open
+expect-field-has picker selected Armour01
+wait-field picker drawn 2 20000
+wait 1000
+expect-field-has pickerpanes on card
+allow-fail waiting for the live panes' GPU side (Frost's, shape_pane_gpu.h; the stand-in refuses every upload) | expect-field-has pickerturns Armour01~
+allow-fail waiting for the live panes' GPU side (Frost's, shape_pane_gpu.h; the stand-in refuses every upload) | expect-moving picture 28 70 96 96 3 500 0.02
+picture 1
+key Esc
+wait 300
+expect-field picker closed

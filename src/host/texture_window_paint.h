@@ -69,6 +69,7 @@ struct ShapePickerPaintTile
 	int32_t x, y, side;        // its picture's square
 	int32_t nameHeight;        // the line under it
 	bool selected;
+	bool live = false;         // its shape is drawn LIVE in the level's frame (shape_pane_gpu.h): no still picture and no words in its square
 	std::string name;          // under it, cut to fit
 	std::string words;         // in the square while it has no picture
 };

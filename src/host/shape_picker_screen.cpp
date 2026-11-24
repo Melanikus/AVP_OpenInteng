@@ -23,11 +23,13 @@
 #include "mishchnk.hpp"             // File_Chunk::list_shapes
 #include "logString.h"
 #include "level_file.h"
+#include "level_view.h"            // LevelView_SetPanes: the live panes drawn in the level's frame
 #include "editor_shared.h"         // statusWords, Answer, shapeFolderSetting, theGameFolder, the create's hand-over
 #include "level_objects.h"         // LevelObjects_Level, LevelObjects_OpenForEdit
 #include "shape_chooser.h"         // the level's outside shapes, by file
 #include "shape_extract.h"         // ShapeExtract_Sha256
 #include "shape_import.h"          // ShapeImport_Read: one handle
+#include "shape_pane_gpu.h"        // the live panes' GPU side (the interface agreed with Frost)
 #include "shape_picker.h"
 #include "shape_picker_screen.h"
 #include "shape_search.h"
@@ -49,6 +51,10 @@ namespace
 		std::string noPicture;                    // why it has no picture although its shape was read ("" when it has one)
 		int32_t texture = -1;                     // the game's texture of it, made when first shown
 		uint64_t used = 0;                        // the last frame it was shown (the least recent goes first)
+		host::ShapePaneModel paneModel;           // what its LIVE pane is made of (shape_pane_gpu.h): put on the card for the sitting
+		int pane = -1;                            // its live pane's handle, -1 while it has none (then the still picture above is shown)
+		bool paneTried = false;                   // the card was asked for it this visit (the picker's close lets every pane go: asked again next visit)
+		std::string paneWhy;                      // why it has no live pane
 	};
 
 	bool open = false;
@@ -66,6 +72,10 @@ namespace
 	int32_t shownColumns = -1, shownRows = -1;    // the grid's shape and the list's length when the selection was last brought into view
 	size_t shownCount = (size_t)-1;
 	bool dragging = false;                        // the scroll bar's thumb is held (pressed on it, not yet let go)
+	uint64_t openedAtMs = 0;                      // THE TURNING's clock (the owner: "rotating in 3d"): the picker's opening, from which every pane turns,
+	uint64_t selectedAtMs = 0;                    // and the selection's last change, from which the selected one turns
+	size_t lastSelected = (size_t)-1;
+	std::string paneTurns;                        // the panes drawn live the last frame, "<name>~<degrees>|...": the state line's pickerturns
 	int32_t grabbedAt = 0;                        // where on the thumb it was taken, from its top
 	bool selectedClicked = false;                 // the selected tile was clicked (so a second click on it places it)
 	std::map<std::string, Kept> kept;
@@ -378,6 +388,16 @@ namespace
 
 			host::ShapeThumb_Camera(model, kFieldOfView, eye, at);
 
+			// THE LIVE PANE's model (shape_pane_gpu.h): put on the card by UploadPane, drawn turning each frame; the still picture below is shown till then
+			made.paneModel.batches = host::ShapeThumb_Triangles(model, sizes);
+			made.paneModel.pictures = model.pictures;
+
+			for (int a = 0; a < 3; a++)
+			{
+				made.paneModel.eye[a] = eye[a];
+				made.paneModel.at[a] = at[a];
+			}
+
 			std::string drawWhy = rendererWhy;
 			bool tryLater = false;
 
@@ -418,6 +438,12 @@ namespace
 				Tex_Release((texID_t)oldest->second.texture);
 			}
 
+			// its live pane let go on the card too (shape_pane_gpu.h ShapePaneGpu_Forget), so drawings let go and uploaded again never pile up on it
+			if (oldest->second.pane >= 0)
+			{
+				host::ShapePaneGpu_Forget(oldest->second.pane);
+			}
+
 			kept.erase(oldest);
 		}
 	}
@@ -454,6 +480,54 @@ namespace
 		Tex_Unlock(made);
 		k->texture = (int32_t)made;
 		return k->texture;
+	}
+
+	// A drawing's LIVE PANE asked of the card, once a visit (shape_pane_gpu.h): its handle, or the card's words why not (its still picture stays shown)
+	void UploadPane(Kept *k)
+	{
+		if (k->paneTried || k->paneModel.batches.empty())
+		{
+			return;
+		}
+
+		k->paneTried = true;
+		k->paneWhy.clear();
+		k->pane = host::ShapePaneGpu_Upload(k->paneModel, &k->paneWhy);
+	}
+
+	// THE LIVE PANES, called by the level's frame between the level and the panels (level_view.h LevelView_SetPanes): each tile on the screen whose drawing is
+	// on the card, drawn turning in its box (the selected one from when it was selected, the others from the picker's opening: once round every 8 s,
+	// shape_picker.h ShapePicker_TurnAt), then the frame's queue drawn (ShapePaneGpu_FrameEnd). What was drawn, and at what turn, goes on the state line
+	void DrawPanes(void *)
+	{
+		paneTurns.clear();
+
+		if (!open)
+		{
+			return;
+		}
+
+		uint64_t const now = GetTickCount64();
+		size_t const shown = (size_t)layout.columns * (size_t)layout.rows;
+
+		for (size_t i = view.first; i < list.tiles.size() && i < view.first + shown; i++)
+		{
+			int32_t box[4], window[4];
+			auto const k = shaOf[i].empty() ? kept.end() : kept.find(shaOf[i]);
+
+			if (k == kept.end() || k->second.pane < 0 || !host::ShapePicker_TileBox(layout, view.first, i, box))
+			{
+				continue;
+			}
+
+			float const turn = host::ShapePicker_TurnAt(now - (i == view.selected ? selectedAtMs : openedAtMs));
+
+			host::TextScale_BoxToWindow(box[0], box[1], box[2], box[3], &window[0], &window[1], &window[2], &window[3]);   // the window's pixels, as pickerboxes
+			host::ShapePaneGpu_Draw(k->second.pane, window, turn);
+			paneTurns += (paneTurns.empty() ? "" : "|") + host::ShapePicker_SafeName(list.tiles[i].name) + "~" + std::to_string(host::ShapePicker_TurnDegrees(turn));
+		}
+
+		host::ShapePaneGpu_FrameEnd();
 	}
 
 	// The selected tile placed the way Quick-create places a shape: the level's own shape of that file by its NUMBER, else the file brought in; one that can't be,
@@ -616,9 +690,13 @@ bool ShapePickerScreen_Open()
 	selectedClicked = false;
 	dragging = false;
 	shownColumns = shownRows = -1;   // (the first frame brings the selection into view)
+	openedAtMs = selectedAtMs = GetTickCount64();   // the turning starts now
+	lastSelected = view.selected;
+	paneTurns.clear();
 	open = true;
 	openedGeneration = LevelObjects_Generation();   // the level its list was built from
 	ShapePickerPictures_Begin();   // the visit's one allowance for its pictures (shape_picker_pictures.cpp)
+	LevelView_SetPanes(DrawPanes, nullptr);   // the live panes drawn in the level's frame while it is open
 
 	for (std::string const &note : list.notes)
 	{
@@ -653,6 +731,17 @@ void ShapePickerScreen_Close(bool sayNothingChosen)
 		it = lacking ? kept.erase(it) : std::next(it);
 	}
 
+	// the live panes let go (as agreed with Frost: the card's drawings are the visit's); each kept drawing asks again next visit
+	LevelView_SetPanes(nullptr, nullptr);
+	host::ShapePaneGpu_ForgetAll();
+
+	for (auto &k : kept)
+	{
+		k.second.pane = -1;
+		k.second.paneTried = false;
+	}
+
+	paneTurns.clear();
 	open = false;
 	dragging = false;
 	list = host::ShapePickerList();
@@ -682,6 +771,13 @@ void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
 		shownColumns = layout.columns;
 		shownRows = layout.rows;
 		shownCount = list.tiles.size();
+	}
+
+	// a newly selected tile turns from its start (the selected one first: Bishop 2's order)
+	if (view.selected != lastSelected)
+	{
+		lastSelected = view.selected;
+		selectedAtMs = GetTickCount64();
 	}
 
 	// a few of the tiles on the screen drawn, the selected first, within the frame's budget
@@ -737,6 +833,23 @@ void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
 		}
 	}
 
+	// the drawings on the screen put on the card as live panes, a few a frame (the selected first), as the drawings themselves are paced
+	int uploads = 0;
+
+	for (int pass = 0; pass < 2 && uploads < kShapePickerDrawsAFrame; pass++)
+	{
+		for (size_t i = view.first; i < list.tiles.size() && i < view.first + shown && uploads < kShapePickerDrawsAFrame; i++)
+		{
+			auto const k = (pass == 0) != (i == view.selected) || shaOf[i].empty() ? kept.end() : kept.find(shaOf[i]);
+
+			if (k != kept.end() && !k->second.paneTried && !k->second.paneModel.batches.empty())
+			{
+				UploadPane(&k->second);
+				uploads++;
+			}
+		}
+	}
+
 	ownHigh = ownHeight;   // (painted by ShapePickerScreen_Paint, in the panels' pass)
 }
 
@@ -746,6 +859,10 @@ void ShapePickerScreen_Paint(int32_t, int32_t)
 	{
 		return;
 	}
+
+	// THE LIVE PANES first, so the names, the frame and the bar go over them: the picture DrawPanes made of them this frame (in the level's frame, into the GPU
+	// side's own texture) added to the panels here, over the object card, under the bar (Frost and Vasquez, 2026-11-23: shape_pane_gpu.h ShapePaneGpu_Composite)
+	host::ShapePaneGpu_Composite();
 
 	// the frame's own size as ShapePickerScreen_Frame laid the grid out this frame (so the paint and the layout always agree)
 	int32_t const ownWidth = ownWide, ownHeight = ownHigh;
@@ -765,11 +882,12 @@ void ShapePickerScreen_Paint(int32_t, int32_t)
 		auto const k = shaOf[i].empty() ? kept.end() : kept.find(shaOf[i]);
 
 		t.texture = -1;
+		t.live = k != kept.end() && k->second.pane >= 0;   // drawn LIVE in the level's frame (DrawPanes): no still picture over it
 
 		if (k != kept.end())
 		{
 			k->second.used = frameNumber;
-			t.texture = TextureOf(&k->second);
+			t.texture = t.live ? -1 : TextureOf(&k->second);
 		}
 
 		t.x = box[0];
@@ -962,6 +1080,26 @@ void ShapePickerScreen_StateFields()
 
 	StateLine_Add("pickerscroll", host::ShapePicker_BarWords(bar));
 	StateLine_Add("pickerdrag", dragging ? "held" : "free");
+
+	// THE LIVE PANES (shape_pane_gpu.h): those drawn the last frame and their turn, "<name>~<degrees>|..."; the GPU side's drawing time, microseconds, the last
+	// frame's and the most of any; and how many drawings the card holds or refused, with the first refusal's words
+	uint32_t lastUs = 0, mostUs = 0;
+	size_t onCard = 0, refused = 0;
+	std::string firstWhy;
+
+	host::ShapePaneGpu_FrameTime(&lastUs, &mostUs);
+
+	for (auto const &k : kept)
+	{
+		onCard += k.second.pane >= 0 ? 1 : 0;
+		refused += k.second.paneTried && k.second.pane < 0 ? 1 : 0;
+		firstWhy = firstWhy.empty() && k.second.paneTried && k.second.pane < 0 ? k.second.paneWhy : firstWhy;
+	}
+
+	StateLine_Add("pickerturns", paneTurns);
+	StateLine_Add("pickerpanetime", std::to_string((unsigned long)lastUs) + " " + std::to_string((unsigned long)mostUs));
+	StateLine_Add("pickerpanes", "on card " + std::to_string((unsigned long long)onCard) + " refused " + std::to_string((unsigned long long)refused) +
+		(firstWhy.empty() ? std::string() : ": " + host::ShapePicker_SafeWords(firstWhy)));
 
 	// the sitting's kept pictures: how many were decoded whole, how many given from the kept ones, what is kept against its most, and how many were let go
 	ShapePickerPictureCounts const pictures = ShapePickerPictures_Counts();

@@ -16,7 +16,10 @@
 //       cut short, too big and a refused shape don't; a good one clears it
 //   (8) THE LOOK (copies that look the same fold into one tile): another level's copy with its own number and list numbering looks the same; a point moved
 //       1 mm, another picture, a quad shaded instead don't; a fragment file has none
-// RED FIRST: on a stand-in that reads nothing, (1) to (5) fail; (6) on 4f0db774 (every path taken as the file gave it); (7) on a stand-in that never says it; (8) on a stand-in with no look.
+//   (9) THE TURNING (the owner 11-23, "rotating in 3d"): the camera turned round the shape's up axis at the same distance and height, looking at its middle;
+//       the light going round with it; a face's shade changing as it turns (numbered (7) on vasquez-picker-turn before bishop-int's (7) and (8) met it)
+// RED FIRST: on a stand-in that reads nothing, (1) to (5) fail; (6) on 4f0db774 (every path taken as the file gave it); (7) on a stand-in that never says it;
+// (8) on a stand-in with no look; (9) by mutation (no turn taken).
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -358,6 +361,51 @@ int main()
 		float light[3];
 		ShapeThumb_Light(light);
 		Check(fabsf(light[0] * light[0] + light[1] * light[1] + light[2] * light[2] - 1.0f) < 1e-5f && light[1] < 0, "the light: one length, from above");
+
+		// ---- (9) THE TURNING (the owner 11-23: "real-time renderered rotating in 3d"): the camera and the light gone round the shape's up axis together
+		float eye0[3], at0[3], eyeQ[3], atQ[3], eyeH[3], atH[3];
+
+		ShapeThumb_CameraTurned(m, fov, 0.0f, eye0, at0);
+		ShapeThumb_CameraTurned(m, fov, 1.5707963f, eyeQ, atQ);   // a quarter turn
+		ShapeThumb_CameraTurned(m, fov, 3.1415927f, eyeH, atH);   // half
+
+		float const outX = eye[0] - at[0], outZ = eye[2] - at[2];   // the still camera's way out across: (0.5 d, 0.5 d)
+
+		Check(fabsf(eye0[0] - eye[0]) < 0.01f && fabsf(eye0[1] - eye[1]) < 0.01f && fabsf(eye0[2] - eye[2]) < 0.01f && fabsf(at0[0] - at[0]) < 0.01f,
+			"(9) at no turn, the turned camera is the still one");
+		Check(fabsf((eyeQ[0] - atQ[0]) - (-outZ)) < 0.5f && fabsf((eyeQ[2] - atQ[2]) - outX) < 0.5f && fabsf(eyeQ[1] - eye[1]) < 0.01f,
+			"(9) a quarter turn: from +x toward +z, at the same height (" + std::to_string(eyeQ[0] - atQ[0]) + ", " + std::to_string(eyeQ[2] - atQ[2]) + ")");
+		Check(fabsf((eyeH[0] - atH[0]) + outX) < 0.5f && fabsf((eyeH[2] - atH[2]) + outZ) < 0.5f && fabsf(atH[0] - at[0]) < 0.01f && fabsf(atH[2] - at[2]) < 0.01f,
+			"(9) half a turn: the other side, still looking at the middle");
+
+		float const distance0 = sqrtf((eye0[0] - at0[0]) * (eye0[0] - at0[0]) + (eye0[1] - at0[1]) * (eye0[1] - at0[1]) + (eye0[2] - at0[2]) * (eye0[2] - at0[2]));
+		float const distanceQ = sqrtf((eyeQ[0] - atQ[0]) * (eyeQ[0] - atQ[0]) + (eyeQ[1] - atQ[1]) * (eyeQ[1] - atQ[1]) + (eyeQ[2] - atQ[2]) * (eyeQ[2] - atQ[2]));
+
+		Check(fabsf(distance0 - distanceQ) < 0.5f, "(9) the same distance all the way round");
+
+		float light0[3], lightQ[3];
+
+		ShapeThumb_LightTurned(0.0f, light0);
+		ShapeThumb_LightTurned(1.5707963f, lightQ);
+		Check(fabsf(light0[0] - light[0]) < 1e-5f && fabsf(light0[2] - light[2]) < 1e-5f && fabsf(lightQ[0] + light[2]) < 1e-4f && fabsf(lightQ[2] - light[0]) < 1e-4f &&
+			fabsf(lightQ[1] - light[1]) < 1e-5f, "(9) the light goes round with the camera, as on a turntable");
+
+		// the shade of a face changes as the light goes round it: the first triangle's corner shade at no turn and at a quarter turn
+		std::vector<std::pair<uint32_t, uint32_t> > const sizes(m.pictures.size(), std::make_pair(0u, 0u));
+		std::vector<ShapeThumbBatch> const still = ShapeThumb_Triangles(m, sizes);
+		std::vector<ShapeThumbBatch> const quarter = ShapeThumb_Triangles(m, sizes, 1.5707963f);
+		bool const shaded = !still.empty() && !quarter.empty() && !still[0].corners.empty() && !quarter[0].corners.empty();
+		bool changed = false;
+
+		for (size_t b = 0; shaded && b < still.size() && b < quarter.size(); b++)
+		{
+			for (size_t c = 0; c < still[b].corners.size() && c < quarter[b].corners.size(); c++)
+			{
+				changed = changed || fabsf(still[b].corners[c].shade - quarter[b].corners[c].shade) > 1e-4f;
+			}
+		}
+
+		Check(shaded && changed, "(9) turned, the faces are lit as the camera now sees them (a corner's shade changed)");
 	}
 
 	// ---- (7) NO GEOMETRY, said apart (the owner, 2026-11-23: "No picture means no geometry? if yes don't show!"): the picker leaves such a file out of its grid,

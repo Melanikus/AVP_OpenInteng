@@ -99,12 +99,20 @@ namespace host
 	// The triangles, grouped by picture: each polygon a fan of its corners, shaded by how its face turns to the light (both sides lit alike: a picture shows
 	// the shape whichever side faces it), its picture's places divided by that picture's size. sizes: each picture's width and height in texels, as the host
 	// read it (0 by 0 when it couldn't be read: its polygons are drawn shaded).
-	std::vector<ShapeThumbBatch> ShapeThumb_Triangles(ShapeThumbModel const &model, std::vector<std::pair<uint32_t, uint32_t> > const &sizes);
+	// turn: the light turned with the camera (ShapeThumb_LightTurned), so a shape turning in its pane keeps its faces lit as the camera sees them
+	std::vector<ShapeThumbBatch> ShapeThumb_Triangles(ShapeThumbModel const &model, std::vector<std::pair<uint32_t, uint32_t> > const &sizes, float turn = 0.0f);
 
 	// THE CAMERA: from the 45-degree corner (the owner's test camera, 2026-11-18: 45 degrees round and 45 up, a cube's corner), looking at the shape's
 	// middle, as far as frames its whole radius in a view fieldOfView radians across. eye, at: the world's mm; y down, as the level's.
 	void ShapeThumb_Camera(ShapeThumbModel const &model, float fieldOfView, float eye[3], float at[3]);
 
+	// THE CAMERA TURNED (the owner, 2026-11-23: "I want them real-time renderered rotating in 3d"): the same camera gone `turn` radians round the shape's
+	// up axis (the world's y; the way from +x toward +z), at the same distance and height, still looking at its middle. At 0 it is ShapeThumb_Camera's
+	void ShapeThumb_CameraTurned(ShapeThumbModel const &model, float fieldOfView, float turn, float eye[3], float at[3]);
+
 	// The light's direction (toward the light, unit length): from over the camera's left shoulder, the same for every tile
 	void ShapeThumb_Light(float toLight[3]);
+
+	// The same light gone round with the camera by `turn` (as ShapeThumb_CameraTurned), so the turning shape is lit as a turntable's: at 0 it is ShapeThumb_Light's
+	void ShapeThumb_LightTurned(float turn, float toLight[3]);
 }

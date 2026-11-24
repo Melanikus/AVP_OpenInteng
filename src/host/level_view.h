@@ -106,6 +106,11 @@ bool LevelView_ShowFile(const char *levelName, char *why, size_t whySize);
 // (Dietrich), L-1.)
 bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*addToFrame)(void *context) = nullptr, void *context = nullptr);
 
+// LIVE PANES IN THE FRAME (Vasquez 2026-11-23, the placement picker's turning shapes: shape_pane_gpu.h, the interface agreed with Frost): draw, when given, is
+// called inside LevelView_Draw AFTER the level and its inset are drawn and BEFORE addToFrame's panels, so what it draws is over the level and under the
+// panels (the names, the selection's frame, the scroll bar), in the picture and the frame shown. nullptr takes it away. One at a time: a second replaces the first.
+void LevelView_SetPanes(void (*draw)(void *context), void *context);
+
 // Which way the camera faced in the frame last drawn, exactly as the game's renderer used it (view.cpp's UpdateCamera, the look up or
 // down included): its forward and its right, each a direction of length 65536 (the game's ONE_FIXED), in the game's world axes (x to the
 // right, y down, z forward). The game keeps an object's forward in its matrix's third row and its right in the first (dynamics.cpp:1169);
