@@ -1,0 +1,45 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-24, Bishop's order, the chooser preview of Frost's reload audit): the level is opened again while the Shape Chooser is
+# up, and the chooser is left first, as its Esc leaves it: no preview block is kept across the reopen, and the screen is the one the chooser came from.
+# WHY: the preview is a block of the game's list (hierarchy_view.cpp previewBlock), which the reopen's close resets (Destroy_CurrentEnvironment ->
+# InitialiseObjectBlocks), and CloseTheLevel never closed the chooser. After the reopen every frame turned that old slot (ShapePreview_Spin) and the next shape or
+# Esc destroyed it (ShapePreview_Take -> DestroyActiveObject): the reopened level hands out its blocks in the same order, so the slot could be one of the level's
+# own blocks by then. No crash (the blocks are static memory), only silent corruption. A real way there: the start search's reopen, which runs on any screen.
+# THE STATE LINE: chooserpreview "none" | "ok" (the preview's own block, in the game's list) | "stale".
+# RED on the exe of the commit that brought this file (the field only, no fix): after the reopen chooserpreview reads "stale" and the screen is still the Shape
+# Chooser. GREEN: every line ok.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+select-row 0
+expect-selected 1
+item 0x1d
+expect-screen Shape Chooser
+wait 600
+state
+expect-field chooserpreview ok
+picture 1
+# ---- the level opened again while the chooser is up
+reopen-level
+wait 1500
+state
+expect-field chooserpreview none
+expect-screen Object Placement
+wait 800
+state
+expect-field chooserpreview none
+picture 2
+# ---- the chooser opens again on the new level, with a block of its own
+select-row 0
+expect-selected 1
+item 0x1d
+expect-screen Shape Chooser
+wait 600
+state
+expect-field chooserpreview ok
+key Esc
+expect-screen Object Placement
+state
+expect-field chooserpreview none

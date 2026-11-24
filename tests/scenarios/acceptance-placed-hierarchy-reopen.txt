@@ -1,0 +1,38 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-24, Bishop's LEAD A, its second holder): the level is opened again while Object Placement's placed hierarchy shows its model,
+# and the editor lives through it; the model is shown again when its object is found again.
+# The placed hierarchy (dropship ken on Invasion, as acceptance-gizmo-live-hierarchy finds it) shows its model in the same hierarchy view as the Hierarchy screen
+# (placed_hierarchy_screen.cpp PlacedHierarchySelect -> HierarchyView_ShowPlaced), so the game's close emptied its block and its hierarchy under it, as in
+# acceptance-hierarchy-reopen-shown. A real way there: the start search's reopen, which runs on whatever screen is up when the search ends.
+# THE STATE LINE: currenticon "hierarchy model <x y z>" while the view shows the placed hierarchy's model.
+# RED on exe-cache/25cdade7.exe: CRASHED after step reopen-level (C0000005). GREEN: every line ok.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Object Placement
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is dropship ken
+expect-no-dialog
+camera 57906 -42615 35151 3584
+wait 800
+state
+expect-field-has currenticon hierarchy model
+picture 1
+# ---- the level opened again while the placed hierarchy's model is shown
+reopen-level
+wait 1500
+state
+expect-screen Object Placement
+wait 1000
+state
+picture 2
+# ---- found again: its model is shown again
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is dropship ken
+expect-no-dialog
+wait 800
+state
+expect-field-has currenticon hierarchy model
+picture 3

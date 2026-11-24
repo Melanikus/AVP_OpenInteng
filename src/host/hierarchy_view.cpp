@@ -88,10 +88,21 @@ bool HierarchyView_LoadModel(const char *modelName, std::string *why)
 	}
 
 	std::string const lower = LowerName(modelName);
+	auto const known = libraryNameOf.find(lower);
 
-	if (libraryNameOf.count(lower))
+	// Loaded before AND still in the game's library. A level closed since then (opened again, or the view reloaded after an edit: LevelView_Close -> EndNPCs ->
+	// EmptyHierarchyLibrary) deleted every model the library held, so a name remembered from before is loaded again (Bishop's LEAD A, 2026-11-24)
+	if (known != libraryNameOf.end())
 	{
-		return true;
+		for (LIF<Global_Hierarchy_Store *> each(&Global_Hierarchy_Library); !each.done(); each.next())
+		{
+			if (_stricmp(each()->riffname, known->second.c_str()) == 0)
+			{
+				return true;
+			}
+		}
+
+		libraryNameOf.erase(known);
 	}
 
 	char path[100];
@@ -147,16 +158,44 @@ bool HierarchyView_LoadModel(const char *modelName, std::string *why)
 	else if (!copy_rif_data(handle, CCF_IMAGEGROUPSET + CCF_LOAD_AS_HIERARCHY_IF_EXISTS + CCF_DONT_INITIALISE_TEXTURES, 0, 0))
 	{
 		unload_rif(handle);
+		HierarchyView_KeepCopiedRif(handle);   // whatever it copied before it refused goes back with the level too
 		Say(why, "the game's loader refused that model file's data");
 		return false;
 	}
 	else
 	{
-		unload_rif(handle);   // the copied data stays, as the game does it
+		unload_rif(handle);   // the copied data stays, as the game does it, until the level's close gives it back
+		HierarchyView_KeepCopiedRif(handle);
 	}
 
 	libraryNameOf[lower] = inside;
 	return true;
+}
+
+// THE MODEL FILES COPIED INTO THE GAME (hierarchy_view.h): their handles, given back at the level's close
+static std::vector<RIFFHANDLE> copiedRifs;
+
+void HierarchyView_KeepCopiedRif(struct _RifHandle *handle)
+{
+	if (handle && handle != INVALID_RIFFHANDLE)
+	{
+		copiedRifs.push_back(handle);
+	}
+}
+
+void HierarchyView_GiveBackCopiedRifs()
+{
+	// as the game gives back its own models (npcsetup.cpp LoadedNPC::Unload): the file's hierarchies leave the library, its shapes leave the shape list (their slots
+	// freed; the parts made of the level's memory pool are left to the pool, which goes next), and the handle is closed
+	for (RIFFHANDLE const handle : copiedRifs)
+	{
+		avp_undo_rif_load(handle);
+	}
+
+	copiedRifs.clear();
+
+	// every model the view had loaded went with them, or with the game's own library (EndNPCs): the next Show loads its file again
+	libraryNameOf.clear();
 }
 
 bool HierarchyView_Names(const char *modelName, std::vector<std::string> *names)
@@ -198,6 +237,13 @@ void HierarchyView_Close()
 		DestroyActiveObject(shown);
 		shown = nullptr;
 	}
+}
+
+// hierarchy_view.h. Both are the game's level's display blocks, so they go while that level is still there
+void HierarchyView_LevelGoes()
+{
+	HierarchyView_Close();
+	ModelObjects_Close();
 }
 
 bool HierarchyView_IsShown()
@@ -1832,6 +1878,28 @@ void ShapePreview_Spin()
 	ShapePreview_SpinAngles(NormalFrameTime, previewTurnCarry, angles);
 	LevelView_TurnMatrix(previewTurn, angles);   // about its own axes (NAMED: inteng goes through a quaternion, FUN_004b39f0 / FUN_004b3b50; the same turn)
 	PreviewTurnOnBlock();
+}
+
+extern DISPLAYBLOCK *ActiveBlockList[];   // the game's display blocks in play (d3d_render.cpp declares it the same way)
+extern int NumActiveBlocks;
+
+std::string ShapePreview_StateWords()
+{
+	if (!previewBlock)
+	{
+		return "none";
+	}
+
+	bool listed = false;
+
+	for (int i = 0; i < NumActiveBlocks && !listed; i++)
+	{
+		listed = ActiveBlockList[i] == previewBlock;
+	}
+
+	bool const ours = listed && !previewBlock->ObMyModule && !previewBlock->ObStrategyBlock && previewBlock->ObWorld.vz == kPreviewZ;
+
+	return ours ? "ok" : "stale";
 }
 
 int ShapePreview_PlaceOf(char const *gameName)

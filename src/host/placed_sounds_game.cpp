@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "placed_sounds_game.h"
+#include "psndplat.h"   // ActiveSounds, GameSounds: every sound the game plays, for the state line (PlacedSounds_GameSoundsWords)
 
 extern int SoundSwitchedOn;                   // avp/psnd.cpp: 1 once the sound system started (there is a sound device)
 extern int EffectsSoundVolume;                // avp/psnd.cpp: the volume SoundSys_Management puts the sound system back to every frame
@@ -351,6 +352,38 @@ namespace host
 		}
 
 		return loaded;
+	}
+
+	// EVERY SOUND THE GAME PLAYS NOW (Vasquez 2026-11-24, for the owner's looping "gun reload" sound): each active slot's sample by its wav name (the level's own
+	// bytes, so only letters, digits and . _ - are shown, the rest as ?, at most 60 of them), and whether it loops, is placed in 3D, is held by a handle
+	// ("ref": one of ours) or paused. A held sound playing another sample than its own is seen here
+	std::string PlacedSounds_GameSoundsWords()
+	{
+		std::string words;
+		int n = 0;
+
+		for (int i = 0; i < SOUND_MAXACTIVE; i++)
+		{
+			if (ActiveSounds[i].soundIndex == SID_NOSOUND)
+			{
+				continue;
+			}
+
+			n++;
+			std::string name = GameSounds[ActiveSounds[i].soundIndex].wavName.substr(0, 60);
+
+			for (char &c : name)
+			{
+				bool const plain = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
+
+				c = plain ? c : '?';
+			}
+
+			words += (words.empty() ? "" : "|") + std::to_string(i) + " " + name + (ActiveSounds[i].loop ? " loop" : "") +
+				(ActiveSounds[i].threedee ? " 3d" : "") + (ActiveSounds[i].externalRef ? " ref" : "") + (ActiveSounds[i].paused ? " paused" : "");
+		}
+
+		return std::to_string(n) + (words.empty() ? std::string() : " " + words);
 	}
 
 	int PlacedSounds_Sounding()

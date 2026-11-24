@@ -40,6 +40,7 @@
 #include <vector>
 
 #include "level_view.h"
+#include "hierarchy_view.h"   // HierarchyView_GiveBackCopiedRifs: the model files the editor copied in, given back at the close
 #include "mempool.h"   // the level memory's use: what an opened level takes of its 40 blocks (LevelMemoryPool_Use; Frost 2026-11-21)
 
 // Declared in no header: the game declares them itself where it calls them, as here
@@ -2794,6 +2795,7 @@ void LevelView_Close()
 	DeInitialisePlayer();
 	Destroy_CurrentEnvironment();
 	EndNPCs();
+	HierarchyView_GiveBackCopiedRifs();   // the model files the editor copied in go back as the game's own models just did, before the pool their shapes are made of (hierarchy_view.h)
 	ExitGame();
 	ClearMemoryPool();
 	levelIsOpen = false;
@@ -3286,6 +3288,11 @@ void LevelView_GravityMoved(std::vector<LevelViewMovedObject> *moved)
 		memcpy(one.matrix, rows, sizeof(rows));
 		moved->push_back(one);
 	}
+}
+
+std::string LevelView_GravityWords()
+{
+	return std::string("game ") + (gravityOnNow ? "1" : "0") + " objects " + std::to_string(gravityChosen.size());
 }
 
 bool LevelView_FlyCollideMove(const uint8_t *id, const int32_t from[3], const int32_t to[3], int32_t reached[3])

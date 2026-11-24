@@ -1,0 +1,42 @@
+# GUARD, NOT A RED (Frost 2026-11-24, Bishop's order for beta.0's third cut: the reload audit's HELD 2, Tao 1, memory safety). MEASURED GREEN ON THE CUT (exe-cache/61c26c12.exe, the
+# measure on 78211c17): this path does not reach HELD 2 there, because Track Editing's edits stay in the track's working copy until Stop Track Edit writes them back, AFTER the screen
+# change's reload check (no "view: the level as edited is shown" in the run), and its Delete stops the track first. It guards the order: A PLAYING TRACK'S SOUNDS are let go before its
+# level goes. Track Editing's Play (0x514) plays the object's track with its sounds, the level's own (GetSoundForMainRif). Leaving the screen (Stop Track Edit, 0x51c, goes to Object
+# Placement) with the level changed shows the edited level again first (editor_main.cpp's screen change: ShowTheWorkingBytes), and the game frees every loaded sound with that level;
+# only after that did the track screen's leave stop the track (TrackEditLeftByOtherWay), letting go of sounds the game had already freed. Now every sound the editor keeps is let go
+# before the view's level goes (Vasquez's LetGoOfTheLevelsSounds, which ends the track player's sounds). The state line's tracksounds field: "track N held, M freed by the level", and
+# "stale let-gos" counts the sounds let go after the game had freed them (pointers compared only, never read through).
+# His path: Invasion, the lift at row 75 (its track has its three sounds: wil_viro_lift_03_mid_lp, _start, _end, as acceptance-track-sound-edit), Edit Track, its sound's inner
+# range 20 -> 25 (OK: the level changed), Play, and Stop Track Edit while it plays.
+screen Object Placement
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+expect-screen Object Placement
+select-row 75
+expect-selected 1
+click-bar Object > Edit Track
+expect-screen Track Editing
+expect-field-has tracksounds track none
+
+# ---- the level changed on this screen: the track's sound's inner range 20 -> 25
+item 0x524
+expect-dialog Sound Edit -
+expect-dialog-text wil_viro_lift_03_mid_lp.wav|20|30|0|100
+form-field 2 25
+click-button OK
+expect-no-dialog
+expect-screen Track Editing
+
+# ---- the track plays, its sounds loaded
+item 0x514
+wait 300
+expect-field-has tracksounds held, 0 freed by the level
+picture 1
+
+# ---- Stop Track Edit while it plays: no sound of the track is let go after the game freed it
+item 0x51c
+expect-screen Object Placement
+expect-field-has tracksounds track none
+expect-field-has tracksounds stale let-gos 0
+picture 2

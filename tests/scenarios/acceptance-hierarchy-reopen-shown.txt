@@ -1,0 +1,64 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-24, Bishop's LEAD A from Frost's reload audit): the level is opened again while the Hierarchy screen shows a model, and
+# the editor lives through it; afterwards the same model is offered and shown again.
+# WHY IT CRASHED: opening the level again closes the game's level first (LevelView_Close), and that close empties the game's list of display blocks (system.cpp
+# Destroy_CurrentEnvironment -> InitialiseObjectBlocks) and deletes its library of hierarchies (EndNPCs -> EmptyHierarchyLibrary). The hierarchy view kept its model's
+# block and its controller, which point into both, and went on moving them every frame: on 78211c17 the editor died right after the reopen (C0000005, 2 of 2).
+# A real way there: the start search's reopen (shapes_start_screen.cpp Finish -> ShapesReopenTheLevel) runs on whatever screen is up when the search ends.
+# NOW: the editor lets go of the shown model before the level goes, as it lets go of the picker and the sounds; the screen stays Hierarchy with no model.
+# AND the model is offered again: the view remembered which model files it had loaded (libraryNameOf), but the close had deleted them from the game's library.
+# THE FILE: Melanikus's MelPyth_MarHUD (8 hierarchies; acceptance-hierarchy-melpyth-marhud picks the same Shotgun and MarineHUD_Standard_Reload).
+# THE STATE LINE: hierarchylines, the Hierarchy screen's text lines ("Timer :" only while a model is shown).
+# RED on exe-cache/25cdade7.exe: CRASHED after step reopen-level. GREEN: every line ok.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+expect-screen Construction
+wait 400
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+wait 400
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+wait 600
+state
+expect-field-has hierarchylines Timer
+# the model plays (P), so the view moves it every frame
+key P
+wait 500
+state
+picture 1
+# ---- the level opened again while the model is shown and playing
+reopen-level
+wait 1500
+state
+expect-screen Hierarchy
+expect-field-not-has hierarchylines Timer
+wait 1000
+state
+picture 2
+# ---- the screen left and entered again: the same model is offered and shown
+click-bar Mode > Exit
+wait 1500
+state
+expect-screen Construction
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+wait 600
+click-win 500 300 right
+click-popup 1
+wait 600
+expect-dialog Select Hierarchy
+expect-dialog-rows AutoShotgun|GSS50|M79|RailGun|ScopeRifle|Shotgun|Sniper|Taurus
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+wait 600
+state
+expect-field-has hierarchylines Timer
+picture 3

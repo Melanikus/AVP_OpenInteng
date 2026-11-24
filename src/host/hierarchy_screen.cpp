@@ -847,11 +847,40 @@ void LeaveHierarchy()
 
 	onHierarchy = false;
 	hierarchyModelOpen = false;
+	host::TrackPlay_ListenStop();   // the listen's sound goes with the screen (the reload audit's HELD 1: the game frees it with the level)
 	HierarchyView_Close();
 	hierarchyShownModel.clear();
 	hierarchyShownName.clear();
 	host::HierarchyMode_Reset(&hierarchyMode);
 	HierarchyView_Close();
+
+	if (promptFor == kPromptHierarchy)
+	{
+		promptFor = kPromptNone;
+		promptText.clear();
+	}
+
+	promptList.clear();
+}
+
+// THE LEVEL GOES while this screen is up (CloseTheLevel, before the game's close; Bishop's LEAD A, 2026-11-24). The model shown is the game's level's memory, so it
+// goes first, with everything the screen knew of it, as LeaveHierarchy lets it go. The screen itself stays, and the next Select Hierarchy starts afresh. The model
+// files of avp_huds stay offered: EnterHierarchy listed them from the game's folder, not from the level.
+void HierarchyScreen_LevelGoes()
+{
+	if (!onHierarchy)
+	{
+		return;
+	}
+
+	hierarchyModelOpen = false;
+	HierarchyView_Close();
+	hierarchyShownModel.clear();
+	hierarchyShownName.clear();
+	std::vector<std::string> models;
+	models.swap(hierarchyMode.models);
+	host::HierarchyMode_Reset(&hierarchyMode);
+	hierarchyMode.models.swap(models);
 
 	if (promptFor == kPromptHierarchy)
 	{

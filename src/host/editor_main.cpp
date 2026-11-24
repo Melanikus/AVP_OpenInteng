@@ -1892,7 +1892,7 @@ static void MoveRelativeModuleStart()
 // writes its block's place). Ours (Drake 11-17, Bishop's ruling: the game's own code): LevelView_SetGravity gives the game's inanimate objects of those types to avpx's ObjectDynamics, which runs
 // each frame of the screen while Gravity is on (LevelView_GravityStep); PlacementGravityFlush writes the places the engine moved them to into the level before a save.
 bool placementGravity = false;
-static void PlacementGravityFlush();
+void PlacementGravityFlush();   // editor_shared.h: the view's reload writes them too (ShowTheWorkingBytes)
 
 bool PlacementGravityOn()
 {
@@ -1923,8 +1923,8 @@ static void GravityToggleCommand()
 }
 
 // The places Gravity's engine moved objects to, written into the level (each object's OBJHEAD1 place and turn, as Move relative writes them), before a save: inteng's object save writes its
-// block's place (Mode > Save, Exit, Tab). The level's scale turns the game's units into the file's.
-static void PlacementGravityFlush()
+// block's place (Mode > Save, Exit, Tab), and before the view reloads (ShowTheWorkingBytes). The level's scale turns the game's units into the file's.
+void PlacementGravityFlush()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	std::vector<LevelViewMovedObject> moved;
@@ -14817,6 +14817,23 @@ static bool OpenTheLevel(char const *levelName, FlyCamera *camera, char const *o
 	return true;
 }
 
+// THE LEVEL'S SOUNDS LET GO, every one the editor holds, BEFORE THE GAME'S LEVEL GOES: at CloseTheLevel, and before the game's view loads the level again
+// (ShowTheWorkingBytes: at each new object, OP-26c, and at a screen change). ONE LIST for both (Frost's track player sounds join it). Vasquez 2026-11-24, the owner's "every
+// object I place starts a loop of some sound, looks like gun reload"): the game's teardown lets go of every loaded sound and the load fills its table again, so
+// every sound the editor holds goes FIRST, as CloseTheLevel does, and the placed sounds are made again on the new table the next frame (placedSoundsOpen
+// cleared: Object Placement's frame syncs them). Before, they were kept across the reload with their old sample numbers and pointers into the freed sounds:
+// their loops played whatever sample took those numbers (MEASURED on Derelict: its SIREN.WAV x 2 and BrokenLight02.wav became wil_pulse_rifle_ready.wav x 2
+// and Ed_Sadar_reload.wav at the first placement), their OpenAL sources left on freed buffers (the owner's log: about 320 AL_INVALID_OPERATION a sitting),
+// and their next let-go (LoseSound) worked on freed sound data: a memory-safety bug (Tao 1). In every published alpha too (0 to 5)
+void LetGoOfTheLevelsSounds()
+{
+	host::SoundGame_PreviewStop();
+	host::PlacedSounds_LetGo();
+	host::HierarchySounds_LetGo();   // (they play only while the hierarchy view is shown, when the view never reloads, and are synced each frame then)
+	host::TrackPlay_EndSounds();
+	placedSoundsOpen = nullptr;      // made again on the new table the next frame
+}
+
 // main()'s leaving, as it was, the order kept: the camera file written, the editor's hold of the level let go before the game's level, the sounds
 // before the game's teardown. programEnd: also the plot's and the Video screen's workers stopped and waited for, and the camera let go
 static void CloseTheLevel(bool programEnd, long pictureAfter)
@@ -14852,15 +14869,26 @@ static void CloseTheLevel(bool programEnd, long pictureAfter)
 	// left open across a reopen a tile could draw and place another shape than the one it names. (Its check of the level's generation catches any other way.)
 	ShapePickerScreen_Close(false);
 
+	// THE SHAPE CHOOSER is left before its level goes, as its Esc leaves it (Bishop's order 2026-11-24, acceptance-shape-chooser-reopen): its preview is a block of the
+	// game's list, and its list holds the level's shape numbers. Not at the program's end: nothing is drawn after it, and leaving loads another screen's menus.
+	if (!programEnd)
+	{
+		ShapeChooser_LevelGoes();
+	}
+
+	// THE HIERARCHY VIEW'S MODEL goes before its level does (Bishop's LEAD A from Frost's reload audit, 2026-11-24). Its display block and its hierarchy are the game's level's
+	// memory, and the game's close empties both. The view went on moving them every frame, so a reopen while the Hierarchy screen or Object Placement's placed hierarchy showed
+	// a model crashed the editor (acceptance-hierarchy-reopen-shown, acceptance-placed-hierarchy-reopen). The screens' own knowledge of the model goes with it.
+	PlacedHierarchy_LevelGoes();
+	HierarchyScreen_LevelGoes();
+	HierarchyView_LevelGoes();
+
 	editedLevel = nullptr;
 	LevelObjects_Use(nullptr);
 	heldLevel.reset();
 
-	// the sounds Object Placement holds go before the game's level does (its teardown lets go of every loaded sound)
-	host::SoundGame_PreviewStop();
-	host::PlacedSounds_LetGo();
-	host::HierarchySounds_LetGo();
-	host::TrackPlay_EndSounds();
+	// the sounds the editor holds go before the game's level does (its teardown lets go of every loaded sound): the one list (LetGoOfTheLevelsSounds, above)
+	LetGoOfTheLevelsSounds();
 	LevelView_Close();
 }
 
@@ -17070,6 +17098,8 @@ int main(int, char **)
 			// OP-26c: whether the current placed object is in the game's view (has its display block), for the harness: "yes" / "no", empty when no placed object is current
 			host::ModuleLinkAvp_StateLine();
 			StateLine_Add("inplay", host::Selection_Get().kind == host::SelectedKind::Object ? (LevelView_SelectedIsInPlay() ? "yes" : "no") : "");
+			StateLine_Add("gravity", std::string("toggle ") + (placementGravity ? "1 " : "0 ") + LevelView_GravityWords());   // Object Placement's Gravity: the toggle, and whether the game's engine runs it
+			StateLine_Add("chooserpreview", ShapePreview_StateWords());   // the Shape Chooser's preview block: none, ok, or stale (hierarchy_view.h)
 			StateLine_Add("zoom", "stage " + std::to_string(zoomStage) + " scale " + std::to_string((long long)(zoomScale * 1000.0f + 0.5f)));   // Insert's zoom: stage 0 none, 1 the centre, 2 the rectangle; its scale x 1000 (Home's: 1000)
 			GizmoScreen_StateLine();   // gizmo, gizmospace, gizmolast, gizmopoints
 			host::MovableLive_StateLine();   // currenticon: where the current thing was drawn (movable_live.h)
@@ -17077,6 +17107,7 @@ int main(int, char **)
 			host::AutoPlotGrid_ProbeStateLine();   // autoplotgrid, autoplotways (only with AutoPlotProbe=1)
 			StateLine_Add("shaders", "built-in " + std::to_string(host::ShaderText_Served()) + " missing " + std::to_string(host::ShaderText_Missing()));   // shader_text.h: the renderer's asks, served from the editor's own set and not
 			StateLine_Add("levelmemory", LevelView_MemoryWords());   // level_view.h: what the open level took of its 40 blocks of memory (Frost 2026-11-21)
+			StateLine_Add("tracksounds", host::TrackPlay_HeldSoundsWords());   // track_play_game.h: the sounds the track player keeps, and whether the game freed them with the level (the reload audit, Frost 2026-11-24)
 			std::string const surfaceCopy = GizmoScreen_LiveCopyWords();
 			StateLine_Add("surfaceflip", !(snapLive && snapForSurface) ? std::string() : std::to_string(surfaceFlip) + " " + host::SurfaceFlip_Words(surfaceFlip) + (surfaceAlignUp ? " up" : " closest"));   // F: the flip's index, its words and the align (CLOSEST once F is pressed)
 			StateLine_Add("surfacelive", !(snapLive && snapForSurface) ? std::string() : (surfaceCopy.empty() ? std::string("on") : surfaceCopy));   // P3: while the object follows the surface (SurfaceLiveStart), its live copy: "x y z drawn 0|1" (as gizmolive)
@@ -17334,6 +17365,7 @@ int main(int, char **)
 			std::string const placedSoundsWord = "held " + std::to_string(host::PlacedSounds_Held()) + " loaded " + std::to_string(host::PlacedSounds_Loaded()) + " sounding " +
 				std::to_string(host::PlacedSounds_Sounding()) + " current " + std::to_string(currentSounding) + " preview " + (host::SoundGame_PreviewSounding() ? "1" : "0") + " device " +
 				(host::SoundGame_DeviceOn() ? "1" : "0") + " hierarchy " + std::to_string(host::HierarchySounds_Playing());   // PH-2/3/14: the placed hierarchy's sounds playing
+			StateLine_Add("gamesounds", host::PlacedSounds_GameSoundsWords());   // every sound the game plays, by its sample (a held sound on another sample is seen)
 
 			// the editor's window (startup-screen-frost.md SS-13): its client's width and height, and whether it is inteng's full screen (a popup over the monitor) or a framed window
 			RECT windowClient = { 0, 0, 0, 0 };

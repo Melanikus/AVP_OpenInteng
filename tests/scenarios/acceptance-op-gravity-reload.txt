@@ -1,0 +1,59 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-24, Bishop's LEAD B from Frost's reload audit): Object Placement's Gravity lives through a placement. With Gravity on,
+# the objects that fell stay where they fell when a new object is placed, and they go on falling: the game's engine still runs Gravity, as the toggle says.
+# WHY IT FAILED: every new object reloads the game's view of the level (PutTheNewObjectInPlay -> ShowTheWorkingBytes -> LevelView_ShowFile), and that close
+# switches the game's gravity off (LevelView_Close -> LevelView_SetGravity(false)) without writing where the objects fell. The view was made again from the
+# level as saved, so the objects jumped back to their places and stopped, while the editor's toggle still read on (the next Toggle Gravity said "off").
+# MEASURED on 78211c17 (smart1 on Invasion: y 8806, fell to 12630, back at 8806 after one placement) and on the PUBLISHED alpha.5 exe (the same, with a P copy).
+# NOW: before the reload the fallen places are written into the level (PlacementGravityFlush, as Toggle Gravity off does), and after it the game's Gravity is
+# given the new level's objects again.
+# THE STATE LINE: gravity "toggle <1|0> game <1|0> objects <n>" (the editor's toggle, the game's engine); selectedat "x .. y .. z ..".
+# RED on the exe of the commit that brought this file (the gravity field only, no fix): after the placement gravity reads "toggle 1 game 0 objects 0" and
+# smart1 is back at y 8806. GREEN: every line ok.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is smart1
+expect-no-dialog
+wait 400
+remember-field selectedat
+expect-field-has gravity toggle 0 game 0
+click-bar Misc > Toggle Gravity
+expect-status Toggle Gravity: on
+wait 2500
+state
+expect-field-changed selectedat
+expect-field-has gravity toggle 1 game 1
+# where smart1 fell to
+remember-field selectedat
+picture 1
+# ---- a new object placed: the view reloads
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile Smrtam01 twice
+wait 300
+click-win 504 420
+expect-field pickerattach off
+wait 600
+state
+expect-field-has gravity toggle 1 game 1
+picture 2
+# ---- smart1 is where it fell, not back at its place in the file
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is smart1
+expect-no-dialog
+wait 400
+state
+expect-numbers-near selectedat y selectedat y 1 30
+# ---- Gravity off: the toggle and the game together
+click-bar Misc > Toggle Gravity
+expect-status Toggle Gravity: off
+wait 300
+state
+expect-field-has gravity toggle 0 game 0

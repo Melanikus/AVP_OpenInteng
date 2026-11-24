@@ -65,6 +65,20 @@ bool HierarchyView_CurrentSequence(int *sequence, int *sub);
 
 // Takes the model away (its display block, its controller); safe when none is shown
 void HierarchyView_Close();
+
+// THE GAME'S LEVEL GOES (Bishop's LEAD A, 2026-11-24; called by CloseTheLevel BEFORE the game's close): the shown model (HierarchyView_Close) and a model file's own objects
+// (ModelObjects_Close) are blocks in the game's list of display blocks, and the model's controller points into the game's library of hierarchies. The game's close empties
+// both (Destroy_CurrentEnvironment, EndNPCs). Kept across it, the view went on moving them every frame, and a reopen with a model shown crashed the editor.
+void HierarchyView_LevelGoes();
+
+// THE MODEL FILES THE EDITOR COPIED INTO THE GAME (Bishop's LEAD A, 2026-11-24): the view's models and the hierarchy player's are read with the game's loader
+// (avp_load_rif_non_env + copy_rif_data), which puts their shapes in the game's shape list, made of the level's memory pool. Every level close (a reopen, and the
+// view reloaded after each edit) frees that pool, so a copy kept after it left the list pointing at freed memory, and the editor read it every frame
+// (LevelView_PlacementLightingWords: a crash after a model was looked at). Each copy's handle is kept here, and LevelView_Close gives them all back right after
+// the game gives back its own models (EndNPCs), before the pool goes.
+struct _RifHandle;   // the game's RIFFHANDLE (chunk_load.h)
+void HierarchyView_KeepCopiedRif(struct _RifHandle *handle);
+void HierarchyView_GiveBackCopiedRifs();
 bool HierarchyView_IsShown();
 
 // Play / stop (the sequence loops while it plays unless loop is false) and the position, 0..65535 of the sequence; setting the position stops it
@@ -217,5 +231,8 @@ int ShapePreview_PlaceOf(char const *gameName);
 void ShapePreview_Close();
 // The preview's spin (FUN_004ddb60 0x4ddba2-0x4ddbc2, FUN_0053c4f0): one frame of it, each frame the chooser is shown (300 and 600 4096ths of a turn a second about its own x and z)
 void ShapePreview_Spin();
+// The state line's chooserpreview: "none" (no preview block), "ok" (the block is in the game's list and still the preview's own: no module, no strategy, at kPreviewZ),
+// or "stale" (the block was given back, or the slot now holds another block). Read only: the game's blocks are static memory, so looking at the old slot is safe.
+std::string ShapePreview_StateWords();
 
 #endif

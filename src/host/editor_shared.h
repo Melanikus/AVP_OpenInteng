@@ -599,6 +599,7 @@ extern std::string openLevelName;
 extern host::HierarchyMode hierarchyMode;
 bool IsTheHierarchyScreen(size_t screen);
 void LeaveHierarchy();
+void HierarchyScreen_LevelGoes();   // the Hierarchy screen's model let go before the game's level goes (CloseTheLevel); the screen stays
 void NameObjectBox(std::string const &start, std::function<void(std::string const &)> const &named);
 
 // Every editor object's icon as it is drawn, with the object's id, for Strategy Data's click (an icon is a thing the click can land on, as inteng's display blocks are)
@@ -632,6 +633,7 @@ void CameraPositionSaved(int slot);
 
 // made in construction_modes_screen.cpp
 bool ShapeChooserKey(WPARAM key);
+void ShapeChooser_LevelGoes();   // the chooser left (as its Esc) before the game's level goes (CloseTheLevel); nothing when it isn't up
 void ShapeChooserPick(std::string const &typed);
 
 // made in editor_screen_keys.cpp
@@ -652,6 +654,8 @@ extern std::wstring levelSourcePath;
 void DeleteLinksFrame();
 bool DeleteLinksRunning();
 void ShowTheWorkingBytes();
+// made in editor_main.cpp: every sound the editor holds let go BEFORE the game's level goes: CloseTheLevel, and ShowTheWorkingBytes before the view reloads
+void LetGoOfTheLevelsSounds();
 void PutTheNewObjectInPlay();   // OP-26c: a new object is in the game's view at once (ShowTheWorkingBytes, not while a live copy flies or a ghost shows)
 void AutoLinkLoadFileCommand();
 void GenerateAdjacency(bool newOnly);
@@ -743,6 +747,7 @@ extern std::vector<int32_t> linkedGameModules;
 extern std::string viewWords;
 int32_t ActionOfCommand(char const *table, int32_t command);
 bool PlacementGravityOn();   // Object Placement's Misc > Toggle Gravity (DAT_008f4f50; editor_main.cpp): off at every start of the mode but the Shape Chooser's return (V-24)
+void PlacementGravityFlush();   // the places Gravity's engine moved objects to, written into the level (editor_main.cpp); nothing while Gravity is off
 bool PlacementLightingOn();   // Object Placement's Misc > Lighting (DAT_008f4f0c; editor_main.cpp): the placed objects with baked colours lit; off when the editor starts, then kept (OP-44)
 int32_t HierarchyBarAction(int32_t command);
 
@@ -1129,6 +1134,7 @@ extern int placedHierarchyShown;
 extern size_t placedHierarchyRecord;
 void PlacedHierarchyFrame(bool here);
 void PlacedHierarchyCommand(int32_t command);
+void PlacedHierarchy_LevelGoes();   // the placed hierarchy's model let go before the game's level goes (CloseTheLevel)
 
 // OutsideShapes_RefreshFile's answer (editor_prompts.cpp): what the refresh of a whole level file did
 enum class OutsideRefresh

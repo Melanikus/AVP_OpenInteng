@@ -1,0 +1,70 @@
+# ACCEPTANCE (red first; Frost 2026-11-24, Bishop's order for beta.0's third cut: the reload audit's HELD 1, Tao 1, memory safety): THE HIERARCHY SCREEN'S LISTEN keeps no sound past
+# its level. A right click on a row of a sound list ("Right click to listen to sound") plays that sound, and the track player keeps it until the next listen, which stops it and lets it
+# go (track_play_game.cpp TrackPlay_Listen). When the level the view shows goes (leaving the screen with the level changed shows the edited level again, ShowTheWorkingBytes; a
+# placement; a close), the game frees every loaded sound with it (LoseAllNonCommonSounds), so the sound kept was gone memory, and the next listen let it go again. Now the listen's
+# sound is let go when the screen is left and before any level goes. The state line's tracksounds field says what the track player keeps and whether the game still holds it:
+# "listen held, freed by the level" is the bug; "stale let-gos" counts the sounds let go after the game had freed them (pointers compared only, never read through).
+# His path: his MelPyth HUD file (12 sounds, as acceptance-hierarchy-menu-walk), the Shotgun and its Standard_Reload, Sound > Edit sound, a right click on 001: it plays. A new sound
+# (13: the file changed), the screen left by Mode > Exit, the level opened again, back in, and a second listen.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/hicks-proofs/melpyth-m5/MelPyth_avp_huds/MelPyth_MarHUD.RIF
+pictures on
+state
+expect-screen Construction
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+expect-field-has tracksounds listen none
+
+# ---- the listen: the sound plays, and the track player keeps it
+click-bar Sound > Edit sound
+expect-dialog Select sound to edit      (Right click to listen to sound)
+right-click-choice 001 Marine\Ed_nade_ready.wav
+expect-status Listening to Marine\Ed_nade_ready.wav
+expect-field-has tracksounds listen held;
+key Esc
+expect-no-dialog
+
+# ---- the file changed: a new sound, 13 (its Sound Edit window cancelled: the sound stays made)
+click-bar Sound > New sound
+expect-dialog Select sound index
+expect-dialog-text 13
+click-button Ok
+expect-dialog Sound Edit
+click-button Cancel
+expect-no-dialog
+
+# ---- the screen left: the listen's sound goes with it, before the view shows the edited level again
+click-bar Mode > Exit
+expect-screen Construction
+expect-field-has tracksounds listen none
+picture 1
+
+# ---- the level opened again (the start search's reopen does it on any screen, as do All stock maps and Mode > Open): the game frees every loaded sound with it.
+# No sound of the listen's is kept past that (RED on the cut: "listen held, freed by the level", and the next listen let it go again: "stale let-gos 1")
+reopen-level
+expect-field-not-has tracksounds freed by the level
+expect-field-has tracksounds listen none
+
+# ---- back in, and a second listen: no kept sound is let go after the game freed it
+click-bar Mode > Hierarchy
+expect-screen Hierarchy
+click-win 500 300 right
+click-popup 1
+expect-dialog Select Hierarchy
+click-row 6
+expect-dialog Select Sequence
+click-row 4
+expect-no-dialog
+click-bar Sound > Edit sound
+expect-dialog Select sound to edit      (Right click to listen to sound)
+right-click-choice 001 Marine\Ed_nade_ready.wav
+expect-status Listening to Marine\Ed_nade_ready.wav
+expect-field-has tracksounds stale let-gos 0
+key Esc
+expect-no-dialog
