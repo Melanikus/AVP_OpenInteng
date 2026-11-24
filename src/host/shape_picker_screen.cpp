@@ -121,8 +121,9 @@ namespace
 
 	// THE OPENING'S LOOK at each tile drawn from its own file (shape_picker.h ShapePicker_Thin; the owner, 2026-11-23: "No picture means no geometry? if yes
 	// don't show!", and copies that look the same folded into one tile): read with the drawing's own read (ShapeImport_Read: one handle, a plain file, at most
-	// kShapeImportMostBytes; then ShapeThumb_Read, every count checked), at most kShapePickerMostLookMs in all. A tile "in this level" is drawn from the level's
-	// own shape, not its file, so it isn't looked at; a file that can't be read, or no room to read it, keeps its tile and says why when it is drawn.
+	// kShapeImportMostBytes; then ShapeThumb_Read, every count checked), at most kShapePickerMostLookMs in all. A tile of the LEVEL'S OWN shape ("in this
+	// level", or the level's alone) is looked at as it is drawn and placed: the level's shape of its number made a file (LevelShapeAsFile; Dietrich 2026-11-24,
+	// so the level's own tiles fold too); a file that can't be read, or no room to read it, keeps its tile and says why when it is drawn.
 	// THE SAME SURFACE IN ANOTHER POLYGON LIST, FOLDED (Vasquez 2026-11-24; the owner: "dedupe those", Bishop's approval): the files looked at below are grouped
 	// by what one surface's files share (shape_resized.h ShapeResized_SurfaceKey); in each group the first by name (the plain one: "pulse" before "pulse_als-dm")
 	// is kept, and every other one that is ITS SURFACE (ShapeResized_SameSurface, either way round: every point exactly equal, its quads two of the other's
@@ -156,22 +157,45 @@ namespace
 
 			std::sort(byName.begin(), byName.end(), [](SurfaceTile const *a, SurfaceTile const *b) { return a->tile < b->tile; });
 
-			SurfaceTile const &kept = *byName[0];
+			// THE LEVEL'S OWN TILE KEPT (Dietrich 2026-11-24, Bishop's default): when the group holds a tile of the level's own shape, the first such is kept
+			// (placed by its number, nothing brought in), as ShapePicker_Thin keeps it
+			size_t keep = 0;
+
+			for (size_t k = 0; k < byName.size(); k++)
+			{
+				host::ShapePickerTile const &tile = list.tiles[byName[k]->tile];
+
+				if (tile.inLevel || tile.levelOnly)
+				{
+					keep = k;
+					break;
+				}
+			}
+
+			SurfaceTile const &kept = *byName[keep];
 			std::string const &look = (*looks)[kept.tile].fingerprint;
 
-			for (size_t k = 1; k < byName.size() && !look.empty(); k++)
+			for (size_t k = 0; k < byName.size() && !look.empty(); k++)
 			{
+				if (k == keep)
+				{
+					continue;
+				}
+
 				SurfaceTile const &other = *byName[k];
 
 				if (host::ShapeResized_SameSurface(other.model, kept.model, nullptr) || host::ShapeResized_SameSurface(kept.model, other.model, nullptr))
 				{
-					(*looks)[other.tile].fingerprint = look;   // folded into the plain one's tile by ShapePicker_Thin
+					(*looks)[other.tile].fingerprint = look;   // folded into the kept tile by ShapePicker_Thin
 				}
 			}
 		}
 	}
 
-	std::vector<host::ShapePickerLook> LookAtTheFiles(size_t *pastTime, DWORD *tookMs)
+	// levelNumbers: each tile's level shape by its number (-1: a folder's file only), as Open works them out before the look
+	bool LevelShapeAsFile(int32_t number, std::vector<char> *file);
+
+	std::vector<host::ShapePickerLook> LookAtTheFiles(std::vector<int32_t> const &levelNumbers, size_t *pastTime, DWORD *tookMs)
 	{
 		std::vector<host::ShapePickerLook> looks(list.tiles.size());
 		DWORD const start = GetTickCount();
@@ -184,10 +208,12 @@ namespace
 		for (size_t i = 0; i < list.tiles.size(); i++)
 		{
 			host::ShapePickerTile const &tile = list.tiles[i];
+			int32_t const number = i < levelNumbers.size() ? levelNumbers[i] : -1;
+			bool const fromLevel = (tile.inLevel || tile.levelOnly) && number >= 0;
 
-			if (tile.inLevel || tile.levelOnly)
+			if ((tile.inLevel || tile.levelOnly) && number < 0)
 			{
-				continue;
+				continue;   // (a level tile with no shape of its own here: drawn from its file, as before, and not looked at)
 			}
 
 			if (GetTickCount() - start > host::kShapePickerMostLookMs)
@@ -203,13 +229,14 @@ namespace
 				host::ShapeThumbModel model;
 				bool noGeometry = false;
 
-				if (host::ShapeImport_Read(FolderOf(tile).c_str(), tile.name, &bytes, &fileName) != host::ShapeImportResult::Done)
+				if (fromLevel ? !LevelShapeAsFile(number, &bytes) : host::ShapeImport_Read(FolderOf(tile).c_str(), tile.name, &bytes, &fileName) != host::ShapeImportResult::Done)
 				{
 					continue;   // (said when it is drawn, by the same read)
 				}
 
-				// what the identity table knows it by: these very bytes' SHA-256 (the order by kind, ShapePickerScreen_Open; Frost 2026-11-24)
-				looks[i].fileSha = host::ShapeExtract_Sha256(bytes);
+				// what the identity table knows it by: these very bytes' SHA-256 (the order by kind, ShapePickerScreen_Open; Frost 2026-11-24); a level tile is known
+				// by the file its shape makes (ShapeExtract_FileSums, later), not by these bytes
+				looks[i].fileSha = fromLevel ? std::string() : host::ShapeExtract_Sha256(bytes);
 
 				if (!host::ShapeThumb_Read(bytes, &model, &why, &noGeometry))
 				{
@@ -1011,11 +1038,48 @@ bool ShapePickerScreen_Open()
 
 	list = host::ShapePicker_List(folders, levelFiles);
 
-	// NO GEOMETRY, NO TILE; COPIES FOLDED (the owner 11-23, through Bishop 2): each folder tile's file looked at, then the empty ones left out and the lookalikes
-	// folded, before the level's own shapes are added (those are drawn from the level, by number)
+	// THE LEVEL'S OWN SHAPES as tiles too (shape_picker.h ShapePicker_AddLevelShapes; Bishop 2's decision on the owner's "items from shape_rifs + level"): a
+	// shape the level alone holds, and each part of a fragment file, drawn and placed by number. ADDED BEFORE THE LOOK (Dietrich 2026-11-24, Bishop's card:
+	// "fold the LEVEL's own tiles too"), each with its shape's number, so the look reads the level's shape and the thinning folds it like any other tile
+	std::vector<host::ShapePickerLevelShape> levelShapes;
+
+	for (host::ShapeChoice const &one : shapes)
+	{
+		host::ShapePickerLevelShape s;
+
+		s.file = one.name;
+		s.gameName = one.gameName;
+		s.number = one.number;
+		levelShapes.push_back(s);
+	}
+
+	host::ShapePicker_AddLevelShapes(&list, levelShapes);
+
+	std::vector<int32_t> lookNumbers(list.tiles.size(), -1);   // each tile's level shape for the look: the level's alone by its own number, an "in this level" file's
+	                                                          // by the level's FIRST of that file (as it is drawn and placed, below)
+
+	for (size_t i = 0; i < list.tiles.size(); i++)
+	{
+		if (list.tiles[i].levelOnly)
+		{
+			lookNumbers[i] = list.tiles[i].levelNumber;
+			continue;
+		}
+
+		for (host::ShapeChoice const &one : shapes)
+		{
+			if (list.tiles[i].inLevel && lookNumbers[i] < 0 && _stricmp(one.name.c_str(), list.tiles[i].name.c_str()) == 0)
+			{
+				lookNumbers[i] = one.number;
+			}
+		}
+	}
+
+	// NO GEOMETRY, NO TILE; COPIES FOLDED (the owner 11-23, through Bishop 2): each tile looked at (a folder's file, or the level's own shape), then the empty
+	// ones left out and the lookalikes folded, the level's own tile kept when it is one of them
 	size_t pastTime = 0;
 	DWORD lookMs = 0;
-	std::vector<host::ShapePickerLook> const looks = LookAtTheFiles(&pastTime, &lookMs);
+	std::vector<host::ShapePickerLook> const looks = LookAtTheFiles(lookNumbers, &pastTime, &lookMs);
 
 	for (size_t i = 0; i < list.tiles.size() && i < looks.size(); i++)
 	{
@@ -1034,21 +1098,6 @@ bool ShapePickerScreen_Open()
 		list.notes.push_back("looking at the files took " + std::to_string((unsigned long)lookMs) + " ms as the picker opened");
 	}
 
-	// THE LEVEL'S OWN SHAPES as tiles too (shape_picker.h ShapePicker_AddLevelShapes; Bishop 2's decision on the owner's "items from shape_rifs + level"): a
-	// shape the level alone holds, and each part of a fragment file, drawn and placed by number
-	std::vector<host::ShapePickerLevelShape> levelShapes;
-
-	for (host::ShapeChoice const &one : shapes)
-	{
-		host::ShapePickerLevelShape s;
-
-		s.file = one.name;
-		s.gameName = one.gameName;
-		s.number = one.number;
-		levelShapes.push_back(s);
-	}
-
-	host::ShapePicker_AddLevelShapes(&list, levelShapes);
 	states.assign(list.tiles.size(), host::ShapePickerState());
 	shaOf.assign(list.tiles.size(), std::string());
 	noPictureOf.assign(list.tiles.size(), std::string());

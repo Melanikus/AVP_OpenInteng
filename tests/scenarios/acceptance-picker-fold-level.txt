@@ -1,0 +1,24 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-24, Bishop's card "fold the LEVEL's own tiles too", after Vasquez's fold, acceptance-picker-fold): a tile of the LEVEL'S
+# OWN shape folds with a folder's file of the same surface, and the level's own tile is the one kept (Bishop's default, the owner may change it: placed by its
+# number, nothing brought in), the file named in its copies. Before, the level's own tiles were added after the thinning, never looked at, so a level's
+# pulse stayed apart from the same pulse in another file.
+# THE GAME FOLDER (make_shape_game, the editor's own extractor): Lockdown4, which holds pulse at its own size (the identity table's pulse.rif row lists it), and
+# in <game>\shape_rifs pulse_als-dm.rif: the pulse of als-dm.rif, another polygon list of the same surface (the conflict variant Vasquez's fold folds into
+# the plain pulse), named so by make_shape_game's named: place. The level holds pulse, the folder doesn't, so pulse is the level's own tile.
+# THE STATE LINE: pickerfolded "<kept>~<copy>|...", pickertiles "<name>: <where>; ...".
+# RED on exe-cache/febb7815.exe (bishop-int with Vasquez's fold): pickerfolded empty, 16 tiles; GREEN on 3a8fecaf: "pulse~pulse_als-dm", 15 tiles.
+#ini DataFolder={datadir}-fold-level-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-fold-level-game {datadir} Lockdown4.rif als-dm.rif pulse named:pulse_als-dm
+level {datadir}-fold-level-game/avp_rifs/Lockdown4.rif
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+expect-field-has pickerfolded pulse~pulse_als-dm
+expect-field-not-has pickertiles pulse_als-dm:
+picture 1

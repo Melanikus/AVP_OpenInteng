@@ -188,9 +188,30 @@ namespace host
 		*out = ShapePickerThinned();
 
 		std::vector<ShapePickerTile> kept;
-		std::map<std::string, size_t> byLook;   // a fingerprint: the kept tile (in `kept`) it belongs to, the first by name (the tiles are in name order)
+		std::map<std::string, size_t> survivor;   // a fingerprint: the tile (in list->tiles) its group keeps: the first by name, or the first of the level's own
+		std::map<std::string, size_t> byLook;     // a fingerprint: where that survivor is in `kept`
+		auto const fromLevel = [list](size_t i) { return list->tiles[i].inLevel || list->tiles[i].levelOnly; };
 
 		kept.reserve(list->tiles.size());
+
+		// THE SURVIVOR OF EACH GROUP first (Dietrich 2026-11-24): the first tile of that look, unless a later one is the level's own and the first isn't
+		for (size_t i = 0; i < list->tiles.size() && i < looks.size(); i++)
+		{
+			if (looks[i].noGeometry || looks[i].fingerprint.empty())
+			{
+				continue;
+			}
+
+			auto const was = survivor.find(looks[i].fingerprint);
+
+			if (was == survivor.end() || (fromLevel(i) && !fromLevel(was->second)))
+			{
+				survivor[looks[i].fingerprint] = i;
+			}
+		}
+
+		// then the tiles in their order: a survivor kept where it stands, every other tile of its look folded into it (its name in the survivor's copies)
+		std::vector<std::pair<std::string, std::string>> folds;   // (fingerprint, the folded tile's name), in order: put into the survivors once all are kept
 
 		for (size_t i = 0; i < list->tiles.size(); i++)
 		{
@@ -202,23 +223,26 @@ namespace host
 				continue;
 			}
 
+			if (!look.fingerprint.empty() && survivor[look.fingerprint] != i)
+			{
+				folds.push_back(std::make_pair(look.fingerprint, list->tiles[i].name));
+				continue;
+			}
+
 			if (!look.fingerprint.empty())
 			{
-				auto const same = byLook.find(look.fingerprint);
-
-				if (same != byLook.end())
-				{
-					ShapePickerTile &into = kept[same->second];
-
-					into.copies.push_back(list->tiles[i].name);
-					out->folded.push_back(into.name + "~" + list->tiles[i].name);
-					continue;
-				}
-
 				byLook[look.fingerprint] = kept.size();
 			}
 
 			kept.push_back(list->tiles[i]);
+		}
+
+		for (auto const &fold : folds)
+		{
+			ShapePickerTile &into = kept[byLook[fold.first]];
+
+			into.copies.push_back(fold.second);
+			out->folded.push_back(into.name + "~" + fold.second);
 		}
 
 		list->tiles.swap(kept);

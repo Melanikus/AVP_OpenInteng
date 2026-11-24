@@ -89,6 +89,8 @@ namespace host
 
 	// NO GEOMETRY, NO TILE; COPIES FOLDED: each tile whose look says no geometry left out of the grid (a broken or too big file keeps its tile, with why); of the
 	// tiles whose fingerprints are the same, the first by name kept (the plain one, when the group holds it: "cratese" sorts before "cratese_fcra") with the
+	// [THE LEVEL'S OWN TILE SURVIVES (Dietrich 2026-11-24, Bishop's default, the owner may change it): when the group holds a tile of the level's own shape
+	// (inLevel or levelOnly: placed by its number, nothing brought in), the first such is kept instead, so a fold never trades the level's shape for a file]
 	// others' names in its copies, and the others taken out. A copy that truly looks different has another fingerprint and keeps its own tile. looks shorter
 	// than the tiles leaves the rest as they are. Notes, one line each when any: how many were left out, how many copies were folded, and how many files
 	// weren't looked at in time (pastTime)

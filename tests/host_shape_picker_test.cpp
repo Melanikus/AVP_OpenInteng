@@ -495,6 +495,51 @@ int main()
 			"no note");
 	}
 
+	// ---- (12) THE LEVEL'S OWN TILE SURVIVES A FOLD (Dietrich 2026-11-24, Bishop's card "fold the LEVEL's own tiles too", his default the owner may change): a
+	// folder holds pulse_als-dm and zeta, the level holds pulse (its own tile, levelOnly) and zeta (so the folder's zeta is "in this level"); pulse and
+	// pulse_als-dm look the same, and so do zeta and a folder's apple
+	{
+		ShapePickerList list = ShapePicker_List({ Folder("C:\\G", "here", { "apple.rif", "pulse_als-dm.rif", "zeta.rif" }) }, { "zeta" });
+		std::vector<ShapePickerLevelShape> level(1);
+
+		level[0].file = "pulse";
+		level[0].number = 7;
+		ShapePicker_AddLevelShapes(&list, level);   // (before the look, as the open does now)
+
+		bool const shaped = list.tiles.size() == 4 && list.tiles[0].name == "apple" && list.tiles[1].name == "pulse" && list.tiles[1].levelOnly &&
+			list.tiles[2].name == "pulse_als-dm" && list.tiles[3].name == "zeta" && list.tiles[3].inLevel;
+
+		Check(shaped, "(12) the list before the thinning, by name: apple, pulse (the level's own), pulse_als-dm, zeta (in this level)");
+
+		std::vector<ShapePickerLook> looks(4);
+		ShapePickerThinned thinned;
+
+		looks[0].fingerprint = "Z";   // apple looks as zeta does: a folder's file BEFORE the level's tile of its look
+		looks[1].fingerprint = "P";   // the level's pulse ...
+		looks[2].fingerprint = "P";   // ... as pulse_als-dm
+		looks[3].fingerprint = "Z";
+		ShapePicker_Thin(&list, looks, 0, &thinned);
+
+		std::string names;
+
+		for (ShapePickerTile const &tile : list.tiles)
+		{
+			names += (names.empty() ? "" : " ") + tile.name + (tile.copies.empty() ? "" : "[" + tile.copies[0] + "]");
+		}
+
+		Check(names == "pulse[pulse_als-dm] zeta[apple]", "(12) the level's own tile kept in each fold, even after a folder's file of its look, where it stood: " + names);
+		Check(thinned.folded == std::vector<std::string>{ "zeta~apple", "pulse~pulse_als-dm" }, "(12) the folds said, the kept tile first");
+
+		// two folder files only: the first by name kept, as before
+		ShapePickerList files = ShapePicker_List({ Folder("C:\\G", "here", { "cratese.rif", "cratese_fcra.rif" }) }, {});
+		std::vector<ShapePickerLook> same(2);
+
+		same[0].fingerprint = same[1].fingerprint = "C";
+		ShapePicker_Thin(&files, same, 0, &thinned);
+		Check(files.tiles.size() == 1 && files.tiles[0].name == "cratese" && files.tiles[0].copies == std::vector<std::string>{ "cratese_fcra" },
+			"(12) no level tile in the fold: the first by name kept, as before");
+	}
+
 	printf(checksFailed ? "host_shape_picker_test: %d FAILED\n" : "host_shape_picker_test: all passed\n", checksFailed);
 	return checksFailed ? 1 : 0;
 }
