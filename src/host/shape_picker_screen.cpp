@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <algorithm>
 #include <map>
 #include <new>
 #include <string>
@@ -122,10 +123,60 @@ namespace
 	// don't show!", and copies that look the same folded into one tile): read with the drawing's own read (ShapeImport_Read: one handle, a plain file, at most
 	// kShapeImportMostBytes; then ShapeThumb_Read, every count checked), at most kShapePickerMostLookMs in all. A tile "in this level" is drawn from the level's
 	// own shape, not its file, so it isn't looked at; a file that can't be read, or no room to read it, keeps its tile and says why when it is drawn.
+	// THE SAME SURFACE IN ANOTHER POLYGON LIST, FOLDED (Vasquez 2026-11-24; the owner: "dedupe those", Bishop's approval): the files looked at below are grouped
+	// by what one surface's files share (shape_resized.h ShapeResized_SurfaceKey); in each group the first by name (the plain one: "pulse" before "pulse_als-dm")
+	// is kept, and every other one that is ITS SURFACE (ShapeResized_SameSurface, either way round: every point exactly equal, its quads two of the other's
+	// triangles) is given its look, so ShapePicker_Thin folds it into that tile, named in its copies, as a lookalike is. The plain one is what is drawn and
+	// placed, the file Quick-create would take. The models kept for it: at most kFoldMostCoordinates coordinates in all (past that, the rest keep their tiles)
+	size_t const kFoldMostCoordinates = 4 * 1024 * 1024;
+
+	struct SurfaceTile
+	{
+		size_t tile = 0;
+		host::ShapeThumbModel model;
+	};
+
+	void FoldSameSurfaces(std::map<std::string, std::vector<SurfaceTile>> const &surfaces, std::vector<host::ShapePickerLook> *looks)
+	{
+		for (auto const &group : surfaces)
+		{
+			if (group.second.size() < 2)
+			{
+				continue;
+			}
+
+			// the first by name, as ShapePicker_Thin keeps: the list is in the order of the names in small letters as the files are looked at (the order by
+			// kind comes later), so the first tile of the group
+			std::vector<SurfaceTile const *> byName;
+
+			for (SurfaceTile const &one : group.second)
+			{
+				byName.push_back(&one);
+			}
+
+			std::sort(byName.begin(), byName.end(), [](SurfaceTile const *a, SurfaceTile const *b) { return a->tile < b->tile; });
+
+			SurfaceTile const &kept = *byName[0];
+			std::string const &look = (*looks)[kept.tile].fingerprint;
+
+			for (size_t k = 1; k < byName.size() && !look.empty(); k++)
+			{
+				SurfaceTile const &other = *byName[k];
+
+				if (host::ShapeResized_SameSurface(other.model, kept.model, nullptr) || host::ShapeResized_SameSurface(kept.model, other.model, nullptr))
+				{
+					(*looks)[other.tile].fingerprint = look;   // folded into the plain one's tile by ShapePicker_Thin
+				}
+			}
+		}
+	}
+
 	std::vector<host::ShapePickerLook> LookAtTheFiles(size_t *pastTime, DWORD *tookMs)
 	{
 		std::vector<host::ShapePickerLook> looks(list.tiles.size());
 		DWORD const start = GetTickCount();
+		std::map<std::string, std::vector<SurfaceTile>> surfaces;   // by the SHA-256 of their surface key (the fold, above)
+		size_t keptCoordinates = 0;
 
 		*pastTime = 0;
 		*tookMs = 0;
@@ -169,11 +220,29 @@ namespace
 				std::string const look = host::ShapeThumb_LookBytes(model);
 
 				looks[i].fingerprint = look.empty() ? std::string() : host::ShapeExtract_Sha256(std::vector<char>(look.begin(), look.end()));
+
+				// kept for the fold by its surface (above), while there is room
+				std::string const surface = looks[i].fingerprint.empty() ? std::string() : host::ShapeResized_SurfaceKey(model);
+
+				if (!surface.empty() && keptCoordinates + model.points.size() <= kFoldMostCoordinates)
+				{
+					keptCoordinates += model.points.size();
+					surfaces[host::ShapeExtract_Sha256(std::vector<char>(surface.begin(), surface.end()))].push_back(SurfaceTile{ i, std::move(model) });
+				}
 			}
 			catch (std::bad_alloc const &)
 			{
 				looks[i] = host::ShapePickerLook();   // no room to look at it: it keeps its tile (the drawing says so in its turn)
 			}
+		}
+
+		try
+		{
+			FoldSameSurfaces(surfaces, &looks);
+		}
+		catch (std::bad_alloc const &)
+		{
+			// no room to compare them: each keeps its own tile
 		}
 
 		*tookMs = GetTickCount() - start;

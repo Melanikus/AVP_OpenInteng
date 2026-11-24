@@ -28,7 +28,7 @@ wait-field pickershown waiting 0 20000
 expect-field-has pickerstockpickups 28 of 28 read in
 # MEASURED 2026-11-24 (vasquez-resized-search1): Invasion's own armour01 is the variant armour01_fall_m.rif at 1.426, not armour01.rif (186 polygons and 150).
 # Brought into view first, as the others below: since Frost's sort by kind (ddc58a1e) the known pickups come first, and a resized copy, known only once drawn,
-# sorts with the unknown at the open (his follow-up compares at the open)
+# sorts with the unknown at the open (Dietrich's follow-up compares at the open)
 click-tile armour01
 wait-field pickershown waiting 0 20000
 expect-field-has pickertyped armour01~armour

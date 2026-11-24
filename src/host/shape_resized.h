@@ -60,4 +60,21 @@ namespace host
 
 	// Is `copy` the `stock` shape at one uniform scale (above)? Both as ShapeThumb_Read made them.
 	ShapeResizedAnswer ShapeResized_Compare(ShapeThumbModel const &copy, ShapeThumbModel const &stock);
+
+	// THE SAME SURFACE, ANOTHER POLYGON LIST (Vasquez 2026-11-24; the owner: "dedupe those", Bishop's approval): a stock pickup's conflict variant is often the
+	// same shape with its triangle pairs merged into quads (MEASURED: pulse.rif 142 triangles, pulse_als-dm 16 triangles and 63 quads, every point equal; so too
+	// smrtam01, sadar and pboost). `merged` is the same surface as `split` when, every part of it the same:
+	//   - one shape in each, the same shape flags (but the outside-file mark), the same points EXACTLY (each coordinate equal), at most kShapeResizedMostPoints;
+	//   - every polygon of `merged` is ONE triangle of `split` (the same corners, turning the same way, from any corner) or a quad that is TWO of its triangles
+	//     cut along either diagonal, each piece turning as the quad does; and every piece takes the same places in the same picture (by its texture NAME, any
+	//     capitals) with the same item type and flags;
+	//   - every triangle of `split` is used exactly once. `split` holds triangles only (a quad in it: not compared).
+	// So a part of the shape, a polygon more, another picture or a face turned the other way is never the same. Bounded: the counts first, then one sort.
+	// False with *why in plain words when not.
+	bool ShapeResized_SameSurface(ShapeThumbModel const &merged, ShapeThumbModel const &split, std::string *why);
+
+	// WHAT TWO FILES OF ONE SURFACE SHARE, as bytes, so the picker groups the files to compare without comparing every pair: the shape flags (but the outside-file
+	// mark), how many triangles it is in all (a quad is two), its points exactly, and its pictures' names in small letters, sorted. Empty for a file of more
+	// than one shape or with no point (never folded). The same key is not the same surface: ShapeResized_SameSurface decides
+	std::string ShapeResized_SurfaceKey(ShapeThumbModel const &model);
 }

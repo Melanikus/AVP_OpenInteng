@@ -114,6 +114,50 @@ static void NotSame(host::ShapeThumbModel const &copy, std::string const &what, 
 	Check(!a.same && a.why.find(words) != std::string::npos, what + ": not the same, said \"" + a.why + "\" (wanted \"" + words + "\")");
 }
 
+// The stock box (six quads) with each quad cut into two triangles: along its 0-2 diagonal (cut 0), its 1-3 one (cut 1), or the polygon's number's own
+// (cut 2: even 0-2, odd 1-3); each piece turning as the quad does, with its places and picture
+static host::ShapeThumbModel Split(host::ShapeThumbModel const &quads, int cut)
+{
+	host::ShapeThumbModel m = quads;
+
+	m.polygons.clear();
+
+	for (size_t i = 0; i < quads.polygons.size(); i++)
+	{
+		host::ShapeThumbPolygon const &q = quads.polygons[i];
+		bool const along02 = cut == 0 || (cut == 2 && i % 2 == 0);
+		int const halves[2][3] = { { 0, 1, along02 ? 2 : 3 }, { along02 ? 0 : 1, 2, 3 } };
+
+		for (auto const &h : halves)
+		{
+			host::ShapeThumbPolygon t = q;
+
+			t.cornerCount = 3;
+
+			for (int k = 0; k < 3; k++)
+			{
+				t.corners[k] = q.corners[h[k]];
+				t.texels[k][0] = q.texels[h[k]][0];
+				t.texels[k][1] = q.texels[h[k]][1];
+			}
+
+			t.corners[3] = t.corners[4] = -1;
+			m.polygons.push_back(t);
+		}
+	}
+
+	return m;
+}
+
+static void Surface(bool want, host::ShapeThumbModel const &merged, host::ShapeThumbModel const &split, std::string const &what, std::string const &words = "")
+{
+	std::string why;
+	bool const got = host::ShapeResized_SameSurface(merged, split, &why);
+
+	Check(got == want && (want || why.find(words) != std::string::npos), what + (want ? ": the same surface" : ": not the same surface") + (why.empty() ? "" : ", said \"" +
+		why + "\"") + (want || words.empty() ? "" : " (wanted \"" + words + "\")"));
+}
+
 int main()
 {
 	printf("host_shape_resized_test: a resized copy of a stock shape (shape_resized.h)\n");
@@ -289,6 +333,59 @@ int main()
 		}
 
 		NotSame(copy, "(5) a stock shape 6 mm across", "the stock shape is too small to tell a scale by", tiny);
+	}
+
+	// (6) THE SAME SURFACE, ANOTHER POLYGON LIST (the fold: a stock pickup's variant with its triangle pairs merged into quads)
+	{
+		host::ShapeThumbModel const quads = Stock(), cut02 = Split(Stock(), 0), cut13 = Split(Stock(), 1), mixed = Split(Stock(), 2);
+
+		Surface(true, quads, cut02, "(6) six quads against their twelve triangles cut 0-2");
+		Surface(true, quads, cut13, "(6) against them cut 1-3");
+		Surface(true, quads, mixed, "(6) against them cut either way, polygon by polygon");
+		Surface(true, cut02, cut02, "(6) the triangles against themselves");
+
+		host::ShapeThumbModel fewer = cut02, more = cut02, turned = cut02, otherPlace = cut02, moved = cut02, otherName = cut02, sameNameCaps = cut02;
+		fewer.polygons.pop_back();
+		more.polygons.push_back(more.polygons[0]);
+		std::swap(turned.polygons[3].corners[1], turned.polygons[3].corners[2]);   // a face turned the other way
+		std::swap(turned.polygons[3].texels[1][0], turned.polygons[3].texels[2][0]);
+		std::swap(turned.polygons[3].texels[1][1], turned.polygons[3].texels[2][1]);
+		otherPlace.polygons[5].texels[2][1] = 30;
+		moved.points[7] += 1;
+		otherName.pictures[0].name = "Common\\Other.rim";
+		sameNameCaps.pictures[0].name = "COMMON\\PIKUP.RIM";
+
+		Surface(false, quads, fewer, "(6) a triangle missing (a part of the shape)", "another number of triangles in all: 12 and 11");
+		Surface(false, quads, more, "(6) a triangle more", "another number of triangles in all: 12 and 13");
+		Surface(false, quads, turned, "(6) a face turned the other way", "is no two triangles of the other");
+		Surface(false, quads, otherPlace, "(6) one corner's place in the picture another", "is no two triangles of the other");
+		Surface(false, quads, moved, "(6) a point 1 mm elsewhere", "a point is somewhere else");
+		Surface(false, quads, otherName, "(6) another picture", "is no two triangles of the other");
+		Surface(true, quads, sameNameCaps, "(6) the picture's name in other capitals");
+		Surface(false, cut02, quads, "(6) the one to compare with holds quads", "holds a polygon of more than three corners");
+
+		host::ShapeThumbModel five = quads, nan = quads, past = quads, flags = quads, mark = quads;
+		five.polygons[0].cornerCount = 5;
+		five.polygons[0].corners[4] = 1;
+		nan.polygons[2].texels[0][0] = std::numeric_limits<float>::quiet_NaN();
+		past.polygons[1].corners[2] = 99;
+		flags.shapeFlags = 0x41;
+		mark.shapeFlags = 0x40 | host::kShapeResizedOutsideMark;
+		Surface(false, five, cut02, "(6) a polygon of five corners", "five corners");
+		Surface(false, nan, cut02, "(6) a place that isn't a number", "isn't a number");
+		Surface(false, past, cut02, "(6) a corner naming point 99 of 8", "a point the shape doesn't have");
+		Surface(false, flags, cut02, "(6) other shape flags", "other shape flags");
+		Surface(true, mark, cut02, "(6) the level's outside-file mark alone");
+
+		// THE KEY the picker groups files by: the quads and their triangles share it; a point elsewhere, another picture, a triangle more do not; two parts: none
+		host::ShapeThumbModel twoParts = quads;
+		twoParts.parts = 2;
+		std::string const key = host::ShapeResized_SurfaceKey(quads);
+		Check(!key.empty() && key == host::ShapeResized_SurfaceKey(cut02) && key == host::ShapeResized_SurfaceKey(mixed) && key == host::ShapeResized_SurfaceKey(mark) &&
+			key == host::ShapeResized_SurfaceKey(sameNameCaps), "(6) the key: the quads, their triangles either way, the mark alone, the name's capitals: one key");
+		Check(key != host::ShapeResized_SurfaceKey(moved) && key != host::ShapeResized_SurfaceKey(otherName) && key != host::ShapeResized_SurfaceKey(more) &&
+			key != host::ShapeResized_SurfaceKey(flags) && host::ShapeResized_SurfaceKey(twoParts).empty(),
+			"(6) the key: a point elsewhere, another picture, a triangle more, other flags: another key; a file of two shapes: none");
 	}
 
 	printf("%d checks, %d failed\n", checks, checksFailed);

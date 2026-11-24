@@ -27,7 +27,9 @@ click-bar Mode > Object Placement
 expect-screen Object Placement
 wait 400
 item 0x32
-expect-field-has picker open cols 7 rows 4 count 340
+# (325 tiles since the fold by surface, 2026-11-24: 15 of the 340 are a stock shape's variant with the same surface, folded into its tile; measured
+# vasquez-fold-mode1)
+expect-field-has picker open cols 7 rows 4 count 325
 wait 3000
 key PageDown
 wait 3000
@@ -54,17 +56,17 @@ wait 3000
 key End
 wait 3000
 # every tile drawn, none failed; every distinct picture decoded once and kept, every other ask given from the kept ones, none let go
-expect-field-has picker count 340 drawn 340 failed 0
+expect-field-has picker count 325 drawn 325 failed 0
 # with the live panes (Frost, 2026-11-24) each drawing's pictures are asked again as the store puts the drawing on the card: 299 + those same 409 = 708, every
-# one given from the kept ones, still 110 decoded
-expect-field-has pickerpictures decoded 110 fromkept 708 kept 110 bytes 7208960 most 67108864 letgo 0
-expect-field-has pickershown shown 25 pictured 25 waiting 0 words 0
-# BACK TO THE FIRST PAGE (Frost, 2026-11-23, found writing this): 340 tiles are more than the picker keeps drawings of (kShapePickerMostKept, 256), so the
+# one given from the kept ones, still 110 decoded (674 since the fold: 15 fewer tiles)
+expect-field-has pickerpictures decoded 110 fromkept 674 kept 110 bytes 7208960 most 67108864 letgo 0
+expect-field-has pickershown shown 24 pictured 24 waiting 0 words 0
+# BACK TO THE FIRST PAGE (Frost, 2026-11-23, found writing this): 325 tiles (340 before the fold) are more than the picker keeps drawings of (kShapePickerMostKept, 256), so the
 # first pages' drawings were let go on the way to the end. Each such tile is drawn again (its file read again, its pictures given from the kept ones: none
 # decoded again), never left showing words in place of its picture.
 key Home
 wait 3000
-expect-field-has picker count 340 drawn 340 failed 0 first 0
+expect-field-has picker count 325 drawn 325 failed 0 first 0
 expect-field-has pickershown shown 28 pictured 28 waiting 0 words 0
 expect-field-has pickerpictures decoded 110 fromkept
 expect-number pickerpictures fromkept_ 709 5000

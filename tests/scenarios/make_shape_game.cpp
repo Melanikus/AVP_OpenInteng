@@ -28,6 +28,10 @@
 //                     variants<N>       <game>\shape_rifs\<shape>_var001.rif .. _var<N>.rif, N (1 to 200) copies that LOOK DIFFERENT: the k-th with its first
 //                                       point moved k mm along x (added 2026-11-23 by Vasquez: whole copies now fold into one tile, so a grid of more than a
 //                                       page needs shapes that look apart)
+//                     named:<name>      <game>\shape_rifs\<name>.rif: the shape's file under another plain name, as the search names a conflict variant
+//                                       ("sadar_stat101_m"; added 2026-11-24 by Vasquez for acceptance-picker-fold)
+//                     pack:<file>       <game>\Tools\shape_rifs\<the file's own name>: a file of the old tools' package copied whole, only from inside
+//                                       AvP-builds-excluded (added 2026-11-24 by Vasquez for acceptance-picker-resized)
 // FRESH EVERY RUN, NOTHING DELETED: each file is made when it is missing, kept when it is there with the same bytes, and the run is refused (exit 1) when
 // it is there with other bytes; so the same scenario run twice in one shard (a re-run) finds its folder as it left it. It prints what it made.
 
@@ -511,6 +515,25 @@ int main(int argc, char **argv)
 
 			continue;
 		}
+		else if (place.compare(0, 6, "named:") == 0)
+		{
+			// named:<name> (added 2026-11-24 by Vasquez, for acceptance-picker-fold): the shape's file into <game>\shape_rifs as <name>.rif, the name the first
+			// start's search gives a conflict variant ("sadar_stat101_m"), so one game holds a stock shape and its variant side by side. Letters, digits, '_'
+			// and '-' only (it becomes part of a path); never over a file
+			std::string const named = place.substr(6);
+
+			if (named.empty() || named.size() > 63 || named.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != std::string::npos)
+			{
+				return Refuse("\"" + place + "\": named takes letters, digits, '_' and '-' (at most 63)");
+			}
+
+			if (!PutFolder(game / "shape_rifs", &why) || !PutFile(game / "shape_rifs" / (named + ".rif"), file, &why))
+			{
+				return Refuse(why);
+			}
+
+			continue;
+		}
 		else if (place.compare(0, 5, "pack:") == 0)
 		{
 			// pack:<file> (added 2026-11-24 by Vasquez, for acceptance-picker-resized's pack check): a file of the OLD TOOLS' PACKAGE, copied whole and unchanged
@@ -543,7 +566,7 @@ int main(int argc, char **argv)
 		}
 		else
 		{
-			return Refuse("\"" + place + "\" isn't a place (shape_rifs, tools, own, junction, cut, empty, lookalike, copies<N>, variants<N> or pack:<file>)");
+			return Refuse("\"" + place + "\" isn't a place (shape_rifs, tools, own, junction, cut, empty, lookalike, copies<N>, variants<N>, named:<name> or pack:<file>)");
 		}
 
 		if (!PutFolder(folder, &why) || !PutFile(folder / (shape + ".rif"), file, &why))

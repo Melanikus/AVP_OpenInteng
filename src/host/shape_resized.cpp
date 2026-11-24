@@ -6,6 +6,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <algorithm>
+#include <map>
+#include <tuple>
+
 namespace host
 {
 	namespace
@@ -248,5 +252,263 @@ namespace host
 
 		answer.same = true;
 		return answer;
+	}
+
+	namespace
+	{
+		// One triangle of a surface, in a form two files of one shape write alike: its corners from the smallest point number on, keeping the way it turns
+		// (so a face turned the other way is another piece), each corner's place in the picture by its float's bits (whole texels in a file: equal or not),
+		// its picture's name in small letters ("" when shaded), its item type and flags
+		struct Piece
+		{
+			int32_t corner[3] = {};
+			uint32_t texel[3][2] = {};
+			std::string picture;
+			int32_t engineType = 0, flags = 0;
+
+			bool operator<(Piece const &o) const
+			{
+				return std::tie(corner[0], corner[1], corner[2], texel[0][0], texel[0][1], texel[1][0], texel[1][1], texel[2][0], texel[2][1], picture, engineType, flags) <
+					std::tie(o.corner[0], o.corner[1], o.corner[2], o.texel[0][0], o.texel[0][1], o.texel[1][0], o.texel[1][1], o.texel[2][0], o.texel[2][1], o.picture,
+						o.engineType, o.flags);
+			}
+		};
+
+		uint32_t Bits(float f)
+		{
+			uint32_t bits = 0;
+
+			memcpy(&bits, &f, sizeof(bits));
+			return bits == 0x80000000u ? 0u : bits;   // (-0 and 0 are one place)
+		}
+
+		// The piece of polygon p made of its corners x, y, z (indices into its corner list, in that order)
+		Piece PieceOf(ShapeThumbModel const &model, ShapeThumbPolygon const &p, int x, int y, int z)
+		{
+			int const at[3] = { x, y, z };
+			int first = 0;
+
+			for (int k = 1; k < 3; k++)
+			{
+				first = p.corners[at[k]] < p.corners[at[first]] ? k : first;
+			}
+
+			Piece piece;
+
+			for (int k = 0; k < 3; k++)
+			{
+				int const c = at[(first + k) % 3];
+
+				piece.corner[k] = p.corners[c];
+				piece.texel[k][0] = Bits(p.texels[c][0]);
+				piece.texel[k][1] = Bits(p.texels[c][1]);
+			}
+
+			piece.picture = PictureName(model, p.picture);
+			piece.engineType = p.engineType;
+			piece.flags = p.flags;
+			return piece;
+		}
+
+		// Takes one of that piece from the pieces left, true when there was one
+		bool Take(std::map<Piece, size_t> *left, Piece const &piece)
+		{
+			auto const found = left->find(piece);
+
+			if (found == left->end() || found->second == 0)
+			{
+				return false;
+			}
+
+			found->second--;
+			return true;
+		}
+
+		// Gives a piece back (a quad's first half, when its second isn't there)
+		void GiveBack(std::map<Piece, size_t> *left, Piece const &piece)
+		{
+			(*left)[piece]++;
+		}
+	}
+
+	bool ShapeResized_SameSurface(ShapeThumbModel const &merged, ShapeThumbModel const &split, std::string *why)
+	{
+		std::string scratch;
+		std::string &words = why ? *why : scratch;
+
+		words.clear();
+
+		// THE COUNTS AND THE POINTS FIRST: one shape each, the same flags (but the outside-file mark), the same points exactly
+		if (merged.parts != 1 || split.parts != 1)
+		{
+			words = "a file of more than one shape is never compared";
+			return false;
+		}
+
+		if ((merged.shapeFlags & ~kShapeResizedOutsideMark) != (split.shapeFlags & ~kShapeResizedOutsideMark))
+		{
+			words = "other shape flags";
+			return false;
+		}
+
+		if (merged.points.size() != split.points.size() || split.points.empty() || split.points.size() % 3 != 0 || split.points.size() > 3 * kShapeResizedMostPoints)
+		{
+			words = "another number of points";
+			return false;
+		}
+
+		for (size_t k = 0; k < split.points.size(); k++)
+		{
+			if (!IsNumber(merged.points[k]) || !IsNumber(split.points[k]) || !(merged.points[k] == split.points[k]))
+			{
+				words = "a point is somewhere else (or isn't a number)";
+				return false;
+			}
+		}
+
+		size_t const points = split.points.size() / 3;
+
+		if (split.polygons.empty() || split.polygons.size() > kShapeResizedMostPolygons || merged.polygons.size() > kShapeResizedMostPolygons)
+		{
+			words = split.polygons.empty() ? "a shape with no polygon" : "more than " + Count(kShapeResizedMostPolygons) + " polygons";
+			return false;
+		}
+
+		// every corner names a point both have, and every place in a picture is a number (nothing below reads past a list)
+		for (ShapeThumbModel const *model : { &merged, &split })
+		{
+			for (ShapeThumbPolygon const &p : model->polygons)
+			{
+				if (p.cornerCount < 3 || p.cornerCount > 5)
+				{
+					words = "a polygon of another number of corners";
+					return false;
+				}
+
+				for (int c = 0; c < p.cornerCount; c++)
+				{
+					if (p.corners[c] < 0 || (size_t)p.corners[c] >= points || !IsNumber(p.texels[c][0]) || !IsNumber(p.texels[c][1]))
+					{
+						words = "a polygon names a point the shape doesn't have, or a place in its picture that isn't a number";
+						return false;
+					}
+				}
+			}
+		}
+
+		// THE SPLIT ONE'S TRIANGLES, counted; the merged one must be as many triangles in all
+		std::map<Piece, size_t> left;
+		size_t triangles = 0;
+
+		for (ShapeThumbPolygon const &p : split.polygons)
+		{
+			if (p.cornerCount != 3)
+			{
+				words = "the shape to compare with holds a polygon of more than three corners";
+				return false;
+			}
+
+			left[PieceOf(split, p, 0, 1, 2)]++;
+		}
+
+		for (ShapeThumbPolygon const &p : merged.polygons)
+		{
+			if (p.cornerCount > 4)
+			{
+				words = "a polygon of five corners";
+				return false;
+			}
+
+			triangles += (size_t)p.cornerCount - 2;
+		}
+
+		if (triangles != split.polygons.size())
+		{
+			words = "another number of triangles in all: " + Count(triangles) + " and " + Count(split.polygons.size());
+			return false;
+		}
+
+		// EACH POLYGON OF THE MERGED ONE: a triangle of the split one, or a quad that is two of them cut along either diagonal
+		for (size_t i = 0; i < merged.polygons.size(); i++)
+		{
+			ShapeThumbPolygon const &p = merged.polygons[i];
+
+			if (p.cornerCount == 3)
+			{
+				if (!Take(&left, PieceOf(merged, p, 0, 1, 2)))
+				{
+					words = "polygon " + Count(i) + " is no triangle of the other";
+					return false;
+				}
+
+				continue;
+			}
+
+			Piece const a1 = PieceOf(merged, p, 0, 1, 2), a2 = PieceOf(merged, p, 0, 2, 3);   // cut from corner 0 to 2
+			Piece const b1 = PieceOf(merged, p, 0, 1, 3), b2 = PieceOf(merged, p, 1, 2, 3);   // cut from corner 1 to 3
+
+			if (Take(&left, a1))
+			{
+				if (Take(&left, a2))
+				{
+					continue;
+				}
+
+				GiveBack(&left, a1);
+			}
+
+			if (Take(&left, b1))
+			{
+				if (Take(&left, b2))
+				{
+					continue;
+				}
+
+				GiveBack(&left, b1);
+			}
+
+			words = "polygon " + Count(i) + " is no two triangles of the other";
+			return false;
+		}
+
+		// (as many triangles in all, each taken once: none is left)
+		return true;
+	}
+
+	std::string ShapeResized_SurfaceKey(ShapeThumbModel const &model)
+	{
+		if (model.parts != 1 || model.points.empty() || model.points.size() % 3 != 0)
+		{
+			return std::string();
+		}
+
+		uint64_t triangles = 0;
+
+		for (ShapeThumbPolygon const &p : model.polygons)
+		{
+			triangles += p.cornerCount >= 3 ? (uint64_t)p.cornerCount - 2 : 0;
+		}
+
+		int32_t const flags = model.shapeFlags & ~kShapeResizedOutsideMark;
+		std::string key(reinterpret_cast<char const *>(&flags), sizeof(flags));
+
+		key.append(reinterpret_cast<char const *>(&triangles), sizeof(triangles));
+		key.append(reinterpret_cast<char const *>(model.points.data()), model.points.size() * sizeof(float));
+
+		std::vector<std::string> names;
+
+		for (ShapeThumbPicture const &picture : model.pictures)
+		{
+			names.push_back(Lower(picture.name));
+		}
+
+		std::sort(names.begin(), names.end());
+
+		for (std::string const &name : names)
+		{
+			key += '\n' + name;
+		}
+
+		return key;
 	}
 }
