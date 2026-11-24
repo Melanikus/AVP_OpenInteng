@@ -10,7 +10,10 @@ picture 800
 item 0xe
 expect-dialog-kind form
 expect-dialog Write asc file
-expect-pixels-changed panels 100 100 440 260
+# the form is drawn in its own window, the box the editor reports for it (dialogwindow: x y width height); the pixel check looks inside that box. With inteng's
+# own font (bishop-int d9e21af7) the form is 400 x 200 at 304 264; the old box (100 100 440 260) was set for the game font's bigger form and saw only 0.047 change
+expect-field dialogwindow 304 264 400 200
+expect-pixels-changed panels 304 264 400 200
 picture 801
 click-button Cancel
 expect-no-dialog

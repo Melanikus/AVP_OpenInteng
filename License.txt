@@ -102,9 +102,8 @@ AVP_OpenInteng's own code: MIT
 
 A huge thank you to Rebellion, who made Aliens versus Predator, the most awesome game, and inteng, the editor its levels were built
 with. AVP_OpenInteng is a re-creation of inteng, written from scratch so that it works on today's Windows: it contains none of
-inteng's code. The parts of inteng's own data it keeps in this repository, so the editor looks and works as inteng did on any PC,
-are listed below. The only inteng file it reads at run time is the user's own IntengOptions.ini, inteng's settings file, for the
-size the editor starts at.
+inteng's code. The only inteng file it reads at run time is the user's own IntengOptions.ini, inteng's settings file, for the size
+the editor starts at.
 
 The files of AVP_OpenInteng written for it, outside avpx/ (the AvPx submodule, whose terms are above), are under the MIT license
 below. This code isn't ours: it belongs to everyone who loves this game.
@@ -113,11 +112,6 @@ Not covered by the MIT license:
 - avpx/, the game's code: Rebellion's terms and the notices above.
 - inteng's own words, quoted so the editor reads as inteng did: the help texts in src/host/inteng_help.cpp and the menu words in
   src/host/inteng_menus.cpp, src/host/inteng_menus.h and docs/inteng/*.json. They are Rebellion's.
-- inteng's own data, kept as it is in inteng so the editor draws and works as inteng did: its built-in icon shapes in
-  src/host/editor_icon_shapes.inc, the light marker's shape in src/host/construction_modes_screen.cpp (LightMarkerShape), its
-  shape-name table in src/host/simple_object_edit.cpp (shapeRows), its text font (its Tools\font16.fnt) in
-  src/host/menu_font_data.h, and its 256 colours (Select Colour's table) in src/host/texture_colour_table.h. They are
-  Rebellion's.
 - Because the editor is built with the game's code, the built editor stays under Rebellion's terms above as well: no commercial
   use, and a clearly visible credit to Rebellion as the creators and owners, with their license restated.
 
