@@ -38,7 +38,9 @@ bool host::TextureImportScreen_IsPicture(std::wstring const &path)
 		c = (c >= L'A' && c <= L'Z') ? (wchar_t)(c - L'A' + L'a') : c;
 	}
 
-	return ending == L".png" || ending == L".bmp";
+	// the import's own endings (image_import.h ImageImport_KindOfName: the engine decides again by the bytes): .jpg and .jpeg too since 2026-11-24 (Drake, the owner's
+	// "Add JPEG in beta.0")
+	return ending == L".png" || ending == L".bmp" || ending == L".jpg" || ending == L".jpeg";
 }
 
 host::DialogFormSpec host::TextureImportScreen_Form(std::string const &pictureWords, std::string const &name)

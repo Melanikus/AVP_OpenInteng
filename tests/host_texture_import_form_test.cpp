@@ -5,7 +5,8 @@
 //   answering Ok and Escape, every part inside the window, no two parts over each other; 128 x 128 the one size ticked as it opens (Bishop 2, 2026-11-23:
 //   the stock levels' habit; 256 and 512 offered plainly, the retail game drawing them at their size, plan R1 settled from its code)
 //   READ BACK: as it opens, 128 / Fit / no; ticked otherwise, 512 / Stretch / yes, the name typed; a list that isn't the form's (one part missing) is refused
-//   THE ENDINGS: .png and .bmp, any capitals; .jpg, .mp4, no ending, and a dot in a folder's name only, refused
+//   THE ENDINGS: .png, .bmp, .jpg and .jpeg, any capitals; .gif, .jpe, .mp4, no ending, and a dot in a folder's name only, refused (.jpg and .jpeg: Drake
+//   2026-11-24, the owner's "Add JPEG in beta.0"; red on 2143de03, PNG and BMP only)
 // The program gives back a non-zero result if any check failed.
 
 #include <stdio.h>
@@ -100,8 +101,11 @@ int main()
 	// THE ENDINGS
 	Check(TextureImportScreen_IsPicture(L"C:\\pics\\wall.png") && TextureImportScreen_IsPicture(L"C:\\pics\\WALL.BMP") && TextureImportScreen_IsPicture(L"C:\\a.Png"),
 		".png and .bmp are taken, any capitals");
-	Check(!TextureImportScreen_IsPicture(L"C:\\pics\\wall.jpg") && !TextureImportScreen_IsPicture(L"C:\\clips\\a.mp4") && !TextureImportScreen_IsPicture(L"C:\\pics\\wall") &&
-		!TextureImportScreen_IsPicture(L"C:\\my.png\\wall"), ".jpg, .mp4, no ending, and a dot only in a folder's name are not");
+	Check(TextureImportScreen_IsPicture(L"C:\\pics\\photo.jpg") && TextureImportScreen_IsPicture(L"C:\\pics\\PHOTO.JPEG") && TextureImportScreen_IsPicture(L"C:\\a.Jpg"),
+		".jpg and .jpeg are taken too, any capitals (Drake 2026-11-24, the owner's \"Add JPEG in beta.0\")");
+	Check(!TextureImportScreen_IsPicture(L"C:\\pics\\wall.gif") && !TextureImportScreen_IsPicture(L"C:\\pics\\wall.jpe") && !TextureImportScreen_IsPicture(L"C:\\clips\\a.mp4") &&
+		!TextureImportScreen_IsPicture(L"C:\\pics\\wall") && !TextureImportScreen_IsPicture(L"C:\\my.png\\wall") && !TextureImportScreen_IsPicture(L"C:\\my.jpg\\wall"),
+		".gif, .jpe, .mp4, no ending, and a dot only in a folder's name are not");
 
 	printf(checksFailed ? "SOME CHECKS FAILED\n" : "All checks passed\n");
 	return checksFailed ? 1 : 0;

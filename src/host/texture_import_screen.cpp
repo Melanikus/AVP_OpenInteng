@@ -38,7 +38,7 @@ void host::TextureImportScreen_Dropped(std::vector<std::wstring> const &paths, s
 
 	if (!TextureImportScreen_IsPicture(path))
 	{
-		std::string const words = "Not taken: " + LastPart(VideoDrop_Words(path)) + " is not a picture the editor takes (.png, .bmp); a video goes in Video mode (Mode > Video)";
+		std::string const words = "Not taken: " + LastPart(VideoDrop_Words(path)) + " is not a picture the editor takes (.png, .bmp, .jpg, .jpeg); a video goes in Video mode (Mode > Video)";
 
 		statusWords = words.c_str();
 		return;
@@ -127,7 +127,7 @@ void host::TextureImportScreen_Browse()
 {
 	wchar_t picked[32768] = {};
 	OPENFILENAMEW open = {};
-	wchar_t const filter[] = L"Pictures (*.png;*.bmp)\0*.png;*.bmp\0\0";
+	wchar_t const filter[] = L"Pictures (*.png;*.bmp;*.jpg;*.jpeg)\0*.png;*.bmp;*.jpg;*.jpeg\0\0";
 
 	open.lStructSize = sizeof(open);
 	open.hwndOwner = editorWindow;

@@ -1,0 +1,39 @@
+# ACCEPTANCE (red first; Drake 2026-11-24, the owner's "Add JPEG in beta.0"): A JPEG dropped on the editor's window off the Video screen opens the Import texture form
+# as a PNG does; Ok makes it a texture of the open level, graphics\Custom\Statue\photo01.RIM in the run's own data copy, offered in Texture Map at once and put on a
+# polygon by Prev Texture. THE PICTURE: a 128 x 128 JPEG (the stock textures' own size), a smooth blue-green ramp, made fresh by Windows' own JPEG encoder
+# (tests/scenarios/verify_jpeg.cpp: the repository holds no picture, and Node has no JPEG encoder). The editor decodes it with Windows' own JPEG decoder, made by
+# its class, never WIC's any-decoder path (image_import.h).
+# RED on exe-cache/2143de03.exe (PNG and BMP only): the drop says "Not taken: photo.jpg is not a picture the editor takes (.png, .bmp)", and no form opens.
+# changes-data
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/drake-jpeg-proofs/verify_jpeg.exe make {datadir}/import/photo.jpg 128
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+
+# ---- the drop: the one form, its name the picture's
+drop-file {datadir}/import/photo.jpg
+wait 400
+expect-dialog-kind form
+expect-dialog Import texture
+expect-field dialogpast none
+expect-field-has dialogbuttons Ok
+picture 1
+form-field 1 photo01
+click-button Ok
+wait 1500
+
+# ---- made: the file under graphics\Custom, offered in Texture Map now
+expect-status Custom\Statue\photo01.RIM
+expect-status in Texture Map now
+verify node -e "const fs=require('fs');const b=fs.readFileSync(process.argv[1]);process.exit(b.length>800&&b.toString('latin1',0,4)==='LIST'&&b.toString('latin1').includes('BODY')?0:1)" {datadir}/graphics/Custom/Statue/photo01.RIM
+
+# ---- picked in Texture Map on a polygon: Prev Texture lands on the newest picture
+click-view 0.50 0.60
+expect-status 1 selected
+key PageUp
+wait 400
+expect-status photo01.RIM put on 1 polygon
+picture 2

@@ -4,7 +4,7 @@
 //
 // A PICTURE DROPPED on the editor's window anywhere but the Video screen (where a film goes: video_mode_screen.h), or picked by Texture Map's "Import texture...",
 // is checked by the same path rules as a dropped film (video_drop.h VideoDrop_CheckPath: another computer, a device, a stream, a name not on a drive of this
-// computer are refused from the letters, before anything opens it), then by its ending (.png or .bmp: the engine's Stage 1). Then ONE FORM in inteng's look:
+// computer are refused from the letters, before anything opens it), then by its ending (.png, .bmp, .jpg or .jpeg: the engine's own). Then ONE FORM in inteng's look:
 // the texture's name (the engine's suggestion first), its size (128, 256 or 512 square), how the picture is made that square (Fit: the whole picture, bars round
 // it; Crop: the middle that fills it; Stretch: all of it, out of shape), and whether Fit's bars are see-through. Ok runs the engine's one call
 // (TextureImport_Make: the picture read as hostile input, made a square, given a palette, written as a RIM under the data folder's graphics\Custom\<level>\, and
@@ -34,7 +34,7 @@ namespace host
 	// The form for that picture (its whole path), over whatever screen is shown; refused in words when no level is open
 	void TextureImportScreen_Open(std::wstring const &picture);
 
-	// Texture Map's "Import texture...": Windows' own Open dialog for one .png or .bmp, then the form
+	// Texture Map's "Import texture...": Windows' own Open dialog for one .png, .bmp, .jpg or .jpeg, then the form
 	void TextureImportScreen_Browse();
 
 	// THE FORM, pure (no Windows, no editor state; texture_import_screen_test checks it): pictureWords, the picture's name as shown; name, the texture's name
