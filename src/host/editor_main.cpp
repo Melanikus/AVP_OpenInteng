@@ -4490,8 +4490,14 @@ static void PlacementCameraUnlink(bool byR)
 
 	LevelView_SetViewMatrix(nullptr);
 }
-// F: "Fly selected object" (FUN_004def60 = slot +0x48 of the current object, DAT_008f4f44): the object takes the camera's place as it moves, and the camera is let go of it when F is pressed again. The object
-// keeps the offset from the camera it had when F was pressed; its place is written when F is pressed again (the editor draws no live copy of an ordinary object: a cube marks where it is meanwhile).
+// J (inteng's F): "Fly selected object" (FUN_004def60 = slot +0x48 of the current object, DAT_008f4f44): the object takes the camera's place as it moves, and the camera is let go of it when J is pressed again. The object
+// keeps the offset from the camera it had when J was pressed; its place is written when J is pressed again (the editor draws no live copy of an ordinary object: a cube marks where it is meanwhile).
+// THE FLY'S KEY, J: A NAMED DIFFERENCE FROM INTENG, whose key is F (its Object Placement Keys text, 0x5e853c: "F Fly selected object"; inteng_help.cpp keeps
+// inteng's words as they are). The owner, 2026-11-24, once F became the slide's flip (SurfaceFlipKey): "Put the old FLY on another key"; first H, but H is
+// View Distance here (the held keys H and N are read every frame: keyDown['H'], below), so again, of the keys Object Placement leaves free in both key
+// layouts, I, U and J (I and U are read only on Hierarchy mode's own screen, J and M only by Module Linking's and Adjacent's view pass), "J (Recommended)":
+// next to H on the home row. In Modern WASD, F is the camera's down key, so Fly had no key there at all before.
+static WPARAM const kFlyKey = 'J';
 static bool flyOn = false;
 
 bool PlacementIsFlying()
@@ -4560,6 +4566,41 @@ static bool surfaceReleaseWaiting = false;   // P3 step 3: the centre ball was l
 static std::string surfaceLast;              // the harness's: what the last cast met (state line surfacelast)
 static bool surfaceAlignUp = false;          // the owner's G while the centre ball is held (11-19): UP ("up to surface") instead of CLOSEST; every drag starts CLOSEST
 static int surfaceAxis = -1;                 // the local axis CLOSEST last chose (surface_turn.h), kept near a tie (no flicker), kept while UP is on; -1 at each drag's start
+
+// THE PICKER'S NEW OBJECT ATTACHED TO THE MOUSE (Drake 2026-11-24, the owner: "When I click the shape I want it gets "attached" to my mouse in placement "slide" mode (like I was
+// clicking the middle white diamond) until I either click it (place it somewhere) or right click it (cancel)"; his answers: two clicks on a tile as before, and no name box,
+// the editor's automatic name). The picker's object is made as today (construction_modes_screen.cpp, the same create path, typed placement's fields with it), then the centre
+// ball's slide starts on it with NO button held: it follows the surface under the pointer. A left press puts it down where it shows. Anything else that ends the slide (a right
+// press, Esc, a screen change, another snap) gives it up: the level is put back from the image taken before the object was made (OpenLevelFile::BuildLevel, then PutBackLevel),
+// the same bytes, a shape brought in for it gone too, and the same CHANGED mark (Bishop's order: a level that wasn't changed is still not changed, so Exit saves nothing it
+// wouldn't have before). Handled in SnapLiveEnd, so no way out of the slide leaves the object behind.
+static bool attachedNew = false;              // the slide is on the picker's new object
+static std::vector<char> attachedBefore;      // the level as the next save would have written it before the object was made (PlacementAttachKeep)
+static bool attachedWasChanged = false;       // and whether it was changed since its last save then (LevelChangedSinceSave: the mark Exit's save reads)
+static unsigned attachedSavedChanges = ~0u;   // and the count of the last save then (copySavedChanges): a save while it follows moves it, and the level put back is a change then
+static host::Selected attachedSelection = {}; // what was selected then, and whether a special object was current (MakePlacedObjectCurrent lets it go)
+static bool attachedSpecialCurrent = false;
+static OpenLevelFile *attachedLevel = nullptr;  // the level it was made in, which swap of it (Generation) and its count of edits (Changes) once it was made: the level is put
+static unsigned attachedGeneration = 0;         // back only while all three are the same, so another level, or an edit made while it follows, is never undone by a give-up
+static unsigned attachedChanges = 0;
+static std::string attachedName;              // the new object's name (its automatic one)
+static std::string attachedPlacedAs;          // which game object it was made as (shape_identity.h ShapeIdentity_PlacedAsWords), and where its shape came from when brought in
+static std::string attachedWords;             // the status line's words while it follows, and after
+
+// WHILE IT FOLLOWS, NOTHING ELSE RUNS (Frost's SHOULD 1 on 4bd46a3c; the owner: "until I either click it ... or right click it"): a press on a panel (the menu bars, the
+// object's card) and every command, a menu's or a key's (RunAction), are refused with these words, so no menu half-opens and no command (Exit, Save) ever sees the level
+// with the new object where it was made. The camera still moves (its keys are not commands), and F, G and Esc are the slide's own. True when it refused.
+static bool PlacementAttachRefuses()
+{
+	if (!(attachedNew && snapLive))
+	{
+		return false;
+	}
+
+	attachedWords = "Placing " + attachedName + ": put it down first (a left click in the view) or give it up (right click or Esc)";
+	statusWords = attachedWords.c_str();
+	return true;
+}
 
 bool PlacementFlyHoldsTheCopy()
 {
@@ -5600,7 +5641,7 @@ static void FlySwitchKey(bool x)
 	}
 }
 
-// THE FLY STOP (FUN_004df090(0), OP-111): F again, and every other stop (another object made current, FUN_004d64a0; leaving the screen): the object stays where it flew (written into the level here), the
+// THE FLY STOP (FUN_004df090(0), OP-111): J again (inteng's F), and every other stop (another object made current, FUN_004d64a0; leaving the screen): the object stays where it flew (written into the level here), the
 // camera is let go of it (the link off: the view stays where it is), the fly speed is remembered and the camera speed given back, "Move Rel to Axes" and the box increase off
 static void PlacementFlyStop()
 {
@@ -5680,12 +5721,88 @@ static void SnapLiveShow(int32_t const place[3], float const turn[4])
 
 // Esc (keep false: the saved pose stays, nothing written) or the left press (keep true: the pose shown is written, OBJHEAD1's place and turn)
 static void TrackMarkerSnapPut(int32_t const place[3], float const turn[4], bool kept);
+static bool SnapLiveEndOfTheSlide(bool keep);
 
+// Every end of a slide comes here. A slide on the picker's new object (attachedNew, above) is put down or given up as a whole: kept, the object stands where the slide shows
+// it; given up, the level is put back as it was before the object was made. Any other slide ends as it always has (SnapLiveEndOfTheSlide).
 static void SnapLiveEnd(bool keep)
+{
+	if (!attachedNew)
+	{
+		SnapLiveEndOfTheSlide(keep);
+		return;
+	}
+
+	attachedNew = false;   // first, so nothing below ends the attach a second time
+
+	std::vector<char> before;
+
+	before.swap(attachedBefore);   // (let go of here, whichever way it ends)
+
+	if (keep && snapLive)
+	{
+		// put down: the pose shown written into the level, as the centre ball's release writes it. Not moved: no wall or floor was under the pointer, and the object stays where it
+		// was made, at the view
+		bool const moved = memcmp(snapNowPlace, snapSavedPlace, sizeof(snapNowPlace)) != 0 || memcmp(snapNowTurn, snapSavedTurn, sizeof(snapNowTurn)) != 0;
+		bool const written = SnapLiveEndOfTheSlide(true);
+		char const *const slideSaid = statusWords;
+		std::string const why = slideSaid ? slideSaid : "";
+
+		attachedWords = "Object " + attachedName + (written ? " placed on the surface" : moved ? " placed at the view (" + why + ")" : " placed at the view (no wall or floor was under the pointer)") +
+			"; " + attachedPlacedAs;
+		statusWords = attachedWords.c_str();
+		return;
+	}
+
+	SnapLiveEndOfTheSlide(false);
+
+	// given up: the level put back, only if it is still the one the object was made in, with no edit made since (another level, or an edit made while it followed, is never undone)
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || open != attachedLevel || open->Generation() != attachedGeneration || open->Changes() != attachedChanges || before.empty())
+	{
+		attachedWords = "Placement: given up, but the level was edited while " + attachedName + " followed the pointer, so it is left as it is now (nothing put back)";
+		statusWords = attachedWords.c_str();
+		return;
+	}
+
+	LevelOpenResult const back = open->PutBackLevel(before);
+
+	if (back != LevelOpenResult::Opened)
+	{
+		char const *const why = back == LevelOpenResult::LoaderRefused ? "the game's own loader refused it" : back == LevelOpenResult::NothingOpen ? "no level is open" :
+			"it couldn't be read or paired again";
+
+		attachedWords = "Placement: given up, but the level couldn't be put back as it was (" + std::string(why) + "): " + attachedName + " is where it was made";
+		statusWords = attachedWords.c_str();
+		return;
+	}
+
+	// The level's bytes are the ones from before (PutBackLevel: the file's own mark too). The editor's mark, Exit's: not changed then and no save since, so not changed now
+	if (!attachedWasChanged && copySavedChanges == attachedSavedChanges)
+	{
+		copySavedChanges = open->Changes();
+	}
+
+	LoadTheObjectListAgain();
+	PutTheNewObjectInPlay();   // the view loads the level as it was: the object's block gone with it
+
+	if (attachedSelection.kind == host::SelectedKind::Nothing || !host::Selection_Set(attachedSelection))
+	{
+		host::Selection_Clear();
+	}
+
+	specialMode.haveCurrent = attachedSpecialCurrent;
+	attachedWords = "Placement: given up, nothing placed (the level as it was)";
+	statusWords = attachedWords.c_str();
+}
+
+// The slide's own end: false when nothing was written (given up, not moved, or the level refused the pose)
+static bool SnapLiveEndOfTheSlide(bool keep)
 {
 	if (!snapLive)
 	{
-		return;
+		return false;
 	}
 
 	snapLive = false;
@@ -5703,7 +5820,7 @@ static void SnapLiveEnd(bool keep)
 
 		// kept: the pose shown; Escape: the pose saved at V (the camera may have flown meanwhile, so the carry is counted again from it)
 		TrackMarkerSnapPut(keep ? snapNowPlace : snapSavedPlace, keep ? snapNowTurn : snapSavedTurn, keep);
-		return;
+		return false;
 	}
 
 	LevelView_FlyEnd();
@@ -5715,7 +5832,7 @@ static void SnapLiveEnd(bool keep)
 			statusWords = keep ? "Placement: not moved (no wall or floor was under the pointer)" : "Placement: given up, the object is where it was";
 		}
 
-		return;
+		return false;
 	}
 
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
@@ -5724,7 +5841,7 @@ static void SnapLiveEnd(bool keep)
 	if (result != host::TrackEditResult::Done)
 	{
 		Answer(std::string(forSurface ? "Placement: not moved: " : "Snap To Vertex: not moved: ") + host::TrackEditWords(result));
-		return;
+		return false;
 	}
 
 	// the real object drawn at the pose written (the level's bytes alone never move a block already made: LevelView_PutObjectAt, as the gizmo's release does)
@@ -5741,6 +5858,8 @@ static void SnapLiveEnd(bool keep)
 	{
 		statusWords = "Placement: the object stands on the surface (the state line's surfacelast has the place)";
 	}
+
+	return true;
 }
 
 // The start (FUN_004dd280) for a placed object: false when the current object is none of those (a special object keeps the click's snap)
@@ -5846,6 +5965,12 @@ static void TrackMarkerSnapPut(int32_t const place[3], float const turn[4], bool
 	statusWords = kept ? "Snap To Vertex: the end marker is on the vertex (Finish End Pos Edit takes it)" : "Snap To Vertex: cancelled, the end marker is where it was";
 }
 
+// THE FLIP while sliding (Frost 2026-11-24; the owner: "I want "F" for "Flip" each press rotates 90% around an axis, after 4 presses goes to next axis", "So 6x "faces" of a
+// cube times 4x angles"): which of the 24 ways a box can stand (surface_turn.h SurfaceFlip_*) the slide starts each frame from, on top of the pose the drag started from; 0 at
+// every slide's start. surfaceFlipWords holds the status line's words while they are shown.
+static int surfaceFlip = 0;
+static std::string surfaceFlipWords;
+
 // P3 PLACEMENT MODE (the owner's addition 11-18, Hicks's plan section 5; inteng had none): the selected placed object slides over walls and floors under the pointer, its base on
 // the surface, on Snap To Vertex's live loop: its live copy shows the pose, Esc puts the saved pose back, the left press keeps what is shown (step 3: the gizmo's centre ball starts it and
 // its release keeps it). The pointer is in the editor's own pixels. False when no placed object is selected (SnapLiveStart's own refusal).
@@ -5880,7 +6005,89 @@ static bool SurfaceLiveStart(int pointerX, int pointerY)
 	snapPointerY = pointerY;
 	surfaceAlignUp = false;   // every drag starts CLOSEST (the owner, 11-19)
 	surfaceAxis = -1;
+	surfaceFlip = 0;   // and as it stands (the flip: F)
 	statusWords = "Placement: the object follows the wall or floor under the pointer (Esc puts it back); Align: closest axis (G: up to surface)";
+	return true;
+}
+
+// THE PICKER'S NEW OBJECT ATTACHED TO THE MOUSE (the statics above SnapLiveEnd say what it is). The picker's create (construction_modes_screen.cpp) calls these three.
+// PlacementAttachKeep, before the object is made: the level as it is now, kept for a give-up (BuildLevel: the bytes the next save would write), with the editor's changed mark
+// and what is selected. False, keeping nothing, when the level can't be built (nor would the object be made then).
+bool PlacementAttachKeep()
+{
+	SnapLiveEnd(false);   // a slide still on ends first
+
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	bool built = false;
+
+	try
+	{
+		built = open && open->BuildLevel(attachedBefore);
+	}
+	catch (std::bad_alloc const &)
+	{
+		built = false;
+	}
+
+	if (!built)
+	{
+		std::vector<char>().swap(attachedBefore);
+		return false;
+	}
+
+	attachedWasChanged = LevelChangedSinceSave();
+	attachedSavedChanges = copySavedChanges;
+	attachedSelection = host::Selection_Get();
+	attachedSpecialCurrent = specialMode.haveCurrent;
+	return true;
+}
+
+// The object wasn't made after all: nothing to give up
+void PlacementAttachDrop()
+{
+	std::vector<char>().swap(attachedBefore);
+}
+
+// After the object is made, and made the current one: it follows the surface under the pointer, as with the centre ball held, with no button held. shownName: its name made safe
+// for the screen (ShapePicker_SafeName); placedAs: which game object it was made as (ShapeIdentity_PlacedAsWords), for the words when it is put down. False when the slide
+// can't start: the object is then where it was made, at the view, as it was before the attach.
+bool PlacementAttachStart(std::string const &shownName, std::string const &placedAs)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (flyOn)
+	{
+		PlacementFlyStop();   // (a flying copy keeps the view from loading the new object)
+	}
+
+	PutTheNewObjectInPlay();   // the view has the new object's block, which the slide's live copy is made from
+
+	// the pointer where it is now (the press was on the picker's tile: no mouse move need come before the slide's first frame)
+	int pointerX = -1, pointerY = -1;
+	POINT pointer = { -1, -1 };
+	RECT inside = { 0, 0, 0, 0 };
+
+	if (GetCursorPos(&pointer) && ScreenToClient(hWndMain, &pointer) && GetClientRect(hWndMain, &inside) && PtInRect(&inside, pointer))
+	{
+		pointerX = host::TextScale_ToOwn(pointer.x);   // the editor's own pixels (text_scale.h)
+		pointerY = host::TextScale_ToOwn(pointer.y);
+	}
+
+	attachedName = shownName;
+	attachedPlacedAs = placedAs;
+
+	if (!open || !SurfaceLiveStart(pointerX, pointerY) || !snapLive || !snapForSurface)
+	{
+		PlacementAttachDrop();
+		return false;
+	}
+
+	attachedNew = true;
+	attachedLevel = open;
+	attachedGeneration = open->Generation();
+	attachedChanges = open->Changes();
+	attachedWords = "Placing " + shownName + ": it follows the surface under the pointer; left click puts it down, right click or Esc gives it up";
+	statusWords = attachedWords.c_str();
 	return true;
 }
 
@@ -5898,6 +6105,28 @@ static bool SurfaceAlignKey()
 	// shown before (the owner, 11-19: "what if I press G again?")
 	surfaceAlignUp = !surfaceAlignUp;
 	statusWords = surfaceAlignUp ? "Align: up to surface (G: closest axis)" : "Align: closest axis (G: up to surface)";
+	return true;
+}
+
+// THE OWNER'S F while the object slides (2026-11-24, Bishop's order: "F when in slide mode right"): the next of the 24 ways it can stand, in his order (upright, on its left
+// side, right, front, back, upside down; four quarter turns about up each; then back to upright); the next frame makes the pose again from the drag's start, flipped. The
+// owner: "Flip needs to auto switch to "snap to closest angle" G mode right, or they'll conflict": UP would put the object's own up back onto the surface and undo the flip,
+// so the first F in UP switches the slide to CLOSEST, and says so. False when no slide is held: F is then "Fly selected object", as before.
+static bool SurfaceFlipKey()
+{
+	if (!(snapLive && snapForSurface))
+	{
+		return false;
+	}
+
+	bool const switched = surfaceAlignUp;
+
+	surfaceAlignUp = false;
+	surfaceFlip = (surfaceFlip + 1) % host::kSurfaceFlipCount;
+	surfaceAxis = -1;   // the closest axis looked for again: the flip turned which side is nearest the surface
+	surfaceFlipWords = "Flip " + std::to_string(surfaceFlip + 1) + " of " + std::to_string(host::kSurfaceFlipCount) + ": " + host::SurfaceFlip_Words(surfaceFlip) +
+		(switched ? "; Align: closest axis, so the flip holds (G: up to surface)" : "") + " (F: the next)";
+	statusWords = surfaceFlipWords.c_str();
 	return true;
 }
 
@@ -5938,6 +6167,19 @@ static void SurfaceLiveFrame(int32_t viewX, int32_t viewY, int32_t viewWidth, in
 	memcpy(in.boxMinWorld, surfaceBoxMinWorld, sizeof(in.boxMinWorld));
 	memcpy(in.boxMaxWorld, surfaceBoxMaxWorld, sizeof(in.boxMaxWorld));
 	memcpy(in.turn, snapSavedTurn, sizeof(in.turn));
+
+	if (surfaceFlip != 0)   // THE FLIP (F): the drag's start pose with the flip done first, in the object's own frame, so the axes snapped and the box pushed out stay its own
+	{
+		float flip[4], flipped[4];
+
+		host::SurfaceFlip_Turn(surfaceFlip, flip);
+
+		if (host::SurfaceTurn_Then(snapSavedTurn, flip, flipped))
+		{
+			memcpy(in.turn, flipped, sizeof(in.turn));
+		}
+	}
+
 	in.canTurn = true;   // a placed object holds a turn (movable.h's table)
 	in.align = surfaceAlignUp ? host::SurfaceAlign::Up : host::SurfaceAlign::Closest;   // the owner's rule, 11-19 (G toggles it)
 	in.previousAxis = surfaceAxis;
@@ -6057,6 +6299,12 @@ static bool PlacementKey(WPARAM key, bool shift)
 
 	bool const sounds = strcmp(screen, "Object Placement") != 0;
 
+	// the picker's object following the mouse: none of the screen's own keys runs (the key chain refuses them first; this is for any other way here), the camera's go on
+	if (!IsAMoveKey(key) && key != VK_INSERT && key != VK_HOME && PlacementAttachRefuses())
+	{
+		return true;
+	}
+
 	// OP-91: ',' and '.' (slots 0xd87afc / 0xd87afe) step the current object's alternate locations: Prev and Next (FUN_004df990 / FUN_004df8c0, OP-37), from the object's +0x34 (FUN_004e01e0),
 	// which runs each frame in mode 0 with Gravity off (0x4dc144). Ours: for a placed object (our Alt Locations' own reach); no current object: nothing, the key goes on
 	if ((key == VK_OEM_COMMA || key == VK_OEM_PERIOD) && !sounds && trackEd.state == host::TrackState::Off && !PlacementGravityOn())
@@ -6116,9 +6364,9 @@ static bool PlacementKey(WPARAM key, bool shift)
 		return true;
 	}
 
-	if (key == 'F' && !shift && !IsAMoveKey(key))
+	if (key == kFlyKey && !shift && !IsAMoveKey(key))
 	{
-		// OP-85 (V-6): F needs Gravity off (0x4dc13a); with it on, nothing
+		// OP-85 (V-6): the fly (J, inteng's F) needs Gravity off (0x4dc13a); with it on, nothing
 		if (PlacementGravityOn())
 		{
 			return true;
@@ -6178,7 +6426,7 @@ static bool PlacementKey(WPARAM key, bool shift)
 					}
 				}
 
-				Answer("Fly selected object: on (the movement keys move the object, the camera stays; R links the camera to it; F again lets it go there)");
+				Answer("Fly selected object: on (the movement keys move the object, the camera stays; R links the camera to it; J again lets it go there)");
 			}
 		}
 
@@ -6506,6 +6754,7 @@ static bool HierarchyKey(WPARAM key)
 
 void RunAction(int32_t id)
 {
+	if (PlacementAttachRefuses()) return;   // the picker's object follows the mouse: no command runs until it is put down or given up (PlacementAttachRefuses)
 	if (AutoPlotCommand_ItemWaits(id)) return;   // AN EDIT WAITS FOR THE PLOT (autoplot_waits.h): while Alien auto waypoint plots, what would change the level waits, and the status line says so
 	if (host::AllStockMapsScreen_ItemWaits(id)) return;   // ... and for All stock maps' whole run (all_stock_maps_screen.h), its levels' opening and saving included
 
@@ -8277,6 +8526,12 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			// Esc, with no menu open (an open menu took it: menuWasOpen), closes the panel opened last (L-1)
 			// the mouse gizmo's keys first (gizmo_screen.h): G, Esc while a drag is held, Ctrl+Z (none of them a key of inteng's Object Placement)
 			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && wParam == 'G' && !ctrlHeld && SurfaceAlignKey()) { return 0; }   // G while the centre ball is held: the align (the owner, 11-19)
+			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && wParam == 'F' && !ctrlHeld && !shiftHeld && SurfaceFlipKey()) { return 0; }   // F while the object slides: the flip (the owner, 11-24); else Fly selected object
+			// the picker's object following the mouse: no other key runs anything (PlacementAttachRefuses) but the slide's own (G and F above, Esc before) and the camera's, whose held
+			// state is read each frame (the move keys, Insert's zoom, Home, and Shift, Ctrl and Alt on their own). Frost's MUST 1 on 3270e559: J would fly the very object the slide
+			// moves, ',' and '.' edit its alternate locations, the gizmo's Ctrl+Z undoes a move, and none of them goes through RunAction
+			if (message == WM_KEYDOWN && attachedNew && snapLive && !IsAMoveKey(wParam) && wParam != VK_INSERT && wParam != VK_HOME && wParam != VK_SHIFT && wParam != VK_CONTROL &&
+				wParam != VK_MENU && PlacementAttachRefuses()) { return 0; }
 			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && WaypointGizmo_Key((unsigned)wParam, shiftHeld, ctrlHeld)) { return 0; }   // the waypoint-box gizmo's Esc / Ctrl+Z first (waypoint_gizmo.h)
 			if (message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && !altHeld && !(lParam & (1 << 30)) && GizmoScreen_Key((unsigned)wParam, shiftHeld, ctrlHeld)) { return 0; }
 
@@ -8720,6 +8975,25 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				return 0;
 			}
 
+			// the picker's object following the mouse: a press in the view puts it down where the pointer is (the next frame casts there and keeps it, as the centre ball's
+			// release does), before the gizmo or a pick could take the press. A press on a panel (a menu bar, the card) opens nothing: the words say how to finish
+			// (PlacementAttachRefuses). Its release is swallowed with every other while it follows (WM_LBUTTONUP).
+			if (attachedNew && snapLive)
+			{
+				POINT const pressedAt = InThePanels(window, lParam);
+
+				if (window == hWndMain && !OnAPanel(pressedAt.x, pressedAt.y))
+				{
+					snapPointerX = host::TextScale_ToOwn(GET_X_LPARAM(lParam));
+					snapPointerY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
+					surfaceReleaseWaiting = true;
+					return 0;
+				}
+
+				PlacementAttachRefuses();
+				return 0;
+			}
+
 			if (textureColourPicking) { POINT const at = InThePanels(window, lParam); TextureColourPickPress(at.x, at.y, true); return 0; }   // Select Colour's grid (Shift+K, FUN_00560620)
 
 			// Module Linking's Show All is let go by a mouse button (_DAT_00d8806a, 0x4c1aff); the press then goes on as a click (0x4c36a8) (row ML-M-3)
@@ -8996,6 +9270,9 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			}
 
 			// P3: the centre ball let go: the next frame casts at this pointer and keeps (SnapLiveFrame)
+			// (the picker's object following the mouse is put down by a press, below: no release is any part of it, the one of the press on the picker's tile neither)
+			if (attachedNew && snapLive) { return 0; }
+
 			if (snapLive && snapForSurface && window == hWndMain) { snapPointerX = host::TextScale_ToOwn(GET_X_LPARAM(lParam)); snapPointerY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam)); surfaceReleaseWaiting = true; return 0; }
 
 			if (ShapePickerScreen_Release()) { return 0; }   // the placement picker's scroll thumb let go (shape_picker_screen.h)
@@ -9107,6 +9384,9 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			{
 				return 0;
 			}
+
+			// the picker's object following the mouse: the right button gives it up, the level as it was (SnapLiveEnd), and does nothing else
+			if (attachedNew && snapLive) { SnapLiveEnd(false); return 0; }
 
 			if (textureColourPicking) { POINT const at = InThePanels(window, lParam); TextureColourPickPress(at.x, at.y, false); return 0; }   // Select Colour's grid: not a colour
 
@@ -12795,9 +13075,6 @@ void PromptWords(std::string *title, std::string *hint)
 			*title = (found ? asked.name : std::string("The object")) + " has module linking data. Do you want to delete it?  (type yes or no)";
 			break;
 		}
-		case kPromptCreateName:
-			*title = "Name Object: type the name of the new object (a name no other object has)";
-			break;
 		case kPromptHierarchy:
 			*title = hierarchyTitle;
 			break;
@@ -13013,12 +13290,6 @@ void RunThePrompt()
 	if (kind == kPromptTextureMap)
 	{
 		TextureMapTypedAnswer(typed);
-		return;
-	}
-
-	if (kind == kPromptCreateName)
-	{
-		CreateNamedAtTheView(typed);
 		return;
 	}
 
@@ -14134,7 +14405,7 @@ void AddSpecialMarkers(const ui::PanelLayout &layout, host::PaintText *lines, si
 	VolumeFrame();
 	VolumeAddLines();
 
-	// the object that is being flown (F) is marked where it is now
+	// the object that is being flown (J) is marked where it is now
 	if (flyOn && !flyReal)
 	{
 		AddCubeLines(flyWorld, 250, 0xFFFFFF00u);
@@ -16807,7 +17078,10 @@ int main(int, char **)
 			StateLine_Add("shaders", "built-in " + std::to_string(host::ShaderText_Served()) + " missing " + std::to_string(host::ShaderText_Missing()));   // shader_text.h: the renderer's asks, served from the editor's own set and not
 			StateLine_Add("levelmemory", LevelView_MemoryWords());   // level_view.h: what the open level took of its 40 blocks of memory (Frost 2026-11-21)
 			std::string const surfaceCopy = GizmoScreen_LiveCopyWords();
+			StateLine_Add("surfaceflip", !(snapLive && snapForSurface) ? std::string() : std::to_string(surfaceFlip) + " " + host::SurfaceFlip_Words(surfaceFlip) + (surfaceAlignUp ? " up" : " closest"));   // F: the flip's index, its words and the align (CLOSEST once F is pressed)
 			StateLine_Add("surfacelive", !(snapLive && snapForSurface) ? std::string() : (surfaceCopy.empty() ? std::string("on") : surfaceCopy));   // P3: while the object follows the surface (SurfaceLiveStart), its live copy: "x y z drawn 0|1" (as gizmolive)
+			StateLine_Add("pickerattach", attachedNew && snapLive ? attachedName + " following" : std::string("off"));   // the picker's new object following the mouse (PlacementAttachStart)
+			StateLine_Add("levelchanged", LevelChangedSinceSave() ? "1" : "0");   // the level changed since its last save: the very mark Exit's save reads (LevelChangedSinceSave)
 			StateLine_Add("surfacelast", surfaceLast);   // P3: what placement mode's last cast met (SurfaceLiveFrame)
 			StateLine_Add("fontpx", std::to_string((long long)host::TextScale_ToWindow(PanelPass_HasMenuFont() ? PanelPass_MenuFontHeight() : kPanelPassLineHeight)));   // the text's height in the window's pixels (text_scale.h)
 
@@ -17152,7 +17426,7 @@ int main(int, char **)
 				fflush(stdout);
 			}
 
-			// the flying object (F), for a run that flies one: where it is, whether its own copy is what flies (real) and how the turn keys have turned it
+			// the flying object (J), for a run that flies one: where it is, whether its own copy is what flies (real) and how the turn keys have turned it
 			if (flyOn)
 			{
 				int32_t copyWorld[3] = { 0, 0, 0 }, copyRadius = 0;

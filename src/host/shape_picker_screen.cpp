@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <algorithm>
 #include <map>
 #include <new>
 #include <string>
@@ -31,6 +32,7 @@
 #include "shape_identity.h"        // typed placement: what a tile's shape is, by its file's SHA-256 (ShapeIdentity_Find, ShapeIdentity_PlacedAs)
 #include "shape_import.h"          // ShapeImport_Read: one handle
 #include "shape_pane_gpu.h"        // the live panes' GPU side (the interface agreed with Frost)
+#include "shape_resized.h"         // a resized copy of a stock pickup: the same pickup (ShapeResized_Compare)
 #include "shape_picker.h"
 #include "shape_picker_screen.h"
 #include "shape_search.h"
@@ -56,6 +58,16 @@ namespace
 		int pane = -1;                            // its live pane's handle, -1 while it has none (then the still picture above is shown)
 		bool paneTried = false;                   // the card was asked for it this visit (the picker's close lets every pane go: asked again next visit)
 		std::string paneWhy;                      // why it has no live pane
+		host::ShapeIdentityRow const *resizedRow = nullptr;   // the stock pickup its shape is a resized copy of (FindResized), null: none
+		host::ShapeResizedAnswer resized;                     // and how (its scale)
+	};
+
+	// A STOCK PICKUP on the player's machine (ReadStockPickups): a file of the lookup order's folders whose bytes ARE a typed row's (its SHA-256 the row's), so
+	// what a resized copy is compared with is Steam's own shape, never a file that only has its name
+	struct StockPickup
+	{
+		host::ShapeIdentityRow const *row = nullptr;
+		host::ShapeThumbModel model;
 	};
 
 	bool open = false;
@@ -70,7 +82,15 @@ namespace
 	// row in the identity table, null while unknown. Known by the SHA-256 of the very shape the tile places. A folder's file: its own bytes, read as it is
 	// drawn. An "in this level" tile: the file the level's own shape of that number makes (shape_extract.h ShapeExtract_FileSums), worked out as the picker opens.
 	std::vector<host::ShapeIdentityRow const *> knownOf;
+	// A RESIZED COPY (Vasquez 2026-11-24, Bishop's card; the owner: "Yes, same pickup"): a tile with no row by its SHA-256 whose shape is a stock pickup's at one
+	// uniform scale (shape_resized.h) takes that pickup's row in knownOf, and its answer here (same: it came that way, with its scale). Compared only with the
+	// stock pickups read from the folders as the picker opened, so only after the first start's search made them (before it, nothing is typed by its size)
+	std::vector<host::ShapeResizedAnswer> resizedOf;
+	std::vector<StockPickup> stockPickups;
+	std::string stockPickupsWords;                // how they were read as the picker opened ("5 read in 12 ms", or why not)
+	std::vector<int> kindGroupOf;                 // each tile's group in the order by kind (shape_picker.h ShapePicker_KindGroup), as the picker opened
 	std::string levelSumsWords;                   // how the level's own shapes were looked up as the picker opened ("<n> of <m> known in <ms> ms", or why not)
+	bool levelSumsFailed = false;                 // that look-up failed (out of memory, or bytes it couldn't walk): the level's own tiles say so under the pointer
 	bool pointerSeen = false;                     // the pointer has moved over the window since the picker opened (no button needed) ...
 	int32_t pointerX = 0, pointerY = 0;           // ... and where it was last, in the editor's own pixels: the tile under it is found again each frame, as the rows scroll
 	host::ShapePickerView view;
@@ -102,12 +122,86 @@ namespace
 
 	// THE OPENING'S LOOK at each tile drawn from its own file (shape_picker.h ShapePicker_Thin; the owner, 2026-11-23: "No picture means no geometry? if yes
 	// don't show!", and copies that look the same folded into one tile): read with the drawing's own read (ShapeImport_Read: one handle, a plain file, at most
-	// kShapeImportMostBytes; then ShapeThumb_Read, every count checked), at most kShapePickerMostLookMs in all. A tile "in this level" is drawn from the level's
-	// own shape, not its file, so it isn't looked at; a file that can't be read, or no room to read it, keeps its tile and says why when it is drawn.
-	std::vector<host::ShapePickerLook> LookAtTheFiles(size_t *pastTime, DWORD *tookMs)
+	// kShapeImportMostBytes; then ShapeThumb_Read, every count checked), at most kShapePickerMostLookMs in all. A tile of the LEVEL'S OWN shape ("in this
+	// level", or the level's alone) is looked at as it is drawn and placed: the level's shape of its number made a file (LevelShapeAsFile; Dietrich 2026-11-24,
+	// so the level's own tiles fold too); a file that can't be read, or no room to read it, keeps its tile and says why when it is drawn.
+	// THE SAME SURFACE IN ANOTHER POLYGON LIST, FOLDED (Vasquez 2026-11-24; the owner: "dedupe those", Bishop's approval): the files looked at below are grouped
+	// by what one surface's files share (shape_resized.h ShapeResized_SurfaceKey); in each group the first by name (the plain one: "pulse" before "pulse_als-dm")
+	// is kept, and every other one that is ITS SURFACE (ShapeResized_SameSurface, either way round: every point exactly equal, its quads two of the other's
+	// triangles) is given its look, so ShapePicker_Thin folds it into that tile, named in its copies, as a lookalike is. The plain one is what is drawn and
+	// placed, the file Quick-create would take. The models kept for it: at most kFoldMostCoordinates coordinates in all (past that, the rest keep their tiles)
+	size_t const kFoldMostCoordinates = 4 * 1024 * 1024;
+
+	struct SurfaceTile
+	{
+		size_t tile = 0;
+		host::ShapeThumbModel model;
+	};
+
+	void FoldSameSurfaces(std::map<std::string, std::vector<SurfaceTile>> const &surfaces, std::vector<host::ShapePickerLook> *looks)
+	{
+		for (auto const &group : surfaces)
+		{
+			if (group.second.size() < 2)
+			{
+				continue;
+			}
+
+			// the first by name, as ShapePicker_Thin keeps: the list is in the order of the names in small letters as the files are looked at (the order by
+			// kind comes later), so the first tile of the group
+			std::vector<SurfaceTile const *> byName;
+
+			for (SurfaceTile const &one : group.second)
+			{
+				byName.push_back(&one);
+			}
+
+			std::sort(byName.begin(), byName.end(), [](SurfaceTile const *a, SurfaceTile const *b) { return a->tile < b->tile; });
+
+			// THE LEVEL'S OWN TILE KEPT (Dietrich 2026-11-24, Bishop's default): when the group holds a tile of the level's own shape, the first such is kept
+			// (placed by its number, nothing brought in), as ShapePicker_Thin keeps it
+			size_t keep = 0;
+
+			for (size_t k = 0; k < byName.size(); k++)
+			{
+				host::ShapePickerTile const &tile = list.tiles[byName[k]->tile];
+
+				if (tile.inLevel || tile.levelOnly)
+				{
+					keep = k;
+					break;
+				}
+			}
+
+			SurfaceTile const &kept = *byName[keep];
+			std::string const &look = (*looks)[kept.tile].fingerprint;
+
+			for (size_t k = 0; k < byName.size() && !look.empty(); k++)
+			{
+				if (k == keep)
+				{
+					continue;
+				}
+
+				SurfaceTile const &other = *byName[k];
+
+				if (host::ShapeResized_SameSurface(other.model, kept.model, nullptr) || host::ShapeResized_SameSurface(kept.model, other.model, nullptr))
+				{
+					(*looks)[other.tile].fingerprint = look;   // folded into the kept tile by ShapePicker_Thin
+				}
+			}
+		}
+	}
+
+	// levelNumbers: each tile's level shape by its number (-1: a folder's file only), as Open works them out before the look
+	bool LevelShapeAsFile(int32_t number, std::vector<char> *file);
+
+	std::vector<host::ShapePickerLook> LookAtTheFiles(std::vector<int32_t> const &levelNumbers, size_t *pastTime, DWORD *tookMs)
 	{
 		std::vector<host::ShapePickerLook> looks(list.tiles.size());
 		DWORD const start = GetTickCount();
+		std::map<std::string, std::vector<SurfaceTile>> surfaces;   // by the SHA-256 of their surface key (the fold, above)
+		size_t keptCoordinates = 0;
 
 		*pastTime = 0;
 		*tookMs = 0;
@@ -115,10 +209,12 @@ namespace
 		for (size_t i = 0; i < list.tiles.size(); i++)
 		{
 			host::ShapePickerTile const &tile = list.tiles[i];
+			int32_t const number = i < levelNumbers.size() ? levelNumbers[i] : -1;
+			bool const fromLevel = (tile.inLevel || tile.levelOnly) && number >= 0;
 
-			if (tile.inLevel || tile.levelOnly)
+			if ((tile.inLevel || tile.levelOnly) && number < 0)
 			{
-				continue;
+				continue;   // (a level tile with no shape of its own here: drawn from its file, as before, and not looked at)
 			}
 
 			if (GetTickCount() - start > host::kShapePickerMostLookMs)
@@ -134,10 +230,14 @@ namespace
 				host::ShapeThumbModel model;
 				bool noGeometry = false;
 
-				if (host::ShapeImport_Read(FolderOf(tile).c_str(), tile.name, &bytes, &fileName) != host::ShapeImportResult::Done)
+				if (fromLevel ? !LevelShapeAsFile(number, &bytes) : host::ShapeImport_Read(FolderOf(tile).c_str(), tile.name, &bytes, &fileName) != host::ShapeImportResult::Done)
 				{
 					continue;   // (said when it is drawn, by the same read)
 				}
+
+				// what the identity table knows it by: these very bytes' SHA-256 (the order by kind, ShapePickerScreen_Open; Frost 2026-11-24); a level tile is known
+				// by the file its shape makes (ShapeExtract_FileSums, later), not by these bytes
+				looks[i].fileSha = fromLevel ? std::string() : host::ShapeExtract_Sha256(bytes);
 
 				if (!host::ShapeThumb_Read(bytes, &model, &why, &noGeometry))
 				{
@@ -148,11 +248,29 @@ namespace
 				std::string const look = host::ShapeThumb_LookBytes(model);
 
 				looks[i].fingerprint = look.empty() ? std::string() : host::ShapeExtract_Sha256(std::vector<char>(look.begin(), look.end()));
+
+				// kept for the fold by its surface (above), while there is room
+				std::string const surface = looks[i].fingerprint.empty() ? std::string() : host::ShapeResized_SurfaceKey(model);
+
+				if (!surface.empty() && keptCoordinates + model.points.size() <= kFoldMostCoordinates)
+				{
+					keptCoordinates += model.points.size();
+					surfaces[host::ShapeExtract_Sha256(std::vector<char>(surface.begin(), surface.end()))].push_back(SurfaceTile{ i, std::move(model) });
+				}
 			}
 			catch (std::bad_alloc const &)
 			{
 				looks[i] = host::ShapePickerLook();   // no room to look at it: it keeps its tile (the drawing says so in its turn)
 			}
+		}
+
+		try
+		{
+			FoldSameSurfaces(surfaces, &looks);
+		}
+		catch (std::bad_alloc const &)
+		{
+			// no room to compare them: each keeps its own tile
 		}
 
 		*tookMs = GetTickCount() - start;
@@ -297,6 +415,148 @@ namespace
 		FindClose(search);
 	}
 
+	// THE STOCK PICKUPS ON THIS MACHINE, read as the picker opens: for each row of the identity table whose kind is one placement types (shape_identity.h, the
+	// closed list), the first file of that name in the lookup order's folders whose bytes ARE that row's (their SHA-256 the row's: a file with only the name is
+	// passed over), read as a tile is (ShapeImport_Read: one handle, a plain file, its size capped; then ShapeThumb_Read, every count checked). At most
+	// kShapePickerMostLookMs in all; out of memory, none. The table holds no shapes, only their SHA-256s, so a pickup the folders don't hold can't be compared:
+	// before the first start's search makes them, no resized copy is typed (the safe side: it stays unknown, so static)
+	void ReadStockPickups(std::vector<host::ShapePickerFolder> const &folders)
+	{
+		DWORD const start = GetTickCount();
+		size_t wanted = 0, pastTime = 0;
+
+		stockPickups.clear();
+
+		try
+		{
+			for (size_t r = 0; r < host::kShapeIdentityRowCount; r++)
+			{
+				host::ShapeIdentityRow const &row = host::kShapeIdentityRows[r];
+				host::ShapePlacedAs as;
+
+				if (!host::ShapeIdentity_PlacedAs(row.kind, &as))
+				{
+					continue;   // not a pickup: a resized copy of it would be static anyway
+				}
+
+				wanted++;
+
+				if (GetTickCount() - start > host::kShapePickerMostLookMs)
+				{
+					pastTime++;
+					continue;
+				}
+
+				for (host::ShapePickerFolder const &f : folders)
+				{
+					std::string held;   // the name as the folder holds it (any capitals), "" when it holds none
+
+					for (std::string const &name : f.names)
+					{
+						held = _stricmp(name.c_str(), row.fileName) == 0 ? name : held;
+					}
+
+					if (f.missing || !f.refused.empty() || held.size() <= 4)
+					{
+						continue;
+					}
+
+					std::vector<char> bytes;
+					std::string fileName, why;
+					StockPickup stock;
+
+					if (host::ShapeImport_Read(f.folder.path.c_str(), held.substr(0, held.size() - 4), &bytes, &fileName) != host::ShapeImportResult::Done ||
+						host::ShapeExtract_Sha256(bytes) != row.sha256 || !host::ShapeThumb_Read(bytes, &stock.model, &why))
+					{
+						continue;   // not Steam's bytes of it (or not readable): a later folder may hold them
+					}
+
+					stock.row = &row;
+					stockPickups.push_back(stock);
+					break;
+				}
+			}
+		}
+		catch (std::bad_alloc const &)
+		{
+			stockPickups.clear();
+			stockPickupsWords = "not enough memory to read them";
+			return;
+		}
+
+		stockPickupsWords = std::to_string((unsigned long long)stockPickups.size()) + " of " + std::to_string((unsigned long long)wanted) + " read in " +
+			std::to_string((unsigned long long)(GetTickCount() - start)) + " ms" + (pastTime ? ", " + std::to_string((unsigned long long)pastTime) + " past the time" : "");
+	}
+
+	// A RESIZED COPY (shape_resized.h): tile i has no row by its SHA-256, and its shape is a stock pickup's at one uniform scale, so it takes that pickup's row
+	// (typed, its green border). Only the stock pickups with the same counts of points and polygons are compared, so the work stays small. When two pickups of
+	// OTHER kinds both fit, neither is taken (it stays unknown): no shape is ever given a kind it might not be
+	void FindResized(size_t i, host::ShapeThumbModel const &model, Kept *made)
+	{
+		if (i >= knownOf.size() || i >= resizedOf.size() || knownOf[i])
+		{
+			return;
+		}
+
+		host::ShapeIdentityRow const *found = nullptr;
+		host::ShapeResizedAnswer foundAnswer;
+
+		for (StockPickup const &stock : stockPickups)
+		{
+			if (stock.model.points.size() != model.points.size() || stock.model.polygons.size() != model.polygons.size())
+			{
+				continue;
+			}
+
+			host::ShapeResizedAnswer const answer = host::ShapeResized_Compare(model, stock.model);
+
+			if (!answer.same)
+			{
+				continue;
+			}
+
+			if (found && std::string(found->kind) != stock.row->kind)
+			{
+				return;   // two of other kinds: neither
+			}
+
+			if (!found)
+			{
+				found = stock.row;
+				foundAnswer = answer;
+			}
+		}
+
+		if (found)
+		{
+			made->resizedRow = found;
+			made->resized = foundAnswer;
+			knownOf[i] = found;
+			resizedOf[i] = foundAnswer;
+			return;
+		}
+
+		// NOT ONE, though a stock pickup has its NAME: why not, in words for the line under the grid and the state line (a mapper sees why his medpack stays
+		// static; one compare, with that pickup only)
+		std::string const &tileName = list.tiles[i].name;
+
+		for (StockPickup const &stock : stockPickups)
+		{
+			std::string const stockName = stock.row->fileName;
+
+			if (stockName.size() == tileName.size() + 4 && _strnicmp(stockName.c_str(), tileName.c_str(), tileName.size()) == 0)
+			{
+				host::ShapeResizedAnswer answer = host::ShapeResized_Compare(model, stock.model);
+
+				answer.same = false;   // (it can't be: it was compared above)
+				answer.why = "not a resized copy of " + host::ShapePicker_SafeName(stockName) + ": " + answer.why;
+				made->resized = answer;
+				resizedOf[i] = answer;
+				return;
+			}
+		}
+	}
+
 	// The drawing of tile i, as far as this frame allows: read on one handle, kept drawings reused by the file's SHA-256, else made ready and drawn
 	void DrawTile(size_t i)
 	{
@@ -343,6 +603,13 @@ namespace
 		{
 			state = known->second.state;
 			noPictureOf[i] = known->second.noPicture;
+
+			if (!knownOf[i] && i < resizedOf.size())   // the same bytes, so the same answer: a resized copy of that stock pickup, or why not
+			{
+				knownOf[i] = known->second.resizedRow;
+				resizedOf[i] = known->second.resized;
+			}
+
 			return;
 		}
 
@@ -357,6 +624,7 @@ namespace
 		}
 		else
 		{
+			FindResized(i, model, &made);
 			made.state.drawing = host::ShapePickerDrawing::Drawn;
 			made.state.parts = tile.inLevel ? levelPartsOf[i] : model.parts;   // an "in this level" tile's: the level's shapes of that file
 			made.state.textures = model.pictures.size();
@@ -506,6 +774,20 @@ namespace
 		return i < knownOf.size() && host::ShapeIdentity_PlacedWith(knownOf[i], &with);
 	}
 
+	// A resized copy, in words: "a resized copy of medbox01.rif (scale 0.800, every point within 0.4 mm of it; 0.9 allowed)"
+	std::string ResizedWords(host::ShapeIdentityRow const *row, host::ShapeResizedAnswer const &answer)
+	{
+		if (answer.sameSize)   // at the stock's own size, every point exactly its: another FILE of that shape (the old tools' package's, Bishop's (a))
+		{
+			return "the same shape as " + host::ShapePicker_SafeName(row->fileName) + " (another file of it)";
+		}
+
+		char numbers[128];
+
+		snprintf(numbers, sizeof numbers, " (scale %.3f, every point within %.1f mm of it; %.1f allowed)", answer.scale, answer.worstMm, answer.allowedMm);
+		return "a resized copy of " + host::ShapePicker_SafeName(row->fileName) + numbers;
+	}
+
 	// The tile under the pointer now (ShapePickerScreen_Hover), or -1: the pointer hasn't moved over the window, or isn't over a tile's picture or name
 	int HoveredTile()
 	{
@@ -524,13 +806,27 @@ namespace
 			return name + ": its file isn't read yet, so what it is isn't known yet";
 		}
 
+		if (TypedTile(i) && i < resizedOf.size() && resizedOf[i].same)
+		{
+			return name + ": green border: " + ResizedWords(knownOf[i], resizedOf[i]) + ", " + host::ShapeIdentity_PlacedAsWords(knownOf[i]);
+		}
+
 		if (TypedTile(i))
 		{
 			return name + ": green border: a stock shape known by its file's SHA-256 (" + host::ShapePicker_SafeName(knownOf[i]->fileName) + "), " +
 				host::ShapeIdentity_PlacedAsWords(knownOf[i]);
 		}
 
-		return name + ": " + host::ShapeIdentity_PlacedAsWords(knownOf[i]);
+		// A LEVEL TILE WHOSE LOOK-UP FAILED says the real why, not "not one the editor knows" (Frost's NIT on 6fd8d676: pickerlevelkinds said it, the
+		// tile didn't)
+		if (levelSumsFailed && tile.inLevel && levelNumberOf[i] >= 0)
+		{
+			return name + ": placed as static (Type 0): the level's own shapes couldn't be looked up (" + levelSumsWords + ")";
+		}
+
+		bool const nearMiss = !knownOf[i] && i < resizedOf.size() && !resizedOf[i].why.empty();   // a stock pickup's name, not its shape at a size
+
+		return name + ": " + host::ShapeIdentity_PlacedAsWords(knownOf[i]) + (nearMiss ? "; " + resizedOf[i].why : std::string());
 	}
 
 	// A drawing's LIVE PANE asked of the card, once a visit (shape_pane_gpu.h): its handle, or the card's words why not (its still picture stays shown)
@@ -581,6 +877,75 @@ namespace
 		host::ShapePaneGpu_FrameEnd();
 	}
 
+	// THE ORDER BY KIND (Frost 2026-11-24; the owner, via Bishop: "1 weapons & pickups, lights, screens, furniture, props, switches, tracks, fans and rest,
+	// fragment, debirs and unkonw last"; AvP-docs tools/frost/picker-sort/PLAN.md). As the picker opens, before anything is drawn: a folder's tile is known by
+	// its file's bytes as the opening's look read them (tile.fileSha), an "in this level" tile by the file the level's own shape makes (knownOf, worked out just
+	// before); then each tile gets its group (shape_picker.h ShapePicker_KindGroup) and every list kept per tile is put in the same new order
+	// (ShapePicker_KindOrder), so a tile's number, parts, row and state stay its own. A file not read in the look's time is unknown here (last), even if its
+	// drawing later knows it. Lists of another length than the tiles (never, as Open makes them) leave the order as it was.
+	template <typename T> void Reorder(std::vector<T> *items, std::vector<size_t> const &order)
+	{
+		std::vector<T> moved;
+
+		moved.reserve(order.size());
+
+		for (size_t k : order)
+		{
+			moved.push_back((*items)[k]);
+		}
+
+		items->swap(moved);
+	}
+
+	void SortByKind()
+	{
+		size_t const count = list.tiles.size();
+
+		kindGroupOf.assign(count, host::kShapePickerKindGroups);
+
+		if (states.size() != count || shaOf.size() != count || noPictureOf.size() != count || levelNumberOf.size() != count || levelPartsOf.size() != count ||
+			knownOf.size() != count || resizedOf.size() != count)   // (resizedOf: Vasquez, a resized copy's answer moves with its tile, Frost's note)
+		{
+			return;
+		}
+
+		std::vector<std::pair<int, std::string>> keys;
+
+		keys.reserve(count);
+
+		for (size_t i = 0; i < count; i++)
+		{
+			host::ShapePickerTile const &tile = list.tiles[i];
+
+			if (!(tile.inLevel && levelNumberOf[i] >= 0) && !tile.fileSha.empty())
+			{
+				knownOf[i] = host::ShapeIdentity_Find(tile.fileSha);   // a folder's file: by its own bytes, the ones placed
+			}
+
+			host::ShapeIdentityRow const *const row = knownOf[i];
+
+			kindGroupOf[i] = host::ShapePicker_KindGroup(row != nullptr, row ? row->kind : "", row ? row->levels : "");
+			keys.push_back(std::make_pair(kindGroupOf[i], tile.name));
+		}
+
+		std::vector<size_t> const order = host::ShapePicker_KindOrder(keys);
+
+		if (order.size() != count)
+		{
+			return;
+		}
+
+		Reorder(&list.tiles, order);
+		Reorder(&states, order);
+		Reorder(&shaOf, order);
+		Reorder(&noPictureOf, order);
+		Reorder(&levelNumberOf, order);
+		Reorder(&levelPartsOf, order);
+		Reorder(&knownOf, order);
+		Reorder(&resizedOf, order);   // (so a tile never takes another tile's resized answer once it is filled at the open)
+		Reorder(&kindGroupOf, order);
+	}
+
 	// The selected tile placed the way Quick-create places a shape: the level's own shape of that file by its NUMBER, else the file brought in; one that can't be,
 	// said in words and the picker kept open
 	void PlaceSelected()
@@ -609,9 +974,11 @@ namespace
 		// the file brought in
 		int32_t const number = tile.inLevel ? levelNumberOf[view.selected] : -1;
 		host::ShapeIdentityRow const *const known = knownOf[view.selected];   // (a row of the built-in table: it outlives the picker)
+		std::string const resizedWords = known && view.selected < resizedOf.size() && resizedOf[view.selected].same ?
+			ResizedWords(known, resizedOf[view.selected]) : std::string();   // how it is known, when by its size (said on the status line once made)
 
 		ShapePickerScreen_Close(false);
-		ShapeChooserCreateFromPicker(host::ShapePicker_NameBase(tile), number, known);   // the name is asked, then the object made (construction_modes_screen.cpp); a part's base is its object
+		ShapeChooserCreateFromPicker(host::ShapePicker_NameBase(tile), number, known, resizedWords);   // the object made, with its automatic name, and following the mouse (construction_modes_screen.cpp); a part's base is its object
 		                                                                            // name ("Game" of "Game@offbits"), so no '@' goes into an object's name
 	}
 }
@@ -679,26 +1046,9 @@ bool ShapePickerScreen_Open()
 
 	list = host::ShapePicker_List(folders, levelFiles);
 
-	// NO GEOMETRY, NO TILE; COPIES FOLDED (the owner 11-23, through Bishop 2): each folder tile's file looked at, then the empty ones left out and the lookalikes
-	// folded, before the level's own shapes are added (those are drawn from the level, by number)
-	size_t pastTime = 0;
-	DWORD lookMs = 0;
-	std::vector<host::ShapePickerLook> const looks = LookAtTheFiles(&pastTime, &lookMs);
-
-	host::ShapePicker_Thin(&list, looks, pastTime, &thinned);
-
-	// A SLOW LOOK SAID (Dietrich's NIT on 7ad5b295): the look runs before the window can draw again, so a word during it would never be seen; when it took a
-	// second or more (a stranger's large folder; the owner's 352 files take about 70 ms), the status line says afterwards why the window waited
-	std::string const slowWords = lookMs >= 1000 ? " (looking at the files took " + std::to_string((unsigned long)(lookMs / 1000)) + "." +
-		std::to_string((unsigned long)((lookMs % 1000) / 100)) + " s: each one is read once, to leave out the empty ones and fold the copies)" : std::string();
-
-	if (!slowWords.empty())
-	{
-		list.notes.push_back("looking at the files took " + std::to_string((unsigned long)lookMs) + " ms as the picker opened");
-	}
-
 	// THE LEVEL'S OWN SHAPES as tiles too (shape_picker.h ShapePicker_AddLevelShapes; Bishop 2's decision on the owner's "items from shape_rifs + level"): a
-	// shape the level alone holds, and each part of a fragment file, drawn and placed by number
+	// shape the level alone holds, and each part of a fragment file, drawn and placed by number. ADDED BEFORE THE LOOK (Dietrich 2026-11-24, Bishop's card:
+	// "fold the LEVEL's own tiles too"), each with its shape's number, so the look reads the level's shape and the thinning folds it like any other tile
 	std::vector<host::ShapePickerLevelShape> levelShapes;
 
 	for (host::ShapeChoice const &one : shapes)
@@ -712,6 +1062,50 @@ bool ShapePickerScreen_Open()
 	}
 
 	host::ShapePicker_AddLevelShapes(&list, levelShapes);
+
+	std::vector<int32_t> lookNumbers(list.tiles.size(), -1);   // each tile's level shape for the look: the level's alone by its own number, an "in this level" file's
+	                                                          // by the level's FIRST of that file (as it is drawn and placed, below)
+
+	for (size_t i = 0; i < list.tiles.size(); i++)
+	{
+		if (list.tiles[i].levelOnly)
+		{
+			lookNumbers[i] = list.tiles[i].levelNumber;
+			continue;
+		}
+
+		for (host::ShapeChoice const &one : shapes)
+		{
+			if (list.tiles[i].inLevel && lookNumbers[i] < 0 && _stricmp(one.name.c_str(), list.tiles[i].name.c_str()) == 0)
+			{
+				lookNumbers[i] = one.number;
+			}
+		}
+	}
+
+	// NO GEOMETRY, NO TILE; COPIES FOLDED (the owner 11-23, through Bishop 2): each tile looked at (a folder's file, or the level's own shape), then the empty
+	// ones left out and the lookalikes folded, the level's own tile kept when it is one of them
+	size_t pastTime = 0;
+	DWORD lookMs = 0;
+	std::vector<host::ShapePickerLook> const looks = LookAtTheFiles(lookNumbers, &pastTime, &lookMs);
+
+	for (size_t i = 0; i < list.tiles.size() && i < looks.size(); i++)
+	{
+		list.tiles[i].fileSha = looks[i].fileSha;   // each tile keeps what its file is known by, through the folding and the level's tiles (the order by kind)
+	}
+
+	host::ShapePicker_Thin(&list, looks, pastTime, &thinned);
+
+	// A SLOW LOOK SAID (Dietrich's NIT on 7ad5b295): the look runs before the window can draw again, so a word during it would never be seen; when it took a
+	// second or more (a stranger's large folder; the owner's 352 files take about 70 ms), the status line says afterwards why the window waited
+	std::string const slowWords = lookMs >= 1000 ? " (looking at the files took " + std::to_string((unsigned long)(lookMs / 1000)) + "." +
+		std::to_string((unsigned long)((lookMs % 1000) / 100)) + " s: each one is read once, to leave out the empty ones and fold the copies)" : std::string();
+
+	if (!slowWords.empty())
+	{
+		list.notes.push_back("looking at the files took " + std::to_string((unsigned long)lookMs) + " ms as the picker opened");
+	}
+
 	states.assign(list.tiles.size(), host::ShapePickerState());
 	shaOf.assign(list.tiles.size(), std::string());
 	noPictureOf.assign(list.tiles.size(), std::string());
@@ -743,8 +1137,11 @@ bool ShapePickerScreen_Open()
 	// Its bytes are the level's own, so hostile: the extractor checks every size as it walks them. Out of memory, or bytes it can't walk, leave those tiles
 	// unknown (their objects are made static), said on the state line.
 	knownOf.assign(list.tiles.size(), nullptr);
+	resizedOf.assign(list.tiles.size(), host::ShapeResizedAnswer());
 	pointerSeen = false;
 	levelSumsWords.clear();
+	levelSumsFailed = false;
+	ReadStockPickups(folders);   // what a resized copy is compared with as its tile is drawn: Steam's own pickups, from the folders the list was made of
 
 	bool anyFromLevel = false;
 
@@ -766,6 +1163,7 @@ bool ShapePickerScreen_Open()
 			if (!levelFile->BuildLevel(image) || !host::ShapeExtract_FileSums(image, &sums))
 			{
 				levelSumsWords = "the level's bytes couldn't be built or walked";
+				levelSumsFailed = true;
 			}
 			else
 			{
@@ -789,8 +1187,61 @@ bool ShapePickerScreen_Open()
 		{
 			knownOf.assign(list.tiles.size(), nullptr);
 			levelSumsWords = "not enough memory to look them up";
+			levelSumsFailed = true;
 		}
 	}
+
+	// THE LEVEL'S RESIZED COPIES KNOWN BEFORE THE ORDER (Dietrich 2026-11-24, Bishop's card; Frost's find: a resized copy was known only as its tile was DRAWN,
+	// after the order by kind, so Invasion's own rescaled pickups sorted as unknown, last, though they got their green border). Each level tile still unknown
+	// here is read as its drawing reads it (LevelShapeAsFile, then ShapeThumb_Read: every count checked, the level's bytes being hostile) and compared with
+	// the stock pickups (FindResized, shape_resized.h), so it sorts into its kind's group. At most kShapePickerMostLookMs in all; a tile past it, or out of
+	// memory, stays unknown at the open, and its drawing still finds it later, as before.
+	if (anyFromLevel && !stockPickups.empty())
+	{
+		DWORD const resizedStart = GetTickCount();
+		size_t compared = 0, resizedFound = 0, pastTime = 0;
+
+		try
+		{
+			for (size_t i = 0; i < list.tiles.size(); i++)
+			{
+				if (knownOf[i] || !(list.tiles[i].inLevel && levelNumberOf[i] >= 0))
+				{
+					continue;
+				}
+
+				if (GetTickCount() - resizedStart > host::kShapePickerMostLookMs)
+				{
+					pastTime++;
+					continue;
+				}
+
+				std::vector<char> bytes;
+				host::ShapeThumbModel model;
+				std::string why;
+				Kept unused;   // (FindResized also notes its answer on a drawing; at the open there is none yet)
+
+				if (!LevelShapeAsFile(levelNumberOf[i], &bytes) || !host::ShapeThumb_Read(bytes, &model, &why))
+				{
+					continue;   // (its drawing says why, as before)
+				}
+
+				compared++;
+				FindResized(i, model, &unused);
+				resizedFound += knownOf[i] ? 1 : 0;
+			}
+
+			levelSumsWords += "; resized at the open " + std::to_string((unsigned long long)resizedFound) + " of " + std::to_string((unsigned long long)compared) +
+				" in " + std::to_string((unsigned long long)(GetTickCount() - resizedStart)) + " ms" +
+				(pastTime ? ", " + std::to_string((unsigned long long)pastTime) + " past the time" : "");
+		}
+		catch (std::bad_alloc const &)
+		{
+			levelSumsWords += "; resized at the open: not enough memory";   // (those found so far keep their row: each is a whole answer)
+		}
+	}
+
+	SortByKind();
 
 	view = host::ShapePickerView();
 	selectedClicked = false;
@@ -857,6 +1308,9 @@ void ShapePickerScreen_Close(bool sayNothingChosen)
 	levelNumberOf.clear();
 	levelPartsOf.clear();
 	knownOf.clear();
+	resizedOf.clear();
+	stockPickups.clear();
+	kindGroupOf.clear();
 	pointerSeen = false;
 }
 
@@ -1161,7 +1615,7 @@ void ShapePickerScreen_StateFields()
 	// TYPED PLACEMENT: the tiles on the screen with a green border, each "<name>~<kind>" ('|' between); then the tile under the pointer and its words, as the
 	// line under the grid says them ("none" when the pointer is over no tile); and how the level's own shapes were looked up as the picker opened
 	{
-		std::string typedTiles;
+		std::string typedTiles, resizedTiles, nearMisses;
 		size_t const onScreen = (size_t)layout.columns * (size_t)layout.rows;
 
 		for (size_t i = view.first; i < list.tiles.size() && i < view.first + onScreen; i++)
@@ -1170,13 +1624,45 @@ void ShapePickerScreen_StateFields()
 			{
 				typedTiles += (typedTiles.empty() ? "" : "|") + host::ShapePicker_SafeName(list.tiles[i].name) + "~" + knownOf[i]->kind;
 			}
+
+			if (TypedTile(i) && i < resizedOf.size() && resizedOf[i].same)   // A RESIZED COPY: "<name>~<stock file>~<scale>~<worst mm>"
+			{
+				char numbers[64];
+
+				snprintf(numbers, sizeof numbers, "~%.3f~%.2f", resizedOf[i].scale, resizedOf[i].worstMm);
+				resizedTiles += (resizedTiles.empty() ? "" : "|") + host::ShapePicker_SafeName(list.tiles[i].name) + "~" + host::ShapePicker_SafeName(knownOf[i]->fileName) + numbers;
+			}
+
+			if (!knownOf[i] && i < resizedOf.size() && !resizedOf[i].why.empty())   // A STOCK PICKUP'S NAME, NOT ITS SHAPE AT A SIZE: "<name>~<why>"
+			{
+				nearMisses += (nearMisses.empty() ? "" : "|") + host::ShapePicker_SafeName(list.tiles[i].name) + "~" + resizedOf[i].why;
+			}
 		}
 
 		int const under = HoveredTile();
 
 		StateLine_Add("pickertyped", typedTiles);
+		StateLine_Add("pickerresized", resizedTiles);
+		StateLine_Add("pickerresizednot", nearMisses);
+		StateLine_Add("pickerstockpickups", stockPickupsWords.empty() ? std::string("none read") : stockPickupsWords);
 		StateLine_Add("pickerhover", under >= 0 ? host::ShapePicker_SafeName(list.tiles[(size_t)under].name) + "~" + HoverWords((size_t)under) : std::string("none"));
 		StateLine_Add("pickerlevelkinds", levelSumsWords.empty() ? std::string("none from the level") : levelSumsWords);
+	}
+
+	// THE ORDER BY KIND: the tiles on the screen in the order shown, each "<group>:<name>" ('|' between), its group as shape_picker.h ShapePicker_KindGroup
+	// numbers them (1 pickups ... 9 fragments & debris, 10 unknown)
+	{
+		std::string order;
+		size_t const onScreen = (size_t)layout.columns * (size_t)layout.rows;
+
+		for (size_t i = view.first; i < list.tiles.size() && i < view.first + onScreen; i++)
+		{
+			int const group = i < kindGroupOf.size() ? kindGroupOf[i] : host::kShapePickerKindGroups;
+
+			order += (order.empty() ? "" : "|") + std::to_string(group) + ":" + host::ShapePicker_SafeName(list.tiles[i].name);
+		}
+
+		StateLine_Add("pickerorder", order);
 	}
 
 	size_t drawnCount = 0, failedCount = 0;

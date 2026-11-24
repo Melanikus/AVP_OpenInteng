@@ -1,0 +1,61 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-24; the owner: "dedupe those", Bishop's approval): A STOCK PICKUP AND ITS CONFLICT VARIANT ARE ONE SURFACE, SO ONE TILE.
+# The first start's search names a second copy of a stock name <name>_<level> ("sadar_stat101_m"); MEASURED (AvP-docs/tools/vasquez/probe-resized-pairs, each
+# pair extracted by the editor's own extractor from its stock levels): pulse, smrtam01, sadar and pboost each have a variant with every point EXACTLY the plain
+# one's and its triangle pairs merged into quads (sadar.rif 124 triangles; sadar_stat101_m 8 triangles and 58 quads, 124 in all). The picker grouped them only
+# when their looks were byte for byte the same, so the owner saw both, one green, one not. Now the opening's look folds a file into the plain one's tile when
+# it is that SURFACE (shape_resized.h ShapeResized_SameSurface: every point exactly equal; each polygon one triangle of the other, or a quad that is two of its
+# triangles cut along either diagonal, with the same places, picture, item type and flags; every triangle used once): the plain name shown, its file drawn
+# and placed (what Quick-create takes), the variant named in the tile's copies (pickerfolded), as a lookalike is.
+# THE SCENARIO'S OWN GAME ({datadir}-fold-game, tests/scenarios/make_shape_game.cpp, each file by the editor's own extractor): Invasion (it holds neither name); in
+# <game>\Tools\shape_rifs the old tools' pack's Pboost.RIF (a read copy of the owner's, owner-pack-copy: HIS CASE, the pack first in the lookup order); in
+# <game>\shape_rifs sadar.rif (Lockdown4), sadar_stat101_m.rif (Stat101_M's sadar, named as the search names it), pboost.rif (Area52: behind the pack's, same
+# name), pboost_jockeycoop.rif (jockeycoop's pboost), and sadar_var001.rif (sadar with its first point moved 1 mm: ANOTHER surface, keeps its own tile).
+# RED on the exe before the fold (vasquez-resized e90fc73f's code, 6b262fc8.exe): sadar_stat101_m and pboost_jockeycoop have their own tiles; nothing is folded.
+#ini DataFolder={datadir}-fold-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-fold-game {datadir} Invasion.RIF Lockdown4.rif sadar shape_rifs variants1
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-fold-game {datadir} Invasion.RIF Stat101_M.rif sadar named:sadar_stat101_m
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-fold-game {datadir} Invasion.RIF Area52.RIF pboost shape_rifs pack:C:/Users/Melanikus/source/AvP-builds-excluded/owner-pack-copy/Pboost.RIF
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-fold-game {datadir} Invasion.RIF jockeycoop.RIF pboost named:pboost_jockeycoop
+level {datadir}-fold-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- THE PICKER: each variant folded into its plain one's tile; the edited sadar keeps its own
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+expect-field-has pickerfolded sadar~sadar_stat101_m
+expect-field-has pickerfolded Pboost~pboost_jockeycoop
+expect-field-has pickertiles Pboost: the game's Tools\shape_rifs; looks the same as pboost_jockeycoop
+expect-field-has pickertiles sadar: the game's shape_rifs; looks the same as sadar_stat101_m
+expect-field-not-has pickertiles sadar_stat101_m:
+expect-field-not-has pickertiles pboost_jockeycoop:
+expect-field-not-has pickerfolded sadar_var001
+expect-field-has pickertiles sadar_var001: the game's shape_rifs
+picture 1
+
+# ---- THE OWNER'S CASE: the pack's Pboost (first in the lookup order, so it is the tile; Steam's pboost.rif behind it), jockeycoop's variant folded
+# into it, and typed: the same shape as pboost.rif (another file of it, Bishop's (a))
+click-tile Pboost
+wait-field pickershown waiting 0 20000
+expect-field-has pickertyped Pboost~field charge
+expect-field-has pickerresized Pboost~pboost.rif~1.000~0.00
+
+# ---- THE KEPT TILE: the plain file, a row of the table (typed by its own bytes), and what is placed
+click-tile sadar
+wait-field pickershown waiting 0 20000
+expect-field-has pickertyped sadar~weapon: SADAR
+click-tile sadar twice
+expect-dialog Name Object
+type foldSadar
+key Enter
+expect-no-dialog
+expect-status Object foldSadar made at the view; its shape sadar.rif came from the game's shape_rifs
+expect-status placed as weapon: SADAR (the game's Type 2, ExtraData 5)
+picture 2
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-fold-game/avp_rifs/Invasion.RIF {copy} foldSadar size 52 Type 2 ExtraData 5 mass 50

@@ -70,6 +70,8 @@
 //                               (default 0.05) of the box changed (a dialog appeared, a gun moved); expect-pixels-same ... [share]: at most
 //                               that share (default 0.01) changed (nothing happened there)
 //   expect-number <field> <label> <least> <most>   the number right after <label> (_ a space) in that state-line field is in the range
+//   expect-numbers-near <field> <word|-> <remembered field> <word|-> <count> <within>   <count> numbers of the field now (after <word>, or its last for -)
+//                               each at most <within> from the remembered field's (remember-field first): a turn kept to within rounding
 //   wait-field <field> <label> <n> [<most ms>]   asks again every 100 ms until the number right after <label> (_ a space) in that field is n or more; FAILED at the limit (20000 ms)
 //   wait-moving <stall ms> <field> <words>   asks again every half second until that field holds the words, for as long as the field keeps CHANGING; FAILED only
 //                               when it stays the same for <stall ms> (1 to 600000), or after an hour in all, and then the scenario stops, as after a failed
@@ -1538,6 +1540,118 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		bool const same = was->second == now;
 
 		Check(verb == "expect-field-same" ? same : !same, label + " (" + w[1] + " was \"" + was->second + "\", is \"" + now + "\")");
+		return true;
+	}
+
+	// expect-numbers-near <field> <word|-> <remembered field> <word|-> <count> <within> (Dietrich 2026-11-24, for Drake's attach: the F-flipped turn kept by the
+	// left click): <count> whole numbers of the field NOW and <count> of the remembered one (remember-field first), each pair at most <within> apart. Each side's
+	// numbers are the ones right after its <word> (a whole word of the field: "turn"), or its last <count> numbers for "-". A number is a word of digits, with a
+	// '-' before it if negative, its ',' or ';' after it dropped. Fewer numbers than <count> on either side: a failed check, never a pass.
+	if (verb == "expect-numbers-near" && w.size() >= 7)
+	{
+		if (!AskState(s))
+		{
+			Check(false, label + " (the editor gave no state line)");
+			return false;
+		}
+
+		auto const was = s->remembered.find(w[3]);
+		size_t const count = (size_t)atoi(w[5].c_str());
+		long long const within = atoll(w[6].c_str());
+
+		// the numbers of some words, after `word` or the last `count` of them
+		auto const numbersOf = [count](std::string const &words, std::string const &word, std::vector<long long> *out) -> bool
+		{
+			std::vector<std::string> parts;
+			std::string part;
+
+			for (char c : words + " ")
+			{
+				if (c == ' ' || c == '|')
+				{
+					while (!part.empty() && (part.back() == ',' || part.back() == ';'))
+					{
+						part.pop_back();
+					}
+
+					if (!part.empty())
+					{
+						parts.push_back(part);
+					}
+
+					part.clear();
+				}
+				else
+				{
+					part += c;
+				}
+			}
+
+			auto const isNumber = [](std::string const &p) {
+				size_t const start = !p.empty() && p[0] == '-' ? 1 : 0;
+
+				return p.size() > start && p.size() - start <= 18 && p.find_first_not_of("0123456789", start) == std::string::npos;
+			};
+
+			std::vector<long long> all;
+			size_t from = 0;
+
+			if (word != "-")
+			{
+				size_t k = 0;
+
+				while (k < parts.size() && parts[k] != word)
+				{
+					k++;
+				}
+
+				if (k == parts.size())
+				{
+					return false;
+				}
+
+				from = k + 1;
+			}
+
+			for (size_t k = from; k < parts.size() && (word == "-" || all.size() < count); k++)
+			{
+				if (isNumber(parts[k]))
+				{
+					all.push_back(atoll(parts[k].c_str()));
+				}
+				else if (word != "-")
+				{
+					break;   // the numbers right after the word end at its first word that isn't one
+				}
+			}
+
+			if (all.size() < count || count == 0)
+			{
+				return false;
+			}
+
+			out->assign(all.end() - (std::ptrdiff_t)count, all.end());
+
+			if (word != "-")
+			{
+				out->assign(all.begin(), all.begin() + (std::ptrdiff_t)count);
+			}
+
+			return true;
+		};
+
+		std::string const now = Field(s->last, w[1]);
+		std::vector<long long> a, b;
+		bool const haveNow = numbersOf(now, w[2], &a);
+		bool const haveWas = was != s->remembered.end() && numbersOf(was->second, w[4], &b);
+		bool allNear = haveNow && haveWas;
+
+		for (size_t k = 0; allNear && k < count; k++)
+		{
+			allNear = (a[k] > b[k] ? a[k] - b[k] : b[k] - a[k]) <= within;
+		}
+
+		Check(allNear, label + " (" + w[1] + " is \"" + now + "\"; " + w[3] + " was \"" + (was == s->remembered.end() ? std::string("not remembered") : was->second) + "\")");
 		return true;
 	}
 

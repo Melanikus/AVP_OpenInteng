@@ -13,7 +13,7 @@ wait 400
 click-win 504 364
 expect-selected 1
 wait 300
-key F
+key J
 expect-status Fly selected object: on
 # Shift with a movement key: no step (the direct step is skipped while Shift is held)
 remember-field flyat
@@ -41,7 +41,7 @@ hold C+Numpad3 400
 expect-field-same flyat
 # the camera stayed where it was all along (the keys move the object, not the view)
 expect-field camera -27851 -14055 85500 0 0
-# F again lets it go where it flew
+# J again lets it go where it flew
 wait 300
-key F
+key J
 expect-status Fly selected object: off

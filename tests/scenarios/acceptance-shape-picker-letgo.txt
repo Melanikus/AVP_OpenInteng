@@ -32,7 +32,10 @@ item 0x32
 expect-field-has picker open
 expect-number picker cols_ 14 21
 expect-number picker rows_ 5 9
-expect-field-has picker count 340
+# (323 tiles since the LEVEL's own tiles fold too (Dietrich 2026-11-24, measured on 3a8fecaf: Genshd1's own cabinet and medbox01 keep cabinet_elevator and
+# medbox01_kens-co-op); 325 since the fold by surface, 2026-11-24: 15 of the 340 are a stock shape's variant with the same surface, folded into its tile; measured
+# vasquez-fold-mode1)
+expect-field-has picker count 323
 wait 400
 wait-moving 30000 pickershown waiting 0
 key PageDown
@@ -45,10 +48,10 @@ key End
 wait 400
 wait-moving 30000 pickershown waiting 0
 # every tile drawn once, none failed, and the last screen's tiles all showing their drawings
-expect-field-has picker count 340 drawn 340 failed 0
+expect-field-has picker count 323 drawn 323 failed 0
 expect-field-has pickershown waiting 0 words 0
 # BACK TO THE FIRST SCREEN: the drawings of its tiles were let go on the way to the end; each is drawn again, never left showing words
 key Home
 wait 400
 wait-moving 30000 pickershown waiting 0 words 0
-expect-field-has picker count 340 drawn 340 failed 0 first 0
+expect-field-has picker count 323 drawn 323 failed 0 first 0

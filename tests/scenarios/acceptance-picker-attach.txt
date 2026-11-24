@@ -1,0 +1,134 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-24, the red side of Drake's ATTACH TO THE MOUSE, Bishop's split; the owner: keep two clicks, "Never ask, auto-name").
+# In Object Placement the placement picker's tile is chosen as today (a first click selects it, a second click or Return takes it), and the object is made as
+# today's create makes it (typed placement, a folder's file brought in), with the editor's own automatic name (FUN_004d5620's "%s%d": pulam -> pulam0) and NO
+# name box. Then it FOLLOWS THE SURFACE UNDER THE POINTER with no button held (the centre ball's slide, surface_place.h). A LEFT click puts it down there. A
+# RIGHT click or Esc gives it up: the level is put back as it was before the object was made, its bytes and its changed mark both.
+# THE STATE LINE (Drake's words, agreed 2026-11-24): pickerattach "<name> following" while it follows, else "off"; surfacelive "on" and surfacelast
+# "module, normal ..., place x y z, axis ..." while a surface is under the pointer; levelchanged "0|1" (the mark the save question reads).
+# THE GAME FOLDER: acceptance-picker-typed's (Invasion; pulam.rif from Statue in <game>\shape_rifs: a folder file, ammo: pulse rifle; Invasion's own
+# Smrtam01, ammo: smartgun, placed by its number).
+# THE SAVES: {save1} after the first placement, {save2} after a right click's and an Esc's give-up: the same bytes (verify_level_same); the copy holds pulam0
+# and Smrtam012 as their types (verify_strategy), and no third object.
+# RED on exe-cache/6e8f9150.exe (bishop-int): the second click opens the Name Object box, and no pickerattach field.
+#ini DataFolder={datadir}-attach-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-attach-game {datadir} Invasion.RIF Statue.RIF pulam shape_rifs
+level {datadir}-attach-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+expect-field levelchanged 0
+expect-field pickerattach off
+
+# ---- THE CHANGED MARK PUT BACK BY A GIVE-UP (first, on the level as opened: nothing changed): an attach given up leaves it unchanged, and A's pulam0
+# is still pulam0, the level put back (Drake 2026-11-24: "level" is a start-of-run directive, so it can't open the level afresh later)
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile pulam twice
+expect-field pickerattach pulam0 following
+key Esc
+expect-field pickerattach off
+expect-field levelchanged 0
+
+# ---- A: the folder's pulam, two clicks, no name box: it follows the surface under the pointer
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile pulam twice
+expect-no-dialog
+expect-field picker closed
+expect-field pickerattach pulam0 following
+expect-status Placing pulam0: it follows the surface under the pointer; left click puts it down, right click or Esc gives it up
+move-win 470 600
+wait 300
+expect-field-has surfacelive drawn 1
+expect-field-has surfacelast place
+remember-field surfacelast
+move-win 560 640
+wait 300
+expect-field-changed surfacelast
+expect-field-has surfacelast place
+picture 1
+
+# ---- a LEFT click puts it down, as its type
+click-win 560 640
+expect-no-dialog
+expect-field pickerattach off
+expect-status Object pulam0 placed on the surface; placed as ammo: pulse rifle (the game's Type 3, ExtraData 0)
+expect-field levelchanged 1
+picture 2
+
+# ---- B: the level's own Smrtam01 (by its number), Return as the second press
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile Smrtam01
+key Enter
+expect-no-dialog
+expect-field pickerattach Smrtam012 following
+move-win 420 620
+wait 300
+expect-field-has surfacelive drawn 1
+click-win 420 620
+expect-field pickerattach off
+expect-status Object Smrtam012 placed on the surface; placed as ammo: smartgun (the game's Type 3, ExtraData 2)
+save-copy
+
+# ---- C: a RIGHT click gives it up: nothing placed, the level as it was
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile pulam twice
+expect-field pickerattach pulam1 following
+move-win 500 620
+wait 300
+click-win 500 620 right
+expect-no-dialog
+expect-field pickerattach off
+expect-status Placement: given up, nothing placed (the level as it was)
+
+# ---- D: Esc gives it up too
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile pulam twice
+expect-field pickerattach pulam1 following
+move-win 500 620
+wait 300
+key Esc
+expect-no-dialog
+expect-field pickerattach off
+expect-status Placement: given up, nothing placed (the level as it was)
+picture 3
+save-copy
+
+# ---- THE SAVES: the give-ups changed no byte; the two placed objects as their types, and no third
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_level_same/verify_level_same.exe {save1} {save2}
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-attach-game/avp_rifs/Invasion.RIF {copy} pulam0 size 52 Type 3 ExtraData 0 also Smrtam012
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-attach-game/avp_rifs/Invasion.RIF {copy} Smrtam012 size 52 Type 3 ExtraData 2 also pulam0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_objects.exe {copy} gone pulam1
+
+# ---- F: THE F-FLIPPED POSE KEPT BY THE LEFT CLICK (Frost's F flip in Drake's attach, Bishop's order): F turns the following object to the next of the
+# surface's 24 poses (surfaceflip "1 upright, 90 closest"), and the left click keeps that turn: the object's pose read back from the level (gizmopose: "x y z" then
+# its turn, four ten-thousandths) ends with surfacelast's "turn a b c d", each within 1 (rounding)
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile pulam twice
+expect-field-has pickerattach pulam1 following
+move-win 470 600
+wait 300
+expect-field-has surfacelive drawn 1
+key F
+wait 300
+expect-field-has surfaceflip 1 upright, 90 closest
+expect-status Flip 2 of 24: upright, 90
+remember-field surfacelast
+picture 4
+click-win 470 600
+expect-no-dialog
+expect-field pickerattach off
+expect-status Object pulam1 placed
+expect-numbers-near gizmopose - surfacelast turn 4 1

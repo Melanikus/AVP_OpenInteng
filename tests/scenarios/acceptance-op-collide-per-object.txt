@@ -15,14 +15,14 @@ wait 400
 click-win 504 364
 expect-selected 1
 wait 300
-key F
+key J
 expect-status Fly selected object: on
 expect-hierarchy-text Colliding
 # L: A does not collide any more
 key L
 expect-status Collisions: off
 expect-hierarchy-count 0 Colliding
-key F
+key J
 expect-status Fly selected object: off
 # B made current straight from A (Create makes the new object current: no frame with nothing current between): B collides, A's mark is A's
 click-bar Create > AVP generator
@@ -31,8 +31,8 @@ form-field 1 !colB
 click-button OK
 expect-no-dialog
 wait 300
-key F
+key J
 expect-hierarchy-text Flying object
 expect-hierarchy-text Colliding
 picture 1
-key F
+key J

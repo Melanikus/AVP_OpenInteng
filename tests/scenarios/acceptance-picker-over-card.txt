@@ -52,3 +52,27 @@ wait 400
 expect-field-not-has fieldpanel none
 picture 4
 expect-pixels-same-since 2 panels 856 32 152 258 0.02
+
+# ---- THE TILES' LAYER OVER THE CARD (Frost's NIT on 2bd7323d: "nothing now proves the live panes' composite stays OVER the card"; Vasquez 2026-11-24). Since the
+# owner's 10% padding the grid rarely reaches the card: MEASURED, at this 1008 x 729 frame the last column ends 4 px before it, at 704 x 521 3 px before, and at
+# 1100 x 800 (the outer 1116 x 839) the top right tile, Fmvscreen at 854-950, lies 15 px over the card (935-1100), the most any width gives. There, right of
+# the tile's shape (x 936-948, y 86-178), the card's white letters ("Mass", "Integrity", "Tell", "Explosion", "Turn", "Event") start. The picker paints, in one
+# call and into the game's one 2D list in that order: each tile's half-black box, the live panes' composite, then the pictures, words and bar (texture_window_paint.h
+# ShapePickerPaint_Backdrops, shape_pane_gpu.h ShapePaneGpu_Composite). So with the picker over the card, the box halves the letters there and no pixel of them
+# stays white; with the card over the picker, they would stay white over the box and the turning shapes alike. And the panes still draw with the card shown.
+resize-win 1116 839
+wait 800
+expect-field-has fieldpanel 935 32 165
+picture 5
+expect-colour panels 936 86 12 92 FFFFFF 0.05 40
+item 0x32
+expect-field-has picker open
+wait-field picker drawn 22 20000
+wait-field pickerpanedraw live 1 20000
+wait 1000
+# (the top right tile is EdEggfrg2 since the tiles are in order of kind, 2026-11-24; Fmvscreen, measured there in name order, is Invasion's rescaled copy, unknown,
+# later; with EdEggfrg2 there the strip measured the same: 0.2038 white with the card alone, 0.0000 with the picker open, frost-pickertouch-dbb45392-one)
+expect-field-has pickerboxes EdEggfrg2~854 84 96 96
+expect-number pickerpanedraw drawn 1 100000
+picture 6
+expect-colour-at-most panels 936 86 12 92 FFFFFF 0.001 40

@@ -702,9 +702,11 @@ bool IsThere(const char * path, DWORD * attributes, bool * cantTell)
 }
 
 OpenLevelFile::OpenLevelFile()
-: level(0), packed(false), paired(false), chunksSeen(0), tooManyChunks(false), standsForKnown(false), restructured(false), generation(0), changes(0)
+: level(0), packed(false), paired(false), chunksSeen(0), tooManyChunks(false), standsForKnown(false), restructured(false), generation(0), changes(0),
+  fileLevelSize(0)
 {
 	memset(standsForIdentity, 0, sizeof(standsForIdentity));
+	memset(fileLevelSum, 0, sizeof(fileLevelSum));
 }
 
 OpenLevelFile::~OpenLevelFile()
@@ -740,6 +742,17 @@ void OpenLevelFile::Close()
 	restructured = false;
 	generation = NextOpensGeneration();   // the next open's own number, never the one before (GENERATIONS above)
 	changes = 0;
+	memset(fileLevelSum, 0, sizeof(fileLevelSum));
+	fileLevelSize = 0;
+}
+
+// The level of the file it stands for, as it is in levelBytes right now (just opened, or just saved), kept as its SHA-256, so PutBackLevel
+// can tell that level when it's put back (level_file.h). A level is never empty (its heading is 12 bytes at least), so a size of 0 means none.
+void OpenLevelFile::KeepTheFileLevelSum()
+{
+	Sha256 const sum = Sha256Of(levelBytes);
+	memcpy(fileLevelSum, sum.sum, sizeof(fileLevelSum));
+	fileLevelSize = levelBytes.size();
 }
 
 // Running out of memory, anywhere in the open (the decoder, the game's loader, the pairing), refuses the open, with nothing left open
@@ -859,6 +872,7 @@ LevelOpenResult OpenLevelFile::OpenUnguarded(const char * path)
 	}
 
 	paired = true;
+	KeepTheFileLevelSum();
 	loading.Keep();
 	return LevelOpenResult::Opened;
 }
@@ -874,6 +888,22 @@ LevelOpenResult OpenLevelFile::ReplaceLevel(std::vector<char> const & image)
 	{
 		return LevelOpenResult::CantRead;
 	}
+}
+
+// The level from before an edit, put back (level_file.h)
+LevelOpenResult OpenLevelFile::PutBackLevel(std::vector<char> const & image)
+{
+	LevelOpenResult const result = ReplaceLevel(image);
+
+	// ReplaceLevel marks every level it swaps in as a change. The one put back isn't a change when it is the file's own level, byte for byte:
+	// the same size and the same SHA-256 as the one kept at the open or at the last save (KeepTheFileLevelSum).
+	if (result == LevelOpenResult::Opened && changed.empty() && fileLevelSize != 0 && levelBytes.size() == fileLevelSize)
+	{
+		Sha256 const sum = Sha256Of(levelBytes);
+		restructured = memcmp(sum.sum, fileLevelSum, sizeof(fileLevelSum)) != 0;
+	}
+
+	return result;
 }
 
 LevelOpenResult OpenLevelFile::ReplaceLevelUnguarded(std::vector<char> const & image)
@@ -1732,6 +1762,7 @@ LevelSaveResult OpenLevelFile::SaveAsUnguarded(const char * path)
 	// library's "older than" checks of shapes taken from shape files). If neither pairs, no more saves are made from it. (Fixed 2026-11-17 by Frost: Bishop's report from F-1.)
 	fileBytes.swap(newFile);
 	levelBytes.swap(newLevel);
+	KeepTheFileLevelSum();   // the level of the file just written: before the pairing below may put heldImage in its place
 	changed.clear();
 	holdsAChange.clear();
 	restructured = false;

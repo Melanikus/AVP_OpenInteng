@@ -124,6 +124,15 @@ public:
 	// it (LoaderRefused: the game wouldn't take that level). (Added 2026-11-15 by Melanikus (Drake), S5.)
 	LevelOpenResult ReplaceLevel(std::vector<char> const & image);
 
+	// Puts back the level as it was before an edit that's been given up (image: BuildLevel's bytes from before it; the picker's object attached
+	// to the mouse, editor_main.cpp, given up by a right click or Esc), as ReplaceLevel does, and then marks it changed only if it is one: a
+	// level put back that is, byte for byte, the level of the file it stands for (as it was opened, or as it was last saved) is not a change,
+	// so HasChanges() is false again and nothing asks to save it. That is asked of the bytes themselves (their SHA-256 against the one kept at
+	// the open and at each save), never taken from the caller, so a save in between (the file holds the edit then) or an edit the bytes still
+	// carry leaves the level marked changed. (Added 2026-11-24 by Melanikus (Drake), Bishop's order for the attach: "Same bytes AND the same
+	// changed state".)
+	LevelOpenResult PutBackLevel(std::vector<char> const & image);
+
 	// Which level, and which swap of it, this is, so a view of the level (and every cache made for it) knows to build itself again. Each ReplaceLevel makes it one more.
 	// Each Open (and each Close) moves it to a number the run never gave before, in this file object or in any other (kGenerationsAnOpen apart, from one count for the
 	// whole program), so a cache made for one level is never taken for the next one opened (Vasquez 11-20: it went back to 0, and the Waypoint paint's game module
@@ -213,7 +222,10 @@ private:
 	bool restructured;                                     // ReplaceLevel has made the level different from the file's: a save writes levelBytes
 	unsigned generation;                                   // ReplaceLevel's count
 	unsigned changes;                                      // Changes(): NoteChange's count and ReplaceLevel's
+	unsigned char fileLevelSum[32];                        // the SHA-256 of the level of the file it stands for (levelBytes as opened, or as last saved),
+	size_t fileLevelSize;                                  // and its size (0: not known), so PutBackLevel knows that level when it's put back
 	LevelOpenResult ReplaceLevelUnguarded(std::vector<char> const & image);
+	void KeepTheFileLevelSum();
 };
 
 // The save's last look at the file it is about to replace, right before the replace (src/host/level_save.cpp): true only when path is there, a plain file on a disk with

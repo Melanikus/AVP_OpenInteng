@@ -6,6 +6,10 @@
 # make-fmv-his-film.cmd), Play. The editor answers the harness in its next frame, so a late answer is a frame that took that long (the harness's click waits 600 ms first, and a
 # frame is about 40 ms: 300 catches any wait over about 0.9 s). Pictures are taken only at the end: saving one is a frame's work of its own, and the timings come first.
 # RED on 956b2e91: the answer after Play comes seconds late (the whole sound read first).
+# THE SHARD MADE AFRESH AFTER IT (Dietrich 2026-11-24, Bishop's card from the beta.0 dress rehearsal): its message-fmv maker writes FMV files into the
+# shard's data copy ({datadir}/FMVs), and a later scenario of the same shard lists them (fmv-long's message1.smk gave fmv-scroll a 55th number). So
+# run-shards mirrors the data afresh after it.
+# changes-data
 make-level cmd /c {scenariodir}message-fmv\make-fmv-his-film.cmd {datadir} "C:\Program Files (x86)\Steam\steamapps\common\Aliens versus Predator Classic\FMVs"
 # THE DECODER IS LINKED IN (libsmackerdec_static, the owner's order 11-21, Drake): no libsmackerdec.dll is copied in and no SmackerDecoderSha256 is written; one left in the
 # run folder is deleted first, so the film can play only through the decoder linked into the editor (RED on 57f73907, which loads the DLL: "No FMV preview").

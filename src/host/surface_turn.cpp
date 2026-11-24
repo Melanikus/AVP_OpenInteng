@@ -209,4 +209,94 @@ namespace host
 
 		return true;
 	}
+
+	namespace
+	{
+		// Flip k's place round the 24 (0 to 23) for any whole number: the remainder made positive (no number can overflow here: |k % 24| < 24)
+		int FlipIndex(int k)
+		{
+			return ((k % kSurfaceFlipCount) + kSurfaceFlipCount) % kSurfaceFlipCount;
+		}
+
+		// the Hamilton product r q: R(r q) = R(r) R(q), q done first (surface_place.cpp's own formula)
+		void Times(double const r[4], double const q[4], double out[4])
+		{
+			out[0] = r[3] * q[0] + r[0] * q[3] + (r[1] * q[2] - r[2] * q[1]);
+			out[1] = r[3] * q[1] + r[1] * q[3] + (r[2] * q[0] - r[0] * q[2]);
+			out[2] = r[3] * q[2] + r[2] * q[3] + (r[0] * q[1] - r[1] * q[0]);
+			out[3] = r[3] * q[3] - (r[0] * q[0] + r[1] * q[1] + r[2] * q[2]);
+		}
+	}
+
+	void SurfaceFlip_Turn(int k, float out[4])
+	{
+		int const index = FlipIndex(k), face = index / 4, quarters = index % 4;
+		double const h = sqrt(0.5);   // cos 45 = sin 45
+
+		// THE FACE DOWN, a turn T taking that local axis onto +y (y is down): about z by -90 or +90 for the left (-x) and right (+x) sides, about x by -90 or +90 for the
+		// front (+z) and back (-z), half a turn about x for upside down (-y); none for upright (+y already down). A turn by a about the unit axis u is (u sin a/2, cos a/2).
+		static double const faces[6][4] = {
+			{ 0, 0, 0, 1 },     // upright
+			{ 0, 0, -h, h },    // on its left side: about z by -90 (-x onto +y)
+			{ 0, 0, h, h },     // on its right side: about z by +90 (+x onto +y)
+			{ -h, 0, 0, h },    // on its front: about x by -90 (+z onto +y)
+			{ h, 0, 0, h },     // on its back: about x by +90 (-z onto +y)
+			{ 1, 0, 0, 0 },     // upside down: about x by 180 (-y onto +y)
+		};
+
+		// THE QUARTER TURNS U about up (-y), a quarter turn each: about -y by 90 per step (+x towards +z), so U = (0, -sin(q 45), 0, cos(q 45))
+		static double const turns[4][4] = {
+			{ 0, 0, 0, 1 }, { 0, -h, 0, h }, { 0, -1, 0, 0 }, { 0, -h, 0, -h },
+		};
+
+		double made[4];
+
+		Times(turns[quarters], faces[face], made);   // the face put down first, then turned about up
+
+		for (int i = 0; i < 4; i++)
+		{
+			out[i] = (float)made[i];
+		}
+	}
+
+	int SurfaceFlip_DownAxis(int k)
+	{
+		static int const down[6] = { 2, 1, 0, 4, 5, 3 };   // +y, -x, +x, +z, -z, -y (the axes' own numbers, above)
+
+		return down[FlipIndex(k) / 4];
+	}
+
+	std::string SurfaceFlip_Words(int k)
+	{
+		static char const *const faces[6] = { "upright", "on its left side", "on its right side", "on its front", "on its back", "upside down" };
+		int const index = FlipIndex(k);
+
+		return std::string(faces[index / 4]) + ", " + std::to_string((index % 4) * 90);
+	}
+
+	bool SurfaceTurn_Then(float const a[4], float const b[4], float out[4])
+	{
+		double qa[4], qb[4], made[4];
+
+		if (!UnitTurn(a, qa) || !UnitTurn(b, qb))
+		{
+			return false;
+		}
+
+		Times(qa, qb, made);
+
+		double const length = sqrt(made[0] * made[0] + made[1] * made[1] + made[2] * made[2] + made[3] * made[3]);
+
+		if (!(length > 1e-9))
+		{
+			return false;
+		}
+
+		for (int i = 0; i < 4; i++)
+		{
+			out[i] = (float)(made[i] / length);
+		}
+
+		return true;
+	}
 }

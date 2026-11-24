@@ -7,6 +7,10 @@
 # HIS PATH: as acceptance-strategy-message-fmv-play (his own Genshd1, Message 47 on message13), with his list in the run's own {datadir}\FMVs (make-fmvs-long.cmd: his 53 message
 # names and message450): open the list, scroll to 450 with the wheel, pick it, Play; then the keys: Home, End, Enter.
 # RED on 956b2e91: the list opens with all 54 rows from y 218, 450's at 284 1172 300 18 on the hidden run's 729-high window: past it, so click-combo-row refuses it, and Play plays 47.
+# THE SHARD MADE AFRESH AFTER IT (Dietrich 2026-11-24, Bishop's card from the beta.0 dress rehearsal): its message-fmv maker writes FMV files into the
+# shard's data copy ({datadir}/FMVs), and a later scenario of the same shard lists them (fmv-long's message1.smk gave fmv-scroll a 55th number). So
+# run-shards mirrors the data afresh after it.
+# changes-data
 make-level cmd /c {scenariodir}message-fmv\make-fmvs-long.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
 # THE DECODER IS LINKED IN (libsmackerdec_static, the owner's order 11-21, Drake): no libsmackerdec.dll is copied in and no SmackerDecoderSha256 is written; one left in the
 # run folder is deleted first, so the film can play only through the decoder linked into the editor (RED on 57f73907, which loads the DLL: "No FMV preview").

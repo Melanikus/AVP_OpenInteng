@@ -14,6 +14,10 @@
 # no Stop. GREEN there too, as guards: the frames moving, the bar, the controls' frame, Cancel and Ok by a click, Preview again, and the open list (951ef25f already
 # drew an open list over the film: 0.0000 red in its box).
 #ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+# THE SHARD MADE AFRESH AFTER IT (Dietrich 2026-11-24, Bishop's card from the beta.0 dress rehearsal): its message-fmv maker writes FMV files into the
+# shard's data copy ({datadir}/FMVs), and a later scenario of the same shard lists them (fmv-long's message1.smk gave fmv-scroll a 55th number). So
+# run-shards mirrors the data afresh after it.
+# changes-data
 make-level cmd /c {scenariodir}message-fmv\make-fmvs.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
 make-level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-proofs/verifiers-videomake/verify_videomake.exe make {datadir}/clip30.mp4 30 --again
 screen Construction

@@ -6,6 +6,10 @@
 # HIS PATH: his own Genshd1 (his game folder's copy of 11-18 ~19:30, read-only, SHA256SUMS beside it; messages 47 on message13 and 48 on messageending), opened as a double click; the run's
 # own data folder gets three of his own FMVs and two hostile files (message-fmv\make-fmvs.cmd: 47, 167 his; 238 his 11025 Hz 16-bit; 165 a Bink start; 166 50 bytes).
 # RED on the bishop-int before it (2037ce93): no FMV words, and the number box is inteng's plain box.
+# THE SHARD MADE AFRESH AFTER IT (Dietrich 2026-11-24, Bishop's card from the beta.0 dress rehearsal): its message-fmv maker writes FMV files into the
+# shard's data copy ({datadir}/FMVs), and a later scenario of the same shard lists them (fmv-long's message1.smk gave fmv-scroll a 55th number). So
+# run-shards mirrors the data afresh after it.
+# changes-data
 make-level cmd /c {scenariodir}message-fmv\make-fmvs.cmd {datadir} "C:\Program Files (x86)\Fox\Aliens versus Predator\FMVs"
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/dietrich-ownerpath/his/acceptance-strategy-message-fmv/Genshd1.rif

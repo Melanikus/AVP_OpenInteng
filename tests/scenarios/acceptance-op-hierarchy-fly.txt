@@ -18,14 +18,14 @@ expect-no-dialog
 wait 400
 expect-field camera 72906 -27615 50151 0 0
 # F: it flies (the fly lines in its text, FUN_004e9b60)
-key F
+key J
 expect-status Fly selected object: on
 expect-field-has hierarchylines Flying object
 remember-field flyat
 hold Numpad3 500
 expect-field-changed flyat
 picture 1
-key F
+key J
 expect-status Fly selected object: off, the object is where it flew to
 # the file holds the new place: Find puts the view there, not where it was (the camera stayed at the old place while it flew)
 remember-field camera

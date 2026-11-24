@@ -36,11 +36,13 @@ expect-field-has picker open
 expect-field-has picker count 23
 wait-field picker drawn 22 20000
 click-tile timdesk twice
-expect-dialog Name Object
-type levelDesk
-key Enter
 expect-no-dialog
-expect-status Object levelDesk made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach timdesk0 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object timdesk0 placed
 expect-field picker closed
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept levelDesk shapefile levelDesk|timdesk
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept timdesk0 shapefile timdesk0|timdesk

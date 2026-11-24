@@ -47,12 +47,14 @@ expect-tile-drawn timdesk
 
 # ---- a shape the level holds: placed by its NUMBER (no second copy of timdesk's shape)
 click-tile timdesk twice
-expect-dialog Name Object
-type pickedDesk
-key Enter
 expect-no-dialog
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach timdesk0 following
+click-win 504 420
+expect-field pickerattach off
 expect-screen Object Placement
-expect-status Object pickedDesk made at the view
+expect-status Object timdesk0 placed
 picture 2
 
 # ---- a file the level doesn't hold: brought in from the folder it was shown from
@@ -60,11 +62,13 @@ item 0x32
 expect-field-has picker open
 wait-field picker drawn 2 20000
 click-tile pulam twice
-expect-dialog Name Object
-type pickedAmmo
-key Enter
 expect-no-dialog
-expect-status Object pickedAmmo made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach pulam0 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object pulam0 placed
 expect-status its shape pulam.rif came from the game's Tools\shape_rifs
 picture 3
 
@@ -82,4 +86,4 @@ expect-field-has picker closed
 
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {orig} shapefiles timdesk|1 shapefiles pulam|0
-verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept pickedDesk kept pickedAmmo gone pulam_cut shapefile pickedDesk|timdesk shapefile pickedAmmo|pulam shapefiles timdesk|1 shapefiles pulam|1
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept timdesk0 kept pulam0 gone pulam_cut shapefile timdesk0|timdesk shapefile pulam0|pulam shapefiles timdesk|1 shapefiles pulam|1

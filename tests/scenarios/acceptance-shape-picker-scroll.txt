@@ -6,8 +6,9 @@
 # has 15 rows and its last page starts at row 12 (tile 77). The bar's parts are on the state line (pickerscroll,
 # window pixels), and the picker's "first" says which tile the grid shows from:
 #   a press on the bottom arrow: one row on (first 7); on the track below the thumb: one page on (first 35); on the top arrow: a row back (first 28);
-#   the thumb dragged onto the bottom arrow: the last page (first 77), the last tile (timdesk) in view, the thumb let go; dragged onto the top arrow: the first row;
-#   the selection (Armour01, the first tile) stays as it is throughout, as the wheel leaves it.
+#   the thumb dragged onto the bottom arrow: the last page (first 77), the last tile (Smart: since 2026-11-24 the tiles are in order of kind, the unknown
+#   last, by name) in view, the thumb let go; dragged onto the top arrow: the first row;
+#   the selection (pistol, the first tile: a pickup, first in order of kind) stays as it is throughout, as the wheel leaves it.
 # Also the frame no longer takes the rows back to the selection every frame (it undid the wheel's moves: found building this).
 # RED on exe-cache/8275930d.exe (the alpha.6 cut): no scroll bar, no pickerscroll field, so the first press finds no box.
 #ini DataFolder={datadir}-picker-scroll-game
@@ -21,7 +22,7 @@ expect-screen Object Placement
 wait 400
 item 0x32
 expect-field-has picker open cols 7 rows 4 count 103
-expect-field-has picker first 0 selected Armour01
+expect-field-has picker first 0 selected pistol
 expect-field-has pickerscroll up~
 expect-field-has pickerscroll down~
 expect-field-has pickerscroll thumb~
@@ -32,20 +33,20 @@ picture 1
 # ---- an arrow a row, the track a page
 click-in pickerscroll down
 wait 300
-expect-field-has picker first 7 selected Armour01
+expect-field-has picker first 7 selected pistol
 click-in pickerscroll below
 wait 300
-expect-field-has picker first 35 selected Armour01
+expect-field-has picker first 35 selected pistol
 expect-field-has pickerscroll above~
 click-in pickerscroll up
 wait 300
-expect-field-has picker first 28 selected Armour01
+expect-field-has picker first 28 selected pistol
 
 # ---- the thumb dragged to the bottom: the last page, the last tile in view, the thumb let go
 drag-in pickerscroll thumb down
 wait 300
-expect-field-has picker first 77 selected Armour01
-expect-field-has pickerboxes timdesk~
+expect-field-has picker first 77 selected pistol
+expect-field-has pickerboxes Smart~
 expect-field-not-has pickerscroll below~
 expect-field pickerdrag free
 picture 2
@@ -53,7 +54,7 @@ picture 2
 # ---- and to the top: the first row again
 drag-in pickerscroll thumb up
 wait 300
-expect-field-has picker first 0 selected Armour01
+expect-field-has picker first 0 selected pistol
 expect-field-has pickerboxes pulam~
 
 key Esc

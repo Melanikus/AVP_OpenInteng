@@ -1429,6 +1429,62 @@ static std::vector<unsigned char> MessagePayload(int message)
 	return std::vector<unsigned char>((unsigned char const *)whole.data() + 12, (unsigned char const *)whole.data() + whole.size());
 }
 
+// A level put back after an edit that's given up (the picker's object attached to the mouse, then a right click or Esc): the same bytes, and changed only
+// when the bytes put back aren't the level of the file it stands for (as opened or as last saved). (Added 2026-11-24 by Melanikus (Drake), Bishop's order
+// for the attach: "Same bytes AND the same changed state".)
+static void TestPutBackLevel()
+{
+	std::string const room = Room("put-back");
+	std::string const path = room + "\\level.rif";
+	Bytes const original = BaseLevel().Make();
+	BaseLevel edit;
+	edit.topMessage = 9;
+	Bytes const edited = edit.Make();
+	Make(path, original);
+
+	OpenLevelFile opened;
+	Check(opened.Open(path.c_str()) == LevelOpenResult::Opened && !opened.HasChanges(), "the level opens, not changed");
+
+	// The attach's new object: a whole level swapped in
+	Check(opened.ReplaceLevel(edited) == LevelOpenResult::Opened && opened.HasChanges(), "a level swapped in is a change");
+
+	// Given up: the level from before put back
+	unsigned const changesBefore = opened.Changes();
+	LevelOpenResult const back = opened.PutBackLevel(original);
+	Bytes built;
+	Check(back == LevelOpenResult::Opened && opened.BuildLevel(built) && built == original,
+		Words("the level put back is the very bytes it was (level_file.cpp, PutBackLevel)", Said(back)));
+	Check(!opened.HasChanges(), "and it's not a change: those are the bytes of the file it stands for, so nothing asks to save it (level_file.cpp, PutBackLevel)");
+	Check(opened.Changes() != changesBefore, "and the view still learns the level is another one: Changes() moves, as for every ReplaceLevel (level_file.h)");
+
+	// Bytes that aren't the file's level are a change, put back or not
+	Check(opened.PutBackLevel(edited) == LevelOpenResult::Opened && opened.HasChanges(),
+		"a level put back that isn't the file's own is a change (level_file.cpp, PutBackLevel)");
+
+	// A save in between: the file holds the edit now, so the level from before the save is a change when it's put back
+	LevelSaveResult const saved = opened.SaveAs(path.c_str());
+	Check(saved == LevelSaveResult::Saved && !opened.HasChanges(), Words("the edited level is saved, and isn't a change after its save", Said(saved)));
+	Bytes asSaved;
+	Check(opened.BuildLevel(asSaved), "the level as saved is built");
+	Check(opened.PutBackLevel(original) == LevelOpenResult::Opened && opened.HasChanges(),
+		"after a save, the level from before it put back is a change: the file holds the edit (level_file.cpp, PutBackLevel; the sum kept at each save)");
+	Check(opened.PutBackLevel(asSaved) == LevelOpenResult::Opened && !opened.HasChanges(),
+		"and the level as saved put back is not (level_file.cpp, PutBackLevel)");
+
+	// A level with an edit in its chunks (SetPayload) and the level put back carrying that edit is still a change
+	OpenLevelFile second;
+	Check(second.Open(path.c_str()) == LevelOpenResult::Opened && !second.HasChanges(), "the saved level opens again, not changed");
+	Chunk * const top = FirstNamed(second.Level(), "AVPSTRAT");
+	Bytes withThatEdit;
+	Check(top && second.SetPayload(top, MessagePayload(11)) && second.HasChanges() && second.BuildLevel(withThatEdit), "an edit of a chunk's payload is made");
+	Check(second.PutBackLevel(withThatEdit) == LevelOpenResult::Opened && second.HasChanges(),
+		"a level put back with that edit in it is still a change (level_file.cpp, PutBackLevel)");
+
+	// Refused as ReplaceLevel refuses, with nothing open
+	OpenLevelFile none;
+	Check(none.PutBackLevel(original) == LevelOpenResult::NothingOpen && !none.HasChanges(), "with no level open, putting one back is refused (level_file.cpp, ReplaceLevel)");
+}
+
 // What PayloadOf says is in a chunk: the bytes after its heading, as they were read, until SetPayload puts others there
 static void TestEditedPayload()
 {
@@ -1578,6 +1634,7 @@ int main()
 	TestWhatOpeningRefuses();
 	TestNoNameFromTheLevel();
 	TestEditedPayload();
+	TestPutBackLevel();
 
 	Check(writesAskedOfTheGame == 0,
 		"nothing asked the game's own file call to write: every byte written was written by level_file.cpp, through its .saving file");

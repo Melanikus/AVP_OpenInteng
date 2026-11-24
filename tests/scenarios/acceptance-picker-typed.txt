@@ -10,7 +10,8 @@
 # placement, the table's commonest set of its stock objects' fields: mass 1000, integrity 8, flags 1, as both of its 2 stock placements).
 # MEASURED on 51dcdd42: 9 of Invasion's 21 own shapes make a file, all 9 of them rows of the table. The other 12 make none: RESCALED copies, which have no row by
 # Bishop 2's ruling (shape_identity_data.cpp), so they are unknown and made static. One of them is Invasion's own medbox01. The folder's medbox01 tile is "in this
-# level", so it is drawn and placed from Invasion's copy, and it is unknown (no green border), since the shape placed is not the table's file.
+# level", so it is drawn and placed from Invasion's copy, which is not the table's file. Since 2026-11-24 (Vasquez; the owner: "Yes, same pickup") that copy is known
+# as a RESIZED COPY of the folder's Steam medbox01.rif (shape_resized.h, scale 1.427), so it is typed health with its green border (acceptance-picker-resized).
 # THE STATE LINE: pickertyped "<tile>~<kind>|..." (the tiles on the screen with a green border); pickerhover "<tile>~<words>" or "none"; pickerlevelkinds
 # "<k> of <n> known in <ms> ms". The saved copy is read back by the game's own loader (verify_strategy): the folder's pulam is Type 3 ExtraData 0, the level's own
 # Smrtam01 Type 3 ExtraData 2, the unknown file's object Type 0.
@@ -36,7 +37,7 @@ expect-field-has pickertyped Smrtam01~ammo: smartgun
 expect-field-has pickertyped pistol~weapon: marine pistol
 expect-field-not-has pickertyped pulam_var001
 expect-field-has pickertyped timdesk~furniture
-expect-field-not-has pickertyped medbox01
+expect-field-has pickertyped medbox01~health
 expect-field-has pickerlevelkinds 9 of 21 known in
 expect-field-has pickerhover none
 picture 1
@@ -49,18 +50,20 @@ picture 2
 move-in pickerboxes pulam_var001
 expect-field-has pickerhover pulam_var001~pulam_var001: placed as static (Type 0): its shape is not one the editor knows
 move-in pickerboxes medbox01
-expect-field-has pickerhover medbox01~medbox01: placed as static (Type 0): its shape is not one the editor knows
+expect-field-has pickerhover medbox01~medbox01: green border: a resized copy of medbox01.rif (scale 1.427
 move-in pickerboxes timdesk
 expect-field-has pickerhover timdesk~timdesk: green border: a stock shape known by its file's SHA-256 (timdesk.rif), placed as furniture (the game's Type 1, ExtraData 0; stock mass 1000, integrity 8, 2 of 2 placements)
 picture 3
 
 # ---- THE FOLDER'S AMMO PLACED (its file brought in): made as ammo: pulse rifle
 click-tile pulam twice
-expect-dialog Name Object
-type typedAmmo
-key Enter
 expect-no-dialog
-expect-status Object typedAmmo made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach pulam0 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object pulam0 placed
 expect-status placed as ammo: pulse rifle (the game's Type 3, ExtraData 0)
 picture 4
 
@@ -69,11 +72,13 @@ item 0x32
 expect-field-has picker open
 wait-field pickershown waiting 0 20000
 click-tile Smrtam01 twice
-expect-dialog Name Object
-type typedSmart
-key Enter
 expect-no-dialog
-expect-status Object typedSmart made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach Smrtam012 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object Smrtam012 placed
 expect-status placed as ammo: smartgun (the game's Type 3, ExtraData 2)
 
 # ---- THE UNKNOWN FILE PLACED: static
@@ -81,11 +86,13 @@ item 0x32
 expect-field-has picker open
 wait-field pickershown waiting 0 20000
 click-tile pulam_var001 twice
-expect-dialog Name Object
-type plainVar
-key Enter
 expect-no-dialog
-expect-status Object plainVar made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach pulam_var0010 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object pulam_var0010 placed
 expect-status placed as static (Type 0): its shape is not one the editor knows
 
 # ---- THE LEVEL'S OWN DESK PLACED (HAND 2): made as furniture with its own stock placement
@@ -93,16 +100,18 @@ item 0x32
 expect-field-has picker open
 wait-field pickershown waiting 0 20000
 click-tile timdesk twice
-expect-dialog Name Object
-type typedDesk
-key Enter
 expect-no-dialog
-expect-status Object typedDesk made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach timdesk0 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object timdesk0 placed
 expect-status placed as furniture (the game's Type 1, ExtraData 0; stock mass 1000, integrity 8, 2 of 2 placements)
 
 # ---- THE SAVE holds them so (the game's own loader reads the copy)
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} typedAmmo size 52 Type 3 ExtraData 0 mass 50 also typedSmart also plainVar also typedDesk
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} typedSmart size 52 Type 3 ExtraData 2 mass 50 also typedAmmo also plainVar also typedDesk
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} plainVar size 52 Type 0 ExtraData 0 also typedAmmo also typedSmart also typedDesk
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} typedDesk size 52 Type 1 ExtraData 0 mass 1000 integrity 8 flags 1 also typedAmmo also typedSmart also plainVar
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} pulam0 size 52 Type 3 ExtraData 0 mass 50 also Smrtam012 also pulam_var0010 also timdesk0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} Smrtam012 size 52 Type 3 ExtraData 2 mass 50 also pulam0 also pulam_var0010 also timdesk0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} pulam_var0010 size 52 Type 0 ExtraData 0 also pulam0 also Smrtam012 also timdesk0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} timdesk0 size 52 Type 1 ExtraData 0 mass 1000 integrity 8 flags 1 also pulam0 also Smrtam012 also pulam_var0010

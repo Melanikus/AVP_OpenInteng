@@ -15,7 +15,7 @@ picture 1
 # GRAVITY ON: F, L, E, Edit and Delete do nothing
 click-bar Misc > Toggle Gravity
 wait 300
-key F
+key J
 wait 300
 expect-hierarchy-count 0 Flying object
 # L with Gravity on does nothing: its effect is seen once the object flies (the "Colliding" line is a fly line, OP-101), below
@@ -33,10 +33,10 @@ expect-selected 1
 picture 2
 # the view between the text lines and the status line (the status line says what Toggle Gravity did): the object is where it was, not deleted
 expect-pixels-same-since 1 picture 0 250 1008 400 0.005
-# GRAVITY OFF again: F flies, and the object still COLLIDES (the L above was skipped)
+# GRAVITY OFJ again: F flies, and the object still COLLIDES (the L above was skipped)
 click-bar Misc > Toggle Gravity
 wait 300
-key F
+key J
 wait 300
 expect-hierarchy-text Flying object
 expect-hierarchy-text Colliding
@@ -47,13 +47,13 @@ expect-selected 1
 expect-hierarchy-text Flying object
 click-bar Misc > Toggle Gravity
 wait 300
-key F
+key J
 wait 300
 expect-hierarchy-count 0 Flying object
 # Gravity stayed OFF: F flies again
-key F
+key J
 wait 300
 expect-hierarchy-text Flying object
-key F
+key J
 wait 300
 expect-hierarchy-count 0 Flying object

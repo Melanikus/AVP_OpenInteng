@@ -48,7 +48,7 @@ camera -27851 -14055 85500 0 0
 wait 400
 click-win 504 364
 expect-selected 1
-key F
+key J
 wait 300
 click-bar Misc > Move rel. to poly
 click-win 300 300
@@ -63,7 +63,7 @@ expect-no-dialog
 expect-field camera -27851 -14055 85500 0 0
 picture 3
 # F stops the flight: the place and turn written
-key F
+key J
 wait 500
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_snap/verify_snap.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} switch3 place -29416 -14550 90144 turned

@@ -21,7 +21,7 @@ expect-status-not Camera link to object: on
 picture 2
 expect-pixels-same-since 1 picture 0 0 1008 729 0.005
 # flying: R links (the words are the fly's, OP-101: "Flying object, camlink")
-key F
+key J
 wait 300
 expect-hierarchy-text Flying object
 key R
@@ -30,6 +30,6 @@ expect-hierarchy-text camlink
 key R
 wait 300
 expect-hierarchy-count 0 camlink
-key F
+key J
 wait 300
 expect-hierarchy-count 0 Flying object

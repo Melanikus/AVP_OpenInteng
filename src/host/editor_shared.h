@@ -619,12 +619,13 @@ extern std::string chooserText;
 void ShapeChooserCommand(int32_t what, size_t *screen);
 // the placement picker's chosen shape (shape_picker_screen.cpp): the name is asked, then the object made; number -1: the file is brought in (Vasquez 2026-11-23).
 // known: the identity table's row of the very shape placed (shape_identity.h), or null when the table doesn't know it; the object is made as its kind says
-// (ShapeIdentity_PlacedAs, the closed list), else static (typed placement, Dietrich 2026-11-23)
+// (ShapeIdentity_PlacedAs, the closed list), else static (typed placement, Dietrich 2026-11-23). resizedWords: when that row was found by the shape's size, not
+// its SHA-256 (a resized copy of a stock pickup, shape_resized.h, Vasquez 2026-11-24), the picker's words for it, said on the status line; "" otherwise
 namespace host
 {
 	struct ShapeIdentityRow;
 }
-void ShapeChooserCreateFromPicker(std::string const &name, int32_t number, host::ShapeIdentityRow const *known);
+void ShapeChooserCreateFromPicker(std::string const &name, int32_t number, host::ShapeIdentityRow const *known, std::string const &resizedWords = std::string());
 
 // made in editor_main.cpp
 void CameraPositionSaved(int slot);
@@ -940,8 +941,9 @@ int32_t GameModuleOfNumber(int32_t number);
 extern std::vector<host::ShapeChoice> chooserList;
 extern size_t chooserAt;
 extern int32_t chooserCameraZ;
-bool ObjectNameInUse(std::string const &name);
-void CreateNamedAtTheView(std::string const &typed);
+bool PlacementAttachKeep();   // the picker's new object attached to the mouse (editor_main.cpp): the level kept before it is made,
+void PlacementAttachDrop();   // let go of when it wasn't made,
+bool PlacementAttachStart(std::string const &shownName, std::string const &placedAs);   // and the object following the pointer once it is
 extern std::unique_ptr<host::AdjacentList> adjacentList;
 extern bool adjacentShowAllPaint;
 bool LinkMakeCurrent(int32_t module);

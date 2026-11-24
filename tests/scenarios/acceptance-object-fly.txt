@@ -13,7 +13,12 @@ click-win 504 364
 expect-selected 1
 picture 1
 wait 300
+# F NO LONGER FLIES (the owner, 2026-11-24: "Put the old FLY on another key"; F is the slide's flip now): nothing flies
 key F
+wait 300
+expect-hierarchy-count 0 Flying object
+# J flies (inteng's F: a named difference, editor_main.cpp; the owner's pick after H turned out to be View Distance)
+key J
 expect-status Fly selected object: on
 # the FLY SPEED takes the camera speed's place (OP-110: DAT_005f071c = DAT_005e51b4, 2 at start) and the screen says it flies (OP-101)
 expect-field camspeed 2
@@ -52,7 +57,7 @@ hold Numpad3 500
 expect-pixels-changed picture 0 0 1008 729 0.0005
 key R
 expect-status Camera link to object: off
-# F again lets it go where it flew
+# J again lets it go where it flew
 wait 300
-key F
+key J
 expect-status Fly selected object: off

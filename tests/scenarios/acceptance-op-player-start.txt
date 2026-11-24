@@ -44,12 +44,12 @@ click-choice-is Player Start 2
 expect-no-dialog
 wait 300
 expect-field-has hierarchylines Player Start 2
-key F
+key J
 expect-status Fly selected object: on
 remember-field flyat
 hold Numpad3 400
 expect-field-changed flyat
-key F
+key J
 wait 300
 expect-status Fly selected object: off, the object is where it flew to
 save-copy

@@ -1,0 +1,44 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-24, Bishop's card, Frost's find): A LEVEL'S RESIZED PICKUPS SORT AS THEIR KIND. Vasquez's resized copies
+# (shape_resized.h) were known only as their tile was DRAWN, after the order by kind (shape_picker.h ShapePicker_KindOrder), so Invasion's own rescaled
+# pickups got their green border but stayed in group 10, unknown, last. Now the open compares each level tile still unknown with the stock pickups first.
+# HIS PATH: as his first start did, the FOUND form's Yes extracts every stock shape into the shard's data copy's shape_rifs (ShapesInTests=1, read only in a
+# hidden run; acceptance-shapes-found-1 proves the extraction itself), so Steam's own pickup files are there under the table's names (the anchored variants
+# too: armour01_fall_m.rif, smart_lockdown4.rif, the ones a level's resized copy may be made from). Then Invasion, Object Placement, Choose. Invasion's own
+# Armour01, Flam01, medbox01, pulse and Smart are resized copies (Vasquez, 2026-11-24): each is placed, and drawn, from the level's own shape.
+# MEASURED FIRST (57ecc788, with only the plain-named files in a game folder of the scenario's own): flam01, medbox01 and pulse found, armour01 not: the
+# plain-named armour01.rif is another variant than Invasion's copy was made from (armour01_fall_m.rif), so a run with every stock file is the honest one.
+# THE STATE LINE: pickerorder "<group>:<tile>|..." (the tiles on the screen in the order shown), pickerlevelkinds "<k> of <n> known ...; resized at the
+# open <r> of <c> ...".
+# RED on exe-cache/6b262fc8.exe (Vasquez's resized copies with Frost's order, before this card): the five in group 10.
+# changes-data
+# timeout 1500
+#ini ShapesInTests=1
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+wait-moving 20000 shapes (the form is open)
+expect-dialog Open Inteng
+click-button Yes
+expect-no-dialog
+wait-moving 300000 shapes done;
+expect-field-has shapes new shapes in shape_rifs
+pictures on
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+item 0x32
+expect-field-has picker open
+wait-moving 30000 pickershown waiting 0
+# MEASURED on 57ecc788 with every stock file: "resized at the open 5 of 12": armour01, flam01, flame, medbox01 and pulse, Invasion's own copies, all group 1
+# (each tile named by the folder's file the level holds). Smart is not one of them: no stock pickup is its shape at one scale (the open runs the same
+# compare as its drawing, on the same bytes), so it stays unknown. (One more group-1 tile on this page, openoutsidetest_hangar-many_made, is the shards' source data's old OpenedByEditor
+# file made into shape_rifs: Bishop's card for after the cut; not checked here.)
+expect-field-has pickerlevelkinds resized at the open 5 of 12
+expect-field-has pickerorder 1:armour01|
+expect-field-has pickerorder |1:flam01|
+expect-field-has pickerorder |1:flame|
+expect-field-has pickerorder |1:medbox01|
+expect-field-has pickerorder |1:pulse|
+expect-field-not-has pickerorder 10:armour01
+expect-field-not-has pickerorder 10:medbox01
+picture 1

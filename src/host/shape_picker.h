@@ -25,6 +25,7 @@
 #include <stdint.h>
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "shape_search.h"
@@ -54,6 +55,7 @@ namespace host
 		bool levelOnly = false; // a tile of the LEVEL's own shape, not of a folder's file (ShapePicker_AddLevelShapes): drawn and placed by levelNumber
 		int32_t levelNumber = -1;   // that shape's number (SHPHEAD1's, the Shape Chooser's)
 		std::vector<std::string> copies;   // the files folded into this tile: they look the same (ShapePicker_Thin), in the order of their names
+		std::string fileSha;    // the SHA-256 of its file's bytes as the opening's look read them (ShapePickerLook), "" when not read: what it is known by
 	};
 
 	struct ShapePickerList
@@ -73,6 +75,7 @@ namespace host
 		bool noGeometry = false;    // the file holds no geometry to draw (ShapeThumb_Read's noGeometry): left out of the grid
 		std::string fingerprint;    // what is drawn, as a SHA-256 of the drawing's model (its points, polygons, texture places and pictures' paths); empty when
 		                            // it doesn't fold: not read (in this level, or past the time), broken, too big, or a fragment file (only its first part drawn)
+		std::string fileSha;        // the SHA-256 of the file's bytes as read (the identity table knows a shape by it: the order by kind), "" when not read
 	};
 
 	unsigned const kShapePickerMostLookMs = 3000;   // the opening's look at every file, at most (the owner's 352 files take about 70 ms; a stranger's folder of
@@ -86,6 +89,8 @@ namespace host
 
 	// NO GEOMETRY, NO TILE; COPIES FOLDED: each tile whose look says no geometry left out of the grid (a broken or too big file keeps its tile, with why); of the
 	// tiles whose fingerprints are the same, the first by name kept (the plain one, when the group holds it: "cratese" sorts before "cratese_fcra") with the
+	// [THE LEVEL'S OWN TILE SURVIVES (Dietrich 2026-11-24, Bishop's default, the owner may change it): when the group holds a tile of the level's own shape
+	// (inLevel or levelOnly: placed by its number, nothing brought in), the first such is kept instead, so a fold never trades the level's shape for a file]
 	// others' names in its copies, and the others taken out. A copy that truly looks different has another fingerprint and keeps its own tile. looks shorter
 	// than the tiles leaves the rest as they are. Notes, one line each when any: how many were left out, how many copies were folded, and how many files
 	// weren't looked at in time (pastTime)
@@ -259,4 +264,22 @@ namespace host
 	// and a file's name may hold '~', ';' or a byte past 0x7E.
 	std::string ShapePicker_OpenWords(ShapePickerLayout const &layout, ShapePickerView const &view, std::vector<ShapePickerTile> const &tiles, size_t drawn,
 		size_t failed);
+
+	// ----- THE ORDER BY KIND (Frost 2026-11-24; the owner, via Bishop: "1 weapons & pickups, lights, screens, furniture, props, switches, tracks, fans and rest,
+	// fragment, debirs and unkonw last"; the data and Bishop's ruling: AvP-docs tools/frost/picker-sort/PLAN.md) -----
+	// A tile's group, from its shape's row in the identity table (shape_identity.h: known by the SHA-256 of the very shape placed, never by its name):
+	//   1 pickups: a kind "weapon: ...", "ammo: ...", "health", "armour", "field charge" or "special pickup"
+	//   2 "placed light"   3 "video screen"   4 "furniture"   5 "static" (props)   6 "multi switch"   7 "track" and "track destruct"
+	//   8 "fan", any other kind, and a shape no object places that Steam's avp_huds holds (projectiles, HUD pieces)
+	//   9 FRAGMENTS & DEBRIS: a shape no object places, held by the stock levels only (avp_rifs): the pieces a broken object throws (the game's fragment
+	//     types' shapes, which MakeFragments throws as debris, bh_debris.cpp: in the game's data a fragment IS debris) and the stock pieces nothing uses
+	//   10 UNKNOWN: no row (a stranger's file, a level's rescaled copy, a file not read when the picker opened)
+	// known false gives 10, whatever the words. kind: the row's kind ("" when no object places it); levels: the row's stock files
+	// ("avp_rifs/Derelict.RIF;avp_huds/missile.rif").
+	int const kShapePickerKindGroups = 10;
+	int ShapePicker_KindGroup(bool known, std::string const &kind, std::string const &levels);
+
+	// THE TILES' ORDER: by group (1 first; a group outside 1..10 counts as 10, last), then by name in small letters (the list's own order), then as they came.
+	// tiles: each tile's group and name. The answer holds the tiles' places in the order they are shown: answer[k] is the place in tiles of the k-th shown.
+	std::vector<size_t> ShapePicker_KindOrder(std::vector<std::pair<int, std::string>> const &tiles);
 }

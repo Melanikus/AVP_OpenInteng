@@ -13,9 +13,9 @@ expect-screen Object Placement
 wait 400
 click-win 504 364
 expect-selected 1
-key F
+key J
 hold A 800
-key F
+key J
 wait 300
 picture 2
 
