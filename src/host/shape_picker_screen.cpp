@@ -52,6 +52,7 @@ namespace
 	};
 
 	bool open = false;
+	uint64_t openedGeneration = 0;                // the level's generation when the picker opened (level_objects.h): another one now, and it closes
 	host::ShapePickerList list;
 	std::vector<host::ShapePickerState> states;   // each tile's, as far as it went
 	std::vector<std::string> shaOf;               // each tile's file's SHA-256, once read
@@ -494,6 +495,22 @@ bool ShapePickerScreen_IsOpen()
 	return open;
 }
 
+// THE LEVEL CHANGED while the picker is open (level_objects.h LevelObjects_Generation: opened again, or another one): its list and its "in this level" tiles'
+// shape numbers are the old level's, and the drawing and the placing look a number up in the level open now, so a tile could draw and place another shape
+// than the one it names (Frost's lead, Bishop's order, 2026-11-23). It closes, saying so; opened again, it lists the level open now. CloseTheLevel closes it
+// before a level goes (editor_main.cpp); this catches any other way a level changes. True when it closed.
+static bool ClosedForALevelChange()
+{
+	if (!open || LevelObjects_Generation() == openedGeneration)
+	{
+		return false;
+	}
+
+	ShapePickerScreen_Close(false);
+	Answer("Create: the level changed, so the placement picker closed (open it again for the shapes of the level open now)");
+	return true;
+}
+
 bool ShapePickerScreen_Open()
 {
 	OpenLevelFile *const levelFile = LevelObjects_OpenForEdit();
@@ -600,6 +617,7 @@ bool ShapePickerScreen_Open()
 	dragging = false;
 	shownColumns = shownRows = -1;   // (the first frame brings the selection into view)
 	open = true;
+	openedGeneration = LevelObjects_Generation();   // the level its list was built from
 	ShapePickerPictures_Begin();   // the visit's one allowance for its pictures (shape_picker_pictures.cpp)
 
 	for (std::string const &note : list.notes)
@@ -647,7 +665,7 @@ void ShapePickerScreen_Close(bool sayNothingChosen)
 
 void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
 {
-	if (!open)
+	if (ClosedForALevelChange() || !open)
 	{
 		return;
 	}
@@ -724,7 +742,7 @@ void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
 
 void ShapePickerScreen_Paint(int32_t, int32_t)
 {
-	if (!open)
+	if (ClosedForALevelChange() || !open)
 	{
 		return;
 	}
@@ -784,7 +802,7 @@ void ShapePickerScreen_Paint(int32_t, int32_t)
 
 bool ShapePickerScreen_Key(WPARAM key)
 {
-	if (!open)
+	if (ClosedForALevelChange() || !open)   // (closed for a level change: the key is the editor's)
 	{
 		return false;
 	}
@@ -812,7 +830,7 @@ bool ShapePickerScreen_Key(WPARAM key)
 
 void ShapePickerScreen_Click(int32_t x, int32_t y)
 {
-	if (!open)
+	if (ClosedForALevelChange() || !open)   // (closed for a level change: nothing is placed)
 	{
 		return;
 	}
@@ -857,7 +875,7 @@ void ShapePickerScreen_Click(int32_t x, int32_t y)
 
 bool ShapePickerScreen_Drag(int32_t y)
 {
-	if (!open || !dragging)
+	if (ClosedForALevelChange() || !open || !dragging)
 	{
 		return false;
 	}
@@ -878,7 +896,7 @@ bool ShapePickerScreen_Release()
 
 void ShapePickerScreen_Wheel(int delta)
 {
-	if (open && delta != 0)
+	if (!ClosedForALevelChange() && open && delta != 0)
 	{
 		view = host::ShapePicker_Scroll(view, layout, list.tiles.size(), delta > 0 ? -(delta / WHEEL_DELTA > 0 ? delta / WHEEL_DELTA : 1) : (-delta / WHEEL_DELTA > 0 ? -delta / WHEEL_DELTA : 1));
 	}

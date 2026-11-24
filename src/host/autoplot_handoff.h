@@ -44,6 +44,7 @@ namespace host
 	struct AutoPlotShown
 	{
 		uint64_t number = 0;                   // set by the hand-over: 1, 2, 3, ... for the run, so the window knows a copy from the one before
+		uint64_t run = 0;                      // set by the hand-over too: the run it belongs to (Run), so the window knows a NEW run's copies from the last run's
 		size_t job = 0;                        // which AI module of the run (counted from 0) ...
 		size_t of = 0;                         // ... of how many
 		int32_t head = -1;                     // its head module (the master, or a module of none)
@@ -77,6 +78,11 @@ namespace host
 		// The newest copy handed over (null before the first). The window keeps the pointer as long as it draws from it.
 		std::shared_ptr<AutoPlotShown const> Newest();
 
+		// THE RUN, counted by Start (1 for the first): the window starts afresh when it changes (Drake 2026-11-23, the owner's "are we clearing the previous level"):
+		// All stock maps plots one level after another with no frame between that the window could see as "no plot", and the copy numbers count from 1 again
+		// each run, so a window that went by the numbers alone kept the last level's copy and never put the new level's modules on the map
+		uint64_t Run();
+
 		// The window has drawn copy `number` (the status line and the inset showed it on a frame). A worker waiting for that copy, or an older one, goes on.
 		void Drawn(uint64_t number);
 
@@ -95,6 +101,7 @@ namespace host
 		std::condition_variable woken;                // the worker's wait in Finished
 		std::shared_ptr<AutoPlotShown const> newest;  // the copy the window should show
 		uint64_t handed = 0;                          // the last number given
+		uint64_t runs = 0;                            // the runs Start has begun
 		uint64_t drawn = 0;                           // the last number the window drew
 		bool watching = false;
 		bool stopped = false;

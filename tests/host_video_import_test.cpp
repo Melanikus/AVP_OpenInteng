@@ -663,12 +663,15 @@ static void TestTicks()
 	// refused as too long, never filled up to the hard ceiling (601 s of frames, about 332 MB, in the 32-bit editor)
 	int64_t count = -1;
 
+	// (each call made FIRST, then checked: MSVC may build a Check's message before its condition, and the message would show the count before the call;
+	// Vasquez's nit on abb0e543)
 	next = 0;
-	Check(host::VideoImport_PlacePicture(&next, 2 * second, 180, &count) == host::VideoImportResult::Done && count == 30 && next == 30,
-		"a decoded picture at 2 s, the read's bound 180 s: its 30 ticks (" + std::to_string(count) + ")");
+	host::VideoImportResult const at2 = host::VideoImport_PlacePicture(&next, 2 * second, 180, &count);
+	Check(at2 == host::VideoImportResult::Done && count == 30 && next == 30, "a decoded picture at 2 s, the read's bound 180 s: its 30 ticks (" + std::to_string(count) + ")");
 	next = 0;
 	count = -1;
-	Check(host::VideoImport_PlacePicture(&next, 180 * second, 180, &count) == host::VideoImportResult::Done && count == 2700, "one at exactly 180 s: taken, 2700 ticks");
+	host::VideoImportResult const at180 = host::VideoImport_PlacePicture(&next, 180 * second, 180, &count);
+	Check(at180 == host::VideoImportResult::Done && count == 2700, "one at exactly 180 s: taken, 2700 ticks (" + std::to_string(count) + ")");
 	next = 0;
 	count = -1;
 	host::VideoImportResult const past = host::VideoImport_PlacePicture(&next, 300 * second, 180, &count);

@@ -1,0 +1,46 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-23, Frost's lead from reading, Bishop's order for beta.0): THE PLACEMENT PICKER CLOSES WHEN THE LEVEL CHANGES. Only placing
+# or Escape closed it, so it stayed open across a level opened again (the shapes search's reopen, All stock maps, Dietrich's harness step reopen-level), its list
+# built once at the opening: its "in this level" tiles kept the OLD level's shape numbers, and the drawing and the placing look a number up in the NEW level, so a
+# tile could draw and place a shape other than the one it names (Bishop, at 0abb8dc2: not a memory-safety bug, both lookups refuse a number that isn't there;
+# the wrong shape only when the old number is in the new level). THE RULE: after any level change, no tile shows or places a shape that isn't the one it names:
+# the picker CLOSES (Vasquez's call: opened again, it builds its list from the new level; its kept drawings are by their bytes' SHA-256, never by a number).
+# HOW: Invasion with the picker's shape game (a folder of its own), the picker open, the level opened again from its file (reopen-level, a hidden run's own
+# step): the picker is closed. Opened again: the list afresh (23 tiles), and timdesk placed is timdesk (verify_objects on the saved copy).
+# RED on bishop-int 0abb8dc2 with Dietrich's reopen-level (5422d4f3), before the fix: the picker still open after the reopen.
+#ini DataFolder={datadir}-picker-level-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-level-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-level-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
+level {datadir}-picker-level-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- the picker open, its tiles drawn
+item 0x32
+expect-field-has picker open
+wait-field picker drawn 22 20000
+picture 1
+
+# ---- the level opened again from its file: the picker is closed, nothing of it left
+reopen-level
+wait 400
+expect-field picker closed
+expect-screen Object Placement
+picture 2
+
+# ---- opened again: its list built afresh from the level now open, and a tile places the shape it names
+item 0x32
+expect-field-has picker open
+expect-field-has picker count 23
+wait-field picker drawn 22 20000
+click-tile timdesk twice
+expect-dialog Name Object
+type levelDesk
+key Enter
+expect-no-dialog
+expect-status Object levelDesk made at the view
+expect-field picker closed
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept levelDesk shapefile levelDesk|timdesk

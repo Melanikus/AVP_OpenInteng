@@ -621,6 +621,10 @@ void LinkClick(host::PickReport const &used, bool shift, bool held);
 static bool harnessScenarioAsked = false;
 static void HarnessRunItem(int32_t command);
 int harnessPictureAsked = 0;
+// THE PICTURE HELD (Drake 2026-11-23, Bishop 2's card for alpha.6): when a picture was first held for a frame that couldn't save it (0: none held), and how long
+// it may be held; well inside the 20 s the harness waits for it (drive_editor.cpp TakePictures)
+static ULONGLONG harnessPictureHeldSince = 0;
+ULONGLONG const kHarnessPictureMostHeldMs = 8000;
 static bool harnessStateAsked = false;
 bool harnessPanelAsked = false;
 
@@ -14571,6 +14575,10 @@ static void CloseTheLevel(bool programEnd, long pictureAfter)
 		theCamera = nullptr;   // between levels the camera stays: it is main()'s own, and the next level's open sets it
 	}
 
+	// THE PLACEMENT PICKER closes before its level goes (Frost's lead, Bishop's order, 2026-11-23): its list and its tiles' shape numbers are this level's, and
+	// left open across a reopen a tile could draw and place another shape than the one it names. (Its check of the level's generation catches any other way.)
+	ShapePickerScreen_Close(false);
+
 	editedLevel = nullptr;
 	LevelObjects_Use(nullptr);
 	heldLevel.reset();
@@ -16701,8 +16709,25 @@ int main(int, char **)
 			firstPanelsSaved = panelsSavedNow;
 		}
 
-		if (harnessPicture)
+		// THE PICTURE HELD (Drake 2026-11-23, Bishop 2's card): a frame that couldn't save the harness's picture (drawn false) keeps the ask for the next frame, so the
+		// picture is taken on the first frame that can save it and nothing is said meanwhile. MEASURED: acceptance-all-stock-maps-refusals' picture 104, asked just after
+		// the Ok while All stock maps closes one level and opens the next, lands now and then on the frame between them, when NO LEVEL IS OPEN (the level view's log:
+		// "picture not saved: no level is open this frame"; no save step failed in any run): "NOT SAVED" in 2 of 8 runs on 980697e2, 8 of 8 on c76c9cca (the race's
+		// odds follow each build's frame timing). Held, it was saved on the next frame each time (3 of 8 runs met that frame). Held at most kHarnessPictureMostHeldMs;
+		// then answered as before, NOT SAVED
+		ULONGLONG const pictureNow = GetTickCount64();
+		bool const pictureHeld = harnessPicture && harnessPathsMade && !drawn && harnessPictureAsked == 0 &&
+			(harnessPictureHeldSince == 0 || pictureNow - harnessPictureHeldSince < kHarnessPictureMostHeldMs);
+
+		if (pictureHeld)
 		{
+			harnessPictureAsked = harnessPicture;
+			harnessPictureHeldSince = harnessPictureHeldSince == 0 ? pictureNow : harnessPictureHeldSince;
+			LogString("harness: picture " + std::to_string((long long)harnessPicture) + " held for the next frame (this one couldn't save it)");
+		}
+		else if (harnessPicture)
+		{
+			harnessPictureHeldSince = 0;
 			ScreenPictureReport harnessScreen = { false, false, 0.0, 0.0 };
 
 			bool const harnessHidden = !IsWindowVisible(editorWindow);

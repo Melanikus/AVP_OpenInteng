@@ -13,6 +13,7 @@ namespace host
 		newest.reset();
 		handed = 0;
 		drawn = 0;
+		runs++;   // a new run: its copies carry this number (Run)
 		stopped = false;
 		waitedMs = 0.0;
 		waits = 0;
@@ -29,6 +30,7 @@ namespace host
 
 		// numbered here, under the lock, while the copy is still the worker's alone: once it is in `newest` nobody changes it again
 		copy->number = ++handed;
+		copy->run = runs;
 		newest = copy;
 		return copy->number;
 	}
@@ -68,6 +70,13 @@ namespace host
 		std::lock_guard<std::mutex> held(lock);
 
 		return newest;   // (a copy of the pointer: the window holds the copy from here, whatever the worker hands over next)
+	}
+
+	uint64_t AutoPlotHandOff::Run()
+	{
+		std::lock_guard<std::mutex> held(lock);
+
+		return runs;
 	}
 
 	void AutoPlotHandOff::Drawn(uint64_t number)

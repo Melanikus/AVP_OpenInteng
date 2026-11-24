@@ -1106,6 +1106,10 @@ namespace
 		previewSeen = false;
 		prepareAt = 0;
 		prepareOf = 0;
+		// THE HAND-OVER STARTS WITH THE RUN (Drake 2026-11-23, the owner's "are we clearing the previous level"): the run is busy from here, and the preview's window
+		// takes the newest copy every frame, so a hand-over started only with the worker (below) still offered the LAST run's copy through the grid's whole stage
+		// (All stock maps: derelict's head 384 drawn over genshd1's start). Start lets go of it and counts this run (autoplot_handoff.h Run)
+		handOff.Start();
 		stage = Stage::Starting;
 		runStart = std::chrono::steady_clock::now();
 		plotFrames = 0;

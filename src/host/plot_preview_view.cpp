@@ -47,6 +47,10 @@ namespace
 	// number of the last copy added, so none is added twice
 	std::vector<host::TrackLine> mapLines;
 	uint64_t landedUpTo = 0;
+	// THE RUN the window shows (AutoPlotHandOff::Run): when the hand-over starts another, everything of the last run goes (Drake 2026-11-23, the owner's "are we
+	// clearing the previous level when loading the new one?"). Not by "no plot" frames alone: All stock maps plots level after level with no such frame between,
+	// and the copy numbers count from 1 again, so the window kept derelict's last copy into genshd1's plot and never landed genshd1's modules
+	uint64_t viewRun = 0;
 
 	// The box round all of these modules (the game's module numbers): the smallest box that holds each one's own box. False when none of them has a box
 	bool ModulesBox(std::vector<int32_t> const &modules, int32_t mins[3], int32_t maxs[3])
@@ -232,6 +236,18 @@ FlyCamera PlotPreviewView_Frame(FlyCamera const &camera, int viewLeft, int viewT
 	}
 
 	wasBusy = busy;
+
+	// A NEW RUN BY THE HAND-OVER'S OWN COUNT (viewRun above): the last run's copy, its framing and its modules on the map let go, and its counts, whether or not a
+	// frame with no plot came between
+	uint64_t const run = handOff.Run();
+
+	if (run != viewRun)
+	{
+		viewRun = run;
+		LetGo();
+		state = host::PlotPreviewState();
+		shown = PlotPreviewShown();
+	}
 
 	// DECIDED (Drake 11-21): shown only on the Waypoint screen, where the plot goes on (AutoPlotCommand_Frame runs there only: on another screen the run waits,
 	// and that screen's own view is drawn, with its own box)
