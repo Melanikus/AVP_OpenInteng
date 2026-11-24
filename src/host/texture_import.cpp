@@ -164,27 +164,43 @@ namespace host
 			return Refuse(TextureImportResult::ListRefused, "Import texture: the level's bytes couldn't be built to add the texture to", why);
 		}
 
-		if (model::BitmapAdd_ToImage(image, result.entry, choice.side, choice.side, &withEntry, &result.index, &stepWhy) != model::BitmapAddResult::Added)
+		model::BitmapAddResult const added = model::BitmapAdd_ToImage(image, result.entry, choice.side, choice.side, &withEntry, &result.index, &stepWhy);
+
+		if (added != model::BitmapAddResult::Added)
 		{
-			return Refuse(TextureImportResult::ListRefused, "Import texture: " + stepWhy + "; nothing was saved", why);
+			// THE LEVEL NAMES IT ALREADY: said with how to go on (the owner's bug on alpha.6, 2026-11-23, his "silent message"): it is in Texture Map already, and a
+			// different picture needs another name
+			return Refuse(TextureImportResult::ListRefused, "Import texture: " + stepWhy + (added == model::BitmapAddResult::NameInList ?
+				": it is in this level already (Texture Map offers it: Next / Prev Texture, or the chooser); a different picture needs another name in the form's Name" :
+				std::string()) + "; nothing was saved", why);
 		}
 
-		// 7. THE FILE (its own words start with "Import texture: ")
-		if (RimSave_New(dataFolder, result.entry, rim, &result.savedPath, why) != RimSaveResult::Saved)
+		// 7. THE FILE (its own words start with "Import texture: "). ALREADY THERE with these very bytes (rim_save.h AlreadyThere: the same picture imported
+		// before, its level left unsaved, so the list lost the entry but the file stayed; the owner's bug on alpha.6, 2026-11-23): taken as it is, and NEVER
+		// deleted below, since this import didn't make it
+		RimSaveResult const savedHow = RimSave_New(dataFolder, result.entry, rim, &result.savedPath, why);
+
+		if (savedHow != RimSaveResult::Saved && savedHow != RimSaveResult::AlreadyThere)
 		{
 			return TextureImportResult::CantSave;
 		}
 
-		*saved = result.savedPath;   // (from here on, a throw takes this file away again: TextureImport_Make's guard)
+		result.alreadyThere = savedHow == RimSaveResult::AlreadyThere;
+
+		if (!result.alreadyThere)
+		{
+			*saved = result.savedPath;   // (from here on, a throw takes this file away again: TextureImport_Make's guard; only a file this import made)
+		}
 
 		// 8. THE LEVEL SWAPPED, the game's own loader first
 		if (level->ReplaceLevel(withEntry) != LevelOpenResult::Opened)
 		{
-			// this import's own file, made a moment before by CREATE_NEW: deleted again, so nothing is left half done
-			bool const deleted = DeleteFileA(result.savedPath.c_str()) != 0;
+			// this import's own file, made a moment before by CREATE_NEW: deleted again, so nothing is left half done; a file that was there already stays
+			bool const deleted = !result.alreadyThere && DeleteFileA(result.savedPath.c_str()) != 0;
 
 			return Refuse(TextureImportResult::LevelRefused, "Import texture: the game's own loader wouldn't take the level with the new texture, so the level is as it was" +
-				std::string(deleted ? ", and the file made for it is deleted again" : "; the file made for it couldn't be deleted: graphics\\" + result.entry), why);
+				std::string(result.alreadyThere ? ", and graphics\\" + result.entry + " (there before) is left as it was" : deleted ?
+				", and the file made for it is deleted again" : "; the file made for it couldn't be deleted: graphics\\" + result.entry), why);
 		}
 
 		if (done)
@@ -198,7 +214,8 @@ namespace host
 
 	std::string TextureImport_DoneWords(TextureImportDone const &done)
 	{
-		std::string words = "Imported " + done.entry + " as texture " + std::to_string(done.index) + ": " + std::to_string(done.pictureWidth) + " x " +
+		std::string words = "Imported " + done.entry + " as texture " + std::to_string(done.index) + (done.alreadyThere ?
+			" (its file was already saved, the very same picture: the level's list names it again)" : "") + ": " + std::to_string(done.pictureWidth) + " x " +
 			std::to_string(done.pictureHeight) + " made " + std::to_string(done.side) + " x " + std::to_string(done.side) + ", ";
 
 		words += done.reduced ? std::to_string(done.coloursIn) + " colours made " + std::to_string(done.coloursOut) : std::to_string(done.coloursIn) + " colours kept exactly";

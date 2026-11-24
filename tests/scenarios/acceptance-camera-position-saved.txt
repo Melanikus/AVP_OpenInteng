@@ -23,7 +23,10 @@ wait 300
 expect-screen Object Placement
 expect-field camerasaved 2
 expect-field camerasaveddrawn 2
-item 0x32
+# the chooser's start (FUN_004dd910, the same for Replace shape): reached by Replace shape (0x1d) on a placed object, since Choose (0x32) opens the placement
+# picker (the owner's "Grid replaces it", 2026-11-23); Gravity is off on entering Object Placement, so Replace shape is allowed
+select-row 0
+item 0x1d
 wait 300
 expect-screen Shape Chooser
 expect-field camerasaved 3

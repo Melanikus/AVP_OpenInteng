@@ -1,6 +1,7 @@
 # ACCEPTANCE (red first; Vasquez 2026-11-23, THE OWNER testing the alpha.6 cut: "there is no scroll to see all items from shape_rifs + level", "Ok I want a dragable
 # scroll box on the top right, inteng folk do not mouse scroll"; Bishop 2's spec): THE PLACEMENT PICKER'S SCROLL BAR, down the right side of the grid from its top, in
-# the dialog lists' look, its thumb DRAGGED. The grid holds 103 shapes (pulam in Tools\shape_rifs, 80 copies of it, pulam_cut and timdesk in shape_rifs, in a game
+# the dialog lists' look, its thumb DRAGGED. The grid holds 103 shapes (pulam in Tools\shape_rifs, 80 variants of it that look apart (make_shape_game's variants80: whole copies fold into one tile since
+# 2026-11-23), pulam_cut and timdesk in shape_rifs, in a game
 # folder of this scenario's own, and Invasion's own 20), so the grid (9 x 4 in the hidden run's window, 36 a page) has 12 rows and its last page starts at row 8
 # (tile 72). The bar's parts are on the state line (pickerscroll,
 # window pixels), and the picker's "first" says which tile the grid shows from:
@@ -10,7 +11,7 @@
 # Also the frame no longer takes the rows back to the selection every frame (it undid the wheel's moves: found building this).
 # RED on exe-cache/8275930d.exe (the alpha.6 cut): no scroll bar, no pickerscroll field, so the first press finds no box.
 #ini DataFolder={datadir}-picker-scroll-game
-make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-scroll-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut copies80
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-scroll-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut variants80
 make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-scroll-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
 level {datadir}-picker-scroll-game/avp_rifs/Invasion.RIF
 pictures on

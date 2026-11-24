@@ -79,6 +79,65 @@ namespace
 		return tile.path.size() > tile.fileName.size() ? tile.path.substr(0, tile.path.size() - tile.fileName.size() - 1) : std::string();
 	}
 
+	host::ShapePickerThinned thinned;   // what the opening left out and folded (ShapePicker_Thin), for the state line
+
+	// THE OPENING'S LOOK at each tile drawn from its own file (shape_picker.h ShapePicker_Thin; the owner, 2026-11-23: "No picture means no geometry? if yes
+	// don't show!", and copies that look the same folded into one tile): read with the drawing's own read (ShapeImport_Read: one handle, a plain file, at most
+	// kShapeImportMostBytes; then ShapeThumb_Read, every count checked), at most kShapePickerMostLookMs in all. A tile "in this level" is drawn from the level's
+	// own shape, not its file, so it isn't looked at; a file that can't be read, or no room to read it, keeps its tile and says why when it is drawn.
+	std::vector<host::ShapePickerLook> LookAtTheFiles(size_t *pastTime)
+	{
+		std::vector<host::ShapePickerLook> looks(list.tiles.size());
+		DWORD const start = GetTickCount();
+
+		*pastTime = 0;
+
+		for (size_t i = 0; i < list.tiles.size(); i++)
+		{
+			host::ShapePickerTile const &tile = list.tiles[i];
+
+			if (tile.inLevel || tile.levelOnly)
+			{
+				continue;
+			}
+
+			if (GetTickCount() - start > host::kShapePickerMostLookMs)
+			{
+				(*pastTime)++;
+				continue;
+			}
+
+			try
+			{
+				std::vector<char> bytes;
+				std::string fileName, why;
+				host::ShapeThumbModel model;
+				bool noGeometry = false;
+
+				if (host::ShapeImport_Read(FolderOf(tile).c_str(), tile.name, &bytes, &fileName) != host::ShapeImportResult::Done)
+				{
+					continue;   // (said when it is drawn, by the same read)
+				}
+
+				if (!host::ShapeThumb_Read(bytes, &model, &why, &noGeometry))
+				{
+					looks[i].noGeometry = noGeometry;   // false for a broken or too big file: it keeps its tile, with why
+					continue;
+				}
+
+				std::string const look = host::ShapeThumb_LookBytes(model);
+
+				looks[i].fingerprint = look.empty() ? std::string() : host::ShapeExtract_Sha256(std::vector<char>(look.begin(), look.end()));
+			}
+			catch (std::bad_alloc const &)
+			{
+				looks[i] = host::ShapePickerLook();   // no room to look at it: it keeps its tile (the drawing says so in its turn)
+			}
+		}
+
+		return looks;
+	}
+
 	// THE LEVEL'S OWN SHAPE of that number, as the bytes of a shape file (Frost's SHOULD 2 on piece 1: an "in this level" tile is placed by its number, so it is
 	// DRAWN from the level's shape too, and the picture is what gets placed): a REBINFF2 holding a REBSHAPE of the shape's own header, points, polygons,
 	// normals and texture coordinates, and a REBENVDT of its outside file's texture list (SHPEXTFL's BMPLSTST, BMPNAMES's very form: shape_import.h) and
@@ -475,6 +534,13 @@ bool ShapePickerScreen_Open()
 
 	list = host::ShapePicker_List(folders, levelFiles);
 
+	// NO GEOMETRY, NO TILE; COPIES FOLDED (the owner 11-23, through Bishop 2): each folder tile's file looked at, then the empty ones left out and the lookalikes
+	// folded, before the level's own shapes are added (those are drawn from the level, by number)
+	size_t pastTime = 0;
+	std::vector<host::ShapePickerLook> const looks = LookAtTheFiles(&pastTime);
+
+	host::ShapePicker_Thin(&list, looks, pastTime, &thinned);
+
 	// THE LEVEL'S OWN SHAPES as tiles too (shape_picker.h ShapePicker_AddLevelShapes; Bishop 2's decision on the owner's "items from shape_rifs + level"): a
 	// shape the level alone holds, and each part of a fragment file, drawn and placed by number
 	std::vector<host::ShapePickerLevelShape> levelShapes;
@@ -591,6 +657,28 @@ void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
 	size_t const shown = (size_t)layout.columns * (size_t)layout.rows;
 	DWORD const start = GetTickCount();
 	int drawn = 0;
+
+	// THE TILES ON THE SCREEN, before anything is drawn (Frost, 2026-11-23: the owner's "poluted with a bunch of "no picture" entries"):
+	// - each one's kept drawing is marked shown THIS frame. DrawTile lets go only drawings not shown this frame, and the paint marks them only after the
+	//   frame's drawing, so with more tiles on the screen than the picker keeps (kShapePickerMostKept; a 3840 x 2160 screen holds 540) a visible drawing would
+	//   be let go, drawn again, and another let go, every frame (Vasquez's review of 578f59d9). Marked here, a visible one is never let go: the kept ones grow
+	//   past the most only by what the screen holds.
+	// - one whose drawing was let go while it was off the screen goes back to waiting, so it is drawn again (its file read again) instead of showing "no
+	//   picture" for the rest of the sitting. A tile whose file couldn't be read has no SHA-256, so it stays as it failed and isn't tried every frame.
+	for (size_t i = view.first; i < list.tiles.size() && i < view.first + shown; i++)
+	{
+		auto const k = shaOf[i].empty() ? kept.end() : kept.find(shaOf[i]);
+
+		if (k != kept.end())
+		{
+			k->second.used = frameNumber;
+		}
+		else if (!shaOf[i].empty() && states[i].drawing != host::ShapePickerDrawing::Waiting)
+		{
+			states[i] = host::ShapePickerState();
+			noPictureOf[i].clear();
+		}
+	}
 
 	for (int pass = 0; pass < 2 && drawn < kShapePickerDrawsAFrame; pass++)
 	{
@@ -843,4 +931,51 @@ void ShapePickerScreen_StateFields()
 
 	StateLine_Add("pickerscroll", host::ShapePicker_BarWords(bar));
 	StateLine_Add("pickerdrag", dragging ? "held" : "free");
+
+	// what the opening left out (no geometry) and folded (each copy under the tile it looks the same as, "<tile>~<copy>"), '|' between, every name made safe
+	std::string leftOut, folded;
+
+	for (std::string const &name : thinned.leftOut)
+	{
+		leftOut += (leftOut.empty() ? "" : "|") + host::ShapePicker_SafeName(name);
+	}
+
+	for (host::ShapePickerTile const &tile : list.tiles)
+	{
+		for (std::string const &copy : tile.copies)
+		{
+			folded += (folded.empty() ? "" : "|") + host::ShapePicker_SafeName(tile.name) + "~" + host::ShapePicker_SafeName(copy);
+		}
+	}
+
+	StateLine_Add("pickerleftout", leftOut);
+	StateLine_Add("pickerfolded", folded);
+
+	// the tiles on the screen as the paint shows them, each counted once: with their drawing (the paint draws a kept one whatever the tile's state), else still
+	// "drawing...", else words only (can't be drawn, no picture, or a drawing let go)
+	size_t onScreen = 0, pictured = 0, waiting = 0, wordsOnly = 0;
+
+	for (size_t i = view.first; i < list.tiles.size() && i < view.first + shown; i++)
+	{
+		auto const k = shaOf[i].empty() ? kept.end() : kept.find(shaOf[i]);
+
+		onScreen++;
+
+		if (k != kept.end() && k->second.bgra.size() == (size_t)host::kShapeThumbSide * host::kShapeThumbSide * 4)
+		{
+			pictured++;
+		}
+		else if (states[i].drawing == host::ShapePickerDrawing::Waiting)
+		{
+			waiting++;
+		}
+		else
+		{
+			wordsOnly++;
+		}
+	}
+
+	auto const number = [](size_t n) { return std::to_string((unsigned long long)n); };
+
+	StateLine_Add("pickershown", "shown " + number(onScreen) + " pictured " + number(pictured) + " waiting " + number(waiting) + " words " + number(wordsOnly));
 }

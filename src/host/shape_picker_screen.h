@@ -66,7 +66,10 @@ void ShapePickerScreen_Wheel(int delta);
 // The picker's fields on the state line (StateLine_Add), every frame: picker "open cols A rows B count N drawn D failed F first X selected <name>" (or
 // "closed"), pickerboxes "<name>~<x> <y> <w> <h>|..." (the tiles on the screen, their pictures, in the WINDOW's pixels), pickertiles (those tiles' words,
 // shape_picker.h ShapePicker_TileWords, '|' between), pickernotes (the folders' words), pickerscroll (the scroll bar's parts, "up~...|down~...|above~...|
-// below~...|thumb~...", in the window's pixels) and pickerdrag ("held" while the thumb is held, else "free")
+// below~...|thumb~...", in the window's pixels), pickerdrag ("held" while the thumb is held, else "free"), pickershown (the tiles on the screen as the
+// paint shows them, "shown S pictured P waiting W words X": with their drawing, still drawing, or words only), pickerleftout (the files left out as the
+// picker opened, no geometry in them: "<name>|...") and pickerfolded (each copy folded into the tile it looks the same as: "<tile>~<copy>|...";
+// shape_picker.h ShapePicker_Thin)
 void ShapePickerScreen_StateFields();
 
 // A picture of a tile's shape (shape_thumb.h's path under the game's graphics folder) read and decoded as the level's own pictures are (shape_picker_pictures.cpp).

@@ -1,0 +1,112 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, the owner's bug on the alpha.6 cut b740a152, which waits for it): A TEXTURE IMPORTED, THE MODE LEFT WITHOUT SAVING,
+# THE SAME PICTURE DROPPED AGAIN: IT IS IN THE LEVEL AGAIN. His words: "I added a texture with drop, selected it on polygons saw it successfully apply ... and left
+# texture mode without saving, when I came back I tried to repeat it, a silent message on the bottom said I already imported it, but when I selected polygons and
+# clicked 'select texture' the texture was no longer there". Leaving the mode opens the level again from its file, so the unsaved entry in its picture list is
+# gone, but the RIM made for it stays on the disk, and the second import was refused because its file was already there (rim_save.cpp, CREATE_NEW).
+# NOW: a file already there that holds the very bytes this import makes is taken as it is: the level's list names it again, and the words say so. A DIFFERENT
+# picture saved under that name is still refused, in words that say how to go on (another name).
+# RED on exe-cache/b740a152.exe (the cut): the second drop says "Not imported" and the polygon can't be given wall01.
+# changes-data
+make-level node -e "const z=require('zlib'),fs=require('fs'),p=require('path');const f=process.argv[1];fs.mkdirSync(p.dirname(f),{recursive:true});const w=64,h=64,raw=Buffer.alloc((w*3+1)*h);for(let y=0;y<h;y++)for(let x=0;x<w;x++){const o=y*(w*3+1)+1+x*3;raw[o]=0;raw[o+1]=x*4;raw[o+2]=y*4;}const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;t[n]=c>>>0;}const crc=(b)=>{let c=0xffffffff;for(const x of b)c=t[(c^x)&255]^(c>>>8);return(c^0xffffffff)>>>0;};const ch=(ty,d)=>{const l=Buffer.alloc(4);l.writeUInt32BE(d.length);const td=Buffer.concat([Buffer.from(ty),d]);const c=Buffer.alloc(4);c.writeUInt32BE(crc(td));return Buffer.concat([l,td,c]);};const ih=Buffer.alloc(13);ih.writeUInt32BE(w,0);ih.writeUInt32BE(h,4);ih[8]=8;ih[9]=2;fs.writeFileSync(f,Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),ch('IHDR',ih),ch('IDAT',z.deflateSync(raw)),ch('IEND',Buffer.alloc(0))]));" {datadir}/import/wall.png
+make-level node -e "const z=require('zlib'),fs=require('fs'),p=require('path');const f=process.argv[1];fs.mkdirSync(p.dirname(f),{recursive:true});const w=64,h=64,raw=Buffer.alloc((w*3+1)*h);for(let y=0;y<h;y++)for(let x=0;x<w;x++){const o=y*(w*3+1)+1+x*3;raw[o]=255;raw[o+1]=y*4;raw[o+2]=0;}const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;t[n]=c>>>0;}const crc=(b)=>{let c=0xffffffff;for(const x of b)c=t[(c^x)&255]^(c>>>8);return(c^0xffffffff)>>>0;};const ch=(ty,d)=>{const l=Buffer.alloc(4);l.writeUInt32BE(d.length);const td=Buffer.concat([Buffer.from(ty),d]);const c=Buffer.alloc(4);c.writeUInt32BE(crc(td));return Buffer.concat([l,td,c]);};const ih=Buffer.alloc(13);ih.writeUInt32BE(w,0);ih.writeUInt32BE(h,4);ih[8]=8;ih[9]=2;fs.writeFileSync(f,Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),ch('IHDR',ih),ch('IDAT',z.deflateSync(raw)),ch('IEND',Buffer.alloc(0))]));" {datadir}/import/other.png
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+
+# ---- the first import, put on a polygon: as acceptance-texture-import
+drop-file {datadir}/import/wall.png
+wait 400
+expect-dialog-kind form
+expect-dialog Import texture
+form-field 1 wall01
+click-button Ok
+wait 1500
+expect-status Custom\Statue\wall01.RIM
+expect-status in Texture Map now
+click-view 0.50 0.60
+expect-status 1 selected
+key PageUp
+wait 400
+expect-status wall01.RIM put on 1 polygon
+picture 1
+
+# ---- the mode left WITHOUT SAVING (the level opened again from its file: the entry is gone), and Texture Map again
+click-bar Mode > Exit
+wait 400
+expect-dialog-kind confirm
+expect-dialog Would you like to save the changes
+click-button No
+wait 800
+expect-no-dialog
+item 0x46
+expect-screen Texture Map
+wait 400
+
+# ---- the same picture dropped again, the same name: taken, the file already there being the very same picture
+drop-file {datadir}/import/wall.png
+wait 400
+expect-dialog-kind form
+expect-dialog Import texture
+form-field 1 wall01
+click-button Ok
+wait 1500
+expect-status-not Not imported
+expect-status Custom\Statue\wall01.RIM
+expect-status already saved
+expect-status in Texture Map now
+click-view 0.50 0.60
+expect-status 1 selected
+# (Page Up steps back from the picture the editor remembers, which leaving the mode keeps: wall01, 19, from the first import; so Page Up lands on 18 and Page
+# Down on 19, wall01 again: the level offers it once more)
+key PageUp
+wait 400
+key PageDown
+wait 400
+expect-status wall01.RIM put on 1 polygon
+picture 2
+
+# ---- a DIFFERENT picture under the same name while the level names it: refused, saying it is in the level already and how to go on
+drop-file {datadir}/import/other.png
+wait 400
+expect-dialog-kind form
+form-field 1 wall01
+click-button Ok
+wait 1500
+expect-status Not imported
+expect-status another name
+# and never only on the status line (his "a silent message on the bottom"): inteng's message box says it, and waits for Ok
+expect-dialog-kind message
+expect-dialog another name
+click-button Ok
+wait 300
+expect-no-dialog
+
+# ---- the mode left unsaved AGAIN (the list without wall01), and the different picture dropped under that name: now the FILE refuses it, a different
+# picture than the one saved, and says to use another name, in the message box too; the file as it was
+click-bar Mode > Exit
+wait 400
+expect-dialog-kind confirm
+click-button No
+wait 800
+expect-no-dialog
+item 0x46
+expect-screen Texture Map
+wait 400
+drop-file {datadir}/import/other.png
+wait 400
+expect-dialog-kind form
+form-field 1 wall01
+click-button Ok
+wait 1500
+expect-status Not imported
+expect-status a different picture
+expect-status another name
+expect-dialog-kind message
+# (one word: the box wraps its words, and a phrase can straddle a row)
+expect-dialog different
+click-button Ok
+wait 300
+expect-no-dialog

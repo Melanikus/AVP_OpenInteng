@@ -12,7 +12,11 @@
 //   (6) A PICTURE'S PATH IS THE FILE'S OWN BYTES (Frost's review of 4f0db774, MUST 1): held to the level open's rule (avpx level_file_name.h): "..\..\x",
 //       "C:\x", "a.rim:stream", "\\server\share\x", a device's name, and a RIFFNAME of ".." are refused, with why and no path (its polygons shaded);
 //       a stock name is taken
-// RED FIRST: on a stand-in that reads nothing, (1) to (5) fail; (6) on 4f0db774 (every path taken as the file gave it).
+//   (7) NO GEOMETRY SAID APART (the owner 11-23, "No picture means no geometry? if yes don't show!"): no shape, no points chunk, a shape of no point say it;
+//       cut short, too big and a refused shape don't; a good one clears it
+//   (8) THE LOOK (copies that look the same fold into one tile): another level's copy with its own number and list numbering looks the same; a point moved
+//       1 mm, another picture, a quad shaded instead don't; a fragment file has none
+// RED FIRST: on a stand-in that reads nothing, (1) to (5) fail; (6) on 4f0db774 (every path taken as the file gave it); (7) on a stand-in that never says it; (8) on a stand-in with no look.
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -64,6 +68,10 @@ struct Made
 	std::vector<std::vector<std::string> > entries = { { "0", "3", "Pikup.rim" } };   // flags, index, name
 	int shapes = 1;
 	std::string riff = "Pulrak";   // the file's RIFFNAME
+	bool pointsChunk = true;       // false: the shape has no SHPRAWVT at all ((7): no points chunk)
+	bool polygons = true;          // false: no polygon in SHPPOLYS, and the header says 0 ((7) with points 0: a shape of nothing)
+	int32_t number = 7;            // the header's own number (another level's copy has another: (8), not part of the look)
+	int32_t apexY = -1000;         // point 4's y ((8): moved, the look is another)
 };
 
 static Bytes Shape(Made const &m)
@@ -72,9 +80,9 @@ static Bytes Shape(Made const &m)
 
 	AddInt(&head, 0);
 	head.insert(head.end(), 16, 0);
-	AddInt(&head, 7);                              // its number
+	AddInt(&head, m.number);                       // its number
 	AddInt(&head, (int32_t)m.points);
-	AddInt(&head, 2);
+	AddInt(&head, m.polygons ? 2 : 0);
 	AddFloat(&head, 1500.0f);
 
 	for (int32_t v : { 1000, -1000, 0, -1000, 1000, -1000 })
@@ -87,7 +95,7 @@ static Bytes Shape(Made const &m)
 
 	for (size_t i = 0; i < m.points; i++)
 	{
-		int32_t const xyz[5][3] = { { -1000, 0, -1000 }, { 1000, 0, -1000 }, { 1000, 0, 1000 }, { -1000, 0, 1000 }, { 0, -1000, 0 } };
+		int32_t const xyz[5][3] = { { -1000, 0, -1000 }, { 1000, 0, -1000 }, { 1000, 0, 1000 }, { -1000, 0, 1000 }, { 0, m.apexY, 0 } };
 		int32_t const *const p = xyz[i < 5 ? i : 4];
 
 		AddInt(&points, p[0]);
@@ -107,6 +115,11 @@ static Bytes Shape(Made const &m)
 		AddInt(&polygons, v);
 	}
 
+	if (!m.polygons)
+	{
+		polygons.clear();
+	}
+
 	AddInt(&uv, 1);
 	AddInt(&uv, m.uvBroken ? 9 : 4);
 
@@ -119,6 +132,11 @@ static Bytes Shape(Made const &m)
 
 	for (Bytes const &c : { MakeChunk("SHPHEAD1", head), MakeChunk("SHPRAWVT", points), MakeChunk("SHPPOLYS", polygons), MakeChunk("SHPUVCRD", uv) })
 	{
+		if (!m.pointsChunk && memcmp(c.data(), "SHPRAWVT", 8) == 0)
+		{
+			continue;
+		}
+
 		body.insert(body.end(), c.begin(), c.end());
 	}
 
@@ -338,6 +356,94 @@ int main()
 		float light[3];
 		ShapeThumb_Light(light);
 		Check(fabsf(light[0] * light[0] + light[1] * light[1] + light[2] * light[2] - 1.0f) < 1e-5f && light[1] < 0, "the light: one length, from above");
+	}
+
+	// ---- (7) NO GEOMETRY, said apart (the owner, 2026-11-23: "No picture means no geometry? if yes don't show!"): the picker leaves such a file out of its grid,
+	// while a broken or too big one keeps its tile with why. (Each call is made before its Check: MSVC builds a check's words first.)
+	{
+		ShapeThumbModel m;
+		std::string why;
+		bool noGeometry = false;
+
+		Made none;
+		none.shapes = 0;
+		bool const readNone = ShapeThumb_Read(File(none), &m, &why, &noGeometry);
+		Check(!readNone && noGeometry, "(7) no shape in the file: no geometry (" + why + ")");
+
+		Made noPoints;
+		noPoints.pointsChunk = false;
+		noGeometry = false;
+		bool const readNoPoints = ShapeThumb_Read(File(noPoints), &m, &why, &noGeometry);
+		Check(!readNoPoints && noGeometry, "(7) a shape with no points chunk: no geometry (" + why + ")");
+
+		Made nothing;
+		nothing.points = 0;
+		nothing.polygons = false;
+		noGeometry = false;
+		bool const readNothing = ShapeThumb_Read(File(nothing), &m, &why, &noGeometry);
+		Check(!readNothing && noGeometry, "(7) a shape of no point and no polygon: no geometry (" + why + ")");
+
+		Bytes const whole = File(Made());
+		Bytes const half(whole.begin(), whole.begin() + (std::ptrdiff_t)(whole.size() / 2));
+		noGeometry = true;
+		bool const readHalf = ShapeThumb_Read(half, &m, &why, &noGeometry);
+		Check(!readHalf && !noGeometry, "(7) cut short: broken, NOT no geometry (it keeps its tile, with why)");
+
+		Made big;
+		big.points = kShapeThumbMostPoints + 1;
+		noGeometry = true;
+		bool const readBig = ShapeThumb_Read(File(big), &m, &why, &noGeometry);
+		Check(!readBig && !noGeometry, "(7) too big: NOT no geometry");
+
+		Made badCorner;
+		badCorner.triangleLast = 9;
+		noGeometry = true;
+		bool const readBad = ShapeThumb_Read(File(badCorner), &m, &why, &noGeometry);
+		Check(!readBad && !noGeometry, "(7) a shape the model refuses: broken, NOT no geometry");
+
+		noGeometry = true;
+		bool const readGood = ShapeThumb_Read(whole, &m, &why, &noGeometry);
+		Check(readGood && !noGeometry, "(7) a good shape: drawn, and no geometry said false");
+	}
+
+	// ---- (8) THE LOOK (copies that look the same fold into one tile): another level's copy with its own number and its own list numbering gives the same look;
+	// a moved point, another picture or a fragment file don't
+	{
+		std::string why;
+		auto look = [&](Made const &made) {
+			ShapeThumbModel m;
+			return ShapeThumb_Read(File(made), &m, &why) ? ShapeThumb_LookBytes(m) : std::string("(unread: " + why + ")");
+		};
+
+		std::string const original = look(Made());
+
+		Made otherLevel;
+		otherLevel.number = 31;                                              // another level's own number for its copy
+		otherLevel.entries = { { "0", "9", "PIKUP.RIM" } };                  // and its list numbers the same picture 9, in capitals
+		otherLevel.quadIndex = 9;
+		std::string const copy = look(otherLevel);
+		Check(!original.empty() && original == copy, "(8) another level's copy (its own number, its list's own numbering, the name in capitals): the same look (" +
+			std::to_string(original.size()) + " and " + std::to_string(copy.size()) + " bytes)");
+
+		Made moved;
+		moved.apexY = -1001;
+		std::string const movedLook = look(moved);
+		Check(!movedLook.empty() && movedLook != original, "(8) a point moved by 1 mm: another look");
+
+		Made otherPicture;
+		otherPicture.entries = { { "0", "3", "Pikup2.rim" } };
+		std::string const pictureLook = look(otherPicture);
+		Check(!pictureLook.empty() && pictureLook != original, "(8) another picture: another look");
+
+		Made shaded;
+		shaded.quadIndex = 4;   // no entry numbers 4: the quad is drawn shaded
+		std::string const shadedLook = look(shaded);
+		Check(!shadedLook.empty() && shadedLook != original, "(8) the quad shaded instead of textured: another look");
+
+		Made fragment;
+		fragment.shapes = 2;
+		std::string const fragmentLook = look(fragment);
+		Check(fragmentLook.empty(), "(8) a fragment file: no look (only its first part is drawn, so it never folds)");
 	}
 
 	printf(checksFailed ? "host_shape_thumb_test: %d FAILED\n" : "host_shape_thumb_test: all passed\n", checksFailed);

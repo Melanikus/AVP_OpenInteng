@@ -35,9 +35,14 @@ namespace host
 		}
 	}
 
-	bool ShapeThumb_Read(std::vector<char> const &file, ShapeThumbModel *model, std::string *why)
+	bool ShapeThumb_Read(std::vector<char> const &file, ShapeThumbModel *model, std::string *why, bool *noGeometry)
 	{
 		*model = ShapeThumbModel();
+
+		bool ignored = false;
+
+		noGeometry = noGeometry ? noGeometry : &ignored;
+		*noGeometry = false;   // said true only at the three refusals below that mean "nothing to draw", never for a broken or too big file
 
 		size_t total = 0;
 		std::vector<Span> top;
@@ -66,6 +71,7 @@ namespace host
 		if (shapeAt == top.size())
 		{
 			Fail(why, "the file holds no shape");
+			*noGeometry = true;
 			return false;
 		}
 
@@ -83,6 +89,7 @@ namespace host
 		if (head == parts.size() || points == parts.size() || polygons == parts.size())
 		{
 			Fail(why, "its shape has no header, points or polygons");
+			*noGeometry = true;
 			return false;
 		}
 
@@ -130,6 +137,7 @@ namespace host
 		if (shape.points.empty())
 		{
 			Fail(why, "its shape has no points");
+			*noGeometry = true;
 			return false;
 		}
 
@@ -273,6 +281,57 @@ namespace host
 		}
 
 		return true;
+	}
+
+	std::string ShapeThumb_LookBytes(ShapeThumbModel const &model)
+	{
+		if (model.parts != 1)
+		{
+			return std::string();   // a fragment file: only its first part is drawn, so two that look the same here may differ in the rest
+		}
+
+		std::string out;
+
+		// a number's exact bytes (a float's own bits: 1 mm off is another look)
+		auto add = [&out](void const *what, size_t bytes) { out.append((char const *)what, bytes); };
+		uint32_t const pointValues = (uint32_t)model.points.size();
+
+		out += "points";
+		add(&pointValues, sizeof(pointValues));
+		add(model.points.data(), model.points.size() * sizeof(float));
+
+		uint32_t const polygonCount = (uint32_t)model.polygons.size();
+
+		out += "polygons";
+		add(&polygonCount, sizeof(polygonCount));
+
+		for (ShapeThumbPolygon const &p : model.polygons)
+		{
+			int32_t const count = p.cornerCount;
+
+			add(&count, sizeof(count));
+
+			for (int c = 0; c < p.cornerCount && c < 5; c++)
+			{
+				add(&p.corners[c], sizeof(p.corners[c]));
+				add(p.texels[c], sizeof(p.texels[c]));
+			}
+
+			// its picture by its path in small letters (Windows and the game's archives read a name in any letters as the same file), never by the list's own
+			// number, which another level's copy may give otherwise; "" for a shaded polygon or a refused path, each ended with a 0 so no two run together
+			std::string path = p.picture >= 0 && (size_t)p.picture < model.pictures.size() && model.pictures[(size_t)p.picture].refused.empty() ?
+				model.pictures[(size_t)p.picture].path : std::string();
+
+			for (char &letter : path)
+			{
+				letter = letter >= 'A' && letter <= 'Z' ? (char)(letter - 'A' + 'a') : letter;
+			}
+
+			out += path;
+			out += '\0';
+		}
+
+		return out;
 	}
 
 	void ShapeThumb_Light(float toLight[3])

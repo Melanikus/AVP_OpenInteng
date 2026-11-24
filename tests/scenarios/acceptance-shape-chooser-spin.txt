@@ -10,7 +10,11 @@ state
 click-bar Mode > Object Placement
 expect-screen Object Placement
 wait 400
-click-bar Create > With shape: Choose
+# inteng's Shape Chooser, reached by Replace shape (0x1d) on a placed object: Create > With shape > Choose opens the placement picker since the owner's
+# "Grid replaces it" (2026-11-23), and Replace shape keeps this screen
+select-row 0
+expect-selected 1
+item 0x1d
 expect-screen Shape Chooser
 key Period
 wait 600

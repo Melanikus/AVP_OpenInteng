@@ -271,7 +271,25 @@ namespace host
 
 			if (error == ERROR_FILE_EXISTS || error == ERROR_ALREADY_EXISTS)
 			{
-				return Refuse(RimSaveResult::NameTaken, "graphics\\" + entry + " is there already, and is never written over: give the texture another name", why);
+				// ALREADY THERE: read back by its name as a plain file (a link of that name is refused, never followed: VideoImport_ReadPlainFile), at most
+				// kRimSaveMostBytes; the very same bytes are this import's picture already, taken as they are. Anything else is never written over
+				std::vector<uint8_t> there;
+				std::string thereWhy;
+				VideoImportResult const read = VideoImport_ReadPlainFile(wide, &there, &thereWhy, kRimSaveMostBytes, kWhat, "the texture's file");
+
+				if (read == VideoImportResult::Done && there == bytes)
+				{
+					if (savedPath)
+					{
+						*savedPath = full;
+					}
+
+					return RimSaveResult::AlreadyThere;
+				}
+
+				return Refuse(RimSaveResult::NameTaken, "graphics\\" + entry + " is there already, " + (read == VideoImportResult::Done ?
+					std::string("a different picture,") : "and can't be read as a plain file (" + thereWhy + "),") + " and is never written over: give this texture "
+					"another name in the form's Name (or move that file away first)", why);
 			}
 
 			return Refuse(RimSaveResult::CantWrite, "couldn't make graphics\\" + entry + " (" + Error(error) + ")", why);
@@ -333,6 +351,8 @@ namespace host
 		{
 		case RimSaveResult::Saved:
 			return "saved";
+		case RimSaveResult::AlreadyThere:
+			return "there already, the very same bytes";
 		case RimSaveResult::BadCall:
 			return "not a call it takes";
 		case RimSaveResult::BadName:

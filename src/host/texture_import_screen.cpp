@@ -97,7 +97,10 @@ void host::TextureImportScreen_Open(std::wstring const &picture)
 		{
 			std::string const words = std::string("Not imported: ") + TextureImportResultWords(result) + (why.empty() ? std::string() : ": " + why);
 
+			// SAID WHERE IT CAN'T BE MISSED (the owner on alpha.6, 2026-11-23: "a silent message on the bottom"): inteng's message box, its words and Ok, as well
+			// as the status line. (The form is closed before this answer runs, dialogs.cpp, so the box opens in its own right)
 			statusWords = words.c_str();
+			Dialogs_Message(words);
 			return;
 		}
 

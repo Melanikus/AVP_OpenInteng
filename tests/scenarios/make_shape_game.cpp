@@ -21,6 +21,13 @@
 //                                       past its end (added 2026-11-23 by Vasquez: the placement picker must show such a file by its name, with why)
 //                     copies<N>         <game>\shape_rifs\<shape>_copy001.rif .. _copy<N>.rif, N (1 to 200) whole copies (added 2026-11-23 by Vasquez: a picker
 //                                       grid with more than a page, for its scroll bar)
+//                     empty             <game>\shape_rifs\<shape>_empty.rif: a rif that holds NO SHAPE (its environment chunk only), so no geometry (added
+//                                       2026-11-23 by Vasquez: the picker leaves such a file out, the owner's "No picture means no geometry? if yes don't show!")
+//                     lookalike         <game>\shape_rifs\<shape>_lookalike.rif: the shape's file with one more top-level chunk ("VASQSAME", 4 bytes of 0)
+//                                       that nothing reads: other bytes, the same look (added 2026-11-23 by Vasquez: the picker folds it into the shape's tile)
+//                     variants<N>       <game>\shape_rifs\<shape>_var001.rif .. _var<N>.rif, N (1 to 200) copies that LOOK DIFFERENT: the k-th with its first
+//                                       point moved k mm along x (added 2026-11-23 by Vasquez: whole copies now fold into one tile, so a grid of more than a
+//                                       page needs shapes that look apart)
 // FRESH EVERY RUN, NOTHING DELETED: each file is made when it is missing, kept when it is there with the same bytes, and the run is refused (exit 1) when
 // it is there with other bytes; so the same scenario run twice in one shard (a re-run) finds its folder as it left it. It prints what it made.
 
@@ -385,6 +392,37 @@ int main(int argc, char **argv)
 
 			continue;
 		}
+		else if (place == "empty" || place == "lookalike")
+		{
+			// empty: a rif of its environment chunk alone, no shape in it; lookalike: the shape's own chunks and one more nothing reads, so its bytes differ
+			// while what is drawn is the same (the extracted file is one REBINFF2 chunk: its heading, then its children)
+			Bytes made;
+
+			if (place == "empty")
+			{
+				made = host::shape_chunks::MakeChunk("REBINFF2", host::shape_chunks::MakeChunk("REBENVDT", Bytes()));
+			}
+			else
+			{
+				if (file.size() < host::shape_chunks::kHeadingBytes)
+				{
+					return Refuse("the shape's file is shorter than a chunk's heading");
+				}
+
+				Bytes children(file.begin() + (std::ptrdiff_t)host::shape_chunks::kHeadingBytes, file.end());
+				Bytes const extra = host::shape_chunks::MakeChunk("VASQSAME", Bytes(4, 0));
+
+				children.insert(children.end(), extra.begin(), extra.end());
+				made = host::shape_chunks::MakeChunk("REBINFF2", children);
+			}
+
+			if (!PutFolder(game / "shape_rifs", &why) || !PutFile(game / "shape_rifs" / (shape + "_" + place + ".rif"), made, &why))
+			{
+				return Refuse(why);
+			}
+
+			continue;
+		}
 		else if (place.compare(0, 6, "copies") == 0)
 		{
 			// many files: N whole copies of the shape's file under plain names of their own, so a grid holds more than a page
@@ -414,9 +452,68 @@ int main(int argc, char **argv)
 
 			continue;
 		}
+		else if (place.compare(0, 8, "variants") == 0)
+		{
+			// many files that LOOK DIFFERENT: the k-th a copy of the shape's file with its first point moved k mm along x (the shape's points chunk, SHPRAWVT,
+			// found by the hardened chunk walk: the file is REBINFF2, its children, the first REBSHAPE, its children)
+			using namespace host::shape_chunks;
+
+			int const count = atoi(place.c_str() + 8);
+			size_t total = 0;
+			std::vector<Span> top, parts;
+
+			if (count < 1 || count > 200)
+			{
+				return Refuse("\"" + place + "\": variants takes 1 to 200 (variants80)");
+			}
+
+			if (!ChunkSizeAt(file, 0, file.size(), &total) || !Children(file, kHeadingBytes, total, &top))
+			{
+				return Refuse("the shape's file can't be walked");
+			}
+
+			size_t const shapeAt = FirstNamed(file, top, "REBSHAPE");
+
+			if (shapeAt == top.size() || !Children(file, top[shapeAt].at + kHeadingBytes, top[shapeAt].at + top[shapeAt].size, &parts))
+			{
+				return Refuse("the shape's file holds no shape to vary");
+			}
+
+			size_t const pointsAt = FirstNamed(file, parts, "SHPRAWVT");
+
+			if (pointsAt == parts.size() || parts[pointsAt].size < kHeadingBytes + 12)
+			{
+				return Refuse("the shape has no point to move");
+			}
+
+			size_t const firstX = parts[pointsAt].at + kHeadingBytes;   // the first point's x, a 32-bit whole number of mm
+
+			if (!PutFolder(game / "shape_rifs", &why))
+			{
+				return Refuse(why);
+			}
+
+			for (int k = 1; k <= count; k++)
+			{
+				char number[8] = {};
+				Bytes variant = file;
+				int32_t x = 0;
+
+				memcpy(&x, &variant[firstX], sizeof(x));
+				PutIntAt(&variant, firstX, x + k);
+				sprintf_s(number, sizeof(number), "%03d", k);
+
+				if (!PutFile(game / "shape_rifs" / (shape + "_var" + number + ".rif"), variant, &why))
+				{
+					return Refuse(why);
+				}
+			}
+
+			continue;
+		}
 		else
 		{
-			return Refuse("\"" + place + "\" isn't a place (shape_rifs, tools, own, junction, cut or copies<N>)");
+			return Refuse("\"" + place + "\" isn't a place (shape_rifs, tools, own, junction, cut, empty, lookalike, copies<N> or variants<N>)");
 		}
 
 		if (!PutFolder(folder, &why) || !PutFile(folder / (shape + ".rif"), file, &why))

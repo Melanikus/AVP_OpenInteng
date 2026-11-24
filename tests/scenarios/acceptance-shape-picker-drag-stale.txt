@@ -9,7 +9,7 @@
 # more than a page, 9 x 4 a page in the hidden run's window.
 # RED on vasquez-picker-scroll b4521891's build: A stays held; B scrolls the rows.
 #ini DataFolder={datadir}-picker-drag-game
-make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-drag-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut copies80
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-drag-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut variants80
 make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-drag-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
 level {datadir}-picker-drag-game/avp_rifs/Invasion.RIF
 pictures on
