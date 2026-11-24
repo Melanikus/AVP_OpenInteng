@@ -43,16 +43,31 @@ bool host::TextureImportScreen_IsPicture(std::wstring const &path)
 	return ending == L".png" || ending == L".bmp" || ending == L".jpg" || ending == L".jpeg";
 }
 
-host::DialogFormSpec host::TextureImportScreen_Form(std::string const &pictureWords, std::string const &name)
+host::DialogFormSpec host::TextureImportScreen_Form(std::string const &pictureWords, std::string const &name, std::function<int32_t(std::string const &)> const &lineWidth)
 {
 	// inteng's TEXT dialog's look (400 wide; a label 0x12 in, its edits 0x1e in at 0x12 a row; Ok and Cancel a quarter and a half across, 0x32 x 0x10),
 	// widened to 460 for the three ways' words
 	DialogFormSpec spec;
+	std::string const words = "A texture for the open level, made from " + pictureWords + "\nand saved under graphics\\Custom: it is offered in Texture Map at once";
+
+	// AS WIDE AS ITS WORDS (Drake 2026-11-24, as the Save video form, video_mode.cpp): the label's words start 0x12 + 1 in (Dialogs_Draw draws a label from its
+	// box's x + 1), and its longest line must end inside the window with the same 0x12 to spare: so the width is that line's, in the font in use, plus 0x24 + 1,
+	// and never under 460. Each line is measured on its own (a label is drawn a line under a line).
+	int32_t width = 460;
+
+	for (size_t start = 0; lineWidth && start <= words.size();)
+	{
+		size_t const end = words.find('\n', start);
+		std::string const line = words.substr(start, end == std::string::npos ? std::string::npos : end - start);
+		int32_t const needs = lineWidth(line) + 0x24 + 1;
+
+		width = needs > width && needs < 4096 ? needs : width;   // a line can't make a window wider than a screen can be
+		start = end == std::string::npos ? words.size() + 1 : end + 1;
+	}
 
 	spec.title = "Import texture";
-	spec.width = 460;
-	spec.widgets.push_back(Part(DialogWidgetType::Label, { 0x12, 0x12, 460 - 0x24, 0x24 }, "A texture for the open level, made from " + pictureWords +
-		"\nand saved under graphics\\Custom: it is offered in Texture Map at once"));
+	spec.width = width;
+	spec.widgets.push_back(Part(DialogWidgetType::Label, { 0x12, 0x12, width - 0x24, 0x24 }, words));
 
 	int32_t y = 0x3c;
 

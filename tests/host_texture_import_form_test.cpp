@@ -72,6 +72,19 @@ int main()
 
 	Check(inside, "every part inside the window (" + std::to_string(spec.width) + " x " + std::to_string(spec.height) + ")");
 	Check(apart, "no two parts over each other");
+
+	// AS WIDE AS ITS WORDS (Drake 2026-11-24: in inteng's own letters the second line ran 32 pixels past the window): with a font 8 pixels a letter, the longest
+	// line's words (drawn from 0x12 + 1 in) end inside the window with 0x12 to spare, and the label's box reaches no further than the window; with none, 460
+	auto const eight = [](std::string const &line) { return (int32_t)line.size() * 8; };
+	DialogFormSpec const wide = TextureImportScreen_Form("a_very_long_picture_name_indeed.png", "wall", eight);
+	std::string const second = "and saved under graphics\\Custom: it is offered in Texture Map at once";
+	std::string const first = "A texture for the open level, made from a_very_long_picture_name_indeed.png";
+	int32_t const longest = (int32_t)(first.size() > second.size() ? first.size() : second.size()) * 8;
+
+	Check(wide.width == longest + 0x24 + 1 && 0x12 + 1 + longest + 0x12 <= wide.width && wide.widgets[0].box.x + wide.widgets[0].box.width <= wide.width,
+		"with a font 8 pixels a letter the form is " + std::to_string(wide.width) + " wide: its longest line (" + std::to_string(longest) + ") ends inside, 0x12 to spare");
+	Check(TextureImportScreen_Form("w.png", "w", [](std::string const &) { return (int32_t)10; }).width == 460, "words narrower than 460 leave it at 460");
+	Check(spec.width == 460, "with no font given, 460 as before");
 	Check(spec.widgets[17].type == DialogWidgetType::Button && spec.widgets[17].text == "Ok" && spec.widgets[17].answer == kDialogOk &&
 		spec.widgets[18].type == DialogWidgetType::Button && spec.widgets[18].text == "Cancel" && spec.widgets[18].answer == kDialogEscape, "Ok answers Ok, Cancel answers Escape");
 
