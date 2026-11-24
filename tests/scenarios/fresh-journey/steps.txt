@@ -29,25 +29,26 @@ expect-number picker count_ 10 5000
 wait-moving 30000 pickershown waiting 0
 picture 2
 
-# ---- a pickup's shape, by its name: medbox01 (the medipack), placed and named
+# ---- a pickup's shape, by its name: medbox01 (the medipack), placed. No name box since 2d160043 (the owner: "Never ask, auto-name"): the object takes the
+# automatic name and follows the pointer; a left click in the view puts it down (Drake's attach to the mouse; as f3a761dc moved eight others)
 click-tile medbox01 twice
-expect-dialog Name Object
-type freshMed
-key Enter
+expect-field-has pickerattach following
+click-win 504 420
 expect-no-dialog
-expect-status Object freshMed made at the view
+expect-field pickerattach off
+expect-status placed
 expect-field picker closed
 
-# ---- a static shape: the picker's last tile, whatever the search named it, placed and named
+# ---- a static shape: the picker's last tile, whatever the search named it, placed (its automatic name, put down by a click)
 item 0x32
 expect-field-has picker open
 key End
 key Enter
-expect-dialog Name Object
-type freshStatic
-key Enter
+expect-field-has pickerattach following
+click-win 504 420
 expect-no-dialog
-expect-status Object freshStatic made at the view
+expect-field pickerattach off
+expect-status placed
 picture 3
 
 # ---- saved as a player saves: leaving the mode. Object Placement's Exit ASKS NOTHING (OP-6, editor_main.cpp's Exit: a changed level is saved at once and the

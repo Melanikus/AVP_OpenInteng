@@ -48,14 +48,16 @@ expect-field-has pickerresized Pboost~pboost.rif~1.000~0.00
 click-tile sadar
 wait-field pickershown waiting 0 20000
 expect-field-has pickertyped sadar~weapon: SADAR
-click-tile sadar twice
-expect-dialog Name Object
-type foldSadar
 key Enter
-expect-no-dialog
-expect-status Object foldSadar made at the view; its shape sadar.rif came from the game's shape_rifs
+# (sadar is selected already, by the click above: Enter places it) no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse; as f3a761dc moved eight others)
+expect-field-has pickerattach sadar0 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object sadar0 placed
+expect-status its shape sadar.rif came from the game's shape_rifs
 expect-status placed as weapon: SADAR (the game's Type 2, ExtraData 5)
 picture 2
 
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-fold-game/avp_rifs/Invasion.RIF {copy} foldSadar size 52 Type 2 ExtraData 5 mass 50
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-fold-game/avp_rifs/Invasion.RIF {copy} sadar0 size 52 Type 2 ExtraData 5 mass 50

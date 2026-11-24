@@ -576,6 +576,13 @@ namespace host
 					return ObjectMakeResult::CantBuild;
 				}
 
+				// The list was read again, one shape longer: "not found" is its NEW size. Fixed 2026-11-24 by Melanikus (Drake), the owner's bug on the cut 699528d0
+				// ("the shape that spawns is the first one"): `found` kept the old size, the search below never ran, and the object took the shape at that place, the
+				// file's last one. That is the new shape only on a level's first import; each import goes in after the last object, BEFORE the earlier ones, so a second
+				// import's object was made with the FIRST import's shape (acceptance-picker-attach G, acceptance-picker-owner-sequence). The givenShape branch above already
+				// did this.
+				found = info.shapes.size();
+
 				for (size_t i = 0; i < info.shapes.size() && found == info.shapes.size(); i++)
 				{
 					if (!info.shapes[i].outsideName.empty() && SameName(info.shapes[i].outsideName.c_str(), info.shapes[i].outsideName.size(), base))
