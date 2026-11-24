@@ -1,4 +1,4 @@
-// menu_font.h: inteng's own menu font (its Tools\font16.fnt and font8.fnt), read from the file at run time and drawn by the editor's menus. Written 2026-11-16 by Melanikus
+// menu_font.h: inteng's own menu font (its Tools\font16.fnt, in the editor itself: menu_font_data.h), read through these checks and drawn by the editor's menus. Written 2026-11-16 by Melanikus
 // (Drake) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // WHAT INTENG DOES. Its menu object (FUN_004b7950 0x4b79de / 0x4b7a0d) loads two fonts with FUN_0046cb50: font8.fnt and font16.fnt, from its Tools folder; FUN_0046ce70 draws a
@@ -6,8 +6,9 @@
 // width when they all have the same one, 0 when each has its own (then 128 16-bit widths follow the header); +0x1e the letters' height; the byte at +0x24 the bytes of one row
 // of a letter; then the 128 letters' rows, one bit a pixel, the leftmost the highest bit. Glyph 1 is a tick and glyph 2 a right-pointing triangle (a sub-menu's mark).
 //
-// THE FILE IS HOSTILE INPUT: Rebellion's font is never carried in our source (Bishop's ruling 11-16: it is read from the user's own inteng Tools folder), so any file of that name
-// is read with every size checked before it is used, and refused with its reason (MenuFont_Read). Nothing is read past the bytes given.
+// EVERY SIZE CHECKED: the font's bytes, now the editor's own copy of font16.fnt (menu_font_data.h; the owner, 2026-11-24: "Dude, I was specific about RIFs", only RIF
+// data stays out of our source; until then the file was read from the user's inteng Tools folder), are read with every size checked before it is used, and refused with its
+// reason (MenuFont_Read). Nothing is read past the bytes given.
 #pragma once
 
 #include <stddef.h>

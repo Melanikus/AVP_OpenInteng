@@ -4,8 +4,6 @@
 # answered by clicking its buttons or typing in its box. No select-row, no "item 0x..", no typed answers where inteng shows buttons. Every block names the inteng code it is traced from (dump-all-3.txt).
 # The manual (AvP-docs\engine\inteng\raw\bible\text\inteng\strategy.txt): "select the object you wish to work on, then right click and assign a strategy to it". Where it and the disassembly differ the disassembly wins.
 # The level is Invasion, a read-only stock file: nothing here saves over it.
-# the icons are inteng's own shapes, read at run time from his installed inteng.exe (object-placement.md 8b V-25): the run names his Tools folder
-#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on

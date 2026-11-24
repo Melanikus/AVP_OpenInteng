@@ -1,7 +1,7 @@
-# ACCEPTANCE: the light marker is read from HIS inteng.exe, never from our source (Drake, 2026-11-16; Melanikus's ruling via Bishop: inteng's binary data is read at run time). This run has NO inteng.exe
-# within reach (IntengTools names a folder that is not there, and none lies beside the program): the marker must be OUR OWN plain grey one, not inteng's colours. The same steps as
-# acceptance-light-sourcing.txt up to its marker check (which, with inteng.exe there, sees inteng's base colour 808000 on the same spot).
-#ini IntengTools=C:\Nowhere-AVP_OpenInteng-test
+# ACCEPTANCE (red first): the light marker is inteng's own shape 2, drawn with NO inteng.exe anywhere: no IntengTools setting (the clean ini names none) and none
+# beside the program, as on a new player's PC (the owner, 11-24). Its numbers are in our source again, as they were before 11-16 (the 5 points, 6 faces and 5
+# colours of the table at 0x5e12a8, copied as before Drake's 10007079). The same steps as acceptance-light-sourcing.txt up to its marker check: inteng's base
+# colour 808000 on the same spot, and not the plain grey 808080 of the markers drawn when inteng.exe was not read (red on 3aa15c5d).
 
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
@@ -12,8 +12,8 @@ expect-not-empty 0.005
 
 item 0xca
 expect-screen Light Sourcing (with Doors)
-# the status line says why the markers are ours (the log has it too: settings\avp_log.txt "light markers: ...")
-expect-status light markers: inteng.exe not read
+# the status line has no word of markers drawn as our own because inteng.exe wasn't read (3aa15c5d's "light markers: inteng.exe not read")
+expect-status-not light markers: inteng.exe not read
 expect-bar1 Mode
 expect-bar1 Doors
 expect-bar1 Lights
@@ -53,7 +53,7 @@ picture 14
 key S
 wait 300
 
-# inteng's base colour is not there; our grey is
-expect-colour-at-most picture 270 270 40 40 808000 0.01 8
-expect-colour picture 270 270 40 40 808080 0.1 8
+# inteng's base colour is there, as acceptance-light-sourcing.txt sees it with inteng.exe; the plain grey is not
+expect-colour picture 270 270 40 40 808000 0.1 8
+expect-colour-at-most picture 270 270 40 40 808080 0.01 8
 picture 50

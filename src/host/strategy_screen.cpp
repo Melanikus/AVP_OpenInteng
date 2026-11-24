@@ -107,8 +107,6 @@
 #include "particle_edit.h"
 #include "simple_object_edit.h"
 #include "editor_icons.h"
-#include "inteng_exe.h"
-#include "inteng_shapes.h"
 #include "virtual_object.h"
 #include "generator_strategy.h"
 #include "placed_hierarchy_strategy.h"
@@ -3709,10 +3707,12 @@ void StrategyModeCommand(int32_t command)
 		return;
 	}
 
-	// Create Virtual Object (0x39 Here, 0x3a-0x3f Above to Behind: FUN_00524e90 0x524fc6, FUN_005396d0, virtual_object.h): the place first, then the name is asked
+	// Create Virtual Object (0x39 Here, 0x3a-0x3f Above to Behind: FUN_00524e90 0x524fc6, FUN_005396d0, virtual_object.h): the place first, then the name is asked. Everything here is in inteng's
+	// memory units, the file's x 100 x the level's scale (virtual_object.h "INTENG'S UNITS": its stacks step 1100 file units, its size is 1000), and RunVirtualName divides by 100 x the scale.
 	if (command >= host::kVirtualHere && command <= host::kVirtualBehind)
 	{
 		double const scale = local_scale > 0.0 ? local_scale : 1.0;
+		double const intengUnits = (double)host::kIntengUnitsPerFileUnit * scale;   // one file unit, in inteng's memory units
 
 		if (!open || !LevelObjects_Level())
 		{
@@ -3728,27 +3728,60 @@ void StrategyModeCommand(int32_t command)
 				return;
 			}
 
-			virtualPlace[0] = theCamera->x;
-			virtualPlace[1] = theCamera->y;
-			virtualPlace[2] = theCamera->z;
+			// the view's place is the game's (the file's x the scale): x 100 for inteng's units
+			virtualPlace[0] = (int64_t)theCamera->x * host::kIntengUnitsPerFileUnit;
+			virtualPlace[1] = (int64_t)theCamera->y * host::kIntengUnitsPerFileUnit;
+			virtualPlace[2] = (int64_t)theCamera->z * host::kIntengUnitsPerFileUnit;
 		}
 		else
 		{
 			uint8_t selected[8];
-			int64_t place[3], low[3], high[3], game[3];
+			int64_t place[3], low[3], high[3], from[3], least[3], most[3];
+			bool found = SelectedObjectId(selected);
 
-			if (!SelectedObjectId(selected) || !host::VirtualObject_Geometry(LevelObjects_Level(), selected, place, low, high))
+			// a placed object or a module: its place and its shape's own min and max (the file's units), into inteng's units
+			if (found && host::VirtualObject_Geometry(LevelObjects_Level(), selected, place, low, high))
 			{
-				statusWords = "Create Virtual Object: select an object that has a shape first";
+				for (int axis = 0; axis < 3; axis++)
+				{
+					from[axis] = (int64_t)((double)place[axis] * intengUnits);
+					least[axis] = (int64_t)((double)low[axis] * intengUnits);
+					most[axis] = (int64_t)((double)high[axis] * intengUnits);
+				}
+			}
+			// a virtual object of the level (the owner's "stack them, spawn them side by side or up"): its VOBJPROP place, and the extents of the shape its record shows, shape 13, which are in
+			// inteng's units already (FUN_00539ee0(0xd, ...); editor_icons.h EditorIcon_Extents: the shape the editor draws for it)
+			else if (found)
+			{
+				std::vector<host::VirtualObjectRef> virtuals;
+				int32_t iconLeast[3], iconMost[3];
+
+				found = false;
+				host::ListVirtualObjects(LevelObjects_Level(), &virtuals);
+
+				for (host::VirtualObjectRef const &one : virtuals)
+				{
+					if (!found && memcmp(one.id, selected, 8) == 0 && host::EditorIcon_Extents(host::kVirtualObjectShape, iconLeast, iconMost))
+					{
+						for (int axis = 0; axis < 3; axis++)
+						{
+							from[axis] = (int64_t)((double)one.place[axis] * intengUnits);
+							least[axis] = iconLeast[axis];
+							most[axis] = iconMost[axis];
+						}
+
+						found = true;
+					}
+				}
+			}
+
+			if (!found)
+			{
+				statusWords = "Create Virtual Object: select an object that has a shape, or a virtual object, first";
 				return;
 			}
 
-			for (int axis = 0; axis < 3; axis++)
-			{
-				game[axis] = (int64_t)((double)place[axis] * scale);
-			}
-
-			host::VirtualObject_Moved(command, game, low, high, virtualPlace);
+			host::VirtualObject_Moved(command, from, least, most, virtualPlace);
 		}
 
 		TextAs(kPromptVirtualName, "Type name for new virtual object", "");   // 0x5f02b0, FUN_00474bc0: a text dialog (Ok / Cancel)

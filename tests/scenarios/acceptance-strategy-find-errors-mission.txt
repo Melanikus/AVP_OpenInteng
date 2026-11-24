@@ -2,8 +2,6 @@
 # FUN_005335f0). No stock level has a Mission Objective with an alteration, so it is made as in acceptance-strategy-mission-alterations (Breakout: MO2 into "end"'s list); then MO2 is destroyed
 # (Destroy Virtual Object: "nothing that names its ID is checked", so "end" still names it) and Find Errors (0x44) runs the strategies' repairs: the alteration whose target no object has goes.
 # "No Errors Found" is inteng's answer after its repairs (0x5f04a0). The copy holds no alteration. RED without the kind-70 repair (the copy keeps the alteration naming the destroyed object).
-# inteng's icons are read from inteng.exe in his Tools folder (without it the icons are our plain boxes, and (442 330), the V's left stroke, is left of MO2's box: Bishop's run on 1bb873d)
-#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Breakout.RIF
 pictures on
 state

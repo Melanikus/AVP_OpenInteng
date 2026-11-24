@@ -191,8 +191,7 @@
 #include "particle_edit.h"
 #include "simple_object_edit.h"
 #include "editor_icons.h"
-#include "inteng_exe.h"
-#include "inteng_shapes.h"
+#include "sha256_hex.h"   // Sha256Hex: the SHA-256 -open-at names a level's file by
 #include "virtual_object.h"
 #include "generator_strategy.h"
 #include "placed_hierarchy_strategy.h"
@@ -245,6 +244,7 @@
 #include "menu_bar.h"
 #include "menu_paint.h"
 #include "menu_font.h"
+#include "menu_font_data.h"   // inteng's font16.fnt, host::kIntengMenuFont16
 #include "object_list.h"
 #include "panel_layout.h"
 #include "panel_pass.h"
@@ -10459,64 +10459,34 @@ static bool SettingWritten(const char *settingsFile, const char *name)
 	return GetPrivateProfileStringA("Editor", name, "", first, (DWORD)sizeof(first), settingsFile) > 0;
 }
 
-// INTENG'S MENU FONT (view-state-table.md H-5b, H-5c, H-5e; Bishop's ruling 11-16: Rebellion's font is never carried in our source, it is read at run time from the user's own inteng
-// Tools folder): Tools\font16.fnt next to this program first, then in the folder the setting IntengTools names. The file is read as hostile input (menu_font.h); missing or refused,
-// the menus keep the game's small font and the status line says why.
+// INTENG'S MENU FONT (view-state-table.md H-5b, H-5c, H-5e): its Tools\font16.fnt, in the editor itself (menu_font_data.h, its 4428 bytes copied one for one from the file).
+// Modified 2026-11-24 by Melanikus (Frost), the owner's ruling made plain ("Dude, I was specific about RIFs", "This ONLY applied to rifs": only Rebellion's RIF data stays
+// out of our source): it was read at run time from Tools\font16.fnt beside the program or in the IntengTools folder, so a player without inteng's files had the game's
+// smoothed font. The bytes are still read through MenuFont_Read's checks, as a file was (menu_font.h); refused, the menus keep the game's small font and the status line
+// says why.
 static std::string menuFontWords;
 
 static void MenuFontStart()
 {
-	std::vector<std::string> tries;
-	char folder[MAX_PATH];
-	char named[MAX_PATH];
+	host::MenuFont font;
+	host::MenuFontRefusal why = host::MenuFontRefusal::None;
 
-	if (ProgramFolder(folder, sizeof(folder)))
+	if (!host::MenuFont_Read(host::kIntengMenuFont16, sizeof(host::kIntengMenuFont16), &font, &why))
 	{
-		tries.push_back(std::string(folder) + "Tools\\font16.fnt");
+		menuFontWords = std::string("inteng's font (in the editor) refused, ") + host::MenuFont_Why(why) + "; the menus and every text use the game's font";
+		statusWords = menuFontWords.c_str();
+		return;
 	}
 
-	if (layoutSettingsFile[0] && ReadSetting(layoutSettingsFile, "IntengTools", named, sizeof(named)))
+	if (!PanelPass_SetMenuFont(font))
 	{
-		tries.push_back(std::string(named) + "\\font16.fnt");
+		menuFontWords = "inteng's font (in the editor): its letters could not be made; the menus and every text use the game's font";
+		statusWords = menuFontWords.c_str();
+		return;
 	}
 
-	std::string last = "not found";
-
-	for (std::string const &path : tries)
-	{
-		FILE *file = nullptr;
-
-		if (fopen_s(&file, path.c_str(), "rb") != 0 || !file)
-		{
-			continue;
-		}
-
-		std::vector<uint8_t> bytes(host::kMenuFontMostBytes + 1);
-		size_t const got = fread(bytes.data(), 1, bytes.size(), file);
-
-		fclose(file);
-
-		host::MenuFont font;
-		host::MenuFontRefusal why = host::MenuFontRefusal::None;
-
-		if (!host::MenuFont_Read(bytes.data(), got, &font, &why))
-		{
-			last = std::string("refused, ") + host::MenuFont_Why(why);
-			continue;
-		}
-
-		if (PanelPass_SetMenuFont(font))
-		{
-			host::MenuPaint_SetUnderlineRow(font.height - 1);   // the letter's last row (FUN_0046ce70 0x46cffb)
-			host::MenuPaint_SetMenuGlyphs(true);                 // glyph 2 marks a sub-menu's row
-			return;
-		}
-
-		last = "its letters could not be made";
-	}
-
-	menuFontWords = "inteng's font (Tools\\font16.fnt): " + last + "; the menus and every text use the game's font";
-	statusWords = menuFontWords.c_str();
+	host::MenuPaint_SetUnderlineRow(font.height - 1);   // the letter's last row (FUN_0046ce70 0x46cffb)
+	host::MenuPaint_SetMenuGlyphs(true);                 // glyph 2 marks a sub-menu's row
 }
 
 // THE SIZE THE EDITOR STARTS AT (reassess/startup-screen-frost.md SS-1..SS-13; Bishop's order 11-16 from Melanikus, "Set my inteng to start at max resolution", and his rulings). Inteng: 640 x 480,
@@ -10666,92 +10636,6 @@ static StartPlace ChooseTheStartPlace(bool hidden, host::IntengScreenSize size, 
 		std::to_string(start.height);
 	return place;
 }
-
-// INTENG'S OWN EXE, for its binary data (object-placement.md section 8b V-25; Melanikus's ruling via Bishop 11-16: inteng's binary data is never in our source, it is read at run time from his
-// own files): inteng.exe next to this program first, then in the folder the setting IntengTools names; only the traced exe (its sha256, inteng_exe.h), every read bounded. It is loaded once
-// and shared (IntengExe_Shared: the editor icons here, Drake's light marker). The editor icons are inteng's built-in shapes 2, 3, 4, 7, 8, 9 and 13 (FUN_0042c700's slots, inteng_shapes.h);
-// missing or refused, they are our own plain boxes and the status line says why. Added 2026-11-16 by Melanikus (Vasquez).
-static std::string intengExeWords;
-
-static void IntengExeStart()
-{
-	std::vector<std::string> tries;
-	char folder[MAX_PATH];
-	char named[MAX_PATH];
-
-	if (ProgramFolder(folder, sizeof(folder)))
-	{
-		tries.push_back(std::string(folder) + "inteng.exe");
-	}
-
-	if (layoutSettingsFile[0] && ReadSetting(layoutSettingsFile, "IntengTools", named, sizeof(named)))
-	{
-		tries.push_back(std::string(named) + "\\inteng.exe");
-	}
-
-	static host::IntengExeImage image;
-	std::string from;
-	host::IntengExeRefusal why = host::IntengExeRefusal::None;
-
-	if (!host::IntengExe_Load(tries, &image, &from, &why))
-	{
-		std::string const words = std::string(host::IntengExe_Why(why)) + (from.empty() ? std::string() : " (" + from + ")");
-
-		host::IntengExe_SetShared(nullptr, words);
-		host::EditorIcon_NotRead(words);
-		intengExeWords = std::string("inteng.exe: ") + words + "; the editor icons are our own plain boxes and no placed shape's type is guessed from its name";
-		LogString(intengExeWords);
-		statusWords = intengExeWords.c_str();
-		return;
-	}
-
-	host::IntengExe_SetShared(&image, "read from " + from);
-
-	int const wanted[] = { 2, 3, 4, 7, 8, 9, 13 };
-	host::IntengShapes shapes;
-	host::IntengShapesRefusal refused = host::IntengShapesRefusal::None;
-
-	if (!host::IntengShapes_Read(image, wanted, sizeof(wanted) / sizeof(wanted[0]), &shapes, &refused))
-	{
-		host::EditorIcon_NotRead(std::string(host::IntengShapes_Why(refused)) + " (" + from + ")");
-		intengExeWords = std::string("inteng.exe: ") + host::IntengShapes_Why(refused) + "; the editor icons are our own plain boxes";
-		LogString(intengExeWords);
-		statusWords = intengExeWords.c_str();
-	}
-	else
-	{
-		host::EditorIcon_UseShapes(shapes, from);
-		LogString(std::string("editor icons: ") + host::EditorIcon_From());
-	}
-
-	// inteng's shape-name table (0x5e7b58, FUN_004f6a20; simple_object_edit.h): a placed shape's type and extra data guessed from its outside file's name (Bishop's ruling V-31: read here, no copy)
-	std::vector<host::IntengShapeName> names;
-	host::IntengNamesRefusal namesWhy = host::IntengNamesRefusal::None;
-
-	if (!host::IntengShapeNames_Read(image, &names, &namesWhy))
-	{
-		intengExeWords = std::string("inteng.exe: ") + host::IntengNames_Why(namesWhy) + "; no placed shape's type is guessed from its name";
-		LogString(intengExeWords);
-		statusWords = intengExeWords.c_str();
-		return;
-	}
-
-	std::vector<host::SimpleShapeName> rows;
-
-	for (host::IntengShapeName const &one : names)
-	{
-		host::SimpleShapeName row;
-
-		row.name = one.name;
-		row.type = one.type;
-		row.extra = one.extra;
-		rows.push_back(row);
-	}
-
-	host::SimpleObject_SetShapeNames(rows);
-	LogString("inteng's shape-name table: " + std::to_string(rows.size()) + " names read from " + from);
-}
-
 
 // The editor stops before it starts, and says why: on the error output, and with someone at the screen in a message box too. Windows'
 // "Open with", or a double-click, starts the editor with no console to read, so the reason would go by unseen. The box belongs to no
@@ -12936,11 +12820,11 @@ static void CopyCollectEnd()
 
 // (PATH MODE: in path_screen.cpp)
 
-// Enter on the name of the new virtual object (FUN_005396d0): the answer makes it; a name already in use gives inteng's "Please try another name" and the question again
+// Enter on the name of the new virtual object (FUN_005396d0): the answer makes it; a name already in use gives inteng's "Please try another name" and the question again. The place is in inteng's memory units and inteng's divisor is 100 x the level's scale (virtual_object.h "INTENG'S UNITS")
 static void RunVirtualName(std::string const &typed)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	host::VirtualObjectResult const result = open ? host::VirtualObject_Create(open, typed.c_str(), virtualPlace, local_scale > 0.0 ? local_scale : 1.0) : host::VirtualObjectResult::BadCall;
+	host::VirtualObjectResult const result = open ? host::VirtualObject_Create(open, typed.c_str(), virtualPlace, (double)host::kIntengUnitsPerFileUnit * (local_scale > 0.0 ? local_scale : 1.0)) : host::VirtualObjectResult::BadCall;
 
 	if (result == host::VirtualObjectResult::NameUsed || result == host::VirtualObjectResult::BadName)
 	{
@@ -13523,7 +13407,7 @@ static void PromptKey(UINT message, WPARAM key)
 // order before every line. titleBoxes gets the menu bar's titles' boxes, for a run's report. lines and boxes have room for
 // kPanelPassMostExtras each.
 // Object Placement's special objects in the view: each is drawn as inteng's own built-in shape (FUN_004e4ae0's display block with the class's shape slot; SpecialIconTriangles, editor_icons.h, the
-// shapes read at run time from his inteng.exe: object-placement.md section 8b V-25), and the owner's addition, its short name beside it while the shape is seen (the label pass below; the panel pass
+// shapes inteng's own, in our source: editor_icon_shapes.inc; object-placement.md section 8b V-25), and the owner's addition, its short name beside it while the shape is seen (the label pass below; the panel pass
 // holds 64 boxes and lines in all, the nearest ones in front of the camera first). (Added 2026-11-15 by Melanikus (Vasquez); the comment corrected 2026-11-16: the 2D boxes are long gone.)
 static std::vector<host::SpecialObject> specialMarkers;
 static unsigned specialMarkersFor = ~0u;
@@ -14761,7 +14645,7 @@ static bool OpenTheLevel(char const *levelName, FlyCamera *camera, char const *o
 	// OP-140 (Bishop's ruling 11-17, a named difference): which outside shapes the open brought up to date; after the start's Gouraud words, and a level not held says so over it
 	if (!outsideShapesWords->empty())
 	{
-		// whatever the start put on the line stays after them: the inteng.exe warning (IntengExeStart), a -viewmode's words (open-path-6), how many pictures are missing
+		// whatever the start put on the line stays after them: a -viewmode's words (open-path-6), how many pictures are missing
 		// (LevelView_SayMissingPictures, which hands back words of its own, so the warning can't be told by its pointer: 11-18, after bishop-int's ad73774b)
 		if (statusWords && statusWords[0])
 		{
@@ -15606,7 +15490,7 @@ int main(int, char **)
 	}
 
 	// -at's level word or -shot's map: a NAME of the data folder's levels, opened by its name (a shot's only with its sha256), so no file is copied in (open_at.h)
-	if ((openAt.at || openAt.shot) && !host::OpenAt_Level(openAt, levelFile, dataFolder, levelName, sizeof(levelName), host::IntengExe_Sha256, &openAtWhy))
+	if ((openAt.at || openAt.shot) && !host::OpenAt_Level(openAt, levelFile, dataFolder, levelName, sizeof(levelName), host::Sha256Hex, &openAtWhy))
 	{
 		return Stop(openAtWhy.c_str());
 	}
@@ -15727,7 +15611,6 @@ int main(int, char **)
 	// The widest bar's titles, with the room the gray behind them takes past the last (PlanThePanels), as the least client width
 	// the titles wrap onto up to kEditorBarMostRows rows, so the least width is the one where the widest page of every screen still wraps into that many (and no title is wider than the window)
 	MenuFontStart();   // inteng's own menu font, before the bar is measured with it
-	IntengExeStart();  // inteng's own exe, for its built-in shapes (the editor icons) and tables (V-25)
 	barMinClientWidth = EditorBar_LeastWidth(keyLayout, PanelPass_MenuWidth);
 
 	if (!LoadTheMenus())

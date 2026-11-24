@@ -22,18 +22,12 @@
 // - WHICH MODES: the placement objects exist only while Object Placement (and its sounds screen, where only the sounds) is the mode (the list FUN_004d68e0 makes and FUN_004d9820 empties). Strategy Data
 //   makes its records of the level's VIOBJECT, AVPGENER, SOUNDOB2 (MUMSOUND), PLACHIER, PARGENER ... each with the icon above, as long as that mode runs. Light Sourcing shows the light markers.
 // NAMED: how the display blocks are lit (inteng's flags 0x22008 in the descriptor 0x5cda48) is not copied: the polygons are flat and opaque, as the light markers' are.
-// WHERE THE SHAPES COME FROM (Melanikus's ruling via Bishop 11-16: inteng's binary data is never in our source): the points, polygons and colours above are read at run time from his own
-// inteng.exe (inteng_shapes.h, EditorIcon_UseShapes); they were copied into editor_icon_shapes.inc before, which is gone. A shape not read is drawn as OUR OWN plain box, 500 mm across, in
-// the editor's old marker colours (generator green, bad guy red, start white, sound cyan, particle generator orange, placed hierarchy magenta, virtual object blue), and EditorIcon_From says why.
 #pragma once
 
 #include <stddef.h>
 #include <stdint.h>
 
-#include <string>
 #include <vector>
-
-#include "inteng_shapes.h"
 
 namespace host
 {
@@ -45,13 +39,6 @@ namespace host
 		uint32_t colour;   // 0xAARRGGBB, opaque
 	};
 
-	// Where the icons come from now, for the status line: "inteng.exe" or why our plain boxes are drawn
-	char const *EditorIcon_From();
-
-	// The shapes read from inteng.exe (inteng_shapes.h): each known one read there replaces our box; from = the file read. EditorIcon_NotRead keeps the boxes and says why.
-	void EditorIcon_UseShapes(IntengShapes const &shapes, std::string const &from);
-	void EditorIcon_NotRead(std::string const &why);
-
 	// True for the shape indices above (2, 3, 4, 7, 8, 9, 13)
 	bool EditorIcon_Known(int shape);
 
@@ -61,6 +48,11 @@ namespace host
 
 	// How many triangles the shape has (0 for an unknown one)
 	size_t EditorIcon_TriangleCount(int shape);
+
+	// The shape's extents, the least and the most of its points on each axis, in inteng's memory units (100 to a millimetre, as the points are): what inteng's display block for the icon
+	// holds at +0x104..+0x118, which Strategy Data's Create Virtual Object > Above to Behind steps from (FUN_00524e90 0x524fc6; virtual_object.h). False for an unknown shape. The shape is the one
+	// the editor draws for that index (EditorIcon_Add).
+	bool EditorIcon_Extents(int shape, int32_t least[3], int32_t most[3]);
 
 	// The shape's radius in millimetres: the farthest of its points from its centre (0 for an unknown one). Object Placement's view distance takes it away from the icon's distance, as FUN_004dd2f0 takes the
 	// block's radius (+0x100). NAMED: computed from the points; the radius word of inteng's built-in shape header is not read.

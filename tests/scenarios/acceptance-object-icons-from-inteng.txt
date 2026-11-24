@@ -1,8 +1,9 @@
-# ACCEPTANCE (red first): the editor objects' icons are inteng's OWN built-in shapes, read at run time from Melanikus's installed inteng.exe (object-placement.md section 8b V-25; Bishop's ruling
-# 11-16: inteng's binary data is never in our source). inteng: FUN_004e4f90 makes the generator's display block with shape slot 3 (0x4e4fed), the SHAPEHEADER FUN_0042c700 reads through
-# 0x5cd964 (0x5cc210: 28 points, 28 polygons, all the colour 0x00c832). By his path: Object Placement, Create > AVP generator, the Name Object window, the view moved back.
-# Red on the code with the copy taken out and before the reader (our plain boxes: the generator's box is 0x30d030); green with the reader.
-#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
+# ACCEPTANCE (red first): the editor objects' icons are inteng's OWN built-in shapes, drawn with NO inteng.exe anywhere: no IntengTools setting (the clean ini
+# names none) and none beside the program, as on a new player's PC (the owner, 11-24, testing alpha.6 that way: "the hardcoded icons inside inteng are under our
+# right to decompile"). The shapes are in our source again, as before 11-16 (editor_icon_shapes.inc as at f85c0e3c). inteng: FUN_004e4f90 makes the generator's
+# display block with shape slot 3 (0x4e4fed), the SHAPEHEADER at 0x5cc210: 28 points, 28 polygons, all the colour 0x00c832. By his path: Object Placement,
+# Create > AVP generator, the Name Object window, the view moved back.
+# Red on 3aa15c5d (the shapes read from inteng.exe at run time: with none, our plain boxes, the generator's 0x30d030); green with the shapes in our source.
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
@@ -23,3 +24,5 @@ key Back
 wait 300
 picture 1
 expect-colour picture 0 0 1008 729 00c832 0.0003 12
+# and not our old plain box's colour (0x30d030, the generator's box with no inteng.exe before this)
+expect-colour-at-most picture 0 0 1008 729 30d030 0.0001 12

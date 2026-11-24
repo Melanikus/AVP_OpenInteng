@@ -109,8 +109,7 @@
 #include "particle_edit.h"
 #include "simple_object_edit.h"
 #include "editor_icons.h"
-#include "inteng_exe.h"
-#include "inteng_shapes.h"
+#include "sha256_hex.h"   // Sha256Hex: the screenshot files' SHA-256
 #include "virtual_object.h"
 #include "generator_strategy.h"
 #include "placed_hierarchy_strategy.h"
@@ -630,7 +629,7 @@ static std::string ShotFileSha256(std::string const &path, uint64_t mostBytes, u
 	}
 
 	CloseHandle(file);
-	return read ? host::IntengExe_Sha256(data.data(), data.size()) : std::string();
+	return read ? host::Sha256Hex(data.data(), data.size()) : std::string();
 }
 
 // the last lines of the editor's own log (the player already left out of them by the log's writer)

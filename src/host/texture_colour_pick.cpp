@@ -2,7 +2,7 @@
 // (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // AS INTENG:
-//  - Select Colour covers the screen with a 16 x 16 grid of inteng's 256 colours (its table at 0x5d77c8, read from the user's inteng.exe when the editor runs) and waits for a mouse press;
+//  - Select Colour covers the screen with a 16 x 16 grid of inteng's 256 colours (its table at 0x5d77c8, in the editor itself: texture_colour_table.h) and waits for a mouse press;
 //    a left press in the grid takes that cell's colour word (model/texture_colour.h) as the current colour (state +0xd0) and applies it; any other press does nothing more.
 //  - Apply Colour (also the end of Select Colour) takes the selection's undo step (FUN_00573570), then makes every selected polygon a plain one (type 2) of the current colour (0 at the
 //    start, 0x5560ca), taking it out of its texture animation first (FUN_005413d0).
@@ -10,8 +10,10 @@
 //  - the grid leaves our status line (36 pixels) out, which says what the press does (inteng's covers the whole screen and says nothing);
 //  - a plain polygon keeps its list of texture coordinates in the file (inteng keeps them in its own record, +0..+0x17, for an undo; whether its save writes them is UNREAD);
 //  - when a polygon taken out of an animation was the current animation's last, the current animation is not let go (0x541467).
-//  - without the user's traced inteng.exe there is no table, and Select Colour says so and does nothing.
 // INTENG BUG, FIXED: the 24-bit grid's colours (model::ColourShown).
+// Modified 2026-11-24 by Melanikus (Frost), the owner's ruling made plain ("Dude, I was specific about RIFs": only Rebellion's RIF data stays out of our source): inteng's
+// table is in the editor itself (texture_colour_table.h, its 768 bytes copied one for one from inteng.exe), so Select Colour works for a player with no inteng.exe. It was read
+// from the user's own inteng.exe at run time, and without one Select Colour said so and did nothing.
 
 #include <stdio.h>
 #include <string.h>
@@ -27,7 +29,7 @@
 #include "shape_edit.h"
 #include "anim_edit.h"
 #include "texture_anim.h"
-#include "inteng_exe.h"
+#include "texture_colour_table.h"   // inteng's 256 colours, host::kIntengColourTable
 #include "texture_colour.h"
 #include "texture_window_paint.h"   // TextureColourPaint_Grid
 #include "state_line.h"
@@ -36,12 +38,12 @@ void ShowTheWorkingBytes();   // editor_screen_keys.cpp: the view loads the edit
 
 bool textureColourPicking = false;
 static uint32_t textureColourCurrent = 0;   // +0xd0 (0x5560ca: 0 at the start)
-static uint8_t textureColourTable[model::kColourCells * 3];
+static uint8_t const *const textureColourTable = host::kIntengColourTable;   // inteng's own colours, r g b each 0..63 (texture_colour_table.h)
+static_assert(sizeof(host::kIntengColourTable) == model::kColourCells * 3, "inteng's table holds 256 colours of 3 bytes");
 static int32_t textureColourFrameW = 0, textureColourFrameH = 0;   // the frame the grid was last drawn on (the press is in its pixels)
 
 namespace
 {
-	uint32_t const kColourTableAt = 0x5d77c8;   // inteng's 256 colours, r g b each 0..63
 	int32_t const kStatusLineHeight = 36;
 }
 
@@ -225,16 +227,6 @@ void TextureColourApplyCurrent()
 // Shift+K (0x40): the grid, until a press
 void TextureColourPickStart()
 {
-	std::string why;
-	host::IntengExeImage const *const image = host::IntengExe_Shared(&why);
-
-	if (!image || !host::IntengExe_ReadBytes(*image, kColourTableAt, sizeof(textureColourTable), textureColourTable))
-	{
-		textureWords = "Texture Map: Select Colour needs inteng's colour table, from your inteng.exe: " + (image ? std::string("the table could not be read") : why);
-		statusWords = textureWords.c_str();
-		return;
-	}
-
 	textureColourPicking = true;
 	textureWords = "Texture Map: Select Colour: click a colour (any other press: none)";
 	statusWords = textureWords.c_str();

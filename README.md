@@ -1,6 +1,6 @@
 # AVP_OpenInteng
 
-The first open community beta of AVP_OpenInteng: a remake of **inteng**, Rebellion's own level editor for **Aliens versus Predator**, now
+AVP_OpenInteng: a remake of **inteng**, Rebellion's own level editor for **Aliens versus Predator**, now
 open source. Like inteng, it works on a level once its geometry is built: place objects, NPCs and generators, give them their
 behaviour, map textures onto the polygons, light the level, set its sounds and acoustics, lay out the AI's paths and waypoints, link
 its modules, and set the level-wide settings. It works exactly like inteng, minus bugs and... you can move the camera with your mouse.

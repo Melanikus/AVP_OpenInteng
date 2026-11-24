@@ -19,14 +19,58 @@
 # HOW: the editor's own hidden proof runs (-trackposeproof, -tracksoundproof, through the bar and the pop-up the way a user does it, on the stock levels that have tracks).
 #
 # RUN: bash tests/scenarios/acceptance-track-editing.sh <the editor exe built from the tree>   (lane T2; AvP-docs\tools\frost\track-proof-runs.sh does the run; the exit code is 0 only if nothing FAILED)
+#
+# EVERY CHECK READS ONLY WHAT THIS RUN MADE (Frost 2026-11-24, Bishop's order; Drake's two asks): until then the runner's exit was thrown away and the proofs were read from one
+# shared folder (frost-proofs/acc-track/<level>), so when the runner refused (lane T2 held: "LANE NOT FREE", exit 1, before it writes anything) the LAST run's proofs were read and
+# said ok: a green in 4-5 s that ran nothing (11-24 13:3x). Now:
+#   - the exe this run uses is named on the first line, with its SHA-256;
+#   - each run of the script has its own proofs folders (acc-track-<this run's number>, acc-sound-<...>), so neither an older run nor one going on at the same time can be read;
+#   - a run.txt counts only if it was written after its own call started (a mark file made just before), and only if the editor itself ended well: the runner writes the
+#     editor's exit as run.txt's last line and exits 0 itself (track-proof-runs.sh), so that line must be exactly "exit 0" (Drake's MUST 1: a crash at teardown, or a sanitizer
+#     report, after the WORKS lines is FAILED, and its run.txt kept, never deleted with a pass);
+#   - the runner's exit is read: "LANE NOT FREE" waits (30 s at a time, TRACK_EDITING_LANE_WAIT seconds in all, 1800 unless set), and any other refusal, or a lane never free,
+#     is FAILED, never ok.
+# The private folders are deleted when every check passed (they hold a picture each), and kept when one failed, to be looked at.
 exe="${1:?the editor exe}"
 runner=/c/Users/Melanikus/source/AvP-docs/tools/frost/track-proof-runs.sh
 lane=/c/Users/Melanikus/source/AvP-builds-excluded/RUN-LANE-T2.txt
 proofs=/c/Users/Melanikus/source/AvP-builds-excluded/frost-proofs
+wait_limit=${TRACK_EDITING_LANE_WAIT:-1800}
+[[ "$wait_limit" =~ ^[0-9]+$ ]] || { echo "  FAILED  TRACK_EDITING_LANE_WAIT is a number of seconds"; exit 1; }
+[ -f "$exe" ] || { echo "  FAILED  no editor at $exe"; exit 1; }
+echo "exe: $exe sha256 $(sha256sum "$exe" | cut -c1-16)"
+own=$$-$(date +%s)
 bad=0
+
+# proof <run name> <level> <editor arguments...>: the runner's run, waiting while lane T2 is held; gives back 0 only when the runner ran and wrote a run.txt after this call began
+proof() {
+  local run=$1 level=$2 waited=0 out rc
+  shift 2
+  local mark="$proofs/$run.mark-$level"
+  mkdir -p "$proofs"; : > "$mark"; sleep 1
+  while true; do
+    out=$(LANE_FILE=$lane bash "$runner" "$exe" "$run" "$level" "$@" 2>&1); rc=$?
+    [ "$rc" = 0 ] && break
+    if [ "$out" = "LANE NOT FREE" ] && [ "$waited" -lt "$wait_limit" ]; then sleep 30; waited=$((waited + 30)); continue; fi
+    echo "  FAILED  $level: the proof run did not run (the runner: exit $rc, \"$(echo "$out" | head -1 | cut -c1-120)\"$( [ "$out" = "LANE NOT FREE" ] && echo ", lane T2 held for $waited s"))"
+    rm -f "$mark"; return 1
+  done
+  if [ ! -f "$proofs/$run/$level/run.txt" ] || [ ! "$proofs/$run/$level/run.txt" -nt "$mark" ]; then
+    echo "  FAILED  $level: no run.txt written by this run in $proofs/$run/$level"
+    rm -f "$mark"; return 1
+  fi
+  local ended
+  ended=$(tail -n 1 "$proofs/$run/$level/run.txt" | tr -d '\r')
+  if [ "$ended" != "exit 0" ]; then
+    echo "  FAILED  $level: the editor ended with \"$ended\" (a crash or a sanitizer report: $proofs/$run/$level/run.txt)"
+    rm -f "$mark"; return 1
+  fi
+  rm -f "$mark"; return 0
+}
+
 for level in Temple Escape Area52 Invasion; do
-  LANE_FILE=$lane bash "$runner" "$exe" acc-track "$level" -picture 500 -trackposeproof > /dev/null 2>&1
-  out=$proofs/acc-track/$level/run.txt
+  proof "acc-track-$own" "$level" -picture 500 -trackposeproof || { bad=1; continue; }
+  out=$proofs/acc-track-$own/$level/run.txt
   if grep -aq "Track Editing main job: WORKS in the running editor (pose: the track followed the moved object" "$out"; then
     echo "  ok      $level: $(grep -a 'Stop Track Edit: the object' "$out" | sed 's/.*track proof: //' | cut -c1-200)"
   else
@@ -35,8 +79,8 @@ for level in Temple Escape Area52 Invasion; do
   fi
 done
 for level in Temple Escape Area52 Invasion; do
-  LANE_FILE=$lane bash "$runner" "$exe" acc-sound "$level" -picture 500 -tracksoundproof > /dev/null 2>&1
-  out=$proofs/acc-sound/$level/run.txt
+  proof "acc-sound-$own" "$level" -picture 500 -tracksoundproof || { bad=1; continue; }
+  out=$proofs/acc-sound-$own/$level/run.txt
   if grep -aq "NOT PROVEN here" "$out"; then
     echo "  SKIPPED $level sounds: no sound device in this run"
   elif ! grep -aq "SILENT on every frame (a hidden run)" "$out"; then
@@ -49,5 +93,10 @@ for level in Temple Escape Area52 Invasion; do
     bad=1
   fi
 done
-[ "$bad" = 0 ] && echo "All checks passed" || echo "SOME CHECKS FAILED"
+if [ "$bad" = 0 ]; then
+  rm -rf -- "${proofs:?}/acc-track-${own:?}" "${proofs:?}/acc-sound-${own:?}"
+  echo "All checks passed"
+else
+  echo "SOME CHECKS FAILED (this run's proofs kept: $proofs/acc-track-$own, $proofs/acc-sound-$own)"
+fi
 exit $bad

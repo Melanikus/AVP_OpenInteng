@@ -1,0 +1,33 @@
+# ACCEPTANCE (red first; Frost 2026-11-24, the owner's ruling made plain, "Dude, I was specific about RIFs": only Rebellion's RIF data stays out of our source, and what the
+# editor took at run time from inteng's own files goes INTO it, so a new player has it; Bishop's order for alpha.6): SELECT COLOUR WITH NO INTENG.EXE. Texture Map's Shift+K
+# (0x40 Select Colour, FUN_00560620) covers the screen with inteng's 256 colours, its table at 0x5d77c8. Until now the table was read from the user's own inteng.exe, so a
+# player without one got "Select Colour needs inteng's colour table, from your inteng.exe" and no grid. Now the table is in the editor itself (texture_colour_table.h, the
+# bytes checked one for one against inteng.exe), so the grid comes up with no inteng.exe anywhere.
+# His path, as a new player's: Invasion with NO IntengTools setting and no inteng.exe beside the program, Mode > Texture Map, the quad at 0.50 0.60, Shift+K: the grid
+# (63 x 43 cells on the 1008 x 729 frame less the status line); a click on cell 149 (column 5, row 9; inteng's colour 21 0 0): colour 95540000, the same as
+# acceptance-texture-map-colour gets from inteng.exe itself, in the saved copy too.
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+item 0x46
+expect-screen Texture Map
+save-copy
+click-view 0.50 0.60
+expect-status 1 selected
+
+# ---- Select Colour: the grid, from the editor's own table
+key K shift
+wait 400
+expect-status Select Colour: click a colour
+expect-field colourgrid 63 43
+picture 1
+
+# ---- cell 149, inteng's colour 21 0 0: the word inteng makes of it
+click-win 346 408
+wait 400
+expect-field-empty colourgrid
+expect-status 1 polygon given the colour 95540000
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_colour/verify_colour.exe {prev} {copy} 1 95540000
+picture 2
