@@ -1,0 +1,18 @@
+# ACCEPTANCE (red first; Drake 2026-11-23, Bishop's card for beta.0), part 2 of acceptance-shapes-gone-1 (#ini-keep: it runs right after it, in the same
+# shard, on the same data copy and the ini part 1 wrote): THE NEXT START, THE LIST KEPT AND shape_rifs GONE. The list says every map was searched, but what
+# they gave is gone. A kept list counts only while shape_rifs holds a shape file (shapes_start.h ShapesStart_ShapeFilesThere): with none, every map is searched
+# again, without asking (the player's Yes is kept), the shapes are written again, the list is written again, and the words say why.
+# RED on exe-cache/0abb8dc2.exe (bishop-int's head): the list was trusted, so nothing was searched ("done; 0 new maps scanned, 0 new shapes"), and the
+# placement picker would stay empty for good unless the player edited the ini by hand.
+#ini-keep
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+wait-moving 120000 shapes done;
+expect-field-has shapes every map searched again: shape_rifs held no shape
+expect-number shapes done;_ 50 233
+expect-number shapes scanned,_ 300 5000
+expect-field-has status every map searched again: shape_rifs held no shape
+expect-no-dialog
+kill-editor
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-shaperescan-proofs/verify_shape_folder.exe count {datadir} 300

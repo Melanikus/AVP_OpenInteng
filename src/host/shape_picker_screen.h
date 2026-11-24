@@ -63,6 +63,11 @@ bool ShapePickerScreen_Release();
 // The mouse wheel: notches as Windows gives them (WHEEL_DELTA each; up is positive): a row a notch, up is back
 void ShapePickerScreen_Wheel(int delta);
 
+// The pointer moved, with or without a button, at (x, y) in the editor's own pixels, as a press's: the tile under it says what it is, in the line under the grid and
+// on the state line (typed placement, Dietrich 2026-11-23: the owner's "Those must have a green border around their render pane and when moused over explain
+// that"). Nothing while the picker is closed.
+void ShapePickerScreen_Hover(int32_t x, int32_t y);
+
 // The picker's fields on the state line (StateLine_Add), every frame: picker "open cols A rows B count N drawn D failed F first X selected <name>" (or
 // "closed"), pickerboxes "<name>~<x> <y> <w> <h>|..." (the tiles on the screen, their pictures, in the WINDOW's pixels), pickertiles (those tiles' words,
 // shape_picker.h ShapePicker_TileWords, '|' between), pickernotes (the folders' words), pickerscroll (the scroll bar's parts, "up~...|down~...|above~...|

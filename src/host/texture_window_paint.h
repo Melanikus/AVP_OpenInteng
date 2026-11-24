@@ -69,11 +69,20 @@ struct ShapePickerPaintTile
 	int32_t x, y, side;        // its picture's square
 	int32_t nameHeight;        // the line under it
 	bool selected;
+	bool typed = false;        // its object is made as the game object its kind says (typed placement): a green border round its picture, inside the yellow
+	bool live = false;         // its shape is drawn LIVE in the level's frame (shape_pane_gpu.h): no still picture and no words in its square
 	std::string name;          // under it, cut to fit
 	std::string words;         // in the square while it has no picture
 };
 
 void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, const std::vector<ShapePickerPaintTile> &tiles, const host::ShapePickerBar &bar, const std::vector<std::string> &lines, int32_t lineX, int32_t lineY);
+
+// THE TILES' BLACK BOXES (Frost 2026-11-24; the owner, on his Tools build with the live panes: "I want a 50% oppacity background in black behind the spinning
+// images, bit hard to see"): black at half opacity over each tile's picture square, the level still showing through it faintly. Every tile alike, whatever is
+// in its square (a live shape, a still picture, a "can't be drawn" tile's words). Called BEFORE the live panes are added (ShapePaneGpu_Composite) and before
+// ShapePickerPaint_Draw, so the shape, the picture, the words, the name, the frames and the bar all go over it; the tiles left out of ShapePickerPaint_Draw
+// (outside the window) are left out here too.
+void ShapePickerPaint_Backdrops(int32_t windowWidth, int32_t windowHeight, const std::vector<ShapePickerPaintTile> &tiles);
 
 void TextureWindowPaint_Draw(int32_t windowWidth, int32_t windowHeight, const TextureWindowPicture &picture, const std::vector<TextureWindowWords> &words);
 

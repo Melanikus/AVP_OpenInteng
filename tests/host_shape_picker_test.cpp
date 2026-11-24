@@ -17,8 +17,10 @@
 //       named from its object name. Red: no such tiles before it (b4521891)
 //   (10) NO GEOMETRY, NO TILE; COPIES FOLDED (the owner 11-23): the empty file left out, copies that look the same folded under the first by name, a copy that
 //       truly looks different kept; one note line each; a tile's words name its copies, made safe. Red: on a stand-in that leaves nothing out and folds nothing
+//   (11) THE TURNING'S CLOCK: once round every 8 s from its start, in radians and in whole degrees
 // RED FIRST: on a stand-in that lists nothing and lays out nothing, (1) to (4) fail; (5) on 4f0db774 (the words as they came); (6) by mutation, the lines
 // cut every perLine letters as the paint did before: 3 of its 4 fail.
+#include <math.h>
 #include <stdio.h>
 
 #include <string>
@@ -405,6 +407,18 @@ int main()
 
 		ShapePicker_AddLevelShapes(&plain, { { "bits", "", 3 }, { "bits", "", 4 } });
 		Check(plain.tiles.size() == 2 && plain.tiles[0].name == "bits#3" && plain.tiles[1].name == "bits#4", "(9) unnamed parts told apart by their numbers");
+	}
+
+	// ---- (11) THE TURNING'S CLOCK (the owner 11-23, "rotating in 3d"): once round every 8 s, from where it began
+	{
+		float const start = ShapePicker_TurnAt(0), quarter = ShapePicker_TurnAt(2000), half = ShapePicker_TurnAt(4000), round = ShapePicker_TurnAt(8000);
+		float const later = ShapePicker_TurnAt(8000ull * 1000000 + 6000);   // a long sitting: the same as 6 s in
+		int32_t const degrees[4] = { ShapePicker_TurnDegrees(quarter), ShapePicker_TurnDegrees(half), ShapePicker_TurnDegrees(later), ShapePicker_TurnDegrees(-1.5707963f) };
+
+		Check(start == 0.0f && fabsf(quarter - 1.5707963f) < 1e-5f && fabsf(half - 3.1415927f) < 1e-5f && round == 0.0f && fabsf(later - 4.712389f) < 1e-4f,
+			"(11) 0 at the start, a quarter at 2 s, half at 4 s, round again at 8 s; a long sitting the same as its part of 8 s");
+		Check(degrees[0] == 90 && degrees[1] == 180 && degrees[2] == 270 && degrees[3] == 270, "(11) in whole degrees, 0 to 359: " + std::to_string(degrees[0]) + " " +
+			std::to_string(degrees[1]) + " " + std::to_string(degrees[2]) + " " + std::to_string(degrees[3]));
 	}
 
 	// ---- (10) NO GEOMETRY, NO TILE; COPIES FOLDED (the owner 11-23, through Bishop 2: "No picture means no geometry? if yes don't show!", and copies with the

@@ -73,21 +73,36 @@ namespace host
 	// FUN_004de070: the nine 16.16 whole numbers of a matrix (row by row: m[0..2] the first row) as the four floats of a turn (x, y, z, w)
 	void ObjectMake_TurnFromMatrix(int32_t const *matrix, float *turn);
 
+	// THE GAME OBJECT A NEW OBJECT IS MADE AS (typed placement, Dietrich 2026-11-23 and -24): its strategy's Type and ExtraData (the AVPSTRAT's +20 and +24), mass
+	// (+28), integrity word (+32) and flags word (+36). The caller takes them from shape_identity.h ShapeIdentity_PlacedWith only: a pickup of its closed list
+	// with the maker's own fields below, or furniture with its own stock placement's. No target, ever. No type given: Type 0 and ExtraData 0 with the maker's own
+	// fields, a static object, as inteng's own Quick-create makes every object.
+	struct ObjectStrategyType
+	{
+		int32_t type = 0;
+		int32_t extra = 0;
+		int32_t mass = 50;                  // the maker's own (0x20032 & 0xffff: FUN_0052b120's)
+		uint32_t integrity = 0x80000002u;   // integrity 2, its top bit set
+		uint32_t flags = 1;
+	};
+
 	// Makes the object. place: three whole numbers in millimetres (the view's place). matrix: nine whole numbers (the view's turn). newId (8 bytes) and
 	// newName, if not null, say what it is called. The status of the maker is in the result.
 	ObjectMakeResult CreateObjectFromShape(OpenLevelFile *file, char const *shapeName, int32_t const *place, int32_t const *matrix, uint8_t *newId,
-	                                       std::string *newName, char const *shapeFolder = nullptr, std::string *importWhy = nullptr);
+	                                       std::string *newName, char const *shapeFolder = nullptr, std::string *importWhy = nullptr,
+	                                       ObjectStrategyType const *as = nullptr);
 	// shapeFolder (null or empty: none): where a shape the level doesn't hold is looked for, as <name>.rif (shape_import.h). Then a shape that is found
 	// and taken is put in the level with the new object, in the same one change (the loader reads the whole result before anything is swapped in).
 	// importWhy, when not null, says what was wrong with the shape's file (or that it isn't in the folder), when the answer is ShapeFileRefused or NoSuchShape.
+	// as: the game object it is made as (ObjectStrategyType, above); null: a static one.
 
 	// Makes the object of the level's shape with that NUMBER (its SHPHEAD1's own), as inteng's Create Duplicate (FUN_004e0ed0 is given the shape's number) and its
 	// Shape Chooser (it answers with the chosen shape's number) make it; never found by its file's name, which every part of one fragment file shares (office's
 	// offbits parts Aerosol, CDBox, Game ... are all "offbits": made by the name, a copy of Game came out Aerosol, OUR bug, 2026-11-23). nameBase: what the new
 	// object's first free "<base><n>" name is made of (the caller may rename it). Otherwise as CreateObjectFromShape: NoSuchShape when the level holds no shape
-	// of that number (nothing is imported).
+	// of that number (nothing is imported). as: the game object it is made as (ObjectStrategyType, above); null: a static one.
 	ObjectMakeResult CreateObjectFromShapeNumber(OpenLevelFile *file, int32_t shapeNumber, char const *nameBase, int32_t const *place, int32_t const *matrix, uint8_t *newId,
-	                                             std::string *newName);
+	                                             std::string *newName, ObjectStrategyType const *as = nullptr);
 
 	// Makes a placed object around a shape the CALLER made (Split Object: poly_edit.h): shapeChunk is a whole REBSHAPE chunk with its own number (a number no shape of the level has) and a SHPHEAD1 that lists no
 	// users yet. It goes in after the level's last object and the object is made as above, named <objectBase><n> (the first no object has), at place (millimetres) and turned as turn (four floats, an object

@@ -36,6 +36,13 @@ namespace host
 	// Every one of them when the folder isn't there or can't be listed
 	size_t ShapesStart_StockShapesMissing(std::string const &dataFolder);
 
+	// THE SHAPES THE LIST STANDS FOR (Drake 2026-11-23, Bishop's card for beta.0, the owner testing "like a fresh player would"): whether <data>\shape_rifs
+	// holds at least one shape file (a plain file, never a folder or a link, whose name ends in ".rif" in any capitals). The ini's [ShapesScanned] list says
+	// which maps were searched, but what they gave lives in that folder: a player who deletes it (or a search whose writes were all refused) would keep a list
+	// saying "searched" over nothing, and no map would ever be searched again. False when the folder isn't there or holds no shape file; true when it can't be
+	// listed (Windows refused: nothing is known, so the list stands, as it did), with *whyNotListed then saying why, for the editor's log
+	bool ShapesStart_ShapeFilesThere(std::string const &dataFolder, std::string *whyNotListed = nullptr);
+
 	// THE FOUND FORM'S FACTS (first_launch_ui.h FirstLaunchFacts): the stock check of the data folder (shape_extract_files.h ShapeExtract_StockCheck: its counts,
 	// the stock files not Steam's own, the ones missing), and shapesToWrite: the stock shapes missing, plus one for each map found that isn't Steam's own (a
 	// custom map, a stock name with other bytes: what shapes it holds is known only once it is searched). Nonzero: there is something to search.

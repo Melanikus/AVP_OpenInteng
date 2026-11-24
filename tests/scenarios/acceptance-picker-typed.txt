@@ -1,0 +1,108 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-24, TYPED PLACEMENT, HAND 1: the pickups; Bishop's card for beta.0; the owner: "Yes, set the known type", and "Those must
+# have a green border around their render pane and when moused over explain that"). A new object of a shape the identity table knows (by the SHA-256 of the very
+# shape placed: shape_identity.h) is made as the game object its kind says, only ever one of the closed list's (ShapeIdentity_PlacedAs: the 18 pickups Steam's
+# levels place). Any other shape is made static, as before. The picker draws a green border round such a tile's picture, and the tile under the pointer
+# says why in the line under the grid. The status line says what the object was made as.
+# THE SCENARIO'S OWN GAME FOLDER ({datadir}-typed-game, made by tests/scenarios/make_shape_game.cpp from the shard's stock copy, each file by the editor's own
+# extractor, so each is the file Option C writes): Invasion; in <game>\shape_rifs pulam.rif from Statue (ammo: pulse rifle), pulam_var001.rif (pulam with its
+# first point moved 1 mm: other bytes, so UNKNOWN), and medbox01.rif from Derelict (health). Invasion's own shapes are tiles too, known by the files they make
+# (shape_extract.h ShapeExtract_FileSums): Smrtam01 (ammo: smartgun), pistol (weapon: marine pistol), timdesk (furniture: since HAND 2 made with its own stock
+# placement, the table's commonest set of its stock objects' fields: mass 1000, integrity 8, flags 1, as both of its 2 stock placements).
+# MEASURED on 51dcdd42: 9 of Invasion's 21 own shapes make a file, all 9 of them rows of the table. The other 12 make none: RESCALED copies, which have no row by
+# Bishop 2's ruling (shape_identity_data.cpp), so they are unknown and made static. One of them is Invasion's own medbox01. The folder's medbox01 tile is "in this
+# level", so it is drawn and placed from Invasion's copy, and it is unknown (no green border), since the shape placed is not the table's file.
+# THE STATE LINE: pickertyped "<tile>~<kind>|..." (the tiles on the screen with a green border); pickerhover "<tile>~<words>" or "none"; pickerlevelkinds
+# "<k> of <n> known in <ms> ms". The saved copy is read back by the game's own loader (verify_strategy): the folder's pulam is Type 3 ExtraData 0, the level's own
+# Smrtam01 Type 3 ExtraData 2, the unknown file's object Type 0.
+# RED on exe-cache/af9c6f5a.exe (bishop-int, the card's base): no pickertyped field, and every object made is Type 0 (static), as every object was.
+# HAND 2's RED on exe-cache/f107d263.exe (HAND 1): timdesk has no green border, and its object is made static (Type 0, mass 50).
+#ini DataFolder={datadir}-typed-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-typed-game {datadir} Invasion.RIF Derelict.RIF medbox01 shape_rifs
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-typed-game {datadir} Invasion.RIF Statue.RIF pulam shape_rifs variants1
+level {datadir}-typed-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- THE PICKER: the known pickups and furniture typed (green border); the unknown file and the level's rescaled medpack not
+item 0x32
+expect-field-has picker open
+wait-field picker failed 0 20000
+wait-field pickershown waiting 0 20000
+expect-field-has pickertyped pulam~ammo: pulse rifle
+expect-field-has pickertyped Smrtam01~ammo: smartgun
+expect-field-has pickertyped pistol~weapon: marine pistol
+expect-field-not-has pickertyped pulam_var001
+expect-field-has pickertyped timdesk~furniture
+expect-field-not-has pickertyped medbox01
+expect-field-has pickerlevelkinds 9 of 21 known in
+expect-field-has pickerhover none
+picture 1
+expect-tile-drawn pulam
+
+# ---- THE POINTER OVER A TILE, no click: the line under the grid says what it is
+move-in pickerboxes pulam
+expect-field-has pickerhover pulam~pulam: green border: a stock shape known by its file's SHA-256 (pulam.rif), placed as ammo: pulse rifle (the game's Type 3, ExtraData 0)
+picture 2
+move-in pickerboxes pulam_var001
+expect-field-has pickerhover pulam_var001~pulam_var001: placed as static (Type 0): its shape is not one the editor knows
+move-in pickerboxes medbox01
+expect-field-has pickerhover medbox01~medbox01: placed as static (Type 0): its shape is not one the editor knows
+move-in pickerboxes timdesk
+expect-field-has pickerhover timdesk~timdesk: green border: a stock shape known by its file's SHA-256 (timdesk.rif), placed as furniture (the game's Type 1, ExtraData 0; stock mass 1000, integrity 8, 2 of 2 placements)
+picture 3
+
+# ---- THE FOLDER'S AMMO PLACED (its file brought in): made as ammo: pulse rifle
+click-tile pulam twice
+expect-dialog Name Object
+type typedAmmo
+key Enter
+expect-no-dialog
+expect-status Object typedAmmo made at the view
+expect-status placed as ammo: pulse rifle (the game's Type 3, ExtraData 0)
+picture 4
+
+# ---- THE LEVEL'S OWN SMARTGUN AMMO PLACED (by its number): made as ammo: smartgun
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile Smrtam01 twice
+expect-dialog Name Object
+type typedSmart
+key Enter
+expect-no-dialog
+expect-status Object typedSmart made at the view
+expect-status placed as ammo: smartgun (the game's Type 3, ExtraData 2)
+
+# ---- THE UNKNOWN FILE PLACED: static
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile pulam_var001 twice
+expect-dialog Name Object
+type plainVar
+key Enter
+expect-no-dialog
+expect-status Object plainVar made at the view
+expect-status placed as static (Type 0): its shape is not one the editor knows
+
+# ---- THE LEVEL'S OWN DESK PLACED (HAND 2): made as furniture with its own stock placement
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile timdesk twice
+expect-dialog Name Object
+type typedDesk
+key Enter
+expect-no-dialog
+expect-status Object typedDesk made at the view
+expect-status placed as furniture (the game's Type 1, ExtraData 0; stock mass 1000, integrity 8, 2 of 2 placements)
+
+# ---- THE SAVE holds them so (the game's own loader reads the copy)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} typedAmmo size 52 Type 3 ExtraData 0 mass 50 also typedSmart also plainVar also typedDesk
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} typedSmart size 52 Type 3 ExtraData 2 mass 50 also typedAmmo also plainVar also typedDesk
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} plainVar size 52 Type 0 ExtraData 0 also typedAmmo also typedSmart also typedDesk
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} typedDesk size 52 Type 1 ExtraData 0 mass 1000 integrity 8 flags 1 also typedAmmo also typedSmart also plainVar

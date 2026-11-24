@@ -39,9 +39,11 @@
 //   click-tile <name> [twice]   a click in the middle of the placement picker's tile of that shape (the state line's pickerboxes); twice: again after 400 ms (select, then place);
 //                               a tile not on the screen is paged to first by the picker's scroll bar (pickerscroll's "below")
 //   click-in <field> <name>   a click in the middle of the box <name> in a state field of "<name>~<x> <y> <w> <h>|..." (pickerboxes, pickerscroll)
+//   move-in <field> <name>    the pointer moved to the middle of that box, no button (a hover)
 //   drag-in <field> <name> <to name>   a drag from the middle of <name> to the middle of <to name> in that field (the picker's scroll thumb)
 //   press-in <field> <name>   the left button pressed at the middle of that box and held (not let go)
 //   expect-tile-drawn <name> [share]   the newest picture-<n>.png has at least that share (0.10) of that tile's picture part away from the tile's background
+//   expect-tile-backdrop <name> <n> <low> <high>   that tile's bottom corners in the newest picture are low..high times as bright as in picture n (the level alone)
 //   drag-win <x0> <y0> <x1> <y1> [right] [ctrl]   a drag, with the right button and / or Control held
 //   drag-texwin <x0> <y0> <x1> <y1> [right] [ctrl] / click-texwin <x> <y> [shift]   the same at places from the Texture Map window's top left (the state line's texwin)
 //   allow-fail <reason> | <check line>   the check as usual, but a failure is "ALLOWED" (with the reason) and not counted; a pass gets a NOTE to take the prefix away
@@ -561,6 +563,40 @@ static double ShareDrawnInBox(Picture const &p, int const box[4])
 	}
 
 	return (double)away / ((double)box[2] * box[3]);
+}
+
+// The mean brightness (0 to 765) of a picker tile's two BOTTOM corners in a picture (Frost 2026-11-24): squares of an eighth of the tile's side (at least 2
+// pixels), 2 pixels in from its left, right and bottom edges. Those pixels show what is behind the tile's shape: a fitted shape keeps to the circle inside the
+// square, the green border is on the square's edge pixel, and a "can't be drawn" tile's words start at its top. False when the picture can't be read or the
+// box isn't inside it.
+static bool BottomCornersBrightness(Picture const &p, int const box[4], double *mean)
+{
+	int const side = (std::max)(2, (std::min)(box[2], box[3]) / 8);
+
+	if (!p.Read() || box[0] < 0 || box[1] < 0 || box[2] < side + 4 || box[3] < side + 4 || (UINT)(box[0] + box[2]) > p.width || (UINT)(box[1] + box[3]) > p.height)
+	{
+		return false;
+	}
+
+	int const top = box[1] + box[3] - 2 - side;
+	int const lefts[2] = { box[0] + 2, box[0] + box[2] - 2 - side };
+	double sum = 0.0;
+	size_t count = 0;
+
+	for (int corner = 0; corner < 2; corner++)
+	{
+		for (int row = top; row < top + side; row++)
+		{
+			for (int column = lefts[corner]; column < lefts[corner] + side; column++)
+			{
+				sum += p.Brightness((UINT)column, (UINT)row);
+				count++;
+			}
+		}
+	}
+
+	*mean = sum / (double)count;
+	return true;
 }
 
 // The record folder's <kind>-<n>.png (kind: screen, panels or picture)
@@ -1827,7 +1863,9 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	// drag-in <field> <name> <to name>: a drag from the middle of <name> to the middle of <to name> in that same field (Vasquez 2026-11-23: the placement picker's
 	// scroll bar, its arrows, its track and its dragged thumb, wherever the editor says they are)
 	// press-in <field> <name>: the left button pressed at the middle of that box and HELD (not let go: the next steps see it held; a later click lets it go)
-	if ((verb == "click-in" && w.size() >= 3) || (verb == "drag-in" && w.size() >= 4) || (verb == "press-in" && w.size() >= 3))
+	// move-in <field> <name>: the pointer moved to the middle of that box with no button, and left there (Dietrich 2026-11-24, typed placement: the picker's tile
+	// under the pointer says what it is, with no click)
+	if ((verb == "click-in" && w.size() >= 3) || (verb == "drag-in" && w.size() >= 4) || (verb == "press-in" && w.size() >= 3) || (verb == "move-in" && w.size() >= 3))
 	{
 		AskState(s);
 
@@ -1852,6 +1890,14 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		else if (verb == "press-in")
 		{
 			DragWindow(s, x, y, x, y, false, false, false, false, true);   // pressed where it is, and held
+		}
+		else if (verb == "move-in")
+		{
+			int mx = x, my = y;
+			HWND const target = TargetOf(s, &mx, &my);
+
+			PostMessageW(target, WM_MOUSEMOVE, 0, MAKELPARAM(mx, my));   // no button: a hover, as move-win's
+			Sleep(600);
 		}
 		else
 		{
@@ -1942,6 +1988,53 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		sprintf_s(words, " (picture-%d: %.3f of the tile at %d,%d %dx%d is drawn)", s->lastPicture, share, box[0], box[1], box[2], box[3]);
 		Check(share >= limit, label + words);
+		return true;
+	}
+
+	// expect-tile-backdrop <name> <n> <low> <high>: WHAT SHOWS BEHIND A PICKER TILE'S SHAPE (Frost 2026-11-24; the owner: "I want a 50% oppacity background in
+	// black behind the spinning images, bit hard to see"). The tile's two bottom corners (BottomCornersBrightness) in the newest picture against the same pixels
+	// of picture n, taken with the picker closed (the level alone): their brightness over the level's must be from low to high (about 0.5 behind a black box at
+	// half opacity, about 1 with nothing behind the shape). The tile's box is the state line's pickerboxes now; both pictures are the editor's own frame. The
+	// level must be bright enough there to measure (a mean of 40 of 765 at least), or the check fails and says so.
+	if (verb == "expect-tile-backdrop" && w.size() >= 5)
+	{
+		int const since = atoi(w[2].c_str());
+		double const low = atof(w[3].c_str()), high = atof(w[4].c_str());
+		int box[4] = {};
+
+		if (since < 1 || since > 999 || s->lastPicture == 0 || since == s->lastPicture)
+		{
+			Check(false, label + " (n is 1 to 999, a picture taken before the newest one)");
+			return true;
+		}
+
+		AskState(s);
+
+		if (!TileBox(Field(s->last, "pickerboxes"), w[1], box))
+		{
+			Check(false, label + " (no tile \"" + w[1] + "\" on screen: pickerboxes \"" + Field(s->last, "pickerboxes") + "\")");
+			return true;
+		}
+
+		Picture const before = PictureOf(s, "picture", since), now = PictureOf(s, "picture", s->lastPicture);
+		double levelMean = 0.0, nowMean = 0.0;
+		bool const measured = BottomCornersBrightness(before, box, &levelMean) && BottomCornersBrightness(now, box, &nowMean) && before.width == now.width &&
+			before.height == now.height;
+		char words[220];
+
+		if (!measured || levelMean < 40.0)
+		{
+			sprintf_s(words, " (picture-%d against picture-%d at the tile %d,%d %dx%d: %s)", s->lastPicture, since, box[0], box[1], box[2], box[3],
+				measured ? "the level is too dark there to measure" : "the pictures can't be read, differ in size, or the tile is outside them");
+			Check(false, label + words);
+			return true;
+		}
+
+		double const ratio = nowMean / levelMean;
+
+		sprintf_s(words, " (picture-%d against picture-%d at the tile %d,%d %dx%d: its bottom corners %.1f, the level's %.1f, %.3f of it)", s->lastPicture, since,
+			box[0], box[1], box[2], box[3], nowMean, levelMean, ratio);
+		Check(ratio >= low && ratio <= high, label + words);
 		return true;
 	}
 

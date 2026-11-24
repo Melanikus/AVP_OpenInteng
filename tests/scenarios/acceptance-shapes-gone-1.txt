@@ -1,0 +1,21 @@
+# ACCEPTANCE (red first; Drake 2026-11-23, Bishop's card for beta.0, the owner testing "like a fresh player would", who will delete his shape folders): part 1
+# of 2. As acceptance-shapes-found-1: the shard's data copy holds no shape_rifs and the ini no [ShapesScanned] list, so the FOUND form opens; Yes searches every
+# map found, writes their shapes into the copy's shape_rifs and the maps' SHA-256s into the ini's list. Then the editor is ended and the copy's shape_rifs
+# taken away (renamed shape_rifs-away by verify_shape_folder, never deleted: the copy is made afresh after the group), as a player deleting the folder, with
+# the list kept. Part 2 (acceptance-shapes-gone-2, #ini-keep) is the next start.
+# changes-data
+#ini ShapesInTests=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+wait-moving 20000 shapes (the form is open)
+expect-dialog Open Inteng
+click-button Yes
+expect-no-dialog
+wait-moving 120000 shapes done;
+expect-number shapes done;_ 50 233
+expect-number shapes scanned,_ 300 5000
+kill-editor
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-shaperescan-proofs/verify_shape_folder.exe count {datadir} 300
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-shaperescan-proofs/verify_shape_folder.exe away {datadir}
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-shaperescan-proofs/verify_shape_folder.exe none {datadir}

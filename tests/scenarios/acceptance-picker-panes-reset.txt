@@ -1,0 +1,37 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, Bishop's order: the proofs of Frost's live panes, his safety case AvP-docs/tools/frost/pickertime/
+# SAFETY-CASE-live-panes.md sections 5 and 8, Drake's hole 2): A LOST DEVICE WHILE THE PANES ARE LIVE. The game keeps one device and Resets it (d3_func.cpp
+# R_BeginScene); the panes' atlas and depth are made again after it, empty, and drawn into every frame, so nothing is lost; the state block is let go BEFORE the
+# Reset (held, the Reset fails INVALIDCALL and the game would loop). The harness's resize-win Resets the device as dragging the window's edge does.
+# HERE: the picker open with live panes, resize-win, then the panes still drawn, the atlas valid, and a pane still turning (its pixels change).
+# The state line's words are agreed with Frost: pickerpanedraw "live <0|1> drawn <n> frame <k> atlas <id> valid <0|1>", pickerpanetime "cpu <us> gpu <us|unknown> most <us>".
+# RED on bishop-int 0abb8dc2 (no live panes yet): no pickerpanedraw field.
+#ini DataFolder={datadir}-picker-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-picker-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
+level {datadir}-picker-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+item 0x32
+expect-field-has picker open
+wait-field picker drawn 22 20000
+wait 500
+expect-field-has pickerpanedraw live 1
+expect-number pickerpanedraw drawn 1 100000
+expect-field-has pickerpanedraw valid 1
+picture 1
+
+# ---- the device Reset (the window's size changed), and the panes again: drawn, the atlas valid, and turning (the first tile's pixels change in half a second)
+resize-win 900 650
+wait 1000
+expect-field-has picker open
+expect-field-has pickerpanedraw live 1
+expect-number pickerpanedraw drawn 1 100000
+expect-field-has pickerpanedraw valid 1
+expect-number pickerpanetime cpu 1 100000000
+picture 2
+wait 500
+picture 3
+expect-pixels-changed panels 28 70 96 96 0.02

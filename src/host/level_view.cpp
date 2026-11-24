@@ -2369,6 +2369,16 @@ static void PutTheHiddenBlocks(const FlyCamera &camera)
 	R_SetEditorHiddenBlocks(hidden.data(), (int)hidden.size(), hideEveryObject || ruleEveryObject || (insetDrawing && previewHiding), hideEveryModule);
 }
 
+// the live panes' drawing (LevelView_SetPanes), called inside LevelView_Draw between the level and the panels
+static void (*panesDraw)(void *context) = nullptr;
+static void *panesContext = nullptr;
+
+void LevelView_SetPanes(void (*draw)(void *context), void *context)
+{
+	panesDraw = draw;
+	panesContext = draw ? context : nullptr;
+}
+
 bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*addToFrame)(void *context), void *context)
 {
 	if (!levelIsOpen)
@@ -2536,6 +2546,13 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 	else
 	{
 		R_SetEditorFinalLinesSlot(0);
+	}
+
+	// THE LIVE PANES (level_view.h LevelView_SetPanes; the placement picker's turning shapes): after the level and its inset, before the panels. (The
+	// level's world list may still be queued here: what draws its own 3D in a box first flushes it, as the inset above does with R_EditorFlushWorldWithLines.)
+	if (panesDraw)
+	{
+		panesDraw(panesContext);
 	}
 
 	// What the editor puts over the level, in the game's own frame, as the game puts its HUD: added to the screen list, which the game draws at

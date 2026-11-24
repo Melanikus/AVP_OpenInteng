@@ -644,8 +644,8 @@ namespace host
 			return std::string(types[type]) + " (sub " + std::to_string(extra) + ")";
 		}
 
-		// The kind of one placing object (RBOBJECT), as shape_extract.h says
-		std::string KindOf(Bytes const &level, Span const &object)
+		// The kind of one placing object (RBOBJECT), as shape_extract.h says; *fields: its own fields, when it is a kind 62 object with no light (simple)
+		std::string KindOf(Bytes const &level, Span const &object, ShapeExtractPlacement *fields)
 		{
 			std::vector<Span> parts, project;
 
@@ -690,6 +690,19 @@ namespace host
 			if (kind == 62 && FirstNamed(level, parts, "PLOBJLIT") != parts.size())
 			{
 				return "placed light";
+			}
+
+			// ITS OWN FIELDS (typed placement's furniture, Dietrich 2026-11-24): a whole kind 62 strategy (52 bytes at least) read at strategy_fields.cpp's
+			// SimpleObjectFields offsets, as AvP-docs tools/dietrich/kind-fields-survey.js read Steam's 63 levels
+			if (kind == 62 && size >= 52)
+			{
+				fields->simple = true;
+				fields->type = IntAt(level, at + 20);
+				fields->extra = IntAt(level, at + 24);
+				fields->mass = IntAt(level, at + 28);
+				fields->integrity = (uint32_t)IntAt(level, at + 32);
+				fields->flags = (uint32_t)IntAt(level, at + 36);
+				fields->targeted = IntAt(level, at + 40) != 0 || IntAt(level, at + 44) != 0 || IntAt(level, at + 48) != 0;
 			}
 
 			return ObjectKindWords(IntAt(level, at + (kind == 62 ? 20 : 12)), IntAt(level, at + (kind == 62 ? 24 : 16)));
@@ -772,8 +785,56 @@ namespace host
 				ShapeExtractPlacement p;
 				p.fileName = found->second.name;
 				p.shapeAt = found->second.at;
-				p.kind = KindOf(level, chunk);
+				p.kind = KindOf(level, chunk, &p);
 				placements->push_back(p);
+			}
+		}
+
+		return true;
+	}
+
+	std::string ShapeExtract_KindWords(int32_t type, int32_t extra)
+	{
+		return ObjectKindWords(type, extra);
+	}
+
+	bool ShapeExtract_FileSums(std::vector<char> const &level, std::map<int32_t, std::string> *sumOfNumber)
+	{
+		sumOfNumber->clear();
+
+		std::vector<ShapeExtractPlaced> placed;
+
+		if (!ShapeExtract_Placed(level, &placed))
+		{
+			return false;
+		}
+
+		std::set<int32_t> numbers;   // the numbers met: only the first shape of each number counts, as ShapeExtract_Placements counts them
+
+		for (ShapeExtractPlaced const &one : placed)
+		{
+			std::vector<Span> parts;
+			Children(level, one.at + kHeadingBytes, one.at + one.size, &parts);   // (ShapeExtract_Placed walked it already)
+			size_t const head = FirstNamed(level, parts, "SHPHEAD1");
+
+			if (head == parts.size() || parts[head].size < kHeadingBytes + 24)
+			{
+				continue;
+			}
+
+			int32_t const number = IntAt(level, parts[head].at + kHeadingBytes + 20);
+
+			if (!numbers.insert(number).second)
+			{
+				continue;
+			}
+
+			std::vector<char> file;
+			std::string fileName;
+
+			if (ShapeExtract_File(level, one, &file, &fileName, nullptr) == ShapeExtractResult::Done)
+			{
+				(*sumOfNumber)[number] = ShapeExtract_Sha256(file);
 			}
 		}
 

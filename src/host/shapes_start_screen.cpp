@@ -44,7 +44,11 @@ namespace
 		size_t taken = 0, found = 0;                     // for the state line: maps taken, of the maps found (and opened since)
 		size_t writtenSize = 0;                          // the list's length when it was last written (or as read)
 		std::string said;                                // the last end words said, so a later end with nothing new says nothing again
+		bool searchedAgain = false;                      // a list was kept but shape_rifs held no shape: every map is searched again (shapes_start.h)
 	};
+
+	// why every map is searched again, in the words the status line and the "shapes" field say
+	char const kSearchedAgainWords[] = "every map searched again: shape_rifs held no shape";
 
 	Run run;
 
@@ -122,7 +126,14 @@ namespace
 		}
 
 		run.firstSearch = false;
-		std::string const words = run.trigger.Words();
+		std::string words = run.trigger.Words();
+
+		// when the list was let go at the start, the end words say why, for the whole sitting: their counts are the sitting's, the maps searched again among
+		// them (the level opened again at the first end searches once more, and its end, saying the same, must not take the reason off the status line)
+		if (!words.empty() && run.searchedAgain)
+		{
+			words += std::string(" (") + kSearchedAgainWords + ")";
+		}
 
 		if (!words.empty() && words != run.said)
 		{
@@ -207,6 +218,31 @@ void host::ShapesStartScreen_Begin(ShapesStartSetting const &setting)
 		Say("Shapes: " + folders[0] + (folders.size() > 1 ? " (and " + std::to_string((unsigned long long)(folders.size() - 1)) + " more in the log)" : std::string()));
 	}
 
+	// THE LIST WITH NOTHING BEHIND IT (Drake 2026-11-23, Bishop's card for beta.0, the owner testing "like a fresh player would"): the list says which maps
+	// were searched, but what they gave lives in shape_rifs. With no shape file there (the player deleted the folder, or every write was refused), the list
+	// stands for nothing, and trusted it would keep every map from ever being searched again: the placement picker empty for good. So it is let go for this
+	// start: every map is searched again, still on the player's Yes (a list was kept), as a first search is (the level opened again at its end if it wrote
+	// a shape, so the picker has them), and the list is written again at the end
+	if (run.kept.present && !run.kept.entries.empty())
+	{
+		std::string notListed;
+
+		if (!ShapesStart_ShapeFilesThere(setting.dataFolder, &notListed))
+		{
+			LogString("shapes: the list of maps searched in AVP_OpenInteng.ini holds " + std::to_string((unsigned long long)run.kept.entries.size()) +
+				" maps, but shape_rifs holds no shape file, so every map is searched again");
+			run.kept.entries.clear();
+			run.writtenSize = (size_t)-1;   // (so the list is written again at the end, whatever its length)
+			run.searchedAgain = true;
+			run.firstSearch = true;
+			Say(std::string("Shapes: ") + kSearchedAgainWords + "; searching the maps for object shapes, one a frame");
+		}
+		else if (!notListed.empty())
+		{
+			LogString("shapes: " + notListed + ", so the list of maps searched is kept as it is");
+		}
+	}
+
 	// a list kept: the player said Yes once, so every map not on it is searched now, without asking
 	if (run.kept.present)
 	{
@@ -282,6 +318,9 @@ void host::ShapesStartScreen_AtClose()
 
 std::string host::ShapesStartScreen_StateWords()
 {
+	// (when the list was let go at the start, the searching and done words say so, for the whole sitting: acceptance-shapes-gone-2)
+	std::string const again = run.searchedAgain ? std::string("; ") + kSearchedAgainWords : std::string();
+
 	switch (run.stage)
 	{
 		case Stage::Off: return "off";
@@ -289,9 +328,9 @@ std::string host::ShapesStartScreen_StateWords()
 		case Stage::Asking: return "asking";
 		case Stage::FormOpen: return "asking (the form is open)";
 		case Stage::NotNow: return "not now";
-		case Stage::Searching: return "searching " + std::to_string((unsigned long long)run.taken) + " of " + std::to_string((unsigned long long)run.found);
+		case Stage::Searching: return "searching " + std::to_string((unsigned long long)run.taken) + " of " + std::to_string((unsigned long long)run.found) + again;
 		case Stage::Done: return "done; " + std::to_string((unsigned long long)run.trigger.Scanned()) + " new maps scanned, " +
-			std::to_string((unsigned long long)run.trigger.Written()) + " new shapes in shape_rifs";   // (this run's counts; the status line has the words, any map not searched named)
+			std::to_string((unsigned long long)run.trigger.Written()) + " new shapes in shape_rifs" + again;   // (this run's counts; the status line has the words, any map not searched named)
 	}
 
 	return "off";

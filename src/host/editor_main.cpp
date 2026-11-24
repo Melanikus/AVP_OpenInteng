@@ -218,6 +218,7 @@
 #include "track_pages.h"
 #include "editor_options.h"
 #include "shape_chooser.h"
+#include "shape_pane_gpu.h"        // the live panes' test switch (ShapePaneGpu_RefuseQueries)
 #include "shape_picker_screen.h"   // the placement picker: Create > With shape > Choose (Vasquez 2026-11-23)
 #include "shape_rescale_edit.h"
 #include "shape_import.h"
@@ -9295,6 +9296,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				return 0;
 			}
 
+			if (ShapePickerScreen_IsOpen()) { POINT const at = InThePanels(window, lParam); ShapePickerScreen_Hover(at.x, at.y); }   // the placement picker's tile under the pointer says what it is (typed placement)
 			if ((wParam & MK_LBUTTON) && ShapePickerScreen_IsOpen() && ShapePickerScreen_Drag(InThePanels(window, lParam).y)) { return 0; }   // the placement picker's scroll thumb held: the rows follow it
 			if (!(wParam & MK_LBUTTON)) { ShapePickerScreen_Release(); }   // the left button is up: a thumb still held (let go outside the window) is let go (Frost's SHOULD 1)
 
@@ -15463,6 +15465,17 @@ int main(int, char **)
 		std::string const both = budgetWords + (statusWords && *statusWords ? std::string("; ") + (char const *)statusWords : std::string());
 
 		statusWords = both.c_str();   // a copy (status_words.h)
+	}
+
+	// THE LIVE PANES' TEST SWITCH (shape_pane_gpu.h ShapePaneGpu_RefuseQueries; Dietrich's proof of rule 6): PickerPaneQueriesRefused=1 under [Editor], read
+	// ONLY in a hidden run, as ShapesInTests below
+	{
+		char refused[8] = "";
+
+		if (pictureAfter && ReadSetting(settingsFile, "PickerPaneQueriesRefused", refused, sizeof(refused)) && strcmp(refused, "1") == 0)
+		{
+			host::ShapePaneGpu_RefuseQueries();
+		}
 	}
 
 	// SHAPES PART 3 (shapes_start_screen.h; the owner's Option C rule, Drake's spec): the FOUND form, or the search of the maps not yet searched, from the

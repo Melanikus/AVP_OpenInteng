@@ -35,6 +35,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include <windows.h>
@@ -277,6 +278,7 @@ struct Made
 	{
 		std::string sha256, fileName, kind, evidence, levels;
 		bool anchored = false;
+		ShapeIdentityPlacement placement = {};   // its commonest stock placement (shape_identity.h; Dietrich 2026-11-24)
 	};
 	std::vector<Row> rows;
 };
@@ -361,6 +363,7 @@ static bool MakeTable(fs::path const &stock, fs::path const *anchors, Made *made
 
 		// the kinds of the objects placing exactly this variant: those whose (level, shape place) is one of its copies
 		std::map<std::string, size_t> kinds;
+		std::vector<ShapeExtractPlacement const *> placing;   // (their own fields, for the row's stock placement below)
 		size_t count = 0;
 
 		for (auto const &[levelName, at] : shape.copies)
@@ -370,6 +373,7 @@ static bool MakeTable(fs::path const &stock, fs::path const *anchors, Made *made
 				if (p.shapeAt == at)
 				{
 					kinds[p.kind]++;
+					placing.push_back(&p);
 					count++;
 				}
 			}
@@ -399,6 +403,43 @@ static bool MakeTable(fs::path const &stock, fs::path const *anchors, Made *made
 
 			withKind++;
 			disagreeing += ranked.size() > 1 ? 1 : 0;
+
+			// ITS STOCK PLACEMENT (Dietrich 2026-11-24, shape_identity.h ShapeIdentityPlacement): among the objects of the row's kind placing this variant, the
+			// commonest WHOLE set of fields of those with a simple kind 62 strategy and no target; a tie goes to the smallest set in the map's order, so the same
+			// copy always gives the same row
+			std::map<std::tuple<int32_t, int32_t, int32_t, uint32_t, uint32_t>, uint32_t> sets;
+			uint32_t ofKind = 0;
+
+			for (ShapeExtractPlacement const *p : placing)
+			{
+				if (p->kind != row.kind)
+				{
+					continue;
+				}
+
+				ofKind++;
+
+				if (p->simple && !p->targeted)
+				{
+					sets[std::make_tuple(p->type, p->extra, p->mass, p->integrity, p->flags)]++;
+				}
+			}
+
+			for (auto const &[set, n] : sets)
+			{
+				if (n > row.placement.same)
+				{
+					row.placement.known = true;
+					row.placement.type = std::get<0>(set);
+					row.placement.extra = std::get<1>(set);
+					row.placement.mass = std::get<2>(set);
+					row.placement.integrity = std::get<3>(set);
+					row.placement.flags = std::get<4>(set);
+					row.placement.same = n;
+				}
+			}
+
+			row.placement.of = row.placement.known ? ofKind : 0;
 		}
 
 		for (std::string const &l : shape.levels)
@@ -763,7 +804,11 @@ int main(int argc, char **argv)
 		{
 			ShapeIdentityRow const &r = kShapeIdentityRows[i];
 			Made::Row const &m = made.rows[i];
-			bool const same = m.sha256 == r.sha256 && m.fileName == r.fileName && m.kind == r.kind && m.evidence == r.evidence && m.anchored == r.anchored && m.levels == r.levels;
+			ShapeIdentityPlacement const &mp = m.placement, &rp = r.placement;
+			bool const samePlacement = mp.known == rp.known && mp.type == rp.type && mp.extra == rp.extra && mp.mass == rp.mass && mp.integrity == rp.integrity &&
+				mp.flags == rp.flags && mp.same == rp.same && mp.of == rp.of;
+			bool const same = m.sha256 == r.sha256 && m.fileName == r.fileName && m.kind == r.kind && m.evidence == r.evidence && m.anchored == r.anchored && m.levels == r.levels &&
+				samePlacement;
 
 			if (!same && wrong++ < 5)
 			{
@@ -850,7 +895,8 @@ int main(int argc, char **argv)
 	Out(&text, "// check says whether it is still what the stock copy makes). From a copy of Steam's avp_rifs and avp_huds checked against Steam's depot manifests\n");
 	Out(&text, "// outside the repo (AvP-docs tools/frost/stock-check/verify-stock-shapes.js; the copy's PROVENANCE.txt names it, the manifests and the date). Sizes and\n");
 	Out(&text, "// SHA-256 only: SHA-1 stays out of the repo (the owner, 2026-11-23). Each row: the extracted file's SHA-256, its name, the commonest kind of the stock\n");
-	Out(&text, "// objects placing exactly that variant with its evidence, whether its geometry is exactly one of Rebellion's own files' (anchored), its levels.\n");
+	Out(&text, "// objects placing exactly that variant with its evidence, whether its geometry is exactly one of Rebellion's own files' (anchored), its levels,\n");
+	Out(&text, "// and its commonest stock placement: known, Type, ExtraData, mass, integrity word, flags word, how many have that set, of how many of its kind.\n");
 	Out(&text, "// A RESCALED copy has no row (its points are the file's scaled, so it isn't the file: Bishop 2's ruling, 11-23): the names placed only rescaled, and\n");
 	Out(&text, "// parts such as office.rif's Game and Mousemat of offbits.rif (rescale 0.7), are unknown, so an object of one shows as unknown (Vasquez's question).\n");
 	Out(&text, "\n#include \"shape_identity.h\"\n\nnamespace host\n{\n\tShapeIdentityStockFile const kShapeIdentityStockFiles[] =\n\t{\n");
@@ -881,7 +927,10 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		Out(&text, "\t\t{ \"%s\", %s, %s, %s, %s, %s },\n", row.sha256.c_str(), name.c_str(), kind.c_str(), evidence.c_str(), row.anchored ? "true" : "false", levels.c_str());
+		ShapeIdentityPlacement const &p = row.placement;
+
+		Out(&text, "\t\t{ \"%s\", %s, %s, %s, %s, %s, { %s, %d, %d, %d, 0x%08xu, 0x%xu, %uu, %uu } },\n", row.sha256.c_str(), name.c_str(), kind.c_str(), evidence.c_str(),
+			row.anchored ? "true" : "false", levels.c_str(), p.known ? "true" : "false", p.type, p.extra, p.mass, p.integrity, p.flags, p.same, p.of);
 	}
 
 	Out(&text, "\t};\n\n\tsize_t const kShapeIdentityRowCount = sizeof(kShapeIdentityRows) / sizeof(kShapeIdentityRows[0]);\n}\n");

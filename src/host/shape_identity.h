@@ -28,6 +28,21 @@
 
 namespace host
 {
+	// ITS STOCK PLACEMENT (Dietrich 2026-11-24, typed placement's furniture: "each shape's own stock placement"): the fields of the stock objects of the row's
+	// kind that place exactly that variant, the COMMONEST WHOLE SET of them (never the commonest of each field apart, so a row never mixes two placements),
+	// among the kind 62 objects with no light and no target. Read at strategy_fields.cpp's SimpleObjectFields offsets. known false: no such object.
+	struct ShapeIdentityPlacement
+	{
+		bool known;
+		int32_t type;            // the strategy's Type (+20) ...
+		int32_t extra;           // ... ExtraData (+24) ...
+		int32_t mass;            // ... mass (+28), in 100 g ...
+		uint32_t integrity;      // ... integrity word (+32), as the file holds it, top bit and all (0x80000002) ...
+		uint32_t flags;          // ... and flags word (+36: the flags in bits 0x3, the explosion in 0x30)
+		uint32_t same;           // how many of the kind's placements have exactly this set ...
+		uint32_t of;             // ... of how many of that kind
+	};
+
 	struct ShapeIdentityRow
 	{
 		char const *sha256;      // of the extracted file: 64 small hex letters
@@ -36,6 +51,7 @@ namespace host
 		char const *evidence;    // "186 of 186 placements", with any disagreement ("; furniture 4"), or "no object places it"
 		bool anchored;           // its geometry is exactly one of Rebellion's own shape files' of that name
 		char const *levels;      // the stock levels holding it, ';'-separated ("avp_rifs/Derelict.RIF;avp_rifs/E3demo.rif")
+		ShapeIdentityPlacement placement;   // its commonest stock placement (above)
 	};
 
 	struct ShapeIdentityStockFile
@@ -56,4 +72,47 @@ namespace host
 
 	// The stock file of that folder and name (any capitals), or null when Steam ships no file of that name there
 	ShapeIdentityStockFile const *ShapeIdentity_StockFile(std::string const &folder, std::string const &fileName);
+
+	// TYPED PLACEMENT (Dietrich 2026-11-23, Bishop's card for beta.0; the owner: "Yes, set the known type"). A new object of a KNOWN shape is made as the game
+	// object its kind says, not as a static one. This says which: the game's Type and ExtraData for those kind words.
+	// THE CLOSED LIST: only the pickups Steam's 63 levels place, measured by AvP-docs tools/dietrich/kind-fields-survey.js on 2026-11-23:
+	//   - health (Type 4), armour (5) and field charge (15), ExtraData 0;
+	//   - a weapon (Type 2): pulse rifle 0, smartgun 2, flamethrower 3, SADAR 5, grenade launcher 6, minigun 7, marine pistol 22, frisbee launcher 23;
+	//   - its ammo (Type 3): pulse rifle 0, smartgun 2, flamethrower 3, SADAR 5, grenade launcher 6, minigun 7, pulse grenade 8.
+	// Every one of those stock placements carries the fields the maker gives a new object anyway: mass 50, integrity 2, flags 1, no target (object_make.h).
+	// The kind must be EXACTLY the words ShapeExtract_KindWords gives one of them. Any other words give false: "static", "furniture", "unknown", "special pickup"
+	// (its stock placement needs a target in its own level), a light, a track, words from anywhere else. Then the object stays static (Type 0).
+	// So whatever words come in, only a pair from this list ever comes out.
+	struct ShapePlacedAs
+	{
+		int32_t type = 0;    // the AVPSTRAT's Type (its payload's +20)
+		int32_t extra = 0;   // its ExtraData (+24)
+	};
+
+	bool ShapeIdentity_PlacedAs(std::string const &kind, ShapePlacedAs *as);
+
+	// THE WHOLE STRATEGY A KNOWN SHAPE'S NEW OBJECT IS MADE WITH (typed placement, Dietrich 2026-11-24: HAND 2 adds furniture). True for:
+	//   - a pickup of the closed list above (ShapeIdentity_PlacedAs on the row's kind): its Type and ExtraData, and the maker's own fields, mass 50,
+	//     integrity 0x80000002, flags 1, which every stock placement of those kinds has;
+	//   - FURNITURE (Type 1, ExtraData 0): a row whose kind is exactly "furniture" and whose commonest stock placement is known and is Type 1, ExtraData 0, takes
+	//     THAT placement's own mass, integrity word and flags word (each shape its own: a desk 1000, a chair 40, over 922 stock placements), each checked
+	//     against what the game and the old editor allow first: mass 0 to 65535, the integrity word's top bit set and nothing between it and its low 8 bits,
+	//     the flags word only its flags (0x3) and explosion (0x30) bits. A placement outside those is not used, and the object stays static.
+	// Anything else gives false, *with left as a static object's (Type 0, ExtraData 0, mass 50, integrity 0x80000002, flags 1).
+	struct ShapePlacedWith
+	{
+		int32_t type = 0, extra = 0, mass = 50;
+		uint32_t integrity = 0x80000002u, flags = 1;
+	};
+
+	bool ShapeIdentity_PlacedWith(ShapeIdentityRow const *row, ShapePlacedWith *with);
+
+	// What a new object of that row's shape is made as, in words for the status line and the placement picker (null: a shape the table doesn't know):
+	//   "placed as health (the game's Type 4, ExtraData 0)"
+	//   "placed as furniture (the game's Type 1, ExtraData 0; stock mass 1000, integrity 8, 2 of 2 placements)"
+	//   "placed as static (Type 0), as stock places it"                                   (the kind is "static")
+	//   "placed as static (Type 0): its stock kind is video screen, which placement doesn't set"   (any other kind)
+	//   "placed as static (Type 0): no stock object places it"                          (a row with no kind)
+	//   "placed as static (Type 0): its shape is not one the editor knows"               (null)
+	std::string ShapeIdentity_PlacedAsWords(ShapeIdentityRow const *row);
 }

@@ -1,0 +1,45 @@
+# THE PICKER'S TILES ON A HALF-SEE-THROUGH BLACK BOX (Frost 2026-11-24; the owner, on his Tools build with the live panes: "I want a 50% oppacity background in
+# black behind the spinning images, bit hard to see"; Bishop's reading: each tile's square gets a black fill at 50% opacity, UNDER its turning shape, the level
+# showing through it faintly; the names, the yellow frame, the green border and the scroll bar unchanged over it; every tile alike, a "can't be drawn" one too).
+# Measured on the editor's own frame (expect-tile-backdrop): each tile's two bottom corners, where no fitted shape, border or words reach, against the same
+# pixels with the picker closed (picture 1, the level alone): about half as bright with the box (0.5; 0.35 to 0.65 allowed for the level's own flicker and the
+# blend's rounding), about the same without one.
+# The files (as acceptance-shape-picker's): Invasion; pulam.rif (from Statue) in <game>\Tools\shape_rifs and <game>\shape_rifs; pulam_cut.rif, the first half
+# of pulam.rif (HOSTILE: "can't be drawn", its words in its square); timdesk.rif (made from Invasion itself, so an "in this level" tile).
+# RED on exe-cache/6fd8d676.exe (bishop-int, the card's base): nothing behind the shapes, the live tiles' corners are the level's own pixels (about 1.0).
+#ini DataFolder={datadir}-backdrop-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-backdrop-game {datadir} Invasion.RIF Statue.RIF pulam tools shape_rifs cut
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-backdrop-game {datadir} Invasion.RIF Invasion.RIF timdesk shape_rifs
+level {datadir}-backdrop-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- the level alone, the picker closed: what each tile's corners would show with nothing behind the shapes
+expect-field-has picker closed
+picture 1
+
+# ---- the picker open, every tile tried and the shapes turning live
+item 0x32
+expect-field-has picker open
+wait-field picker drawn 22 20000
+expect-field-has picker failed 1
+expect-field-has pickertiles pulam_cut: the game's shape_rifs; can't be drawn:
+wait-field pickerpanedraw live 1 20000
+wait 1500
+picture 2
+expect-tile-drawn pulam
+expect-tile-drawn timdesk
+
+# ---- each tile on its box: a folder's file, the level's own shape, and the one that can't be drawn, all alike
+expect-tile-backdrop pulam 1 0.35 0.65
+expect-tile-backdrop timdesk 1 0.35 0.65
+expect-tile-backdrop pulam_cut 1 0.35 0.65
+
+# ---- closed again: nothing of it is left over the level
+key Esc
+expect-field-has picker closed
+picture 3
+expect-pixels-same-since 1 picture 0 40 1008 600 0.02

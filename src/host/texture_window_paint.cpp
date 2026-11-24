@@ -304,6 +304,31 @@ void TextureChooserPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t
 	TextureWindowPaint_Lines(windowWidth, windowHeight, lines, lineX, lineY);
 }
 
+void ShapePickerPaint_Backdrops(int32_t windowWidth, int32_t windowHeight, const std::vector<ShapePickerPaintTile> &tiles)
+{
+	// black, alpha 128 of 255: half. The game backs its own words the same way (d3d_render.cpp's "dark backing": DrawQuad, NO_TEXTURE, which is a white 1x1
+	// texture, so the colour is what is drawn, its alpha blended by TRANSLUCENCY_NORMAL). The game's 2D list draws things in the order they are added (it is
+	// never sorted), so whatever is drawn after this goes over it.
+	uint32_t const kHalfBlack = 0x80000000u;
+
+	if (windowWidth < 1 || windowHeight < 1)
+	{
+		return;
+	}
+
+	for (ShapePickerPaintTile const &tile : tiles)
+	{
+		if (tile.x < 0 || tile.y < 0 || tile.side <= 0 || tile.x + tile.side > windowWidth || tile.y + tile.side + tile.nameHeight > windowHeight)
+		{
+			continue;   // (as ShapePickerPaint_Draw leaves it out)
+		}
+
+		int32_t x = 0, y = 0, w = 0, h = 0;
+		host::TextScale_BoxToWindow(tile.x, tile.y, tile.side, tile.side, &x, &y, &w, &h);   // in the window's pixels, as a still picture is (text_scale.h)
+		DrawQuad((uint32_t)x, (uint32_t)y, (uint32_t)w, (uint32_t)h, NO_TEXTURE, kHalfBlack, TRANSLUCENCY_NORMAL);
+	}
+}
+
 void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, const std::vector<ShapePickerPaintTile> &tiles, const host::ShapePickerBar &bar, const std::vector<std::string> &lines, int32_t lineX, int32_t lineY)
 {
 	if (windowWidth < 1 || windowHeight < 1)
@@ -320,7 +345,11 @@ void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, const std:
 			continue;
 		}
 
-		if (tile.texture >= 0)
+		if (tile.live)
+		{
+			// (its shape is drawn turning in the level's frame, under these panels: its name, the frame and the bar only)
+		}
+		else if (tile.texture >= 0)
 		{
 			int32_t x = 0, y = 0, w = 0, h = 0;
 			host::TextScale_BoxToWindow(tile.x, tile.y, tile.side, tile.side, &x, &y, &w, &h);   // in the window's pixels (text_scale.h)
@@ -340,6 +369,21 @@ void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, const std:
 		std::vector<std::string> const name = { tile.name.size() > fits ? tile.name.substr(0, fits) : tile.name };
 
 		TextureWindowPaint_Lines(windowWidth, windowHeight, name, tile.x, tile.y + tile.side + 1);
+
+		// TYPED PLACEMENT (the owner, 2026-11-23: "Those must have a green border around their render pane"): two pixels of green round the picture itself, the
+		// line just outside it and its own edge, so the selection's yellow frame (two pixels further out, round the name too) still shows apart from it
+		if (tile.typed)
+		{
+			for (int32_t inset = 0; inset < 2; inset++)   // (not named "in": named so, Snyk left this whole file unparsed, measured 2026-11-24)
+			{
+				int32_t const x0 = tile.x - 1 + inset, y0 = tile.y - 1 + inset, x1 = tile.x + tile.side - inset, y1 = tile.y + tile.side - inset;
+
+				Segment(x0, y0, x1, y0, 0xFF00FF00u, windowWidth, windowHeight);
+				Segment(x1, y0, x1, y1, 0xFF00FF00u, windowWidth, windowHeight);
+				Segment(x1, y1, x0, y1, 0xFF00FF00u, windowWidth, windowHeight);
+				Segment(x0, y1, x0, y0, 0xFF00FF00u, windowWidth, windowHeight);
+			}
+		}
 
 		if (tile.selected)
 		{

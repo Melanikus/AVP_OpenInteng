@@ -1,0 +1,60 @@
+# THE STEPS of acceptance-fresh-journey.sh (Vasquez, 2026-11-24): not a scenario of its own: it sits in its own folder, which run-shards never runs (only tests/scenarios/*.txt). The
+# script puts the editor in a fake game's Tools folder with the release zip's ini, and NO shape_rifs anywhere, then drives these steps with the shard's own
+# drive_scenario; {game} is the fake game's folder, filled in by the script. A new player's journey, end to end: the level double-clicked, the first start's
+# FOUND form, its Yes and the search, Object Placement, the picker filled from what the search made, a pickup's shape (medbox01) and a static shape placed and
+# named, the mode left (its Exit saves at once, asking nothing). A hidden run never writes the opened file: it writes its stand-in, <Documents>\AVP_OpenInteng\
+# edited\Genshd1-edited.rif, and its Documents is the program's own folder unless -documents names one; the program here sits in the game's Tools, so its own
+# folder is inside the game, where nothing is ever saved (save_copy.cpp: "the folder for copies ... is inside the game's folder"): {docs} is a Documents
+# folder of the run's own OUTSIDE the game, as a player's is. Opening the saved file again is reopen.txt, beside this file: a second start.
+start-args "{game}/avp_rifs/Genshd1.RIF" -documents "{docs}"
+pictures on
+state
+
+# ---- the first start: nothing in shape_rifs, no list in the ini: the FOUND form asks, and Yes searches the map and makes its shapes
+wait-moving 20000 shapes (the form is open)
+expect-dialog Open Inteng
+picture 1
+click-button Yes
+expect-no-dialog
+wait-moving 300000 shapes done;
+expect-field-has shapes new shapes in shape_rifs
+
+# ---- the picker filled from what the search made
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+item 0x32
+expect-field-has picker open
+expect-number picker count_ 10 5000
+wait-moving 30000 pickershown waiting 0
+picture 2
+
+# ---- a pickup's shape, by its name: medbox01 (the medipack), placed and named
+click-tile medbox01 twice
+expect-dialog Name Object
+type freshMed
+key Enter
+expect-no-dialog
+expect-status Object freshMed made at the view
+expect-field picker closed
+
+# ---- a static shape: the picker's last tile, whatever the search named it, placed and named
+item 0x32
+expect-field-has picker open
+key End
+key Enter
+expect-dialog Name Object
+type freshStatic
+key Enter
+expect-no-dialog
+expect-status Object freshStatic made at the view
+picture 3
+
+# ---- saved as a player saves: leaving the mode. Object Placement's Exit ASKS NOTHING (OP-6, editor_main.cpp's Exit: a changed level is saved at once and the
+# mode left; only Strategy Data's Exit asks "Would you like to save first?"), so no dialog may open and the status says the copy was saved
+click-bar Mode > Exit
+wait 1500
+expect-no-dialog
+expect-status Saved a copy: Genshd1-edited.rif
+expect-screen Construction
+picture 4

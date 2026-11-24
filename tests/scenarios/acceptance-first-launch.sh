@@ -12,7 +12,7 @@
 #  5. the editor anywhere else (its folder's folder above holds no avp_rifs), with the zip's ini: it stops, saying how to fix it (the game's Tools folder, or DataFolder=)
 # RED on 608dd333 (exe-cache/608dd333.exe): 1, 2, 4 and 5 stop with "needs [Editor] with DataFolder=". 3 is green there too: it proves the new default never covers a
 # written line. The game's files come from $GAME_FROM (default AvP-builds-excluded\AvP-play-release, the game as Steam ships it): its folders but FMVs, obj, bin and the
-# levels, and Genshd1.RIF, made once and kept (about 105 MB). No DLL is copied (AvP-builds-excluded holds only our builds and the game's files, the owner 11-22):
+# levels, and Genshd1.RIF, made once in the work folder (about 105 MB: in a run-shards sweep, once a sweep, in the shard's own folder). No DLL is copied (AvP-builds-excluded holds only our builds and the game's files, the owner 11-22):
 # Microsoft's D3DX9 and C++ runtime are Windows' own (SysWOW64), and the OpenAL32.dll the zip puts beside the editor is found on the program's PATH, in $DLLS_FROM
 # (default AvP-builds-excluded\libs-31c9b73c\bin: our own vcpkg build of it, the one the editor is built against; Bishop 2 checked its Rich header against the
 # CI-built one alpha.4 shipped, 11-22). Written 2026-11-22 by Melanikus (Drake).
@@ -31,7 +31,13 @@ X=/c/Users/Melanikus/source/AvP-builds-excluded
 tree=$(cd "$(dirname "$0")/../.." && pwd)
 from="${GAME_FROM:-$X/AvP-play-release}"
 dlls="${DLLS_FROM:-$X/libs-31c9b73c/bin}"
-work="${FIRST_LAUNCH_WORK:-$X/drake-harness-out/first-launch}"
+# THE WORK FOLDER (Vasquez's note, Bishop's order, 2026-11-24): run by run-shards (the exe is <shards>/<run>/s<k>/stock/run/AVP_OpenInteng.exe), the SHARD'S OWN
+# folder, s<k>\first-launch, which run-shards deletes with the shard at the end, so two sweeps at once never delete and fill each other's fake game; every link
+# this script makes points inside it (the junctions to its fake game's avp_rifs and copies, the hard link's victim), so nothing outside the shard is ever reached
+# through one. Run by hand (any other exe), the fixed folder as before, one run at a time. FIRST_LAUNCH_WORK names another, inside AvP-builds-excluded
+shard=$(dirname "$(dirname "$(dirname "$exe")")")
+case "$shard" in "$X"/shards/*/s[0-9]*) ownWork="$shard/first-launch" ;; *) ownWork="$X/drake-harness-out/first-launch" ;; esac
+work="${FIRST_LAUNCH_WORK:-$ownWork}"
 game="$work/fake game"
 tools="$game/Tools"
 elsewhere="$work/elsewhere"

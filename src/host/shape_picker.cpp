@@ -1,6 +1,8 @@
 // See shape_picker.h. Written 2026-11-23 by Melanikus (Vasquez) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 #include "shape_picker.h"
 
+#include <math.h>   // fmod, floor: the turn in degrees
+
 #include <algorithm>
 #include <map>
 #include <set>
@@ -448,6 +450,21 @@ namespace host
 		}
 
 		return words;
+	}
+
+	float ShapePicker_TurnAt(uint64_t ms)
+	{
+		double const share = (double)(ms % kShapePickerTurnMs) / (double)kShapePickerTurnMs;   // 0 to just under 1: never a whole turn, which is 0 again
+
+		return (float)(share * 6.283185307179586);
+	}
+
+	int32_t ShapePicker_TurnDegrees(float turn)
+	{
+		double const degrees = fmod((double)turn * 57.29577951308232, 360.0);
+		int32_t const whole = (int32_t)floor(degrees < 0.0 ? degrees + 360.0 : degrees);
+
+		return whole >= 360 ? 0 : whole;
 	}
 
 	std::string ShapePicker_WhyNotPlaced(ShapePickerTile const &tile, ShapePickerState const &state)

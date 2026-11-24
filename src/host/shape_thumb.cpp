@@ -354,14 +354,35 @@ namespace host
 		}
 	}
 
-	std::vector<ShapeThumbBatch> ShapeThumb_Triangles(ShapeThumbModel const &model, std::vector<std::pair<uint32_t, uint32_t> > const &sizes)
+	namespace
+	{
+		// a direction turned `turn` radians round the world's y axis, the way from +x toward +z (its y, up and down, kept)
+		void TurnedRoundY(float const from[3], float turn, float to[3])
+		{
+			float const c = cosf(turn), s = sinf(turn);
+
+			to[0] = from[0] * c - from[2] * s;
+			to[1] = from[1];
+			to[2] = from[0] * s + from[2] * c;
+		}
+	}
+
+	void ShapeThumb_LightTurned(float turn, float toLight[3])
+	{
+		float still[3];
+
+		ShapeThumb_Light(still);
+		TurnedRoundY(still, turn, toLight);
+	}
+
+	std::vector<ShapeThumbBatch> ShapeThumb_Triangles(ShapeThumbModel const &model, std::vector<std::pair<uint32_t, uint32_t> > const &sizes, float turn)
 	{
 		std::vector<ShapeThumbBatch> batches;
 		std::map<int, size_t> batchOf;
 		float light[3];
 		size_t const pointCount = model.points.size() / 3;
 
-		ShapeThumb_Light(light);
+		ShapeThumb_LightTurned(turn, light);
 
 		for (ShapeThumbPolygon const &p : model.polygons)
 		{
@@ -440,6 +461,24 @@ namespace host
 		{
 			at[a] = model.centre[a];
 			eye[a] = model.centre[a] + out[a] * distance;
+		}
+	}
+
+	void ShapeThumb_CameraTurned(ShapeThumbModel const &model, float fieldOfView, float turn, float eye[3], float at[3])
+	{
+		float still[3];
+
+		ShapeThumb_Camera(model, fieldOfView, still, at);
+
+		// the way out from the middle to the camera, turned round the middle: the same distance, the same height
+		float const out[3] = { still[0] - at[0], still[1] - at[1], still[2] - at[2] };
+		float turned[3];
+
+		TurnedRoundY(out, turn, turned);
+
+		for (int a = 0; a < 3; a++)
+		{
+			eye[a] = at[a] + turned[a];
 		}
 	}
 }
