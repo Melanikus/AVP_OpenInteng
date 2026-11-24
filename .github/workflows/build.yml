@@ -33,9 +33,14 @@ permissions:
 # One run at a time for each pull request: a newer head cancels the run it replaces. A push to main, or a run started by hand, has a group of its
 # own (its commit), so it is never queued behind another or cancelled: GitHub cancels a waiting run in a shared group even when
 # cancel-in-progress is false.
+# THE INTEGRATION PULL REQUEST TOO (#80: its branch "integration", in this repository; Drake 2026-11-23, the owner: "You obviously need to paralelize
+# the tests"): each snapshot pushed to it is a merge the team installs and tests, and its run must reach its end. Sharing one group, a newer snapshot
+# cancelled the one before (two cancelled on 2026-11-23 in a merge burst), so only the last of a burst had a result, and the owner's Tools waited for
+# a quiet gap. Now each snapshot has a group of its own (its commit), runs side by side with the others, and is never cancelled. A pull request from
+# another repository with a branch of that name is not it, and is cancelled as any other. The cost: a burst of k snapshots runs k full runs, not 1.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' && !(github.head_ref == 'integration' && github.event.pull_request.head.repo.full_name == github.repository)) && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !(github.head_ref == 'integration' && github.event.pull_request.head.repo.full_name == github.repository) }}
 
 env:
   SNYK_CLI_VERSION: v1.1308.3
