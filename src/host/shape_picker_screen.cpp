@@ -968,10 +968,6 @@ void ShapePickerScreen_Paint(int32_t, int32_t)
 		return;
 	}
 
-	// THE LIVE PANES first, so the names, the frame and the bar go over them: the picture DrawPanes made of them this frame (in the level's frame, into the GPU
-	// side's own texture) added to the panels here, over the object card, under the bar (Frost and Vasquez, 2026-11-23: shape_pane_gpu.h ShapePaneGpu_Composite)
-	host::ShapePaneGpu_Composite();
-
 	// the frame's own size as ShapePickerScreen_Frame laid the grid out this frame (so the paint and the layout always agree)
 	int32_t const ownWidth = ownWide, ownHeight = ownHigh;
 	size_t const shown = (size_t)layout.columns * (size_t)layout.rows;
@@ -1009,6 +1005,16 @@ void ShapePickerScreen_Paint(int32_t, int32_t)
 			"no picture";
 		tiles.push_back(t);
 	}
+
+	// IN THIS ORDER (the game's 2D list draws things in the order they are added):
+	// 1. each tile's BLACK BOX at half opacity, under everything of the tile (the owner, 2026-11-24: "I want a 50% oppacity background in black behind the
+	//    spinning images, bit hard to see"; Frost);
+	// 2. THE LIVE PANES over the boxes, so the names, the frame and the bar go over them: the picture DrawPanes made of them this frame (in the level's frame,
+	//    into the GPU side's own texture) added to the panels here, over the object card, under the bar (Frost and Vasquez, 2026-11-23: shape_pane_gpu.h
+	//    ShapePaneGpu_Composite);
+	// 3. the still pictures, the words, the names, the frames, the bar and the lines (ShapePickerPaint_Draw, below).
+	ShapePickerPaint_Backdrops(ownWidth, ownHeight, tiles);
+	host::ShapePaneGpu_Composite();
 
 	std::vector<std::string> lines;
 

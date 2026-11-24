@@ -304,6 +304,31 @@ void TextureChooserPaint_Draw(int32_t windowWidth, int32_t windowHeight, int32_t
 	TextureWindowPaint_Lines(windowWidth, windowHeight, lines, lineX, lineY);
 }
 
+void ShapePickerPaint_Backdrops(int32_t windowWidth, int32_t windowHeight, const std::vector<ShapePickerPaintTile> &tiles)
+{
+	// black, alpha 128 of 255: half. The game backs its own words the same way (d3d_render.cpp's "dark backing": DrawQuad, NO_TEXTURE, which is a white 1x1
+	// texture, so the colour is what is drawn, its alpha blended by TRANSLUCENCY_NORMAL). The game's 2D list draws things in the order they are added (it is
+	// never sorted), so whatever is drawn after this goes over it.
+	uint32_t const kHalfBlack = 0x80000000u;
+
+	if (windowWidth < 1 || windowHeight < 1)
+	{
+		return;
+	}
+
+	for (ShapePickerPaintTile const &tile : tiles)
+	{
+		if (tile.x < 0 || tile.y < 0 || tile.side <= 0 || tile.x + tile.side > windowWidth || tile.y + tile.side + tile.nameHeight > windowHeight)
+		{
+			continue;   // (as ShapePickerPaint_Draw leaves it out)
+		}
+
+		int32_t x = 0, y = 0, w = 0, h = 0;
+		host::TextScale_BoxToWindow(tile.x, tile.y, tile.side, tile.side, &x, &y, &w, &h);   // in the window's pixels, as a still picture is (text_scale.h)
+		DrawQuad((uint32_t)x, (uint32_t)y, (uint32_t)w, (uint32_t)h, NO_TEXTURE, kHalfBlack, TRANSLUCENCY_NORMAL);
+	}
+}
+
 void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, const std::vector<ShapePickerPaintTile> &tiles, const host::ShapePickerBar &bar, const std::vector<std::string> &lines, int32_t lineX, int32_t lineY)
 {
 	if (windowWidth < 1 || windowHeight < 1)
