@@ -90,6 +90,7 @@ namespace
 	std::string stockPickupsWords;                // how they were read as the picker opened ("5 read in 12 ms", or why not)
 	std::vector<int> kindGroupOf;                 // each tile's group in the order by kind (shape_picker.h ShapePicker_KindGroup), as the picker opened
 	std::string levelSumsWords;                   // how the level's own shapes were looked up as the picker opened ("<n> of <m> known in <ms> ms", or why not)
+	bool levelSumsFailed = false;                 // that look-up failed (out of memory, or bytes it couldn't walk): the level's own tiles say so under the pointer
 	bool pointerSeen = false;                     // the pointer has moved over the window since the picker opened (no button needed) ...
 	int32_t pointerX = 0, pointerY = 0;           // ... and where it was last, in the editor's own pixels: the tile under it is found again each frame, as the rows scroll
 	host::ShapePickerView view;
@@ -816,6 +817,13 @@ namespace
 				host::ShapeIdentity_PlacedAsWords(knownOf[i]);
 		}
 
+		// A LEVEL TILE WHOSE LOOK-UP FAILED says the real why, not "not one the editor knows" (Frost's NIT on 6fd8d676: pickerlevelkinds said it, the
+		// tile didn't)
+		if (levelSumsFailed && tile.inLevel && levelNumberOf[i] >= 0)
+		{
+			return name + ": placed as static (Type 0): the level's own shapes couldn't be looked up (" + levelSumsWords + ")";
+		}
+
 		bool const nearMiss = !knownOf[i] && i < resizedOf.size() && !resizedOf[i].why.empty();   // a stock pickup's name, not its shape at a size
 
 		return name + ": " + host::ShapeIdentity_PlacedAsWords(knownOf[i]) + (nearMiss ? "; " + resizedOf[i].why : std::string());
@@ -1132,6 +1140,7 @@ bool ShapePickerScreen_Open()
 	resizedOf.assign(list.tiles.size(), host::ShapeResizedAnswer());
 	pointerSeen = false;
 	levelSumsWords.clear();
+	levelSumsFailed = false;
 	ReadStockPickups(folders);   // what a resized copy is compared with as its tile is drawn: Steam's own pickups, from the folders the list was made of
 
 	bool anyFromLevel = false;
@@ -1154,6 +1163,7 @@ bool ShapePickerScreen_Open()
 			if (!levelFile->BuildLevel(image) || !host::ShapeExtract_FileSums(image, &sums))
 			{
 				levelSumsWords = "the level's bytes couldn't be built or walked";
+				levelSumsFailed = true;
 			}
 			else
 			{
@@ -1177,6 +1187,7 @@ bool ShapePickerScreen_Open()
 		{
 			knownOf.assign(list.tiles.size(), nullptr);
 			levelSumsWords = "not enough memory to look them up";
+			levelSumsFailed = true;
 		}
 	}
 
