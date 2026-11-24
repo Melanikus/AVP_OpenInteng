@@ -4,13 +4,16 @@
 # Return leaves WITH the shape (inteng then asks the new object's name: "Type in the name of the object."), Escape leaves without. No status line, no typed shape name. Nothing here is typed except the new object's name;
 # every other question is answered by a key or a click and every check looks at the screen.
 # EXPECTED TODAY: RED (ours: a text panel, PageUp / PageDown, the shape not drawn, a typed list pick).
+# SINCE 2026-11-23 (the owner's "Grid replaces it"): Choose (0x32) opens the placement picker, so this screen is opened by Replace shape (0x1d, a placed
+# object selected), and the NEW object with a chosen shape is made through the picker (its tile clicked twice), then named and checked as before.
 screen Object Placement
 level C:/Users/Melanikus/source/AvP-builds-excluded/hicks-try-run/data/avp_rifs/Invasion.RIF
 pictures on
 state
 expect-screen Object Placement
 picture 1
-item 0x32
+select-row 0
+item 0x1d
 expect-screen Shape Chooser
 # the screen is the shape alone, drawn by the game's renderer over a cleared view: the level is no longer there
 expect-pixels-changed panels 0 0 1000 700 0.3
@@ -31,14 +34,10 @@ expect-pixels-changed panels 0 36 300 40 0.002
 key Esc
 expect-screen Object Placement
 expect-prompt 0
-# again, and Return leaves WITH it: the name of the new object is asked
+# again, and a NEW object with a chosen shape, its name asked: through the placement picker (Choose): a click selects Smrtam01's tile, a second places it
 item 0x32
-expect-screen Shape Chooser
-key S
-click-choice Smrtam01
-expect-no-dialog
-key Enter
-expect-screen Object Placement
+expect-field-has picker open
+click-tile Smrtam01 twice
 # the name box is inteng's form (FUN_004d4c70): "Name Object", the words, an edit and Cancel; Return answers with the edit
 expect-dialog-kind form
 expect-dialog Name Object

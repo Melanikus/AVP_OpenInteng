@@ -19,9 +19,12 @@ expect-drop-ticked Toggle Gravity
 picture 1
 key Esc
 # the Shape Chooser and back (DAT_008f4f38 = 1): Gravity KEPT, still ticked
+# (since the owner's "Grid replaces it", 2026-11-23, Choose opens the placement picker over this screen, not inteng's chooser screen; and Replace shape, the
+# chooser's other door, is refused while Gravity is on (OP-47): so the trip is into the picker and back, and Gravity is kept as before)
 click-bar Create > With shape: Choose
-expect-screen Shape Chooser
+expect-field-has picker open
 key Esc
+expect-field-has picker closed
 expect-screen Object Placement
 click-bar Misc
 expect-drop-ticked Toggle Gravity
