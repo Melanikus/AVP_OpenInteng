@@ -26,12 +26,14 @@ wait-field picker failed 0 20000
 wait-field pickershown waiting 0 20000
 expect-field-has pickerorder 1:pistol|1:pulam|1:Smrtam01|
 expect-field-has pickerorder |4:timdesk|
-expect-field-has pickerorder |10:medbox01|
+expect-field-has pickerorder 1:medbox01|1:pistol|
 expect-field-has pickerorder |10:pulam_var001
 # the whole order, measured on f4cfcc27 and checked against the table: Invasion makes 9 of its 21 own shapes into files the table knows (pistol, Smrtam01,
 # Mine a light, timdesk, Shell held by avp_huds, EdEggfrg1-3 and Glass01 no object places); its 12 rescaled copies, the rescaled medbox01 and pulam_var001
-# are unknown; by name in small letters inside each group
-expect-field-has pickerorder 1:pistol|1:pulam|1:Smrtam01|2:Mine|4:timdesk|8:Shell|9:EdEggfrg1|9:EdEggfrg2|9:EdEggfrg3|9:Glass01|10:Armour01|10:Egg_Open|10:Flam01|10:Flame|10:Fmvscreen|10:helm|10:medbox01|10:predinvchair|10:pulam_var001|10:pulse|10:Simple|10:skeeter|10:Smart
+# are unknown; by name in small letters inside each group. SINCE THE OPEN COMPARES THE LEVEL'S RESIZED COPIES (Dietrich 2026-11-24, measured on 57ecc788):
+# Invasion's own medbox01, a resized copy of this folder's Derelict medbox01.rif, is group 1, first; the other resized ones stay unknown here, as this
+# game folder holds no stock file of them (acceptance-picker-resized-kinds runs with every stock file)
+expect-field-has pickerorder 1:medbox01|1:pistol|1:pulam|1:Smrtam01|2:Mine|4:timdesk|8:Shell|9:EdEggfrg1|9:EdEggfrg2|9:EdEggfrg3|9:Glass01|10:Armour01|10:Egg_Open|10:Flam01|10:Flame|10:Fmvscreen|10:helm|10:predinvchair|10:pulam_var001|10:pulse|10:Simple|10:skeeter|10:Smart
 picture 1
 
 # ---- each tile still places its own shape: the first pickup (the level's own, by its number), the folder's pickup (its file brought in), the furniture

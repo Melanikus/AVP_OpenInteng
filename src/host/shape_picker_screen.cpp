@@ -1131,6 +1131,56 @@ bool ShapePickerScreen_Open()
 		}
 	}
 
+	// THE LEVEL'S RESIZED COPIES KNOWN BEFORE THE ORDER (Dietrich 2026-11-24, Bishop's card; Frost's find: a resized copy was known only as its tile was DRAWN,
+	// after the order by kind, so Invasion's own rescaled pickups sorted as unknown, last, though they got their green border). Each level tile still unknown
+	// here is read as its drawing reads it (LevelShapeAsFile, then ShapeThumb_Read: every count checked, the level's bytes being hostile) and compared with
+	// the stock pickups (FindResized, shape_resized.h), so it sorts into its kind's group. At most kShapePickerMostLookMs in all; a tile past it, or out of
+	// memory, stays unknown at the open, and its drawing still finds it later, as before.
+	if (anyFromLevel && !stockPickups.empty())
+	{
+		DWORD const resizedStart = GetTickCount();
+		size_t compared = 0, resizedFound = 0, pastTime = 0;
+
+		try
+		{
+			for (size_t i = 0; i < list.tiles.size(); i++)
+			{
+				if (knownOf[i] || !(list.tiles[i].inLevel && levelNumberOf[i] >= 0))
+				{
+					continue;
+				}
+
+				if (GetTickCount() - resizedStart > host::kShapePickerMostLookMs)
+				{
+					pastTime++;
+					continue;
+				}
+
+				std::vector<char> bytes;
+				host::ShapeThumbModel model;
+				std::string why;
+				Kept unused;   // (FindResized also notes its answer on a drawing; at the open there is none yet)
+
+				if (!LevelShapeAsFile(levelNumberOf[i], &bytes) || !host::ShapeThumb_Read(bytes, &model, &why))
+				{
+					continue;   // (its drawing says why, as before)
+				}
+
+				compared++;
+				FindResized(i, model, &unused);
+				resizedFound += knownOf[i] ? 1 : 0;
+			}
+
+			levelSumsWords += "; resized at the open " + std::to_string((unsigned long long)resizedFound) + " of " + std::to_string((unsigned long long)compared) +
+				" in " + std::to_string((unsigned long long)(GetTickCount() - resizedStart)) + " ms" +
+				(pastTime ? ", " + std::to_string((unsigned long long)pastTime) + " past the time" : "");
+		}
+		catch (std::bad_alloc const &)
+		{
+			levelSumsWords += "; resized at the open: not enough memory";   // (those found so far keep their row: each is a whole answer)
+		}
+	}
+
 	SortByKind();
 
 	view = host::ShapePickerView();
