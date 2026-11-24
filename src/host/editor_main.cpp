@@ -9296,6 +9296,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				return 0;
 			}
 
+			if (ShapePickerScreen_IsOpen()) { POINT const at = InThePanels(window, lParam); ShapePickerScreen_Hover(at.x, at.y); }   // the placement picker's tile under the pointer says what it is (typed placement)
 			if ((wParam & MK_LBUTTON) && ShapePickerScreen_IsOpen() && ShapePickerScreen_Drag(InThePanels(window, lParam).y)) { return 0; }   // the placement picker's scroll thumb held: the rows follow it
 			if (!(wParam & MK_LBUTTON)) { ShapePickerScreen_Release(); }   // the left button is up: a thumb still held (let go outside the window) is let go (Frost's SHOULD 1)
 

@@ -39,6 +39,7 @@
 //   click-tile <name> [twice]   a click in the middle of the placement picker's tile of that shape (the state line's pickerboxes); twice: again after 400 ms (select, then place);
 //                               a tile not on the screen is paged to first by the picker's scroll bar (pickerscroll's "below")
 //   click-in <field> <name>   a click in the middle of the box <name> in a state field of "<name>~<x> <y> <w> <h>|..." (pickerboxes, pickerscroll)
+//   move-in <field> <name>    the pointer moved to the middle of that box, no button (a hover)
 //   drag-in <field> <name> <to name>   a drag from the middle of <name> to the middle of <to name> in that field (the picker's scroll thumb)
 //   press-in <field> <name>   the left button pressed at the middle of that box and held (not let go)
 //   expect-tile-drawn <name> [share]   the newest picture-<n>.png has at least that share (0.10) of that tile's picture part away from the tile's background
@@ -1827,7 +1828,9 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	// drag-in <field> <name> <to name>: a drag from the middle of <name> to the middle of <to name> in that same field (Vasquez 2026-11-23: the placement picker's
 	// scroll bar, its arrows, its track and its dragged thumb, wherever the editor says they are)
 	// press-in <field> <name>: the left button pressed at the middle of that box and HELD (not let go: the next steps see it held; a later click lets it go)
-	if ((verb == "click-in" && w.size() >= 3) || (verb == "drag-in" && w.size() >= 4) || (verb == "press-in" && w.size() >= 3))
+	// move-in <field> <name>: the pointer moved to the middle of that box with no button, and left there (Dietrich 2026-11-24, typed placement: the picker's tile
+	// under the pointer says what it is, with no click)
+	if ((verb == "click-in" && w.size() >= 3) || (verb == "drag-in" && w.size() >= 4) || (verb == "press-in" && w.size() >= 3) || (verb == "move-in" && w.size() >= 3))
 	{
 		AskState(s);
 
@@ -1852,6 +1855,14 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		else if (verb == "press-in")
 		{
 			DragWindow(s, x, y, x, y, false, false, false, false, true);   // pressed where it is, and held
+		}
+		else if (verb == "move-in")
+		{
+			int mx = x, my = y;
+			HWND const target = TargetOf(s, &mx, &my);
+
+			PostMessageW(target, WM_MOUSEMOVE, 0, MAKELPARAM(mx, my));   // no button: a hover, as move-win's
+			Sleep(600);
 		}
 		else
 		{

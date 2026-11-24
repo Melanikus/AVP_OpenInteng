@@ -56,4 +56,30 @@ namespace host
 
 	// The stock file of that folder and name (any capitals), or null when Steam ships no file of that name there
 	ShapeIdentityStockFile const *ShapeIdentity_StockFile(std::string const &folder, std::string const &fileName);
+
+	// TYPED PLACEMENT (Dietrich 2026-11-23, Bishop's card for beta.0; the owner: "Yes, set the known type"). A new object of a KNOWN shape is made as the game
+	// object its kind says, not as a static one. This says which: the game's Type and ExtraData for those kind words.
+	// THE CLOSED LIST: only the pickups Steam's 63 levels place, measured by AvP-docs tools/dietrich/kind-fields-survey.js on 2026-11-23:
+	//   - health (Type 4), armour (5) and field charge (15), ExtraData 0;
+	//   - a weapon (Type 2): pulse rifle 0, smartgun 2, flamethrower 3, SADAR 5, grenade launcher 6, minigun 7, marine pistol 22, frisbee launcher 23;
+	//   - its ammo (Type 3): pulse rifle 0, smartgun 2, flamethrower 3, SADAR 5, grenade launcher 6, minigun 7, pulse grenade 8.
+	// Every one of those stock placements carries the fields the maker gives a new object anyway: mass 50, integrity 2, flags 1, no target (object_make.h).
+	// The kind must be EXACTLY the words ShapeExtract_KindWords gives one of them. Any other words give false: "static", "furniture", "unknown", "special pickup"
+	// (its stock placement needs a target in its own level), a light, a track, words from anywhere else. Then the object stays static (Type 0).
+	// So whatever words come in, only a pair from this list ever comes out.
+	struct ShapePlacedAs
+	{
+		int32_t type = 0;    // the AVPSTRAT's Type (its payload's +20)
+		int32_t extra = 0;   // its ExtraData (+24)
+	};
+
+	bool ShapeIdentity_PlacedAs(std::string const &kind, ShapePlacedAs *as);
+
+	// What a new object of that row's shape is made as, in words for the status line and the placement picker (null: a shape the table doesn't know):
+	//   "placed as health (the game's Type 4, ExtraData 0)"
+	//   "placed as static (Type 0), as stock places it"                                   (the kind is "static")
+	//   "placed as static (Type 0): its stock kind is furniture, which placement doesn't set"   (any other kind)
+	//   "placed as static (Type 0): no stock object places it"                          (a row with no kind)
+	//   "placed as static (Type 0): its shape is not one the editor knows"               (null)
+	std::string ShapeIdentity_PlacedAsWords(ShapeIdentityRow const *row);
 }

@@ -345,6 +345,21 @@ void ShapePickerPaint_Draw(int32_t windowWidth, int32_t windowHeight, const std:
 
 		TextureWindowPaint_Lines(windowWidth, windowHeight, name, tile.x, tile.y + tile.side + 1);
 
+		// TYPED PLACEMENT (the owner, 2026-11-23: "Those must have a green border around their render pane"): two pixels of green round the picture itself, the
+		// line just outside it and its own edge, so the selection's yellow frame (two pixels further out, round the name too) still shows apart from it
+		if (tile.typed)
+		{
+			for (int32_t inset = 0; inset < 2; inset++)   // (not named "in": named so, Snyk left this whole file unparsed, measured 2026-11-24)
+			{
+				int32_t const x0 = tile.x - 1 + inset, y0 = tile.y - 1 + inset, x1 = tile.x + tile.side - inset, y1 = tile.y + tile.side - inset;
+
+				Segment(x0, y0, x1, y0, 0xFF00FF00u, windowWidth, windowHeight);
+				Segment(x1, y0, x1, y1, 0xFF00FF00u, windowWidth, windowHeight);
+				Segment(x1, y1, x0, y1, 0xFF00FF00u, windowWidth, windowHeight);
+				Segment(x0, y1, x0, y0, 0xFF00FF00u, windowWidth, windowHeight);
+			}
+		}
+
 		if (tile.selected)
 		{
 			int32_t const x0 = tile.x - 2, y0 = tile.y - 2, x1 = tile.x + tile.side + 1, y1 = tile.y + tile.side + tile.nameHeight;

@@ -361,9 +361,10 @@ namespace host
 		// parts (CreateObjectFromParts): shapeName is then the object's exact name, the shape is the one of parts->shapeNumber, and the header's flags, the strategy and the chunk after are the parts'
 		// byNumber (CreateObjectFromShapeNumber), when not -1: the shape is the level's one with that SHPHEAD1 number, never looked up by shapeName (which is
 		// then only the base of the new object's name)
+		// as (object_make.h ObjectStrategyType), when not null: the strategy's Type and ExtraData; null: 0 and 0, a static object
 		ObjectMakeResult MakeIn(OpenLevelFile *file, char const *shapeName, int32_t const *place, int32_t const *matrix, uint8_t *newId, std::string *newName,
 		                        char const *shapeFolder, std::string *importWhy, Bytes const *givenShape = nullptr, float const *givenTurn = nullptr, bool exactName = false,
-		                        ObjectParts const *parts = nullptr, int32_t byNumber = -1)
+		                        ObjectParts const *parts = nullptr, int32_t byNumber = -1, ObjectStrategyType const *as = nullptr)
 		{
 			if (importWhy)
 			{
@@ -684,8 +685,8 @@ namespace host
 			AddInt(strategy, 62);                                   // the kind
 			AddInt(strategy, 0);
 			AddInt(strategy, 0);
-			AddInt(strategy, 0);                                    // Type: Static
-			AddInt(strategy, 0);                                    // ExtraData
+			AddInt(strategy, as ? as->type : 0);                    // Type: Static, or the game object it is made as (typed placement)
+			AddInt(strategy, as ? as->extra : 0);                   // ExtraData
 			AddInt(strategy, (int32_t)(0x20032 & 0xffff));          // mass 50 (obj[0x14] & 0xffff)
 			AddInt(strategy, (int32_t)((0x20032 >> 16) | 0x80000000u));   // integrity 2 | 0x80000000
 			AddInt(strategy, 1);                                    // flags
@@ -885,11 +886,11 @@ namespace host
 	}
 
 	ObjectMakeResult CreateObjectFromShape(OpenLevelFile *file, char const *shapeName, int32_t const *place, int32_t const *matrix, uint8_t *newId,
-	                                       std::string *newName, char const *shapeFolder, std::string *importWhy)
+	                                       std::string *newName, char const *shapeFolder, std::string *importWhy, ObjectStrategyType const *as)
 	{
 		try
 		{
-			return MakeIn(file, shapeName, place, matrix, newId, newName, shapeFolder, importWhy);
+			return MakeIn(file, shapeName, place, matrix, newId, newName, shapeFolder, importWhy, nullptr, nullptr, false, nullptr, -1, as);
 		}
 		catch (std::exception const &)
 		{
@@ -898,7 +899,7 @@ namespace host
 	}
 
 	ObjectMakeResult CreateObjectFromShapeNumber(OpenLevelFile *file, int32_t shapeNumber, char const *nameBase, int32_t const *place, int32_t const *matrix, uint8_t *newId,
-	                                             std::string *newName)
+	                                             std::string *newName, ObjectStrategyType const *as)
 	{
 		if (shapeNumber < 0)
 		{
@@ -907,7 +908,7 @@ namespace host
 
 		try
 		{
-			return MakeIn(file, nameBase, place, matrix, newId, newName, nullptr, nullptr, nullptr, nullptr, false, nullptr, shapeNumber);
+			return MakeIn(file, nameBase, place, matrix, newId, newName, nullptr, nullptr, nullptr, nullptr, false, nullptr, shapeNumber, as);
 		}
 		catch (std::exception const &)
 		{

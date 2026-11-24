@@ -31,6 +31,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -136,6 +137,17 @@ namespace host
 
 	// Every object of a level that places an outside shape, with its kind, in the level's order. False when the level's chunks can't be walked.
 	bool ShapeExtract_Placements(std::vector<char> const &level, std::vector<ShapeExtractPlacement> *placements);
+
+	// THE WORDS OF A KIND, as ShapeExtract_Placements gives them for a kind 62 or 53 object: the game's Type with its ExtraData ("health", "weapon: pulse rifle",
+	// "ammo: smartgun"), the words the identity table holds. Typed placement (shape_identity.h ShapeIdentity_PlacedAs) matches a kind against these words.
+	// (Added 2026-11-23 by Dietrich.)
+	std::string ShapeExtract_KindWords(int32_t type, int32_t extra);
+
+	// THE FILE EACH OF A LEVEL'S OUTSIDE SHAPES MAKES, BY ITS NUMBER (Dietrich 2026-11-23, typed placement: a picker tile drawn and placed from the level's own
+	// shape is known the way the table knows a file). For the first outside shape of each SHPHEAD1 number, as ShapeExtract_Placements numbers them: the SHA-256
+	// of the file ShapeExtract_File makes of it. A shape it makes no file of has no entry, so it is unknown: rescaled, a name that isn't plain, chunks not whole.
+	// False when the level's chunks can't be walked (nothing is given then).
+	bool ShapeExtract_FileSums(std::vector<char> const &level, std::map<int32_t, std::string> *sumOfNumber);
 
 	// ONE MAP, AS ITS FILE HOLDS IT (the owner's rule, 2026-11-23: every map not yet searched is scanned, "avp_rifs and avp_huds at start, and every level
 	// opened"; the first-launch screen keeps the SHA-256 of each map searched). The one call for it: a map's FILE bytes as they are on disk (packed, REBCRIF1,

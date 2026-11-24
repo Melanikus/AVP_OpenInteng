@@ -181,6 +181,7 @@
 #include "view_toggles_game.h"
 #include "window_events.h"
 #include "open_with.h"
+#include "shape_identity.h"       // typed placement: ShapeIdentity_PlacedAs, the closed list of what a known shape is made as
 
 #include "editor_shared.h"
 
@@ -359,6 +360,7 @@ static std::string chooserWords;   // the status line's words (statusWords point
 static size_t chooserBack = 0;   // the screen it was opened from: it goes back there (inteng: FUN_004d68e0, the placement screen)
 static std::string createShapeName;     // the shape Create > Choose took (the placement picker's tile), while the name is being asked: the new object's name base
 static int32_t createShapeNumber = -1;  // the level's shape of that NUMBER, which the object is made of (Vasquez 2026-11-23); -1: the file is brought in (the picker)
+static host::ShapeIdentityRow const *createShapeKnown = nullptr;   // that shape's row in the identity table (a row of the built-in table, never freed), or null: unknown
 
 static size_t ScreenOfTable(const char *table, size_t otherwise)
 {
@@ -471,11 +473,13 @@ static void ShapeChooserLeave(bool withShape, size_t *screen)
 
 // THE PLACEMENT PICKER'S SHAPE (shape_picker_screen.cpp), as inteng's chooser's Create once handed its shape over: then the NAME is asked ("Name Object", FUN_004d9af0
 // 0x4d9450-0x4d97be) and CreateNamedAtTheView makes the object. number: the level's own shape of that file, by its number; -1: the level holds none, so the file
-// is brought in from the folder the lookup order finds it in, judged again then, as Quick-create's Yes does
-void ShapeChooserCreateFromPicker(std::string const &name, int32_t number)
+// is brought in from the folder the lookup order finds it in, judged again then, as Quick-create's Yes does. known: the identity table's row of that very shape (null:
+// unknown), so the object is made as the game object its kind says (typed placement, editor_shared.h)
+void ShapeChooserCreateFromPicker(std::string const &name, int32_t number, host::ShapeIdentityRow const *known)
 {
 	createShapeName = name;
 	createShapeNumber = number;
+	createShapeKnown = known;
 	chooserWords = "Create: type a name for the new '" + host::ShapePicker_SafeName(name) + "'";   // shown and on the state line: made safe (Drake's nit on df479439)
 	statusWords = chooserWords.c_str();
 	OpenAPrompt(kPromptCreateName);
@@ -666,10 +670,19 @@ void CreateNamedAtTheView(std::string const &typed)
 		LogString("Create: " + createShapeName + ".rif from " + found.path);
 	}
 
+	// TYPED PLACEMENT (Dietrich 2026-11-23; the owner: "Yes, set the known type"): a shape the identity table knows, by the SHA-256 of its file, is made as the game
+	// object its kind says, only ever one of the closed list's (shape_identity.h ShapeIdentity_PlacedAs); any other shape is made static, as before
+	host::ShapePlacedAs placedAs;
+	bool const typedOne = createShapeKnown && host::ShapeIdentity_PlacedAs(createShapeKnown->kind, &placedAs);
+	host::ObjectStrategyType makeAs;
+
+	makeAs.type = placedAs.type;
+	makeAs.extra = placedAs.extra;
+
 	std::string importWhy;
 	host::ObjectMakeResult const result = bringIn ?
-		host::CreateObjectFromShape(open, createShapeName.c_str(), place, matrix, newId, &autoName, found.path.c_str(), &importWhy) :
-		host::CreateObjectFromShapeNumber(open, createShapeNumber, createShapeName.c_str(), place, matrix, newId, &autoName);
+		host::CreateObjectFromShape(open, createShapeName.c_str(), place, matrix, newId, &autoName, found.path.c_str(), &importWhy, typedOne ? &makeAs : nullptr) :
+		host::CreateObjectFromShapeNumber(open, createShapeNumber, createShapeName.c_str(), place, matrix, newId, &autoName, typedOne ? &makeAs : nullptr);
 
 	if (result != host::ObjectMakeResult::Done)
 	{
@@ -699,6 +712,7 @@ void CreateNamedAtTheView(std::string const &typed)
 	}
 
 	quickCreateWords += bringIn ? "; its shape " + createShapeName + ".rif came from " + found.label : "";   // as Quick-create says it
+	quickCreateWords += "; " + host::ShapeIdentity_PlacedAsWords(createShapeKnown);   // which game object it was made as, and why ("placed as health (the game's Type 4 ...")
 	statusWords = quickCreateWords.c_str();
 }
 

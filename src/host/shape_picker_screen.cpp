@@ -28,6 +28,7 @@
 #include "level_objects.h"         // LevelObjects_Level, LevelObjects_OpenForEdit
 #include "shape_chooser.h"         // the level's outside shapes, by file
 #include "shape_extract.h"         // ShapeExtract_Sha256
+#include "shape_identity.h"        // typed placement: what a tile's shape is, by its file's SHA-256 (ShapeIdentity_Find, ShapeIdentity_PlacedAs)
 #include "shape_import.h"          // ShapeImport_Read: one handle
 #include "shape_pane_gpu.h"        // the live panes' GPU side (the interface agreed with Frost)
 #include "shape_picker.h"
@@ -65,6 +66,13 @@ namespace
 	std::vector<std::string> noPictureOf;         // each tile's: why its drawing has no picture
 	std::vector<int32_t> levelNumberOf;           // an "in this level" tile's: the level's first shape of its file, by number (drawn and placed); -1 for the others
 	std::vector<size_t> levelPartsOf;             // and how many of the level's shapes are of that file
+	// TYPED PLACEMENT (Dietrich 2026-11-23; the owner: "Those must have a green border around their render pane and when moused over explain that"): each tile's
+	// row in the identity table, null while unknown. Known by the SHA-256 of the very shape the tile places. A folder's file: its own bytes, read as it is
+	// drawn. An "in this level" tile: the file the level's own shape of that number makes (shape_extract.h ShapeExtract_FileSums), worked out as the picker opens.
+	std::vector<host::ShapeIdentityRow const *> knownOf;
+	std::string levelSumsWords;                   // how the level's own shapes were looked up as the picker opened ("<n> of <m> known in <ms> ms", or why not)
+	bool pointerSeen = false;                     // the pointer has moved over the window since the picker opened (no button needed) ...
+	int32_t pointerX = 0, pointerY = 0;           // ... and where it was last, in the editor's own pixels: the tile under it is found again each frame, as the rows scroll
 	host::ShapePickerView view;
 	host::ShapePickerLayout layout;
 	int32_t ownWide = 0;                          // the editor's own width at the last frame: where the scroll bar stands
@@ -324,6 +332,13 @@ namespace
 
 		shaOf[i] = sha;
 
+		// a folder's file is known by these very bytes, the ones placed (an "in this level" tile's shape was looked up as the picker opened: its bytes here are
+		// the drawing's own form of the level's shape, not a file the table lists)
+		if (!(tile.inLevel && levelNumberOf[i] >= 0))
+		{
+			knownOf[i] = host::ShapeIdentity_Find(sha);
+		}
+
 		if (known != kept.end())
 		{
 			state = known->second.state;
@@ -482,6 +497,41 @@ namespace
 		return k->texture;
 	}
 
+	// TYPED PLACEMENT: tile i's shape is known and its kind is one of the closed list, so its object is made as that game object (its green border)
+	bool TypedTile(size_t i)
+	{
+		host::ShapePlacedAs as;
+
+		return i < knownOf.size() && knownOf[i] && host::ShapeIdentity_PlacedAs(knownOf[i]->kind, &as);
+	}
+
+	// The tile under the pointer now (ShapePickerScreen_Hover), or -1: the pointer hasn't moved over the window, or isn't over a tile's picture or name
+	int HoveredTile()
+	{
+		return pointerSeen ? host::ShapePicker_TileAt(layout, view.first, list.tiles.size(), pointerX, pointerY) : -1;
+	}
+
+	// The words for the tile under the pointer: why it has a green border, or what its object would be made as instead
+	std::string HoverWords(size_t i)
+	{
+		host::ShapePickerTile const &tile = list.tiles[i];
+		std::string const name = host::ShapePicker_SafeName(tile.name);
+		bool const notRead = !knownOf[i] && !(tile.inLevel && levelNumberOf[i] >= 0) && shaOf[i].empty();
+
+		if (notRead)
+		{
+			return name + ": its file isn't read yet, so what it is isn't known yet";
+		}
+
+		if (TypedTile(i))
+		{
+			return name + ": green border: a stock shape known by its file's SHA-256 (" + host::ShapePicker_SafeName(knownOf[i]->fileName) + "), " +
+				host::ShapeIdentity_PlacedAsWords(knownOf[i]);
+		}
+
+		return name + ": " + host::ShapeIdentity_PlacedAsWords(knownOf[i]);
+	}
+
 	// A drawing's LIVE PANE asked of the card, once a visit (shape_pane_gpu.h): its handle, or the card's words why not (its still picture stays shown)
 	void UploadPane(Kept *k)
 	{
@@ -557,9 +607,10 @@ namespace
 		// the very shape the tile was drawn from: the level's first of that file, by its number (inteng's own match for a plain name: shape_chooser.h), or -1:
 		// the file brought in
 		int32_t const number = tile.inLevel ? levelNumberOf[view.selected] : -1;
+		host::ShapeIdentityRow const *const known = knownOf[view.selected];   // (a row of the built-in table: it outlives the picker)
 
 		ShapePickerScreen_Close(false);
-		ShapeChooserCreateFromPicker(host::ShapePicker_NameBase(tile), number);   // the name is asked, then the object made (construction_modes_screen.cpp); a part's base is its object
+		ShapeChooserCreateFromPicker(host::ShapePicker_NameBase(tile), number, known);   // the name is asked, then the object made (construction_modes_screen.cpp); a part's base is its object
 		                                                                            // name ("Game" of "Game@offbits"), so no '@' goes into an object's name
 	}
 }
@@ -686,6 +737,60 @@ bool ShapePickerScreen_Open()
 			}
 		}
 	}
+
+	// TYPED PLACEMENT: the level's own shapes known by the files they make (shape_extract.h ShapeExtract_FileSums), on the level as the next save would write it.
+	// Its bytes are the level's own, so hostile: the extractor checks every size as it walks them. Out of memory, or bytes it can't walk, leave those tiles
+	// unknown (their objects are made static), said on the state line.
+	knownOf.assign(list.tiles.size(), nullptr);
+	pointerSeen = false;
+	levelSumsWords.clear();
+
+	bool anyFromLevel = false;
+
+	for (size_t i = 0; i < list.tiles.size(); i++)
+	{
+		anyFromLevel = anyFromLevel || (list.tiles[i].inLevel && levelNumberOf[i] >= 0);
+	}
+
+	if (anyFromLevel)
+	{
+		DWORD const sumsStart = GetTickCount();
+		size_t fromLevel = 0, knownFromLevel = 0;
+
+		try
+		{
+			std::vector<char> image;
+			std::map<int32_t, std::string> sums;
+
+			if (!levelFile->BuildLevel(image) || !host::ShapeExtract_FileSums(image, &sums))
+			{
+				levelSumsWords = "the level's bytes couldn't be built or walked";
+			}
+			else
+			{
+				for (size_t i = 0; i < list.tiles.size(); i++)
+				{
+					if (list.tiles[i].inLevel && levelNumberOf[i] >= 0)
+					{
+						auto const sum = sums.find(levelNumberOf[i]);
+
+						knownOf[i] = sum == sums.end() ? nullptr : host::ShapeIdentity_Find(sum->second);
+						fromLevel++;
+						knownFromLevel += knownOf[i] ? 1 : 0;
+					}
+				}
+
+				levelSumsWords = std::to_string((unsigned long long)knownFromLevel) + " of " + std::to_string((unsigned long long)fromLevel) + " known in " +
+					std::to_string((unsigned long long)(GetTickCount() - sumsStart)) + " ms";
+			}
+		}
+		catch (std::bad_alloc const &)
+		{
+			knownOf.assign(list.tiles.size(), nullptr);
+			levelSumsWords = "not enough memory to look them up";
+		}
+	}
+
 	view = host::ShapePickerView();
 	selectedClicked = false;
 	dragging = false;
@@ -750,6 +855,8 @@ void ShapePickerScreen_Close(bool sayNothingChosen)
 	noPictureOf.clear();
 	levelNumberOf.clear();
 	levelPartsOf.clear();
+	knownOf.clear();
+	pointerSeen = false;
 }
 
 void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
@@ -895,6 +1002,7 @@ void ShapePickerScreen_Paint(int32_t, int32_t)
 		t.side = box[2];
 		t.nameHeight = host::kShapePickerNameHeight;
 		t.selected = i == view.selected;
+		t.typed = TypedTile(i);   // its object is made as the game object its kind says: a green border round its picture
 		t.name = host::ShapePicker_SafeName(list.tiles[i].name);   // drawn in inteng's font: the safe rule's letters only
 		t.words = states[i].drawing == host::ShapePickerDrawing::Waiting ? "drawing..." : states[i].drawing == host::ShapePickerDrawing::Failed ? "can't be drawn" :
 			"no picture";
@@ -908,7 +1016,11 @@ void ShapePickerScreen_Paint(int32_t, int32_t)
 		lines.push_back(host::ShapePicker_TileWords(list.tiles[view.selected], states[view.selected]));
 	}
 
-	lines.push_back(list.tiles.empty() ? "No shape file in the shape folders. Escape leaves." : "A click selects a shape, a second click (or Return) places it. Arrows, Page Up / Down move. Escape leaves.");
+	// the tile under the pointer says what it is in place of the how-to line, so the lines still fit over the status line (the owner: "when moused over explain that")
+	int const under = HoveredTile();
+
+	lines.push_back(under >= 0 ? HoverWords((size_t)under) : list.tiles.empty() ? "No shape file in the shape folders. Escape leaves." :
+		"A click selects a shape, a second click (or Return) places it. Arrows, Page Up / Down move. Escape leaves.");
 
 	for (std::string const &note : list.notes)
 	{
@@ -1020,6 +1132,16 @@ void ShapePickerScreen_Wheel(int delta)
 	}
 }
 
+void ShapePickerScreen_Hover(int32_t x, int32_t y)
+{
+	if (open)
+	{
+		pointerSeen = true;
+		pointerX = x;
+		pointerY = y;
+	}
+}
+
 void ShapePickerScreen_StateFields()
 {
 	if (!open)
@@ -1027,6 +1149,27 @@ void ShapePickerScreen_StateFields()
 		StateLine_Add("picker", "closed");
 		host::ShapePaneGpu_StateFields();   // the draw path's fields closed too: no pane drawn (Dietrich's reopen proof reads "drawn 0")
 		return;
+	}
+
+	// TYPED PLACEMENT: the tiles on the screen with a green border, each "<name>~<kind>" ('|' between); then the tile under the pointer and its words, as the
+	// line under the grid says them ("none" when the pointer is over no tile); and how the level's own shapes were looked up as the picker opened
+	{
+		std::string typedTiles;
+		size_t const onScreen = (size_t)layout.columns * (size_t)layout.rows;
+
+		for (size_t i = view.first; i < list.tiles.size() && i < view.first + onScreen; i++)
+		{
+			if (TypedTile(i))
+			{
+				typedTiles += (typedTiles.empty() ? "" : "|") + host::ShapePicker_SafeName(list.tiles[i].name) + "~" + knownOf[i]->kind;
+			}
+		}
+
+		int const under = HoveredTile();
+
+		StateLine_Add("pickertyped", typedTiles);
+		StateLine_Add("pickerhover", under >= 0 ? host::ShapePicker_SafeName(list.tiles[(size_t)under].name) + "~" + HoverWords((size_t)under) : std::string("none"));
+		StateLine_Add("pickerlevelkinds", levelSumsWords.empty() ? std::string("none from the level") : levelSumsWords);
 	}
 
 	size_t drawnCount = 0, failedCount = 0;

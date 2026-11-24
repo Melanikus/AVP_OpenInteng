@@ -780,6 +780,54 @@ namespace host
 		return true;
 	}
 
+	std::string ShapeExtract_KindWords(int32_t type, int32_t extra)
+	{
+		return ObjectKindWords(type, extra);
+	}
+
+	bool ShapeExtract_FileSums(std::vector<char> const &level, std::map<int32_t, std::string> *sumOfNumber)
+	{
+		sumOfNumber->clear();
+
+		std::vector<ShapeExtractPlaced> placed;
+
+		if (!ShapeExtract_Placed(level, &placed))
+		{
+			return false;
+		}
+
+		std::set<int32_t> numbers;   // the numbers met: only the first shape of each number counts, as ShapeExtract_Placements counts them
+
+		for (ShapeExtractPlaced const &one : placed)
+		{
+			std::vector<Span> parts;
+			Children(level, one.at + kHeadingBytes, one.at + one.size, &parts);   // (ShapeExtract_Placed walked it already)
+			size_t const head = FirstNamed(level, parts, "SHPHEAD1");
+
+			if (head == parts.size() || parts[head].size < kHeadingBytes + 24)
+			{
+				continue;
+			}
+
+			int32_t const number = IntAt(level, parts[head].at + kHeadingBytes + 20);
+
+			if (!numbers.insert(number).second)
+			{
+				continue;
+			}
+
+			std::vector<char> file;
+			std::string fileName;
+
+			if (ShapeExtract_File(level, one, &file, &fileName, nullptr) == ShapeExtractResult::Done)
+			{
+				(*sumOfNumber)[number] = ShapeExtract_Sha256(file);
+			}
+		}
+
+		return true;
+	}
+
 	ShapeExtractMap ShapeExtract_ScanMap(std::string const &mapName, std::vector<char> const &fileBytes)
 	{
 		ShapeExtractMap map;
