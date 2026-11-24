@@ -14,7 +14,7 @@ wait 400
 click-win 504 364
 expect-selected 1
 wait 300
-key F
+key J
 expect-status Fly selected object: on
 expect-number flyturned y_ 0 0
 # numpad 4 held a second: about 684 of 4096 about its own up axis (the hold's own length and the frames around it allowed)
@@ -32,7 +32,7 @@ remember-field flymatrix
 hold Shift+Multiply 100
 expect-field-changed flymatrix
 expect-field-has flymatrix down 0 65536 0
-# F again lets it go, turned
+# J again lets it go, turned
 wait 300
-key F
+key J
 expect-status Fly selected object: off

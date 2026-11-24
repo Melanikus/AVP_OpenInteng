@@ -21,10 +21,10 @@ wait 300
 expect-screen Object Placement
 expect-selected 0
 picture 1
-# (2) fly the object (F), open the chooser while it flies (Replace shape works while flying, 0x4dc30e), hold an arrow inside: the view does not move
+# (2) fly the object (J), open the chooser while it flies (Replace shape works while flying, 0x4dc30e), hold an arrow inside: the view does not move
 select-row 0
 expect-selected 1
-key F
+key J
 wait 200
 item 0x1d
 expect-screen Shape Chooser

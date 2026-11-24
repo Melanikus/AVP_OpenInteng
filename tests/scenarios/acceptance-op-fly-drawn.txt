@@ -1,7 +1,7 @@
 # ACCEPTANCE (red first): F's FLIGHT LEAVES THE OBJECT DRAWN WHERE IT FLEW (Vasquez's find, 11-18). Object Placement's F flies a live copy of the object (inteng FUN_004dd280 moves the object
-# itself every frame); F again writes its place and turn (TrackSetObjectPose) and ends the flight. The level and the saved copy had the new place, but the view drew the object where the
+# itself every frame); J again writes its place and turn (TrackSetObjectPose) and ends the flight. The level and the saved copy had the new place, but the view drew the object where the
 # level was LOADED: ending the flight frees the copy, and the level's bytes never move a display block already made. Now the real block is put where it flew (LevelView_PutObjectAt).
-# The owner's Genshd1 copy as a double click: camera-corner on the lift platform, the click in the middle selects it, F, numpad 3 held (the object flies), F again.
+# The owner's Genshd1 copy as a double click: camera-corner on the lift platform, the click in the middle selects it, F, numpad 3 held (the object flies), J again.
 # gizmopose is the level's place (the file's units), gizmodrawn where the view draws the block (the world's): both move.
 # Red on exe-cache/61478b4b.exe (the level's place moves, the drawn one stays), green with it.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/drake-ownerpath/his/acceptance-ownerpath-journey-genshd1/Genshd1.rif
@@ -20,14 +20,14 @@ state
 remember-field gizmopose
 remember-field gizmodrawn
 picture 1
-key F
+key J
 expect-status Fly selected object: on
 # L: collisions off while flying (inteng's key): the platform sits against the lift, which would hold it
 key L
 remember-field flyat
 hold Numpad3 400
 expect-field-changed flyat
-key F
+key J
 expect-status the object is where it flew to
 wait 300
 state

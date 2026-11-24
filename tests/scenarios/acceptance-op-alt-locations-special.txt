@@ -26,20 +26,20 @@ expect-status Location added: 2 locations
 expect-field-has hierarchylines Location 1/2
 
 # ---- where it is (F shows its place in flyat), then flown a step away
-key F
+key J
 expect-status Fly selected object: on
 remember-field flyat
 hold Numpad3 400
 expect-field-changed flyat
-key F
+key J
 
 # ---- OP-91: ',' = Prev: the current location takes the place now, the generator goes back to location 0, where it was made
 key Comma
 wait 300
 expect-field-has hierarchylines Location 0/2
-key F
+key J
 expect-field-same flyat
-key F
+key J
 # '.' = Next: to location 1, the place it was flown to
 key Period
 wait 300

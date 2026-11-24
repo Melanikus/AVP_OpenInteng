@@ -4490,8 +4490,14 @@ static void PlacementCameraUnlink(bool byR)
 
 	LevelView_SetViewMatrix(nullptr);
 }
-// F: "Fly selected object" (FUN_004def60 = slot +0x48 of the current object, DAT_008f4f44): the object takes the camera's place as it moves, and the camera is let go of it when F is pressed again. The object
-// keeps the offset from the camera it had when F was pressed; its place is written when F is pressed again (the editor draws no live copy of an ordinary object: a cube marks where it is meanwhile).
+// J (inteng's F): "Fly selected object" (FUN_004def60 = slot +0x48 of the current object, DAT_008f4f44): the object takes the camera's place as it moves, and the camera is let go of it when J is pressed again. The object
+// keeps the offset from the camera it had when J was pressed; its place is written when J is pressed again (the editor draws no live copy of an ordinary object: a cube marks where it is meanwhile).
+// THE FLY'S KEY, J: A NAMED DIFFERENCE FROM INTENG, whose key is F (its Object Placement Keys text, 0x5e853c: "F Fly selected object"; inteng_help.cpp keeps
+// inteng's words as they are). The owner, 2026-11-24, once F became the slide's flip (SurfaceFlipKey): "Put the old FLY on another key"; first H, but H is
+// View Distance here (the held keys H and N are read every frame: keyDown['H'], below), so again, of the keys Object Placement leaves free in both key
+// layouts, I, U and J (I and U are read only on Hierarchy mode's own screen, J and M only by Module Linking's and Adjacent's view pass), "J (Recommended)":
+// next to H on the home row. In Modern WASD, F is the camera's down key, so Fly had no key there at all before.
+static WPARAM const kFlyKey = 'J';
 static bool flyOn = false;
 
 bool PlacementIsFlying()
@@ -5620,7 +5626,7 @@ static void FlySwitchKey(bool x)
 	}
 }
 
-// THE FLY STOP (FUN_004df090(0), OP-111): F again, and every other stop (another object made current, FUN_004d64a0; leaving the screen): the object stays where it flew (written into the level here), the
+// THE FLY STOP (FUN_004df090(0), OP-111): J again (inteng's F), and every other stop (another object made current, FUN_004d64a0; leaving the screen): the object stays where it flew (written into the level here), the
 // camera is let go of it (the link off: the view stays where it is), the fly speed is remembered and the camera speed given back, "Move Rel to Axes" and the box increase off
 static void PlacementFlyStop()
 {
@@ -6337,9 +6343,9 @@ static bool PlacementKey(WPARAM key, bool shift)
 		return true;
 	}
 
-	if (key == 'F' && !shift && !IsAMoveKey(key))
+	if (key == kFlyKey && !shift && !IsAMoveKey(key))
 	{
-		// OP-85 (V-6): F needs Gravity off (0x4dc13a); with it on, nothing
+		// OP-85 (V-6): the fly (J, inteng's F) needs Gravity off (0x4dc13a); with it on, nothing
 		if (PlacementGravityOn())
 		{
 			return true;
@@ -6399,7 +6405,7 @@ static bool PlacementKey(WPARAM key, bool shift)
 					}
 				}
 
-				Answer("Fly selected object: on (the movement keys move the object, the camera stays; R links the camera to it; F again lets it go there)");
+				Answer("Fly selected object: on (the movement keys move the object, the camera stays; R links the camera to it; J again lets it go there)");
 			}
 		}
 
@@ -14368,7 +14374,7 @@ void AddSpecialMarkers(const ui::PanelLayout &layout, host::PaintText *lines, si
 	VolumeFrame();
 	VolumeAddLines();
 
-	// the object that is being flown (F) is marked where it is now
+	// the object that is being flown (J) is marked where it is now
 	if (flyOn && !flyReal)
 	{
 		AddCubeLines(flyWorld, 250, 0xFFFFFF00u);
@@ -17389,7 +17395,7 @@ int main(int, char **)
 				fflush(stdout);
 			}
 
-			// the flying object (F), for a run that flies one: where it is, whether its own copy is what flies (real) and how the turn keys have turned it
+			// the flying object (J), for a run that flies one: where it is, whether its own copy is what flies (real) and how the turn keys have turned it
 			if (flyOn)
 			{
 				int32_t copyWorld[3] = { 0, 0, 0 }, copyRadius = 0;

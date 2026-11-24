@@ -83,14 +83,14 @@ item 0x54
 # REMOVED 11-18: Invasion has no placed object with baked colours (placementlight: objects 0 baked none), so Lighting changes nothing to see here, from any camera; acceptance-op-lighting checks the switch and the file
 item 0x54
 
-# ---- O7 FLY SELECTED OBJECT (key F: the movement keys move the OBJECT and the VIEW STAYS (FUN_004d9af0 0x4dc38b, the engine key movement 0x53e123); F again writes it where it flew; the picture of the object moving is acceptance-object-fly.txt)
+# ---- O7 FLY SELECTED OBJECT (key F: the movement keys move the OBJECT and the VIEW STAYS (FUN_004d9af0 0x4dc38b, the engine key movement 0x53e123); J again writes it where it flew; the picture of the object moving is acceptance-object-fly.txt)
 select-row 0
 camera -27851 -14055 85500 0 0
-key F
+key J
 hold A 800
 # the VIEW stays: the camera is where it was (the object itself moves, so the picture changes where it is drawn)
 expect-field camera -27851 -14055 85500 0 0
-key F
+key J
 # UNTRACED: what the flying object looks like (read the draw call of the flying object, FUN_004d9af0 around 0x4dc3d8 and FUN_004e3e30)
 
 # ---- O8 TAB enters Strategy mode and Tab (or Exit) there gives Object Placement back (FUN_00524e90 0x524eca)

@@ -14,7 +14,7 @@ wait 400
 click-win 504 364
 expect-selected 1
 wait 300
-key F
+key J
 expect-status Fly selected object: on
 key R
 expect-status Camera link to object: on
@@ -47,9 +47,9 @@ remember-field camera
 key R
 expect-status Camera link to object: off
 expect-field-same camera
-# F again lets the object go where it is; the camera's own mover runs again, and the camera still looks where the orbit left it (its look kept a quarter turn either way, signed)
+# J again lets the object go where it is; the camera's own mover runs again, and the camera still looks where the orbit left it (its look kept a quarter turn either way, signed)
 wait 300
-key F
+key J
 expect-status Fly selected object: off
 wait 300
 expect-field-same camera
