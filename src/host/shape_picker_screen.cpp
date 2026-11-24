@@ -592,6 +592,28 @@ void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
 	DWORD const start = GetTickCount();
 	int drawn = 0;
 
+	// THE TILES ON THE SCREEN, before anything is drawn (Frost, 2026-11-23: the owner's "poluted with a bunch of "no picture" entries"):
+	// - each one's kept drawing is marked shown THIS frame. DrawTile lets go only drawings not shown this frame, and the paint marks them only after the
+	//   frame's drawing, so with more tiles on the screen than the picker keeps (kShapePickerMostKept; a 3840 x 2160 screen holds 540) a visible drawing would
+	//   be let go, drawn again, and another let go, every frame (Vasquez's review of 578f59d9). Marked here, a visible one is never let go: the kept ones grow
+	//   past the most only by what the screen holds.
+	// - one whose drawing was let go while it was off the screen goes back to waiting, so it is drawn again (its file read again) instead of showing "no
+	//   picture" for the rest of the sitting. A tile whose file couldn't be read has no SHA-256, so it stays as it failed and isn't tried every frame.
+	for (size_t i = view.first; i < list.tiles.size() && i < view.first + shown; i++)
+	{
+		auto const k = shaOf[i].empty() ? kept.end() : kept.find(shaOf[i]);
+
+		if (k != kept.end())
+		{
+			k->second.used = frameNumber;
+		}
+		else if (!shaOf[i].empty() && states[i].drawing != host::ShapePickerDrawing::Waiting)
+		{
+			states[i] = host::ShapePickerState();
+			noPictureOf[i].clear();
+		}
+	}
+
 	for (int pass = 0; pass < 2 && drawn < kShapePickerDrawsAFrame; pass++)
 	{
 		for (size_t i = view.first; i < list.tiles.size() && i < view.first + shown && drawn < kShapePickerDrawsAFrame; i++)
@@ -843,4 +865,32 @@ void ShapePickerScreen_StateFields()
 
 	StateLine_Add("pickerscroll", host::ShapePicker_BarWords(bar));
 	StateLine_Add("pickerdrag", dragging ? "held" : "free");
+
+	// the tiles on the screen as the paint shows them, each counted once: with their drawing (the paint draws a kept one whatever the tile's state), else still
+	// "drawing...", else words only (can't be drawn, no picture, or a drawing let go)
+	size_t onScreen = 0, pictured = 0, waiting = 0, wordsOnly = 0;
+
+	for (size_t i = view.first; i < list.tiles.size() && i < view.first + shown; i++)
+	{
+		auto const k = shaOf[i].empty() ? kept.end() : kept.find(shaOf[i]);
+
+		onScreen++;
+
+		if (k != kept.end() && k->second.bgra.size() == (size_t)host::kShapeThumbSide * host::kShapeThumbSide * 4)
+		{
+			pictured++;
+		}
+		else if (states[i].drawing == host::ShapePickerDrawing::Waiting)
+		{
+			waiting++;
+		}
+		else
+		{
+			wordsOnly++;
+		}
+	}
+
+	auto const number = [](size_t n) { return std::to_string((unsigned long long)n); };
+
+	StateLine_Add("pickershown", "shown " + number(onScreen) + " pictured " + number(pictured) + " waiting " + number(waiting) + " words " + number(wordsOnly));
 }

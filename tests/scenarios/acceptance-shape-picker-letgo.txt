@@ -1,0 +1,47 @@
+# ACCEPTANCE (red first; Frost 2026-11-23, found writing the picture cache's acceptance, Vasquez confirmed by reading, THE OWNER HIT IT on the alpha.6 cut: "I
+# cannot see it and it's poluted with a bunch of "no picture" entries", AvP-builds-excluded/owner-pictures/picker-no-picture-tiles-20261123.png, his window 2329
+# x 1148, about 22 x 9 tiles, the upper five rows "no picture"; Bishop 2: it holds the alpha.6 release): A TILE WHOSE DRAWING WAS LET GO IS DRAWN AGAIN WHEN IT
+# COMES BACK INTO VIEW, never left as words. The picker keeps at most kShapePickerMostKept (256) drawings; past it, the least recently shown are let go.
+# His path, at his window's size: the FOUND form's Yes extracts every stock shape into the shard's data copy's shape_rifs, as his first start did
+# (acceptance-shapes-found-1 proves the extraction itself); Colony (Genshd1), the window made his size, Object Placement, Choose: 352 tiles, about 198 a screen.
+# The grid is drawn to its end (the first screen, then the rest), then taken back to its first screen.
+# The state line's pickershown (shape_picker_screen.h): the tiles on the screen as the paint shows them, "shown S pictured P waiting W words X" (with their
+# drawing, still drawing, or words only).
+# RED on the alpha.6 cut b740a152, with this commit's field: back on the first screen, its let-go tiles show words, for good, as in his picture.
+# changes-data
+# timeout 1500
+#ini ShapesInTests=1
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+state
+wait-moving 20000 shapes (the form is open)
+expect-dialog Open Inteng
+click-button Yes
+expect-no-dialog
+wait-moving 300000 shapes done;
+expect-field-has shapes new shapes in shape_rifs
+pictures on
+resize-win 2345 1187
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+item 0x32
+expect-field-has picker open
+expect-number picker cols_ 18 26
+expect-number picker rows_ 7 11
+expect-field-has picker count 352
+wait 400
+wait-moving 30000 pickershown waiting 0
+key PageDown
+wait 400
+wait-moving 30000 pickershown waiting 0
+key End
+wait 400
+wait-moving 30000 pickershown waiting 0
+# every tile drawn once, none failed, and the last screen's tiles all showing their drawings
+expect-field-has picker count 352 drawn 352 failed 0
+expect-field-has pickershown waiting 0 words 0
+# BACK TO THE FIRST SCREEN: the drawings of its tiles were let go on the way to the end; each is drawn again, never left showing words
+key Home
+wait 400
+wait-moving 30000 pickershown waiting 0 words 0
+expect-field-has picker count 352 drawn 352 failed 0 first 0
