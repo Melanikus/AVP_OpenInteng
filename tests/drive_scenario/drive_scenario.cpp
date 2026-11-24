@@ -86,6 +86,10 @@
 //   expect-dialog-kind <list|message|confirm|text> / click-button <label> / expect-dialog-text <words>   message, confirm and text dialogs
 //                               (fields dialogkind, dialogbuttons, dialogtext; contract at expect-dialog-kind); a button is clicked, never keyed
 //   save-copy                   Save a copy, as File > Save a copy does; the copy's path is {copy} from here on
+//   reopen-level                the open level opened again from its file, as the shapes search's reopen does (the editor's kHarnessReopen): its answer "reopen: ...";
+//                               FAILED unless it says the level opened again (Dietrich 2026-11-23: the proofs of what a level change does to what is open)
+//   reopen-level refused        the same ask, which must be REFUSED: FAILED unless the answer is "reopen: not opened again: ..." (the editor won't open the level
+//                               again while something runs on it: a plot, AutoLink, a links delete, All stock maps; Vasquez's MUST 1 on 5422d4f3)
 //   verify <program> [arguments]   runs a program (its path, then its words; {orig}, {prev} (the copy before the last one, or the level), {copy}, {exedir} (the editor's folder, with its closing backslash), {record} (the run's record folder, its pictures, likewise) and {save1} to {save9} (the first to the ninth Save a copy of the run) are replaced by the level's and the copies' paths); its exit code 0 is a pass, and its lines are shown
 // A step the editor doesn't answer within its time fails, and the editor is closed.
 
@@ -3767,6 +3771,21 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 
 		sprintf_s(words, " (picture-%d: %.3f of it is not the background)", s->lastPicture, share);
 		Check(share >= limit, label + words);
+		return true;
+	}
+
+	if (verb == "reopen-level")
+	{
+		Drain(s);
+		PostMessageW(s->editor.window, WM_APP + 14, 0, 0);
+
+		std::string const said = WaitForLine(&s->editor, "AVP_OpenInteng: reopen: ", 60000);
+
+		bool const refusedAsked = w.size() >= 2 && w[1] == "refused";
+		bool const refused = said.find("not opened again") != std::string::npos;
+
+		Check(refusedAsked ? refused : said.find("opened again") != std::string::npos && !refused, label + " -> " + (said.empty() ? "no answer" : said));
+		AskState(s);
 		return true;
 	}
 

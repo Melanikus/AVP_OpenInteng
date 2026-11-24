@@ -305,16 +305,42 @@ static bool SaveThePicture(const char *path)
 	D3DSURFACE_DESC size;
 	bool saved = false;
 
-	if (device && SUCCEEDED(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &screen)))
+	// WHICH STEP FAILED, said in the log with its HRESULT and the editor's own free address space (Dietrich's MUST on c76c9cca, 2026-11-23: a picture of
+	// acceptance-all-stock-maps-refusals NOT SAVED during hangar's plot; if it is a 32-bit editor out of memory deep in a run, that is a crash risk to fix, not hide)
+	char const *step = "no device";
+	HRESULT result = E_FAIL;
+
+	if (device && SUCCEEDED(result = device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &screen)))
 	{
-		if (SUCCEEDED(screen->GetDesc(&size)) &&
-			SUCCEEDED(device->CreateOffscreenPlainSurface(size.Width, size.Height, size.Format, D3DPOOL_SYSTEMMEM, &copy, NULL)))
+		step = "GetDesc";
+
+		if (SUCCEEDED(result = screen->GetDesc(&size)) &&
+			(step = "CreateOffscreenPlainSurface", SUCCEEDED(result = device->CreateOffscreenPlainSurface(size.Width, size.Height, size.Format, D3DPOOL_SYSTEMMEM, &copy, NULL))))
 		{
-			saved = SUCCEEDED(device->GetRenderTargetData(screen, copy)) && SUCCEEDED(D3DXSaveSurfaceToFileA(path, PictureKind(path), copy, NULL, NULL));
+			step = "GetRenderTargetData";
+			saved = SUCCEEDED(result = device->GetRenderTargetData(screen, copy)) &&
+				(step = "D3DXSaveSurfaceToFileA", SUCCEEDED(result = D3DXSaveSurfaceToFileA(path, PictureKind(path), copy, NULL, NULL)));
 			copy->Release();
 		}
 		screen->Release();
 	}
+	else if (device)
+	{
+		step = "GetBackBuffer";
+	}
+
+	if (!saved)
+	{
+		MEMORYSTATUSEX memory = {};
+		char words[200];
+
+		memory.dwLength = sizeof(memory);
+		GlobalMemoryStatusEx(&memory);
+		snprintf(words, sizeof(words), "picture not saved: %s failed (HRESULT 0x%08lx); the editor's free address space %llu MB", step, (unsigned long)result,
+			(unsigned long long)(memory.ullAvailVirtual / (1024 * 1024)));
+		LogString(words);
+	}
+
 	return saved;
 }
 
@@ -2347,6 +2373,11 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 {
 	if (!levelIsOpen)
 	{
+		if (savePictureTo)
+		{
+			LogString("picture not saved: no level is open this frame");   // (between a close and an open: the other way a picture fails, beside SaveThePicture's)
+		}
+
 		return savePictureTo == nullptr;
 	}
 

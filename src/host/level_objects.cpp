@@ -22,6 +22,10 @@ static OpenLevelFile const *theOpenLevel = nullptr;
 // The same open, when the editor gave it to be changed (LevelObjects_Hold): for the edits that add or take away an object
 static OpenLevelFile *theOpenLevelForEdit = nullptr;
 
+// How many times a level was given (or taken away) here: LevelObjects_Generation (Vasquez, 2026-11-23). A level opened again in the same OpenLevelFile has
+// the same address, so only this tells that the level changed
+static uint64_t theGeneration = 0;
+
 // An object's ID is the game's ObjectID, two ints: the 8 bytes a pick compares
 static_assert(sizeof(ObjectID) == host::kObjectIdBytes, "an ObjectID is the 8 bytes a pick in the view compares");
 
@@ -32,6 +36,12 @@ void LevelObjects_Use(OpenLevelFile const *open)
 {
 	theOpenLevel = open;
 	theOpenLevelForEdit = nullptr;
+	theGeneration++;
+}
+
+uint64_t LevelObjects_Generation()
+{
+	return theGeneration;
 }
 
 OpenLevelFile *LevelObjects_OpenForEdit()

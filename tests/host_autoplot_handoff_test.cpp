@@ -285,6 +285,34 @@ int main()
 		Check(copy && copy->number == 1, "a new run counts from 1 again (" + std::to_string((unsigned long long)(copy ? copy->number : 0)) + ")");
 	}
 
+	// A NEW RUN IS TOLD APART (Drake 2026-11-23, the owner's "are we clearing the previous level when loading the new one?"): All stock maps plotted derelict and
+	// then genshd1 with no frame between that the window saw as "no plot", the copy numbers counting from 1 again, so the window kept derelict's last copy (head 384,
+	// job 161) into genshd1's plot and never landed genshd1's modules (measured on 8275930d: landed 1 for genshd1's first 34 modules, 14 when plotted alone).
+	// Each Start counts a run, every copy carries the run it belongs to, and a Start lets go of the last run's newest copy.
+	{
+		host::AutoPlotHandOff handOff;
+		std::atomic<bool> stop(false);
+
+		handOff.Start();
+		uint64_t const first = handOff.Run();
+		handOff.Progress(Copy(161, 2, false));
+		bool const firstCopyIsFirstRun = handOff.Newest() && handOff.Newest()->run == first;
+		handOff.Finished(Copy(161, 2, true), stop);
+
+		handOff.Start();
+		uint64_t const second = handOff.Run();
+		bool const lastRunsCopyGone = !handOff.Newest();
+
+		handOff.Progress(Copy(0, 1, false));
+		std::shared_ptr<host::AutoPlotShown const> const copy = handOff.Newest();
+
+		Check(first == 1 && second == 2, "each Start counts a run (" + std::to_string((unsigned long long)first) + ", then " + std::to_string((unsigned long long)second) + ")");
+		Check(firstCopyIsFirstRun, "a copy carries the run it was handed over in");
+		Check(lastRunsCopyGone, "a new run's Start lets go of the last run's newest copy");
+		Check(copy && copy->run == second && copy->number == 1, "the new run's first copy: its own run, numbered 1 (run " +
+			std::to_string((unsigned long long)(copy ? copy->run : 0)) + ")");
+	}
+
 	printf("%d checks, %d failed\n", checks, checksFailed);
 	return checksFailed == 0 ? 0 : 1;
 }

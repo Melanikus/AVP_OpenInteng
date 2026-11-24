@@ -1,0 +1,29 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-23, Vasquez's MUST 1 on 5422d4f3): THE HARNESS'S REOPEN IS REFUSED WHILE SOMETHING RUNS ON THE LEVEL, as the editor's
+# own reopen is (ShapesReopenTheLevel: All stock maps, a plot, AutoLink or a links delete running). A plot's worker reads the level and is only stopped at the
+# program's end, never between two levels (CloseTheLevel's comment: "AutoPlotCommand_Stop is no cancel"), so opening the level again under it would free the
+# level the worker reads. HERE: Statue, its plot started, reopen-level at once: refused ("reopen: not opened again: ..."); the plot then ends as always, on the
+# same level, and the editor answers to the end (a dead editor fails every wait: editor_ended.h).
+# RED on exe-cache/f07a2cf0.exe (5422d4f3's code, the step without the guards): the level is opened again under the running plot.
+#ini AutoPlot=1
+# timeout 900
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+pictures off
+state
+click-bar Alien auto waypoint > Environment
+expect-dialog Alien auto waypoint
+click-button Ok
+wait 300
+
+# ---- the plot running: the reopen is refused, in words
+reopen-level refused
+expect-field level Statue
+
+# ---- the plot ends as always, on the same level
+wait-moving 300000 status AI modules written
+expect-status Auto-plot:
+expect-field level Statue
+
+# ---- and with nothing running, the reopen is taken
+reopen-level
+expect-field level Statue

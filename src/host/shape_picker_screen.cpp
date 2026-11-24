@@ -52,6 +52,7 @@ namespace
 	};
 
 	bool open = false;
+	uint64_t openedGeneration = 0;                // the level's generation when the picker opened (level_objects.h): another one now, and it closes
 	host::ShapePickerList list;
 	std::vector<host::ShapePickerState> states;   // each tile's, as far as it went
 	std::vector<std::string> shaOf;               // each tile's file's SHA-256, once read
@@ -85,12 +86,13 @@ namespace
 	// don't show!", and copies that look the same folded into one tile): read with the drawing's own read (ShapeImport_Read: one handle, a plain file, at most
 	// kShapeImportMostBytes; then ShapeThumb_Read, every count checked), at most kShapePickerMostLookMs in all. A tile "in this level" is drawn from the level's
 	// own shape, not its file, so it isn't looked at; a file that can't be read, or no room to read it, keeps its tile and says why when it is drawn.
-	std::vector<host::ShapePickerLook> LookAtTheFiles(size_t *pastTime)
+	std::vector<host::ShapePickerLook> LookAtTheFiles(size_t *pastTime, DWORD *tookMs)
 	{
 		std::vector<host::ShapePickerLook> looks(list.tiles.size());
 		DWORD const start = GetTickCount();
 
 		*pastTime = 0;
+		*tookMs = 0;
 
 		for (size_t i = 0; i < list.tiles.size(); i++)
 		{
@@ -135,6 +137,7 @@ namespace
 			}
 		}
 
+		*tookMs = GetTickCount() - start;
 		return looks;
 	}
 
@@ -492,6 +495,22 @@ bool ShapePickerScreen_IsOpen()
 	return open;
 }
 
+// THE LEVEL CHANGED while the picker is open (level_objects.h LevelObjects_Generation: opened again, or another one): its list and its "in this level" tiles'
+// shape numbers are the old level's, and the drawing and the placing look a number up in the level open now, so a tile could draw and place another shape
+// than the one it names (Frost's lead, Bishop's order, 2026-11-23). It closes, saying so; opened again, it lists the level open now. CloseTheLevel closes it
+// before a level goes (editor_main.cpp); this catches any other way a level changes. True when it closed.
+static bool ClosedForALevelChange()
+{
+	if (!open || LevelObjects_Generation() == openedGeneration)
+	{
+		return false;
+	}
+
+	ShapePickerScreen_Close(false);
+	Answer("Create: the level changed, so the placement picker closed (open it again for the shapes of the level open now)");
+	return true;
+}
+
 bool ShapePickerScreen_Open()
 {
 	OpenLevelFile *const levelFile = LevelObjects_OpenForEdit();
@@ -537,9 +556,20 @@ bool ShapePickerScreen_Open()
 	// NO GEOMETRY, NO TILE; COPIES FOLDED (the owner 11-23, through Bishop 2): each folder tile's file looked at, then the empty ones left out and the lookalikes
 	// folded, before the level's own shapes are added (those are drawn from the level, by number)
 	size_t pastTime = 0;
-	std::vector<host::ShapePickerLook> const looks = LookAtTheFiles(&pastTime);
+	DWORD lookMs = 0;
+	std::vector<host::ShapePickerLook> const looks = LookAtTheFiles(&pastTime, &lookMs);
 
 	host::ShapePicker_Thin(&list, looks, pastTime, &thinned);
+
+	// A SLOW LOOK SAID (Dietrich's NIT on 7ad5b295): the look runs before the window can draw again, so a word during it would never be seen; when it took a
+	// second or more (a stranger's large folder; the owner's 352 files take about 70 ms), the status line says afterwards why the window waited
+	std::string const slowWords = lookMs >= 1000 ? " (looking at the files took " + std::to_string((unsigned long)(lookMs / 1000)) + "." +
+		std::to_string((unsigned long)((lookMs % 1000) / 100)) + " s: each one is read once, to leave out the empty ones and fold the copies)" : std::string();
+
+	if (!slowWords.empty())
+	{
+		list.notes.push_back("looking at the files took " + std::to_string((unsigned long)lookMs) + " ms as the picker opened");
+	}
 
 	// THE LEVEL'S OWN SHAPES as tiles too (shape_picker.h ShapePicker_AddLevelShapes; Bishop 2's decision on the owner's "items from shape_rifs + level"): a
 	// shape the level alone holds, and each part of a fragment file, drawn and placed by number
@@ -587,6 +617,7 @@ bool ShapePickerScreen_Open()
 	dragging = false;
 	shownColumns = shownRows = -1;   // (the first frame brings the selection into view)
 	open = true;
+	openedGeneration = LevelObjects_Generation();   // the level its list was built from
 	ShapePickerPictures_Begin();   // the visit's one allowance for its pictures (shape_picker_pictures.cpp)
 
 	for (std::string const &note : list.notes)
@@ -596,7 +627,7 @@ bool ShapePickerScreen_Open()
 
 	Answer(list.tiles.empty() ? "Create: no shape file in " + host::ShapeSearch_Labels(host::ShapeSearch_Order(shapeFolderSetting, theGameFolder)) + " (Escape leaves)" :
 		"Create: " + std::to_string((unsigned long long)list.tiles.size()) + " shapes from " + host::ShapeSearch_Labels(host::ShapeSearch_Order(shapeFolderSetting, theGameFolder)) +
-		": a click selects one, a second click (or Return) places it, Escape leaves");
+		": a click selects one, a second click (or Return) places it, Escape leaves" + slowWords);
 	return true;
 }
 
@@ -634,7 +665,7 @@ void ShapePickerScreen_Close(bool sayNothingChosen)
 
 void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
 {
-	if (!open)
+	if (ClosedForALevelChange() || !open)
 	{
 		return;
 	}
@@ -711,7 +742,7 @@ void ShapePickerScreen_Frame(int32_t ownWidth, int32_t ownHeight)
 
 void ShapePickerScreen_Paint(int32_t, int32_t)
 {
-	if (!open)
+	if (ClosedForALevelChange() || !open)
 	{
 		return;
 	}
@@ -771,7 +802,7 @@ void ShapePickerScreen_Paint(int32_t, int32_t)
 
 bool ShapePickerScreen_Key(WPARAM key)
 {
-	if (!open)
+	if (ClosedForALevelChange() || !open)   // (closed for a level change: the key is the editor's)
 	{
 		return false;
 	}
@@ -799,7 +830,7 @@ bool ShapePickerScreen_Key(WPARAM key)
 
 void ShapePickerScreen_Click(int32_t x, int32_t y)
 {
-	if (!open)
+	if (ClosedForALevelChange() || !open)   // (closed for a level change: nothing is placed)
 	{
 		return;
 	}
@@ -844,7 +875,7 @@ void ShapePickerScreen_Click(int32_t x, int32_t y)
 
 bool ShapePickerScreen_Drag(int32_t y)
 {
-	if (!open || !dragging)
+	if (ClosedForALevelChange() || !open || !dragging)
 	{
 		return false;
 	}
@@ -865,7 +896,7 @@ bool ShapePickerScreen_Release()
 
 void ShapePickerScreen_Wheel(int delta)
 {
-	if (open && delta != 0)
+	if (!ClosedForALevelChange() && open && delta != 0)
 	{
 		view = host::ShapePicker_Scroll(view, layout, list.tiles.size(), delta > 0 ? -(delta / WHEEL_DELTA > 0 ? delta / WHEEL_DELTA : 1) : (-delta / WHEEL_DELTA > 0 ? -delta / WHEEL_DELTA : 1));
 	}
@@ -931,6 +962,13 @@ void ShapePickerScreen_StateFields()
 
 	StateLine_Add("pickerscroll", host::ShapePicker_BarWords(bar));
 	StateLine_Add("pickerdrag", dragging ? "held" : "free");
+
+	// the sitting's kept pictures: how many were decoded whole, how many given from the kept ones, what is kept against its most, and how many were let go
+	ShapePickerPictureCounts const pictures = ShapePickerPictures_Counts();
+	auto const count = [](uint64_t n) { return std::to_string((unsigned long long)n); };
+
+	StateLine_Add("pickerpictures", "decoded " + count(pictures.decoded) + " fromkept " + count(pictures.fromKept) + " kept " + count(pictures.kept) + " bytes " +
+		count(pictures.keptBytes) + " most " + count(kShapePickerMostKeptPictureBytes) + " letgo " + count(pictures.letGo));
 
 	// what the opening left out (no geometry) and folded (each copy under the tile it looks the same as, "<tile>~<copy>"), '|' between, every name made safe
 	std::string leftOut, folded;

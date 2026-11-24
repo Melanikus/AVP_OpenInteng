@@ -1,0 +1,31 @@
+# ACCEPTANCE (red first; Drake 2026-11-23, Bishop 2's order for the alpha.6 cut; the owner: "Are we clearing the previous level when loading the new one?"): THE PLOT'S
+# PREVIEW STARTS AFRESH FOR EACH LEVEL. All stock maps on derelict and then genshd1 (the shard's data copy holds only those two): while genshd1's grid is built the
+# preview shows nothing of derelict's (its state "off"), and genshd1's modules land on the main view as they are planned (landed 3 within 45 s of its first module).
+# RED on exe-cache/980697e2.exe (bishop-int): while genshd1's grid was built the preview still showed derelict's last copy ("on ... head 384 job 161"), and genshd1's
+# modules never landed ("landed 1" for its first 34 modules, measured on 8275930d; plotted alone, genshd1 had landed 14 by its 23rd module). Why: All stock maps
+# plotted the two with no frame between that the window saw as "no plot", the hand-over's copy numbers counted from 1 again, and the window went by the numbers alone
+# (autoplot_handoff.h Run). THE DATA COPY: run-shards.sh's private copy, made afresh after this file (# changes-data); verify_all_stock_maps prepare puts the campaign
+# levels back to stock and keeps only these two (acceptance-all-stock-maps-three-1's fixture tool).
+# MEASURED RED on 980697e2 (drake-previewfix-proofs/red-next-level): step 9 FAILED, the preview "on ... head 384 job 161 redraws 1 ... landed 1 maplines 100" (derelict's
+# last copy, its lines on genshd1's map). The landed check below is the green path's: on the old build it passed too, after 27.5 s, once genshd1's copy numbers
+# had passed derelict's last (a tighter limit would tell the two apart only by the machine's speed).
+# changes-data
+# timeout 2400
+#ini AutoPlot=1
+screen Waypoint
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Statue.RIF
+state
+verify C:/Users/Melanikus/source/AvP-builds-excluded/frost-allmaps-verifier/verify_all_stock_maps.exe prepare {datadir} C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs keep=derelict,genshd1
+click-bar Alien auto waypoint > All stock maps
+expect-dialog All stock maps
+click-button Ok
+expect-no-dialog
+# derelict plotted first, then genshd1's grid: nothing of derelict's in the preview
+wait-moving 600000 allstockmaps genshd1.RIF; Calculating
+state
+expect-field-has plotpreview off
+# genshd1's modules land on the main view as they are planned
+wait-moving 600000 allstockmaps genshd1.RIF; Auto-plot: module
+wait-field plotpreview landed 3 45000
+wait-status 600000 (the report is open)
+expect-status All stock maps: 2 of 22 levels changed

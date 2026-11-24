@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <stdint.h>
+
 #include <vector>
 
 #include "object_list.h"
@@ -33,6 +35,11 @@ enum class LevelOpenResult;   // how that open went (src/io/level_file.h)
 // is what's read, so a level opened in it later is the one read, and a level it has let go of is never. It has to stay alive for as long as
 // it's given here: give null before it goes. Null, as it is at the start, means no level is open.
 void LevelObjects_Use(OpenLevelFile const *open);
+
+// THE LEVEL'S GENERATION: a number that steps every time LevelObjects_Use is called (a level given, opened again, or taken away). What was built from one level
+// (the placement picker's list and its shape numbers) compares it with the number it was built under: another number, another level, even when the level was
+// opened again into the same OpenLevelFile at the same address (Vasquez, 2026-11-23, Frost's lead: the picker stayed open across a reopen)
+uint64_t LevelObjects_Generation();
 
 // Holds the level LevelView has open, as the editor does when it opens a level: opens it in *open, by the path the game loaded it from
 // (LevelView_FilePath), and hands it to the lookups (LevelObjects_Use). Gives back how the open went. Anything but Opened leaves *open
