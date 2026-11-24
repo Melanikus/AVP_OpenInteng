@@ -17,9 +17,9 @@
 //       named from its object name. Red: no such tiles before it (b4521891)
 //   (10) NO GEOMETRY, NO TILE; COPIES FOLDED (the owner 11-23): the empty file left out, copies that look the same folded under the first by name, a copy that
 //       truly looks different kept; one note line each; a tile's words name its copies, made safe. Red: on a stand-in that leaves nothing out and folds nothing
+//   (11) THE TURNING'S CLOCK: once round every 8 s from its start, in radians and in whole degrees
 // RED FIRST: on a stand-in that lists nothing and lays out nothing, (1) to (4) fail; (5) on 4f0db774 (the words as they came); (6) by mutation, the lines
 // cut every perLine letters as the paint did before: 3 of its 4 fail.
-//   (11) THE TURNING'S CLOCK: once round every 8 s from its start, in radians and in whole degrees
 #include <math.h>
 #include <stdio.h>
 
