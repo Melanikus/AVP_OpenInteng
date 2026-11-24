@@ -38,34 +38,40 @@ picture 1
 
 # ---- each tile still places its own shape: the first pickup (the level's own, by its number), the folder's pickup (its file brought in), the furniture
 click-tile Smrtam01 twice
-expect-dialog Name Object
-type sortSmart
-key Enter
 expect-no-dialog
-expect-status Object sortSmart made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach Smrtam012 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object Smrtam012 placed
 expect-status placed as ammo: smartgun (the game's Type 3, ExtraData 2)
 
 item 0x32
 expect-field-has picker open
 wait-field pickershown waiting 0 20000
 click-tile pulam twice
-expect-dialog Name Object
-type sortAmmo
-key Enter
 expect-no-dialog
-expect-status Object sortAmmo made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach pulam0 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object pulam0 placed
 expect-status placed as ammo: pulse rifle (the game's Type 3, ExtraData 0)
 
 item 0x32
 expect-field-has picker open
 wait-field pickershown waiting 0 20000
 click-tile timdesk twice
-expect-dialog Name Object
-type sortDesk
-key Enter
 expect-no-dialog
-expect-status Object sortDesk made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach timdesk0 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object timdesk0 placed
 expect-status placed as furniture (the game's Type 1, ExtraData 0; stock mass 1000, integrity 8, 2 of 2 placements)
 
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept sortSmart kept sortAmmo kept sortDesk shapefile sortSmart|Smrtam01 shapefile sortAmmo|pulam shapefile sortDesk|timdesk
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept Smrtam012 kept pulam0 kept timdesk0 shapefile Smrtam012|Smrtam01 shapefile pulam0|pulam shapefile timdesk0|timdesk

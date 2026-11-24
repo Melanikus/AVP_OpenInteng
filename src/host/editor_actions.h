@@ -205,7 +205,7 @@ int32_t const kPromptMoveRelModule = 45;   // Move relative (0x1c): the three of
 int32_t const kPromptSpecial = 42;   // Object Placement's special-object dialogs (special_mode.h): one number for all, which field is open is the mode's. Taken 2026-11-15
 int32_t const kPromptTextureMap = 43;   // Texture Map mode's typed answers (Select by Angle, the arrow step sizes, ...): which one is open is the mode's (taken on the board 2026-11-15)
 int32_t const kPromptHierarchy = 30;   // Hierarchy mode's questions (hierarchy_mode.h); one number for all, which one is open is the mode's. Taken on the board 2026-11-15
-int32_t const kPromptCreateName = 16;    // Create > With shape > Choose: the name of the new object ("Name Object"; registry number 16)
+int32_t const kPromptCreateName = 16;    // Create > With shape > Choose: the name of the new object ("Name Object"; registry number 16). Unused since 2026-11-24: the picker's object takes the automatic name and follows the mouse (construction_modes_screen.cpp); the number stays taken
 
 int32_t const kLightNone = 0;
 int32_t const kLightSelectLights = 3;    // a click picks a light

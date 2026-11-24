@@ -1121,13 +1121,6 @@ static bool OpenAsDialog(int32_t kind)
 	}
 
 	// AutoLink > Delete Links > Environment (0xa8, FUN_004c1a90 0x4c35bf): the confirm box "Delete all module linking for this level?" (FUN_00474a40, FUN_0057c800); only Yes (3) calls FUN_004c8af0(0)
-	// Create > With shape > Choose, the name (FUN_004d4c70, 0x4d9450): see NameObjectBox
-	if (kind == kPromptCreateName)
-	{
-		NameObjectBox("", CreateNamedAtTheView);
-		return true;
-	}
-
 	if (kind == kPromptDeleteAllLinks)
 	{
 		DialogConfirm("Delete all module linking for this level?", [](bool yes)

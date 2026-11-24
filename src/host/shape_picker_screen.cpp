@@ -943,7 +943,7 @@ namespace
 			ResizedWords(known, resizedOf[view.selected]) : std::string();   // how it is known, when by its size (said on the status line once made)
 
 		ShapePickerScreen_Close(false);
-		ShapeChooserCreateFromPicker(host::ShapePicker_NameBase(tile), number, known, resizedWords);   // the name is asked, then the object made (construction_modes_screen.cpp); a part's base is its object
+		ShapeChooserCreateFromPicker(host::ShapePicker_NameBase(tile), number, known, resizedWords);   // the object made, with its automatic name, and following the mouse (construction_modes_screen.cpp); a part's base is its object
 		                                                                            // name ("Game" of "Game@offbits"), so no '@' goes into an object's name
 	}
 }

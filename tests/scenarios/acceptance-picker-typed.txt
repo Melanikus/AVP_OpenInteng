@@ -57,11 +57,13 @@ picture 3
 
 # ---- THE FOLDER'S AMMO PLACED (its file brought in): made as ammo: pulse rifle
 click-tile pulam twice
-expect-dialog Name Object
-type typedAmmo
-key Enter
 expect-no-dialog
-expect-status Object typedAmmo made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach pulam0 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object pulam0 placed
 expect-status placed as ammo: pulse rifle (the game's Type 3, ExtraData 0)
 picture 4
 
@@ -70,11 +72,13 @@ item 0x32
 expect-field-has picker open
 wait-field pickershown waiting 0 20000
 click-tile Smrtam01 twice
-expect-dialog Name Object
-type typedSmart
-key Enter
 expect-no-dialog
-expect-status Object typedSmart made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach Smrtam012 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object Smrtam012 placed
 expect-status placed as ammo: smartgun (the game's Type 3, ExtraData 2)
 
 # ---- THE UNKNOWN FILE PLACED: static
@@ -82,11 +86,13 @@ item 0x32
 expect-field-has picker open
 wait-field pickershown waiting 0 20000
 click-tile pulam_var001 twice
-expect-dialog Name Object
-type plainVar
-key Enter
 expect-no-dialog
-expect-status Object plainVar made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach pulam_var0010 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object pulam_var0010 placed
 expect-status placed as static (Type 0): its shape is not one the editor knows
 
 # ---- THE LEVEL'S OWN DESK PLACED (HAND 2): made as furniture with its own stock placement
@@ -94,16 +100,18 @@ item 0x32
 expect-field-has picker open
 wait-field pickershown waiting 0 20000
 click-tile timdesk twice
-expect-dialog Name Object
-type typedDesk
-key Enter
 expect-no-dialog
-expect-status Object typedDesk made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach timdesk0 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object timdesk0 placed
 expect-status placed as furniture (the game's Type 1, ExtraData 0; stock mass 1000, integrity 8, 2 of 2 placements)
 
 # ---- THE SAVE holds them so (the game's own loader reads the copy)
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} typedAmmo size 52 Type 3 ExtraData 0 mass 50 also typedSmart also plainVar also typedDesk
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} typedSmart size 52 Type 3 ExtraData 2 mass 50 also typedAmmo also plainVar also typedDesk
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} plainVar size 52 Type 0 ExtraData 0 also typedAmmo also typedSmart also typedDesk
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} typedDesk size 52 Type 1 ExtraData 0 mass 1000 integrity 8 flags 1 also typedAmmo also typedSmart also plainVar
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} pulam0 size 52 Type 3 ExtraData 0 mass 50 also Smrtam012 also pulam_var0010 also timdesk0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} Smrtam012 size 52 Type 3 ExtraData 2 mass 50 also pulam0 also pulam_var0010 also timdesk0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} pulam_var0010 size 52 Type 0 ExtraData 0 also pulam0 also Smrtam012 also timdesk0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-typed-game/avp_rifs/Invasion.RIF {copy} timdesk0 size 52 Type 1 ExtraData 0 mass 1000 integrity 8 flags 1 also pulam0 also Smrtam012 also pulam_var0010

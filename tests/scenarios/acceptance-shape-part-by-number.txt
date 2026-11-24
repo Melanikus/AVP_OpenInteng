@@ -32,11 +32,12 @@ expect-field-has picker open
 click-tile Game@Offbits twice
 picture 2
 expect-screen Object Placement
-expect-dialog-kind form
-expect-dialog Name Object
-type chosenGame
-key Enter
 expect-no-dialog
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach Game0 following
+click-win 504 420
+expect-field pickerattach off
 
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept dupGame kept chosenGame sameshape gamebox|dupGame sameshape gamebox|chosenGame
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/verify_objects.exe {copy} kept dupGame kept Game0 sameshape gamebox|dupGame sameshape gamebox|Game0

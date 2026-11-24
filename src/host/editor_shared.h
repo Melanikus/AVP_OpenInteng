@@ -941,8 +941,9 @@ int32_t GameModuleOfNumber(int32_t number);
 extern std::vector<host::ShapeChoice> chooserList;
 extern size_t chooserAt;
 extern int32_t chooserCameraZ;
-bool ObjectNameInUse(std::string const &name);
-void CreateNamedAtTheView(std::string const &typed);
+bool PlacementAttachKeep();   // the picker's new object attached to the mouse (editor_main.cpp): the level kept before it is made,
+void PlacementAttachDrop();   // let go of when it wasn't made,
+bool PlacementAttachStart(std::string const &shownName, std::string const &placedAs);   // and the object following the pointer once it is
 extern std::unique_ptr<host::AdjacentList> adjacentList;
 extern bool adjacentShowAllPaint;
 bool LinkMakeCurrent(int32_t module);

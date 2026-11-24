@@ -51,13 +51,15 @@ click-bar Create > With shape: Choose
 expect-field-has picker open
 click-tile Smrtam01 twice
 expect-screen Object Placement
-expect-dialog Name Object
-type journeyThing
-key Enter
 expect-no-dialog
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach Smrtam012 following
+click-win 504 420
+expect-field pickerattach off
 wait 300
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-harness-out/verify_chooser/verify_chooser.exe {save1} {copy} journeyThing Smrtam01
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-harness-out/verify_chooser/verify_chooser.exe {save1} {copy} Smrtam012 Smrtam01
 
 # ---- 4. a texture on a polygon: Texture Map, the polygon in the middle of the view, Texture > Select, a picture
 click-bar Mode > Exit
@@ -97,4 +99,4 @@ wait 300
 
 # ---- 6. saved: the map has its start, its object, its texture and its light
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_journey.exe {save1} {copy} -7764|2852|10527 journeyThing -7764|2852|12000 2 "Envrnmts/Invasion/07 128.RIM"
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_journey.exe {save1} {copy} -7764|2852|10527 Smrtam012 -7764|2852|12000 2 "Envrnmts/Invasion/07 128.RIM"

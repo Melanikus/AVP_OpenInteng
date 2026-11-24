@@ -63,11 +63,13 @@ expect-field-has pickerhover medbox01_var001~medbox01_var001: placed as static (
 
 # ---- INVASION'S OWN MEDPACK PLACED (by its number): made as health, the status line saying it is a resized copy
 click-tile medbox01 twice
-expect-dialog Name Object
-type resizedMed
-key Enter
 expect-no-dialog
-expect-status Object resizedMed made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach medbox019 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object medbox019 placed
 expect-status a resized copy of medbox01.rif (scale
 expect-status placed as health (the game's Type 4, ExtraData 0)
 picture 3
@@ -77,11 +79,13 @@ item 0x32
 expect-field-has picker open
 wait-field pickershown waiting 0 20000
 click-tile medbox01_var001 twice
-expect-dialog Name Object
-type editedMed
-key Enter
 expect-no-dialog
-expect-status Object editedMed made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach medbox01_var0010 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object medbox01_var0010 placed
 expect-status placed as static (Type 0): its shape is not one the editor knows
 
 # ---- THE PACK'S FILES (Bishop's (a)): Rebellion's own Pboost.RIF and SADAR.rif are Steam's pboost.rif and sadar.rif point for point (measured: 0.000 mm at
@@ -101,17 +105,20 @@ expect-field-has pickerresized Pboost~pboost.rif~1.000~0.00
 move-in pickerboxes Pboost
 expect-field-has pickerhover Pboost~Pboost: green border: the same shape as pboost.rif (another file of it), placed as field charge
 picture 4
-click-tile Pboost twice
-expect-dialog Name Object
-type packBoost
-key Enter
+# (Pboost is the selected tile already, by the click above: one more click takes it; a second would land in the view and put it down)
+click-tile Pboost
 expect-no-dialog
-expect-status Object packBoost made at the view
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach Pboost0 following
+click-win 504 420
+expect-field pickerattach off
+expect-status Object Pboost0 placed
 expect-status the same shape as pboost.rif (another file of it)
 expect-status placed as field charge (the game's Type 15, ExtraData 0)
 
 # ---- THE SAVE holds them so (the game's own loader reads the copy)
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-resized-game/avp_rifs/Invasion.RIF {copy} resizedMed size 52 Type 4 ExtraData 0 mass 50 also editedMed also packBoost
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-resized-game/avp_rifs/Invasion.RIF {copy} editedMed size 52 Type 0 ExtraData 0 also resizedMed also packBoost
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-resized-game/avp_rifs/Invasion.RIF {copy} packBoost size 52 Type 15 ExtraData 0 mass 50 also resizedMed also editedMed
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-resized-game/avp_rifs/Invasion.RIF {copy} medbox019 size 52 Type 4 ExtraData 0 mass 50 also medbox01_var0010 also Pboost0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-resized-game/avp_rifs/Invasion.RIF {copy} medbox01_var0010 size 52 Type 0 ExtraData 0 also medbox019 also Pboost0
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {datadir}-resized-game/avp_rifs/Invasion.RIF {copy} Pboost0 size 52 Type 15 ExtraData 0 mass 50 also medbox019 also medbox01_var0010

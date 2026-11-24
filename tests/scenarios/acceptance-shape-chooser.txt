@@ -38,13 +38,13 @@ expect-prompt 0
 item 0x32
 expect-field-has picker open
 click-tile Smrtam01 twice
-# the name box is inteng's form (FUN_004d4c70): "Name Object", the words, an edit and Cancel; Return answers with the edit
-expect-dialog-kind form
-expect-dialog Name Object
-type chosentest
-key Enter
 expect-no-dialog
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach Smrtam012 following
+click-win 504 420
+expect-field pickerattach off
 # OP-26c: the chosen shape's new object is in the game's view at once (red before: "no")
 expect-field inplay yes
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-harness-out/verify_chooser/verify_chooser.exe {orig} {copy} chosentest Smrtam01
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-harness-out/verify_chooser/verify_chooser.exe {orig} {copy} Smrtam012 Smrtam01

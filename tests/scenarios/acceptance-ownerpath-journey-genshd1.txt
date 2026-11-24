@@ -50,13 +50,15 @@ click-bar Create > With shape: Choose
 expect-field-has picker open
 click-tile Medbox01 twice
 expect-screen Object Placement
-expect-dialog Name Object
-type journeyThing
-key Enter
 expect-no-dialog
+# no name box (the owner: "Never ask, auto-name"): the object takes the automatic name and follows the pointer; a left click
+# in the view puts it down (Drake's attach to the mouse)
+expect-field-has pickerattach Medbox018 following
+click-win 504 420
+expect-field pickerattach off
 wait 300
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-harness-out/verify_chooser/verify_chooser.exe {save1} {copy} journeyThing Medbox01
+verify C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-harness-out/verify_chooser/verify_chooser.exe {save1} {copy} Medbox018 Medbox01
 
 # ---- 4. a texture on a polygon: Texture Map, the polygon in the middle of the view, Select Texture (its key C), a picture
 click-bar Mode > Exit
@@ -95,4 +97,4 @@ wait 300
 
 # ---- 6. saved: the map has its start, its object, its texture and its light
 save-copy
-verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_journey.exe {save1} {copy} -120361|17351|5888 journeyThing -120361|17351|7361 2 "Envrnmts/GenShd1/Lock01.RIM"
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_journey.exe {save1} {copy} -120361|17351|5888 Medbox018 -120361|17351|7361 2 "Envrnmts/GenShd1/Lock01.RIM"

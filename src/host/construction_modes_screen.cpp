@@ -472,19 +472,21 @@ static void ShapeChooserLeave(bool withShape, size_t *screen)
 	statusWords = chooserWords.c_str();
 }
 
-// THE PLACEMENT PICKER'S SHAPE (shape_picker_screen.cpp), as inteng's chooser's Create once handed its shape over: then the NAME is asked ("Name Object", FUN_004d9af0
-// 0x4d9450-0x4d97be) and CreateNamedAtTheView makes the object. number: the level's own shape of that file, by its number; -1: the level holds none, so the file
-// is brought in from the folder the lookup order finds it in, judged again then, as Quick-create's Yes does. known: the identity table's row of that very shape (null:
-// unknown), so the object is made as the game object its kind says (typed placement, editor_shared.h). resizedWords: how it was known, when by its size
+static void CreateThePickersObject();
+
+// THE PLACEMENT PICKER'S SHAPE (shape_picker_screen.cpp): the object is made at once, with the editor's automatic name, and follows the mouse until a left click puts it
+// down or a right click (or Esc) gives it up (CreateThePickersObject, below; the owner, 2026-11-24: "When I click the shape I want it gets "attached" to my mouse in
+// placement "slide" mode ... until I either click it (place it somewhere) or right click it (cancel)", and "Never ask, auto-name"). INTENG DIFFERENCE, NAMED: inteng's
+// chooser asked the name ("Name Object", FUN_004d9af0 0x4d9450-0x4d97be) and made the object at the view. number: the level's own shape of that file, by its number; -1:
+// the level holds none, so the file is brought in from the folder the lookup order finds it in, judged again then, as Quick-create's Yes does. known: the identity
+// table's row of that very shape (null: unknown), so the object is made as the game object its kind says (typed placement, editor_shared.h). resizedWords: how it was known, when by its size (Vasquez)
 void ShapeChooserCreateFromPicker(std::string const &name, int32_t number, host::ShapeIdentityRow const *known, std::string const &resizedWords)
 {
 	createShapeName = name;
 	createShapeNumber = number;
 	createShapeKnown = known;
 	createShapeResized = known ? resizedWords : std::string();
-	chooserWords = "Create: type a name for the new '" + host::ShapePicker_SafeName(name) + "'";   // shown and on the state line: made safe (Drake's nit on df479439)
-	statusWords = chooserWords.c_str();
-	OpenAPrompt(kPromptCreateName);
+	CreateThePickersObject();
 }
 
 // what: kChooserStart, kChooserStartCreate, kChooserWith or kChooserWithout. screen: the frame's screen number, changed here when the screen changes.
@@ -609,39 +611,19 @@ bool ShapeChooserKey(WPARAM key)
 	return true;   // every key belongs to the chooser while it is open
 }
 
-// Create > With shape > Choose, after the shape: the typed name is asked for ("Name Object"), a name already used by any object is refused with "The name of the object has already been
-// used." and asked again (FUN_004d9af0 0x4d9450-0x4d97be, p11-shape-handlers.md section 25); a new placed object of that shape is then made at the VIEW's place with the view's turn
-// (host::CreateObjectFromShape, Frost's maker, the one Quick-create uses) and the selection is let go of. NAMED: the maker names the object itself and it is then renamed to the typed name
-// (ObjectEdit_Rename, whose rules are 1 to 63 plain letters). The object number is inteng's (V-27): the lowest number no object has (FUN_004bebc0's first empty slot, given at the save);
-// DAT_00636f4c is the next SHAPE slot, not an object counter.
-bool ObjectNameInUse(std::string const &name)
-{
-	return host::ObjectNameInUse(LevelObjects_Level(), name.c_str());
-}
-
-void NameInUseBox(std::string const &typed, std::function<void(std::string const &)> const &named);
-void NameObjectBox(std::string const &start, std::function<void(std::string const &)> const &named);
-
-void CreateNamedAtTheView(std::string const &typed)
+// Create > With shape > Choose, after the shape: a new placed object of that shape is made at the VIEW's place with the view's turn (host::CreateObjectFromShape, Frost's maker,
+// the one Quick-create uses), named as Quick-create names one: the first free "<shape><n>" (FUN_004d5620, "%s%d" with a counter from 0; a part's base is its object's name,
+// ShapePicker_NameBase). It is made the current object and then follows the surface under the pointer (editor_main.cpp PlacementAttachStart): a left click puts it down there,
+// a right click or Esc gives it up, the level put back as it was before it was made (PlacementAttachKeep took it). The object number is inteng's (V-27): the lowest number
+// no object has (FUN_004bebc0's first empty slot, given at the save); DAT_00636f4c is the next SHAPE slot, not an object counter.
+static void CreateThePickersObject()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	int32_t matrix[9];
 
-	if (typed.empty())
-	{
-		Answer("Create: no object was made (no name typed)");
-		return;
-	}
-
 	if (!open || !theCamera || !LevelView_CameraMatrix(matrix))
 	{
 		Answer("Create: no level is open, or no frame has been drawn yet");
-		return;
-	}
-
-	if (ObjectNameInUse(typed))
-	{
-		NameInUseBox(typed, CreateNamedAtTheView);   // FUN_004d4e00: the box "The name of the object has already been used." with Re-enter and Cancel
 		return;
 	}
 
@@ -685,6 +667,13 @@ void CreateNamedAtTheView(std::string const &typed)
 	makeAs.integrity = placedWith.integrity;
 	makeAs.flags = placedWith.flags;
 
+	// the way back for a give-up: the level as it is now, before the object is made (editor_main.cpp PlacementAttachKeep)
+	if (!PlacementAttachKeep())
+	{
+		Answer("Create: no object was made: the level as it is couldn't be kept to put back if the placement is given up");
+		return;
+	}
+
 	std::string importWhy;
 	host::ObjectMakeResult const result = bringIn ?
 		host::CreateObjectFromShape(open, createShapeName.c_str(), place, matrix, newId, &autoName, found.path.c_str(), &importWhy, typedOne ? &makeAs : nullptr) :
@@ -692,6 +681,7 @@ void CreateNamedAtTheView(std::string const &typed)
 
 	if (result != host::ObjectMakeResult::Done)
 	{
+		PlacementAttachDrop();
 		quickCreateWords = createShapeName + ": " + host::ObjectMakeWords(result) + (importWhy.empty() ? "" : " (" + importWhy + ")") +
 			(bringIn ? " (its file was in " + found.label + ")" : "");
 		statusWords = quickCreateWords.c_str();
@@ -699,28 +689,20 @@ void CreateNamedAtTheView(std::string const &typed)
 	}
 
 	LoadTheObjectListAgain();
-
-	std::string why;
-	uint8_t renamedId[host::kSelectionIdBytes] = {};
-	host::ObjectEditAnswer const renamed = host::ObjectEdit_Rename(open, LevelObjects_Level(), newId, typed.c_str(), renamedId, &why);
-
-	LoadTheObjectListAgain();
 	PutTheNewObjectInPlay();   // OP-26c: in the game's view at once (FUN_004e0ed0 makes it in inteng's scene)
-	MakePlacedObjectCurrent(renamed == host::ObjectEditAnswer::Done ? renamedId : newId);   // FUN_004d64a0 (0x4d97aa): the new object is THE current one (OP-5)
+	MakePlacedObjectCurrent(newId);   // FUN_004d64a0 (0x4d97aa): the new object is THE current one (OP-5)
 
-	if (renamed == host::ObjectEditAnswer::Done)
-	{
-		quickCreateWords = "Object " + typed + " made at the view";
-	}
-	else
-	{
-		quickCreateWords = "Object " + autoName + " made at the view; the name \"" + typed + "\" was refused: " + why;
-	}
+	// which game object it was made as, and why ("placed as health (the game's Type 4 ..."), and where a shape brought in came from, as Quick-create says it
+	std::string const shownName = host::ShapePicker_SafeName(autoName);
+	std::string const placedAs = host::ShapeIdentity_PlacedAsWords(createShapeKnown) + (createShapeResized.empty() ? "" : "; " + createShapeResized) +   // a resized copy: Vasquez's words
+		(bringIn ? "; its shape " + host::ShapePicker_SafeName(createShapeName) + ".rif came from " + found.label : "");
 
-	quickCreateWords += bringIn ? "; its shape " + createShapeName + ".rif came from " + found.label : "";   // as Quick-create says it
-	quickCreateWords += createShapeResized.empty() ? "" : "; " + createShapeResized;   // a resized copy: "a resized copy of medbox01.rif (scale 0.800, ...)"
-	quickCreateWords += "; " + host::ShapeIdentity_PlacedAsWords(createShapeKnown);   // which game object it was made as, and why ("placed as health (the game's Type 4 ...")
-	statusWords = quickCreateWords.c_str();
+	if (!PlacementAttachStart(shownName, placedAs))
+	{
+		// it can't follow the pointer (its box couldn't be read, or the view has no frame of it yet): it stays where it was made, as before the attach
+		quickCreateWords = "Object " + shownName + " made at the view (it couldn't follow the pointer); " + placedAs;
+		statusWords = quickCreateWords.c_str();
+	}
 }
 
 // "Select shape from list" (FUN_004d49e0): by position (1 to the count) or by part of a name
