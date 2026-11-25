@@ -23,32 +23,11 @@ namespace host
 	{
 		using namespace image;
 
-		// Where the object's strategy chunk is in the image: its RBOBJECT, its first OBJPRJDT, the first AVPSTRAT in that. Answers: Done (found, *objectAt
-		// is the index among the top chunks), NoStrategy, NoObject, or CantBuild when the bytes can't be walked.
-		StrategyModeResult Find(OpenLevelFile *file, uint8_t const *id, Bytes *image, std::vector<Span> *top, size_t *objectAt, size_t *projectAt,
-		                        std::vector<Span> *inside, size_t *strategyAt, std::vector<Span> *project)
+		// The object of that name in an image already walked (its top chunks, and the RBOBJECTs by name): its RBOBJECT, its first OBJPRJDT, the first AVPSTRAT in that.
+		// Find's answers past the walk: Done (found, *objectAt is the index among the top chunks), NoStrategy, NoObject, or CantBuild when the bytes can't be walked.
+		StrategyModeResult FindWalked(std::string const &name, Bytes const *image, std::vector<Span> const *top, std::map<std::string, size_t> const &byName, size_t *objectAt,
+		                              size_t *projectAt, std::vector<Span> *inside, size_t *strategyAt, std::vector<Span> *project)
 		{
-			if (!file || !id || !file->Level())
-			{
-				return StrategyModeResult::BadCall;
-			}
-
-			std::string name;
-
-			if (!NameOfObject(file->Level(), id, &name))
-			{
-				return StrategyModeResult::NoObject;
-			}
-
-			if (!Walk(file, image, top))
-			{
-				return StrategyModeResult::CantBuild;
-			}
-
-			std::map<std::string, size_t> byName;
-
-			ObjectsByName(*image, *top, &byName);
-
 			std::map<std::string, size_t>::const_iterator found = byName.find(name);
 
 			if (found == byName.end())
@@ -81,6 +60,34 @@ namespace host
 
 			*strategyAt = FirstNamed(*image, *project, "AVPSTRAT");
 			return *strategyAt == project->size() ? StrategyModeResult::NoStrategy : StrategyModeResult::Done;
+		}
+
+		// Where the object's strategy chunk is in the image: the object's name (NoObject: the level has no object of that ID), the level built and walked (CantBuild), then
+		// FindWalked. BadCall without a level or an ID.
+		StrategyModeResult Find(OpenLevelFile *file, uint8_t const *id, Bytes *image, std::vector<Span> *top, size_t *objectAt, size_t *projectAt,
+		                        std::vector<Span> *inside, size_t *strategyAt, std::vector<Span> *project)
+		{
+			if (!file || !id || !file->Level())
+			{
+				return StrategyModeResult::BadCall;
+			}
+
+			std::string name;
+
+			if (!NameOfObject(file->Level(), id, &name))
+			{
+				return StrategyModeResult::NoObject;
+			}
+
+			if (!Walk(file, image, top))
+			{
+				return StrategyModeResult::CantBuild;
+			}
+
+			std::map<std::string, size_t> byName;
+
+			ObjectsByName(*image, *top, &byName);
+			return FindWalked(name, image, top, byName, objectAt, projectAt, inside, strategyAt, project);
 		}
 	}
 
@@ -116,6 +123,54 @@ namespace host
 		size_t objectAt = 0, projectAt = 0, strategyAt = 0;
 
 		return Find(file, id, &image, &top, &objectAt, &projectAt, &inside, &strategyAt, &project);
+	}
+
+	// Find's steps, in its order, for each ID; the level built and walked once, the first time an ID with a name needs it
+	void StrategyMode_HasEach(OpenLevelFile *file, uint8_t const *ids, size_t count, std::vector<StrategyModeResult> *answers)
+	{
+		answers->assign(count, StrategyModeResult::BadCall);
+
+		if (!file || !ids || !file->Level())
+		{
+			return;
+		}
+
+		Bytes image;
+		std::vector<Span> top;
+		std::map<std::string, size_t> byName;
+		int walked = 0;   // 0 not yet, 1 walked, -1 the bytes couldn't be walked
+
+		for (size_t i = 0; i < count; i++)
+		{
+			std::string name;
+
+			if (!NameOfObject(file->Level(), ids + i * 8, &name))
+			{
+				(*answers)[i] = StrategyModeResult::NoObject;
+				continue;
+			}
+
+			if (walked == 0)
+			{
+				walked = Walk(file, &image, &top) ? 1 : -1;
+
+				if (walked == 1)
+				{
+					ObjectsByName(image, top, &byName);
+				}
+			}
+
+			if (walked < 0)
+			{
+				(*answers)[i] = StrategyModeResult::CantBuild;
+				continue;
+			}
+
+			std::vector<Span> inside, project;
+			size_t objectAt = 0, projectAt = 0, strategyAt = 0;
+
+			(*answers)[i] = FindWalked(name, &image, &top, byName, &objectAt, &projectAt, &inside, &strategyAt, &project);
+		}
 	}
 
 	StrategyModeResult StrategyMode_Delete(OpenLevelFile *file, uint8_t const *id)

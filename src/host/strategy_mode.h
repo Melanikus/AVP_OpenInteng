@@ -37,6 +37,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <vector>
+
 class OpenLevelFile;   // the editor's own open of a level (src/io/level_file.h)
 
 namespace host
@@ -59,6 +61,11 @@ namespace host
 
 	// Whether the object has a strategy chunk (the first AVPSTRAT of its first OBJPRJDT): Delete Strategy does nothing without one, and asks nothing.
 	StrategyModeResult StrategyMode_Has(OpenLevelFile *file, uint8_t const *id);   // Done = it has one; NoStrategy = it has none
+
+	// StrategyMode_Has's answer for EACH of the ids (8 bytes each, count of them), in their order, into answers. The same answers, but the level's image is built and walked
+	// ONCE for all of them, where StrategyMode_Has builds the whole level again for each (Vasquez 2026-11-24: Strategy Data's green marks asked it for every object of the level
+	// each time the level changed, about 6 ms an object: 3 s and more on Derelict after every Create Virtual Object, the owner's "3 second lock")
+	void StrategyMode_HasEach(OpenLevelFile *file, uint8_t const *ids, size_t count, std::vector<StrategyModeResult> *answers);
 
 	// inteng's question for Reset fan wind speed (the string at 0x5efd24)
 	char const *StrategyMode_ResetFansQuestion();

@@ -1,0 +1,41 @@
+# ACCEPTANCE (red first): NO LOCK AFTER A CREATE VIRTUAL OBJECT, HIS PATH (Vasquez 2026-11-24; the owner: the editor locks for about 3 seconds after he makes a virtual object).
+# Measured (Vasquez's frame probe, 7 creates on Derelict): the frame after each create took 2.8 to 6.4 s, all of it in Strategy Data's green marks (FlagViewTints), remade each time
+# the level changes: it asked StrategyMode_Has for each of the level's ~495 objects, and each answer built and walked the whole level again (about 6 ms each). The state line's
+# flagtints field gives the last remake's rows and milliseconds. The fix walks the level once for all of them (StrategyMode_HasEach): tens of milliseconds.
+# RED on the editor before the fix: the remake on entering Strategy Data and the one after the create each take thousands of ms. 500 ms leaves room for a busy machine.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 600
+# entering the screen: the marks are made for the level's rows (its objects and virtual objects)
+expect-field-has flagtints rows,
+expect-number flagtints rows,_ 0 500
+remember-field flagtints
+
+# Create Virtual Object > Here, a name, Enter (FUN_005396d0): the level changes, and the marks are made again, one row more
+click-win 500 300 right
+click-popup 6
+click-popup 1
+expect-dialog Type name for new virtual object
+type TimedVO
+key Enter
+expect-no-dialog
+expect-status Virtual object TimedVO is in the level
+wait 600
+picture 1
+expect-field-changed flagtints
+expect-number flagtints rows,_ 0 500
+
+# and again: each create is as quick
+click-win 500 300 right
+click-popup 6
+click-popup 1
+expect-dialog Type name for new virtual object
+type TimedVO2
+key Enter
+expect-no-dialog
+expect-status Virtual object TimedVO2 is in the level
+wait 600
+expect-number flagtints rows,_ 0 500
