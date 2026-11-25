@@ -37,10 +37,9 @@ expect-no-dialog
 key E
 wait 400
 picture 3
-expect-field-has strategyview 200@0:linktoeverything : Linked Switch
-expect-field-has strategyview 16@120:Links:
-# the three left, in the records' order, each a 66 ("ls" at 0x14, the name at the tab, 64)
-expect-field-has strategyview 20@136:ls|64@136:genlev01|20@152:ls|64@152:genlev03|20@168:ls|64@168:genlev04
+# (a Linked Switch edits in a form since 11-24, strategy_forms.h): the three left, in the records' order, each a 66
+expect-dialog linktoeverything : Linked Switch
+expect-field-has strategyform Links|genlev01 : Multiple Target Switch|genlev03 : Multiple Target Switch|genlev04 : Multiple Target Switch
 key Esc
 wait 300
 expect-screen Strategy Data

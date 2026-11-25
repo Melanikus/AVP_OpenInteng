@@ -331,8 +331,8 @@ expect-dialog-kind confirm
 click-button Yes
 expect-dialog Select Strategy
 click-button Linked_Switch
-expect-no-dialog
-# the Linked Switch's view (52) opens at once the same way: Escape ends it
+# the Linked Switch's view opens at once the same way, as its form since 11-24 (strategy_forms.h): Escape ends it
+expect-dialog ClashVO : Linked Switch
 expect-status The object has a new strategy: its Edit view
 key Esc
 wait 300

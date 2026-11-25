@@ -1037,7 +1037,10 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	strategyViewBox[0] = strategyViewBox[1] = strategyViewBox[2] = strategyViewBox[3] = 0;
 	strategyViewWord.clear();   // this frame's view lines only: no view drawn (the volume editor, a collector, the page), no lines on the state line (Bishop 11-18: it kept the last view's)
 
-	if (strategyEditFan && OnStrategyScreen() && !volume.on && !copyCollecting)
+	// a kind's FORM (strategy_forms.h) opened again once what its button opened has ended; while the form is the view, no page is drawn under it (its pick and E's page are drawn as before)
+	StrategyFormFrame();
+
+	if (strategyEditFan && OnStrategyScreen() && !volume.on && !copyCollecting && !(strategyFormOn && strategyPickField.empty() && !requestPageOn))
 	{
 		std::vector<uint8_t> payload;
 		std::string name;
