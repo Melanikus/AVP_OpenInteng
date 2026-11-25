@@ -1,0 +1,35 @@
+# ACCEPTANCE (red first; Drake 2026-11-25, the owner: "when camera moves the gizmo flickers alot/doesn't follow rest of map/non flickering object that is selected"): WHILE THE
+# CAMERA MOVES UNDER A STILL POINTER, NO HANDLE LIGHTS UP. The handle under the pointer is drawn in the hot colour (gizmo.h kGizmoColourHot); it was found again EVERY FRAME from
+# the pointer's last place, so while the camera moved (keys held, the mouse resting on the view where it had just clicked the object) the handles sliding under the still pointer
+# lit up and went out one after another: the flicker. Measured (Drake's probe 2026-11-25, Invasion, dropship ken selected at 504 322, the camera turned 8 units a step): the
+# ring lit at turns 64 to 80, its blue share in the pictures 0.0040, 0.0000 (lit), 0.0039. Now a handle lights up from the POINTER's move only; the camera moved under a still
+# pointer: none until the pointer moves (NAMED: a press still finds its handle where it is pressed, GizmoScreen_Press).
+# RED before: at turn 64 the ring under the still pointer is lit.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera 72906 -27615 43501 0 0
+wait 400
+click-win 504 322
+wait 400
+expect-status Selected: dropship ken
+state
+picture 1
+# the camera turns under the still pointer: the ring comes under it, and nothing lights up
+camera 72906 -27615 43501 64 0
+wait 400
+state
+expect-field gizmo none
+picture 2
+camera 72906 -27615 43501 72 0
+wait 400
+state
+expect-field gizmo none
+# the pointer moves: the handle under it now lights up
+move-win 505 322
+wait 300
+state
+expect-field-has gizmo turn
+picture 3
