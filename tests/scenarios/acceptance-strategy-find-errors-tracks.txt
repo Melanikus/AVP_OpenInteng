@@ -7,6 +7,8 @@
 # then "No Errors Found", 0x5f04a0), the views again, File > Save a copy. The repairs: crane's dead target goes (one left: 60 bytes, falswire01 kept); vid10's dead target goes, its effect,
 # left with none, goes too (48 bytes), and its destruct target becomes the null ID (its request word stays 1). RED without the repairs: both strategies keep their 76 bytes and vid10 its target.
 make-level C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/make_strategy_level.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF {exedir}Stat101-tracks.made.rif crane insert 24 44 word 20 1 word 24 3 word 32 2 idat 36 falswire01 word 44 1 word 48 3 noidat 52 0x13572468 0x2468ace0 word 60 1 word 64 3 then vid10 insert 24 28 word 20 1 word 24 5 word 32 1 noidat 36 0x13572468 0x2468ace1 word 44 1 word 48 3 targetID noid 0x13572468 0x2468ace2 target_request 1
+# THE FORMS (Frost 2026-11-24, the owner's forms for alpha.7): Edit Strategy opens the Track / Hierarchy form now (strategy_forms_paths.cpp EffectsRow): the page's
+# "Point 3 : 2 targets" is the form's "Point 3" line and a target line under it per target (each with its "On" box), then that point's "add a target"
 start-args {exedir}Stat101-tracks.made.rif
 pictures on
 state
@@ -24,8 +26,8 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 200@0:crane : Track
-expect-field-has strategyview 16@32:Point Effects :|32@48:Point 3 : 2 targets
+expect-dialog crane : Track
+expect-field-has strategyform Point Effects|Point 3|On|On|add a target|add one
 picture 1
 key Esc
 wait 300
@@ -38,8 +40,8 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 200@0:vid10 : Track (Destructable)
-expect-field-has strategyview 16@32:Point Effects :|32@48:Point 5 : 1 targets
+expect-dialog vid10 : Track (Destructable)
+expect-field-has strategyform Point Effects|Point 5|On|add a target|add one
 picture 2
 key Esc
 wait 300
@@ -62,7 +64,7 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 16@32:Point Effects :|32@48:Point 3 : 1 targets
+expect-field-has strategyform Point Effects|Point 3|On|add a target|add one
 picture 4
 key Esc
 wait 300
@@ -74,7 +76,7 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 16@32:Point Effects :|32@48:None
+expect-field-has strategyform Point Effects|add one|Integrity
 picture 5
 key Esc
 wait 300

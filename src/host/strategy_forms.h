@@ -17,6 +17,9 @@
 //     entry (its drop-down and Pick, a check box for each of entryChecks' bits of its word, Extra data... and Duplicate where the kind has them, Remove) and a "+" line under
 //     the last whose drop-down or Pick APPENDS one entry with newWord (the owner: "the append behavior, not every time it resets the list"). Nothing on the other lines changes.
 //     The group reads and writes the entries (readList / writeList: its own byte layout); ten lines a page, with < and > for the others.
+//     A LIST OF LISTS (Frost 11-24, a track's points and their targets): each entry's line is followed by the lines of its sub-list (subRow says what they hold) and
+//     that sub-list's own "+" line, indented; three entries a page. An entry can be named by a number (entryWords: "Point 3"; its "+" asks for the number), and a line
+//     can have a drop-down for its entry's choice (entryChoices: a target's direction).
 // A button press closes the form, does its work and opens the form again at once with the record as it is now (DEBT: our dialogs have no in-place button; the form flickers once).
 //
 // WHERE EACH KIND'S ROWS ARE (so the four of us never edit the same lines): each group of kinds has its own file and its own function below. A group's function answers for the kinds
@@ -27,6 +30,7 @@
 
 #include <array>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -58,7 +62,14 @@ namespace host
 	{
 		std::array<uint8_t, 8> id = {};
 		uint32_t word = 0;
+		int32_t choice = 0;                    // the line's drop-down of entryChoices (a track target's direction: 1, 2, 7, 3)
+		std::vector<StrategyFormEntry> sub;    // the entries under it, a list of subRow's kind (a track point's or a hierarchy flag's targets)
 	};
+
+	// The words a List row's callbacks give (a line's "Point 3", why a number is refused): std::string by another name, AND WHY (Frost 2026-11-24): Snyk Code could not
+	// parse this header while those members were written std::function<std::string(...)> (the gate's "1 not analysed", which fails it, as any file it cannot read); written
+	// std::function<StrategyFormWords(...)> it reads and analyses the whole file. Nothing else changes: it is the same type
+	typedef std::string StrategyFormWords;
 
 	// A List line's check box: one bit of the entry's word (a switch target's "On" 1; an alteration's "Visible" 1, "Possible" 2)
 	struct StrategyFormEntryCheck
@@ -104,6 +115,16 @@ namespace host
 		bool entryExtra = false;                           // List: Extra data... on each line (the page's E on that line)
 		bool entryDuplicate = false;                       // List: Duplicate on each line (the page's D: a copy just after it)
 		std::vector<int32_t> targetKinds;                  // Target, List: only objects holding one of these strategies (a Mission Objective's 70, 71); empty: any object
+		std::vector<StrategyFormChoice> entryChoices;      // List: a drop-down on each line for its entry's choice (Frost 11-24: a track target's direction)
+		int32_t newChoice = 0;                             // List: the choice of an entry the "+" line appends
+		// List: when set, each line shows these words in place of an object's drop-down and Pick ("Point 3", "Flag 3"), and the "+" line asks for a number (newAsk) that
+		// becomes the new entry's word; newNumberRefused gives "" for a number the record takes, else the words why not (then nothing is appended)
+		std::function<StrategyFormWords(StrategyFormEntry const &entry)> entryWords;
+		std::string newAsk;
+		std::function<StrategyFormWords(std::vector<uint8_t> const &payload, int32_t number)> newNumberRefused;
+		// List: the list under each entry (its entryChecks, entryChoices, newWord / newChoice, entryExtra ...; its own readList / writeList are not used: this row's read
+		// and write the whole tree, the lists under the entries in each entry's sub). Null: none
+		std::shared_ptr<StrategyFormRow> subRow;
 		// shown only when this answers true for the record as it is (the switch-off message only for the modes 0, 1 and 2); null: always shown
 		std::function<bool(int32_t kind, std::vector<uint8_t> const &payload)> shown;
 	};

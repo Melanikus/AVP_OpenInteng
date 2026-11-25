@@ -4,7 +4,7 @@
 
 #include "strategy_forms_paths.h"
 
-#include "editor_shared.h"    // SelectedObjectId, EnemySpeciesOf
+#include "editor_shared.h"    // SelectedObjectId, EnemySpeciesOf, TrackSectionsOf
 #include "level_objects.h"    // LevelObjects_OpenForEdit
 #include "list_order.h"       // ListOrder: a list window's order
 #include "path_mode.h"        // PathMode_ReadPaths
@@ -16,6 +16,13 @@ namespace host
 		uint8_t id[8];
 
 		return SelectedObjectId(id) ? EnemySpeciesOf(id) : -1;
+	}
+
+	int32_t StrategyFormsPaths_SelectedTrackSections()
+	{
+		uint8_t id[8];
+
+		return SelectedObjectId(id) ? TrackSectionsOf(id) : 0;
 	}
 
 	// In Select Path's order: inteng's list window sorts its rows, "<number>  <name>", byte by byte (FUN_00475bf0; dialogs.cpp Dialogs_List and list_order.h), so "0  smart01"

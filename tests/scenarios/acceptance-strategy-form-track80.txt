@@ -1,0 +1,44 @@
+# ACCEPTANCE (red first; Frost 2026-11-24, the owner's forms for alpha.7: "no more text that can be clicked, our pretty drop downs like we have across the rest of inteng"): a
+# TRACK OBJECT (DESTRUCTABLE) (80) edits in a FORM (strategy_forms_paths.cpp EffectsRow + DestructRows; strategy_views.cpp TrackLines, FUN_005345d0): "Point Effects", a line per
+# point with its targets under it and the "+" that asks "Which track point?" (0 to the track's sections, as P), then Integrity (a number box, 0 or more), the destruct target's
+# on / off (target_request bit 0) and the Destruct Target (drop-down, Pick, Extra data). Stat101's vid10 is one, with no point effects, Integrity 1, no destruct target, off.
+# A point 0 added, the destruct target on, Integrity 250; Ok writes the number and ends the form as the page's own end; the saved copy is read back through the game's loader.
+# RED before the form: Edit Strategy opened the page, no dialog.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is vid10
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog vid10 : Track (Destructable)
+expect-field-has strategyform Point Effects|add one|Integrity|(0 or more)|Destruct Target on|Destruct Target
+expect-dialog-checks off
+picture 1
+# "+": "Which track point?", 0: point 0, with no targets yet
+click-button +
+wait 300
+expect-dialog Which track point?
+type 0
+key Enter
+wait 300
+expect-dialog vid10 : Track (Destructable)
+expect-field-has strategyform Point Effects|Point 0|add a target|add one
+# the destruct target on (its request's bit 0), then Integrity 250 (a number box: written on Ok)
+click-check 1
+wait 300
+expect-dialog-checks on
+form-field 1 250
+picture 2
+click-button Ok
+expect-no-dialog
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF {copy} vid10 integrity 250 target_request 1 num_point_effects 1 effect.0.point 0 effect.0.targets 0

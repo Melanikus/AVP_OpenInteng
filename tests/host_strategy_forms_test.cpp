@@ -58,10 +58,15 @@ static bool ShownAt(host::StrategyFormRow const &row, int32_t kind, std::vector<
 	return !row.shown || row.shown(kind, payload);
 }
 
-// paths (Frost): the editor's two answers (strategy_forms_paths.h), stood in: no species and no paths, as with nothing selected and no level open
+// paths (Frost): the editor's answers (strategy_forms_paths.h), stood in: no species, no track sections and no paths, as with nothing selected and no level open
 int32_t host::StrategyFormsPaths_SelectedSpecies()
 {
 	return -1;
+}
+
+int32_t host::StrategyFormsPaths_SelectedTrackSections()
+{
+	return 0;
 }
 
 std::vector<std::pair<int32_t, std::string>> host::StrategyFormsPaths_LevelPaths()
@@ -88,6 +93,9 @@ int main()
 	// paths (Frost): 72, 80, 76, 69, 79
 	hasForm[69] = true;
 	hasForm[79] = true;
+	hasForm[72] = true;
+	hasForm[80] = true;
+	hasForm[76] = true;
 
 	for (int32_t kind = -1; kind < 128; kind++)
 	{
@@ -191,6 +199,53 @@ int main()
 
 	Check(host::StrategyForm_KindWords(61) == " : Linked Switch" && host::StrategyForm_KindWords(66) == " : Multiple Target Switch" && host::StrategyForm_KindWords(1).empty(),
 	      "the title words are the pages' own");
+
+	// paths (Frost): 72 / 80 / 76's EFFECTS, a list of lists read and written whole: the list kept sorted by the number, a number once (the first kept, with its targets),
+	// each target's request and direction as written; 80 adds Integrity, the destruct target's on / off and the Destruct Target
+	for (int32_t const kind : { 72, 80, 76 })
+	{
+		std::string const k = std::to_string(kind);
+		std::vector<host::StrategyFormRow> const rows = host::StrategyForm_Rows(kind);
+		size_t const want = kind == 80 ? 4 : 1;
+
+		Check(rows.size() == want, k + " has " + std::to_string(want) + " rows");
+
+		if (rows.size() != want)
+		{
+			continue;
+		}
+
+		host::StrategyFormRow const &effects = rows[0];
+
+		Check(effects.kind == host::StrategyFormRowKind::List && effects.readList && effects.writeList && effects.entryWords && effects.newNumberRefused && effects.subRow &&
+		      effects.subRow->entryChoices.size() == 4 && effects.subRow->newWord == 1 && effects.subRow->newChoice == 3, k + ": the effects, a list of lists; a new target on, both directions");
+		Check(kind != 80 || (rows[1].field == "integrity" && rows[2].field == "target_request" && rows[3].field == "targetID"), k + ": Integrity, the destruct target's on / off, the Destruct Target");
+		Check(effects.newNumberRefused(New(kind), 0).empty() && !effects.newNumberRefused(New(kind), -1).empty() && (kind != 76 || (effects.newNumberRefused(New(kind), 31).empty() &&
+		      !effects.newNumberRefused(New(kind), 32).empty())), k + ": the number asked: 0 taken, -1 refused" + (kind == 76 ? std::string(", a flag 0 to 31") : std::string()));
+
+		std::vector<uint8_t> const fresh = New(kind);
+		std::vector<host::StrategyFormEntry> entries, back;
+
+		Check(!fresh.empty() && effects.readList(fresh, &entries) && entries.empty(), k + ": a new one has no effects");
+
+		host::StrategyFormEntry two, one, twoAgain, target;
+
+		target.id = { 1, 2, 3, 4, 5, 6, 7, 8 };
+		target.word = 1;
+		target.choice = 7;
+		two.word = 2;
+		two.sub = { target };
+		one.word = 1;
+		twoAgain.word = 2;
+		entries = { two, one, twoAgain };
+
+		std::vector<uint8_t> written;
+
+		Check(effects.writeList(fresh, entries, &written) && effects.readList(written, &back) && back.size() == 2 && back[0].word == 1 && back[0].sub.empty() && back[1].word == 2 &&
+		      back[1].sub.size() == 1 && back[1].sub[0].id == target.id && back[1].sub[0].word == 1 && back[1].sub[0].choice == 7,
+		      k + ": written sorted (1, 2), 2 once with its target (on, Opposite back 7), and read back so");
+		Check(effects.entryWords(back[1]) == (kind == 76 ? "Flag 2" : "Point 2"), k + ": a line's words (" + effects.entryWords(back[1]) + ")");
+	}
 
 	printf("%d checks, %d failed\n", checks, checksFailed);
 	return checksFailed == 0 ? 0 : 1;
