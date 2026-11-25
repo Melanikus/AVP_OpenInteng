@@ -8,11 +8,13 @@ click-bar Mode > Object Placement
 expect-screen Object Placement
 wait 800
 picture 1
-expect-colour picture 0 0 1008 729 c81e1e 0.0005 45
+# the sound's face seen from here is its dark red 961414; its red c81e1e faces are behind it (drake-icondepth: the icons are drawn as a depth buffer draws them, as inteng's display blocks; Drake's control with the depth buffer on reads 0.0000 for it here too)
+expect-colour picture 0 0 1008 729 961414 0.0005 45
 resize-win 900 700
 wait 1000
 picture 2
-expect-colour picture 0 0 880 660 c81e1e 0.0005 45
+# the sound's face seen from here is its dark red 961414; its red c81e1e faces are behind it (drake-icondepth: the icons are drawn as a depth buffer draws them, as inteng's display blocks; Drake's control with the depth buffer on reads 0.0000 for it here too)
+expect-colour picture 0 0 880 660 961414 0.0005 45
 key T
 wait 600
 expect-pixels-changed picture 0 230 440 130 0.0015
@@ -21,7 +23,8 @@ wait 400
 resize-win 1100 780
 wait 1000
 picture 3
-expect-colour picture 0 0 1080 740 c81e1e 0.0005 45
+# the sound's face seen from here is its dark red 961414; its red c81e1e faces are behind it (drake-icondepth: the icons are drawn as a depth buffer draws them, as inteng's display blocks; Drake's control with the depth buffer on reads 0.0000 for it here too)
+expect-colour picture 0 0 1080 740 961414 0.0005 45
 key T
 wait 600
 expect-pixels-changed picture 0 230 520 150 0.0015

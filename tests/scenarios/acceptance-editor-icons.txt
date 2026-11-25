@@ -21,7 +21,8 @@ hold Z 1800
 key Back
 wait 300
 picture 2
-expect-colour picture 0 0 1008 729 c81e1e 0.0003 45
+# the sound's face seen from here is its dark red 961414; its red c81e1e faces are behind it (drake-icondepth: the icons are drawn as a depth buffer draws them, as inteng's display blocks; Drake's control with the depth buffer on reads 0.0000 for it here too)
+expect-colour picture 0 0 1008 729 961414 0.0003 45
 # Tab: Strategy Data, entered from Object Placement
 key Tab
 expect-screen Strategy Data
@@ -37,7 +38,8 @@ hold Z 1800
 wait 300
 picture 3
 expect-colour picture 0 0 1008 729 007fff 0.0003 45
-expect-colour picture 0 0 1008 729 c81e1e 0.0003 45
+# the sound's face seen from here is its dark red 961414; its red c81e1e faces are behind it (drake-icondepth: the icons are drawn as a depth buffer draws them, as inteng's display blocks; Drake's control with the depth buffer on reads 0.0000 for it here too)
+expect-colour picture 0 0 1008 729 961414 0.0003 45
 # Tab leaves Strategy Data (Exit asks the save question: No)
 key Tab
 expect-dialog Would you like to save first?

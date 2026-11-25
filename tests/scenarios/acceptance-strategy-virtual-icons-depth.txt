@@ -1,0 +1,47 @@
+# ACCEPTANCE (red first; Drake 2026-11-25, the owner through Bishop: "I tried a behind one that looked weird but might have been the angle, do they have Z depth or draw on top of each
+# other?"): THE EDITOR'S ICONS HIDE EACH OTHER BY DEPTH, as inteng's display blocks do (each editor object is a display block in the game's scene, FUN_004b2590: drawn with the depth buffer).
+# Ours are the avpx hook's triangles (R_SetEditorWorldTriangles): tested against the level's depth (a wall hides them) but NOT written into it, and they were given NEAREST FIRST
+# (editor_main.cpp: the nearest objects first, for the 65536 cap), so where two overlap the FARTHER one was painted over the nearer one.
+# The subject: Derelict's "V destroying mirror01 light at START" (selected, steady red 0xff0000), and a new virtual object Behind it (-z, light blue), 1.1 m nearer a camera that looks
+# along +z from 4 m behind the first: the Behind V is the nearer, so where the two overlap it must be blue.
+# THE CHECK: the share of steady red in a box round the two: 0.1558 with the selected V alone (picture 1; the box also holds the top of a red sound icon below it); with the
+# nearer blue V over it, at most 0.10.
+# RED on exe-cache/90d26f35.exe (bishop-int, alpha.7's icons): 0.1558 in picture 2 as in picture 1: the farther red V drawn whole over the nearer blue one (only a blue rim shows).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is V destroying mirror01 light at START
+expect-no-dialog
+expect-selected 1
+wait 400
+expect-field-has gizmopose -5229 -1907 1024
+
+# the camera 4 m behind it (-z), looking along +z: the selected V alone
+camera -5229 -1907 -2976 0
+camera-look 0 0
+wait 800
+picture 1
+expect-colour-at-most picture 404 264 200 200 ff0000 1.0 40
+
+# a new virtual object Behind it: 1.1 m nearer the camera, the same line of sight
+click-win 500 300 right
+click-popup 6
+click-popup 7
+expect-dialog Type name for new virtual object
+type BehindVVO
+key Enter
+expect-no-dialog
+expect-status Virtual object BehindVVO is in the level
+expect-field-has gizmopose -5229 -1907 1024
+camera -5229 -1907 -2976 0
+camera-look 0 0
+wait 800
+picture 2
+# the nearer blue V hides the red one where they overlap
+expect-colour-at-most picture 404 264 200 200 ff0000 0.10 40

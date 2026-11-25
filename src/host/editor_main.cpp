@@ -14238,14 +14238,50 @@ void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 
 	std::sort(pieces.begin(), pieces.end(), [](Piece const &a, Piece const &b) { return a.away < b.away; });
 
+	// which objects are drawn: the nearest first, each whole, while the hook's 65536 last
+	std::vector<Piece const *> kept;
+	size_t keptTriangles = triangles->size();
+
 	for (Piece const &piece : pieces)
 	{
-		if (triangles->size() + piece.triangles.size() > 65536)
+		if (keptTriangles + piece.triangles.size() > 65536)
 		{
 			continue;
 		}
 
-		for (host::IconWorldTriangle const &t : piece.triangles)
+		keptTriangles += piece.triangles.size();
+		kept.push_back(&piece);
+	}
+
+	// THE DEPTH (the owner: "do they have Z depth or draw on top of each other?"). inteng's icons are display blocks in the game's scene, drawn with the depth buffer, so a nearer
+	// icon hides a farther one. The avpx hook draws our triangles in the order given, compared with the level's depth (a wall hides them) but not written into it, so where two
+	// overlap the one drawn LAST is seen. They were given nearest first, so a farther icon was painted over a nearer one (a V made Behind another, seen from behind, looked to
+	// be behind it). So they are given FARTHEST FIRST, the painter's order: the farthest object first, and each object's own faces farthest first too, so a nearer face is
+	// drawn over a farther one. (NAMED: the order is by each face's middle, as a painter's is; two faces that cross each other can't be put right by any order.)
+	auto const distance = [&eye](int32_t const a[3], int32_t const b[3], int32_t const c[3])
+	{
+		double sum = 0.0;
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			double const middle = ((double)a[axis] + (double)b[axis] + (double)c[axis]) / 3.0 - eye[axis];
+
+			sum += middle * middle;
+		}
+
+		return sum;
+	};
+
+	for (size_t k = kept.size(); k-- > 0; )
+	{
+		std::vector<host::IconWorldTriangle> faces = kept[k]->triangles;
+
+		std::stable_sort(faces.begin(), faces.end(), [&distance](host::IconWorldTriangle const &x, host::IconWorldTriangle const &y)
+		{
+			return distance(x.a, x.b, x.c) > distance(y.a, y.b, y.c);
+		});
+
+		for (host::IconWorldTriangle const &t : faces)
 		{
 			LevelViewTriangle one;
 
@@ -14253,7 +14289,7 @@ void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 			memcpy(one.b, t.b, sizeof(one.b));
 			memcpy(one.c, t.c, sizeof(one.c));
 			one.colour = t.colour;
-			one.group = piece.group;
+			one.group = kept[k]->group;
 			triangles->push_back(one);
 		}
 	}
