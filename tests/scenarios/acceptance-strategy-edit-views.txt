@@ -131,12 +131,13 @@ click-button Yes
 expect-dialog Select Strategy
 click-button Switch_Door
 wait 300
-expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:None
-# y 48 and below are not lines in AvP: a click there changes nothing
-click-box 300 56
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:None
+# (Drake 2026-11-25) its edit is a FORM now (strategy_forms_modules.cpp): the page's one line as one row, the Associated door, (none) for the null ID
+expect-dialog gARAGDOR : Switch door
+expect-field-has strategyform Associated door
+expect-dialog-text (none)
 key Esc
+wait 300
+expect-no-dialog
 
 # ---- SELF DESTRUCT (78; FUN_00535cc0, vtable 0x5af790 +0x14, from the listing; constructor FUN_00535c90) and MESSAGE (73; FUN_005336c0, vtable 0x5af658 +0x14, from the listing): kinds of a VIRTUAL object (Create Virtual Object > Here asks the name in a text dialog)
 item 0x39

@@ -81,13 +81,16 @@ click-button Yes
 expect-dialog Select Strategy
 click-button Switch_Door
 wait 400
-expect-field strategyview 200@0:APCmod : Switch door|16@16:Associated door :|80@32:None
-expect-colour picture 300 250 500 300 000000 0.97 8
+# (Drake 2026-11-25) its edit is a FORM now (strategy_forms_modules.cpp): the one row, the Associated door, (none) for the null ID; the pick is the row's Pick button, the same pick
+expect-dialog APCmod : Switch door
+expect-field-has strategyform Associated door
+expect-dialog-text (none)
 picture 7
-# a click on the door lines (y 16 to 47) is the OBJECT PICK (FUN_0052d490 -> FUN_00527540): the screen is drawn again (not black) with "Press return when finished" and "Select associated door" along the foot
-click-box 300 24
+# the row's Pick (the page's door lines, y 16 to 47) is the OBJECT PICK (FUN_0052d490 -> FUN_00527540): the form goes and the screen shows "Press return when finished" and "Select associated door" along the foot
+click-button Pick
 wait 400
-expect-pixels-changed picture 300 250 500 300 0.3
+expect-no-dialog
+expect-field-has strategyview Press return when finished
 picture 8
 # a click on the room's module picks it (red); Return ends the pick: the door is that module, and that module (no strategy before) gets a Switch Door naming APCmod (0x52d578-0x52d5c6)
 click-win 640 130
@@ -95,9 +98,12 @@ wait 300
 picture 9
 key Enter
 wait 400
-expect-colour picture 300 250 500 300 000000 0.97 8
+expect-dialog APCmod : Switch door
+expect-field-has dialogcombos gARAGDOR
 picture 10
 key Esc
+wait 300
+expect-no-dialog
 wait 400
 
 # ---- S-K57-0: THE AIRLOCK. Assign > Airlock on the module at 504 364 (gARAGDOR: Invasion gives it a strategy, so the replace question first, Yes): a Lift with flag 2 (FUN_00528830 case 0x39): "%s : Airlock"

@@ -89,6 +89,7 @@ int main()
 	hasForm[75] = true;   // Fan (Drake 2026-11-24)
 	hasForm[54] = true;   // Platform Lift (Drake 2026-11-24)
 	hasForm[50] = true;   // Door (Drake 2026-11-24)
+	hasForm[59] = true;   // Switch Door (Drake 2026-11-25)
 	// objects (Dietrich): 62, 77, 78, 73, 70
 	// paths (Frost): 72, 80, 76, 69, 79
 	hasForm[69] = true;

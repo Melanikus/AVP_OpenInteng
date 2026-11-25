@@ -9,15 +9,17 @@ state
 click-bar Mode > Strategy Data: Normal
 expect-screen Strategy Data
 wait 400
-# the subject: the module at 640 130 (gARAGDOR, no strategy in stock Invasion), given a Switch Door: its Edit view opens at once
+# the subject: the module at 640 130 (gARAGDOR, no strategy in stock Invasion), given a Lift: its Edit view opens at once (Drake 2026-11-25: it was a Switch Door, which edits
+# in a form now; DEBT: when 51 Lift has its form too, this moves to a kind, or an E page, that still has a page)
 click-win 640 130
 expect-selected 1
 click-win 640 130 right
 click-popup 4
 expect-dialog Select Strategy
-click-button Switch_Door
+click-button Lift
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:None
+expect-field-has strategyview 200@0:gARAGDOR : Lift
+expect-field-has strategyview 16@48:Door :
 # the box: centred, at least 640 x 480, half the window or more each way
 expect-box-centred 640 480
 expect-field strategybox 184 124 640 480
@@ -29,18 +31,18 @@ expect-colour picture 300 300 400 200 000000 0.95 8
 expect-colour picture 384 127 170 12 ffffff 0.008 60
 # the level is drawn round it: the band above the box is not all black
 expect-colour-at-most picture 0 0 1008 120 000000 0.9 8
-# a click on the door lines, from the box's top left (y 16 to 47 as on inteng's page), starts the object pick, which is the whole screen: no box while it runs
-click-box 300 24
+# a click on the Door line, from the box's top left (y 48 to 79 as on inteng's page), starts the object pick, which is the whole screen: no box while it runs
+click-box 300 56
 wait 400
 expect-field-has strategyview Press return when finished
 expect-field-has strategyview 200@709:
 expect-field-empty strategybox
 key Enter
 wait 400
-# back in the view: the box again; a left click outside it does nothing (inteng's page had no outside): at the door lines' row (box y 24, window y 148) but left of the box, it starts no pick
+# back in the view: the box again; a left click outside it does nothing (inteng's page had no outside): at the Door line's row (box y 56, window y 180) but left of the box, it starts no pick
 expect-box-centred 640 480
 remember-field strategyview
-click-win 90 148
+click-win 90 180
 wait 300
 expect-field-same strategyview
 expect-box-centred 640 480

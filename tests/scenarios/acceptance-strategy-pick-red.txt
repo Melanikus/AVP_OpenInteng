@@ -4,6 +4,7 @@
 # both colour paths off (the selected colour 0; the modules' red in FlagViewTints skipped): a picked module or placed object was not drawn red.
 # A: a MODULE picked (APCmod): the modules' path (FlagViewTints). B: a PLACED OBJECT picked (switch3): the selected colour's path.
 # RED on bishop-int a4450aa8: steps A and B find no red.
+# (Drake 2026-11-25: a Switch Door edits in a FORM now, strategy_forms_modules.cpp: the pick is its Associated door row's Pick button, the same pick (StrategyPickEnd); Return ends it and the form opens again.)
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
 state
@@ -18,9 +19,10 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Switch_Door
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:None
+expect-dialog gARAGDOR : Switch door
+expect-field-has strategyform Associated door
 # the door lines: the OBJECT PICK (FUN_0052d490 -> FUN_00527540); the door is none, so nothing is red and the camera stays
-click-box 300 24
+click-button Pick
 wait 400
 picture 2
 expect-colour-at-most picture 0 400 300 200 ff0000 0.001 70
@@ -36,9 +38,11 @@ click-win 504 364
 wait 300
 picture 4
 expect-colour picture 430 290 150 150 ff0000 0.03 70
-# C: Return ends the pick (0x527676). The view is black after it (no level drawn), so this only checks nothing is left red on the screen
+# C: Return ends the pick (0x527676). The form opens again over the level (its own title band is red), so this checks the level above and below it: nothing is left red
 key Enter
 wait 400
 picture 5
-expect-colour-at-most picture 0 0 1008 729 ff0000 0.0005 70
+expect-dialog gARAGDOR : Switch door
+expect-colour-at-most picture 0 0 1008 300 ff0000 0.0005 70
+expect-colour-at-most picture 0 430 1008 299 ff0000 0.0005 70
 key Esc

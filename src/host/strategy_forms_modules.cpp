@@ -2,7 +2,8 @@
 // (Vasquez, the empty start; Drake writes the rows) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // Each kind's rows say what its page said (strategy_views.cpp), in inteng's own words, with the same fields, limits and writers: a kind answers true here only once its form is
-// complete and tested (its acceptance), and any other kind keeps inteng's page. Switched on so far: 75 Fan, 54 Platform Lift, 50 Door (Drake 2026-11-24).
+// complete and tested (its acceptance), and any other kind keeps inteng's page. Switched on so far: 75 Fan, 54 Platform Lift, 50 Door (Drake 2026-11-24), 59 Switch Door
+// (Drake 2026-11-25).
 
 #include "strategy_forms.h"
 
@@ -74,7 +75,7 @@ namespace
 
 	void DoorRows(std::vector<host::StrategyFormRow> *rows)
 	{
-		// DEBT: a door holding both bits 2 and 8 (drawn by the page as a proximity door) shows the first row whose bits are set, as the builder picks one
+		// DEBT: a door holding both bits 2 and 8 (drawn by the page as a proximity door) shows the first row whose bits are set, as the builder picks one; a door holding NEITHER (the page said "Proximity door") shows an empty box until one is picked (Frost's NIT on 97838ed8)
 		rows->push_back(BitsRow("Door", "DoorFlags", 0xA, { { "Proximity door", 0x2 }, { "Switch activated door ('lift door')", 0x8 } }));
 
 		host::StrategyFormRow locked = BitsRow("Lock", "DoorFlags", 0x1, { { "Door is not locked", 0 }, { "Door is locked", 0x1 } });
@@ -93,8 +94,8 @@ namespace
 	}
 
 	// 59 SWITCH DOOR (strategy_views.cpp SwitchDoorLinesAvp / SwitchDoorClickAvp, FUN_0052d490): its associated door, picked as T picks it (kPickSwitchDoor: the door named, and a
-	// door with no strategy given a Switch Door that names this one). The page shows nothing else (inteng's times in spare1 the game ignores). NOT SWITCHED ON YET: it goes on with its own
-	// HAND, once the page-mechanics scenarios that use a Switch Door as their example (view-box, shift-e, e-pages, pick-red, pick-modal) are moved (Drake 2026-11-24)
+	// door with no strategy given a Switch Door that names this one). The page shows nothing else (inteng's times in spare1 the game ignores). The drop-down's choice is written as
+	// a pick of that object (strategy_screen.cpp FormComboPicked -> StrategyPickEnd), so it pairs the two as the pick does
 	void SwitchDoorRows(std::vector<host::StrategyFormRow> *rows)
 	{
 		host::StrategyFormRow door;
@@ -124,6 +125,7 @@ namespace host
 			case 75: FanRows(rows); return true;
 			case 54: PlatformRows(rows); return true;
 			case 50: DoorRows(rows); return true;
+			case 59: SwitchDoorRows(rows); return true;
 			default: return false;   // every other kind of this group keeps inteng's page for now
 		}
 	}
