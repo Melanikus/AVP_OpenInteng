@@ -1,0 +1,50 @@
+# ACCEPTANCE (Vasquez 2026-11-25, the owner's alpha.7 bug through Bishop: "every other way an object leaves the level"): Alt Locations > Next PUTS THE OBJECT ON ITS NEXT
+# LOCATION IN THE VIEW AT ONCE. Drake's acceptance-object-delete-leaves-view's level and place: a pulam placed from the picture grid (picture 2), Add new (its place), moved with the
+# gizmo (picture 3), Add new (the new place, the shown one, the last), Next (after the last, the first): the object goes back to its first place, so where it was put down the view is again picture 2's, and where it
+# was moved to, picture 1's (before it was placed).
+#ini DataFolder={datadir}-altloc-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-altloc-game {datadir} Invasion.RIF Statue.RIF pulam shape_rifs
+level {datadir}-altloc-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+expect-selected 0
+picture 1
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile pulam twice
+expect-no-dialog
+expect-field pickerattach pulam0 following
+move-win 560 640
+wait 300
+expect-field-has surfacelive drawn 1
+click-win 560 640
+expect-no-dialog
+expect-field pickerattach off
+wait 600
+expect-selected 1
+expect-hierarchy-text pulam0
+picture 2
+expect-pixels-changed-since 1 picture 530 530 60 120 0.05
+click-bar Alt Locations > Add new
+wait 300
+expect-status Location added
+drag-gizmo move x 200 0 hold
+release-gizmo
+expect-status Gizmo: the placed object moved
+wait 400
+picture 3
+expect-pixels-changed-since 2 picture 530 530 60 120 0.05
+click-bar Alt Locations > Add new
+wait 300
+expect-status the shown one is 3
+click-bar Alt Locations > Next
+wait 600
+expect-status the shown one is 1
+picture 4
+expect-pixels-same-since 2 picture 530 530 60 120 0.02
+# and where it was moved to, nothing is left: the view is picture 1's there
+expect-pixels-same-since 1 picture 730 530 50 120 0.02
