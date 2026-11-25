@@ -29,8 +29,9 @@ expect-pixels-changed panels 0 0 1000 700 0.05
 item 0xcc
 click-win 100 8 left
 expect-pixels-changed panels 0 0 1000 700 0.05
-# Help: the text screen (a click closes it)
+# Help: the text screen (a click closes it). Its two checks want 0.02 of the box, not 0.05 (Frost 2026-11-24, alpha.7): in inteng's own font, built in since d9e21af7,
+# the help's thin letters light 0.040 of it (panels-109 of frost-alpha7-batch3), the game's font lit more; 0.02 still asks for half of what the help lights
 item 0xd2
-expect-pixels-changed panels 0 0 1000 700 0.05
+expect-pixels-changed panels 0 0 1000 700 0.02
 click-win 500 300 left
-expect-pixels-changed panels 0 0 1000 700 0.05
+expect-pixels-changed panels 0 0 1000 700 0.02
