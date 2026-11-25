@@ -3970,10 +3970,21 @@ void StrategyModeCommand(int32_t command)
 		host::LevelStore heldNow(open);
 		host::ObjectStrategy hasNow;
 
+		// NO STRATEGY: a NAMED DIFFERENCE from inteng, the owner's (2026-11-24: "'edit strategy' does nothing and gives no feedback if no strategy is assigned so, if no
+		// strategy is assigned you say 'no strategy assigned to this object, assign one?' and take them to the assign strategy page"). inteng (FUN_005286b0) drew
+		// "Selected object has no strategy" (0x5ee174) at (200, 100) for 700 ms and did nothing more. Ours asks, in inteng's Yes / No dialog (FUN_00474a40's look, as
+		// Assign's own "Object already has a strategy" question): Yes runs Assign Strategy (0x8) on the same selected object, as its menu item does; No changes
+		// nothing. The status line keeps inteng's words.
 		if (host::LookUpStrategyBytes(LevelObjects_Level(), heldNow, selected, &hasNow) != host::StrategyFound::Found)
 		{
-			StrategyMessage("Selected object has no strategy");   // inteng's own words (0x5ee174), drawn at (200, 100) for 700 ms (FUN_0057bd40)
 			statusWords = "Selected object has no strategy";
+			DialogConfirm("No strategy assigned to this object.\nAssign one?", [](bool yes)
+			{
+				if (yes)
+				{
+					StrategyModeCommand(0x8);   // Assign Strategy, on the object still selected
+				}
+			});
 			return;
 		}
 

@@ -26,6 +26,10 @@ expect-status The object's strategy is deleted
 click-win 500 300 right
 click-popup 3
 expect-status Selected object has no strategy
+# Edit Strategy on an object with none now asks to assign one (the owner's, 2026-11-24; acceptance-strategy-edit-none-asks): No changes nothing
+expect-dialog No strategy assigned to this object.
+click-button No
+expect-no-dialog
 picture 2
 save-copy
 # the copy through the game's loader: the placed hierarchy is still there and holds no strategy; every other strategy as the stock file has it (dropswitch's one target read, the rest byte for byte)

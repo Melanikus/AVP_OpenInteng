@@ -245,6 +245,10 @@ expect-status The object's strategy is deleted
 click-win 120 500 right
 click-popup 3
 expect-status Selected object has no strategy
+# Edit Strategy on an object with none now asks to assign one (the owner's, 2026-11-24; acceptance-strategy-edit-none-asks): No changes nothing
+expect-dialog No strategy assigned to this object.
+click-button No
+expect-no-dialog
 # Copy with a source that has none says the same (FUN_00528340)
 click-win 120 500 right
 click-popup 2
