@@ -17,9 +17,10 @@ key Enter
 expect-no-dialog
 camera 0 0 -1450 0
 wait 400
-click-win 504 364
+# on the new object's V, at its foot: the V is hollow, and a click in its middle (504, 364) picks the garage door behind it (see acceptance-strategy-volume; Frost, 2026-11-24)
+click-win 504 610
 expect-selected 1
-click-win 504 364 right
+click-win 504 610 right
 click-popup 4
 expect-dialog Select Strategy
 click-button Area_Switch
@@ -30,8 +31,9 @@ expect-status Edit Volume
 # S-VOL-3: the row at (16, 32)
 expect-screen-text View Distance :
 picture 1
-# the view's own object is not red in the editor (FUN_00528830 0x52897d took its red off before the view): ZoneVO's icon, the square round the middle of the view, has no red until it is picked
-expect-colour-at-most picture 405 265 195 200 ff0000 0.01 70
+# the view's own object is not red in the editor (FUN_00528830 0x52897d took its red off before the view): ZoneVO's icon, inteng's V (about 240..770 x 70..655), has no red until it
+# is picked. The box is on the V's foot, 455..555 x 545..650: the V is hollow, and its middle shows the level behind it (Frost, 2026-11-24)
+expect-colour-at-most picture 455 545 100 105 ff0000 0.01 70
 # S-VOL-11: H adds 500,000 a frame to the distance (the row says it in 500,000s)
 remember-number screentext View_Distance_:
 hold H 300
@@ -58,9 +60,10 @@ expect-status-not written
 expect-field-has volume lo
 key Esc
 expect-status Zoom cancelled
-# S-VOL-4: a left click on the virtual object's icon (FUN_00559720 meets inteng's icon blocks too) picks that record, drawn RED; no module is picked
+# S-VOL-4: a left click on the virtual object's icon (FUN_00559720 meets inteng's icon blocks too) picks that record, drawn RED; no module is picked. The click is on the V's foot:
+# in its hollow middle it would pick the module behind it (Frost, 2026-11-24)
 remember-field volume
-click-view 0.486 0.549
+click-view 0.5 0.84
 expect-field-changed volume
 expect-field volumemodule -1
 picture 2
@@ -68,7 +71,8 @@ picture 2
 remember-field volume
 key S
 expect-field-changed volume
-expect-field-has volume lo -250 -250 -250 hi 250 250 250
+# (the box is inteng's V's, as drawn: 1490 x 1628 x 250, its centre 1 mm right of the object's place; our old square icon gave -250..250 on every axis. Frost, 2026-11-24)
+expect-field-has volume lo -744 -814 -125 hi 746 814 125
 # the Area Switch view's own keys are not read: P (its Switch Properties form, S-K52-3 / FUN_0052f700) opens nothing
 key P
 wait 300
@@ -81,5 +85,6 @@ camera 0 0 -1450 2048
 wait 400
 key V
 wait 300
-expect-field camera 0 0 6553 2048 0
+# (x 1: the cube's centre is the V's box centre, (-744 + 746) / 2)
+expect-field camera 1 0 6553 2048 0
 key Enter

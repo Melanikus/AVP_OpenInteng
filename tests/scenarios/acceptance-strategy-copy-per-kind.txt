@@ -32,7 +32,9 @@ click-view 0.5 0.58
 camera -41700 -702 42300 0
 wait 600
 picture 2
-click-view 0.5 0.5
+# (2026-11-24, Frost: since Vasquez's restore this virtual object is drawn as inteng's own hollow V, not our solid box; the view's centre, 0.5 0.5, falls in the V's
+# open middle, where inteng picks nothing either. So the click is on the V itself, where its arms meet near its foot)
+click-view 0.5 0.84
 key Enter
 
 # both hold a strategy: the replace question for the first, Yes All for both

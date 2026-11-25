@@ -21,14 +21,15 @@ click-popup 1
 type ZoneVO
 key Enter
 expect-no-dialog
-# (the camera verb, not "hold Z 1500": how far a held key steps back is timing, and on a busy run the click below took a module; Drake 11-16. From 1450 mm behind it the new object's light
-# blue icon is a square round the middle of the view, about 405..600 x 265..465: the clicks are at its middle, (504, 364))
+# (the camera verb, not "hold Z 1500": how far a held key steps back is timing, and on a busy run the click below took a module; Drake 11-16. From 1450 mm behind it the new object is
+# drawn as inteng's own light blue V, about 240..770 x 70..655 of the view (Vasquez's restore, 2026-11-24; before it, our solid square). The V is hollow: a click in its open middle,
+# (504, 364), picks what is behind it, the garage door gARAGDOR, as inteng does. So the clicks are on the V's foot, where its arms meet: (504, 610). Frost, 2026-11-24)
 camera 0 0 -1450 0
 wait 400
-click-win 504 364
+click-win 504 610
 expect-selected 1
 # Assign Strategy > Area Switch (kind 68): a switch that fires when the player is inside its volume
-click-win 504 364 right
+click-win 504 610 right
 click-popup 4
 expect-dialog Select Strategy
 click-button Area_Switch
