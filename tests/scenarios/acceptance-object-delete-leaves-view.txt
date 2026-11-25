@@ -1,0 +1,71 @@
+# ACCEPTANCE (red first; Drake 2026-11-25, the owner on alpha.7, through Bishop: "After I place an object in object mode, when I try to delete it via the menu, it goes away
+# but the shape remains until I switch/go back to the mode"): AN OBJECT DELETED WITH Object > Delete LEAVES THE VIEW AT ONCE.
+# His path: Object Placement, an object placed from the picture grid (pulam, two clicks, a left click puts it down; it is then the selected object), Object > Delete.
+# Delete (editor_main.cpp DeleteTheSelectedObject) takes the object out of the level the editor holds and makes the object list again, but the view is the game's own copy of the
+# level, made when the level was last shown (a placing shows it again: ShowTheWorkingBytes), so the game's copy of the object stayed drawn until the next screen change.
+# THE CHECKS: where it stood, the view is again the view from before it was placed (picture 1); and a click on where its body was doesn't meet it.
+# RED on the editor before the fix: exe-cache/2e529d4a.exe (alpha.7's code) and asan-cache/4de7630f-laa.exe (alpha.6's), step 31: after "Object deleted" the box is 0.463
+# changed against picture 1 (the pulam still drawn). The click and the slide on the spot meet no deleted object even there (Object Placement's click takes the nearest
+# centre of the editor's own lists; the slide met the module): they are the safety checks Bishop asked for, kept so they stay true.
+#ini DataFolder={datadir}-delete-game
+make-level C:/Users/Melanikus/source/AvP-builds-excluded/vasquez-ut/verifiers/make_shape_game.exe {datadir}-delete-game {datadir} Invasion.RIF Statue.RIF pulam shape_rifs
+level {datadir}-delete-game/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+expect-selected 0
+# the view before anything is placed
+picture 1
+
+# ---- placed from the picture grid, as he places
+item 0x32
+expect-field-has picker open
+wait-field pickershown waiting 0 20000
+click-tile pulam twice
+expect-no-dialog
+expect-field pickerattach pulam0 following
+move-win 560 640
+wait 300
+expect-field-has surfacelive drawn 1
+click-win 560 640
+expect-no-dialog
+expect-field pickerattach off
+expect-status Object pulam0 placed on the surface
+wait 600
+expect-selected 1
+expect-hierarchy-text pulam0
+picture 2
+# it is drawn where it was put down: the box holds it
+expect-pixels-changed-since 1 picture 530 530 60 120 0.05
+
+# ---- deleted from the menu, at once
+click-bar Object > Delete
+expect-no-dialog
+wait 600
+expect-status Object deleted
+expect-selected 0
+picture 3
+# where it stood, the view is again the view from before it was placed
+expect-pixels-same-since 1 picture 530 530 60 120 0.02
+
+# ---- the spot after (Bishop's safety ask: pick, hover, move): the pointer resting on where its body was, a click there, and a new object slid over it
+move-win 556 590
+wait 400
+click-win 556 590
+wait 400
+expect-status-not pulam0
+picture 4
+item 0x32
+wait-field pickershown waiting 0 20000
+click-tile pulam twice
+expect-field pickerattach pulam0 following
+move-win 556 590
+wait 400
+expect-field-has surfacelive drawn 1
+expect-field-has surfacelast module
+picture 5
+key Esc
+wait 400
+expect-field pickerattach off

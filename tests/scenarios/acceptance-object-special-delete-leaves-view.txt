@@ -1,0 +1,28 @@
+# ACCEPTANCE (Vasquez 2026-11-25, the owner's alpha.7 bug through Bishop: "every other way an object leaves the level"): A SPECIAL OBJECT (an AVP generator) DELETED WITH Object > Delete
+# LEAVES THE VIEW AT ONCE. It is made at the view 3 m ahead of the camera, the camera put back, so its icon is in the picture; Delete; where it stood the view is the view from before.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -7764 1102 10527 0
+wait 400
+picture 1
+camera -7764 1102 13527 0
+wait 300
+click-bar Create > AVP generator
+expect-dialog Name Object
+form-field 1 genGone
+click-button OK
+expect-no-dialog
+expect-status (genGone)
+camera -7764 1102 10527 0
+wait 400
+picture 2
+expect-pixels-changed-since 1 picture 480 340 50 50 0.05
+click-bar Object > Delete
+expect-no-dialog
+wait 400
+expect-status AVP generator deleted
+picture 3
+expect-pixels-same-since 1 picture 480 340 50 50 0.02

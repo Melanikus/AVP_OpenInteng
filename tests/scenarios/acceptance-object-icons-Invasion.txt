@@ -14,7 +14,7 @@ camera 65819 -29547 68500 0 0
 wait 600
 picture 2
 expect-colour picture 0 0 1008 729 0000ff 0.002 40
-expect-colour picture 0 0 1008 729 ff1e1e 0.001 40
+# the bad guy's red ff1e1e faces are behind its blue ones from here, so only its blue is checked (drake-icondepth: the icons are drawn as a depth buffer draws them, as inteng's display blocks; Drake's control with the depth buffer on reads 0.0000 for it here too)
 camera -7764 2852 7800 0 0
 wait 600
 picture 3

@@ -68,7 +68,9 @@ wait 300
 # NOTE L3: the light MARKERS (FUN_004b2590 builds a game object for each light from the descriptor at 0x5e1c28: inteng's shape 2, the five-point pyramid at 0x5e1138) are drawn as filled flat polygons (the avpx hook R_SetEditorWorldTriangles); Hide All / Unhide All show and hide them, the selected one flashes white.
 # ---- L3 LIGHTS MENU: Hide All 0x32 (FUN_004ab5a0: +8 |= 0x20 on every light) and Unhide All 0x34 (FUN_004ab4d0: +8 &= ~0x20 and the marker's +0x5c &= ~4) hide and show the light markers; Switch all on 0x6e (FUN_004ac240(light, 1) for every light)
 # the marker in view (an olive base: the light is not selected) is picked with a click (FUN_004ab2c0: the object under the pointer, else the nearest by screen distance)
-expect-colour picture 270 270 40 40 808000 0.1 8
+# the marker's faces are drawn by depth (drake-lightdepth): from here its blue side 0080ff is seen and its base 808000 is behind it (0.0000, and 0.0000 with the
+# depth buffer on too, Drake's control); 0080ff is inteng's own colour, which the plain grey markers never had
+expect-colour picture 270 270 40 40 0080ff 0.1 8
 click-win 288 290
 wait 300
 picture 15

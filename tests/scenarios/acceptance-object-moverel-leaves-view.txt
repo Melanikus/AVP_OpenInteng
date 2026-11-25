@@ -1,0 +1,42 @@
+# ACCEPTANCE (Vasquez 2026-11-25, the owner's alpha.7 bug through Bishop: an object's shape left drawn where it no longer is): Object > Move relative MOVES THE SHAPE IN THE VIEW AT ONCE.
+# acceptance-object-move-relative's camera and object (Invasion's switch3 at 504 364). Deselected (Backspace) before each picture, so no gizmo or outline is in them: picture 1 has
+# switch3 where it is; after Move relative with x 1.5 (it was -0.162: 1.662 m along x), where it stood the view must change, and where it went it must be drawn.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera -27851 -14055 85500 0 0
+wait 400
+click-win 504 364
+expect-selected 1
+expect-hierarchy-text switch3
+key Back
+wait 400
+expect-selected 0
+picture 1
+click-win 504 364
+expect-selected 1
+click-bar Object > Move relative
+expect-dialog RelMove Shape
+expect-dialog-text -0.16200|-0.39000|-3.60300
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+key Back
+type 1.5
+expect-dialog-text 1.5|-0.39000|-3.60300
+key Enter
+expect-no-dialog
+expect-status Moved
+key Back
+wait 600
+expect-selected 0
+picture 2
+expect-pixels-changed-since 1 picture 484 344 40 40 0.10
+# and it is drawn at its new place (Drake's NIT on 719527cc): about 250 px to the left of where it stood, where picture 1 has the room behind it
+expect-pixels-changed-since 1 picture 192 300 120 130 0.10

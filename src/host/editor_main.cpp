@@ -1842,6 +1842,11 @@ static void MoveRelativeWindow(int32_t const place[3], int32_t const moduleWorld
 
 		Answer("Moved: the object's place is the module's place less what was typed");
 		LoadTheObjectListAgain();
+
+		// THE VIEW (the owner's alpha.7 delete bug, the same cause): the move above is in the editor's copy of the level only, and what is drawn is the game's own
+		// copy, loaded when the level was last shown, so the shape stayed where it was until the next screen change. The view loads the working bytes again now,
+		// as a placing and a delete do (not while a live copy flies: then the next screen change shows it)
+		PutTheNewObjectInPlay();
 	});
 }
 
@@ -2096,6 +2101,10 @@ static void DeleteTheSelectedObject()
 
 	host::Selection_Clear();
 	LoadTheObjectListAgain();
+	// THE VIEW (the owner on alpha.7: "it goes away but the shape remains until I switch/go back to the mode"; in every alpha): what is drawn is the game's own copy of
+	// the level, loaded from the working bytes when the level was last shown, and the delete above changed only the editor's copy. So the deleted object stayed drawn
+	// until the next screen change. The view loads the working bytes again now, as a placing does (not while a live copy flies or a ghost shows): the object goes from it.
+	PutTheNewObjectInPlay();
 	statusWords = "Object deleted";
 }
 
@@ -11639,6 +11648,142 @@ std::string ModuleNameOfIndex(int32_t index)
 // (THE SCREEN KEYS: in editor_screen_keys.cpp)
 // (STRATEGY DATA'S SELECTION and the screens' picks and tints: in strategy_data_screen.cpp)
 
+// ALTERNATE LOCATIONS IN THE VIEW (the owner on alpha.7, through Bishop; Vasquez 2026-11-25). What is drawn is the game's own copy of the level, made by the game's
+// own loader, and for every object with two or more alternate locations that loader ROLLS which one to use (avpx object_setup.cpp, select_alternate_location: a random
+// number unless QuantumObjectDieRollOveride is set). So the view drew such an object at a location picked by chance, not at the one the level shows, and an Alt
+// Locations command (Next, Prev, Delete Current, Change shown location) changed only the editor's copy, so the shape stayed where it was. The level shows a location by
+// putting it on the object (its OBJHEAD1 place and turn, AlternateLocations_PutOnObject), so the object's real block is put there, as the gizmo's release puts a moved one
+// (LevelView_PutObjectAt; the file's units times the level's scale are the world's).
+static void WorldOfFilePlace(int32_t const file[3], int32_t world[3])
+{
+	double const scale = local_scale > 0.0 ? local_scale : 1.0;
+
+	for (int i = 0; i < 3; i++)
+	{
+		world[i] = (int32_t)floor((double)file[i] * scale + 0.5);
+	}
+}
+
+static void PutTheBlockWhereTheLevelShows(uint8_t const *id, model::AltLocation const &shown)
+{
+	int32_t world[3];
+
+	WorldOfFilePlace(shown.place, world);
+	LevelView_PutObjectAt(id, world, shown.turn);   // an object with no block of its own in the view is left as it is (a special object's icon is drawn from the level's list)
+}
+
+// EACH FRAME, THE ROLL PUT RIGHT (acceptance-object-altloc-view-load). Putting the blocks right once after a load of the view is not enough: just after it the game
+// has made no block yet, and it makes an object's block later, when the object's module comes into view, each time at the rolled place. So each frame, an object
+// whose block stands on one of its OTHER locations (the roll's mark) is put on the one the level shows. A block moved any other way (Gravity, a track played, a
+// drag) stands on none of its locations and is left alone. The list is made again when the level changes.
+struct ShownLocation
+{
+	uint8_t id[8];
+	int32_t world[3];                            // where the level shows it, in the world's units
+	float turn[4];
+	std::vector<std::array<int32_t, 3>> others;   // its other locations, where the roll may have put it
+};
+
+static std::vector<ShownLocation> shownLocations;
+static OpenLevelFile *shownLocationsOpen = nullptr;   // the level, its Changes() and its Generation() the list was made for
+static unsigned shownLocationsFor = 0;
+static unsigned shownLocationsGeneration = 0;
+
+static bool NearPlace(int32_t const a[3], int32_t const b[3])
+{
+	int32_t const kWithin = 4;   // the game's own rounding of a place from the file to the world may differ from ours by a unit or two
+
+	return abs(a[0] - b[0]) <= kWithin && abs(a[1] - b[1]) <= kWithin && abs(a[2] - b[2]) <= kWithin;
+}
+
+void KeepTheShownLocationsInPlay()
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+
+	if (!open || !open->Level())
+	{
+		return;
+	}
+
+	if (open != shownLocationsOpen || open->Changes() != shownLocationsFor || open->Generation() != shownLocationsGeneration)
+	{
+		std::vector<uint8_t> ids;
+
+		shownLocations.clear();
+		shownLocationsOpen = open;
+		shownLocationsFor = open->Changes();
+		shownLocationsGeneration = open->Generation();
+
+		if (host::AlternateLocations_ObjectsWithLocations(open, &ids) == host::AltLocationsResult::Done)
+		{
+			for (size_t at = 0; at + 8 <= ids.size(); at += 8)
+			{
+				model::AltLocation shown;
+				model::AltLocations list;
+
+				// the game rolls only for two locations or more (select_alternate_location)
+				if (host::AlternateLocations_ObjectNow(open, &ids[at], &shown) != host::AltLocationsResult::Done ||
+				    host::AlternateLocations_Load(open, &ids[at], &list) != host::AltLocationsResult::Done || list.list.size() < 2)
+				{
+					continue;
+				}
+
+				ShownLocation one;
+
+				memcpy(one.id, &ids[at], sizeof(one.id));
+				WorldOfFilePlace(shown.place, one.world);
+				memcpy(one.turn, shown.turn, sizeof(one.turn));
+
+				for (model::AltLocation const &location : list.list)
+				{
+					std::array<int32_t, 3> other;
+
+					WorldOfFilePlace(location.place, other.data());
+
+					if (!NearPlace(other.data(), one.world))
+					{
+						one.others.push_back(other);
+					}
+				}
+
+				shownLocations.push_back(one);
+			}
+		}
+	}
+
+	// for the harness: each object with two or more locations, where the level shows it and where its block is drawn ("none": the view has no block for it)
+	std::string words;
+
+	for (ShownLocation const &one : shownLocations)
+	{
+		int32_t drawn[3];
+		bool const haveBlock = LevelView_ObjectBlockAt(one.id, drawn);
+
+		if (haveBlock && !NearPlace(drawn, one.world))
+		{
+			for (std::array<int32_t, 3> const &other : one.others)
+			{
+				if (NearPlace(drawn, other.data()))
+				{
+					LevelView_PutObjectAt(one.id, one.world, one.turn);
+					LevelView_ObjectBlockAt(one.id, drawn);
+					break;
+				}
+			}
+		}
+
+		if (words.size() < 400)
+		{
+			words += (words.empty() ? "" : "|") + HexOf(one.id) + " shown " + std::to_string(one.world[0]) + " " + std::to_string(one.world[1]) + " " + std::to_string(one.world[2]) +
+				" drawn " + (haveBlock ? std::to_string(drawn[0]) + " " + std::to_string(drawn[1]) + " " + std::to_string(drawn[2]) : std::string("none"));
+		}
+	}
+
+	StateLine_Add("altlocations", words);
+}
+
+// A location put on the object (Next, Prev, Delete Current, Change shown location): in the level, then in the view (see above). acceptance-object-altloc-delete-,
+// -next- and -showall-leaves-view
 static bool AltPutOn(OpenLevelFile *open, uint8_t const *id, model::AltLocation const &location)
 {
 	host::AltLocationsResult const result = host::AlternateLocations_PutOnObject(open, id, location);
@@ -11650,6 +11795,7 @@ static bool AltPutOn(OpenLevelFile *open, uint8_t const *id, model::AltLocation 
 		return false;
 	}
 
+	PutTheBlockWhereTheLevelShows(id, location);
 	return true;
 }
 
@@ -14229,14 +14375,50 @@ void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 
 	std::sort(pieces.begin(), pieces.end(), [](Piece const &a, Piece const &b) { return a.away < b.away; });
 
+	// which objects are drawn: the nearest first, each whole, while the hook's 65536 last
+	std::vector<Piece const *> kept;
+	size_t keptTriangles = triangles->size();
+
 	for (Piece const &piece : pieces)
 	{
-		if (triangles->size() + piece.triangles.size() > 65536)
+		if (keptTriangles + piece.triangles.size() > 65536)
 		{
 			continue;
 		}
 
-		for (host::IconWorldTriangle const &t : piece.triangles)
+		keptTriangles += piece.triangles.size();
+		kept.push_back(&piece);
+	}
+
+	// THE DEPTH (the owner: "do they have Z depth or draw on top of each other?"). inteng's icons are display blocks in the game's scene, drawn with the depth buffer, so a nearer
+	// icon hides a farther one. The avpx hook draws our triangles in the order given, compared with the level's depth (a wall hides them) but not written into it, so where two
+	// overlap the one drawn LAST is seen. They were given nearest first, so a farther icon was painted over a nearer one (a V made Behind another, seen from behind, looked to
+	// be behind it). So they are given FARTHEST FIRST, the painter's order: the farthest object first, and each object's own faces farthest first too, so a nearer face is
+	// drawn over a farther one. (NAMED: the order is by each face's middle, as a painter's is; two faces that cross each other can't be put right by any order.)
+	auto const distance = [&eye](int32_t const a[3], int32_t const b[3], int32_t const c[3])
+	{
+		double sum = 0.0;
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			double const middle = ((double)a[axis] + (double)b[axis] + (double)c[axis]) / 3.0 - eye[axis];
+
+			sum += middle * middle;
+		}
+
+		return sum;
+	};
+
+	for (size_t k = kept.size(); k-- > 0; )
+	{
+		std::vector<host::IconWorldTriangle> faces = kept[k]->triangles;
+
+		std::stable_sort(faces.begin(), faces.end(), [&distance](host::IconWorldTriangle const &x, host::IconWorldTriangle const &y)
+		{
+			return distance(x.a, x.b, x.c) > distance(y.a, y.b, y.c);
+		});
+
+		for (host::IconWorldTriangle const &t : faces)
 		{
 			LevelViewTriangle one;
 
@@ -14244,7 +14426,7 @@ void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 			memcpy(one.b, t.b, sizeof(one.b));
 			memcpy(one.c, t.c, sizeof(one.c));
 			one.colour = t.colour;
-			one.group = piece.group;
+			one.group = kept[k]->group;
 			triangles->push_back(one);
 		}
 	}
@@ -16592,6 +16774,7 @@ int main(int, char **)
 		PlotPreviewState_Line();
 		// the gizmo made again once this frame's camera is in, so it is drawn with the camera it was made from (gizmo_screen.h GizmoScreen_AfterEyes; the owner: it "flickers alot")
 		LevelView_SetAfterEyes([](void *) { GizmoScreen_AfterEyes(); }, nullptr);
+		KeepTheShownLocationsInPlay();   // an object the game's loader rolled onto another of its alternate locations is drawn where the level shows it (Alt Locations, above)
 		bool const drawn = LevelView_Draw(drawCamera, savedTo, AddThePanels, &framePanels);
 		GizmoScreen_AfterDraw();   // how far its arrow is off its length on the screen, with the camera the frame was drawn from (gizmolag)
 		StateLine_Add("plotmessage", AutoPlotCommand_MessageShown().empty() ? std::string("off") : AutoPlotCommand_MessageShown());   // the auto-plot's start message this frame drew
