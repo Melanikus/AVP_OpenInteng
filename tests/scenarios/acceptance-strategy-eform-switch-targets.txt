@@ -1,0 +1,77 @@
+# ACCEPTANCE (red first; Frost 2026-11-25, the owner's forms, the E pages' MVP after the kinds, Bishop): a target's "Extra data..." opens its E page as a FORM (strategy_forms_paths.cpp
+# StrategyFormRows_Extra, titled "Target  -  <name>"), whose rows write the switch's request word for THAT target as the page's clicks did: data = word >> 1, bit 0 (on) kept
+# (strategy_views.cpp StrategyView_RequestClick / RequestWord). Stat101's trigtospidgen (66, a Multiple Target Switch on generator02) gets three more targets from its "+" list,
+# each one's E page used in turn: crane (72, the Track page): "Start track forward" (data 1); mar7 (69, a marine: the Enemy page): "Change to Guard" (data 0x101: bit 0, change 2);
+# area042 (68, the Switch page): "Part of link switch set" (data 1). Each new target is on (word bit 0), so the words read back are 3, 0x203 (515) and 3.
+# RED before the E forms: Extra data... opened inteng's page (no dialog "Target  -  ...").
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is trigtospidgen
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog trigtospidgen : Multiple Target Switch
+# ---- crane, the Track page: Start track forward
+click-button +
+wait 300
+expect-dialog Select Object
+click-choice-is crane
+wait 400
+expect-dialog trigtospidgen : Multiple Target Switch
+click-button Extra_data... 2
+wait 400
+expect-dialog Target  -  crane
+click-combo 1
+expect-dialog-combo-rows Start track,Start track forward,Start track backward
+click-combo-row Start track forward
+wait 300
+picture 1
+click-button Ok
+wait 400
+expect-dialog trigtospidgen : Multiple Target Switch
+# ---- mar7, the Enemy page (a marine): Change to Guard
+click-button +
+wait 300
+expect-dialog Select Object
+click-choice-is mar7
+wait 400
+click-button Extra_data... 3
+wait 400
+expect-dialog Target  -  mar7
+click-combo 1
+click-combo-row Change to Guard
+wait 300
+picture 2
+click-button Ok
+wait 400
+expect-dialog trigtospidgen : Multiple Target Switch
+# ---- area042, the Switch page: Part of link switch set
+click-button +
+wait 300
+expect-dialog Select Object
+click-choice-is area042
+wait 400
+click-button Extra_data... 4
+wait 400
+expect-dialog Target  -  area042
+expect-field-has strategyform Part of link switch set
+click-check 1
+wait 300
+expect-dialog-checks on
+picture 3
+click-button Ok
+wait 400
+expect-dialog trigtospidgen : Multiple Target Switch
+click-button Ok
+expect-no-dialog
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF {copy} trigtospidgen targets 4 target.0 generator02 target.1 crane target.2 mar7 target.3 area042 target_request.1 3 target_request.2 515 target_request.3 3

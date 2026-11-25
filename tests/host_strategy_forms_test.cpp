@@ -182,6 +182,14 @@ int32_t host::StrategyFormsPaths_SelectedTrackSections()
 	return 0;
 }
 
+std::vector<int32_t> host::StrategyFormsPaths_HierarchySequences(uint8_t const id[8])
+{
+	// a placed hierarchy with two sequences, 3 and 300 (300: past the 8 bits a word holds, not offered), for the ID 1..8; none for any other
+	uint8_t const one[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+	return memcmp(id, one, 8) == 0 ? std::vector<int32_t>{ 3, 300 } : std::vector<int32_t>();
+}
+
 std::vector<std::pair<int32_t, std::string>> host::StrategyFormsPaths_LevelPaths()
 {
 	return {};
@@ -365,6 +373,43 @@ int main()
 		      back[1].sub.size() == 1 && back[1].sub[0].id == target.id && back[1].sub[0].word == 1 && back[1].sub[0].choice == 7,
 		      k + ": written sorted (1, 2), 2 once with its target (on, Opposite back 7), and read back so");
 		Check(effects.entryWords(back[1]) == (kind == 76 ? "Flag 2" : "Point 2"), k + ": a line's words (" + effects.entryWords(back[1]) + ")");
+	}
+
+	// paths (Frost): THE E PAGES' rows, each page's (StrategyFormRows_Extra), on the page's data; no form for NotUsed / NotMarine / Nothing, nor for a placed hierarchy with no sequence
+	{
+		using P = host::RequestPage;
+		using K = host::StrategyFormRowKind;
+		host::RequestPageState state;
+		std::vector<host::StrategyFormRow> rows;
+
+		Check(host::StrategyFormRows_Extra(P::Switch, state, &rows) && rows.size() == 1 && rows[0].kind == K::Check && rows[0].mask == 1 && rows[0].field == "request.data",
+		      "E, a switch: one box, \"Part of link switch set\", data bit 0");
+		Check(host::StrategyFormRows_Extra(P::Mission, state, &rows) && rows.size() == 3 && rows[0].mask == 1 && rows[1].mask == 2 && rows[2].mask == 4, "E, a mission: three boxes, bits 0, 1, 2");
+		Check(host::StrategyFormRows_Extra(P::Track, state, &rows) && rows.size() == 1 && rows[0].kind == K::Choice && rows[0].choices.size() == 3 && rows[0].choices[2].value == 2,
+		      "E, a track: start, forward, backward (0, 1, 2)");
+		Check(host::StrategyFormRows_Extra(P::Message, state, &rows) && rows.size() == 1 && rows[0].choices.size() == 3, "E, a message: its three options");
+		Check(host::StrategyFormRows_Extra(P::Enemy, state, &rows) && rows.size() == 2 && rows[0].mask == 0x7f81u && rows[0].choices.size() == 6 && rows[0].choices[5].value == 0x201 &&
+		      rows[1].mask == 0x7f8000u && rows[1].shown && !rows[1].shown(69, { 0x81, 0, 0, 0 }) && rows[1].shown(69, { 0x01, 0x02, 0, 0 }),
+		      "E, a marine: the change (bit 0, bits 7 up), the path only for a path follower (change 4)");
+
+		state.targetType = 0;
+
+		Check(host::StrategyFormRows_Extra(P::PlacedObject, state, &rows) && rows.size() == 2 && rows[0].clearAlso == 0x7f80u && rows[1].kind == K::Number && rows[1].mask == 0x7f80u &&
+		      rows[1].shift == 7 && rows[1].alsoBits == 1u && rows[1].highest == 255.0, "E, a placed object: Set integrity (unticked clears it), the integrity in bits 7 to 14, setting bit 0");
+
+		state.targetType = 16;
+
+		Check(host::StrategyFormRows_Extra(P::PlacedObject, state, &rows) && rows.size() == 4 && rows[2].mask == 0xEu && rows[3].mask == 0x10u, "E, a placed light: its type and the swap too");
+
+		state.targetId = { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+		Check(host::StrategyFormRows_Extra(P::PlacedHierarchy, state, &rows) && rows.size() == 1 && rows[0].mask == 0xff00u && rows[0].choices.size() == 1 && rows[0].choices[0].value == 3 << 8,
+		      "E, a placed hierarchy: its sequences (3; not 300, past 8 bits) in bits 8 to 15");
+
+		state.targetId = { 9, 9, 9, 9, 9, 9, 9, 9 };
+
+		Check(!host::StrategyFormRows_Extra(P::PlacedHierarchy, state, &rows) && !host::StrategyFormRows_Extra(P::NotUsed, state, &rows) && !host::StrategyFormRows_Extra(P::NotMarine, state, &rows) &&
+		      !host::StrategyFormRows_Extra(P::Nothing, state, &rows), "E: no form for a placed hierarchy with no sequence, NotUsed, NotMarine, Nothing (their message, as before)");
 	}
 
 	printf("%d checks, %d failed\n", checks, checksFailed);

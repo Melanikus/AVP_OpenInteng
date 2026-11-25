@@ -85,14 +85,15 @@ expect-dialog The target strategy doesn't use extended request data
 click-button Ok
 wait 400
 expect-dialog linktoeverything : Linked Switch
-# the target back to the Multi Switch immediatesrt; its Extra data... is its page (S-84, "Part of link switch set"); Escape ends the page only, and the form is back
+# the target back to the Multi Switch immediatesrt; its Extra data... is its E page (S-84), a FORM since 11-25 (Frost, the E pages' MVP): "Part of link switch set"; Escape ends
+# the page only, and the form is back
 click-combo 3
 click-combo-row immediatesrt - Multi switch
 expect-dialog-text On|Time Delay (Autoexec)|7.5|2|immediatesrt - Multi switch
 click-button Extra_data...
 wait 400
-expect-no-dialog
-expect-field-has strategyview Target  -  immediatesrt : Switch|32@48:Part of link switch set
+expect-dialog Target  -  immediatesrt
+expect-field-has strategyform Part of link switch set
 picture 4
 key Esc
 wait 400

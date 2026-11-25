@@ -356,11 +356,170 @@ namespace host
 		return true;
 	}
 
-	// THE E PAGES as forms: not yet. DEBT (Bishop 2026-11-24, alpha.7: the kinds first, the E pages their own MVP right after): every target's "Extra data..." button runs
-	// inteng's own E page (StrategyRequestE: lines that a click changes); its rows per page (placed object, switch, mission, track, message, enemy, placed hierarchy) go here,
-	// on the field "request.data" (strategy_forms.h)
-	bool StrategyFormRows_Extra(RequestPage, RequestPageState const &, std::vector<StrategyFormRow> *)
+	// THE E PAGES as forms (Bishop 2026-11-24: their own MVP after the kinds). A target's "Extra data..." opens the page of the TARGET's kind (StrategyView_RequestPageOf);
+	// each page edits the switch's request word for that target: data = word >> 1, its bit 0 kept (StrategyView_RequestOpen / RequestWord). The rows below say what each page's
+	// lines say, in inteng's words, and write what its clicks write (strategy_views.cpp StrategyView_RequestLines / RequestClick). Their field is the page's data ("request.data";
+	// the builder reads and writes it, strategy_forms.h); a shown rule or a choicesFrom gets the data as its 4 bytes, little-endian. NotUsed, NotMarine and Nothing have no form:
+	// their message as before (false)
+	namespace
 	{
-		return false;
+		uint32_t DataOf(std::vector<uint8_t> const &bytes)
+		{
+			return bytes.size() >= 4 ? (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 | (uint32_t)bytes[3] << 24 : 0u;
+		}
+
+		StrategyFormRow ExtraRow(StrategyFormRowKind kind, char const *label, uint32_t mask)
+		{
+			StrategyFormRow row;
+
+			row.kind = kind;
+			row.label = label;
+			row.field = "request.data";
+			row.mask = mask;
+			return row;
+		}
+	}
+
+	bool StrategyFormRows_Extra(RequestPage page, RequestPageState const &state, std::vector<StrategyFormRow> *rows)
+	{
+		std::vector<StrategyFormRow> built;
+
+		switch (page)
+		{
+			case RequestPage::Switch:
+				// FUN_00530510: "Part of link switch set", data bit 0 flips (0x5305ed)
+				built.push_back(ExtraRow(StrategyFormRowKind::Check, "Part of link switch set", 0x1u));   // 0x5ef194
+				break;
+
+			case RequestPage::Mission:
+			{
+				// 0x5333c5: three bits flip on their rows. NAMED: inteng draws the third box ticked when its bit is CLEAR (strategy_views.cpp); the form shows the bit as it is
+				built.push_back(ExtraRow(StrategyFormRowKind::Check, "Make objective visible", 0x1u));                     // 0x5ef8ec
+				built.push_back(ExtraRow(StrategyFormRowKind::Check, "Make objective possible", 0x2u));                    // 0x5ef8d4
+				built.push_back(ExtraRow(StrategyFormRowKind::Check, "Complete mission (if currently possible)", 0x4u));   // 0x5ef8a8
+				break;
+			}
+
+			case RequestPage::Track:
+			{
+				// 0x535318: a row sets the whole data to 0, 1 or 2
+				StrategyFormRow start = ExtraRow(StrategyFormRowKind::Choice, "Start", 0u);
+
+				start.choices = { { "Start track", 0 }, { "Start track forward", 1 }, { "Start track backward", 2 } };   // 0x5efcdc, 0x5efcc8, 0x5efcb0
+				built.push_back(start);
+				break;
+			}
+
+			case RequestPage::Message:
+			{
+				// 0x5339c0: a click cycles the whole data 0 -> 1 -> 2 -> 0 (any other is 0); each option's two lines, "On :" and "Off :", as the page draws them
+				StrategyFormRow effect = ExtraRow(StrategyFormRowKind::Choice, "On / off message", 0u);   // "Current effect of on/off message :" (0x5efa28)
+
+				effect.choices = { { "On : Display message, Off : Ignored", 0 }, { "On : Activate message, Off : Deactivate message", 1 },
+				                   { "On : Activate and display message, Off : Deactivate message", 2 } };   // 0x5efa10 / 0x5efa00, 0x5ef9a8 / 0x5ef9c0, 0x5ef9dc
+				built.push_back(effect);
+				break;
+			}
+
+			case RequestPage::Enemy:
+			{
+				// FUN_0053a470 (a marine): "No change" clears data bit 0 (0x53a5f8); "Change to ..." sets bit 0 and the change (0 to 4) in bits 7 up; a path follower also asks the path,
+				// into bits 15 up (StrategyView_RequestPath). NAMED: "No change" here clears the change's bits with bit 0 (inteng keeps them; bit 0 off, the game reads none); and
+				// "Change to Path follower" keeps the path's bits until a path is picked (inteng clears them as it asks for the path, 0x53a65c)
+				StrategyFormRow change = ExtraRow(StrategyFormRowKind::Bits, "Change", 0x7f81u);
+
+				change.choices = { { "No change", 0 }, { "Change to Wait then wander", 0x1 }, { "Change to Wander", 0x81 }, { "Change to Guard", 0x101 },
+				                   { "Change to Local Guard", 0x181 }, { "Change to Path follower", 0x201 } };   // 0x5f036c .. 0x5f02fc
+				built.push_back(change);
+
+				StrategyFormRow path = ExtraRow(StrategyFormRowKind::Bits, "Path", 0x7f8000u);
+
+				path.choicesFrom = [](int32_t, std::vector<uint8_t> const &)
+				{
+					// NAMED: a path numbered above 255 is not offered: the page shows the path from these 8 bits ((data >> 15) & 0xff), and inteng's unmasked number << 15 would
+					// spill into the bits above them
+					std::vector<StrategyFormChoice> choices;
+
+					for (std::pair<int32_t, std::string> const &one : StrategyFormsPaths_LevelPaths())
+					{
+						if (one.first >= 0 && one.first <= 255)
+						{
+							choices.push_back({ std::to_string((long long)one.first) + "  " + one.second, (int32_t)((uint32_t)one.first << 15) });
+						}
+					}
+
+					return choices;
+				};
+				path.shown = [](int32_t, std::vector<uint8_t> const &bytes)
+				{
+					uint32_t const data = DataOf(bytes);
+
+					return (data & 1u) != 0 && ((data >> 7) & 0xffu) == 4u;   // a path follower's (the page's "Path - %d  %s" line)
+				};
+				built.push_back(path);
+				break;
+			}
+
+			case RequestPage::PlacedObject:
+			{
+				// FUN_00531240: "Set integrity": ticked = data bit 0 with the integrity in bits 7 to 14 (StrategyView_RequestIntegrity), unticked clears both (0x531476: & 0xffff807e)
+				StrategyFormRow set = ExtraRow(StrategyFormRowKind::Check, "Set integrity", 0x1u);   // 0x5ef3fc
+
+				set.clearAlso = 0x7f80u;
+				built.push_back(set);
+
+				StrategyFormRow integrity = ExtraRow(StrategyFormRowKind::Number, "Integrity", 0x7f80u);   // "New integrity value" (0x5ef380)
+
+				integrity.shift = 7;
+				integrity.alsoBits = 0x1u;   // a written integrity sets bit 0, as the page's Ok
+				integrity.lowest = 0.0;      // NAMED: inteng makes a number below 1 into 0 and above 254 into 255; the form refuses outside 0 to 255 with the range shown
+				integrity.highest = 255.0;
+				built.push_back(integrity);
+
+				if (state.targetType == 16)   // a placed light (0x53132b): its type, one at a time, and the swap
+				{
+					StrategyFormRow type = ExtraRow(StrategyFormRowKind::Bits, "Light type", 0xEu);
+
+					type.choices = { { "No change", 0 }, { "Change type to standard", 0x2 }, { "Change type to flicker", 0x8 }, { "Change type to strobe", 0x4 } };   // 0x5ef3e4 ..
+					built.push_back(type);
+					built.push_back(ExtraRow(StrategyFormRowKind::Check, "Swap 'up' and 'down' colours", 0x10u));   // 0x5ef394
+				}
+
+				break;
+			}
+
+			case RequestPage::PlacedHierarchy:
+			{
+				// FUN_0053b830: "Sequence index" in bits 8 to 15, from the placed hierarchy's sequences ("Select Sequence Index"). None: no form, inteng's "No sequences!!!!!!"
+				// as before. NAMED: an index above 255 is not offered (the page shows it from these 8 bits; inteng's unmasked index << 8 would spill into the bits above)
+				StrategyFormRow sequence = ExtraRow(StrategyFormRowKind::Bits, "Sequence index", 0xff00u);   // 0x5f03c0
+
+				for (int32_t const index : StrategyFormsPaths_HierarchySequences(state.targetId.data()))
+				{
+					if (index >= 0 && index <= 255)
+					{
+						sequence.choices.push_back({ std::to_string((long long)index), (int32_t)((uint32_t)index << 8) });
+					}
+				}
+
+				if (sequence.choices.empty())
+				{
+					return false;
+				}
+
+				built.push_back(sequence);
+				break;
+			}
+
+			default:
+				return false;   // NotUsed, NotMarine, Nothing: their message, as before
+		}
+
+		if (rows)
+		{
+			*rows = built;
+		}
+
+		return true;
 	}
 }

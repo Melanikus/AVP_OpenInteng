@@ -1,0 +1,80 @@
+# ACCEPTANCE (red first; Frost 2026-11-25, the E pages' MVP): the Message and the Placed object E pages as FORMS (strategy_forms_paths.cpp StrategyFormRows_Extra). Derelict's
+# "V fan off tank01" (66, a Multiple Target Switch, two targets already) gets two more from its "+" list (Drake's e-survey: Derelict's message 113 and its light LIGHTcomm01c):
+#   "V In emergency break glass message 113" (73, the Message page): "On : Activate and display message, Off : Deactivate message" (data 2: the page's click cycle);
+#   LIGHTcomm01c (62, a placed light: the Placed object page): Integrity 7 (data bits 7 to 14, and bit 0 with it: StrategyView_RequestIntegrity) and "Change type to standard"
+#   (bit 1 of the data; the light's types one at a time).
+# Each new target is on (word bit 0): the words read back are 2 << 1 | 1 = 5 and (7 << 7 | 1 | 2) << 1 | 1 = 1799; the light's line duplicated with "Set integrity" unticked
+# (clearAlso: the integrity's bits go with bit 0) reads 2 << 1 | 1 = 5. RED before the E forms: Extra data... opened inteng's page.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is V fan off tank01
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog V fan off tank01 : Multiple Target Switch
+# (it has two targets already: the new ones are its third and fourth lines)
+# ---- the message, the Message page: option 2
+click-button +
+wait 300
+expect-dialog Select Object
+click-choice-is V In emergency break glass message 113
+wait 400
+expect-dialog V fan off tank01 : Multiple Target Switch
+click-button Extra_data... 3
+wait 400
+expect-dialog Target  -  V In emergency break glass message 113
+click-combo 1
+expect-dialog-combo-rows On : Display message, Off : Ignored,On : Activate message, Off : Deactivate message,On : Activate and display message, Off : Deactivate message
+click-combo-row On : Activate and display message, Off : Deactivate message
+wait 300
+picture 1
+click-button Ok
+wait 400
+expect-dialog V fan off tank01 : Multiple Target Switch
+# ---- the light, the Placed object page: Integrity 7, its type standard
+click-button +
+wait 300
+expect-dialog Select Object
+click-choice-is LIGHTcomm01c
+wait 400
+click-button Extra_data... 4
+wait 400
+expect-dialog Target  -  LIGHTcomm01c
+expect-field-has strategyform Set integrity|Integrity
+click-combo 1
+click-combo-row Change type to standard
+wait 300
+form-field 1 7
+picture 2
+click-button Ok
+wait 400
+expect-dialog V fan off tank01 : Multiple Target Switch
+# ---- the light's line duplicated (the page's D), and on the copy "Set integrity" unticked: the integrity's bits go with bit 0 (0x531476: & 0xffff807e), its type kept,
+# so its word is 2 << 1 | 1 = 5
+click-button Duplicate 4
+wait 400
+expect-dialog V fan off tank01 : Multiple Target Switch
+click-button Extra_data... 5
+wait 400
+expect-dialog Target  -  LIGHTcomm01c
+expect-dialog-checks on,off
+click-check 1
+wait 300
+expect-dialog-checks off,off
+picture 3
+click-button Ok
+wait 400
+expect-dialog V fan off tank01 : Multiple Target Switch
+click-button Ok
+expect-no-dialog
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF {copy} "V fan off tank01" targets 5 target.2 "V In emergency break glass message 113" target.3 LIGHTcomm01c target.4 LIGHTcomm01c target_request.2 5 target_request.3 1799 target_request.4 5

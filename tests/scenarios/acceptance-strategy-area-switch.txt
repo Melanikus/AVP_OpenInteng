@@ -22,20 +22,18 @@ expect-dialog dropswitch : Area Switch
 expect-dialog-text Off|Time Delay|5|0|dropship ken - Hierarchy
 expect-dialog-checks on
 expect-field-has strategyform |Targets|On|add a target|Trigger Volume|V : Change Trigger Volume|Links|None
-# Extra data... on the target: the placed hierarchy's page
+# Extra data... on the target: the placed hierarchy's E page, as a FORM since 11-25 (Frost, the E pages' MVP; strategy_forms_paths.cpp StrategyFormRows_Extra): "Target  -
+# dropship ken", one drop-down, "Sequence index", of the hierarchy's sequences (dropship ken has one, index 0); picking it keeps the word
 click-button Extra_data... 1
 wait 400
-expect-no-dialog
+expect-dialog Target  -  dropship ken
 picture 2
-expect-field-has strategyview 100@0:Target  -  dropship ken : Placed hierarchy|16@16:Sequence index 0
-# a press on the sequence line: the list "Select Sequence Index" (dropship ken has one sequence, index 0); picking it keeps the word
-click-box 300 24
-expect-dialog Select Sequence Index
-expect-dialog-rows 0
-click-row 1
-expect-no-dialog
+expect-field-has strategyform Sequence index
+click-combo 1
+expect-dialog-combo-rows 0
+click-combo-row 0
 wait 300
-expect-field-has strategyview 100@0:Target  -  dropship ken : Placed hierarchy|16@16:Sequence index 0
+expect-field-has dialogcombos 0
 # Escape ends the page only: the form again, as it was
 key Esc
 wait 400

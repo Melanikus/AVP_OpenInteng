@@ -8,6 +8,9 @@
 #include "level_objects.h"    // LevelObjects_OpenForEdit
 #include "list_order.h"       // ListOrder: a list window's order
 #include "path_mode.h"        // PathMode_ReadPaths
+#include "special_objects_edit.h"   // PlacedHierarchies_Read: a placed hierarchy's sequences
+
+#include <string.h>           // memcmp
 
 namespace host
 {
@@ -48,5 +51,36 @@ namespace host
 		}
 
 		return numbered;
+	}
+
+	std::vector<int32_t> StrategyFormsPaths_HierarchySequences(uint8_t const id[8])
+	{
+		std::vector<int32_t> indexes, ordered;
+		std::vector<std::string> rows;
+		std::vector<PlacedHierarchyInfo> placed;
+
+		if (id && LevelObjects_OpenForEdit() && PlacedHierarchies_Read(LevelObjects_OpenForEdit(), &placed) == SpecialResult::Done)
+		{
+			for (PlacedHierarchyInfo const &one : placed)
+			{
+				if (memcmp(one.id, id, 8) == 0)
+				{
+					for (PlacedHierarchySequence const &s : one.sequences)
+					{
+						indexes.push_back(s.index);
+						rows.push_back(std::to_string((long long)s.index));   // "%d" (0x5d1268), as the list's rows
+					}
+
+					break;
+				}
+			}
+		}
+
+		for (size_t const place : ListOrder(rows))
+		{
+			ordered.push_back(indexes[place]);
+		}
+
+		return ordered;
 	}
 }

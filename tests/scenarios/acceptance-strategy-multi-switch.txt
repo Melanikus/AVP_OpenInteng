@@ -53,11 +53,12 @@ picture 2
 click-button Remove 5
 wait 300
 expect-dialog-text On|Wait|0|Reversed (default)|downdoor02 - Door|downdoor01 - Door|S363 - Message|delay temple sealed sound - Multi switch
-# Extra data... on the fourth (the page's E on its row): its target is the Multi Switch "delay temple sealed sound": its page (S-84) "Part of link switch set"; Escape ends the page only
+# Extra data... on the fourth (the page's E on its row): its target is the Multi Switch "delay temple sealed sound": its E page, a FORM since 11-25 (Frost, the E pages' MVP;
+# strategy_forms_paths.cpp StrategyFormRows_Extra): "Part of link switch set"; Escape ends the page only
 click-button Extra_data... 4
 wait 400
-expect-no-dialog
-expect-field-has strategyview Part of link switch set
+expect-dialog Target  -  delay temple sealed sound
+expect-field-has strategyform Part of link switch set
 key Esc
 wait 400
 expect-dialog exitmultiswitch : Multiple Target Switch

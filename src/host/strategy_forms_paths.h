@@ -20,4 +20,8 @@ namespace host
 	// The level's paths in Select Path's order (its rows sorted byte by byte, as inteng's list window sorts them): each one's number and name (PathMode_ReadPaths,
 	// FUN_004fb6a0); none when no level is open
 	std::vector<std::pair<int32_t, std::string>> StrategyFormsPaths_LevelPaths();
+
+	// A placed hierarchy's sequence indexes (its PLHISEQU chunks, those the game's reader takes: special_objects_edit.h), in "Select Sequence Index"'s order (its rows "%d"
+	// sorted byte by byte, as inteng's list window sorts them; FUN_0053b830); none when the ID is no placed hierarchy's or it has none
+	std::vector<int32_t> StrategyFormsPaths_HierarchySequences(uint8_t const id[8]);
 }
