@@ -24,9 +24,9 @@ click-win 504 610 right
 click-popup 4
 expect-dialog Select Strategy
 click-button Area_Switch
-expect-no-dialog
-expect-field-has strategyview : Area Switch|100@360:V : Change Trigger Volume
-key V
+# (its view is its form since 11-24, strategy_forms.h: the page's V is the Trigger Volume line's button)
+expect-dialog ZoneVO : Area Switch
+click-button Edit_volume...
 expect-status Edit Volume
 # S-VOL-3: the row at (16, 32)
 expect-screen-text View Distance :
@@ -83,7 +83,8 @@ expect-status The volume is written into the strategy
 # drawn frame (a skeptic's correction, 11-17)
 camera 0 0 -1450 2048
 wait 400
-key V
+expect-dialog ZoneVO : Area Switch
+click-button Edit_volume...
 wait 300
 # (x 1: the cube's centre is the V's box centre, (-744 + 746) / 2)
 expect-field camera 1 0 6553 2048 0

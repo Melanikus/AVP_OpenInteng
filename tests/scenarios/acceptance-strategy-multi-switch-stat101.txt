@@ -16,8 +16,9 @@ expect-no-dialog
 key E
 wait 400
 picture 1
-expect-field-has strategyview 200@0:trigtospidgen : Multiple Target Switch|100@380:D : Duplicate target{9} Shift D : Remove target|100@400:E : Edit extra message data for target|100@420:P : Change Properties|100@440:T : Change Target (+Ctrl to choose environment)|100@460:S : Toggle Target State|16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Targets :|0@96:(on)|80@96:
-# no field panel: the view's words fill the screen (the grey panel's rows are not there)
-expect-field-has strategyview |80@96:
+# (its form since 11-24, strategy_forms.h): Rest State Off, Wait, Security 0, Reversed; one target, on; no field panel under it
+expect-dialog trigtospidgen : Multiple Target Switch
+expect-dialog-checks on
+expect-field-has strategyform |Targets|On|add a target|Links|None
 key Esc
 wait 300

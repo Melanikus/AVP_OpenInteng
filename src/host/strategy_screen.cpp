@@ -18,6 +18,7 @@
 #include <string.h>
 #include <wchar.h>
 #include <map>
+#include <algorithm>
 #include <array>
 #include <functional>
 #include <math.h>
@@ -949,6 +950,9 @@ static void SayMessageFmv(int32_t number)
 }
 
 static bool StrategyFormStart(int32_t kind);   // EDIT STRATEGY AS A FORM, at the end of this file
+static int32_t const kPickFormEntry = 100;      // the pick of a form's List line, or of its "+" line (strategy_views.h's pick rows are 1 to 7)
+static void FormEntryPicked(uint8_t const *picked);   // its end (StrategyPickEnd): the object written into that line, or appended
+static int32_t strategyRequestRowWanted = -1;   // E's page for THIS target of a 66 / 68 (a form line's Extra data...), not the one under the pointer
 
 bool StrategyViewOpen()
 {
@@ -3004,6 +3008,10 @@ void StrategyPickEnd()
 	{
 		LiftSwitchPicked(subject, kind, field.c_str(), have ? picked : nullptr);
 	}
+	else if (row == kPickFormEntry)
+	{
+		FormEntryPicked(have ? picked : nullptr);   // a form's List line (EDIT STRATEGY AS A FORM)
+	}
 
 	// the view's object is the red one again, and the view goes on (or ends now when Escape is held as the pick ends)
 	host::Selected current = {};
@@ -3109,7 +3117,13 @@ void StrategyRequestE()
 		std::vector<host::MultiTarget> targets;
 		size_t index = 0;
 
-		if (!host::StrategyView_MultiTargets(payload, &targets) || !host::StrategyView_MultiTargetAt(payload, multiPage, PointerRowInBox(), &index))
+		// (a form's line names its target: strategyRequestRowWanted; EDIT STRATEGY AS A FORM)
+		if (strategyRequestRowWanted >= 0)
+		{
+			index = (size_t)strategyRequestRowWanted;
+		}
+
+		if (!host::StrategyView_MultiTargets(payload, &targets) || (strategyRequestRowWanted < 0 && !host::StrategyView_MultiTargetAt(payload, multiPage, PointerRowInBox(), &index)) || index >= targets.size())
 		{
 			return;
 		}
@@ -4294,6 +4308,12 @@ bool strategyFormOn = false;
 static int32_t const kFormPick = 100;    // a Pick button answers this + its row's place
 static int32_t const kFormExtra = 300;   // an Extra data... button answers this + its row's place
 static int32_t const kFormAction = 500;  // an Action's button answers this + its row's place
+// A List line's buttons answer their base + the row's place x 100 + the line's place on the page (a page holds kFormListLines)
+static int32_t const kFormEntryPick = 10000, kFormEntryExtra = 20000, kFormEntryCopy = 30000, kFormEntryRemove = 40000;
+static int32_t const kFormAppendList = 50000, kFormAppendPick = 60000;   // the "+" line: the object chosen from a list, or picked in the world (+ the row's place x 100)
+static int32_t const kFormPagePrevious = 70000, kFormPageNext = 80000;   // a List of more than a page: its < and > (+ the row's place x 100)
+static int32_t const kFormListLines = 10;
+static int32_t formEntryPendingRow = -1, formEntryPendingAt = -1;   // the List line a pick in the world is for (at -1: the "+" line, append)
 
 namespace
 {
@@ -4304,8 +4324,17 @@ namespace
 		std::vector<int32_t> values;              // Choice, Bits: each drop-down row's value; the "Unknown" row has none (the list is one shorter)
 		std::vector<std::array<uint8_t, 8>> ids;  // Target: each drop-down row's object (row 0: none); the "Unknown" row has none
 		std::string shownWords;                   // Number: the words it opened with
-		std::vector<size_t> lines;                // Links: its lines
+		std::vector<size_t> lines;                // Links: its lines; List: every part of its lines (for showing and hiding them)
+		struct Line
+		{
+			size_t entry = 0;                 // its entry's place in the whole list
+			size_t combo = SIZE_MAX;
+			std::vector<size_t> checks;       // one per entryChecks
+		};
+		std::vector<Line> listLines;              // List: the lines on the page shown
 	};
+
+	std::vector<int32_t> strategyFormListPage;    // each List row's page shown (0 the first), kept while the view is open
 
 	std::vector<host::StrategyFormRow> strategyFormRows;   // the open form's rows (one form is open at a time: a dialog is modal)
 	std::vector<FormParts> strategyFormParts;
@@ -4388,6 +4417,145 @@ static std::string FormRangeWords(host::StrategyFormRow const &row)
 	return words;
 }
 
+// The objects a Target or List row may name, each by the words the page names a target with (StrategyTargetWords: the name and its kind, "immediatesrt - Multi switch"): every object
+// of the Find Object list, then every other object that holds a strategy (an enemy, a generator, a placed hierarchy: the list holds only the level's object headers), each once; never
+// the view's own; only those holding one of targetKinds' strategies when it has any. (A sound or a particle generator holds none and is in neither: Pick in the world names one, and a
+// line already naming one shows it: FormObjectWords.)
+static void FormObjectsFor(host::StrategyFormRow const &row, uint8_t const *subject, std::vector<std::array<uint8_t, 8>> *ids, std::vector<std::string> *names)
+{
+	std::vector<std::array<uint8_t, 8>> candidates;
+
+	for (size_t i = 0; i < objectList.Count(); i++)
+	{
+		if (uint8_t const *const id = objectList.Id(i))
+		{
+			std::array<uint8_t, 8> one;
+
+			memcpy(one.data(), id, 8);
+			candidates.push_back(one);
+		}
+	}
+
+	if (LevelObjects_Level())
+	{
+		std::vector<host::StrategyRecordRef> records;
+
+		host::ListStrategyRecords(LevelObjects_Level(), &records);
+
+		for (host::StrategyRecordRef const &record : records)
+		{
+			if (std::find(candidates.begin(), candidates.end(), record.id) == candidates.end())
+			{
+				candidates.push_back(record.id);
+			}
+		}
+	}
+
+	for (std::array<uint8_t, 8> const &candidate : candidates)
+	{
+		uint8_t const *const id = candidate.data();
+
+		if (memcmp(id, subject, 8) == 0 || std::find(ids->begin(), ids->end(), candidate) != ids->end())
+		{
+			continue;   // never the view's own object (the pick's rule); each once
+		}
+
+		if (!row.targetKinds.empty())
+		{
+			int32_t kind = 0;
+
+			if (!StrategyOfObject(id, &kind, nullptr) || std::find(row.targetKinds.begin(), row.targetKinds.end(), kind) == row.targetKinds.end())
+			{
+				continue;
+			}
+		}
+
+		std::array<uint8_t, 8> one;
+
+		memcpy(one.data(), id, 8);
+		ids->push_back(one);
+		names->push_back(StrategyTargetWords(id));
+	}
+}
+
+// The words of a drop-down's last row for the object a line names when no other row holds it: the page's words when the level has that object (a sound, a particle
+// generator: StrategyTargetWords), else "Unknown" (an ID no object has: an odd or hostile file). The row stands for that object: picking it writes nothing
+static std::string FormObjectWords(uint8_t const *id)
+{
+	std::string name;
+
+	return StrategyViewNameOf(id, &name) ? StrategyTargetWords(id) : std::string("Unknown");
+}
+
+// A List's entries written back: the group's writeList makes the record's bytes, written as the page's own writes are (WriteStrategyBytes)
+static bool FormListWrite(host::StrategyFormRow const &row, uint8_t const *subject, std::vector<uint8_t> const &payload, std::vector<host::StrategyFormEntry> const &entries)
+{
+	std::vector<uint8_t> bytes;
+
+	return row.writeList && row.writeList(payload, entries, &bytes) && LevelObjects_OpenForEdit() && WriteStrategyBytes(LevelObjects_OpenForEdit(), subject, bytes) == host::ObjectEditResult::Done;
+}
+
+// A List's entries as the record holds them now (false: the row has no reader, or the record can't be read)
+static bool FormListNow(host::StrategyFormRow const &row, uint8_t const *subject, std::vector<uint8_t> *payload, std::vector<host::StrategyFormEntry> *entries)
+{
+	int32_t kind = 0;
+
+	return row.readList && StrategyOfObject(subject, &kind, payload) && kind == strategyEditKind && row.readList(*payload, entries);
+}
+
+// A pick in the world for a List line ended (StrategyPickEnd): the object picked becomes that line's, or (the "+" line) a new entry at the end with the row's newWord.
+// Nothing picked, or an object the row may not name (targetKinds): nothing changes
+static void FormEntryPicked(uint8_t const *picked)
+{
+	int32_t const r = formEntryPendingRow, at = formEntryPendingAt;
+
+	formEntryPendingRow = formEntryPendingAt = -1;
+
+	if (!picked || r < 0 || (size_t)r >= strategyFormRows.size())
+	{
+		return;
+	}
+
+	host::StrategyFormRow const row = strategyFormRows[(size_t)r];
+	int32_t pickedKind = 0;
+
+	if (!row.targetKinds.empty() && (!StrategyOfObject(picked, &pickedKind, nullptr) || std::find(row.targetKinds.begin(), row.targetKinds.end(), pickedKind) == row.targetKinds.end()))
+	{
+		return;
+	}
+
+	uint8_t subject[8];
+	std::vector<uint8_t> payload;
+	std::vector<host::StrategyFormEntry> entries;
+
+	memcpy(subject, strategyEditId, 8);
+
+	if (!FormListNow(row, subject, &payload, &entries))
+	{
+		return;
+	}
+
+	host::StrategyFormEntry one;
+
+	memcpy(one.id.data(), picked, 8);
+	one.word = row.newWord;
+
+	if (at < 0)
+	{
+		entries.push_back(one);   // APPENDED: the other entries as they were (the owner: "the append behavior, not every time it resets the list")
+	}
+	else if ((size_t)at < entries.size())
+	{
+		entries[(size_t)at].id = one.id;   // that line's object; its word kept
+	}
+	else
+	{
+		return;
+	}
+
+	FormListWrite(row, subject, payload, entries);
+}
+
 // The open form's words that are not a box: its labels and its Links' lines as shown, | between (the harness's strategyform field; the state line carries no label of a form)
 static std::string strategyFormWords;
 
@@ -4443,6 +4611,20 @@ static void FormComboPicked(std::vector<host::DialogWidget> &widgets, size_t ind
 		FormParts const &parts = strategyFormParts[r];
 		int32_t const picked = widgets[index].selected;
 
+		// a List line's drop-down: that entry's object (the "Unknown" row, past the objects, writes nothing)
+		for (FormParts::Line const &line : parts.listLines)
+		{
+			std::vector<uint8_t> now;
+			std::vector<host::StrategyFormEntry> entries;
+
+			if (line.combo == index && picked >= 0 && (size_t)picked < parts.ids.size() && FormListNow(row, subject, &now, &entries) && line.entry < entries.size() &&
+			    entries[line.entry].id != parts.ids[(size_t)picked])
+			{
+				entries[line.entry].id = parts.ids[(size_t)picked];
+				FormListWrite(row, subject, now, entries);
+			}
+		}
+
 		if (parts.control != index)
 		{
 			continue;
@@ -4465,11 +4647,13 @@ static void FormComboPicked(std::vector<host::DialogWidget> &widgets, size_t ind
 		else if (picked >= 0 && (size_t)picked < parts.values.size())
 		{
 			int32_t const before = FormFieldNow(kind, payload, row.field);
-			int32_t const after = row.kind == host::StrategyFormRowKind::Bits ? (int32_t)(((uint32_t)before & ~row.mask) | ((uint32_t)parts.values[(size_t)picked] & row.mask)) : parts.values[(size_t)picked];
+			bool const bits = row.kind == host::StrategyFormRowKind::Bits;
+			int32_t const after = bits ? (int32_t)(((uint32_t)before & ~row.mask) | ((uint32_t)parts.values[(size_t)picked] & row.mask)) : parts.values[(size_t)picked];
 
 			if (after != before)
 			{
-				StrategyViewApply(subject, kind, row.field.c_str(), (double)after);
+				// a Bits row's field is a set of flags: its 32 bits written as the unsigned number they are (0x80000004, not -2147483644, which the field refuses)
+				StrategyViewApply(subject, kind, row.field.c_str(), bits ? (double)(uint32_t)after : (double)after);
 
 				for (host::StrategyFormAlso const &also : row.alsoOnChange)
 				{
@@ -4504,6 +4688,24 @@ static void FormCheckTicked(std::vector<host::DialogWidget> &widgets, size_t ind
 
 	for (size_t r = 0; r < strategyFormRows.size() && r < strategyFormParts.size(); r++)
 	{
+		// a List line's check box: that bit of its entry's word
+		for (FormParts::Line const &line : strategyFormParts[r].listLines)
+		{
+			for (size_t c = 0; c < line.checks.size() && c < strategyFormRows[r].entryChecks.size(); c++)
+			{
+				std::vector<uint8_t> now;
+				std::vector<host::StrategyFormEntry> entries;
+
+				if (line.checks[c] == index && FormListNow(strategyFormRows[r], subject, &now, &entries) && line.entry < entries.size())
+				{
+					uint32_t const mask = strategyFormRows[r].entryChecks[c].mask;
+
+					entries[line.entry].word = widgets[index].checked ? (entries[line.entry].word | mask) : (entries[line.entry].word & ~mask);
+					FormListWrite(strategyFormRows[r], subject, now, entries);
+				}
+			}
+		}
+
 		if (strategyFormRows[r].kind == host::StrategyFormRowKind::Check && strategyFormParts[r].control == index)
 		{
 			uint32_t const before = (uint32_t)FormFieldNow(kind, payload, strategyFormRows[r].field);
@@ -4511,7 +4713,7 @@ static void FormCheckTicked(std::vector<host::DialogWidget> &widgets, size_t ind
 
 			if (after != before)
 			{
-				StrategyViewApply(subject, kind, strategyFormRows[r].field.c_str(), (double)(int32_t)after);
+				StrategyViewApply(subject, kind, strategyFormRows[r].field.c_str(), (double)after);   // the 32 bits as the unsigned number they are (as a Bits row)
 			}
 
 			break;
@@ -4582,6 +4784,114 @@ static bool FormNumbersWritten(std::vector<host::DialogWidget> const &widgets)
 	return true;
 }
 
+// A List's button: a line's Pick, Extra data..., Duplicate or Remove; the "+" line's list or Pick; the page's < or >
+static void FormListButton(int32_t answer)
+{
+	int32_t const base = answer / 10000 * 10000, rest = answer % 10000, r = rest / 100, onPage = rest % 100;
+
+	if (r < 0 || (size_t)r >= strategyFormRows.size())
+	{
+		return;
+	}
+
+	host::StrategyFormRow const row = strategyFormRows[(size_t)r];
+	uint8_t subject[8];
+	std::vector<uint8_t> payload;
+	std::vector<host::StrategyFormEntry> entries;
+
+	memcpy(subject, strategyEditId, 8);
+
+	if (!FormListNow(row, subject, &payload, &entries))
+	{
+		return;
+	}
+
+	if (strategyFormListPage.size() < strategyFormRows.size())
+	{
+		strategyFormListPage.resize(strategyFormRows.size(), 0);
+	}
+
+	int32_t &page = strategyFormListPage[(size_t)r];
+	size_t const at = (size_t)page * (size_t)kFormListLines + (size_t)onPage;
+
+	if (base == kFormPagePrevious || base == kFormPageNext)
+	{
+		int32_t const pages = (int32_t)((entries.size() + kFormListLines - 1) / kFormListLines);
+
+		page = base == kFormPageNext ? (page + 1 < pages ? page + 1 : page) : (page > 0 ? page - 1 : 0);
+		return;
+	}
+
+	if (base == kFormAppendList)
+	{
+		// "+": the objects the row may name, by name alone (as Find Object lists them); the one chosen is appended
+		std::vector<std::array<uint8_t, 8>> ids;
+		std::vector<std::string> names;
+
+		FormObjectsFor(row, subject, &ids, &names);
+
+		for (size_t i = 0; i < ids.size(); i++)
+		{
+			StrategyViewNameOf(ids[i].data(), &names[i]);
+		}
+		DialogList("Select Object", names, [r, ids](int32_t place)
+		{
+			if (place >= 0 && (size_t)place < ids.size() && strategyEditFan && strategyFormOn)
+			{
+				formEntryPendingRow = r;
+				formEntryPendingAt = -1;
+				FormEntryPicked(ids[(size_t)place].data());
+			}
+		});
+		return;
+	}
+
+	if (base == kFormAppendPick || base == kFormEntryPick)
+	{
+		// the pick in the world (FUN_00527540) for that line, or for a new one: a line's object red and flown to; Return ends it (FormEntryPicked)
+		formEntryPendingRow = r;
+		formEntryPendingAt = base == kFormEntryPick ? (int32_t)at : -1;
+		strategyPickField = "(form list)";   // read by nothing but the pick's own "is one running" (no field of the record has this name)
+		strategyViewPickWords = row.pickWords;
+		strategyPickRow = kPickFormEntry;
+		strategyPickRequest.clear();
+		strategyPickHave = base == kFormEntryPick && at < entries.size() && StrategyObjectExists(entries[at].id.data());
+
+		if (strategyPickHave)
+		{
+			memcpy(strategyPickId, entries[at].id.data(), 8);
+			StrategyFlyTo(strategyPickId);
+		}
+
+		StrategyPickShow();
+		return;
+	}
+
+	if (at >= entries.size())
+	{
+		return;
+	}
+
+	if (base == kFormEntryExtra)
+	{
+		strategyRequestRowWanted = (int32_t)at;   // the page's E on that target's line
+		StrategyRequestE();
+		strategyRequestRowWanted = -1;
+	}
+	else if (base == kFormEntryCopy)
+	{
+		host::StrategyFormEntry const copy = entries[at];
+
+		entries.insert(entries.begin() + (std::ptrdiff_t)at + 1, copy);   // the page's D: a copy just after it
+		FormListWrite(row, subject, payload, entries);
+	}
+	else if (base == kFormEntryRemove)
+	{
+		entries.erase(entries.begin() + (std::ptrdiff_t)at);   // the page's Shift + D
+		FormListWrite(row, subject, payload, entries);
+	}
+}
+
 // A form's button (or Ok, or Escape): see the section's head
 static void FormLeft(int32_t answer, std::vector<host::DialogWidget> const &widgets)
 {
@@ -4605,6 +4915,12 @@ static void FormLeft(int32_t answer, std::vector<host::DialogWidget> const &widg
 	{
 		StrategyViewEnd();
 		return;
+	}
+
+	if (answer >= kFormEntryPick)
+	{
+		FormListButton(answer);
+		return;   // the form opens again (StrategyFormFrame) once what the button started has ended
 	}
 
 	int32_t const at = answer >= kFormAction ? answer - kFormAction : (answer >= kFormExtra ? answer - kFormExtra : answer - kFormPick);
@@ -4774,34 +5090,27 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 			size_t const box = add(host::DialogWidgetType::Combo, "", controlX, y, 200, 0x12);
 			int32_t picked = has ? -1 : 0;
 
+			std::vector<std::array<uint8_t, 8>> ids;
+			std::vector<std::string> names;
+
+			FormObjectsFor(row, subject, &ids, &names);
 			spec.widgets[box].items.push_back("(none)");
 			parts.ids.push_back(noObject);
 
-			for (size_t i = 0; i < objectList.Count(); i++)
+			for (size_t i = 0; i < ids.size(); i++)
 			{
-				uint8_t const *const id = objectList.Id(i);
-
-				if (!id || memcmp(id, subject, 8) == 0)
-				{
-					continue;   // never the view's own object (the pick's rule)
-				}
-
-				std::array<uint8_t, 8> one;
-
-				memcpy(one.data(), id, 8);
-
-				if (has && picked < 0 && one == target)
+				if (has && picked < 0 && ids[i] == target)
 				{
 					picked = (int32_t)parts.ids.size();
 				}
 
-				spec.widgets[box].items.push_back(objectList.Name(i));
-				parts.ids.push_back(one);
+				spec.widgets[box].items.push_back(names[i]);
+				parts.ids.push_back(ids[i]);
 			}
 
 			if (picked < 0)
 			{
-				spec.widgets[box].items.push_back("Unknown");   // an object the level hasn't: shown, and nothing written until a real pick
+				spec.widgets[box].items.push_back(FormObjectWords(target.data()));   // the object no other row holds: shown, nothing written until a real pick
 				picked = (int32_t)spec.widgets[box].items.size() - 1;
 			}
 
@@ -4823,6 +5132,123 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 			parts.range = add(host::DialogWidgetType::Label, row.words, controlX, y, 240, 0x12);
 			parts.control = add(host::DialogWidgetType::Button, row.button.empty() ? "Edit..." : row.button, controlX + 248, y, 88, 0x10);
 			spec.widgets[parts.control].answer = kFormAction + (int32_t)r;
+		}
+		else if (row.kind == host::StrategyFormRowKind::List)
+		{
+			// the label's line: "n to m of N" with < and > when the list is longer than a page; then a line per entry on the page; then the "+" line
+			std::vector<host::StrategyFormEntry> entries;
+			std::vector<std::string> names;
+
+			if (row.readList)
+			{
+				row.readList(payload, &entries);
+			}
+
+			FormObjectsFor(row, subject, &parts.ids, &names);
+
+			if (strategyFormListPage.size() < strategyFormRows.size())
+			{
+				strategyFormListPage.resize(strategyFormRows.size(), 0);
+			}
+
+			int32_t &page = strategyFormListPage[r];
+			int32_t const pages = (int32_t)((entries.size() + kFormListLines - 1) / kFormListLines);
+
+			page = page >= pages ? (pages > 0 ? pages - 1 : 0) : page;
+
+			size_t const first = (size_t)page * (size_t)kFormListLines;
+			size_t const end = first + (size_t)kFormListLines < entries.size() ? first + (size_t)kFormListLines : entries.size();
+			int32_t const answerOf = (int32_t)r * 100;
+
+			if (entries.size() > (size_t)kFormListLines)
+			{
+				parts.lines.push_back(add(host::DialogWidgetType::Label, std::to_string(first + 1) + " to " + std::to_string(end) + " of " + std::to_string(entries.size()), controlX, y, 120, 0x12));
+				parts.lines.push_back(add(host::DialogWidgetType::Button, "<", controlX + 128, y, 24, 0x10));
+				spec.widgets[parts.lines.back()].answer = kFormPagePrevious + answerOf;
+				parts.lines.push_back(add(host::DialogWidgetType::Button, ">", controlX + 160, y, 24, 0x10));
+				spec.widgets[parts.lines.back()].answer = kFormPageNext + answerOf;
+			}
+
+			int32_t widest = 0;
+
+			for (size_t e = first; e < end; e++)
+			{
+				int32_t const ly = next;
+				int32_t const onPage = (int32_t)(e - first);
+				FormParts::Line line;
+				int32_t x = labelX;
+
+				next += rowHeight;
+				line.entry = e;
+				line.combo = add(host::DialogWidgetType::Combo, "", x, ly, 220, 0x12);
+				parts.lines.push_back(line.combo);
+
+				int32_t picked = -1;
+
+				for (size_t i = 0; i < parts.ids.size(); i++)
+				{
+					if (picked < 0 && parts.ids[i] == entries[e].id)
+					{
+						picked = (int32_t)i;
+					}
+				}
+
+				spec.widgets[line.combo].items = names;
+
+				if (picked < 0)
+				{
+					spec.widgets[line.combo].items.push_back(FormObjectWords(entries[e].id.data()));   // the object no other row holds: shown, nothing written until a real pick
+					picked = (int32_t)names.size();
+				}
+
+				spec.widgets[line.combo].selected = picked;
+				spec.widgets[line.combo].text = spec.widgets[line.combo].items[(size_t)picked];
+				spec.widgets[line.combo].listRows = 12;
+				x += 228;
+
+				auto const button = [&](std::string const &words, int32_t width, int32_t answer)
+				{
+					parts.lines.push_back(add(host::DialogWidgetType::Button, words, x, ly, width, 0x10));
+					spec.widgets[parts.lines.back()].answer = answer + answerOf + onPage;
+					x += width + 8;
+				};
+
+				button("Pick", 44, kFormEntryPick);
+
+				for (host::StrategyFormEntryCheck const &check : row.entryChecks)
+				{
+					line.checks.push_back(add(host::DialogWidgetType::Check, "", x, ly, 16, 16));
+					spec.widgets[line.checks.back()].checked = (entries[e].word & check.mask) != 0;
+					parts.lines.push_back(line.checks.back());
+					parts.lines.push_back(add(host::DialogWidgetType::Label, check.label, x + 20, ly, 60, 0x12));
+					x += 84;
+				}
+
+				if (row.entryExtra)
+				{
+					button("Extra data...", 88, kFormEntryExtra);
+				}
+
+				if (row.entryDuplicate)
+				{
+					button("Duplicate", 72, kFormEntryCopy);
+				}
+
+				button("Remove", 60, kFormEntryRemove);
+				widest = x > widest ? x : widest;
+				parts.listLines.push_back(line);
+			}
+
+			// the "+" line: + (a list of the objects, as Find Object) and Pick (in the world) each APPEND one entry
+			int32_t const plusY = next;
+
+			next += rowHeight;
+			parts.lines.push_back(add(host::DialogWidgetType::Button, "+", labelX, plusY, 24, 0x10));
+			spec.widgets[parts.lines.back()].answer = kFormAppendList + answerOf;
+			parts.lines.push_back(add(host::DialogWidgetType::Button, "Pick", labelX + 32, plusY, 44, 0x10));
+			spec.widgets[parts.lines.back()].answer = kFormAppendPick + answerOf;
+			parts.lines.push_back(add(host::DialogWidgetType::Label, "add a target", labelX + 84, plusY, 160, 0x12));
+			spec.width = widest + 16 > spec.width ? widest + 16 : spec.width;
 		}
 		else if (row.kind == host::StrategyFormRowKind::Links)
 		{
@@ -4883,6 +5309,8 @@ static bool StrategyFormStart(int32_t kind)
 		return false;
 	}
 
+	strategyFormListPage.clear();   // each list at its first page, as the page's (FUN_0052f700 0x52f73f)
+	formEntryPendingRow = formEntryPendingAt = -1;
 	StrategyFormOpen(nullptr);
 	return true;
 }

@@ -112,20 +112,23 @@ expect-dialog Object already has a strategy.
 click-button Yes
 expect-dialog Select Strategy
 click-button Multi_Switch
+wait 400
+# (a Multiple Target Switch edits in a form since 11-24, strategy_forms.h: the page's T collector is the "+" line's Pick, which APPENDS the object picked)
+expect-dialog chainTs : Multiple Target Switch
+click-button Pick
+wait 400
 expect-no-dialog
-wait 400
-expect-field-has strategyview 200@0:chainTs : Multiple Target Switch|
-key T
-wait 400
-expect-status Select targets for switch
+expect-field-has strategyview Select targets for switch
 # T with no target yet: the camera stays; chainT's upper blade (500 200; the switch's own red marker is in the middle)
 click-win 500 200
 wait 400
-expect-screen-text chainT
+expect-field-has strategyview 16@80:chainT
 picture 6
 key Enter
 wait 400
-expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:chainT - Track
+expect-dialog chainTs : Multiple Target Switch
+expect-field-has dialogtext |chainT - Track
+expect-dialog-checks on
 picture 7
 key Esc
 wait 300

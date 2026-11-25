@@ -1,7 +1,8 @@
-# ACCEPTANCE (red first): Strategy Data's 68 AREA SWITCH, HIS PATH (Vasquez 11-16; strategy-data.md S-K68-1, S-K68-10, S-K66-1..8 through the same view FUN_0052f700 with kind 0x44; and the owed
-# S-K76-E acceptance: E on a target row that is a PLACED HIERARCHY opens its page FUN_0053b830). Invasion's dropswitch (68): Rest State off, Mode 4 (Time Delay 5 s), one target, the placed hierarchy
-# "dropship ken", its request 1 (on). The view: " : Area Switch" and "V : Change Trigger Volume" at h - 0x78 over 66's foot; E with the pointer on the target row: "Target  -  dropship ken : Placed
-# hierarchy" and "Sequence index %d" (the word's byte 1); a press on that line: "Select Sequence Index" (the hierarchy's sequences: one, 0); Escape back to the view.
+# ACCEPTANCE (red first): Strategy Data's 68 AREA SWITCH, HIS PATH, now EDITED AS A FORM (Vasquez 2026-11-24, strategy_forms.h; before, this scenario drove the page FUN_0052f700 with kind
+# 0x44, strategy-data.md S-K68-1, S-K68-10, S-K66-1..8, and its P form). The form is the Multi Switch's (acceptance-strategy-multi-switch) with the Trigger Volume line ("V : Change Trigger Volume",
+# the volume editor: acceptance-strategy-volume). And the owed S-K76-E acceptance: Extra data... (E) on a target that is a PLACED HIERARCHY opens its page FUN_0053b830. Invasion's dropswitch (68):
+# Rest State off, Mode 4 (Time Delay 5 s), one target, the placed hierarchy "dropship ken", its request 1 (on). Its page: "Target  -  dropship ken : Placed hierarchy" and "Sequence index %d"
+# (the word's byte 1); a press on that line: "Select Sequence Index" (the hierarchy's sequences: one, 0); Escape back to the form.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
 state
@@ -16,12 +17,15 @@ wait 400
 key E
 wait 400
 picture 1
-expect-field-has strategyview 200@0:dropswitch : Area Switch|100@360:V : Change Trigger Volume
-expect-field-has strategyview 16@32:Rest State : Off|16@48:Mode : Time Delay -5.000 seconds|16@80:Targets :|0@96:(on)|80@96:dropship ken
-# E with the pointer on the target row (y 96, the window's y 104): the placed hierarchy's page
-move-box 300 104
-key E
+# the form: Rest State, Mode, Seconds (shown for Time Delay), Security; the Switch off message hidden (modes 0 to 2 only); the target, on; the Trigger Volume line; no links
+expect-dialog dropswitch : Area Switch
+expect-dialog-text Off|Time Delay|5|0|dropship ken - Hierarchy
+expect-dialog-checks on
+expect-field-has strategyform |Targets|On|add a target|Trigger Volume|V : Change Trigger Volume|Links|None
+# Extra data... on the target: the placed hierarchy's page
+click-button Extra_data... 1
 wait 400
+expect-no-dialog
 picture 2
 expect-field-has strategyview 100@0:Target  -  dropship ken : Placed hierarchy|16@16:Sequence index 0
 # a press on the sequence line: the list "Select Sequence Index" (dropship ken has one sequence, index 0); picking it keeps the word
@@ -32,25 +36,19 @@ click-row 1
 expect-no-dialog
 wait 300
 expect-field-has strategyview 100@0:Target  -  dropship ken : Placed hierarchy|16@16:Sequence index 0
+# Escape ends the page only: the form again, as it was
 key Esc
-wait 300
-expect-field-has strategyview 200@0:dropswitch : Area Switch
-expect-field-has strategyview 0@96:(on)|80@96:dropship ken
+wait 400
+expect-dialog dropswitch : Area Switch
+expect-dialog-text Off|Time Delay|5|0|dropship ken - Hierarchy
 picture 3
-# P: the Switch Properties form (FUN_0052ea70: Rest from RestState, the switch-off bits in the flags); Time Delay ticked, "5"
-key P
-wait 300
-expect-dialog Switch Properties
-expect-dialog-checks off,off,off,off,on,off,on,off,off
-expect-dialog-text 5|0
-click-button Cancel
-expect-no-dialog
 key Esc
 wait 300
+expect-no-dialog
 expect-screen Strategy Data
 
-# ---- THE COPY, read back through the game's own loader (Vasquez 11-17, the 68 read-back: S-K68-1 / S-K66-3..7 through the same view, each line changed and kept in the file).
-# dropswitch's view again: S on row 0 (request 1 -> 0), D (a copy of it after it: two targets, both off), S on row 1 (-> 1); P: the seconds 7.5, Security 2, Timer, None, Rest on, Ok.
+# ---- THE COPY, read back through the game's own loader (Vasquez 11-17, the 68 read-back; each change kept in the file). dropswitch's form again: On off on the target (request 1 -> 0),
+# Duplicate (two targets, both off), On on the second (-> 1); Mode Timer, Switch off message None, Rest State On, 7.5 seconds, Security 2, Ok.
 # The copy must hold RestState 1, Mode 0, Time 491520 (ftol(7.5 x 65536)), Security 2, flags 0x80000004 (None: & 4), 2 targets both "dropship ken" with requests 0 and 1, NumLinks 0; every
 # other strategy byte for byte the original's. RED on the stock file read as the copy: RestState 0, Mode 4, Time 327680, Security 0, flags 0x80000000, 1 target.
 click-bar Find Object
@@ -60,36 +58,27 @@ expect-no-dialog
 wait 400
 key E
 wait 400
-move-box 300 104
-key S
-wait 200
-expect-field-has strategyview |0@96:(off)|80@96:dropship ken
-key D
-wait 200
-expect-field-has strategyview |0@112:(off)|80@112:dropship ken
-move-box 300 120
-key S
-wait 200
-expect-field-has strategyview |0@112:(on)|80@112:dropship ken
-key P
-wait 300
-expect-dialog Switch Properties
-key Back
-type 7.5
-key Tab
-key Back
-type 2
+expect-dialog dropswitch : Area Switch
 click-check 1
-click-check 9
-click-check 4
-expect-dialog-checks on,off,off,on,off,off,off,off,on
-expect-dialog-text 7.5|2
+expect-dialog-checks off
+click-button Duplicate 1
+wait 300
+expect-dialog-checks off,off
+click-check 2
+expect-dialog-checks off,on
+# Timer: the Switch off message is shown (the third drop-down now)
+click-combo 2
+click-combo-row Timer
+click-combo 3
+click-combo-row None
+click-combo 1
+click-combo-row On
+form-field 1 7.5
+form-field 2 2
+expect-dialog-text On|Timer|7.5|2|None|dropship ken - Hierarchy|dropship ken - Hierarchy
+picture 4
 click-button Ok
 expect-no-dialog
-wait 300
-expect-field-has strategyview |16@32:Rest State : On|16@48:Mode : Timer - reset after 7.500 seconds|16@64:Switch off message : None|16@80:Targets :
-picture 4
-key Esc
 wait 300
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} dropswitch RestState 1 Mode 0 Time 491520 Security 2 flags 0x80000004 targets 2 target.0 "dropship ken" target.1 "dropship ken" target_request.0 0 target_request.1 1 NumLinks 0

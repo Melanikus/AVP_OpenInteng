@@ -22,7 +22,7 @@ key E
 wait 400
 picture 1
 expect-dialog linktoeverything : Linked Switch
-expect-dialog-text Off|Wait|0|Reversed (default)|immediatesrt
+expect-dialog-text Off|Wait|0|Reversed (default)|immediatesrt - Multi switch
 expect-field-has strategyform Links|genlev02 : Multiple Target Switch|genlev01 : Multiple Target Switch|genlev03 : Multiple Target Switch|genlev04 : Multiple Target Switch
 
 # the drop-downs write as they are picked: Rest State On, Switch off message None
@@ -30,12 +30,12 @@ click-combo 1
 click-combo-row On
 click-combo 3
 click-combo-row None
-expect-dialog-text On|Wait|0|None|immediatesrt
+expect-dialog-text On|Wait|0|None|immediatesrt - Multi switch
 # Mode: Time Delay (Autoexec): Seconds is shown, the Switch off message hidden (the page shows it only for the modes 0 to 2)
 click-combo 2
 expect-dialog-combo-rows Timer,Wait,Toggle,Time Delay (Autoexec)
 click-combo-row Time Delay (Autoexec)
-expect-dialog-text On|Time Delay (Autoexec)|0|0|immediatesrt
+expect-dialog-text On|Time Delay (Autoexec)|0|0|immediatesrt - Multi switch
 picture 2
 
 # the boxes write at Ok: 7.5 seconds, Security -1 is refused with its range and the form comes back as it was left; then Security 2
@@ -45,7 +45,7 @@ click-button Ok
 expect-dialog-kind message
 click-button Ok
 expect-dialog linktoeverything : Linked Switch
-expect-dialog-text On|Time Delay (Autoexec)|7.5|-1|immediatesrt
+expect-dialog-text On|Time Delay (Autoexec)|7.5|-1|immediatesrt - Multi switch
 form-field 2 2
 click-button Ok
 expect-no-dialog
@@ -60,12 +60,12 @@ expect-no-dialog
 key E
 wait 400
 expect-dialog linktoeverything : Linked Switch
-expect-dialog-text On|Time Delay (Autoexec)|7.5|2|immediatesrt
+expect-dialog-text On|Time Delay (Autoexec)|7.5|2|immediatesrt - Multi switch
 
 # the Target's drop-down writes at once (the Binary Switch opslev01)
 click-combo 3
-click-combo-row opslev01
-expect-dialog-text On|Time Delay (Autoexec)|7.5|2|opslev01
+click-combo-row opslev01 - type '52'
+expect-dialog-text On|Time Delay (Autoexec)|7.5|2|opslev01 - type '52'
 # Pick: the pick in the world as T does it (its words along the foot; Return ends it with the object kept), then the form again
 click-button Pick
 expect-no-dialog
@@ -76,7 +76,7 @@ picture 3
 key Enter
 wait 400
 expect-dialog linktoeverything : Linked Switch
-expect-dialog-text On|Time Delay (Autoexec)|7.5|2|opslev01
+expect-dialog-text On|Time Delay (Autoexec)|7.5|2|opslev01 - type '52'
 # Extra data... (the page's E): a Binary Switch takes no extra data: inteng's message (FUN_0052b220, the NotUsed page), Ok, and the form is back
 click-button Extra_data...
 wait 400
@@ -87,8 +87,8 @@ wait 400
 expect-dialog linktoeverything : Linked Switch
 # the target back to the Multi Switch immediatesrt; its Extra data... is its page (S-84, "Part of link switch set"); Escape ends the page only, and the form is back
 click-combo 3
-click-combo-row immediatesrt
-expect-dialog-text On|Time Delay (Autoexec)|7.5|2|immediatesrt
+click-combo-row immediatesrt - Multi switch
+expect-dialog-text On|Time Delay (Autoexec)|7.5|2|immediatesrt - Multi switch
 click-button Extra_data...
 wait 400
 expect-no-dialog
@@ -112,7 +112,7 @@ key E
 wait 400
 picture 5
 expect-dialog opslevo5 : Linked Switch
-expect-dialog-text Off|Wait|0|Reversed (default)|trigtodrandmess
+expect-dialog-text Off|Wait|0|Reversed (default)|trigtodrandmess - Multi switch
 expect-field-has strategyform Links|None
 key Esc
 wait 300

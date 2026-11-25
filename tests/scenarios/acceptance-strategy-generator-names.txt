@@ -27,17 +27,18 @@ click-choice-is trigtospidgen
 expect-no-dialog
 wait 400
 expect-screen-text trigtospidgen
-# the collector's list: trigtospidgen's T keeps its target generator02 in the list, named
+# trigtospidgen's form (its view since 11-24, strategy_forms.h; the page's T collector is now a Pick on each target line): its target line's Pick picks in the world, and the pick's
+# frame names the picked object, generator02, by its generator's name (16, 80)
 key E
 wait 400
-expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:generator02 - type '79'
-key T
+expect-dialog trigtospidgen : Multiple Target Switch
+click-button Pick 1
 wait 400
-expect-status Select targets for switch
-expect-screen-text Press return when finished
-expect-screen-text generator02
+expect-no-dialog
+expect-field-has strategyview 16@48:Press return when finished|16@80:generator02|
 picture 2
 key Enter
 wait 400
+expect-dialog trigtospidgen : Multiple Target Switch
 key Esc
 wait 300

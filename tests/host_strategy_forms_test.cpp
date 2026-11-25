@@ -66,6 +66,8 @@ int main()
 	bool hasForm[128] = {};
 	// switches (Vasquez): 61, 66, 68
 	hasForm[61] = true;
+	hasForm[66] = true;
+	hasForm[68] = true;
 	// modules (Drake): 51, 50, 57, 59, 54, 75, 64
 	// objects (Dietrich): 62, 77, 78, 73, 70
 	// paths (Frost): 72, 80, 76, 69, 79
@@ -118,6 +120,56 @@ int main()
 			Check(ShownAt(rest, 61, payload) && ShownAt(mode, 61, payload) && ShownAt(security, 61, payload) && ShownAt(target, 61, payload),
 			      "mode " + std::to_string(now) + ": the other rows always shown");
 		}
+	}
+
+	// 66 MULTIPLE TARGET / 68 AREA SWITCH: the P form's rows, the targets as a List (read and written through the record's own layout), 68's trigger volume, the Links
+	for (int32_t const kind : { 66, 68 })
+	{
+		std::string const k = std::to_string(kind);
+		std::vector<host::StrategyFormRow> const rows = host::StrategyForm_Rows(kind);
+		size_t const want = kind == 68 ? 8 : 7;
+
+		Check(rows.size() == want, k + " has " + std::to_string(want) + " rows: Rest State, Mode, Seconds, Security, Switch off message, Targets," + (kind == 68 ? " Trigger Volume," : "") + " Links");
+
+		if (rows.size() != want)
+		{
+			continue;
+		}
+
+		using K = host::StrategyFormRowKind;
+		host::StrategyFormRow const &rest = rows[0], &mode = rows[1], &targets = rows[5];
+
+		Check(rest.kind == K::Choice && rest.field == "RestState" && rest.choices.size() == 2, k + ": Rest State is its own word (RestState), Off / On");
+		Check(mode.kind == K::Choice && mode.choices.size() == 5 && mode.choices[3].value == 4, k + ": Mode has all five, Time Delay 4 too");
+		Check(rows[2].field == "Time" && rows[3].field == "Security" && rows[4].kind == K::Bits && rows[4].field == "flags" && rows[4].mask == 6, k + ": Seconds, Security, Switch off message");
+		Check(targets.kind == K::List && targets.readList && targets.writeList && targets.entryChecks.size() == 1 && targets.entryChecks[0].mask == 1 && targets.newWord == 1 &&
+		      targets.entryExtra && targets.entryDuplicate, k + ": Targets, a List: On (request bit 0), Extra data..., Duplicate; a new target is on (request 1)");
+		Check(kind != 68 || (rows[6].kind == K::Action && rows[6].key == 'V'), k + ": the Area Switch's Trigger Volume runs V");
+		Check(rows.back().kind == K::Links, k + ": the Links last");
+
+		// the list round trip on a new record: none at first; two written (the second a copy of the first, off) and read back the same, the record's other bytes kept
+		std::vector<uint8_t> const fresh = New(kind);
+		std::vector<host::StrategyFormEntry> entries;
+
+		Check(!fresh.empty() && targets.readList(fresh, &entries) && entries.empty(), k + ": a new one has no targets");
+
+		host::StrategyFormEntry one;
+
+		one.id = { 1, 2, 3, 4, 5, 6, 7, 8 };
+		one.word = 1;
+		entries = { one, one };
+		entries[1].word = 0;
+
+		std::vector<uint8_t> written;
+		std::vector<host::StrategyFormEntry> back;
+
+		Check(targets.writeList(fresh, entries, &written) && targets.readList(written, &back) && back.size() == 2 && back[0].id == one.id && back[0].word == 1 && back[1].word == 0,
+		      k + ": two targets written and read back as they were");
+
+		int32_t restBefore = -1, restAfter = -2;
+
+		Check(host::StrategyView_FieldNumber(kind, fresh, "RestState", &restBefore) && host::StrategyView_FieldNumber(kind, written, "RestState", &restAfter) && restBefore == restAfter,
+		      k + ": the fields before the list kept");
 	}
 
 	Check(host::StrategyForm_KindWords(61) == " : Linked Switch" && host::StrategyForm_KindWords(66) == " : Multiple Target Switch" && host::StrategyForm_KindWords(1).empty(),

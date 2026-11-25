@@ -54,19 +54,24 @@ expect-no-dialog
 wait 400
 key E
 wait 400
-expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:generator02 - type '79'
-key T
+# (a Multiple Target Switch edits in a form since 11-24, strategy_forms.h: the page's T collector is the "+" line's Pick, the second Pick here, which APPENDS the object picked)
+expect-dialog trigtospidgen : Multiple Target Switch
+expect-field-has dialogtext |generator02 - type '79'
+click-button Pick 2
 wait 400
-expect-status Select targets for switch
+expect-no-dialog
+expect-field-has strategyview Select targets for switch
 picture 2
-# the S's middle stroke crosses its centre: a click there takes it (the collector's list names it, as inteng's wrapper +4 does)
+# the S's middle stroke crosses its centre: a click there takes it (the pick's frame names it at (16, 80), as inteng's wrapper +4 does)
 click-win 508 357
 wait 400
-expect-screen-text chainS
+expect-field-has strategyview 16@80:chainS
 picture 3
 key Enter
 wait 400
-expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:generator02 - type '79'|0@112:(on)|80@112:chainS - Sound
+expect-dialog trigtospidgen : Multiple Target Switch
+expect-field-has dialogtext |generator02 - type '79'|chainS - Sound
+expect-dialog-checks on,on
 picture 4
 key Esc
 wait 300

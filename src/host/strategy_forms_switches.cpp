@@ -7,6 +7,7 @@
 //   Switch off message: bits 1 and 2 of the flags, for the modes 0 to 2 (the page shows it only for them): Reversed (default) 0, Same as switch on 2, None 4.
 //   Target: the object the switch sends to; a new target makes the request 0 (FUN_0052db10, the page's T); Extra data... is the page's E.
 //   Links: the switches that target this one, read only (the page's "Links:").
+// 66 / 68: see MultiSwitchRows.
 
 #include "strategy_forms.h"
 
@@ -98,6 +99,134 @@ namespace host
 			links.label = "Links";
 			rows->push_back(links);
 		}
+
+		// 66 Multiple Target / 68 Area Switch (FUN_0052f700, its P form FUN_0052ea70): Rest State is its own word (RestState), the modes are all five (Time Delay 4 too), the
+		// switch-off message is bits 1 and 2 of the flags (+0x38); the targets are a list (StrategyView_MultiTargets: an ID and a request each, bit 0 on / off), whose lines do what
+		// the page's keys do on a target row: S (On), E (Extra data...), D (Duplicate), Shift + D (Remove), T (Pick); a new target is on (request 1, MultiTargetsEnd 0x53035f).
+		// The Area Switch adds "V : Change Trigger Volume" (the volume editor, as V on its page).
+		void MultiSwitchRows(int32_t kind, std::vector<StrategyFormRow> *rows)
+		{
+			StrategyFormRow rest;
+
+			rest.kind = StrategyFormRowKind::Choice;
+			rest.label = "Rest State";
+			rest.field = "RestState";
+			rest.choices = { { "Off", 0 }, { "On", 1 } };
+			rows->push_back(rest);
+
+			StrategyFormRow mode;
+
+			mode.kind = StrategyFormRowKind::Choice;
+			mode.label = "Mode";
+			mode.field = "Mode";
+			mode.choices = { { "Timer", 0 }, { "Wait", 1 }, { "Toggle", 2 }, { "Time Delay", 4 }, { "Time Delay (Autoexec)", 5 } };
+			rows->push_back(mode);
+
+			StrategyFormRow seconds;
+
+			seconds.kind = StrategyFormRowKind::Number;
+			seconds.label = "Seconds";
+			seconds.field = "Time";
+			seconds.factor = 65536.0;
+			seconds.isFloat = true;
+			seconds.lowest = 0.0;
+			seconds.highest = 30000.0;
+			seconds.shown = [](int32_t kindNow, std::vector<uint8_t> const &payload)
+			{
+				int32_t const now = ModeOf(kindNow, payload);
+
+				return now == 0 || now == 4 || now == 5;
+			};
+			rows->push_back(seconds);
+
+			StrategyFormRow security;
+
+			security.kind = StrategyFormRowKind::Number;
+			security.label = "Security";
+			security.field = "Security";
+			security.lowest = 0.0;
+			security.highest = 2147483647.0;
+			rows->push_back(security);
+
+			StrategyFormRow off;
+
+			off.kind = StrategyFormRowKind::Bits;
+			off.label = "Switch off message";
+			off.field = "flags";
+			off.mask = 6;
+			off.choices = { { "Reversed (default)", 0 }, { "Same as switch on", 2 }, { "None", 4 } };
+			off.shown = [](int32_t kindNow, std::vector<uint8_t> const &payload)
+			{
+				int32_t const now = ModeOf(kindNow, payload);
+
+				return now == 0 || now == 1 || now == 2;
+			};
+			rows->push_back(off);
+
+			StrategyFormRow targets;
+
+			targets.kind = StrategyFormRowKind::List;
+			targets.label = "Targets";
+			targets.pickWords = "Select targets for switch";   // 0x5ef178, the page's T
+			targets.entryChecks = { { "On", 1u } };
+			targets.newWord = 1u;
+			targets.entryExtra = true;
+			targets.entryDuplicate = true;
+			targets.readList = [](std::vector<uint8_t> const &payload, std::vector<StrategyFormEntry> *entries)
+			{
+				std::vector<MultiTarget> now;
+
+				if (!StrategyView_MultiTargets(payload, &now))
+				{
+					return false;
+				}
+
+				for (MultiTarget const &one : now)
+				{
+					StrategyFormEntry entry;
+
+					entry.id = one.id;
+					entry.word = one.request;
+					entries->push_back(entry);
+				}
+
+				return true;
+			};
+			targets.writeList = [](std::vector<uint8_t> const &payload, std::vector<StrategyFormEntry> const &entries, std::vector<uint8_t> *bytes)
+			{
+				std::vector<MultiTarget> now;
+
+				for (StrategyFormEntry const &entry : entries)
+				{
+					MultiTarget one;
+
+					one.id = entry.id;
+					one.request = entry.word;
+					now.push_back(one);
+				}
+
+				return StrategyView_MultiWith(payload, now, bytes);   // the count and the list; the links, pad and flags after them kept
+			};
+			rows->push_back(targets);
+
+			if (kind == 68)
+			{
+				StrategyFormRow volume;
+
+				volume.kind = StrategyFormRowKind::Action;
+				volume.label = "Trigger Volume";
+				volume.words = "V : Change Trigger Volume";   // 0x5e4138, the page's line
+				volume.button = "Edit volume...";
+				volume.key = 'V';
+				rows->push_back(volume);
+			}
+
+			StrategyFormRow links;
+
+			links.kind = StrategyFormRowKind::Links;
+			links.label = "Links";
+			rows->push_back(links);
+		}
 	}
 
 	bool StrategyFormRows_Switches(int32_t kind, std::vector<StrategyFormRow> *rows)
@@ -108,6 +237,12 @@ namespace host
 			return true;
 		}
 
-		return false;   // 66 and 68 keep inteng's page until their target lists are done
+		if (kind == 66 || kind == 68)
+		{
+			MultiSwitchRows(kind, rows);
+			return true;
+		}
+
+		return false;
 	}
 }

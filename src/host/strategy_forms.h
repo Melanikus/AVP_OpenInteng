@@ -13,8 +13,10 @@
 //     the target with the rule of `pickRow` (strategy_views.h kPickTarget, kPickSwitchTarget ...: the request field set as inteng's pick sets it).
 //   - Action: a label, the line's words and a button that runs what the kind's page does today for that line or key (Dietrich 11-24: 73's String, 77's V, 62's E): a press
 //     on the page at (pageX, pageY), or the key (E: the target's extra data page; V: Edit Volume). The form opens again once whatever it opened has ended.
-//   - SwitchTargets: the Multiple Target / Area Switch's list: one line per target (its drop-down, Pick, on/off, Duplicate, Remove, Extra data) and a "+" line under the last
-//     that APPENDS one target (the owner: "the append behavior, not every time it resets the list"). Nothing on the other lines changes.
+//   - List: a list of entries, each an object and its word (the Multiple Target / Area Switch's targets and their requests, the Mission Objective's alterations): one line per
+//     entry (its drop-down and Pick, a check box for each of entryChecks' bits of its word, Extra data... and Duplicate where the kind has them, Remove) and a "+" line under
+//     the last whose drop-down or Pick APPENDS one entry with newWord (the owner: "the append behavior, not every time it resets the list"). Nothing on the other lines changes.
+//     The group reads and writes the entries (readList / writeList: its own byte layout); ten lines a page, with < and > for the others.
 // A button press closes the form, does its work and opens the form again at once with the record as it is now (DEBT: our dialogs have no in-place button; the form flickers once).
 //
 // WHERE EACH KIND'S ROWS ARE (so the four of us never edit the same lines): each group of kinds has its own file and its own function below. A group's function answers for the kinds
@@ -23,6 +25,7 @@
 
 #include <stdint.h>
 
+#include <array>
 #include <functional>
 #include <string>
 #include <vector>
@@ -38,7 +41,8 @@ namespace host
 		Check,
 		Number,
 		Target,
-		SwitchTargets,
+		List,
+		SwitchTargets = List,   // the first name of List (Vasquez 11-24, before Frost's and Dietrich's lists made it general)
 		Action,
 		Links,   // read only: the switches that target this one, made again as the view opens (the 61 / 66 / 68 page's "Links:"), one line each, "None" for none
 	};
@@ -47,6 +51,20 @@ namespace host
 	{
 		std::string words;   // the drop-down row's words, inteng's own where its page had them ("Wait", "Reversed (default)")
 		int32_t value = 0;   // what picking it writes (Bits: within mask)
+	};
+
+	// A List's entry: an object and its 32-bit word (a switch target and its request; a Mission Objective's alteration and its bits)
+	struct StrategyFormEntry
+	{
+		std::array<uint8_t, 8> id = {};
+		uint32_t word = 0;
+	};
+
+	// A List line's check box: one bit of the entry's word (a switch target's "On" 1; an alteration's "Visible" 1, "Possible" 2)
+	struct StrategyFormEntryCheck
+	{
+		std::string label;
+		uint32_t mask = 0;
 	};
 
 	// A field written with a Choice when, and only when, the Choice really changed the value (Frost 11-24: a Mission change also makes ExtraMissionData 0, MissionTypeWindow)
@@ -78,6 +96,14 @@ namespace host
 		std::string words;                        // Action: the line's words ("String : 3")
 		int32_t pageX = -1, pageY = -1;           // Action: the press on the page it runs (StrategyViewClickAt), when pageY >= 0
 		char key = 0;                             // Action: else the key it runs: 'E' or 'V'
+		// List: the entries read from the record, and the record's whole bytes with them in place of its old ones (false: not readable / not written)
+		std::function<bool(std::vector<uint8_t> const &payload, std::vector<StrategyFormEntry> *entries)> readList;
+		std::function<bool(std::vector<uint8_t> const &payload, std::vector<StrategyFormEntry> const &entries, std::vector<uint8_t> *bytes)> writeList;
+		std::vector<StrategyFormEntryCheck> entryChecks;   // List: a check box on each line for each
+		uint32_t newWord = 1;                              // List: the word of an entry the "+" line appends
+		bool entryExtra = false;                           // List: Extra data... on each line (the page's E on that line)
+		bool entryDuplicate = false;                       // List: Duplicate on each line (the page's D: a copy just after it)
+		std::vector<int32_t> targetKinds;                  // Target, List: only objects holding one of these strategies (a Mission Objective's 70, 71); empty: any object
 		// shown only when this answers true for the record as it is (the switch-off message only for the modes 0, 1 and 2); null: always shown
 		std::function<bool(int32_t kind, std::vector<uint8_t> const &payload)> shown;
 	};

@@ -53,7 +53,7 @@ wait 400
 picture 3
 # (a Linked Switch edits in a form since 11-24, strategy_forms.h: Rest State, Mode, Security, Switch off message, Target; then its Links)
 expect-dialog opslevo5 : Linked Switch
-expect-dialog-text Off|Wait|0|Reversed (default)|immediatesrt
+expect-dialog-text Off|Wait|0|Reversed (default)|immediatesrt - Multi switch
 expect-field-has strategyform Links|None
 key Esc
 wait 300
@@ -68,7 +68,7 @@ wait 400
 picture 4
 # (a Linked Switch edits in a form since 11-24, strategy_forms.h: Rest State, Mode, Security, Switch off message, Target; then its Links)
 expect-dialog link : Linked Switch
-expect-dialog-text Off|Wait|0|Reversed (default)|immediatesrt
+expect-dialog-text Off|Wait|0|Reversed (default)|immediatesrt - Multi switch
 expect-field-has strategyform |Links|
 key Esc
 wait 300

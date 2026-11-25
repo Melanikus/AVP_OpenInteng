@@ -2359,7 +2359,8 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 	// field for their title (or their message, when they have no title) and add: dialogkind "list|message|confirm|text";
 	// dialogbuttons "<label> <x> <y> <w> <h>|..." (each button's words, _ for a space, and its box); dialogtext "<the text typed so far>".
 	//   expect-dialog-kind <list|message|confirm|text>
-	//   click-button <label>          a click in the middle of that button where it is drawn (_ for a space in the label)
+	//   click-button <label> [n]      a click in the middle of that button where it is drawn (_ for a space in the label); n: the n-th button of that label (from 1, in the
+	//                                 window's order: a form's list has a Remove on each line; Vasquez 11-24), else the first
 	//   expect-dialog-text <words>    the text dialog's field holds exactly the rest of the line
 	if (verb == "expect-dialog-kind" && w.size() >= 2)
 	{
@@ -2386,13 +2387,15 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		std::string const buttons = Field(s->last, "dialogbuttons");
 		bool clicked = false;
 		size_t from = 0;
+		int const nth = w.size() >= 3 && atoi(w[2].c_str()) > 0 ? atoi(w[2].c_str()) : 1;
+		int seen = 0;
 
 		while (!clicked && from <= buttons.size() && !buttons.empty())
 		{
 			size_t const to = buttons.find('|', from);
 			std::vector<std::string> const parts = Words(buttons.substr(from, to == std::string::npos ? std::string::npos : to - from));
 
-			if (parts.size() >= 5 && parts[0] == w[1])
+			if (parts.size() >= 5 && parts[0] == w[1] && ++seen == nth)
 			{
 				int const x = atoi(parts[1].c_str()), y = atoi(parts[2].c_str()), width = atoi(parts[3].c_str()), height = atoi(parts[4].c_str());
 

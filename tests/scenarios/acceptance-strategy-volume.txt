@@ -33,13 +33,14 @@ click-win 504 610 right
 click-popup 4
 expect-dialog Select Strategy
 click-button Area_Switch
-expect-no-dialog
 expect-status The object has a new strategy
 # the new Area Switch's Edit view is open (Assign's last call, FUN_00528830 0x529141): V there (S-K68-10, FUN_0052f700 0x52fd91 -> FUN_00530900; Vasquez 11-16: the view is built, V on the screen is gone)
-expect-field-has strategyview : Area Switch|100@360:V : Change Trigger Volume
+# (its view is its form since 11-24, strategy_forms.h: the page's V is the Trigger Volume line's button)
+expect-dialog ZoneVO : Area Switch
+expect-field-has strategyform |Trigger Volume|V : Change Trigger Volume|
 # V: the volume editor takes the screen: the six lines of text, no field panel
 picture 1
-key V
+click-button Edit_volume...
 expect-status Edit Volume
 expect-pixels-changed panels 0 30 330 120 0.01
 expect-field volumeface -1
@@ -82,7 +83,8 @@ expect-status The volume is written into the strategy
 # V again reads them back from the strategy: the same box, the face and the module let go; the box is not empty, so the camera goes to its centre (FUN_00529280(cube, 0), 0x5277fa: strategy-data.md S-VOL-2)
 wait 500
 remember-field camera
-key V
+expect-dialog ZoneVO : Area Switch
+click-button Edit_volume...
 wait 300
 expect-field-same volume
 expect-field-changed camera
@@ -94,8 +96,8 @@ expect-field volumemodule -1
 # the right button ends the editor too (FUN_005277c0 0x527d70: _DAT_00d8806a & 2; the buttons are cleared at 0x527d88, so no pop-up opens)
 click-win 640 300 right
 expect-status The volume is written into the strategy
-# back in the Area Switch's view (FUN_00530900 returns to FUN_0052f700's loop): Escape ends it
-expect-field-has strategyview : Area Switch
+# back in the Area Switch's view (FUN_00530900 returns to FUN_0052f700's loop), its form: Escape ends it
+expect-dialog ZoneVO : Area Switch
 key Esc
 wait 300
 # ---- VOLUME OF DEATH (77, FUN_00535970 0x535b20-0x535c52): the same editor on volume_min / volume_max (+0x14 / +0x20 of the record); Assign again: the replace confirm (0x5ee2b4), Yes

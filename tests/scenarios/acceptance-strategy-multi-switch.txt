@@ -1,12 +1,12 @@
-# ACCEPTANCE (red first): Strategy Data's 66 MULTIPLE TARGET SWITCH view, HIS PATH (Frost 11-16; strategy-data.md S-K66-1, S-K66-2; MAPPING-ORDERS section 14). FUN_0052f700 (dump-full-3:66247,
-# re-read on the listing 0x52f840-0x52fb84): the Links made again as the view opens (FUN_0052dc90); the header "%s : Multiple Target Switch" at (200, 0); the foot from the bottom (h 729 here):
-# D (h - 100, its tab laid out as inteng's text routine does: H-1f), E (h - 0x50), P (h - 0x3c), T (h - 0x28), S (h - 0x14); Rest State at (16, 0x20) by +0x14 as a whole word; the mode at
-# (16, 0x30); for modes 0-2 the switch-off line from +0x38 (& 2 Same, & 4 None, else Reversed); "Targets :"; 15 targets a page, "(on)" / "(off)" at x 0 by the request's bit 0 and the name
-# at 0x50 ("  (Has extra message data)" when it has other bits); past 15 "%d targets - press space for next page"; with links "Links:" and "bs" / "ls" / "ms" each.
+# ACCEPTANCE (red first): Strategy Data's 66 MULTIPLE TARGET SWITCH, HIS PATH, now EDITED AS A FORM (Vasquez 2026-11-24, strategy_forms.h; the owner: "no more text that can be clicked ...
+# add a little + on the very next line so one can click the plus and append a switch ... we want the append behavior (not everytime it resets the list)"). Before 11-24 this scenario drove the
+# page FUN_0052f700 (Frost 11-16; strategy-data.md S-K66-1..7) and its P form FUN_0052ea70. The form holds the same fields with the same rules: Rest State (+0x14, a whole word), Mode (all
+# five), Seconds, Security, Switch off message (+0x38's bits 1 and 2, modes 0 to 2), and the Targets, a line each: its object, Pick (the page's T), On (the request's bit 0, the page's S),
+# Extra data... (E on that row), Duplicate (D), Remove (Shift + D); a "+" line that APPENDS one (on: request 1, as the collector, 0x53035f); ten a page with < and >; then the Links.
 # The expectations are the level's BYTES (read with Drake's rif-read, scratchpad multi-bytes.js), not our output: Temple exitmultiswitch: Rest 1, Mode 1 (Wait), flags 0x80000000, 4
-# targets all request 1, 4 links; s353multiswitch: Rest 0, Wait, 23 targets, requests 1 0 0 1 1 0 0 0 0 0 3 0 ... (target 10 is 3: on, with extra data), the rest 0, no links.
+# targets (downdoor02, downdoor01, S363, "delay temple sealed sound") all request 1, 4 links; s353multiswitch: Rest 0, Wait, 23 targets, requests 1 0 0 1 1 0 0 0 0 0 3 0 ... (target 10
+# is 3: on, with extra data), the rest 0, no links.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Temple.RIF
-#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 pictures on
 state
 expect-screen Construction
@@ -20,113 +20,99 @@ expect-no-dialog
 key E
 wait 400
 picture 1
-# (expect-field-has finds its words as they stand in the field, one run of lines: a target's (on) / (off) and its name are two lines, so each target is looked for alone)
-expect-field-has strategyview 200@0:exitmultiswitch : Multiple Target Switch|100@380:D : Duplicate target{9} Shift D : Remove target|100@400:E : Edit extra message data for target|100@420:P : Change Properties|100@440:T : Change Target (+Ctrl to choose environment)|100@460:S : Toggle Target State|16@32:Rest State : On|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Targets :|0@96:(on)|80@96:
-expect-field-has strategyview |0@112:(on)|80@112:
-expect-field-has strategyview |0@128:(on)|80@128:
-expect-field-has strategyview |0@144:(on)|80@144:
-# the four links on the rows after "Links:", at 0x14 (each "bs" / "ls" / "ms", the name at the tab, 64)
-expect-field-has strategyview |16@160:Links:|20@176:
-expect-field-has strategyview |20@224:
+# the form, filled from the switch: the drop-downs' and boxes' words in the window's order (Seconds hidden for Wait), each target's On, the Links
+expect-dialog exitmultiswitch : Multiple Target Switch
+expect-dialog-text On|Wait|0|Reversed (default)|downdoor02 - Door|downdoor01 - Door|S363 - Message|delay temple sealed sound - Multi switch
+expect-dialog-checks on,on,on,on
+expect-field-has strategyform |Switch off message|Targets|On|On|On|On|add a target|Links|
 
-# ---- THE KEYS AND PRESSES (FUN_0052f700 0x52fbda-0x52feb0; S-K66-3..7), each on the target row under the POINTER (rows from y 96, 16 each; the view starts at the window's top)
-# S (slot 0xd87a93) on row 0 flips its request's bit 0: (on) -> (off)
-move-box 200 104
-key S
-wait 200
-expect-field-has strategyview |0@96:(off)|80@96:
-# a press at x <= 0x31 on row 1 does the same
-click-box 20 120
-wait 200
-expect-field-has strategyview |0@112:(off)|80@112:
-# S on the "Targets :" line itself (y 80..95): INTENG BUG, FIXED (MAPPING-ORDERS section 15): inteng's S skips the "from 16 below the line" test E and D make (0x52fde7), so it flipped
-# the page's FIRST target; ours takes no row there: row 0 stays (off)
-move-box 200 88
-key S
-wait 200
-expect-field-has strategyview |0@96:(off)|80@96:
-# D on row 0 (0xd87a84, FUN_00530430): a copy of it after it: 5 targets, rows 0 and 1 both (off), the old rows 1..3 one row down, "Links:" one row down (y 176)
-move-box 200 104
-key D
-wait 200
-expect-field-has strategyview |0@112:(off)|80@112:
-expect-field-has strategyview |0@128:(off)|80@128:
-expect-field-has strategyview |0@160:(on)|80@160:
-expect-field-has strategyview |16@176:Links:|
-# Shift + D on row 0 (FUN_005304a0): it goes: 4 again, "Links:" back at 160
-key D shift
-wait 200
-expect-field-has strategyview |16@160:Links:|
-# E on row 3 (0xd87a85, FUN_00529b30): its target is the Multi Switch "delay temple sealed sound": its page (S-84, FUN_00530510) "Part of link switch set"; Escape ends the page
-move-box 200 152
-key E
+# On (the page's S) on the first two targets: their request's bit 0 goes
+click-check 1
+click-check 2
+expect-dialog-checks off,off,on,on
+# Duplicate on the first (the page's D): a copy just after it, the others one line down
+click-button Duplicate 1
 wait 300
+expect-dialog exitmultiswitch : Multiple Target Switch
+expect-dialog-text On|Wait|0|Reversed (default)|downdoor02 - Door|downdoor02 - Door|downdoor01 - Door|S363 - Message|delay temple sealed sound - Multi switch
+expect-dialog-checks off,off,off,on,on
+# Remove on the first (the page's Shift + D): four again, as they were
+click-button Remove 1
+wait 300
+expect-dialog-text On|Wait|0|Reversed (default)|downdoor02 - Door|downdoor01 - Door|S363 - Message|delay temple sealed sound - Multi switch
+expect-dialog-checks off,off,on,on
+# "+" APPENDS: the objects by name, S363 chosen: a fifth target at the end, on; the four before it unchanged. Then Remove on it: four again
+click-button +
+expect-dialog Select Object
+click-choice-is S363
+wait 300
+expect-dialog exitmultiswitch : Multiple Target Switch
+expect-dialog-text On|Wait|0|Reversed (default)|downdoor02 - Door|downdoor01 - Door|S363 - Message|delay temple sealed sound - Multi switch|S363 - Message
+expect-dialog-checks off,off,on,on,on
+picture 2
+click-button Remove 5
+wait 300
+expect-dialog-text On|Wait|0|Reversed (default)|downdoor02 - Door|downdoor01 - Door|S363 - Message|delay temple sealed sound - Multi switch
+# Extra data... on the fourth (the page's E on its row): its target is the Multi Switch "delay temple sealed sound": its page (S-84) "Part of link switch set"; Escape ends the page only
+click-button Extra_data... 4
+wait 400
+expect-no-dialog
 expect-field-has strategyview Part of link switch set
 key Esc
+wait 400
+expect-dialog exitmultiswitch : Multiple Target Switch
+# Pick on the first (the page's T): the pick in the world, its words along the foot; Enter keeps it
+click-button Pick 1
 wait 300
-# P (0xd87a90): the "Switch Properties" form, as 52's, filled the 66 way (FUN_0052ea70): Wait, Rest from +0x14 as a WHOLE word (1: on), the switch-off from +0x38 (Reversed)
-key P
-wait 300
-expect-dialog Switch Properties
-expect-dialog-checks off,on,off,on,off,off,on,off,off
-# Rest off, Same, Ok: +0x14 = 0 (the box's value), +0x38's & 2 set: "Rest State : Off", "Switch off message : Same"
-click-check 4
-click-check 8
+expect-no-dialog
+expect-field-has strategyview Select targets for switch
+key Enter
+wait 400
+expect-dialog exitmultiswitch : Multiple Target Switch
+expect-dialog-text On|Wait|0|Reversed (default)|downdoor02 - Door|downdoor01 - Door|S363 - Message|delay temple sealed sound - Multi switch
+# Rest State Off (a whole word), Switch off message Same (+0x38 bit 1); Ok
+click-combo 1
+click-combo-row Off
+click-combo 3
+click-combo-row Same as switch on
+expect-dialog-text Off|Wait|0|Same as switch on|downdoor02 - Door|downdoor01 - Door|S363 - Message|delay temple sealed sound - Multi switch
 click-button Ok
 expect-no-dialog
 wait 300
-expect-field-has strategyview |16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Same|
-# T (0xd87a94) with the pointer on row 0: the camera goes to its target (FUN_00529280), then "Select targets for switch" (FUN_0052ff10 -> the collector); Return keeps the list as it was
-remember-field camera
-move-box 200 104
-key T
-wait 300
-expect-field-changed camera
-expect-status Select targets for switch
-key Enter
-wait 300
-expect-field-has strategyview |0@96:(off)|80@96:
-expect-field-has strategyview |16@160:Links:|
-key Esc
-wait 300
 
-# 23 targets: the first page holds 15, then "23 targets - press space for next page" (row 6 + 15 = 21: y 336); target 10 has extra data
+# 23 targets: ten a page, "1 to 10 of 23" and its < and >; target 10 (on, with extra data) is the first of the second page
 click-bar Find Object
 expect-dialog Select Object
 click-choice-is s353multiswitch
 expect-no-dialog
 key E
 wait 400
-picture 2
-expect-field-has strategyview 200@0:s353multiswitch : Multiple Target Switch|
-expect-field-has strategyview |16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Targets :|0@96:(on)|80@96:
-expect-field-has strategyview |0@112:(off)|80@112:
-expect-field-has strategyview |0@128:(off)|80@128:
-expect-field-has strategyview |0@144:(on)|80@144:
-expect-field-has strategyview |0@160:(on)|80@160:
-expect-field-has strategyview |0@176:(off)|80@176:
-expect-field-has strategyview |0@256:(on)|80@256:
-expect-field-has strategyview (Has extra message data)|0@272:(off)
-expect-field-has strategyview |0@320:(off)|80@320:
-expect-field-has strategyview |80@336:23 targets - press space for next page
-# Space: the second page, targets 15 to 22 (all off) from y 96, then the line on row 6 + 8 = 14 (y 224)
-key Space
+picture 3
+expect-dialog s353multiswitch : Multiple Target Switch
+expect-field-has strategyform |Targets|1 to 10 of 23|
+expect-dialog-checks on,off,off,on,on,off,off,off,off,off
+click-button >
 wait 300
-expect-field-has strategyview |0@96:(off)|80@96:
-expect-field-has strategyview |0@208:(off)|80@208:
-expect-field-has strategyview |80@224:23 targets - press space for next page
-# Space again: past the last page, back to the first
-key Space
+expect-field-has strategyform |Targets|11 to 20 of 23|
+expect-dialog-checks on,off,off,off,off,off,off,off,off,off
+click-button >
 wait 300
-expect-field-has strategyview |0@96:(on)|80@96:
-expect-field-has strategyview |0@112:(off)|80@112:
-expect-field-has strategyview |80@336:23 targets - press space for next page
+expect-field-has strategyform |Targets|21 to 23 of 23|
+expect-dialog-checks off,off,off
+# > on the last page stays; < goes back
+click-button >
+wait 300
+expect-field-has strategyform |Targets|21 to 23 of 23|
+click-button <
+wait 300
+expect-field-has strategyform |Targets|11 to 20 of 23|
 key Esc
 wait 300
+expect-no-dialog
 
-# ---- THE COPY, read back through the game's own loader (Vasquez 11-17, the 66 read-back: S-K66-3..7 on his path, each change above kept in the file). exitmultiswitch must hold
-# Rest State 0 and the switch-off bit 2 (P: Rest off, Same; flags 0x80000000 -> 0x80000002), Mode 1 (Wait) and its 4 targets in their stock order (D then Shift + D on row 0 left the same IDs;
-# read 11-17 by switch_survey on Temple: downdoor02, downdoor01, S363, "delay temple sealed sound"), rows 0 and 1 with request 0 (S, the press at x <= 0x31), rows 2 and 3 with request 1,
-# and its 4 links; every other strategy byte for byte the original's. RED on the stock file read as the copy: Rest State 1, flags 0x80000000, requests 1 and 1.
+# ---- THE COPY, read back through the game's own loader (Vasquez 11-17, the 66 read-back; each change above kept in the file). exitmultiswitch must hold Rest State 0 and the switch-off
+# bit 1 (flags 0x80000000 -> 0x80000002), Mode 1 (Wait) and its 4 targets in their stock order (read 11-17 by switch_survey on Temple: downdoor02, downdoor01, S363, "delay temple sealed
+# sound"), rows 0 and 1 with request 0, rows 2 and 3 with request 1, and its 4 links; every other strategy byte for byte the original's. RED on the stock file read as the copy: Rest State
+# 1, flags 0x80000000, requests 1 and 1.
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Temple.RIF {copy} exitmultiswitch RestState 0 Mode 1 flags 0x80000002 targets 4 target.0 downdoor02 target.1 downdoor01 target.2 S363 target.3 "delay temple sealed sound" target_request.0 0 target_request.1 0 target_request.2 1 target_request.3 1 NumLinks 4
