@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -39,8 +40,10 @@ namespace host
 
 	// THE FORM, pure (no Windows, no editor state; texture_import_screen_test checks it): pictureWords, the picture's name as shown; name, the texture's name
 	// it starts with. Its parts, in this order: the words, the name's label and edit box, the size's three boxes (128 ticked), the way's three (Fit ticked), the
-	// see-through box (unticked), Ok, Cancel
-	DialogFormSpec TextureImportScreen_Form(std::string const &pictureWords, std::string const &name);
+	// see-through box (unticked), Ok, Cancel. lineWidth, when given, is how wide the font in use draws one line of words (the editor's: texture_import_screen.cpp):
+	// the form is then as wide as its longest line of words needs, and never narrower than inteng's 460 (Drake 2026-11-24: in inteng's own letters the
+	// second line ran 32 pixels past the window, the state line's dialogpast "label 1: right 32", acceptance-texture-import and -jpeg)
+	DialogFormSpec TextureImportScreen_Form(std::string const &pictureWords, std::string const &name, std::function<int32_t(std::string const &)> const &lineWidth = nullptr);
 
 	// The form's answers read back from its parts as Dialogs_Form gives them: false when they aren't the form's (then nothing is imported)
 	struct TextureImportAnswers

@@ -260,6 +260,8 @@ bool EditorBar_MakePopupLevel(size_t screen, int32_t group, EditorBarRoom *room)
 	}
 	else
 	{
+		size_t subUsed = 0;   // the cascades' rows in room->subItems
+
 		for (size_t m = 0; m < count; m++)
 		{
 			if (used >= ui::kMenuMostItems)
@@ -288,6 +290,43 @@ bool EditorBar_MakePopupLevel(size_t screen, int32_t group, EditorBarRoom *room)
 
 				shown.subMenu = true;
 
+				// THE SUB-MENU BESIDE THE POP-UP (Drake 2026-11-24, the owner on alpha.6: "place above/below etc is a sub menu, right now the main menu where you were
+				// disappears and only the 'here, above...etc' show"): inteng's pop-up opens a sub-level to the side and keeps itself (FUN_004b8350), so a group of plain
+				// rows is this row's CASCADE, shown beside the pop-up as the pointer comes on the row, the pop-up staying (ui/menu_bar.h's subItems, as the bar's own
+				// cascades). Before, picking the row put its rows in the pop-up's place. A group with a sub-level of its own inside (a level-1 row: two levels deep,
+				// which a cascade can't hold) still opens in the pop-up's place, as before: NAMED.
+				size_t const from = subUsed;
+				bool plain = true;
+
+				for (size_t k = 0; k < menus[m].count && plain; k++)
+				{
+					host::IntengItem const &row = menus[m].items[k];
+
+					if (host::AutoPlot_CommandHidden(row.command, host::AutoPlot_Shown()))
+					{
+						continue;   // hidden by the owner's ruling (autoplot_switch.h), as AddIntengItems leaves it out
+					}
+
+					plain = row.level == 0 && subUsed < kEditorBarMostItems && subUsed - from < ui::kMenuMostSubItems;
+
+					if (plain)
+					{
+						ui::MenuItem const shownRow = { row.name, nullptr, row.action, nullptr, row.access };
+
+						room->subItems[subUsed++] = shownRow;
+					}
+				}
+
+				if (plain && subUsed > from)
+				{
+					shown.subItems = room->subItems + from;
+					shown.subCount = subUsed - from;
+				}
+				else
+				{
+					subUsed = from;   // not a cascade: the row opens its group in the pop-up's place (PopupPicked)
+				}
+
 				room->items[used++] = shown;
 			}
 		}
@@ -306,7 +345,7 @@ bool EditorBar_MakePopup(size_t screen, EditorBarRoom *room)
 	return EditorBar_MakePopupLevel(screen, -1, room);
 }
 
-bool EditorBar_Make(size_t screen, KeyLayout layout, EditorBarRoom *room)
+bool EditorBar_Make(size_t screen, EditorBarRoom *room)
 {
 	if (!room || screen >= kIntengScreenCount)
 	{
@@ -440,7 +479,7 @@ int32_t EditorBar_Page()
 
 // ---- Titles that wrap ----
 
-bool EditorBar_MakeRows(size_t screen, KeyLayout layout, int32_t width, host::PaintLetterWidth widthOf, EditorBarRows *rows)
+bool EditorBar_MakeRows(size_t screen, int32_t width, host::PaintLetterWidth widthOf, EditorBarRows *rows)
 {
 	if (!rows || !widthOf)
 	{
@@ -454,7 +493,7 @@ bool EditorBar_MakeRows(size_t screen, KeyLayout layout, int32_t width, host::Pa
 		rows->menuCount[r] = 0;
 	}
 
-	if (!EditorBar_Make(screen, layout, &rows->logical[0]) || !EditorBar_MakeSecond(screen, &rows->logical[1]))
+	if (!EditorBar_Make(screen, &rows->logical[0]) || !EditorBar_MakeSecond(screen, &rows->logical[1]))
 	{
 		return false;
 	}
@@ -558,7 +597,7 @@ EditorBarPlaceRows EditorBar_PlaceRows(const ui::PanelLayout &layout, size_t row
 }
 
 // Does every page of the screen wrap into few enough rows at that width? (and no title is wider than the room)
-static bool ScreenFitsAt(size_t screen, KeyLayout layout, host::PaintLetterWidth widthOf, int32_t width, int32_t *widestTitle)
+static bool ScreenFitsAt(size_t screen, host::PaintLetterWidth widthOf, int32_t width, int32_t *widestTitle)
 {
 	static EditorBarRows rows;
 	int32_t const was = shownPage;
@@ -571,7 +610,7 @@ static bool ScreenFitsAt(size_t screen, KeyLayout layout, host::PaintLetterWidth
 	{
 		EditorBar_SetPage(p == 0 ? 0 : kIntengScreens[screen].pages[p - 1].page);
 
-		if (!EditorBar_MakeRows(screen, layout, width, widthOf, &rows))
+		if (!EditorBar_MakeRows(screen, width, widthOf, &rows))
 		{
 			fits = false;
 		}
@@ -594,7 +633,7 @@ static bool ScreenFitsAt(size_t screen, KeyLayout layout, host::PaintLetterWidth
 	return fits;
 }
 
-int32_t EditorBar_LeastWidth(KeyLayout layout, host::PaintLetterWidth widthOf)
+int32_t EditorBar_LeastWidth(host::PaintLetterWidth widthOf)
 {
 	int32_t widest = 0;
 	int32_t least = 0;
@@ -604,7 +643,7 @@ int32_t EditorBar_LeastWidth(KeyLayout layout, host::PaintLetterWidth widthOf)
 		// the least width for this screen: wider windows never need more rows, so the answer is searched between 64 and 4096
 		int32_t low = 64, high = 4096;
 
-		if (!ScreenFitsAt(s, layout, widthOf, high, &widest))
+		if (!ScreenFitsAt(s, widthOf, high, &widest))
 		{
 			// not even the widest window gets this screen's bars into the rows allowed: its bars are too big for the editor, and the test says so
 			return 4096;
@@ -614,7 +653,7 @@ int32_t EditorBar_LeastWidth(KeyLayout layout, host::PaintLetterWidth widthOf)
 		{
 			int32_t const middle = low + (high - low) / 2;
 
-			if (ScreenFitsAt(s, layout, widthOf, middle, nullptr))
+			if (ScreenFitsAt(s, widthOf, middle, nullptr))
 			{
 				high = middle;
 			}
@@ -744,7 +783,7 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 				break;
 			}
 
-			host->statusWords = EditorActions_KeysWords(host->layout);
+			host->statusWords = EditorActions_KeysWords();
 			break;
 		case host::IntengWork::DeleteObject:
 			host->deleteSelectedObject = true;
@@ -1090,7 +1129,7 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 	return true;
 }
 
-int32_t EditorBar_WidestTitles(KeyLayout layout, host::PaintLetterWidth widthOf)
+int32_t EditorBar_WidestTitles(host::PaintLetterWidth widthOf)
 {
 	static EditorBarRoom room;
 	int64_t widest = 0;
@@ -1100,7 +1139,7 @@ int32_t EditorBar_WidestTitles(KeyLayout layout, host::PaintLetterWidth widthOf)
 		int32_t titles[ui::kMenuMostMenus];
 		int32_t drops[ui::kMenuMostMenus];
 
-		if (!EditorBar_Make(s, layout, &room))
+		if (!EditorBar_Make(s, &room))
 		{
 			continue;
 		}

@@ -1991,6 +1991,37 @@ namespace host
 		return MissionTargetsOf(payload, targets);
 	}
 
+	// THE MISSION OBJECTIVE'S EDITS (70; reassess/strategy-data-kinds.md S-K70-2, -3, -7, -8): the old list is read with its bounds checked first, so the bytes kept after it
+	// are the ones the file really has there (moved here from strategy_screen.cpp on 2026-11-24 so the Edit Strategy form can write the list too)
+	bool StrategyView_WithMissionTargets(std::vector<uint8_t> const &payload, std::vector<MissionTarget> const &targets, std::vector<uint8_t> *out)
+	{
+		std::vector<MissionTarget> old;
+
+		if (!MissionTargetsOf(payload, &old) || targets.size() > 4096)
+		{
+			return false;
+		}
+
+		size_t const tail = 44 + 12 * old.size();
+		int32_t const count = (int32_t)targets.size();
+		std::vector<uint8_t> made(payload.begin(), payload.begin() + 44);
+
+		memcpy(made.data() + 40, &count, 4);
+
+		for (MissionTarget const &one : targets)
+		{
+			uint8_t entry[12];
+
+			memcpy(entry, one.id.data(), 8);
+			memcpy(entry + 8, &one.word, 4);
+			made.insert(made.end(), entry, entry + 12);
+		}
+
+		made.insert(made.end(), payload.begin() + (std::ptrdiff_t)tail, payload.end());
+		*out = made;
+		return true;
+	}
+
 	bool StrategyView_MissionTargetAt(std::vector<uint8_t> const &payload, int32_t y, size_t *index)
 	{
 		Reader const reader = { payload, 70 };

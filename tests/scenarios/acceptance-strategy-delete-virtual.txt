@@ -27,8 +27,10 @@ expect-no-dialog
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 200@0:Vmessage077 : Message
+# (2026-11-24, Dietrich: a Message edits in a form, the owner's; Escape closes it and the view)
+expect-dialog Vmessage077 : Message
 key Esc
+expect-no-dialog
 wait 400
 # the question, then Yes: its strategy goes; Edit Strategy then finds none (FUN_005286b0: "Selected object has no strategy", 0x5ee174)
 click-win 500 300 right
@@ -40,6 +42,10 @@ expect-status The object's strategy is deleted
 click-win 500 300 right
 click-popup 3
 expect-status Selected object has no strategy
+# Edit Strategy on an object with none now asks to assign one (the owner's, 2026-11-24; acceptance-strategy-edit-none-asks): No changes nothing
+expect-dialog No strategy assigned to this object.
+click-button No
+expect-no-dialog
 picture 2
 save-copy
 # the copy through the game's loader: the virtual object is still there and holds no strategy; every other strategy as the stock file has it (Vmessagedest194's timer read, the rest byte for byte)

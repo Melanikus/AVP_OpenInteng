@@ -89,7 +89,7 @@ static EditorBarRoom room2;
 // The two bars of a screen, laid out in a picture of pictureWidth by pictureHeight as the editor lays them out each frame
 static bool MakeTheBars(size_t screen, int32_t pictureWidth, int32_t pictureHeight, MenuBar *bar1, MenuBar *bar2)
 {
-	if (!EditorBar_Make(screen, KeyLayout::Classic, &room1) || !EditorBar_MakeSecond(screen, &room2) || room2.menuCount == 0 || !bar1->Load(room1.menus, room1.menuCount) ||
+	if (!EditorBar_Make(screen, &room1) || !EditorBar_MakeSecond(screen, &room2) || room2.menuCount == 0 || !bar1->Load(room1.menus, room1.menuCount) ||
 		!bar2->Load(room2.menus, room2.menuCount))
 	{
 		return false;

@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include <chrono>
 #include <map>
 #include <array>
 #include <functional>
@@ -109,8 +110,7 @@
 #include "particle_edit.h"
 #include "simple_object_edit.h"
 #include "editor_icons.h"
-#include "inteng_exe.h"
-#include "inteng_shapes.h"
+#include "sha256_hex.h"   // Sha256Hex: the screenshot files' SHA-256
 #include "virtual_object.h"
 #include "generator_strategy.h"
 #include "placed_hierarchy_strategy.h"
@@ -152,7 +152,6 @@
 #include "field_adapters.h"
 #include "field_panel_host.h"
 #include "harness_select.h"
-#include "key_layout.h"
 #include "host_frame.h"
 #include "menu_bar.h"
 #include "menu_paint.h"
@@ -630,7 +629,7 @@ static std::string ShotFileSha256(std::string const &path, uint64_t mostBytes, u
 	}
 
 	CloseHandle(file);
-	return read ? host::IntengExe_Sha256(data.data(), data.size()) : std::string();
+	return read ? host::Sha256Hex(data.data(), data.size()) : std::string();
 }
 
 // the last lines of the editor's own log (the player already left out of them by the log's writer)
@@ -1671,8 +1670,12 @@ static void FlagViewTints(OpenLevelFile *open)
 	static std::vector<uint8_t> objectIds;
 	static std::vector<uint32_t> objectColours;
 
+	// the harness's flagtints field: the last remake's rows and milliseconds (the owner's "3 second lock" after a Create Virtual Object was this remake; Vasquez 2026-11-24)
+	static std::string remadeWords = "none yet";
+
 	if (tintsFor != open->Generation() || tintsBit != strategyViewBit)
 	{
+		auto const remakeFrom = std::chrono::steady_clock::now();
 		std::vector<host::LevelObject> rows;
 		host::LevelStore store(open);
 
@@ -1682,6 +1685,18 @@ static void FlagViewTints(OpenLevelFile *open)
 		objectColours.clear();
 		LevelObjects_Read(&rows);
 
+		// whether each row holds a strategy, the level's image walked once for all of them (StrategyMode_HasEach): asked one by one, each answer built the whole level again,
+		// about 6 ms a row, 3 s and more on Derelict after every Create Virtual Object (the owner's 3 s lock, Vasquez's probe 2026-11-24)
+		std::vector<uint8_t> rowIds;
+		std::vector<host::StrategyModeResult> hasOne;
+
+		for (host::LevelObject const &row : rows)
+		{
+			rowIds.insert(rowIds.end(), row.id, row.id + 8);
+		}
+
+		host::StrategyMode_HasEach(open, rowIds.data(), rows.size(), &hasOne);
+
 		for (size_t i = 0; i < rows.size() && modules.size() < kLevelViewMostSelected; i++)
 		{
 			int32_t number = 0;
@@ -1689,7 +1704,7 @@ static void FlagViewTints(OpenLevelFile *open)
 
 			// every block that has a strategy is GREEN (FUN_00522680 0x522935: the block's flag 0x2000000; FUN_004a7eca makes it item flag 0x100, FUN_004980f0 the colour 0x00ff00), and green wins over the
 			// flag view's orange
-			if (host::StrategyMode_Has(open, rows[i].id) == host::StrategyModeResult::Done)
+			if (i < hasOne.size() && hasOne[i] == host::StrategyModeResult::Done)
 			{
 				if (game >= 0)
 				{
@@ -1718,7 +1733,11 @@ static void FlagViewTints(OpenLevelFile *open)
 
 		tintsFor = open->Generation();
 		tintsBit = strategyViewBit;
+		remadeWords = std::to_string((unsigned long long)rows.size()) + " rows, " +
+			std::to_string((long long)std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - remakeFrom).count()) + " ms";
 	}
+
+	StateLine_Add("flagtints", remadeWords);
 
 	// RED modules (FUN_00529470: block flag 0x40000000 -> FUN_004a7cd0 0x4a7eca), FIRST in the list so they win over a green or orange (strategy-data.md S-62): the selection's red reaches only placed objects
 	// (blocks with a strategy block), so a module's red is given here: the volume editor's picked module; on page 0 the current module; on the flag page every module in its list. Not while a kind's

@@ -3,6 +3,7 @@
 # The flag page FUN_00525700 and Stability FUN_00527370 are loops of their own (each runs FUN_00529370's frame) and neither reads 0xd87a85: E does nothing there. Ours sent E to Edit Strategy on both, so
 # the listed module's view opened over the flag page, and the current module's view over Stability's faces.
 # RED on bishop-int e378833e: E on the flag page and on Stability opens gARAGDOR's Switch door view (strategyview not empty).
+# (Drake 2026-11-25: a Switch Door edits in a FORM now, strategy_forms_modules.cpp: its view is the form, a dialog, and Escape closes it; the key rules are the same.)
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
 state
@@ -18,9 +19,10 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Switch_Door
 wait 400
-expect-field-has strategyview gARAGDOR : Switch door
+expect-dialog gARAGDOR : Switch door
 key Esc
 wait 300
+expect-no-dialog
 expect-field-empty strategyview
 
 # THE FLAG PAGE (Mode > Module flags): the room put in the page's list, then E: no view
@@ -58,7 +60,8 @@ click-win 504 364
 expect-selected 1
 key E
 wait 400
-expect-field-has strategyview gARAGDOR : Switch door
+expect-dialog gARAGDOR : Switch door
 key Esc
 wait 300
+expect-no-dialog
 expect-field-empty strategyview

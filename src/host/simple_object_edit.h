@@ -12,7 +12,7 @@
 //   legacy 53 gives nothing, any other strategy kind gives the defaults, which are type 0, extra 0, mass 50, integrity 2, explosion 0 (+0x50 starts as 0x20032). An object with NO strategy has
 //   the flags 0xb800 (marine, alien, predator, PC) and the shape lookup.
 // - THE SHAPE LOOKUP (FUN_004e44c0 0x4e4738-0x4e4755): the lower-cased name of the object's shape's outside file (the first SHPEXTFN of its SHPEXTFL, the folder and extension taken off) is looked
-//   up in inteng's table at 0x5e7b58 (29 rows in his inteng.exe: read at run time, SimpleObject_SetShapeNames below; no copy in our source); a hit gives the type and extra data of the table, and flags |= 0x38000 (done for
+//   up in inteng's table at 0x5e7b58 (29 names: pulse, pulam, smart, ... bulb, mine, simple; the table is below); a hit gives the type and extra data of the table, and flags |= 0x38000 (done for
 //   any object whose shape has an outside file, hit or not).
 // - THE WINDOW (edobtype.dll, FUN_10003de0 init, FUN_10004520 per type, FUN_100060e0 type changed, FUN_10005ae0 OK; the control ids are the resource's): "Type of Object" (the 17 names below, in that order,
 //   the one whose value is the object's type picked, none when the value is in no entry), "Game mode" Marine / Alien / Predator and "Difficulty" Easy / Medium / Hard (ticked when the file's NOT bit
@@ -153,17 +153,6 @@ namespace host
 	size_t SimpleTypeChoices(SimpleChoice const **list);
 	size_t SimpleExtraChoices(int32_t type, SimpleChoice const **list);
 
-	// inteng's shape-name table (0x5e7b58), READ AT RUN TIME from his inteng.exe (inteng_shapes.h IntengShapeNames_Read; Bishop's ruling V-31 11-16: a table in the exe's data is never
-	// copied into our source). editor_main.cpp gives it once at start; until then, or when inteng.exe was not read, there is no table and no shape's type is guessed (the start's status says why).
-	struct SimpleShapeName
-	{
-		std::string name;
-		int32_t type = 0;
-		int32_t extra = 0;
-	};
-	void SimpleObject_SetShapeNames(std::vector<SimpleShapeName> const &names);
-	bool SimpleObject_ShapeNamesKnown();
-
-	// the type and extra data of a lower-case shape name from that table; false for a name not in it (or no table)
+	// inteng's shape-name table (0x5e7b58): the type and extra data of a lower-case shape name; false for a name not in it
 	bool SimpleShapeGuess(std::string const &lowerName, int32_t *type, int32_t *extra);
 }

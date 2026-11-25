@@ -922,6 +922,54 @@ int main(int argc, char **argv)
 
 			Check(there == (what == "virtualkept"), std::string("the copy ") + (what == "virtualkept" ? "has" : "has no") + " virtual object named \"" + argv[a + 1] + "\"");
 		}
+		else if (what == "virtualbeside")
+		{
+			// "<new>|<beside>|<axis and way>", the way one of -x +x -y +y -z +z (Drake 2026-11-24, Create Virtual Object's six moves, virtual_object.h): the virtual object <new> stands where
+			// <beside> stands but for that one axis, on that side of it, more than 600 file units away (inteng's 60000 past the extents: so not inside it) and less than 5000; the step is
+			// printed, so a run on inteng's shape 13 can be read for its 1100 (stock Derelict's stacks)
+			std::string const spec = argv[a + 1];
+			size_t const bar1 = spec.find('|');
+			size_t const bar2 = bar1 == std::string::npos ? std::string::npos : spec.find('|', bar1 + 1);
+			std::string const made = bar1 == std::string::npos ? std::string() : spec.substr(0, bar1);
+			std::string const beside = bar2 == std::string::npos ? std::string() : spec.substr(bar1 + 1, bar2 - bar1 - 1);
+			std::string const way = bar2 == std::string::npos ? std::string() : spec.substr(bar2 + 1);
+			int const axis = way.size() == 2 ? (way[1] == 'x' ? 0 : way[1] == 'y' ? 1 : way[1] == 'z' ? 2 : -1) : -1;
+			int const sign = way.size() == 2 ? (way[0] == '+' ? 1 : way[0] == '-' ? -1 : 0) : 0;
+			std::vector<host::VirtualObjectRef> virtuals;
+			host::VirtualObjectRef const *newOne = nullptr;
+			host::VirtualObjectRef const *besideOne = nullptr;
+
+			host::ListVirtualObjects(copy.Level(), &virtuals);
+
+			for (host::VirtualObjectRef const &v : virtuals)
+			{
+				newOne = !newOne && v.name == made ? &v : newOne;
+				besideOne = !besideOne && v.name == beside ? &v : besideOne;
+			}
+
+			if (axis < 0 || sign == 0 || made.empty() || beside.empty())
+			{
+				Check(false, "virtualbeside takes \"<new>|<beside>|<-x +x -y +y -z +z>\", not \"" + spec + "\"");
+			}
+			else if (!newOne || !besideOne)
+			{
+				Check(false, std::string("virtualbeside: the copy has no virtual object named \"") + (!newOne ? made : beside) + "\"");
+			}
+			else
+			{
+				long long const step = (long long)newOne->place[axis] - (long long)besideOne->place[axis];
+				bool sameElsewhere = true;
+
+				for (int other = 0; other < 3; other++)
+				{
+					sameElsewhere = sameElsewhere && (other == axis || newOne->place[other] == besideOne->place[other]);
+				}
+
+				Check(sameElsewhere && step * sign > 600 && step * sign < 5000, "\"" + made + "\" is beside \"" + beside + "\" on " + way + ": a step of " + std::to_string(step) +
+					" file units (" + std::to_string((long long)newOne->place[0]) + " " + std::to_string((long long)newOne->place[1]) + " " + std::to_string((long long)newOne->place[2]) + " from " +
+					std::to_string((long long)besideOne->place[0]) + " " + std::to_string((long long)besideOne->place[1]) + " " + std::to_string((long long)besideOne->place[2]) + ")");
+			}
+		}
 		else if (what == "nostrategy")
 		{
 			CheckNoStrategy(copy, argv[a + 1]);

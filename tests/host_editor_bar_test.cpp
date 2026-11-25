@@ -69,25 +69,22 @@ static void TestEveryBar()
 	bool allLoad = true;
 	std::string first;
 
-	for (KeyLayout const layout : { KeyLayout::Classic, KeyLayout::ModernWasd })
+	for (size_t s = 0; s < kIntengScreenCount; s++)
 	{
-		for (size_t s = 0; s < kIntengScreenCount; s++)
-		{
-			ui::MenuBar bar;
-			bool const made = EditorBar_Make(s, layout, &room);
+		ui::MenuBar bar;
+		bool const made = EditorBar_Make(s, &room);
 
-			allMade = allMade && made;
-			allLoad = allLoad && made && bar.Load(room.menus, room.menuCount);
-			if (!allLoad && first.empty())
-			{
-				first = kIntengScreens[s].name;
-			}
+		allMade = allMade && made;
+		allLoad = allLoad && made && bar.Load(room.menus, room.menuCount);
+		if (!allLoad && first.empty())
+		{
+			first = kIntengScreens[s].name;
 		}
 	}
 
-	Check(allMade, "every screen's bar is made, in both key layouts");
+	Check(allMade, "every screen's bar is made");
 	Check(allLoad, "and loads into the menu bar: every title, item, key and tag passes its checks" + (first.empty() ? std::string() : " (not: " + first + ")"));
-	Check(!EditorBar_Make(kIntengScreenCount, KeyLayout::Classic, &room) && !EditorBar_Make(0, KeyLayout::Classic, nullptr),
+	Check(!EditorBar_Make(kIntengScreenCount, &room) && !EditorBar_Make(0, nullptr),
 		"a screen that isn't one, or no room, makes nothing");
 }
 
@@ -142,7 +139,7 @@ static void TestNoTags()
 			EditorBar_SetPage(page);
 			EditorBar_SetPopupPage(page);
 
-			if (EditorBar_Make(s, KeyLayout::Classic, &room))
+			if (EditorBar_Make(s, &room))
 			{
 				RowsOfRoom(room, &rows, &notBuilt, &shownTag);
 			}
@@ -173,7 +170,7 @@ static void TestTheHub()
 {
 	puts("The hub's bar:");
 
-	Check(EditorBar_Make(host::kIntengHub, KeyLayout::Classic, &room) && room.menuCount == 6, "the hub has inteng's 6 menus and nothing of ours (no View (ours), no Screens (ours))");
+	Check(EditorBar_Make(host::kIntengHub, &room) && room.menuCount == 6, "the hub has inteng's 6 menus and nothing of ours (no View (ours), no Screens (ours))");
 	Check(room.menuCount == 6 && Is(room.menus[0].title, "File") && Is(room.menus[5].title, "Options"), "File first, Options last");
 	Check(ItemFor(kActionBackToHub) == nullptr && ItemFor(2) == nullptr && ItemFor(301) == nullptr,
 		"the hub has no way back to itself, and the editor's old Quit and Help, Keys are left off: inteng's own do them");
@@ -191,7 +188,7 @@ static void TestAScreen()
 {
 	puts("Another screen's bar:");
 
-	Check(EditorBar_Make(6, KeyLayout::Classic, &room) && room.menuCount == 5, "object placement has inteng's 5 menus and nothing of ours");
+	Check(EditorBar_Make(6, &room) && room.menuCount == 5, "object placement has inteng's 5 menus and nothing of ours");
 	Check(ItemFor(kActionBackToHub) == nullptr, "and no Back to Construction: inteng's Exit is the way back");
 }
 
@@ -199,12 +196,12 @@ static void TestPicks()
 {
 	puts("What each pick does:");
 
-	EditorHostState host = { true, nullptr, KeyLayout::Classic, host::kIntengHub };
+	EditorHostState host = { true, nullptr, host::kIntengHub };
 
 	Check(EditorBar_Run(0x1000a, &host) && host.screen == 6 && Is(host.statusWords, "Object Placement") && host.running,
 		"construction's Object Placement goes to object placement's screen, and the status line names it");
 
-	EditorBar_Make(6, KeyLayout::Classic, &room);
+	EditorBar_Make(6, &room);
 
 	const ui::MenuItem *exit = nullptr;
 
@@ -249,7 +246,7 @@ static void TestWidth()
 {
 	puts("The widest bar, and titles past the edge:");
 
-	int32_t const widest = EditorBar_WidestTitles(KeyLayout::Classic, SixWide);
+	int32_t const widest = EditorBar_WidestTitles(SixWide);
 	bool atLeast = true;
 
 	for (size_t s = 0; s < kIntengScreenCount; s++)
@@ -258,7 +255,7 @@ static void TestWidth()
 		int32_t drops[ui::kMenuMostMenus];
 		int64_t sum = 0;
 
-		EditorBar_Make(s, KeyLayout::Classic, &room);
+		EditorBar_Make(s, &room);
 		host::MenuPaint_Measure(room.menus, room.menuCount, SixWide, titles, drops);
 
 		for (size_t m = 0; m < room.menuCount; m++)
@@ -276,7 +273,7 @@ static void TestWidth()
 	int32_t drops[ui::kMenuMostMenus];
 	char words[256];
 
-	EditorBar_Make(4, KeyLayout::Classic, &room);
+	EditorBar_Make(4, &room);
 	bar.Load(room.menus, room.menuCount);
 	host::MenuPaint_Measure(room.menus, room.menuCount, SixWide, titles, drops);
 	bar.LayOut(ui::Box{ 0, 0, widest, 32 }, ui::Box{ 0, 32, 260, 700 }, titles, drops, host::MenuPaint_ItemHeight(15));

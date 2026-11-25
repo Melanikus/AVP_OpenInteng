@@ -108,8 +108,6 @@
 #include "particle_edit.h"
 #include "simple_object_edit.h"
 #include "editor_icons.h"
-#include "inteng_exe.h"
-#include "inteng_shapes.h"
 #include "virtual_object.h"
 #include "generator_strategy.h"
 #include "placed_hierarchy_strategy.h"
@@ -160,7 +158,6 @@
 #include "field_adapters.h"
 #include "field_panel_host.h"
 #include "harness_select.h"
-#include "key_layout.h"
 #include "host_frame.h"
 #include "menu_bar.h"
 #include "menu_paint.h"
@@ -1551,75 +1548,48 @@ void EntryMarkerLines(std::vector<host::TrackLine> *lines)
 	}
 }
 
-// THE LIGHT MARKERS (FUN_004b2590, the descriptor at 0x5e1c28): every light has a marker object of the editor's own shape 2 (FUN_0042c700's slot 2, the SHAPEHEADER at 0x5e1138 through the
-// pointer at 0x5cd960: five points, the apex at the light's place and a square base behind it along the light's direction; five flat polygons, the four sides and the base, items at 0x5e12a8).
-// Hide All / Unhide All and the I key hide and show them (the invisible flag); the selected light's is flat red. The polygons are filled (the avpx hook R_SetEditorWorldTriangles).
-// THE RULING (Melanikus via Bishop 11-16): inteng's binary data is read from his own inteng.exe when the editor runs, never copied into our source: the shape is IntengShapes slot 2 of the
-// shared exe (inteng_exe.h, inteng_shapes.h; every polygon fanned from its first corner, as Vasquez's reader gives it). NAMED: without the exe (not found, or refused) the marker is OUR OWN
-// plain shape (a grey pyramid of our own size) and the log and the status line say why. The memory units are 100 to a world unit, so the world numbers are the shape's divided by 100.
-static std::vector<host::IntengShapeTriangle> const &LightMarkerShape()
+// THE LIGHT MARKERS (FUN_004b2590, the descriptor at 0x5e1c28): every light has a marker object of the editor's own shape 2 (the table at 0x5e1138: five points, the apex at the light's place and the square base 107951 memory units behind it along the
+// light's direction, +-24650 / 24371 across; five flat polygons of colours 0x0080ff, 0x00c800, 0x008000, 0x000080 for the four sides and 0x808000 for the base). Hide All / Unhide All and the I key hide and show them (the invisible flag); the selected light's is flat red.
+// The polygons are filled (the avpx hook R_SetEditorWorldTriangles: the four sides as one triangle each, the base as two); the shape's numbers are inteng's own.
+// The memory units are 100 to a world unit (the place is file x 100 x scale in inteng), so the world numbers are the shape's divided by 100.
+// (Restored 2026-11-24 by Melanikus (Vasquez), the owner's ruling "Any 'art' in inteng's disassemble is OURS ... get them as they were": the numbers below are the
+// ones copied before 11-16's 10007079 read them from his inteng.exe at run time, word for word; the code around them moved here from editor_main.cpp since, and
+// each face becomes one triangle of LightMarkerTriangle for the marker code below. No inteng.exe is needed or looked for.)
+struct LightMarkerTriangle
 {
-	static bool tried = false;
-	static std::vector<host::IntengShapeTriangle> shape;
+	int32_t p[9];      // the three corners, x y z each, in inteng's memory units
+	uint32_t colour;   // the polygon's colour (0xAARRGGBB; the marker code uses the RRGGBB)
+};
 
-	if (tried)
+static std::vector<LightMarkerTriangle> const &LightMarkerShape()
+{
+	static std::vector<LightMarkerTriangle> shape;
+
+	if (!shape.empty())
 	{
 		return shape;
 	}
 
-	tried = true;
+	int32_t const points[5][3] = { { -24650, -24371, -107951 }, { -24371, 24650, -107951 }, { 24650, 24371, -107951 }, { 24371, -24650, -107951 }, { 0, 0, 0 } };
+	int const faces[6][4] = { { 4, 1, 0, 0 }, { 4, 2, 1, 1 }, { 4, 3, 2, 2 }, { 4, 0, 3, 3 }, { 0, 1, 2, 4 }, { 0, 2, 3, 4 } };   // the three corners, then the polygon's colour (the table at 0x5e12a8: apex 4, corners 0 to 3; the base 0, 1, 2, 3 as two triangles)
+	uint32_t const colours[5] = { 0xFF0080FFu, 0xFF00C800u, 0xFF008000u, 0xFF000080u, 0xFF808000u };
 
-	std::string why;
-	host::IntengExeImage const *const image = host::IntengExe_Shared(&why);
-
-	if (image)
+	for (auto const &face : faces)
 	{
-		int const wanted[] = { 2 };
-		host::IntengShapes shapes;
-		host::IntengShapesRefusal refused = host::IntengShapesRefusal::None;
+		LightMarkerTriangle t;
 
-		if (host::IntengShapes_Read(*image, wanted, 1, &shapes, &refused) && shapes.have[2] && !shapes.triangles[2].empty())
+		for (int corner = 0; corner < 3; corner++)
 		{
-			shape = shapes.triangles[2];
-			LogString("light markers: inteng's shape 2, " + std::to_string((long long)shape.size()) + " triangles, from inteng.exe");
-			return shape;
+			for (int axis = 0; axis < 3; axis++)
+			{
+				t.p[corner * 3 + axis] = points[face[corner]][axis];
+			}
 		}
 
-		why = host::IntengShapes_Why(refused);
-	}
-
-	// our own plain marker: a square pyramid, the apex at the light, the base 1000 world units behind it and 200 across (x 100 in memory units), grey
-	int32_t const tip[3] = { 0, 0, 0 };
-	int32_t const base[4][3] = { { -20000, -20000, -100000 }, { -20000, 20000, -100000 }, { 20000, 20000, -100000 }, { 20000, -20000, -100000 } };
-	auto add = [&](int32_t const *a, int32_t const *b, int32_t const *c)
-	{
-		host::IntengShapeTriangle t = {};
-
-		for (int k = 0; k < 3; k++)
-		{
-			t.p[k] = a[k];
-			t.p[3 + k] = b[k];
-			t.p[6 + k] = c[k];
-		}
-
-		t.colour = 0x808080u;
+		t.colour = colours[face[3]];
 		shape.push_back(t);
-	};
-
-	for (int side = 0; side < 4; side++)
-	{
-		add(tip, base[(side + 1) % 4], base[side]);
 	}
 
-	add(base[0], base[1], base[2]);
-	add(base[0], base[2], base[3]);
-
-	std::string const words = "light markers: inteng.exe not read (" + why + "): our own plain grey markers";
-
-	LogString(words);
-	static std::string held;
-	held = words;
-	statusWords = held.c_str();
 	return shape;
 }
 
@@ -1662,7 +1632,7 @@ static bool LightMarkerAxes(host::LightMarker const &m, size_t i, ULONGLONG now,
 }
 
 // One face of a marker in the world: the shape's x, y, z points go along the three rows (the shape's memory units are 100 to a world unit), from the light's place
-static void LightMarkerFace(host::LightMarker const &m, double const axes[9], double scale, host::IntengShapeTriangle const &face, int32_t world[3][3])
+static void LightMarkerFace(host::LightMarker const &m, double const axes[9], double scale, LightMarkerTriangle const &face, int32_t world[3][3])
 {
 	for (int corner = 0; corner < 3; corner++)
 	{
@@ -1695,7 +1665,7 @@ void LightMarkerTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 	size_t selected = (size_t)-1;
 	bool const haveSelected = SelectedLight(&selected);
 	double const scale = local_scale > 0.0 ? local_scale : 1.0;
-	std::vector<host::IntengShapeTriangle> const &shape = LightMarkerShape();
+	std::vector<LightMarkerTriangle> const &shape = LightMarkerShape();
 
 	// A CHANGED LIGHT'S MARKER TURNS (FUN_004ab670, every frame of the screen; light-closeout-frost.md TB-L6): each light of the set with the changed flag (4), but the one flying with L (DAT_00703e60 and the
 	// selected), gets the turn rate 300 about its own axis (its block's +0x1b4, the third of the three Euler rates, 4096 to a turn: a turn in about 13.7 seconds) and is turned by the game's step FUN_0053c4f0
@@ -1736,7 +1706,7 @@ void LightMarkerTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 			lightSpinWord += (lightSpinWord.empty() ? "" : "|") + std::to_string(i + 1) + ":" + std::to_string((long long)(fmod(angle * 180.0 / 3.14159265358979323846, 360.0) * 10.0));
 		}
 
-		for (host::IntengShapeTriangle const &face : shape)
+		for (LightMarkerTriangle const &face : shape)
 		{
 			LevelViewTriangle triangle;
 			int32_t world[3][3];
@@ -1777,7 +1747,7 @@ size_t LightMarkerUnderPointer(host::PickCamera const &camera, int32_t x, int32_
 	host::LightScene_Markers(open, &markers);
 
 	double const scale = local_scale > 0.0 ? local_scale : 1.0;
-	std::vector<host::IntengShapeTriangle> const &shape = LightMarkerShape();
+	std::vector<LightMarkerTriangle> const &shape = LightMarkerShape();
 	ULONGLONG const now = GetTickCount64();
 	size_t best = SIZE_MAX;
 	double bestDistance = 0.0;
@@ -1796,7 +1766,7 @@ size_t LightMarkerUnderPointer(host::PickCamera const &camera, int32_t x, int32_
 
 		LightMarkerAxes(m, i, now, axes, &angle);
 
-		for (host::IntengShapeTriangle const &face : shape)
+		for (LightMarkerTriangle const &face : shape)
 		{
 			int32_t world[3][3];
 			double sx[3], sy[3];
@@ -1872,7 +1842,7 @@ bool LightMarkerBox(size_t light, int32_t mins[3], int32_t maxs[3])
 
 	LightMarkerAxes(m, light, GetTickCount64(), axes, &angle);
 
-	for (host::IntengShapeTriangle const &face : LightMarkerShape())
+	for (LightMarkerTriangle const &face : LightMarkerShape())
 	{
 		int32_t world[3][3];
 

@@ -12,11 +12,10 @@
 //                 editor sits in the game's Tools folder (game_folder.h): the release zip's file names none, so a first start works out of the box>
 //     Level=<a level's file name, without .rif: the level a hidden test run (-picture) opens when none is given on the command line. With someone at the
 //            screen it is never read: started with no file, the editor says so, as inteng does (NoFileScreen)>
-//     KeyLayout=<Classic or ModernWASD: the key layout; Classic inteng's when the line is missing or says anything else (key_layout.h)>
 //     StartWidth=, StartHeight=, Windowed=<the start size and a framed window (editor_options.h; the release zip's own file says 1280, 720, true)>
 // The game's files are opened from that folder, as the game opens them from its own. The only thing ever written there is a level
-// file given on the command line, copied into its avp_rifs (open_with.h). In AVP_OpenInteng.ini the editor writes only the KeyLayout=
-// line, when the mapper picks a key layout in the View menu.
+// file given on the command line, copied into its avp_rifs (open_with.h). (A KeyLayout= line, left from the two layouts of 11-14 to 11-16, is
+// never read: the keys are inteng's.)
 //
 // ON THE COMMAND LINE:
 // - A level file, as Windows' "Open with" gives it: AVP_OpenInteng.exe <file.rif>. It's copied into the data folder's avp_rifs under
@@ -41,10 +40,10 @@
 //
 // ONE EDITOR AT A TIME (one_editor.h): a second editor says another is running, and stops before it reads or writes anything.
 //
-// KEYS: two layouts (key_layout.h), picked in the View menu and kept in AVP_OpenInteng.ini; Classic inteng's to start with. In Classic,
-// as inteng had them (with NumLock on): A and Z move forward and back, the numeric keypad's 1 and 3 sideways, its minus and plus up and
-// down, its 4 and 6 turn, and its 2 and 8 look up and down. In Modern WASD: W and S move forward and back, A and D sideways, R and F up
-// and down, and the arrow keys turn and look. In both, moving the mouse with its right button held down turns and looks too. The mouse
+// KEYS: inteng's own (the owner: "Integ is perfect with keypad+mouse"; the Modern WASD layout of 11-14 was switched off on 11-16 and its
+// code removed on 11-25). As inteng had them (with NumLock on): A and Z move forward and back, the numeric keypad's 1 and 3 sideways, its
+// minus and plus up and down, its 4 and 6 turn, and its 2 and 8 look up and down. Moving the mouse with its right button held down turns
+// and looks too. The mouse
 // is only read: never held, moved, hidden or kept inside the window. Help, Keys says the keys in use.
 // (F10 and an Alt tap no longer open the menu bar: they are not inteng's; F10 is camera slot 9.) Once the bar is open, the arrows, Enter and Esc work it; a click on a menu opens it too. A key
 // the table of actions gives an action in the layout in use (editor_actions.cpp), such as Ctrl+O or the main row's 8 for Polyline, does
@@ -191,8 +190,7 @@
 #include "particle_edit.h"
 #include "simple_object_edit.h"
 #include "editor_icons.h"
-#include "inteng_exe.h"
-#include "inteng_shapes.h"
+#include "sha256_hex.h"   // Sha256Hex: the SHA-256 -open-at names a level's file by
 #include "virtual_object.h"
 #include "generator_strategy.h"
 #include "placed_hierarchy_strategy.h"
@@ -240,11 +238,11 @@
 #include "field_adapters.h"
 #include "field_panel_host.h"
 #include "harness_select.h"
-#include "key_layout.h"
 #include "host_frame.h"
 #include "menu_bar.h"
 #include "menu_paint.h"
 #include "menu_font.h"
+#include "menu_font_data.h"   // inteng's font16.fnt, host::kIntengMenuFont16
 #include "object_list.h"
 #include "panel_layout.h"
 #include "panel_pass.h"
@@ -292,14 +290,10 @@ char cutOffWords[160] = "";        // which titles are past the toolbar's edge, 
 static AltTap altTap = { false, false };
 StatusWords statusWords;   // a copy the status line owns (status_words.h): never a pointer into a string changed later
 
-// The key layout in use (key_layout.h), Classic inteng's until the settings say otherwise, and the settings file that keeps it
-// (Added 2026-11-14 by Melanikus (Dietrich), F3.)
-KeyLayout keyLayout = KeyLayout::Classic;
+// The settings file, AVP_OpenInteng.ini beside the program (its name is from the key layouts of 11-14, which it kept first)
 char layoutSettingsFile[MAX_PATH] = "";
 // The Options switches kept in the settings file (editor_options.h): Select by polygons (a click takes the object under the pointer, else the object whose centre is nearest it), Prefer .BMP over .RIM, Use Polygon View Distance
 host::EditorOptions editorOptions = host::EditorOptions_Defaults();
-static const char kLayoutNotSavedWords[] =
-	"The keys have changed, but AVP_OpenInteng.ini couldn't be written, so the editor starts with the keys it had before next time";
 
 // The view's child window goes where the panels' layout puts the view in the editor's window (panel_layout.h). It's asked every frame,
 // and moves the window only when it isn't there: the layout changes whenever the editor's window is resized, and the game's own
@@ -466,6 +460,9 @@ static bool rightButtonDown = false;
 // opens at the pointer, closes on a pick, a click elsewhere or Esc, and its items do what they do on a bar. (Added 2026-11-15 by Melanikus (Dietrich).)
 ui::MenuBar popupBar;
 EditorBarRoom popupRoom;
+// the pop-up row whose sub-menu (cascade) a left press chose: the state line reports that cascade as the level shown only then, so a pop-up opened under the pointer on a
+// cascade's row (which shows it at once, as inteng's) still reports its own rows until a row is clicked, as the harness's click-popup expects; -1 none (Drake 2026-11-24)
+static int popupCascadeChosen = -1;
 POINT popupAt = { 0, 0 };        // where it opens, in the editor window
 static POINT rightPressedAt = { 0, 0 }; // where the right button went down
 static bool rightDragged = false;       // the pointer moved while the right button was down
@@ -635,7 +632,7 @@ bool harnessPanelAsked = false;
 bool LoadTheMenus()
 {
 	// the bars' rows, wrapped to the window's width (1008 before the first frame has said): every title is in the window, whatever the width
-	if (!EditorBar_MakeRows(barScreen, keyLayout, barWrapWidth > 0 ? barWrapWidth : 1008, PanelPass_MenuWidth, &barRows) || (barRows.menuCount[0] > 0 ? !menuBar.Load(barRows.menus[0], barRows.menuCount[0]) : (menuBar.Load(nullptr, 0), false)))
+	if (!EditorBar_MakeRows(barScreen, barWrapWidth > 0 ? barWrapWidth : 1008, PanelPass_MenuWidth, &barRows) || (barRows.menuCount[0] > 0 ? !menuBar.Load(barRows.menus[0], barRows.menuCount[0]) : (menuBar.Load(nullptr, 0), false)))
 	{
 		return false;
 	}
@@ -664,8 +661,6 @@ bool LoadTheMenus()
 		bar.SetEnabled(kActionViewPolyline, ViewToggles_OutlinesCanBeShown());
 		bar.SetEnabled(kActionViewFilledPolyline, ViewToggles_OutlinesCanBeShown());
 		bar.SetEnabled(kActionViewGouraudLevelOnly, false);   // inteng's Gouraud state 2: not built yet
-		bar.SetEnabled(kActionViewKeysClassic, keyLayout != KeyLayout::Classic);
-		bar.SetEnabled(kActionViewKeysModern, keyLayout != KeyLayout::ModernWasd);
 	}
 
 	return true;
@@ -4454,7 +4449,7 @@ static bool IsAMoveKey(WPARAM key)
 {
 	for (size_t m = 0; m < (size_t)EditorMove::Count; m++)
 	{
-		if (EditorActions_MoveKey(keyLayout, (EditorMove)m) == (uint8_t)key)
+		if (EditorActions_MoveKey((EditorMove)m) == (uint8_t)key)
 		{
 			return true;
 		}
@@ -6761,7 +6756,6 @@ void RunAction(int32_t id)
 	EditorHostState host = {};
 
 	host.running = running;
-	host.layout = keyLayout;
 	host.screen = barScreen;
 	host.prompt = kPromptNone;
 
@@ -7420,28 +7414,6 @@ void RunAction(int32_t id)
 		statusWords = host.statusWords;
 	}
 
-	// A key layout picked: kept in the settings for the next start, the menus made again with its keys, and every key counted as let go,
-	// as a key held now may do something else in the new layout. Menus the bar refuses would be a mistake in the editor's own table
-	// (the test makes them for both layouts), and the editor then closes, saying so in its log. (Added 2026-11-14 by Melanikus
-	// (Dietrich), F3.)
-	if (host.layout != keyLayout)
-	{
-		keyLayout = host.layout;
-		memset(keyDown, 0, sizeof(keyDown));
-
-		if (!KeyLayout_Save(layoutSettingsFile, keyLayout))
-		{
-			statusWords = kLayoutNotSavedWords;
-			LogString(std::string("key layout: ") + kLayoutNotSavedWords);
-		}
-
-		if (!LoadTheMenus())
-		{
-			LogString("key layout: the editor's own table of actions doesn't make a menu bar for these keys (editor_actions.cpp), so it closed");
-			host.running = false;
-		}
-	}
-
 	if (!host.running)
 	{
 		// the hub's Quit (DAT_0091c01c, the main loop's end 0x58d07d): the hub is left (FUN_004476d0), so the level FILE is written when it changed. A window closed writes nothing (inteng:
@@ -7644,12 +7616,6 @@ static void AfterMenu(ui::MenuAnswer answer, ui::MenuBar &bar)
 			case kActionViewGouraudLevelOnly:
 				statusWords = "Gouraud, the level's own only (inteng's third state, command 0xcc): not built yet";
 				break;
-			case kActionViewKeysClassic:
-				statusWords = "The Classic inteng keys are in use already";
-				break;
-			case kActionViewKeysModern:
-				statusWords = "The Modern WASD keys are in use already";
-				break;
 			default:
 				statusWords = "That item is off at the moment";
 				break;
@@ -7701,6 +7667,7 @@ static void PopupPicked(int32_t action)
 	{
 		if (EditorBar_MakePopupLevel(barScreen, action - kEditorPopupGroupBase, &popupRoom) && popupBar.Load(popupRoom.menus, popupRoom.menuCount))
 		{
+			popupCascadeChosen = -1;   // a new level in the pop-up's place: no sub-menu chosen yet
 			popupBar.Handle(ui::KeyEvent(ui::Key::Menu));
 			memset(keyDown, 0, sizeof(keyDown));
 		}
@@ -8566,7 +8533,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			if (!screenKeyDone && message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && wParam <= 0xFF && !(lParam & (1 << 30)))
 			{
 				const EditorAction *const action =
-					EditorActions_ForKey(kEditorActions, kEditorActionCount, keyLayout, (uint8_t)wParam, shiftHeld, ctrlHeld, altHeld);
+					EditorActions_ForKey(kEditorActions, kEditorActionCount, (uint8_t)wParam, shiftHeld, ctrlHeld, altHeld);
 
 				if (action)
 				{
@@ -8807,7 +8774,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 						cameraWords = "Selected " + std::to_string((unsigned long long)picked) + " of the level's " + std::to_string((unsigned long long)modules) + " modules" + (picked < modules ? " (the selection holds at most 256)" : "");
 						statusWords = cameraWords.c_str();
 					}
-					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Path") == 0 && (wParam == 'L' || wParam == 'P' || (wParam == 'D' && keyLayout == KeyLayout::Classic)))
+					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Path") == 0 && (wParam == 'L' || wParam == 'P' || wParam == 'D'))
 					{
 						// Path mode's keys (FUN_004f9d10: slot 0xd87a8c L = Add selected module to path, 0xd87a84 D = Delete last module, 0xd87a90 P = Properties); D is a movement key in the Modern layout
 						PathModeCommand(wParam == 'L' ? 3 : (wParam == 'D' ? 4 : 9));
@@ -9071,6 +9038,9 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			{
 				ui::MenuAnswer const popAnswer = popupBar.Press(at.x, at.y);
 
+				// a press on a row that opens a sub-menu picks nothing and the pop-up stays: that row's sub-menu is the one chosen (popupCascadeChosen)
+				popupCascadeChosen = popAnswer != ui::MenuAnswer::Picked && popupBar.IsOpen() ? popupBar.LitItem() : -1;
+
 				if (popAnswer == ui::MenuAnswer::Picked)
 				{
 					PopupPicked(popupBar.Picked());
@@ -9245,7 +9215,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					pickShift = ShiftDown() || (wParam & MK_SHIFT) != 0;
 					pickCtrl = KeyHeldNow(VK_CONTROL) || (wParam & MK_CONTROL) != 0;
 					pickDelete = KeyHeldNow(VK_DELETE);   // Module Linking: Delete + click takes a module off the picks (slot 0x55 = VK 0x2e, FUN_004c3880)
-					pickWithS = keyLayout == KeyLayout::Classic && keyDown['S'] && barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && strategyFlagPage && !pickShift;   // S + click is the flag page's (FUN_00525700 0x525db2 / 0x525dbf), but Shift is tested first (0x525cba-0x525cc1: Shift down skips the S read): Shift + S + click is Shift + click (0x525cc7, out of the list, red off 0x525da8; S-69); page 0 takes it as a plain click (S-58)
+					pickWithS = keyDown['S'] && barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && strategyFlagPage && !pickShift;   // S + click is the flag page's (FUN_00525700 0x525db2 / 0x525dbf), but Shift is tested first (0x525cba-0x525cc1: Shift down skips the S read): Shift + S + click is Shift + click (0x525cc7, out of the list, red off 0x525da8; S-69); page 0 takes it as a plain click (S-58)
 					pickX = host::TextScale_ToOwn(GET_X_LPARAM(lParam));   // the editor's own pixels, as the view's size the pick is made against (text_scale.h)
 					pickY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 					pickInBox = threeMainBox.width > 0 && ui::BoxHolds(threeMainBox, at.x, at.y);
@@ -9544,6 +9514,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				&& EditorBar_MakePopup(barScreen, &popupRoom) && popupBar.Load(popupRoom.menus, popupRoom.menuCount))
 			{
 				popupAt = rightPressedAt;
+				popupCascadeChosen = -1;   // a new pop-up: no sub-menu chosen yet
 				popupBar.Handle(ui::KeyEvent(ui::Key::Menu));
 				memset(keyDown, 0, sizeof(keyDown));
 			}
@@ -9908,10 +9879,10 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 	return DefWindowProcA(window, message, wParam, lParam);
 }
 
-// Whether a move's key in the layout in use is held down (Added 2026-11-14 by Melanikus (Dietrich), F3.)
+// Whether a move's key is held down (Added 2026-11-14 by Melanikus (Dietrich), F3.)
 static bool Held(EditorMove move)
 {
-	uint8_t const key = EditorActions_MoveKey(keyLayout, move);
+	uint8_t const key = EditorActions_MoveKey(move);
 
 	if (key != 0 && keyDown[key])
 	{
@@ -9919,7 +9890,6 @@ static bool Held(EditorMove move)
 	}
 
 	// the arrow keys are the other strafe keys (the manual's General Keys, menu.txt: "1 / Left Arrow" strafe left, "3 / Right Arrow" strafe right, "- / Up Arrow" strafe up, "+ / Down Arrow" strafe down; inteng reads both slots)
-	if (keyLayout == KeyLayout::Classic)
 	{
 		if (move == EditorMove::Left)
 		{
@@ -10459,64 +10429,34 @@ static bool SettingWritten(const char *settingsFile, const char *name)
 	return GetPrivateProfileStringA("Editor", name, "", first, (DWORD)sizeof(first), settingsFile) > 0;
 }
 
-// INTENG'S MENU FONT (view-state-table.md H-5b, H-5c, H-5e; Bishop's ruling 11-16: Rebellion's font is never carried in our source, it is read at run time from the user's own inteng
-// Tools folder): Tools\font16.fnt next to this program first, then in the folder the setting IntengTools names. The file is read as hostile input (menu_font.h); missing or refused,
-// the menus keep the game's small font and the status line says why.
+// INTENG'S MENU FONT (view-state-table.md H-5b, H-5c, H-5e): its Tools\font16.fnt, in the editor itself (menu_font_data.h, its 4428 bytes copied one for one from the file).
+// Modified 2026-11-24 by Melanikus (Frost), the owner's ruling made plain ("Dude, I was specific about RIFs", "This ONLY applied to rifs": only Rebellion's RIF data stays
+// out of our source): it was read at run time from Tools\font16.fnt beside the program or in the IntengTools folder, so a player without inteng's files had the game's
+// smoothed font. The bytes are still read through MenuFont_Read's checks, as a file was (menu_font.h); refused, the menus keep the game's small font and the status line
+// says why.
 static std::string menuFontWords;
 
 static void MenuFontStart()
 {
-	std::vector<std::string> tries;
-	char folder[MAX_PATH];
-	char named[MAX_PATH];
+	host::MenuFont font;
+	host::MenuFontRefusal why = host::MenuFontRefusal::None;
 
-	if (ProgramFolder(folder, sizeof(folder)))
+	if (!host::MenuFont_Read(host::kIntengMenuFont16, sizeof(host::kIntengMenuFont16), &font, &why))
 	{
-		tries.push_back(std::string(folder) + "Tools\\font16.fnt");
+		menuFontWords = std::string("inteng's font (in the editor) refused, ") + host::MenuFont_Why(why) + "; the menus and every text use the game's font";
+		statusWords = menuFontWords.c_str();
+		return;
 	}
 
-	if (layoutSettingsFile[0] && ReadSetting(layoutSettingsFile, "IntengTools", named, sizeof(named)))
+	if (!PanelPass_SetMenuFont(font))
 	{
-		tries.push_back(std::string(named) + "\\font16.fnt");
+		menuFontWords = "inteng's font (in the editor): its letters could not be made; the menus and every text use the game's font";
+		statusWords = menuFontWords.c_str();
+		return;
 	}
 
-	std::string last = "not found";
-
-	for (std::string const &path : tries)
-	{
-		FILE *file = nullptr;
-
-		if (fopen_s(&file, path.c_str(), "rb") != 0 || !file)
-		{
-			continue;
-		}
-
-		std::vector<uint8_t> bytes(host::kMenuFontMostBytes + 1);
-		size_t const got = fread(bytes.data(), 1, bytes.size(), file);
-
-		fclose(file);
-
-		host::MenuFont font;
-		host::MenuFontRefusal why = host::MenuFontRefusal::None;
-
-		if (!host::MenuFont_Read(bytes.data(), got, &font, &why))
-		{
-			last = std::string("refused, ") + host::MenuFont_Why(why);
-			continue;
-		}
-
-		if (PanelPass_SetMenuFont(font))
-		{
-			host::MenuPaint_SetUnderlineRow(font.height - 1);   // the letter's last row (FUN_0046ce70 0x46cffb)
-			host::MenuPaint_SetMenuGlyphs(true);                 // glyph 2 marks a sub-menu's row
-			return;
-		}
-
-		last = "its letters could not be made";
-	}
-
-	menuFontWords = "inteng's font (Tools\\font16.fnt): " + last + "; the menus and every text use the game's font";
-	statusWords = menuFontWords.c_str();
+	host::MenuPaint_SetUnderlineRow(font.height - 1);   // the letter's last row (FUN_0046ce70 0x46cffb)
+	host::MenuPaint_SetMenuGlyphs(true);                 // glyph 2 marks a sub-menu's row
 }
 
 // THE SIZE THE EDITOR STARTS AT (reassess/startup-screen-frost.md SS-1..SS-13; Bishop's order 11-16 from Melanikus, "Set my inteng to start at max resolution", and his rulings). Inteng: 640 x 480,
@@ -10666,92 +10606,6 @@ static StartPlace ChooseTheStartPlace(bool hidden, host::IntengScreenSize size, 
 		std::to_string(start.height);
 	return place;
 }
-
-// INTENG'S OWN EXE, for its binary data (object-placement.md section 8b V-25; Melanikus's ruling via Bishop 11-16: inteng's binary data is never in our source, it is read at run time from his
-// own files): inteng.exe next to this program first, then in the folder the setting IntengTools names; only the traced exe (its sha256, inteng_exe.h), every read bounded. It is loaded once
-// and shared (IntengExe_Shared: the editor icons here, Drake's light marker). The editor icons are inteng's built-in shapes 2, 3, 4, 7, 8, 9 and 13 (FUN_0042c700's slots, inteng_shapes.h);
-// missing or refused, they are our own plain boxes and the status line says why. Added 2026-11-16 by Melanikus (Vasquez).
-static std::string intengExeWords;
-
-static void IntengExeStart()
-{
-	std::vector<std::string> tries;
-	char folder[MAX_PATH];
-	char named[MAX_PATH];
-
-	if (ProgramFolder(folder, sizeof(folder)))
-	{
-		tries.push_back(std::string(folder) + "inteng.exe");
-	}
-
-	if (layoutSettingsFile[0] && ReadSetting(layoutSettingsFile, "IntengTools", named, sizeof(named)))
-	{
-		tries.push_back(std::string(named) + "\\inteng.exe");
-	}
-
-	static host::IntengExeImage image;
-	std::string from;
-	host::IntengExeRefusal why = host::IntengExeRefusal::None;
-
-	if (!host::IntengExe_Load(tries, &image, &from, &why))
-	{
-		std::string const words = std::string(host::IntengExe_Why(why)) + (from.empty() ? std::string() : " (" + from + ")");
-
-		host::IntengExe_SetShared(nullptr, words);
-		host::EditorIcon_NotRead(words);
-		intengExeWords = std::string("inteng.exe: ") + words + "; the editor icons are our own plain boxes and no placed shape's type is guessed from its name";
-		LogString(intengExeWords);
-		statusWords = intengExeWords.c_str();
-		return;
-	}
-
-	host::IntengExe_SetShared(&image, "read from " + from);
-
-	int const wanted[] = { 2, 3, 4, 7, 8, 9, 13 };
-	host::IntengShapes shapes;
-	host::IntengShapesRefusal refused = host::IntengShapesRefusal::None;
-
-	if (!host::IntengShapes_Read(image, wanted, sizeof(wanted) / sizeof(wanted[0]), &shapes, &refused))
-	{
-		host::EditorIcon_NotRead(std::string(host::IntengShapes_Why(refused)) + " (" + from + ")");
-		intengExeWords = std::string("inteng.exe: ") + host::IntengShapes_Why(refused) + "; the editor icons are our own plain boxes";
-		LogString(intengExeWords);
-		statusWords = intengExeWords.c_str();
-	}
-	else
-	{
-		host::EditorIcon_UseShapes(shapes, from);
-		LogString(std::string("editor icons: ") + host::EditorIcon_From());
-	}
-
-	// inteng's shape-name table (0x5e7b58, FUN_004f6a20; simple_object_edit.h): a placed shape's type and extra data guessed from its outside file's name (Bishop's ruling V-31: read here, no copy)
-	std::vector<host::IntengShapeName> names;
-	host::IntengNamesRefusal namesWhy = host::IntengNamesRefusal::None;
-
-	if (!host::IntengShapeNames_Read(image, &names, &namesWhy))
-	{
-		intengExeWords = std::string("inteng.exe: ") + host::IntengNames_Why(namesWhy) + "; no placed shape's type is guessed from its name";
-		LogString(intengExeWords);
-		statusWords = intengExeWords.c_str();
-		return;
-	}
-
-	std::vector<host::SimpleShapeName> rows;
-
-	for (host::IntengShapeName const &one : names)
-	{
-		host::SimpleShapeName row;
-
-		row.name = one.name;
-		row.type = one.type;
-		row.extra = one.extra;
-		rows.push_back(row);
-	}
-
-	host::SimpleObject_SetShapeNames(rows);
-	LogString("inteng's shape-name table: " + std::to_string(rows.size()) + " names read from " + from);
-}
-
 
 // The editor stops before it starts, and says why: on the error output, and with someone at the screen in a message box too. Windows'
 // "Open with", or a double-click, starts the editor with no console to read, so the reason would go by unseen. The box belongs to no
@@ -12936,11 +12790,11 @@ static void CopyCollectEnd()
 
 // (PATH MODE: in path_screen.cpp)
 
-// Enter on the name of the new virtual object (FUN_005396d0): the answer makes it; a name already in use gives inteng's "Please try another name" and the question again
+// Enter on the name of the new virtual object (FUN_005396d0): the answer makes it; a name already in use gives inteng's "Please try another name" and the question again. The place is in inteng's memory units and inteng's divisor is 100 x the level's scale (virtual_object.h "INTENG'S UNITS")
 static void RunVirtualName(std::string const &typed)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
-	host::VirtualObjectResult const result = open ? host::VirtualObject_Create(open, typed.c_str(), virtualPlace, local_scale > 0.0 ? local_scale : 1.0) : host::VirtualObjectResult::BadCall;
+	host::VirtualObjectResult const result = open ? host::VirtualObject_Create(open, typed.c_str(), virtualPlace, (double)host::kIntengUnitsPerFileUnit * (local_scale > 0.0 ? local_scale : 1.0)) : host::VirtualObjectResult::BadCall;
 
 	if (result == host::VirtualObjectResult::NameUsed || result == host::VirtualObjectResult::BadName)
 	{
@@ -13523,7 +13377,7 @@ static void PromptKey(UINT message, WPARAM key)
 // order before every line. titleBoxes gets the menu bar's titles' boxes, for a run's report. lines and boxes have room for
 // kPanelPassMostExtras each.
 // Object Placement's special objects in the view: each is drawn as inteng's own built-in shape (FUN_004e4ae0's display block with the class's shape slot; SpecialIconTriangles, editor_icons.h, the
-// shapes read at run time from his inteng.exe: object-placement.md section 8b V-25), and the owner's addition, its short name beside it while the shape is seen (the label pass below; the panel pass
+// shapes inteng's own, in our source: editor_icon_shapes.inc; object-placement.md section 8b V-25), and the owner's addition, its short name beside it while the shape is seen (the label pass below; the panel pass
 // holds 64 boxes and lines in all, the nearest ones in front of the camera first). (Added 2026-11-15 by Melanikus (Vasquez); the comment corrected 2026-11-16: the 2D boxes are long gone.)
 static std::vector<host::SpecialObject> specialMarkers;
 static unsigned specialMarkersFor = ~0u;
@@ -14761,7 +14615,7 @@ static bool OpenTheLevel(char const *levelName, FlyCamera *camera, char const *o
 	// OP-140 (Bishop's ruling 11-17, a named difference): which outside shapes the open brought up to date; after the start's Gouraud words, and a level not held says so over it
 	if (!outsideShapesWords->empty())
 	{
-		// whatever the start put on the line stays after them: the inteng.exe warning (IntengExeStart), a -viewmode's words (open-path-6), how many pictures are missing
+		// whatever the start put on the line stays after them: a -viewmode's words (open-path-6), how many pictures are missing
 		// (LevelView_SayMissingPictures, which hands back words of its own, so the warning can't be told by its pointer: 11-18, after bishop-int's ad73774b)
 		if (statusWords && statusWords[0])
 		{
@@ -15429,8 +15283,7 @@ int main(int, char **)
 		return Stop("AVP_OpenInteng.ini beside the program needs Level= under [Editor] for a test run given no level file (shorter than 259 letters)");
 	}
 
-	// The key layout (key_layout.h). Anyone can write the setting, so anything but its two words means Classic, and the log says why, in
-	// the editor's own words. The settings file is kept for a layout picked later. (Added 2026-11-14 by Melanikus (Dietrich), F3.)
+	// The settings file, kept for the settings written later (the camera speed, the view distance, the Options switches ...)
 	strcpy_s(layoutSettingsFile, sizeof(layoutSettingsFile), settingsFile);
 	{
 		char const *optionWhy = nullptr;
@@ -15443,9 +15296,8 @@ int main(int, char **)
 			LogString(std::string("settings: ") + optionWhy + " is not 0 or 1 in the settings file, so its start value is used");
 		}
 	}
-	// The keys are inteng's (Classic: A and Z forward and back, 1 / 3 or Left / Right strafe, - / + or Up / Down strafe up and down, 4 6 8 2 turn and pitch, 7 9 roll), nothing else: the owner's word 11-16 ~10:45, "Let's use that then (A/Z) and
-	// remove the wasd layout". A KeyLayout= line in the ini is ignored.
-	keyLayout = KeyLayout::Classic;
+	// The keys are inteng's (A and Z forward and back, 1 / 3 or Left / Right strafe, - / + or Up / Down strafe up and down, 4 6 8 2 turn and pitch, 7 9 roll), nothing else: the owner's word 11-16 ~10:45, "Let's us
+	// remove the wasd layout", and 11-24 "WASD mode is off". A KeyLayout= line in the ini is never read (acceptance-keys-modern-off).
 
 	// The camera speed is SAVED, as inteng does (FUN_004732a0 writes DAT_005f071c at the end, WriteFile at 0x473336; FUN_00473430 reads it back at the start, 0x4734f3): kept in the ini as CameraSpeed=, from the floor (3) up
 	{
@@ -15606,7 +15458,7 @@ int main(int, char **)
 	}
 
 	// -at's level word or -shot's map: a NAME of the data folder's levels, opened by its name (a shot's only with its sha256), so no file is copied in (open_at.h)
-	if ((openAt.at || openAt.shot) && !host::OpenAt_Level(openAt, levelFile, dataFolder, levelName, sizeof(levelName), host::IntengExe_Sha256, &openAtWhy))
+	if ((openAt.at || openAt.shot) && !host::OpenAt_Level(openAt, levelFile, dataFolder, levelName, sizeof(levelName), host::Sha256Hex, &openAtWhy))
 	{
 		return Stop(openAtWhy.c_str());
 	}
@@ -15727,8 +15579,7 @@ int main(int, char **)
 	// The widest bar's titles, with the room the gray behind them takes past the last (PlanThePanels), as the least client width
 	// the titles wrap onto up to kEditorBarMostRows rows, so the least width is the one where the widest page of every screen still wraps into that many (and no title is wider than the window)
 	MenuFontStart();   // inteng's own menu font, before the bar is measured with it
-	IntengExeStart();  // inteng's own exe, for its built-in shapes (the editor icons) and tables (V-25)
-	barMinClientWidth = EditorBar_LeastWidth(keyLayout, PanelPass_MenuWidth);
+	barMinClientWidth = EditorBar_LeastWidth(PanelPass_MenuWidth);
 
 	if (!LoadTheMenus())
 	{
@@ -16739,7 +16590,10 @@ int main(int, char **)
 		char const *const savedTo = askedPicture ? askedPicture : (screenshotTo ? screenshotTo : shotTo);
 		FlyCamera const drawCamera = PlotPreviewView_Frame(camera, 0, 0, windowWidth, windowHeight);   // THE PLOT'S PREVIEW (plot_preview_view.h): its camera while the plot runs
 		PlotPreviewState_Line();
+		// the gizmo made again once this frame's camera is in, so it is drawn with the camera it was made from (gizmo_screen.h GizmoScreen_AfterEyes; the owner: it "flickers alot")
+		LevelView_SetAfterEyes([](void *) { GizmoScreen_AfterEyes(); }, nullptr);
 		bool const drawn = LevelView_Draw(drawCamera, savedTo, AddThePanels, &framePanels);
+		GizmoScreen_AfterDraw();   // how far its arrow is off its length on the screen, with the camera the frame was drawn from (gizmolag)
 		StateLine_Add("plotmessage", AutoPlotCommand_MessageShown().empty() ? std::string("off") : AutoPlotCommand_MessageShown());   // the auto-plot's start message this frame drew
 		StateLine_Add("plotmessagebox", AutoPlotCommand_MessageBox().empty() ? std::string("off") : AutoPlotCommand_MessageBox());   // and its black box
 		StateLine_Add("allstockmaps", host::AllStockMaps_StateWords());   // All stock maps: busy or idle, level N of M, file, stage, the last verdict, the worst frame while plotting (all_stock_maps.h)
@@ -17197,32 +17051,53 @@ int main(int, char **)
 			// All three are empty when no pop-up is open.
 			std::string popupEntries, popupRow1, popupStep;
 
+			// A SUB-MENU SHOWN BESIDE THE POP-UP (editor_bar.cpp EditorBar_MakePopupLevel: a group's rows are its row's cascade, the pop-up staying, as inteng's): the
+			// level shown is the cascade, so popup, popuprow1 and popupstep are its rows, and a scenario's next click-popup picks among them, as it did when they
+			// replaced the pop-up; popupparent is then the pop-up's own entries (still open beside it), "none" while no cascade shows.
+			std::string popupParent = "none";
+
 			if (popupBar.IsOpen() && popupRoom.menuCount == 1)
 			{
-				for (size_t i = 0; i < popupRoom.menus[0].count; i++)
+				// one level's entries, as "<entry>|<entry>|...": the words alone (the "  >" after an entry that opens more is ours, the cascade's mark)
+				auto const entriesOf = [](ui::MenuItem const *items, size_t count)
 				{
-					std::string entry = popupRoom.menus[0].items[i].name ? popupRoom.menus[0].items[i].name : "";
+					std::string words;
 
-					// the "  >" after an entry that opens more is ours (the cascade's mark): the entry's own words are what is reported
-					if (entry.size() > 2 && entry.compare(entry.size() - 2, 2, " >") == 0)
+					for (size_t i = 0; i < count; i++)
 					{
-						entry.resize(entry.size() - 2);
+						std::string entry = items[i].name ? items[i].name : "";
+
+						if (entry.size() > 2 && entry.compare(entry.size() - 2, 2, " >") == 0)
+						{
+							entry.resize(entry.size() - 2);
+						}
+
+						for (char const letter : entry)
+						{
+							words += (letter == '"' || letter == '|') ? '?' : letter;
+						}
+
+						words += i + 1 < count ? "|" : "";
 					}
 
-					for (char const letter : entry)
-					{
-						popupEntries += (letter == '"' || letter == '|') ? '?' : letter;
-					}
+					return words;
+				};
 
-					popupEntries += i + 1 < popupRoom.menus[0].count ? "|" : "";
-				}
-
-				ui::Box const drop = popupBar.DropBox();
+				ui::Box const cascade = popupBar.CascadeBox();
+				int const owner = popupBar.LitItem();
+				bool const cascadeShown = cascade.width > 0 && cascade.height > 0 && owner >= 0 && owner == popupCascadeChosen && (size_t)owner < popupRoom.menus[0].count &&
+					popupRoom.menus[0].items[owner].subCount > 0;
+				ui::Box const drop = cascadeShown ? cascade : popupBar.DropBox();
 				int32_t const entryHeight = host::MenuPaint_ItemHeight(kPanelPassLineHeight);
 
+				popupEntries = cascadeShown ? entriesOf(popupRoom.menus[0].items[owner].subItems, popupRoom.menus[0].items[owner].subCount) :
+					entriesOf(popupRoom.menus[0].items, popupRoom.menus[0].count);
+				popupParent = cascadeShown ? entriesOf(popupRoom.menus[0].items, popupRoom.menus[0].count) : "none";
 				popupRow1 = std::to_string(drop.x) + " " + std::to_string(drop.y) + " " + std::to_string(drop.width) + " " + std::to_string(entryHeight);
 				popupStep = "0 " + std::to_string(entryHeight);
 			}
+
+			StateLine_Add("popupparent", popupParent);
 
 			// inteng's Hierarchy text of the frame: "<row>:<words>|..." (the words with no quote or bar; the one at x 200 is given as "<row>@200:<words>")
 			std::string hierarchyLinesWord;

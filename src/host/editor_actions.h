@@ -1,27 +1,27 @@
-// editor_actions.h: the editor's one table of actions: every command the menu bar offers, its words, its key in each of the two key
-// layouts (key_layout.h), and what it does; and the camera's keys in each layout. Written 2026-11-14 by Melanikus (Dietrich) for
-// AVP_OpenInteng (F3). AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code". (Modified 2026-11-14 by Melanikus
-// (Dietrich), F3: the two key layouts, Classic inteng and Modern WASD.)
+// editor_actions.h: the editor's one table of actions: every command the menu bar offers, its words, its key, and what it does; and the
+// camera's keys. Written 2026-11-14 by Melanikus (Dietrich) for AVP_OpenInteng (F3). AVP_OpenInteng's own code: see License.txt,
+// "AVP_OpenInteng's own code". (Modified 2026-11-14 by Melanikus (Dietrich), F3: two key layouts. Modified 2026-11-25 by Melanikus
+// (Frost): ONE layout again, inteng's keypad + mouse. The owner: "WASD mode is off", "Integ is perfect with keypad+mouse"; the Modern
+// WASD layout was switched off on 11-16 and its code is gone now: no layout setting, no second column of keys.)
 //
 // The menu bar (src/ui/menu_bar.h) is made from this table, so a command and its menu item can never say different things. The
 // table is Dietrich's; Frost adds the View menu's draw modes and toggles, and Hicks's side the level opening, each as a line here.
 // - Each action's number is above 0 and used once, its menu is one of the four, and its words are the editor's own.
-// - A key is the keyboard's own key (WM_KEYDOWN's virtual key), with Ctrl and Shift held or not. In the Classic layout the numeric
+// - A key is the keyboard's own key (WM_KEYDOWN's virtual key), with Ctrl and Shift held or not. The numeric
 //   keypad's 7 and the main row's 7 are different keys that do different things, which the letter a key types (WM_CHAR) can't tell
 //   apart. Alt is never part of a key: Alt and a key are Windows' (Alt+F4 closes the window) and the menu bar's.
-// - The words beside an item are made from its key in the layout in use, so they can't name a key the item doesn't have. Keys Windows
+// - The words beside an item are made from its key, so they can't name a key the item doesn't have. Keys Windows
 //   does itself, such as Alt+F4, are only shown.
-// - EditorActions_CheckTable is run on the table at start, as the test runs it: in each layout, no key does two things, and no action
+// - EditorActions_CheckTable is run on the table at start, as the test runs it: no key does two things, and no action
 //   takes a key the camera holds. A table it refuses is a mistake in the editor's own code, and the editor doesn't start.
 // - An action changes the editor only through EditorHostState, which the loop then acts on: whether it keeps running, what the status
-//   line says, and which key layout is in use.
+//   line says.
 
 #pragma once
 
 #include <stddef.h>
 #include <stdint.h>
 
-#include "key_layout.h"
 #include "menu_bar.h"
 
 // The menus, in their order on the bar
@@ -39,7 +39,6 @@ struct EditorHostState
 {
 	bool running;              // false: the editor closes, as when its window is closed
 	const char *statusWords;   // what the status line says now, or null to leave it as it was: the editor's own words only
-	KeyLayout layout;          // the key layout in use. When an action changes it, the loop saves it in the .ini and remakes the menus.
 	size_t screen;             // the old editor's screen in use, as a place in kIntengScreens (inteng_menus.h): its bar is the one shown.
 	                           // When a pick changes it, the loop makes that screen's bar (editor_bar.h). (Added 2026-11-15 by Melanikus
 	                           // (Dietrich), A6.)
@@ -238,8 +237,7 @@ struct EditorAction
 	int32_t id;                // above 0, each once
 	EditorMenu menu;
 	const char *name;          // the item's words
-	EditorKey classic;         // its key in the Classic inteng layout, or { 0 } for none
-	EditorKey modern;          // its key in the Modern WASD layout, or { 0 } for none
+	EditorKey key;             // its key (inteng's layout), or { 0 } for none
 	const char *windowsKeys;   // keys Windows does itself, only shown beside the item (Quit's Alt+F4), or null. Never with a key of its own.
 	EditorActionRun run;
 };
@@ -250,7 +248,7 @@ int32_t const kActionQuit = 2;
 int32_t const kActionSaveCopy = 3;               // Save a copy: <name>-edited.rif in the editor's own folder (save_copy.h), never over the opened file
 // The View menu, inteng's own draw modes and Gouraud switch (view_toggles.h; view-state-table.md). (Modified 2026-11-14 by Melanikus
 // (Frost): reshaped to inteng's. 102 (Fully lit, now the Gouraud switch off), 111 and 112 (the green wireframes, now Polyline with the
-// switch on or off) are RETIRED: never used again, so a saved key layout naming one is refused as unknown, never taken as something else.)
+// switch on or off) are RETIRED: never used again. So are 151 and 152, the two key layouts' (Frost 2026-11-25: one layout, inteng's).)
 int32_t const kActionViewPolyline = 101;         // inteng's 8: every polygon a white line. Off while ViewToggles_OutlinesCanBeShown says false
 int32_t const kActionViewBackFaces = 103;        // off while ViewToggles_BackFacesCanBeShown says false (view_toggles_game.h)
 int32_t const kActionViewBrighter = 104;
@@ -264,8 +262,6 @@ int32_t const kActionViewObjectList = 111;        // ours: the object list, over
 int32_t const kActionViewWireTextured = 110;     // ours, his request: the game's own lines in their textures' colour
 int32_t const kActionViewTextures = 115;          // Textured / Untextured, for every draw mode (view_toggles.h; inteng's DAT_005fd6b4, run 25)
 int32_t const kActionViewGouraudLevelOnly = 114;  // inteng's Gouraud state 2 (command 0xcc): only the level's own gouraud polygons stay shaded. Off, [wip]: not built
-int32_t const kActionViewKeysClassic = 151;      // the two key layouts: the one in use is shown switched off
-int32_t const kActionViewKeysModern = 152;
 int32_t const kActionLevelSettings = 201;         // the Mode menu's: the level's settings in the field panel, READ-ONLY (inteng has no edit for them; Bishop's audit 2026-11-15)
 int32_t const kActionHelpKeys = 301;
 int32_t const kActionHelpAbout = 302;
@@ -295,17 +291,14 @@ struct EditorMoveKeys
 {
 	EditorMove move;
 	const char *name;          // the move's words, for Help, Keys
-	uint8_t classic;           // its key (VK_...) in the Classic inteng layout
-	uint8_t modern;            // and in the Modern WASD layout
+	uint8_t key;               // its key (VK_...), inteng's
 };
 
 // One line for each EditorMove, in its order
 extern const EditorMoveKeys kEditorMoves[];
 
-// The words the status line shows for Help, About, for picking a key layout, and for an action that isn't there yet
+// The words the status line shows for Help, About, and for an action that isn't there yet
 extern const char kEditorAboutWords[];
-extern const char kEditorClassicNowWords[];
-extern const char kEditorModernNowWords[];
 extern const char kEditorOpenNotYetWords[];
 
 // The room a key's words take beside an item, with their 0: "Ctrl+Shift+Num 9", the longest, is 16 letters. The menu bar takes up to
@@ -322,35 +315,35 @@ struct EditorKeyWords
 // has no name for, or too little room (and nothing at all for no room).
 bool EditorActions_KeyWords(const EditorKey &key, char *words, size_t size);
 
-// An action's key in a layout
-const EditorKey &EditorActions_KeyIn(const EditorAction &action, KeyLayout layout);
+// An action's key
+const EditorKey &EditorActions_KeyIn(const EditorAction &action);
 
-// A move's key in a layout, or 0 for a move that isn't one of EditorMove's
-uint8_t EditorActions_MoveKey(KeyLayout layout, EditorMove move);
+// A move's key, or 0 for a move that isn't one of EditorMove's
+uint8_t EditorActions_MoveKey(EditorMove move);
 
-// Help, Keys: the camera's keys in a layout, made from kEditorMoves, so they always say what the keys do. The words stay as they are
-// until the next call.
-const char *EditorActions_KeysWords(KeyLayout layout);
+// Help, Keys: the camera's keys, made from kEditorMoves, so they always say what the keys do. The words stay as they are until the next
+// call.
+const char *EditorActions_KeysWords();
 
 // Checks a table of actions and moves, as the editor does its own at start. Gives back null when it's sound, or else the first thing
 // wrong, in the editor's own words. Sound means: every action's number is above 0 and used once, its menu is one of the four, it has
-// words and something it does, and it shows at most one kind of key; there's a line for each move, in order, with a key in both layouts;
-// every key has a name; and in each layout no two actions share a key, no two moves share one, no action takes a move's key (with Ctrl,
+// words and something it does, and it shows at most one kind of key; there's a line for each move, in order, with a key; every key has a
+// name; and no two actions share a key, no two moves share one, no action takes a move's key (with Ctrl,
 // Shift or neither: a held key counts whatever else is held), and none takes Ctrl+V, which stays the paste's.
 const char *EditorActions_CheckTable(const EditorAction *actions, size_t actionCount, const EditorMoveKeys *moves, size_t moveCount);
 
-// The menu bar's menus, made from a table of actions (the editor's own is kEditorActions) for a layout: one for each EditorMenu, in that
-// order, with their items in the table's order, each with its key's words in that layout. menus has room for EditorMenu::Count menus,
+// The menu bar's menus, made from a table of actions (the editor's own is kEditorActions): one for each EditorMenu, in that
+// order, with their items in the table's order, each with its key's words. menus has room for EditorMenu::Count menus,
 // and items and words for actionCount each; all three have to stay where they are while the bar uses them. Gives back false, filling
 // nothing, for no table, or if any of them has too little room.
-bool EditorActions_MakeMenus(const EditorAction *actions, size_t actionCount, KeyLayout layout, ui::Menu *menus, size_t menuRoom,
+bool EditorActions_MakeMenus(const EditorAction *actions, size_t actionCount, ui::Menu *menus, size_t menuRoom,
 	ui::MenuItem *items, size_t itemRoom, EditorKeyWords *words, size_t wordsRoom);
 
 // The action with this number, or null
 const EditorAction *EditorActions_Find(int32_t id);
 
-// The action a key does in a layout, in a table of actions (the editor's own is kEditorActions), when no menu is open, or null.
+// The action a key does, in a table of actions (the editor's own is kEditorActions), when no menu is open, or null.
 // virtualKey is the key WM_KEYDOWN gives. With Alt held (or AltGr, which Windows gives as Ctrl and Alt together) it's none, as those
 // keys are Windows', the menu bar's and typing's.
-const EditorAction *EditorActions_ForKey(const EditorAction *actions, size_t actionCount, KeyLayout layout, uint8_t virtualKey, bool shiftHeld,
+const EditorAction *EditorActions_ForKey(const EditorAction *actions, size_t actionCount, uint8_t virtualKey, bool shiftHeld,
 	bool ctrlHeld, bool altHeld);

@@ -32,7 +32,9 @@ click-view 0.5 0.58
 camera -41700 -702 42300 0
 wait 600
 picture 2
-click-view 0.5 0.5
+# (2026-11-24, Frost: since Vasquez's restore this virtual object is drawn as inteng's own hollow V, not our solid box; the view's centre, 0.5 0.5, falls in the V's
+# open middle, where inteng picks nothing either. So the click is on the V itself, where its arms meet near its foot)
+click-view 0.5 0.84
 key Enter
 
 # both hold a strategy: the replace question for the first, Yes All for both
@@ -49,8 +51,10 @@ expect-no-dialog
 key E
 wait 400
 picture 3
-expect-field-has strategyview 200@0:opslevo5 : Linked Switch
-expect-field-has strategyview 16@32:Rest State : Off|16@48:Mode : Wait|16@64:Switch off message : Reversed (default)|16@80:Target : immediatesrt - Multi switch|16@120:Links:|32@136:None
+# (a Linked Switch edits in a form since 11-24, strategy_forms.h: Rest State, Mode, Security, Switch off message, Target; then its Links)
+expect-dialog opslevo5 : Linked Switch
+expect-dialog-text Off|Wait|0|Reversed (default)|immediatesrt - Multi switch
+expect-field-has strategyform Links|None
 key Esc
 wait 300
 
@@ -62,8 +66,10 @@ expect-no-dialog
 key E
 wait 400
 picture 4
-expect-field-has strategyview 200@0:link : Linked Switch
-expect-field-has strategyview 16@80:Target : immediatesrt - Multi switch|16@120:Links:
+# (a Linked Switch edits in a form since 11-24, strategy_forms.h: Rest State, Mode, Security, Switch off message, Target; then its Links)
+expect-dialog link : Linked Switch
+expect-dialog-text Off|Wait|0|Reversed (default)|immediatesrt - Multi switch
+expect-field-has strategyform |Links|
 key Esc
 wait 300
 expect-screen Strategy Data

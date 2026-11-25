@@ -19,49 +19,56 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 200@0:dropship ken : Hierarchy
-expect-field-has strategyview 16@16:Key Frame Flag Effects :|32@32:Flag 0 : 1 targets
+# THE FORM (Frost 2026-11-24, the owner's forms for alpha.7: "no more text that can be clicked, our pretty drop downs"): the Hierarchy edits in a form now
+# (strategy_forms_paths.cpp EffectsRow): "Key Frame Flag Effects", a line per flag ("Flag 0", Remove) with its targets under it (the object's drop-down, Pick, the direction's
+# drop-down, On, Extra data..., Remove), each list's "+"; the page's clicks are the form's boxes. RED before the form: Edit Strategy opened the page, no dialog.
+expect-dialog dropship ken : Hierarchy
+expect-field-has strategyform Key Frame Flag Effects|Flag 0|On|add a target|add one
+expect-field-has dialogcombos Both_directions
+expect-dialog-checks on
 picture 1
-# the effect's line: flag 0's page
-click-box 300 40
+# the target's On: off; its direction: Forward only
+click-check 1
 wait 300
-expect-field-has strategyview 16@16:Flag 0 targets :|0@32:(on)|50@32:(Both directions)|190@32:
-# on the target row: x < 50 turns it off, 50 <= x < 190 cycles Both directions -> Forward only
-click-box 20 40
+expect-dialog-checks off
+click-combo 2
+expect-dialog-combo-rows Forward only,Backward only,Opposite back,Both directions
+click-combo-row Forward only
 wait 300
-expect-field-has strategyview 0@32:(off)
-click-box 100 40
-wait 300
-expect-field-has strategyview 0@32:(off)|50@32:(Forward only)
+expect-field-has dialogcombos Forward_only
 picture 2
-# the right button: back to the main page, the effect kept (it has its target)
-click-win 300 200 right
+# the flags' "+" (the second "+": the first adds a target to Flag 0) asks "Which flag?" as P did; 32 is refused (0 <= n < 32): nothing changes
+remember-field strategyform
+click-button + 2
 wait 300
-expect-field-has strategyview 16@16:Key Frame Flag Effects :|32@32:Flag 0 : 1 targets
-remember-field strategyview
-# P: "Which flag?" holding 0; 32 is refused (0 <= n < 32): nothing changes
-key P
 expect-dialog Which flag?
-expect-dialog-text 0
 key Back
 type 32
 key Enter
 wait 300
-expect-field-same strategyview
-# P, 5: a new flag effect, its empty page
-key P
+expect-dialog-kind message
+click-button Ok
+wait 300
+expect-dialog dropship ken : Hierarchy
+expect-field-same strategyform
+# "+", 5: a new flag effect, with no targets yet
+click-button + 2
+wait 300
 expect-dialog Which flag?
 key Back
 type 5
 key Enter
 wait 300
-expect-field-has strategyview 16@16:Flag 5 targets :|32@32:None :
+expect-dialog dropship ken : Hierarchy
+expect-field-has strategyform Flag 0|On|add a target|Flag 5|add a target|add one
 picture 3
-# the right button on the empty page: back, and the effect with no targets is taken out again
-click-win 300 200 right
+# its Remove (the third: Flag 0's, its target's, Flag 5's) takes it out again, as leaving its empty page did
+click-button Remove 3
 wait 300
-expect-field-same strategyview
-key Esc
+expect-dialog dropship ken : Hierarchy
+expect-field-same strategyform
+click-button Ok
+expect-no-dialog
 wait 300
 # READ-BACK (Vasquez 11-17, Drake's effect verbs 27026c6b): the saved copy must hold effect 0 = flag 0 with its one target turned off (request 0) and Forward only (direction 1), the flag 5
 # effect gone again (num_point_effects 1), every other strategy byte for byte. RED on the stock file read as the copy: request 1, direction 3.

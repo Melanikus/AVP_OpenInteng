@@ -1,0 +1,93 @@
+# ACCEPTANCE (red first; Drake 2026-11-24, the owner's bug on his fresh alpha.6, no inteng.exe): CREATE VIRTUAL OBJECT ABOVE (AND BELOW, LEFT, RIGHT, FRONT, BEHIND) A SELECTED
+# VIRTUAL OBJECT OF THE LEVEL. His words: on stock Derelict he selected the level's own virtual objects that already play a message with a timer, then Create Virtual Object > Above
+# "to get inteng's stacked virtual objects": "The virtual object was not created at all." inteng (FUN_00524e90 0x524fc6, dump-full-3:58856): cases 0x3a-0x3f take the CURRENT
+# record (DAT_0091496c), whatever it is, a placed object, a module or a virtual object, its place (+0x10..+0x18) and its extents (+0x104..+0x118), and make the new one beside it
+# (FUN_005396d0). Here no inteng.exe is next to the editor nor named (no IntengTools line), as on his fresh copy: the level's markers are our plain boxes.
+# RED on 3aa15c5d.exe (= alpha.6's code): with a level's own virtual object selected, no name is asked and nothing is made.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+
+# ---- ABOVE (0x3a), the owner's: a level virtual object selected through Find Object, then the pop-up's Create Virtual Object > Above
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is V destroying mirror01 light at START
+expect-no-dialog
+expect-selected 1
+wait 400
+click-win 500 300 right
+click-popup 6
+click-popup 2
+expect-dialog Type name for new virtual object
+type AboveVVO
+key Enter
+expect-no-dialog
+expect-status Virtual object AboveVVO is in the level
+picture 1
+
+# ---- BELOW (0x3b), LEFT (0x3c), RIGHT (0x3d), FRONT (0x3e), BEHIND (0x3f): the same selection each time
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is V destroying mirror01 light at START
+expect-no-dialog
+click-win 500 300 right
+click-popup 6
+click-popup 3
+expect-dialog Type name for new virtual object
+type BelowVVO
+key Enter
+expect-status Virtual object BelowVVO is in the level
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is V destroying mirror01 light at START
+expect-no-dialog
+click-win 500 300 right
+click-popup 6
+click-popup 4
+expect-dialog Type name for new virtual object
+type LeftVVO
+key Enter
+expect-status Virtual object LeftVVO is in the level
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is V destroying mirror01 light at START
+expect-no-dialog
+click-win 500 300 right
+click-popup 6
+click-popup 5
+expect-dialog Type name for new virtual object
+type RightVVO
+key Enter
+expect-status Virtual object RightVVO is in the level
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is V destroying mirror01 light at START
+expect-no-dialog
+click-win 500 300 right
+click-popup 6
+click-popup 6
+expect-dialog Type name for new virtual object
+type FrontVVO
+key Enter
+expect-status Virtual object FrontVVO is in the level
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is V destroying mirror01 light at START
+expect-no-dialog
+click-win 500 300 right
+click-popup 6
+click-popup 7
+expect-dialog Type name for new virtual object
+type BehindVVO
+key Enter
+expect-status Virtual object BehindVVO is in the level
+picture 2
+
+# ---- THE SAVE: all six in the copy, read back by the game's loader
+save-copy
+# each new one beside the selected one on its own axis, on its side, more than 600 file units away (inteng's 60000 past the extents: not inside it); the step is printed (inteng's
+# shape 13 gives 1100, as stock Derelict's own stacks; our plain box 850). Above is -y (the game's y goes down), Below +y, Left -x, Right +x, Front +z, Behind -z (FUN_00524e90 0x524fc6)
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers-voabove/verify_objects.exe {copy} virtualkept "V destroying mirror01 light at START" virtualbeside "AboveVVO|V destroying mirror01 light at START|-y" virtualbeside "BelowVVO|V destroying mirror01 light at START|+y" virtualbeside "LeftVVO|V destroying mirror01 light at START|-x" virtualbeside "RightVVO|V destroying mirror01 light at START|+x" virtualbeside "FrontVVO|V destroying mirror01 light at START|+z" virtualbeside "BehindVVO|V destroying mirror01 light at START|-z"

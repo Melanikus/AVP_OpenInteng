@@ -1,9 +1,10 @@
-# ACCEPTANCE: EVERY LINE of a DOOR (50) on Melanikus's path, the saved copy read back through the game's own loader (Drake, 2026-11-17; reassess/strategy-closeout-drake.md E-1; reassess/strategy-data-kinds.md
-# S-K50-3..11). Genshd1 (a read-only stock copy) holds medoor01, a proximity door that starts locked (DoorFlags 0x3, open 1.0 s, close 0.5 s: the bytes 0x0a / 0x05, kind-survey). His path: the file opened
-# as a double click, the bar, Find Object, the right button's Edit Strategy, each line clicked, Escape, File > Save a copy. The proximity door's lines first: horizontal (bit 0x10 flips, S-K50-9), locked
-# (bit 1 flips, S-K50-7), the two times (the number dialog, typed in seconds and kept in tenths, S-K50-10 / -11); then the first line makes it a switch activated door (S-K50-6: bit 2 out, bit 8 in) and
-# its "Closed" line opens it (bit 4 flips, S-K50-8). The copy must hold DoorFlags 0x1c (0x10 | 8 | 4), open 25, close 7, and every other strategy byte for byte. RED without the clicks: the stock
-# values (DoorFlags 0x3, 10, 5) fail all three.
+# ACCEPTANCE (red first; Drake 2026-11-24, the owner's forms for alpha.7, strategy_forms.h): a DOOR (50) EDITED AS A FORM on his path, the saved copy read back through the game's own loader.
+# Until 11-24 this scenario clicked each line of the Door's page (FUN_0052cbb0, S-K50-3..11, Drake 11-17); the form holds the same fields with the same rules (strategy_forms_modules.cpp
+# DoorRows): its kind (bits 2 / 8 of DoorFlags), then a proximity door's Locked (bit 1) and Way (bit 0x10) or a switch door's Open / Closed (bit 4), shown by its kind, and the two times typed
+# in seconds and kept in tenths (x 10 + 0.01). Genshd1's medoor01 is a proximity door that starts locked (DoorFlags 0x3, open 1.0 s, close 0.5 s). The drop-downs write as they are picked:
+# horizontal, not locked; the times 2.5 and 0.7 at Ok; then, opened again, the kind made a switch activated door (bit 2 out, bit 8 in) and Open. The copy: DoorFlags 0x1c (0x10 | 8 | 4),
+# open 25, close 7, every other byte as the stock file has it.
+# RED on exe-cache/7432743d.exe (the forms' builder with no module kind switched on): the Door opens its page, no form.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
 pictures on
 state
@@ -19,50 +20,41 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field strategyview 200@0:medoor01 : Door|16@16:Proximity door|16@32:Door is locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
+expect-dialog medoor01 : Door
+expect-field-has dialogcombos Proximity_door
+expect-field-has dialogcombos Door_is_locked
+# the times in seconds, as the page showed them (TimeToOpen 10 and TimeToClose 5 tenths)
+expect-dialog-text Proximity door|Door is locked|Door is vertical (standard)|1|0.5
 picture 1
+click-combo 3
+click-combo-row Door is horizontal (ie. in floor/ceiling)
+click-combo 2
+click-combo-row Door is not locked
+form-field 1 2.5
+form-field 2 0.7
+expect-field-has dialogcombos Door_is_not_locked
+expect-field-has dialogcombos Door_is_horizontal
+click-button Ok
+expect-no-dialog
+wait 300
 
-# ---- the proximity door's lines
-# y 48: horizontal (bit 0x10)
-click-box 300 56
-wait 300
-expect-field-has strategyview 16@48:Door is horizontal (ie. in floor/ceiling)
-# y 32: not locked (bit 1)
-click-box 300 40
-wait 300
-expect-field-has strategyview 16@32:Door is not locked
-# y 64: the open time, 2.5 seconds = 25 tenths
-click-box 300 72
-expect-dialog Time take to open (0.1 - 25 sec)
-expect-dialog-text 1
-key Back
-type 2.5
-key Enter
-expect-no-dialog
-wait 300
-# y 80: the close time, 0.7 seconds = 7 tenths
-click-box 300 88
-expect-dialog Time take to close (0.1 - 25 sec)
-expect-dialog-text 0.5
-key Back
-key Back
-key Back
-type 0.7
-key Enter
-expect-no-dialog
-wait 300
-expect-field strategyview 200@0:medoor01 : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is horizontal (ie. in floor/ceiling)|16@64:Time take to open : 2.5 seconds|16@80:Time take to close : 0.7 seconds
+# opened again: what was written, the times as typed (Vasquez's FormNumberWords shows value / factor, cda9b15d); then the kind made a switch activated door shows its Open / Closed in place of
+# Locked and Way
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog medoor01 : Door
+expect-field-has dialogcombos Door_is_horizontal
+expect-dialog-text Proximity door|Door is not locked|Door is horizontal (ie. in floor/ceiling)|2.5|0.7
+click-combo 1
+click-combo-row Switch activated door ('lift door')
+expect-field-has dialogcombos Closed
+click-combo 2
+click-combo-row Open
+expect-field-has dialogcombos Open
 picture 2
-
-# ---- y 16: a switch activated door; its y 32: open (bit 4)
-click-box 300 24
-wait 300
-expect-field strategyview 200@0:medoor01 : Door|16@16:Switch activated door ('lift door')|16@32:Closed|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.7 seconds
-click-box 300 40
-wait 300
-expect-field strategyview 200@0:medoor01 : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.7 seconds
-picture 3
-key Esc
+click-button Ok
+expect-no-dialog
 wait 300
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} medoor01 DoorFlags 0x1c TimeToOpen 25 TimeToClose 7

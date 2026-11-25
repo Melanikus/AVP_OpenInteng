@@ -1,7 +1,5 @@
 # ACCEPTANCE: the icons and their labels survive the device being Reset (Bishop: the occlusion queries are outstanding between frames and are let go in ReleaseVolatileResources). The editor window is resized twice
 # (resize-win: the device is Reset to the new back buffer, as when a person drags the window's edge); after each the red S of the sound in view is on the screen and its label is drawn (T makes it go).
-# the icons are inteng's own shapes, read at run time from his installed inteng.exe (object-placement.md 8b V-25): the run names his Tools folder
-#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on

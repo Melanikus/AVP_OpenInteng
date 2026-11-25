@@ -16,16 +16,16 @@ expect-no-dialog
 key E
 wait 400
 picture 1
-expect-field-has strategyview 200@0:genlev02 : Multiple Target Switch
-expect-field-has strategyview 16@80:Targets :
-expect-field-has strategyview 80@96:linktoeverything
-# Shift + D with the pointer on row 0 (the view's y 96 is the window's y 104): the target taken out
-move-box 300 104
-key D shift
+# (a Multiple Target Switch edits in a form since 11-24, strategy_forms.h): its one target, linktoeverything
+expect-dialog genlev02 : Multiple Target Switch
+expect-field-has strategyform |Targets|On|add a target|
+expect-field-has dialogcombos linktoeverything_
+# Remove on that line (the page's Shift + D on its row): the target taken out
+click-button Remove 1
 wait 300
 picture 2
-expect-field-has strategyview 200@0:genlev02 : Multiple Target Switch
-expect-field-has strategyview 16@80:Targets :
+expect-dialog genlev02 : Multiple Target Switch
+expect-field-has strategyform |Targets|add a target|
 key Esc
 wait 300
 expect-screen Strategy Data
@@ -37,10 +37,9 @@ expect-no-dialog
 key E
 wait 400
 picture 3
-expect-field-has strategyview 200@0:linktoeverything : Linked Switch
-expect-field-has strategyview 16@120:Links:
-# the three left, in the records' order, each a 66 ("ls" at 0x14, the name at the tab, 64)
-expect-field-has strategyview 20@136:ls|64@136:genlev01|20@152:ls|64@152:genlev03|20@168:ls|64@168:genlev04
+# (a Linked Switch edits in a form since 11-24, strategy_forms.h): the three left, in the records' order, each a 66
+expect-dialog linktoeverything : Linked Switch
+expect-field-has strategyform Links|genlev01 : Multiple Target Switch|genlev03 : Multiple Target Switch|genlev04 : Multiple Target Switch
 key Esc
 wait 300
 expect-screen Strategy Data

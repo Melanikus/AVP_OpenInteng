@@ -1,0 +1,35 @@
+# ACCEPTANCE (red first; Drake 2026-11-25, the owner's forms for alpha.7: "no more text that can be clicked, our pretty drop downs"): a SWITCH DOOR (59) edits in a FORM
+# (strategy_forms_modules.cpp SwitchDoorRows; its page was strategy_views.cpp SwitchDoorLinesAvp, FUN_0052d490): one row, the Associated door, a drop-down of the level's objects
+# with Pick. The drop-down's choice is written as the page's pick writes it (kPickSwitchDoor): the door named, and an object with no strategy given a Switch Door naming this one.
+# His path (Invasion, the file opened as a double click): gARAGDOR (no strategy in stock Invasion) given a Switch Door, Edit Strategy, APCmod chosen, Ok; the saved copy is read
+# back through the game's loader: gARAGDOR names APCmod, and APCmod names gARAGDOR.
+# RED before the form: Edit Strategy opened the page, no dialog.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-win 640 130
+expect-selected 1
+click-win 640 130 right
+click-popup 4
+expect-dialog Select Strategy
+click-button Switch_Door
+wait 400
+# Assign Strategy opens the kind's edit at once: the form
+expect-dialog gARAGDOR : Switch door
+expect-field-has strategyform Associated door
+picture 1
+click-combo 1
+click-combo-row APCmod
+wait 400
+expect-dialog gARAGDOR : Switch door
+expect-field-has dialogcombos APCmod
+picture 2
+click-button Ok
+expect-no-dialog
+wait 400
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} gARAGDOR holds APCmod also APCmod
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} APCmod holds gARAGDOR also gARAGDOR

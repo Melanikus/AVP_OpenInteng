@@ -24,7 +24,6 @@
 
 #include "editor_bar.h"             // kEditorBarMostRows (an array's size); EditorBarRows, EditorBarRoom
 #include "editor_icons.h"           // host::IconWorldTriangle (IconForPick's triangles)
-#include "key_layout.h"             // KeyLayout (an enum, used by value)
 #include "object_edit.h"            // host::ObjectEditResult (an enum, used by value)
 #include "selection.h"              // host::PickReport (PlacementPick's report); host::Selected
 #include "special_objects_edit.h"   // host::SpecialKind (PlacementPick's kind, and its value Generator)
@@ -86,7 +85,6 @@ extern size_t barRowCount;
 extern EditorBarRows barRows;
 extern size_t barScreen;
 extern StatusWords statusWords;   // the status line's words, a copy it owns (status_words.h)
-extern KeyLayout keyLayout;
 bool LoadTheMenus();
 extern bool keyDown[256];
 bool KeyHeldNow(int vk);
@@ -268,6 +266,11 @@ extern host::RequestPageState requestPage;
 extern uint8_t requestPageTarget[8];
 extern std::string requestPageField;
 extern int32_t requestPageRow;
+
+// made in strategy_screen.cpp: EDIT STRATEGY AS A FORM (strategy_forms.h): the view open is a kind's form (no page drawn under it), and the frame's check that opens it again
+extern bool strategyFormOn;
+extern bool strategyFormOnRequest;   // the form shown is an E page's (its page is not drawn under it)
+void StrategyFormFrame();
 
 // made in strategy_screen.cpp
 void RequestPageEnd(bool escaped);
@@ -517,7 +520,6 @@ extern EditorBarRows barRows;
 extern size_t barScreen;
 extern char cutOffWords[160];
 extern StatusWords statusWords;   // the status line's words, a copy it owns (status_words.h)
-extern KeyLayout keyLayout;
 extern char layoutSettingsFile[MAX_PATH];
 extern host::EditorOptions editorOptions;
 bool LoadTheMenus();

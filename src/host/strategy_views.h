@@ -169,6 +169,10 @@ namespace host
 
 	bool StrategyView_MissionTargets(std::vector<uint8_t> const &payload, std::vector<MissionTarget> *targets);
 
+	// The Mission Objective's payload with these alteration targets in place of its own: the count at +40, then 12 bytes each (the target's ID, its word), then the
+	// request targets and the rest as they were. False, and nothing written, when the old list doesn't fit its bytes or the new one has more than 4096 entries
+	bool StrategyView_WithMissionTargets(std::vector<uint8_t> const &payload, std::vector<MissionTarget> const &targets, std::vector<uint8_t> *out);
+
 	// A Multiple Target / Area Switch's targets (66 / 68: the count at payload 36, 12 bytes each from 40, an object and its request); false, and none, for a count the bytes do not hold
 	struct MultiTarget
 	{
@@ -239,6 +243,7 @@ namespace host
 		uint32_t data = 0;                 // the word >> 1, arithmetic (SAR: 0x531264, 0x5333be, 0x535227, 0x533887, 0x53a4ad): the bits the page edits
 		int32_t targetType = 0;            // a Placed Object target's Type (+0x14): 16, a placed light, has four more lines
 		int32_t targetIntegrity = 0;       // a Placed Object target's integrity (+0x20): "New integrity value" starts with its lowest 8 bits
+		std::array<uint8_t, 8> targetId = {};   // the target's ID (the editor's E sets it as the page opens: a form's rows list a placed hierarchy's sequences by it; Frost 11-24)
 		std::vector<StrategyViewLine> drawn;   // Mission / Switch: the page's lines of this pass (INTENG BUG, FIXED: inteng empties its text list only when the page opens, so every line
 		                                       // drawn since stayed on the screen, an old box glyph under the new one; here each pass starts it empty)
 	};

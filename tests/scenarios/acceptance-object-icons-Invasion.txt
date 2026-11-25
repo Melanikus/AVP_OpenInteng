@@ -1,7 +1,5 @@
 # ACCEPTANCE (Invasion): the editor objects' icons are on the screen of a FULL level (not just the ones made by the test): in front of an AVP generator the green G (shape 3, 0x00c832), in front of an AVP bad guy
 # the blue skull (shape 7, 0x0000ff, with 0xff1e1e) and in front of the player starting position the figure (shape 9: red 0xfc0000 and blue 0x0000fc). editor_icons.h; the triangles hook takes 65536 (avpx editor-world-triangles).
-# the icons are inteng's own shapes, read at run time from his installed inteng.exe (object-placement.md 8b V-25): the run names his Tools folder
-#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on

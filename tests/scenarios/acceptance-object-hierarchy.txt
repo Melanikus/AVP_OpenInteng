@@ -2,8 +2,6 @@
 # inteng makes an object of class 0x5ae6c4 (kind 5) for every PLACHIER of SPECLOBJ on entry (FUN_004e8cc0 <- 0x4d8e96), drawn as the editor's icon shape 4 (blue and red, FUN_004e4ae0(5, ..., 4)
 # at 0x4e8ce3-0x4e8d4a) at its place; it is in the placement list: "Num Objects" counts it, the click takes it (FUN_004d6520), it becomes THE current object drawn red, and its text (FUN_004e9b60)
 # has no name line: "Colliding" while its block collides. Invasion holds one: "dropship ken" at 72906 -27615 50151 (stock survey 11-16). Invasion, opened as by a double click, read-only.
-# the icons are inteng's own shapes, read at run time from his installed inteng.exe (object-placement.md 8b V-25): the run names his Tools folder
-#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
 state

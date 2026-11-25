@@ -1,0 +1,40 @@
+# ACCEPTANCE (red first; Drake 2026-11-25, the owner: "when camera moves the gizmo flickers alot/doesn't follow rest of map"; asked again through Bishop: he moves the camera with A / Z
+# and the gizmo "lags, then catches up"): WHILE THE CAMERA MOVES, THE GIZMO IS MADE FROM THE CAMERA ITS FRAME IS DRAWN WITH. Its arrows are kGizmoArrowPixels (90) long on the screen at
+# the object's distance (gizmo.cpp Gizmo_Frame), so it is made from a camera; it was made from the game's view block (PickGame_Camera) before the frame's camera was put in it
+# (LevelView_Draw puts it), so it was always one frame's step behind: while A / Z were held it was sized for where the camera had been, and caught up when the camera stopped.
+# gizmolag: the most an arrow came out off its 90 pixels, in tenths, measured after each frame's drawing with the camera it was drawn from, in the last 2 SECONDS (kept by time, not by
+# state line: a held key's frames come before the hold's own state line, and a check asks for a new one; a window by state line read 0 on the base, Drake's first two tries).
+# A hidden run draws at inteng's 25 frames a second (the frame cap), as his; CameraSpeed 150 (24.5 m a second) makes each frame's step about a metre, a step his eye can see.
+# Measured (Drake's probe, a scratch build keeping the worst for the whole run): the base 12.1 then 17.5 pixels off; a control made two frames behind 22.0 then 30.1.
+# RED on the base (the gizmo made before the frame's camera): each hold's lag is many pixels.
+#ini CameraSpeed=150
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+# an ordinary placed object, as he uses: switch3, 8 m ahead
+camera -27851 -14055 77500 0 0
+wait 400
+click-win 504 364
+wait 400
+state
+expect-field-has gizmopoints centre
+# standing still, longer than the 2 s window after the camera was put here: the gizmo is the camera's
+wait 2500
+expect-number gizmolag tenths 0 5
+picture 1
+# A (forward) held: every frame's arrow within half a pixel of its 90
+hold A 100
+expect-field-has gizmopoints centre
+expect-number gizmolag tenths 0 5
+# Z (back) held: the same
+hold Z 100
+expect-field-has gizmopoints centre
+expect-number gizmolag tenths 0 5
+# a longer hold each way
+hold A 200
+expect-number gizmolag tenths 0 5
+hold Z 200
+expect-number gizmolag tenths 0 5
+picture 2

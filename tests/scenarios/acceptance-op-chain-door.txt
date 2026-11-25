@@ -49,14 +49,16 @@ expect-dialog Object already has a strategy.
 click-button Yes
 expect-dialog Select Strategy
 click-button Door
-expect-no-dialog
+# (Drake 2026-11-24: the Door edits in a FORM now, strategy_forms_modules.cpp DoorRows: its drop-downs write as they are picked, its times at Ok)
+expect-dialog medoor01 : Door
 wait 400
-expect-field strategyview 200@0:medoor01 : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
-click-box 300 24
-wait 300
-expect-field-has strategyview 200@0:medoor01 : Door|16@16:Switch activated door ('lift door')|16@32:Closed|
+expect-field-has dialogcombos Proximity_door
+click-combo 1
+click-combo-row Switch activated door ('lift door')
+expect-field-has dialogcombos Closed
 picture 1
-key Esc
+click-button Ok
+expect-no-dialog
 wait 300
 
 # ---- 3. the switch: a Multi Switch whose target is the door, picked in the view
@@ -73,19 +75,22 @@ expect-dialog Object already has a strategy.
 click-button Yes
 expect-dialog Select Strategy
 click-button Multi_Switch
+wait 400
+# (a Multiple Target Switch edits in a form since 11-24, strategy_forms.h: the page's T collector is the "+" line's Pick, which APPENDS the object picked)
+expect-dialog chainDs : Multiple Target Switch
+click-button Pick
+wait 400
 expect-no-dialog
-wait 400
-expect-field-has strategyview 200@0:chainDs : Multiple Target Switch|
-key T
-wait 400
-expect-status Select targets for switch
+expect-field-has strategyview Select targets for switch
 click-win 504 364
 wait 400
-expect-screen-text medoor01
+expect-field-has strategyview 16@80:medoor01
 picture 2
 key Enter
 wait 400
-expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:medoor01 - Door
+expect-dialog chainDs : Multiple Target Switch
+expect-field-has dialogtext |medoor01 - Door
+expect-dialog-checks on
 picture 3
 key Esc
 wait 300

@@ -1,9 +1,12 @@
-# ACCEPTANCE (red first): the 62 PLACED OBJECT's lines on his path, the saved copy read back through the game's own loader (Vasquez 11-17; reassess/strategy-data-kinds.md S-K62-1, -2, -4;
+# ACCEPTANCE (red first): the 62 PLACED OBJECT's fields on his path, the saved copy read back through the game's own loader (Vasquez 11-17; reassess/strategy-data-kinds.md S-K62-1, -2, -4;
 # FUN_00530ee0's view and its clicks 0x5310a8-0x5310f9). Genshd1's med02L (read 11-17 by switch_survey): request 1 ("Turn Target On"), flags 1 (the target told when destroyed), target
-# facehugga. A click on "Turn Target On" (y 32) flips request bit 1; on "Object destroyed" (y 80) flags bit 1, on "Object picked up" (y 96) flags bit 2 (the view's y + 8 is the window's).
-# The Event Target line (y 48) first: the object pick "Select target" (S-K62-3, FUN_00531160: the camera flown to the old target, "Press return when finished", the object under the pointer
-# named); a click at (0.3, 0.6) of the view names med09 (read 11-17 from a run of this build: pinned, not derived), Return keeps it: "Event Target : med09". The copy must hold the target
-# med09, target_request 0 and flags 2 (picked up, not destroyed), every other strategy byte for byte. RED on the stock file read as the copy: facehugga, request 1, flags 1.
+# facehugga.
+# THE FORM (Dietrich 2026-11-24, the owner's "no more text that can be clicked, our pretty drop downs ... or a 'pick' button to click in the world"; strategy_forms_objects.cpp): Edit
+# Strategy opens "med02L : Placed Object" where the page was: Target request (bit 0 of target_request), Event Target (a drop-down and Pick, the page's pick "Select target", S-K62-3,
+# FUN_00531160), and the two events' boxes, Object destroyed (flags bit 0) and Object picked up (flags bit 1). Pick closes the form and picks in the world as the page did (the camera
+# flown to the old target, "Press return when finished", the object under the pointer named); a click at (0.3, 0.6) of the view names med09 (read 11-17 from a run: pinned, not
+# derived), Return keeps it, and the form comes back. The copy must hold the target med09, target_request 0 and flags 2 (picked up, not destroyed), every other strategy byte for byte.
+# RED on exe-cache/e8382ab1.exe (bishop-int before this kind's form): Edit Strategy opens the page, not the form (the first expect-dialog fails).
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
 pictures on
 state
@@ -18,11 +21,13 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 200@0:med02L : Placed Object
-expect-field-has strategyview 32@32:Turn Target On|32@48:Event Target : facehugga
+expect-dialog med02L : Placed Object
+expect-dialog-text Turn Target On|facehugga - Enemy
+expect-dialog-checks on,off
+expect-field-has strategyform Target request|Event Target|Object destroyed|Object picked up
 picture 1
-# y 48: the Event Target, picked: med09
-click-box 300 56
+# the Event Target, picked in the world: med09
+click-button Pick
 wait 1500
 expect-field-has strategyview Press return when finished
 click-view 0.3 0.6
@@ -30,20 +35,28 @@ wait 600
 expect-field-has strategyview 16@80:med09
 key Enter
 wait 500
-expect-field-has strategyview 32@48:Event Target : med09
-# y 32: request bit 1 flips
-click-box 300 40
-wait 300
-expect-field-has strategyview 32@32:Turn Target Off
-# y 80: flags bit 1 (destroyed) off; y 96: flags bit 2 (picked up) on
-click-box 300 88
-wait 300
-click-box 300 104
-wait 300
-expect-field-has strategyview 32@80:Object destroyed
-expect-field-has strategyview 32@96:Object picked up
+expect-dialog med02L : Placed Object
+expect-dialog-text Turn Target On|med09
+# Target request: bit 0 off, written as it is picked; the boxes: destroyed off, picked up on, written as they are ticked
+click-combo 1
+click-combo-row Turn Target Off
+click-check 1
+click-check 2
+expect-dialog-text Turn Target Off|med09
+expect-dialog-checks off,on
 picture 2
+click-button Ok
+expect-no-dialog
+wait 300
+# the form again: what was written
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog med02L : Placed Object
+expect-dialog-text Turn Target Off|med09
+expect-dialog-checks off,on
 key Esc
+expect-no-dialog
 wait 300
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} med02L target_request 0 flags 2 holds med09

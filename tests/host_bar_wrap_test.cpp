@@ -72,7 +72,7 @@ static void TryOne(size_t screen, int32_t page, int32_t width, Counts *counts)
 		counts->failed++;
 	};
 
-	if (!EditorBar_MakeRows(screen, KeyLayout::Classic, width, LetterWidth, &rows))
+	if (!EditorBar_MakeRows(screen, width, LetterWidth, &rows))
 	{
 		fail("the rows were not made");
 		return;
@@ -218,7 +218,7 @@ int main()
 	setvbuf(stdout, NULL, _IONBF, 0);
 
 	Counts counts = {};
-	int32_t const least = EditorBar_LeastWidth(KeyLayout::Classic, LetterWidth);
+	int32_t const least = EditorBar_LeastWidth(LetterWidth);
 
 	printf("  (the least window width the bars allow, with this font: %d)\n", least);
 	Check(least >= 200 && least <= 1300, "the least window width is something a screen can have: " + std::to_string(least));
@@ -273,7 +273,7 @@ int main()
 
 		EditorBarRows narrow, wide;
 
-		Check(EditorBar_MakeRows(host::kIntengHub, KeyLayout::Classic, least, LetterWidth, &narrow) && EditorBar_MakeRows(host::kIntengHub, KeyLayout::Classic, 2560, LetterWidth, &wide), "the hub's bars are made at the least width and at 2560");
+		Check(EditorBar_MakeRows(host::kIntengHub, least, LetterWidth, &narrow) && EditorBar_MakeRows(host::kIntengHub, 2560, LetterWidth, &wide), "the hub's bars are made at the least width and at 2560");
 		Check(narrow.rowCount >= wide.rowCount, "the narrow window has at least as many rows as the wide one: " + std::to_string(narrow.rowCount) + " and " + std::to_string(wide.rowCount));
 	}
 
@@ -281,14 +281,14 @@ int main()
 	{
 		EditorBarRows hostile;
 
-		Check(!EditorBar_MakeRows(0, KeyLayout::Classic, 1000, LetterWidth, nullptr), "no output: refused");
-		Check(!EditorBar_MakeRows(0, KeyLayout::Classic, 1000, nullptr, &hostile), "no font: refused");
-		Check(!EditorBar_MakeRows(host::kIntengScreenCount + 5, KeyLayout::Classic, 1000, LetterWidth, &hostile), "a screen there is not: refused");
+		Check(!EditorBar_MakeRows(0, 1000, LetterWidth, nullptr), "no output: refused");
+		Check(!EditorBar_MakeRows(0, 1000, nullptr, &hostile), "no font: refused");
+		Check(!EditorBar_MakeRows(host::kIntengScreenCount + 5, 1000, LetterWidth, &hostile), "a screen there is not: refused");
 
 		// widths below any title, zero, negative: the call is kept inside its limits (rows or a refusal, never more than kEditorBarMostRows)
 		for (int32_t const width : { 1, 0, -1, -2147483647 - 1, 2147483647 })
 		{
-			bool const made = EditorBar_MakeRows(host::kIntengHub, KeyLayout::Classic, width, LetterWidth, &hostile);
+			bool const made = EditorBar_MakeRows(host::kIntengHub, width, LetterWidth, &hostile);
 
 			Check(!made || (hostile.rowCount >= 1 && hostile.rowCount <= kEditorBarMostRows), "width " + std::to_string(width) + ": " + (made ? "rows within the limit" : "refused"));
 		}

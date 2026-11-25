@@ -32,14 +32,14 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 16@32:String :47
+expect-field-has dialogtext |47
 expect-status FMVs\message47.smk: SMK2 128 x 96,
 expect-status 15 fps
 expect-status 22050 Hz 8-bit mono
 expect-status-not not AvP's
 picture 1
 # the String row: the window, its number box now a list of the data folder's message FMVs, lowest first (the folder is only those five); 47 picked as it opens
-click-box 300 40
+click-button Play...
 expect-dialog-kind form
 expect-dialog-text 47
 click-combo 1
@@ -56,12 +56,12 @@ expect-status FMVs\message238.smk: SMK2 128 x 96
 expect-status not AvP's message format: sound 11025 Hz 16-bit mono
 # Cancel keeps 47 in the level
 click-button Cancel
-expect-no-dialog
+expect-dialog message13 : Message
 wait 300
-expect-field-has strategyview 16@32:String :47
+expect-field-has dialogtext |47
 
 # 47 is the list's first row (picked, nothing changes); then 167 picked, Ok: written, and said
-click-box 300 40
+click-button Play...
 expect-dialog-kind form
 click-combo 1
 click-combo-row 47
@@ -69,43 +69,43 @@ expect-dialog-text 47
 click-combo 1
 click-combo-row 167
 click-button Ok
-expect-no-dialog
+expect-dialog message13 : Message
 wait 300
-expect-field-has strategyview 16@32:String :167
+expect-field-has dialogtext |167
 expect-status FMVs\message167.smk: SMK2 128 x 96
 expect-status-not not AvP's
 
 # typed numbers, as inteng's box takes them: 165 is a Bink start, 166 is too short, 48 has no FMV; 451, a number the game refuses, the editor refuses too (the field's 0 .. 450:
 # inteng stores it), and its words are the refusal's, not ours
-click-box 300 40
+click-button Play...
 expect-dialog-kind form
 form-field 1 165
 click-button Ok
-expect-no-dialog
+expect-dialog message13 : Message
 wait 300
-expect-field-has strategyview 16@32:String :165
+expect-field-has dialogtext |165
 expect-status FMVs\message165.smk is not a Smacker video
-click-box 300 40
+click-button Play...
 expect-dialog-kind form
 form-field 1 166
 click-button Ok
-expect-no-dialog
+expect-dialog message13 : Message
 wait 300
 expect-status FMVs\message166.smk is too short for a Smacker video
-click-box 300 40
+click-button Play...
 expect-dialog-kind form
 form-field 1 48
 click-button Ok
-expect-no-dialog
+expect-dialog message13 : Message
 wait 300
 expect-status No FMVs\message48.smk: the game shows message 48 as text only
-click-box 300 40
+click-button Play...
 expect-dialog-kind form
 form-field 1 451
 click-button Ok
-expect-no-dialog
+expect-dialog message13 : Message
 wait 300
-expect-field-has strategyview 16@32:String :48
+expect-field-has dialogtext |48
 expect-status Edit Strategy: the strategy would not take it
 expect-status-not Message 451
 key Esc
@@ -120,7 +120,7 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 16@32:String :48
+expect-field-has dialogtext |48
 expect-status No FMVs\message48.smk: the game shows message 48 as text only
 picture 3
 key Esc

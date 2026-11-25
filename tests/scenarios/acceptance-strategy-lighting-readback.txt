@@ -19,12 +19,15 @@ click-win 500 300 right
 click-popup 3
 wait 400
 expect-dialog Light FX
-# the type radios (Random Flicker, Strobe, Switch, Flicky Switch), then Up / Down
-expect-dialog-checks off,on,off,off,off,on
+# (Drake 2026-11-25: Light FX RESTYLED as the strategy forms: the light type and the Up / Down default are drop-downs, the four times number boxes; what OK stores is the dialog's own)
+# the light type, the default, then the four times in the dialog's order (Up fading, Up after fading, Down fading, Down after fading)
+expect-dialog-text Strobe|Down|0|0.00999451|0|0.00999451
 picture 1
-click-check 4
-click-check 5
-expect-dialog-checks off,off,off,on,on,off
+click-combo 1
+click-combo-row Flicky Switch
+click-combo 2
+click-combo-row Up
+expect-dialog-text Flicky Switch|Up|0|0.00999451|0|0.00999451
 # the edits in the form's order: Up fading (1003), Up after fading (1004), Down fading (1005), Down after fading (1006)
 form-field 1 2.5
 form-field 2 4
@@ -41,7 +44,7 @@ click-win 500 300 right
 click-popup 3
 wait 400
 expect-dialog Light FX
-expect-dialog-checks off,off,off,on,on,off
+expect-dialog-text Flicky Switch|Up|2.5|4|0.5|7.25
 picture 3
 click-button Cancel
 expect-no-dialog

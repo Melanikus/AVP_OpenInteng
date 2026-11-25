@@ -1,8 +1,6 @@
 # ACCEPTANCE: the editor objects' ICONS (Melanikus 2026-11-16: "when you create a sound or a strategy it shows an icon ... I see nothing"). inteng draws every editor object as its own built-in shape, filled and flat-coloured
 # (editor_icons.h: sound = shape 8, dark red 0x961414 and red 0xc81e1e; virtual object = shape 13, light blue 0x007fff). This clicks: Construction > Mode > Object Placement, Create > Sound, the view moved back,
 # the red is on the screen; then Tab (Strategy Data), Create Virtual Object > Here, the view moved back, the light blue is on the screen as well as the sound's red.
-# the icons are inteng's own shapes, read at run time from his installed inteng.exe (object-placement.md 8b V-25): the run names his Tools folder
-#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on

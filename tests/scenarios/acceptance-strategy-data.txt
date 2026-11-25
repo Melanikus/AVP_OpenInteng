@@ -4,8 +4,6 @@
 # answered by clicking its buttons or typing in its box. No select-row, no "item 0x..", no typed answers where inteng shows buttons. Every block names the inteng code it is traced from (dump-all-3.txt).
 # The manual (AvP-docs\engine\inteng\raw\bible\text\inteng\strategy.txt): "select the object you wish to work on, then right click and assign a strategy to it". Where it and the disassembly differ the disassembly wins.
 # The level is Invasion, a read-only stock file: nothing here saves over it.
-# the icons are inteng's own shapes, read at run time from his installed inteng.exe (object-placement.md 8b V-25): the run names his Tools folder
-#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
@@ -74,12 +72,13 @@ key Esc
 click-win 120 500 right
 click-popup 3
 expect-status Edit Strategy
-expect-pixels-changed panels 0 30 300 300 0.02
+# (Drake 2026-11-24: the Door edits in a FORM now, strategy_forms_modules.cpp DoorRows: the dialog over the level, where the page was drawn in the panels)
+expect-dialog APCmod : Door
 wait 300
-expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
+expect-field-has dialogcombos Proximity_door
 picture 15
 key Esc
-expect-pixels-changed panels 0 30 300 300 0.02
+expect-no-dialog
 picture 16
 click-win 120 500
 expect-selected 1
@@ -247,6 +246,10 @@ expect-status The object's strategy is deleted
 click-win 120 500 right
 click-popup 3
 expect-status Selected object has no strategy
+# Edit Strategy on an object with none now asks to assign one (the owner's, 2026-11-24; acceptance-strategy-edit-none-asks): No changes nothing
+expect-dialog No strategy assigned to this object.
+click-button No
+expect-no-dialog
 # Copy with a source that has none says the same (FUN_00528340)
 click-win 120 500 right
 click-popup 2
@@ -316,7 +319,8 @@ click-win 378 300 right
 click-popup 4
 expect-dialog Select Strategy
 click-button Multi_Switch
-expect-no-dialog
+# (its view is its form since 11-24, strategy_forms.h)
+expect-dialog ClashVO : Multiple Target Switch
 # a Multiple Target Switch has its view now (S-K66-1): FUN_00528830's last call opens it at once (0x529141), and Escape (or the right button) ends it, so a right press here would only end
 # the view and open no pop-up
 expect-status The object has a new strategy: its Edit view
@@ -329,8 +333,8 @@ expect-dialog-kind confirm
 click-button Yes
 expect-dialog Select Strategy
 click-button Linked_Switch
-expect-no-dialog
-# the Linked Switch's view (52) opens at once the same way: Escape ends it
+# the Linked Switch's view opens at once the same way, as its form since 11-24 (strategy_forms.h): Escape ends it
+expect-dialog ClashVO : Linked Switch
 expect-status The object has a new strategy: its Edit view
 key Esc
 wait 300
@@ -340,7 +344,8 @@ expect-dialog-kind confirm
 click-button Yes
 expect-dialog Select Strategy
 click-button Area_Switch
-expect-no-dialog
+# (its view is its form since 11-24, strategy_forms.h)
+expect-dialog ClashVO : Area Switch
 # the Area Switch's view (68) is built too now (7ec76f7, S-K68-1) and opens at once the same way (0x529141): Escape ends it before the right press
 expect-status The object has a new strategy: its Edit view
 key Esc

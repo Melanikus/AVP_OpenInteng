@@ -9,6 +9,7 @@
 #include "dialogs.h"
 #include "editor_shared.h"    // statusWords, editorWindow, editedLevel, openLevelName, theGameFolder
 #include "level_view.h"       // LevelView_AddImportedPicture
+#include "panel_pass.h"       // PanelPass_MenuWidth: a letter's width in the font in use (inteng's menu font, else the small one)
 #include "rim_save.h"         // RimSave_SuggestedName
 #include "texture_import.h"   // Vasquez's engine: TextureImport_Make
 #include "video_drop.h"       // the path rules a dropped film is checked by
@@ -59,7 +60,20 @@ void host::TextureImportScreen_Open(std::wstring const &picture)
 
 	std::string const shown = LastPart(VideoDrop_Words(picture));
 
-	Dialogs_Form(TextureImportScreen_Form(shown, RimSave_SuggestedName(shown)), [](int32_t answer, std::vector<DialogWidget> const &widgets)
+	// the form as wide as its words in the font in use, as dialogs.cpp measures them (PastTheWindow: each letter's PanelPass_MenuWidth)
+	auto const lineWidth = [](std::string const &line)
+	{
+		int32_t width = 0;
+
+		for (char const letter : line)
+		{
+			width += PanelPass_MenuWidth((unsigned char)letter);
+		}
+
+		return width;
+	};
+
+	Dialogs_Form(TextureImportScreen_Form(shown, RimSave_SuggestedName(shown), lineWidth), [](int32_t answer, std::vector<DialogWidget> const &widgets)
 	{
 		TextureImportAnswers answers;
 

@@ -111,8 +111,6 @@
 #include "particle_edit.h"
 #include "simple_object_edit.h"
 #include "editor_icons.h"
-#include "inteng_exe.h"
-#include "inteng_shapes.h"
 #include "virtual_object.h"
 #include "generator_strategy.h"
 #include "placed_hierarchy_strategy.h"
@@ -154,7 +152,6 @@
 #include "field_adapters.h"
 #include "field_panel_host.h"
 #include "harness_select.h"
-#include "key_layout.h"
 #include "host_frame.h"
 #include "menu_bar.h"
 #include "menu_paint.h"
@@ -1039,7 +1036,10 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	strategyViewBox[0] = strategyViewBox[1] = strategyViewBox[2] = strategyViewBox[3] = 0;
 	strategyViewWord.clear();   // this frame's view lines only: no view drawn (the volume editor, a collector, the page), no lines on the state line (Bishop 11-18: it kept the last view's)
 
-	if (strategyEditFan && OnStrategyScreen() && !volume.on && !copyCollecting)
+	// a kind's FORM (strategy_forms.h) opened again once what its button opened has ended; while the form is the view, no page is drawn under it (its pick and E's page are drawn as before)
+	StrategyFormFrame();
+
+	if (strategyEditFan && OnStrategyScreen() && !volume.on && !copyCollecting && !(strategyFormOn && strategyPickField.empty() && (!requestPageOn || strategyFormOnRequest)))
 	{
 		std::vector<uint8_t> payload;
 		std::string name;

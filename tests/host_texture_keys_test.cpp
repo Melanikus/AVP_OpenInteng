@@ -2,6 +2,8 @@
 //
 // WHY: a key is one action in a layout (Bishop, 2026-11-15). Arrow selection first took S, which is Modern WASD's camera Back: pressing it in the mode did both. The mode's keys win in the mode, so the camera must not hear them; this test pins which camera keys
 // each layout loses, so a new Texture Map key that lands on a camera key is seen at once, and a camera key moved onto a Texture Map key too. Each check's words say what it proves. The program gives back a non-zero result if any check failed.
+// (2026-11-25, Frost: the Modern WASD layout is removed, the owner: "WASD mode is off". Its camera's W, S, R and arrows were what the mode cost; inteng's camera, on A,
+// Z and the keypad, costs nothing, and these checks say so.)
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
@@ -25,10 +27,10 @@ static void Check(bool good, std::string const &what)
 	}
 }
 
-static std::vector<uint8_t> Lost(KeyLayout layout, bool windowOn)
+static std::vector<uint8_t> Lost(bool windowOn)
 {
 	uint8_t keys[16];
-	size_t const count = host::TextureMapKeys_CameraKeysLost(layout, windowOn, keys, sizeof(keys));
+	size_t const count = host::TextureMapKeys_CameraKeysLost(windowOn, keys, sizeof(keys));
 
 	return std::vector<uint8_t>(keys, keys + (count < sizeof(keys) ? count : sizeof(keys)));
 }
@@ -52,17 +54,12 @@ int main()
 	Check(host::TextureMapKeys_Own(VK_LEFT, true) && host::TextureMapKeys_Own(VK_DOWN, true) && host::TextureMapKeys_Own('3', true) && host::TextureMapKeys_Own(VK_TAB, true) && host::TextureMapKeys_Own(VK_OEM_PLUS, true) && host::TextureMapKeys_Own(VK_NEXT, true),
 		"with the texture window on the arrows, 1-4, Tab, = and PageDown are the mode's");
 
-	// the camera's keys the mode costs: the rule's cases, layout by layout
-	std::vector<uint8_t> const classic = Lost(KeyLayout::Classic, false);
-	std::vector<uint8_t> const modern = Lost(KeyLayout::ModernWasd, false);
-	std::vector<uint8_t> const modernWindow = Lost(KeyLayout::ModernWasd, true);
+	// the camera's keys the mode costs: none (inteng's camera is on A, Z and the keypad)
+	std::vector<uint8_t> const classic = Lost(false);
 
-	Check(classic.empty(), "Classic's camera loses no key in Texture Map (A and Z and the keypad are free)");
-	Check(modern.size() == 3 && Has(modern, 'R') && Has(modern, 'S') && Has(modern, 'W'), "Modern WASD's camera loses exactly R (up), S (back) and W (forward) in Texture Map: the mode's turn, arrow-select and Polys Shown keys win");
-	Check(!Has(modern, 'A') && !Has(modern, 'D') && !Has(modern, 'F'), "and keeps A, D and F");
-	Check(Has(modernWindow, 'R') && Has(modernWindow, 'S') && Has(modernWindow, VK_LEFT) && Has(modernWindow, VK_RIGHT) && Has(modernWindow, VK_UP) && Has(modernWindow, VK_DOWN) && modernWindow.size() == 6, "with the texture window on Modern WASD's camera also loses its four arrows");
-	Check(Lost(KeyLayout::Classic, true).empty(), "Classic's camera, on the keypad, loses nothing with the texture window on either");
-	Check(host::TextureMapKeys_CameraKeysLost(KeyLayout::ModernWasd, false, nullptr, 0) == 3, "asking with no room still counts the keys lost");
+	Check(classic.empty(), "the camera loses no key in Texture Map (A and Z and the keypad are free)");
+	Check(Lost(true).empty(), "the camera, on the keypad, loses nothing with the texture window on either");
+	Check(host::TextureMapKeys_CameraKeysLost(false, nullptr, 0) == 0, "asking with no room counts the keys lost: none");
 
 	// D1 (Dietrich 2026-11-18): the ownership by inteng's sub-mode. 0 and 1 are the polygons' and the texture window's, key for key; 2 (Merge) takes what its table gives: Tab (2) and P (0x32)
 	// with no modifier (FUN_00557ea0 0x5582d6-0x558311), so the camera keeps A, D, F and the arrows; a sub-mode inteng does not have takes nothing

@@ -65,19 +65,24 @@ expect-dialog Object already has a strategy.
 click-button Yes
 expect-dialog Select Strategy
 click-button Track_Object
-expect-no-dialog
+# (Assign opens the Track form at once, where the page opened)
 wait 400
 picture 3
-# "Point Effects :" (y 32): "Which track point?", 0
-click-box 100 40
-expect-dialog Which track point?
-key Enter
-expect-no-dialog
+# THE FORM (Frost 2026-11-24, the owner's forms for alpha.7): the Track Object edits in a form (strategy_forms_paths.cpp EffectsRow): "Point Effects", none yet, and its "+"
+expect-dialog chainT : Track
+expect-field-has strategyform Point Effects|add one
+# "+": "Which track point?", 0 (as the page's "Point Effects :" line asked)
+click-button +
 wait 300
+expect-dialog Which track point?
+type 0
+key Enter
+wait 300
+expect-dialog chainT : Track
+expect-field-has strategyform Point Effects|Point 0|add a target|add one
 picture 4
-expect-field-has strategyview 16@32:Point 0 targets :|32@48:None :
-# past the rows (none: "None :" at y 48): the targets editor ("Select targets", "Press return when finished"; picture 5); a click on the APC on the left: the module APCmod
-click-box 100 56
+# point 0's "add a target" Pick: the pick in the world (picture 5); a click on the APC on the left, the module APCmod, and Return: the target on, both directions
+click-button Pick
 wait 400
 picture 5
 click-win 150 520
@@ -85,17 +90,18 @@ wait 400
 picture 6
 key Enter
 wait 400
-expect-field-has strategyview 16@32:Point 0 targets :|0@48:(on)|50@48:(Both directions)|190@48:APCmod
-# its direction (x 50..189): Both directions -> Forward only (S-K72-5)
-click-box 100 56
+expect-dialog chainT : Track
+expect-field-has dialogcombos APCmod
+expect-field-has dialogcombos Both_directions
+expect-dialog-checks on
+# its direction: Both directions -> Forward only (S-K72-5)
+click-combo 2
+click-combo-row Forward only
 wait 300
-expect-field-has strategyview 16@32:Point 0 targets :|0@48:(on)|50@48:(Forward only)|190@48:APCmod
+expect-field-has dialogcombos Forward_only
 picture 7
-# the right button: the main page, the effect listed
-click-win 500 300 right
-wait 300
-picture 8
-key Esc
+click-button Ok
+expect-no-dialog
 wait 300
 
 # ---- the switch: a Multi Switch whose target is chainT, picked in the view
@@ -112,20 +118,23 @@ expect-dialog Object already has a strategy.
 click-button Yes
 expect-dialog Select Strategy
 click-button Multi_Switch
+wait 400
+# (a Multiple Target Switch edits in a form since 11-24, strategy_forms.h: the page's T collector is the "+" line's Pick, which APPENDS the object picked)
+expect-dialog chainTs : Multiple Target Switch
+click-button Pick
+wait 400
 expect-no-dialog
-wait 400
-expect-field-has strategyview 200@0:chainTs : Multiple Target Switch|
-key T
-wait 400
-expect-status Select targets for switch
+expect-field-has strategyview Select targets for switch
 # T with no target yet: the camera stays; chainT's upper blade (500 200; the switch's own red marker is in the middle)
 click-win 500 200
 wait 400
-expect-screen-text chainT
+expect-field-has strategyview 16@80:chainT
 picture 6
 key Enter
 wait 400
-expect-field-has strategyview 16@80:Targets :|0@96:(on)|80@96:chainT - Track
+expect-dialog chainTs : Multiple Target Switch
+expect-field-has dialogtext |chainT - Track
+expect-dialog-checks on
 picture 7
 key Esc
 wait 300

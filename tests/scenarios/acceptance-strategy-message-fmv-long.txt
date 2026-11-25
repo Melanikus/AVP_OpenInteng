@@ -10,7 +10,9 @@
 # shard's data copy ({datadir}/FMVs), and a later scenario of the same shard lists them (fmv-long's message1.smk gave fmv-scroll a 55th number). So
 # run-shards mirrors the data afresh after it.
 # changes-data
-make-level cmd /c {scenariodir}message-fmv\make-fmv-his-film.cmd {datadir} "C:\Program Files (x86)\Steam\steamapps\common\Aliens versus Predator Classic\FMVs"
+# HIS FILM FROM A FIXTURE, NEVER FROM HIS GAME FOLDER (Bishop 2026-11-24: a test never reads his Steam copy; the fresh-Steam install of 17:56 moved the film out, and this
+# step failed): AvP-builds-excluded\owner-films holds a copy of it, message1.smk, SHA-256 2a2985c8..., from that install's backup (its README.txt says where from)
+make-level cmd /c {scenariodir}message-fmv\make-fmv-his-film.cmd {datadir} "C:\Users\Melanikus\source\AvP-builds-excluded\owner-films"
 # THE DECODER IS LINKED IN (libsmackerdec_static, the owner's order 11-21, Drake): no libsmackerdec.dll is copied in and no SmackerDecoderSha256 is written; one left in the
 # run folder is deleted first, so the film can play only through the decoder linked into the editor (RED on 57f73907, which loads the DLL: "No FMV preview").
 make-level cmd /c if exist "{exedir}libsmackerdec.dll" del /q "{exedir}libsmackerdec.dll"
@@ -31,8 +33,8 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 16@32:String :47
-click-box 300 40
+expect-field-has dialogtext |47
+click-button Play...
 expect-dialog-kind form
 expect-field-has dialogbuttons Play
 

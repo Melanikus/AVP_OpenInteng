@@ -1,0 +1,36 @@
+# ACCEPTANCE (red first; Frost 2026-11-25, the E pages' MVP): the Mission Objective E page as a FORM (strategy_forms_paths.cpp StrategyFormRows_Extra), reached from a nested
+# List's target line: Invasion's "dropship ken" (76, a Hierarchy Object) has flag 0 with one target, endmissionobject (70, a Mission Objective), on (request 1). Its line's
+# "Extra data..." opens "Target  -  endmissionobject": three boxes, the page's three bits (visible 1, possible 2, complete 4). "Make objective visible" ticked: data 1, so the
+# word read back is 1 << 1 | 1 = 3, the effect and its target otherwise as they were. RED before the E forms: Extra data... opened inteng's page.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is dropship ken
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog dropship ken : Hierarchy
+click-button Extra_data...
+wait 400
+expect-dialog Target  -  endmissionobject
+expect-field-has strategyform Make objective visible|Make objective possible|Complete mission (if currently possible)
+expect-dialog-checks off,off,off
+click-check 1
+wait 300
+expect-dialog-checks on,off,off
+picture 1
+click-button Ok
+wait 400
+expect-dialog dropship ken : Hierarchy
+click-button Ok
+expect-no-dialog
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} "dropship ken" effect.0.flag 0 effect.0.targets 1 effect.0.target_request.0 3

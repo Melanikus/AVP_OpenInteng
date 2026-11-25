@@ -102,8 +102,8 @@ AVP_OpenInteng's own code: MIT
 
 A huge thank you to Rebellion, who made Aliens versus Predator, the most awesome game, and inteng, the editor its levels were built
 with. AVP_OpenInteng is a re-creation of inteng, written from scratch so that it works on today's Windows: it contains none of
-inteng's code, and it reads what it needs of inteng's data (icons, shape names, fonts, the light marker) at run time from the
-user's own inteng.exe, never from this repository.
+inteng's code. The only inteng file it reads at run time is the user's own IntengOptions.ini, inteng's settings file, for the size
+the editor starts at.
 
 The files of AVP_OpenInteng written for it, outside avpx/ (the AvPx submodule, whose terms are above), are under the MIT license
 below. This code isn't ours: it belongs to everyone who loves this game.

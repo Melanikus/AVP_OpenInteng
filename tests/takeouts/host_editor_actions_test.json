@@ -27,42 +27,22 @@
 			]
 		},
 		{
-			"name": "Help, Keys says Classic's keys in any layout",
+			"name": "Help, Keys says nothing",
 			"changes": [
 				{
 					"file": "src/host/editor_actions.cpp",
-					"from": "\thost->statusWords = EditorActions_KeysWords(host->layout);",
-					"to": "\thost->statusWords = EditorActions_KeysWords(KeyLayout::Classic);"
-				}
-			]
-		},
-		{
-			"name": "the Classic item picks Modern",
-			"changes": [
-				{
-					"file": "src/host/editor_actions.cpp",
-					"from": "\thost->layout = KeyLayout::Classic;",
-					"to": "\thost->layout = KeyLayout::ModernWasd;"
-				}
-			]
-		},
-		{
-			"name": "the Modern item changes nothing",
-			"changes": [
-				{
-					"file": "src/host/editor_actions.cpp",
-					"from": "\thost->layout = KeyLayout::ModernWasd;",
+					"from": "\thost->statusWords = EditorActions_KeysWords();",
 					"to": "\t;"
 				}
 			]
 		},
 		{
-			"name": "Ctrl+O opens a level in Classic again",
+			"name": "Ctrl+O opens a level again",
 			"changes": [
 				{
 					"file": "src/host/editor_actions.cpp",
-					"from": "\"Open level...\",       { 0 },         { 0 },",
-					"to": "\"Open level...\",       { 'O', true }, { 0 },"
+					"from": "\"Open level...\",       { 0 },         0,",
+					"to": "\"Open level...\",       { 'O', true }, 0,"
 				}
 			]
 		},
@@ -71,18 +51,18 @@
 			"changes": [
 				{
 					"file": "src/host/editor_actions.cpp",
-					"from": "{ '8' },       { '8' },       0,        ViewPolyline }",
-					"to": "{ 0 },         { 0 },         0,        ViewPolyline }"
+					"from": "{ '8' },       0,        ViewPolyline }",
+					"to": "{ 0 },         0,        ViewPolyline }"
 				}
 			]
 		},
 		{
-			"name": "Classic's forward is W",
+			"name": "forward is W",
 			"changes": [
 				{
 					"file": "src/host/editor_actions.cpp",
-					"from": "{ EditorMove::Forward,   \"forward\",    'A',         'W' },",
-					"to": "{ EditorMove::Forward,   \"forward\",    'W',         'W' },"
+					"from": "{ EditorMove::Forward,   \"forward\",    'A' },",
+					"to": "{ EditorMove::Forward,   \"forward\",    'W' },"
 				}
 			]
 		},
@@ -91,8 +71,8 @@
 			"changes": [
 				{
 					"file": "src/host/editor_actions.cpp",
-					"from": "{ EditorMove::Up,        \"up\",         VK_SUBTRACT, 'R' },",
-					"to": "{ EditorMove::Up,        \"up\",         VK_ADD,      'R' },"
+					"from": "{ EditorMove::Up,        \"up\",         VK_SUBTRACT },",
+					"to": "{ EditorMove::Up,        \"up\",         VK_ADD },"
 				}
 			]
 		},
@@ -157,12 +137,12 @@
 			]
 		},
 		{
-			"name": "an action's key is always the Classic one",
+			"name": "an action's key is another line's",
 			"changes": [
 				{
 					"file": "src/host/editor_actions.cpp",
-					"from": "return layout == KeyLayout::ModernWasd ? action.modern : action.classic;",
-					"to": "return action.classic;"
+					"from": "\treturn action.key;",
+					"to": "\treturn kEditorActions[0].key;"
 				}
 			]
 		},
@@ -191,8 +171,8 @@
 			"changes": [
 				{
 					"file": "src/host/editor_actions.cpp",
-					"from": "\t\t\t\tif (MoveKeyIn(moves[m], layout) == key.virtualKey)\n",
-					"to": "\t\t\t\tif (false)\n"
+					"from": "\t\t\tif (moves[m].key == key.virtualKey)\n",
+					"to": "\t\t\tif (false)\n"
 				}
 			]
 		},
@@ -221,8 +201,8 @@
 			"changes": [
 				{
 					"file": "src/host/editor_actions.cpp",
-					"from": "\t\t\tif (action.windowsKeys)\n",
-					"to": "\t\t\tif (false)\n"
+					"from": "\t\tif (action.windowsKeys)\n",
+					"to": "\t\tif (false)\n"
 				}
 			]
 		},
@@ -231,8 +211,8 @@
 			"changes": [
 				{
 					"file": "src/host/editor_actions.cpp",
-					"from": "\t\t\tif (!EditorActions_KeyWords(key, words, sizeof(words)))\n",
-					"to": "\t\t\tif (false)\n"
+					"from": "\t\tif (!EditorActions_KeyWords(key, words, sizeof(words)))\n",
+					"to": "\t\tif (false)\n"
 				}
 			]
 		},
@@ -301,8 +281,8 @@
 			"changes": [
 				{
 					"file": "src/host/editor_actions.cpp",
-					"from": "\t\t\tif (!EditorActions_KeyWords(held, words, sizeof(words)))\n",
-					"to": "\t\t\tif (false)\n"
+					"from": "\t\tif (!EditorActions_KeyWords(held, words, sizeof(words)))\n",
+					"to": "\t\tif (false)\n"
 				}
 			]
 		},
@@ -311,7 +291,7 @@
 			"changes": [
 				{
 					"file": "src/host/editor_actions.cpp",
-					"from": "if (MoveKeyIn(moves[n], layout) == held.virtualKey)",
+					"from": "if (moves[n].key == held.virtualKey)",
 					"to": "if (false)"
 				}
 			]
@@ -333,16 +313,6 @@
 					"file": "src/host/editor_actions.cpp",
 					"from": "if (!actions || actionCount == 0)",
 					"to": "if (!actions)"
-				}
-			]
-		},
-		{
-			"name": "only Classic is checked",
-			"changes": [
-				{
-					"file": "src/host/editor_actions.cpp",
-					"from": "KeyLayout const layouts[] = { KeyLayout::Classic, KeyLayout::ModernWasd };",
-					"to": "KeyLayout const layouts[] = { KeyLayout::Classic, KeyLayout::Classic };"
 				}
 			]
 		},

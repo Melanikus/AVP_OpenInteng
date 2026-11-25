@@ -1,0 +1,48 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-24, the owner's ask for alpha.7, through Bishop): Edit Strategy on an object that has NO strategy ASKS to assign one.
+# The owner: "'edit strategy' does nothing and gives no feedback if no strategy is assigned so, if no strategy is assigned you say 'no strategy assigned to this
+# object, assign one?' and take them to the assign strategy page".
+# INTENG: FUN_005286b0 drew "Selected object has no strategy" (0x5ee174) at (200, 100) for 700 ms and did nothing more; ours did the same (strategy_screen.cpp,
+# command 0x7). NAMED DIFFERENCE, the owner's: a Yes / No question in inteng's dialog look; Yes opens Assign Strategy's "Select Strategy" for the same object, as its
+# menu item does; No changes nothing.
+# THE OBJECT: Vaults' virtual object Vmessage077, its strategy deleted first (Delete Strategy, Yes), as acceptance-strategy-delete-virtual does: a stock object
+# that then holds none.
+# RED on exe-cache/e8382ab1.exe (bishop-int before the change): no question after Edit Strategy (expect-dialog-kind confirm fails).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Vaults.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is Vmessage077
+expect-no-dialog
+expect-selected 1
+wait 400
+# its strategy deleted: the object now holds none
+click-win 500 300 right
+click-popup 5
+expect-dialog-kind confirm
+click-button Yes
+expect-no-dialog
+expect-status The object's strategy is deleted
+# ---- Edit Strategy (the pop-up's row 3): the question, and inteng's words on the status line
+click-win 500 300 right
+click-popup 3
+expect-dialog-kind confirm
+expect-dialog No strategy assigned to this object.
+expect-status Selected object has no strategy
+picture 1
+# No: the question goes, nothing else happens
+click-button No
+expect-no-dialog
+expect-field levelchanged 1
+# ---- Edit Strategy again, Yes: Assign Strategy's window for the same object
+click-win 500 300 right
+click-popup 3
+expect-dialog No strategy assigned to this object.
+click-button Yes
+expect-dialog Select Strategy
+picture 2
+key Esc
+expect-no-dialog

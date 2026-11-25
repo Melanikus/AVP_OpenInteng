@@ -17,9 +17,11 @@ click-win 120 500 right
 click-popup 4
 expect-dialog Select Strategy
 click-button Door
-expect-no-dialog
+# (Drake 2026-11-25: a Door edits in a FORM now, strategy_forms_modules.cpp: its view is the form, a dialog, and Escape closes it)
+expect-dialog APCmod : Door
 key Esc
 wait 300
+expect-no-dialog
 
 # Copy 1: two targets with no strategy: both get the Door, no question
 click-win 120 500 right
@@ -79,7 +81,8 @@ expect-dialog-kind confirm
 click-button Yes
 expect-dialog Select Strategy
 click-button Lift
-expect-no-dialog
+# (its view opens at once as its form since 11-25, strategy_forms.h): Escape ends it
+expect-dialog APCmod : Lift
 key Esc
 wait 400
 picture 3

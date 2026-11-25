@@ -4,6 +4,7 @@
 # view again, the pick's lines went, and the pick's choice stayed the selection, drawn red with nothing picked; Tab left the mode in the middle of the pick.
 # Strategy Data is entered with Object Placement's Tab, the only way its Tab does anything (strategyFromPlacement).
 # RED on bishop-int f9d3b628 + drake-svolfix e5de6cd0 (the build wt3c, without this fix): after E there is no "Press return when finished"; Tab in the pick asks the save question.
+# (Drake 2026-11-25: a Switch Door edits in a FORM now, strategy_forms_modules.cpp: the pick is its Associated door row's Pick button, the same pick (StrategyPickEnd); Return ends it and the form opens again.)
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
 state
@@ -20,9 +21,10 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Switch_Door
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:None
+expect-dialog gARAGDOR : Switch door
+expect-field-has strategyform Associated door
 # the door lines: the object pick; in front of switch3, picked (red, S-62)
-click-box 300 24
+click-button Pick
 wait 400
 camera -27851 -14055 85500 0 0
 wait 500
@@ -51,9 +53,11 @@ expect-field-has strategyview Press return when finished
 # Return ends the pick: switch3 is the door
 key Enter
 wait 400
-expect-field-has strategyview 80@32:switch3
+expect-dialog gARAGDOR : Switch door
+expect-field-has dialogcombos switch3
 key Esc
 wait 300
+expect-no-dialog
 # the control: out of the pick and the view, Tab is the way back (Exit, which asks the save question: Strategy changed the level)
 key Tab
 expect-dialog Would you like to save first?

@@ -1,10 +1,11 @@
-// The test for src/host's table of actions: every command the menu bar offers, its keys in the two key layouts, and the camera's keys.
+// The test for src/host's table of actions: every command the menu bar offers, its key, and the camera's keys.
 // Written 2026-11-14 by Melanikus (Dietrich) for AVP_OpenInteng (F3). AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own
-// code". (Modified 2026-11-14 by Melanikus (Dietrich), F3: the two key layouts.)
+// code". (Modified 2026-11-14 by Melanikus (Dietrich), F3: the two key layouts. Modified 2026-11-25 by Melanikus (Frost): one layout,
+// inteng's, the Modern WASD layout's code removed; its keys freed.)
 //
 // It runs none of the editor. The editor's own table is checked as the editor checks it at start; then tables with one thing wrong each
-// prove the check refuses that thing. A table whose two layouts differ proves the menus and the keys follow the layout asked for, which
-// the editor's own table can't (its lines have the same key in both layouts). Each check's words say what it proves. The program gives
+// prove the check refuses that thing. A table with another key on one line proves the menus and the keys follow the line's key. Each
+// check's words say what it proves. The program gives
 // back a non-zero result if any check failed.
 
 #include <windows.h>   // only for the keys' numbers, VK_...
@@ -66,41 +67,41 @@ static void TestTheTable()
 	Check(EditorActions_CheckTable(kEditorActions, kEditorActionCount, kEditorMoves, kMoveCount) == 0,
 		"the table and the camera's keys pass the check the editor runs at start");
 
-	for (KeyLayout const layout : { KeyLayout::Classic, KeyLayout::ModernWasd })
+	Check(EditorActions_MakeMenus(kEditorActions, kEditorActionCount, menus, (size_t)EditorMenu::Count, items, 64, words, 64),
+		"the menus are made from the table");
+
+	MenuBar bar;
+	Check(bar.Load(menus, (size_t)EditorMenu::Count), "and the menu bar takes them: their words, keys and numbers pass its checks");
+	Check(strcmp(menus[0].title, "File") == 0 && strcmp(menus[1].title, "View") == 0 && strcmp(menus[2].title, "Mode") == 0
+		&& strcmp(menus[3].title, "Help") == 0, "the menus are File, View, Mode and Help, in that order");
+
+	size_t total = 0;
+	for (size_t m = 0; m < (size_t)EditorMenu::Count; m++)
 	{
-		std::string const in = layout == KeyLayout::Classic ? " (Classic inteng)" : " (Modern WASD)";
-
-		Check(EditorActions_MakeMenus(kEditorActions, kEditorActionCount, layout, menus, (size_t)EditorMenu::Count, items, 64, words, 64),
-			"the menus are made from the table" + in);
-
-		MenuBar bar;
-		Check(bar.Load(menus, (size_t)EditorMenu::Count), "and the menu bar takes them: their words, keys and numbers pass its checks" + in);
-		Check(strcmp(menus[0].title, "File") == 0 && strcmp(menus[1].title, "View") == 0 && strcmp(menus[2].title, "Mode") == 0
-			&& strcmp(menus[3].title, "Help") == 0, "the menus are File, View, Mode and Help, in that order" + in);
-
-		size_t total = 0;
-		for (size_t m = 0; m < (size_t)EditorMenu::Count; m++)
-		{
-			total += menus[m].count;
-		}
-		Check(total == kEditorActionCount, "every line of the table is an item, once" + in);
-
-		Check(KeysAre(kActionOpenLevel, 0) && KeysAre(kActionQuit, "Alt+F4") && KeysAre(kActionViewPolyline, "8")
-			&& KeysAre(kActionViewPolygon, "7") && KeysAre(kActionViewFilledPolyline, "9") && KeysAre(kActionViewGouraud, "B")
-			&& KeysAre(kActionViewHeadlight, "Ctrl+B") && KeysAre(kActionHelpKeys, 0),
-			"each item shows its key's words: inteng's 8, 7, 9, B and Ctrl+B for the draw modes; Windows' Alt+F4 is only shown" + in);
+		total += menus[m].count;
 	}
+	Check(total == kEditorActionCount, "every line of the table is an item, once");
 
-	Check(menus[1].count >= 2 && menus[1].items[menus[1].count - 2].action == kActionViewKeysClassic
-		&& menus[1].items[menus[1].count - 1].action == kActionViewKeysModern, "the two key layouts are the View menu's last two items");
+	Check(KeysAre(kActionOpenLevel, 0) && KeysAre(kActionQuit, "Alt+F4") && KeysAre(kActionViewPolyline, "8")
+		&& KeysAre(kActionViewPolygon, "7") && KeysAre(kActionViewFilledPolyline, "9") && KeysAre(kActionViewGouraud, "B")
+		&& KeysAre(kActionViewHeadlight, "Ctrl+B") && KeysAre(kActionHelpKeys, 0),
+		"each item shows its key's words: inteng's 8, 7, 9, B and Ctrl+B for the draw modes; Windows' Alt+F4 is only shown");
 
-	Check(!EditorActions_MakeMenus(kEditorActions, kEditorActionCount, KeyLayout::Classic, menus, (size_t)EditorMenu::Count - 1, items, 64, words, 64)
-		&& !EditorActions_MakeMenus(kEditorActions, kEditorActionCount, KeyLayout::Classic, menus, (size_t)EditorMenu::Count, items, kEditorActionCount - 1, words, 64)
-		&& !EditorActions_MakeMenus(kEditorActions, kEditorActionCount, KeyLayout::Classic, menus, (size_t)EditorMenu::Count, items, 64, words, kEditorActionCount - 1)
-		&& !EditorActions_MakeMenus(0, kEditorActionCount, KeyLayout::Classic, menus, (size_t)EditorMenu::Count, items, 64, words, 64)
-		&& !EditorActions_MakeMenus(kEditorActions, kEditorActionCount, KeyLayout::Classic, 0, 4, items, 64, words, 64)
-		&& !EditorActions_MakeMenus(kEditorActions, kEditorActionCount, KeyLayout::Classic, menus, 4, 0, 64, words, 64)
-		&& !EditorActions_MakeMenus(kEditorActions, kEditorActionCount, KeyLayout::Classic, menus, 4, items, 64, 0, 64),
+	// THE MODERN (WASD) LAYOUT IS GONE (Frost 2026-11-25, the owner: "WASD mode is off"): no action picks a layout any more
+	bool noLayoutItem = true;
+	for (size_t a = 0; a < kEditorActionCount; a++)
+	{
+		noLayoutItem = noLayoutItem && kEditorActions[a].id != 151 && kEditorActions[a].id != 152 && strstr(kEditorActions[a].name, "WASD") == 0;
+	}
+	Check(noLayoutItem, "no item picks a key layout (151 and 152 retired) or names WASD");
+
+	Check(!EditorActions_MakeMenus(kEditorActions, kEditorActionCount, menus, (size_t)EditorMenu::Count - 1, items, 64, words, 64)
+		&& !EditorActions_MakeMenus(kEditorActions, kEditorActionCount, menus, (size_t)EditorMenu::Count, items, kEditorActionCount - 1, words, 64)
+		&& !EditorActions_MakeMenus(kEditorActions, kEditorActionCount, menus, (size_t)EditorMenu::Count, items, 64, words, kEditorActionCount - 1)
+		&& !EditorActions_MakeMenus(0, kEditorActionCount, menus, (size_t)EditorMenu::Count, items, 64, words, 64)
+		&& !EditorActions_MakeMenus(kEditorActions, kEditorActionCount, 0, 4, items, 64, words, 64)
+		&& !EditorActions_MakeMenus(kEditorActions, kEditorActionCount, menus, 4, 0, 64, words, 64)
+		&& !EditorActions_MakeMenus(kEditorActions, kEditorActionCount, menus, 4, items, 64, 0, 64),
 		"too little room for menus, items or words, or none, or no table, makes nothing");
 }
 
@@ -141,60 +142,47 @@ static void TestTheMoves()
 {
 	puts("The camera's keys:");
 
-	Check(EditorActions_MoveKey(KeyLayout::Classic, EditorMove::Forward) == 'A' && EditorActions_MoveKey(KeyLayout::Classic, EditorMove::Back) == 'Z',
-		"Classic: A forward and Z back, as inteng's keys.txt has them");
-	Check(EditorActions_MoveKey(KeyLayout::Classic, EditorMove::Left) == VK_NUMPAD1 && EditorActions_MoveKey(KeyLayout::Classic, EditorMove::Right) == VK_NUMPAD3,
-		"Classic: the keypad's 1 and 3 sideways");
-	Check(EditorActions_MoveKey(KeyLayout::Classic, EditorMove::Up) == VK_SUBTRACT && EditorActions_MoveKey(KeyLayout::Classic, EditorMove::Down) == VK_ADD,
-		"Classic: the keypad's minus up and plus down (\"-/+ Move up/down\")");
-	Check(EditorActions_MoveKey(KeyLayout::Classic, EditorMove::TurnLeft) == VK_NUMPAD4 && EditorActions_MoveKey(KeyLayout::Classic, EditorMove::TurnRight) == VK_NUMPAD6
-		&& EditorActions_MoveKey(KeyLayout::Classic, EditorMove::LookUp) == VK_NUMPAD2 && EditorActions_MoveKey(KeyLayout::Classic, EditorMove::LookDown) == VK_NUMPAD8,
-		"Classic: the keypad's 4 and 6 turn, 2 looks up and 8 down (\"2/8 Pitch up/down\")");
-	Check(EditorActions_MoveKey(KeyLayout::ModernWasd, EditorMove::Forward) == 'W' && EditorActions_MoveKey(KeyLayout::ModernWasd, EditorMove::Back) == 'S'
-		&& EditorActions_MoveKey(KeyLayout::ModernWasd, EditorMove::Left) == 'A' && EditorActions_MoveKey(KeyLayout::ModernWasd, EditorMove::Right) == 'D'
-		&& EditorActions_MoveKey(KeyLayout::ModernWasd, EditorMove::Up) == 'R' && EditorActions_MoveKey(KeyLayout::ModernWasd, EditorMove::Down) == 'F',
-		"Modern: W S A D, R up and F down");
-	Check(EditorActions_MoveKey(KeyLayout::ModernWasd, EditorMove::TurnLeft) == VK_LEFT && EditorActions_MoveKey(KeyLayout::ModernWasd, EditorMove::TurnRight) == VK_RIGHT
-		&& EditorActions_MoveKey(KeyLayout::ModernWasd, EditorMove::LookUp) == VK_UP && EditorActions_MoveKey(KeyLayout::ModernWasd, EditorMove::LookDown) == VK_DOWN,
-		"Modern: the arrows turn and look");
-	Check(EditorActions_MoveKey(KeyLayout::Classic, EditorMove::Count) == 0 && EditorActions_MoveKey(KeyLayout::ModernWasd, (EditorMove)200) == 0,
+	Check(EditorActions_MoveKey(EditorMove::Forward) == 'A' && EditorActions_MoveKey(EditorMove::Back) == 'Z',
+		"A forward and Z back, as inteng's keys.txt has them");
+	Check(EditorActions_MoveKey(EditorMove::Left) == VK_NUMPAD1 && EditorActions_MoveKey(EditorMove::Right) == VK_NUMPAD3,
+		"the keypad's 1 and 3 sideways");
+	Check(EditorActions_MoveKey(EditorMove::Up) == VK_SUBTRACT && EditorActions_MoveKey(EditorMove::Down) == VK_ADD,
+		"the keypad's minus up and plus down (\"-/+ Move up/down\")");
+	Check(EditorActions_MoveKey(EditorMove::TurnLeft) == VK_NUMPAD4 && EditorActions_MoveKey(EditorMove::TurnRight) == VK_NUMPAD6
+		&& EditorActions_MoveKey(EditorMove::LookUp) == VK_NUMPAD2 && EditorActions_MoveKey(EditorMove::LookDown) == VK_NUMPAD8,
+		"the keypad's 4 and 6 turn, 2 looks up and 8 down (\"2/8 Pitch up/down\")");
+	Check(EditorActions_MoveKey(EditorMove::Count) == 0 && EditorActions_MoveKey((EditorMove)200) == 0,
 		"a move that isn't one has no key");
 
-	bool noMainRowDigit = true;
+	// the keys the Modern (WASD) layout held are freed (Frost 2026-11-25): none of W, S, D, R, F or the arrows is a move's key now
+	bool noModernKey = true, noMainRowDigit = true;
 	for (size_t m = 0; m < kMoveCount; m++)
 	{
-		uint8_t const key = EditorActions_MoveKey(KeyLayout::Classic, (EditorMove)m);
+		uint8_t const key = EditorActions_MoveKey((EditorMove)m);
 		noMainRowDigit = noMainRowDigit && !(key >= '0' && key <= '9');
+		noModernKey = noModernKey && key != 'W' && key != 'S' && key != 'D' && key != 'R' && key != 'F' && key != VK_LEFT && key != VK_RIGHT && key != VK_UP && key != VK_DOWN;
 	}
-	Check(noMainRowDigit, "Classic's camera never takes a main-row digit, which are the draw modes'");
+	Check(noMainRowDigit, "the camera never takes a main-row digit, which are the draw modes'");
+	Check(noModernKey, "no move holds W, S, D, R, F or an arrow (the Modern layout's): only inteng's keys");
 }
 
 static void TestRunning()
 {
 	puts("What each action does:");
 
-	EditorHostState host = { true, 0, KeyLayout::Classic };
+	EditorHostState host = {};
 
+	host.running = true;
 	EditorActions_Find(kActionQuit)->run(&host);
 	Check(!host.running, "Quit stops the editor");
 
 	host.running = true;
 	EditorActions_Find(kActionHelpKeys)->run(&host);
-	Check(host.running && host.layout == KeyLayout::Classic && host.statusWords && strcmp(host.statusWords,
-		"Classic inteng keys, with NumLock on: A forward, Z back, Num 1 left, Num 3 right, Num - up, Num + down, Num 4 turn left, Num 6 turn right, "
+	Check(host.running && host.statusWords && strcmp(host.statusWords,
+		"inteng's keys, with NumLock on: A forward, Z back, Num 1 left, Num 3 right, Num - up, Num + down, Num 4 turn left, Num 6 turn right, "
 		"Num 2 look up, Num 8 look down, Num 7 roll left, Num 9 roll right; the mouse with its right button held turns and looks. Menus: F10 or Alt") == 0,
-		"Help, Keys in Classic says Classic's keys, made from the table of moves, and changes no layout");
-
-	host.layout = KeyLayout::ModernWasd;
-	EditorActions_Find(kActionHelpKeys)->run(&host);
-	Check(host.statusWords && strcmp(host.statusWords,
-		"Modern WASD keys: W forward, S back, A left, D right, R up, F down, Left turn left, Right turn right, Up look up, Down look down, Num 7 roll left, Num 9 roll right; "
-		"the mouse with its right button held turns and looks. Menus: F10 or Alt") == 0, "Help, Keys in Modern says Modern's");
-
-	EditorActions_Find(kActionViewKeysClassic)->run(&host);
-	Check(host.layout == KeyLayout::Classic && host.statusWords == kEditorClassicNowWords && host.running, "Classic inteng keys picks Classic, and says so");
-	EditorActions_Find(kActionViewKeysModern)->run(&host);
-	Check(host.layout == KeyLayout::ModernWasd && host.statusWords == kEditorModernNowWords, "Modern WASD keys picks Modern, and says so");
+		"Help, Keys says inteng's keys, made from the table of moves");
+	Check(EditorActions_Find(151) == 0 && EditorActions_Find(152) == 0, "the two key layouts' items are gone (the Modern WASD layout removed, 11-25)");
 
 	EditorActions_Find(kActionHelpAbout)->run(&host);
 	Check(host.statusWords == kEditorAboutWords, "Help, About says what the editor is");
@@ -209,55 +197,42 @@ static void TestKeys()
 
 	const EditorAction *const open = EditorActions_Find(kActionOpenLevel);
 
-	for (KeyLayout const layout : { KeyLayout::Classic, KeyLayout::ModernWasd })
-	{
-		std::string const in = layout == KeyLayout::Classic ? " (Classic)" : " (Modern)";
+	Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, 'O', false, true, false) == 0 && open != nullptr, "Ctrl+O is no key any more: inteng's hub has no Open (Bishop 11-16)");
+	Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, '8', false, false, false) == EditorActions_Find(kActionViewPolyline)
+		&& EditorActions_ForKey(kEditorActions, kEditorActionCount, VK_NUMPAD8, false, false, false) == 0,
+		"the main row's 8 is Polyline; the keypad's 8 is no action");
+	Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, 'B', false, false, false) == EditorActions_Find(kActionViewGouraud)
+		&& EditorActions_ForKey(kEditorActions, kEditorActionCount, 'B', false, true, false) == EditorActions_Find(kActionViewHeadlight),
+		"B is Gouraud and Ctrl+B the headlight");
+	Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, 'O', false, false, false) == 0
+		&& EditorActions_ForKey(kEditorActions, kEditorActionCount, 'O', true, true, false) == 0,
+		"a plain O, or Ctrl+Shift+O, is no action: a key's Ctrl and Shift are part of it");
+	Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, 'O', false, true, true) == 0
+		&& EditorActions_ForKey(kEditorActions, kEditorActionCount, 'O', false, false, true) == 0,
+		"with Alt held, or AltGr (Ctrl and Alt), no key is an action");
+	Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, 'V', false, true, false) == 0
+		&& EditorActions_ForKey(kEditorActions, kEditorActionCount, 0, false, false, false) == 0
+		&& EditorActions_ForKey(0, kEditorActionCount, 'O', false, true, false) == 0, "Ctrl+V, no key, and no table are no action");
 
-		Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, layout, 'O', false, true, false) == 0 && open != nullptr, "Ctrl+O is no key any more: inteng's hub has no Open (Bishop 11-16)" + in);
-		Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, layout, '8', false, false, false) == EditorActions_Find(kActionViewPolyline)
-			&& EditorActions_ForKey(kEditorActions, kEditorActionCount, layout, VK_NUMPAD8, false, false, false) == 0,
-			"the main row's 8 is Polyline; the keypad's 8 is no action" + in);
-		Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, layout, 'B', false, false, false) == EditorActions_Find(kActionViewGouraud)
-			&& EditorActions_ForKey(kEditorActions, kEditorActionCount, layout, 'B', false, true, false) == EditorActions_Find(kActionViewHeadlight),
-			"B is Gouraud and Ctrl+B the headlight" + in);
-		Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, layout, 'O', false, false, false) == 0
-			&& EditorActions_ForKey(kEditorActions, kEditorActionCount, layout, 'O', true, true, false) == 0,
-			"a plain O, or Ctrl+Shift+O, is no action: a key's Ctrl and Shift are part of it" + in);
-		Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, layout, 'O', false, true, true) == 0
-			&& EditorActions_ForKey(kEditorActions, kEditorActionCount, layout, 'O', false, false, true) == 0,
-			"with Alt held, or AltGr (Ctrl and Alt), no key is an action" + in);
-		Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, layout, 'V', false, true, false) == 0
-			&& EditorActions_ForKey(kEditorActions, kEditorActionCount, layout, 0, false, false, false) == 0
-			&& EditorActions_ForKey(0, kEditorActionCount, layout, 'O', false, true, false) == 0, "Ctrl+V, no key, and no table are no action" + in);
-	}
-
-	Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, KeyLayout::Classic, 'A', false, false, false) == 0,
+	Check(EditorActions_ForKey(kEditorActions, kEditorActionCount, 'A', false, false, false) == 0,
 		"a camera key is held, not an action");
 }
 
-// A table whose two layouts differ, so the menus and the keys must follow the layout asked for
-static void TestTheLayoutIsFollowed()
+// An action's key is the one its line holds: the menus and the keys follow it
+static void TestTheKeyIsFollowed()
 {
-	puts("The layout asked for is the one used:");
+	puts("An action's key is its line's:");
 
-	EditorAction differ[64];
-	memcpy(differ, kEditorActions, sizeof(EditorAction) * kEditorActionCount);
+	EditorAction other[64];
+	memcpy(other, kEditorActions, sizeof(EditorAction) * kEditorActionCount);
 	EditorKey const x = { 'X', false, false };
-	EditorKey const y = { 'Y', false, false };
-	differ[2].classic = x;
-	differ[2].modern = y;
+	other[2].key = x;
 
-	Check(EditorActions_CheckTable(differ, kEditorActionCount, kEditorMoves, kMoveCount) == 0, "(a table with X in Classic and Y in Modern on one line is sound)");
-	Check(EditorActions_MakeMenus(differ, kEditorActionCount, KeyLayout::Classic, menus, (size_t)EditorMenu::Count, items, 64, words, 64)
-		&& KeysAre(differ[2].id, "X"), "its menus for Classic show X");
-	Check(EditorActions_MakeMenus(differ, kEditorActionCount, KeyLayout::ModernWasd, menus, (size_t)EditorMenu::Count, items, 64, words, 64)
-		&& KeysAre(differ[2].id, "Y"), "and for Modern show Y");
-	Check(EditorActions_ForKey(differ, kEditorActionCount, KeyLayout::Classic, 'X', false, false, false) == &differ[2]
-		&& EditorActions_ForKey(differ, kEditorActionCount, KeyLayout::Classic, 'Y', false, false, false) == 0
-		&& EditorActions_ForKey(differ, kEditorActionCount, KeyLayout::ModernWasd, 'Y', false, false, false) == &differ[2]
-		&& EditorActions_ForKey(differ, kEditorActionCount, KeyLayout::ModernWasd, 'X', false, false, false) == 0, "and X works only in Classic, Y only in Modern");
-	Check(&EditorActions_KeyIn(differ[2], KeyLayout::Classic) == &differ[2].classic && &EditorActions_KeyIn(differ[2], KeyLayout::ModernWasd) == &differ[2].modern,
-		"an action's key in a layout is that layout's");
+	Check(EditorActions_CheckTable(other, kEditorActionCount, kEditorMoves, kMoveCount) == 0, "(a table with X on one line is sound)");
+	Check(EditorActions_MakeMenus(other, kEditorActionCount, menus, (size_t)EditorMenu::Count, items, 64, words, 64)
+		&& KeysAre(other[2].id, "X"), "its menus show X");
+	Check(EditorActions_ForKey(other, kEditorActionCount, 'X', false, false, false) == &other[2], "and X does it");
+	Check(&EditorActions_KeyIn(other[2]) == &other[2].key, "an action's key is its line's");
 }
 
 static EditorAction table[64];
@@ -307,42 +282,38 @@ static void TestTheCheckRefuses()
 	Check(Refused("no words"), "an action with no words");
 	Fresh(); table[0].run = 0;
 	Check(Refused("does nothing"), "an action that does nothing");
-	Fresh(); table[0].classic = ctrlO; table[2].classic = ctrlO;   // (the real table's Ctrl+O is gone: the first line is given it here)
-	Check(Refused("share a key"), "two actions on one key in Classic");
-	Fresh(); table[0].modern = ctrlO; table[2].modern = ctrlO;
-	Check(Refused("share a key"), "two actions on one key in Modern only");
-	Fresh(); table[3].classic = plainO;
+	Fresh(); table[0].key = ctrlO; table[2].key = ctrlO;   // (the real table's Ctrl+O is gone: the first line is given it here)
+	Check(Refused("share a key"), "two actions on one key");
+	Fresh(); table[3].key = plainO;
 	Check(Sound(), "O and Ctrl+O are two keys");
-	Fresh(); table[3].classic = x; table[4].modern = x;
-	Check(Sound(), "one key in Classic and the same in Modern, on two lines, is sound: the layouts are separate");
-	Fresh(); table[3].classic = a;
-	Check(Refused("camera holds"), "an action on Classic's forward key, A");
-	Fresh(); table[3].classic = ctrlA;
+	Fresh(); table[3].key = x;
+	Check(Sound(), "a free key on a line is sound");
+	Fresh(); table[3].key = a;
+	Check(Refused("camera holds"), "an action on the forward key, A");
+	Fresh(); table[3].key = ctrlA;
 	Check(Refused("camera holds"), "and on Ctrl+A: a held key counts whatever else is held");
-	Fresh(); table[3].modern = a;
-	Check(Refused("camera holds"), "an action on Modern's left key, A");
-	Fresh(); table[3].classic = w;
-	Check(Sound(), "W is free in Classic: only Modern's camera holds it");
-	Fresh(); table[3].classic = ctrlV;
+	Fresh(); table[3].key = w;
+	Check(Sound(), "W is free: no move holds it (the Modern layout's forward key, gone)");
+	Fresh(); table[3].key = ctrlV;
 	Check(Refused("Ctrl+V"), "Ctrl+V, the paste's");
-	Fresh(); table[3].classic = ctrlShiftV;
+	Fresh(); table[3].key = ctrlShiftV;
 	Check(Refused("Ctrl+V"), "Ctrl+Shift+V too");
-	Fresh(); table[3].classic = plainV;
+	Fresh(); table[3].key = plainV;
 	Check(Sound(), "a plain V is free");
-	Fresh(); table[3].classic = f5;
+	Fresh(); table[3].key = f5;
 	Check(Refused("no name"), "a key the editor has no name for");
-	Fresh(); table[1].classic = ctrlQ;
+	Fresh(); table[1].key = ctrlQ;
 	Check(Refused("Windows' keys"), "an action that shows Windows' keys and has a key of its own");
 
 	Fresh(); moves[3].move = EditorMove::Left;
 	Check(Refused("out of order"), "a move out of order");
 	Fresh(); moves[0].name = "";
 	Check(Refused("no words"), "a move with no words");
-	Fresh(); moves[1].classic = moves[0].classic;
+	Fresh(); moves[1].key = moves[0].key;
 	Check(Refused("share a key"), "two moves on one key");
-	Fresh(); moves[4].modern = 0;
-	Check(Refused("no key"), "a move with no key in a layout");
-	Fresh(); moves[4].classic = VK_F5;
+	Fresh(); moves[4].key = 0;
+	Check(Refused("no key"), "a move with no key");
+	Fresh(); moves[4].key = VK_F5;
 	Check(Refused("no key"), "a move on a key the editor has no name for");
 
 	Fresh();
@@ -360,7 +331,7 @@ int main()
 	TestTheMoves();
 	TestRunning();
 	TestKeys();
-	TestTheLayoutIsFollowed();
+	TestTheKeyIsFollowed();
 	TestTheCheckRefuses();
 
 	printf("%s\n", checksFailed ? "SOME CHECKS FAILED" : "All checks passed");

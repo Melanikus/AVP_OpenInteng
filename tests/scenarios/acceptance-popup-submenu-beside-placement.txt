@@ -1,0 +1,25 @@
+# ACCEPTANCE (red first; Drake 2026-11-24, the owner's sub-menu report, acceptance-popup-submenu-beside.txt says why): ANOTHER POP-UP'S SUB-MENU, the same: Object Placement's
+# pop-up on a placed hierarchy (Invasion's dropship ken), its sounds row opens Edit / Add / Remove BESIDE it, the pop-up staying, and a row of it still does its command.
+# RED on e8382ab1.exe: after the sounds row the pop-up's own rows are gone (no popupparent).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+camera 72906 -27615 45151 0 0
+wait 400
+click-win 504 322
+wait 400
+expect-status Selected: dropship ken
+click-win 504 322 right
+expect-field popupparent none
+click-popup 4
+expect-popup-rows Edit|Add|Remove
+expect-field-has popupparent |
+expect-field-not-has popupparent none
+picture 1
+click-popup 1
+expect-dialog Select sound to edit
+expect-dialog-rows 0 jet loop.wav|1 dropship door.wav
+key Esc
+expect-no-dialog

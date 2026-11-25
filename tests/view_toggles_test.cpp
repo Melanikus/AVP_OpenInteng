@@ -315,10 +315,9 @@ static void TestTheEditorsToggles()
 
 	const EditorAction *const headlight = EditorActions_Find(kActionViewHeadlight);
 	char headlightWords[kEditorKeyWordsRoom];
-	Check(headlight && headlight->classic.virtualKey == 'B' && headlight->classic.ctrl && !headlight->classic.shift
-		&& headlight->modern.virtualKey == 'B' && headlight->modern.ctrl && !headlight->modern.shift
-		&& EditorActions_KeyWords(headlight->classic, headlightWords, sizeof(headlightWords)) && strcmp(headlightWords, "Ctrl+B") == 0,
-		"the Headlight line's key is Ctrl+B, inteng's, in both key layouts, and the menu says so");
+	Check(headlight && headlight->key.virtualKey == 'B' && headlight->key.ctrl && !headlight->key.shift
+		&& EditorActions_KeyWords(headlight->key, headlightWords, sizeof(headlightWords)) && strcmp(headlightWords, "Ctrl+B") == 0,
+		"the Headlight line's key is Ctrl+B, inteng's, and the menu says so");
 
 	EditorHostState host = { true, 0 };
 	EditorActions_Find(kActionViewPolyline)->run(&host);
@@ -334,12 +333,11 @@ static void TestTheEditorsToggles()
 	ui::Menu menus[(size_t)EditorMenu::Count];
 	ui::MenuItem items[64];
 	EditorKeyWords words[64];
-	bool const made = EditorActions_MakeMenus(kEditorActions, kEditorActionCount, KeyLayout::Classic, menus, (size_t)EditorMenu::Count, items, 64,
+	bool const made = EditorActions_MakeMenus(kEditorActions, kEditorActionCount, menus, (size_t)EditorMenu::Count, items, 64,
 		words, 64);
-	Check(made && menus[1].count == 15 && menus[1].items[0].action == kActionViewPolygon && menus[1].items[2].action == kActionViewFilledPolyline
-		&& menus[1].items[11].action == kActionViewTextures && menus[1].items[12].action == kActionViewGouraudLevelOnly && menus[1].items[13].action == kActionViewKeysClassic
-		&& menus[1].items[14].action == kActionViewKeysModern,
-		"the View menu made from the table starts with inteng's three modes, in order: 7, 8, 9, and ends with the Object list, Textures, Gouraud's third state (off) and the two key layouts");
+	Check(made && menus[1].count == 13 && menus[1].items[0].action == kActionViewPolygon && menus[1].items[2].action == kActionViewFilledPolyline
+		&& menus[1].items[11].action == kActionViewTextures && menus[1].items[12].action == kActionViewGouraudLevelOnly,
+		"the View menu made from the table starts with inteng's three modes, in order: 7, 8, 9, and ends with the Object list, Textures and Gouraud's third state (off): no key layouts (the Modern WASD layout removed, 11-25)");
 }
 
 // -viewmode's word, for the proof runs (ViewToggles_FromCommandWord): only the exact words

@@ -459,14 +459,6 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <ClCompile Include="..\..\src\host\inteng_exe.cpp">
-      <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
-    <ClCompile Include="..\..\src\host\inteng_shapes.cpp">
-      <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
     <ClCompile Include="..\..\src\host\sound_edit.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -838,6 +830,31 @@
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\src\host\strategy_views.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <!-- Edit Strategy as a form (strategy_forms.h): the shared part, then one file per group of kinds so each dev edits only their own. -->
+    <ClCompile Include="..\..\src\host\strategy_forms.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\strategy_forms_modules.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\strategy_forms_objects.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\strategy_forms_paths.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\strategy_forms_paths_editor.cpp">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\strategy_forms_switches.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -1427,10 +1444,6 @@
       <AdditionalIncludeDirectories>..\..\src\host;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\src\host\camera_start.cpp">
-      <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
-    <ClCompile Include="..\..\src\host\key_layout.cpp">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>

@@ -14,14 +14,15 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview med02L : Placed Object
-key E
+# (2026-11-24, Dietrich: 62 edits in a form, the owner's; its Extra data... button is the page's E, and the form comes back after the E page or its message)
+expect-dialog med02L : Placed Object
+click-button Extra_data...
 wait 300
 expect-dialog Only available for marines/civilians
 picture 1
 click-button Ok
 wait 300
-expect-no-dialog
-expect-field-has strategyview med02L : Placed Object
+expect-dialog med02L : Placed Object
 key Esc
+expect-no-dialog
 wait 300

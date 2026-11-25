@@ -32,8 +32,8 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 16@32:String :47
-click-box 300 40
+expect-field-has dialogtext |47
+click-button Play...
 expect-dialog-kind form
 expect-field-has dialogbuttons Play
 

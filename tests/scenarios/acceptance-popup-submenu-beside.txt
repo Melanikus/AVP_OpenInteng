@@ -1,0 +1,25 @@
+# ACCEPTANCE (red first; Drake 2026-11-24, the owner on alpha.6: "place above/below etc is a sub menu, right now the main menu where you were disappears and only the 'here,
+# above...etc' show"; "If that was original inteng behavior change it"): A POP-UP'S SUB-MENU OPENS BESIDE IT, AND THE POP-UP STAYS. inteng's pop-up (FUN_004b7c50 -> FUN_004b8350)
+# opens a sub-level to the side; ours put the sub-level's rows in the pop-up's place (editor_main.cpp PopupPicked, editor_bar.cpp EditorBar_MakePopupLevel). Now a group of plain
+# rows is its row's cascade (ui/menu_bar.h subItems, as the bar's): the state line's popup is the level shown (the cascade's rows), popupparent the pop-up's own rows, still open.
+# HIS PATH: Strategy Data on stock Derelict, the right button, Create Virtual Object, then Here from the sub-menu.
+# RED on e8382ab1.exe: after Create Virtual Object the pop-up's own rows are gone (no popupparent).
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-win 500 300 right
+expect-popup-rows Save|Copy Strategy|Edit Strategy|Assign Strategy|Delete Strategy|Create Virtual Object|Destroy Virtual Object|Delete Multiple Strategies
+expect-field popupparent none
+click-popup 6
+expect-popup-rows Here|Above|Below|Left|Right|Front|Behind
+expect-field popupparent Save|Copy Strategy|Edit Strategy|Assign Strategy|Delete Strategy|Create Virtual Object|Destroy Virtual Object|Delete Multiple Strategies
+picture 1
+# a row of the sub-menu still does its command (Here: the name is asked)
+click-popup 1
+expect-dialog Type name for new virtual object
+click-button Cancel
+expect-no-dialog
+expect-field popupparent none

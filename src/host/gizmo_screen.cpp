@@ -90,6 +90,8 @@ namespace
 	bool canRotate = false;
 	host::GizmoHandle hover = host::GizmoHandle::None;
 	int32_t pointerX = -1, pointerY = -1;
+	bool pointerMoved = false;           // the pointer moved since the last frame (GizmoScreen_Pointer)
+	host::PickCamera hoverCamera = {};   // the camera the lit handle was found with
 
 	// the pose read last, kept while the level and the selection are the same (the read walks the level's objects)
 	OpenLevelFile *readOpen = nullptr;
@@ -99,6 +101,14 @@ namespace
 	host::MovableRef readUsed;        // the one that read
 	bool readDone = false;
 	host::MovablePose readPose;
+
+	// Frame's last arguments, for AfterEyes (the same frame made again with its own camera), and the arrow's worst measured error in the last 2 seconds (gizmolag)
+	int32_t frameWidth = 0, frameHeight = 0;
+	char const *frameScreen = nullptr;
+	bool frameCalled = false;
+	double lagMost = 0.0;
+	DWORD lagMostAt = 0;                    // when lagMost was measured (GetTickCount)
+	DWORD const kLagWindowMs = 2000;        // a worst older than this is forgotten
 
 	// the drag
 	bool dragging = false;
@@ -151,6 +161,13 @@ namespace
 	bool SameRef(host::MovableRef const &a, host::MovableRef const &b)
 	{
 		return a.kind == b.kind && memcmp(a.id, b.id, sizeof(a.id)) == 0 && a.number == b.number && a.module == b.module;
+	}
+
+	// the same camera: its place, its turn, its projection and its view
+	bool SameCamera(host::PickCamera const &a, host::PickCamera const &b)
+	{
+		return memcmp(a.place, b.place, sizeof(a.place)) == 0 && memcmp(a.turn, b.turn, sizeof(a.turn)) == 0 && a.xScale == b.xScale && a.yScale == b.yScale &&
+		       a.viewWidth == b.viewWidth && a.viewHeight == b.viewHeight;
 	}
 
 	void Say(std::string const &text)
@@ -327,10 +344,58 @@ void GizmoScreen_UseRefSource(char const *screen, GizmoRefSource source, bool so
 	Sources().push_back(SourceRow{ screen, source, sourceFirst });
 }
 
+void GizmoScreen_AfterEyes()
+{
+	// the frame's camera is in now (LevelView_SetAfterEyes): the gizmo made again from it, with what Frame was given this frame
+	if (frameCalled)
+	{
+		GizmoScreen_Frame(frameWidth, frameHeight, frameScreen);
+	}
+}
+
+void GizmoScreen_AfterDraw()
+{
+	// the camera the frame was drawn from: an arrow kGizmoArrowPixels long at the centre's distance, when the gizmo was made from it
+	host::PickCamera drawn;
+	int32_t centre[3];
+
+	if (!shown || dragging || !PickGame_Camera(frameWidth, frameHeight, &drawn) || !(frame.length > 0.0))
+	{
+		return;
+	}
+
+	for (int i = 0; i < 3; i++)
+	{
+		centre[i] = (int32_t)frame.centre[i];
+	}
+
+	double x = 0.0, y = 0.0, ahead = 0.0;
+
+	if (!PickRay_Project(drawn, centre, &x, &y, &ahead) || !(ahead > 1.0) || !host::PickRay_ScaleUsable(drawn.xScale) || drawn.viewWidth <= 0)
+	{
+		return;
+	}
+
+	double const perPixel = ahead / ((double)drawn.xScale * (double)drawn.viewWidth / 2.0);
+	double const off = fabs(frame.length / perPixel - host::kGizmoArrowPixels);
+	DWORD const now = GetTickCount();
+
+	// the worst of the last 2 seconds, kept by TIME and not by state line: a held key's frames come before the hold's own state line, and a check after it asks for a new one
+	if (now - lagMostAt > kLagWindowMs || off >= lagMost)
+	{
+		lagMost = off;
+		lagMostAt = now;
+	}
+}
+
 void GizmoScreen_Frame(int32_t viewWidth, int32_t viewHeight, char const *screen)
 {
 	static std::vector<host::TrackLine> const none;
 
+	frameWidth = viewWidth;
+	frameHeight = viewHeight;
+	frameScreen = screen;
+	frameCalled = true;
 	onGizmoScreen = GizmoScreen(screen);
 
 	if (!Usable(screen))
@@ -405,7 +470,32 @@ void GizmoScreen_Frame(int32_t viewWidth, int32_t viewHeight, char const *screen
 		return;
 	}
 
-	hover = dragging ? handle : (pointerX >= 0 ? host::Gizmo_Hit(camera, frame, canRotate, pointerX, pointerY) : host::GizmoHandle::None);
+	// THE LIT HANDLE (Drake 2026-11-25, the owner: "when camera moves the gizmo flickers alot"): it is found from the POINTER's move. Found again every frame from the
+	// pointer's last place, the handles sliding under a still pointer while the camera moved (keys held, the mouse resting where it had just clicked the object) lit up and
+	// went out one after another. So it is found again when the pointer moved, or with the camera it was found with; the camera moved under a still pointer: none, until
+	// the pointer moves. (A press finds its own handle where it is pressed: GizmoScreen_Press.)
+	// NAMED, for the owner's veto: this runs TWICE a frame (here, then again from GizmoScreen_AfterEyes with the frame's own camera), and the first run clears pointerMoved,
+	// so while the camera MOVES nothing lights at all, even with the pointer moving too (the second run finds the camera changed and the pointer's move already taken).
+	// Pressing and dragging are not touched. Lighting a handle under a moving pointer during A / Z would have the handles light and go out as they slide (Frost's NIT on 90543174).
+	if (dragging)
+	{
+		hover = handle;
+	}
+	else if (pointerX < 0)
+	{
+		hover = host::GizmoHandle::None;
+	}
+	else if (pointerMoved || SameCamera(camera, hoverCamera))
+	{
+		hover = host::Gizmo_Hit(camera, frame, canRotate, pointerX, pointerY);
+		hoverCamera = camera;
+	}
+	else
+	{
+		hover = host::GizmoHandle::None;
+	}
+
+	pointerMoved = false;
 
 	std::vector<host::TrackLine> lines;
 
@@ -476,6 +566,7 @@ bool GizmoScreen_Pointer(int32_t x, int32_t y, bool shift)
 	y -= viewY;
 	pointerX = x;
 	pointerY = y;
+	pointerMoved = true;   // the lit handle is found again on the next frame (GizmoScreen_Frame)
 
 	if (!dragging)
 	{
@@ -665,4 +756,9 @@ void GizmoScreen_StateLine()
 	}
 
 	StateLine_Add("gizmopoints", points);
+
+	// the most an arrow was off its kGizmoArrowPixels, in tenths of a pixel, in the last 2 seconds, measured with each frame's own camera (GizmoScreen_AfterDraw)
+	double const lagShown = GetTickCount() - lagMostAt > kLagWindowMs ? 0.0 : lagMost;
+
+	StateLine_Add("gizmolag", "tenths " + std::to_string((long long)floor(lagShown * 10.0 + 0.5)));
 }

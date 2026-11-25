@@ -2380,6 +2380,16 @@ void LevelView_SetPanes(void (*draw)(void *context), void *context)
 	panesContext = draw ? context : nullptr;
 }
 
+// what is made from this frame's camera before its world lines are drawn (LevelView_SetAfterEyes)
+static void (*afterEyes)(void *context) = nullptr;
+static void *afterEyesContext = nullptr;
+
+void LevelView_SetAfterEyes(void (*eyes)(void *context), void *context)
+{
+	afterEyes = eyes;
+	afterEyesContext = eyes ? context : nullptr;
+}
+
 bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*addToFrame)(void *context), void *context)
 {
 	if (!levelIsOpen)
@@ -2510,6 +2520,13 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 	}
 
 	AvpShowViews();
+
+	// the main view's camera is this frame's now (Global_VDB_Ptr), and its world lines are drawn only below (the inset's flush, or the frame's last drawing): what is made
+	// from the camera is made now (LevelView_SetAfterEyes: the gizmo), so it is drawn with the camera it was made from
+	if (afterEyes)
+	{
+		afterEyes(afterEyesContext);
+	}
 
 	// THE PLOT'S PREVIEW's INSET (LevelView_Inset), on the live plot's renderer calls (Frost's, renderer.h 2026-11-21): the main view's lists drawn NOW WITH ITS
 	// WORLD LINES (slot 0: the modules the plot has made so far, the owner's "modules updating on the map as they are build"), into its box or the whole window, and

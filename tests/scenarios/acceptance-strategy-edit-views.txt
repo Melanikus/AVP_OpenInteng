@@ -23,17 +23,27 @@ click-button Yes
 expect-dialog Select Strategy
 click-button Platform_Lift
 wait 300
-expect-field strategyview 200@0:flam014 : Platform Lift|16@16:Starts enabled|16@32:Once enabled , continues working until switched off
-click-box 300 24
-wait 300
-expect-field strategyview 200@0:flam014 : Platform Lift|16@16:Starts disabled|16@32:Once enabled , continues working until switched off
-click-box 300 40
-wait 300
-expect-field strategyview 200@0:flam014 : Platform Lift|16@16:Starts disabled|16@32:Becomes disabled after one use
-click-box 300 24
-wait 300
-expect-field strategyview 200@0:flam014 : Platform Lift|16@16:Starts enabled|16@32:Becomes disabled after one use
+# (Drake 2026-11-24: the Platform Lift edits in a FORM now, strategy_forms_modules.cpp PlatformRows: its two bits are drop-downs, written as they are picked)
+expect-dialog flam014 : Platform Lift
+expect-dialog-text Starts enabled|Once enabled , continues working until switched off
+click-combo 1
+click-combo-row Starts disabled
+click-combo 2
+click-combo-row Becomes disabled after one use
+expect-dialog-text Starts disabled|Becomes disabled after one use
+click-combo 1
+click-combo-row Starts enabled
+expect-dialog-text Starts enabled|Becomes disabled after one use
+click-button Ok
+expect-no-dialog
+# opened again (Edit Strategy, item 0x7): what was written (Dietrich's NIT on 679b0594)
+item 0x7
+wait 400
+expect-dialog flam014 : Platform Lift
+expect-dialog-text Starts enabled|Becomes disabled after one use
 key Esc
+expect-no-dialog
+wait 300
 
 # ---- FAN (75; FUN_005356b0, vtable 0x5af728; constructor FUN_00535670: speed up 10 s, slow down 10 s, wind 100). The three numbers are typed in text dialogs: "Speed up time (seconds)", "Slow down time (seconds)" (taken above 0 and below 1000), "Wind strength (-1000 to 1000)"
 select-row 0
@@ -44,33 +54,29 @@ click-button Yes
 expect-dialog Select Strategy
 click-button Fan
 wait 300
-expect-field strategyview 200@0:flam014 : Fan|16@16:speed up time : 10  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :100  (default is 100)
-click-box 300 24
-expect-dialog Speed up time (seconds)
-expect-dialog-text 10
-key Back
-key Back
-type 12
-key Enter
+# (Drake 2026-11-24: the Fan edits in a FORM now, strategy_forms_modules.cpp FanRows: its three boxes, written at Ok; 5000 is out of its range (1 to 999): refused with its
+# range and the form comes back as it was left, where the page left the line as it was and said nothing)
+expect-dialog flam014 : Fan
+expect-dialog-text 10|10|100
+form-field 1 5000
+form-field 3 -50
+click-button Ok
+expect-dialog-kind message
+click-button Ok
+expect-dialog flam014 : Fan
+expect-dialog-text 5000|10|-50
+form-field 1 12
+click-button Ok
 expect-no-dialog
 wait 300
-expect-field strategyview 200@0:flam014 : Fan|16@16:speed up time : 12  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :100  (default is 100)
-click-box 300 56
-expect-dialog Wind strength (-1000 to 1000)
-key Back
-key Back
-key Back
-type -50
-key Enter
-wait 300
-expect-field strategyview 200@0:flam014 : Fan|16@16:speed up time : 12  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :-50  (default is 100)
-# a number the view does not take leaves the line as it was
-click-box 300 24
-type 5000
-key Enter
-wait 300
-expect-field strategyview 200@0:flam014 : Fan|16@16:speed up time : 12  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :-50  (default is 100)
+# opened again (Edit Strategy, item 0x7): what was written (Dietrich's NIT on 679b0594)
+item 0x7
+wait 400
+expect-dialog flam014 : Fan
+expect-dialog-text 12|10|-50
 key Esc
+expect-no-dialog
+wait 300
 
 # ---- DOOR (50; FUN_0052cbb0, vtable 0x5af3e8, read from the listing; constructor FUN_0052cb80: flags 0, open 1.0 s, close 0.5 s). A MODULE is picked by a click. The first line switches between a proximity door (bit 2) and a switch activated door (bit 8);
 # a proximity door shows locked (bit 1) and horizontal (bit 0x10) lines, a switch door "Open" / "Closed" (bit 4); then the two times, in tenths (taken from 0.1 up to below 25.5 seconds)
@@ -81,41 +87,36 @@ item 0x8
 expect-dialog Select Strategy
 click-button Door
 wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
-# the first line makes it a switch activated door: the lines are the switch door's
-click-box 300 24
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Switch activated door ('lift door')|16@32:Closed|16@48:Time take to open : 1.0 seconds|16@64:Time take to close : 0.5 seconds
-click-box 300 40
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 1.0 seconds|16@64:Time take to close : 0.5 seconds
-# a time is typed in seconds (the dialog starts with the one it has) and kept in tenths
-click-box 300 56
-expect-dialog Time take to open (0.1 - 25 sec)
-expect-dialog-text 1
-key Back
-type 2.5
-key Enter
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.5 seconds
-# below 0.1 or from 25.5 up is not taken
-click-box 300 72
-key Back
-key Back
-key Back
-type 30
-key Enter
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.5 seconds
-# back to a proximity door: the "starts open" bit stays, the locked and horizontal lines come back
-click-box 300 24
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 2.5 seconds|16@80:Time take to close : 0.5 seconds
-click-box 300 40
-click-box 300 56
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Proximity door|16@32:Door is locked|16@48:Door is horizontal (ie. in floor/ceiling)|16@64:Time take to open : 2.5 seconds|16@80:Time take to close : 0.5 seconds
-key Esc
+# (Drake 2026-11-24: the Door edits in a FORM now, strategy_forms_modules.cpp DoorRows: the drop-downs write as they are picked, the times at Ok; a time out of its range is
+# refused with its range said and the form comes back as it was left)
+expect-dialog gARAGDOR : Door
+expect-field-has dialogcombos Proximity_door
+# a switch activated door: its Open / Closed in place of Locked and Way
+click-combo 1
+click-combo-row Switch activated door ('lift door')
+expect-field-has dialogcombos Closed
+click-combo 2
+click-combo-row Open
+expect-field-has dialogcombos Open
+# a time is typed in seconds and kept in tenths; 30 is refused (above 25.5)
+form-field 1 2.5
+form-field 2 30
+click-button Ok
+expect-dialog-kind message
+click-button Ok
+expect-dialog gARAGDOR : Door
+form-field 2 0.5
+# back to a proximity door: the starts-open bit stays, Locked and Way come back
+click-combo 1
+click-combo-row Proximity door
+expect-field-has dialogcombos Door_is_not_locked
+click-combo 2
+click-combo-row Door is locked
+click-combo 3
+click-combo-row Door is horizontal (ie. in floor/ceiling)
+expect-field-has dialogcombos Door_is_horizontal
+click-button Ok
+expect-no-dialog
 
 # ---- SWITCH DOOR (59; FUN_0052d060, vtable 0x5af41c +0x14; constructor FUN_0052d020; reassessstrategy-data-kinds.md S-K59-0..3). A new Switch Door's door is the NULL ID (DAT_00914930/34, a .bss pair nothing writes): "None".
 # In AvP the view is the title, "Associated door :" (16, 16) and the door's name or "None" (80, 32) only: the "Switch Operated" box and the two time lines are drawn only for game 1 (FUN_0057aa00(1) at 0x52d12d; DAT_00915104 is
@@ -130,12 +131,13 @@ click-button Yes
 expect-dialog Select Strategy
 click-button Switch_Door
 wait 300
-expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:None
-# y 48 and below are not lines in AvP: a click there changes nothing
-click-box 300 56
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Switch door|16@16:Associated door :|80@32:None
+# (Drake 2026-11-25) its edit is a FORM now (strategy_forms_modules.cpp): the page's one line as one row, the Associated door, (none) for the null ID
+expect-dialog gARAGDOR : Switch door
+expect-field-has strategyform Associated door
+expect-dialog-text (none)
 key Esc
+wait 300
+expect-no-dialog
 
 # ---- SELF DESTRUCT (78; FUN_00535cc0, vtable 0x5af790 +0x14, from the listing; constructor FUN_00535c90) and MESSAGE (73; FUN_005336c0, vtable 0x5af658 +0x14, from the listing): kinds of a VIRTUAL object (Create Virtual Object > Here asks the name in a text dialog)
 item 0x39
@@ -155,23 +157,24 @@ item 0x8
 expect-dialog Select Strategy
 click-button Self_Destruct
 wait 300
-expect-field strategyview 200@0:VOSD : Self Destruct|16@16:Time : 60
-click-box 300 24
-expect-dialog Time until destruction (seconds)
+# (2026-11-24, Dietrich: a Self Destruct edits in a form, the owner's; it opens where the view did, after the assign too)
+expect-dialog VOSD : Self Destruct
 expect-dialog-text 60
-key Back
-key Back
-type 125
-key Enter
+form-field 1 125
+click-button Ok
+expect-no-dialog
 wait 300
-expect-field strategyview 200@0:VOSD : Self Destruct|16@16:Time : 125
-# a negative time is kept as 0
-click-box 300 24
-key Back
-key Back
-key Back
-type -5
-key Enter
+item 0x7
 wait 300
-expect-field strategyview 200@0:VOSD : Self Destruct|16@16:Time : 0
+expect-dialog VOSD : Self Destruct
+expect-dialog-text 125
+# NAMED DIFFERENCE (the forms' rule for every number): a negative time is refused with its range said, and the form comes back; inteng's box kept it as 0
+form-field 1 -5
+click-button Ok
+expect-dialog-kind message
+expect-dialog Time (seconds) must be a number (0 to 32767)
+click-button Ok
+expect-dialog VOSD : Self Destruct
+expect-dialog-text -5
 key Esc
+expect-no-dialog

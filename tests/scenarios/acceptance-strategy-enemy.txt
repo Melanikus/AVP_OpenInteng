@@ -23,38 +23,44 @@ expect-dialog Select Strategy
 expect-field dialogbuttons Enemy 222 184 200 16|Cancel 454 539 100 16
 click-button Enemy
 wait 400
-expect-field strategyview 200@0:marine20 : Enemy|100@460:E : Edit extra message data for target|16@16:Mission : Wait then wander (default)|16@32:Turn Death Target On|16@48:Death Target : None
+# THE FORM (Frost 2026-11-24, the owner's forms for alpha.7: "no more text that can be clicked, our pretty drop downs"): the view's lines are the form's rows now
+# (strategy_forms_paths.cpp EnemyRows): Mission (a drop-down), Path (a drop-down, a path follower's only), the death target's on / off (a check box) and the Death Target
+# (a drop-down, "(none)" for none). A new enemy's death target is on, as the page said ("Turn Death Target On")
+expect-dialog marine20 : Enemy
+expect-dialog-text Wait then wander|(none)
+expect-dialog-checks on
 picture 1
-# S-K69-2: the Mission line: the marine's six buttons; Path follower
-click-box 300 24
-expect-dialog Select Mission Type
-expect-field dialogbuttons Wait_then_wander 324 244 200 16|Wander 324 264 200 16|Guard 324 284 200 16|Local_Guard 324 304 200 16|Noncombatant 324 324 200 16|Path_follower 324 344 200 16|Cancel 504 474 50 16
+# S-K69-2: the Mission: the marine's six; Path follower
+click-combo 1
+expect-dialog-combo-rows Wait then wander,Wander,Guard,Local Guard,Noncombatant,Path follower
 picture 2
-click-button Path_follower
-expect-no-dialog
+click-combo-row Path follower
 wait 300
-expect-field strategyview 200@0:marine20 : Enemy|100@460:E : Edit extra message data for target|16@16:Mission : Path follower|16@32:Path - 0  smart01|16@48:Turn Death Target On|16@64:Death Target : None
-# S-K69-3: the path line: "Select Path", the level's nine paths; the second, genpath01 (path 1)
-click-box 300 40
-expect-dialog Select Path
-expect-dialog-rows 0  smart01|1  genpath01|2  genpath02|3  minipath01|4  nasty01|5  nasty02|6  iso01|7  iso02|8  iso03
+expect-dialog-text Path follower|0  smart01|(none)
+# S-K69-3: the Path: the level's nine paths; the second, genpath01 (path 1)
+click-combo 2
+expect-dialog-combo-rows 0  smart01,1  genpath01,2  genpath02,3  minipath01,4  nasty01,5  nasty02,6  iso01,7  iso02,8  iso03
 picture 3
-click-row 2
-expect-no-dialog
+click-combo-row 1  genpath01
 wait 300
-# S-K69-4: the request line (row 3 now) turns the death target off
-click-box 300 56
+# S-K69-4: the request's check box turns the death target off
+click-check 1
 wait 300
-expect-field strategyview 200@0:marine20 : Enemy|100@460:E : Edit extra message data for target|16@16:Mission : Path follower|16@32:Path - 1  genpath01|16@48:Turn Death Target Off|16@64:Death Target : None
+expect-dialog-checks off
+expect-dialog-text Path follower|1  genpath01|(none)
 picture 4
 key Esc
+expect-no-dialog
 wait 400
-# Edit Strategy (the pop-up's third row) opens the view again with what was stored
+# Edit Strategy (the pop-up's third row) opens the form again with what was stored
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field strategyview 200@0:marine20 : Enemy|100@460:E : Edit extra message data for target|16@16:Mission : Path follower|16@32:Path - 1  genpath01|16@48:Turn Death Target Off|16@64:Death Target : None
+expect-dialog marine20 : Enemy
+expect-dialog-text Path follower|1  genpath01|(none)
+expect-dialog-checks off
 key Esc
+expect-no-dialog
 wait 400
 # ---- the GENERATOR generator02: chosen by its name (click-choice-is pages on until the row shows)
 click-bar Find Object
@@ -71,24 +77,24 @@ expect-dialog Select Strategy
 expect-field dialogbuttons Generator 222 184 200 16|Cancel 454 539 100 16
 click-button Generator
 wait 400
-expect-field strategyview 200@0:generator02 : Generator|16@16:Mission : Hunt (default)
+# THE FORM (Frost 2026-11-24, the owner's forms for alpha.7): the generator's Edit opens its form (strategy_forms_paths.cpp GeneratorRows): Mission, then Path for a path follower
+expect-dialog generator02 : Generator
+expect-dialog-text Hunt
 picture 5
 # S-K79-2: Hunt / Path follower
-click-box 300 24
-expect-dialog Select Mission Type
-click-button Path_follower
-expect-no-dialog
+click-combo 1
+expect-dialog-combo-rows Hunt,Path follower
+click-combo-row Path follower
 wait 300
-expect-field strategyview 200@0:generator02 : Generator|16@16:Mission : Path follower|16@32:Path - 0  smart01
-# S-K79-3: Select Path, the third path
-click-box 300 40
-expect-dialog Select Path
-click-row 3
-expect-no-dialog
+expect-dialog-text Path follower|0  smart01
+# S-K79-3: Select Path's rows, the third path
+click-combo 2
+click-combo-row 2  genpath02
 wait 300
-expect-field strategyview 200@0:generator02 : Generator|16@16:Mission : Path follower|16@32:Path - 2  genpath02
+expect-dialog-text Path follower|2  genpath02
 picture 6
 key Esc
+expect-no-dialog
 wait 400
 # Delete Strategy (the pop-up's fifth row): Yes; Edit Strategy then finds none
 click-win 500 300 right

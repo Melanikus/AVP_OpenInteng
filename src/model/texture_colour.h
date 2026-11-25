@@ -2,7 +2,7 @@
 // is in, the colour word a pick gives a plain polygon, and the colour a cell is drawn in. Written 2026-11-18 by Melanikus (Dietrich) for AVP_OpenInteng (TM-B). AVP_OpenInteng's own
 // code: see License.txt, "AVP_OpenInteng's own code".
 //
-// Inteng's colour table (0x5d77c8, 256 x 3 bytes, each 0..63: read from the user's inteng.exe at run time, never copied here) is drawn as a grid of cells screenW / 16 by screenH / 16
+// Inteng's colour table (0x5d77c8, 256 x 3 bytes, each 0..63: in the editor itself, host/texture_colour_table.h, copied byte for byte from inteng.exe) is drawn as a grid of cells screenW / 16 by screenH / 16
 // (toward zero), cell i at column i % 16, row i / 16 (0x56062c-0x5607ec); a left press inside the grid takes cell x / cellW + (y / cellH) x 16, held at 255 (0x560879-0x5608c6); the word
 // is ((i << 6 | r) << 16 | g << 8 | b) x 4: the cell's number in the top byte, each channel times 4 below it (0x5608d5-0x5608fd).
 #pragma once

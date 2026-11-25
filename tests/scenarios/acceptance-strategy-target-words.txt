@@ -17,5 +17,6 @@ expect-no-dialog
 key E
 wait 400
 picture 1
-expect-field-has strategyview :m6 - Sound|
-expect-field-has strategyview :steam7 - Particle Generator
+# (its form since 11-24, strategy_forms.h: each target line's drop-down shows the words the page showed)
+expect-dialog sndoff : Multiple Target Switch
+expect-field-has dialogtext |m6 - Sound|steam7 - Particle Generator

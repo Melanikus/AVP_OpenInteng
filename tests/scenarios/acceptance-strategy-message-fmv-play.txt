@@ -29,8 +29,8 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 16@32:String :47
-click-box 300 40
+expect-field-has dialogtext |47
+click-button Play...
 expect-dialog-kind form
 expect-field-has dialogbuttons Play
 expect-field-empty fmvpreview
@@ -72,9 +72,9 @@ click-button Play
 wait 600
 expect-field-has fmvpreview message167.smk frame
 click-button Cancel
-expect-no-dialog
+expect-dialog message13 : Message
 wait 300
 expect-field-empty fmvpreview
-expect-field-has strategyview 16@32:String :47
+expect-field-has dialogtext |47
 key Esc
 wait 400

@@ -5,8 +5,6 @@
 # HOW THE PICTURE LINES READ: a picture is taken before the action (picture N); the action takes its own picture after it; expect-pixels-changed compares that newest picture with the one before. In a hidden run only the "picture" (the 3D view) and "panels" (the editor's overlays and text) pictures exist.
 # Run: AvP-docs\tools\drake\drive-scenario-t6.sh <tree> <this file> lightacc verify_lightkeys
 # EXPECTED TODAY: RED where marked in the commit that fixes it. Finished = every line ok.
-# the light markers are inteng's built-in shape 2, read from HIS inteng.exe (1000707): this run reads it from his Tools folder, as a run on his machine does
-#ini IntengTools=C:\Program Files (x86)\Fox\Aliens versus Predator\Tools
 
 screen Construction
 level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF

@@ -13,7 +13,15 @@
 //     Above (0x3a): y = y + ymin - 60000;  Below (0x3b): y = y + ymax + 60000;  Left (0x3c): x = x - 60000 + xmin;  Right (0x3d): x = x + 60000 + xmax;
 //     Front (0x3e): z = z + 60000 + zmax;  Behind (0x3f): z = z - 60000 + zmin,   where min / max are the object's extents (record +0x104..+0x118), here the shape's own min / max points.
 //   NAMED: the extents are read as the shape's own min and max (the record's extents are read from them by the game's display block: not read); the object picked for the six moves is the
-//   editor's selected object; Destroy Virtual Object (0x40) is not here (a virtual object is not one of the editor's selectable objects yet).
+//   editor's selected object.
+//   INTENG'S UNITS (Drake 2026-11-24, the owner's bug on alpha.6, MEASURED): inteng works in its memory units, the file's x 100 x the level's scale, so its divisor [0x607bd8] is 100 x the
+//   level's scale, its 60000 is 600 of the file's units and its size 100000 is 1000. Stock Derelict's 45 virtual objects all have size 1000, and the ones inteng stacked step EXACTLY 1100 file
+//   units on one axis ("V timer 3 airlock 1" y -106, "V timer2 airlock 1" 994, "TIMER airlock1" 2094): 600 plus shape 13's 500. Before, ours divided by the level's scale alone, so each of the
+//   six moves went 60000 file units (60 m, not 0.6) and every new one had size 100000. So the place, the extents and the 60000 are all in inteng's memory units here, and the divisor is
+//   100 x the level's scale (kIntengUnitsPerFileUnit).
+//   A VIRTUAL OBJECT SELECTED (the owner's way to "stack them, spawn them side by side or up"): inteng's record for it has a display block of the editor's own shape 13 (FUN_005396d0 0x539b5c,
+//   FUN_00539ee0(0xd, x, y, z)), so the six moves step from its VOBJPROP place and shape 13's extents (strategy_screen.cpp, editor_icons.h EditorIcon_Extents). Before, only a placed object
+//   or a module could be stepped from (VirtualObject_Geometry), and a virtual object selected gave "select an object that has a shape first".
 #pragma once
 
 #include <stddef.h>
@@ -45,8 +53,10 @@ namespace host
 	char const *VirtualObjectWords(VirtualObjectResult result);
 
 	size_t const kVirtualObjectMostName = 60;
-	int32_t const kVirtualObjectSize = 100000;     // the size inteng passes (game units)
-	int32_t const kVirtualObjectOffset = 60000;    // how far the six moves go
+	int32_t const kVirtualObjectSize = 100000;     // the size inteng passes (its memory units: 1000 in the file at the scale 1)
+	int32_t const kVirtualObjectOffset = 60000;    // how far the six moves go past the extents (inteng's memory units: 600 in the file at the scale 1)
+	int32_t const kIntengUnitsPerFileUnit = 100;   // inteng's memory units are the file's x 100 x the level's scale (above)
+	int32_t const kVirtualObjectShape = 13;        // the editor's own shape a virtual object's record shows (editor_icons.h)
 
 	// The first command of the seven, and the last
 	int32_t const kVirtualHere = 0x39;
@@ -55,8 +65,8 @@ namespace host
 	// The 8-byte ID of a virtual object of that name (md5 of "VirtOb" + name, first 7 bytes, the 8th 0)
 	void VirtualObject_Id(char const *name, uint8_t *id);
 
-	// Where command 0x3a..0x3f puts the new object (game units): objectPlace = the selected object's place, min and max = its shape's extents. False for command 0x39 or a number
-	// that is not one of the six (the place for Here is the view's).
+	// Where command 0x3a..0x3f puts the new object (inteng's memory units): objectPlace = the selected object's place, min and max = its extents, all in those units. False for command 0x39
+	// or a number that is not one of the six (the place for Here is the view's).
 	bool VirtualObject_Moved(int32_t command, int64_t const objectPlace[3], int64_t const min[3], int64_t const max[3], int64_t out[3]);
 
 	// THE LEVEL'S VIRTUAL OBJECTS (every VIOBJECT of SPECLOBJ that holds a VOBJPROP, in file order) and DESTROY (0x40, FUN_00524e90 case 0x40, vtable +0x14 = FUN_00539e00: the VIOBJECT chunk with
@@ -101,6 +111,7 @@ namespace host
 	// The place (file units) and the shape's min and max points of the object with that ID: false when there is no such object or it has no shape
 	bool VirtualObject_Geometry(File_Chunk *level, uint8_t const *id, int64_t place[3], int64_t min[3], int64_t max[3]);
 
-	// Makes the virtual object: place in game units, divided by scale (the level's, above 0) and cut to whole numbers, size too. name 1 to kVirtualObjectMostName plain letters.
+	// Makes the virtual object: place in inteng's memory units, divided by scale (inteng's divisor: kIntengUnitsPerFileUnit x the level's scale, above 0) and cut to whole numbers, the size
+	// (kVirtualObjectSize) too. name 1 to kVirtualObjectMostName plain letters.
 	VirtualObjectResult VirtualObject_Create(OpenLevelFile *file, char const *name, int64_t const place[3], double scale);
 }

@@ -34,13 +34,13 @@ namespace host
 		return (subMode == 2 || subMode == 3) && (TextureMapKeyCommand(subMode, key, false, false, state) != 0 || (subMode == 2 && (key == 'M' || key == 'X' || key == 'B')));
 	}
 
-	size_t TextureMapKeys_CameraKeysLost(KeyLayout layout, bool windowOn, uint8_t *keys, size_t room)
+	size_t TextureMapKeys_CameraKeysLost(bool windowOn, uint8_t *keys, size_t room)
 	{
 		size_t count = 0;
 
 		for (int move = 0; move < (int)EditorMove::Count; move++)
 		{
-			uint8_t const key = EditorActions_MoveKey(layout, (EditorMove)move);
+			uint8_t const key = EditorActions_MoveKey((EditorMove)move);
 
 			if (key != 0 && TextureMapKeys_Own(key, windowOn))
 			{

@@ -6,6 +6,8 @@
 # 0x5f04a0), the view again ("Flag 0 : 1 targets"), File > Save a copy. The repair: the dead target goes and dropship ken holds its 60 stock bytes again.
 # RED without the repair: dropship ken keeps its 76 bytes (verify_strategy on the made level itself fails "size 60").
 make-level C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/make_strategy_level.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {exedir}Invasion-hierarchy.made.rif "dropship ken" insert 52 16 word 32 2 noidat 52 0x13572468 0x2468ace3 word 60 1 word 64 3
+# THE FORMS (Frost 2026-11-24, the owner's forms for alpha.7): Edit Strategy opens the Track / Hierarchy form now (strategy_forms_paths.cpp EffectsRow): the page's
+# "Point 3 : 2 targets" is the form's "Point 3" line and a target line under it per target (each with its "On" box), then that point's "add a target"
 start-args {exedir}Invasion-hierarchy.made.rif
 pictures on
 state
@@ -22,8 +24,8 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 200@0:dropship ken : Hierarchy
-expect-field-has strategyview 16@16:Key Frame Flag Effects :|32@32:Flag 0 : 2 targets
+expect-dialog dropship ken : Hierarchy
+expect-field-has strategyform Key Frame Flag Effects|Flag 0|On|On|add a target|add one
 picture 1
 key Esc
 wait 300
@@ -46,7 +48,7 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 16@16:Key Frame Flag Effects :|32@32:Flag 0 : 1 targets
+expect-field-has strategyform Key Frame Flag Effects|Flag 0|On|add a target|add one
 picture 3
 key Esc
 wait 300

@@ -200,7 +200,7 @@ static void TestTheMenusUnderTheClick()
 {
 	puts("A click lands on the title or item drawn under it:");
 
-	Check(EditorActions_MakeMenus(kEditorActions, kEditorActionCount, KeyLayout::Classic, menus, (size_t)EditorMenu::Count, items,
+	Check(EditorActions_MakeMenus(kEditorActions, kEditorActionCount, menus, (size_t)EditorMenu::Count, items,
 		sizeof(items) / sizeof(items[0]), words, sizeof(words) / sizeof(words[0])), "(the editor's own menus are made, with the Classic keys)");
 
 	Stretch const stretches[] =

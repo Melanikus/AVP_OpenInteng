@@ -1,0 +1,15 @@
+# ACCEPTANCE (red first; Frost 2026-11-25, the owner on the WASD card: "WASD mode is off", and "Integ is perfect with keypad+mouse"): the Modern (WASD) key layout is gone,
+# its keys freed and its code removed; the editor has inteng's keypad + mouse keys only (keys.txt, "Movement"). An AVP_OpenInteng.ini that still says KeyLayout=ModernWASD
+# (a setting from outside the code: a mapper's old file) changes nothing: A moves FORWARD, inteng's "A Move forwards", not to the left as WASD's A did.
+# RED before: the .ini's ModernWASD made A a strafe to the left (along x), so the way A went is not along z.
+#ini KeyLayout=ModernWASD
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+pictures on
+state
+camera -7764 1102 10527 0
+camera-note start
+picture 1
+hold A 400
+camera-note afterA
+picture 2
+expect-travel-along start afterA z

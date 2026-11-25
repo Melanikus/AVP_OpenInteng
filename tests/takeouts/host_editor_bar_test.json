@@ -28,7 +28,7 @@
 		},
 		{
 			"name": "[bar] Keys says nothing",
-			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "\t\t\thost->statusWords = EditorActions_KeysWords(host->layout);", "to": "" } ]
+			"changes": [ { "file": "src/host/editor_bar.cpp", "from": "\t\t\thost->statusWords = EditorActions_KeysWords();", "to": "" } ]
 		},
 		{
 			"name": "[bar] the widest bar is only the last one",
