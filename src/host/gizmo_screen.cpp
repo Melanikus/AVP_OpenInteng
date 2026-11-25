@@ -102,6 +102,14 @@ namespace
 	bool readDone = false;
 	host::MovablePose readPose;
 
+	// Frame's last arguments, for AfterEyes (the same frame made again with its own camera), and the arrow's worst measured error in the last 2 seconds (gizmolag)
+	int32_t frameWidth = 0, frameHeight = 0;
+	char const *frameScreen = nullptr;
+	bool frameCalled = false;
+	double lagMost = 0.0;
+	DWORD lagMostAt = 0;                    // when lagMost was measured (GetTickCount)
+	DWORD const kLagWindowMs = 2000;        // a worst older than this is forgotten
+
 	// the drag
 	bool dragging = false;
 	bool flying = false;          // the live copy shows the object as it is dragged (LevelView_FlyBegin)
@@ -336,10 +344,58 @@ void GizmoScreen_UseRefSource(char const *screen, GizmoRefSource source, bool so
 	Sources().push_back(SourceRow{ screen, source, sourceFirst });
 }
 
+void GizmoScreen_AfterEyes()
+{
+	// the frame's camera is in now (LevelView_SetAfterEyes): the gizmo made again from it, with what Frame was given this frame
+	if (frameCalled)
+	{
+		GizmoScreen_Frame(frameWidth, frameHeight, frameScreen);
+	}
+}
+
+void GizmoScreen_AfterDraw()
+{
+	// the camera the frame was drawn from: an arrow kGizmoArrowPixels long at the centre's distance, when the gizmo was made from it
+	host::PickCamera drawn;
+	int32_t centre[3];
+
+	if (!shown || dragging || !PickGame_Camera(frameWidth, frameHeight, &drawn) || !(frame.length > 0.0))
+	{
+		return;
+	}
+
+	for (int i = 0; i < 3; i++)
+	{
+		centre[i] = (int32_t)frame.centre[i];
+	}
+
+	double x = 0.0, y = 0.0, ahead = 0.0;
+
+	if (!PickRay_Project(drawn, centre, &x, &y, &ahead) || !(ahead > 1.0) || !host::PickRay_ScaleUsable(drawn.xScale) || drawn.viewWidth <= 0)
+	{
+		return;
+	}
+
+	double const perPixel = ahead / ((double)drawn.xScale * (double)drawn.viewWidth / 2.0);
+	double const off = fabs(frame.length / perPixel - host::kGizmoArrowPixels);
+	DWORD const now = GetTickCount();
+
+	// the worst of the last 2 seconds, kept by TIME and not by state line: a held key's frames come before the hold's own state line, and a check after it asks for a new one
+	if (now - lagMostAt > kLagWindowMs || off >= lagMost)
+	{
+		lagMost = off;
+		lagMostAt = now;
+	}
+}
+
 void GizmoScreen_Frame(int32_t viewWidth, int32_t viewHeight, char const *screen)
 {
 	static std::vector<host::TrackLine> const none;
 
+	frameWidth = viewWidth;
+	frameHeight = viewHeight;
+	frameScreen = screen;
+	frameCalled = true;
 	onGizmoScreen = GizmoScreen(screen);
 
 	if (!Usable(screen))
@@ -697,4 +753,9 @@ void GizmoScreen_StateLine()
 	}
 
 	StateLine_Add("gizmopoints", points);
+
+	// the most an arrow was off its kGizmoArrowPixels, in tenths of a pixel, in the last 2 seconds, measured with each frame's own camera (GizmoScreen_AfterDraw)
+	double const lagShown = GetTickCount() - lagMostAt > kLagWindowMs ? 0.0 : lagMost;
+
+	StateLine_Add("gizmolag", "tenths " + std::to_string((long long)floor(lagShown * 10.0 + 0.5)));
 }

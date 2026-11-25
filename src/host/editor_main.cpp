@@ -16630,7 +16630,10 @@ int main(int, char **)
 		char const *const savedTo = askedPicture ? askedPicture : (screenshotTo ? screenshotTo : shotTo);
 		FlyCamera const drawCamera = PlotPreviewView_Frame(camera, 0, 0, windowWidth, windowHeight);   // THE PLOT'S PREVIEW (plot_preview_view.h): its camera while the plot runs
 		PlotPreviewState_Line();
+		// the gizmo made again once this frame's camera is in, so it is drawn with the camera it was made from (gizmo_screen.h GizmoScreen_AfterEyes; the owner: it "flickers alot")
+		LevelView_SetAfterEyes([](void *) { GizmoScreen_AfterEyes(); }, nullptr);
 		bool const drawn = LevelView_Draw(drawCamera, savedTo, AddThePanels, &framePanels);
+		GizmoScreen_AfterDraw();   // how far its arrow is off its length on the screen, with the camera the frame was drawn from (gizmolag)
 		StateLine_Add("plotmessage", AutoPlotCommand_MessageShown().empty() ? std::string("off") : AutoPlotCommand_MessageShown());   // the auto-plot's start message this frame drew
 		StateLine_Add("plotmessagebox", AutoPlotCommand_MessageBox().empty() ? std::string("off") : AutoPlotCommand_MessageBox());   // and its black box
 		StateLine_Add("allstockmaps", host::AllStockMaps_StateWords());   // All stock maps: busy or idle, level N of M, file, stage, the last verdict, the worst frame while plotting (all_stock_maps.h)

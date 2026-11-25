@@ -111,6 +111,11 @@ bool LevelView_Draw(const FlyCamera &camera, const char *savePictureTo, void (*a
 // panels (the names, the selection's frame, the scroll bar), in the picture and the frame shown. nullptr takes it away. One at a time: a second replaces the first.
 void LevelView_SetPanes(void (*draw)(void *context), void *context);
 
+// AFTER THE EYES (Drake 2026-11-24, the owner: the gizmo "flickers alot/doesn't follow rest of map" while the camera moves): eyes, when given, is called inside LevelView_Draw
+// right after the main view's camera is this frame's (AvpShowViews: Global_VDB_Ptr) and BEFORE the frame's world lines are drawn, so lines made from the camera (the
+// gizmo's, sized to the screen) are made from the camera they are drawn with, not the last frame's. nullptr takes it away. One at a time.
+void LevelView_SetAfterEyes(void (*eyes)(void *context), void *context);
+
 // Which way the camera faced in the frame last drawn, exactly as the game's renderer used it (view.cpp's UpdateCamera, the look up or
 // down included): its forward and its right, each a direction of length 65536 (the game's ONE_FIXED), in the game's world axes (x to the
 // right, y down, z forward). The game keeps an object's forward in its matrix's third row and its right in the first (dynamics.cpp:1169);
