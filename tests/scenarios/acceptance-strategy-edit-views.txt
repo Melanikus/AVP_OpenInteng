@@ -87,41 +87,36 @@ item 0x8
 expect-dialog Select Strategy
 click-button Door
 wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
-# the first line makes it a switch activated door: the lines are the switch door's
-click-box 300 24
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Switch activated door ('lift door')|16@32:Closed|16@48:Time take to open : 1.0 seconds|16@64:Time take to close : 0.5 seconds
-click-box 300 40
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 1.0 seconds|16@64:Time take to close : 0.5 seconds
-# a time is typed in seconds (the dialog starts with the one it has) and kept in tenths
-click-box 300 56
-expect-dialog Time take to open (0.1 - 25 sec)
-expect-dialog-text 1
-key Back
-type 2.5
-key Enter
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.5 seconds
-# below 0.1 or from 25.5 up is not taken
-click-box 300 72
-key Back
-key Back
-key Back
-type 30
-key Enter
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.5 seconds
-# back to a proximity door: the "starts open" bit stays, the locked and horizontal lines come back
-click-box 300 24
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 2.5 seconds|16@80:Time take to close : 0.5 seconds
-click-box 300 40
-click-box 300 56
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Door|16@16:Proximity door|16@32:Door is locked|16@48:Door is horizontal (ie. in floor/ceiling)|16@64:Time take to open : 2.5 seconds|16@80:Time take to close : 0.5 seconds
-key Esc
+# (Drake 2026-11-24: the Door edits in a FORM now, strategy_forms_modules.cpp DoorRows: the drop-downs write as they are picked, the times at Ok; a time out of its range is
+# refused with its range said and the form comes back as it was left)
+expect-dialog gARAGDOR : Door
+expect-field-has dialogcombos Proximity_door
+# a switch activated door: its Open / Closed in place of Locked and Way
+click-combo 1
+click-combo-row Switch activated door ('lift door')
+expect-field-has dialogcombos Closed
+click-combo 2
+click-combo-row Open
+expect-field-has dialogcombos Open
+# a time is typed in seconds and kept in tenths; 30 is refused (above 25.5)
+form-field 1 2.5
+form-field 2 30
+click-button Ok
+expect-dialog-kind message
+click-button Ok
+expect-dialog gARAGDOR : Door
+form-field 2 0.5
+# back to a proximity door: the starts-open bit stays, Locked and Way come back
+click-combo 1
+click-combo-row Proximity door
+expect-field-has dialogcombos Door_is_not_locked
+click-combo 2
+click-combo-row Door is locked
+click-combo 3
+click-combo-row Door is horizontal (ie. in floor/ceiling)
+expect-field-has dialogcombos Door_is_horizontal
+click-button Ok
+expect-no-dialog
 
 # ---- SWITCH DOOR (59; FUN_0052d060, vtable 0x5af41c +0x14; constructor FUN_0052d020; reassessstrategy-data-kinds.md S-K59-0..3). A new Switch Door's door is the NULL ID (DAT_00914930/34, a .bss pair nothing writes): "None".
 # In AvP the view is the title, "Associated door :" (16, 16) and the door's name or "None" (80, 32) only: the "Switch Operated" box and the two time lines are drawn only for game 1 (FUN_0057aa00(1) at 0x52d12d; DAT_00915104 is

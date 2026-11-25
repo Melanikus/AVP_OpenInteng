@@ -72,12 +72,13 @@ key Esc
 click-win 120 500 right
 click-popup 3
 expect-status Edit Strategy
-expect-pixels-changed panels 0 30 300 300 0.02
+# (Drake 2026-11-24: the Door edits in a FORM now, strategy_forms_modules.cpp DoorRows: the dialog over the level, where the page was drawn in the panels)
+expect-dialog APCmod : Door
 wait 300
-expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
+expect-field-has dialogcombos Proximity_door
 picture 15
 key Esc
-expect-pixels-changed panels 0 30 300 300 0.02
+expect-no-dialog
 picture 16
 click-win 120 500
 expect-selected 1

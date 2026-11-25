@@ -23,66 +23,51 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Door
 wait 400
-expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is not locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
+# (Drake 2026-11-24: the Door edits in a FORM now, strategy_forms_modules.cpp DoorRows: the drop-downs write as they are picked, the times at Ok; a time out of its range is refused
+# with its range said and the form comes back as it was left, where the page took it as nothing)
+expect-dialog APCmod : Door
 picture 2
-# the black screen: the middle of the window, where the level was, is black
-expect-colour picture 300 250 500 300 000000 0.97 8
-# a click on "Door is not locked" (y 32-47) flips bit 1 (0x52cd9b): "Door is locked"
-click-box 300 40
-wait 300
-expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is locked|16@48:Door is vertical (standard)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
-# a click on "Door is vertical" (y 48-63) flips bit 0x10 (0x52cdd7): horizontal
-click-box 300 56
-wait 300
-expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is locked|16@48:Door is horizontal (ie. in floor/ceiling)|16@64:Time take to open : 1.0 seconds|16@80:Time take to close : 0.5 seconds
-# a click on the first line (y 16-31) makes it a switch activated door (bit 2 out, bit 8 in: 0x52ce53): its lines are "Switch activated door ('lift door')", "Closed", and the times one row higher
-click-box 300 24
-wait 300
-expect-field strategyview 200@0:APCmod : Door|16@16:Switch activated door ('lift door')|16@32:Closed|16@48:Time take to open : 1.0 seconds|16@64:Time take to close : 0.5 seconds
-# "Closed" (y 32-47) flips bit 4: "Open"
-click-box 300 40
-wait 300
-expect-field strategyview 200@0:APCmod : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 1.0 seconds|16@64:Time take to close : 0.5 seconds
-# the open time (now at y 48): the number dialog "Time take to open (0.1 - 25 sec)" holding 1 (FUN_004747f0: "%f" without its trailing zeros); 2.5 is taken as the byte 25 (0x52ceb2-0x52cee2)
-click-box 300 56
-expect-dialog Time take to open (0.1 - 25 sec)
+expect-field-has dialogcombos Proximity_door
+expect-field-has dialogcombos Door_is_not_locked
+click-combo 2
+click-combo-row Door is locked
+click-combo 3
+click-combo-row Door is horizontal (ie. in floor/ceiling)
+# a switch activated door: Open / Closed in place of Locked and Way
+click-combo 1
+click-combo-row Switch activated door ('lift door')
+expect-field-has dialogcombos Closed
+click-combo 2
+click-combo-row Open
+expect-field-has dialogcombos Open
 picture 3
-key Back
-type 2.5
-key Enter
-expect-no-dialog
-wait 300
-expect-field strategyview 200@0:APCmod : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.5 seconds
-# 30 seconds is refused (x 10 is not below 255.0): the time stays
-click-box 300 72
-expect-dialog Time take to close (0.1 - 25 sec)
-key Back
-key Back
-key Back
-type 30
-key Enter
-expect-no-dialog
-wait 300
-expect-field strategyview 200@0:APCmod : Door|16@16:Switch activated door ('lift door')|16@32:Open|16@48:Time take to open : 2.5 seconds|16@64:Time take to close : 0.5 seconds
+# the open time 2.5 is taken; 30 seconds for the close is refused (above 25.5)
+form-field 1 2.5
+form-field 2 30
+click-button Ok
+expect-dialog-kind message
+click-button Ok
+expect-dialog APCmod : Door
+form-field 2 0.5
 picture 4
-# the first line again: back to a proximity door (bit 8 out, bit 2 in), its lock and horizontal bits kept
-click-box 300 24
-wait 300
-expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is locked|16@48:Door is horizontal (ie. in floor/ceiling)|16@64:Time take to open : 2.5 seconds|16@80:Time take to close : 0.5 seconds
-# Escape ends the view (0x52ce0d): the level is drawn again and the object is the current one
-key Esc
-expect-pixels-changed picture 300 250 500 300 0.3
+# back to a proximity door: its lock and horizontal bits kept
+click-combo 1
+click-combo-row Proximity door
+expect-field-has dialogcombos Door_is_locked
+expect-field-has dialogcombos Door_is_horizontal
+click-button Ok
+expect-no-dialog
 wait 400
 picture 5
 expect-selected 1
-# Edit Strategy on it (right-click, the pop-up's third row) shows the same view with what was set; the RIGHT button ends it as well (0x52ce16)
+# Edit Strategy on it again shows the form with what was set; Escape ends it
 click-win 120 500 right
 click-popup 3
 wait 400
-expect-field strategyview 200@0:APCmod : Door|16@16:Proximity door|16@32:Door is locked|16@48:Door is horizontal (ie. in floor/ceiling)|16@64:Time take to open : 2.5 seconds|16@80:Time take to close : 0.5 seconds
-expect-colour picture 300 250 500 300 000000 0.97 8
-click-win 500 400 right
-expect-pixels-changed picture 300 250 500 300 0.3
+expect-dialog APCmod : Door
+expect-field-has dialogcombos Door_is_locked
+key Esc
+expect-no-dialog
 wait 400
 picture 6
 # (no pop-up is opened by that right press: the picture shows none)

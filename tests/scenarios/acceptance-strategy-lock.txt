@@ -18,14 +18,17 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview medoor01 : Door|16@16:Proximity door|16@32:Door is locked
+# (Drake 2026-11-24: the Door edits in a FORM now, strategy_forms_modules.cpp DoorRows: its drop-downs write as they are picked, its times at Ok)
+expect-dialog medoor01 : Door
+expect-field-has dialogcombos Door_is_locked
 picture 1
-# the lock line (y 32, clicked at window y 40): the door starts unlocked
-click-box 300 40
-wait 300
-expect-field-has strategyview 16@32:Door is not locked
+# the lock: the door starts unlocked
+click-combo 2
+click-combo-row Door is not locked
+expect-field-has dialogcombos Door_is_not_locked
 picture 2
-key Esc
+click-button Ok
+expect-no-dialog
 wait 300
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF {copy} medoor01 DoorFlags 0x2
