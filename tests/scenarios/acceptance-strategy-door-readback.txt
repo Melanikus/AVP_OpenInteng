@@ -23,6 +23,8 @@ wait 400
 expect-dialog medoor01 : Door
 expect-field-has dialogcombos Proximity_door
 expect-field-has dialogcombos Door_is_locked
+# the times in seconds, as the page showed them (TimeToOpen 10 and TimeToClose 5 tenths)
+expect-dialog-text Proximity door|Door is locked|Door is vertical (standard)|1|0.5
 picture 1
 click-combo 3
 click-combo-row Door is horizontal (ie. in floor/ceiling)
@@ -36,13 +38,14 @@ click-button Ok
 expect-no-dialog
 wait 300
 
-# opened again (DEBT: the boxes' time words are checked by the read-back only: the builder shows a time less its 0.01 nudge, "0.999" for 1.0, until
-# Vasquez's FormNumberWords shows value / factor; then expect-dialog-text 1|0.5 and 2.5|0.7 go back in): the kind made a switch activated door shows its Open / Closed in place of Locked and Way
+# opened again: what was written, the times as typed (Vasquez's FormNumberWords shows value / factor, cda9b15d); then the kind made a switch activated door shows its Open / Closed in place of
+# Locked and Way
 click-win 500 300 right
 click-popup 3
 wait 400
 expect-dialog medoor01 : Door
 expect-field-has dialogcombos Door_is_horizontal
+expect-dialog-text Proximity door|Door is not locked|Door is horizontal (ie. in floor/ceiling)|2.5|0.7
 click-combo 1
 click-combo-row Switch activated door ('lift door')
 expect-field-has dialogcombos Closed

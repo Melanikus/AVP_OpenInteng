@@ -133,13 +133,16 @@ expect-dialog Select Strategy
 click-button Lighting_Effects
 wait 400
 expect-dialog Light FX
-expect-dialog-checks on,off,off,off,off,off
+# (Drake 2026-11-25: Light FX RESTYLED as the strategy forms: the light type and the Up / Down default are drop-downs, the four times number boxes; what OK stores is the dialog's own)
+expect-dialog-text Random Flicker|(none)|0|0|0|0
 picture 21
 # Strobe, Down, Up fading 2.5; OK -> the debug box "Radio num = 1" every OK shows (0x1001f0b8: COPIED, NAMED for Melanikus's veto), Ok -> stored
-click-check 2
-click-check 6
+click-combo 1
+click-combo-row Strobe
+click-combo 2
+click-combo-row Down
 form-field 1 2.5
-expect-dialog-checks off,on,off,off,off,on
+expect-dialog-text Strobe|Down|2.5|0|0|0
 picture 22
 click-button OK
 expect-dialog Radio num = 1
@@ -150,7 +153,7 @@ expect-no-dialog
 click-win 504 364 right
 click-popup 3
 expect-dialog Light FX
-expect-dialog-checks off,on,off,off,off,on
+expect-dialog-text Strobe|Down|2.5|0|0|0
 # a time over 100 is warned about and STILL stored (DDX_Text stores it, DDV_MinMaxFloat then stops the exchange; OnOK does not test it): Down after fading 150
 form-field 4 150
 click-button OK

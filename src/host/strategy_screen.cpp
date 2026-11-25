@@ -683,12 +683,15 @@ static bool LightFxNumber(std::string const &text, float *value)
 	return true;
 }
 
-// LIGHTING EFFECTS (64; reassess/strategy-data-kinds.md S-K64-1..3): the view is edobtype.dll's "Light FX" dialog (resource 131, 248 x 146 dialog units: 1.5 x 1.625 pixels each). The display hand-over
-// (FlipToGDISurface, the palette) is the full-screen display's: ours is a window (NAMED). The group box "Light Types" is a label here (the form has no frame part: NAMED).
+// LIGHTING EFFECTS (64; reassess/strategy-data-kinds.md S-K64-1..3): the view is edobtype.dll's "Light FX" dialog (resource 131). The display hand-over (FlipToGDISurface, the palette) is the
+// full-screen display's: ours is a window (NAMED). RESTYLED as the strategy forms (Drake 2026-11-25; the owner's forms for alpha.7, "our pretty drop downs"; the forms survey: "64 Light FX already
+// a dialog (restyle only)"): the forms' measures (StrategyFormOpen: a row 24 high from y 32, the labels at x 16, the controls in a column after the longest label), the light type and the Up / Down
+// default as drop-downs in place of the resource's radio buttons, each time a number box with its range beside it, OK and Cancel at the foot. What OK does is edobtype's own, unchanged (below).
+static int32_t FormWordsWidth(std::string const &words);                                          // the forms' measures (below, with the forms)
+static int32_t FormComboWidth(std::vector<std::string> const &items, int32_t least, int32_t most);
+
 static void LightFxOpen(uint8_t const *subject, std::vector<uint8_t> const &payload)
 {
-	auto const dx = [](int32_t u) { return (int32_t)(u * 3 / 2); };
-	auto const dy = [](int32_t u) { return (int32_t)(u * 13 / 8); };
 	int32_t type = 0, state = 0;
 
 	host::StrategyView_FieldNumber(64, payload, "type", &type);
@@ -699,65 +702,88 @@ static void LightFxOpen(uint8_t const *subject, std::vector<uint8_t> const &payl
 	auto const shown = [](int32_t w) { char text[64]; snprintf(text, sizeof(text), "%.6g", (double)((float)w / 65536.0f)); return std::string(text); };
 
 	host::DialogFormSpec spec;
+	int32_t const rowHeight = 24, top = 32, labelX = 16;
+	char const *const labels[] = { "Light type", "Default", "Up fading (sec)", "Up after fading (sec)", "Down fading (sec)", "Down after fading (sec)" };
+	int32_t labelsWide = 0;
+
+	for (char const *const label : labels)
+	{
+		labelsWide = FormWordsWidth(label) > labelsWide ? FormWordsWidth(label) : labelsWide;
+	}
+
+	int32_t const controlX = labelX + (labelsWide + 16 < 144 ? 144 : labelsWide + 16);
 
 	spec.title = "Light FX";
-	spec.width = dx(248) + 10;
-	spec.height = dy(146) + 10;
 
-	auto const add = [&spec](host::DialogWidgetType kind, char const *words, int32_t x, int32_t y, int32_t w, int32_t h, int32_t group, bool checked, int32_t answer)
+	auto const add = [&spec](host::DialogWidgetType kind, std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h) -> size_t
 	{
 		host::DialogWidget one;
 
 		one.type = kind;
 		one.text = words;
 		one.box = { x, y, w, h };
-		one.group = group;
-		one.checked = checked;
-		one.answer = answer;
 		spec.widgets.push_back(one);
+		return spec.widgets.size() - 1;
+	};
+
+	// a drop-down's row: its label, then the box holding these rows, the picked one shown
+	auto const choiceRow = [&](int32_t y, char const *label, std::vector<std::string> const &items, size_t picked) -> size_t
+	{
+		add(host::DialogWidgetType::Label, label, labelX, y, controlX - labelX - 8, 0x12);
+
+		size_t const box = add(host::DialogWidgetType::Combo, "", controlX, y, 160, 0x12);
+
+		spec.widgets[box].items = items;
+		spec.widgets[box].selected = (int32_t)picked;
+		spec.widgets[box].text = items[picked];
+		spec.widgets[box].listRows = 12;
+		spec.widgets[box].box.width = FormComboWidth(items, 160, 420);
+		return box;
+	};
+
+	// a time's row: its label, the number box (the dialog's words for it, at most 32 letters as its edit) and the range DDV_MinMaxFloat checks on OK beside it
+	auto const timeRow = [&](int32_t y, char const *label, int32_t word16) -> size_t
+	{
+		add(host::DialogWidgetType::Label, label, labelX, y, controlX - labelX - 8, 0x12);
+
+		size_t const box = add(host::DialogWidgetType::Edit, shown(word16), controlX, y, 100, 0x12);
+
+		spec.widgets[box].most = 32;
+		add(host::DialogWidgetType::Label, "(0 to 100)", controlX + 108, y, 200, 0x12);
+		return box;
 	};
 
 	int32_t const shownType = type >= 0 && type <= 3 ? type : 0;   // a type above 3 shows Random Flicker
+	// the Up / Down default is set only for a type other than Random Flicker and a state of 0 or 1 (the resource's radios); else neither: "(none)", which keeps the state on OK
+	bool const defaultSet = type != 0 && (state == 0 || state == 1);
+	std::vector<std::string> defaults = { "Up", "Down" };
 
-	// 0 label; 1..4 the type radios (1008..1011)
-	add(host::DialogWidgetType::Label, "Light Types", dx(17), dy(7), dx(89), 16, -1, false, 0);
-	// each radio is its round button (the toolkit's 16 x 16 box) with its words beside it, as the resource's BS_AUTORADIOBUTTON draws them (the toolkit draws no words on a box)
-	add(host::DialogWidgetType::Check, "", dx(21), dy(18), 16, 16, 0, shownType == 0, 0);
-	add(host::DialogWidgetType::Check, "", dx(21), dy(29), 16, 16, 0, shownType == 1, 0);
-	add(host::DialogWidgetType::Check, "", dx(21), dy(40), 16, 16, 0, shownType == 2, 0);
-	add(host::DialogWidgetType::Check, "", dx(21), dy(51), 16, 16, 0, shownType == 3, 0);
-	// 5..7 the column labels; 8 "Up"; 9 edit 1003; 10 edit 1004; 11 radio 1017; 12 "Down"; 13 edit 1005; 14 edit 1006; 15 radio 1018
-	add(host::DialogWidgetType::Label, "Fading (sec)", dx(63), dy(76), dx(60), 16, -1, false, 0);
-	add(host::DialogWidgetType::Label, "After Fading (sec)", dx(133), dy(76), dx(64), 16, -1, false, 0);
-	add(host::DialogWidgetType::Label, "Default", dx(197), dy(76), dx(40), 16, -1, false, 0);
-	add(host::DialogWidgetType::Label, "Up", dx(35), dy(92), dx(20), 16, -1, false, 0);
-	add(host::DialogWidgetType::Edit, shown(word(28)).c_str(), dx(63), dy(91), dx(40), dy(14), -1, false, 0);
-	add(host::DialogWidgetType::Edit, shown(word(36)).c_str(), dx(139), dy(91), dx(40), dy(14), -1, false, 0);
-	add(host::DialogWidgetType::Check, "", dx(203), dy(93), 16, 16, 1, type != 0 && state == 0, 0);
-	add(host::DialogWidgetType::Label, "Down", dx(35), dy(119), dx(24), 16, -1, false, 0);
-	add(host::DialogWidgetType::Edit, shown(word(32)).c_str(), dx(63), dy(116), dx(40), dy(14), -1, false, 0);
-	add(host::DialogWidgetType::Edit, shown(word(40)).c_str(), dx(139), dy(116), dx(40), dy(14), -1, false, 0);
-	add(host::DialogWidgetType::Check, "", dx(203), dy(119), 16, 16, 1, type != 0 && state == 1, 0);
-	// 16 OK, 17 Cancel
-	add(host::DialogWidgetType::Button, "OK", dx(191), dy(7), dx(50), dy(14), -1, false, host::kDialogOk);
-	add(host::DialogWidgetType::Button, "Cancel", dx(191), dy(24), dx(50), dy(14), -1, false, host::kDialogEscape);
-	// the radios' words, after every widget the form numbers (form-field / the edits' order is unchanged)
-	add(host::DialogWidgetType::Label, "Random Flicker", dx(21) + 20, dy(18), dx(80) - 20, 16, -1, false, 0);
-	add(host::DialogWidgetType::Label, "Strobe", dx(21) + 20, dy(29), dx(80) - 20, 16, -1, false, 0);
-	add(host::DialogWidgetType::Label, "Switch", dx(21) + 20, dy(40), dx(80) - 20, 16, -1, false, 0);
-	add(host::DialogWidgetType::Label, "Flicky Switch", dx(21) + 20, dy(51), dx(80) - 20, 16, -1, false, 0);
-
-	for (host::DialogWidget &one : spec.widgets)
+	if (!defaultSet)
 	{
-		one.most = one.type == host::DialogWidgetType::Edit ? 32 : one.most;
+		defaults.push_back("(none)");
 	}
 
+	size_t const typeBox = choiceRow(top, labels[0], { "Random Flicker", "Strobe", "Switch", "Flicky Switch" }, (size_t)shownType);
+	size_t const defaultBox = choiceRow(top + rowHeight, labels[1], defaults, defaultSet ? (size_t)state : 2);
+	// the times in the resource's order of edits (1003, 1004, 1005, 1006), so a scenario's form-field 1 to 4 are the same boxes as before
+	size_t const upFade = timeRow(top + 2 * rowHeight, labels[2], word(28));
+	size_t const upAfter = timeRow(top + 3 * rowHeight, labels[3], word(36));
+	size_t const downFade = timeRow(top + 4 * rowHeight, labels[4], word(32));
+	size_t const downAfter = timeRow(top + 5 * rowHeight, labels[5], word(40));
+	int32_t const foot = top + 6 * rowHeight;
+
+	spec.width = 520;   // the forms' least width
+	spec.height = foot + 48;
+	spec.widgets[add(host::DialogWidgetType::Button, "OK", spec.width / 2 - 60, foot + 16, 50, 0x10)].answer = host::kDialogOk;
+	spec.widgets[add(host::DialogWidgetType::Button, "Cancel", spec.width / 2 + 10, foot + 16, 50, 0x10)].answer = host::kDialogEscape;
+
+	size_t const count = spec.widgets.size();
 	std::array<uint8_t, 8> lift;
 
 	memcpy(lift.data(), subject, 8);
-	host::Dialogs_Form(spec, [lift, type, state, shownType](int32_t answer, std::vector<host::DialogWidget> const &widgets)
+	host::Dialogs_Form(spec, [lift, type, state, shownType, count, typeBox, defaultBox, upFade, upAfter, downFade, downAfter](int32_t answer, std::vector<host::DialogWidget> const &widgets)
 	{
-		if (answer != host::kDialogOk || widgets.size() < 18)
+		if (answer != host::kDialogOk || widgets.size() != count)
 		{
 			return;   // Cancel / Escape: nothing changes
 		}
@@ -766,7 +792,7 @@ static void LightFxOpen(uint8_t const *subject, std::vector<uint8_t> const &payl
 		// stored ("Please enter a number."); one out of range is stored and THEN stops it ("Please enter a number between 0 and 100."); what comes after a stop keeps the dialog's first values. OnOK does not test
 		// the result.
 		struct Box { size_t widget; size_t at; };
-		Box const order[4] = { { 14, 40 }, { 10, 36 }, { 13, 32 }, { 9, 28 } };
+		Box const order[4] = { { downAfter, 40 }, { upAfter, 36 }, { downFade, 32 }, { upFade, 28 } };
 		std::map<size_t, int32_t> words;
 		std::string warning;
 		int32_t radioState = state == 0 || state == 1 ? state : -1;
@@ -777,8 +803,10 @@ static void LightFxOpen(uint8_t const *subject, std::vector<uint8_t> const &payl
 		{
 			if (step == 3)
 			{
-				// the Up / Down radio is exchanged before 1003
-				radioState = widgets[11].checked ? 0 : (widgets[15].checked ? 1 : -1);
+				// the Up / Down radio is exchanged before 1003 (the drop-down's Up 0, Down 1; "(none)" neither)
+				int32_t const picked = widgets[defaultBox].selected;
+
+				radioState = picked == 0 || picked == 1 ? picked : -1;
 			}
 
 			float value = 0.0f;
@@ -801,7 +829,10 @@ static void LightFxOpen(uint8_t const *subject, std::vector<uint8_t> const &payl
 
 		if (!stopped)
 		{
-			radioType = widgets[1].checked ? 0 : (widgets[2].checked ? 1 : (widgets[3].checked ? 2 : (widgets[4].checked ? 3 : -1)));
+			// the type radio: the drop-down's row 0 to 3 (Random Flicker, Strobe, Switch, Flicky Switch)
+			int32_t const picked = widgets[typeBox].selected;
+
+			radioType = picked >= 0 && picked <= 3 ? picked : -1;
 		}
 
 		auto const store = [lift, words, radioType, radioState, type]()
