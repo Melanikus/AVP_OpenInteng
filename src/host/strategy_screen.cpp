@@ -4426,7 +4426,10 @@ static int32_t FormFieldNow(int32_t kind, std::vector<uint8_t> const &payload, s
 // the nudge added before a typed number is made whole (a door's 0.01 tenth, DoorTime 0x5ac438), not an offset (Drake 11-24: a door's 10 tenths showed "0.999", the page "1.0")
 static std::string FormNumberWords(host::StrategyFormRow const &row, int32_t value)
 {
-	double const typed = row.factor != 0.0 ? (double)value / row.factor : (double)value;
+	// a Number on some bits (a mask) shows ITS bits, shifted down: an E page's Integrity is bits 7 to 14 of the data (my review of Frost's a077bbe4: it showed the whole
+	// data, "899" for an integrity of 7)
+	int64_t const own = row.mask != 0 ? (int64_t)(((uint32_t)value & row.mask) >> row.shift) : (int64_t)value;
+	double const typed = row.factor != 0.0 ? (double)own / row.factor : (double)own;
 	char words[64];
 
 	if (!row.isFloat)

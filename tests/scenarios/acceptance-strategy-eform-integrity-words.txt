@@ -1,0 +1,56 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-25, my review of Frost's a077bbe4): A NUMBER BOX ON SOME BITS SHOWS ITS OWN BITS. An E page's Integrity row (strategy_forms_paths.cpp,
+# the Placed object page) is a Number on bits 7 to 14 of the page's data (mask 0x7f80, shift 7: StrategyView_RequestIntegrity's rule). The form wrote it right, but its box showed
+# the WHOLE data: with Integrity 7, "Set integrity" (bit 0) and "Change type to standard" (bit 1), the data is 7 << 7 | 1 | 2 = 899, and the box said "899" where the page says 7.
+# Frost's setup (acceptance-strategy-eform-message-light): Derelict's "V fan off tank01" (a Multiple Target Switch), the light LIGHTcomm01c appended as its target, Extra data...:
+# Integrity 7, type standard, Ok; then Extra data... again: the box must read 7, and Ok with nothing changed writes nothing (the words are the ones it opened with).
+# RED before the fix: "899|Change type to standard".
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is V fan off tank01
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog V fan off tank01 : Multiple Target Switch
+# (it has two targets already: the light is its third line)
+click-button +
+wait 300
+expect-dialog Select Object
+click-choice-is LIGHTcomm01c
+wait 400
+click-button Extra_data... 3
+wait 400
+expect-dialog Target  -  LIGHTcomm01c
+expect-dialog-text 0|No change
+click-combo 1
+click-combo-row Change type to standard
+wait 300
+form-field 1 7
+click-button Ok
+wait 400
+expect-dialog V fan off tank01 : Multiple Target Switch
+# the same target's E form again: the Integrity box reads its own bits, 7
+click-button Extra_data... 3
+wait 400
+expect-dialog Target  -  LIGHTcomm01c
+expect-dialog-checks on,off
+expect-dialog-text 7|Change type to standard
+picture 1
+click-button Ok
+wait 400
+expect-dialog V fan off tank01 : Multiple Target Switch
+# and once more: still 7 (Ok with the words unchanged wrote nothing)
+click-button Extra_data... 3
+wait 400
+expect-dialog-text 7|Change type to standard
+click-button Ok
+wait 400
+click-button Ok
+expect-no-dialog
