@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include <algorithm>
 #include <map>
 #include <array>
 #include <functional>
@@ -1675,6 +1676,28 @@ void LightMarkerTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 	lightSpinWord.clear();
 	ULONGLONG const now = GetTickCount64();
 
+	// THE DEPTH (as the other editor icons, drake-icondepth; the owner: "do they have Z depth or draw on top of each other?"). inteng's marker is a display block in the game's
+	// scene, drawn with the depth buffer. The avpx hook draws these triangles in the order given, compared with the level's depth but not written into it, so the face drawn LAST
+	// is seen where two overlap; they were given in the shape's own order, light after light, so the pyramid's base was seen through its sides and a farther marker over a nearer
+	// one. So each marker's faces are kept here, and given below FARTHEST FIRST, the painter's order: the farthest marker first, and each marker's own faces farthest first (by
+	// each face's middle). (NAMED: two faces that cross each other can't be put right by any order.)
+	struct MarkerFaces { double away; std::vector<LevelViewTriangle> faces; };
+	std::vector<MarkerFaces> drawn;
+	double const eye[3] = { theCamera ? (double)theCamera->x : 0.0, theCamera ? (double)theCamera->y : 0.0, theCamera ? (double)theCamera->z : 0.0 };
+	auto const awayOf = [&eye](int32_t const a[3], int32_t const b[3], int32_t const c[3])
+	{
+		double sum = 0.0;
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			double const middle = ((double)a[axis] + (double)b[axis] + (double)c[axis]) / 3.0 - eye[axis];
+
+			sum += middle * middle;
+		}
+
+		return sum;
+	};
+
 	for (size_t i = 0; i < markers.size(); i++)
 	{
 		host::LightMarker const &m = markers[i];
@@ -1706,6 +1729,18 @@ void LightMarkerTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 			lightSpinWord += (lightSpinWord.empty() ? "" : "|") + std::to_string(i + 1) + ":" + std::to_string((long long)(fmod(angle * 180.0 / 3.14159265358979323846, 360.0) * 10.0));
 		}
 
+		// how far the marker's light is from the camera (squared, as only the order counts)
+		MarkerFaces one;
+
+		one.away = 0.0;
+
+		for (int a = 0; a < 3; a++)
+		{
+			double const off = m.place[a] * scale - eye[a];
+
+			one.away += off * off;
+		}
+
 		for (LightMarkerTriangle const &face : shape)
 		{
 			LevelViewTriangle triangle;
@@ -1724,8 +1759,23 @@ void LightMarkerTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 				triangle.c[a] = world[2][a];
 			}
 
-			triangles->push_back(triangle);
+			one.faces.push_back(triangle);
 		}
+
+		drawn.push_back(std::move(one));
+	}
+
+	// given farthest first: the markers, then each one's faces
+	std::stable_sort(drawn.begin(), drawn.end(), [](MarkerFaces const &x, MarkerFaces const &y) { return x.away > y.away; });
+
+	for (MarkerFaces &marker : drawn)
+	{
+		std::stable_sort(marker.faces.begin(), marker.faces.end(), [&awayOf](LevelViewTriangle const &x, LevelViewTriangle const &y)
+		{
+			return awayOf(x.a, x.b, x.c) > awayOf(y.a, y.b, y.c);
+		});
+
+		triangles->insert(triangles->end(), marker.faces.begin(), marker.faces.end());
 	}
 }
 

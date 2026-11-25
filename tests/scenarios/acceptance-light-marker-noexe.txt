@@ -54,6 +54,8 @@ key S
 wait 300
 
 # inteng's base colour is there, as acceptance-light-sourcing.txt sees it with inteng.exe; the plain grey is not
-expect-colour picture 270 270 40 40 808000 0.1 8
+# the marker's faces are drawn by depth (drake-lightdepth): from here its blue side 0080ff is seen and its base 808000 is behind it (0.0000, and 0.0000 with the
+# depth buffer on too, Drake's control); 0080ff is inteng's own colour, which the plain grey markers never had
+expect-colour picture 270 270 40 40 0080ff 0.1 8
 expect-colour-at-most picture 270 270 40 40 808080 0.01 8
 picture 50
