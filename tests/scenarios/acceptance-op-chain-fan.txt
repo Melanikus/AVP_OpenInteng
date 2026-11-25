@@ -64,40 +64,15 @@ click-button Yes
 expect-dialog Select Strategy
 picture 2
 click-button Fan
-expect-no-dialog
-wait 400
-expect-field strategyview 200@0:chainF : Fan|16@16:speed up time : 10  seconds|16@32:slow down time :10  seconds|16@48:Wind strength :100  (default is 100)
-# y 16: the speed-up time, 5
-click-box 300 24
-expect-dialog Speed up time (seconds)
-expect-dialog-text 10
-key Back
-key Back
-type 5
-key Enter
-wait 300
-# y 32: the slow-down time, 7
-click-box 300 40
-expect-dialog Slow down time (seconds)
-expect-dialog-text 10
-key Back
-key Back
-type 7
-key Enter
-wait 300
-# y 48: the wind, -250
-click-box 300 56
-expect-dialog Wind strength (-1000 to 1000)
-expect-dialog-text 100
-key Back
-key Back
-key Back
-type -250
-key Enter
-wait 300
-expect-field strategyview 200@0:chainF : Fan|16@16:speed up time : 5  seconds|16@32:slow down time :7  seconds|16@48:Wind strength :-250  (default is 100)
+# the Fan opens its FORM now (strategy_forms_modules.cpp FanRows, Drake 2026-11-24): its three boxes, written at Ok
+expect-dialog chainF : Fan
+expect-dialog-text 10|10|100
+form-field 1 5
+form-field 2 7
+form-field 3 -250
 picture 3
-key Esc
+click-button Ok
+expect-no-dialog
 wait 300
 
 # ---- the switch: a Multi Switch whose target is chainF, picked in the view

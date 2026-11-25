@@ -36,8 +36,10 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Platform_Lift
 wait 300
-expect-field-has strategyview TopLiftS01 : Platform Lift
+# (Drake 2026-11-24: the Platform Lift edits in a FORM now, strategy_forms_modules.cpp PlatformRows: its two bits are drop-downs, written as they are picked)
+expect-dialog TopLiftS01 : Platform Lift
 picture 2
-key Esc
+click-button Ok
+expect-no-dialog
 wait 300
 expect-field-empty strategyview

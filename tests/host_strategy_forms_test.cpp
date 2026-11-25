@@ -69,6 +69,8 @@ int main()
 	hasForm[66] = true;
 	hasForm[68] = true;
 	// modules (Drake): 51, 50, 57, 59, 54, 75, 64
+	hasForm[75] = true;   // Fan (Drake 2026-11-24)
+	hasForm[54] = true;   // Platform Lift (Drake 2026-11-24)
 	// objects (Dietrich): 62, 77, 78, 73, 70
 	// paths (Frost): 72, 80, 76, 69, 79
 
