@@ -206,6 +206,7 @@ int main()
 	hasForm[61] = true;
 	hasForm[66] = true;
 	hasForm[68] = true;
+	hasForm[51] = true;   // 51 Lift (and 57 Airlock, which is a 51): Vasquez's since 11-25 (Bishop's split with Drake)
 	// modules (Drake): 51, 50, 57, 59, 54, 75, 64
 	hasForm[75] = true;   // Fan (Drake 2026-11-24)
 	hasForm[54] = true;   // Platform Lift (Drake 2026-11-24)
@@ -327,6 +328,34 @@ int main()
 
 	Check(host::StrategyForm_KindWords(61) == " : Linked Switch" && host::StrategyForm_KindWords(66) == " : Multiple Target Switch" && host::StrategyForm_KindWords(1).empty(),
 	      "the title words are the pages' own");
+
+	// 51 LIFT / 57 AIRLOCK: its positions (a List of modules, written as the collector writes them), its Door / Call / Floor Switch with the page's pick rules (the Floor Switch
+	// hidden with LiftFlags bit 4), the start and the exit as the page's own lines pressed, its Radius / Floor / Facing read only; the title from LiftFlags as the page's
+	{
+		using K = host::StrategyFormRowKind;
+		std::vector<host::StrategyFormRow> const lift = host::StrategyForm_Rows(51);
+		std::vector<uint8_t> const fresh = New(51);
+
+		Check(lift.size() == 7, "51 has seven rows: Lift positions, Door, Call Switch, Floor Switch, Start, Exit, the page's foot");
+
+		if (lift.size() == 7)
+		{
+			std::vector<host::StrategyFormEntry> entries;
+
+			Check(lift[0].kind == K::List && lift[0].liftPositions && lift[0].canTakeKind == 51 && lift[0].readList && lift[0].readList(fresh, &entries) && entries.empty(),
+			      "51: its positions a List of objects that can take a Lift, written as the collector writes them; a new lift has none");
+			Check(lift[1].kind == K::Target && lift[1].field == "AssocDoor" && lift[1].pickRow == host::kPickLiftDoor && lift[2].field == "AssocCallSwitch" &&
+			      lift[2].pickRow == host::kPickLiftCall && lift[3].field == "AssocFloorSwitch" && lift[3].pickRow == host::kPickLiftFloor, "51: Door, Call Switch, Floor Switch with the page's picks");
+			Check(lift[3].shown && lift[3].shown(51, fresh) && !lift[3].shown(51, With(51, fresh, "LiftFlags", 4)), "51: the Floor Switch hidden with LiftFlags bit 4, as the page");
+			Check(lift[4].kind == K::Action && lift[4].pagePickRow == host::kWindowLiftStart && lift[5].kind == K::Action && lift[5].pagePickRow == host::kRunLiftExit,
+			      "51: Start and Exit press the page's own lines");
+			Check(lift[6].kind == K::PageWords && lift[6].pageWordsStarts.size() == 3, "51: Radius, Floor, Facing read only, as the page shows them");
+		}
+
+		Check(host::StrategyForm_TitleWords(51, fresh) == " : Lift" && host::StrategyForm_TitleWords(51, With(51, fresh, "LiftFlags", 2)) == " : Airlock" &&
+		      host::StrategyForm_TitleWords(51, With(51, fresh, "LiftFlags", 4)) == " : Lift (switches don't teleport)" && host::StrategyForm_TitleWords(61, fresh) == " : Linked Switch",
+		      "51's title from LiftFlags as its page's: Lift, Airlock (bit 2), Lift (switches don't teleport) (bit 4); another kind its own words");
+	}
 
 	// paths (Frost): 72 / 80 / 76's EFFECTS, a list of lists read and written whole: the list kept sorted by the number, a number once (the first kept, with its targets),
 	// each target's request and direction as written; 80 adds Integrity, the destruct target's on / off and the Destruct Target

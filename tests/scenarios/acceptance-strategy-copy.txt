@@ -81,7 +81,8 @@ expect-dialog-kind confirm
 click-button Yes
 expect-dialog Select Strategy
 click-button Lift
-expect-no-dialog
+# (its view opens at once as its form since 11-25, strategy_forms.h): Escape ends it
+expect-dialog APCmod : Lift
 key Esc
 wait 400
 picture 3

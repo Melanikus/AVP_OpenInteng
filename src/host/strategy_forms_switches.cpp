@@ -7,7 +7,7 @@
 //   Switch off message: bits 1 and 2 of the flags, for the modes 0 to 2 (the page shows it only for them): Reversed (default) 0, Same as switch on 2, None 4.
 //   Target: the object the switch sends to; a new target makes the request 0 (FUN_0052db10, the page's T); Extra data... is the page's E.
 //   Links: the switches that target this one, read only (the page's "Links:").
-// 66 / 68: see MultiSwitchRows.
+// 66 / 68: see MultiSwitchRows. 51 Lift and 57 Airlock (a 51 with LiftFlags bit 2; taken from Drake's group 2026-11-25, Bishop's split): see LiftRows.
 
 #include "strategy_forms.h"
 
@@ -227,6 +227,90 @@ namespace host
 			links.label = "Links";
 			rows->push_back(links);
 		}
+
+		// 51 LIFT / 57 AIRLOCK (strategy_views.cpp LiftLines / LiftClick, FUN_0052c400): the lift's positions (the page's collector, FUN_0052b360: modules only, never itself, each once;
+		// then "Would you like the other positions altered to agree with this one?"), its Door, Call Switch and Floor Switch (the last only without LiftFlags bit 4), each picked with the
+		// page's own rule (kPickLiftDoor / Call / Floor: the door gets a Door strategy and the lift its Facing; the switches theirs); where it starts (the page's window "Select Lift Start
+		// Position") and its exit side (flag 8, then the positions agree), each the page's own line pressed; and its Radius, Floor and Facing, read only as the page shows them.
+		void LiftRows(std::vector<StrategyFormRow> *rows)
+		{
+			StrategyFormRow positions;
+
+			positions.kind = StrategyFormRowKind::List;
+			positions.label = "Lift positions";
+			positions.pickWords = "Select other positions for this lift";   // the collector's words (0x5ee8d0)
+			positions.canTakeKind = 51;
+			positions.liftPositions = true;
+			positions.addWords = "add a position";
+			positions.readList = [](std::vector<uint8_t> const &payload, std::vector<StrategyFormEntry> *entries)
+			{
+				std::vector<std::array<uint8_t, 8>> ids;
+
+				if (!StrategyView_LiftPositions(payload, &ids))
+				{
+					return false;
+				}
+
+				for (std::array<uint8_t, 8> const &id : ids)
+				{
+					StrategyFormEntry entry;
+
+					entry.id = id;
+					entries->push_back(entry);
+				}
+
+				return true;
+			};
+			rows->push_back(positions);   // (written by the builder as the collector writes them: liftPositions)
+
+			auto const target = [rows](char const *label, char const *field, int32_t pickRow, char const *pickWords)
+			{
+				StrategyFormRow row;
+
+				row.kind = StrategyFormRowKind::Target;
+				row.label = label;
+				row.field = field;
+				row.pickRow = pickRow;
+				row.pickWords = pickWords;
+				rows->push_back(row);
+			};
+
+			target("Door", "AssocDoor", kPickLiftDoor, "Select door for this lift position");   // 0x5ee8b4
+			target("Call Switch", "AssocCallSwitch", kPickLiftCall, "Select call switch");      // 0x5ee8ec
+			target("Floor Switch", "AssocFloorSwitch", kPickLiftFloor, "Select floor switch");  // 0x5ee914
+			rows->back().shown = [](int32_t kind, std::vector<uint8_t> const &payload)
+			{
+				int32_t flags = 0;
+
+				return StrategyView_FieldNumber(kind, payload, "LiftFlags", &flags) && (flags & 4) == 0;   // the page draws no Floor Switch with bit 4 (LiftRowsOf)
+			};
+
+			StrategyFormRow start;
+
+			start.kind = StrategyFormRowKind::Action;
+			start.label = "Start";
+			start.pageWordsStarts = { "Lift starts at", "Lift has no start position" };   // 0x5ee968, 0x5ee94c
+			start.button = "Choose...";
+			start.pagePickRow = kWindowLiftStart;
+			rows->push_back(start);
+
+			StrategyFormRow exit;
+
+			exit.kind = StrategyFormRowKind::Action;
+			exit.label = "Exit";
+			exit.pageWordsStarts = { "Exit same side", "Exit opposite side" };   // 0x5ee928, 0x5ee938
+			exit.button = "Change";
+			exit.pagePickRow = kRunLiftExit;
+			rows->push_back(exit);
+
+			StrategyFormRow foot;
+
+			foot.kind = StrategyFormRowKind::PageWords;
+			foot.label = "Lift";
+			foot.pageWordsStarts = { "Radius ", "Floor ", "Facing " };   // 0x5ee9e0, 0x5ee9d4, 0x5ee9c8
+			foot.pageWordsX = 200;   // the page's foot column: not its "Floor Switch :" heading at 16
+			rows->push_back(foot);
+		}
 	}
 
 	bool StrategyFormRows_Switches(int32_t kind, std::vector<StrategyFormRow> *rows)
@@ -240,6 +324,12 @@ namespace host
 		if (kind == 66 || kind == 68)
 		{
 			MultiSwitchRows(kind, rows);
+			return true;
+		}
+
+		if (kind == 51)
+		{
+			LiftRows(rows);   // and 57: an Airlock is a 51 (strategy_fields.cpp: made as this kind, with a flag set)
 			return true;
 		}
 

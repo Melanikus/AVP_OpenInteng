@@ -1,10 +1,12 @@
 # ACCEPTANCE: EVERY LINE of a LIFT (51, made as an AIRLOCK: 57 = a Lift with flag 2) on Melanikus's path, the saved copy read back through the game's own loader (Drake, 2026-11-17;
-# reassess/strategy-closeout-drake.md E-2; reassess/strategy-data-kinds.md S-K51-1..12, S-K57-0). No stock level holds a Lift (kind-survey of every level), so the Lift is made his way: Assign Strategy >
-# Airlock on Invasion's gARAGDOR (a read-only stock copy; the module has no strategy, so no question). Then each line: Exit side (flag 8), Lift positions (the collector: APCmod and Door, Return, "Yes"
-# to make the others agree), the start ("Here": flag 1), the Door pick (APCmod), the Call Switch pick (Base) and the Floor Switch pick (Bend); Escape; File > Save a copy. The modules under the
-# points of Invasion's start view were read from a probe run's pictures (2026-11-17): Base 900 300, Bend 560 320, Door 640 300, APCmod 120 500, gARAGDOR 504 364. The copy must hold LiftFlags 0xb
-# (1 | 2 | 8), two positions, Floor 2 and Facing 3 (as acceptance-strategy-kinds: the same modules), and the IDs of APCmod, Door, Base and Bend. The four picked modules are changed too (the other
-# position gets an agreeing Lift, the door a Door, the switches a Binary Switch: S-K51-6 / -8 / -9 / -10), so they are left out of the byte-for-byte check ("also"). RED without the clicks: no Lift.
+# reassess/strategy-closeout-drake.md E-2; reassess/strategy-data-kinds.md S-K51-1..12, S-K57-0). EDITED AS A FORM since 11-25 (Vasquez, strategy_forms.h; Bishop's split with Drake):
+# the page's lines are the form's rows, each with the page's own rule: the positions a list (each picked appends one, then the collector's "agree" question), the Door / Call / Floor
+# Switch picks, the start and the exit the page's own lines pressed, the Radius / Floor / Facing as the page shows them. No stock level holds a Lift (kind-survey of every level), so the
+# Lift is made his way: Assign Strategy > Airlock on Invasion's gARAGDOR (a read-only stock copy; the module has no strategy, so no question). Then: Exit side (flag 8), the positions
+# (APCmod, then Door, each picked, "Yes" to make the others agree), the start ("Here": flag 1), the Door pick (APCmod), the Call Switch pick (Base) and the Floor Switch pick (Bend); Ok;
+# File > Save a copy. The modules under the points of Invasion's start view were read from a probe run's pictures (2026-11-17): Base 900 300, Bend 560 320, Door 640 300, APCmod
+# 120 500, gARAGDOR 504 364. The copy must hold LiftFlags 0xb (1 | 2 | 8), two positions, Floor 2 and Facing 3, and the IDs of APCmod, Door, Base and Bend. The four picked modules are
+# changed too (the other position an agreeing Lift, the door a Door, the switches a Binary Switch: S-K51-6 / -8 / -9 / -10), so they are left out of the byte-for-byte check ("also").
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
 state
@@ -18,54 +20,79 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Airlock
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Airlock|200@420:Radius 19794.190284|200@440:Floor -1|200@460:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit same side
+# the form: its title from the flags ("Airlock"), no positions, no door or switches, the page's start, exit and foot words
+expect-dialog gARAGDOR : Airlock
+expect-dialog-text (none)|(none)|(none)
+expect-field-has strategyform Lift positions|
+expect-field-has strategyform |Start|Lift has no start position|Exit|Exit same side|Lift|Radius 19794.190284|Floor -1|Facing 0
 picture 1
-# Exit side (y 160): flag 8
-click-box 300 168
-wait 300
-expect-field strategyview 200@0:gARAGDOR : Airlock|200@420:Radius 19794.190284|200@440:Floor 0|200@460:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit opposite side
-# Lift positions (y 16): the collector; APCmod and Door; Return; the others made to agree: Yes
-click-box 300 24
+# Exit side: the page's line pressed (flag 8, then the positions agree: Floor 0)
+click-button Change
 wait 400
+expect-dialog gARAGDOR : Airlock
+expect-field-has strategyform |Exit opposite side|
+expect-field-has strategyform |Floor 0|
+# the positions: the "+" line's Pick (the first Pick: no position yet), APCmod picked, Enter; the collector's question: Yes
+click-button Pick 1
+wait 400
+expect-no-dialog
+expect-field-has strategyview Select other positions for this lift
 click-win 120 500
-click-win 640 300
-wait 300
 key Enter
+wait 400
 expect-dialog-kind confirm
 click-button Yes
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Airlock|200@420:Radius 19794.190284|200@440:Floor 2|200@460:Facing 0|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:None|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift has no start position|16@176:Exit opposite side
+# then Door: the "+" line's Pick is the second now (the first is APCmod's line)
+expect-dialog gARAGDOR : Airlock
+click-button Pick 2
+wait 400
+click-win 640 300
+key Enter
+wait 400
+expect-dialog-kind confirm
+click-button Yes
+wait 400
+expect-dialog gARAGDOR : Airlock
+expect-field-has dialogtext APCmod
+expect-field-has dialogtext |Door
+expect-field-has strategyform |Floor 2|
 picture 2
-# the start (now y 160): "Here"
-click-box 300 168
+# the start: the page's window, "Here"
+click-button Choose...
 expect-dialog Select Lift Start Position
 click-button Here
-wait 300
-expect-field-has strategyview 16@160:Lift starts at gARAGDOR
-# the Door (y 64): APCmod
-click-box 300 72
 wait 400
-expect-field-has strategyview 200@709:Select door for this lift position
+expect-dialog gARAGDOR : Airlock
+expect-field-has strategyform |Lift starts at gARAGDOR|
+# the Door (the 4th Pick: after the two positions' and the "+" line's): APCmod; the Call Switch (5th): Base; the Floor Switch (6th): Bend
+click-button Pick 4
+wait 400
+expect-field-has strategyview Select door for this lift position
 click-win 120 500
 key Enter
 wait 400
-# the Call Switch (y 96): Base
-click-box 300 104
+expect-dialog gARAGDOR : Airlock
+click-button Pick 5
 wait 400
-expect-field-has strategyview 200@709:Select call switch
+expect-field-has strategyview Select call switch
 click-win 900 300
 key Enter
 wait 400
-# the Floor Switch (y 128): Bend
-click-box 300 136
+expect-dialog gARAGDOR : Airlock
+click-button Pick 6
 wait 400
-expect-field-has strategyview 200@709:Select floor switch
+expect-field-has strategyview Select floor switch
 click-win 560 320
 key Enter
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Airlock|200@420:Radius 19794.190284|200@440:Floor 2|200@460:Facing 3|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:APCmod|16@96:Call Switch :|80@112:Base|16@128:Floor Switch :|80@144:Bend|16@160:Lift starts at gARAGDOR|16@176:Exit opposite side
+expect-dialog gARAGDOR : Airlock
+expect-field-has dialogtext Base
+expect-field-has dialogtext Bend
+expect-field-has strategyform |Floor 2|Facing 3
 picture 3
-key Esc
+click-button Ok
+expect-no-dialog
 wait 400
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF {copy} gARAGDOR LiftFlags 0xb NumAssocLifts 2 Floor 2 Facing 3 holds APCmod holds Door holds Base holds Bend also APCmod also Door also Base also Bend

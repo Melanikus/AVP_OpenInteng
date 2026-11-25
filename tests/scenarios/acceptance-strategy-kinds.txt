@@ -116,7 +116,9 @@ click-button Yes
 expect-dialog Select Strategy
 click-button Airlock
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Airlock|200@420:Radius 19794.190284|200@440:Floor -1|200@460:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit same side
+# (a Lift / Airlock edits in a form since 11-25, strategy_forms.h: the page's lines are its rows, each pressed or picked with the page's own rule)
+expect-dialog gARAGDOR : Airlock
+expect-field-has strategyform |Start|Lift has no start position|Exit|Exit same side|Lift|Radius 19794.190284|Floor -1|Facing 0
 picture 19
 key Esc
 wait 400
@@ -179,21 +181,33 @@ click-button Yes
 expect-dialog Select Strategy
 click-button Lift
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Lift|200@420:Radius 19794.190284|200@440:Floor -1|200@460:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit same side
-expect-colour picture 300 250 500 300 000000 0.97 8
+# (a Lift / Airlock edits in a form since 11-25, strategy_forms.h: the page's lines are its rows, each pressed or picked with the page's own rule)
+expect-dialog gARAGDOR : Lift
+expect-dialog-text (none)|(none)|(none)
+expect-field-has strategyform |Start|Lift has no start position|Exit|Exit same side|Lift|Radius 19794.190284|Floor -1|Facing 0
 picture 11
 # "Exit same side" (y 160 to 175) flips flag 8 and makes the positions agree (FUN_0052b770; none yet): "Exit opposite side", and the Floor is worked out again: 0 (no position lies before it)
-click-box 300 168
+click-button Change
 wait 300
-expect-field strategyview 200@0:gARAGDOR : Lift|200@420:Radius 19794.190284|200@440:Floor 0|200@460:Facing 0|16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None|16@80:Call Switch :|80@96:None|16@112:Floor Switch :|80@128:None|16@144:Lift has no start position|16@160:Exit opposite side
-# "Lift positions :" (y 16): the COLLECTOR (FUN_0052b360 -> FUN_00526bf0): the screen is drawn as usual, "Select other positions for this lift" along the foot
-click-box 300 24
+expect-dialog gARAGDOR : Lift
+expect-field-has strategyform |Exit opposite side|
+expect-field-has strategyform |Floor 0|
+# the positions: the "+" line's Pick ("Select other positions for this lift" along the foot), one object each time, then the collector's question
+click-button Pick 1
 wait 400
-expect-pixels-changed picture 300 250 500 300 0.3
+expect-no-dialog
+expect-field-has strategyview Select other positions for this lift
 picture 12
-# APCmod (its Switch Door) and the object at 640 300 are clicked into the list; Return ends it; what is not a module goes; the confirm "Would you like the other positions altered\nto agree with this one?" -> Yes:
-# a strategy-less module gets a new Lift that agrees, the Switch Door is left alone
+# APCmod (its Switch Door), Enter, Yes; then the object at 640 300, Enter, Yes: a strategy-less module gets a new Lift that agrees, the Switch Door is left alone
 click-win 120 500
+key Enter
+wait 400
+expect-dialog-kind confirm
+click-button Yes
+wait 400
+expect-dialog gARAGDOR : Lift
+click-button Pick 2
+wait 400
 click-win 640 300
 wait 300
 picture 13
@@ -202,23 +216,28 @@ expect-dialog-kind confirm
 picture 14
 click-button Yes
 wait 400
-expect-colour picture 300 250 500 300 000000 0.97 8
 picture 15
-expect-field strategyview 200@0:gARAGDOR : Lift|200@420:Radius 19794.190284|200@440:Floor 2|200@460:Facing 0|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:None|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift has no start position|16@176:Exit opposite side
+expect-dialog gARAGDOR : Lift
+expect-field-has dialogtext APCmod
+expect-field-has dialogtext |Door
+expect-field-has strategyform |Floor 2|
 # "Lift starts at" (now y 160: r = 2 + 2, n = r + 6): the window "Select Lift Start Position" (600 x 400) with "Here" and one button per position; "Here": this lift starts here (flag 1)
-click-box 300 168
+click-button Choose...
 expect-dialog Select Lift Start Position
 picture 16
 click-button Here
 wait 300
-expect-field strategyview 200@0:gARAGDOR : Lift|200@420:Radius 19794.190284|200@440:Floor 2|200@460:Facing 0|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:None|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift starts at gARAGDOR|16@176:Exit opposite side
+wait 300
+expect-dialog gARAGDOR : Lift
+expect-field-has strategyform |Lift starts at gARAGDOR|
 # the Door lines (y 64 to 95): the pick, then APCmod (at 120 500; the lift's own module, gARAGDOR, would be passed by: S-K51-8): its Switch Door is left alone; the door is it and the Facing is worked out from where it lies
-click-box 300 72
+click-button Pick 4
 wait 400
 click-win 120 500
 key Enter
 wait 400
-expect-field strategyview 200@0:gARAGDOR : Lift|200@420:Radius 19794.190284|200@440:Floor 2|200@460:Facing 3|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:Door        R:12492.312236|16@64:Door :|80@80:APCmod|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift starts at gARAGDOR|16@176:Exit opposite side
+expect-dialog gARAGDOR : Lift
+expect-field-has strategyform |Floor 2|Facing 3
 picture 17
 key Esc
 wait 400
@@ -227,7 +246,11 @@ click-win 640 300
 click-win 640 300 right
 click-popup 3
 wait 400
-expect-field strategyview 200@0:Door : Lift|200@420:Radius 12492.312236|200@440:Floor 0|200@460:Facing 0|16@16:Lift positions :|80@32:APCmod        R:24149.747928|80@48:gARAGDOR        R:19794.190284|16@64:Door :|80@80:None|16@96:Call Switch :|80@112:None|16@128:Floor Switch :|80@144:None|16@160:Lift starts at gARAGDOR|16@176:Exit opposite side
+expect-dialog Door : Lift
+expect-field-has dialogtext APCmod
+expect-field-has dialogtext gARAGDOR
+expect-field-has strategyform |Lift starts at gARAGDOR|
+expect-field-has strategyform |Radius 12492.312236|Floor 0|Facing 0
 picture 18
 key Esc
 wait 400

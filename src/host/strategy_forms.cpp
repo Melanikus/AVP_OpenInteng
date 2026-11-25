@@ -50,6 +50,19 @@ namespace host
 		}
 	}
 
+	// 51's page picks its title from LiftFlags (strategy_views.cpp LiftLines: 0x5eea1c, 0x5ee9f8, 0x5ee9ec); every other kind its own words
+	std::string StrategyForm_TitleWords(int32_t kind, std::vector<uint8_t> const &payload)
+	{
+		int32_t flags = 0;
+
+		if (kind == 51 && StrategyView_FieldNumber(51, payload, "LiftFlags", &flags))
+		{
+			return (flags & 2) != 0 ? " : Airlock" : ((flags & 4) != 0 ? " : Lift (switches don't teleport)" : " : Lift");
+		}
+
+		return StrategyForm_KindWords(kind);
+	}
+
 	std::vector<StrategyFormRow> StrategyForm_Rows(int32_t kind)
 	{
 		std::vector<StrategyFormRow> rows;

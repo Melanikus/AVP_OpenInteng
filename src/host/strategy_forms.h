@@ -48,6 +48,7 @@ namespace host
 		List,
 		SwitchTargets = List,   // the first name of List (Vasquez 11-24, before Frost's and Dietrich's lists made it general)
 		Action,
+		PageWords,   // read only: the page's own lines whose words start with one of pageWordsStarts, in the page's order (the Lift's "Radius", "Floor", "Facing")
 		Links,   // read only: the switches that target this one, made again as the view opens (the 61 / 66 / 68 page's "Links:"), one line each, "None" for none
 	};
 
@@ -110,6 +111,14 @@ namespace host
 		std::string words;                        // Action: the line's words ("String : 3")
 		int32_t pageX = -1, pageY = -1;           // Action: the press on the page it runs (StrategyViewClickAt), when pageY >= 0
 		char key = 0;                             // Action: else the key it runs: 'E' or 'V'
+		int32_t pagePickRow = 0;                  // Action: else the press on the page's line whose click is this (strategy_views.h kWindowLiftStart ...): the page's own dispatch,
+		                                          //   wherever the line is for this record (Vasquez 11-25: the Lift's lines move with its positions)
+		std::vector<std::string> pageWordsStarts; // Action (with no `words`), PageWords: the page's lines shown are those starting with one of these ("Lift starts at", "Exit ")
+		int32_t pageWordsX = -1;                  // PageWords, Action: only the page's lines at this x (the Lift's foot lines are at 200; its "Floor Switch :" at 16); -1 any
+		std::string addWords;                     // List: the "+" line's words (empty: "add a target"; a Lift's "add a position")
+		int32_t canTakeKind = 0;                  // Target, List: only objects that can TAKE this strategy kind (the editor's rule, Assign's: a Lift's positions are modules)
+		bool liftPositions = false;               // List: a Lift's positions: written as the page's collector writes them, then its question "Would you like the other
+		                                          //   positions altered to agree with this one?" (Yes: they are made to agree); an object already in the list is not added again
 		// List: the entries read from the record, and the record's whole bytes with them in place of its old ones (false: not readable / not written)
 		std::function<bool(std::vector<uint8_t> const &payload, std::vector<StrategyFormEntry> *entries)> readList;
 		std::function<bool(std::vector<uint8_t> const &payload, std::vector<StrategyFormEntry> const &entries, std::vector<uint8_t> *bytes)> writeList;
@@ -140,6 +149,9 @@ namespace host
 
 	// The kind's words after the object's name in the form's title, as its page says them (" : Linked Switch"); "" for a kind not assignable
 	std::string StrategyForm_KindWords(int32_t kind);
+
+	// The same for this record, where the page picks its words from it (a 51 with LiftFlags bit 2 is " : Airlock", with bit 4 " : Lift (switches don't teleport)")
+	std::string StrategyForm_TitleWords(int32_t kind, std::vector<uint8_t> const &payload);
 
 	// THE FOUR GROUPS, one file each: true and the kind's rows for a kind the group has switched to its form, false for any other.
 	bool StrategyFormRows_Switches(int32_t kind, std::vector<StrategyFormRow> *rows);   // strategy_forms_switches.cpp (Vasquez): 61 Linked, 66 Multiple Target, 68 Area Switch

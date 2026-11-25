@@ -1,8 +1,10 @@
 # ACCEPTANCE (red first; Bishop 11-18, strategy-data.md S-57): H / N / INSERT / HOME IN A VIEW'S COLLECTOR AND OBJECT PICK, on his path (Invasion, the file opened as a double click).
-# A kind's Edit view runs its own loop (FUN_0058b700 only): no H / N, no Insert / Home, no "View Distance" line. But the collector FUN_00526bf0 (a Lift's positions, FUN_0052b360 0x52b42c) and the object
-# pick FUN_00527540 (the Lift's Door, FUN_0052bd70 0x52bde8) that the view starts are loops of the screen's: each runs FUN_00529370 every frame (0x526faa / 0x527644), which draws "View Distance :%d" at
-# (16, 32) (0x52944b), adds or takes 500000 for H / N held (0x52940b / 0x529420), and zooms on Insert (0x5293b0 FUN_00471cb0) and Home (0x5293a2 FUN_004721a0). Ours tested the view's flag first, so
-# none of them worked there. (The pick draws its "View Distance" among its own lines, the state line's strategyview; the collector's is the screen's text, screentext.)
+# A kind's Edit view runs its own loop (FUN_0058b700 only): no H / N, no Insert / Home, no "View Distance" line. But the collector FUN_00526bf0 (a Lift's positions, FUN_0052b360 0x52b42c, and Copy
+# Strategy's, FUN_00528340) and the object pick FUN_00527540 (the Lift's Door, FUN_0052bd70 0x52bde8) are loops of the screen's: each runs FUN_00529370 every frame (0x526faa / 0x527644), which draws
+# "View Distance :%d" at (16, 32) (0x52944b), adds or takes 500000 for H / N held (0x52940b / 0x529420), and zooms on Insert (0x5293b0 FUN_00471cb0) and Home (0x5293a2 FUN_004721a0). Ours tested the
+# view's flag first, so none of them worked there. (The pick draws its "View Distance" among its own lines, the state line's strategyview; the collector's is the screen's text, screentext.)
+# SINCE 11-25 the Lift edits in a FORM (strategy_forms.h; Vasquez): its Door row's Pick is the same object pick, and its positions are picked one at a time, so the collector is reached through
+# Copy Strategy (dropswitch, an Area Switch, can be copied): the same loop, the same keys.
 # RED on bishop-int e378833e: the collector has no "View Distance" line; in the collector and in the pick H / N move nothing (the pick's line stays at 2), Insert starts no zoom, Home says nothing.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
 pictures on
@@ -11,7 +13,7 @@ expect-screen Construction
 click-bar Mode > Strategy Data: Normal
 expect-screen Strategy Data
 wait 400
-# the subject: gARAGDOR, the room in the middle of the view, given an Airlock (a Lift): its view opens at once
+# the subject: gARAGDOR, the room in the middle of the view, given an Airlock (a Lift): its view opens at once, as its form
 click-win 504 364
 expect-selected 1
 click-win 504 364 right
@@ -19,10 +21,10 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Airlock
 wait 400
-expect-field-has strategyview gARAGDOR : Airlock|200@420:Radius
-expect-field-has strategyview 16@16:Lift positions :|80@32:None|16@48:Door :|80@64:None
+expect-dialog gARAGDOR : Airlock
+expect-field-has strategyform |Lift|Radius
 
-# the control, THE VIEW ITSELF: none of the four keys does anything, and there is no View Distance line
+# the control, THE VIEW ITSELF (its form): none of the four keys does anything, and there is no View Distance line
 expect-screen-text-not View Distance
 remember-field viewdistance
 hold H 600
@@ -34,31 +36,8 @@ key Home
 wait 200
 expect-status-not The zoom is back
 
-# THE COLLECTOR (the Lift positions line, y 16): the screen's frame runs
-click-box 300 24
-wait 400
-expect-screen-text Press return when finished
-expect-screen-text View Distance :
-remember-field viewdistance
-hold H 600
-expect-field-changed viewdistance
-remember-field viewdistance
-hold N 600
-expect-field-changed viewdistance
-key Insert
-expect-status Zoom... Choose centre
-key Esc
-expect-status Zoom cancelled
-key Home
-expect-status The zoom is back to the default level
-# Return ends it with no position picked: nothing asked, the view goes on
-key Enter
-wait 400
-expect-no-dialog
-expect-field-has strategyview gARAGDOR : Airlock
-
-# THE OBJECT PICK (the Door line, y 48): the screen's frame runs
-click-box 300 56
+# THE OBJECT PICK (the Door row's Pick, the second Pick: the first is the positions' "+" line's): the screen's frame runs
+click-button Pick 2
 wait 400
 expect-field-has strategyview Select door for this lift position
 expect-field-has strategyview 16@32:View Distance :
@@ -75,14 +54,44 @@ key Esc
 expect-status Zoom cancelled
 key Home
 expect-status The zoom is back to the default level
-# Return ends the pick with nothing picked: the view goes on, and in it the keys do nothing again
+# Return ends the pick with nothing picked: the view goes on (its form), and in it the keys do nothing again
 key Enter
 wait 400
-expect-field-has strategyview gARAGDOR : Airlock
+expect-dialog gARAGDOR : Airlock
 expect-screen-text-not View Distance
 remember-field viewdistance
 hold H 600
 expect-field-same viewdistance
 key Esc
 wait 300
+expect-no-dialog
 expect-field-empty strategyview
+
+# THE COLLECTOR (Copy Strategy from dropswitch, the pop-up's second row): the screen's frame runs
+click-bar Find Object
+expect-dialog Select Object
+click-choice-is dropswitch
+expect-no-dialog
+wait 400
+click-win 500 300 right
+click-popup 2
+expect-status Select objects to copy to
+wait 400
+expect-screen-text Press return when finished
+expect-screen-text View Distance :
+remember-field viewdistance
+hold H 600
+expect-field-changed viewdistance
+remember-field viewdistance
+hold N 600
+expect-field-changed viewdistance
+key Insert
+expect-status Zoom... Choose centre
+key Esc
+expect-status Zoom cancelled
+key Home
+expect-status The zoom is back to the default level
+# Return ends it with nothing collected: nothing asked
+key Enter
+wait 400
+expect-no-dialog

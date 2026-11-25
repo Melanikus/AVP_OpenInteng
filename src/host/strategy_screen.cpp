@@ -4494,6 +4494,28 @@ static std::string FormRangeWords(host::StrategyFormRow const &row)
 	return words;
 }
 
+// Can this object take the row's canTakeKind (the editor's rule, Assign's: KindsTheObjectCanTake)? Any object when the row has none
+static bool FormCanTake(host::StrategyFormRow const &row, uint8_t const *id)
+{
+	if (row.canTakeKind == 0)
+	{
+		return true;
+	}
+
+	int32_t kinds[64];
+	size_t const count = KindsTheObjectCanTake(id, kinds);
+
+	for (size_t k = 0; k < count && k < 64; k++)
+	{
+		if (kinds[k] == row.canTakeKind)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 // The objects a Target or List row may name, each by the words the page names a target with (StrategyTargetWords: the name and its kind, "immediatesrt - Multi switch"): every object
 // of the Find Object list, then every other object that holds a strategy (an enemy, a generator, a placed hierarchy: the list holds only the level's object headers), each once; never
 // the view's own; only those holding one of targetKinds' strategies when it has any. (A sound or a particle generator holds none and is in neither: Pick in the world names one, and a
@@ -4547,6 +4569,11 @@ static void FormObjectsFor(host::StrategyFormRow const &row, uint8_t const *subj
 			}
 		}
 
+		if (!FormCanTake(row, id))
+		{
+			continue;   // an object that can't take the row's kind (a Lift's positions are modules)
+		}
+
 		std::array<uint8_t, 8> one;
 
 		memcpy(one.data(), id, 8);
@@ -4564,12 +4591,102 @@ static std::string FormObjectWords(uint8_t const *id)
 	return StrategyViewNameOf(id, &name) ? StrategyTargetWords(id) : std::string("Unknown");
 }
 
+// The page's lines for this record, as the panels draw them (editor_panels.cpp: the same names, radius and lift-start answers): a form's Action and PageWords rows show
+// some of them as the page shows them (the Lift's "Lift starts at ...", "Radius ..."). The area's height is the page box's least, inteng's 480: only the foot lines' y depend on it
+static std::vector<host::StrategyViewLine> FormPageLines(int32_t kind, std::vector<uint8_t> const &payload, uint8_t const *subject)
+{
+	std::vector<host::StrategyViewLine> lines;
+	std::string name;
+	host::StrategyViewWorld world;
+
+	StrategyViewNameOf(subject, &name);
+	world.radius = [](uint8_t const *one, double *radius) { return host::ObjectEdit_ShapeRadius(LevelObjects_Level(), one, radius); };
+	world.liftStartsHere = [](uint8_t const *one)
+	{
+		int32_t oneKind = 0, flags = 0;
+		std::vector<uint8_t> bytes;
+
+		return StrategyOfObject(one, &oneKind, &bytes) && oneKind == 51 && host::StrategyView_FieldNumber(51, bytes, "LiftFlags", &flags) && (flags & 1) != 0;
+	};
+	world.targetWords = StrategyTargetWords;
+	world.links = &strategyViewLinks;
+	host::StrategyView_Lines(kind, payload, name, 480, StrategyViewNameOf, subject, &lines, &world);
+	return lines;
+}
+
+// The page's lines whose words start with one of these, in the page's order
+static std::vector<std::string> FormPageWords(std::vector<host::StrategyViewLine> const &lines, std::vector<std::string> const &starts, int32_t x)
+{
+	std::vector<std::string> found;
+
+	for (host::StrategyViewLine const &line : lines)
+	{
+		if (x >= 0 && line.x != x)
+		{
+			continue;   // only the row's column of the page
+		}
+
+		for (std::string const &start : starts)
+		{
+			if (line.text.compare(0, start.size(), start) == 0)
+			{
+				found.push_back(line.text);
+				break;
+			}
+		}
+	}
+
+	return found;
+}
+
+// The page's press for a line whose click is this pickRow: its place found the page's own way (StrategyView_Click, every 4 pixels down the page), then pressed as a click
+// on the page is (StrategyViewClickAt). False when no line of the page answers it
+static bool FormPagePress(int32_t kind, std::vector<uint8_t> const &payload, int32_t pickRow)
+{
+	for (int32_t y = 0; y < 800; y += 4)
+	{
+		host::StrategyViewClick click;
+
+		if (host::StrategyView_Click(kind, payload, 300, y, &click) && click.pickRow == pickRow)
+		{
+			StrategyViewClickAt(300, y);
+			return true;
+		}
+	}
+
+	return false;
+}
+
 // A List's entries written back: the group's writeList makes the record's bytes, written as the page's own writes are: a Hierarchy Object (76) into its placed hierarchy's
 // PLACHIER, as TrackWrite writes it (Frost 2026-11-24: WriteStrategyBytes writes only a placed or a virtual object's record, so a 76 form's edits were lost), any other through
 // WriteStrategyBytes
+static bool formLiftAgreeAsk = false;   // a Lift's positions were written: the collector's question is asked once no dialog is up (StrategyFormFrame)
+static std::array<uint8_t, 8> formLiftAgreeLift = {};
+
 static bool FormListWrite(host::StrategyFormRow const &row, uint8_t const *subject, std::vector<uint8_t> const &payload, std::vector<host::StrategyFormEntry> const &entries)
 {
 	std::vector<uint8_t> bytes;
+
+	if (row.liftPositions)
+	{
+		// a Lift's positions: its bytes with these in place of its own (LiftWithPositions, as the collector's end LiftPositionsEnd); then, with any left, its question
+		std::vector<std::array<uint8_t, 8>> positions;
+
+		for (host::StrategyFormEntry const &entry : entries)
+		{
+			positions.push_back(entry.id);
+		}
+
+		if (!LevelObjects_OpenForEdit() || !LiftWithPositions(payload, positions, &bytes) || WriteStrategyBytes(LevelObjects_OpenForEdit(), subject, bytes) != host::ObjectEditResult::Done)
+		{
+			statusWords.Say("Edit Strategy: the lift's positions could not be written", StatusSayer::StrategyView);   // (ours, as LiftPositionsEnd says it)
+			return false;
+		}
+
+		formLiftAgreeAsk = !positions.empty();
+		memcpy(formLiftAgreeLift.data(), subject, 8);
+		return true;
+	}
 
 	if (!row.writeList || !row.writeList(payload, entries, &bytes) || !LevelObjects_OpenForEdit())
 	{
@@ -4619,7 +4736,8 @@ static bool FormMayName(host::StrategyFormRow const &lineRow, uint8_t const *id)
 {
 	int32_t kind = 0;
 
-	return lineRow.targetKinds.empty() || (StrategyOfObject(id, &kind, nullptr) && std::find(lineRow.targetKinds.begin(), lineRow.targetKinds.end(), kind) != lineRow.targetKinds.end());
+	return (lineRow.targetKinds.empty() || (StrategyOfObject(id, &kind, nullptr) && std::find(lineRow.targetKinds.begin(), lineRow.targetKinds.end(), kind) != lineRow.targetKinds.end())) &&
+	       FormCanTake(lineRow, id);
 }
 
 // An object (or, numbered, a number) written into the line a button named, or APPENDED by its "+" line with the line row's newWord and newChoice: the other entries as they
@@ -4660,6 +4778,11 @@ static void FormEntryWrite(FormListPress const &press, uint8_t const *picked, in
 	{
 		if (press.outer < 0)
 		{
+			if (lineRow->liftPositions && std::find_if(entries.begin(), entries.end(), [&one](host::StrategyFormEntry const &e) { return e.id == one.id; }) != entries.end())
+			{
+				return;   // a Lift's position is in its list once (the collector adds an object it already holds no second time)
+			}
+
 			entries.push_back(one);
 		}
 		else if ((size_t)press.outer < entries.size())
@@ -5247,7 +5370,11 @@ static void FormLeft(int32_t answer, std::vector<host::DialogWidget> const &widg
 
 	if (answer >= kFormAction)
 	{
-		if (row.pageY >= 0)
+		if (row.pagePickRow != 0)
+		{
+			FormPagePress(kind, payload, row.pagePickRow);   // the page's press on its line, wherever it is for this record
+		}
+		else if (row.pageY >= 0)
 		{
 			StrategyViewClickAt(row.pageX < 0 ? 0 : row.pageX, row.pageY);   // the page's press (its line's own action)
 		}
@@ -5325,7 +5452,7 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 	int32_t const controlX = labelX + (labelsWide + 16 < 144 ? 144 : (labelsWide + 16 > 280 ? 280 : labelsWide + 16));
 	int32_t formWide = 520;   // the window: as wide as its widest line, never narrower than this
 
-	spec.title = strategyFormOnRequest ? "Target  -  " + requestPage.targetName : name + host::StrategyForm_KindWords(kind);   // the E page's own head words
+	spec.title = strategyFormOnRequest ? "Target  -  " + requestPage.targetName : name + host::StrategyForm_TitleWords(kind, payload);   // the E page's own head words
 	spec.width = 520;
 
 	auto const add = [&spec](host::DialogWidgetType type, std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h) -> size_t
@@ -5467,7 +5594,9 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 		}
 		else if (row.kind == host::StrategyFormRowKind::Action)
 		{
-			parts.range = add(host::DialogWidgetType::Label, row.words, controlX, y, 240, 0x12);
+			std::vector<std::string> const pageWords = row.words.empty() && !row.pageWordsStarts.empty() ? FormPageWords(FormPageLines(kind, payload, subject), row.pageWordsStarts, row.pageWordsX) : std::vector<std::string>();
+
+			parts.range = add(host::DialogWidgetType::Label, pageWords.empty() ? row.words : pageWords[0], controlX, y, 240, 0x12);
 			parts.control = add(host::DialogWidgetType::Button, row.button.empty() ? "Edit..." : row.button, controlX + 248, y, 88, 0x10);
 			spec.widgets[parts.control].answer = kFormAction + (int32_t)r;
 		}
@@ -5664,7 +5793,7 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 					x = button("Pick", x, plusY, 44, press);
 				}
 
-				parts.lines.push_back(add(host::DialogWidgetType::Label, lineRow.entryWords ? "add one" : "add a target", x, plusY, 160, 0x12));
+				parts.lines.push_back(add(host::DialogWidgetType::Label, lineRow.entryWords ? "add one" : (lineRow.addWords.empty() ? "add a target" : lineRow.addWords), x, plusY, 160, 0x12));
 			};
 
 			for (size_t e = first; e < end; e++)
@@ -5684,6 +5813,16 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 
 			plusLine(row, -1, 0);
 			spec.width = widest + 16 > spec.width ? widest + 16 : spec.width;
+		}
+		else if (row.kind == host::StrategyFormRowKind::PageWords)
+		{
+			// the page's own lines that start with the row's words, read only, one under another (the Lift's Radius, Floor, Facing)
+			for (std::string const &words : FormPageWords(FormPageLines(kind, payload, subject), row.pageWordsStarts, row.pageWordsX))
+			{
+				parts.lines.push_back(add(host::DialogWidgetType::Label, words, controlX, y + 16 * (int32_t)parts.lines.size(), FormWordsWidth(words) + 8, 0x12));
+			}
+
+			next = y + 16 * (int32_t)(parts.lines.empty() ? 1 : parts.lines.size()) + 8;
 		}
 		else if (row.kind == host::StrategyFormRowKind::Links)
 		{
@@ -5730,6 +5869,22 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 void StrategyFormFrame()
 {
 	StateLine_Add("strategyform", strategyFormOn && host::Dialogs_IsOpen() && host::Dialogs_State().kind == "form" ? strategyFormWords : std::string());
+
+	// a Lift's positions written by its form: the collector's question, as its end asks it (LiftPositionsEnd, 0x5ee83c); Yes makes the other positions agree (LiftMakeAgree)
+	if (formLiftAgreeAsk && !ADialogIsOpen() && strategyPickField.empty())
+	{
+		std::array<uint8_t, 8> const lift = formLiftAgreeLift;
+
+		formLiftAgreeAsk = false;
+		DialogConfirm("Would you like the other positions altered\nto agree with this one?", [lift](bool yes)
+		{
+			if (yes)
+			{
+				LiftMakeAgree(lift.data());
+			}
+		});
+		return;
+	}
 
 	if (strategyFormOn && strategyEditFan && OnStrategyScreen() && !ADialogIsOpen() && strategyPickField.empty() && !copyCollecting && !volume.on &&
 	    (!requestPageOn || strategyFormOnRequest))
