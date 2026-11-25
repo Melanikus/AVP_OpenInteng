@@ -8,6 +8,8 @@ state
 click-bar Mode > Strategy Data: Normal
 expect-screen Strategy Data
 wait 400
+# THE FORMS (Frost 2026-11-24, the owner's forms for alpha.7): a generator (79) and an enemy (69) edit in a form now (strategy_forms_paths.cpp), on every route: each
+# route below opens it (the dialog "<name> : Generator" / ": Enemy"), and Escape closes it as it closed the page
 # (1) Find Object, the bar's Edit Strategy
 click-bar Find Object
 expect-dialog Select Object
@@ -17,20 +19,20 @@ wait 400
 item 0x7
 wait 400
 picture 1
-expect-field-has strategyview 200@0:generator02 : Generator|16@16:Mission :
+expect-dialog generator02 : Generator
 key Esc
 wait 300
 # (2) the key E
 key E
 wait 400
-expect-field-has strategyview 200@0:generator02 : Generator
+expect-dialog generator02 : Generator
 key Esc
 wait 300
 # (3) the pop-up's Edit Strategy
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 200@0:generator02 : Generator
+expect-dialog generator02 : Generator
 key Esc
 wait 300
 # (4) an enemy (sentry02, the figure in front of generator02), then the bar's Edit Strategy: its kind 69 view (picked by Find Object: a click's place depends on the camera)
@@ -42,7 +44,7 @@ wait 300
 item 0x7
 wait 400
 picture 2
-expect-field-has strategyview 200@0:sentry02 : Enemy
+expect-dialog sentry02 : Enemy
 key Esc
 wait 300
 # (5) WHERE HE GOT THE GREY PANEL: the big green V in front is not the generator but the VIRTUAL OBJECT trigtospidgen (it switches the generator on): a Multi Switch (kind 66), whose view is not built

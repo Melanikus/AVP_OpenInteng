@@ -3,6 +3,10 @@
 # its step module's number above; read 11-17 by switch_survey). A click on the Mission line (y 16) opens "Select Mission Type"; Hunt sets the Mission to 0 and ExtraMissionData to 0; the view
 # says "Mission : Hunt (default)" with no path line; Escape ends it (a Mission that is not 1: ExtraMissionData = 0). The copy must hold MissionType 0, ExtraMissionData 0, every other strategy
 # byte for byte. RED on the stock file read as the copy: 1 and 17498112.
+# THE FORM (Frost 2026-11-24, the owner's forms for alpha.7: "no more text that can be clicked, our pretty drop downs"): Edit Strategy on a generator opens its form
+# (strategy_forms_paths.cpp GeneratorRows): Mission, a drop-down of the window's two buttons (Hunt, Path follower), and Path, a drop-down of the level's paths, shown only for a
+# path follower. Hunt is written at once, ExtraMissionData 0 with it (as the window writes them); the Path row goes; Ok ends it as Escape ended the page (StrategyViewEnd).
+# RED before the form: Edit Strategy opened the page, no dialog.
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF
 pictures on
 state
@@ -17,18 +21,17 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 200@0:generator02 : Generator|16@16:Mission : Path follower|16@32:Path - 0
+expect-dialog generator02 : Generator
+expect-dialog-text Path follower|0  smart01
 picture 1
-# y 16: "Select Mission Type", Hunt
-click-box 300 24
+click-combo 1
+expect-dialog-combo-rows Hunt,Path follower
+click-combo-row Hunt
 wait 300
-expect-dialog Select Mission Type
-click-button Hunt
-expect-no-dialog
-wait 300
-expect-field strategyview 200@0:generator02 : Generator|16@16:Mission : Hunt (default)
+expect-dialog-text Hunt
 picture 2
-key Esc
+click-button Ok
+expect-no-dialog
 wait 300
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Stat101.RIF {copy} generator02 MissionType 0 ExtraMissionData 0

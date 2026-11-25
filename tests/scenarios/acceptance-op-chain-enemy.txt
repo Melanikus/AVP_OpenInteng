@@ -58,19 +58,19 @@ click-popup 4
 expect-dialog Select Strategy
 picture 2
 click-button Enemy
-expect-no-dialog
 wait 400
-expect-field-has strategyview 200@0:chainE : Enemy
-expect-field-has strategyview 16@16:Mission : Wait then wander (default)|16@32:Turn Death Target On|16@48:Death Target : None
-# y 16: the Mission, Local Guard
-click-box 300 24
-expect-dialog Select Mission Type
-click-button Local_Guard
-expect-no-dialog
+# THE FORM (Frost 2026-11-24, the owner's forms for alpha.7): Assign opens the enemy's form where its view opened (strategy_forms_paths.cpp EnemyRows): the Mission drop-down,
+# Local Guard; the death target's check box on, as the page's "Turn Death Target On"
+expect-dialog chainE : Enemy
+expect-dialog-text Wait then wander|(none)
+expect-dialog-checks on
+click-combo 1
+click-combo-row Local Guard
 wait 300
-expect-field-has strategyview 16@16:Mission : Local Guard
+expect-dialog-text Local Guard|(none)
 picture 3
 key Esc
+expect-no-dialog
 wait 300
 
 save-copy

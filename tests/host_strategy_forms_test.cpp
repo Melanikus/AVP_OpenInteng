@@ -10,6 +10,7 @@
 
 #include "field_model.h"
 #include "strategy_forms.h"
+#include "strategy_forms_paths.h"   // paths (Frost): the editor's answers, stood in below
 
 static int checks = 0, checksFailed = 0;
 
@@ -57,6 +58,17 @@ static bool ShownAt(host::StrategyFormRow const &row, int32_t kind, std::vector<
 	return !row.shown || row.shown(kind, payload);
 }
 
+// paths (Frost): the editor's two answers (strategy_forms_paths.h), stood in: no species and no paths, as with nothing selected and no level open
+int32_t host::StrategyFormsPaths_SelectedSpecies()
+{
+	return -1;
+}
+
+std::vector<std::pair<int32_t, std::string>> host::StrategyFormsPaths_LevelPaths()
+{
+	return {};
+}
+
 int main()
 {
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -74,6 +86,8 @@ int main()
 	hasForm[50] = true;   // Door (Drake 2026-11-24)
 	// objects (Dietrich): 62, 77, 78, 73, 70
 	// paths (Frost): 72, 80, 76, 69, 79
+	hasForm[69] = true;
+	hasForm[79] = true;
 
 	for (int32_t kind = -1; kind < 128; kind++)
 	{

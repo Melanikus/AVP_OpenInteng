@@ -38,13 +38,16 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview smartpatrol : Enemy
-key E
+# THE FORM (Frost 2026-11-24, the owner's forms for alpha.7): the enemy edits in its form (strategy_forms_paths.cpp EnemyRows); the page's E is the Death Target row's
+# "Extra data..." button, which runs the same E (the form opens again once its message is answered)
+expect-dialog smartpatrol : Enemy
+click-button Extra_data...
 wait 300
 expect-dialog The target strategy doesn't use extended request data
 click-button Ok
 wait 300
-expect-no-dialog
+expect-dialog smartpatrol : Enemy
 key Esc
 wait 300
+expect-no-dialog
 expect-field-empty strategyview
