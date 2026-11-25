@@ -382,6 +382,7 @@ void StrategyViewEnd()
 	strategyEditFan = false;
 	strategyEditKind = 0;
 	strategyFormOn = false;   // a form's view ends with it (EDIT STRATEGY AS A FORM, below)
+	strategyFormOnRequest = false;
 	strategyPickField.clear();
 	strategyViewPickWords.clear();
 	statusWords = "Strategy Data";
@@ -950,6 +951,9 @@ static void SayMessageFmv(int32_t number)
 }
 
 static bool StrategyFormStart(int32_t kind);   // EDIT STRATEGY AS A FORM, at the end of this file
+static void StrategyFormOpen(std::vector<host::DialogWidget> const *again);
+bool strategyFormOnRequest = false;   // the form up is an E page's (THE E PAGE AS A FORM, below)
+static std::vector<host::StrategyFormRow> strategyFormRequestRows;   // its rows, as StrategyFormRows_Extra gave them when the page opened
 static int32_t const kPickFormEntry = 100;      // the pick of a form's List line, or of its "+" line (strategy_views.h's pick rows are 1 to 7)
 static void FormEntryPicked(uint8_t const *picked);   // its end (StrategyPickEnd): the object written into that line, or appended
 static int32_t strategyRequestRowWanted = -1;   // E's page for THIS target of a 66 / 68 (a form line's Extra data...), not the one under the pointer
@@ -3219,7 +3223,18 @@ void StrategyRequestE()
 	requestPageField = field;
 	requestPageRow = row;
 	memcpy(requestPageTarget, target, 8);
+	memcpy(requestPage.targetId.data(), target, 8);
 	requestPageOn = true;
+
+	// a view in a form: the page as a form too, when its rows are known (strategy_forms.h StrategyFormRows_Extra); its Ok or Escape ends the page (FormLeft)
+	std::vector<host::StrategyFormRow> extraRows;
+
+	if (strategyFormOn && host::StrategyFormRows_Extra(requestPage.page, requestPage, &extraRows) && !extraRows.empty())
+	{
+		strategyFormRequestRows = extraRows;
+		strategyFormOnRequest = true;
+		StrategyFormOpen(nullptr);
+	}
 }
 
 // The page ends (Escape, or the right button): the word goes back into the view's strategy (*word |= data << 1); the view under it stays (INTENG BUG, FIXED: StrategyView_RequestEscapeEndsView)
@@ -4368,18 +4383,46 @@ namespace
 	std::vector<FormParts> strategyFormParts;
 }
 
+// THE E PAGE AS A FORM (strategy_forms.h StrategyFormRows_Extra): while it is up the rows read and write the page's data (the target's word >> 1), whatever their fields say
+
+// The data as a payload for the E rows' shown and choicesFrom: its 4 bytes, little-endian
+static std::vector<uint8_t> FormRequestBytes()
+{
+	uint32_t const data = requestPage.data;
+
+	return { (uint8_t)data, (uint8_t)(data >> 8), (uint8_t)(data >> 16), (uint8_t)(data >> 24) };
+}
+
+// A row's field written: StrategyViewApply, or the E page's data while its form is up
+static void FormFieldWrite(uint8_t const *subject, int32_t kind, std::string const &field, double value)
+{
+	if (strategyFormOnRequest)
+	{
+		requestPage.data = (uint32_t)(int64_t)value;
+		return;
+	}
+
+	StrategyViewApply(subject, kind, field.c_str(), value);
+}
+
 static int32_t FormFieldNow(int32_t kind, std::vector<uint8_t> const &payload, std::string const &field)
 {
 	int32_t now = 0;
+
+	if (strategyFormOnRequest)
+	{
+		return (int32_t)requestPage.data;
+	}
 
 	host::StrategyView_FieldNumber(kind, payload, field.c_str(), &now);
 	return now;
 }
 
-// A Number row's value as its box shows it: (value - bias) / factor, a real number with at most 3 places and no trailing zeros, or a whole number
+// A Number row's value as its box shows it: value / factor, a real number with at most 3 places and no trailing zeros, or a whole number. The bias is NOT taken off: it is
+// the nudge added before a typed number is made whole (a door's 0.01 tenth, DoorTime 0x5ac438), not an offset (Drake 11-24: a door's 10 tenths showed "0.999", the page "1.0")
 static std::string FormNumberWords(host::StrategyFormRow const &row, int32_t value)
 {
-	double const typed = row.factor != 0.0 ? ((double)value - row.bias) / row.factor : (double)value;
+	double const typed = row.factor != 0.0 ? (double)value / row.factor : (double)value;
 	char words[64];
 
 	if (!row.isFloat)
@@ -4433,13 +4476,14 @@ static std::string FormRangeWords(host::StrategyFormRow const &row)
 {
 	char words[96];
 
+	// a whole number's range in whole digits ("(-2147483648 or more)", not %g's "(-2.14748e+09 or more)": Dietrich 11-24, 70's Order takes any whole number)
 	if (row.highest >= 2147483647.0)
 	{
-		snprintf(words, sizeof(words), "(%g or more)", row.lowest);
+		snprintf(words, sizeof(words), row.isFloat ? "(%g or more)" : "(%.0f or more)", row.lowest);
 	}
 	else
 	{
-		snprintf(words, sizeof(words), "(%g to %g)", row.lowest, row.highest);
+		snprintf(words, sizeof(words), row.isFloat ? "(%g to %g)" : "(%.0f to %.0f)", row.lowest, row.highest);
 	}
 
 	return words;
@@ -4651,12 +4695,45 @@ static void FormEntryPicked(uint8_t const *picked)
 // The open form's words that are not a box: its labels and its Links' lines as shown, | between (the harness's strategyform field; the state line carries no label of a form)
 static std::string strategyFormWords;
 
+// How wide the dialogs draw these words, in pixels: the menu font's letters when it is set, else the small font's (as dialogs.cpp measures a label's words)
+static int32_t FormWordsWidth(std::string const &words)
+{
+	int32_t width = 0;
+	bool const menuFont = PanelPass_HasMenuFont();
+
+	for (char const letter : words)
+	{
+		width += menuFont ? PanelPass_MenuWidth((unsigned char)letter) : PanelPass_SmallWidth((unsigned char)letter);
+	}
+
+	return width;
+}
+
+// A drop-down as wide as its longest row and its arrow (16) with a little room, never under least nor over most (past most, the words run on as before)
+static int32_t FormComboWidth(std::vector<std::string> const &items, int32_t least, int32_t most)
+{
+	int32_t widest = 0;
+
+	for (std::string const &item : items)
+	{
+		int32_t const width = FormWordsWidth(item);
+
+		widest = width > widest ? width : widest;
+	}
+
+	int32_t const width = widest + 16 + 12;
+
+	return width < least ? least : (width > most ? most : width);
+}
+
 // Each row shown or not, as its rule says for the record as it is now
 static void FormShowRows(std::vector<host::DialogWidget> &widgets, int32_t kind, std::vector<uint8_t> const &payload)
 {
+	std::vector<uint8_t> const rowsPayload = strategyFormOnRequest ? FormRequestBytes() : payload;
+
 	for (size_t r = 0; r < strategyFormRows.size() && r < strategyFormParts.size(); r++)
 	{
-		bool const shown = !strategyFormRows[r].shown || strategyFormRows[r].shown(kind, payload);
+		bool const shown = !strategyFormRows[r].shown || strategyFormRows[r].shown(kind, rowsPayload);
 
 		std::vector<size_t> parts = strategyFormParts[r].lines;
 
@@ -4758,11 +4835,14 @@ static void FormComboPicked(std::vector<host::DialogWidget> &widgets, size_t ind
 			if (after != before)
 			{
 				// a Bits row's field is a set of flags: its 32 bits written as the unsigned number they are (0x80000004, not -2147483644, which the field refuses)
-				StrategyViewApply(subject, kind, row.field.c_str(), bits ? (double)(uint32_t)after : (double)after);
+				FormFieldWrite(subject, kind, row.field, bits ? (double)(uint32_t)after : (double)after);
 
 				for (host::StrategyFormAlso const &also : row.alsoOnChange)
 				{
-					StrategyViewApply(subject, kind, also.field.c_str(), also.value);
+					if (!strategyFormOnRequest)
+					{
+						StrategyViewApply(subject, kind, also.field.c_str(), also.value);
+					}
 				}
 			}
 		}
@@ -4821,11 +4901,11 @@ static void FormCheckTicked(std::vector<host::DialogWidget> &widgets, size_t ind
 		if (strategyFormRows[r].kind == host::StrategyFormRowKind::Check && strategyFormParts[r].control == index)
 		{
 			uint32_t const before = (uint32_t)FormFieldNow(kind, payload, strategyFormRows[r].field);
-			uint32_t const after = widgets[index].checked ? (before | strategyFormRows[r].mask) : (before & ~strategyFormRows[r].mask);
+			uint32_t const after = widgets[index].checked ? (before | strategyFormRows[r].mask) : (before & ~strategyFormRows[r].mask & ~strategyFormRows[r].clearAlso);
 
 			if (after != before)
 			{
-				StrategyViewApply(subject, kind, strategyFormRows[r].field.c_str(), (double)after);   // the 32 bits as the unsigned number they are (as a Bits row)
+				FormFieldWrite(subject, kind, strategyFormRows[r].field, (double)after);   // the 32 bits as the unsigned number they are (as a Bits row)
 			}
 
 			break;
@@ -4885,12 +4965,22 @@ static bool FormNumbersWritten(std::vector<host::DialogWidget> const &widgets)
 			return false;
 		}
 
+		if (row.mask != 0)
+		{
+			// into the mask's bits, the field's other bits kept, alsoBits set (the E page's integrity: bits 7..14 and "Set integrity")
+			uint32_t const before = (uint32_t)FormFieldNow(kind, payload, row.field);
+			uint32_t const into = (before & ~row.mask) | (((uint32_t)(int64_t)value << row.shift) & row.mask) | row.alsoBits;
+
+			writes.push_back(Write{ row.field, (double)into });
+			continue;
+		}
+
 		writes.push_back(Write{ row.field, (double)(int64_t)value });   // made whole as the page's Number makes it (toward 0)
 	}
 
 	for (Write const &one : writes)
 	{
-		StrategyViewApply(subject, kind, one.field.c_str(), one.value);
+		FormFieldWrite(subject, kind, one.field, one.value);
 	}
 
 	return true;
@@ -5094,6 +5184,20 @@ static void FormLeft(int32_t answer, std::vector<host::DialogWidget> const &widg
 		return;   // the view ended under the form (its object went)
 	}
 
+	if (strategyFormOnRequest)
+	{
+		// the E page's form: Ok writes its boxes first (a refused number brings it back); Ok or Escape then end the page as its Escape does: the word written where the page
+		// writes it (RequestPageEnd), and the view's form comes back (StrategyFormFrame)
+		if (answer != host::kDialogEscape && !FormNumbersWritten(widgets))
+		{
+			return;
+		}
+
+		strategyFormOnRequest = false;
+		RequestPageEnd(false);
+		return;
+	}
+
 	if (answer == host::kDialogEscape)
 	{
 		StrategyViewEnd();
@@ -5191,16 +5295,32 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 	}
 
 	StrategyViewNameOf(subject, &name);
-	strategyFormRows = host::StrategyForm_Rows(kind);
+	strategyFormRows = strategyFormOnRequest ? strategyFormRequestRows : host::StrategyForm_Rows(kind);
 	strategyFormParts.assign(strategyFormRows.size(), FormParts());
 	strategyFormListButtons.clear();
-	trackPage = -1;   // the form is the view: no track page (an E page of a track's target named one while it ran)
+
+	if (!strategyFormOnRequest)
+	{
+		trackPage = -1;   // the form is the view: no track page (an E page of a track's target named one while it ran)
+	}
 
 	host::DialogFormSpec spec;
-	int32_t const rowHeight = 24, top = 32, labelX = 16, controlX = 160;
+	int32_t const rowHeight = 24, top = 32, labelX = 16;
 	std::array<uint8_t, 8> const noObject = {};
+	int32_t labelsWide = 0;
 
-	spec.title = name + host::StrategyForm_KindWords(kind);
+	// the label column as wide as the longest label (Dietrich 11-24: a Fan's labels ran into their boxes), at least inteng's usual 144, at most 280
+	for (host::StrategyFormRow const &row : strategyFormRows)
+	{
+		int32_t const width = FormWordsWidth(row.label);
+
+		labelsWide = width > labelsWide ? width : labelsWide;
+	}
+
+	int32_t const controlX = labelX + (labelsWide + 16 < 144 ? 144 : (labelsWide + 16 > 280 ? 280 : labelsWide + 16));
+	int32_t formWide = 520;   // the window: as wide as its widest line, never narrower than this
+
+	spec.title = strategyFormOnRequest ? "Target  -  " + requestPage.targetName : name + host::StrategyForm_KindWords(kind);   // the E page's own head words
 	spec.width = 520;
 
 	auto const add = [&spec](host::DialogWidgetType type, std::string const &words, int32_t x, int32_t y, int32_t w, int32_t h) -> size_t
@@ -5228,7 +5348,7 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 
 		if (row.kind == host::StrategyFormRowKind::Choice || row.kind == host::StrategyFormRowKind::Bits)
 		{
-			std::vector<host::StrategyFormChoice> const choices = row.choicesFrom ? row.choicesFrom(kind, payload) : row.choices;
+			std::vector<host::StrategyFormChoice> const choices = row.choicesFrom ? row.choicesFrom(kind, strategyFormOnRequest ? FormRequestBytes() : payload) : row.choices;
 			size_t const box = add(host::DialogWidgetType::Combo, "", controlX, y, 240, 0x12);
 			int32_t picked = -1;
 
@@ -5265,6 +5385,8 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 			spec.widgets[box].selected = picked;
 			spec.widgets[box].text = spec.widgets[box].items[(size_t)picked];   // the box shows the picked row's words (as InDialog::PickRow sets them)
 			spec.widgets[box].listRows = 12;
+			spec.widgets[box].box.width = FormComboWidth(spec.widgets[box].items, 160, 420);   // as wide as its longest row (Dietrich 11-24: "Once enabled , continues working ...")
+			formWide = controlX + spec.widgets[box].box.width + 16 > formWide ? controlX + spec.widgets[box].box.width + 16 : formWide;
 			parts.control = box;
 		}
 		else if (row.kind == host::StrategyFormRowKind::Check)
@@ -5313,15 +5435,30 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 			spec.widgets[box].selected = picked;
 			spec.widgets[box].text = spec.widgets[box].items[(size_t)picked];   // the box shows the picked row's words (as InDialog::PickRow sets them)
 			spec.widgets[box].listRows = 12;
+			spec.widgets[box].box.width = FormComboWidth(spec.widgets[box].items, 200, 360);   // as wide as its longest row (Frost 11-24: a long name ran over Pick)
 			parts.control = box;
-			parts.pick = add(host::DialogWidgetType::Button, "Pick", controlX + 208, y, 48, 0x10);
+
+			int32_t x = controlX + spec.widgets[box].box.width + 8;
+
+			parts.pick = add(host::DialogWidgetType::Button, "Pick", x, y, 48, 0x10);
 			spec.widgets[parts.pick].answer = kFormPick + (int32_t)r;
+			x += 56;
 
 			if (row.extra)
 			{
-				parts.extra = add(host::DialogWidgetType::Button, "Extra data...", controlX + 264, y, 88, 0x10);
+				parts.extra = add(host::DialogWidgetType::Button, "Extra data...", x, y, 88, 0x10);
 				spec.widgets[parts.extra].answer = kFormExtra + (int32_t)r;
+				x += 96;
+
+				// the pages' "(Has extra message data)" (0x5eecc0, 0x5ef2ec) when the request holds more than its on / off bit (Dietrich 11-24)
+				if (!row.request.empty() && ((uint32_t)FormFieldNow(kind, payload, row.request) & ~1u) != 0)
+				{
+					parts.range = add(host::DialogWidgetType::Label, "(Has extra message data)", x, y, FormWordsWidth("(Has extra message data)") + 8, 0x12);
+					x += spec.widgets[parts.range].box.width + 8;
+				}
 			}
+
+			formWide = x + 8 > formWide ? x + 8 : formWide;
 		}
 		else if (row.kind == host::StrategyFormRowKind::Action)
 		{
@@ -5351,6 +5488,8 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 			{
 				FormObjectsFor(*subRow, subject, &parts.subIds, &subNames);
 			}
+
+			int32_t const listWide = FormComboWidth(names, 220, 360), subWide = FormComboWidth(subNames, 220, 360);
 
 			if (strategyFormListPage.size() < strategyFormRows.size())
 			{
@@ -5411,7 +5550,7 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 				}
 				else
 				{
-					line.combo = add(host::DialogWidgetType::Combo, "", x, ly, 220, 0x12);
+					line.combo = add(host::DialogWidgetType::Combo, "", x, ly, &ids == &parts.subIds ? subWide : listWide, 0x12);
 					parts.lines.push_back(line.combo);
 
 					int32_t picked = -1;
@@ -5432,7 +5571,7 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 					spec.widgets[line.combo].selected = picked;
 					spec.widgets[line.combo].text = spec.widgets[line.combo].items[(size_t)picked];
 					spec.widgets[line.combo].listRows = 12;
-					x += 228;
+					x += spec.widgets[line.combo].box.width + 8;
 					press.what = FormListDo::Pick;
 					x = button("Pick", x, ly, 44, press);
 				}
@@ -5470,8 +5609,11 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 					line.checks.push_back(add(host::DialogWidgetType::Check, "", x, ly, 16, 16));
 					spec.widgets[line.checks.back()].checked = (entry.word & check.mask) != 0;
 					parts.lines.push_back(line.checks.back());
-					parts.lines.push_back(add(host::DialogWidgetType::Label, check.label, x + 20, ly, 60, 0x12));
-					x += 84;
+					// the label as wide as its words, and a gap after it (Dietrich 11-25: "Possible" ran into Remove)
+					int32_t const labelWide = FormWordsWidth(check.label) + 8;
+
+					parts.lines.push_back(add(host::DialogWidgetType::Label, check.label, x + 20, ly, labelWide, 0x12));
+					x += 20 + labelWide + 12;
 				}
 
 				if (lineRow.entryExtra)
@@ -5488,6 +5630,13 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 
 				press.what = FormListDo::Remove;
 				x = button("Remove", x, ly, 60, press);
+
+				if (lineRow.entryExtra && (entry.word & ~1u) != 0)
+				{
+					parts.lines.push_back(add(host::DialogWidgetType::Label, "(Has extra message data)", x, ly, FormWordsWidth("(Has extra message data)") + 8, 0x12));   // 0x5ef0ac
+					x += spec.widgets[parts.lines.back()].box.width + 8;
+				}
+
 				widest = x > widest ? x : widest;
 				parts.listLines.push_back(line);
 			};
@@ -5554,6 +5703,7 @@ static void StrategyFormOpen(std::vector<host::DialogWidget> const *again)
 	}
 
 	spec.height = next + 48;
+	spec.width = formWide > spec.width ? formWide : spec.width;
 
 	size_t const ok = add(host::DialogWidgetType::Button, "Ok", spec.width / 2 - 25, spec.height - 32, 50, 0x10);
 
@@ -5576,9 +5726,10 @@ void StrategyFormFrame()
 {
 	StateLine_Add("strategyform", strategyFormOn && host::Dialogs_IsOpen() && host::Dialogs_State().kind == "form" ? strategyFormWords : std::string());
 
-	if (strategyFormOn && strategyEditFan && OnStrategyScreen() && !ADialogIsOpen() && strategyPickField.empty() && !requestPageOn && !copyCollecting && !volume.on)
+	if (strategyFormOn && strategyEditFan && OnStrategyScreen() && !ADialogIsOpen() && strategyPickField.empty() && !copyCollecting && !volume.on &&
+	    (!requestPageOn || strategyFormOnRequest))
 	{
-		StrategyFormOpen(nullptr);
+		StrategyFormOpen(nullptr);   // the view's form, or the E page's when its form is up
 	}
 }
 

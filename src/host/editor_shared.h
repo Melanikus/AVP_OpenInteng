@@ -271,6 +271,7 @@ extern int32_t requestPageRow;
 
 // made in strategy_screen.cpp: EDIT STRATEGY AS A FORM (strategy_forms.h): the view open is a kind's form (no page drawn under it), and the frame's check that opens it again
 extern bool strategyFormOn;
+extern bool strategyFormOnRequest;   // the form shown is an E page's (its page is not drawn under it)
 void StrategyFormFrame();
 
 // made in strategy_screen.cpp

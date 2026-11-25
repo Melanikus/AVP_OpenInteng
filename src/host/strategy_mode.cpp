@@ -128,6 +128,11 @@ namespace host
 	// Find's steps, in its order, for each ID; the level built and walked once, the first time an ID with a name needs it
 	void StrategyMode_HasEach(OpenLevelFile *file, uint8_t const *ids, size_t count, std::vector<StrategyModeResult> *answers)
 	{
+		if (!answers)
+		{
+			return;   // nowhere to answer (Drake's review NIT)
+		}
+
 		answers->assign(count, StrategyModeResult::BadCall);
 
 		if (!file || !ids || !file->Level())

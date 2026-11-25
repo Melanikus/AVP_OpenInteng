@@ -239,6 +239,7 @@ namespace host
 		uint32_t data = 0;                 // the word >> 1, arithmetic (SAR: 0x531264, 0x5333be, 0x535227, 0x533887, 0x53a4ad): the bits the page edits
 		int32_t targetType = 0;            // a Placed Object target's Type (+0x14): 16, a placed light, has four more lines
 		int32_t targetIntegrity = 0;       // a Placed Object target's integrity (+0x20): "New integrity value" starts with its lowest 8 bits
+		std::array<uint8_t, 8> targetId = {};   // the target's ID (the editor's E sets it as the page opens: a form's rows list a placed hierarchy's sequences by it; Frost 11-24)
 		std::vector<StrategyViewLine> drawn;   // Mission / Switch: the page's lines of this pass (INTENG BUG, FIXED: inteng empties its text list only when the page opens, so every line
 		                                       // drawn since stayed on the screen, an old box glyph under the new one; here each pass starts it empty)
 	};

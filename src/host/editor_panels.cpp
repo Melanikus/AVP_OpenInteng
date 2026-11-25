@@ -1040,7 +1040,7 @@ PanelExtras PlanThePanels(const ui::PanelLayout &layout, host::PaintText *lines,
 	// a kind's FORM (strategy_forms.h) opened again once what its button opened has ended; while the form is the view, no page is drawn under it (its pick and E's page are drawn as before)
 	StrategyFormFrame();
 
-	if (strategyEditFan && OnStrategyScreen() && !volume.on && !copyCollecting && !(strategyFormOn && strategyPickField.empty() && !requestPageOn))
+	if (strategyEditFan && OnStrategyScreen() && !volume.on && !copyCollecting && !(strategyFormOn && strategyPickField.empty() && (!requestPageOn || strategyFormOnRequest)))
 	{
 		std::vector<uint8_t> payload;
 		std::string name;

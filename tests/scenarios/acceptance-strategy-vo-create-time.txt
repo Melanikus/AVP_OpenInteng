@@ -28,7 +28,8 @@ picture 1
 expect-field-changed flagtints
 expect-number flagtints rows,_ 0 500
 
-# and again: each create is as quick
+# and again: each create is as quick (the marks made again: the field changed, Drake's review NIT)
+remember-field flagtints
 click-win 500 300 right
 click-popup 6
 click-popup 1
@@ -38,4 +39,5 @@ key Enter
 expect-no-dialog
 expect-status Virtual object TimedVO2 is in the level
 wait 600
+expect-field-changed flagtints
 expect-number flagtints rows,_ 0 500

@@ -99,6 +99,9 @@ namespace host
 		double bias = 0.0;                        //   a time in seconds x 65536 is inteng's 16.16; a door's tenths are x 10 + 0.01 (DoorTime, strategy_views.cpp)
 		bool isFloat = false;                     // Number: the box takes a real number (else a whole number)
 		double lowest = 0.0, highest = 0.0;       // Number: the range the TYPED number must lie in, ends included (shown beside the box)
+		uint32_t shift = 0;                       // Number with a mask: the typed number goes into the mask's bits, shifted up this far: field = (field & ~mask) | ((n << shift) & mask)
+		uint32_t alsoBits = 0;                    //   | alsoBits (Frost 11-24: a Placed Object target's integrity, bits 7..14, sets bit 0 "Set integrity" too)
+		uint32_t clearAlso = 0;                   // Check: these bits cleared too when the box is UNticked (the integrity's bits with "Set integrity", as inteng's page)
 		int32_t pickRow = 0;                      // Target, SwitchTargets: the rule a pick writes the target with (strategy_views.h StrategyPickRow)
 		std::string request;                      // Target: the request field that rule sets (the target's on/off and extra data)
 		std::string pickWords;                    // Target: the words along the foot while its pick runs, inteng's ("Select target for switch")
@@ -146,6 +149,8 @@ namespace host
 	                                                                                    //   78 Self Destruct, 73 Message, 70 Mission Objective
 	bool StrategyFormRows_Paths(int32_t kind, std::vector<StrategyFormRow> *rows);      // strategy_forms_paths.cpp (Frost): 72 / 80 Track Object, 76 Hierarchy, 69 Enemy,
 	                                                                                    //   79 Generator, and the E extra-data pages
-	// strategy_forms_paths.cpp (Frost): the E pages' rows, on the field "request.data" (that entry's word >> 1, bit 0 kept)
+	// strategy_forms_paths.cpp (Frost): the E pages' rows, on the field "request.data" (that entry's word >> 1, bit 0 kept). Answering true with rows, Extra data... opens them as a
+	// form over the level in place of the page (Vasquez 11-24): every row reads and writes the page's data whatever its field says, its shown / choicesFrom get the view's kind and the
+	// data's 4 bytes (little-endian) as the payload, and Ok or Escape ends it as the page's Escape ends the page (the word, bit 0 kept, written where the page writes it)
 	bool StrategyFormRows_Extra(RequestPage page, RequestPageState const &state, std::vector<StrategyFormRow> *rows);
 }
