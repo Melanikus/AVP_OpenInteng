@@ -466,6 +466,9 @@ static bool rightButtonDown = false;
 // opens at the pointer, closes on a pick, a click elsewhere or Esc, and its items do what they do on a bar. (Added 2026-11-15 by Melanikus (Dietrich).)
 ui::MenuBar popupBar;
 EditorBarRoom popupRoom;
+// the pop-up row whose sub-menu (cascade) a left press chose: the state line reports that cascade as the level shown only then, so a pop-up opened under the pointer on a
+// cascade's row (which shows it at once, as inteng's) still reports its own rows until a row is clicked, as the harness's click-popup expects; -1 none (Drake 2026-11-24)
+static int popupCascadeChosen = -1;
 POINT popupAt = { 0, 0 };        // where it opens, in the editor window
 static POINT rightPressedAt = { 0, 0 }; // where the right button went down
 static bool rightDragged = false;       // the pointer moved while the right button was down
@@ -7701,6 +7704,7 @@ static void PopupPicked(int32_t action)
 	{
 		if (EditorBar_MakePopupLevel(barScreen, action - kEditorPopupGroupBase, &popupRoom) && popupBar.Load(popupRoom.menus, popupRoom.menuCount))
 		{
+			popupCascadeChosen = -1;   // a new level in the pop-up's place: no sub-menu chosen yet
 			popupBar.Handle(ui::KeyEvent(ui::Key::Menu));
 			memset(keyDown, 0, sizeof(keyDown));
 		}
@@ -9071,6 +9075,9 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			{
 				ui::MenuAnswer const popAnswer = popupBar.Press(at.x, at.y);
 
+				// a press on a row that opens a sub-menu picks nothing and the pop-up stays: that row's sub-menu is the one chosen (popupCascadeChosen)
+				popupCascadeChosen = popAnswer != ui::MenuAnswer::Picked && popupBar.IsOpen() ? popupBar.LitItem() : -1;
+
 				if (popAnswer == ui::MenuAnswer::Picked)
 				{
 					PopupPicked(popupBar.Picked());
@@ -9544,6 +9551,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 				&& EditorBar_MakePopup(barScreen, &popupRoom) && popupBar.Load(popupRoom.menus, popupRoom.menuCount))
 			{
 				popupAt = rightPressedAt;
+				popupCascadeChosen = -1;   // a new pop-up: no sub-menu chosen yet
 				popupBar.Handle(ui::KeyEvent(ui::Key::Menu));
 				memset(keyDown, 0, sizeof(keyDown));
 			}
@@ -17080,32 +17088,53 @@ int main(int, char **)
 			// All three are empty when no pop-up is open.
 			std::string popupEntries, popupRow1, popupStep;
 
+			// A SUB-MENU SHOWN BESIDE THE POP-UP (editor_bar.cpp EditorBar_MakePopupLevel: a group's rows are its row's cascade, the pop-up staying, as inteng's): the
+			// level shown is the cascade, so popup, popuprow1 and popupstep are its rows, and a scenario's next click-popup picks among them, as it did when they
+			// replaced the pop-up; popupparent is then the pop-up's own entries (still open beside it), "none" while no cascade shows.
+			std::string popupParent = "none";
+
 			if (popupBar.IsOpen() && popupRoom.menuCount == 1)
 			{
-				for (size_t i = 0; i < popupRoom.menus[0].count; i++)
+				// one level's entries, as "<entry>|<entry>|...": the words alone (the "  >" after an entry that opens more is ours, the cascade's mark)
+				auto const entriesOf = [](ui::MenuItem const *items, size_t count)
 				{
-					std::string entry = popupRoom.menus[0].items[i].name ? popupRoom.menus[0].items[i].name : "";
+					std::string words;
 
-					// the "  >" after an entry that opens more is ours (the cascade's mark): the entry's own words are what is reported
-					if (entry.size() > 2 && entry.compare(entry.size() - 2, 2, " >") == 0)
+					for (size_t i = 0; i < count; i++)
 					{
-						entry.resize(entry.size() - 2);
+						std::string entry = items[i].name ? items[i].name : "";
+
+						if (entry.size() > 2 && entry.compare(entry.size() - 2, 2, " >") == 0)
+						{
+							entry.resize(entry.size() - 2);
+						}
+
+						for (char const letter : entry)
+						{
+							words += (letter == '"' || letter == '|') ? '?' : letter;
+						}
+
+						words += i + 1 < count ? "|" : "";
 					}
 
-					for (char const letter : entry)
-					{
-						popupEntries += (letter == '"' || letter == '|') ? '?' : letter;
-					}
+					return words;
+				};
 
-					popupEntries += i + 1 < popupRoom.menus[0].count ? "|" : "";
-				}
-
-				ui::Box const drop = popupBar.DropBox();
+				ui::Box const cascade = popupBar.CascadeBox();
+				int const owner = popupBar.LitItem();
+				bool const cascadeShown = cascade.width > 0 && cascade.height > 0 && owner >= 0 && owner == popupCascadeChosen && (size_t)owner < popupRoom.menus[0].count &&
+					popupRoom.menus[0].items[owner].subCount > 0;
+				ui::Box const drop = cascadeShown ? cascade : popupBar.DropBox();
 				int32_t const entryHeight = host::MenuPaint_ItemHeight(kPanelPassLineHeight);
 
+				popupEntries = cascadeShown ? entriesOf(popupRoom.menus[0].items[owner].subItems, popupRoom.menus[0].items[owner].subCount) :
+					entriesOf(popupRoom.menus[0].items, popupRoom.menus[0].count);
+				popupParent = cascadeShown ? entriesOf(popupRoom.menus[0].items, popupRoom.menus[0].count) : "none";
 				popupRow1 = std::to_string(drop.x) + " " + std::to_string(drop.y) + " " + std::to_string(drop.width) + " " + std::to_string(entryHeight);
 				popupStep = "0 " + std::to_string(entryHeight);
 			}
+
+			StateLine_Add("popupparent", popupParent);
 
 			// inteng's Hierarchy text of the frame: "<row>:<words>|..." (the words with no quote or bar; the one at x 200 is given as "<row>@200:<words>")
 			std::string hierarchyLinesWord;

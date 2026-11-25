@@ -260,6 +260,8 @@ bool EditorBar_MakePopupLevel(size_t screen, int32_t group, EditorBarRoom *room)
 	}
 	else
 	{
+		size_t subUsed = 0;   // the cascades' rows in room->subItems
+
 		for (size_t m = 0; m < count; m++)
 		{
 			if (used >= ui::kMenuMostItems)
@@ -287,6 +289,43 @@ bool EditorBar_MakePopupLevel(size_t screen, int32_t group, EditorBarRoom *room)
 				ui::MenuItem shown = { popupGroupNames[used], nullptr, kEditorPopupGroupBase + (int32_t)m, nullptr, menus[m].access };
 
 				shown.subMenu = true;
+
+				// THE SUB-MENU BESIDE THE POP-UP (Drake 2026-11-24, the owner on alpha.6: "place above/below etc is a sub menu, right now the main menu where you were
+				// disappears and only the 'here, above...etc' show"): inteng's pop-up opens a sub-level to the side and keeps itself (FUN_004b8350), so a group of plain
+				// rows is this row's CASCADE, shown beside the pop-up as the pointer comes on the row, the pop-up staying (ui/menu_bar.h's subItems, as the bar's own
+				// cascades). Before, picking the row put its rows in the pop-up's place. A group with a sub-level of its own inside (a level-1 row: two levels deep,
+				// which a cascade can't hold) still opens in the pop-up's place, as before: NAMED.
+				size_t const from = subUsed;
+				bool plain = true;
+
+				for (size_t k = 0; k < menus[m].count && plain; k++)
+				{
+					host::IntengItem const &row = menus[m].items[k];
+
+					if (host::AutoPlot_CommandHidden(row.command, host::AutoPlot_Shown()))
+					{
+						continue;   // hidden by the owner's ruling (autoplot_switch.h), as AddIntengItems leaves it out
+					}
+
+					plain = row.level == 0 && subUsed < kEditorBarMostItems && subUsed - from < ui::kMenuMostSubItems;
+
+					if (plain)
+					{
+						ui::MenuItem const shownRow = { row.name, nullptr, row.action, nullptr, row.access };
+
+						room->subItems[subUsed++] = shownRow;
+					}
+				}
+
+				if (plain && subUsed > from)
+				{
+					shown.subItems = room->subItems + from;
+					shown.subCount = subUsed - from;
+				}
+				else
+				{
+					subUsed = from;   // not a cascade: the row opens its group in the pop-up's place (PopupPicked)
+				}
 
 				room->items[used++] = shown;
 			}
