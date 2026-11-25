@@ -1842,6 +1842,11 @@ static void MoveRelativeWindow(int32_t const place[3], int32_t const moduleWorld
 
 		Answer("Moved: the object's place is the module's place less what was typed");
 		LoadTheObjectListAgain();
+
+		// THE VIEW (the owner's alpha.7 delete bug, the same cause): the move above is in the editor's copy of the level only, and what is drawn is the game's own
+		// copy, loaded when the level was last shown, so the shape stayed where it was until the next screen change. The view loads the working bytes again now,
+		// as a placing and a delete do (not while a live copy flies: then the next screen change shows it)
+		PutTheNewObjectInPlay();
 	});
 }
 
