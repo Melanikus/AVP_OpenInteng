@@ -24,7 +24,6 @@
 
 #include "editor_bar.h"             // kEditorBarMostRows (an array's size); EditorBarRows, EditorBarRoom
 #include "editor_icons.h"           // host::IconWorldTriangle (IconForPick's triangles)
-#include "key_layout.h"             // KeyLayout (an enum, used by value)
 #include "object_edit.h"            // host::ObjectEditResult (an enum, used by value)
 #include "selection.h"              // host::PickReport (PlacementPick's report); host::Selected
 #include "special_objects_edit.h"   // host::SpecialKind (PlacementPick's kind, and its value Generator)
@@ -86,7 +85,6 @@ extern size_t barRowCount;
 extern EditorBarRows barRows;
 extern size_t barScreen;
 extern StatusWords statusWords;   // the status line's words, a copy it owns (status_words.h)
-extern KeyLayout keyLayout;
 bool LoadTheMenus();
 extern bool keyDown[256];
 bool KeyHeldNow(int vk);
@@ -522,7 +520,6 @@ extern EditorBarRows barRows;
 extern size_t barScreen;
 extern char cutOffWords[160];
 extern StatusWords statusWords;   // the status line's words, a copy it owns (status_words.h)
-extern KeyLayout keyLayout;
 extern char layoutSettingsFile[MAX_PATH];
 extern host::EditorOptions editorOptions;
 bool LoadTheMenus();

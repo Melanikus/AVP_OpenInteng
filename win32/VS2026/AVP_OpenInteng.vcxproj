@@ -1447,10 +1447,6 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <ClCompile Include="..\..\src\host\key_layout.cpp">
-      <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
     <!-- src\host\draw_chain_stand_in.cpp is out of the try build: its local avpx carries the real R_DrawScreenToChain (R-DRAW-CHAIN-1,
          71847648), as the stand-in's own top says it would be when the pin moves -->
 

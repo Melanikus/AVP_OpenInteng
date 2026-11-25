@@ -66,7 +66,7 @@ bool EditorBar_MakePopup(size_t screen, EditorBarRoom *room);
 // Makes the screen's bar in *room, with the keys' words of layout. Gives back false, making nothing that counts, for no room, a screen
 // that isn't one of kIntengScreens, or a bar that wouldn't fit the menu bar. The test makes every screen's, so the editor's own never
 // fails.
-bool EditorBar_Make(size_t screen, KeyLayout layout, EditorBarRoom *room);
+bool EditorBar_Make(size_t screen, EditorBarRoom *room);
 
 // The screen's SECOND bar, under the first (inteng's code-built screens show two rows of menus: IntengScreen::secondRow, page 0), made in *room with the same item words and none of
 // the editor's own items. Gives back true with room->menuCount 0 for a screen that has no second row, and false (making nothing that counts) for no room, a screen that isn't one of
@@ -108,7 +108,7 @@ struct EditorBarRows
 };
 
 // Makes the screen's bars on the page now shown (EditorBar_SetPage), wrapped to width. False, with nothing that counts made, when a bar can't be made or more than kEditorBarMostRows rows would be needed.
-bool EditorBar_MakeRows(size_t screen, KeyLayout layout, int32_t width, host::PaintLetterWidth widthOf, EditorBarRows *rows);
+bool EditorBar_MakeRows(size_t screen, int32_t width, host::PaintLetterWidth widthOf, EditorBarRows *rows);
 
 // The toolbar's height for that many physical rows, and where each row and its drop-down room go (the drop-down room of a row starts at the row's own foot)
 ui::PanelSizes EditorBar_SizesRows(ui::PanelSizes sizes, size_t rows);
@@ -122,7 +122,7 @@ struct EditorBarPlaceRows
 EditorBarPlaceRows EditorBar_PlaceRows(const ui::PanelLayout &layout, size_t rows);
 
 // The least window width at which every page of every screen wraps into kEditorBarMostRows physical rows or fewer, and no title is wider than the window. The editor keeps its window at least this wide.
-int32_t EditorBar_LeastWidth(KeyLayout layout, host::PaintLetterWidth widthOf);
+int32_t EditorBar_LeastWidth(host::PaintLetterWidth widthOf);
 
 // Does what the item numbered action does, through *host, as the editor's actions do: host->screen is the screen in use, changed when the
 // item goes to another. Gives back false, changing nothing, for no host or a number no item of any bar has.
@@ -130,7 +130,7 @@ bool EditorBar_Run(int32_t action, EditorHostState *host);
 
 // How wide the widest bar's titles are together, as widthOf measures them (MenuPaint_Measure): the narrowest the toolbar can be with no
 // title past its edge. The editor keeps its window at least this wide.
-int32_t EditorBar_WidestTitles(KeyLayout layout, host::PaintLetterWidth widthOf);
+int32_t EditorBar_WidestTitles(host::PaintLetterWidth widthOf);
 
 // The titles bar has laid out past the toolbar's edge (TitleBox of no width), named in words for the status line: "Menus past the
 // window's edge: <title>, <title>", at most size - 1 letters, always ended by a 0. Nothing is cut: an empty text.

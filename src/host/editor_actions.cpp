@@ -1,5 +1,6 @@
 // See editor_actions.h. Written 2026-11-14 by Melanikus (Dietrich) for AVP_OpenInteng (F3). AVP_OpenInteng's own code: see License.txt,
-// "AVP_OpenInteng's own code". (Modified 2026-11-14 by Melanikus (Dietrich), F3: the two key layouts.)
+// "AVP_OpenInteng's own code". (Modified 2026-11-14 by Melanikus (Dietrich), F3: the two key layouts. Modified 2026-11-25 by Melanikus
+// (Frost): one layout again, inteng's: the Modern WASD layout's code is gone, editor_actions.h.)
 
 #include "editor_actions.h"
 #include "view_toggles.h"
@@ -8,8 +9,6 @@
 #include <stdio.h>
 #include <string.h>
 
-const char kEditorClassicNowWords[] = "The keys are Classic inteng's now: the camera is on the numeric keypad, with NumLock on. Help, Keys lists them";
-const char kEditorModernNowWords[] = "The keys are Modern WASD's now. Help, Keys lists them";
 const char kEditorAboutWords[] = "AVP_OpenInteng: the map editor for Aliens versus Predator, drawn with the game's own engine (AvPx)";
 const char kEditorOpenNotYetWords[] = "Opening another level isn't here yet: the editor opens the level AVP_OpenInteng.ini names";
 
@@ -108,23 +107,10 @@ static void ViewNameObject(EditorHostState *host)
 	host->prompt = kPromptName;
 }
 
-// The key layouts (key_layout.h): the loop saves the one picked in the .ini, and remakes the menus with its keys
-static void ViewKeysClassic(EditorHostState *host)
-{
-	host->layout = KeyLayout::Classic;
-	host->statusWords = kEditorClassicNowWords;
-}
-
-static void ViewKeysModern(EditorHostState *host)
-{
-	host->layout = KeyLayout::ModernWasd;
-	host->statusWords = kEditorModernNowWords;
-}
-
-// Help, Keys: the camera's keys in the layout in use, made from the table of moves
+// Help, Keys: the camera's keys, made from the table of moves
 static void HelpKeys(EditorHostState *host)
 {
-	host->statusWords = EditorActions_KeysWords(host->layout);
+	host->statusWords = EditorActions_KeysWords();
 }
 
 static void HelpAbout(EditorHostState *host)
@@ -132,35 +118,33 @@ static void HelpAbout(EditorHostState *host)
 	host->statusWords = kEditorAboutWords;
 }
 
-// THE TABLE. A line here is a command and its menu item. Frost's View draw modes and toggles go in the View range (101 on), before the
-// key layouts (151 on); the editor's modes go in the Mode range (201 on). A key is { the key, Ctrl held, Shift held }: { 'O', true } is
+// THE TABLE. A line here is a command and its menu item. Frost's View draw modes and toggles go in the View range (101 on; 151 and 152, the
+// key layouts' two, are RETIRED with the Modern layout); the editor's modes go in the Mode range (201 on). A key is { the key, Ctrl held, Shift held }: { 'O', true } is
 // Ctrl+O. A line no key does is { 0 }, and is only in its menu. The draw modes' keys are inteng's own (keys.txt and the view state table,
 // AvP-docs\engine\inteng\view-state-table.md, 6a): the main row's 7 Polygon, 8 Polyline and 9 Filled polyline, B the Gouraud switch and
 // Ctrl+B the headlight. They're the same in Modern WASD, where none of them is a camera key.
 const EditorAction kEditorActions[] =
 {
-	// number                  menu              words                  Classic key    Modern key     Windows' keys  what it does
-	{ kActionOpenLevel,          EditorMenu::File, "Open level...",       { 0 },         { 0 },         0,        OpenLevel },
-	{ kActionQuit,               EditorMenu::File, "Quit",                { 0 },         { 0 },         "Alt+F4", Quit },
-	{ kActionSaveCopy,           EditorMenu::File, "Save a copy",         { 0 },         { 0 },         0,        SaveCopy },
-	{ kActionViewPolygon,        EditorMenu::View, "Polygon",             { '7' },       { '7' },       0,        ViewPolygon },
-	{ kActionViewPolyline,       EditorMenu::View, "Polyline",            { '8' },       { '8' },       0,        ViewPolyline },
-	{ kActionViewFilledPolyline, EditorMenu::View, "Filled polyline",     { '9' },       { '9' },       0,        ViewFilledPolyline },
-	{ kActionViewWireTextured,   EditorMenu::View, "Wireframe, textured", { 0 },         { 0 },         0,        ViewWireTextured },
-	{ kActionViewGouraud,        EditorMenu::View, "Gouraud",             { 'B' },       { 'B' },       0,        ViewGouraud },
-	{ kActionViewHeadlight,      EditorMenu::View, "Headlight",           { 'B', true }, { 'B', true }, 0,        ViewHeadlight },
-	{ kActionViewBackFaces,      EditorMenu::View, "Back faces",          { 0 },         { 0 },         0,        ViewBackFaces },
-	{ kActionViewBrighter,       EditorMenu::View, "Brighter",            { 0 },         { 0 },         0,        ViewBrighter },
-	{ kActionViewDarker,         EditorMenu::View, "Darker",              { 0 },         { 0 },         0,        ViewDarker },
-	{ kActionViewObjectList,     EditorMenu::View, "Object list",          { 0 },         { 0 },         0,        ViewObjectList },
-	{ kActionViewNameObject,     EditorMenu::View, "Name object...",       { 0 },         { 0 },         0,        ViewNameObject },
-	{ kActionViewTextures,       EditorMenu::View, "Textures",            { 0 },         { 0 },         0,        ViewTextures },
-	{ kActionViewGouraudLevelOnly, EditorMenu::View, "Gouraud: level's own only [wip]", { 0 }, { 0 },   0,        ViewGouraudLevelOnly },
-	{ kActionViewKeysClassic,    EditorMenu::View, "Classic inteng keys", { 0 },         { 0 },         0,        ViewKeysClassic },
-	{ kActionViewKeysModern,     EditorMenu::View, "Modern WASD keys",    { 0 },         { 0 },         0,        ViewKeysModern },
-	{ kActionLevelSettings,      EditorMenu::Mode, "Level settings",     { 0 },         { 0 },         0,        LevelSettings },
-	{ kActionHelpKeys,           EditorMenu::Help, "Keys",                { 0 },         { 0 },         0,        HelpKeys },
-	{ kActionHelpAbout,          EditorMenu::Help, "About",               { 0 },         { 0 },         0,        HelpAbout },
+	// number                  menu              words                  key            Windows' keys  what it does
+	{ kActionOpenLevel,          EditorMenu::File, "Open level...",       { 0 },         0,        OpenLevel },
+	{ kActionQuit,               EditorMenu::File, "Quit",                { 0 },         "Alt+F4", Quit },
+	{ kActionSaveCopy,           EditorMenu::File, "Save a copy",         { 0 },         0,        SaveCopy },
+	{ kActionViewPolygon,        EditorMenu::View, "Polygon",             { '7' },       0,        ViewPolygon },
+	{ kActionViewPolyline,       EditorMenu::View, "Polyline",            { '8' },       0,        ViewPolyline },
+	{ kActionViewFilledPolyline, EditorMenu::View, "Filled polyline",     { '9' },       0,        ViewFilledPolyline },
+	{ kActionViewWireTextured,   EditorMenu::View, "Wireframe, textured", { 0 },         0,        ViewWireTextured },
+	{ kActionViewGouraud,        EditorMenu::View, "Gouraud",             { 'B' },       0,        ViewGouraud },
+	{ kActionViewHeadlight,      EditorMenu::View, "Headlight",           { 'B', true }, 0,        ViewHeadlight },
+	{ kActionViewBackFaces,      EditorMenu::View, "Back faces",          { 0 },         0,        ViewBackFaces },
+	{ kActionViewBrighter,       EditorMenu::View, "Brighter",            { 0 },         0,        ViewBrighter },
+	{ kActionViewDarker,         EditorMenu::View, "Darker",              { 0 },         0,        ViewDarker },
+	{ kActionViewObjectList,     EditorMenu::View, "Object list",          { 0 },         0,        ViewObjectList },
+	{ kActionViewNameObject,     EditorMenu::View, "Name object...",       { 0 },         0,        ViewNameObject },
+	{ kActionViewTextures,       EditorMenu::View, "Textures",            { 0 },         0,        ViewTextures },
+	{ kActionViewGouraudLevelOnly, EditorMenu::View, "Gouraud: level's own only [wip]", { 0 },         0,        ViewGouraudLevelOnly },
+	{ kActionLevelSettings,      EditorMenu::Mode, "Level settings",     { 0 },         0,        LevelSettings },
+	{ kActionHelpKeys,           EditorMenu::Help, "Keys",                { 0 },         0,        HelpKeys },
+	{ kActionHelpAbout,          EditorMenu::Help, "About",               { 0 },         0,        HelpAbout },
 };
 
 const size_t kEditorActionCount = sizeof(kEditorActions) / sizeof(kEditorActions[0]);
@@ -172,19 +156,19 @@ const size_t kEditorActionCount = sizeof(kEditorActions) / sizeof(kEditorActions
 // F-keys' camera places. Modern is the editor's own: W S A D, R and F, and the arrows.
 const EditorMoveKeys kEditorMoves[] =
 {
-	// move                  words         Classic      Modern
-	{ EditorMove::Forward,   "forward",    'A',         'W' },
-	{ EditorMove::Back,      "back",       'Z',         'S' },
-	{ EditorMove::Left,      "left",       VK_NUMPAD1,  'A' },
-	{ EditorMove::Right,     "right",      VK_NUMPAD3,  'D' },
-	{ EditorMove::Up,        "up",         VK_SUBTRACT, 'R' },
-	{ EditorMove::Down,      "down",       VK_ADD,      'F' },
-	{ EditorMove::TurnLeft,  "turn left",  VK_NUMPAD4,  VK_LEFT },
-	{ EditorMove::TurnRight, "turn right", VK_NUMPAD6,  VK_RIGHT },
-	{ EditorMove::LookUp,    "look up",    VK_NUMPAD2,  VK_UP },
-	{ EditorMove::LookDown,  "look down",  VK_NUMPAD8,  VK_DOWN },
-	{ EditorMove::RollLeft,  "roll left",  VK_NUMPAD7,  VK_NUMPAD7 },
-	{ EditorMove::RollRight, "roll right", VK_NUMPAD9,  VK_NUMPAD9 },
+	// move                  words         key
+	{ EditorMove::Forward,   "forward",    'A' },
+	{ EditorMove::Back,      "back",       'Z' },
+	{ EditorMove::Left,      "left",       VK_NUMPAD1 },
+	{ EditorMove::Right,     "right",      VK_NUMPAD3 },
+	{ EditorMove::Up,        "up",         VK_SUBTRACT },
+	{ EditorMove::Down,      "down",       VK_ADD },
+	{ EditorMove::TurnLeft,  "turn left",  VK_NUMPAD4 },
+	{ EditorMove::TurnRight, "turn right", VK_NUMPAD6 },
+	{ EditorMove::LookUp,    "look up",    VK_NUMPAD2 },
+	{ EditorMove::LookDown,  "look down",  VK_NUMPAD8 },
+	{ EditorMove::RollLeft,  "roll left",  VK_NUMPAD7 },
+	{ EditorMove::RollRight, "roll right", VK_NUMPAD9 },
 };
 
 static_assert(sizeof(kEditorMoves) / sizeof(kEditorMoves[0]) == (size_t)EditorMove::Count, "the camera's keys have one line for each move");
@@ -245,35 +229,29 @@ bool EditorActions_KeyWords(const EditorKey &key, char *words, size_t size)
 	return true;
 }
 
-const EditorKey &EditorActions_KeyIn(const EditorAction &action, KeyLayout layout)
+const EditorKey &EditorActions_KeyIn(const EditorAction &action)
 {
-	return layout == KeyLayout::ModernWasd ? action.modern : action.classic;
+	return action.key;
 }
 
-// A move's key in a layout, from a table of moves
-static uint8_t MoveKeyIn(const EditorMoveKeys &line, KeyLayout layout)
-{
-	return layout == KeyLayout::ModernWasd ? line.modern : line.classic;
-}
-
-uint8_t EditorActions_MoveKey(KeyLayout layout, EditorMove move)
+uint8_t EditorActions_MoveKey(EditorMove move)
 {
 	// The table is in EditorMove's order (EditorActions_CheckTable proves it), so a move's line is its number
-	return (size_t)move < (size_t)EditorMove::Count ? MoveKeyIn(kEditorMoves[(size_t)move], layout) : 0;
+	return (size_t)move < (size_t)EditorMove::Count ? kEditorMoves[(size_t)move].key : 0;
 }
 
-const char *EditorActions_KeysWords(KeyLayout layout)
+const char *EditorActions_KeysWords()
 {
 	// Long enough for every move's key and words; anything longer would only be cut, never written past the end
 	static char words[320];
 
 	words[0] = '\0';
-	strncat_s(words, sizeof(words), layout == KeyLayout::ModernWasd ? "Modern WASD keys:" : "Classic inteng keys, with NumLock on:", _TRUNCATE);
+	strncat_s(words, sizeof(words), "inteng's keys, with NumLock on:", _TRUNCATE);
 
 	for (size_t m = 0; m < (size_t)EditorMove::Count; m++)
 	{
 		char key[kEditorKeyWordsRoom];
-		EditorKey const held = { MoveKeyIn(kEditorMoves[m], layout), false, false };
+		EditorKey const held = { kEditorMoves[m].key, false, false };
 
 		if (EditorActions_KeyWords(held, key, sizeof(key)))
 		{
@@ -290,7 +268,6 @@ const char *EditorActions_KeysWords(KeyLayout layout)
 
 const char *EditorActions_CheckTable(const EditorAction *actions, size_t actionCount, const EditorMoveKeys *moves, size_t moveCount)
 {
-	KeyLayout const layouts[] = { KeyLayout::Classic, KeyLayout::ModernWasd };
 	char words[kEditorKeyWordsRoom];
 
 	if (!actions || actionCount == 0)
@@ -310,21 +287,18 @@ const char *EditorActions_CheckTable(const EditorAction *actions, size_t actionC
 			return "a line of the camera's keys is out of order, or has no words";
 		}
 
-		for (KeyLayout const layout : layouts)
+		EditorKey const held = { moves[m].key, false, false };
+
+		if (!EditorActions_KeyWords(held, words, sizeof(words)))
 		{
-			EditorKey const held = { MoveKeyIn(moves[m], layout), false, false };
+			return "a move of the camera has no key, or one the editor has no name for";
+		}
 
-			if (!EditorActions_KeyWords(held, words, sizeof(words)))
+		for (size_t n = 0; n < m; n++)
+		{
+			if (moves[n].key == held.virtualKey)
 			{
-				return "a move of the camera has no key in a layout, or one the editor has no name for";
-			}
-
-			for (size_t n = 0; n < m; n++)
-			{
-				if (MoveKeyIn(moves[n], layout) == held.virtualKey)
-				{
-					return "two of the camera's moves share a key in a layout";
-				}
+				return "two of the camera's moves share a key";
 			}
 		}
 	}
@@ -356,46 +330,43 @@ const char *EditorActions_CheckTable(const EditorAction *actions, size_t actionC
 			}
 		}
 
-		for (KeyLayout const layout : layouts)
+		EditorKey const &key = action.key;
+
+		if (key.virtualKey == 0)
 		{
-			EditorKey const &key = EditorActions_KeyIn(action, layout);
+			continue;
+		}
 
-			if (key.virtualKey == 0)
+		if (action.windowsKeys)
+		{
+			return "an action shows Windows' keys and has a key of its own as well";
+		}
+
+		if (!EditorActions_KeyWords(key, words, sizeof(words)))
+		{
+			return "an action's key is one the editor has no name for";
+		}
+
+		if (key.virtualKey == 'V' && key.ctrl)
+		{
+			return "an action takes Ctrl+V, which stays the paste's";
+		}
+
+		for (size_t m = 0; m < moveCount; m++)
+		{
+			if (moves[m].key == key.virtualKey)
 			{
-				continue;
+				return "an action takes a key the camera holds";
 			}
+		}
 
-			if (action.windowsKeys)
+		for (size_t b = 0; b < a; b++)
+		{
+			EditorKey const &other = actions[b].key;
+
+			if (other.virtualKey == key.virtualKey && other.ctrl == key.ctrl && other.shift == key.shift)
 			{
-				return "an action shows Windows' keys and has a key of its own as well";
-			}
-
-			if (!EditorActions_KeyWords(key, words, sizeof(words)))
-			{
-				return "an action's key is one the editor has no name for";
-			}
-
-			if (key.virtualKey == 'V' && key.ctrl)
-			{
-				return "an action takes Ctrl+V, which stays the paste's";
-			}
-
-			for (size_t m = 0; m < moveCount; m++)
-			{
-				if (MoveKeyIn(moves[m], layout) == key.virtualKey)
-				{
-					return "an action takes a key the camera holds in the same layout";
-				}
-			}
-
-			for (size_t b = 0; b < a; b++)
-			{
-				EditorKey const &other = EditorActions_KeyIn(actions[b], layout);
-
-				if (other.virtualKey == key.virtualKey && other.ctrl == key.ctrl && other.shift == key.shift)
-				{
-					return "two actions share a key in the same layout";
-				}
+				return "two actions share a key";
 			}
 		}
 	}
@@ -403,7 +374,7 @@ const char *EditorActions_CheckTable(const EditorAction *actions, size_t actionC
 	return 0;
 }
 
-bool EditorActions_MakeMenus(const EditorAction *actions, size_t actionCount, KeyLayout layout, ui::Menu *menus, size_t menuRoom,
+bool EditorActions_MakeMenus(const EditorAction *actions, size_t actionCount, ui::Menu *menus, size_t menuRoom,
 	ui::MenuItem *items, size_t itemRoom, EditorKeyWords *words, size_t wordsRoom)
 {
 	size_t const menuCount = (size_t)EditorMenu::Count;
@@ -425,8 +396,8 @@ bool EditorActions_MakeMenus(const EditorAction *actions, size_t actionCount, Ke
 		{
 			if ((size_t)actions[a].menu == m)
 			{
-				// The words beside the item: its key's in this layout, or else the keys Windows does for it, or none
-				bool const hasKey = EditorActions_KeyWords(EditorActions_KeyIn(actions[a], layout), words[used].text, sizeof(words[used].text));
+				// The words beside the item: its key's, or else the keys Windows does for it, or none
+				bool const hasKey = EditorActions_KeyWords(actions[a].key, words[used].text, sizeof(words[used].text));
 
 				items[used].name = actions[a].name;
 				items[used].keys = hasKey ? words[used].text : actions[a].windowsKeys;
@@ -454,7 +425,7 @@ const EditorAction *EditorActions_Find(int32_t id)
 	return 0;
 }
 
-const EditorAction *EditorActions_ForKey(const EditorAction *actions, size_t actionCount, KeyLayout layout, uint8_t virtualKey, bool shiftHeld,
+const EditorAction *EditorActions_ForKey(const EditorAction *actions, size_t actionCount, uint8_t virtualKey, bool shiftHeld,
 	bool ctrlHeld, bool altHeld)
 {
 	if (!actions || altHeld || virtualKey == 0)
@@ -464,7 +435,7 @@ const EditorAction *EditorActions_ForKey(const EditorAction *actions, size_t act
 
 	for (size_t a = 0; a < actionCount; a++)
 	{
-		EditorKey const &key = EditorActions_KeyIn(actions[a], layout);
+		EditorKey const &key = actions[a].key;
 
 		if (key.virtualKey == virtualKey && key.ctrl == ctrlHeld && key.shift == shiftHeld)
 		{

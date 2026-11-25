@@ -345,7 +345,7 @@ bool EditorBar_MakePopup(size_t screen, EditorBarRoom *room)
 	return EditorBar_MakePopupLevel(screen, -1, room);
 }
 
-bool EditorBar_Make(size_t screen, KeyLayout layout, EditorBarRoom *room)
+bool EditorBar_Make(size_t screen, EditorBarRoom *room)
 {
 	if (!room || screen >= kIntengScreenCount)
 	{
@@ -479,7 +479,7 @@ int32_t EditorBar_Page()
 
 // ---- Titles that wrap ----
 
-bool EditorBar_MakeRows(size_t screen, KeyLayout layout, int32_t width, host::PaintLetterWidth widthOf, EditorBarRows *rows)
+bool EditorBar_MakeRows(size_t screen, int32_t width, host::PaintLetterWidth widthOf, EditorBarRows *rows)
 {
 	if (!rows || !widthOf)
 	{
@@ -493,7 +493,7 @@ bool EditorBar_MakeRows(size_t screen, KeyLayout layout, int32_t width, host::Pa
 		rows->menuCount[r] = 0;
 	}
 
-	if (!EditorBar_Make(screen, layout, &rows->logical[0]) || !EditorBar_MakeSecond(screen, &rows->logical[1]))
+	if (!EditorBar_Make(screen, &rows->logical[0]) || !EditorBar_MakeSecond(screen, &rows->logical[1]))
 	{
 		return false;
 	}
@@ -597,7 +597,7 @@ EditorBarPlaceRows EditorBar_PlaceRows(const ui::PanelLayout &layout, size_t row
 }
 
 // Does every page of the screen wrap into few enough rows at that width? (and no title is wider than the room)
-static bool ScreenFitsAt(size_t screen, KeyLayout layout, host::PaintLetterWidth widthOf, int32_t width, int32_t *widestTitle)
+static bool ScreenFitsAt(size_t screen, host::PaintLetterWidth widthOf, int32_t width, int32_t *widestTitle)
 {
 	static EditorBarRows rows;
 	int32_t const was = shownPage;
@@ -610,7 +610,7 @@ static bool ScreenFitsAt(size_t screen, KeyLayout layout, host::PaintLetterWidth
 	{
 		EditorBar_SetPage(p == 0 ? 0 : kIntengScreens[screen].pages[p - 1].page);
 
-		if (!EditorBar_MakeRows(screen, layout, width, widthOf, &rows))
+		if (!EditorBar_MakeRows(screen, width, widthOf, &rows))
 		{
 			fits = false;
 		}
@@ -633,7 +633,7 @@ static bool ScreenFitsAt(size_t screen, KeyLayout layout, host::PaintLetterWidth
 	return fits;
 }
 
-int32_t EditorBar_LeastWidth(KeyLayout layout, host::PaintLetterWidth widthOf)
+int32_t EditorBar_LeastWidth(host::PaintLetterWidth widthOf)
 {
 	int32_t widest = 0;
 	int32_t least = 0;
@@ -643,7 +643,7 @@ int32_t EditorBar_LeastWidth(KeyLayout layout, host::PaintLetterWidth widthOf)
 		// the least width for this screen: wider windows never need more rows, so the answer is searched between 64 and 4096
 		int32_t low = 64, high = 4096;
 
-		if (!ScreenFitsAt(s, layout, widthOf, high, &widest))
+		if (!ScreenFitsAt(s, widthOf, high, &widest))
 		{
 			// not even the widest window gets this screen's bars into the rows allowed: its bars are too big for the editor, and the test says so
 			return 4096;
@@ -653,7 +653,7 @@ int32_t EditorBar_LeastWidth(KeyLayout layout, host::PaintLetterWidth widthOf)
 		{
 			int32_t const middle = low + (high - low) / 2;
 
-			if (ScreenFitsAt(s, layout, widthOf, middle, nullptr))
+			if (ScreenFitsAt(s, widthOf, middle, nullptr))
 			{
 				high = middle;
 			}
@@ -783,7 +783,7 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 				break;
 			}
 
-			host->statusWords = EditorActions_KeysWords(host->layout);
+			host->statusWords = EditorActions_KeysWords();
 			break;
 		case host::IntengWork::DeleteObject:
 			host->deleteSelectedObject = true;
@@ -1129,7 +1129,7 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 	return true;
 }
 
-int32_t EditorBar_WidestTitles(KeyLayout layout, host::PaintLetterWidth widthOf)
+int32_t EditorBar_WidestTitles(host::PaintLetterWidth widthOf)
 {
 	static EditorBarRoom room;
 	int64_t widest = 0;
@@ -1139,7 +1139,7 @@ int32_t EditorBar_WidestTitles(KeyLayout layout, host::PaintLetterWidth widthOf)
 		int32_t titles[ui::kMenuMostMenus];
 		int32_t drops[ui::kMenuMostMenus];
 
-		if (!EditorBar_Make(s, layout, &room))
+		if (!EditorBar_Make(s, &room))
 		{
 			continue;
 		}

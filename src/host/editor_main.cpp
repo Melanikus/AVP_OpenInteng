@@ -12,11 +12,10 @@
 //                 editor sits in the game's Tools folder (game_folder.h): the release zip's file names none, so a first start works out of the box>
 //     Level=<a level's file name, without .rif: the level a hidden test run (-picture) opens when none is given on the command line. With someone at the
 //            screen it is never read: started with no file, the editor says so, as inteng does (NoFileScreen)>
-//     KeyLayout=<Classic or ModernWASD: the key layout; Classic inteng's when the line is missing or says anything else (key_layout.h)>
 //     StartWidth=, StartHeight=, Windowed=<the start size and a framed window (editor_options.h; the release zip's own file says 1280, 720, true)>
 // The game's files are opened from that folder, as the game opens them from its own. The only thing ever written there is a level
-// file given on the command line, copied into its avp_rifs (open_with.h). In AVP_OpenInteng.ini the editor writes only the KeyLayout=
-// line, when the mapper picks a key layout in the View menu.
+// file given on the command line, copied into its avp_rifs (open_with.h). (A KeyLayout= line, left from the two layouts of 11-14 to 11-16, is
+// never read: the keys are inteng's.)
 //
 // ON THE COMMAND LINE:
 // - A level file, as Windows' "Open with" gives it: AVP_OpenInteng.exe <file.rif>. It's copied into the data folder's avp_rifs under
@@ -41,10 +40,10 @@
 //
 // ONE EDITOR AT A TIME (one_editor.h): a second editor says another is running, and stops before it reads or writes anything.
 //
-// KEYS: two layouts (key_layout.h), picked in the View menu and kept in AVP_OpenInteng.ini; Classic inteng's to start with. In Classic,
-// as inteng had them (with NumLock on): A and Z move forward and back, the numeric keypad's 1 and 3 sideways, its minus and plus up and
-// down, its 4 and 6 turn, and its 2 and 8 look up and down. In Modern WASD: W and S move forward and back, A and D sideways, R and F up
-// and down, and the arrow keys turn and look. In both, moving the mouse with its right button held down turns and looks too. The mouse
+// KEYS: inteng's own (the owner: "Integ is perfect with keypad+mouse"; the Modern WASD layout of 11-14 was switched off on 11-16 and its
+// code removed on 11-25). As inteng had them (with NumLock on): A and Z move forward and back, the numeric keypad's 1 and 3 sideways, its
+// minus and plus up and down, its 4 and 6 turn, and its 2 and 8 look up and down. Moving the mouse with its right button held down turns
+// and looks too. The mouse
 // is only read: never held, moved, hidden or kept inside the window. Help, Keys says the keys in use.
 // (F10 and an Alt tap no longer open the menu bar: they are not inteng's; F10 is camera slot 9.) Once the bar is open, the arrows, Enter and Esc work it; a click on a menu opens it too. A key
 // the table of actions gives an action in the layout in use (editor_actions.cpp), such as Ctrl+O or the main row's 8 for Polyline, does
@@ -239,7 +238,6 @@
 #include "field_adapters.h"
 #include "field_panel_host.h"
 #include "harness_select.h"
-#include "key_layout.h"
 #include "host_frame.h"
 #include "menu_bar.h"
 #include "menu_paint.h"
@@ -292,14 +290,10 @@ char cutOffWords[160] = "";        // which titles are past the toolbar's edge, 
 static AltTap altTap = { false, false };
 StatusWords statusWords;   // a copy the status line owns (status_words.h): never a pointer into a string changed later
 
-// The key layout in use (key_layout.h), Classic inteng's until the settings say otherwise, and the settings file that keeps it
-// (Added 2026-11-14 by Melanikus (Dietrich), F3.)
-KeyLayout keyLayout = KeyLayout::Classic;
+// The settings file, AVP_OpenInteng.ini beside the program (its name is from the key layouts of 11-14, which it kept first)
 char layoutSettingsFile[MAX_PATH] = "";
 // The Options switches kept in the settings file (editor_options.h): Select by polygons (a click takes the object under the pointer, else the object whose centre is nearest it), Prefer .BMP over .RIM, Use Polygon View Distance
 host::EditorOptions editorOptions = host::EditorOptions_Defaults();
-static const char kLayoutNotSavedWords[] =
-	"The keys have changed, but AVP_OpenInteng.ini couldn't be written, so the editor starts with the keys it had before next time";
 
 // The view's child window goes where the panels' layout puts the view in the editor's window (panel_layout.h). It's asked every frame,
 // and moves the window only when it isn't there: the layout changes whenever the editor's window is resized, and the game's own
@@ -638,7 +632,7 @@ bool harnessPanelAsked = false;
 bool LoadTheMenus()
 {
 	// the bars' rows, wrapped to the window's width (1008 before the first frame has said): every title is in the window, whatever the width
-	if (!EditorBar_MakeRows(barScreen, keyLayout, barWrapWidth > 0 ? barWrapWidth : 1008, PanelPass_MenuWidth, &barRows) || (barRows.menuCount[0] > 0 ? !menuBar.Load(barRows.menus[0], barRows.menuCount[0]) : (menuBar.Load(nullptr, 0), false)))
+	if (!EditorBar_MakeRows(barScreen, barWrapWidth > 0 ? barWrapWidth : 1008, PanelPass_MenuWidth, &barRows) || (barRows.menuCount[0] > 0 ? !menuBar.Load(barRows.menus[0], barRows.menuCount[0]) : (menuBar.Load(nullptr, 0), false)))
 	{
 		return false;
 	}
@@ -667,8 +661,6 @@ bool LoadTheMenus()
 		bar.SetEnabled(kActionViewPolyline, ViewToggles_OutlinesCanBeShown());
 		bar.SetEnabled(kActionViewFilledPolyline, ViewToggles_OutlinesCanBeShown());
 		bar.SetEnabled(kActionViewGouraudLevelOnly, false);   // inteng's Gouraud state 2: not built yet
-		bar.SetEnabled(kActionViewKeysClassic, keyLayout != KeyLayout::Classic);
-		bar.SetEnabled(kActionViewKeysModern, keyLayout != KeyLayout::ModernWasd);
 	}
 
 	return true;
@@ -4457,7 +4449,7 @@ static bool IsAMoveKey(WPARAM key)
 {
 	for (size_t m = 0; m < (size_t)EditorMove::Count; m++)
 	{
-		if (EditorActions_MoveKey(keyLayout, (EditorMove)m) == (uint8_t)key)
+		if (EditorActions_MoveKey((EditorMove)m) == (uint8_t)key)
 		{
 			return true;
 		}
@@ -6764,7 +6756,6 @@ void RunAction(int32_t id)
 	EditorHostState host = {};
 
 	host.running = running;
-	host.layout = keyLayout;
 	host.screen = barScreen;
 	host.prompt = kPromptNone;
 
@@ -7423,28 +7414,6 @@ void RunAction(int32_t id)
 		statusWords = host.statusWords;
 	}
 
-	// A key layout picked: kept in the settings for the next start, the menus made again with its keys, and every key counted as let go,
-	// as a key held now may do something else in the new layout. Menus the bar refuses would be a mistake in the editor's own table
-	// (the test makes them for both layouts), and the editor then closes, saying so in its log. (Added 2026-11-14 by Melanikus
-	// (Dietrich), F3.)
-	if (host.layout != keyLayout)
-	{
-		keyLayout = host.layout;
-		memset(keyDown, 0, sizeof(keyDown));
-
-		if (!KeyLayout_Save(layoutSettingsFile, keyLayout))
-		{
-			statusWords = kLayoutNotSavedWords;
-			LogString(std::string("key layout: ") + kLayoutNotSavedWords);
-		}
-
-		if (!LoadTheMenus())
-		{
-			LogString("key layout: the editor's own table of actions doesn't make a menu bar for these keys (editor_actions.cpp), so it closed");
-			host.running = false;
-		}
-	}
-
 	if (!host.running)
 	{
 		// the hub's Quit (DAT_0091c01c, the main loop's end 0x58d07d): the hub is left (FUN_004476d0), so the level FILE is written when it changed. A window closed writes nothing (inteng:
@@ -7646,12 +7615,6 @@ static void AfterMenu(ui::MenuAnswer answer, ui::MenuBar &bar)
 				break;
 			case kActionViewGouraudLevelOnly:
 				statusWords = "Gouraud, the level's own only (inteng's third state, command 0xcc): not built yet";
-				break;
-			case kActionViewKeysClassic:
-				statusWords = "The Classic inteng keys are in use already";
-				break;
-			case kActionViewKeysModern:
-				statusWords = "The Modern WASD keys are in use already";
 				break;
 			default:
 				statusWords = "That item is off at the moment";
@@ -8570,7 +8533,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			if (!screenKeyDone && message == WM_KEYDOWN && !typingHere && !menuWasOpen && !AMenuIsOpen() && wParam <= 0xFF && !(lParam & (1 << 30)))
 			{
 				const EditorAction *const action =
-					EditorActions_ForKey(kEditorActions, kEditorActionCount, keyLayout, (uint8_t)wParam, shiftHeld, ctrlHeld, altHeld);
+					EditorActions_ForKey(kEditorActions, kEditorActionCount, (uint8_t)wParam, shiftHeld, ctrlHeld, altHeld);
 
 				if (action)
 				{
@@ -8811,7 +8774,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 						cameraWords = "Selected " + std::to_string((unsigned long long)picked) + " of the level's " + std::to_string((unsigned long long)modules) + " modules" + (picked < modules ? " (the selection holds at most 256)" : "");
 						statusWords = cameraWords.c_str();
 					}
-					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Path") == 0 && (wParam == 'L' || wParam == 'P' || (wParam == 'D' && keyLayout == KeyLayout::Classic)))
+					else if (barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Path") == 0 && (wParam == 'L' || wParam == 'P' || wParam == 'D'))
 					{
 						// Path mode's keys (FUN_004f9d10: slot 0xd87a8c L = Add selected module to path, 0xd87a84 D = Delete last module, 0xd87a90 P = Properties); D is a movement key in the Modern layout
 						PathModeCommand(wParam == 'L' ? 3 : (wParam == 'D' ? 4 : 9));
@@ -9252,7 +9215,7 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 					pickShift = ShiftDown() || (wParam & MK_SHIFT) != 0;
 					pickCtrl = KeyHeldNow(VK_CONTROL) || (wParam & MK_CONTROL) != 0;
 					pickDelete = KeyHeldNow(VK_DELETE);   // Module Linking: Delete + click takes a module off the picks (slot 0x55 = VK 0x2e, FUN_004c3880)
-					pickWithS = keyLayout == KeyLayout::Classic && keyDown['S'] && barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && strategyFlagPage && !pickShift;   // S + click is the flag page's (FUN_00525700 0x525db2 / 0x525dbf), but Shift is tested first (0x525cba-0x525cc1: Shift down skips the S read): Shift + S + click is Shift + click (0x525cc7, out of the list, red off 0x525da8; S-69); page 0 takes it as a plain click (S-58)
+					pickWithS = keyDown['S'] && barScreen < host::kIntengScreenCount && strcmp(host::kIntengScreens[barScreen].name, "Strategy Data") == 0 && strategyFlagPage && !pickShift;   // S + click is the flag page's (FUN_00525700 0x525db2 / 0x525dbf), but Shift is tested first (0x525cba-0x525cc1: Shift down skips the S read): Shift + S + click is Shift + click (0x525cc7, out of the list, red off 0x525da8; S-69); page 0 takes it as a plain click (S-58)
 					pickX = host::TextScale_ToOwn(GET_X_LPARAM(lParam));   // the editor's own pixels, as the view's size the pick is made against (text_scale.h)
 					pickY = host::TextScale_ToOwn(GET_Y_LPARAM(lParam));
 					pickInBox = threeMainBox.width > 0 && ui::BoxHolds(threeMainBox, at.x, at.y);
@@ -9916,10 +9879,10 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 	return DefWindowProcA(window, message, wParam, lParam);
 }
 
-// Whether a move's key in the layout in use is held down (Added 2026-11-14 by Melanikus (Dietrich), F3.)
+// Whether a move's key is held down (Added 2026-11-14 by Melanikus (Dietrich), F3.)
 static bool Held(EditorMove move)
 {
-	uint8_t const key = EditorActions_MoveKey(keyLayout, move);
+	uint8_t const key = EditorActions_MoveKey(move);
 
 	if (key != 0 && keyDown[key])
 	{
@@ -9927,7 +9890,6 @@ static bool Held(EditorMove move)
 	}
 
 	// the arrow keys are the other strafe keys (the manual's General Keys, menu.txt: "1 / Left Arrow" strafe left, "3 / Right Arrow" strafe right, "- / Up Arrow" strafe up, "+ / Down Arrow" strafe down; inteng reads both slots)
-	if (keyLayout == KeyLayout::Classic)
 	{
 		if (move == EditorMove::Left)
 		{
@@ -15321,8 +15283,7 @@ int main(int, char **)
 		return Stop("AVP_OpenInteng.ini beside the program needs Level= under [Editor] for a test run given no level file (shorter than 259 letters)");
 	}
 
-	// The key layout (key_layout.h). Anyone can write the setting, so anything but its two words means Classic, and the log says why, in
-	// the editor's own words. The settings file is kept for a layout picked later. (Added 2026-11-14 by Melanikus (Dietrich), F3.)
+	// The settings file, kept for the settings written later (the camera speed, the view distance, the Options switches ...)
 	strcpy_s(layoutSettingsFile, sizeof(layoutSettingsFile), settingsFile);
 	{
 		char const *optionWhy = nullptr;
@@ -15335,9 +15296,8 @@ int main(int, char **)
 			LogString(std::string("settings: ") + optionWhy + " is not 0 or 1 in the settings file, so its start value is used");
 		}
 	}
-	// The keys are inteng's (Classic: A and Z forward and back, 1 / 3 or Left / Right strafe, - / + or Up / Down strafe up and down, 4 6 8 2 turn and pitch, 7 9 roll), nothing else: the owner's word 11-16 ~10:45, "Let's use that then (A/Z) and
-	// remove the wasd layout". A KeyLayout= line in the ini is ignored.
-	keyLayout = KeyLayout::Classic;
+	// The keys are inteng's (A and Z forward and back, 1 / 3 or Left / Right strafe, - / + or Up / Down strafe up and down, 4 6 8 2 turn and pitch, 7 9 roll), nothing else: the owner's word 11-16 ~10:45, "Let's us
+	// remove the wasd layout", and 11-24 "WASD mode is off". A KeyLayout= line in the ini is never read (acceptance-keys-modern-off).
 
 	// The camera speed is SAVED, as inteng does (FUN_004732a0 writes DAT_005f071c at the end, WriteFile at 0x473336; FUN_00473430 reads it back at the start, 0x4734f3): kept in the ini as CameraSpeed=, from the floor (3) up
 	{
@@ -15619,7 +15579,7 @@ int main(int, char **)
 	// The widest bar's titles, with the room the gray behind them takes past the last (PlanThePanels), as the least client width
 	// the titles wrap onto up to kEditorBarMostRows rows, so the least width is the one where the widest page of every screen still wraps into that many (and no title is wider than the window)
 	MenuFontStart();   // inteng's own menu font, before the bar is measured with it
-	barMinClientWidth = EditorBar_LeastWidth(keyLayout, PanelPass_MenuWidth);
+	barMinClientWidth = EditorBar_LeastWidth(PanelPass_MenuWidth);
 
 	if (!LoadTheMenus())
 	{

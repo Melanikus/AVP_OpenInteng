@@ -7,7 +7,6 @@
 
 #include <stdint.h>
 
-#include "key_layout.h"
 
 namespace host
 {
@@ -19,7 +18,7 @@ namespace host
 	bool TextureMapKeys_OwnInSubMode(uint8_t key, int subMode);
 
 	// The camera's move keys of a layout that the Texture Map takes for itself, written into keys (at most room); returns how many. They are the keys the camera loses in the mode.
-	size_t TextureMapKeys_CameraKeysLost(KeyLayout layout, bool windowOn, uint8_t *keys, size_t room);
+	size_t TextureMapKeys_CameraKeysLost(bool windowOn, uint8_t *keys, size_t room);
 
 	// ---- INTENG'S KEY TABLE (TM-A, Frost 2026-11-17; reassess/texture-map-closeout-drake.md section K) ----
 	// The Texture Map's menu object (DAT_00914bfc, FUN_00557e50) is the shared menu class with its key slot +0x40 = FUN_00557ea0: every key word goes through it, and the

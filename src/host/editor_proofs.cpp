@@ -145,7 +145,6 @@
 #include "field_adapters.h"
 #include "field_panel_host.h"
 #include "harness_select.h"
-#include "key_layout.h"
 #include "host_frame.h"
 #include "menu_bar.h"
 #include "menu_paint.h"
@@ -2722,9 +2721,8 @@ void RunTheSClickProof(long frame)
 			return;
 		}
 
-		keyLayout = KeyLayout::Classic;
 		host::Selection_Clear();
-		say("entered Strategy Data; the layout is Classic; the selection is empty");
+		say("entered Strategy Data; the selection is empty");
 		step = 1;
 		return;
 	}
@@ -2753,7 +2751,7 @@ void RunTheSClickProof(long frame)
 		pickY = proofViewHeight * spotY[(tries / 7) % 5] / 100;
 		pickInBox = false;
 		pickShift = false;
-		pickWithS = keyLayout == KeyLayout::Classic && keyDown['S'] && onStrategy() && strategyFlagPage;   // the flag page's only (S-58)
+		pickWithS = keyDown['S'] && onStrategy() && strategyFlagPage;   // the flag page's only (S-58)
 		strategyTextureCount = 0;
 		statusWords = nullptr;
 		pickAsked = true;
