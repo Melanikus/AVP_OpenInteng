@@ -474,6 +474,9 @@ void GizmoScreen_Frame(int32_t viewWidth, int32_t viewHeight, char const *screen
 	// pointer's last place, the handles sliding under a still pointer while the camera moved (keys held, the mouse resting where it had just clicked the object) lit up and
 	// went out one after another. So it is found again when the pointer moved, or with the camera it was found with; the camera moved under a still pointer: none, until
 	// the pointer moves. (A press finds its own handle where it is pressed: GizmoScreen_Press.)
+	// NAMED, for the owner's veto: this runs TWICE a frame (here, then again from GizmoScreen_AfterEyes with the frame's own camera), and the first run clears pointerMoved,
+	// so while the camera MOVES nothing lights at all, even with the pointer moving too (the second run finds the camera changed and the pointer's move already taken).
+	// Pressing and dragging are not touched. Lighting a handle under a moving pointer during A / Z would have the handles light and go out as they slide (Frost's NIT on 90543174).
 	if (dragging)
 	{
 		hover = handle;
