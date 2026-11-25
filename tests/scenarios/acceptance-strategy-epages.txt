@@ -19,12 +19,12 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-# W-2: the flag marks are font16's glyphs 1 / 3 (0x530fd6-0x531036), not letters
-expect-field-has strategyview |16@80:{
-expect-field-has strategyview (Has extra message data)
+# (2026-11-24, Dietrich: 62 edits in a form, the owner's: its Extra data... button is the page's E, the E pages are drawn and clicked as before, and their end brings the form
+# back. The 62 page's own glyph marks, W-2, went with its page: the form has check boxes; the E pages below still draw inteng's glyphs 1 / 3)
+expect-dialog glass : Placed Object
 picture 1
-# E: the Message page; request 2 is data 1, "Activate message"
-key E
+# Extra data...: the Message page; request 2 is data 1, "Activate message"
+click-button Extra_data...
 wait 300
 expect-field strategyview 100@0:Target  -  V In emergency break glass message 113 : Message|100@460:Left button : Cycle through options|200@32:Current effect of on/off message :|0@48:On :|64@48:Activate message|0@64:Off :|64@64:Deactivate message
 expect-colour picture 300 250 500 300 000000 0.97 8
@@ -38,9 +38,17 @@ picture 3
 # Message page leaves the Escape slot set (0x5339f4), so there the view under it ended too (RED on that build: the view gone)
 key Esc
 wait 300
-expect-field-has strategyview (Has extra message data)
+expect-dialog glass : Placed Object
+# the word went back: the Message page, opened again, shows data 2
+click-button Extra_data...
+wait 300
+expect-field-has strategyview 0@48:On :|64@48:Activate and display message
+key Esc
+wait 300
+expect-dialog glass : Placed Object
 picture 40
 key Esc
+expect-no-dialog
 wait 300
 expect-field-empty strategyview
 
@@ -53,7 +61,8 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-key E
+expect-dialog keeb01 : Placed Object
+click-button Extra_data...
 wait 300
 expect-field-has strategyview 100@0:Target  -  LIGHTcomm01c : Placed object|32@16:Set integrity|16@16:{3}
 picture 4
@@ -68,12 +77,19 @@ click-button Ok
 wait 300
 expect-field-has strategyview 32@16:Set integrity to 7|16@16:{1}
 picture 5
-# the right button ends the page, not the view (0x531587-0x53158e clear the mouse word and the Escape slot)
+# the right button ends the page, not the view (0x531587-0x53158e clear the mouse word and the Escape slot): the form comes back
 click-win 400 300 right
 wait 300
-expect-field-has strategyview keeb01 :
-expect-field-has strategyview (Has extra message data)
+expect-dialog keeb01 : Placed Object
+# the word went back: the page, opened again, shows the integrity
+click-button Extra_data...
+wait 300
+expect-field-has strategyview 32@16:Set integrity to 7|16@16:{1}
+click-win 400 300 right
+wait 300
+expect-dialog keeb01 : Placed Object
 key Esc
+expect-no-dialog
 wait 300
 
 # ---- TANK01: a Placed Object whose target is a Multi Switch (S-84, FUN_00530510): "Part of link switch set" flips the word's bit 2
@@ -85,17 +101,19 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-key E
+expect-dialog TANK01 : Placed Object
+click-button Extra_data...
 wait 300
 expect-field strategyview 100@0:Target  -  V fan off tank01 : Switch|32@48:Part of link switch set|16@48:{3}
 click-box 300 56
 wait 300
 expect-field-has strategyview 16@48:{1}
 picture 6
-# Escape ends this page only (0x530632 clears the slot): the view goes on
+# Escape ends this page only (0x530632 clears the slot): the view goes on, its form back
 key Esc
 wait 300
-expect-field-has strategyview TANK01 :
+expect-dialog TANK01 : Placed Object
 key Esc
+expect-no-dialog
 wait 300
 expect-field-empty strategyview

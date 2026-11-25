@@ -32,8 +32,10 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Mission_Objective
 wait 400
-expect-field-has strategyview 200@0:MO2 : Mission Objective
+# (2026-11-24, Dietrich: a Mission Objective edits in a form, the owner's; it opens after the assign, where the view did; Escape closes it)
+expect-dialog MO2 : Mission Objective
 key Esc
+expect-no-dialog
 wait 300
 # "end": Find Object, the right button's Edit Strategy (3)
 click-bar Find Object
@@ -44,11 +46,14 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 16@112:Mission alterations upon completion :|32@128:None
+# THE FORM (Dietrich 2026-11-24, the owner's forms; strategy_forms_objects.cpp): the alterations are a list (Vasquez's List row), empty here; its "+" line's Pick picks in the world
+# as the page's collector did (its foot "Select mission objectives"), the camera 3 m behind MO2, MO2's V clicked, Return: MO2 APPENDED with both bits (Visible, Possible), the form back
+expect-dialog end : Mission Objective
+expect-dialog-text 0|0|0|Shown at start|Possible at start|Complete level
 picture 1
-# the alterations block (its "None" row at y 128, clicked at window y 136): the collector, the camera 3 m behind MO2, MO2's V clicked, Return
-click-box 300 136
+click-button Pick 1
 wait 400
+expect-field-has strategyview Select mission objectives
 camera 0 0 -3000 0
 wait 400
 picture 2
@@ -57,16 +62,26 @@ wait 300
 picture 3
 key Enter
 wait 400
-expect-field-has strategyview 16@112:Mission alterations upon completion :|32@128:MO2 (make visible)(make possible)
+expect-dialog end : Mission Objective
+expect-dialog-text 0|0|0|Shown at start|Possible at start|Complete level|MO2 - Mission objective
+expect-dialog-checks on,on
 picture 4
-# P with the pointer over MO2's row (y 128 to 143): bit 2 (make possible) flips
-move-box 300 136
-key P
-wait 300
-expect-field-has strategyview 32@128:MO2 (make visible)
-expect-field-has strategyview |100@440:P
+# its Possible box (the page's P on its row): bit 1 of its word off
+click-check 2
+expect-dialog-checks on,off
 picture 5
+click-button Ok
+expect-no-dialog
+wait 300
+# the form again: what was written
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog end : Mission Objective
+expect-dialog-text 0|0|0|Shown at start|Possible at start|Complete level|MO2 - Mission objective
+expect-dialog-checks on,off
 key Esc
+expect-no-dialog
 wait 300
 save-copy
 # the copy through the game's loader: "end" holds one alteration, MO2's ID; every other strategy as it was (MO2 is new, not in the original)

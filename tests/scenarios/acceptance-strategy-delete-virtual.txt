@@ -27,8 +27,10 @@ expect-no-dialog
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 200@0:Vmessage077 : Message
+# (2026-11-24, Dietrich: a Message edits in a form, the owner's; Escape closes it and the view)
+expect-dialog Vmessage077 : Message
 key Esc
+expect-no-dialog
 wait 400
 # the question, then Yes: its strategy goes; Edit Strategy then finds none (FUN_005286b0: "Selected object has no strategy", 0x5ee174)
 click-win 500 300 right

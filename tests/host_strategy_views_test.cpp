@@ -501,6 +501,38 @@ int main()
 		      "a count the bytes do not hold (hostile): no list, no row, nothing written");
 	}
 
+	puts("70 Mission Objective (S-K70-7, -8): its alteration targets written back (StrategyView_WithMissionTargets), the bytes after them kept:");
+	{
+		std::vector<uint8_t> const empty = New(70);
+		std::vector<host::MissionTarget> two(2);
+
+		two[0].id.fill(0x11);
+		two[0].word = 3;   // make visible (1) and make possible (2)
+		two[1].id.fill(0x22);
+		two[1].word = 1;   // make visible only
+
+		std::vector<uint8_t> mission, again;
+		std::vector<host::MissionTarget> back;
+
+		Check(empty.size() >= 44 && host::StrategyView_MissionTargets(empty, &back) && back.empty(), "a new 70 is made, with no alteration targets");
+		Check(host::StrategyView_WithMissionTargets(empty, two, &mission) && mission.size() == empty.size() + 24, "two targets written into it: 24 bytes more");
+		Check(host::StrategyView_MissionTargets(mission, &back) && back.size() == 2 && back[0].id[7] == 0x11 && back[0].word == 3 && back[1].id[0] == 0x22 && back[1].word == 1,
+		      "and read back in order, with their words");
+		Check(mission.size() >= 68 && std::vector<uint8_t>(mission.begin() + 68, mission.end()) == std::vector<uint8_t>(empty.begin() + 44, empty.end()),
+		      "the bytes after the list (the request targets and the pads) kept as they were");
+
+		two.resize(1);
+		Check(host::StrategyView_WithMissionTargets(mission, two, &again) && again.size() == empty.size() + 12 && host::StrategyView_MissionTargets(again, &back) && back.size() == 1 &&
+		      back[0].word == 3, "written again with one target: the old two are replaced, not added to");
+
+		std::vector<uint8_t> hostile = mission;
+		std::vector<uint8_t> untouched = { 1, 2, 3 };
+
+		Put32(&hostile, 40, 1000000);
+		Check(!host::StrategyView_WithMissionTargets(hostile, two, &untouched) && untouched.size() == 3, "a count the bytes do not hold (hostile): refused, nothing written");
+		Check(!host::StrategyView_WithMissionTargets(mission, std::vector<host::MissionTarget>(4097), &untouched) && untouched.size() == 3, "more than 4096 targets: refused, nothing written");
+	}
+
 	if (checksFailed)
 	{
 		printf("FAILED host_strategy_views_test (%d checks failed)\n", checksFailed);

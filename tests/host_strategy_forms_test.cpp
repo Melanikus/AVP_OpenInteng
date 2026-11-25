@@ -58,6 +58,119 @@ static bool ShownAt(host::StrategyFormRow const &row, int32_t kind, std::vector<
 	return !row.shown || row.shown(kind, payload);
 }
 
+// THE OBJECTS' ROWS (Dietrich, strategy_forms_objects.cpp): each kind's rows in their order, with the fields, bits, ranges and page actions of its page (strategy_views.cpp), and
+// every field one the model knows for that kind (so a misspelt name can't make a row that writes nothing)
+static void ObjectsRows()
+{
+	using K = host::StrategyFormRowKind;
+
+	auto const knows = [](int32_t kind, std::string const &field)
+	{
+		int32_t read = 0;
+		std::vector<uint8_t> const fresh = New(kind);
+
+		return !fresh.empty() && host::StrategyView_FieldNumber(kind, fresh, field.c_str(), &read);
+	};
+
+	std::vector<host::StrategyFormRow> const destruct = host::StrategyForm_Rows(78);
+	Check(destruct.size() == 1 && destruct[0].kind == K::Number && destruct[0].field == "timer" && !destruct[0].isFloat && destruct[0].lowest == 0.0 &&
+	      destruct[0].highest == 32767.0 && destruct[0].factor == 1.0 && knows(78, "timer"), "78 Self Destruct: its Time, a whole number of seconds, 0 to 32767");
+
+	std::vector<host::StrategyFormRow> const death = host::StrategyForm_Rows(77);
+	Check(death.size() == 4, "77 Volume of Death has four rows: Starts, Collision, Damage per second, Volume");
+
+	if (death.size() == 4)
+	{
+		Check(death[0].kind == K::Bits && death[0].field == "flags" && death[0].mask == 1 && death[0].choices.size() == 2 && death[0].choices[0].value == 0 &&
+		      death[0].choices[1].value == 1 && knows(77, "flags"), "77 Starts: bit 0 of the flags, Inactive 0 / Active 1");
+		Check(death[1].kind == K::Bits && death[1].field == "flags" && death[1].mask == 2 && death[1].choices.size() == 2 && death[1].choices[0].value == 0 &&
+		      death[1].choices[1].value == 2, "77 Collision: bit 1 of the flags, only harmful on collision 0 / not required 2");
+		Check(death[2].kind == K::Number && death[2].field == "damage" && !death[2].isFloat && death[2].lowest == 0.0 && death[2].highest == 2147483647.0 && knows(77, "damage"),
+		      "77 Damage per second: a whole number, 0 or more");
+		Check(death[3].kind == K::Action && death[3].key == 'V' && death[3].pageY < 0 && death[3].button == "Edit Volume", "77 Volume: the page's V, Edit Volume");
+	}
+
+	std::vector<host::StrategyFormRow> const placed = host::StrategyForm_Rows(62);
+	Check(placed.size() == 4, "62 Placed Object has four rows: Target request, Event Target, Object destroyed, Object picked up");
+
+	if (placed.size() == 4)
+	{
+		Check(placed[0].kind == K::Bits && placed[0].field == "target_request" && placed[0].mask == 1 && placed[0].choices.size() == 2 && placed[0].choices[0].value == 0 &&
+		      placed[0].choices[1].value == 1 && knows(62, "target_request"), "62 Target request: bit 0 only (Turn Target Off 0 / On 1), its higher bits kept");
+		Check(placed[1].kind == K::Target && placed[1].field == "targetID" && placed[1].pickRow == host::kPickTarget && placed[1].request == "target_request" && placed[1].extra,
+		      "62 Event Target: the page's pick rule, its request word, and Extra data... (the page's E)");
+		Check(placed[2].kind == K::Check && placed[2].field == "flags" && placed[2].mask == 1 && placed[3].kind == K::Check && placed[3].field == "flags" && placed[3].mask == 2 &&
+		      knows(62, "flags"), "62 Object destroyed: bit 0 of the flags; Object picked up: bit 1");
+	}
+
+	std::vector<host::StrategyFormRow> const message = host::StrategyForm_Rows(73);
+	Check(message.size() == 3, "73 Message has three rows: Starts, String, Video");
+
+	if (message.size() == 3)
+	{
+		Check(message[0].kind == K::Bits && message[0].field == "flags" && message[0].mask == 1 && message[0].choices.size() == 2 && message[0].choices[0].value == 0 &&
+		      message[0].choices[1].value == 1 && knows(73, "flags"), "73 Starts: bit 0 of the flags, Activated 0 / Deactivated 1");
+		Check(message[1].kind == K::Number && message[1].field == "message_string" && !message[1].isFloat && message[1].lowest == 0.0 && message[1].highest == 450.0 &&
+		      knows(73, "message_string"), "73 String: a whole number, 0 to 450 (the loader's range)");
+
+		// the Video button is the page's press on its String line: that press must open the Message window, as the page's click does (strategy_views.cpp MessageClick)
+		host::StrategyViewClick press;
+
+		Check(message[2].kind == K::Action && message[2].pageY >= 0 && host::StrategyView_Click(73, New(73), message[2].pageX, message[2].pageY, &press) &&
+		      press.action == host::StrategyViewClick::Window && press.pickRow == host::kWindowMessageText, "73 Video: the press on the page's String line, which opens the Message window (Play)");
+	}
+
+	std::vector<host::StrategyFormRow> const mission = host::StrategyForm_Rows(70);
+	Check(mission.size() == 7, "70 Mission Objective has seven rows: Description, Completed Message, Order Number, Shown, Possible, Special, Alterations");
+
+	if (mission.size() == 7)
+	{
+		Check(mission[0].kind == K::Number && mission[0].field == "mission_description_string" && mission[0].lowest == 0.0 && mission[0].highest == 450.0 &&
+		      knows(70, "mission_description_string"), "70 Description: a whole number, 0 to 450 (the loader's range)");
+		Check(mission[1].kind == K::Number && mission[1].field == "mission_complete_string" && mission[1].lowest == 0.0 && mission[1].highest == 450.0 &&
+		      knows(70, "mission_complete_string"), "70 Completed Message: a whole number, 0 to 450");
+		Check(mission[2].kind == K::Number && mission[2].field == "mission_number" && !mission[2].isFloat && mission[2].lowest == -2147483648.0 &&
+		      mission[2].highest == 2147483647.0 && knows(70, "mission_number"), "70 Order Number: any whole number (inteng made no check)");
+		Check(mission[3].kind == K::Bits && mission[3].field == "flags" && mission[3].mask == 1 && mission[3].choices.size() == 2 && mission[3].choices[1].value == 1 &&
+		      mission[4].kind == K::Bits && mission[4].field == "flags" && mission[4].mask == 2 && mission[4].choices.size() == 2 && mission[4].choices[1].value == 2 &&
+		      knows(70, "flags"), "70 Shown: bit 0 of the flags; Possible: bit 1");
+		Check(mission[5].kind == K::Choice && mission[5].field == "mission_completion_effect" && mission[5].choices.size() == 2 && mission[5].choices[0].value == 0 &&
+		      mission[5].choices[1].value == 1 && knows(70, "mission_completion_effect"), "70 Special: Nothing 0, Complete level 1");
+
+		host::StrategyFormRow const &list = mission[6];
+
+		Check(list.kind == K::List && list.entryChecks.size() == 2 && list.entryChecks[0].mask == 1u && list.entryChecks[1].mask == 2u && list.newWord == 3u &&
+		      list.targetKinds == std::vector<int32_t>({ 70, 71 }) && !list.entryExtra && !list.entryDuplicate,
+		      "70 Alterations: a list of objectives only (70, 71), Visible bit 0 and Possible bit 1 of each word, a new one with both");
+
+		// the list's read and write go through the page's own reader and writer (strategy_views StrategyView_MissionTargets / _WithMissionTargets)
+		std::vector<uint8_t> const fresh = New(70);
+		std::vector<host::StrategyFormEntry> entries, back;
+		std::vector<uint8_t> written;
+
+		Check(list.readList && list.writeList && list.readList(fresh, &entries) && entries.empty(), "a new 70 reads an empty list");
+
+		entries.resize(2);
+		entries[0].id.fill(0x11);
+		entries[0].word = 3u;
+		entries[1].id.fill(0x22);
+		entries[1].word = 1u;
+		Check(list.writeList(fresh, entries, &written) && written.size() == fresh.size() + 24 && list.readList(written, &back) && back.size() == 2 && back[0].word == 3u &&
+		      back[1].id[0] == 0x22 && back[1].word == 1u, "two entries written and read back in order, with their words");
+
+		std::vector<uint8_t> hostile = written;
+		int32_t const huge = 1000000;
+
+		if (hostile.size() >= 44)
+		{
+			memcpy(hostile.data() + 40, &huge, 4);
+		}
+
+		back.clear();
+		Check(hostile.size() >= 44 && !list.readList(hostile, &back) && back.empty(), "a count the bytes don't hold (hostile): no list");
+	}
+}
+
 // paths (Frost): the editor's answers (strategy_forms_paths.h), stood in: no species, no track sections and no paths, as with nothing selected and no level open
 int32_t host::StrategyFormsPaths_SelectedSpecies()
 {
@@ -91,6 +204,12 @@ int main()
 	hasForm[50] = true;   // Door (Drake 2026-11-24)
 	hasForm[59] = true;   // Switch Door (Drake 2026-11-25)
 	// objects (Dietrich): 62, 77, 78, 73, 70
+	hasForm[78] = true;
+	hasForm[77] = true;
+	hasForm[62] = true;
+	hasForm[73] = true;
+	hasForm[70] = true;
+	ObjectsRows();
 	// paths (Frost): 72, 80, 76, 69, 79
 	hasForm[69] = true;
 	hasForm[79] = true;

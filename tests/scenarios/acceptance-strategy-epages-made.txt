@@ -3,6 +3,7 @@
 # Mission Objective (e-survey of the levels), so the level is MADE fresh by the run, by a test tool (make_strategy_level; never by hand): a copy of Breakout where the Placed Objects (62) storelit
 # and fanlit07 name the Track train1 and the Mission Objective "end", each with request 1. His path: the file opened as a double click, the bar, Find Object, the right button's Edit Strategy, the E
 # key, the page's lines clicked, Escape (the page alone ends: INTENG BUG, FIXED 9f63bf3), Escape, File > Save a copy.
+# (2026-11-24, Dietrich: 62 edits in a form, the owner's: its Extra data... button is the page's E; the E page is drawn and clicked as before, and its Escape brings the form back)
 #   Track page: data = request >> 1 = 0, the marker (glyph 2) at (16, 16); a click on "Start track backward" (y 48-63) makes data 2; the word becomes (1 & 1) | 2 << 1 = 5.
 #   Mission page: data 0, three boxes (an X when clear; the third the other way round: a tick when its bit is clear); clicks on "Make objective possible" (y 64-79, bit 2) and "Complete mission"
 #   (y 80-95, bit 4) make data 6; the word becomes 1 | 6 << 1 = 13.
@@ -24,8 +25,8 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview storelit :
-key E
+expect-dialog storelit : Placed Object
+click-button Extra_data...
 wait 300
 expect-field strategyview 100@0:Target  -  train1 : Track object|16@16:{2}|32@16:Start track|32@32:Start track forward|32@48:Start track backward
 picture 1
@@ -35,8 +36,9 @@ expect-field strategyview 100@0:Target  -  train1 : Track object|32@16:Start tra
 picture 2
 key Esc
 wait 300
-expect-field-has strategyview storelit :
+expect-dialog storelit : Placed Object
 key Esc
+expect-no-dialog
 wait 300
 
 # ---- the Mission Objective's page
@@ -48,7 +50,8 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-key E
+expect-dialog fanlit07 : Placed Object
+click-button Extra_data...
 wait 300
 expect-field strategyview 100@0:Target  -  end : Mission Objectives|200@32:Current effect of on message (off ignored):|32@48:Make objective visible|16@48:{3}|32@64:Make objective possible|16@64:{3}|32@80:Complete mission (if currently possible)|16@80:{1}
 picture 3
@@ -60,8 +63,9 @@ expect-field strategyview 100@0:Target  -  end : Mission Objectives|200@32:Curre
 picture 4
 key Esc
 wait 300
-expect-field-has strategyview fanlit07 :
+expect-dialog fanlit07 : Placed Object
 key Esc
+expect-no-dialog
 wait 300
 save-copy
 verify C:/Users/Melanikus/source/AvP-builds-excluded/drake-proofs/verifiers/verify_strategy.exe {exedir}Breakout-epages.made.rif {copy} storelit target_request 5 holds train1 also fanlit07

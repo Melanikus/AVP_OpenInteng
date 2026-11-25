@@ -108,10 +108,12 @@ expect-dialog-kind confirm
 click-button Yes
 expect-dialog Select Strategy
 click-button Volume_of_Death
-expect-no-dialog
+# (2026-11-24, Dietrich: a Volume of Death edits in a form, the owner's: it opens after the assign, where the view did; its Edit Volume button is the page's V, and the
+# form comes back when the editor ends)
+expect-dialog ZoneVO : Volume of Death
 expect-status The object has a new strategy
 wait 300
-key V
+click-button Edit_Volume
 wait 300
 expect-status Edit Volume
 remember-field volumemodule
@@ -127,8 +129,13 @@ remember-field volume
 key Enter
 expect-status The volume is written into the strategy
 wait 500
-key V
+expect-dialog ZoneVO : Volume of Death
+click-button Edit_Volume
 wait 300
 expect-field-same volume
 key Enter
 expect-status The volume is written into the strategy
+# the editor ended: the form back; Escape closes it and the view
+expect-dialog ZoneVO : Volume of Death
+key Esc
+expect-no-dialog

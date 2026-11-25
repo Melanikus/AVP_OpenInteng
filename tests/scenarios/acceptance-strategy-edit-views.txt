@@ -157,23 +157,24 @@ item 0x8
 expect-dialog Select Strategy
 click-button Self_Destruct
 wait 300
-expect-field strategyview 200@0:VOSD : Self Destruct|16@16:Time : 60
-click-box 300 24
-expect-dialog Time until destruction (seconds)
+# (2026-11-24, Dietrich: a Self Destruct edits in a form, the owner's; it opens where the view did, after the assign too)
+expect-dialog VOSD : Self Destruct
 expect-dialog-text 60
-key Back
-key Back
-type 125
-key Enter
+form-field 1 125
+click-button Ok
+expect-no-dialog
 wait 300
-expect-field strategyview 200@0:VOSD : Self Destruct|16@16:Time : 125
-# a negative time is kept as 0
-click-box 300 24
-key Back
-key Back
-key Back
-type -5
-key Enter
+item 0x7
 wait 300
-expect-field strategyview 200@0:VOSD : Self Destruct|16@16:Time : 0
+expect-dialog VOSD : Self Destruct
+expect-dialog-text 125
+# NAMED DIFFERENCE (the forms' rule for every number): a negative time is refused with its range said, and the form comes back; inteng's box kept it as 0
+form-field 1 -5
+click-button Ok
+expect-dialog-kind message
+expect-dialog Time (seconds) must be a number (0 to 32767)
+click-button Ok
+expect-dialog VOSD : Self Destruct
+expect-dialog-text -5
 key Esc
+expect-no-dialog

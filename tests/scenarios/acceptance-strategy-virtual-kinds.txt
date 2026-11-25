@@ -1,8 +1,10 @@
 # ACCEPTANCE: the virtual objects' kinds 73 Message, 77 Volume of Death and 78 Self Destruct on Melanikus's path, on objects a stock level holds, the saved copy read back by the game's loader
 # (Drake, 2026-11-16; reassess/strategy-data-kinds.md S-K73-1..3, S-K77-1..3, S-K78-1..2, and -C of each). Vaults (a read-only stock copy) holds all three: Vmessage077 (a Message, String 25,
 # starts activated), Vdeathduct (a Volume of Death: starts active, only harmful on collision, infinite damage) and Vmessagedest194 (a Self Destruct, time 0). For each: Find Object; Copy Strategy
-# (the right button's 2) is refused, "Copying not supported for this strategy" (S-KC-7: the kind's +0x10 is 0x404550); Edit Strategy (the right button's 3) and its lines clicked. RED without
-# the clicks (a copy saved untouched): the three verify lines fail on the stock values.
+# (the right button's 2) is refused, "Copying not supported for this strategy" (S-KC-7: the kind's +0x10 is 0x404550); Edit Strategy (the right button's 3) and its fields changed.
+# THE FORMS (Dietrich 2026-11-24, the owner's "no more text that can be clicked, our pretty drop downs"; strategy_forms_objects.cpp): Edit Strategy opens each kind's form, where the page
+# was; its drop-downs write as they are picked, its boxes at Ok, and Ok ends the view. Each form is opened again after, and shows what was written.
+# RED on exe-cache/e8382ab1.exe (bishop-int before the forms of these kinds): Edit Strategy opens the page, not "<name> : <kind>" (the first expect-dialog fails).
 start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Vaults.RIF
 pictures on
 state
@@ -24,20 +26,25 @@ wait 900
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field strategyview 200@0:Vmessage077 : Message|16@16:Message starts activated|16@32:String :25
+expect-dialog Vmessage077 : Message
+expect-dialog-text Activated|25
+expect-field-has strategyform Starts|String|(0 to 450)|Video|Its FMV: the list, and Play
 picture 1
-# line 1 (y 16): the start flag; the String rows (from y 32): the 500 x 400 window "Message", its number box
-click-box 300 24
-wait 300
-click-box 300 40
-expect-dialog-kind form
+# Starts (bit 0 of the flags), written as it is picked; the String box (0 to 450), written at Ok
+click-combo 1
+click-combo-row Deactivated
 form-field 1 120
 click-button Ok
 expect-no-dialog
 wait 300
-expect-field strategyview 200@0:Vmessage077 : Message|16@16:Message starts deactivated|16@32:String :120
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog Vmessage077 : Message
+expect-dialog-text Deactivated|120
 picture 2
 key Esc
+expect-no-dialog
 wait 400
 
 # ---- 77 VOLUME OF DEATH Vdeathduct (S-K77-1..3, S-K77-C)
@@ -54,22 +61,27 @@ wait 900
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field strategyview 200@0:Vdeathduct : Volume of Death|16@16:Starts Active|16@32:Only harmful on collision.|16@48:Damage : Infinite (instant death)|100@460:V : Edit Volume
+expect-dialog Vdeathduct : Volume of Death
+expect-dialog-text Active|Only harmful on collision.|0
+expect-field-has strategyform Starts|Collision|Damage per second|(0 or more)|Volume|
 picture 3
-# line 1 (y 16): flags bit 1 (2026-11-17, strategy-closeout-drake.md E-4: every line); line 2 (y 32): flags bit 2; the Damage line (y 48): the whole-number dialog
-click-box 300 24
+# Starts (bit 0 of the flags) and Collision (bit 1), written as they are picked; the Damage per second box, written at Ok
+click-combo 1
+click-combo-row Inactive
+click-combo 2
+click-combo-row Collision not required.
+form-field 1 40
+click-button Ok
+expect-no-dialog
 wait 300
-expect-field-has strategyview 16@16:Starts Inactive
-click-box 300 40
-wait 300
-click-box 300 56
-expect-dialog Type in the damage per second.
-type 40
-key Enter
-wait 300
-expect-field strategyview 200@0:Vdeathduct : Volume of Death|16@16:Starts Inactive|16@32:Collision not required.|16@48:Damage : 40/second|100@460:V : Edit Volume
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog Vdeathduct : Volume of Death
+expect-dialog-text Inactive|Collision not required.|40
 picture 4
 key Esc
+expect-no-dialog
 wait 400
 
 # ---- 78 SELF DESTRUCT Vmessagedest194 (S-K78-1..2, S-K78-C)
@@ -86,18 +98,29 @@ wait 900
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field strategyview 200@0:Vmessagedest194 : Self Destruct|16@16:Time : 0
-picture 5
-click-box 300 24
-expect-dialog Time until destruction (seconds)
+expect-dialog Vmessagedest194 : Self Destruct
 expect-dialog-text 0
-key Back
-type 90
-key Enter
+picture 5
+# NAMED DIFFERENCE (the forms' rule for every number): a negative time is refused with its range said, and the form comes back holding what was typed (inteng's box kept it as 0)
+form-field 1 -5
+click-button Ok
+expect-dialog-kind message
+expect-dialog Time (seconds) must be a number (0 to 32767)
+click-button Ok
+expect-dialog Vmessagedest194 : Self Destruct
+expect-dialog-text -5
+form-field 1 90
+click-button Ok
+expect-no-dialog
 wait 300
-expect-field strategyview 200@0:Vmessagedest194 : Self Destruct|16@16:Time : 90
+click-win 500 300 right
+click-popup 3
+wait 400
+expect-dialog Vmessagedest194 : Self Destruct
+expect-dialog-text 90
 picture 6
 key Esc
+expect-no-dialog
 wait 400
 
 save-copy

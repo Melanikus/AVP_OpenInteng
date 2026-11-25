@@ -21,7 +21,8 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 200@0:medoor01 : Door
+# (2026-11-25, Dietrich: a Door edits in a form since Drake's 13f1d37f, where its page was; the hint is still kept for the harness and not drawn)
+expect-dialog medoor01 : Door
 expect-status Edit Strategy: click a line to change it
 expect-field-empty statusdrawn
 picture 1
@@ -37,17 +38,18 @@ wait 400
 click-win 500 300 right
 click-popup 3
 wait 400
-expect-field-has strategyview 16@32:String :
+# (2026-11-24, Dietrich: a Message edits in a form, the owner's; its Play... button opens the Message window, as the String line did)
+expect-dialog message03 : Message
 expect-status FMVs\message
 expect-field-has statusdrawn FMVs\message
 picture 2
 
 # ---- a click's edit refused: 451, a number the game refuses (the field's 0 .. 450), drawn with its reason
-click-box 300 40
+click-button Play...
 expect-dialog-kind form
 form-field 1 451
 click-button Ok
-expect-no-dialog
+expect-dialog message03 : Message
 wait 300
 expect-status Edit Strategy: the strategy would not take it
 expect-field-has statusdrawn Edit Strategy: the strategy would not take it

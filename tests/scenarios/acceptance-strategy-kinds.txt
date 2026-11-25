@@ -259,35 +259,30 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Mission_Objective
 wait 400
-expect-field strategyview 200@0:MO1 : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :0|16@32:Completed Message :0|16@48:Order Number :0|16@64:Shown at start|16@80:Possible at start|16@96:Special :Nothing|16@112:Mission alterations upon completion :|32@128:None
-expect-colour picture 300 250 500 300 000000 0.97 8
+# (2026-11-24, Dietrich: a Mission Objective edits in a form, the owner's; it opens at once after the assign, where the view did. A new one: 0, 0, 0, Shown, Possible,
+# Nothing. The page's own layout, its black box and its moving rows, went with the page.) Description 5 and Order 7 typed, Hidden at start and Complete level picked, Ok; then
+# the form again shows what was written
+expect-dialog MO1 : Mission Objective
+expect-dialog-text 0|0|0|Shown at start|Possible at start|Nothing
 picture 25
-# "Description :0" (y 16): the 500 x 400 text window (FUN_00532550); 5 typed, Ok: Description 5. Now Description > 0 and Completed <= 450: the (empty) text row at 32 ends at 32, so Completed moves to row 3
-click-box 300 24
-expect-dialog-kind form
-picture 26
 form-field 1 5
+form-field 3 7
+click-combo 1
+click-combo-row Hidden at start
+click-combo 3
+click-combo-row Complete level
+expect-dialog-text 5|0|7|Hidden at start|Possible at start|Complete level
+picture 26
 click-button Ok
 expect-no-dialog
 wait 300
-expect-field strategyview 200@0:MO1 : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :0|16@64:Order Number :0|16@80:Shown at start|16@96:Possible at start|16@112:Special :Nothing|16@128:Mission alterations upon completion :|32@144:None
-# "Shown at start" (y 80) flips bit 1: "Hidden at start " (its trailing space); the Special line (y 112): (0 + 1) % 2 = 1, "Special :Complete level"
-click-box 300 88
-wait 300
-click-box 300 120
-wait 300
-expect-field strategyview 200@0:MO1 : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :0|16@64:Order Number :0|16@80:Hidden at start |16@96:Possible at start|16@112:Special :Complete level|16@128:Mission alterations upon completion :|32@144:None
-# "Order Number" (y 64): the number dialog "Mission Order Number"; 7
-click-box 300 72
-expect-dialog Mission Order Number
-key Back
-type 7
-key Enter
-expect-no-dialog
-wait 300
-expect-field strategyview 200@0:MO1 : Mission Objective|100@440:P : Toggle 'Make Possible' setting for mission target|100@460:V : Toggle 'Make Visible' setting for mission target|16@16:Description :5|16@48:Completed Message :0|16@64:Order Number :7|16@80:Hidden at start |16@96:Possible at start|16@112:Special :Complete level|16@128:Mission alterations upon completion :|32@144:None
+item 0x7
+wait 400
+expect-dialog MO1 : Mission Objective
+expect-dialog-text 5|0|7|Hidden at start|Possible at start|Complete level
 picture 27
 key Esc
+expect-no-dialog
 wait 400
 
 # ---- S-K73-0..3: MESSAGE, on the same virtual object (MO1 is still current). Assign: its Mission Objective is not one replaced without asking, so the question first, Yes, then the window, Message.
@@ -299,26 +294,25 @@ click-button Yes
 expect-dialog Select Strategy
 click-button Message
 wait 400
-expect-field strategyview 200@0:MO1 : Message|16@16:Message starts activated|16@32:String :0
-# line 1 (y 16-31) flips flags bit 1 (0x5337d3)
-click-box 300 24
-wait 300
-expect-field strategyview 200@0:MO1 : Message|16@16:Message starts deactivated|16@32:String :0
-# the String row (y 32-47): the 500 x 400 window of FUN_00532550 with the words "Message" (0x5337f2), the number box holding 0; 5 typed, Ok: String :5 (no check)
-click-box 300 40
+# (2026-11-24, Dietrich: a Message edits in a form, the owner's; it opens where the view did, after the assign too. The page's row layout, a String row 32-47 and its text row
+# at 48 for 0 < n <= 450, went with the page)
+expect-dialog MO1 : Message
+expect-dialog-text Activated|0
+# Starts: flags bit 1 (0x5337d3), written as it is picked
+click-combo 1
+click-combo-row Deactivated
+expect-dialog-text Deactivated|0
+# Play...: the 500 x 400 window of FUN_00532550 with the words "Message" (0x5337f2), the number box holding 0; 5 typed, Ok: the form again, String 5
+click-button Play...
 expect-dialog-kind form
 picture 28
 form-field 1 5
 click-button Ok
-expect-no-dialog
+expect-dialog MO1 : Message
 wait 300
-expect-field strategyview 200@0:MO1 : Message|16@16:Message starts deactivated|16@32:String :5
-# with 0 < n <= 450 the message's (empty) text row is at 48, so the String rows now reach y 63: a click at 56 opens the same window, holding 5
-click-box 300 56
-expect-dialog-kind form
-click-button Cancel
-expect-no-dialog
+expect-dialog-text Deactivated|5
 key Esc
+expect-no-dialog
 wait 400
 
 # ---- SECTION 14 (old code read against its rows): S-K75-1..3 FAN on Fan1 (Find Object, Edit Strategy)
@@ -405,23 +399,27 @@ click-popup 4
 expect-dialog Select Strategy
 click-button Volume_of_Death
 wait 400
-expect-field strategyview 200@0:VD1 : Volume of Death|16@16:Starts Active|16@32:Only harmful on collision.|16@48:Damage : Infinite (instant death)|100@460:V : Edit Volume
-click-box 300 24
+# (2026-11-24, Dietrich: a Volume of Death edits in a form, the owner's; it opens where the view did)
+expect-dialog VD1 : Volume of Death
+expect-dialog-text Active|Only harmful on collision.|0
+click-combo 1
+click-combo-row Inactive
+click-combo 2
+click-combo-row Collision not required.
+form-field 1 25
+click-button Ok
+expect-no-dialog
 wait 300
-click-box 300 40
-wait 300
-click-box 300 56
-expect-dialog Type in the damage per second.
-type 25
-key Enter
-wait 300
-expect-field strategyview 200@0:VD1 : Volume of Death|16@16:Starts Inactive|16@32:Collision not required.|16@48:Damage : 25/second|100@460:V : Edit Volume
+item 0x7
+wait 400
+expect-dialog VD1 : Volume of Death
+expect-dialog-text Inactive|Collision not required.|25
 # the view runs its own loop: no menu bar over it, even with the pointer in the bar's band after the clicks at y 24 (S-KC-1)
 expect-bar-hidden
 picture 31
 key Esc
 wait 400
-# Self Destruct on the same object: the replace question first, then the window; the time: 125 taken, a negative one kept as 0
+# Self Destruct on the same object: the replace question first, then the window; the time: 125 taken, a negative one refused (the form's rule; inteng kept it as 0)
 click-win 378 300 right
 click-popup 4
 expect-dialog-kind confirm
@@ -429,24 +427,24 @@ click-button Yes
 expect-dialog Select Strategy
 click-button Self_Destruct
 wait 400
-expect-field strategyview 200@0:VD1 : Self Destruct|16@16:Time : 60
-click-box 300 24
-expect-dialog Time until destruction (seconds)
+# (2026-11-24, Dietrich: a Self Destruct edits in a form, the owner's. NAMED DIFFERENCE, the forms' rule for every number: a negative time is refused with its range said; inteng's box kept it as 0)
+expect-dialog VD1 : Self Destruct
 expect-dialog-text 60
-key Back
-key Back
-type 125
-key Enter
+form-field 1 125
+click-button Ok
+expect-no-dialog
 wait 300
-expect-field strategyview 200@0:VD1 : Self Destruct|16@16:Time : 125
-click-box 300 24
-key Back
-key Back
-key Back
-type -5
-key Enter
-wait 300
-expect-field strategyview 200@0:VD1 : Self Destruct|16@16:Time : 0
+item 0x7
+wait 400
+expect-dialog VD1 : Self Destruct
+expect-dialog-text 125
+form-field 1 -5
+click-button Ok
+expect-dialog-kind message
+expect-dialog Time (seconds) must be a number (0 to 32767)
+click-button Ok
+expect-dialog VD1 : Self Destruct
 picture 32
 key Esc
+expect-no-dialog
 wait 400

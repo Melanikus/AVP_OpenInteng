@@ -1848,33 +1848,7 @@ static void LiftSwitchPicked(uint8_t const *subject, int32_t kind, char const *f
 	}
 }
 
-// THE MISSION OBJECTIVE'S EDITS (70; reassess/strategy-data-kinds.md S-K70-2, -3, -7, -8). The alterations list: its count at +40, then 12 bytes each (the target's ID, its word), then the request targets.
-static bool MissionWithTargets(std::vector<uint8_t> const &payload, std::vector<host::MissionTarget> const &targets, std::vector<uint8_t> *out)
-{
-	std::vector<host::MissionTarget> old;
-
-	if (!host::StrategyView_MissionTargets(payload, &old) || targets.size() > 4096)
-	{
-		return false;
-	}
-
-	size_t const tail = 44 + 12 * old.size();
-
-	out->assign(payload.begin(), payload.begin() + 44);
-	StrategyPut32(out, 40, (int32_t)targets.size());
-
-	for (host::MissionTarget const &one : targets)
-	{
-		uint8_t entry[12];
-
-		memcpy(entry, one.id.data(), 8);
-		memcpy(entry + 8, &one.word, 4);
-		out->insert(out->end(), entry, entry + 12);
-	}
-
-	out->insert(out->end(), payload.begin() + (std::ptrdiff_t)tail, payload.end());
-	return true;
-}
+// THE MISSION OBJECTIVE'S EDITS (70; reassess/strategy-data-kinds.md S-K70-2, -3, -7, -8). The alterations list is written by StrategyView_WithMissionTargets (strategy_views.h).
 
 // FUN_00532550 (S-K70-2, -3): a window 500 x 400, centred: "Mission Description" (0x5ef6a8) or "Completed Message" (0x5ef694) at (0x12, 0x12), a number box at (0x1e, 0x24), 300 x 0x12, holding the number, "Ok" (200, 0x15e)
 // and "Cancel" (300, 0x15e), and a text area at (0x12, 0x50), 400 x 0xfa, with the message's text: always empty here (the table is never filled off Rebellion's network; ours draws an empty label there).
@@ -2232,7 +2206,7 @@ void MissionTargetsEnd()
 		}
 	}
 
-	if (MissionWithTargets(payload, now, &bytes) && LevelObjects_OpenForEdit())
+	if (host::StrategyView_WithMissionTargets(payload, now, &bytes) && LevelObjects_OpenForEdit())
 	{
 		WriteStrategyBytes(LevelObjects_OpenForEdit(), subject, bytes);
 	}
@@ -2266,7 +2240,7 @@ void MissionToggleUnderPointer(int32_t bit)
 
 	targets[index].word ^= bit;
 
-	if (MissionWithTargets(payload, targets, &bytes) && LevelObjects_OpenForEdit())
+	if (host::StrategyView_WithMissionTargets(payload, targets, &bytes) && LevelObjects_OpenForEdit())
 	{
 		WriteStrategyBytes(LevelObjects_OpenForEdit(), strategyEditId, bytes);
 	}

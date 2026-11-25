@@ -169,6 +169,10 @@ namespace host
 
 	bool StrategyView_MissionTargets(std::vector<uint8_t> const &payload, std::vector<MissionTarget> *targets);
 
+	// The Mission Objective's payload with these alteration targets in place of its own: the count at +40, then 12 bytes each (the target's ID, its word), then the
+	// request targets and the rest as they were. False, and nothing written, when the old list doesn't fit its bytes or the new one has more than 4096 entries
+	bool StrategyView_WithMissionTargets(std::vector<uint8_t> const &payload, std::vector<MissionTarget> const &targets, std::vector<uint8_t> *out);
+
 	// A Multiple Target / Area Switch's targets (66 / 68: the count at payload 36, 12 bytes each from 40, an object and its request); false, and none, for a count the bytes do not hold
 	struct MultiTarget
 	{
