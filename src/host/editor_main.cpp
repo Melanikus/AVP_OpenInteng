@@ -2096,6 +2096,10 @@ static void DeleteTheSelectedObject()
 
 	host::Selection_Clear();
 	LoadTheObjectListAgain();
+	// THE VIEW (the owner on alpha.7: "it goes away but the shape remains until I switch/go back to the mode"; in every alpha): what is drawn is the game's own copy of
+	// the level, loaded from the working bytes when the level was last shown, and the delete above changed only the editor's copy. So the deleted object stayed drawn
+	// until the next screen change. The view loads the working bytes again now, as a placing does (not while a live copy flies or a ghost shows): the object goes from it.
+	PutTheNewObjectInPlay();
 	statusWords = "Object deleted";
 }
 
