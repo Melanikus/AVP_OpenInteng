@@ -35,7 +35,9 @@ key Back
 wait 400
 picture 1
 expect-colour picture 0 0 1008 729 0000fc 0.0003 40
-# the start's red fc0000 faces are behind its blue ones from here, so only its blue is checked (drake-icondepth: the icons are drawn as a depth buffer draws them, as inteng's display blocks; Drake's control with the depth buffer on reads 0.0000 for it here too)
+# the start's red fc0000 faces are behind its blue ones from here, so they are not seen (drake-icondepth: the icons are drawn as a depth buffer draws them, as
+# inteng's display blocks; Drake's control with the depth buffer on reads 0.0000 for it here too; Frost's NIT: asserted, not only left out)
+expect-colour-at-most picture 0 0 1008 729 fc0000 0.0005 40
 
 # ---- 3. Found again by Object > Find, it flies as the others do; the save holds it moved, nothing else changed
 click-bar Object > Find

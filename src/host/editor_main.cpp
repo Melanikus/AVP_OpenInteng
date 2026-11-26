@@ -14395,6 +14395,8 @@ void SpecialIconTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 	// overlap the one drawn LAST is seen. They were given nearest first, so a farther icon was painted over a nearer one (a V made Behind another, seen from behind, looked to
 	// be behind it). So they are given FARTHEST FIRST, the painter's order: the farthest object first, and each object's own faces farthest first too, so a nearer face is
 	// drawn over a farther one. (NAMED: the order is by each face's middle, as a painter's is; two faces that cross each other can't be put right by any order.)
+	// DEBT (Frost's NIT on 5c2283d6): the EXACT fix is in avpx, the hook writing the depth buffer for these triangles (d3d_render.cpp DrawEditorWorldTriangles,
+	// D3DRS_ZWRITEENABLE TRUE): a scratch build of it read the same numbers as this order on every depth scenario (Drake, 2026-11-25). For when avpx is next changed.
 	auto const distance = [&eye](int32_t const a[3], int32_t const b[3], int32_t const c[3])
 	{
 		double sum = 0.0;

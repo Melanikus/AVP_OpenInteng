@@ -1681,6 +1681,8 @@ void LightMarkerTriangles(std::vector<LevelViewTriangle> *triangles, uint32_t fr
 	// is seen where two overlap; they were given in the shape's own order, light after light, so the pyramid's base was seen through its sides and a farther marker over a nearer
 	// one. So each marker's faces are kept here, and given below FARTHEST FIRST, the painter's order: the farthest marker first, and each marker's own faces farthest first (by
 	// each face's middle). (NAMED: two faces that cross each other can't be put right by any order.)
+	// DEBT (as editor_main.cpp's icons; Frost's NIT on 5c2283d6): the EXACT fix is in avpx, the hook writing the depth buffer for these triangles (d3d_render.cpp
+	// DrawEditorWorldTriangles, D3DRS_ZWRITEENABLE TRUE): a scratch build of it read the same numbers as this order (Drake, 2026-11-25). For when avpx is next changed.
 	struct MarkerFaces { double away; std::vector<LevelViewTriangle> faces; };
 	std::vector<MarkerFaces> drawn;
 	double const eye[3] = { theCamera ? (double)theCamera->x : 0.0, theCamera ? (double)theCamera->y : 0.0, theCamera ? (double)theCamera->z : 0.0 };
