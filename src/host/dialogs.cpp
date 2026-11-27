@@ -799,6 +799,11 @@ namespace host
 						continue;
 					}
 
+					if (w.type == DialogWidgetType::Label)
+					{
+						s.labels += (s.labels.empty() ? "" : "|") + w.text;
+					}
+
 					if (w.type == DialogWidgetType::Combo)
 					{
 						s.combos += (s.combos.empty() ? "" : "|") + Word(w.text.empty() ? std::string("-") : w.text, w.box);

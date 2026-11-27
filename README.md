@@ -97,33 +97,20 @@ What happens to the file:
 - A file opened before under the same name is replaced by the new copy, since that folder is the editor's own. Opening that copy
   itself simply opens it.
 
-## Your own videos (mp4-to-smk)
+## Your own videos (Mode > Video)
 
 AvP plays its in-game videos (the messages on a level's monitors) as Smacker `.smk` files. The editor makes them itself: Mode > Video.
-`mp4-to-smk.exe` is no longer in the zip. It can still be built from this project's source (`win32/VS2026/mp4-to-smk.vcxproj`), and
-turns your own video into one in AvP's own format:
 
-```
-mp4-to-smk.exe <input video> <output.smk> [--fit | --crop] [--overwrite] [--level N | --level source] [--max-seconds N] [--max-input-mb N]
-```
-
+- **Load one:** drop a video on the editor's window, or Load > Browse. A big "Loading N%" shows while it's read.
 - **In:** `.mp4`, `.m4v`, `.mov`, `.mkv`, `.webm`, `.avi`, `.wmv`, `.mpg`, `.mpeg`, `.vob`, `.ts`, `.m2ts` or `.3gp`, read by Windows' own Media Foundation. Whether a
   video decodes depends on the codecs your Windows has: one it can't decode is named in words, with the Microsoft extension that adds it
-  (for example "HEVC picture: Microsoft's HEVC Video Extension adds it"). By default at most 256 MB and 180 seconds, and 4096 pixels a side;
-  `--max-input-mb` (up to 2048) and `--max-seconds` (up to 600) take more. A video too big for the program's memory is refused in words.
+  (for example "HEVC picture: Microsoft's HEVC Video Extension adds it"). At most 256 MB and 180 seconds, and 4096 pixels a side. A video too
+  big for the editor's memory is refused in words.
 - **Out, always:** 128 x 96 at 15 frames a second, sound at 22,050 Hz, 8-bit, mono: the format of AvP's own message videos.
-- **A video that isn't 4:3:** it asks whether to resize it to fit (the whole picture, with black bars) or crop it to fill (the edges
-  cut). `--fit` or `--crop` answers first.
-- **Sound:** made as loud as AvP's own videos (`--level`, 1 to 128; the default is their median) and never clipped. `--level source`
-  keeps your video's own level.
-- **An existing output** is refused unless you add `--overwrite`.
-
-**Putting it in the game:**
-
-1. Convert it: `mp4-to-smk.exe myvideo.mp4 message417.smk` (the name is `message` and the Message strategy's number, 1 to 450: the
-   editor refuses a higher one).
-2. Copy the `.smk` into the `FMVs` folder of your game's folder, beside AvP's own `message*.smk` files.
-3. In the level, the Message strategy with that number plays it when it fires. The editor's Message view lists the videos it finds.
+- **On screen:** fit it (the whole picture, with black bars), crop it to fill, or expand it; cut its start and end; turn its volume up or down.
+  A rectangle over your video shows the part that becomes the game's 128 x 96, and Preview plays it as the game would.
+- **Save** writes `FMVs\message<N>.smk` in your game's folder, for a number from the free list, and touches no level. In the level, the
+  Message strategy with that number plays it when it fires; the editor's Message window lists the videos it finds and plays them.
 
 **How a level plays it.** A Message strategy, when it fires, plays `FMVs\message<n>.smk` from the game's folder, where `<n>` is
 the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` in its name, and it shows those message videos.
@@ -134,7 +121,7 @@ the Message's own number. A level's monitor is a 128 x 128 picture with `FMVs` i
 - A monitor shows nothing when a video named after its own picture exists in `FMVs\`, and no video plays while a cheat is on.
 
 **The encoder** is libsmackerenc, made from Barry Duncan's libsmackerdec (LGPL 2.1), and it is linked into the editor itself (its Video
-mode makes films with it), and into `mp4-to-smk.exe` when you build that: there is no DLL beside either, and none is loaded. The editor's FMV preview has Barry's decoder, libsmackerdec (LGPL 2.1), linked into it the same
+mode makes films with it): there is no DLL beside it, and none is loaded. The editor's FMV preview has Barry's decoder, libsmackerdec (LGPL 2.1), linked into it the same
 way. Each library's licence is in the zip's `licences` folder, and `licences/README.txt` links its whole source, at the very commit the
 release was built from (the sources are not in the zip, so each release scans fewer files on VirusTotal). To use your own
 build of either, as the LGPL allows, build the program again from this project's source with yours in its place

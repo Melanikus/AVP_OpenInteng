@@ -148,7 +148,7 @@ namespace
 
 			if (j->result == host::VideoImportResult::Done)
 			{
-				// a picture not of 128 : 96's shape starts on Fit (the whole picture, black bars), the owner's first answer in mp4-to-smk
+				// a picture not of 128 : 96's shape starts on Fit (the whole picture, black bars), the owner's first answer
 				j->fit = host::VideoImportFit::Fit;
 				j->result = host::VideoImport_Still(bytes, j->contentType, 0, (uint32_t)host::kVideoModeMostStillSide, &j->still, &j->stillWidth, &j->stillHeight, &j->why);
 			}
@@ -206,7 +206,7 @@ namespace
 			j->smk.clear();
 			j->still.clear();
 			j->result = host::VideoImportResult::CantRead;
-			j->why = "there is not the memory for this video in the editor (a shorter video, or mp4-to-smk's own limits)";
+			j->why = "there is not the memory for this video in the editor (a shorter video may fit)";
 		}
 
 		j->done = true;

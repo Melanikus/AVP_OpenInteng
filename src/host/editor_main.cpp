@@ -144,6 +144,7 @@
 #include "first_launch_screen.h"   // the first-launch setup: no game found, so the user is asked where it is
 #include "video_drop.h"          // kVideoDropTag: the harness's drop-file
 #include "video_mode.h"          // VideoMode_Browse: the Video screen's Load > Browse...
+#include "export_map.h"              // ExportMap_Run: Construction's File > Export map...
 #include "sound_import.h"            // SoundImport_Browse: Object Placement's Create > Load sound...
 #include "texture_import_screen.h"   // TextureImportScreen_Browse: Texture Map's Import > Import texture...
 #include "all_stock_maps_screen.h"   // Waypoint > Alien auto waypoint > All stock maps: its menu waits, its Esc
@@ -7036,6 +7037,11 @@ void RunAction(int32_t id)
 		host::VideoMode_Browse(editorWindow);   // the Video screen's Load > Browse...: Windows' own Open dialog, the file taken as a drop of one (video_mode.h)
 	}
 
+	if (host.exportMap)
+	{
+		host::ExportMap_Run();   // Construction's File > Export map...: the open level's tree, to paste at the AvP root (export_map.h)
+	}
+
 	if (host.soundLoad)
 	{
 		host::SoundImport_Browse(editorWindow);   // Object Placement's Create > Load sound...: Windows' own Open dialog, each WAV taken as a drop (sound_import.h)
@@ -11756,8 +11762,11 @@ void KeepTheShownLocationsInPlay()
 		}
 	}
 
-	// for the harness: each object with two or more locations, where the level shows it and where its block is drawn ("none": the view has no block for it)
-	std::string words;
+	// for the harness: how many objects have two or more locations, then each, where the level shows it and where its block is drawn ("none": the view has no block for it). The count
+	// comes first and the list is never cut inside an entry: at 400 characters it once hid Derelict's and Vaults-M's last three of nine. Past 64 entries the rest is counted, not listed.
+	size_t const kAltLocationsListed = 64;
+	std::string words = std::to_string((unsigned long long)shownLocations.size()) + " objects";
+	size_t listed = 0;
 
 	for (ShownLocation const &one : shownLocations)
 	{
@@ -11777,14 +11786,68 @@ void KeepTheShownLocationsInPlay()
 			}
 		}
 
-		if (words.size() < 400)
+		if (listed < kAltLocationsListed)
 		{
-			words += (words.empty() ? "" : "|") + HexOf(one.id) + " shown " + std::to_string(one.world[0]) + " " + std::to_string(one.world[1]) + " " + std::to_string(one.world[2]) +
+			words += "|" + HexOf(one.id) + " shown " + std::to_string(one.world[0]) + " " + std::to_string(one.world[1]) + " " + std::to_string(one.world[2]) +
 				" drawn " + (haveBlock ? std::to_string(drawn[0]) + " " + std::to_string(drawn[1]) + " " + std::to_string(drawn[2]) : std::string("none"));
+			listed++;
 		}
 	}
 
+	if (listed < shownLocations.size())
+	{
+		words += "|and " + std::to_string((unsigned long long)(shownLocations.size() - listed)) + " more";
+	}
+
 	StateLine_Add("altlocations", words);
+}
+
+// THE VIEW'S PLACED OBJECTS, for the harness only (ViewObjectsProbe=1 in the editor's settings file, read once at the start; acceptance-op-every-object-*): each frame, how many of the
+// level's placed objects the view has no block for, and how many have one away from their place (NearPlace), each of those named with its ID: "placed <n> noblock <n> elsewhere <n>",
+// then, for up to 64 of them, "|<ID> <name> none" or "|<ID> <name> at <x> <y> <z>". The owner's rule it measures: "Every object, always" (level_save.h, LevelSave_ViewFlags).
+// Without the setting the field is not added: it looks every placed object up in the view each frame.
+static bool viewObjectsProbe = false;
+
+static void SayTheViewsPlacedObjects()
+{
+	OpenLevelFile *const open = viewObjectsProbe ? LevelObjects_OpenForEdit() : nullptr;
+
+	if (!open || !open->Level())
+	{
+		return;
+	}
+
+	std::vector<host::ViewPlacedObject> placed;
+	size_t noBlock = 0, elsewhere = 0, named = 0;
+	std::string list;
+
+	host::LevelSave_ViewsPlacedObjects(open, &placed);
+
+	for (host::ViewPlacedObject const &one : placed)
+	{
+		int32_t world[3], drawn[3];
+
+		WorldOfFilePlace(one.place, world);
+
+		bool const haveBlock = LevelView_ObjectBlockAt(one.id, drawn);
+
+		if (haveBlock && NearPlace(drawn, world))
+		{
+			continue;
+		}
+
+		(haveBlock ? elsewhere : noBlock)++;
+
+		if (named < 64)
+		{
+			list += "|" + HexOf(one.id) + " " + one.name + (haveBlock ? " at " + std::to_string(drawn[0]) + " " + std::to_string(drawn[1]) + " " + std::to_string(drawn[2]) :
+				std::string(" none"));
+			named++;
+		}
+	}
+
+	StateLine_Add("viewobjects", "placed " + std::to_string((unsigned long long)placed.size()) + " noblock " + std::to_string((unsigned long long)noBlock) + " elsewhere " +
+		std::to_string((unsigned long long)elsewhere) + list);
 }
 
 // A location put on the object (Next, Prev, Delete Current, Change shown location): in the level, then in the view (see above). acceptance-object-altloc-delete-,
@@ -14634,6 +14697,7 @@ static bool OpenTheLevel(char const *levelName, FlyCamera *camera, char const *o
 	std::string *outsideShapesWords, char *why, size_t whySize)
 {
 	openLevelName = levelName;
+	viewWantsEveryObject = false;   // a new level asks again below (Drake's NIT 2 on 025a79b6: a flag left by the last level's failed reload carried over to this open)
 
 	if (!LevelView_Open(levelName, camera, why, whySize))
 	{
@@ -14846,6 +14910,18 @@ static bool OpenTheLevel(char const *levelName, FlyCamera *camera, char const *o
 		{
 			statusWords = kListCutWords;
 		}
+	}
+
+	// EVERY PLACED OBJECT IN THE VIEW (the owner, 2026-11-25: "Every object, always"; level_save.h): the game loaded the opened file itself, and its loader left out each placed object
+	// whose flags keep it out of a Marine's Medium game. When the level holds one, the view loads its own copy at once, with every placed object in every game (ShowTheWorkingBytes);
+	// the status line keeps what the open said
+	if (!notHeldWords && host::LevelSave_ViewNeedsItsOwnCopy(openLevel))
+	{
+		char const *const said = statusWords;
+
+		viewWantsEveryObject = true;
+		ShowTheWorkingBytes();
+		statusWords = said;
 	}
 
 	return true;
@@ -15490,6 +15566,7 @@ int main(int, char **)
 	// builds its own only when the auto-plot asks (autoplot_grid.h). Before the level is opened below.
 	FloorIsLavaAsked = 0;
 	host::AutoPlotGrid_ProbeLoad(layoutSettingsFile);   // the harness's AutoPlotProbe=1
+	viewObjectsProbe = GetPrivateProfileIntA("Editor", "ViewObjectsProbe", 0, layoutSettingsFile) == 1;   // the harness's viewobjects field (SayTheViewsPlacedObjects)
 	host::AutoPlotClosers_Load(layoutSettingsFile);   // the gap closers' switch (autoplot_closers.h): AutoPlotClosers=1, a scored candidate, off unless asked
 	host::AutoPlot_SetShown(GetPrivateProfileIntA("Editor", "AutoPlot", 0, layoutSettingsFile) == 1);   // the owner's "hide auto pilot" (11-19): Waypoint's Auto-plot items only with AutoPlot=1 (autoplot_switch.h)
 	host::PlotPreview_SetOn(GetPrivateProfileIntA("Editor", "PlotPreview", 1, layoutSettingsFile) != 0);   // THE PLOT'S PREVIEW: on unless the ini says 0 (Frost's timing)
@@ -16773,6 +16850,7 @@ int main(int, char **)
 		// the gizmo made again once this frame's camera is in, so it is drawn with the camera it was made from (gizmo_screen.h GizmoScreen_AfterEyes; the owner: it "flickers alot")
 		LevelView_SetAfterEyes([](void *) { GizmoScreen_AfterEyes(); }, nullptr);
 		KeepTheShownLocationsInPlay();   // an object the game's loader rolled onto another of its alternate locations is drawn where the level shows it (Alt Locations, above)
+		SayTheViewsPlacedObjects();      // the harness's viewobjects field (ViewObjectsProbe=1): every placed object's block in the view, after the keeper above
 		bool const drawn = LevelView_Draw(drawCamera, savedTo, AddThePanels, &framePanels);
 		GizmoScreen_AfterDraw();   // how far its arrow is off its length on the screen, with the camera the frame was drawn from (gizmolag)
 		StateLine_Add("plotmessage", AutoPlotCommand_MessageShown().empty() ? std::string("off") : AutoPlotCommand_MessageShown());   // the auto-plot's start message this frame drew
@@ -17297,6 +17375,7 @@ int main(int, char **)
 			StateLine_Add("dialogoverlist", dialogNow.overlist);   // the window's words painted over its open drop-down list (dialogs.cpp WordsOverTheOpenList)
 			StateLine_Add("dialogpast", dialogNow.past);           // a form's parts reaching past its window (dialogs.cpp PastTheWindow), "none" when all fit
 			StateLine_Add("dialogwindow", dialogNow.window);       // a form's own window box, "<x> <y> <width> <height>"
+			StateLine_Add("dialoglabels", dialogNow.labels);       // a form's labels' words, in its order (Dietrich 11-27)
 
 			if (!dialogNow.kind.empty())
 			{

@@ -4,6 +4,8 @@
 // values included, so the editor starts from the same state as the game. The editor doesn't compile 3dc/avp/hudson.cpp itself.
 
 #include "3dc.h"
+#include "plain_write_picture.h"
+#include "plain_write.h"
 #include "inline.h"
 #include "module.h"
 #include "strategy_def.h"

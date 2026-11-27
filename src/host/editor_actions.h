@@ -91,6 +91,7 @@ struct EditorHostState
 	bool videoBrowse;          // true: the Video screen's Load, Browse... (video_mode.h VideoMode_Browse: Windows' own Open dialog for one video)
 	bool textureImport;        // true: Texture Map's Import, Import texture... (texture_import_screen.h TextureImportScreen_Browse: the Open dialog, then the form)
 	bool soundLoad;            // true: Object Placement's Create, Load sound... (sound_import.h SoundImport_Browse: the Open dialog, each WAV taken as a drop)
+	bool exportMap;            // true: Construction's File, Export map... (export_map.h ExportMap_Run: the open level's tree, to paste at the AvP root)
 	int32_t fixTears;          // Construction, Miscellaneous, Fix tears: 1 = the two selected objects (0x5a), 2 = all (0x5b)
 	bool recentrePolygon;      // Texture Map, Recentre Shape (0xd6): wait for the click on a polygon
 	bool splitScreen;          // Object Placement, Misc, Toggle Split Screen (0x52)

@@ -6,9 +6,9 @@
 #include <commdlg.h>
 
 #include "editor_shared.h"       // statusWords, editedLevel, openLevelName, theGameFolder
-#include "game_folder.h"         // GameFolder_WhyNotPlainBelow: every folder on the way a plain one
 #include "level_file.h"          // OpenLevelFile: BuildLevel, ReplaceLevel
 #include "level_file_name.h"     // LevelFileName_WhyRefused: the game's rule for a name from a level
+#include "new_file_save.h"       // NewFile_Save: the one safe way a new file is written
 #include "placed_sounds_game.h"  // SoundGame_FastFileNames: the stock names the game's fastfiles hold
 #include "sound_dir_add.h"       // a level with no sound folder given one
 #include "track_edit.h"          // TrackLevelSoundDirectory: the level's own sound folder
@@ -39,173 +39,12 @@ namespace host
 			return text.size() >= n && _stricmp(text.c_str() + text.size() - n, ending) == 0;
 		}
 
-		std::wstring Wide(std::string const &narrow)
-		{
-			int const letters = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, narrow.c_str(), (int)narrow.size(), nullptr, 0);
-			std::wstring wide(letters > 0 ? (size_t)letters : 0, L'\0');
-
-			if (letters > 0)
-			{
-				MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, narrow.c_str(), (int)narrow.size(), &wide[0], letters);
-			}
-
-			return wide;
-		}
-
-		std::string Error(DWORD error)
-		{
-			return "Windows error " + std::to_string((unsigned long long)error);
-		}
-
 		// The words a path check gave, without its own "Not taken: " in front (ours start "Not loaded: ")
 		std::string Reason(std::string const &why)
 		{
 			char const kFront[] = "Not taken: ";
 
 			return why.compare(0, sizeof(kFront) - 1, kFront) == 0 ? why.substr(sizeof(kFront) - 1) : why;
-		}
-
-		enum class Saved
-		{
-			Made,          // written, flushed and read back exactly
-			AlreadyThere,  // a file of that name holds exactly these bytes: taken as it is
-			Refused,       // *why says why: nothing was written over, and no half-written file is left
-		};
-
-		// THE FILE, saved as rim_save.h's RimSave_New saves a texture: the folders sound\<folder parts> made one at a time when missing, each held plain before
-		// anything is made in it; CREATE_NEW (never over or through another file); a half-written file deleted through the very handle that made it; flushed,
-		// closed, then read back by its name as the game will open it, and compared byte for byte. shown: "sound\<folder>\<name>", for the words
-		Saved SaveNew(std::string const &data, std::string const &folder, std::string const &name, std::vector<uint8_t> const &bytes, std::string const &shown,
-			std::string *why)
-		{
-			std::vector<std::string> folders;
-			std::string at = data + "\\sound";
-
-			folders.push_back(at);
-
-			for (size_t from = 0; from <= folder.size(); )
-			{
-				size_t const to = folder.find('\\', from);
-				std::string const part = folder.substr(from, to == std::string::npos ? std::string::npos : to - from);
-
-				at += "\\" + part;
-				folders.push_back(at);
-
-				if (to == std::string::npos)
-				{
-					break;
-				}
-
-				from = to + 1;
-			}
-
-			std::string const full = at + "\\" + name;
-
-			if (full.size() >= MAX_PATH)
-			{
-				*why = shown + "'s whole path would be " + std::to_string((unsigned long long)full.size()) + " letters, more than the " +
-					std::to_string((unsigned long long)(MAX_PATH - 1)) + " Windows opens";
-				return Saved::Refused;
-			}
-
-			for (std::string const &each : folders)
-			{
-				if (!CreateDirectoryA(each.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
-				{
-					*why = "couldn't make the folder " + each.substr(data.size() + 1) + " (" + Error(GetLastError()) + ")";
-					return Saved::Refused;
-				}
-
-				std::string which;
-				char const *const notPlain = GameFolder_WhyNotPlainBelow(data, each + "\\" + name, &which);
-
-				if (notPlain)
-				{
-					*why = which + ": " + notPlain;
-					return Saved::Refused;
-				}
-			}
-
-			std::wstring const wide = Wide(full);
-
-			if (wide.empty())
-			{
-				*why = "the data folder's name can't be read as a path";
-				return Saved::Refused;
-			}
-
-			HANDLE const file = CreateFileW(wide.c_str(), GENERIC_WRITE | DELETE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
-
-			if (file == INVALID_HANDLE_VALUE)
-			{
-				DWORD const error = GetLastError();
-
-				if (error == ERROR_FILE_EXISTS || error == ERROR_ALREADY_EXISTS)
-				{
-					// ALREADY THERE: read back as a plain file (a link of that name is refused, never followed); the very same bytes are this sound already
-					std::vector<uint8_t> there;
-					std::string thereWhy;
-					VideoImportResult const read = VideoImport_ReadPlainFile(wide, &there, &thereWhy, kMostFileBytes, kWhat, "the sound");
-
-					if (read == VideoImportResult::Done && there == bytes)
-					{
-						return Saved::AlreadyThere;
-					}
-
-					*why = shown + " is there already, " + (read == VideoImportResult::Done ? std::string("with other bytes,") :
-						"and can't be read as a plain file (" + thereWhy + "),") + " and is never written over: give the file you're loading another name (or move "
-						"that one away first)";
-					return Saved::Refused;
-				}
-
-				*why = "couldn't make " + shown + " (" + Error(error) + ")";
-				return Saved::Refused;
-			}
-
-			size_t done = 0;
-			bool written = true;
-
-			while (written && done < bytes.size())
-			{
-				DWORD wrote = 0;
-				size_t const left = bytes.size() - done;
-
-				written = WriteFile(file, bytes.data() + done, (DWORD)(left < 65536 ? left : 65536), &wrote, nullptr) && wrote > 0;
-				done += wrote;
-			}
-
-			written = written && FlushFileBuffers(file);
-
-			if (!written)
-			{
-				DWORD const error = GetLastError();
-				FILE_DISPOSITION_INFO gone = {};
-
-				gone.DeleteFile = TRUE;
-				SetFileInformationByHandle(file, FileDispositionInfo, &gone, sizeof(gone));
-				CloseHandle(file);
-				*why = "couldn't write " + shown + " (" + Error(error) + "); the half-written file is deleted";
-				return Saved::Refused;
-			}
-
-			if (!CloseHandle(file))
-			{
-				*why = shown + " was written but couldn't be closed (" + Error(GetLastError()) + ")";
-				return Saved::Refused;
-			}
-
-			std::vector<uint8_t> back;
-			std::string readWhy;
-			VideoImportResult const read = VideoImport_ReadPlainFile(wide, &back, &readWhy, kMostFileBytes, kWhat, "the sound");
-
-			if (read != VideoImportResult::Done || back != bytes)
-			{
-				*why = shown + " was written, but reading it back " + (read != VideoImportResult::Done ? "was refused (" + readWhy + ")" :
-					std::string("gave other bytes")) + ": it is left there to look at";
-				return Saved::Refused;
-			}
-
-			return Saved::Made;
 		}
 
 		// THE LEVEL GIVEN ITS OWN SOUND FOLDER: its bytes with a SOUNDDIR (sound_dir_add.h), swapped in by the game's own loader. False with *why when anything
@@ -236,25 +75,26 @@ namespace host
 			return true;
 		}
 
-		bool InStock(std::string const &folder, std::string const &name)
+	}
+
+	bool SoundImport_IsStockName(std::string const &folder, std::string const &name)
+	{
+		std::string prefix = "sound/" + folder + "/";
+
+		for (char &c : prefix)
 		{
-			std::string prefix = "sound/" + folder + "/";
-
-			for (char &c : prefix)
-			{
-				c = c == '\\' ? '/' : c;
-			}
-
-			for (std::string const &stock : SoundGame_FastFileNames(prefix))
-			{
-				if (_stricmp(LastPart(stock).c_str(), name.c_str()) == 0 && stock.size() == prefix.size() + name.size())
-				{
-					return true;
-				}
-			}
-
-			return false;
+			c = c == '\\' ? '/' : c;
 		}
+
+		for (std::string const &stock : SoundGame_FastFileNames(prefix))
+		{
+			if (_stricmp(LastPart(stock).c_str(), name.c_str()) == 0 && stock.size() == prefix.size() + name.size())
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	bool SoundImport_AllSounds(std::vector<std::wstring> const &paths)
@@ -380,18 +220,35 @@ namespace host
 				folderGiven = true;
 			}
 
-			Saved const saved = SaveNew(data, folder, name, bytes, shown, &why);
+			// THE FILE, by the one safe way: sound\<the folder's parts>\<name> below the data folder (new_file_save.h)
+			std::vector<std::string> folders = { "sound" };
 
-			if (saved == Saved::Refused)
+			for (size_t from = 0; from <= folder.size(); )
+			{
+				size_t const to = folder.find('\\', from);
+
+				folders.push_back(folder.substr(from, to == std::string::npos ? std::string::npos : to - from));
+
+				if (to == std::string::npos)
+				{
+					break;
+				}
+
+				from = to + 1;
+			}
+
+			NewFileSaved const saved = NewFile_Save(data, folders, name, bytes, shown, kMostFileBytes, kWhat, &why);
+
+			if (saved == NewFileSaved::Refused)
 			{
 				refused.push_back("Not loaded: " + why);
 				continue;
 			}
 
 			// its words alone (for several files: the folder said once) and whole (for one)
-			std::string alone = saved == Saved::AlreadyThere ? name + " (there already, the very same bytes)" : name;
+			std::string alone = saved == NewFileSaved::AlreadyThere ? name + " (there already, the very same bytes)" : name;
 
-			if (InStock(folder, name))
+			if (SoundImport_IsStockName(folder, name))
 			{
 				alone += "; WARNING: Steam AvP plays the stock " + name + ", not this one (it opens the game's pack before a loose file; AvPx plays this one)";
 			}
@@ -404,7 +261,7 @@ namespace host
 
 			std::string const warnings = alone.substr(alone.find(';') == std::string::npos ? alone.size() : alone.find(';'));
 
-			loaded.push_back((saved == Saved::AlreadyThere ? name + " is in sound\\" + folder + " already (the very same bytes)" : "Loaded " + name + " into sound\\" + folder) +
+			loaded.push_back((saved == NewFileSaved::AlreadyThere ? name + " is in sound\\" + folder + " already (the very same bytes)" : "Loaded " + name + " into sound\\" + folder) +
 				warnings);
 			loadedAlone.push_back(alone);
 		}

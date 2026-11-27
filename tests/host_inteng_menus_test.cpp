@@ -147,14 +147,17 @@ static void TestTheTablesAreInteng()
 	const char *const hubTitles[] = { "File", "Mode", "Object", "Shape", "Miscellaneous", "Options" };
 	// File holds inteng's 4 and the owner's Save, second (Melanikus 2026-11-16, "Let's put a save on the hub": named, not inteng's); Options inteng's 3 and the owner's four text
 	// sizes after them (Melanikus 11-16 / Bishop 11-18: text_scale.h, named, not inteng's); Mode inteng's 11 and the owner's Video after Hierarchy (11-22, video_mode_screen.h)
-	size_t const hubCounts[] = { 5, 12, 10, 3, 4, 7 };
+	// and the owner's Export map... after Save (2026-11-27, export_map.h)
+	size_t const hubCounts[] = { 6, 12, 10, 3, 4, 7 };
 
-	Check(MenusAre(0, hubTitles, hubCounts, 6), "construction's bar is inteng's with the owner's Save: File 5 (Quit, Save, Write C, Write Asc, Write Asc doors closed), Mode 12 (inteng's 11 and Video), Object 10, Shape 3, Miscellaneous 4, Options 7 (its 3, then Text size 1, 1.25, 1.5, 2) (a cascade's item and its rows each one)");
+	Check(MenusAre(0, hubTitles, hubCounts, 6), "construction's bar is inteng's with the owner's Save and Export map: File 6 (Quit, Save, Export map, Write C, Write Asc, Write Asc doors closed), Mode 12 (inteng's 11 and Video), Object 10, Shape 3, Miscellaneous 4, Options 7 (its 3, then Text size 1, 1.25, 1.5, 2) (a cascade's item and its rows each one)");
 
 	IntengMenu const *const file = &kIntengScreens[0].menus[0];
 
-	Check(file && file->count == 5 && strcmp(file->items[0].name, "Quit") == 0 && strcmp(file->items[1].name, "Save") == 0 && file->items[1].work == IntengWork::SaveCopy &&
-		file->items[1].command == 0 && strcmp(file->items[2].name, "Write C File") == 0, "the hub's Save is second, after Quit, does Object Placement's Save (SaveCopy), and has no inteng command");
+	Check(file && file->count == 6 && strcmp(file->items[0].name, "Quit") == 0 && strcmp(file->items[1].name, "Save") == 0 && file->items[1].work == IntengWork::SaveCopy &&
+		file->items[1].command == 0 && strcmp(file->items[3].name, "Write C File") == 0, "the hub's Save is second, after Quit, does Object Placement's Save (SaveCopy), and has no inteng command");
+	Check(file && file->count == 6 && strcmp(file->items[2].name, "Export map...") == 0 && file->items[2].work == IntengWork::ExportMap && file->items[2].command == 0 &&
+		(file->items[2].action & 0xffff) >= 0xff00, "the hub's Export map... is third, under Save, ours (its number past inteng's records, no inteng command), and exports the map");
 	Check(kIntengScreens[0].menus[1].count == 12 && strcmp(kIntengScreens[0].menus[1].items[9].name, "Strategy Data") == 0 && kIntengScreens[0].menus[1].items[9].level == 1 &&
 	      strcmp(kIntengScreens[0].menus[1].items[10].name, "Normal") == 0 && kIntengScreens[0].menus[1].items[10].level == 2 &&
 	      strcmp(kIntengScreens[0].menus[1].items[11].name, "No Textures") == 0 && kIntengScreens[0].menus[1].items[11].level == 2,

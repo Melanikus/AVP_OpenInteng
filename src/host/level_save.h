@@ -18,8 +18,12 @@
 // "<file>.bak" (an older .bak replaced); every later save of that file in the sitting writes over it and leaves that .bak alone. So the .bak is always "the level before this sitting".
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include <set>
 #include <string>
+#include <vector>
 
 class OpenLevelFile;
 
@@ -48,6 +52,47 @@ namespace host
 	// place as LevelSave_Over, and no .bak. It is NOT a save: the open level is left exactly as it was (still changed, still standing for the file it was opened from or last saved to, its
 	// tree still paired with its bytes), where a SaveAs would have taken the copy for the level's file and paired the tree with the copy's bytes.
 	LevelSaveOver LevelSave_ViewCopy(OpenLevelFile *open, char const *targetPath, std::string *why);
+
+	// EVERY PLACED OBJECT IN THE VIEW (the owner, 2026-11-25, holding alpha.7: "Every object, always": a map maker sees everything placed, whatever its difficulty, and T still says
+	// "Difficulty (E)"). The view is the game's own loader, and the game plays a level as a Marine on Medium (avpx game.cpp:192 and :201; the editor never changes either). The loader
+	// leaves out a placed object whose header flags keep it out of that game: deal_with_placed_object makes a pickup or an object with no strategy only with PC load and the player's
+	// species ticked (object_setup.cpp:2461-2521), and create_strategies_from_list drops one marked "not at this difficulty" (:536-548). In the 63 stock levels that is 44 pickups,
+	// all Easy or Hard only (AvP-docs/tools/vasquez/difficulty-survey.js counts them).
+	// The game must not change: AvPx playing a level on Medium still leaves them out. So the view loads a copy of its own, in which every placed object is in every game. These flags
+	// are the view's copy's ONLY difference: the level the editor holds, the file it was opened from, its OpenedByEditor copy and every save keep each object's flags exactly as they are.
+	//
+	// The one rule: an object's header flags as the view's copy holds them. The three "not at this difficulty" bits are off; PC load and the three species are on; every other bit is
+	// as it was.
+	uint32_t LevelSave_ViewFlags(uint32_t flags);
+
+	// The bytes of a level as BuildLevel puts them together (unpacked: "REBINFF2", its whole size, then its chunks): the header flags of each top-level placed object (an RBOBJECT's
+	// first OBJHEAD1, its first 4 bytes; placed when 0x400 is set) are made LevelSave_ViewFlags'. Gives back how many objects it changed.
+	// THE BYTES ARE TREATED AS HOSTILE (Tao 3). Every chunk's size is checked to lie inside its parent before anything inside it is read. The whole walk is done before anything is
+	// written, so bytes that are not a level, or that end inside a chunk, are left exactly as they were and give back 0. A header too short to hold its flags is passed by. Nothing is
+	// ever written but those 4 bytes of a header.
+	size_t LevelSave_EveryPlacedObjectIn(std::vector<char> &bytes);
+
+	// Whether the open level holds a placed object whose flags the view's copy would change (LevelSave_ViewFlags, read from the level's own chunks): at the open, whether the view
+	// must load its own copy at once.
+	bool LevelSave_ViewNeedsItsOwnCopy(OpenLevelFile *open);
+
+	// The view's own copy: the working bytes as LevelSave_ViewCopy builds them, with every placed object in every game (LevelSave_EveryPlacedObjectIn), written over targetPath in
+	// the same safe way. *changed: how many objects' flags it changed. When none would change, nothing is written and Saved is given back with *changed 0 (the view then loads
+	// LevelSave_ViewCopy's file). targetPath is the view's alone (ShowTheWorkingBytes: avp_rifs\OpenedByEditor\View\<name>.rif), never a file the editor opens or saves: the
+	// OpenedByEditor copy itself is opened again by a reopen (LevelReopen_Open), so it must keep the level's true flags.
+	LevelSaveOver LevelSave_ViewEveryObjectCopy(OpenLevelFile *open, char const *targetPath, size_t *changed, std::string *why);
+
+	// A placed object as the open level holds it: its ID (as the game makes it, chunk_object.cpp CalculateID), its name and its place in the file's units (its header's: an object with
+	// alternate locations is at the one the level shows)
+	struct ViewPlacedObject
+	{
+		uint8_t id[8];
+		std::string name;
+		int32_t place[3];
+	};
+
+	// Every placed object of the open level, in the level's order: what the view's own copy makes (the harness's viewobjects field, editor_main.cpp, asks the view about each)
+	void LevelSave_ViewsPlacedObjects(OpenLevelFile *open, std::vector<ViewPlacedObject> *out);
 
 	// One sitting's saves, as above. Save: LevelSave_Over keeping the one before only at the file's first save in the sitting (a refused save does not count); *backupPath gets the .bak this
 	// sitting kept for the file (written now or at its first save; empty when there was no file before the sitting's first save). SavedBefore: the file had a save in this sitting (the paths

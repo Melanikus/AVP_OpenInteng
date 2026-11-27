@@ -70,7 +70,7 @@
       <FunctionLevelLinking>false</FunctionLevelLinking>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <FloatingPointModel>Fast</FloatingPointModel>
-      <!-- THE SAME BYTES WHEREVER IT IS BUILT (Bishop 2026-11-22, for alpha.4; as mp4-to-smk.exe and libsmackerenc.dll already are): /Brepro writes no time or
+      <!-- THE SAME BYTES WHEREVER IT IS BUILT (Bishop 2026-11-22, for alpha.4): /Brepro writes no time or
            random number into the objects; /pathmap (which needs /experimental:deterministic) names the tree's folder AVP_OpenInteng wherever it is checked out, so
            a build here and CI's give the same exe, and a scan of one speaks for the other. Before it, the same commit built in two folders here differed in
            535,441 bytes, from the headers on (tools/check-binaries.js same): the code's layout followed the folder's path. -->
@@ -98,7 +98,7 @@
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <!-- /Brepro: the exe's time stamp and its .pdb's GUID come from its contents, not the clock; /PDBALTPATH has it record only the .pdb's name, not the folder
-           it was built in (which named the builder's own folder, C:\Users\<name>\... on a developer's machine), as mp4-to-smk's link -->
+           it was built in (which named the builder's own folder, C:\Users\<name>\... on a developer's machine) -->
       <AdditionalOptions>/PDBALTPATH:%_PDB% /Brepro %(AdditionalOptions)</AdditionalOptions>
       <!-- The editor is a Windows program, so "Open with" and a double-click open no console window; it still starts at main
            (mainCRTStartup). The F4 stock proof stays a console program: it's only ever run from a command line. -->
@@ -120,7 +120,19 @@
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <!-- Parts of the editor moved whole out of editor_main.cpp so each file stays within what Snyk Code reads (editor_shared.h): built as it is -->
+    <ClCompile Include="..\..\src\host\export_films.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\export_map.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="..\..\src\host\image_import.cpp" Condition="'$(StockProof)' != 'true'">
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\host\new_file_save.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -406,14 +418,6 @@
     <ClCompile Include="..\..\src\model\bitmap_add.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>..\..\src\host;..\..\src\ui;..\..\src\io;..\..\src\model;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
-    <ClCompile Include="..\..\src\model\ffinfo_lines.cpp" Condition="'$(StockProof)' != 'true'">
-      <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>..\..\src\model;..\..\avpx\3dc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
-    <ClCompile Include="..\..\src\model\fastfile_pack.cpp" Condition="'$(StockProof)' != 'true'">
-      <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>..\..\src\model;..\..\avpx\3dc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="..\..\src\model\image_fit.cpp" Condition="'$(StockProof)' != 'true'">
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -1884,8 +1888,8 @@
       <GlobalPropertiesToRemove>IntDir</GlobalPropertiesToRemove>
     </ProjectReference>
   </ItemGroup>
-  <!-- THE ONE LIBRARY the Video mode and mp4-to-smk both link (videomake_static.vcxproj says why), and the encoder it calls, libsmackerenc (GNU LGPL 2.1), a static
-       library of its own (libsmackerenc_static.vcxproj): the editor then holds the encoder as mp4-to-smk does. Not in the stock proof, which has no Video mode. -->
+  <!-- THE ONE LIBRARY the Video mode links (videomake_static.vcxproj says why), and the encoder it calls, libsmackerenc (GNU LGPL 2.1), a static library of its
+       own (libsmackerenc_static.vcxproj): the editor holds the encoder, and no DLL is loaded. Not in the stock proof, which has no Video mode. -->
   <ItemGroup Condition="'$(StockProof)' != 'true'">
     <ProjectReference Include="videomake_static.vcxproj">
       <Project>{2E2E00A0-1C79-46D1-96AC-2D2F8EFE2161}</Project>

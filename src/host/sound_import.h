@@ -53,6 +53,10 @@ namespace host
 	// Object Placement's Create > Load sound... (ours, the owner's addition): Windows' own Open dialog, one or more WAVs, each taken as a drop is
 	void SoundImport_Browse(void *owner);
 
+	// True when the game's fastfiles hold sound\<folder>\<name> (any capitals, either slash): a stock sound, which every install has (the import's warning;
+	// Export map leaves it out)
+	bool SoundImport_IsStockName(std::string const &folder, std::string const &name);
+
 	// The sound folder a level with none is given: "Custom\" and the level's own name (its file's last part, without a ".rif" in any capitals: "Base.RIF" is
 	// "Custom\Base"). Empty when that name is empty, holds a slash, or the game's rule refuses the folder
 	std::string SoundImport_FolderFor(std::string const &levelFile);

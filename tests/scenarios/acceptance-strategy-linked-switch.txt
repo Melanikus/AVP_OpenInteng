@@ -67,11 +67,14 @@ click-combo 3
 click-combo-row opslev01 - type '52'
 expect-dialog-text On|Time Delay (Autoexec)|7.5|2|opslev01 - type '52'
 # Pick: the pick in the world as T does it (its words along the foot; Return ends it with the object kept), then the form again
+# S-K52-7 (OI #118; FUN_00527540, the pick loop, built as S-KC-5): "Press return when finished" on the foot, the picked record's name two rows down (the
+# target so far, opslev01), and Return ends it with that record kept (the form's target after it)
 click-button Pick
 expect-no-dialog
 wait 300
 expect-field-has strategyview Press return when finished
 expect-field-has strategyview Select target for switch
+expect-field-has strategyview 16@48:Press return when finished|16@80:opslev01
 picture 3
 key Enter
 wait 400

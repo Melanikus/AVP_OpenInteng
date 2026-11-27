@@ -543,14 +543,21 @@ bool DeleteLinksRunning()
 // SaveAs took the copy for the level's file and lost every edit after it) and the view loads that copy (LevelView_ShowFile). LevelView_FilePath still names the opened file, so Save's target and
 // its .bak are the same. Not while AutoLink's worker or Delete Links runs (they read the game's blocks), nor with Hierarchy's model or the Shape Chooser's preview shown (blocks of their own in the
 // game's memory), nor for a model file (no module: Hierarchy's own view): the next screen change tries again. Doors Light Sourcing closed stay closed; the toggles are given to the game again.
+//
+// EVERY PLACED OBJECT IN THE VIEW (the owner, 2026-11-25: "Every object, always"; level_save.h says why the game's loader leaves some out). The working bytes go to the OpenedByEditor copy
+// as before, true flags and all: a reopen opens that copy again (LevelReopen_Open), so it is never anything but the level. When some placed object's flags would keep it out of the view's
+// game, a second copy is written for the view alone, avp_rifs\OpenedByEditor\View\<name>.rif, with every placed object in every game (LevelSave_ViewEveryObjectCopy), and the view
+// loads that one. Nothing opens or saves it: LevelView_FilePath still names the opened file. At the open the game loaded the opened file itself, so when the level holds such an
+// object the open asks for one load at once (viewWantsEveryObject, editor_main.cpp's OpenTheLevel) whatever Changes() says.
 unsigned viewChanges = ~0u;      // the level's Changes() the game's view was loaded at: the opening's, then each ShowTheWorkingBytes' (Generation() missed a same-size edit: Drake, 11-17)
+bool viewWantsEveryObject = false;   // the open found a placed object the game left out of the view: load the view's own copy at the next ShowTheWorkingBytes, changed or not
 
 void ShowTheWorkingBytes()
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 
-	if (!open || !open->Level() || viewChanges == ~0u || open->Changes() == viewChanges || autoLinkRun.Running() || DeleteLinksRunning() || chooserActive || HierarchyView_IsShown() ||
-		!theGameFolder[0] || openLevelName.empty())
+	if (!open || !open->Level() || viewChanges == ~0u || (open->Changes() == viewChanges && !viewWantsEveryObject) || autoLinkRun.Running() || DeleteLinksRunning() || chooserActive ||
+		HierarchyView_IsShown() || !theGameFolder[0] || openLevelName.empty())
 	{
 		return;
 	}
@@ -588,13 +595,17 @@ void ShowTheWorkingBytes()
 		PlacementGravityFlush();
 	}
 
+	// The editor's copy gets the working bytes only when the level changed since the view last loaded. The open's load (viewWantsEveryObject, nothing edited yet) leaves that file
+	// exactly as it is: for a double-clicked level it is the level's own copy, which is the file the editor opened (and whose size a scenario reads to tell which file opened,
+	// levelbytes). Writing it there made it the unpacked working bytes, twice its size, with no edit (11 Object Placement / Strategy Data scenarios caught it).
+	bool const edited = open->Changes() != viewChanges;
 	char const *const notUsable = SaveFolder_WhyNotUsable(folder.c_str(), checked, sizeof(checked));
 
 	if (notUsable)
 	{
 		words = std::string("view: the level as edited is NOT shown: the editor's own OpenedByEditor folder can't be used (") + notUsable + "): " + folder;
 	}
-	else if (host::LevelSave_ViewCopy(open, path.c_str(), &why) != host::LevelSaveOver::Saved)
+	else if (edited && host::LevelSave_ViewCopy(open, path.c_str(), &why) != host::LevelSaveOver::Saved)
 	{
 		words = "view: the level as edited is NOT shown: " + why;
 	}
@@ -603,9 +614,43 @@ void ShowTheWorkingBytes()
 		bool const doorsClosed = LevelView_DoorsAreClosed();
 		char said[400] = "";
 
+		// the view's own copy, when some placed object needs it (above); a copy that can't be written leaves the view on the working copy, and the words say so
+		std::string const viewFolder = folder + "\\View";
+		std::string const viewPath = viewFolder + "\\" + stem + ".rif";
+		std::string viewWhy;
+		size_t madeIn = 0;
+
+		CreateDirectoryA(viewFolder.c_str(), NULL);
+
+		char const *const viewNotUsable = SaveFolder_WhyNotUsable(viewFolder.c_str(), checked, sizeof(checked));
+		bool const ownCopy = !viewNotUsable && host::LevelSave_ViewEveryObjectCopy(open, viewPath.c_str(), &madeIn, &viewWhy) == host::LevelSaveOver::Saved && madeIn > 0;
+		std::string const everyObjectWords = ownCopy ? "; every placed object is in it (the view's own copy, " + std::to_string((unsigned long long)madeIn) +
+			" objects' flags made every game's: " + viewPath + ")" :
+			viewNotUsable ? std::string("; NOT every placed object: the view's own folder can't be used (") + viewNotUsable + "): " + viewFolder :
+			!viewWhy.empty() ? "; NOT every placed object: " + viewWhy : std::string();
+
+		// nothing edited and no copy of its own made: the view keeps the level it has (no working bytes were written to load instead), and the words say why. NONE NEEDS ONE
+		// (everyObjectWords empty: no placed object's flags keep it out of the view's game) means every placed object is in the view already; before, the words said the
+		// opposite, "NOT every placed object is shown: none needs a copy of its own" (Drake's NIT 1 on 025a79b6). Else the copy that was needed couldn't be made, and they say why
+		if (!edited && !ownCopy)
+		{
+			viewWantsEveryObject = false;
+			words = everyObjectWords.empty() ? std::string("view: every placed object is shown: none needs a copy of its own, so the view keeps the level it has") :
+				"view: NOT every placed object is shown" + everyObjectWords;
+			LogString(words);
+
+			if (NobodyWatching())
+			{
+				printf("AVP_OpenInteng: %s\n", words.c_str());
+				fflush(stdout);
+			}
+
+			return;
+		}
+
 		LetGoOfTheLevelsSounds();   // the game's teardown frees every loaded sound: ours go first (editor_main.cpp; the owner's looping "gun reload")
 
-		bool const shown = LevelView_ShowFile(("OpenedByEditor/" + stem).c_str(), said, sizeof(said));
+		bool const shown = LevelView_ShowFile(((ownCopy ? "OpenedByEditor/View/" : "OpenedByEditor/") + stem).c_str(), said, sizeof(said));
 
 		if (doorsClosed)
 		{
@@ -620,7 +665,9 @@ void ShowTheWorkingBytes()
 		}
 
 		viewChanges = shown ? open->Changes() : viewChanges;
-		words = shown ? "view: the level as edited is shown (" + path + ")" : "view: the level as edited is NOT shown, the opened file is: " + std::string(said);
+		viewWantsEveryObject = shown ? false : viewWantsEveryObject;
+		words = shown ? "view: the level as edited is shown (" + (edited ? path : std::string("not edited: the editor's copy left as it is")) + ")" + everyObjectWords :
+			"view: the level as edited is NOT shown, the opened file is: " + std::string(said);
 	}
 
 	LogString(words);

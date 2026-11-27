@@ -45,7 +45,7 @@ picture 1
 # ---- (3) past 180 s: refused in words, nothing held, still the black screen
 drop-file {datadir}/long.mp4
 wait-status 20000 Not loaded: Import video: it is 182 s long; at most 180 s is taken
-# the editor's words name no mp4-to-smk switch (it has none: Frost's find; mp4-to-smk adds its own)
+# the editor's words name no retired program (mp4-to-smk, which the owner took out on 2026-11-27) and none of its switches
 expect-status-not mp4-to-smk
 expect-field-has videostate empty; loadedclips 0
 expect-field-has videowords Drag and drop a video

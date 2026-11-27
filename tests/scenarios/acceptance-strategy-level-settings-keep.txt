@@ -11,6 +11,12 @@ wait 400
 click-bar Level > AvP Generator Properties...
 expect-dialog Global AvP generator properties
 expect-dialog-text 6|8|0|32000|Marines
+# THE WARNING'S WORDS (Dietrich 11-27, Bishop's wording after Vasquez's cold read of the alpha.8 notes): its three lines, read from the state line's dialoglabels (the
+# form's labels in order), and no claim for AvPx: AvPx works the hive out right only since game PR #313, which no AvPx a player has holds yet. Then every part fits.
+# RED on the commit before the words changed (the field there, the old words): its second line said "(AvPx works it out right)."
+expect-field-has dialoglabels This map holds 32000, past 4681, where Steam AvP's sum overflows|and the hive turns sooner than it says.|It's kept as the map has it unless you change it.
+expect-field-not-has dialoglabels AvPx
+expect-field dialogpast none
 picture 1
 form-field 1 5
 click-button OK

@@ -19,6 +19,8 @@ namespace host
 			{ "Quit", 0x10001, 0xa, IntengTag::None, IntengWork::Quit, -1, 0 },
 			// OURS, NAMED (docs/inteng/menu-status.json, additions): THE OWNER'S ADDITION (Melanikus 2026-11-16, through Bishop: "Let's put a save on the hub"): inteng's hub File has no Save. It sits second, after Quit, where every other screen keeps its Save, and does what Object Placement's Save does (SaveCopy). Its number is ours; it has no inteng command
 			{ "Save", 0x1ff01, 0x0, IntengTag::None, IntengWork::SaveCopy, -1, 0 },
+			// OURS, NAMED (docs/inteng/menu-status.json, additions): THE OWNER'S ADDITION (Melanikus 2026-11-27, through Bishop: "we'll add a 'export map' option to inteng that will output the structure to be pasted at the root of AVP"): the open level's tree, written into the editor's folder for exports (export_map.h). It sits under the hub's Save. Its number is ours; it has no inteng command
+			{ "Export map...", 0x1ff07, 0x0, IntengTag::None, IntengWork::ExportMap, -1, 0 },
 			{ "Write C File", 0x10002, 0xc, IntengTag::None, IntengWork::WriteC, -1, -1 },
 			{ "Write Asc File", 0x10003, 0xe, IntengTag::None, IntengWork::WriteAsc, -1, -1 },
 			{ "Write Asc File (Doors closed)", 0x10004, 0x10, IntengTag::None, IntengWork::WriteAscDoorsClosed, -1, -1 },
@@ -81,7 +83,7 @@ namespace host
 		};
 		IntengMenu const kMenus0[] =
 		{
-			{ "File", kItems0_0, 5, 0 },
+			{ "File", kItems0_0, 6, 0 },
 			{ "Mode", kItems0_1, 12, 0 },
 			{ "Object", kItems0_2, 10, 0 },
 			{ "Shape", kItems0_3, 3, 0 },

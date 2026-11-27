@@ -300,6 +300,44 @@ int main()
 		Check(!host::StrategyView_Click(52, New(52), 300, 0x1f, &click) && !host::StrategyView_Click(52, New(52), 300, 0x60, &click), "above 0x20 or below 0x5f: nothing");
 	}
 
+	// S-K52-2 (OI #118, Vasquez 2026-11-27): the Binary Switch view's lines, every branch, as strategy-data.md's row and FUN_0052d700 0x52d7d5-0x52d8e8 give them:
+	// Rest State by flags bit 0; the mode line at 0x30 (none for mode 3); the switch-off line at 0x40 for modes 0-2 only (& 2 Same first, then & 4 None, else Reversed);
+	// the target line at 0x50 with "(Has extra message data)" when the request holds a bit other than 1. The payload: flags +20, Mode +24, Time +28 (16.16 s), request +44
+	puts("52 Binary Switch's lines (FUN_0052d700 0x52d7d5-0x52d8e8; S-K52-2):");
+	{
+		auto switchLines = [&](int32_t flags, int32_t mode, int32_t time, int32_t request) {
+			std::vector<uint8_t> payload = New(52);
+
+			Put32(&payload, 20, flags);
+			Put32(&payload, 24, mode);
+			Put32(&payload, 28, time);
+			Put32(&payload, 44, request);
+			return linesOf(52, payload);
+		};
+		auto has = [](std::string const &all, std::string const &line) { return all.find(line) != std::string::npos; };
+
+		std::string const timer = switchLines(1, 0, 0x18000, 1);   // rest on, Timer 1.5 s, the switch-off line Reversed, plain request
+		std::string const wait = switchLines(0, 1, 0, 3);          // rest off, Wait, request with another bit
+		std::string const toggle = switchLines(2, 2, 0, 1);        // Toggle, Same
+		std::string const none = switchLines(4, 0, 0, 1);          // None
+		std::string const both = switchLines(6, 1, 0, 1);          // & 2 is asked first: Same
+		std::string const silent = switchLines(0, 3, 0, 1);        // mode 3: no mode line, no switch-off line
+		std::string const delay = switchLines(2, 4, 0x28000, 1);   // Time Delay 2.5 s: no switch-off line though flags say Same
+		std::string const now = switchLines(0, 5, 0x8000, 1);      // Time Delay 0.5 s, starts immediately
+
+		Check(has(timer, "200@0:Bob : Binary Switch|") && has(timer, "100@669:E : Edit extra message data for target|") && has(timer, "100@689:P : Change Properties|") &&
+		      has(timer, "100@709:T : Change Target (+Ctrl to choose environment)|"), "S-K52-2: the title and the E, P and T foot lines");
+		Check(has(timer, "16@32:Rest State : On|") && has(wait, "16@32:Rest State : Off|"), "S-K52-2: Rest State by flags bit 0 (0x52d7d5)");
+		Check(has(timer, "16@48:Mode : Timer - reset after 1.500 seconds|") && has(wait, "16@48:Mode : Wait|") && has(toggle, "16@48:Mode : Toggle|") &&
+		      has(delay, "16@48:Mode : Time Delay -2.500 seconds|") && has(now, "16@48:Mode : Time Delay -0.500 seconds (starts immediately)|") && !has(silent, "16@48:"),
+		      "S-K52-2: each mode's line at 0x30, the seconds as +0x1c / 65536 to three places; mode 3 has none");
+		Check(has(timer, "16@64:Switch off message : Reversed (default)|") && has(toggle, "16@64:Switch off message : Same|") && has(none, "16@64:Switch off message : None|") &&
+		      has(both, "16@64:Switch off message : Same|"), "S-K52-2: the switch-off line for modes 0-2: & 2 Same first, then & 4 None, else Reversed");
+		Check(!has(silent, "Switch off message") && !has(delay, "Switch off message") && !has(now, "Switch off message"), "S-K52-2: no switch-off line for modes 3, 4 and 5");
+		Check(has(wait, "16@80:Target : ") && has(wait, "(Has extra message data)|") && !has(timer, "(Has extra message data)"),
+		      "S-K52-2: the target line at 0x50, \"(Has extra message data)\" only when the request holds a bit other than 1");
+	}
+
 	puts("61 Linked Switch's view (code 0x52dfd0 -> FUN_0052d700 0x52d8f0-0x52d989; S-K61-1):");
 	{
 		std::vector<std::array<uint8_t, 8>> links;
@@ -355,6 +393,9 @@ int main()
 		"a door, or a generator's 79: FUN_0052b220, \"doesn't use extended request data\"");
 	Check(host::StrategyView_RequestPageOf(true, false, -1, true, 77) == RequestPage::NotUsed && host::StrategyView_RequestPageOf(true, false, -1, true, 78) == RequestPage::NotUsed,
 		"S-K77-E / S-K78-E: a Volume of Death's and a Self Destruct's +0x18 is the default FUN_0052b220 (\"doesn't use extended request data\")");
+	Check(host::StrategyView_RequestPageOf(true, false, -1, true, 75) == RequestPage::NotUsed && host::StrategyView_RequestPageOf(true, false, 0, true, 79) == RequestPage::NotUsed,
+		"S-K75-E / S-K79-E (OI #118): a Fan's and a Generator's +0x18 is the default FUN_0052b220 (strategy-data-kinds.md: \"+0x18 default\" for both), so E on one as a "
+		"switch's target says \"doesn't use extended request data\" (S-KC-8)");
 
 	host::RequestPageState page;
 	std::vector<host::StrategyViewLine> pageLines;

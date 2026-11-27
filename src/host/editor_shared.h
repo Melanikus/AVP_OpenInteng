@@ -965,6 +965,7 @@ int32_t WaypointPickedObject(OpenLevelFile *open);
 // made in editor_screen_keys.cpp
 extern bool linkFollowCamera;
 extern unsigned viewChanges;
+extern bool viewWantsEveryObject;   // the open found a placed object the game left out of the view (ShowTheWorkingBytes)
 extern size_t strategyTextureCount;
 
 // made in strategy_data_screen.cpp

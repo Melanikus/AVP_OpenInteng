@@ -94,7 +94,7 @@
 //                               FAILED unless it says the level opened again (Dietrich 2026-11-23: the proofs of what a level change does to what is open)
 //   reopen-level refused        the same ask, which must be REFUSED: FAILED unless the answer is "reopen: not opened again: ..." (the editor won't open the level
 //                               again while something runs on it: a plot, AutoLink, a links delete, All stock maps; Vasquez's MUST 1 on 5422d4f3)
-//   verify <program> [arguments]   runs a program (its path, then its words; {orig}, {prev} (the copy before the last one, or the level), {copy}, {exedir} (the editor's folder, with its closing backslash), {record} (the run's record folder, its pictures, likewise) and {save1} to {save9} (the first to the ninth Save a copy of the run) are replaced by the level's and the copies' paths); its exit code 0 is a pass, and its lines are shown
+//   verify <program> [arguments]   runs a program (its path, then its words; {orig}, {prev} (the copy before the last one, or the level), {copy}, {exedir} (the editor's folder, with its closing backslash), {scenariodir} (the scenario file's own folder, likewise: a check script that travels with it), {record} (the run's record folder, its pictures, likewise) and {save1} to {save9} (the first to the ninth Save a copy of the run) are replaced by the level's and the copies' paths); its exit code 0 is a pass, and its lines are shown
 // A step the editor doesn't answer within its time fails, and the editor is closed.
 
 #define DRIVE_EDITOR_PARTS_ONLY
@@ -251,6 +251,7 @@ struct Scenario
 {
 	Editor editor;
 	std::wstring recordFolder;
+	std::string scenarioFolder;      // the scenario file's own folder, whole, with its closing backslash: {scenariodir} in a verify line
 	std::vector<std::string> saves;   // every Save a copy of the run, in order: {save1}, {save2}, ... in a verify line
 	std::string level, copy, previous;   // previous: the copy before the last Save a copy ({prev}; the level itself before the first)
 	bool pictures = true;
@@ -4061,6 +4062,9 @@ static bool DoStep(Scenario *s, std::string const &line, int number)
 		// the run's record folder, where its pictures are (picture-<n>.png), with its closing backslash (added 2026-11-17 by Drake: #78's check compares the screenshot with them)
 		command = Replace(command, "{record}", Narrow(s->recordFolder) + "\\");
 
+		// the scenario file's own folder, as start-args and make-level have it: a check script that travels with the scenario (added 2026-11-27 by Dietrich: Export map's check-export.js)
+		command = Replace(command, "{scenariodir}", s->scenarioFolder);
+
 		for (size_t n = 0; n < s->saves.size() && n < 9; n++)
 		{
 			command = Replace(command, "{save" + std::to_string(n + 1) + "}", "\"" + s->saves[n] + "\"");
@@ -4153,6 +4157,8 @@ int main(int argc, char **argv)
 	}
 
 	std::string const scenarioPath = scenarioFull;
+
+	s.scenarioFolder = scenarioPath.substr(0, scenarioPath.find_last_of("\\/") + 1);
 	DWORD const scenarioAttributes = GetFileAttributesA(scenarioPath.c_str());
 
 	if (scenarioAttributes == INVALID_FILE_ATTRIBUTES || (scenarioAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0)

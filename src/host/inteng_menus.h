@@ -168,6 +168,7 @@ namespace host
 		VideoBrowse,      // the Video screen's Load, Browse...: Windows' own Open dialog for one video (video_mode.h VideoMode_Browse)
 		TextureImport,    // Texture Map's Import, Import texture... (the RIM import page, alpha.6): Windows' own Open dialog for one picture, then the form (texture_import_screen.h)
 		SoundLoad,        // Object Placement's Create, Load sound... (the owner's addition 11-27, the sound import): Windows' own Open dialog for WAVs (sound_import.h)
+		ExportMap,        // Construction's File, Export map... (the owner's addition 11-27): the open level's tree, to paste at the AvP root (export_map.h)
 	};
 
 	struct IntengItem

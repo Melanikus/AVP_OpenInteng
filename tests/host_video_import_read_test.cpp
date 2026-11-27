@@ -105,7 +105,6 @@ static void TestMp4(std::wstring const &path)
 	Check(ReadAll(path, &bytes) && host::VideoImport_Probe(bytes, L"video/mp4", &info, &why) == host::VideoImportResult::Done, "the probe opens it (" + why + ")");
 	Check(info.width == 320 && info.height == 180 && info.hasSound && info.length > 19000000 && info.length < 21000000,
 		"the probe: 320 x 180, with sound, about 2 s (" + std::to_string(info.width) + " x " + std::to_string(info.height) + ", " + std::to_string((long long)info.length) + ")");
-	Check(!host::VideoImport_IsAvpShape(info.width, info.height, info.parWidth, info.parHeight), "16:9: the tool asks fit or crop");
 
 	host::VideoImportClip clip;
 	host::VideoImportResult const result = host::VideoImport_Read(path, host::VideoImportFit::Fit, &clip, &why);

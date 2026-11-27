@@ -650,6 +650,93 @@ static void MultiCase(char const *path, int32_t kind)
 	Check(host::StrategyRepair_Run(&level) == 0, label + "a second pass changes nothing");
 }
 
+// THE ENEMY (69; FUN_00531cd0, row S-K69-R, OI #118, Vasquez 2026-11-27): Find Errors keeps an enemy's Death target (the ID at 28) when a record has it
+// (FUN_005219f0, S-K62-R's cases), else makes it the null ID and its request word (at 24) 0. The case finds an enemy whose strategy is an Enemy, plants a
+// target no record has (reset) and another enemy's ID (kept, its request too), each through the store, and runs the repair.
+static bool EnemyCase(char const *path)
+{
+	OpenLevelFile level;
+
+	if (level.Open(path) != LevelOpenResult::Opened || !level.Level())
+	{
+		return false;
+	}
+
+	std::vector<host::GeneratorRef> enemies;
+	uint8_t subject[8] = { 0 };
+	uint8_t other[8] = { 0 };
+	std::vector<uint8_t> before;
+	bool haveOther = false;
+
+	host::ListGenerators(level.Level(), &enemies);
+
+	for (host::GeneratorRef const &one : enemies)
+	{
+		host::ObjectStrategy strategy;
+
+		if (before.empty() && host::FindObjectStrategy(level.Level(), one.id, &strategy) == host::StrategyFound::Found && strategy.payload.size() >= 36 &&
+			IntAt(strategy.payload, 8) == 69)
+		{
+			memcpy(subject, one.id, 8);
+			before = strategy.payload;
+		}
+		else if (!haveOther)
+		{
+			memcpy(other, one.id, 8);
+			haveOther = true;
+		}
+	}
+
+	if (before.empty() || !haveOther)
+	{
+		return false;
+	}
+
+	Check(true, "S-K69-R: " + std::string(path) + " has an enemy holding an Enemy (69), and another enemy to name");
+
+	// plants the Death target and the request word through the store (a field edit, as the panel makes it), runs the repair, reads them back
+	auto plantAndRepair = [&](uint8_t const *target, int32_t request, uint8_t *nowTarget, int32_t *nowRequest) -> bool
+	{
+		host::ObjectStrategy planted;
+		std::vector<uint8_t> bytes = before;
+
+		memcpy(bytes.data() + 28, target, 8);
+		memcpy(bytes.data() + 24, &request, 4);
+
+		host::LevelStore store(&level);
+
+		if (host::FindObjectStrategy(level.Level(), subject, &planted) != host::StrategyFound::Found || !store.SetPayload(planted.chunk, bytes))
+		{
+			return false;
+		}
+
+		host::StrategyRepair_Run(&level);
+
+		host::ObjectStrategy now;
+
+		if (host::LookUpStrategyBytes(level.Level(), host::LevelStore(&level), subject, &now) != host::StrategyFound::Found || now.payload.size() < 36)
+		{
+			return false;
+		}
+
+		memcpy(nowTarget, now.payload.data() + 28, 8);
+		*nowRequest = IntAt(now.payload, 24);
+		return true;
+	};
+
+	uint8_t const dead[8] = { 0xA7, 0xA7, 0xA7, 0xA7, 0xA7, 0xA7, 0xA7, 0xA7 };
+	uint8_t const none[8] = {};
+	uint8_t target[8];
+	int32_t request = -1;
+
+	Check(plantAndRepair(dead, 1, target, &request) && memcmp(target, none, 8) == 0 && request == 0,
+	      "S-K69-R: an enemy's Death target that no record has is made the null ID, and its request 0");
+	Check(plantAndRepair(other, 1, target, &request) && memcmp(target, other, 8) == 0 && request == 1,
+	      "S-K69-R: a Death target naming another enemy (a record that exists) is kept, its request word too");
+	Check(host::StrategyRepair_Run(&level) == 0, "S-K69-R: a second pass changes nothing");
+	return true;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 3)
@@ -777,6 +864,9 @@ int main(int argc, char **argv)
 
 	OtherRecordsCase(argv[1]);
 	HierarchyObjectCase(argv[1]);
+
+	// S-K69-R on the first of the levels named that has an enemy holding an Enemy (Area52's marines, else Invasion)
+	Check((argc >= 4 && EnemyCase(argv[3])) || EnemyCase(argv[1]), "S-K69-R: a level named has an enemy holding an Enemy (69) to repair");
 
 	printf("%d checks failed\n", checksFailed);
 	return checksFailed ? 1 : 0;

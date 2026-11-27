@@ -1,5 +1,5 @@
 // video_make.cpp: what is done to a read video before it is encoded (video_make.h says what and why). Written 2026-11-22 by Melanikus (Dietrich) for AVP_OpenInteng, the level
-// from mp4-to-smk.cpp's own (Vasquez's, 11-18). AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
+// code Vasquez's (11-18). AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 #include "video_make.h"
 
 #include <float.h>

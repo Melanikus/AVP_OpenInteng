@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- videomake_static: THE ONE LIBRARY that makes a user's video into an AvP message film, which BOTH mp4-to-smk.exe and the editor's Video mode link (the owner's
-     Video mode, 11-22; Bishop 2's brief: "sharing mp4-to-smk.cpp's reader and encoder in one library both link (never a fork)"). Written 2026-11-22 by Melanikus
+<!-- videomake_static: THE ONE LIBRARY that makes a user's video into an AvP message film, for the editor's Video mode (the owner's Video mode, 11-22).
+     Written 2026-11-22 by Melanikus
      (Dietrich) for AVP_OpenInteng; its sources are AVP_OpenInteng's own code (MIT, License.txt):
        src\host\video_import   the video read through Windows' own Media Foundation, its hostile-file checks and the one list of endings
        src\host\video_make     the cut, the level and volume, the save that keeps a replaced film first
        src\host\smk_encoder    the clip handed to libsmackerenc (LGPL 2.1, its own static library, libsmackerenc_static.vcxproj) and the film written out
-     It is built with mp4-to-smk's own compiler settings (Release|Win32, v145, Unicode, /MD, /sdl, Control Flow Guard, /J and /we4834, C++17, the STL's hardening,
-     whole-program optimisation), so a program that links it gets the very code mp4-to-smk was tested with. EncoderBuiltIn (true unless /p:EncoderBuiltIn=false)
-     as mp4-to-smk's: SMK_ENCODER_BUILT_IN, the encoder's three calls taken from the library linked in.
-     THE SAME BYTES WHEREVER IT IS BUILT: /Brepro and /pathmap as mp4-to-smk's, the librarian's /Brepro the same for the .lib. Its objects have their own folder
+     It is built with these settings: Release|Win32, v145, Unicode, /MD, /sdl, Control Flow Guard, /J and /we4834, C++17, the STL's hardening, whole-program
+     optimisation; and SMK_ENCODER_BUILT_IN: the encoder's three calls taken from the library linked in (smk_encoder.h).
+     THE SAME BYTES WHEREVER IT IS BUILT: /Brepro and /pathmap, the librarian's /Brepro the same for the .lib. Its objects have their own folder
      under the output folder (IntDir below), so they never share an .obj or a .pdb with another project's. -->
 <Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
@@ -21,9 +20,6 @@
     <ProjectGuid>{2E2E00A0-1C79-46D1-96AC-2D2F8EFE2161}</ProjectGuid>
     <RootNamespace>videomake_static</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-  </PropertyGroup>
-  <PropertyGroup>
-    <EncoderBuiltIn Condition="'$(EncoderBuiltIn)' == ''">true</EncoderBuiltIn>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -69,7 +65,7 @@
       <LinkTimeCodeGeneration>true</LinkTimeCodeGeneration>
     </Lib>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32' and '$(EncoderBuiltIn)' == 'true'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <PreprocessorDefinitions>SMK_ENCODER_BUILT_IN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\..\avpx\dependencies\libsmackerenc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>

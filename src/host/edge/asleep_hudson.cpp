@@ -6,6 +6,8 @@
 // answer. The editor doesn't compile 3dc/avp/hudson.cpp itself.
 
 #include "3dc.h"
+#include "plain_write_picture.h"
+#include "plain_write.h"
 #include "inline.h"
 #include "module.h"
 #include "strategy_def.h"
@@ -92,372 +94,372 @@
 #else
 #endif
 
-// 3dc/avp/hudson.cpp:5395: return HudsonRunIsOn ? plan.accessPress : kHudsonAccessNone;
+// 3dc/avp/hudson.cpp:5397: return HudsonRunIsOn ? plan.accessPress : kHudsonAccessNone;
 int Hudson_AccessPress()
 {
 	return kHudsonAccessNone;
 }
 
-// 3dc/avp/hudson.cpp:5470: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:5472: if (!HudsonRunIsOn)
 void Hudson_AccessRunEnds(const char *howItEnded, bool asAsked)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:5400: return HudsonRunIsOn ? plan.accessWaitSeconds : 0;
+// 3dc/avp/hudson.cpp:5402: return HudsonRunIsOn ? plan.accessWaitSeconds : 0;
 int Hudson_AccessWaitSeconds()
 {
 	return 0;
 }
 
-// 3dc/avp/hudson.cpp:4337: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:4339: if (!HudsonRunIsOn)
 void Hudson_AlienStrikes(const STRATEGYBLOCK *alien)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:5410: return HudsonRunIsOn ? plan.answerAfterSeconds : 0;
+// 3dc/avp/hudson.cpp:5412: return HudsonRunIsOn ? plan.answerAfterSeconds : 0;
 int Hudson_AnswerAfterSeconds()
 {
 	return 0;
 }
 
-// 3dc/avp/hudson.cpp:5405: return HudsonRunIsOn ? plan.answerPress : kHudsonAnswerNone;
+// 3dc/avp/hudson.cpp:5407: return HudsonRunIsOn ? plan.answerPress : kHudsonAnswerNone;
 int Hudson_AnswerPress()
 {
 	return kHudsonAnswerNone;
 }
 
-// 3dc/avp/hudson.cpp:1277: if (!HudsonRunIsOn || !plan.showWindow || !hWndMain)
+// 3dc/avp/hudson.cpp:1279: if (!HudsonRunIsOn || !plan.showWindow || !hWndMain)
 void Hudson_BringTheWindowForward()
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:1455: return HudsonRunIsOn ? plan.classSlider : 0;
+// 3dc/avp/hudson.cpp:1457: return HudsonRunIsOn ? plan.classSlider : 0;
 int Hudson_ClassSlider()
 {
 	return 0;
 }
 
-// 3dc/avp/hudson.cpp:5336: return HudsonRunIsOn && plan.customMap[0] && AvP.LevelCompleted;
+// 3dc/avp/hudson.cpp:5338: return HudsonRunIsOn && plan.customMap[0] && AvP.LevelCompleted;
 bool Hudson_CustomMapHasEnded()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:1435: return HudsonRunIsOn ? customMapPlace : -1;
+// 3dc/avp/hudson.cpp:1437: return HudsonRunIsOn ? customMapPlace : -1;
 int Hudson_CustomMapPlace()
 {
 	return -1;
 }
 
-// 3dc/avp/hudson.cpp:5867: return HudsonRunIsOn ? plan.difficulty : 0;
+// 3dc/avp/hudson.cpp:5869: return HudsonRunIsOn ? plan.difficulty : 0;
 int Hudson_Difficulty()
 {
 	return 0;
 }
 
-// 3dc/avp/hudson.cpp:1430: return HudsonRunIsOn ? environment : -1;
+// 3dc/avp/hudson.cpp:1432: return HudsonRunIsOn ? environment : -1;
 int Hudson_Environment()
 {
 	return -1;
 }
 
-// 3dc/avp/hudson.cpp:5843: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:5845: if (!HudsonRunIsOn)
 void Hudson_FilmEnded()
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:5824: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:5826: if (!HudsonRunIsOn)
 bool Hudson_FilmGoesOn()
 {
 	return true;
 }
 
-// 3dc/avp/hudson.cpp:5812: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:5814: if (!HudsonRunIsOn)
 void Hudson_FilmStarts(const char *film)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:2092: if (!HudsonRunIsOn || plan.gunSlot == 0 || levelHasEnded)
+// 3dc/avp/hudson.cpp:2094: if (!HudsonRunIsOn || plan.gunSlot == 0 || levelHasEnded)
 void Hudson_GunInput(void *playerStatus)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:4347: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:4349: if (!HudsonRunIsOn)
 void Hudson_HeWasHit(STRATEGYBLOCK *block, int kind)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:5444: return HudsonRunIsOn ? plan.hostOn : "";
+// 3dc/avp/hudson.cpp:5446: return HudsonRunIsOn ? plan.hostOn : "";
 const char *Hudson_HostOnName()
 {
 	return "";
 }
 
-// 3dc/avp/hudson.cpp:5437: return HudsonRunIsOn ? plan.hostRow : kHudsonHostRowNone;
+// 3dc/avp/hudson.cpp:5439: return HudsonRunIsOn ? plan.hostRow : kHudsonHostRowNone;
 int Hudson_HostRow()
 {
 	return kHudsonHostRowNone;
 }
 
-// 3dc/avp/hudson.cpp:5857: return HudsonRunIsOn && plan.siegeRoom[0] != 0;
+// 3dc/avp/hudson.cpp:5859: return HudsonRunIsOn && plan.siegeRoom[0] != 0;
 bool Hudson_IsASiege()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:5449: return HudsonRunIsOn ? plan.joinOn : "";
+// 3dc/avp/hudson.cpp:5451: return HudsonRunIsOn ? plan.joinOn : "";
 const char *Hudson_JoinOnName()
 {
 	return "";
 }
 
-// 3dc/avp/hudson.cpp:5421: return HudsonRunIsOn ? plan.findGames : false;
+// 3dc/avp/hudson.cpp:5423: return HudsonRunIsOn ? plan.findGames : false;
 bool Hudson_JoinsThroughFindGames()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:5640: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:5642: if (!HudsonRunIsOn)
 bool Hudson_KeepsStill(STRATEGYBLOCK *block)
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:1477: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:1479: if (!HudsonRunIsOn)
 bool Hudson_LampCompareIsDue()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:1445: return (HudsonRunIsOn && plan.listPlaceAsked) ? plan.listPlace : -1;
+// 3dc/avp/hudson.cpp:1447: return (HudsonRunIsOn && plan.listPlaceAsked) ? plan.listPlace : -1;
 int Hudson_ListPlace()
 {
 	return -1;
 }
 
-// 3dc/avp/hudson.cpp:5341: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:5343: if (!HudsonRunIsOn)
 void Hudson_LooksForThePageAfterAMap(bool thePageIsBack)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:1425: return HudsonRunIsOn ? episode : -1;
+// 3dc/avp/hudson.cpp:1427: return HudsonRunIsOn ? episode : -1;
 int Hudson_MarineEpisode()
 {
 	return -1;
 }
 
-// 3dc/avp/hudson.cpp:2570: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:2572: if (!HudsonRunIsOn)
 void Hudson_MarineLanded(const STRATEGYBLOCK *marine, int fallingSpeed, bool wouldKillHim)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:5426: return HudsonRunIsOn ? plan.menuPictures : false;
+// 3dc/avp/hudson.cpp:5428: return HudsonRunIsOn ? plan.menuPictures : false;
 bool Hudson_MenuPictures()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:11294: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:11296: if (!HudsonRunIsOn)
 void Hudson_NetInput(void *playerStatus)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:8375: return HudsonRunIsOn && plan.coop;
+// 3dc/avp/hudson.cpp:8377: return HudsonRunIsOn && plan.coop;
 bool Hudson_NetIsCampaign()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:8557: return HudsonRunIsOn && plan.netMode == kHudsonNetHost;
+// 3dc/avp/hudson.cpp:8559: return HudsonRunIsOn && plan.netMode == kHudsonNetHost;
 bool Hudson_NetIsHost()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:8380: return HudsonRunIsOn && plan.hostile;
+// 3dc/avp/hudson.cpp:8382: return HudsonRunIsOn && plan.hostile;
 bool Hudson_NetIsHostile()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:7043: return HudsonRunIsOn && plan.netMode != kHudsonNetNone;
+// 3dc/avp/hudson.cpp:7045: return HudsonRunIsOn && plan.netMode != kHudsonNetNone;
 bool Hudson_NetIsOn()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:8410: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:8412: if (!HudsonRunIsOn)
 bool Hudson_NetPictureIsDue()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:8397: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:8399: if (!HudsonRunIsOn)
 const char *Hudson_NetPictureKind()
 {
 	return "net";
 }
 
-// 3dc/avp/hudson.cpp:8562: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:8564: if (!HudsonRunIsOn)
 void Hudson_NetSay(const char *stage)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:8431: if (HudsonRunIsOn && plan.netMode != kHudsonNetNone && said < 40)
+// 3dc/avp/hudson.cpp:8433: if (HudsonRunIsOn && plan.netMode != kHudsonNetNone && said < 40)
 void Hudson_NetSayARefusedGhost(int kind, int subtype)
 {
 }
 
-// 3dc/avp/hudson.cpp:11612: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:11614: if (!HudsonRunIsOn)
 void Hudson_NetStopBecause(const char *why)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:8474: if (!HudsonRunIsOn || plan.netMode == kHudsonNetNone)
+// 3dc/avp/hudson.cpp:8476: if (!HudsonRunIsOn || plan.netMode == kHudsonNetNone)
 void Hudson_NetWhileDead(void *playerStatus)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:5862: return HudsonRunIsOn && plan.noFriendlyFire;
+// 3dc/avp/hudson.cpp:5864: return HudsonRunIsOn && plan.noFriendlyFire;
 bool Hudson_NoFriendlyFire()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:10516: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:10518: if (!HudsonRunIsOn)
 void Hudson_NoteDamage(STRATEGYBLOCK *target, int ammunition)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:5416: return (HudsonRunIsOn && plan.filmMenus) ? plan.pageHoldSeconds : 0;
+// 3dc/avp/hudson.cpp:5418: return (HudsonRunIsOn && plan.filmMenus) ? plan.pageHoldSeconds : 0;
 int Hudson_PageHoldSeconds()
 {
 	return 0;
 }
 
-// 3dc/avp/hudson.cpp:5454: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:5456: if (!HudsonRunIsOn)
 void Hudson_PictureThisFrame(const char *name)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:1349: if (!HudsonRunIsOn || plan.windowOnMainScreen)
+// 3dc/avp/hudson.cpp:1351: if (!HudsonRunIsOn || plan.windowOnMainScreen)
 bool Hudson_PlaceTheWindow(int *left, int *top, int *width, int *height)
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:1440: return HudsonRunIsOn && plan.playAsAlien;
+// 3dc/avp/hudson.cpp:1442: return HudsonRunIsOn && plan.playAsAlien;
 bool Hudson_PlayAsAlien()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:1450: return HudsonRunIsOn && plan.playAsPredator;
+// 3dc/avp/hudson.cpp:1452: return HudsonRunIsOn && plan.playAsPredator;
 bool Hudson_PlayAsPredator()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:6945: if (!HudsonRunIsOn || !plan.play || levelHasEnded)
+// 3dc/avp/hudson.cpp:6947: if (!HudsonRunIsOn || !plan.play || levelHasEnded)
 void Hudson_PlayInput(void *playerStatus)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:5802: return HudsonRunIsOn && plan.levelFilms;
+// 3dc/avp/hudson.cpp:5804: return HudsonRunIsOn && plan.levelFilms;
 bool Hudson_PlaysLevelFilms()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:5599: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:5601: if (!HudsonRunIsOn)
 void Hudson_PointTheCamera(VECTORCH *place, MATRIXCH *turn)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:5879: if (!HudsonRunIsOn || plan.dieAtSeconds == 0)
+// 3dc/avp/hudson.cpp:5881: if (!HudsonRunIsOn || plan.dieAtSeconds == 0)
 bool Hudson_PressesAKeyAfterHeDied()
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:1199: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:1201: if (!HudsonRunIsOn)
 bool Hudson_RunFolder(char *folder, size_t size)
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:1491: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:1493: if (!HudsonRunIsOn)
 void Hudson_SaveLampCompareScreen(const char *stage)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:1528: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:1530: if (!HudsonRunIsOn)
 void Hudson_SaveLampCompareSurface(struct IDirect3DTexture9 *surface)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:5359: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:5361: if (!HudsonRunIsOn)
 void Hudson_SaveThePage(const char *name)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:1377: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:1379: if (!HudsonRunIsOn)
 void Hudson_SayWhereTheWindowWent()
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:1241: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:1243: if (!HudsonRunIsOn)
 void Hudson_SayWhichShaderWasCompiled(const char *path)
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:4688: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:4690: if (!HudsonRunIsOn)
 void Hudson_SetTheMode()
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:10470: if (!HudsonRunIsOn || !HudsonPlan_PlayersCannotDie(plan) || !player || !damage)
+// 3dc/avp/hudson.cpp:10472: if (!HudsonRunIsOn || !HudsonPlan_PlayersCannotDie(plan) || !player || !damage)
 bool Hudson_SiegeTurnsAwayHit(STRATEGYBLOCK const *player, DAMAGE_PROFILE const *damage, int multiple)
 {
 	return false;
 }
 
-// 3dc/avp/hudson.cpp:5480: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:5482: if (!HudsonRunIsOn)
 void Hudson_TakePictureIfDue()
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:5786: if (!HudsonRunIsOn)
+// 3dc/avp/hudson.cpp:5788: if (!HudsonRunIsOn)
 void Hudson_TheLevelStartedAgain()
 {
 	return;
 }
 
-// 3dc/avp/hudson.cpp:5432: return HudsonRunIsOn ? plan.yesPage : kHudsonYesPageNone;
+// 3dc/avp/hudson.cpp:5434: return HudsonRunIsOn ? plan.yesPage : kHudsonYesPageNone;
 int Hudson_YesPagePress()
 {
 	return kHudsonYesPageNone;

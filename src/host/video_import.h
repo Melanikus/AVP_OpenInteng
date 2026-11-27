@@ -12,7 +12,7 @@
 // (A folder swapped between that walk and the open is not caught: making such a link needs Developer Mode or the symbolic-link privilege, so it would have to be planted.)
 // Refused, with the reason in words for the status line: a file over kVideoImportMostBytes or empty, a length over kVideoImportMostSeconds, a picture wider or taller than
 // kVideoImportMostSide, and a name whose ending is not one of the list (VideoImport_EndingsWords: the owner's ruling 11-22, Media Foundation's common containers, the ONE
-// list the drop, Load > Browse..., mp4-to-smk and this read all take).
+// list the drop, Load > Browse... and this read all take).
 //
 // This header has the parts that need no Media Foundation, each tested on its own (tests/host_video_import_test.cpp): the file's check and read, the stream's bounds, the letterbox,
 // the 15-a-second ticks, and the sound's 8 bits.
@@ -37,9 +37,9 @@ namespace host
 	int32_t const kVideoImportSoundRate = 22050;
 
 	// The bounds on a user's file (the owner's or Bishop's to change): its size, its length, its picture's sides as the file has them
-	uint64_t const kVideoImportMostBytes = 256ull * 1024 * 1024;     // the default; a read may be given more (mp4-to-smk --max-input-mb), up to:
+	uint64_t const kVideoImportMostBytes = 256ull * 1024 * 1024;     // the default; a read may be given more, up to:
 	uint64_t const kVideoImportLongestBytes = 2048ull * 1024 * 1024;  // the most any read takes (a 32-bit program may still not find the memory: refused, not a crash)
-	int64_t const kVideoImportMostSeconds = 180;          // the default; a read may be given more (mp4-to-smk --max-seconds), up to:
+	int64_t const kVideoImportMostSeconds = 180;          // the default; a read may be given more, up to:
 #if defined(_WIN64)
 	int64_t const kVideoImportLongestSeconds = 3600;      // the most any read takes in a 64-bit program: an hour of frames is 2 GB
 #else
@@ -136,9 +136,6 @@ namespace host
 	// The same in words: "fit: all of 320 x 180 into 128 x 72, black bars above and below" (or "at the sides"; a picture of 128 : 96's shape "fills 128 x 96"),
 	// "crop: the middle 240 x 180 of 320 x 180 becomes 128 x 96", "expand: all of 320 x 180 stretched to 128 x 96" (sizes in whole pixels, rounded); "" when refused
 	std::string VideoImport_FitWords(uint32_t width, uint32_t height, uint32_t parWidth, uint32_t parHeight, VideoImportFit fit);
-
-	// Whether the picture is 128 : 96's shape already (Fit fills all of it), so there is nothing to ask
-	bool VideoImport_IsAvpShape(uint32_t width, uint32_t height, uint32_t parWidth, uint32_t parHeight);
 
 	// THE TICKS: tick k is at k / 15 s and shows the latest picture that starts at or before it; ticks before the first picture show the first. How many ticks, from *next on, come
 	// before time (100 ns): those the picture shown until then fills. *next moves past them. Time is held to 0 .. (kVideoImportLongestSeconds + 1) s, so no sum overflows.

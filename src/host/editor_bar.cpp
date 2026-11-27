@@ -866,6 +866,9 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 		case host::IntengWork::SoundLoad:
 			host->soundLoad = true;
 			break;
+		case host::IntengWork::ExportMap:
+			host->exportMap = true;
+			break;
 		case host::IntengWork::ViewLighting:
 			host->viewMode = 4;
 			break;
