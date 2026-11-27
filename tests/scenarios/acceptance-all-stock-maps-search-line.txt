@@ -28,7 +28,10 @@ expect-no-dialog
 wait-status 120000 All stock maps: level 1 of 22, derelict.RIF: Auto-plot: module
 # ... and the line the screen draws, the same
 expect-field-has statusdrawn All stock maps: level 1 of 22, derelict.RIF: Auto-plot: module
-expect-field-has statusdrawn : searching
+# Its stage is the plot's last words, and between two searches they are, for a moment, a way's result ("way 12 of 1974: not shaped (dead end), nothing
+# drawn"): one read in that moment failed in Frost's alpha.7 round (9f995ef0). So the line is WAITED for until it says "searching" again, for as long as it
+# keeps changing; it still fails when the drawn line never says it (the wait ends when the line stays word for word the same for 30 s: at the run's end at the latest)
+wait-moving 30000 statusdrawn : searching
 picture 1
 
 # ---- the end, as before
