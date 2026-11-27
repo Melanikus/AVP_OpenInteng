@@ -170,6 +170,19 @@ static std::string Joined(std::vector<std::string> const &names)
 }
 
 // The list from the fastfiles' names (Bishop's ruling 11-16): the finder's order, the hostile names left out
+// THE TWO LISTS TOGETHER (SoundEdit_MergeNames, the sound import, Dietrich 2026-11-27): the raw folder's names first as they are, then the fastfiles' the raw
+// folder doesn't have (any capitals), at most `most` in all
+static void TestMergeNames()
+{
+	std::vector<std::string> const raw = { "zzboom.wav", "Alienpres11-8.wav" };
+	std::vector<std::string> const packed = { "alienpres11-8.wav", "Alwater.wav", "zzBOOM.wav", "ambie1.wav" };
+
+	Check(Joined(SoundEdit_MergeNames(raw, packed)) == "zzboom.wav|Alienpres11-8.wav|Alwater.wav|ambie1.wav", "the raw folder's first, then the packed ones it lacks, capitals aside");
+	Check(Joined(SoundEdit_MergeNames({}, packed)) == "alienpres11-8.wav|Alwater.wav|zzBOOM.wav|ambie1.wav", "no raw folder: the packed list as it is");
+	Check(Joined(SoundEdit_MergeNames(raw, {})) == "zzboom.wav|Alienpres11-8.wav", "no packed names: the raw folder's");
+	Check(Joined(SoundEdit_MergeNames(raw, packed, 3)) == "zzboom.wav|Alienpres11-8.wav|Alwater.wav", "at most `most` in all");
+}
+
 static void TestWavNamesFromFiles()
 {
 	std::vector<std::string> const files = {
@@ -251,6 +264,7 @@ int main()
 	TestPlay();
 	TestWavNames();
 	TestWavNamesFromFiles();
+	TestMergeNames();
 
 	printf("%d checks, %d failed\n", checksRun, checksFailed);
 	return checksFailed ? 1 : 0;

@@ -90,6 +90,7 @@ struct EditorHostState
 	int32_t placedHierarchyCommand;   // the current placed hierarchy's pop-up item (0x7d0 Play, 0x7d1 Stop, ...: reassess/object-placement.md PH-2..PH-13), or 0
 	bool videoBrowse;          // true: the Video screen's Load, Browse... (video_mode.h VideoMode_Browse: Windows' own Open dialog for one video)
 	bool textureImport;        // true: Texture Map's Import, Import texture... (texture_import_screen.h TextureImportScreen_Browse: the Open dialog, then the form)
+	bool soundLoad;            // true: Object Placement's Create, Load sound... (sound_import.h SoundImport_Browse: the Open dialog, each WAV taken as a drop)
 	int32_t fixTears;          // Construction, Miscellaneous, Fix tears: 1 = the two selected objects (0x5a), 2 = all (0x5b)
 	bool recentrePolygon;      // Texture Map, Recentre Shape (0xd6): wait for the click on a polygon
 	bool splitScreen;          // Object Placement, Misc, Toggle Split Screen (0x52)
@@ -198,7 +199,6 @@ int32_t const kPromptSoftEdge = 41;  // Light Sourcing, Edge > Soft: the maximum
 int32_t const kPromptDeleteAllLinks = 12;   // AutoLink > Delete Links: Environment: a yes before every module's links are deleted
 int32_t const kPromptTypeLinks = 13;  // Change Object Type: Placed: "<name> has module linking data. Do you want to delete it?" (yes or no), once per object that has some
 int32_t const kPromptRescale = 14;   // Rescale: the new size of the selected object's shape (shape_rescale_edit.h)
-int32_t const kPromptChooserPick = 15;   // the Shape Chooser's "Select shape from list": a place in the list or part of a name (registry number 15)
 int32_t const kPromptTears = 44;   // Fix tears (0x5a / 0x5b): the tolerance in mm ("Type in tolerance level for tear fixing (in mm)"). Taken 2026-11-15
 int32_t const kPromptMoveRelModule = 45;   // Move relative (0x1c): the three offsets in metres. Taken 2026-11-15 (unused since 2026-11-17: Move relative is inteng's RelMove Shape window; the number stays taken)
 int32_t const kPromptSpecial = 42;   // Object Placement's special-object dialogs (special_mode.h): one number for all, which field is open is the mode's. Taken 2026-11-15

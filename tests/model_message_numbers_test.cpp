@@ -151,6 +151,53 @@ int main()
 	Check(MessageNumbers_StockLevels(103) == "Derelict.RIF", "103 is stock Derelict's briefing: " + MessageNumbers_StockLevels(103));
 	Check(MessageNumbers_StockLevels(417).empty() && MessageNumbers_StockLevels(144).empty(), "a free number and a stock film no level plays name no level");
 
+	// THE STOCK FILMS' BYTES (Vasquez 2026-11-27, Export map's film gathering, design-vasquez-export-films.md): each stock FMVs\message<N>.smk's size and
+	// SHA-256, as the tool read them from a folder checked against Steam's depot manifests (53 films: 51 a stock level plays, and 144 and 237). Here: the
+	// list's own consistency, and the rule built on it (a film is Rebellion's own only when its number, size and SHA-256 are all one row's)
+	bool filmsAscending = kStockFilmCount > 0, filmsKinds = true, filmsHashes = true, everyF = true;
+
+	for (size_t i = 0; i < kStockFilmCount; i++)
+	{
+		StockFilm const &film = kStockFilms[i];
+		bool hex = film.sha256 && strlen(film.sha256) == 64;
+
+		for (size_t c = 0; hex && c < 64; c++)
+		{
+			hex = (film.sha256[c] >= '0' && film.sha256[c] <= '9') || (film.sha256[c] >= 'a' && film.sha256[c] <= 'f');
+		}
+
+		filmsHashes = filmsHashes && hex && film.size > 0;
+		filmsAscending = filmsAscending && film.number >= 1 && film.number <= kMostMessageNumber && (i == 0 || kStockFilms[i - 1].number < film.number);
+		filmsKinds = filmsKinds && film.number >= 1 && film.number <= kMostMessageNumber &&
+		             (kMessageNumberKinds[film.number - 1] == 'S' || kMessageNumberKinds[film.number - 1] == 'F');
+	}
+
+	for (int32_t n = 1; n <= kMostMessageNumber; n++)
+	{
+		everyF = everyF && (kMessageNumberKinds[n - 1] != 'F' || MessageNumbers_HasStockFilm(n));
+	}
+
+	Check(kStockFilmCount == 53, "the stock game ships 53 message films (the table has " + std::to_string(kStockFilmCount) + ")");
+	Check(filmsAscending, "the films are listed by number, ascending, each 1 to 450, each once");
+	Check(filmsKinds, "each film's number is an S or an F number (a stock film is never a free number)");
+	Check(everyF, "every F number has its film in the list");
+	Check(filmsHashes, "each has a size and a SHA-256 of 64 small hex letters");
+
+	if (kStockFilmCount > 0)
+	{
+		StockFilm const &first = kStockFilms[0];
+		std::string const hash = first.sha256;
+		std::string other = hash;
+
+		other[0] = other[0] == '0' ? '1' : '0';
+		Check(MessageNumbers_HasStockFilm(first.number) && MessageNumbers_IsStockFilm(first.number, first.size, hash),
+		      "a film with its number's size and SHA-256 is Rebellion's own (" + std::to_string(first.number) + ")");
+		Check(!MessageNumbers_IsStockFilm(first.number, first.size, other) && !MessageNumbers_IsStockFilm(first.number, first.size + 1, hash),
+		      "the same number with another SHA-256 or another size is not");
+		Check(!MessageNumbers_IsStockFilm(417, first.size, hash) && !MessageNumbers_HasStockFilm(417) && !MessageNumbers_HasStockFilm(0) &&
+		      !MessageNumbers_HasStockFilm(451), "nor is a number with no stock film (417, a free one; 0 and 451, which the game doesn't play)");
+	}
+
 	printf(checksFailed ? "SOME CHECKS FAILED\n" : "All checks passed\n");
 	return checksFailed ? 1 : 0;
 }

@@ -167,6 +167,7 @@ namespace host
 		VideoModeEnter,   // Construction's Mode, Video (the owner's addition 11-22, alpha.5 item 2): the Video screen is shown (video_mode_screen.h)
 		VideoBrowse,      // the Video screen's Load, Browse...: Windows' own Open dialog for one video (video_mode.h VideoMode_Browse)
 		TextureImport,    // Texture Map's Import, Import texture... (the RIM import page, alpha.6): Windows' own Open dialog for one picture, then the form (texture_import_screen.h)
+		SoundLoad,        // Object Placement's Create, Load sound... (the owner's addition 11-27, the sound import): Windows' own Open dialog for WAVs (sound_import.h)
 	};
 
 	struct IntengItem

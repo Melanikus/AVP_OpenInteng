@@ -121,6 +121,7 @@
 #include "screen_keys.h"
 #include "entry_markers.h"
 #include "light_keys.h"
+#include "level_settings.h"   // the level's own settings, Strategy mode's Level menu (Vasquez 2026-11-27)
 #include "reverse_links.h"
 #include "autolink_edit.h"
 #include "autolink_runner.h"
@@ -3723,10 +3724,446 @@ static bool IsVirtualObject(File_Chunk *level, uint8_t const *id)
 	return false;
 }
 
+// ---- THE LEVEL'S OWN SETTINGS, AS TWO FORMS (Vasquez 2026-11-27; level_settings.h, AvP-docs/director/design-vasquez-oi-envgen.md) ----
+// Strategy mode's Level menu (the owner's answer Q1): "AvP Environment Settings..." and "AvP Generator Properties...", the old editor's (cencon's) two dialogs in its order and words,
+// with notes of our own under them. Inteng has no edit for these. Each form shows the level as the game reads it (the game's defaults when the level holds none). On OK: every box
+// that was CHANGED is checked against its field's range and refused with that range and the field's own reason, and the form comes back as it was left (as Strategy's own forms do);
+// a box left as it was shown keeps the map's own value, even outside the range (the owner's answer Q2: 27 stock hive times are above 4,681 s; the form warns); then, only if
+// something changed, the chunk is written through the game's loader (LevelSettings_Write). Cancel, Escape, or OK with nothing changed, write nothing.
+namespace
+{
+	struct LevelSettingsBox
+	{
+		char const *field;   // the model's name for it (src/model/chunk_fields.cpp)
+		char const *label;   // cencon's words
+	};
+
+	struct LevelSettingsTick
+	{
+		uint32_t bit;        // its bit of the kit word (avp_chunk.hpp:269-277)
+		char const *label;   // cencon's words
+	};
+
+	LevelSettingsBox const kEnvironmentBoxes[] = { { "sky_colour_red", "Red" }, { "sky_colour_green", "Green" }, { "sky_colour_blue", "Blue" }, { "predator_num_spears", "Spears" } };
+	LevelSettingsTick const kEnvironmentTicks[] = { { 0x40, "Stars" }, { 0x1, "Pistol" }, { 0x2, "Plasma Caster" }, { 0x4, "Disc" }, { 0x8, "Grappling hook" }, { 0x10, "Medicomp" },
+	                                                { 0x20, "Jetpack" } };
+	LevelSettingsBox const kGeneratorBoxes[] = { { "MaxNPCSOnLevel", "Max NPCs Generated" }, { "NPCSPerMinute", "NPCs Generated Per Minute" },
+	                                             { "NPCAcceleration", "Change in Generation Rate Per Minute" }, { "HiveStateChangeTime", "Hive State Change Time (seconds)" } };
+	size_t const kLevelSettingsBoxes = 4;    // each form has four number boxes
+	size_t const kLevelSettingsTicks = sizeof(kEnvironmentTicks) / sizeof(kEnvironmentTicks[0]);
+
+	// What a form was opened with, kept for its OK and for showing it again after a refusal
+	struct LevelSettingsForm
+	{
+		host::LevelSettingsKind kind = host::LevelSettingsKind::Environment;
+		std::vector<uint8_t> settings;      // the chunk as read when the form first opened: what "changed" is measured against
+		bool had = false;                   // the level holds the chunk (else the settings are the game's defaults)
+		std::vector<std::string> shown;     // each box's words as first shown
+		std::vector<std::string> typed;     // each box's words now
+		std::vector<bool> ticks;            // each check box now (the environment's)
+		int32_t enemy = 0;                  // the choice now (the generators': 0 Aliens, 1 Marines)
+	};
+
+	LevelSettingsBox const *BoxesOf(host::LevelSettingsKind kind)
+	{
+		return kind == host::LevelSettingsKind::Environment ? kEnvironmentBoxes : kGeneratorBoxes;
+	}
+
+	char const *TitleOf(host::LevelSettingsKind kind)
+	{
+		return kind == host::LevelSettingsKind::Environment ? "AvP Environment Settings" : "Global AvP generator properties";
+	}
+
+	std::string RangeWords(host::LevelSettingsKind kind, char const *field)
+	{
+		int32_t lowest = 0, highest = 0;
+
+		return host::LevelSettings_Range(kind, field, &lowest, &highest) ? "(" + std::to_string(lowest) + " to " + std::to_string(highest) + ")" : "";
+	}
+
+	// A typed whole number: an optional minus, then 1 to 9 digits and nothing else, so it can't overflow before its range is checked
+	bool WholeNumber(std::string const &text, int32_t *value)
+	{
+		bool const minus = !text.empty() && text[0] == '-';
+		size_t const from = minus ? 1 : 0;
+
+		if (text.size() <= from || text.size() - from > 9)
+		{
+			return false;
+		}
+
+		int32_t number = 0;
+
+		for (size_t i = from; i < text.size(); i++)
+		{
+			if (text[i] < '0' || text[i] > '9')
+			{
+				return false;
+			}
+
+			number = number * 10 + (text[i] - '0');
+		}
+
+		*value = minus ? -number : number;
+		return true;
+	}
+
+	int32_t SettingOf(host::LevelSettingsKind kind, std::vector<uint8_t> const &settings, char const *field)
+	{
+		int32_t value = 0;
+
+		host::LevelSettings_Get(kind, settings, field, &value);
+		return value;
+	}
+}
+
+static void LevelSettingsFormShow(LevelSettingsForm const &form);
+
+static void LevelSettingsSay(std::string const &words)
+{
+	strategyWords = words;
+	statusWords = strategyWords.c_str();
+}
+
+// OK pressed (or the form left another way): the checks and the write, as the block above says
+static void LevelSettingsFormLeft(LevelSettingsForm form, int32_t answer, std::vector<host::DialogWidget> const &widgets)
+{
+	if (answer != host::kDialogOk)
+	{
+		return;
+	}
+
+	// the answers, in the order the form made its parts: the boxes, the check boxes, the choice
+	size_t box = 0, tick = 0;
+
+	for (host::DialogWidget const &one : widgets)
+	{
+		if (one.type == host::DialogWidgetType::Edit && box < form.typed.size())
+		{
+			form.typed[box++] = one.text;
+		}
+		else if (one.type == host::DialogWidgetType::Check && tick < form.ticks.size())
+		{
+			form.ticks[tick++] = one.checked;
+		}
+		else if (one.type == host::DialogWidgetType::Combo && (one.selected == 0 || one.selected == 1))
+		{
+			form.enemy = one.selected;
+		}
+	}
+
+	host::LevelSettingsKind const kind = form.kind;
+	LevelSettingsBox const *const boxes = BoxesOf(kind);
+	std::string const title = TitleOf(kind);
+	std::vector<uint8_t> wanted = form.settings;
+	bool changed = false;
+
+	for (size_t i = 0; i < kLevelSettingsBoxes && i < form.typed.size(); i++)
+	{
+		if (form.typed[i] == form.shown[i])
+		{
+			continue;   // left as shown: the map's own value is kept, even outside the range
+		}
+
+		int32_t value = 0;
+		char const *why = "";
+		std::string const range = RangeWords(kind, boxes[i].field);
+
+		if (!WholeNumber(form.typed[i], &value))
+		{
+			LevelSettingsSay(title + ": " + boxes[i].label + " must be a whole number " + range);
+			DialogMessage(std::string(boxes[i].label) + " must be a whole number " + range, [form]() { LevelSettingsFormShow(form); });
+			return;
+		}
+
+		if (!host::LevelSettings_Set(kind, &wanted, boxes[i].field, value, &why))
+		{
+			std::string const words = std::string(boxes[i].label) + " must be a number " + range + ": " + (why ? why : "");
+
+			LevelSettingsSay(title + ": " + words);
+			DialogMessage(words, [form]() { LevelSettingsFormShow(form); });
+			return;
+		}
+
+		changed = changed || value != SettingOf(kind, form.settings, boxes[i].field);
+	}
+
+	if (kind == host::LevelSettingsKind::Environment)
+	{
+		int32_t const kit = SettingOf(kind, wanted, "kit");
+		int32_t now = kit;
+
+		for (size_t t = 0; t < kLevelSettingsTicks && t < form.ticks.size(); t++)
+		{
+			now = form.ticks[t] ? (now | (int32_t)kEnvironmentTicks[t].bit) : (now & ~(int32_t)kEnvironmentTicks[t].bit);
+		}
+
+		char const *why = "";
+
+		if (now != kit && host::LevelSettings_Set(kind, &wanted, "kit", now, &why))
+		{
+			changed = true;
+		}
+	}
+	else
+	{
+		char const *why = "";
+
+		if (form.enemy != SettingOf(kind, wanted, "EnemyGenerated") && host::LevelSettings_Set(kind, &wanted, "EnemyGenerated", form.enemy, &why))
+		{
+			changed = true;
+		}
+	}
+
+	if (!changed)
+	{
+		LevelSettingsSay(title + ": nothing changed, so nothing was written");
+		return;
+	}
+
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	char const *why = "";
+	host::LevelSettingsResult const result = host::LevelSettings_Write(open, kind, wanted, &why);
+
+	if (result != host::LevelSettingsResult::Done)
+	{
+		std::string const words = title + ": " + host::LevelSettingsWords(result) + (why && why[0] ? std::string(" (") + why + ")" : std::string());
+
+		LevelSettingsSay(words);
+		DialogMessage(words);
+		return;
+	}
+
+	LoadTheObjectListAgain();   // the level was swapped in whole: every Chunk * held before is gone
+	LevelSettingsSay(title + (form.had ? ": written" : ": written (made, with the game's defaults for the rest)"));
+}
+
+static void LevelSettingsFormShow(LevelSettingsForm const &form)
+{
+	bool const environment = form.kind == host::LevelSettingsKind::Environment;
+	LevelSettingsBox const *const boxes = BoxesOf(form.kind);
+	host::DialogFormSpec spec;
+	int32_t y = 32;   // under the title bar, where Strategy's own forms start their first row (StrategyFormOpen's top)
+
+	spec.title = TitleOf(form.kind);
+	spec.width = 600;
+
+	auto label = [&spec](std::string const &words, int32_t x, int32_t top, int32_t width)
+	{
+		host::DialogWidget part;
+
+		part.type = host::DialogWidgetType::Label;
+		part.text = words;
+		part.box = { x, top, width, 18 };
+		spec.widgets.push_back(part);
+	};
+	auto number = [&spec](std::string const &words, int32_t x, int32_t top)
+	{
+		host::DialogWidget part;
+
+		part.type = host::DialogWidgetType::Edit;
+		part.text = words;
+		part.most = 10;
+		part.box = { x, top, 80, 18 };
+		spec.widgets.push_back(part);
+	};
+	// a check box is the toolkit's 16-pixel box alone, its words a label beside it (as Strategy's own forms make their Check rows; the box draws no words: Bishop 11-27, green-1)
+	auto check = [&spec](std::string const &words, bool on, int32_t x, int32_t top)
+	{
+		host::DialogWidget part, beside;
+
+		part.type = host::DialogWidgetType::Check;
+		part.checked = on;
+		part.group = -1;
+		part.box = { x, top, 16, 16 };
+		spec.widgets.push_back(part);
+		beside.type = host::DialogWidgetType::Label;
+		beside.text = words;
+		beside.box = { x + 22, top, 280, 18 };
+		spec.widgets.push_back(beside);
+	};
+
+	if (environment)
+	{
+		label("Sky Colour (0-255)", 12, y, 300);
+		y += 24;
+
+		for (size_t i = 0; i < 3; i++)
+		{
+			label(boxes[i].label, 30, y, 80);
+			number(form.typed[i], 120, y);
+			label(RangeWords(form.kind, boxes[i].field), 210, y, 200);
+			y += 22;
+		}
+
+		check(kEnvironmentTicks[0].label, form.ticks[0], 30, y);
+		y += 30;
+		label("Predator stuff", 12, y, 300);
+		y += 24;
+
+		for (size_t t = 1; t <= 5; t++)
+		{
+			check(kEnvironmentTicks[t].label, form.ticks[t], 30, y);
+			y += 22;
+		}
+
+		label(boxes[3].label, 30, y, 80);
+		number(form.typed[3], 120, y);
+		label(RangeWords(form.kind, boxes[3].field), 210, y, 200);
+		y += 30;
+		label("Marine stuff", 12, y, 300);
+		y += 24;
+		check(kEnvironmentTicks[6].label, form.ticks[6], 30, y);
+		y += 34;
+
+		// our own notes (Drake's read of the game, projload.cpp:295-305, d3d_render.cpp:3182)
+		label("In a network game (deathmatch, co-op, skirmish), the host's settings replace the Pistol,", 12, y, 576);
+		label("Plasma Caster, Disc and Medicomp, and can take the spears away. The grappling hook, the", 12, y + 18, 576);
+		label("jetpack, the sky and the stars always stay this map's.", 12, y + 36, 576);
+		label("With Stars on, a starfield is drawn in place of the cloud sky, so the sky colour isn't seen.", 12, y + 60, 576);
+		y += 86;
+	}
+	else
+	{
+		for (size_t i = 0; i < kLevelSettingsBoxes; i++)
+		{
+			label(boxes[i].label, 12, y, 270);
+			number(form.typed[i], 290, y);
+			label(RangeWords(form.kind, boxes[i].field), 380, y, 200);
+			y += 22;
+
+			// a value the map holds outside the range: kept unless it's changed, and said so (the owner's answer Q2)
+			int32_t lowest = 0, highest = 0;
+			int32_t const held = SettingOf(form.kind, form.settings, boxes[i].field);
+
+			if (host::LevelSettings_Range(form.kind, boxes[i].field, &lowest, &highest) && (held < lowest || held > highest))
+			{
+				if (strcmp(boxes[i].field, "HiveStateChangeTime") == 0 && held > highest)
+				{
+					// whose limit it is (Bishop 11-27, after game PR #313 merged): AvPx works the hive out right up to 32,767 s, but Steam AvP keeps 1999's sum, and maps must
+					// work in Steam too, so a NEW value stays within 1 to 4,681 (the owner's rule)
+					label("This map holds " + std::to_string(held) + ", past " + std::to_string(highest) + ", where Steam AvP's sum overflows", 30, y, 556);
+					label("and the hive turns sooner than it says (AvPx works it out right).", 30, y + 18, 556);
+				}
+				else
+				{
+					label("This map holds " + std::to_string(held) + ", outside the range the form takes", 30, y, 556);
+					label("(" + std::to_string(lowest) + " to " + std::to_string(highest) + ").", 30, y + 18, 556);
+				}
+
+				label("It's kept as the map has it unless you change it.", 30, y + 36, 556);
+				y += 58;
+			}
+		}
+
+		label("Enemy Generated", 12, y, 270);
+
+		host::DialogWidget choice;
+
+		choice.type = host::DialogWidgetType::Combo;
+		choice.items = { "Aliens", "Marines" };
+		choice.selected = form.enemy == 1 ? 1 : 0;
+		choice.text = choice.items[(size_t)choice.selected];   // the box shows the picked row's words, as Strategy's own forms set them
+		choice.box = { 290, y, 120, 20 };
+		spec.widgets.push_back(choice);
+		y += 34;
+
+		// our own notes (Drake's read of the game: bh_generator.cpp:150, npcsetup.cpp:435-491, pldnet.cpp:533-541)
+		label("0 per minute turns every generator off, those with their own rate too.", 12, y, 576);
+		label("Enemy Generated is the species for generators with no weights set; a generator with", 12, y + 24, 576);
+		label("weights makes what its weights say.", 12, y + 42, 576);
+		label("In multiplayer nothing replaces these: they run in single player and on the host of a", 12, y + 66, 576);
+		label("co-op or skirmish game; a deathmatch has no generators.", 12, y + 84, 576);
+		y += 110;
+	}
+
+	if (!form.had)
+	{
+		label("This map holds none of these: the game uses the values shown, and a change makes them.", 12, y, 576);
+		y += 26;
+	}
+
+	host::DialogWidget ok, cancel;
+
+	ok.type = host::DialogWidgetType::Button;
+	ok.text = "OK";
+	ok.answer = host::kDialogOk;
+	ok.box = { spec.width / 2 - 110, y + 8, 100, 22 };
+	cancel.type = host::DialogWidgetType::Button;
+	cancel.text = "Cancel";
+	cancel.answer = host::kDialogEscape;
+	cancel.box = { spec.width / 2 + 10, y + 8, 100, 22 };
+	spec.widgets.push_back(ok);
+	spec.widgets.push_back(cancel);
+	spec.height = y + 70;
+
+	host::Dialogs_Form(spec, [form](int32_t answer, std::vector<host::DialogWidget> const &widgets) { LevelSettingsFormLeft(form, answer, widgets); });
+}
+
+static void LevelSettingsFormOpen(host::LevelSettingsKind kind)
+{
+	OpenLevelFile *const open = LevelObjects_OpenForEdit();
+	std::string const title = TitleOf(kind);
+
+	if (!open || !open->Level())
+	{
+		LevelSettingsSay(title + ": no level is held to work on");
+		return;
+	}
+
+	LevelSettingsForm form;
+	char const *why = "";
+
+	form.kind = kind;
+
+	host::LevelSettingsResult const result = host::LevelSettings_Read(open, kind, &form.settings, &form.had, &why);
+
+	if (result != host::LevelSettingsResult::Done)
+	{
+		std::string const words = title + ": " + host::LevelSettingsWords(result) + (why && why[0] ? std::string(" (") + why + ")" : std::string());
+
+		LevelSettingsSay(words);
+		DialogMessage(words);
+		return;
+	}
+
+	LevelSettingsBox const *const boxes = BoxesOf(kind);
+
+	for (size_t i = 0; i < kLevelSettingsBoxes; i++)
+	{
+		form.shown.push_back(std::to_string(SettingOf(kind, form.settings, boxes[i].field)));
+	}
+
+	form.typed = form.shown;
+
+	if (kind == host::LevelSettingsKind::Environment)
+	{
+		int32_t const kit = SettingOf(kind, form.settings, "kit");
+
+		for (size_t t = 0; t < kLevelSettingsTicks; t++)
+		{
+			form.ticks.push_back((kit & (int32_t)kEnvironmentTicks[t].bit) != 0);
+		}
+	}
+	else
+	{
+		form.enemy = SettingOf(kind, form.settings, "EnemyGenerated");
+	}
+
+	LevelSettingsFormShow(form);
+}
+
 void StrategyModeCommand(int32_t command)
 {
 	OpenLevelFile *const open = LevelObjects_OpenForEdit();
 	uint8_t id[8];
+
+	// Level > AvP Environment Settings... / AvP Generator Properties... (ours: menu-status.json "extras"; inteng has no such command): the level's own settings as forms
+	if (command == host::kLevelSettingsEnvironmentCommand || command == host::kLevelSettingsGeneratorsCommand)
+	{
+		LevelSettingsFormOpen(command == host::kLevelSettingsEnvironmentCommand ? host::LevelSettingsKind::Environment : host::LevelSettingsKind::Generators);
+		return;
+	}
 
 	// Mode > Object selection (0x4): FUN_00524e90's switch sends command 4 to its common tail (0x525242) and nothing else: it does NOTHING. The page that holds the item (set 6, page 2 of bar A) is never shown either: the only calls that switch a page
 	// (+0x18) are at 0x524bc3 (start, page 0), 0x525725 (page 1) and 0x5267e3 (page 0). So the item exists on a page no key or click reaches, and does nothing; there is no mode to build (strategy-menu-structure.md).

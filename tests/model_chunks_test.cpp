@@ -548,6 +548,37 @@ static void LevelSettingsAreTheGames()
 	Check(hive->offset == 16 && hive->unit == Unit::Seconds && strcmp(hive->label, "Hive State Change Time (seconds)") == 0,
 	      "the hive's state change time is in seconds, at +16");
 
+	// THE RANGES THE FORMS KEEP TO (2026-11-27, Vasquez; design-vasquez-oi-envgen.md, Drake's read at the avpx pin): each refused value gives
+	// its own field's reason, and each reason is a different one, so a mapper reads why THIS number can't be that
+	Field const *const most = FindChunkField(*generators, "MaxNPCSOnLevel");
+	Field const *const perMinute = FindChunkField(*generators, "NPCSPerMinute");
+	Field const *const change = FindChunkField(*generators, "NPCAcceleration");
+
+	if (!most || !perMinute || !change)
+	{
+		Check(false, "the generator fields these checks use are in the table");
+		return;
+	}
+
+	Check(spears->limit == Limit::Editor && strcmp(Verdict(*spears, 0), "") == 0 && strcmp(Verdict(*spears, 32767), "") == 0 &&
+	      Verdict(*spears, 32768) == spears->why && Verdict(*spears, -1) == spears->why && spears->why[0] != 0,
+	      "the spears are 0-32,767: the game multiplies the count by 65,536 into a signed number (inventory.cpp:621), so more overflows");
+	Check(most->limit == Limit::Editor && strcmp(Verdict(*most, 0), "") == 0 && strcmp(Verdict(*most, 255), "") == 0 &&
+	      Verdict(*most, 256) == most->why && Verdict(*most, -1) == most->why && most->why[0] != 0,
+	      "Max NPCs Generated is 0-255, the game's own clamp (bh_generator.cpp:496-499)");
+	Check(perMinute->limit == Limit::Editor && strcmp(Verdict(*perMinute, 0), "") == 0 && strcmp(Verdict(*perMinute, 255), "") == 0 &&
+	      Verdict(*perMinute, 256) == perMinute->why && Verdict(*perMinute, -1) == perMinute->why && perMinute->why[0] != 0,
+	      "NPCs Generated Per Minute is 0-255, the game's own clamp (bh_generator.cpp:500-503)");
+	Check(change->limit == Limit::Editor && strcmp(Verdict(*change, 0), "") == 0 && strcmp(Verdict(*change, 255), "") == 0 &&
+	      Verdict(*change, 256) == change->why && Verdict(*change, -1) == change->why && change->why[0] != 0,
+	      "Change in Generation Rate Per Minute is 0-255, the game's own clamp (bh_generator.cpp:504-507)");
+	Check(hive->limit == Limit::Editor && strcmp(Verdict(*hive, 1), "") == 0 && strcmp(Verdict(*hive, 4681), "") == 0 &&
+	      Verdict(*hive, 4682) == hive->why && Verdict(*hive, 0) == hive->why && Verdict(*hive, -5) == hive->why && hive->why[0] != 0,
+	      "the hive time is 1-4,681 s: the game works it out as (s x 65,536 x 7) / 8 in a signed number (bh_generator.cpp:675), so more overflows, "
+	      "and at 0 it flips every frame");
+	Check(strcmp(spears->why, most->why) != 0 && strcmp(most->why, perMinute->why) != 0 && strcmp(perMinute->why, change->why) != 0 &&
+	      strcmp(change->why, hive->why) != 0 && strcmp(hive->why, red->why) != 0, "each of those ranges has its own reason");
+
 	// ENVSDSCL: one double, held to the loader's own 0.5-1 and real-number rule (environment_chunk.cpp:161-169)
 	Check(SizeOf(*scale, Bytes(8, 0, "", 0)) == SizeCheck::Right && SizeOf(*scale, Bytes(7, 0, "", 0)) == SizeCheck::TooShort &&
 	      scaleField->storage == Storage::Float64, "the scale is 8 bytes: one double");

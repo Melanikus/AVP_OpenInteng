@@ -863,6 +863,9 @@ bool EditorBar_Run(int32_t action, EditorHostState *host)
 		case host::IntengWork::TextureImport:
 			host->textureImport = true;
 			break;
+		case host::IntengWork::SoundLoad:
+			host->soundLoad = true;
+			break;
 		case host::IntengWork::ViewLighting:
 			host->viewMode = 4;
 			break;

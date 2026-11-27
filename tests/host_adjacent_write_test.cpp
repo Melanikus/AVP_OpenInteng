@@ -119,6 +119,11 @@ static host::ModuleSnapshot const *Find(std::vector<host::ModuleSnapshot> const 
 	return nullptr;
 }
 
+// A list made on the spot is gone when its line ends, and a pointer Find gave into it would be read after it was freed: that was this test's crash
+// (exit 139 after its 31 checks, 11-18 to 11-27; the address sanitizer found it reading freed memory in the INFO block at the end). So such a list
+// can't be given to Find at all: keep it in a list with a name first. (Added 2026-11-27 by Melanikus (Drake).)
+static host::ModuleSnapshot const *Find(std::vector<host::ModuleSnapshot> const &&all, int32_t index) = delete;
+
 static std::vector<int32_t> Members(host::ModuleSnapshot const &one)
 {
 	std::vector<int32_t> out;
@@ -470,7 +475,8 @@ int main(int argc, char **argv)
 
 			if (host::AdjacentWriteBack(&open, current, list, &counts) == host::AdjacentWriteResult::Done)
 			{
-				host::ModuleSnapshot const *const written = Find(Snapshots(&open), current);
+				std::vector<host::ModuleSnapshot> const afterThisOne = Snapshots(&open);
+				host::ModuleSnapshot const *const written = Find(afterThisOne, current);
 
 				if (written && written->adjacency.size() == 1 && (written->adjacency[0].flags != 0 || written->adjacency[0].point[0] != 0 || written->adjacency[0].point[2] != 0))
 				{

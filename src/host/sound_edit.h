@@ -86,4 +86,9 @@ namespace host
 	// refuses in a file name (< > : " | ? * \), an empty part, or a folder part starting with '.' (the finder skips such folders) is left out, as is one of 256 letters or more or more than
 	// 32 folders deep; the same name twice (a file in two fastfiles) is given once. At most `most`.
 	std::vector<std::string> SoundEdit_WavNamesFromFiles(std::string const &prefix, std::vector<std::string> const &files, size_t most = 4096);
+
+	// THE TWO LISTS TOGETHER (Dietrich 2026-11-27, the sound import, NAMED: inteng lists only the raw folder): the raw folder's names first, as they are, then each
+	// of the fastfiles' that the raw folder doesn't have (any capitals: the game finds a name in either), at most `most` in all. So a level's sounds loaded into a
+	// raw folder of a stock folder's name (sound_import.h) don't hide the stock sounds the game still plays from its packs
+	std::vector<std::string> SoundEdit_MergeNames(std::vector<std::string> const &raw, std::vector<std::string> const &packed, size_t most = 4096);
 }

@@ -92,4 +92,30 @@ namespace model
 
 		return list;
 	}
+
+	bool MessageNumbers_HasStockFilm(int32_t number)
+	{
+		for (size_t i = 0; i < kStockFilmCount; i++)
+		{
+			if (kStockFilms[i].number == number)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	bool MessageNumbers_IsStockFilm(int32_t number, uint64_t size, std::string const &sha256)
+	{
+		for (size_t i = 0; i < kStockFilmCount; i++)
+		{
+			if (kStockFilms[i].number == number && kStockFilms[i].size == size && kStockFilms[i].sha256 && sha256 == kStockFilms[i].sha256)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
 }

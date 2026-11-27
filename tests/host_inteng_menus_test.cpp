@@ -164,9 +164,21 @@ static void TestTheTablesAreInteng()
 		"its rows do what they did (Strategy Data's screen, with and without textures); the cascade's own item does nothing (BAR-12)");
 
 	const char *const placementTitles[] = { "Mode", "Object", "Create", "Alt Locations", "Misc" };
-	size_t const placementCounts[] = { 3, 10, 8, 6, 7 };
+	size_t const placementCounts[] = { 3, 10, 9, 6, 7 };
 
-	Check(MenusAre(6, placementTitles, placementCounts, 5), "object placement's bar is inteng's: Mode 3, Object 10, Create 8, Alt Locations 6, Misc 7 records (a cascade's item and its rows each one)");
+	Check(MenusAre(6, placementTitles, placementCounts, 5), "object placement's bar is inteng's with the owner's Load sound...: Mode 3, Object 10, Create 9 (inteng's 8 and Load sound...), Alt Locations 6, Misc 7 records (a cascade's item and its rows each one)");
+
+	// THE OWNER'S ADDITION (2026-11-27, the sound import): Load sound..., right under inteng's Sound, ours (its number past inteng's records), and it loads sounds
+	IntengMenu const *const create = kIntengScreens[6].count > 2 ? &kIntengScreens[6].menus[2] : nullptr;
+	size_t sound = create ? create->count : 0;
+
+	for (size_t i = 0; create && i < create->count; i++)
+	{
+		sound = strcmp(create->items[i].name, "Sound") == 0 ? i : sound;
+	}
+
+	Check(create && sound + 1 < create->count && strcmp(create->items[sound + 1].name, "Load sound...") == 0 && create->items[sound + 1].work == IntengWork::SoundLoad &&
+		(create->items[sound + 1].action & 0xffff) >= 0xff00, "Create's Load sound... sits right under Sound, is ours (its number past inteng's records) and loads sounds");
 	Check(kIntengScreens[4].count == 9, "module linking's bar has its 9 titles");
 
 	bool blankGone = ItemNamed(4, "") == nullptr;
@@ -426,8 +438,9 @@ static void TestTheBuiltScreens()
 
 	// pages live for game kind 0, the titles on the first bar and on the second (row 2, page 0); Waypoint's first bar is inteng's 3 and ONE of ours, "Alien auto waypoint" (the named
 	// addition, checked by name below), and its second bar (mode 0's right-click pop-up) inteng's 3 and TWO of ours, Delete Waypoints and Delete All Waypoints (by name below too);
-	// Texture Map's first bar is inteng's 6 and ONE of ours, "Import" (the RIM import page's piece 2, 2026-11-23; by name below)
-	const Want wants[] = { { "Strategy Data", 6, 4, 8 }, { "Path", 2, 2, 6 }, { "Waypoint", 8, 4, 5 }, { "Texture Map", 7, 7, 11 }, { "Hierarchy", 2, 7, 7 }, { "Track Editing", 13, 3, 0 } };
+	// Texture Map's first bar is inteng's 6 and ONE of ours, "Import" (the RIM import page's piece 2, 2026-11-23; by name below); Strategy Data's first bar is inteng's 4 and ONE
+	// of ours, "Level" (the level's own settings, the owner's answer Q1 of 2026-11-27; by name below)
+	const Want wants[] = { { "Strategy Data", 6, 5, 8 }, { "Path", 2, 2, 6 }, { "Waypoint", 8, 4, 5 }, { "Texture Map", 7, 7, 11 }, { "Hierarchy", 2, 7, 7 }, { "Track Editing", 13, 3, 0 } };
 	bool counts = true, numbers = true, inBar = true;
 
 	for (const Want &want : wants)
@@ -511,6 +524,26 @@ static void TestTheBuiltScreens()
 		strcmp(textureMap->menus[6].items[0].name, "Import texture...") == 0 && textureMap->menus[6].items[0].work == IntengWork::TextureImport &&
 		textureMap->menus[6].items[0].tag == IntengTag::None;
 	Check(imported, "Texture Map's first bar: inteng's Mode, Options, Misc, Anim, Copy Texturing and Selection, then the named addition \"Import\" (Import texture..., working)");
+
+	// THE NAMED ADDITION on Strategy Data's first bar (Vasquez 2026-11-27; the owner's answer Q1: the level's own settings in Strategy mode's menu; menu-status.json extras):
+	// inteng's own four titles first and unchanged, then ONE menu of ours, "Level", whose two items are the old editor's (cencon's) two dialogs, each a Strategy command of ours
+	// (level_settings.h: 0x7340 and 0x7341, which inteng doesn't have), working (no tag)
+	const IntengScreen *const strategyBar = Built("Strategy Data");
+	char const *const strategyInteng[4] = { "Mode", "Find Object", "Find Errors", "Misc" };
+	bool level = strategyBar && strategyBar->count == 5;
+
+	for (size_t m = 0; level && m < 4; m++)
+	{
+		level = strcmp(strategyBar->menus[m].title, strategyInteng[m]) == 0;
+	}
+
+	level = level && strcmp(strategyBar->menus[4].title, "Level") == 0 && strategyBar->menus[4].count == 2 &&
+		strcmp(strategyBar->menus[4].items[0].name, "AvP Environment Settings...") == 0 && strategyBar->menus[4].items[0].command == 0x7340 &&
+		strcmp(strategyBar->menus[4].items[1].name, "AvP Generator Properties...") == 0 && strategyBar->menus[4].items[1].command == 0x7341 &&
+		strategyBar->menus[4].items[0].work == IntengWork::Strategy && strategyBar->menus[4].items[1].work == IntengWork::Strategy &&
+		strategyBar->menus[4].items[0].tag == IntengTag::None && strategyBar->menus[4].items[1].tag == IntengTag::None;
+	Check(level, "Strategy Data's first bar: inteng's Mode, Find Object, Find Errors and Misc, then the named addition \"Level\" (AvP Environment Settings... 0x7340 and "
+	      "AvP Generator Properties... 0x7341, Strategy commands, working)");
 
 	// THE NAMED ADDITIONS on Waypoint's second bar (the owner 11-21, through Bishop: "be able to select and delete Waypoint mapping by module, group of modules or envronment",
 	// "Waypoint mode's bar"; waypoint_delete.h, menu-status.json extras): inteng's own three first and unchanged (Edit Module 0x19, Add Module 0x1a, Remove Module 0x1b), then

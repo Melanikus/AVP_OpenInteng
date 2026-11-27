@@ -1,0 +1,84 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-27, the SOUND IMPORT, the owner: "On sound, we need a import drag drop/load in the sound mode (under object placement?)";
+# AvP-docs director/design-dietrich-sound-import-export-map.md section 4, approved by the owner via Bishop 11-27). A WAV dropped on the editor's window while on
+# Object Placement is checked (the game's own limits) and copied, byte for byte, into the level's sound folder in the data folder: sound\<the level's SOUNDDIR>\.
+# Only the file goes there; the level gets the name when a sound picks it in its Edit (inteng's own window, unchanged). Invasion keeps its stock folder
+# env\Invasion (the owner's Q3 answer: a level keeps a stock folder and gets its own pack at export).
+# - The same file again: taken as it is ("already"), nothing written. A file of the same name with OTHER bytes: never written over, named.
+# - A stock name: alienpres11-8.wav is one of Invasion's own sounds (fastfile\Snd17.FFL holds sound\Env\Invasion\alienpres11-8.wav). Loaded, with a WARNING: Steam
+#   AvP opens a pack before a loose file, so it plays the stock sound, not this one (modding: warn, never block).
+# - Sound Edit's list holds BOTH: the loaded file, and the stock names from the fastfiles (before, the folder's files only, once the folder existed).
+# THE SOUNDS: made fresh by sound-import\make-wavs.js (the repository holds none), each named file by the make-level line below.
+# RED on exe-cache/77fb1621.exe (bishop-int: no import): the drop says the WAV "is not a picture the editor takes", and nothing is copied.
+# changes-data
+make-level node -e "const [m,d,...l]=process.argv.slice(1);const fs=require('fs'),p=require('path');for(const x of l){const [to,n]=x.split('=');const f=p.join(d,to);fs.mkdirSync(p.dirname(f),{recursive:true});fs.writeFileSync(f,require(m).WavBytes(n));}" "{scenariodir}sound-import\make-wavs.js" {datadir} import/zzboom.wav=zzboom.wav import/zzstereo.wav=zzstereo.wav import/alienpres11-8.wav=alienpres11-8.wav import2/zzboom.wav=zzboom-other.wav
+make-level node -e "require('fs').writeFileSync(process.argv[1],'not a sound')" {datadir}/import/notes.txt
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- a WAV and another file dropped TOGETHER: nothing taken, said to drop them apart (Vasquez's review SHOULD 1, 11-27: the texture import's words used to
+# tell the WAV that a video goes in Video mode)
+drop-file {datadir}/import/zzstereo.wav {datadir}/import/notes.txt
+wait 600
+expect-status sounds and other files dropped together
+verify node -e "process.exit(require('fs').existsSync(process.argv[1])?1:0)" {datadir}/sound/env/Invasion/zzstereo.wav
+
+# ---- the drop: loaded into sound\env\Invasion, byte for byte
+drop-file {datadir}/import/zzboom.wav
+wait 600
+expect-status Loaded zzboom.wav into sound\env\Invasion
+verify node -e "const fs=require('fs');const a=fs.readFileSync(process.argv[1]),b=fs.readFileSync(process.argv[2]);process.exit(a.equals(b)?0:1)" {datadir}/import/zzboom.wav {datadir}/sound/env/Invasion/zzboom.wav
+picture 1
+
+# ---- the same file again: taken as it is
+drop-file {datadir}/import/zzboom.wav
+wait 600
+expect-status zzboom.wav is in sound\env\Invasion already
+
+# ---- the same name, other bytes: never written over, and the first file is still there as it was
+drop-file {datadir}/import2/zzboom.wav
+wait 600
+expect-status Not loaded
+expect-status other bytes
+verify node -e "const fs=require('fs');const a=fs.readFileSync(process.argv[1]),b=fs.readFileSync(process.argv[2]);process.exit(a.equals(b)?0:1)" {datadir}/import/zzboom.wav {datadir}/sound/env/Invasion/zzboom.wav
+
+# ---- a stereo file: loaded (the stereo question is the owner's retest, the design's section 4)
+drop-file {datadir}/import/zzstereo.wav
+wait 600
+expect-status Loaded zzstereo.wav into sound\env\Invasion
+
+# ---- a stock name: loaded, with the warning
+drop-file {datadir}/import/alienpres11-8.wav
+wait 600
+expect-status Loaded alienpres11-8.wav into sound\env\Invasion
+expect-status Steam AvP plays the stock alienpres11-8.wav
+verify node -e "const fs=require('fs');process.exit(fs.existsSync(process.argv[1])?0:1)" {datadir}/sound/env/Invasion/alienpres11-8.wav
+
+# ---- picked in a sound's Edit: the list holds the loaded file AND a stock name only the fastfiles have (alwater.wav, Snd17.FFL: the game's loader keeps its
+# names in small letters, FastFile.cpp)
+camera -27851 -14055 85500 0 0
+wait 400
+click-bar Create > Sound
+expect-dialog Name Object
+form-field 1 sndZ
+click-button OK
+expect-no-dialog
+key E
+expect-dialog Sound Edit -
+click-combo 1
+click-combo-row zzboom.wav
+expect-dialog-text zzboom.wav|5|10|0|100
+click-combo 1
+click-combo-row alwater.wav
+expect-dialog-text alwater.wav|5|10|0|100
+click-combo 1
+click-combo-row zzboom.wav
+click-button OK
+expect-no-dialog
+picture 2
+
+# ---- the saved copy names it (the level holds the name only)
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_special/verify_special.exe {copy} "sound|sndZ|wav=zzboom.wav"

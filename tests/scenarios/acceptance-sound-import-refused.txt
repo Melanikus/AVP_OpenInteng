@@ -1,0 +1,57 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-27, the SOUND IMPORT's checks, Tao 3: a file from outside is hostile; AvP-docs director/
+# design-dietrich-sound-import-export-map.md section 4). Every WAV dropped on Object Placement is read and checked BEFORE anything is written, against what the
+# game's own reader takes (avpx/3dc/win95/openal_audio.cpp LoadWavFile, openal_shared.h GetALFormat; Rebellion's Psndplat.c LoadWavFromFastFile) and the game's
+# rule for a name from a level (avpx/3dc/level_file_name.h), in Drake's hardened game reader's order and words (game PR 2, drake-wavguard 813164b9:
+# wav_chunks.h), the file's own number after them. Each file below differs from a good one in ONE thing (sound-import\make-wavs.js), and each is refused
+# on the status line with its own reason; nothing is written into the level's sound folder.
+# RED on exe-cache/77fb1621.exe (bishop-int: no import): each drop says the WAV "is not a picture the editor takes".
+# changes-data
+make-level node -e "const [m,d,...l]=process.argv.slice(1);const fs=require('fs'),p=require('path');for(const x of l){const [to,n]=x.split('=');const f=p.join(d,to);fs.mkdirSync(p.dirname(f),{recursive:true});fs.writeFileSync(f,require(m).WavBytes(n));}" "{scenariodir}sound-import\make-wavs.js" {datadir} import/zz24.wav=zz24.wav import/zzadpcm.wav=zzadpcm.wav import/zzlistfirst.wav=zzlistfirst.wav import/zzfmt20.wav=zzfmt20.wav import/zzshort.wav=zzshort.wav import/zznotwav.wav=zznotwav.wav import/zzhuge.wav=zzhuge.wav import/zz..dots.wav=zz..dots.wav
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+drop-file {datadir}/import/zz24.wav
+wait 600
+expect-status Not loaded: zz24.wav
+expect-status its samples are neither 8 nor 16 bits (this one: 24 bits)
+
+drop-file {datadir}/import/zzadpcm.wav
+wait 600
+expect-status Not loaded: zzadpcm.wav
+expect-status it isn't plain PCM sound (its format tag isn't 1) (this one: format 2)
+
+drop-file {datadir}/import/zzlistfirst.wav
+wait 600
+expect-status Not loaded: zzlistfirst.wav
+expect-status its first chunk isn't its format
+
+drop-file {datadir}/import/zzfmt20.wav
+wait 600
+expect-status Not loaded: zzfmt20.wav
+expect-status its format isn't the 16 bytes of plain PCM
+
+drop-file {datadir}/import/zzshort.wav
+wait 600
+expect-status Not loaded: zzshort.wav
+expect-status it says it holds more sound than the file has
+
+drop-file {datadir}/import/zznotwav.wav
+wait 600
+expect-status Not loaded: zznotwav.wav
+expect-status it doesn't start with RIFF
+
+drop-file {datadir}/import/zzhuge.wav
+wait 2000
+expect-status Not loaded: zzhuge.wav
+expect-status it holds more sound than the game takes from one WAV
+
+drop-file {datadir}/import/zz..dots.wav
+wait 600
+expect-status Not loaded: zz..dots.wav
+
+# nothing of them was written
+verify node -e "const fs=require('fs'),p=require('path');const d=process.argv[1];const bad=['zz24','zzadpcm','zzlistfirst','zzfmt20','zzshort','zznotwav','zzhuge','zz..dots'].filter(n=>fs.existsSync(p.join(d,n+'.wav')));if(bad.length)console.log('written: '+bad.join(' '));process.exit(bad.length?1:0)" {datadir}/sound/env/Invasion
+picture 1

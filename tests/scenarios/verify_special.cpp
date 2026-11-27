@@ -6,7 +6,7 @@
 // fields: for a sound wav, volume, pitch, soundflags, probability; for generator and badguy type, subtype, texture, extra1, extra2, flagson (hex bits that must be set), flagsoff (hex bits that must be
 // clear), rate, increase, limit, weight0 .. weight14; for a particle ptype, time, pprob, speed, quantity, pflagson, pflagsoff, and its sound (OP-135) psound (0 / 1), psoundwav, psoundindex,
 // psoundinner, psoundouter (mm), psoundvolume, psoundpitch, psoundflags. A check with only a name passes when the object is there. It passes
-// (exit 0) when every check does; the lines say what was found.
+// (exit 0) when every check does; the lines say what was found. One more check is no object: sounddir|<folder>, the level's own sound folder (SOUNDDIR).
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,6 +18,7 @@
 #include <windows.h>
 
 #include "chunk.hpp"
+#include "environment_chunk.hpp"   // Sound_Directory_Chunk: the level's sound folder (the sounddir check)
 #include "mishchnk.hpp"
 #include "level_file.h"
 #include "special_objects_edit.h"
@@ -127,6 +128,16 @@ static bool Value(SpecialObject const &o, std::string const &field, long long *o
 	return false;
 }
 
+// The level's own sound folder, REBENVDT > SOUNDDIR, or "" when it has none (as track_edit.cpp's TrackLevelSoundDirectory reads it)
+static std::string LevelSoundDirectory(OpenLevelFile *file)
+{
+	File_Chunk *const level = file ? file->Level() : nullptr;
+	Chunk_With_Children *const env = level ? dynamic_cast<Chunk_With_Children *>(level->lookup_single_child("REBENVDT")) : nullptr;
+	Sound_Directory_Chunk *const directory = env ? dynamic_cast<Sound_Directory_Chunk *>(env->lookup_single_child("SOUNDDIR")) : nullptr;
+
+	return directory && directory->directory ? std::string(directory->directory) : std::string();
+}
+
 int main(int argc, char **argv)
 {
 	setvbuf(stdout, 0, _IONBF, 0);
@@ -159,6 +170,16 @@ int main(int argc, char **argv)
 		if (parts.size() < 2)
 		{
 			Check(false, std::string("a check needs a kind and a name: ") + argv[i]);
+			continue;
+		}
+
+		// sounddir|<folder>: the level's own sound folder (REBENVDT > SOUNDDIR, read as track_edit.cpp reads it) is exactly <folder>, capitals and all. (Added
+		// 2026-11-27 by Melanikus (Dietrich): the sound import gives a level with no folder its own, Custom\<level>.)
+		if (parts[0] == "sounddir")
+		{
+			std::string const holds = LevelSoundDirectory(&file);
+
+			Check(holds == parts[1], "the level's sound folder (SOUNDDIR) is \"" + parts[1] + "\" (the copy holds \"" + holds + "\")");
 			continue;
 		}
 

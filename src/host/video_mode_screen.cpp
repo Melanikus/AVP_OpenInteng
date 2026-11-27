@@ -24,6 +24,7 @@
 #include "panel_pass.h"     // PanelPass_MenuWidth, PanelPass_MenuFontHeight, kPanelPassLineHeight
 #include "state_line.h"
 #include "text_scale.h"     // the editor's own pixels to the window's
+#include "sound_import.h"            // a WAV dropped off the Video screen: the sound import (Object Placement's)
 #include "texture_import_screen.h"   // a picture dropped off the Video screen: the RIM import page
 #include "video_drop.h"
 #include "video_mode.h"
@@ -425,7 +426,35 @@ static bool DropTakenNow()
 	return true;
 }
 
-void host::VideoModeScreen_DropHandle(void *drop, bool onTheScreen)
+// Files dropped off the Video screen: all WAVs are the sound import's (loaded on Object Placement, said where they go elsewhere); anything else the texture
+// import's (Dietrich 2026-11-27)
+static void Dropped(std::vector<std::wstring> const &paths, size_t listed, size_t screen)
+{
+	if (host::SoundImport_AllSounds(paths))
+	{
+		if (host::SoundImport_IsPlacement(screen))
+		{
+			host::SoundImport_Dropped(paths, listed);
+		}
+		else
+		{
+			host::SoundImport_DroppedElsewhere(paths);
+		}
+
+		return;
+	}
+
+	// sounds and other files together: said to drop them apart (Vasquez's review SHOULD 1)
+	if (host::SoundImport_AnySound(paths))
+	{
+		host::SoundImport_DroppedMixed();
+		return;
+	}
+
+	host::TextureImportScreen_Dropped(paths, listed);
+}
+
+void host::VideoModeScreen_DropHandle(void *drop, size_t screen)
 {
 	if (!drop)
 	{
@@ -442,18 +471,19 @@ void host::VideoModeScreen_DropHandle(void *drop, bool onTheScreen)
 		return;
 	}
 
-	// OFF THE VIDEO SCREEN, A PICTURE IS A TEXTURE (the RIM import page, texture_import_screen.h; the owner 11-23): its own checks, then its form; anything else is
-	// said where it goes (a film: Video mode)
-	if (!onTheScreen)
+	// OFF THE VIDEO SCREEN, A WAV IS A SOUND (the sound import, sound_import.h; the owner 11-27): loaded on Object Placement, said where it goes elsewhere. A
+	// PICTURE IS A TEXTURE (the RIM import page, texture_import_screen.h; the owner 11-23): its own checks, then its form; anything else is said where it goes (a
+	// film: Video mode)
+	if (!VideoModeScreen_Is(screen))
 	{
-		TextureImportScreen_Dropped(paths, paths.size() + more);
+		Dropped(paths, paths.size() + more, screen);
 		return;
 	}
 
 	VideoMode_Dropped(paths, paths.size() + more);
 }
 
-void host::VideoModeScreen_DropText(char const *text, size_t bytes, bool onTheScreen)
+void host::VideoModeScreen_DropText(char const *text, size_t bytes, size_t screen)
 {
 	std::vector<std::wstring> const paths = text && bytes <= kMostDropText ? VideoDrop_FromHarness(text, bytes) : std::vector<std::wstring>();
 
@@ -462,9 +492,9 @@ void host::VideoModeScreen_DropText(char const *text, size_t bytes, bool onTheSc
 		return;
 	}
 
-	if (!onTheScreen)
+	if (!VideoModeScreen_Is(screen))
 	{
-		TextureImportScreen_Dropped(paths, paths.size());   // (as a real drop: a picture is a texture off the Video screen)
+		Dropped(paths, paths.size(), screen);   // (as a real drop: off the Video screen, a WAV is a sound and a picture a texture)
 		return;
 	}
 

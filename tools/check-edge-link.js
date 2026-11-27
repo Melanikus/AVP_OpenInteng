@@ -48,6 +48,21 @@ const kAllowed = new Map([
 	['d3dx9', 'Direct3D 9\'s helpers, the game\'s shaders and textures'],
 	['OpenAL32', 'sound effects (R-INT-10, R-INT-15): built from the pinned AvPx source and scanned there'],
 	['libsmackerdec_static', 'Barry\'s Smacker decoder, for the FMV preview (the owner\'s order 11-21): built from the pinned AvPx source by win32/VS2026/libsmackerdec_static.vcxproj'],
+	// Added 2026-11-27 by Melanikus (Frost), on Bishop's order: the twelve the editor had come to take code from since this list was last
+	// changed (54918d9d, 11-21), with the video and picture imports, while nothing ran this check, so nobody saw it fail. Each was read in
+	// the map (the functions named) and found in the code that calls it.
+	['comdlg32', 'Windows\' Open dialog (GetOpenFileNameW): the picture to import (texture_import_screen.cpp) and the video (video_mode.cpp)'],
+	['ole32', 'COM, the way into Windows\' own dialogs, picture decoders and Media Foundation (CoCreateInstance: first_launch_screen.cpp, image_import.cpp, media_parsers.cpp, video_import.cpp)'],
+	['uuid', 'the ID of Windows\' folder picker (CLSID_FileOpenDialog, first_launch_screen.cpp) and GUID_NULL'],
+	['windowscodecs', 'Windows\' own picture decoders, WIC (PNG, BMP and JPEG: image_import.cpp): a user\'s picture decoded as hostile input by Windows\' code, not ours'],
+	['mfplat', 'Media Foundation, Windows\' own video reader, for Video mode\'s import (video_import.cpp, media_parsers.cpp)'],
+	['mfreadwrite', 'Media Foundation\'s source reader (MFCreateSourceReaderFromMediaSource: video_import.cpp)'],
+	['mfuuid', 'Media Foundation\'s IDs: the video formats and the decoder kinds (media_parsers.cpp, video_import.cpp)'],
+	['wmcodecdspuuid', 'the ID of Windows\' own sound resampler (CLSID_CResamplerMediaObject: video_import.cpp), which makes a video\'s sound the rate a message film plays at'],
+	['wintrust', 'Windows\' signature check (WinVerifyTrust and the catalog lookups: media_parsers.cpp): a video is parsed only by a decoder Microsoft signed, checked on this PC only (ba78588d)'],
+	['crypt32', 'the signer\'s name from that signature (CertGetNameStringW: media_parsers.cpp), so the decoder must be Microsoft\'s'],
+	['libsmackerenc_static', 'the Smacker encoder, for Video mode\'s message films: built from the pinned AvPx source (avpx/dependencies/libsmackerenc) by win32/VS2026/libsmackerenc_static.vcxproj'],
+	['videomake_static', 'the one library that makes a user\'s video into a message film, linked by Video mode and by mp4-to-smk.exe: our own source (media_parsers.cpp, smk_encoder.cpp, video_import.cpp, video_make.cpp) built by win32/VS2026/videomake_static.vcxproj'],
 ]);
 
 // The map and the program must come from the same link: a map left over from an older link would prove nothing about this program

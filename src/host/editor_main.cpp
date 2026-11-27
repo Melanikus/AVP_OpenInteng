@@ -144,6 +144,7 @@
 #include "first_launch_screen.h"   // the first-launch setup: no game found, so the user is asked where it is
 #include "video_drop.h"          // kVideoDropTag: the harness's drop-file
 #include "video_mode.h"          // VideoMode_Browse: the Video screen's Load > Browse...
+#include "sound_import.h"            // SoundImport_Browse: Object Placement's Create > Load sound...
 #include "texture_import_screen.h"   // TextureImportScreen_Browse: Texture Map's Import > Import texture...
 #include "all_stock_maps_screen.h"   // Waypoint > Alien auto waypoint > All stock maps: its menu waits, its Esc
 #include "shapes_start_screen.h"     // shapes part 3: the FOUND form at the start, the player's maps searched for object shapes, one a frame
@@ -947,7 +948,6 @@ std::string chooserText;                  // its lines, shown over the level
 void ShapeChooserCommand(int32_t what, size_t *screen);
 void CameraPositionSaved(int slot);   // FUN_004704d0 (below, with the camera slots)
 bool ShapeChooserKey(WPARAM key);
-void ShapeChooserPick(std::string const &typed);
 void LinkExit();
 void DeleteModuleLinks(bool all);
 void AddReverseLinksCommand(bool all);
@@ -7036,6 +7036,11 @@ void RunAction(int32_t id)
 		host::VideoMode_Browse(editorWindow);   // the Video screen's Load > Browse...: Windows' own Open dialog, the file taken as a drop of one (video_mode.h)
 	}
 
+	if (host.soundLoad)
+	{
+		host::SoundImport_Browse(editorWindow);   // Object Placement's Create > Load sound...: Windows' own Open dialog, each WAV taken as a drop (sound_import.h)
+	}
+
 	if (host.textureImport)
 	{
 		host::TextureImportScreen_Browse();   // Texture Map's Import > Import texture...: Windows' own Open dialog, the picture taken as a drop of one (texture_import_screen.h)
@@ -9750,13 +9755,13 @@ static LRESULT CALLBACK EditorWindowProc(HWND window, UINT message, WPARAM wPara
 			// the harness's drop-file (video_drop.h kVideoDropTag): its paths as a real drop hands them over, taken the same way (video_mode_screen.h), in a -picture run only
 			if (NobodyWatching() && lParam && ((COPYDATASTRUCT const *)lParam)->dwData == host::kVideoDropTag && ((COPYDATASTRUCT const *)lParam)->lpData)
 			{
-				host::VideoModeScreen_DropText((char const *)((COPYDATASTRUCT const *)lParam)->lpData, ((COPYDATASTRUCT const *)lParam)->cbData, host::VideoModeScreen_Is(barScreen));
+				host::VideoModeScreen_DropText((char const *)((COPYDATASTRUCT const *)lParam)->lpData, ((COPYDATASTRUCT const *)lParam)->cbData, barScreen);
 				return TRUE;
 			}
 			break;
 		case WM_DROPFILES:
-			// files dragged from Explorer and let go over the window: the Video screen's, refused in words on any other (video_mode_screen.h); the handle is released there
-			host::VideoModeScreen_DropHandle((void *)wParam, host::VideoModeScreen_Is(barScreen));
+			// files dragged from Explorer and let go over the window: the Video screen's; off it a WAV is the sound import's and a picture the texture import's (video_mode_screen.h); the handle is released there
+			host::VideoModeScreen_DropHandle((void *)wParam, barScreen);
 			return 0;
 		case kHarnessCamera:
 			if (NobodyWatching() && theCamera && wParam <= 5)
@@ -13086,9 +13091,6 @@ void PromptWords(std::string *title, std::string *hint)
 		case kPromptTextureMap:
 			*title = textureAsk >= 4 ? TextureAnimTitle(textureAsk) : textureAsk == 1 ? "Select polygons based on angle away from vertical. Please enter an angle from 0 to 180" : textureAsk == 3 ? "Select number of repeats of texture to use: type the repeats across and down, each 1 to 10 or inf (now " + std::string(textureRepeatX == 11 ? "inf" : std::to_string(textureRepeatX)) + " " + (textureRepeatY == 11 ? "inf" : std::to_string(textureRepeatY)) + "; 1 1 is the picture itself)" : "Arrow Selection Step Size: type the vertical step and the horizontal step (whole numbers, at least 1; now " + std::to_string(textureArrowVertical) + " " + std::to_string(textureArrowHorizontal) + ")";
 			break;
-		case kPromptChooserPick:
-			*title = "Select shape: type its place in the list (1 to the count) or part of its name";
-			break;
 		case kPromptWaypointExtents:
 			*title = "Edit Extents: type the box as six numbers (lowest x y z, highest x y z, in millimetres), or aim x y z, or reset";
 			break;
@@ -13260,12 +13262,6 @@ void RunThePrompt()
 	if (kind == kPromptStrategyMessage)
 	{
 		RunStrategyMessage(typed);
-		return;
-	}
-
-	if (kind == kPromptChooserPick)
-	{
-		ShapeChooserPick(typed);
 		return;
 	}
 

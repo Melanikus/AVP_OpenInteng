@@ -6,7 +6,8 @@ with Visual Studio's C++ tools, in Windows PowerShell or PowerShell 7.
 A test passes when it builds, its program gives back 0 within its time, and it prints no FAILED line. A test that says it was given
 nothing to test fails.
 
-A test whose tests/<name>.runargs asks for the game's own levels or models ({LEVELS}, {MODELS}, {LEVEL:Name}) needs Rebellion's files,
+A test whose tests/<name>.runargs asks for the game's own levels, models or fastfile folder ({LEVELS}, {MODELS}, {LEVEL:Name}, {FASTFILES},
+{FASTFILE:Name}: the team's runner copies those files beside the test's program, so the test opens no path it was given) needs Rebellion's files,
 which a public machine must never hold. It is not run here and never counted as passed: it is listed by name, as one that runs on a
 machine where the game is installed (the team runs every one of them there before each hand-over). Without those, its runargs may ask
 only for {OUT}: a scratch folder of the test's own, made afresh; any other word fails the test, as one this runner can't give.
@@ -85,7 +86,7 @@ foreach ($test in $tests) {
     if (Test-Path -LiteralPath $runargs) {
         $lines = @(Get-Content -LiteralPath $runargs)
         $words = @($lines | Where-Object { $_ -notmatch '^#' } | Select-Object -First 1)
-        if ($words.Count -gt 0 -and "$($words[0])" -match '\{LEVELS\}|\{MODELS\}|\{LEVEL:') { $needsGame.Add($name); continue }
+        if ($words.Count -gt 0 -and "$($words[0])" -match '\{LEVELS\}|\{MODELS\}|\{LEVEL:|\{FASTFILES\}|\{FASTFILE:') { $needsGame.Add($name); continue }
         # {OUT} is a scratch folder of the test's own, made afresh for each run (as the team's tools/hicks/run-editor-tests.sh gives it: Frost,
         # 2026-11-23, Bishop 2's card, CI run 45216374248 failed host_shape_import_read_test and host_shape_search_test, whose runargs is "{OUT}"
         # alone). Any other argument isn't known here, and a test run without what it asks for would test nothing, so it fails.
