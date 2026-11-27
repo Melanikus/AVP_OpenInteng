@@ -15,6 +15,12 @@ expect-dialog Select Object
 click-choice-is Fan1
 expect-no-dialog
 wait 400
+# S-K75-C (OI #118): Copy Strategy with the Fan as the source: a Fan's +0x10 is 0x404550, which returns 0 (S-KC-7): "Copying not supported for this strategy",
+# and nothing is copied
+click-win 500 300 right
+click-popup 2
+expect-status Copying not supported for this strategy
+wait 800
 click-win 500 300 right
 click-popup 3
 wait 400

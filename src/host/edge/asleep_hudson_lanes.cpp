@@ -6,6 +6,7 @@
 // answer. The editor doesn't compile 3dc/avp/hudson_lanes.cpp itself.
 
 #include "3dc.h"
+#include "plain_write.h"
 #include "inline.h"
 #include "module.h"
 #include "strategy_def.h"
@@ -40,25 +41,25 @@
 #include <deque>
 #include <map>
 
-// 3dc/avp/hudson_lanes.cpp:1669: if ((!HudsonRunIsOn && !SayMarksAreOn) || !asked || !block || !block->SBdataptr || !block->DynPtr)
+// 3dc/avp/hudson_lanes.cpp:1670: if ((!HudsonRunIsOn && !SayMarksAreOn) || !asked || !block || !block->SBdataptr || !block->DynPtr)
 void HudsonLanes_AlienAfter(const STRATEGYBLOCK *block)
 {
 	return;
 }
 
-// 3dc/avp/hudson_lanes.cpp:1527: if ((!HudsonRunIsOn && !SayMarksAreOn) || !asked || !block || !block->SBdataptr || !block->DynPtr)
+// 3dc/avp/hudson_lanes.cpp:1528: if ((!HudsonRunIsOn && !SayMarksAreOn) || !asked || !block || !block->SBdataptr || !block->DynPtr)
 void HudsonLanes_AlienBefore(const STRATEGYBLOCK *block)
 {
 	return;
 }
 
-// 3dc/avp/hudson_lanes.cpp:1584: if ((!HudsonRunIsOn && !SayMarksAreOn) || !asked || !alien || alien->I_SBtype != I_BehaviourAlien || !alien->SBdataptr)
+// 3dc/avp/hudson_lanes.cpp:1585: if ((!HudsonRunIsOn && !SayMarksAreOn) || !asked || !alien || alien->I_SBtype != I_BehaviourAlien || !alien->SBdataptr)
 void HudsonLanes_HuntWent(const STRATEGYBLOCK *alien, int way)
 {
 	return;
 }
 
-// 3dc/avp/hudson_lanes.cpp:1600: if ((!HudsonRunIsOn && !SayMarksAreOn) || !asked || !npc)
+// 3dc/avp/hudson_lanes.cpp:1601: if ((!HudsonRunIsOn && !SayMarksAreOn) || !asked || !npc)
 void HudsonLanes_Searched(const STRATEGYBLOCK *npc, const VECTORCH *target, const VECTORCH *heading, int found)
 {
 	return;

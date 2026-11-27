@@ -1,6 +1,6 @@
-// video_make.h: WHAT IS DONE TO A READ VIDEO before it is encoded, shared by mp4-to-smk.exe and the editor's Video mode (the owner's, 11-22: "cut start and ending, turn
-// volume up and down"), so the two never differ (one library both link: videomake_static.vcxproj). Written 2026-11-22 by Melanikus (Dietrich) for AVP_OpenInteng, from
-// mp4-to-smk.cpp's own level code (Vasquez's, 11-18). AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
+// video_make.h: WHAT IS DONE TO A READ VIDEO before it is encoded, for the editor's Video mode (the owner's, 11-22: "cut start and ending, turn
+// volume up and down"), in its own library (videomake_static.vcxproj). Written 2026-11-22 by Melanikus (Dietrich) for AVP_OpenInteng, its level code
+// Vasquez's (11-18). AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // The clip comes from video_import.h (frames of 128 x 96 at 15 a second, its sound at 22050 Hz, 1470 samples a frame, in 8 bits and in 16); it goes to smk_encoder.h.
 // THE CUT keeps a run of whole frames and exactly their sound. THE LEVEL brings the sound to AvP's own message videos' loudness (or keeps the source's), then the
@@ -19,7 +19,7 @@ namespace host
 {
 	// The sound's loudness by default (the owner, 11-18: "the same level of the game's videos"): AvP's own message videos' median RMS, in 8-bit steps. Measured 11-18 by
 	// Dietrich over all 53 stock FMVs\message*.smk, decoded by Barry's libsmackerdec (AvP-docs\tools\dietrich\smk-levels): median 22.18 (-15.2 dBFS), lowest 16.47,
-	// highest 53.95; message101 21.97. (Moved here from mp4-to-smk.cpp.)
+	// highest 53.95; message101 21.97.
 	double const kVideoMakeStockLevel = 22.18;
 
 	// The Video mode's volume: a step of 3 dB (half again as loud, near enough), from -24 dB to +24 dB around the level
@@ -34,7 +34,7 @@ namespace host
 	bool VideoMake_Cut(VideoImportClip *clip, int32_t fromFrame, int32_t toFrame);
 
 	// THE LEVEL: the sound brought to `level` (RMS in 8-bit steps, 1 .. 128; 0 or less keeps the source's own), then volumeDb more or less (held to
-	// +-kVideoMakeMostVolumeDb), never so loud that its loudest sample leaves 8 bits; *words (when given) says what was done, as mp4-to-smk prints it
+	// +-kVideoMakeMostVolumeDb), never so loud that its loudest sample leaves 8 bits; *words (when given) says what was done, as the Video mode says it
 	// ("sound level 9.4 -> 22.2 of 128 (RMS in 8-bit steps; target 22.2, gain x2.36, held so nothing clips)"). A clip with no sound is left as it is.
 	void VideoMake_Level(VideoImportClip *clip, double level, double volumeDb, std::string *words);
 

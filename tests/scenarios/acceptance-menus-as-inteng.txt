@@ -10,7 +10,8 @@ expect-screen Construction
 # ---- the hub's File: Write C File is built (Frost 11-18): with no object selected nothing happens, as inteng (0x445870: DAT_00631234 == 1 only); the hub has no item
 # left that is not built, so Adjacent Modules' Copy from VModules below is the one whose click says why (Module Linking's Link with AVP is built: Vasquez 11-18)
 click-bar File
-expect-field droprows Quit|Save|Write C File|Write Asc File|Write Asc File (Doors closed)
+# the hub File: inteng's 4, the owner's Save (11-16) and Export map... (11-27, export_map.h) under it
+expect-field droprows Quit|Save|Export map...|Write C File|Write Asc File|Write Asc File (Doors closed)
 key Esc
 click-bar File > Write C File
 expect-screen Construction

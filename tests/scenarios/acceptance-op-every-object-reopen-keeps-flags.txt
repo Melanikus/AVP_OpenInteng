@@ -1,0 +1,65 @@
+# ACCEPTANCE (a guard, red by mutation; Vasquez 2026-11-25, Bishop's card for the owner, holding alpha.7: "Every object, always", and Find/Edit/Save must keep every object as it is):
+# A REOPEN AFTER THE VIEW'S OWN COPY KEEPS EVERY OBJECT'S TRUE FLAGS. Derelict opened as a double click: the editor's copy is avp_rifs\OpenedByEditor\Derelict.rif, which a view
+# reload writes the working bytes to and a reopen (reopen-level: LevelReopen_Open, as the shapes search's own reopen) opens AGAIN as the level. The view's own copy, with every placed
+# object in every game, is a separate file (OpenedByEditor\View\Derelict.rif), never opened as the level. If those flags ever went into the editor's copy, the reopened level would
+# hold medbox013/015 as at every difficulty and the next save would write them so: its text lines would say "Difficulty (EMH)" where the file says Easy only.
+# An edit first (medbox010 made a Key, Pass 31), so the screen change writes the working bytes to the editor's copy.
+# RED by mutation (the view's flags written into the editor's copy too, LevelSave_ViewCopy's write made the every-object one): "Difficulty (EMH)" after the reopen.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
+pictures off
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 3000
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is medbox013
+expect-no-dialog
+wait 400
+expect-hierarchy-text Difficulty (E)
+key Back
+wait 300
+# an edit, so the screen change writes the working bytes to the editor's copy (only an edited level is written there): medbox010 (at Medium) made a Key, Pass 31
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is medbox010
+expect-no-dialog
+wait 400
+key E
+expect-dialog Edit object properties
+click-combo 1
+click-combo-row Key
+click-combo 2
+click-combo-row Pass 31 (Never used)
+expect-dialog-text Key|Pass 31 (Never used)
+click-button OK
+expect-no-dialog
+wait 600
+key Back
+wait 300
+click-bar Mode > Exit
+wait 1500
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 1500
+reopen-level
+wait 3000
+state
+expect-screen Object Placement
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is medbox013
+expect-no-dialog
+wait 400
+expect-hierarchy-text medbox013
+expect-hierarchy-text Difficulty (E)
+expect-hierarchy-count 0 Difficulty (EMH)
+key Back
+wait 300
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is medbox015
+expect-no-dialog
+wait 400
+expect-hierarchy-text medbox015
+expect-hierarchy-text Difficulty (E)

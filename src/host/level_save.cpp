@@ -10,7 +10,9 @@
 
 #include <windows.h>
 
+#include "chunk_object.hpp"   // Object_Chunk, Object_Header_Chunk and the header's flag bits (OBJECT_FLAG_*)
 #include "level_file.h"
+#include "mishchnk.hpp"       // File_Chunk::list_objects
 
 namespace host
 {
@@ -255,53 +257,272 @@ namespace host
 		return placed;
 	}
 
+	uint32_t LevelSave_ViewFlags(uint32_t flags)
+	{
+		uint32_t const notAtADifficulty = OBJECT_FLAG_NOTDIFFICULTY1 | OBJECT_FLAG_NOTDIFFICULTY2 | OBJECT_FLAG_NOTDIFFICULTY3;
+		uint32_t const inEveryGame = OBJECT_FLAG_PCLOAD | OBJECT_FLAG_AVPGAMEMODEMARINE | OBJECT_FLAG_AVPGAMEMODEALIEN | OBJECT_FLAG_AVPGAMEMODEPREDATOR;
+
+		return (flags & ~notAtADifficulty) | inEveryGame;
+	}
+
+	namespace
+	{
+		size_t const kChunkHeadBytes = 12;   // a chunk starts with its 8 letters and then its whole size, these 12 bytes included, as 4 bytes (low byte first)
+
+		uint32_t WordAt(std::vector<char> const &bytes, size_t at)
+		{
+			return (uint32_t)(uint8_t)bytes[at] | ((uint32_t)(uint8_t)bytes[at + 1] << 8) | ((uint32_t)(uint8_t)bytes[at + 2] << 16) | ((uint32_t)(uint8_t)bytes[at + 3] << 24);
+		}
+
+		void PutWordAt(std::vector<char> &bytes, size_t at, uint32_t word)
+		{
+			for (int part = 0; part < 4; part++)
+			{
+				bytes[at + part] = (char)(uint8_t)(word >> (8 * part));
+			}
+		}
+
+		// The chunk at `at`, inside a parent that ends at `end`: its whole size, or 0 when it can't be one (fewer than 12 bytes left, or a size smaller than its own head or
+		// reaching past the parent's end)
+		size_t ChunkSizeAt(std::vector<char> const &bytes, size_t at, size_t end)
+		{
+			if (at > end || end - at < kChunkHeadBytes)
+			{
+				return 0;
+			}
+
+			size_t const size = WordAt(bytes, at + 8);
+
+			return size < kChunkHeadBytes || size > end - at ? 0 : size;
+		}
+	}
+
+	size_t LevelSave_EveryPlacedObjectIn(std::vector<char> &bytes)
+	{
+		if (bytes.size() < kChunkHeadBytes || memcmp(bytes.data(), "REBINFF2", 8) != 0)
+		{
+			return 0;
+		}
+
+		size_t const end = ChunkSizeAt(bytes, 0, bytes.size());
+
+		if (end == 0)
+		{
+			return 0;
+		}
+
+		// 1. the walk, writing nothing: where each top-level object's header flags are (the game reads an object's first OBJHEAD1, Object_Chunk::get_header)
+		std::vector<size_t> flagsAt;
+
+		for (size_t at = kChunkHeadBytes; at < end;)
+		{
+			size_t const size = ChunkSizeAt(bytes, at, end);
+
+			if (size == 0)
+			{
+				return 0;   // the level ends inside a chunk: left as it was
+			}
+
+			if (memcmp(&bytes[at], "RBOBJECT", 8) == 0)
+			{
+				for (size_t inner = at + kChunkHeadBytes; inner < at + size;)
+				{
+					size_t const innerSize = ChunkSizeAt(bytes, inner, at + size);
+
+					if (innerSize == 0)
+					{
+						return 0;
+					}
+
+					if (memcmp(&bytes[inner], "OBJHEAD1", 8) == 0)
+					{
+						if (innerSize >= kChunkHeadBytes + 4)
+						{
+							flagsAt.push_back(inner + kChunkHeadBytes);
+						}
+
+						break;
+					}
+
+					inner += innerSize;
+				}
+			}
+
+			at += size;
+		}
+
+		// 2. the flags of each PLACED object made the view's (LevelSave_ViewFlags); nothing else is written
+		size_t changed = 0;
+
+		for (size_t const where : flagsAt)
+		{
+			uint32_t const flags = WordAt(bytes, where);
+			uint32_t const shown = LevelSave_ViewFlags(flags);
+
+			if ((flags & OBJECT_FLAG_PLACED_OBJECT) && shown != flags)
+			{
+				PutWordAt(bytes, where, shown);
+				changed++;
+			}
+		}
+
+		return changed;
+	}
+
+	bool LevelSave_ViewNeedsItsOwnCopy(OpenLevelFile *open)
+	{
+		File_Chunk *const level = open ? open->Level() : nullptr;
+
+		if (!level)
+		{
+			return false;
+		}
+
+		List<Object_Chunk *> objects;
+
+		level->list_objects(&objects);
+
+		for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+		{
+			Object_Header_Chunk *const header = each() ? each()->get_header() : nullptr;
+			uint32_t const flags = header ? (uint32_t)header->flags : 0;
+
+			if ((flags & OBJECT_FLAG_PLACED_OBJECT) && LevelSave_ViewFlags(flags) != flags)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	void LevelSave_ViewsPlacedObjects(OpenLevelFile *open, std::vector<ViewPlacedObject> *out)
+	{
+		File_Chunk *const level = open ? open->Level() : nullptr;
+
+		if (!out)
+		{
+			return;
+		}
+
+		out->clear();
+
+		if (!level)
+		{
+			return;
+		}
+
+		List<Object_Chunk *> objects;
+
+		level->list_objects(&objects);
+
+		for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+		{
+			Object_Chunk *const object = each();
+			Object_Header_Chunk *const header = object ? object->get_header() : nullptr;
+
+			if (!header || !((uint32_t)header->flags & OBJECT_FLAG_PLACED_OBJECT))
+			{
+				continue;
+			}
+
+			ViewPlacedObject one;
+			size_t length = 0;
+
+			static_assert(sizeof(one.id) == sizeof(object->object_data.ID), "an object's ID is 8 bytes");
+			memcpy(one.id, &object->object_data.ID, sizeof(one.id));
+
+			// the name up to its first zero, never past its array (the loader's CopyObjectName always ends it with one)
+			while (length < sizeof(object->object_data.o_name) && object->object_data.o_name[length])
+			{
+				length++;
+			}
+
+			one.name.assign(object->object_data.o_name, length);
+			one.place[0] = object->object_data.location.x;
+			one.place[1] = object->object_data.location.y;
+			one.place[2] = object->object_data.location.z;
+			out->push_back(one);
+		}
+	}
+
+	namespace
+	{
+		// LevelSave_ViewCopy's and LevelSave_ViewEveryObjectCopy's write: the working bytes built (with every placed object in every game when everyObject, *changed saying how
+		// many objects' flags that changed), then the temporary file, read-back and put in place, with no .bak
+		LevelSaveOver WriteTheViewsBytes(OpenLevelFile *open, char const *targetPath, bool everyObject, size_t *changed, std::string *why)
+		{
+			std::string ignored;
+			size_t none = 0;
+
+			why = why ? why : &ignored;
+			changed = changed ? changed : &none;
+			*changed = 0;
+
+			std::string const target = targetPath ? targetPath : "";
+			bool exists = false;
+			LevelSaveOver const usable = TargetIsUsable(open, target, &exists, why);
+
+			if (usable != LevelSaveOver::Saved)
+			{
+				return usable;
+			}
+
+			// 0. the copy's file is a plain file with one name, or nothing yet (F-a; not compared with the level as opened: a level opened with "Open with" stands for this very file)
+			std::vector<char> asItWas;
+			LevelSaveOver const mayWrite = MayWriteOver(open, target, false, &asItWas, why);
+
+			if (mayWrite != LevelSaveOver::Saved)
+			{
+				return mayWrite;
+			}
+
+			// 1. the working bytes, built without changing the open level, in a temporary file in the target's own folder
+			std::string const temporary = target + ".saving";
+			std::vector<char> bytes;
+
+			DeleteFileA(temporary.c_str());
+
+			if (!open->BuildLevel(bytes) || bytes.empty())
+			{
+				*why = "the level as edited could not be put together (its chunks are not paired with its bytes, or not as they were paired): " + target;
+				return LevelSaveOver::WriteFailed;
+			}
+
+			// the view's own copy: every placed object in every game (level_save.h); none to change, nothing to write
+			if (everyObject)
+			{
+				*changed = LevelSave_EveryPlacedObjectIn(bytes);
+
+				if (*changed == 0)
+				{
+					why->clear();
+					return LevelSaveOver::Saved;
+				}
+			}
+
+			// the Windows error said with a refused write is the write's own, as LevelSave_Over's (the delete above leaves "file not found" when there was no ".saving")
+			SetLastError(0);
+
+			if (!WriteNewFile(temporary, bytes))
+			{
+				*why = Reason("the level could not be written", temporary);
+				DeleteFileA(temporary.c_str());
+				return LevelSaveOver::WriteFailed;
+			}
+
+			return PutInPlace(target, temporary, exists, false, asItWas, nullptr, why);
+		}
+	}
+
 	LevelSaveOver LevelSave_ViewCopy(OpenLevelFile *open, char const *targetPath, std::string *why)
 	{
-		std::string ignored;
+		return WriteTheViewsBytes(open, targetPath, false, nullptr, why);
+	}
 
-		why = why ? why : &ignored;
-
-		std::string const target = targetPath ? targetPath : "";
-		bool exists = false;
-		LevelSaveOver const usable = TargetIsUsable(open, target, &exists, why);
-
-		if (usable != LevelSaveOver::Saved)
-		{
-			return usable;
-		}
-
-		// 0. the copy's file is a plain file with one name, or nothing yet (F-a; not compared with the level as opened: a level opened with "Open with" stands for this very file)
-		std::vector<char> asItWas;
-		LevelSaveOver const mayWrite = MayWriteOver(open, target, false, &asItWas, why);
-
-		if (mayWrite != LevelSaveOver::Saved)
-		{
-			return mayWrite;
-		}
-
-		// 1. the working bytes, built without changing the open level, in a temporary file in the target's own folder
-		std::string const temporary = target + ".saving";
-		std::vector<char> bytes;
-
-		DeleteFileA(temporary.c_str());
-
-		if (!open->BuildLevel(bytes) || bytes.empty())
-		{
-			*why = "the level as edited could not be put together (its chunks are not paired with its bytes, or not as they were paired): " + target;
-			return LevelSaveOver::WriteFailed;
-		}
-
-		// the Windows error said with a refused write is the write's own, as LevelSave_Over's (the delete above leaves "file not found" when there was no ".saving")
-		SetLastError(0);
-
-		if (!WriteNewFile(temporary, bytes))
-		{
-			*why = Reason("the level could not be written", temporary);
-			DeleteFileA(temporary.c_str());
-			return LevelSaveOver::WriteFailed;
-		}
-
-		return PutInPlace(target, temporary, exists, false, asItWas, nullptr, why);
+	LevelSaveOver LevelSave_ViewEveryObjectCopy(OpenLevelFile *open, char const *targetPath, size_t *changed, std::string *why)
+	{
+		return WriteTheViewsBytes(open, targetPath, true, changed, why);
 	}
 
 	namespace

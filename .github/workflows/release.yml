@@ -24,9 +24,6 @@
 # refuses a package where one is there or a program names one. As the GNU LGPL 2.1 asks of a library linked in, each one's licence goes in
 # the zip with the program that holds it, and licences/README.txt says where its whole source (as avpx pins it) and the program's own source
 # are, to build it again with your own build of the library.
-# THE VIDEO CONVERTER mp4-to-smk.exe IS NOT IN THE ZIP (the owner, 11-22: "mp4-to-smk.exe is out now we have it in inteng, removed from the
-# zip"): the editor's Video mode makes the films itself, with the same encoder. This run doesn't build it, and the package step refuses one by
-# name. It can still be built from the repository (win32/VS2026/mp4-to-smk.vcxproj), and build.yml builds it for every pull request to main.
 name: Release
 
 on:
@@ -172,7 +169,7 @@ jobs:
           ./tools/build-and-package.ps1 -OutFolder "$env:RUNNER_TEMP\avpx-package"
 
       # The editor's project builds its Smacker libraries first, by its project references (the decoder for its FMV preview, the encoder for its
-      # Video mode, through videomake_static), and links them in: no DLL is pinned, shipped or loaded. mp4-to-smk is not built: it isn't in the zip.
+      # Video mode, through videomake_static), and links them in: no DLL is pinned, shipped or loaded.
       - name: Build the editor
         shell: pwsh
         run: |
@@ -184,6 +181,17 @@ jobs:
             "/p:VcpkgInstalledDir=$env:GITHUB_WORKSPACE/avpx/vcpkg_installed/" /p:VcpkgTriplet=x86-windows
           if ($LASTEXITCODE -ne 0) { throw "The editor didn't build (MSBuild exit $LASTEXITCODE)" }
           if (-not (Test-Path -LiteralPath 'win32\VS2026\Win32\Release\AVP_OpenInteng.exe')) { throw 'MSBuild gave back 0 but made no AVP_OpenInteng.exe' }
+
+      # The editor a player gets takes code only from the libraries it's allowed, and never from the network's (R-INT-15; tools/check-edge-link.js
+      # says how), checked on this very build, as build.yml checks its own (added 2026-11-27 by Melanikus (Frost), from Vasquez's review: the release
+      # build is the one players get). It reads the linker's map this build made (GenerateMapFile, in the project), with the runner's own Node.js.
+      # rebuild-check.yml has no copy of this step: its steps are release.yml's at the commit it rebuilds (.github/rebuild-check.txt), and that
+      # commit's release.yml had none. When it's next pointed at a commit with this step, its copy is made again from that commit, as it says.
+      - name: The editor takes code only from the libraries it is allowed (R-INT-15)
+        shell: pwsh
+        run: |
+          node tools/check-edge-link.js win32/VS2026/Win32/Release/AVP_OpenInteng.map win32/VS2026/Win32/Release/AVP_OpenInteng.exe
+          if ($LASTEXITCODE -ne 0) { throw "check-edge-link.js failed (exit $LASTEXITCODE): the editor takes code from a library not on its list" }
 
       # The package: the editor, and every file of AvPx's bin it asks for (and what those ask for in turn), read from the programs' own
       # import lists by dumpbin. A file that isn't in AvPx's bin is Windows' own. Then the licences of exactly those files, with AvPx's
@@ -360,10 +368,6 @@ jobs:
           if (-not (Test-Path -LiteralPath 'dist\AVP_OpenInteng.ini')) { throw 'dist\AVP_OpenInteng.ini, the settings file the zip ships, is not there' }
           Copy-Item -LiteralPath 'dist\AVP_OpenInteng.ini' -Destination $package
           "AVP_OpenInteng $env:VERSION, commit $env:GITHUB_SHA, AvPx $(git -C avpx rev-parse HEAD)" | Out-File -Encoding ascii (Join-Path $package 'BUILD.txt')
-
-          # THE VIDEO CONVERTER IS OUT (the owner, 11-22: "mp4-to-smk.exe is out now we have it in inteng, removed from the zip"): refused by name,
-          # with the reason, before the guard below would refuse it as a file nobody asked for
-          if (Test-Path -LiteralPath (Join-Path $package 'mp4-to-smk.exe')) { throw 'mp4-to-smk.exe is in the package, but the video converter is out of the zip (the editor makes the films itself, Mode > Video); it is built from the repository, never shipped' }
 
           # The guard: the package holds exactly those and nothing else. At the top: the program AVP_OpenInteng.exe and exactly the DLLs this step
           # copied above, by name (the import walk's and D3DCompiler_43.dll), License.txt, BUILD.txt

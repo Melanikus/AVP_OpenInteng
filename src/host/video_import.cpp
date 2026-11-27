@@ -459,7 +459,7 @@ namespace host
 
 		if ((uint64_t)size.QuadPart > mostBytes)
 		{
-			// (the words name no program's switch: the editor says them too; mp4-to-smk adds how to raise the bound: its ReadRefused)
+			// (the words name no program's switch: the editor says them, and it has none)
 			return Refuse(VideoImportResult::TooBig, say + "" + Narrow(leaf) + " is " + std::to_string((unsigned long long)(size.QuadPart >> 20)) + " MB; at most " +
 				std::to_string((unsigned long long)(mostBytes >> 20)) + " MB is taken", why);
 		}
@@ -522,7 +522,7 @@ namespace host
 			int64_t const tenths = length / tenth + (length % tenth != 0 ? 1 : 0);
 			std::string const said = std::to_string((long long)(tenths / 10)) + (tenths % 10 != 0 ? "." + std::to_string((long long)(tenths % 10)) : std::string());
 
-			// (the words name no program's switch: the editor says them too; mp4-to-smk adds how to raise the bound: its ReadRefused)
+			// (the words name no program's switch: the editor says them, and it has none)
 			return Refuse(VideoImportResult::TooLong, "Import video: it is " + said + " s long; at most " + std::to_string((long long)mostSeconds) + " s is taken", why);
 		}
 
@@ -740,13 +740,6 @@ namespace host
 
 		return "fit: all of " + size + " into " + std::to_string(area[2]) + " x " + std::to_string(area[3]) + ", black bars " +
 			(area[3] < kVideoImportHeight ? "above and below" : "at the sides");
-	}
-
-	bool VideoImport_IsAvpShape(uint32_t width, uint32_t height, uint32_t parWidth, uint32_t parHeight)
-	{
-		int32_t area[4];
-
-		return VideoImport_LetterboxArea(width, height, parWidth, parHeight, area) && area[0] == 0 && area[1] == 0 && area[2] == kVideoImportWidth && area[3] == kVideoImportHeight;
 	}
 
 	bool VideoImport_Letterbox(uint8_t const *top, uint32_t width, uint32_t height, int64_t pitch, uint32_t parWidth, uint32_t parHeight, VideoImportFit fit, uint8_t *out)

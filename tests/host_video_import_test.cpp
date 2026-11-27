@@ -91,7 +91,7 @@ static void TestNames()
 	Check(host::VideoImport_ContentType(L"clip.m4v") != nullptr && wcscmp(host::VideoImport_ContentType(L"clip.m4v"), L"video/mp4") == 0, ".m4v is video/mp4");
 	Check(host::VideoImport_ContentType(L"clip.avi") != nullptr && wcscmp(host::VideoImport_ContentType(L"clip.avi"), L"video/avi") == 0, ".avi is video/avi");
 	Check(host::VideoImport_ContentType(L"clip.wmv") != nullptr && wcscmp(host::VideoImport_ContentType(L"clip.wmv"), L"video/x-ms-wmv") == 0, ".wmv is video/x-ms-wmv");
-	// THE OWNER'S RULING, 11-22 (through Bishop 2): Media Foundation's common containers, in ONE list (this one) for the drop, Browse..., mp4-to-smk and the read. Each one's
+	// THE OWNER'S RULING, 11-22 (through Bishop 2): Media Foundation's common containers, in ONE list (this one) for the drop, Browse... and the read. Each one's
 	// content type is the one whose stream handler is the ending's own in Windows' table (HKLM\SOFTWARE\Microsoft\Windows Media Foundation\ByteStreamHandlers, read on
 	// the owner's PC 2026-11-22: .mov and .3gp have the MPEG-4 handler, .vob .ts .m2ts the MPEG-2 one, .webm the Matroska one)
 	struct Taken { wchar_t const *name; wchar_t const *type; };
@@ -275,8 +275,8 @@ static void TestFiles()
 
 	Check(MakeLongFile(atPath, 4096) && host::VideoImport_ReadFile(atPath, &bytes, &why) == host::VideoImportResult::Done && bytes.size() == 4096, "a file of 4096 bytes of 0 is read (the bound is on size, not on content)");
 
-	// the bound given per read (mp4-to-smk --max-input-mb): a byte under the file refuses it, the words saying the bound and naming no program's switch (the editor
-	// shows these words too, and has no --max-input-mb: Frost's acceptance, 11-22; mp4-to-smk adds its own); the file's own size takes it; 0 and past the most are bad calls
+	// the bound given per read: a byte under the file refuses it, the words saying the bound and naming no program's switch (the editor shows these words, and has
+	// none: Frost's acceptance, 11-22); the file's own size takes it; 0 and past the most are bad calls
 	why.clear();
 
 	bool const underRefused = host::VideoImport_ReadFile(atPath, &bytes, &why, 4095) == host::VideoImportResult::TooBig;
@@ -583,10 +583,6 @@ static void TestCrop()
 	Check(host::VideoImport_CropWindow(640, 480, 1, 1, window) && WindowIs(window, 0, 0, 640, 480), "640 x 480 (4:3): all of it");
 	Check(host::VideoImport_CropWindow(720, 480, 32, 27, window) && WindowIs(window, 90, 0, 540, 480), "720 x 480 with 32:27 pixels (16:9 seen): its middle 540 pixels, 90 cut at each side (" + WindowWords(window) + ")");
 	Check(!host::VideoImport_CropWindow(0, 480, 1, 1, window), "a side of 0: refused");
-
-	Check(host::VideoImport_IsAvpShape(640, 480, 1, 1) && host::VideoImport_IsAvpShape(128, 96, 1, 1) && host::VideoImport_IsAvpShape(720, 480, 8, 9), "4:3 pictures (and 720 x 480 with 8:9 pixels) need no question");
-	Check(!host::VideoImport_IsAvpShape(320, 180, 1, 1) && !host::VideoImport_IsAvpShape(160, 160, 1, 1) && !host::VideoImport_IsAvpShape(161, 120, 1, 1),
-		"16:9, square, and 161 x 120 (a row short of filling) ask");
 
 	std::vector<uint8_t> out(host::kVideoImportFrameBytes, 0x55);
 	int32_t const whole[4] = { 0, 0, host::kVideoImportWidth, host::kVideoImportHeight };

@@ -62,7 +62,7 @@ const kAllowed = new Map([
 	['wintrust', 'Windows\' signature check (WinVerifyTrust and the catalog lookups: media_parsers.cpp): a video is parsed only by a decoder Microsoft signed, checked on this PC only (ba78588d)'],
 	['crypt32', 'the signer\'s name from that signature (CertGetNameStringW: media_parsers.cpp), so the decoder must be Microsoft\'s'],
 	['libsmackerenc_static', 'the Smacker encoder, for Video mode\'s message films: built from the pinned AvPx source (avpx/dependencies/libsmackerenc) by win32/VS2026/libsmackerenc_static.vcxproj'],
-	['videomake_static', 'the one library that makes a user\'s video into a message film, linked by Video mode and by mp4-to-smk.exe: our own source (media_parsers.cpp, smk_encoder.cpp, video_import.cpp, video_make.cpp) built by win32/VS2026/videomake_static.vcxproj'],
+	['videomake_static', 'the one library that makes a user\'s video into a message film, linked by the Video mode: our own source (media_parsers.cpp, smk_encoder.cpp, video_import.cpp, video_make.cpp) built by win32/VS2026/videomake_static.vcxproj'],
 ]);
 
 // The map and the program must come from the same link: a map left over from an older link would prove nothing about this program

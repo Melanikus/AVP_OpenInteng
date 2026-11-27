@@ -1,0 +1,61 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-27, EXPORT MAP, the owner: "we'll add a 'export map' option to inteng that will output the structure to be pasted at
+# the root of AVP (avp_rifs + sounds, FMVs, textures, extra shape_rifs, etc)"; AvP-docs director/design-dietrich-sound-import-export-map.md section 5). The hub's
+# File menu holds one item of ours, "Export map...", under Save. It writes the open level's tree, to paste at the AvP root, into the editor's folder for exports
+# (<Documents>\AVP_OpenInteng\Export\<level>\, by the rule every export of the editor keeps: save_copy.h; a hidden run's is beside the program, {exedir}):
+# the level as avp_rifs\Custom\<level>.RIF (Steam AvP's custom levels: avp_rifs\custom\*.rif), the level's OWN sounds LOOSE as sound\<SOUNDDIR>\<name> (the
+# owner's "Loose WAVs, paste-and-play", 11-27, as the Universal Map Pack installs: no pack, no ffinfo.txt line), and README.txt. Only the sounds a sound of the
+# level names, and that are its own (loaded, loose in its sound folder), go in: zzstereo.wav, loaded but named by no sound, does not; a stock sound (every install
+# has it) does not. A second export of the same level refuses: the tree is never written over.
+# The tree is checked by sound-import\check-export.js.
+# RED on exe-cache/77fb1621.exe (bishop-int): no import (the drops say "is not a picture"), and the hub's File has no "Export map...".
+# changes-data
+make-level node -e "const [m,d,...l]=process.argv.slice(1);const fs=require('fs'),p=require('path');for(const x of l){const [to,n]=x.split('=');const f=p.join(d,to);fs.mkdirSync(p.dirname(f),{recursive:true});fs.writeFileSync(f,require(m).WavBytes(n));}" "{scenariodir}sound-import\make-wavs.js" {datadir} import/zzboom.wav=zzboom.wav import/zzstereo.wav=zzstereo.wav
+verify node -e "require('fs').rmSync(process.argv[1],{recursive:true,force:true})" "{exedir}AVP_OpenInteng\Export\Invasion"
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+
+# ---- two sounds loaded; one placed sound names zzboom.wav
+drop-file {datadir}/import/zzboom.wav
+wait 600
+expect-status Loaded zzboom.wav into sound\env\Invasion
+drop-file {datadir}/import/zzstereo.wav
+wait 600
+expect-status Loaded zzstereo.wav into sound\env\Invasion
+camera -27851 -14055 85500 0 0
+wait 400
+click-bar Create > Sound
+expect-dialog Name Object
+form-field 1 sndZ
+click-button OK
+expect-no-dialog
+key E
+expect-dialog Sound Edit -
+click-combo 1
+click-combo-row zzboom.wav
+click-button OK
+expect-no-dialog
+
+# ---- back on the hub: File > Export map...
+click-bar Mode > Exit
+wait 600
+expect-screen Construction
+click-bar File
+expect-field-has dropboxes Save~
+expect-field-has dropboxes Export map...~
+key Esc
+wait 300
+click-bar File > Export map...
+wait 2000
+expect-status Exported Invasion to AVP_OpenInteng\Export\Invasion
+expect-status the level, 1 sound and 0 textures of its own
+picture 1
+verify cmd /c cd /d "{exedir}AVP_OpenInteng\Export\Invasion" && node "{scenariodir}sound-import\check-export.js"
+
+# ---- again: the tree is there, never written over
+click-bar File > Export map...
+wait 1000
+expect-status Not exported
+expect-status there already

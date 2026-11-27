@@ -3,7 +3,7 @@
 //
 // Part 1 asks media_parsers itself: the signer names, files (Windows' own, another publisher's, a changed copy, this test), the module an object's code is in,
 // the list of formats, and the check refusing a decoder of this test's own that a reader asked to decode made. Part 2 reads videos through video_import, as
-// Video mode and mp4-to-smk do, with things planted for THIS PROCESS ONLY (nothing is written to the registry): decoders of the test's own (one for H.264; and,
+// Video mode does, with things planted for THIS PROCESS ONLY (nothing is written to the registry): decoders of the test's own (one for H.264; and,
 // card 2c, one refusing every type, the next for H.264 and one for AAC, of which a read must make NONE: the editor drives the decoders it chose itself), a
 // byte-stream handler of the test's own for video/mp4, and AVI files whose picture or sound is in a format no decoder of Windows' own reads.
 // Built with RED_FIRST_OLD_IMPORT against the video_import.cpp before media_parsers (5a1f8da8), part 2 alone is built, and each of its cases fails there.

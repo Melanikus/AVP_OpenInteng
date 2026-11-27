@@ -1,12 +1,10 @@
-// smk_encoder.h: a user's video (video_import.h's clip) made into an AvP message video through the Smacker encoder, libsmackerenc.dll (Frost's, LGPL, AvPx's
-// dependencies/libsmackerenc: Barry Duncan's libsmackerdec turned round), and written out. Shared by mp4-to-smk.exe and the editor's Import video (the owner's
-// additions, 11-18). Written 2026-11-18 by Melanikus (Vasquez) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
+// smk_encoder.h: a user's video (video_import.h's clip) made into an AvP message video through the Smacker encoder, libsmackerenc (Frost's, LGPL, AvPx's
+// dependencies/libsmackerenc: Barry Duncan's libsmackerdec turned round), and written out, for the editor's Video mode (the owner's additions, 11-18).
+// Written 2026-11-18 by Melanikus (Vasquez) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
-// The encoder is a DLL with three plain C calls (its SmackerEncoder.h); this file only takes their addresses from a module the caller loaded (pinned: the caller's
-// business) and calls them. No part of the encoder is compiled in.
-// EXCEPT in mp4-to-smk's EncoderBuiltIn build (SMK_ENCODER_BUILT_IN; Bishop's antivirus experiment 11-19, Drake): there the encoder's own sources (avpx
-// dependencies/libsmackerenc, LGPL 2.1) are compiled into that program, SmkEncoder_BuiltIn hands their three calls over, and nothing is loaded, so
-// SmkEncoder_From is left out. That program as a whole is then under the LGPL 2.1; the editor never defines it and stays as above.
+// The encoder has three plain C calls (its SmackerEncoder.h). The editor links the encoder's own sources in (avpx dependencies/libsmackerenc, LGPL 2.1, its
+// own static library: SMK_ENCODER_BUILT_IN), and SmkEncoder_BuiltIn hands their three calls over; nothing is loaded. A unit test built without SMK_ENCODER_BUILT_IN
+// hands its own stand-in calls to SmkEncoder_Encode instead.
 #pragma once
 
 #include <stddef.h>
@@ -45,15 +43,9 @@ namespace host
 		SmackerWordsCall words = nullptr;
 	};
 
-	// The DLL's file name, beside the program that loads it
-	wchar_t const kSmkEncoderDll[] = L"libsmackerenc.dll";
-
 #if defined(SMK_ENCODER_BUILT_IN)
 	// The three calls of the encoder compiled into this program; false only when given nowhere to put them
 	bool SmkEncoder_BuiltIn(SmkEncoder *encoder);
-#else
-	// The three calls taken from a loaded libsmackerenc.dll (void const * is its HMODULE); false with words when one is missing
-	bool SmkEncoder_From(void *module, SmkEncoder *encoder, std::string *why);
 #endif
 
 	// The clip (128 x 96 R G B frames at 15 a second, 22050 Hz 8-bit mono sound or none) encoded: *smk the .smk's bytes. False with the encoder's own words.

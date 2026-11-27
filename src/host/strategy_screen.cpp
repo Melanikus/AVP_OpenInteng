@@ -4040,10 +4040,11 @@ static void LevelSettingsFormShow(LevelSettingsForm const &form)
 			{
 				if (strcmp(boxes[i].field, "HiveStateChangeTime") == 0 && held > highest)
 				{
-					// whose limit it is (Bishop 11-27, after game PR #313 merged): AvPx works the hive out right up to 32,767 s, but Steam AvP keeps 1999's sum, and maps must
-					// work in Steam too, so a NEW value stays within 1 to 4,681 (the owner's rule)
+					// whose limit it is (Bishop 11-27, after game PR #313 merged): Steam AvP keeps 1999's sum, and maps must work in Steam too, so a NEW value stays
+					// within 1 to 4,681 (the owner's rule). The words name Steam's sum only: AvPx works the hive out right up to 32,767 s since #313 (e4bb2c67), but no
+					// AvPx a player has holds it yet (Vasquez's cold read of the alpha.8 notes, Bishop's wording, 11-27), so they make no claim for AvPx
 					label("This map holds " + std::to_string(held) + ", past " + std::to_string(highest) + ", where Steam AvP's sum overflows", 30, y, 556);
-					label("and the hive turns sooner than it says (AvPx works it out right).", 30, y + 18, 556);
+					label("and the hive turns sooner than it says.", 30, y + 18, 556);
 				}
 				else
 				{

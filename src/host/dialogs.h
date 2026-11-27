@@ -65,6 +65,8 @@ namespace host
 		// a FORM's parts that reach past its window (Drake 11-22; the owner: "Menus are drawing on top of each other"): "<part>: right <pixels> ..." separated by |,
 		// each part measured on what is drawn (a label's words as wide as the font draws them), or "none" when every part is inside; "" for no form
 		std::string past;
+		// a FORM's labels' words as drawn, in its order, separated by | (Dietrich 11-27: a form's words can be read by a scenario, the generator form's hive warning first), "" for none
+		std::string labels;
 		std::string window;   // the open form's own window box, "<x> <y> <width> <height>" in the screen's pixels; "" for none
 	};
 

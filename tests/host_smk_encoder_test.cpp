@@ -132,10 +132,6 @@ static void TestEncode()
 
 	Check(!host::SmkEncoder_Encode(empty, clip, &smk, &why), "no encoder: refused");
 
-	host::SmkEncoder found;
-
-	Check(!host::SmkEncoder_From(GetModuleHandleW(nullptr), &found, &why) && why.find("not the Smacker encoder") != std::string::npos, "a module without the three calls is refused (this test's own)");
-	Check(!host::SmkEncoder_From(nullptr, &found, &why), "no module: refused");
 }
 
 static void Put32(std::vector<uint8_t> &header, size_t at, uint32_t value)

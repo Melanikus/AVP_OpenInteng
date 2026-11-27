@@ -8,7 +8,7 @@
 #include <windows.h>
 
 #if defined(SMK_ENCODER_BUILT_IN)
-#include "SmackerEncoder.h"   // the encoder compiled into this program: avpx dependencies/libsmackerenc/include (mp4-to-smk's EncoderBuiltIn build)
+#include "SmackerEncoder.h"   // the encoder compiled into this program: avpx dependencies/libsmackerenc/include (the editor's, SMK_ENCODER_BUILT_IN)
 #endif
 
 #if defined(_M_IX86)
@@ -79,31 +79,6 @@ namespace host
 		encoder->encode = EncodeBuiltIn;
 		encoder->freeEncoded = Smacker_FreeEncoded;
 		encoder->words = Smacker_EncodeWords;
-		return true;
-	}
-#else
-	bool SmkEncoder_From(void *module, SmkEncoder *encoder, std::string *why)
-	{
-		if (!module || !encoder)
-		{
-			*why = "no encoder loaded";
-			return false;
-		}
-
-		HMODULE const loaded = static_cast<HMODULE>(module);
-		SmkEncoder found;
-
-		found.encode = reinterpret_cast<SmackerEncodeCall>(GetProcAddress(loaded, "Smacker_Encode"));
-		found.freeEncoded = reinterpret_cast<SmackerFreeCall>(GetProcAddress(loaded, "Smacker_FreeEncoded"));
-		found.words = reinterpret_cast<SmackerWordsCall>(GetProcAddress(loaded, "Smacker_EncodeWords"));
-
-		if (!found.encode || !found.freeEncoded || !found.words)
-		{
-			*why = "libsmackerenc.dll is not the Smacker encoder (it lacks Smacker_Encode, Smacker_FreeEncoded or Smacker_EncodeWords)";
-			return false;
-		}
-
-		*encoder = found;
 		return true;
 	}
 #endif

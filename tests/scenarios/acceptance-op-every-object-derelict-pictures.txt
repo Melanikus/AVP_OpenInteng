@@ -1,0 +1,97 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-25, Bishop's card for the owner, holding alpha.7: "Every object, always": a map maker sees everything placed, whatever its difficulty, and
+# T still says "Difficulty (E)"): DERELICT'S THREE EASY-ONLY MEDBOXES ARE DRAWN IN OBJECT PLACEMENT, AT THEIR PLACE, AND STILL SAY THEY ARE EASY ONLY. medbox013 / medbox015 /
+# medbox016 (flags 0x63fc00: not at Medium, not at Hard) have IDs 46D9CC8894E4FE00 / 9A76B3DA2172C900 / 11B3B716F259EF00 (the first 8 bytes of md5(rif name + name), the last
+# zero: avpx chunk_object.cpp CalculateID; difficulty-survey.js matched them). The view, the game's loader as a Marine on Medium, never made them.
+# BY ID: the altlocations field (9 objects with 2 or more locations; these are its last three, which its old 400-character cut hid) says each has a block ("drawn none" before),
+# and the viewobjects probe lists none of them (a block within 4 units of its place).
+# BY PICTURE (the camera 45 round and 45 up, 1409 from the medbox's box centre: camera-corner's first spot on the fixed exe, from which the middle click picks it): each spot's
+# picture with the medbox is compared with the same spot's after Object > Find, its text lines ("Difficulty (E)": the level's flags are as they were) and Object > Delete
+# (which loads the view again): the medbox's pixels change. On the red exe the medbox was never drawn, so the two pictures are the same.
+# RED on exe-cache/c580625b.exe (part 1: the measure, the view as before): each altlocations entry "drawn none", each ID in viewobjects "none", the pictures the same.
+#ini ViewObjectsProbe=1
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Derelict.RIF
+pictures on
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 4000
+state
+expect-field-has altlocations 9 objects|
+expect-field-has altlocations 46D9CC8894E4FE00 shown 47194 -13359 -211234 drawn
+expect-field-not-has altlocations 46D9CC8894E4FE00 shown 47194 -13359 -211234 drawn none
+expect-field-has altlocations 9A76B3DA2172C900 shown 9195 1057 -347321 drawn
+expect-field-not-has altlocations 9A76B3DA2172C900 shown 9195 1057 -347321 drawn none
+expect-field-has altlocations 11B3B716F259EF00 shown -101345 32333 -199520 drawn
+expect-field-not-has altlocations 11B3B716F259EF00 shown -101345 32333 -199520 drawn none
+expect-field-not-has viewobjects |46D9CC8894E4FE00
+expect-field-not-has viewobjects |9A76B3DA2172C900
+expect-field-not-has viewobjects |11B3B716F259EF00
+
+# ---- medbox013
+camera 47898 -14355 -211938 512
+camera-look 512 0
+wait 1500
+picture 1
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is medbox013
+expect-no-dialog
+wait 400
+expect-hierarchy-text medbox013
+expect-hierarchy-text Difficulty (E)
+click-bar Object > Delete
+expect-no-dialog
+wait 600
+expect-status Object deleted
+expect-selected 0
+camera 47898 -14355 -211938 512
+camera-look 512 0
+wait 1500
+picture 2
+expect-pixels-changed-since 1 picture 400 270 220 250 0.30
+
+# ---- medbox015
+camera 9899 61 -348025 512
+camera-look 512 0
+wait 1500
+picture 3
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is medbox015
+expect-no-dialog
+wait 400
+expect-hierarchy-text medbox015
+expect-hierarchy-text Difficulty (E)
+click-bar Object > Delete
+expect-no-dialog
+wait 600
+expect-status Object deleted
+expect-selected 0
+camera 9899 61 -348025 512
+camera-look 512 0
+wait 1500
+picture 4
+expect-pixels-changed-since 3 picture 400 270 220 250 0.30
+
+# ---- medbox016
+camera -100641 31337 -200224 512
+camera-look 512 0
+wait 1500
+picture 5
+click-bar Object > Find
+expect-dialog Select Object
+click-choice-is medbox016
+expect-no-dialog
+wait 400
+expect-hierarchy-text medbox016
+expect-hierarchy-text Difficulty (E)
+click-bar Object > Delete
+expect-no-dialog
+wait 600
+expect-status Object deleted
+expect-selected 0
+camera -100641 31337 -200224 512
+camera-look 512 0
+wait 1500
+picture 6
+expect-pixels-changed-since 5 picture 400 270 220 250 0.30

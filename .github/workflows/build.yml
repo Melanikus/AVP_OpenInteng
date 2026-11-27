@@ -59,7 +59,7 @@ jobs:
           submodules: true
 
       # THE ONE COMPILER (avpx/win32/msvc-pin.props says why: alpha.3 shipped what a newer runner compiler made, never what had been scanned):
-      # the libraries (AvPx's vcpkg triplet), the editor and mp4-to-smk are all built with that exact MSVC, installed here from Microsoft's own installer
+      # the libraries (AvPx's vcpkg triplet) and the editor are built with that exact MSVC, installed here from Microsoft's own installer
       - name: Install the one compiler (MSVC, as avpx/win32/msvc-pin.props pins it)
         shell: pwsh
         run: ./avpx/tools/install-msvc-pin.ps1
@@ -114,20 +114,15 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           "Built $exe, $((Get-Item -LiteralPath $exe).Length) bytes, SHA-256 $hash"
 
-      # mp4-to-smk.exe, the tool that makes a user's own video into an AvP message video (win32/VS2026/mp4-to-smk.vcxproj): Windows'
-      # libraries only, so no vcpkg settings. The encoder DLL it loads isn't built here (it comes from AvPx's package, in the release).
-      - name: Build mp4-to-smk
+      # The editor takes code only from the libraries it's allowed, and never from the network's (R-INT-15; tools/check-edge-link.js says how).
+      # It reads the linker's map of the build above (GenerateMapFile, in the project), so it runs right after it, with the runner's own Node.js
+      # (the check uses only its built-in fs and path, and installs nothing). Until 2026-11-27 nothing ran it, and twelve libraries the editor had
+      # come to take code from went six days unlisted.
+      - name: The editor takes code only from the libraries it is allowed (R-INT-15)
         shell: pwsh
         run: |
-          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
-          if (-not $msbuild) { throw 'MSBuild was not found' }
-          & $msbuild win32\VS2026\mp4-to-smk.vcxproj /nologo /v:minimal /m /nodeReuse:false /p:Configuration=Release /p:Platform=Win32 `
-            /p:ImportDirectoryBuildProps=false /p:ImportDirectoryBuildTargets=false
-          if ($LASTEXITCODE -ne 0) { throw "mp4-to-smk didn't build (MSBuild exit $LASTEXITCODE)" }
-          $exe = 'win32\VS2026\Win32\Release\mp4-to-smk.exe'
-          if (-not (Test-Path -LiteralPath $exe)) { throw "MSBuild gave back 0 but made no $exe" }
-          "Built $exe, $((Get-Item -LiteralPath $exe).Length) bytes, SHA-256 $((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant())"
+          node tools/check-edge-link.js win32/VS2026/Win32/Release/AVP_OpenInteng.map win32/VS2026/Win32/Release/AVP_OpenInteng.exe
+          if ($LASTEXITCODE -ne 0) { throw "check-edge-link.js failed (exit $LASTEXITCODE): the editor takes code from a library not on its list" }
 
       # The unit tests that include the libraries vcpkg built (vcpkg_installed/, at the repository's root as their .args say) run here,
       # where those libraries are. The Unit tests jobs run every other one.

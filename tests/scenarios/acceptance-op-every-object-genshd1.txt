@@ -1,0 +1,27 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-25, Bishop's card for the owner, holding alpha.7: "Every object, always": a map maker sees everything placed, whatever its difficulty):
+# EVERY PLACED OBJECT OF GENSHD1 HAS ITS BLOCK IN OBJECT PLACEMENT, AT ITS PLACE. The view is the game's loader, which plays the level as a Marine on Medium and left out
+# 6 placed objects marked not at Medium (AvP-docs/tools/vasquez/difficulty-survey.js --list on the 63 stock levels, 44 in all):
+#   B0B29BE1B7402800 medbox012 (flags 0x63fc00)
+#   4E13E1129189F900 pulse0 (flags 0x63fc00)
+#   95A37109F4945B00 medbox013 (flags 0x63cc00)
+#   4432AAE19BDC7D00 medbox014 (flags 0x63fc00)
+#   76067562DE601C00 smart2 (flags 0x63cc00)
+#   38B92F882E298F00 medbox016 (flags 0x63fc00)
+# The harness's viewobjects field (ViewObjectsProbe=1) names, by ID, each placed object with no block or one away from its place: none of these may be in it, and none at all may
+# lack a block. ("elsewhere" is not checked: doors, switches, tracks and video screens move by design, the same on the red exe.)
+# RED on exe-cache/c580625b.exe (part 1: the measure, the view as before): noblock 6, each of these IDs listed "none".
+#ini ViewObjectsProbe=1
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Genshd1.RIF
+pictures off
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 4000
+state
+expect-field-has viewobjects noblock 0 elsewhere
+expect-field-not-has viewobjects |B0B29BE1B7402800 
+expect-field-not-has viewobjects |4E13E1129189F900 
+expect-field-not-has viewobjects |95A37109F4945B00 
+expect-field-not-has viewobjects |4432AAE19BDC7D00 
+expect-field-not-has viewobjects |76067562DE601C00 
+expect-field-not-has viewobjects |38B92F882E298F00 

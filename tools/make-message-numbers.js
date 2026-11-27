@@ -250,7 +250,9 @@ function numbersTheLevelsUse(gameFolder, containers) {
 
 // The stock films: each FMVs\message<N>.smk's number, and its size and SHA-256 (Vasquez 2026-11-27, for Export map, which leaves Rebellion's own
 // films out: design-vasquez-export-films.md). Each is read whole within kFilmMost, as every file here is; only its size and hash go into the
-// table. A number twice (message5.smk and message05.smk would both say 5) stops the run: the table holds one film a number.
+// table. The pattern takes no leading zero (the game opens message%d.smk, so message05.smk is never one); a number twice, which only names that differ
+// in capitals on a case-sensitive copy can give (message5.smk, MESSAGE5.SMK), stops the run: the table holds one film a number. A folder with no
+// message film stops it too (stock has 53, and an empty list wouldn't compile: Frost's review NITs, 2026-11-27).
 const kFilmMost = 64 * 1024 * 1024;       // the biggest stock message film is a few MB
 function stockFilms(gameFolder) {
 	const films = new Map();
@@ -258,10 +260,11 @@ function stockFilms(gameFolder) {
 		const m = /^message([1-9][0-9]{0,3})\.smk$/i.exec(name);
 		if (!m) continue;
 		const n = +m[1];
-		if (films.has(n)) refuse(`two films in FMVs say the number ${n}`);
+		if (films.has(n)) refuse(`two films in FMVs say the number ${n} (names that differ only in capitals)`);
 		const bytes = readBounded(path.join(gameFolder, 'FMVs', name), kFilmMost, `the film ${name}`);
 		films.set(n, { size: bytes.length, sha256: crypto.createHash('sha256').update(bytes).digest('hex') });
 	}
+	if (films.size === 0) refuse('FMVs holds no message film (message<N>.smk): this is not the stock game\'s folder (it ships 53)');
 	return films;
 }
 

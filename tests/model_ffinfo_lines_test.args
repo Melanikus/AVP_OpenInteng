@@ -1,4 +1,0 @@
-/std:c++17 /EHsc /MD /J /W3 /sdl /FC /O2 /D_MSVC_STL_HARDENING=1 /Iavpx/tests/every_test /FIevery_test.h /DNDEBUG /D_CRT_SECURE_NO_DEPRECATE
-/Isrc/model /Iavpx/3dc
-tests/model_ffinfo_lines_test.cpp
-src/model/ffinfo_lines.cpp

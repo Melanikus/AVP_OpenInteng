@@ -1,4 +1,4 @@
-// The test for src/host/video_make (what is done to a read video before it is encoded: the cut, the level and volume, the save with its backup), shared by mp4-to-smk
+// The test for src/host/video_make (what is done to a read video before it is encoded: the cut, the level and volume, the save with its backup), for the Video mode
 // and the editor's Video mode. Written 2026-11-22 by Melanikus (Dietrich) for AVP_OpenInteng. AVP_OpenInteng's own code: see License.txt, "AVP_OpenInteng's own code".
 //
 // WHY: the owner's Video mode (11-22) cuts a video's start and end and turns its volume, and a slip there is a film a frame short, its sound out of step with its
@@ -131,7 +131,7 @@ static void TestLevel()
 
 	host::VideoMake_Level(&quiet, host::kVideoMakeStockLevel, 0.0, &words);
 	Check(fabs(host::VideoImport_Loudness8(quiet.sound) - host::kVideoMakeStockLevel) < 0.6, "a quiet sound is brought to AvP's level, 22.2 (" + words + ")");
-	Check(words.find("sound level") != std::string::npos && words.find("target 22.2") != std::string::npos, "its words say so, as mp4-to-smk prints them");
+	Check(words.find("sound level") != std::string::npos && words.find("target 22.2") != std::string::npos, "its words say so");
 
 	host::VideoImportClip up = MadeClip(30, 2000);
 	host::VideoMake_Level(&up, host::kVideoMakeStockLevel, 6.0, nullptr);

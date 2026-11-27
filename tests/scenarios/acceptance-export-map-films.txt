@@ -1,0 +1,30 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-27, EXPORT MAP'S FILMS: src/host/export_films.h, design-vasquez-export-films.md, OK'd by Dietrich and Bishop). On Invasion,
+# whose Message strategies play 18 numbers, three files of the mapper's are put in the run's own data copy:
+#   message50.smk and message53.smk: REAL films, each Rebellion's message144.smk (a stock film no stock level plays) with one byte near its end changed, so
+#     each has a valid Smacker header and other bytes: message50.smk lies OVER Rebellion's film 50 (Invasion plays 50); 53 has no stock film;
+#   message54.smk: plain words, no film (Invasion plays 54).
+# Every other film Invasion plays is Rebellion's own, as the stock data copy holds it. The hub's File > Export map... writes the tree with exactly the two
+# films, byte for byte (Rebellion's own left out; message54.smk NOT exported, as the players' film decoder would get a file our own reader refuses: Dietrich's
+# review MUST; no video screen film, which would freeze Invasion's screen in AvPx). The README lists them, WARNS that message50.smk replaces Rebellion's film 50
+# and that message54.smk isn't exported, names the video screen and the numbers that play no film. Checked by export-films\check-export-films.js (in the tree)
+# and a byte compare with the data copy's films.
+# RED on exe-cache/a27f5645.exe (Export map with no films): the tree holds no FMVs, and the status line says no film.
+# changes-data
+# The run's data copy holds no FMVs, so its films come from the depot-checked stock folder (only read): Rebellion's message55.smk and message64.smk as they are
+# (Invasion plays both: they must be LEFT OUT, counted), and message144.smk made into the mapper's 50 and 53.
+make-level node -e "const [s,d]=process.argv.slice(1);const fs=require('fs'),p=require('path');const f=p.join(d,'FMVs');fs.mkdirSync(f,{recursive:true});const src=fs.readFileSync(p.join(s,'message144.smk'));for(const [n,k] of [['message50.smk',1],['message53.smk',2]]){const b=Buffer.from(src);b[b.length-k]^=0x5a;fs.writeFileSync(p.join(f,n),b);}for(const n of ['message55.smk','message64.smk'])fs.copyFileSync(p.join(s,n),p.join(f,n));fs.writeFileSync(p.join(f,'message54.smk'),'plain words, no film');" C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/FMVs {datadir}
+verify node -e "require('fs').rmSync(process.argv[1],{recursive:true,force:true})" "{exedir}AVP_OpenInteng\Export\Invasion"
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+wait 400
+click-bar File > Export map...
+wait 3000
+expect-status Exported Invasion to AVP_OpenInteng\Export\Invasion
+expect-status the level, 0 sounds, 0 textures and 2 films of its own
+expect-status WARNING: 1 film replaces Rebellion's
+expect-status WARNING: 1 film isn't one the game can play, not exported
+picture 1
+verify cmd /c cd /d "{exedir}AVP_OpenInteng\Export\Invasion" && node "{scenariodir}export-films\check-export-films.js"
+# the two films in the tree are the data copy's, byte for byte
+verify node -e "const fs=require('fs');process.exit(fs.readFileSync(process.argv[1]).equals(fs.readFileSync(process.argv[2]))?0:1)" "{datadir}/FMVs/message50.smk" "{exedir}AVP_OpenInteng\Export\Invasion\FMVs\message50.smk"
+verify node -e "const fs=require('fs');process.exit(fs.readFileSync(process.argv[1]).equals(fs.readFileSync(process.argv[2]))?0:1)" "{datadir}/FMVs/message53.smk" "{exedir}AVP_OpenInteng\Export\Invasion\FMVs\message53.smk"

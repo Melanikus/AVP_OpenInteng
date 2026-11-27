@@ -12,11 +12,16 @@
 // link (a reparse point); (10) a symbolic link to another file, where this computer can make one; (11) the save's last look before the replace (LevelFile_StillThese). RED on d2d2d909 (the
 // base, with only this test changed): (6), (7), (8) and (8)'s view copy were written over, 8 checks failed; (9) was refused there only because ReplaceFileA failed on the made-up link
 // kind (Windows error 1920), with no check of its own; (10) is not tried on a computer that can't make a symbolic link.
+// (12) EVERY PLACED OBJECT IN THE VIEW (Vasquez 2026-11-25, the owner's "Every object, always"): LevelSave_ViewFlags' rule; LevelSave_EveryPlacedObjectIn over a made level (only the
+// placed object's flags change) and over six hostile ones (each left byte for byte); the view's own copy of the stock level (11 objects' flags changed, every placed object at the
+// rule's flags, pulse1 at Medium) while the level held, the opened file and the working bytes' copy keep every true flag; a level with nothing to change writes nothing; the
+// harness's list of placed objects. RED: host_level_save_test does not build on the base, whose level_save.h has none of these.
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -202,6 +207,7 @@ static void RemoveTheFolder(std::string const &folder)
 }
 
 static void RunTheCases(std::string const &stock, std::string const &folder);
+static void EveryPlacedObjectCases(std::string const &stock, std::string const &folder);
 
 int main(int argc, char **argv)
 {
@@ -491,4 +497,224 @@ static void RunTheCases(std::string const &stock, std::string const &folder)
 		Check(CreateHardLinkA(lookedOther.c_str(), looked.c_str(), nullptr) != 0 && !LevelFile_StillThese(looked.c_str(), asChars),
 			"(11) the same bytes under a second name do not");
 	}
+
+	EveryPlacedObjectCases(stock, folder);
+}
+
+// ---- (12) EVERY PLACED OBJECT IN THE VIEW (Vasquez 2026-11-25; the owner, holding alpha.7: "Every object, always"; level_save.h, LevelSave_ViewFlags): the rule, the walk over
+// hostile bytes, and the view's own copy of the stock level, which must change only those flags, and only in that copy. Invasion has 229 placed objects, 2 of them not at Medium
+// (pulse1, pulse8), and 11 whose flags the rule changes (AvP-docs/tools/vasquez/difficulty-survey.js; the others are Not Hard only, or have a species not ticked).
+
+// The header flags of the level's object of that name, or ~0 when it has none
+static uint32_t FlagsOfObject(OpenLevelFile *level, char const *name)
+{
+	List<Object_Chunk *> objects;
+
+	if (level && level->Level())
+	{
+		level->Level()->list_objects(&objects);
+	}
+
+	for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+	{
+		if (each() && each()->get_header() && strcmp(each()->object_data.o_name, name) == 0)
+		{
+			return (uint32_t)each()->get_header()->flags;
+		}
+	}
+
+	return ~0u;
+}
+
+// The flags of every top-level object of the level, in its order (placed or not)
+static std::vector<uint32_t> FlagsOfEveryObject(OpenLevelFile *level)
+{
+	std::vector<uint32_t> flags;
+	List<Object_Chunk *> objects;
+
+	if (level && level->Level())
+	{
+		level->Level()->list_objects(&objects);
+	}
+
+	for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+	{
+		flags.push_back(each() && each()->get_header() ? (uint32_t)each()->get_header()->flags : ~0u);
+	}
+
+	return flags;
+}
+
+static std::vector<char> WordBytes(uint32_t word)
+{
+	return { (char)(word & 0xff), (char)((word >> 8) & 0xff), (char)((word >> 16) & 0xff), (char)(word >> 24) };
+}
+
+// A chunk: its 8 letters, its whole size (12 + the payload) and the payload; sizeOverride, when not 0, is written as its size instead (a hostile chunk)
+static std::vector<char> ChunkOf(char const *letters, std::vector<char> const &payload, uint32_t sizeOverride = 0)
+{
+	std::vector<char> chunk(letters, letters + 8);
+	std::vector<char> const size = WordBytes(sizeOverride ? sizeOverride : (uint32_t)(12 + payload.size()));
+
+	chunk.insert(chunk.end(), size.begin(), size.end());
+	chunk.insert(chunk.end(), payload.begin(), payload.end());
+	return chunk;
+}
+
+static std::vector<char> Joined(std::vector<std::vector<char>> const &parts)
+{
+	std::vector<char> all;
+
+	for (std::vector<char> const &part : parts)
+	{
+		all.insert(all.end(), part.begin(), part.end());
+	}
+
+	return all;
+}
+
+// An object with a header of headBytes payload bytes, its flags first (a header of fewer than 4 bytes holds only part of them)
+static std::vector<char> ObjectOf(uint32_t flags, size_t headBytes)
+{
+	std::vector<char> head = WordBytes(flags);
+
+	head.resize(headBytes, 0);
+	return ChunkOf("RBOBJECT", ChunkOf("OBJHEAD1", head));
+}
+
+static void EveryPlacedObjectCases(std::string const &stock, std::string const &folder)
+{
+	// the rule
+	Check(host::LevelSave_ViewFlags(0x0063fc00u) == 0x0003fc00u, "(12) the rule: Derelict's medbox013 (Easy only, every species ticked) is at every difficulty in the view's copy");
+	Check(host::LevelSave_ViewFlags(0x00000400u) == 0x0000bc00u, "(12) the rule: a placed object with no species and no PC load ticked gets PC load and the three species");
+	Check(host::LevelSave_ViewFlags(0x80040401u) == 0x8004bc01u, "(12) the rule: every other bit is as it was");
+
+	// the walk: one placed object to change, one not placed, one placed whose header is too short to hold its flags
+	std::vector<char> const good = ChunkOf("REBINFF2", Joined({ ChunkOf("RIFVERIN", WordBytes(1)), ObjectOf(0x0063fc00u, 64), ObjectOf(0x0063f800u, 64), ObjectOf(0x0063fc00u, 2) }));
+	std::vector<char> walked = good;
+	size_t const changedInGood = host::LevelSave_EveryPlacedObjectIn(walked);
+	std::vector<char> expected = good;
+	size_t const firstFlags = 12 + 16 + 12 + 12;   // the file's head, RIFVERIN (12 + 4), the object's head, its header's head
+	std::vector<char> const shown = WordBytes(0x0003fc00u);
+
+	std::copy(shown.begin(), shown.end(), expected.begin() + firstFlags);
+	Check(changedInGood == 1 && walked == expected, "(12) the walk changes the placed object's flags and not one other byte (not the unplaced one, not the short header): " +
+		std::to_string(changedInGood));
+
+	// hostile bytes: each left exactly as it was, nothing changed
+	struct Hostile
+	{
+		char const *what;
+		std::vector<char> bytes;
+	};
+
+	std::vector<char> notALevel = good;
+	std::vector<char> tooLong = good;
+	std::vector<char> const pastItsObject = ChunkOf("REBINFF2", Joined({ ObjectOf(0x0063fc00u, 64),
+		ChunkOf("RBOBJECT", ChunkOf("OBJHEAD1", std::vector<char>(64, 0), 12 + 65)) }));   // its header says one byte more than its object holds
+	std::vector<char> const sizeZero = ChunkOf("REBINFF2", Joined({ ObjectOf(0x0063fc00u, 64), ChunkOf("RBOBJECT", std::vector<char>(4, 0), 0) }));
+
+	memcpy(notALevel.data(), "REBCRIF1", 8);
+	tooLong.resize(tooLong.size() - 1);   // the file's size now says one byte more than there is
+
+	std::vector<Hostile> const hostile = {
+		{ "bytes that are not an unpacked level", notALevel },
+		{ "a level whose size says more bytes than there are", tooLong },
+		{ "a header reaching past its object (after an object it would have changed)", pastItsObject },
+		{ "a chunk whose size is 0 (after an object it would have changed)", sizeZero },
+		{ "no bytes at all", std::vector<char>() },
+		{ "fewer bytes than a chunk's head", std::vector<char>(good.begin(), good.begin() + 11) },
+	};
+
+	for (Hostile const &one : hostile)
+	{
+		std::vector<char> bytes = one.bytes;
+		size_t const changed = host::LevelSave_EveryPlacedObjectIn(bytes);
+
+		Check(changed == 0 && bytes == one.bytes, std::string("(12) hostile: ") + one.what + ": nothing changed, the bytes exactly as they were");
+	}
+
+	// the stock level: the view's own copy changes those flags, in that copy only
+	std::string const opened = folder + "\\Every-object.rif", viewPath = folder + "\\Every-object-view.rif", plainPath = folder + "\\Every-object-plain.rif",
+		againPath = folder + "\\Every-object-view-again.rif";
+	std::string why;
+
+	Check(CopyFileA(stock.c_str(), opened.c_str(), FALSE) != 0, "(12) a copy of the stock level to open: " + opened);
+
+	std::vector<uint8_t> const asCopied = Bytes(opened);
+	OpenLevelFile level;
+
+	Check(level.Open(opened.c_str()) == LevelOpenResult::Opened && level.Level(), "(12) it opens");
+
+	uint32_t const pulse1 = FlagsOfObject(&level, "pulse1");
+	std::vector<uint32_t> const before = FlagsOfEveryObject(&level);
+
+	Check(pulse1 != ~0u && (pulse1 & OBJECT_FLAG_PLACED_OBJECT) && (pulse1 & OBJECT_FLAG_NOTDIFFICULTY2), "(12) Invasion's pulse1 is a placed object not at Medium");
+	Check(host::LevelSave_ViewNeedsItsOwnCopy(&level), "(12) so the open level needs the view's own copy");
+
+	size_t changed = 0;
+	host::LevelSaveOver const written = host::LevelSave_ViewEveryObjectCopy(&level, viewPath.c_str(), &changed, &why);
+
+	Check(written == host::LevelSaveOver::Saved && changed == 11, "(12) the view's own copy is written, with 11 objects' flags changed: " + std::to_string(changed) + " " + why);
+	Check(GetFileAttributesA((viewPath + ".bak").c_str()) == INVALID_FILE_ATTRIBUTES && GetFileAttributesA((viewPath + ".saving").c_str()) == INVALID_FILE_ATTRIBUTES,
+		"(12) with no .bak and no temporary file");
+
+	{
+		OpenLevelFile viewed;
+
+		Check(viewed.Open(viewPath.c_str()) == LevelOpenResult::Opened && viewed.Level(), "(12) the view's copy loads through the game's loader");
+
+		std::vector<uint32_t> const inView = FlagsOfEveryObject(&viewed);
+		bool eachAsTheRuleSays = inView.size() == before.size() && !before.empty();
+
+		for (size_t i = 0; eachAsTheRuleSays && i < before.size(); i++)
+		{
+			eachAsTheRuleSays = inView[i] == ((before[i] & OBJECT_FLAG_PLACED_OBJECT) ? host::LevelSave_ViewFlags(before[i]) : before[i]);
+		}
+
+		Check(eachAsTheRuleSays, "(12) in it every placed object has the rule's flags and every other object its own (" + std::to_string(inView.size()) + " objects)");
+		Check(!(FlagsOfObject(&viewed, "pulse1") & OBJECT_FLAG_NOTDIFFICULTY2), "(12) pulse1 is at Medium in it");
+		Check(!host::LevelSave_ViewNeedsItsOwnCopy(&viewed), "(12) the view's copy itself needs no copy of its own");
+		Check(host::LevelSave_ViewEveryObjectCopy(&viewed, againPath.c_str(), &changed, &why) == host::LevelSaveOver::Saved && changed == 0 &&
+			GetFileAttributesA(againPath.c_str()) == INVALID_FILE_ATTRIBUTES, "(12) a level with nothing to change: nothing is written");
+	}
+
+	// the level held, the file it was opened from and the working bytes' copy (the OpenedByEditor one a reopen opens again) all keep the true flags
+	Check(FlagsOfObject(&level, "pulse1") == pulse1 && FlagsOfEveryObject(&level) == before, "(12) the level held keeps every object's true flags");
+	Check(Bytes(opened) == asCopied, "(12) the file it was opened from is untouched");
+	Check(host::LevelSave_ViewCopy(&level, plainPath.c_str(), &why) == host::LevelSaveOver::Saved, "(12) the working bytes' copy is written: " + why);
+
+	{
+		OpenLevelFile plain;
+
+		Check(plain.Open(plainPath.c_str()) == LevelOpenResult::Opened && FlagsOfEveryObject(&plain) == before, "(12) and in it every object has its true flags (pulse1 still not at Medium)");
+	}
+
+	// the harness's list: every placed object, pulse1 with its own ID and place
+	std::vector<host::ViewPlacedObject> placed;
+	bool pulse1Listed = false;
+
+	host::LevelSave_ViewsPlacedObjects(&level, &placed);
+
+	{
+		List<Object_Chunk *> objects;
+
+		level.Level()->list_objects(&objects);
+
+		for (LIF<Object_Chunk *> each(&objects); !each.done(); each.next())
+		{
+			if (strcmp(each()->object_data.o_name, "pulse1") != 0)
+			{
+				continue;
+			}
+
+			for (host::ViewPlacedObject const &one : placed)
+			{
+				pulse1Listed = pulse1Listed || (one.name == "pulse1" && memcmp(one.id, &each()->object_data.ID, 8) == 0 && one.place[0] == each()->object_data.location.x &&
+					one.place[1] == each()->object_data.location.y && one.place[2] == each()->object_data.location.z);
+			}
+		}
+	}
+
+	Check(placed.size() == 229 && pulse1Listed, "(12) the placed objects listed: " + std::to_string(placed.size()) + " of Invasion's 229, pulse1 with its ID and place");
 }

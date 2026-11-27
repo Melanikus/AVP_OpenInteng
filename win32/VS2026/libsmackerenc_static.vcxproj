@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- libsmackerenc_static: the Smacker film encoder made from Barry Duncan's libsmackerdec for Open Inteng (avpx\dependencies\libsmackerenc, GNU LGPL 2.1: its
-     COPYING) built as a STATIC LIBRARY, which mp4-to-smk links in. Written 2026-11-21 by Melanikus (Drake) for AVP_OpenInteng, on the owner's order through
+     COPYING) built as a STATIC LIBRARY, which the editor links in (through videomake_static). Written 2026-11-21 by Melanikus (Drake) for AVP_OpenInteng, on the owner's order through
      Bishop: "GET MY DECODER OUT, WORKING", "STATIC LINK, SEPARATE BARRY'S LIBS, TEST IT".
      WHY A LIBRARY OF ITS OWN: the library's code stays apart from ours. Its sources are compiled here as they are in AvPx (not one line changed, not copied:
      the project reads them from the pinned avpx), with ITS OWN compiler settings, the Release block of its DLL's project
-     (avpx\dependencies\libsmackerenc\win32\VS2026\smackerenc_dynamic.vcxproj), never mp4-to-smk's: /Ox, /Ob2, /GF, /Gy, /arch:SSE, /sdl, Control Flow Guard,
+     (avpx\dependencies\libsmackerenc\win32\VS2026\smackerenc_dynamic.vcxproj), never the editor's: /Ox, /Ob2, /GF, /Gy, /arch:SSE, /sdl, Control Flow Guard,
      /MD, whole-program optimisation, NDEBUG and _MBCS, warning level 3, the compiler's own C++ standard. Only the output is different: a .lib, not a DLL, so no
-     libsmackerenc.dll ships beside mp4-to-smk, and none is loaded at run time.
+     libsmackerenc.dll ships beside the editor, and none is loaded at run time.
      THE SAME BYTES WHEREVER IT IS BUILT, as its DLL: /Brepro writes no time or random number; /pathmap (which needs /experimental:deterministic) names the
      library's folder libsmackerenc wherever it is checked out, the same name its DLL's build gives it; the librarian's /Brepro the same for the .lib.
      The .lib is named libsmackerenc_static.lib so it can never be taken for the DLL's import library (libsmackerenc.lib).
-     mp4-to-smk's project takes it by a project reference, so building mp4-to-smk builds this first. Its objects have their own folder under the output
+     videomake_static's project takes it by a project reference, so building the editor builds this first. Its objects have their own folder under the output
      folder (IntDir below), so they never share an .obj or a .pdb with another project's. -->
 <Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
