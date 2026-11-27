@@ -469,4 +469,29 @@ namespace host
 
 		return names;
 	}
+
+	std::vector<std::string> SoundEdit_MergeNames(std::vector<std::string> const &raw, std::vector<std::string> const &packed, size_t most)
+	{
+		std::vector<std::string> names;
+
+		for (std::vector<std::string> const *list : { &raw, &packed })
+		{
+			for (std::string const &name : *list)
+			{
+				bool there = false;
+
+				for (std::string const &have : names)
+				{
+					there = there || _stricmp(have.c_str(), name.c_str()) == 0;
+				}
+
+				if (!there && names.size() < most)
+				{
+					names.push_back(name);
+				}
+			}
+		}
+
+		return names;
+	}
 }

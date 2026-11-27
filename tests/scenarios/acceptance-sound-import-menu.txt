@@ -1,0 +1,15 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-27, the SOUND IMPORT's menu item; AvP-docs director/design-dietrich-sound-import-export-map.md section 4). Object
+# Placement's Create menu holds one item of ours, "Load sound...", under inteng's "Sound" (make-inteng-menus.js "additions", NAMED by its note, as the hub's
+# File > Save). The item opens Windows' own Open dialog for WAVs, and each file picked goes through the drop's own checks (acceptance-sound-import-drop /
+# -refused): the dialog itself isn't driven (no scenario drives Windows' Open dialog, and a hidden run must never show one on the owner's screen).
+# RED on exe-cache/77fb1621.exe (bishop-int: Create has no "Load sound...").
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+click-bar Create
+expect-field-has dropboxes Sound~
+expect-field-has dropboxes Load sound...~
+key Esc
+wait 300
+expect-screen Object Placement

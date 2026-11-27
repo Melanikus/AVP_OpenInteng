@@ -36,6 +36,7 @@
 // :433, HuffmanDecode :491), ported line for line by Vasquez (2026-11-21, AvP-docs tools/vasquez lang-decode.js and stock-structure-survey.js).
 'use strict';
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -247,11 +248,19 @@ function numbersTheLevelsUse(gameFolder, containers) {
 	return { used, levels: levels.length };
 }
 
-function filmNumbers(gameFolder) {
-	const films = new Set();
+// The stock films: each FMVs\message<N>.smk's number, and its size and SHA-256 (Vasquez 2026-11-27, for Export map, which leaves Rebellion's own
+// films out: design-vasquez-export-films.md). Each is read whole within kFilmMost, as every file here is; only its size and hash go into the
+// table. A number twice (message5.smk and message05.smk would both say 5) stops the run: the table holds one film a number.
+const kFilmMost = 64 * 1024 * 1024;       // the biggest stock message film is a few MB
+function stockFilms(gameFolder) {
+	const films = new Map();
 	for (const name of folderNames(path.join(gameFolder, 'FMVs'), 'films (FMVs)')) {
 		const m = /^message([1-9][0-9]{0,3})\.smk$/i.exec(name);
-		if (m) films.add(+m[1]);
+		if (!m) continue;
+		const n = +m[1];
+		if (films.has(n)) refuse(`two films in FMVs say the number ${n}`);
+		const bytes = readBounded(path.join(gameFolder, 'FMVs', name), kFilmMost, `the film ${name}`);
+		films.set(n, { size: bytes.length, sha256: crypto.createHash('sha256').update(bytes).digest('hex') });
 	}
 	return films;
 }
@@ -264,7 +273,7 @@ function kindsFromData(gameFolder) {
 	const strings = languageStrings(gameFolder);
 	if (strings.length <= firstLevelMessage + most - 1) refuse(`language.txt has ${strings.length - 1} strings, fewer than the ${most} level messages need`);
 	const { used, levels } = numbersTheLevelsUse(gameFolder, containerIds());
-	const films = filmNumbers(gameFolder);
+	const films = stockFilms(gameFolder);
 	let kinds = '';
 	for (let n = 1; n <= most; n++) {
 		const line = strings[firstLevelMessage + n - 1];
@@ -277,11 +286,14 @@ function kindsFromData(gameFolder) {
 	// the S numbers' levels, ascending, each number's files sorted case-blind and joined by ';'
 	const playedBy = [];
 	for (let n = 1; n <= most; n++) if (used.has(n)) playedBy.push([n, [...used.get(n)].sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : 0).join(';')]);
-	return { kinds, most, levels, above, playedBy };
+	// the films the game can play (1 to most), ascending; one past most is said, and left out (the game never plays it)
+	const filmsAbove = [...films.keys()].filter((n) => n > most);
+	const filmList = [...films.entries()].filter(([n]) => n <= most).sort((a, b) => a[0] - b[0]);
+	return { kinds, most, levels, above, playedBy, filmList, filmsAbove };
 }
 
-// ---- The table, as C++: one string of kinds, 50 a line, each line's first and last number beside it
-function tableText(kinds, most, levels, playedBy) {
+// ---- The table, as C++: one string of kinds, 50 a line, each line's first and last number beside it; the S numbers' levels; the stock films
+function tableText(kinds, most, levels, playedBy, filmList) {
 	const lines = [];
 	for (let at = 0; at < kinds.length; at += 50) {
 		const piece = kinds.slice(at, at + 50);
@@ -308,6 +320,13 @@ function tableText(kinds, most, levels, playedBy) {
 		...playedBy.map(([n, names]) => `		{ ${n}, "${names}" },`),
 		'	};',
 		'	size_t const kMessageNumberLevelCount = sizeof(kMessageNumberLevels) / sizeof(kMessageNumberLevels[0]);',
+		'',
+		'	// The stock films, FMVs\\message<N>.smk, ascending: the number, the size in bytes and the SHA-256 (hashes only: no Rebellion bytes, no SHA-1)',
+		'	StockFilm const kStockFilms[] =',
+		'	{',
+		...filmList.map(([n, film]) => `		{ ${n}, ${film.size}, "${film.sha256}" },`),
+		'	};',
+		'	size_t const kStockFilmCount = sizeof(kStockFilms) / sizeof(kStockFilms[0]);',
 		'}',
 		''
 	].join('\n');
@@ -320,11 +339,12 @@ if (args.length > 1 || (args.length === 1 && args[0] !== '--check')) {
 	process.exit(2);
 }
 const check = args.length === 1;
-const { kinds, most, levels, above, playedBy } = kindsFromData(process.cwd());
+const { kinds, most, levels, above, playedBy, filmList, filmsAbove } = kindsFromData(process.cwd());
 if (above.length) console.log(`make-message-numbers: note: stock levels name numbers past ${most}, which the game refuses: ${above.join(', ')}`);
+if (filmsAbove.length) console.log(`make-message-numbers: note: FMVs holds films past ${most}, which the game never plays (left out): ${filmsAbove.join(', ')}`);
 for (const [n, names] of playedBy) if (!/^[A-Za-z0-9_.;-]+$/.test(names)) refuse(`number ${n}: a stock level file's name holds a letter the table won't write: ${names}`);
-const text = tableText(kinds, most, levels, playedBy);
-const counts = ['C', 'O', 'F', 'S'].map((k) => `${k} ${[...kinds].filter((c) => c === k).length}`).join(', ');
+const text = tableText(kinds, most, levels, playedBy, filmList);
+const counts = ['C', 'O', 'F', 'S'].map((k) => `${k} ${[...kinds].filter((c) => c === k).length}`).join(', ') + `; ${filmList.length} films`;
 if (check) {
 	const now = fs.existsSync(tablePath) ? fs.readFileSync(tablePath, 'utf8').replace(/\r/g, '') : '';
 	if (now !== text) { console.log(`make-message-numbers: src/model/message_numbers_table.cpp is NOT what the data makes (${counts}, from ${levels} levels)`); process.exit(1); }

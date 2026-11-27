@@ -1,0 +1,24 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-27, the SOUND IMPORT into a level with NO sound folder; AvP-docs director/design-dietrich-sound-import-export-map.md
+# section 4, step 5: "None, or a new level: set to Custom\<level>"). Base.RIF holds no SOUNDDIR (its REBENVDT: ENDTHEAD, RIFFNAME, BMPNAMES, BMNAMEXT, BMNAMVER,
+# LIGHTSET). A WAV dropped on Object Placement gives the level its own folder, Custom\Base, as the RIM import gives a texture graphics\Custom\<level>
+# (rim_save.h), and the file goes to sound\Custom\Base\ in the data folder. The saved copy holds SOUNDDIR "Custom\Base", read back by the game's own loader.
+# RED on exe-cache/77fb1621.exe (bishop-int: no import): the drop says the WAV "is not a picture the editor takes"; the copy has no SOUNDDIR.
+# changes-data
+make-level node -e "const [m,d,...l]=process.argv.slice(1);const fs=require('fs'),p=require('path');for(const x of l){const [to,n]=x.split('=');const f=p.join(d,to);fs.mkdirSync(p.dirname(f),{recursive:true});fs.writeFileSync(f,require(m).WavBytes(n));}" "{scenariodir}sound-import\make-wavs.js" {datadir} import/zzboom.wav=zzboom.wav import/zzstereo.wav=zzstereo.wav
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Base.RIF
+state
+click-bar Mode > Object Placement
+expect-screen Object Placement
+wait 400
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_special/verify_special.exe {copy} "sounddir|"
+
+# two at once (Vasquez's review SHOULD 2, 11-27: the new folder's note was said for a drop of one file only): the folder said once, its note, the hint
+drop-file {datadir}/import/zzboom.wav {datadir}/import/zzstereo.wav
+wait 600
+expect-status 2 of 2 sounds loaded into sound\Custom\Base (the level's own sound folder now: save the level to keep it): pick them in a sound's Edit (E)
+verify node -e "const fs=require('fs');const a=fs.readFileSync(process.argv[1]),b=fs.readFileSync(process.argv[2]);process.exit(a.equals(b)?0:1)" {datadir}/import/zzboom.wav {datadir}/sound/Custom/Base/zzboom.wav
+picture 1
+
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_special/verify_special.exe {copy} "sounddir|Custom\Base"

@@ -374,6 +374,8 @@ namespace host
 			{ "AVP Bad Guy", 0x70014, 0x35, IntengTag::None, IntengWork::SpecialCommand, -1, 4 },
 			{ "Player starting position", 0x70015, 0x3a, IntengTag::None, IntengWork::SpecialCommand, -1, -1 },
 			{ "Sound", 0x70016, 0x37, IntengTag::None, IntengWork::SpecialCommand, -1, 0 },
+			// OURS, NAMED (docs/inteng/menu-status.json, additions): THE OWNER'S ADDITION (Melanikus 2026-11-27, through Bishop: "On sound, we need a import drag drop/load in the sound mode (under object placement?)"): Windows' own Open dialog for WAVs, each checked and copied into the level's sound folder as a dropped one is (sound_import.h). It sits under inteng's Sound. Its number is ours; it has no inteng command
+			{ "Load sound...", 0x7ff01, 0x0, IntengTag::None, IntengWork::SoundLoad, -1, 0 },
 			{ "Particle Generator", 0x70017, 0x39, IntengTag::None, IntengWork::SpecialCommand, -1, 0 },
 		};
 		IntengItem const kItems6_3[] =
@@ -399,7 +401,7 @@ namespace host
 		{
 			{ "Mode", kItems6_0, 3, 0 },
 			{ "Object", kItems6_1, 10, 0 },
-			{ "Create", kItems6_2, 8, 0 },
+			{ "Create", kItems6_2, 9, 0 },
 			{ "Alt Locations", kItems6_3, 6, 0 },
 			{ "Misc", kItems6_4, 7, 1 },
 		};
@@ -1537,12 +1539,18 @@ namespace host
 		{
 			{ "Reset fan wind speed", 0x140007, 0x43, IntengTag::None, IntengWork::Strategy, -1, -1 },
 		};
+		IntengItem const kItems19_1_0_4[] =
+		{
+			{ "AvP Environment Settings...", 0x1403ff, 0x7340, IntengTag::None, IntengWork::Strategy, -1, -1 },
+			{ "AvP Generator Properties...", 0x1403fe, 0x7341, IntengTag::None, IntengWork::Strategy, -1, -1 },
+		};
 		IntengMenu const kMenus19_1_0[] =
 		{
 			{ "Mode", kItems19_1_0_0, 3, 0 },
 			{ "Find Object", kItems19_1_0_1, 1, 0 },
 			{ "Find Errors", kItems19_1_0_2, 1, 5 },
 			{ "Misc", kItems19_1_0_3, 1, 2 },
+			{ "Level", kItems19_1_0_4, 2, -1 },
 		};
 		IntengItem const kItems19_1_1_0[] =
 		{
@@ -1668,7 +1676,7 @@ namespace host
 		};
 		IntengPage const kPages19[] =
 		{
-			{ 1, 0, kMenus19_1_0, 4 },
+			{ 1, 0, kMenus19_1_0, 5 },
 			{ 1, 1, kMenus19_1_1, 2 },
 			{ 1, 2, kMenus19_1_2, 1 },
 			{ 2, 0, kMenus19_2_0, 8 },
@@ -2113,7 +2121,7 @@ namespace host
 		{ "Waypoint", "", kMenus16_1_0, 4, kMenus16_2_0, 5, kPages16, 8 },
 		{ "Path", "", kMenus17_1_0, 2, kMenus17_2_0, 6, kPages17, 2 },
 		{ "Hierarchy", "", kMenus18_1_0, 7, kMenus18_2_0, 7, kPages18, 2 },
-		{ "Strategy Data", "", kMenus19_1_0, 4, kMenus19_2_0, 8, kPages19, 6 },
+		{ "Strategy Data", "", kMenus19_1_0, 5, kMenus19_2_0, 8, kPages19, 6 },
 		{ "Acoustic", "", kMenus20, 3, nullptr, 0, nullptr, 0 },
 		{ "Flag View", "", kMenus21, 1, nullptr, 0, nullptr, 0 },
 		{ "Texture Map", "", kMenus22_1_0, 7, kMenus22_2_0, 11, kPages22, 7 },

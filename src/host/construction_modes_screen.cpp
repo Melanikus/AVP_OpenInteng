@@ -25,7 +25,6 @@
 #include <string>
 
 #include "logString.h"
-#include <ctype.h>
 #include <memory>
 #include <set>
 #include <utility>
@@ -712,56 +711,6 @@ static void CreateThePickersObject()
 		quickCreateWords = "Object " + shownName + " made at the view (it couldn't follow the pointer); " + placedAs;
 		statusWords = quickCreateWords.c_str();
 	}
-}
-
-// "Select shape from list" (FUN_004d49e0): by position (1 to the count) or by part of a name
-void ShapeChooserPick(std::string const &typed)
-{
-	char *end = nullptr;
-	errno = 0;
-
-	long long const number = _strtoi64(typed.c_str(), &end, 10);
-
-	if (!typed.empty() && end != typed.c_str() && *end == '\0' && errno == 0)
-	{
-		if (number >= 1 && (unsigned long long)number <= chooserList.size())
-		{
-			chooserAt = (size_t)number - 1;
-			ShapeChooserShow();
-		}
-		else
-		{
-			Answer("Select shape: a number from 1 to " + std::to_string(chooserList.size()));
-		}
-
-		return;
-	}
-
-	std::string wanted = typed;
-
-	for (char &c : wanted)
-	{
-		c = (char)tolower((unsigned char)c);
-	}
-
-	for (size_t i = 0; i < chooserList.size(); i++)
-	{
-		std::string name = chooserList[i].name;
-
-		for (char &c : name)
-		{
-			c = (char)tolower((unsigned char)c);
-		}
-
-		if (!wanted.empty() && name.find(wanted) != std::string::npos)
-		{
-			chooserAt = i;
-			ShapeChooserShow();
-			return;
-		}
-	}
-
-	Answer("Select shape: no shape's name has \"" + typed + "\" in it");
 }
 
 // ---- ADJACENT MODULES: Link > Add, Link > Delete, Base > Set Current, Mode > Exit, Base > Show All, Find Not Done (inteng's FUN_00404a20 0x32 / 0x34 / 100 / 10 / 0x66 / 0x68, FUN_004025d0) ----

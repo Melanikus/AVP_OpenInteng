@@ -87,7 +87,9 @@ check(sha(builtBytes) === tool.kBuiltSha256, 'docs/inteng/inteng-menus-built.jso
 
 const strategy = screens.find((s) => s.name === 'Strategy Data');
 
-check(strategy && strategy.pages.length === 6 && strategy.menus.length === 4 && strategy.secondRow.length === 8, "Strategy Data has the 6 live pages inteng registers for game kind 0, 4 titles on row 1 and 8 on row 2");
+// row 1 is inteng's 4 titles and ONE of ours, "Level" (the level's own settings, Vasquez 2026-11-27, menu-status.json extras; named in tests/host_inteng_menus_test.cpp)
+check(strategy && strategy.pages.length === 6 && strategy.menus.length === 5 && strategy.menus[4].title === 'Level' && strategy.secondRow.length === 8,
+	"Strategy Data has the 6 live pages inteng registers for game kind 0, inteng's 4 titles and our Level on row 1, and 8 on row 2");
 check(strategy && strategy.pages.some((p) => p.row === 2 && p.page === 1 && p.menus.reduce((n, m) => n + m.items.length, 0) > 0 && p.menus.length === 4), 'its second row page 1 is the set for the kinds other than 1 and 4 (4 titles), not the 36-record one');
 check(screens.filter((s) => s.pages && !s.table).length === 5 && screens.filter((s) => s.pages && !s.table).every((s) => s.menus.some((m) => m.items.some((i) => i.work === 'hub' || i.work === 'exitmode'))), 'the five code-built screens each have an Exit on their first bar');
 const track = screens.find((s) => s.name === 'Track Editing');

@@ -1,0 +1,34 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-27, design-vasquez-oi-envgen.md): a level that holds NEITHER chunk (Base, one of the stock levels with none): each form shows the game's own
+# defaults (sky 200/200/200; pistol, caster, disc, medicomp; 30 spears; aliens, max 25, 4 a minute, change 2, hive 60 s), and one change each MAKES the chunk, through the game's
+# loader, with the defaults plus that change: blue 90, per minute 6. The copy, read by the game's classes (verify_envgen): both chunks there, exactly those values.
+# Ok with nothing changed writes nothing: the generator form is first opened and closed with Ok untouched, and the copy only holds GLOGENDC because of the later change.
+# RED on exe-cache/77fb1621.exe (bishop-int before the forms): Strategy mode's bar has no Level menu.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Base.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+click-bar Level > AvP Environment Settings...
+expect-dialog AvP Environment Settings
+expect-dialog-text 200|200|200|30
+expect-dialog-checks off,on,on,on,off,on,off
+picture 1
+form-field 3 90
+click-button OK
+expect-no-dialog
+wait 300
+click-bar Level > AvP Generator Properties...
+expect-dialog Global AvP generator properties
+expect-dialog-text 25|4|2|60|Aliens
+click-button OK
+expect-no-dialog
+click-bar Level > AvP Generator Properties...
+expect-dialog Global AvP generator properties
+expect-dialog-text 25|4|2|60|Aliens
+form-field 2 6
+click-button OK
+expect-no-dialog
+wait 300
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_envgen/verify_envgen.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Base.RIF {copy} blue 90 perminute 6

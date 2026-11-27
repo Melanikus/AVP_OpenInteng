@@ -636,7 +636,6 @@ void CameraPositionSaved(int slot);
 // made in construction_modes_screen.cpp
 bool ShapeChooserKey(WPARAM key);
 void ShapeChooser_LevelGoes();   // the chooser left (as its Esc) before the game's level goes (CloseTheLevel); nothing when it isn't up
-void ShapeChooserPick(std::string const &typed);
 
 // made in editor_screen_keys.cpp
 void LinkExit();

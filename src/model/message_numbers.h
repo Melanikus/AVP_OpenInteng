@@ -55,4 +55,25 @@ namespace model
 	// Every number a mapper can take, best first: the clean ones ascending, then the old-line ones ascending, then the stock films no level uses
 	// ascending. A number a stock level uses is never in it (MessageNumbers_Info still says what it is).
 	std::vector<MessageNumberInfo> MessageNumbers_FreeList();
+
+	// THE STOCK FILMS' BYTES (Vasquez 2026-11-27, for Export map's film gathering: a film the level plays that is Rebellion's own is left out of
+	// the export; design-vasquez-export-films.md). Each FMVs\message<N>.smk the stock game ships, by its size and SHA-256 (64 small hex letters),
+	// ascending by number, written by tools/make-message-numbers.js from a folder checked against Steam's depot manifests (AvP-docs tools/bishop/
+	// msgnumbers/verify-stock.js). Hashes only: no Rebellion bytes are in our source, and no SHA-1 (the owner's ruling).
+	struct StockFilm
+	{
+		int32_t number;
+		uint32_t size;
+		char const *sha256;
+	};
+
+	extern StockFilm const kStockFilms[];
+	extern size_t const kStockFilmCount;
+
+	// Whether the stock game ships a film for this number
+	bool MessageNumbers_HasStockFilm(int32_t number);
+
+	// Whether a film of this size and SHA-256 (64 small hex letters) is, byte for byte, the stock game's own film for this number: its number,
+	// size and SHA-256 all one row's. Any other film under that number (a mapper's) is not.
+	bool MessageNumbers_IsStockFilm(int32_t number, uint64_t size, std::string const &sha256);
 }

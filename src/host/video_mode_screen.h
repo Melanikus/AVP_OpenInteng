@@ -72,10 +72,11 @@ namespace host
 	void VideoModeScreen_ScreenChanged(size_t was, size_t now);
 
 	// FILES DROPPED on the editor's window: a real drop (WM_DROPFILES's handle, released here) or the harness's list (WM_COPYDATA with video_drop.h kVideoDropTag,
-	// UTF-8, one path a line). On the Video screen they go to the engine (VideoMode_Dropped, which checks every path first); on any other, nothing is read, and the
-	// status line says where a video goes
-	void VideoModeScreen_DropHandle(void *drop, bool onTheScreen);
-	void VideoModeScreen_DropText(char const *text, size_t bytes, bool onTheScreen);
+	// UTF-8, one path a line). screen: the screen shown (a place in kIntengScreens). On the Video screen they go to the engine (VideoMode_Dropped, which checks
+	// every path first). Off it, WAVs are the sound import's (sound_import.h: loaded on Object Placement, said where they go on any other screen; Dietrich
+	// 2026-11-27), and anything else is the texture import's (a picture), which says where a video goes
+	void VideoModeScreen_DropHandle(void *drop, size_t screen);
+	void VideoModeScreen_DropText(char const *text, size_t bytes, size_t screen);
 
 	// The editor is closing: the engine's worker stopped and waited for, the picture let go
 	void VideoModeScreen_Close();

@@ -575,7 +575,9 @@
 		{ "table": "built:Waypoint", "row": 1, "page": 0, "menu": "Alien auto waypoint", "title": "All stock maps", "command": "0x7338", "does": "waypoint" },
 		{ "table": "built:Waypoint", "row": 2, "page": 0, "menu": "Delete Waypoints", "title": "Delete Waypoints", "command": "0x7336", "does": "waypoint" },
 		{ "table": "built:Waypoint", "row": 2, "page": 0, "menu": "Delete All Waypoints", "title": "Delete All Waypoints", "command": "0x7337", "does": "waypoint" },
-		{ "table": "built:Texture Map", "row": 1, "page": 0, "menu": "Import", "title": "Import texture...", "command": "0x0", "does": "textureimport" }
+		{ "table": "built:Texture Map", "row": 1, "page": 0, "menu": "Import", "title": "Import texture...", "command": "0x0", "does": "textureimport" },
+		{ "table": "built:Strategy Data", "row": 1, "page": 0, "menu": "Level", "title": "AvP Environment Settings...", "command": "0x7340", "does": "strategy" },
+		{ "table": "built:Strategy Data", "row": 1, "page": 0, "menu": "Level", "title": "AvP Generator Properties...", "command": "0x7341", "does": "strategy" }
 	],
 	"additions": [
 		{ "table": "0x5ced30", "title": "File", "after": "Quit", "words": "&Save", "action": "0x1ff01", "does": "savecopy", "note": "THE OWNER'S ADDITION (Melanikus 2026-11-16, through Bishop: \"Let's put a save on the hub\"): inteng's hub File has no Save. It sits second, after Quit, where every other screen keeps its Save, and does what Object Placement's Save does (SaveCopy). Its number is ours; it has no inteng command" },
@@ -583,7 +585,8 @@
 		{ "table": "0x5ced30", "title": "Options", "after": "Text size 1", "words": "Text size 1.25", "action": "0x1ff03", "does": "textscale", "note": "THE OWNER'S ADDITION: the text scale's step 1.25 (text_scale.h): every letter, bar, row and dialog a quarter bigger, at once. Its number is ours; it has no inteng command" },
 		{ "table": "0x5ced30", "title": "Options", "after": "Text size 1.25", "words": "Text size 1.5", "action": "0x1ff04", "does": "textscale", "note": "THE OWNER'S ADDITION: the text scale's step 1.5 (text_scale.h). Its number is ours; it has no inteng command" },
 		{ "table": "0x5ced30", "title": "Options", "after": "Text size 1.5", "words": "Text size 2", "action": "0x1ff05", "does": "textscale", "note": "THE OWNER'S ADDITION: the text scale's step 2 (text_scale.h); FontScale= takes up to 3 by hand. Its number is ours; it has no inteng command" },
-		{ "table": "0x5ced30", "title": "Mode", "after": "Hierarchy", "words": "&Video", "action": "0x1ff06", "does": "videomode", "note": "THE OWNER'S ADDITION (Melanikus 2026-11-22, alpha.5 item 2, through Bishop 2: \"let's add a new mode for video, it only has load and mode exit\"; \"Don't put it directly on strategy mode\"): the Video screen (video_mode_screen.h), a mode of its own after Hierarchy. Its number is ours; it has no inteng command" }
+		{ "table": "0x5ced30", "title": "Mode", "after": "Hierarchy", "words": "&Video", "action": "0x1ff06", "does": "videomode", "note": "THE OWNER'S ADDITION (Melanikus 2026-11-22, alpha.5 item 2, through Bishop 2: \"let's add a new mode for video, it only has load and mode exit\"; \"Don't put it directly on strategy mode\"): the Video screen (video_mode_screen.h), a mode of its own after Hierarchy. Its number is ours; it has no inteng command" },
+		{ "table": "0x5e51b8", "title": "Create", "after": "Sound", "words": "&Load sound...", "action": "0x7ff01", "does": "soundload", "note": "THE OWNER'S ADDITION (Melanikus 2026-11-27, through Bishop: \"On sound, we need a import drag drop/load in the sound mode (under object placement?)\"): Windows' own Open dialog for WAVs, each checked and copied into the level's sound folder as a dropped one is (sound_import.h). It sits under inteng's Sound. Its number is ours; it has no inteng command" }
 	],
 	"standIns": [
 		{ "name": "Waypoint", "tag": "wip", "built": "Waypoint" },

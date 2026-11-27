@@ -1631,7 +1631,7 @@ static void SoundEditWindowShow(SoundEditTyped const &typed)
 	});
 }
 
-// Opens the window for the record; `done` gets the record after OK (changed) or Cancel (as it was), and whether it was OK (only Track Editing's new sound asks, TB-T1). The list (Bishop's ruling 11-16): the raw folder's wavs when the folder is there
+// Opens the window for the record; `done` gets the record after OK (changed) or Cancel (as it was), and whether it was OK (only Track Editing's new sound asks, TB-T1). The list (Bishop's ruling 11-16; the sound import's, 11-27: both, sound_edit.h SoundEdit_MergeNames): the raw folder's wavs when the folder is there
 // (edobtype's finder, 1:1), else the wavs the game's loader holds in its fastfiles under "sound/<the level's sound directory>/" in the finder's order (NAMED, sound_edit.h)
 void SoundEditWindowOpen(host::SoundEditRecord const &record, std::string const &folder, std::string const &soundDirectory, std::function<void(host::SoundEditRecord const &, bool)> const &done)
 {
@@ -1641,7 +1641,8 @@ void SoundEditWindowOpen(host::SoundEditRecord const &record, std::string const 
 
 	soundEditWindow.record = record;
 	soundEditWindow.folder = folder;
-	soundEditWindow.wavs = rawFolder ? host::SoundEdit_WavNames(folder) : host::SoundEdit_WavNamesFromFiles(prefix, host::SoundGame_FastFileNames(prefix));
+	soundEditWindow.wavs = host::SoundEdit_MergeNames(rawFolder ? host::SoundEdit_WavNames(folder) : std::vector<std::string>(),
+		host::SoundEdit_WavNamesFromFiles(prefix, host::SoundGame_FastFileNames(prefix)));
 	soundEditWindow.done = done;
 	host::SoundGame_UseSilence(editorHiddenRun);
 	host::SoundGame_UseSoundDirectory(soundDirectory);

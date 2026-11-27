@@ -91,6 +91,18 @@ namespace model
 		char const CenconGenerators[] = "cencon's dialog 139, \"Global AvP generator properties\" (vasquez-tools.md)";
 		char const EnemyWhy[] = "the game's loader refuses a level whose generators make anything but aliens (0) or marines (1)";
 
+		// The ranges the level's settings forms keep to (2026-11-27, Vasquez, design-vasquez-oi-envgen.md; Drake's read of the game at the avpx
+		// pin). The game reads any number here; these are the numbers it can work with. A map that already holds a number outside them keeps it
+		// (the forms show it, flagged): only a newly typed one is refused.
+		char const SpearsWhy[] = "the game multiplies the spear count by 65,536 into a signed number (inventory.cpp:621): more than 32,767 overflows, "
+		                         "and less than 0 gives the speargun negative rounds";
+		char const MostNpcsWhy[] = "the game holds Max NPCs Generated to 0-255 (bh_generator.cpp:496-499), so a bigger number does nothing more";
+		char const PerMinuteWhy[] = "the game holds NPCs Generated Per Minute to 0-255 (bh_generator.cpp:500-503), so a bigger number does nothing more";
+		char const ChangeWhy[] = "the game holds the Change in Generation Rate Per Minute to 0-255 (bh_generator.cpp:504-507), so a bigger number does "
+		                         "nothing more";
+		char const HiveWhy[] = "the game works out the hive's time as seconds x 65,536 x 7 / 8 in a signed number (bh_generator.cpp:675): more than "
+		                       "4,681 seconds overflows, and at 0 or less the hive flips between attack and regroup every frame";
+
 		char const ScaleWhy[] = "the loader refuses a scale outside 0.5-1, or one that isn't a real number (NaN or endless)";
 
 		// MODFLAGS: inteng's flag screen (Ghidra, FUN_00525700) and the game's reader. The message number shares the word: it's bits
@@ -286,7 +298,7 @@ namespace model
 		{ "sky_colour_green", "Green", S, 8, Storage::Int32, Unit::Plain, 0, Limit::Editor, 0, 255, SkyWhy, false, 0, CenconEnvironment },
 		{ "sky_colour_blue", "Blue", S, 12, Storage::Int32, Unit::Plain, 0, Limit::Editor, 0, 255, SkyWhy, false, 0, CenconEnvironment },
 		{ "kit", "", S, 16, Storage::UInt32, Unit::Flags, KitBits, Limit::None, 0, 0, "", false, 0, "avp/win95/avp_chunk.hpp:269-277" },
-		{ "predator_num_spears", "Spears", S, 20, Storage::Int32, Unit::Plain, 0, Limit::None, 0, 0, "", false, 0, CenconEnvironment },
+		{ "predator_num_spears", "Spears", S, 20, Storage::Int32, Unit::Plain, 0, Limit::Editor, 0, 32767, SpearsWhy, false, 0, CenconEnvironment },
 	};
 
 	// GLOGENDC: the level's generator settings, in REBENVDT. 28 bytes: five settings and two spares. (Added 2026-11-14, M7.)
@@ -294,11 +306,12 @@ namespace model
 	{
 		{ "EnemyGenerated", "Enemy Generated", S, 0, Storage::Int32, Unit::Choice, 0, Limit::Loader, 0, 1, EnemyWhy, false, 0,
 		  "avp/win95/avp_chunk.cpp:379-386" },
-		{ "MaxNPCSOnLevel", "Max NPCs Generated", S, 4, Storage::Int32, Unit::Plain, 0, Limit::None, 0, 0, "", false, 0, CenconGenerators },
-		{ "NPCSPerMinute", "NPCs Generated Per Minute", S, 8, Storage::Int32, Unit::Plain, 0, Limit::None, 0, 0, "", false, 0, CenconGenerators },
-		{ "NPCAcceleration", "Change in Generation Rate Per Minute", S, 12, Storage::Int32, Unit::Plain, 0, Limit::None, 0, 0, "", false, 0,
+		{ "MaxNPCSOnLevel", "Max NPCs Generated", S, 4, Storage::Int32, Unit::Plain, 0, Limit::Editor, 0, 255, MostNpcsWhy, false, 0, CenconGenerators },
+		{ "NPCSPerMinute", "NPCs Generated Per Minute", S, 8, Storage::Int32, Unit::Plain, 0, Limit::Editor, 0, 255, PerMinuteWhy, false, 0,
 		  CenconGenerators },
-		{ "HiveStateChangeTime", "Hive State Change Time (seconds)", S, 16, Storage::Int32, Unit::Seconds, 0, Limit::None, 0, 0, "", false, 0,
+		{ "NPCAcceleration", "Change in Generation Rate Per Minute", S, 12, Storage::Int32, Unit::Plain, 0, Limit::Editor, 0, 255, ChangeWhy, false, 0,
+		  CenconGenerators },
+		{ "HiveStateChangeTime", "Hive State Change Time (seconds)", S, 16, Storage::Int32, Unit::Seconds, 0, Limit::Editor, 1, 4681, HiveWhy, false, 0,
 		  CenconGenerators },
 		{ "spare1", "", S, 20, Storage::Int32, Unit::Plain, 0, Limit::None, 0, 0, "", false, 0, GlobalGeneratorReader },
 		{ "spare2", "", S, 24, Storage::Int32, Unit::Plain, 0, Limit::None, 0, 0, "", false, 0, GlobalGeneratorReader },

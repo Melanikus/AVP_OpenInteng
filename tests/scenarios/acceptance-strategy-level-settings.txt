@@ -1,0 +1,72 @@
+# ACCEPTANCE (red first; Vasquez 2026-11-27, design-vasquez-oi-envgen.md, the owner's answer Q1: Strategy mode's menu): the level's own settings EDITED on his path, in the old
+# editor's (cencon's) two dialogs, from Strategy mode's Level menu, and the saved copy read back through the game's own loader and classes (verify_envgen).
+# Temple holds both chunks (Dietrich's survey): sky 50/50/60, kit 0x57 (pistol, caster, disc, medicomp, stars), 30 spears; marines, max 3, 4 a minute, change 0, hive 60 s.
+# The environment: a red of 256 and 32768 spears are refused with their ranges (the form comes back as it was left), then red 7, 12 spears, the pistol off, the grappling hook and
+# the jetpack on; opened again, it shows them. The generators: a hive of 4682 s is refused, then 4681 s, max 9, Aliens. The copy: exactly those, every other field Temple's own.
+# The boxes in order: Red, Green, Blue, Spears; the check boxes: Stars, Pistol, Plasma Caster, Disc, Grappling hook, Medicomp, Jetpack. Generators: Max, Per Minute, Change, Hive.
+# RED on exe-cache/77fb1621.exe (bishop-int before the forms): Strategy mode's bar has no Level menu.
+start-args C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Temple.RIF
+pictures on
+state
+click-bar Mode > Strategy Data: Normal
+expect-screen Strategy Data
+wait 400
+picture 1
+click-bar Level > AvP Environment Settings...
+expect-dialog AvP Environment Settings
+expect-dialog-text 50|50|60|30
+expect-dialog-checks on,on,on,on,off,on,off
+picture 2
+form-field 1 256
+click-button OK
+expect-dialog-kind message
+picture 3
+click-button Ok
+expect-dialog AvP Environment Settings
+expect-dialog-text 256|50|60|30
+form-field 1 7
+form-field 4 32768
+click-button OK
+expect-dialog-kind message
+click-button Ok
+expect-dialog AvP Environment Settings
+expect-dialog-text 7|50|60|32768
+form-field 4 12
+click-check 2
+click-check 5
+click-check 7
+expect-dialog-checks on,off,on,on,on,on,on
+click-button OK
+expect-no-dialog
+wait 300
+expect-screen Strategy Data
+click-bar Level > AvP Environment Settings...
+expect-dialog AvP Environment Settings
+expect-dialog-text 7|50|60|12
+expect-dialog-checks on,off,on,on,on,on,on
+click-button Cancel
+expect-no-dialog
+click-bar Level > AvP Generator Properties...
+expect-dialog Global AvP generator properties
+expect-dialog-text 3|4|0|60|Marines
+picture 4
+form-field 4 4682
+click-button OK
+expect-dialog-kind message
+click-button Ok
+expect-dialog Global AvP generator properties
+expect-dialog-text 3|4|0|4682|Marines
+form-field 4 4681
+form-field 1 9
+click-combo 1
+click-combo-row Aliens
+click-button OK
+expect-no-dialog
+wait 300
+expect-screen Strategy Data
+save-copy
+verify C:/Users/Melanikus/source/AvP-builds-excluded/apone-harness-out/verify_envgen/verify_envgen.exe C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Temple.RIF {copy} red 7 spears 12 pistol 0 hook 1 jetpack 1 max 9 hive 4681 enemy 0
+# the Level menu open, with its two commands, for the owner's picture (last, so nothing after it depends on the open menu)
+click-bar Level
+wait 300
+picture 5

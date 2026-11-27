@@ -1,0 +1,15 @@
+# ACCEPTANCE (red first; Dietrich 2026-11-27, the SOUND IMPORT is Object Placement's; AvP-docs director/design-dietrich-sound-import-export-map.md section 4). A WAV
+# dropped on any other screen is not loaded, and the status line says where it goes, as a video dropped off the Video screen is pointed to Video mode; nothing is
+# written. (A picture dropped there is still the RIM import's, acceptance-texture-import.)
+# RED on exe-cache/77fb1621.exe (bishop-int): the drop says the WAV "is not a picture the editor takes" and names only Video mode.
+# changes-data
+make-level node -e "const [m,d,...l]=process.argv.slice(1);const fs=require('fs'),p=require('path');for(const x of l){const [to,n]=x.split('=');const f=p.join(d,to);fs.mkdirSync(p.dirname(f),{recursive:true});fs.writeFileSync(f,require(m).WavBytes(n));}" "{scenariodir}sound-import\make-wavs.js" {datadir} import/zzboom.wav=zzboom.wav
+start-args -viewmode headlight
+level C:/Users/Melanikus/source/AvP-builds-excluded/AvP-play-release/avp_rifs/Invasion.RIF
+state
+item 0x46
+expect-screen Texture Map
+drop-file {datadir}/import/zzboom.wav
+wait 600
+expect-status a sound is loaded in Object Placement
+verify node -e "process.exit(require('fs').existsSync(process.argv[1])?1:0)" {datadir}/sound/env/Invasion/zzboom.wav
